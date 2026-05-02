@@ -1336,13 +1336,29 @@ final class AgenticOrchestrator: Sendable {
         // Create detailed event forwarder for verbose ThinkingView events
         let detailedForwarder = makeDetailedEventForwarder(onStep: onStep)
 
-        // Planning step to decompose
-        let planningStep = try await executePlanningStep(query: query, ragService: ragService)
+        let plannedSubQueries = await plannerSubQueries(for: query)
+        let planningStep: ThinkingStep
+        let subQueries: [String]
+
+        if !plannedSubQueries.isEmpty {
+            planningStep = ThinkingStep(
+                id: UUID(),
+                type: .planning,
+                input: query,
+                output: plannedSubQueries.enumerated().map { "\($0.offset + 1). \($0.element)" }.joined(separator: "\n"),
+                tokensUsed: 0,
+                duration: 0,
+                timestamp: Date()
+            )
+            subQueries = plannedSubQueries
+        } else {
+            planningStep = try await executePlanningStep(query: query, ragService: ragService)
+            subQueries = parseSubQueries(from: planningStep.output)
+        }
+
         steps.append(planningStep)
         totalTokens += planningStep.tokensUsed
         await onStep?(planningStep)
-
-        let subQueries = parseSubQueries(from: planningStep.output)
 
         // Execute sub-queries
         var searchResults: [(query: String, result: String)] = [(query, initialSearchOutput)]
@@ -1518,6 +1534,23 @@ final class AgenticOrchestrator: Sendable {
         originalQuery: String,
         ragService: RAGService
     ) async throws -> [String] {
+        let planningProfile = await QueryProfileService.shared.buildProfile(
+            for: originalQuery,
+            routingEnabled: false
+        )
+        let executionPlan = await QueryExecutionPlannerService.shared.buildPlan(
+            for: originalQuery,
+            profile: planningProfile,
+            requestedQualityMode: qualityMode,
+            allowToolCalling: true
+        )
+
+        var queries = executionPlan.searchQueries
+        if executionPlan.executionMode == .directLookup || queries.count >= 3 {
+            Log.info("[MultiQuery] Planner generated \(queries.count) search queries: \(queries)", category: .retrieval)
+            return Array(queries.prefix(5))
+        }
+
         let prompt = """
         Write concrete search phrases for the exact question below.
 
@@ -1540,7 +1573,9 @@ final class AgenticOrchestrator: Sendable {
         )
 
         // Parse numbered lines or JSON array from response
-        var queries = deterministicSearchQueries(for: originalQuery) // Always includes original
+        if queries.isEmpty {
+            queries = deterministicSearchQueries(for: originalQuery)
+        }
 
         func appendIfUseful(_ candidate: String) {
             let queryText = candidate.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -1609,6 +1644,20 @@ final class AgenticOrchestrator: Sendable {
 
         Log.info("[MultiQuery] Generated \(queries.count) search queries: \(queries)", category: .retrieval)
         return Array(queries.prefix(5)) // Cap at 5 to limit latency
+    }
+
+    private func plannerSubQueries(for query: String) async -> [String] {
+        let planningProfile = await QueryProfileService.shared.buildProfile(
+            for: query,
+            routingEnabled: false
+        )
+        let executionPlan = await QueryExecutionPlannerService.shared.buildPlan(
+            for: query,
+            profile: planningProfile,
+            requestedQualityMode: qualityMode,
+            allowToolCalling: true
+        )
+        return Array(executionPlan.subqueries.prefix(4))
     }
 
     private func deterministicSearchQueries(for originalQuery: String) -> [String] {
@@ -2863,27 +2912,20 @@ final class AgenticOrchestrator: Sendable {
         query: String,
         ragService: RAGService
     ) async throws -> (needsRetrieval: Bool, reason: String) {
-        // RAG-first philosophy: In a RAG app, users expect answers from their documents.
-        // Only skip retrieval for purely conversational/meta queries.
-        let lowercased = query.lowercased()
+        _ = ragService
 
-        // Only these trivial queries can skip retrieval
-        let skipRetrievalPatterns = [
-            "hello", "hi", "hey", "thanks", "thank you", "bye", "goodbye",
-            "how are you", "what's your name", "who are you",
-            "help", "what can you do", "clear chat", "reset",
-        ]
+        let profile = await QueryProfileService.shared.buildProfile(
+            for: query,
+            routingEnabled: false
+        )
+        let plan = await QueryExecutionPlannerService.shared.buildPlan(
+            for: query,
+            profile: profile,
+            requestedQualityMode: qualityMode,
+            allowToolCalling: true
+        )
 
-        // Check for explicit skip patterns (greetings, meta-queries)
-        let isConversational = skipRetrievalPatterns.contains { lowercased.hasPrefix($0) || lowercased == $0 }
-
-        if isConversational && query.count < 30 {
-            return (false, "Conversational/meta query - no document lookup needed")
-        }
-
-        // Everything else → retrieve from documents
-        // This is a RAG app - the user's documents are the source of truth
-        return (true, "Document retrieval for grounded answer")
+        return (plan.needsRetrieval, plan.reasoning)
     }
 
     /// Self-critique the answer for quality and grounding
@@ -4930,7 +4972,6 @@ extension AgenticOrchestrator {
         var saturationStreak = 0
         var lowNoveltyStreak = 0
         var consecutiveFailures = 0 // Track empty/failed responses from model
-        let saturationThreshold = 3 // Trigger expansion after 3 consecutive low-value sessions
         var expansionCount = 0
         let maxExpansions = 3 // Allow up to 3 retrieval expansions (theoretically unlimited chunks)
 

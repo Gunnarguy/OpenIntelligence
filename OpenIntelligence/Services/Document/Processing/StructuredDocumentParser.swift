@@ -163,15 +163,17 @@ struct TableData: Sendable {
         }
     }
 
-    /// Convert table to a text representation that preserves structure for retrieval.
-    /// The representation keeps multiple views of the same table so retrieval can match
-    /// by schema, row record, individual cell, or full-table context.
+    /// Convert table to a compact text representation that preserves structure for retrieval.
+    /// Keep a schema view, optional prose summary for small key-value tables, row records,
+    /// compact cell anchors, and one canonical table body. Avoid repeating the same table
+    /// semantics across multiple redundant sections.
     nonisolated var textRepresentation: String {
         var lines: [String] = []
         let columnCount = maxColumnCount
         let headers = normalizedHeaders(for: columnCount)
         let records = rowRecords(headers: headers)
-        let cells = cellDescriptions(headers: headers)
+        let cells = compactCellDescriptions(headers: headers)
+        let kvPairs = compactKeyValuePairs
 
         // DEBUG: Log table structure
         Log.debug("[TableData] Building textRepresentation: \(rows.count) rows, \(rows.first?.count ?? 0) cols, headerRow=\(headerRow != nil)", category: .ingestion)
@@ -191,22 +193,14 @@ struct TableData: Sendable {
         }
 
         // === Section 2: Natural Language Summary (UNIVERSAL) ===
-        // Generate plain English sentences from key-value pairs
-        // Works for ANY domain: "The dosage is 500mg", "The price is $49.99", etc.
-        if let kvPairs = keyValuePairs, !kvPairs.isEmpty {
+        // Emit only for compact key-value tables to avoid duplicating large table semantics.
+        if !kvPairs.isEmpty {
             Log.debug("[TableData] Generated \(kvPairs.count) key-value pairs", category: .ingestion)
             lines.append("[Summary]")
             for (key, value) in kvPairs {
                 // Generate natural language sentence
                 let sentence = generateNaturalSentence(key: key, value: value)
                 lines.append(sentence)
-            }
-            lines.append("")
-
-            // === Section 3: Key-Value Pairs (for exact matching) ===
-            lines.append("[Specifications]")
-            for (key, value) in kvPairs {
-                lines.append("\(key): \(value)")
             }
             lines.append("")
         }
@@ -232,8 +226,8 @@ struct TableData: Sendable {
             lines.append("")
         }
 
-        // === Section 4: Cell-level anchors (high precision lookup) ===
-        if !cells.isEmpty && totalCellCount <= 120 {
+        // === Section 4: Compact cell anchors (high precision lookup) ===
+        if !cells.isEmpty {
             lines.append("[Cells]")
             lines.append(contentsOf: cells)
             lines.append("")
@@ -351,7 +345,7 @@ struct TableData: Sendable {
         }
     }
 
-    nonisolated private func cellDescriptions(headers: [String]?) -> [String] {
+    nonisolated private func compactCellDescriptions(headers: [String]?) -> [String] {
         let sourceRows: ArraySlice<[String]>
         if headerRow != nil && normalizedRows.count > 1 {
             sourceRows = normalizedRows.dropFirst()
@@ -359,15 +353,35 @@ struct TableData: Sendable {
             sourceRows = ArraySlice(normalizedRows)
         }
 
-        return sourceRows.enumerated().flatMap { rowOffset, row in
-            row.enumerated().compactMap { columnOffset, cell -> String? in
+        let maxCellDescriptions: Int
+        switch totalCellCount {
+        case 0...18:
+            maxCellDescriptions = totalCellCount
+        case 19...40:
+            maxCellDescriptions = 18
+        default:
+            maxCellDescriptions = 0
+        }
+
+        guard maxCellDescriptions > 0 else { return [] }
+
+        var descriptions: [String] = []
+        descriptions.reserveCapacity(maxCellDescriptions)
+
+        for (rowOffset, row) in sourceRows.enumerated() {
+            for (columnOffset, cell) in row.enumerated() {
                 let value = cell.trimmingCharacters(in: .whitespacesAndNewlines)
-                guard !value.isEmpty else { return nil }
+                guard !value.isEmpty else { continue }
 
                 let label = headers?[columnOffset] ?? "Column \(columnOffset + 1)"
-                return "Cell r\(rowOffset + 1)c\(columnOffset + 1) [\(label)]: \(value)"
+                descriptions.append("Cell r\(rowOffset + 1)c\(columnOffset + 1) [\(label)]: \(value)")
+                if descriptions.count >= maxCellDescriptions {
+                    return descriptions
+                }
             }
         }
+
+        return descriptions
     }
 
     /// Generate a natural language sentence from a key-value pair (domain-agnostic)
@@ -448,6 +462,18 @@ struct TableData: Sendable {
         }
 
         return pairs.isEmpty ? nil : pairs
+    }
+
+    nonisolated private var compactKeyValuePairs: [(key: String, value: String)] {
+        guard let pairs = keyValuePairs else { return [] }
+        guard pairs.count <= 8 else { return [] }
+        guard maxColumnCount <= 3 else { return [] }
+
+        let averageKeyLength = Double(pairs.reduce(0) { $0 + $1.key.count }) / Double(max(1, pairs.count))
+        let averageValueLength = Double(pairs.reduce(0) { $0 + $1.value.count }) / Double(max(1, pairs.count))
+        guard averageKeyLength <= 42, averageValueLength <= 140 else { return [] }
+
+        return pairs
     }
 }
 

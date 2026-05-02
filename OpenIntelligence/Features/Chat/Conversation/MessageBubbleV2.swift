@@ -62,6 +62,18 @@ struct MessageBubbleV2: View {
 
     private var isUser: Bool { message.role == .user }
 
+    private var displayedReasoningTrace: [String] {
+        if let trace = message.metadata?.reasoningTrace, !trace.isEmpty {
+            return trace
+        }
+
+        if let thinkingEvents = message.thinkingEvents, !thinkingEvents.isEmpty {
+            return thinkingEvents.compactReasoningTrace()
+        }
+
+        return []
+    }
+
     var body: some View {
         VStack(alignment: isUser ? .trailing : .leading, spacing: 6) {
             // Main bubble with tap-to-reveal actions
@@ -80,7 +92,7 @@ struct MessageBubbleV2: View {
                         )
 
                         // Reasoning trace (expandable "show your work" section)
-                        if let trace = message.metadata?.reasoningTrace, !trace.isEmpty {
+                        if !displayedReasoningTrace.isEmpty {
                             Divider()
                                 .padding(.vertical, 8)
 
@@ -99,7 +111,7 @@ struct MessageBubbleV2: View {
                                         .font(.system(size: 10, weight: .medium))
                                     Text("💭 Reasoning Process")
                                         .font(.system(size: 13, weight: .medium))
-                                    Text("(\(trace.count) steps)")
+                                    Text("(\(displayedReasoningTrace.count) steps)")
                                         .font(.system(size: 11))
                                         .foregroundStyle(.secondary)
                                     Spacer()
@@ -110,7 +122,7 @@ struct MessageBubbleV2: View {
 
                             if showReasoningTrace {
                                 VStack(alignment: .leading, spacing: 10) {
-                                    ForEach(Array(trace.enumerated()), id: \.offset) { idx, step in
+                                    ForEach(Array(displayedReasoningTrace.enumerated()), id: \.offset) { idx, step in
                                         ReasoningStepView(step: step, index: idx)
                                     }
                                 }

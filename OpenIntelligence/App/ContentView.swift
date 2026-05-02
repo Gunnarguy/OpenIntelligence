@@ -99,6 +99,9 @@ struct ContentView: View {
                 }
             }
         }
+        .onOpenURL { url in
+            handleOpenURL(url)
+        }
         .overlay(alignment: .bottomTrailing) {
             if shouldShowChecklistLauncher {
                 OnboardingChecklistLauncher(
@@ -242,6 +245,7 @@ struct ContentView: View {
             // Save the current session transcript before backgrounding
             // This ensures conversation state is preserved if the app is terminated
             Task { @MainActor in
+                ragService.persistIngestionQueueState()
                 ragService.saveSessionTranscript()
                 Log.debug("[App] Scene entered background - saved transcript", category: .initialization)
             }
@@ -273,6 +277,15 @@ struct ContentView: View {
 
         @unknown default:
             break
+        }
+    }
+
+    @MainActor
+    private func handleOpenURL(_ url: URL) {
+        guard url.scheme == OpenIntelligenceDeepLink.scheme else { return }
+
+        if url.host == "documents" {
+            selectedTab = .documents
         }
     }
 }

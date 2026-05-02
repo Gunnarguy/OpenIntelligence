@@ -37,6 +37,7 @@ enum DeviceComponentLayout {
     case unknown
 
     /// Detect the current device via utsname()
+    @MainActor
     static var current: DeviceComponentLayout {
         var systemInfo = utsname()
         uname(&systemInfo)
@@ -57,12 +58,19 @@ enum DeviceComponentLayout {
         case "iPhone18,2", "iPhone18,4": return .iPhone17ProMax
         default:
             #if targetEnvironment(simulator)
-            let screenHeight = UIScreen.main.nativeBounds.height
+            let screenHeight = simulatorNativeScreenHeight()
             if screenHeight >= 2796 { return .iPhone16ProMax }
             else if screenHeight >= 2556 { return .iPhone16Pro }
             #endif
             return .unknown
         }
+    }
+
+    @MainActor
+    private static func simulatorNativeScreenHeight() -> CGFloat {
+        let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
+        let screen = (scenes.first { $0.activationState == .foregroundActive } ?? scenes.first)?.screen
+        return screen?.nativeBounds.height ?? 0
     }
 
     var displayName: String {

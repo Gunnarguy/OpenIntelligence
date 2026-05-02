@@ -386,6 +386,141 @@ enum LLMStreamingContext {
         }
     }
 
+    // MARK: - Consolidated Engine-Native Tool Surface
+
+    /// Core retrieval tool for semantic, exact, and related-document evidence access.
+    @available(iOS 26.0, *)
+    struct RetrieveCorpusEvidenceTool: Tool {
+        let name = "retrieve_corpus_evidence"
+        let description = """
+            Retrieve grounded evidence from the user's library.
+            Modes:
+            - semantic: retrieve relevant passages for a question
+            - exact: find exact text matches with context
+            - count_exact: count exact text occurrences across the corpus
+            - related_documents: find which documents are most related to a topic
+            """
+
+        weak var ragService: RAGService?
+
+        @Generable
+        struct Arguments {
+            @Guide(description: "Question, topic, or literal pattern to search for")
+            var query: String
+
+            @Guide(description: "Mode: semantic, exact, count_exact, or related_documents")
+            var mode: String
+
+            @Guide(description: "Maximum number of results to return", .range(1 ... 20))
+            var maxResults: Int?
+
+            @Guide(description: "Minimum semantic similarity threshold for semantic mode", .range(0.0 ... 1.0))
+            var minSimilarity: Float?
+        }
+
+        func call(arguments: Arguments) async throws -> String {
+            guard let ragService else {
+                return "Error: Retrieval service unavailable"
+            }
+            await ToolCallCounter.shared.increment()
+
+            switch arguments.mode.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
+            case "exact":
+                return try await ragService.searchExactPattern(pattern: arguments.query)
+            case "count_exact":
+                return try await ragService.countPatternInCorpus(pattern: arguments.query)
+            case "related_documents":
+                return try await ragService.findRelatedDocuments(
+                    topic: arguments.query,
+                    maxResults: arguments.maxResults ?? 5
+                )
+            default:
+                return try await ragService.searchDocuments(
+                    query: arguments.query,
+                    topK: arguments.maxResults,
+                    minSimilarity: arguments.minSimilarity
+                )
+            }
+        }
+    }
+
+    /// Inspect a specific document for summary and metadata.
+    @available(iOS 26.0, *)
+    struct InspectDocumentTool: Tool {
+        let name = "inspect_document"
+        let description = "Inspect a specific document by name and return its summary, metadata, and content overview."
+
+        weak var ragService: RAGService?
+
+        @Generable
+        struct Arguments {
+            @Guide(description: "Exact document name to inspect")
+            var documentName: String
+        }
+
+        func call(arguments: Arguments) async throws -> String {
+            guard let ragService else {
+                return "Error: Document service unavailable"
+            }
+            await ToolCallCounter.shared.increment()
+            return try await ragService.getDocumentSummary(documentName: arguments.documentName)
+        }
+    }
+
+    /// Compare how documents discuss a topic.
+    @available(iOS 26.0, *)
+    struct CompareTopicAcrossDocumentsTool: Tool {
+        let name = "compare_topic_across_documents"
+        let description = "Compare how multiple documents discuss the same topic to find differences, overlap, and supporting evidence."
+
+        weak var ragService: RAGService?
+
+        @Generable
+        struct Arguments {
+            @Guide(description: "Topic to compare across documents")
+            var topic: String
+
+            @Guide(description: "Optional specific document names to compare")
+            var documentNames: [String]?
+        }
+
+        func call(arguments: Arguments) async throws -> String {
+            guard let ragService else {
+                return "Error: Comparison service unavailable"
+            }
+            await ToolCallCounter.shared.increment()
+            return try await ragService.compareDocumentsOnTopic(
+                topic: arguments.topic,
+                documentNames: arguments.documentNames
+            )
+        }
+    }
+
+    /// High-level library overview tool for corpus-wide inspection.
+    @available(iOS 26.0, *)
+    struct GetLibraryOverviewTool: Tool {
+        let name = "get_library_overview"
+        let description = "Return a compact overview of the current library, including corpus stats and available documents."
+
+        weak var ragService: RAGService?
+
+        @Generable
+        struct Arguments {
+            // No arguments needed
+        }
+
+        func call(arguments _: Arguments) async throws -> String {
+            guard let ragService else {
+                return "Error: Library service unavailable"
+            }
+            await ToolCallCounter.shared.increment()
+
+            let stats = try await ragService.getCorpusStats()
+            let documents = try await ragService.listDocuments()
+            return stats + "\n\nDOCUMENTS:\n" + documents
+        }
+    }
+
 #endif
 
 /// Response from an LLM generation request
@@ -853,43 +988,24 @@ struct LLMResponse {
                 var tools: [any Tool] = []
 
                 if !disableTools, let ragService = toolHandler as? RAGService {
-                    // Create tool instances with RAGService reference
-                    // Core search tools
-                    var searchTool = SearchDocumentsTool()
-                    searchTool.ragService = ragService
-                    tools.append(searchTool)
+                    // Create a smaller engine-native tool surface per Apple guidance.
+                    var retrieveTool = RetrieveCorpusEvidenceTool()
+                    retrieveTool.ragService = ragService
+                    tools.append(retrieveTool)
 
-                    var listTool = ListDocumentsTool()
-                    listTool.ragService = ragService
-                    tools.append(listTool)
+                    var inspectTool = InspectDocumentTool()
+                    inspectTool.ragService = ragService
+                    tools.append(inspectTool)
 
-                    var summaryTool = GetDocumentSummaryTool()
-                    summaryTool.ragService = ragService
-                    tools.append(summaryTool)
-
-                    // Exact pattern tools (full-text, not semantic)
-                    var countTool = CountPatternTool()
-                    countTool.ragService = ragService
-                    tools.append(countTool)
-
-                    var exactSearchTool = SearchExactPatternTool()
-                    exactSearchTool.ragService = ragService
-                    tools.append(exactSearchTool)
-
-                    // Analysis tools
-                    var statsTool = GetCorpusStatsTool()
-                    statsTool.ragService = ragService
-                    tools.append(statsTool)
-
-                    var relatedTool = FindRelatedDocumentsTool()
-                    relatedTool.ragService = ragService
-                    tools.append(relatedTool)
-
-                    var compareTool = CompareDocumentsTool()
+                    var compareTool = CompareTopicAcrossDocumentsTool()
                     compareTool.ragService = ragService
                     tools.append(compareTool)
 
-                    Log.debug("Initialized \(tools.count) tools for agentic RAG", category: .llm)
+                    var overviewTool = GetLibraryOverviewTool()
+                    overviewTool.ragService = ragService
+                    tools.append(overviewTool)
+
+                    Log.debug("Initialized \(tools.count) engine-native tools for agentic RAG", category: .llm)
                 } else if disableTools {
                     Log.debug("Tools disabled for this session (pure reasoning mode)", category: .llm)
                 }
@@ -908,9 +1024,10 @@ struct LLMResponse {
                     You are OpenIntelligence, a helpful assistant.
                     When document context is provided, answer directly from it — do NOT call tools.
                     Only use tools when NO context is provided:
-                    - search_documents: Find relevant passages
-                    - list_documents: Show available documents
-                    - get_document_summary: Get document overview
+                    - retrieve_corpus_evidence: retrieve semantic evidence, exact matches, exact counts, or related documents
+                    - inspect_document: inspect one document by name
+                    - compare_topic_across_documents: compare evidence across documents
+                    - get_library_overview: inspect the library and available documents
                     Cite sources and copy values exactly.
                     """
                 }

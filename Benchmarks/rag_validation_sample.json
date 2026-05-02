@@ -1,18 +1,62 @@
 {
   "version": 1,
   "name": "local-rag-validation-sample",
-  "description": "Placeholder benchmark cases for the DebugRAGValidationHarness. Replace fixture paths with local private documents before using for real scoring.",
+  "description": "Mixed local benchmark cases for the DebugRAGValidationHarness, including permanent manual-regression checks for exact-value and spec retrieval.",
   "defaults": {
     "quality_mode": "standard",
     "timeout_seconds": 300
   },
   "cases": [
     {
+      "id": "manual_fuel_tank_capacity",
+      "category": "exact_value",
+      "input_files": ["Benchmarks/Fixtures/private_vehicle_manual.pdf"],
+      "query": "How many gallons of gasoline can this vehicle hold?",
+      "quality_mode": "standard",
+      "expected_behavior": "answer",
+      "expected_answer_patterns": [
+        "(?i)\\b14\\.3\\s*(us\\s*)?gal(lons?)?\\b",
+        "(?i)\\b54\\s*l(iters?)?\\b"
+      ],
+      "expected_source": {
+        "filename": "private_vehicle_manual.pdf",
+        "page": null
+      }
+    },
+    {
+      "id": "manual_engine_oil_spec",
+      "category": "table_spec",
+      "input_files": ["Benchmarks/Fixtures/private_vehicle_manual.pdf"],
+      "query": "What engine oil does the manual recommend for the gasoline engine?",
+      "quality_mode": "standard",
+      "expected_behavior": "answer",
+      "expected_answer_patterns": [
+        "(?i)\\bfull\\s+synthetic\\s+sae\\s+[0o]w-20\\b",
+        "(?i)\\bapi\\s+sn\\s+plus\\s*/\\s*sp\\b",
+        "(?i)\\bilsac\\s+gf-6\\b"
+      ],
+      "expected_source": {
+        "filename": "private_vehicle_manual.pdf",
+        "page": null
+      }
+    },
+    {
+      "id": "manual_user_height_setting_default",
+      "category": "exact_value",
+      "input_files": ["Benchmarks/Fixtures/private_vehicle_manual.pdf"],
+      "query": "What is the initial setting for User Height Setting?",
+      "quality_mode": "standard",
+      "expected_behavior": "answer",
+      "expected_answer_patterns": ["(?i)\\bfull\\s+open\\b"],
+      "expected_source": {
+        "filename": "private_vehicle_manual.pdf",
+        "page": null
+      }
+    },
+    {
       "id": "exact_value_capacity",
       "category": "exact_value",
-      "input_files": [
-        "Benchmarks/Fixtures/private_vehicle_manual.pdf"
-      ],
+      "input_files": ["Benchmarks/Fixtures/private_vehicle_manual.pdf"],
       "query": "How many gallons of gasoline can this vehicle hold?",
       "quality_mode": "standard",
       "expected_behavior": "answer",
@@ -28,9 +72,7 @@
     {
       "id": "table_spec_payload_limit",
       "category": "table_spec",
-      "input_files": [
-        "Benchmarks/Fixtures/private_spec_sheet.pdf"
-      ],
+      "input_files": ["Benchmarks/Fixtures/private_spec_sheet.pdf"],
       "query": "What is the maximum payload listed in the specifications table?",
       "quality_mode": "standard",
       "expected_behavior": "answer",
@@ -45,9 +87,7 @@
     {
       "id": "missing_evidence_service_interval",
       "category": "missing_evidence",
-      "input_files": [
-        "Benchmarks/Fixtures/private_policy.pdf"
-      ],
+      "input_files": ["Benchmarks/Fixtures/private_policy.pdf"],
       "query": "What is the warranty coverage for the unreleased 2032 prototype battery pack?",
       "quality_mode": "deep-think",
       "expected_behavior": "abstain",
@@ -60,15 +100,11 @@
     {
       "id": "lost_in_middle_warning",
       "category": "lost_in_middle",
-      "input_files": [
-        "Benchmarks/Fixtures/private_long_manual.pdf"
-      ],
+      "input_files": ["Benchmarks/Fixtures/private_long_manual.pdf"],
       "query": "What warning is listed for the emergency release procedure in the middle of the manual?",
       "quality_mode": "maximum",
       "expected_behavior": "answer",
-      "expected_answer_patterns": [
-        "(?i)\\b(warning|caution|danger)\\b"
-      ],
+      "expected_answer_patterns": ["(?i)\\b(warning|caution|danger)\\b"],
       "expected_source": {
         "filename": "private_long_manual.pdf",
         "page": null

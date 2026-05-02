@@ -673,6 +673,10 @@ final class SourceOnlyAnswerService {
             notes.append("Numeric tokens missing from cited evidence: \(missingNumericTokens.joined(separator: ", ")).")
         }
 
+        let exactClaimHasHardAnchor = !numericTokens.isEmpty
+            || !quote.isEmpty
+            || claimContainsSpecificationCue(draft.claimText)
+
         let relevantBlocks = domainBlocks.filter { validLabels.contains($0.evidenceLabel) }
         if strictDomainMode, !relevantBlocks.isEmpty {
             if claimMentionsRoute(draft.claimText), relevantBlocks.allSatisfy({ normalize($0.route) == "null_unsupported" }) {
@@ -699,9 +703,13 @@ final class SourceOnlyAnswerService {
 
         let anchorOverlap = lexicalOverlap(claim: draft.claimText, evidenceTexts: citedTexts)
         if anchorOverlap < 0.14 && verdict == .supported {
-            verdict = .ambiguous
-            fidelity = min(fidelity, 0.55)
-            notes.append("Low lexical overlap with cited evidence.")
+            if exactClaimHasHardAnchor {
+                notes.append("Exact-value/spec anchors preserved despite low lexical overlap.")
+            } else {
+                verdict = .ambiguous
+                fidelity = min(fidelity, 0.55)
+                notes.append("Low lexical overlap with cited evidence.")
+            }
         }
 
         return SourceOnlyVerifiedClaim(
@@ -717,6 +725,13 @@ final class SourceOnlyAnswerService {
         )
     }
 
+    private func claimContainsSpecificationCue(_ text: String) -> Bool {
+        text.range(
+            of: #"\b(?:sae|api|ilsac|dot-4|gl-5|sp4|[0o]w-20|5w-30|75w/85|full open|user height setting|auto open|level\s*[123])\b"#,
+            options: [.regularExpression, .caseInsensitive]
+        ) != nil
+    }
+
     private func renderVerifiedAnswer(
         supportedClaims: [SourceOnlyVerifiedClaim],
         missingFacets: [String],
@@ -727,7 +742,8 @@ final class SourceOnlyAnswerService {
         let evidenceMap = Dictionary(uniqueKeysWithValues: evidenceRecords.map { ($0.label, $0) })
 
         let renderedClaims = supportedClaims.map { claim in
-            let citations = claim.evidenceLabels.compactMap { label -> String? in
+            let rankedLabels = rankedEvidenceLabels(for: claim, evidenceMap: evidenceMap)
+            let citations = rankedLabels.compactMap { label -> String? in
                 guard let record = evidenceMap[label] else { return nil }
                 let pageNumber = record.chunk.pageNumber ?? record.chunk.chunk.metadata.pageNumber
                 if let pageNumber {
@@ -751,7 +767,11 @@ final class SourceOnlyAnswerService {
             answer = renderedClaims.joined(separator: " ")
         }
 
-        if riskProfile == .normal {
+        if riskProfile == .normal && shouldAppendMissingFacets(
+            missingFacets,
+            supportedClaims: supportedClaims,
+            answerIntent: answerIntent
+        ) {
             let trimmedMissing = missingFacets
                 .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
                 .filter { !$0.isEmpty }
@@ -761,6 +781,73 @@ final class SourceOnlyAnswerService {
         }
 
         return answer.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private func rankedEvidenceLabels(
+        for claim: SourceOnlyVerifiedClaim,
+        evidenceMap: [String: EvidenceRecord]
+    ) -> [String] {
+        let claimText = claim.claimText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !claimText.isEmpty else { return claim.evidenceLabels }
+
+        let scored = claim.evidenceLabels.compactMap { label -> (label: String, score: Float)? in
+            guard let record = evidenceMap[label] else { return nil }
+            let candidateText = record.chunk.chunk.parentContent ?? record.chunk.chunk.content
+            let overlap = lexicalOverlap(claim: claimText, evidenceTexts: [candidateText])
+            let normalizedClaim = normalize(claimText)
+            let normalizedEvidence = normalize(candidateText)
+            let hasExactClaim = normalizedEvidence.contains(normalizedClaim)
+            let numericTokens = extractNumericLikeTokens(from: claimText)
+            let numericCoverage = numericTokens.isEmpty
+                ? 1.0
+                : Float(numericTokens.filter { normalizedEvidence.contains($0.lowercased()) }.count) / Float(numericTokens.count)
+            let quoteBonus: Float = (!claim.evidenceQuote.isEmpty && normalizedEvidence.contains(normalize(claim.evidenceQuote))) ? 0.15 : 0
+            let score = overlap + (hasExactClaim ? 0.75 : 0) + (numericCoverage * 0.35) + quoteBonus
+            return (label: label, score: score)
+        }.sorted { lhs, rhs in
+            if lhs.score == rhs.score {
+                return lhs.label < rhs.label
+            }
+            return lhs.score > rhs.score
+        }
+
+        guard let best = scored.first else { return claim.evidenceLabels }
+
+        if scored.count == 1 {
+            return [best.label]
+        }
+
+        let second = scored[1]
+        let bestIsDominant = best.score >= 0.95 && (best.score - second.score) >= 0.20
+        if bestIsDominant {
+            return [best.label]
+        }
+
+        return Array(scored.prefix(2).map(\.label))
+    }
+
+    private func shouldAppendMissingFacets(
+        _ missingFacets: [String],
+        supportedClaims: [SourceOnlyVerifiedClaim],
+        answerIntent: AnswerIntent
+    ) -> Bool {
+        let trimmedMissing = missingFacets
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        guard !trimmedMissing.isEmpty else { return false }
+
+        switch answerIntent {
+        case .procedure, .compare:
+            return true
+        default:
+            break
+        }
+
+        if supportedClaims.count == 1, let onlyClaim = supportedClaims.first, onlyClaim.fidelity >= 0.84 {
+            return false
+        }
+
+        return true
     }
 
     private func buildAbstentionText(reason: String) -> String {

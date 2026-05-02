@@ -274,7 +274,7 @@ class HybridSearchService {
             category: .pipeline
         )
 
-        return reindex(topResults)
+        return sanitizeRetrievedChunks(reindex(topResults))
     }
 
     /// Boost chunks that contain EXACT matches of important query keywords.
@@ -676,6 +676,140 @@ class HybridSearchService {
         }
     }
 
+    private func sanitizeRetrievedChunks(_ chunks: [RetrievedChunk]) -> [RetrievedChunk] {
+        chunks.map(sanitizeRetrievedChunk)
+    }
+
+    private func sanitizeRetrievedChunk(_ retrieved: RetrievedChunk) -> RetrievedChunk {
+        let cleanedSectionTitle = trustedLegacySectionLabel(retrieved.chunk.metadata.sectionTitle)
+        let cleanedSectionPath = trustedLegacySectionPath(retrieved.chunk.metadata.sectionPath)
+        let cleanedContent = stripLegacySectionPathPrefix(
+            from: retrieved.chunk.content,
+            cleanedSectionPath: cleanedSectionPath
+        )
+        let cleanedParentContent = retrieved.chunk.parentContent.map {
+            stripLegacySectionPathPrefix(from: $0, cleanedSectionPath: cleanedSectionPath)
+        }
+
+        guard cleanedSectionTitle != retrieved.chunk.metadata.sectionTitle
+            || cleanedSectionPath != retrieved.chunk.metadata.sectionPath
+            || cleanedContent != retrieved.chunk.content
+            || cleanedParentContent != retrieved.chunk.parentContent
+        else {
+            return retrieved
+        }
+
+        let base = retrieved.chunk.metadata
+        let cleanedMetadata = ChunkMetadata(
+            chunkIndex: base.chunkIndex,
+            startPosition: base.startPosition,
+            endPosition: base.endPosition,
+            pageNumber: base.pageNumber,
+            sectionTitle: cleanedSectionTitle,
+            keywords: base.keywords,
+            semanticDensity: base.semanticDensity,
+            hasNumericData: base.hasNumericData,
+            hasListStructure: base.hasListStructure,
+            wordCount: base.wordCount,
+            characterCount: base.characterCount,
+            createdAt: base.createdAt,
+            structureType: base.structureType,
+            siblingGroupId: base.siblingGroupId,
+            siblingCount: base.siblingCount,
+            entities: base.entities,
+            abbreviations: base.abbreviations,
+            abstractionLevel: base.abstractionLevel,
+            sectionPath: cleanedSectionPath,
+            bboxArray: base.bboxArray,
+            documentCategory: base.documentCategory,
+            chunkType: base.chunkType,
+            tableTitle: base.tableTitle,
+            imageContentType: base.imageContentType,
+            imageCaption: base.imageCaption,
+            imageDescription: base.imageDescription,
+            imageExtractedText: base.imageExtractedText,
+            imageClassifications: base.imageClassifications,
+            hasCrossReferences: base.hasCrossReferences,
+            resolvedReferences: base.resolvedReferences
+        )
+
+        let cleanedChunk = DocumentChunk(
+            id: retrieved.chunk.id,
+            documentId: retrieved.chunk.documentId,
+            content: cleanedContent,
+            parentContent: cleanedParentContent,
+            contextualPrefix: retrieved.chunk.contextualPrefix,
+            embedding: retrieved.chunk.embedding,
+            metadata: cleanedMetadata
+        )
+
+        return RetrievedChunk(
+            chunk: cleanedChunk,
+            similarityScore: retrieved.similarityScore,
+            rank: retrieved.rank,
+            sourceDocument: retrieved.sourceDocument,
+            pageNumber: retrieved.pageNumber ?? cleanedMetadata.pageNumber
+        )
+    }
+
+    private func trustedLegacySectionPath(_ rawPath: [String]?) -> [String]? {
+        let cleaned = (rawPath ?? []).compactMap(trustedLegacySectionLabel)
+        guard !cleaned.isEmpty else { return nil }
+
+        return cleaned.reduce(into: [String]()) { result, component in
+            if result.last?.caseInsensitiveCompare(component) != .orderedSame {
+                result.append(component)
+            }
+        }
+    }
+
+    private func trustedLegacySectionLabel(_ raw: String?) -> String? {
+        guard let raw else { return nil }
+
+        let normalized = OCRConfiguration.normalizeExtractedText(raw)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalized.isEmpty else { return nil }
+        guard !normalized.contains("_"), !normalized.contains("|") else { return nil }
+
+        let scalars = normalized.unicodeScalars
+        let letterCount = scalars.filter { CharacterSet.letters.contains($0) }.count
+        let alnumCount = scalars.filter { CharacterSet.alphanumerics.contains($0) }.count
+        let latinCount = scalars.filter { scalar in
+            (0x0041...0x005A).contains(scalar.value) || (0x0061...0x007A).contains(scalar.value)
+        }.count
+        let cyrillicCount = scalars.filter { scalar in
+            (0x0400...0x04FF).contains(scalar.value) || (0x0500...0x052F).contains(scalar.value)
+        }.count
+
+        guard letterCount >= 2 else { return nil }
+        if scalars.count >= 8, Double(alnumCount) / Double(max(1, scalars.count)) < 0.55 {
+            return nil
+        }
+        if latinCount > 0, cyrillicCount > 0 {
+            return nil
+        }
+
+        return normalized
+    }
+
+    private func stripLegacySectionPathPrefix(from text: String, cleanedSectionPath: [String]?) -> String {
+        let lines = text.components(separatedBy: .newlines)
+        guard let firstLine = lines.first else { return text }
+        guard firstLine.trimmingCharacters(in: .whitespacesAndNewlines).hasPrefix("Section Path:") else { return text }
+
+        var updatedLines = lines
+        if let cleanedSectionPath, !cleanedSectionPath.isEmpty {
+            updatedLines[0] = "Section Path: \(cleanedSectionPath.joined(separator: " > "))"
+        } else {
+            updatedLines.removeFirst()
+            while updatedLines.first?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == true {
+                updatedLines.removeFirst()
+            }
+        }
+
+        return updatedLines.joined(separator: "\n")
+    }
+
     // MARK: - FTS5 Integration (10-100X faster BM25)
 
     /// Check if FTS5 acceleration is available for a container
@@ -820,12 +954,13 @@ class HybridSearchService {
                     // Chunk found by both vector and FTS5 — use the full RetrievedChunk
                     lexicalHitsByChunkId[fts5Hit.chunkId] = (chunk: existingChunk, score: bm25Score)
                 } else if let docChunk = allChunkLookup[fts5Hit.chunkId] {
-                    // FTS5-only hit: construct RetrievedChunk from DocumentChunk
+                    // FTS5-only hit: construct RetrievedChunk from DocumentChunk.
+                    // We don't have a reliable filename at this layer, so avoid using section metadata as provenance.
                     let retrieved = RetrievedChunk(
                         chunk: docChunk,
                         similarityScore: 0,  // No vector similarity — RRF uses rank, not score
                         rank: 0,
-                        sourceDocument: fts5Hit.sectionTitle ?? "Unknown",
+                        sourceDocument: "Unknown",
                         pageNumber: fts5Hit.pageNumber
                     )
                     lexicalHitsByChunkId[fts5Hit.chunkId] = (chunk: retrieved, score: bm25Score)
@@ -854,7 +989,7 @@ class HybridSearchService {
                         chunk: docChunk,
                         similarityScore: 0,
                         rank: 0,
-                        sourceDocument: rowHit.sectionTitle ?? "Unknown",
+                        sourceDocument: "Unknown",
                         pageNumber: rowHit.pageNumber
                     )
                     let existing = lexicalHitsByChunkId[rowHit.chunkId]
@@ -904,7 +1039,7 @@ class HybridSearchService {
             category: .pipeline
         )
 
-        return reindex(Array(anchorAdjustedResults.prefix(topK)))
+        return sanitizeRetrievedChunks(reindex(Array(anchorAdjustedResults.prefix(topK))))
     }
 
     private func applyStateLookupAnchorBoost(query: String, results: [RetrievedChunk]) -> [RetrievedChunk] {

@@ -488,6 +488,11 @@ final class QueryEnhancementService {
             }
         }
 
+        if let specificationIntent = manualSpecificationIntent(for: lower) {
+            Log.debug("[QueryEnhancement] Specification query → \(specificationIntent.rawValue)", category: .retrieval)
+            return specificationIntent
+        }
+
         // Priority 5b: Investigate (multi-hop research requiring iterative retrieval)
         let investigatePatterns: [String] = [
             "factors", "causes", "reasons", "why does", "why is", "why are",
@@ -589,6 +594,44 @@ final class QueryEnhancementService {
         let hasLookupCue = lookupTokens.contains { lower.contains($0) }
 
         return hasSignalToken && hasStateOrColor && hasLookupCue
+    }
+
+    private nonisolated func manualSpecificationIntent(for lower: String) -> AnswerIntent? {
+        let summarizeCues = ["summarize", "summary", "overview", "brief", "main points", "key points", "highlights"]
+        if summarizeCues.contains(where: { lower.contains($0) }) {
+            return nil
+        }
+
+        let exactCuePatterns = [
+            "what is", "what's", "which", "when is", "when should", "how much", "how many",
+            "what should", "which setting", "which mode", "which level", "should i use",
+            "recommended", "initial setting",
+        ]
+        let specificationTargets = [
+            "capacity", "capacities", "viscosity", "oil", "engine oil", "fluid", "coolant",
+            "lubricant", "spec", "specification", "setting", "mode", "level",
+            "height setting", "opening height", "dimensions", "size", "interval",
+            "maintenance schedule", "pressure", "torque", "payload", "fuel tank",
+        ]
+        let structuredTargetPattern = #"\b(?:sae|api|ilsac|dot-4|gl-5|sp4|[0o]w-20|5w-30|75w/85|qt|quarts?|gal(?:lon)?s?|l(?:iter)?s?|psi|kpa|mm|inch(?:es)?)\b"#
+
+        let hasExactCue = exactCuePatterns.contains { lower.contains($0) }
+            || ["what ", "which ", "how much", "how many"].contains(where: { lower.hasPrefix($0) })
+        let hasSpecificationTarget = specificationTargets.contains { lower.contains($0) }
+        let hasStructuredTarget = lower.range(of: structuredTargetPattern, options: [.regularExpression, .caseInsensitive]) != nil
+
+        guard hasSpecificationTarget || hasStructuredTarget else { return nil }
+        guard hasExactCue || lower.contains("should be used") || lower.contains("what oil") else { return nil }
+
+        let tableLikeTargets = [
+            "table", "chart", "specification", "specifications",
+            "recommended lubricants and capacities", "capacity", "viscosity", "payload", "dimensions",
+        ]
+        if tableLikeTargets.contains(where: { lower.contains($0) }) || hasStructuredTarget {
+            return .tableLookup
+        }
+
+        return .lookup
     }
 
     /// Produces a small set of query variants for keyword-heavy retrieval (BM25).

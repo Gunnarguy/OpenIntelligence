@@ -140,4 +140,32 @@ struct ResponseMetadata: Codable, Sendable {
     var canGoDeeper: Bool {
         !usedAgenticMode && originalQuery != nil
     }
+
+    func withReasoningTrace(_ fallbackTrace: [String]?) -> ResponseMetadata {
+        let resolvedTrace: [String]?
+        if let reasoningTrace, !reasoningTrace.isEmpty {
+            resolvedTrace = reasoningTrace
+        } else if let fallbackTrace, !fallbackTrace.isEmpty {
+            resolvedTrace = fallbackTrace
+        } else {
+            resolvedTrace = nil
+        }
+
+        return ResponseMetadata(
+            timeToFirstToken: timeToFirstToken,
+            totalGenerationTime: totalGenerationTime,
+            tokensGenerated: tokensGenerated,
+            tokensPerSecond: tokensPerSecond,
+            modelUsed: modelUsed,
+            retrievalTime: retrievalTime,
+            retrievalConfigSummary: retrievalConfigSummary,
+            gatingDecision: gatingDecision,
+            toolCallsMade: toolCallsMade,
+            embeddingProvider: embeddingProvider,
+            usedAgenticMode: usedAgenticMode,
+            qualityModeName: qualityModeName,
+            originalQuery: originalQuery,
+            reasoningTrace: resolvedTrace
+        )
+    }
 }

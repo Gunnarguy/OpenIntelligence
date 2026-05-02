@@ -192,6 +192,23 @@ struct ChunkMetadata: Codable, Sendable {
     /// Only populated for table-derived chunks.
     let tableTitle: String?
 
+    // MARK: - Visual Content (May 2026)
+
+    /// High-level image type for figure-derived chunks.
+    let imageContentType: String?
+
+    /// Nearby caption associated with a figure-derived chunk.
+    let imageCaption: String?
+
+    /// Best semantic description for a figure-derived chunk.
+    let imageDescription: String?
+
+    /// OCR labels or annotations extracted from inside a figure.
+    let imageExtractedText: String?
+
+    /// Top image classification labels used during visual understanding.
+    let imageClassifications: [String]?
+
     /// Whether this chunk explicitly references other pages/sections/tables/figures.
     let hasCrossReferences: Bool
 
@@ -228,6 +245,11 @@ struct ChunkMetadata: Codable, Sendable {
         documentCategory: DocumentSemanticCategory? = nil,
         chunkType: ChunkSemanticType? = nil,
         tableTitle: String? = nil,
+        imageContentType: String? = nil,
+        imageCaption: String? = nil,
+        imageDescription: String? = nil,
+        imageExtractedText: String? = nil,
+        imageClassifications: [String]? = nil,
         hasCrossReferences: Bool = false,
         resolvedReferences: [String] = []
     ) {
@@ -254,6 +276,11 @@ struct ChunkMetadata: Codable, Sendable {
         self.documentCategory = documentCategory
         self.chunkType = chunkType
         self.tableTitle = tableTitle
+        self.imageContentType = imageContentType
+        self.imageCaption = imageCaption
+        self.imageDescription = imageDescription
+        self.imageExtractedText = imageExtractedText
+        self.imageClassifications = imageClassifications
         self.hasCrossReferences = hasCrossReferences
         self.resolvedReferences = resolvedReferences
     }
@@ -282,6 +309,11 @@ struct ChunkMetadata: Codable, Sendable {
         case documentCategory
         case chunkType
         case tableTitle
+        case imageContentType
+        case imageCaption
+        case imageDescription
+        case imageExtractedText
+        case imageClassifications
         case hasCrossReferences
         case resolvedReferences
     }
@@ -323,6 +355,11 @@ struct ChunkMetadata: Codable, Sendable {
         documentCategory = try container.decodeIfPresent(DocumentSemanticCategory.self, forKey: .documentCategory)
         chunkType = try container.decodeIfPresent(ChunkSemanticType.self, forKey: .chunkType)
         tableTitle = try container.decodeIfPresent(String.self, forKey: .tableTitle)
+        imageContentType = try container.decodeIfPresent(String.self, forKey: .imageContentType)
+        imageCaption = try container.decodeIfPresent(String.self, forKey: .imageCaption)
+        imageDescription = try container.decodeIfPresent(String.self, forKey: .imageDescription)
+        imageExtractedText = try container.decodeIfPresent(String.self, forKey: .imageExtractedText)
+        imageClassifications = try container.decodeIfPresent([String].self, forKey: .imageClassifications)
         hasCrossReferences = try container.decodeIfPresent(Bool.self, forKey: .hasCrossReferences) ?? false
         resolvedReferences = try container.decodeIfPresent([String].self, forKey: .resolvedReferences) ?? []
     }
@@ -369,6 +406,11 @@ struct ChunkMetadata: Codable, Sendable {
         try container.encodeIfPresent(documentCategory, forKey: .documentCategory)
         try container.encodeIfPresent(chunkType, forKey: .chunkType)
         try container.encodeIfPresent(tableTitle, forKey: .tableTitle)
+        try container.encodeIfPresent(imageContentType, forKey: .imageContentType)
+        try container.encodeIfPresent(imageCaption, forKey: .imageCaption)
+        try container.encodeIfPresent(imageDescription, forKey: .imageDescription)
+        try container.encodeIfPresent(imageExtractedText, forKey: .imageExtractedText)
+        try container.encodeIfPresent(imageClassifications, forKey: .imageClassifications)
         if hasCrossReferences { try container.encode(hasCrossReferences, forKey: .hasCrossReferences) }
         if !resolvedReferences.isEmpty {
             try container.encode(resolvedReferences, forKey: .resolvedReferences)

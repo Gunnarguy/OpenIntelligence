@@ -57,6 +57,7 @@ private func shortChunkStrategy(_ strategy: String) -> String {
 
 struct IngestionQueueOverlay: View {
     let items: [IngestionItem]
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @State private var isMinimized = false
     @State private var isDismissed = false
     @State private var gpuLevel: Double = DeviceCapabilityService.shared.gpuAccelerationLevel
@@ -117,6 +118,33 @@ struct IngestionQueueOverlay: View {
         return agg
     }
 
+    private var overlayMaxWidth: CGFloat {
+#if canImport(UIKit)
+        let connectedScenes = UIApplication.shared.connectedScenes
+            .compactMap { $0 as? UIWindowScene }
+        let screenWidth = (connectedScenes.first { $0.activationState == .foregroundActive } ?? connectedScenes.first)?
+            .screen
+            .bounds
+            .width ?? 380
+        let horizontalInset: CGFloat = horizontalSizeClass == .compact ? 32 : 56
+        let widthCap: CGFloat = horizontalSizeClass == .compact ? 340 : 380
+        return min(widthCap, max(260, screenWidth - horizontalInset))
+#else
+        return 380
+#endif
+    }
+
+    private var overlayAccentColor: Color {
+        if activeCount == 0 {
+            return DSColors.accent
+        }
+        return gpuBoostActive ? .orange : DSColors.accent
+    }
+
+    private var overlayTint: Color {
+        overlayAccentColor.opacity(activeCount > 0 ? 0.16 : 0.08)
+    }
+
     var body: some View {
         guard !items.isEmpty, !isDismissed else { return AnyView(EmptyView()) }
 
@@ -156,24 +184,37 @@ struct IngestionQueueOverlay: View {
                 }
             }
             .padding(14)
-.frame(maxWidth: isMinimized ? nil : 360, alignment: .leading)
-            .background(.ultraThinMaterial)
+            .frame(maxWidth: isMinimized ? min(overlayMaxWidth, 260) : overlayMaxWidth, alignment: .leading)
+            .background(
+                ZStack {
+                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                        .fill(.ultraThinMaterial)
+
+                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                        .fill(
+                            LinearGradient(
+                                colors: [overlayTint, Color.clear],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                }
+            )
             .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
             .overlay(
                 RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .strokeBorder(DSColors.accent.opacity(0.12), lineWidth: 1)
+                    .strokeBorder(overlayAccentColor.opacity(0.16), lineWidth: 1)
             )
-            .shadow(color: .black.opacity(0.12), radius: 12, x: 0, y: 6)
+            .shadow(color: .black.opacity(0.10), radius: 18, x: 0, y: 10)
             .transition(.move(edge: .bottom).combined(with: .opacity))
             .animation(.spring(response: 0.3, dampingFraction: 0.85), value: items.count)
-.animation(.spring(response: 0.25), value: isMinimized)
-    .onChange(of: items.isEmpty) { _, isEmpty in
-        if isEmpty {
-            // Reset for next batch
-            isDismissed = false
-            isMinimized = false
-        }
-    }
+            .animation(.spring(response: 0.25), value: isMinimized)
+            .onChange(of: items.isEmpty) { _, isEmpty in
+                if isEmpty {
+                    isDismissed = false
+                    isMinimized = false
+                }
+            }
         )
     }
 
@@ -189,38 +230,81 @@ struct IngestionQueueOverlay: View {
     // Mode label based on GPU level
     private var processingModeLabel: String {
         if gpuLevel > 0.7 {
-            return "⚡ Turbo"
+            return "Turbo"
         } else if gpuLevel >= 0.3 {
-            return "🔋 Balanced"
+            return "Balanced"
         } else {
-            return "🌱 Eco"
+            return "Eco"
+        }
+    }
+
+    private var processingModeIcon: String {
+        if gpuLevel > 0.7 {
+            return "bolt.fill"
+        } else if gpuLevel >= 0.3 {
+            return "dial.medium.fill"
+        } else {
+            return "leaf.fill"
+        }
+    }
+
+    private var processingModeColor: Color {
+        if gpuBoostActive {
+            return .orange
+        } else if gpuLevel >= 0.3 {
+            return DSColors.accent
+        } else {
+            return .green
         }
     }
 
     private var headerView: some View {
-        HStack(spacing: 10) {
-            Image(systemName: "tray.and.arrow.down.fill")
-                .foregroundStyle(DSColors.accent)
-                .font(.system(size: 14, weight: .semibold))
+        ViewThatFits(in: .horizontal) {
+            HStack(alignment: .top, spacing: 12) {
+                headerSummary
+                Spacer(minLength: 10)
+                headerControls
+            }
 
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: 10) {
+                headerSummary
+                headerControls
+                    .frame(maxWidth: .infinity, alignment: .trailing)
+            }
+        }
+    }
+
+    private var headerSummary: some View {
+        HStack(alignment: .top, spacing: 10) {
+            ZStack {
+                Circle()
+                    .fill(overlayAccentColor.opacity(activeCount > 0 ? 0.16 : 0.10))
+
+                Image(systemName: activeCount > 0 ? "tray.and.arrow.down.fill" : "checkmark.circle.fill")
+                    .foregroundStyle(overlayAccentColor)
+                    .font(.system(size: 13, weight: .semibold))
+            }
+            .frame(width: 28, height: 28)
+
+            VStack(alignment: .leading, spacing: 4) {
                 HStack(spacing: 6) {
                     Text(activeCount > 0 ? "Processing uploads" : "Upload complete")
                         .font(.system(size: 14, weight: .semibold))
                         .foregroundStyle(DSColors.primaryText)
 
-                    // Always show processing mode during active uploads
                     if activeCount > 0 {
                         HStack(spacing: 4) {
+                            Image(systemName: processingModeIcon)
+                                .font(.system(size: 9, weight: .semibold))
                             Text(processingModeLabel)
                             Text("\(currentConcurrency)x")
                                 .fontWeight(.bold)
                         }
                         .font(.caption2)
-                        .foregroundColor(gpuBoostActive ? .orange : DSColors.secondaryText)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(gpuBoostActive ? Color.orange.opacity(0.2) : DSColors.secondaryText.opacity(0.1))
+                        .foregroundStyle(processingModeColor)
+                        .padding(.horizontal, 7)
+                        .padding(.vertical, 3)
+                        .background(processingModeColor.opacity(0.12))
                         .clipShape(Capsule())
                     }
                 }
@@ -229,56 +313,57 @@ struct IngestionQueueOverlay: View {
                     Text(statusLine)
                         .font(.caption)
                         .foregroundStyle(DSColors.secondaryText)
+                        .lineLimit(2)
                 }
             }
+        }
+    }
 
-            Spacer()
-
-            // GPU Turbo toggle (only show during active processing)
+    private var headerControls: some View {
+        HStack(spacing: 8) {
             if activeCount > 0 {
                 Button {
                     withAnimation(.spring(response: 0.3)) {
-                        // Cycle through modes: Eco (0.1) → Balanced (0.5) → Turbo (0.9) → Eco
                         if gpuLevel > 0.7 {
-                            gpuLevel = 0.1  // Back to Eco
+                            gpuLevel = 0.1
                         } else if gpuLevel >= 0.3 {
-                            gpuLevel = 0.9  // Boost to Turbo
+                            gpuLevel = 0.9
                         } else {
-                            gpuLevel = 0.5  // Up to Balanced
+                            gpuLevel = 0.5
                         }
                         DeviceCapabilityService.shared.gpuAccelerationLevel = gpuLevel
                     }
                 } label: {
                     Image(systemName: gpuBoostActive ? "bolt.fill" : "bolt")
                         .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(gpuBoostActive ? .orange : DSColors.secondaryText)
-                        .frame(width: 24, height: 24)
-                        .background(gpuBoostActive ? Color.orange.opacity(0.2) : Color.clear)
+                        .foregroundStyle(processingModeColor)
+                        .frame(width: 28, height: 28)
+                        .background(processingModeColor.opacity(gpuBoostActive ? 0.18 : 0.10))
                         .clipShape(Circle())
                 }
                 .buttonStyle(.plain)
                 .help(gpuBoostActive ? "Turbo Mode - Tap to cycle" : "Tap to cycle GPU modes")
             }
 
-            // Minimize/expand button
             Button {
                 withAnimation { isMinimized.toggle() }
             } label: {
                 Image(systemName: isMinimized ? "chevron.up" : "chevron.down")
                     .font(.system(size: 12, weight: .semibold))
                     .foregroundStyle(DSColors.secondaryText)
-                    .frame(width: 24, height: 24)
+                    .frame(width: 28, height: 28)
+                    .background(DSColors.secondaryText.opacity(0.08))
+                    .clipShape(Circle())
             }
             .buttonStyle(.plain)
 
-            // Dismiss button
             Button {
                 withAnimation { isDismissed = true }
             } label: {
                 Image(systemName: "xmark")
                     .font(.system(size: 10, weight: .bold))
                     .foregroundStyle(DSColors.secondaryText)
-                    .frame(width: 20, height: 20)
+                    .frame(width: 24, height: 24)
                     .background(DSColors.secondaryText.opacity(0.1))
                     .clipShape(Circle())
             }
@@ -373,7 +458,20 @@ private struct IngestionQueueRow: View {
             }
         }
         .padding(10)
-        .background(DSColors.surface.opacity(0.9))
+        .background(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(
+                    LinearGradient(
+                        colors: [stageColor.opacity(0.10), DSColors.surface.opacity(0.92)],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .stroke(stageColor.opacity(0.12), lineWidth: 1)
+        )
         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
 

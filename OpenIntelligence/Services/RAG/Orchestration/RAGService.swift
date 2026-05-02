@@ -287,7 +287,7 @@ struct ReembedProgress: Sendable {
     }
 }
 
-enum IngestionContext: Sendable {
+enum IngestionContext: String, Codable, Sendable {
     case userInitiated
     case autoRebuild
     case onboarding // Initial sample import - skip self-tuning
@@ -328,6 +328,7 @@ class RAGService: ObservableObject {
     @MainActor private var suppressProcessingSummary: Bool = false
     @MainActor private var ingestionTask: Task<Void, Never>?
     @MainActor private var ingestionContexts: [UUID: IngestionContext] = [:]
+    @MainActor private var liveActivityTrackedIngestionIds: Set<UUID> = []
 
     /// Helper to get document name by ID
     @MainActor
@@ -629,6 +630,144 @@ class RAGService: ObservableObject {
         }
     }
 
+    @MainActor
+    func persistIngestionQueueState() {
+        savePersistedIngestionQueueState()
+    }
+
+    @MainActor
+    func restoreIngestionQueueIfNeeded() {
+        restorePersistedIngestionQueueIfNeeded()
+    }
+
+    @MainActor
+    private func savePersistedIngestionQueueState() {
+        let url = AppSupportPaths.ingestionQueueURL()
+        let activeItems = ingestionItems.filter { !$0.stage.isTerminal }
+
+        guard !activeItems.isEmpty else {
+            try? FileManager.default.removeItem(at: url)
+            return
+        }
+
+        let state = PersistedIngestionQueueState(
+            items: activeItems,
+            contexts: activeItems.map { PersistedIngestionContext(id: $0.id, context: ingestionContexts[$0.id] ?? .userInitiated) },
+            updatedAt: Date()
+        )
+
+        do {
+            let encoder = JSONEncoder()
+            encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+            let data = try encoder.encode(state)
+            try data.write(to: url, options: .atomic)
+        } catch {
+            Log.error("[RAGService] Failed to persist ingestion queue: \(error.localizedDescription)", category: .ingestion)
+        }
+    }
+
+    @MainActor
+    private func restorePersistedIngestionQueueIfNeeded() {
+        let url = AppSupportPaths.ingestionQueueURL()
+        guard let data = try? Data(contentsOf: url) else { return }
+
+        do {
+            let decoder = JSONDecoder()
+            let state = try decoder.decode(PersistedIngestionQueueState.self, from: data)
+            var restoredItems: [IngestionItem] = []
+            var restoredContexts: [UUID: IngestionContext] = [:]
+
+            for item in state.items {
+                if item.url.isFileURL, !FileManager.default.fileExists(atPath: item.url.path) {
+                    Log.warning("[RAGService] Skipping persisted ingestion item because file is missing: \(item.url.lastPathComponent)", category: .ingestion)
+                    continue
+                }
+
+                var resumedItem = item
+                resumedItem.stage = .queued
+                resumedItem.detail = "Queued for resume"
+                resumedItem.progress = nil
+                resumedItem.startedAt = nil
+                resumedItem.finishedAt = nil
+                resumedItem.errorMessage = nil
+                restoredItems.append(resumedItem)
+            }
+
+            guard !restoredItems.isEmpty else {
+                try? FileManager.default.removeItem(at: url)
+                return
+            }
+
+            let validIds = Set(restoredItems.map(\.id))
+            for entry in state.contexts where validIds.contains(entry.id) {
+                restoredContexts[entry.id] = entry.context
+            }
+
+            liveActivityTrackedIngestionIds = Set(
+                restoredContexts.compactMap { id, context in
+                    context == .userInitiated ? id : nil
+                }
+            )
+
+            ingestionItems = restoredItems
+            ingestionContexts = restoredContexts
+            Log.info("[RAGService] Restored \(restoredItems.count) queued ingestion item(s) after interruption", category: .ingestion)
+            savePersistedIngestionQueueState()
+            syncIngestionLiveActivity()
+            resumeUserInitiatedIngestionBackgroundSupportIfNeeded(restoredItems: restoredItems)
+            startIngestionTaskIfNeeded()
+        } catch {
+            Log.error("[RAGService] Failed to restore persisted ingestion queue: \(error.localizedDescription)", category: .ingestion)
+            try? FileManager.default.removeItem(at: url)
+        }
+    }
+
+    @MainActor
+    private func handleContinuedIngestionExpiration() {
+        let activeIndices = ingestionItems.indices.filter { !ingestionItems[$0].stage.isTerminal }
+        guard !activeIndices.isEmpty else {
+            savePersistedIngestionQueueState()
+            return
+        }
+
+        ingestionTask?.cancel()
+        ingestionTask = nil
+        isProcessing = false
+        processingStatus = ""
+
+        for index in activeIndices {
+            ingestionItems[index].stage = .queued
+            ingestionItems[index].detail = "Queued for resume"
+            ingestionItems[index].progress = nil
+            ingestionItems[index].startedAt = nil
+            ingestionItems[index].finishedAt = nil
+            ingestionItems[index].errorMessage = nil
+            ingestionItems[index].metrics = .init()
+        }
+
+        Log.warning("[RAGService] Continued ingestion expired; queued \(activeIndices.count) item(s) for resume", category: .ingestion)
+        savePersistedIngestionQueueState()
+        syncIngestionLiveActivity()
+    }
+
+    @MainActor
+    private func resumeUserInitiatedIngestionBackgroundSupportIfNeeded(restoredItems: [IngestionItem]) {
+#if canImport(UIKit)
+        guard UIApplication.shared.applicationState == .active else { return }
+#endif
+
+        let resumedUserInitiatedItems = restoredItems.filter { liveActivityTrackedIngestionIds.contains($0.id) }
+        guard !resumedUserInitiatedItems.isEmpty else { return }
+
+        let subtitle = resumedUserInitiatedItems.count == 1
+            ? resumedUserInitiatedItems[0].filename
+            : "\(resumedUserInitiatedItems.count) documents"
+        IngestionRuntimeBridge.shared.beginUserInitiatedIngestion(
+            title: "Importing documents",
+            subtitle: subtitle
+        )
+    }
+
     // MARK: - Published State (MainActor-isolated for SwiftUI)
 
     /// The container context for the currently executing query (if any).
@@ -782,6 +921,17 @@ class RAGService: ObservableObject {
         }
     }
 
+    private struct PersistedIngestionContext: Codable, Sendable {
+        let id: UUID
+        let context: IngestionContext
+    }
+
+    private struct PersistedIngestionQueueState: Codable, Sendable {
+        let items: [IngestionItem]
+        let contexts: [PersistedIngestionContext]
+        let updatedAt: Date
+    }
+
     // MARK: - Initialization
 
     init(
@@ -921,6 +1071,20 @@ class RAGService: ObservableObject {
             self.prewarmCloudConsentIfNeeded()
         }
         loadDocumentsFromDisk()
+
+        Task { @MainActor in
+            IngestionRuntimeBridge.shared.configureContinuedIngestion(
+                run: { [weak self] in
+                    guard let self else { return false }
+                    return await self.runPendingIngestionQueue()
+                },
+                expiration: { [weak self] in
+                    self?.handleContinuedIngestionExpiration()
+                }
+            )
+            IngestionRuntimeBridge.shared.restoreLiveActivityIfNeeded()
+            self.restorePersistedIngestionQueueIfNeeded()
+        }
 
         // Connect document summary service to self for LLM access
         Task {
@@ -1755,15 +1919,11 @@ class RAGService: ObservableObject {
         // IDF-awareness: count how many chunks have each keyword in their section title
         // Keywords appearing in >30% of sections are non-discriminative for boosting
         var sectionKeywordFreq: [String: Int] = [:]
-        let chunksWithSections = chunks.filter { $0.chunk.metadata.sectionTitle != nil }
+        let chunksWithSections = chunks.filter { !trustedSectionKeywordSet(title: $0.chunk.metadata.sectionTitle, path: $0.chunk.metadata.sectionPath).isEmpty }
         for chunk in chunksWithSections {
-            if let title = chunk.chunk.metadata.sectionTitle {
-                let titleWords = Set(title.lowercased()
-                    .components(separatedBy: .alphanumerics.inverted)
-                    .filter { $0.count >= 2 })
-                for word in titleWords where queryKeywords.contains(word) {
-                    sectionKeywordFreq[word, default: 0] += 1
-                }
+            let titleWords = trustedSectionKeywordSet(title: chunk.chunk.metadata.sectionTitle, path: nil)
+            for word in titleWords where queryKeywords.contains(word) {
+                sectionKeywordFreq[word, default: 0] += 1
             }
         }
         let sectionCount = max(chunksWithSections.count, 1)
@@ -1790,11 +1950,8 @@ class RAGService: ObservableObject {
             var boost: Float = 0.0
 
             // Check sectionTitle for keyword matches
-            if let title = chunk.chunk.metadata.sectionTitle {
-                let titleWords = title.lowercased()
-                    .components(separatedBy: .alphanumerics.inverted)
-                    .filter { $0.count >= 2 }
-                let titleSet = Set(titleWords)
+            let titleSet = trustedSectionKeywordSet(title: chunk.chunk.metadata.sectionTitle, path: nil)
+            if !titleSet.isEmpty {
                 let titleMatches = discriminativeKeywords.intersection(titleSet)
 
                 // For compound queries: require 2+ keyword matches in the section title
@@ -1809,12 +1966,8 @@ class RAGService: ObservableObject {
             }
 
             // Check sectionPath (only if title didn't already match)
-            if boost == 0, let path = chunk.chunk.metadata.sectionPath {
-                let pathStr = path.joined(separator: " ")
-                let pathWords = pathStr.lowercased()
-                    .components(separatedBy: .alphanumerics.inverted)
-                    .filter { $0.count >= 2 }
-                let pathSet = Set(pathWords)
+            if boost == 0 {
+                let pathSet = trustedSectionKeywordSet(title: nil, path: chunk.chunk.metadata.sectionPath)
                 let pathMatches = discriminativeKeywords.intersection(pathSet)
 
                 if requireMultiMatch && pathMatches.count < 2 {
@@ -1863,6 +2016,93 @@ class RAGService: ObservableObject {
                 pageNumber: chunk.pageNumber
             )
         }
+    }
+
+    private static func trustedSectionKeywordSet(title: String?, path: [String]?) -> Set<String> {
+        var keywords = Set<String>()
+
+        if let titleKeywords = trustedSectionTokens(from: title) {
+            keywords.formUnion(titleKeywords)
+        }
+
+        for component in path ?? [] {
+            if let componentKeywords = trustedSectionTokens(from: component) {
+                keywords.formUnion(componentKeywords)
+            }
+        }
+
+        return keywords
+    }
+
+    private nonisolated static func trustedSectionDisplayPath(_ rawPath: [String]?) -> [String]? {
+        let cleaned = (rawPath ?? []).compactMap(trustedSectionDisplayLabel)
+        guard !cleaned.isEmpty else { return nil }
+
+        return cleaned.reduce(into: [String]()) { result, component in
+            if result.last?.caseInsensitiveCompare(component) != .orderedSame {
+                result.append(component)
+            }
+        }
+    }
+
+    private nonisolated static func trustedSectionDisplayLabel(_ raw: String?) -> String? {
+        guard let raw else { return nil }
+
+        let normalized = OCRConfiguration.normalizeExtractedText(raw)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalized.isEmpty else { return nil }
+        guard !normalized.contains("_"), !normalized.contains("|") else { return nil }
+
+        let scalars = normalized.unicodeScalars
+        let alnumCount = scalars.filter { CharacterSet.alphanumerics.contains($0) }.count
+        let latinCount = scalars.filter { scalar in
+            (0x0041...0x005A).contains(scalar.value) || (0x0061...0x007A).contains(scalar.value)
+        }.count
+        let cyrillicCount = scalars.filter { scalar in
+            (0x0400...0x04FF).contains(scalar.value) || (0x0500...0x052F).contains(scalar.value)
+        }.count
+
+        if scalars.count >= 8, Double(alnumCount) / Double(max(1, scalars.count)) < 0.55 {
+            return nil
+        }
+
+        if latinCount > 0, cyrillicCount > 0 {
+            return nil
+        }
+
+        return normalized
+    }
+
+    private static func trustedSectionTokens(from raw: String?) -> Set<String>? {
+        guard let raw else { return nil }
+
+        let normalized = OCRConfiguration.normalizeExtractedText(raw)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalized.isEmpty else { return nil }
+        guard !normalized.contains("_"), !normalized.contains("|") else { return nil }
+
+        let scalars = normalized.unicodeScalars
+        let alnumCount = scalars.filter { CharacterSet.alphanumerics.contains($0) }.count
+        let latinCount = scalars.filter { scalar in
+            (0x0041...0x005A).contains(scalar.value) || (0x0061...0x007A).contains(scalar.value)
+        }.count
+        let cyrillicCount = scalars.filter { scalar in
+            (0x0400...0x04FF).contains(scalar.value) || (0x0500...0x052F).contains(scalar.value)
+        }.count
+
+        if scalars.count >= 8, Double(alnumCount) / Double(max(1, scalars.count)) < 0.55 {
+            return nil
+        }
+
+        if latinCount > 0, cyrillicCount > 0 {
+            return nil
+        }
+
+        let tokens = normalized.lowercased()
+            .components(separatedBy: .alphanumerics.inverted)
+            .filter { $0.count >= 2 }
+
+        return tokens.isEmpty ? nil : Set(tokens)
     }
 
     // MARK: - Sentence-Level Extraction for Lookup Queries
@@ -2038,6 +2278,9 @@ class RAGService: ObservableObject {
                     let union = words.union(keptWords).count
                     let jaccard = Double(intersection) / Double(max(1, union))
                     if jaccard > 0.70 {
+                        if Self.shouldKeepBothExactSentences(sentence.text, keptSentences[idx].text) {
+                            continue
+                        }
                         // Keep the higher-scoring one
                         if sentence.score > keptSentences[idx].score {
                             keptSentences[idx] = sentence
@@ -2159,6 +2402,28 @@ class RAGService: ObservableObject {
         )
     }
 
+    private nonisolated static func exactSentenceAnchorTokens(from text: String) -> Set<String> {
+        let lower = text.lowercased()
+        var tokens = Set<String>()
+        let pattern = #"\b(?:\d+(?:[.,]\d+)?(?:\s*[-~/]\s*\d+(?:[.,]\d+)?)?(?:\s*(?:us\s*)?(?:gal(?:lon)?s?|l(?:iter)?s?|qt|quarts?|ml|kg|g|lb?s?|oz|mm|cm|m|km|mi|mph|km/h|psi|kpa|bar|°c|°f|%))?|[0o]w-\d{2}|75w/\d{2}|level\s*[123]|full open|user height setting|auto open|api\s+[a-z0-9 +/\-]+|ilsac\s+[a-z0-9\-]+|dot-4|gl-5)\b"#
+        if let regex = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]) {
+            let range = NSRange(lower.startIndex ..< lower.endIndex, in: lower)
+            for match in regex.matches(in: lower, options: [], range: range) {
+                guard let tokenRange = Range(match.range, in: lower) else { continue }
+                tokens.insert(String(lower[tokenRange]).trimmingCharacters(in: .whitespacesAndNewlines))
+            }
+        }
+        return tokens
+    }
+
+    private nonisolated static func shouldKeepBothExactSentences(_ lhs: String, _ rhs: String) -> Bool {
+        let lhsTokens = exactSentenceAnchorTokens(from: lhs)
+        let rhsTokens = exactSentenceAnchorTokens(from: rhs)
+
+        guard !lhsTokens.isEmpty || !rhsTokens.isEmpty else { return false }
+        return lhsTokens != rhsTokens
+    }
+
     // MARK: - Lexical Relevance Check
 
     /// Stop words to exclude from keyword matching
@@ -2180,16 +2445,20 @@ class RAGService: ObservableObject {
     /// Check if query keywords appear in retrieved chunks (simple but effective)
     /// Returns 0.0-1.0 representing what fraction of query keywords appear in chunks
     private func checkLexicalRelevance(query: String, chunks: [RetrievedChunk]) -> Float {
-        // Extract meaningful keywords from query (non-stopwords, 3+ chars)
-        let queryWords = query.lowercased()
-            .components(separatedBy: CharacterSet.alphanumerics.inverted)
-            .filter { $0.count >= 3 && !Self.stopWords.contains($0) }
+        let queryWords = extractQueryTerms(query)
 
         guard !queryWords.isEmpty else { return 0.5 } // Can't evaluate, assume ok
 
-        // Build combined chunk text
+        // Prefer the focused chunk span, but include parent context when available so
+        // table rows and rescued snippets still contribute lexical evidence.
         let chunkText = chunks.prefix(5)
-            .map { ($0.chunk.parentContent ?? $0.chunk.content).lowercased() }
+            .map { chunk -> String in
+                let content = chunk.chunk.content.lowercased()
+                guard let parent = chunk.chunk.parentContent?.lowercased(), !parent.isEmpty, parent != content else {
+                    return content
+                }
+                return content + " " + parent
+            }
             .joined(separator: " ")
 
         // Count how many query keywords appear in chunks
@@ -2713,6 +2982,18 @@ class RAGService: ObservableObject {
         if ingestionItems.count > 1 {
             suppressProcessingSummary = true
         }
+        savePersistedIngestionQueueState()
+        if context == .userInitiated {
+            liveActivityTrackedIngestionIds.formUnion(newItems.map(\.id))
+            let subtitle = newItems.count == 1
+                ? newItems[0].filename
+                : "\(newItems.count) documents"
+            IngestionRuntimeBridge.shared.beginUserInitiatedIngestion(
+                title: "Importing documents",
+                subtitle: subtitle
+            )
+            syncIngestionLiveActivity()
+        }
         startIngestionTaskIfNeeded()
         return newItems.map { $0.id }
     }
@@ -2734,6 +3015,18 @@ class RAGService: ObservableObject {
         }
     }
 
+    @MainActor
+    func runPendingIngestionQueue() async -> Bool {
+        let ids = ingestionItems
+            .filter { !$0.stage.isTerminal }
+            .map(\.id)
+
+        guard !ids.isEmpty else { return true }
+        startIngestionTaskIfNeeded()
+        let result = await waitForIngestionCompletion(ids: ids)
+        return result.failureCount == 0 && result.completedIds.count == ids.count
+    }
+
     private func runIngestionLoop() async {
         await MainActor.run { self.isProcessing = true }
 
@@ -2742,6 +3035,7 @@ class RAGService: ObservableObject {
         Log.info("[RAGService] ⚡ Ingestion mode: GPU embeddings + ANE Vision OCR", category: .ingestion)
 
         while let next = await MainActor.run(body: { self.nextQueuedIngestionItem() }) {
+            if Task.isCancelled { break }
             let context = await MainActor.run { self.ingestionContexts[next.id] ?? .userInitiated }
             do {
                 try await addDocument(
@@ -2750,6 +3044,12 @@ class RAGService: ObservableObject {
                     trackingId: next.id,
                     manageProcessingState: false
                 )
+                if Task.isCancelled { break }
+            } catch is CancellationError {
+                await MainActor.run {
+                    self.handleContinuedIngestionExpiration()
+                }
+                break
             } catch {
                 await MainActor.run {
                     self.markIngestionFailed(id: next.id, error: error)
@@ -2765,6 +3065,8 @@ class RAGService: ObservableObject {
             self.processingStatus = ""
             self.ingestionTask = nil
             self.suppressProcessingSummary = false
+            self.savePersistedIngestionQueueState()
+            self.syncIngestionLiveActivity()
             self.pruneCompletedIngestionItems()
             self.kickPendingReembedIfNeeded()
         }
@@ -2867,6 +3169,38 @@ class RAGService: ObservableObject {
             metricsUpdate(&item.metrics)
         }
         ingestionItems[index] = item
+        savePersistedIngestionQueueState()
+        IngestionRuntimeBridge.shared.updateContinuedIngestionProgress(
+            title: "Importing documents",
+            subtitle: "\(filename) • \(stage.displayName)",
+            fraction: overallIngestionProgressFraction(currentItemId: item.id)
+        )
+        syncIngestionLiveActivity()
+    }
+
+    @MainActor
+    private func overallIngestionProgressFraction(currentItemId: UUID?) -> Double {
+        guard !ingestionItems.isEmpty else { return 0 }
+
+        let completedCount = ingestionItems.filter { $0.stage == .complete }.count
+        let activeContribution: Double
+        if let currentItemId,
+           let activeItem = ingestionItems.first(where: { $0.id == currentItemId }) {
+            if let explicitProgress = activeItem.progress {
+                activeContribution = explicitProgress
+            } else if activeItem.stage.isTerminal {
+                activeContribution = activeItem.stage == .complete ? 1 : 0
+            } else if let pipelineIndex = activeItem.stage.pipelineIndex {
+                activeContribution = Double(pipelineIndex + 1) / Double(max(1, IngestionStage.pipelineStages.count))
+            } else {
+                activeContribution = 0
+            }
+        } else {
+            activeContribution = 0
+        }
+
+        let aggregate = Double(completedCount) + activeContribution
+        return aggregate / Double(max(1, ingestionItems.count))
     }
 
     /// Haptic feedback based on ingestion stage
@@ -2917,6 +3251,17 @@ class RAGService: ObservableObject {
             )
         }
         while true {
+            if Task.isCancelled {
+                let snapshot = await MainActor.run {
+                    ingestionItems.filter { ids.contains($0.id) }
+                }
+                return IngestionBatchResult(
+                    successCount: snapshot.filter { $0.stage == .complete }.count,
+                    failureCount: snapshot.filter { !$0.stage.isTerminal }.count,
+                    totalCount: snapshot.count,
+                    completedIds: snapshot.filter { $0.stage.isTerminal }.map(\.id)
+                )
+            }
             let snapshot = await MainActor.run {
                 ingestionItems.filter { ids.contains($0.id) }
             }
@@ -2948,7 +3293,35 @@ class RAGService: ObservableObject {
                 self.ingestionContexts = self.ingestionContexts.filter { key, _ in
                     self.ingestionItems.contains(where: { $0.id == key })
                 }
+                self.liveActivityTrackedIngestionIds = self.liveActivityTrackedIngestionIds.filter { trackedId in
+                    self.ingestionItems.contains(where: { $0.id == trackedId })
+                }
+                self.syncIngestionLiveActivity()
+                self.savePersistedIngestionQueueState()
             }
+        }
+    }
+
+    @MainActor
+    private func syncIngestionLiveActivity() {
+        let trackedSnapshot = ingestionItems.filter { liveActivityTrackedIngestionIds.contains($0.id) }
+        let containerName = containerService.activeContainer?.name
+        if !trackedSnapshot.isEmpty, trackedSnapshot.allSatisfy({ $0.stage.isTerminal }) {
+            IngestionRuntimeBridge.shared.finishLiveActivity(items: trackedSnapshot, containerName: containerName)
+            liveActivityTrackedIngestionIds.removeAll()
+            return
+        }
+
+        liveActivityTrackedIngestionIds = liveActivityTrackedIngestionIds.filter { trackedId in
+            guard let item = ingestionItems.first(where: { $0.id == trackedId }) else { return false }
+            return !item.stage.isTerminal
+        }
+
+        let trackedItems = ingestionItems.filter { liveActivityTrackedIngestionIds.contains($0.id) }
+        if trackedItems.isEmpty {
+            IngestionRuntimeBridge.shared.endLiveActivity()
+        } else {
+            IngestionRuntimeBridge.shared.syncLiveActivity(items: trackedItems, containerName: containerName)
         }
     }
 
@@ -3265,7 +3638,25 @@ class RAGService: ObservableObject {
                             hasListStructure: chunk.metadata.hasListStructure,
                             wordCount: chunk.metadata.wordCount,
                             characterCount: chunk.metadata.characterCount,
-                            createdAt: chunk.metadata.createdAt
+                            createdAt: chunk.metadata.createdAt,
+                            structureType: chunk.metadata.structureType,
+                            siblingGroupId: chunk.metadata.siblingGroupId,
+                            siblingCount: chunk.metadata.siblingCount,
+                            entities: chunk.metadata.entities,
+                            abbreviations: chunk.metadata.abbreviations,
+                            abstractionLevel: chunk.metadata.abstractionLevel,
+                            sectionPath: chunk.metadata.sectionPath,
+                            bboxArray: chunk.metadata.bboxArray,
+                            documentCategory: chunk.metadata.documentCategory,
+                            chunkType: chunk.metadata.chunkType,
+                            tableTitle: chunk.metadata.tableTitle,
+                            imageContentType: chunk.metadata.imageContentType,
+                            imageCaption: chunk.metadata.imageCaption,
+                            imageDescription: chunk.metadata.imageDescription,
+                            imageExtractedText: chunk.metadata.imageExtractedText,
+                            imageClassifications: chunk.metadata.imageClassifications,
+                            hasCrossReferences: chunk.metadata.hasCrossReferences,
+                            resolvedReferences: chunk.metadata.resolvedReferences
                         )
                     )
                 }
@@ -3446,10 +3837,10 @@ class RAGService: ObservableObject {
                 // discriminative — "[CarManual] [SPECIFICATIONS > Engine Oil] SAE 0W-20"
                 // vs "[CarManual] [SPECIFICATIONS > Differential Gear Oil] SAE 75W/85"
                 let sectionContext: String
-                if let path = chunk.metadata.sectionPath, !path.isEmpty {
+                if let path = Self.trustedSectionDisplayPath(chunk.metadata.sectionPath), !path.isEmpty {
                     // Full hierarchical path: " [SPECIFICATIONS > Engine Oil]"
                     sectionContext = " [\(path.joined(separator: " > "))]"
-                } else if let title = chunk.metadata.sectionTitle {
+                } else if let title = Self.trustedSectionDisplayLabel(chunk.metadata.sectionTitle) {
                     // Fallback to just title
                     sectionContext = " [\(title)]"
                 } else {
@@ -3599,6 +3990,11 @@ class RAGService: ObservableObject {
                     documentCategory: base.documentCategory,
                     chunkType: base.chunkType,
                     tableTitle: base.tableTitle,
+                    imageContentType: base.imageContentType,
+                    imageCaption: base.imageCaption,
+                    imageDescription: base.imageDescription,
+                    imageExtractedText: base.imageExtractedText,
+                    imageClassifications: base.imageClassifications,
                     hasCrossReferences: base.hasCrossReferences,
                     resolvedReferences: base.resolvedReferences
                 )
@@ -4613,7 +5009,8 @@ class RAGService: ObservableObject {
                    candidateAnswer: directAnswer,
                    retrievedChunks: precisionChunks,
                    answerIntent: answerIntent,
-                   verificationResult: nil
+                   verificationResult: nil,
+                   isSourceLocked: true
                )
             {
                 precisionAnswer = sourceOnlyOutcome.finalAnswer
@@ -5040,11 +5437,12 @@ class RAGService: ObservableObject {
 
             let agenticAnswerIntent = QueryEnhancementService().classifyAnswerIntent(question)
             let generatedAgenticAnswer = repairMalformedURLs(humanizeCitations(result.finalAnswer, chunks: result.retrievedChunks))
-            let baseAgenticAnswer = await highPrecisionLookupOverrideAnswer(
+            let extractiveAgenticAnswer = await highPrecisionLookupOverrideAnswer(
                 question: question,
                 answerIntent: agenticAnswerIntent,
                 retrievedChunks: result.retrievedChunks
-            ) ?? generatedAgenticAnswer
+            )
+            let baseAgenticAnswer = extractiveAgenticAnswer ?? generatedAgenticAnswer
             var agenticAnswer = baseAgenticAnswer
             var agenticWarnings: [String] = []
             var agenticConfidence = result.confidence
@@ -5064,7 +5462,8 @@ class RAGService: ObservableObject {
                    candidateAnswer: baseAgenticAnswer,
                    retrievedChunks: result.retrievedChunks,
                    answerIntent: agenticAnswerIntent,
-                   verificationResult: nil
+                   verificationResult: nil,
+                   isSourceLocked: extractiveAgenticAnswer != nil
                )
             {
                 agenticAnswer = sourceOnlyOutcome.finalAnswer
@@ -5290,6 +5689,18 @@ class RAGService: ObservableObject {
             qualityModeOverride ?? self.settingsStore?.ragQualityMode ?? .standard
         }
 
+        let initialQueryProfile = await QueryProfileService.shared.buildProfile(
+            for: question,
+            routingEnabled: false
+        )
+
+        let initialQueryPlan = await QueryExecutionPlannerService.shared.buildPlan(
+            for: question,
+            profile: initialQueryProfile,
+            requestedQualityMode: qualityMode,
+            allowToolCalling: qualityMode.usesAgenticOrchestrator
+        )
+
         // Also check for manual override via forceAgenticOnNextQuery
         let forceAgentic = await MainActor.run {
             let forced = self.forceAgenticOnNextQuery
@@ -5297,7 +5708,8 @@ class RAGService: ObservableObject {
             return forced
         }
 
-        let useAgentic = forceAgentic || qualityMode.usesAgenticOrchestrator
+        let plannerEscalatedToAgentic = qualityMode.canonical == .standard && initialQueryPlan.shouldAutoEscalateToAgentic
+        let useAgentic = forceAgentic || qualityMode.usesAgenticOrchestrator || plannerEscalatedToAgentic
 
         // Track query context for potential "Go Deeper" re-query
         await MainActor.run {
@@ -5307,6 +5719,8 @@ class RAGService: ObservableObject {
 
         if forceAgentic {
             Log.info("[Pipeline] Query FORCED to agentic mode by user request", category: .pipeline)
+        } else if plannerEscalatedToAgentic {
+            Log.info("[Pipeline] Planner escalated Standard query to agentic execution: \(initialQueryPlan.reasoning)", category: .pipeline)
         } else if qualityMode.isUnlimitedMode {
             Log.info("[Pipeline] Using Maximum mode (user selected)", category: .pipeline)
         } else if useAgentic {
@@ -5325,9 +5739,10 @@ class RAGService: ObservableObject {
             raptorRouting: raptorRoutingEnabled
         )
 
-        let initialQueryProfile = await QueryProfileService.shared.buildProfile(
-            for: question,
-            routingEnabled: false
+        emitThinkingEvent(
+            .planning,
+            title: "Execution plan: \(initialQueryPlan.executionMode.displayName)",
+            detail: initialQueryPlan.reasoning
         )
 
         // Get adaptive pipeline config based on current device state (thermal, battery, memory)
@@ -5643,7 +6058,7 @@ class RAGService: ObservableObject {
                 }
 
                 let queryEnhancer = QueryEnhancementService(corpusVocabulary: finalCorpusVocabulary)
-                let simpleGroundedLookup = initialQueryProfile.isSimpleGroundedLookup
+                let simpleGroundedLookup = initialQueryPlan.preferLiteralQuery
 
                 // Check advanced RAG settings
                 let rewriteEnabledBySettings = settingsStore?.enableQueryRewriting ?? qualityModeUsesQueryRewriting
@@ -5773,7 +6188,29 @@ class RAGService: ObservableObject {
                 if qualityModeUsesQueryExpansion {
                     Log.section("Step 1.5: Query Expansion", level: .info, category: .pipeline)
                     let expansionStartTime = Date()
-                    expandedQueries = queryEnhancer.expandQuery(effectiveQuery)
+
+                    let effectivePlanningProfile = await QueryProfileService.shared.buildProfile(
+                        for: effectiveQuery,
+                        queryEnhancer: queryEnhancer,
+                        routingEnabled: false
+                    )
+                    let effectiveQueryPlan = await QueryExecutionPlannerService.shared.buildPlan(
+                        for: effectiveQuery,
+                        profile: effectivePlanningProfile,
+                        requestedQualityMode: qualityMode,
+                        allowToolCalling: false
+                    )
+
+                    expandedQueries = effectiveQueryPlan.searchQueries.filter {
+                        $0.caseInsensitiveCompare(effectiveQuery) != .orderedSame
+                    }
+
+                    let heuristicExpansions = queryEnhancer.expandQuery(effectiveQuery)
+                    for candidate in heuristicExpansions {
+                        guard expandedQueries.count < qualityModeMaxQueryExpansions else { break }
+                        guard !expandedQueries.contains(where: { $0.caseInsensitiveCompare(candidate) == .orderedSame }) else { continue }
+                        expandedQueries.append(candidate)
+                    }
 
                     // Limit to quality mode maximum
                     if expandedQueries.count > qualityModeMaxQueryExpansions {
@@ -8001,10 +8438,7 @@ class RAGService: ObservableObject {
                 } else if answerIntent.isExtractiveFirst {
                     // For lookup/table queries, prioritize chunks containing specifications
                     // that MATCH the query topic — not just any specs
-                    let queryKeywords = question.lowercased()
-                        .split(separator: " ")
-                        .map { String($0) }
-                        .filter { $0.count > 2 && !Self.stopWords.contains($0) }
+                    let queryKeywords = extractQueryTerms(question)
 
                     // CORPUS-AWARE KEYWORD DISCOUNTING:
                     // Keywords that appear in >40% of candidates are corpus-generic and should
@@ -8103,8 +8537,9 @@ class RAGService: ObservableObject {
                     // without replacing whole-chunk packing for the primary chunks.
                     let droppedChunks = Array(orderedCandidates.dropFirst(assembled.used))
                     let remainingBudget = maxContextChars - assembledContext.count
+                    let rescueBudgetFloor = (answerIntent.isExtractiveFirst || isPrecisionValueQuery(question)) ? 80 : 160
 
-                    if !droppedChunks.isEmpty && remainingBudget > 200 {
+                    if !droppedChunks.isEmpty && remainingBudget > rescueBudgetFloor {
                         let rescueResult = extractRelevantSentences(
                             from: droppedChunks,
                             query: question,
@@ -8146,6 +8581,11 @@ class RAGService: ObservableObject {
                 // Previously, spec prioritization sorted candidates but the slicing used the
                 // original unsorted array, so fuse-box tables could be selected over oil specs.
                 let includedRetrievedChunks = Array(orderedCandidates.prefix(actualChunksUsed))
+                let precisionLookupCandidates = buildPrecisionLookupCandidates(
+                    included: includedRetrievedChunks,
+                    ordered: orderedCandidates,
+                    desiredCount: max(actualChunksUsed + 6, 16)
+                )
                 let includedChunks = includedRetrievedChunks.map { $0.chunk }
                 recoveryRetrievedChunks = includedRetrievedChunks
 
@@ -8489,17 +8929,17 @@ class RAGService: ObservableObject {
                 if let extractiveOverride = await highPrecisionLookupOverrideAnswer(
                     question: question,
                     answerIntent: answerIntent,
-                    retrievedChunks: includedRetrievedChunks
+                    retrievedChunks: precisionLookupCandidates
                 ) {
                     Log.info("[ExtractiveQA] Returning direct source extraction before LLM generation", category: .retrieval)
 
                     var extractiveAnswer = extractiveOverride
                     var extractiveWarnings: [String] = []
-                    var extractiveConfidence = max(includedRetrievedChunks.first?.similarityScore ?? 0.0, 0.85)
+                    var extractiveConfidence = max(precisionLookupCandidates.first?.similarityScore ?? 0.0, 0.85)
                     var gatingDecision = "extractive_override_pre_generation"
                     var structuredAnswer = StructuredAnswer.from(
                         response: extractiveOverride,
-                        retrievedChunks: includedRetrievedChunks,
+                        retrievedChunks: precisionLookupCandidates,
                         answerIntent: answerIntent,
                         verificationResult: nil,
                         loops: 1
@@ -8510,9 +8950,10 @@ class RAGService: ObservableObject {
                        let sourceOnlyOutcome = await sourceOnlyOutcomeIfNeeded(
                            query: question,
                            candidateAnswer: extractiveOverride,
-                           retrievedChunks: includedRetrievedChunks,
+                           retrievedChunks: precisionLookupCandidates,
                            answerIntent: answerIntent,
-                           verificationResult: nil
+                           verificationResult: nil,
+                           isSourceLocked: true
                        )
                     {
                         extractiveAnswer = sourceOnlyOutcome.finalAnswer
@@ -8551,7 +8992,7 @@ class RAGService: ObservableObject {
                     )
                     let extractiveResponse = RAGResponse(
                         queryId: ragQueryValue.id,
-                        retrievedChunks: includedRetrievedChunks,
+                        retrievedChunks: precisionLookupCandidates,
                         generatedResponse: resolvedDisplayResponse(
                             fallback: extractiveAnswer,
                             structuredAnswer: structuredAnswer
@@ -9338,12 +9779,14 @@ class RAGService: ObservableObject {
                         throw RAGServiceError.modelNotAvailable
                     }
 
+                    var sourceLockedFinalResponse = false
                     if let extractiveOverride = await highPrecisionLookupOverrideAnswer(
                         question: question,
                         answerIntent: answerIntent,
                         retrievedChunks: generationRetrievedChunks
                     )
                     {
+                        sourceLockedFinalResponse = true
                         let normalizedLLM = responseText.trimmingCharacters(in: .whitespacesAndNewlines)
                         let normalizedOverride = extractiveOverride.trimmingCharacters(in: .whitespacesAndNewlines)
                         if normalizedLLM != normalizedOverride {
@@ -9651,7 +10094,8 @@ class RAGService: ObservableObject {
                            candidateAnswer: responseText,
                            retrievedChunks: generationRetrievedChunks,
                            answerIntent: answerIntent,
-                           verificationResult: verificationResult
+                           verificationResult: verificationResult,
+                           isSourceLocked: sourceLockedFinalResponse
                        )
                     {
                         finalResponseText = sourceOnlyOutcome.finalAnswer
@@ -11655,12 +12099,16 @@ class RAGService: ObservableObject {
         let humanizedResponse = humanizeCitations(cleanedResponse, chunks: response.retrievedChunks)
         let repairedResponse = repairMalformedURLs(humanizedResponse)
         let finalizedStructuredAnswer = response.structuredAnswer?.updatingAnswer(repairedResponse)
+        let fallbackReasoningTrace = await MainActor.run {
+            self.thinkingEvents.compactReasoningTrace()
+        }
+        let finalizedMetadata = response.metadata.withReasoningTrace(fallbackReasoningTrace)
         var finalResponse = response
         finalResponse = RAGResponse(
             queryId: response.queryId,
             retrievedChunks: response.retrievedChunks,
             generatedResponse: repairedResponse,
-            metadata: response.metadata,
+            metadata: finalizedMetadata,
             confidenceScore: response.confidenceScore,
             qualityWarnings: response.qualityWarnings,
             structuredAnswer: finalizedStructuredAnswer
@@ -11704,11 +12152,13 @@ class RAGService: ObservableObject {
         candidateAnswer: String,
         retrievedChunks: [RetrievedChunk],
         answerIntent: AnswerIntent,
-        verificationResult: RAGVerificationResult?
+        verificationResult: RAGVerificationResult?,
+        isSourceLocked: Bool = false
     ) async -> SourceOnlyAnswerOutcome? {
         let trimmedAnswer = candidateAnswer.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedAnswer.isEmpty, !retrievedChunks.isEmpty else { return nil }
         guard answerIntent.isExtractiveFirst else { return nil }
+        guard !isSourceLocked else { return nil }
 
         guard let outcome = await SourceOnlyAnswerService.shared.verifyAndRender(
             query: query,
@@ -11720,11 +12170,12 @@ class RAGService: ObservableObject {
             return nil
         }
 
-        let preserveAbstention = isStateLookupQuery(query) || isPrecisionValueQuery(query)
+        let preserveAbstention = (isStateLookupQuery(query) || isPrecisionValueQuery(query)) && !isSourceLocked
 
         // Keep this conservative for user-facing quality.
         // Use source-only when it strengthens a grounded lookup answer, not when it
         // downgrades a plausible answer into a brittle abstention or ultra-thin rewrite.
+        // Direct source-locked extractions are already pinned to retrieved evidence.
         if outcome.shouldAbstain {
             return preserveAbstention ? outcome : nil
         }
@@ -12074,6 +12525,18 @@ class RAGService: ObservableObject {
         return merged
     }
 
+    private func buildPrecisionLookupCandidates(
+        included: [RetrievedChunk],
+        ordered: [RetrievedChunk],
+        desiredCount: Int
+    ) -> [RetrievedChunk] {
+        guard !ordered.isEmpty else { return included }
+
+        let expandedCount = min(ordered.count, max(included.count, desiredCount))
+        let expanded = Array(ordered.prefix(expandedCount))
+        return mergeUniqueChunks(included, expanded)
+    }
+
     private func extractQueryTerms(_ question: String) -> [String] {
         let stopWords: Set<String> = [
             "the", "a", "an", "and", "or", "but",
@@ -12168,6 +12631,10 @@ class RAGService: ObservableObject {
         candidate: String,
         answerType: StructuredAnswer.AnswerType
     ) -> Bool {
+        if shouldPreserveStructuredExactDisplay(candidate: candidate, answerType: answerType) {
+            return false
+        }
+
         switch answerType {
         case .lookup, .tableLookup, .compute:
             let fallbackWords = fallback.split(whereSeparator: { $0.isWhitespace || $0.isNewline }).count
@@ -12196,6 +12663,31 @@ class RAGService: ObservableObject {
         }
     }
 
+    private func shouldPreserveStructuredExactDisplay(
+        candidate: String,
+        answerType: StructuredAnswer.AnswerType
+    ) -> Bool {
+        switch answerType {
+        case .lookup, .tableLookup, .compute:
+            break
+        default:
+            return false
+        }
+
+        let candidateWords = candidate.split(whereSeparator: { $0.isWhitespace || $0.isNewline }).count
+        let lower = candidate.lowercased()
+        let hasQuotedValue = candidate.contains("'") || candidate.contains("\"")
+        let hasLabelValue = candidate.contains(":") && candidateWords <= 60
+        let hasCitation = citationCount(in: candidate) > 0
+        let hasSpecificationCue = lower.range(
+            of: #"\b(?:sae|api|ilsac|dot-4|gl-5|sp4|[0o]w-20|5w-30|75w/85|full open|user height setting|auto open|level\s*[123])\b"#,
+            options: [.regularExpression, .caseInsensitive]
+        ) != nil
+
+        return hasQuantitativeAnswerSignal(candidate)
+            || (hasCitation && (hasQuotedValue || hasLabelValue || hasSpecificationCue))
+    }
+
     private func citationCount(in text: String) -> Int {
         guard let regex = Self.citationRegex else { return 0 }
         let range = NSRange(text.startIndex ..< text.endIndex, in: text)
@@ -12214,7 +12706,7 @@ class RAGService: ObservableObject {
         let forceExtractiveAttempt = !answerIntent.isExtractiveFirst && isPrecisionValueQuery(question)
         guard answerIntent.isExtractiveFirst || forceExtractiveAttempt else { return nil }
 
-        let candidateChunks = Array(retrievedChunks.prefix(12))
+        let candidateChunks = Array(retrievedChunks.prefix(18))
         let extractorIntent: AnswerIntent = answerIntent.isExtractiveFirst ? answerIntent : .lookup
         let extraction = await specificationExtractor.extract(
             query: question,

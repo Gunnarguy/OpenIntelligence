@@ -17,6 +17,8 @@ struct OpenIntelligenceApp: App {
         DebugRAGValidationHarness.runHeadlessIfNeeded()
         #endif
 
+        configureIngestionRuntimeBridge()
+
         // Configure TipKit for contextual user guidance
         AppTipConfiguration.configure()
 
@@ -27,6 +29,42 @@ struct OpenIntelligenceApp: App {
     var body: some Scene {
         WindowGroup {
             ContentView()
+        }
+    }
+
+    private func configureIngestionRuntimeBridge() {
+        IngestionRuntimeBridge.shared.configureContinuedIngestionHandler = { run, expiration in
+            BackgroundTaskService.shared.configureContinuedIngestion(run: run, expiration: expiration)
+        }
+        IngestionRuntimeBridge.shared.beginUserInitiatedIngestionHandler = { title, subtitle in
+            BackgroundTaskService.shared.beginUserInitiatedIngestion(title: title, subtitle: subtitle)
+        }
+        IngestionRuntimeBridge.shared.updateContinuedIngestionProgressHandler = { title, subtitle, fraction in
+            BackgroundTaskService.shared.updateContinuedIngestionProgress(
+                title: title,
+                subtitle: subtitle,
+                fraction: fraction
+            )
+        }
+        IngestionRuntimeBridge.shared.restoreLiveActivityHandler = {
+            if #available(iOS 17.0, *) {
+                IngestionLiveActivityService.shared.restoreExistingActivityIfNeeded()
+            }
+        }
+        IngestionRuntimeBridge.shared.syncLiveActivityHandler = { items, containerName in
+            if #available(iOS 17.0, *) {
+                IngestionLiveActivityService.shared.sync(items: items, containerName: containerName)
+            }
+        }
+        IngestionRuntimeBridge.shared.finishLiveActivityHandler = { items, containerName in
+            if #available(iOS 17.0, *) {
+                IngestionLiveActivityService.shared.finish(items: items, containerName: containerName)
+            }
+        }
+        IngestionRuntimeBridge.shared.endLiveActivityHandler = {
+            if #available(iOS 17.0, *) {
+                IngestionLiveActivityService.shared.endCurrentActivity(finalState: nil)
+            }
         }
     }
 
@@ -59,6 +97,16 @@ struct OpenIntelligenceApp: App {
         ) { task in
             guard let refreshTask = task as? BGAppRefreshTask else { return }
             BackgroundTaskService.shared.handleAppRefresh(task: refreshTask)
+        }
+
+        if #available(iOS 26.0, *) {
+            BGTaskScheduler.shared.register(
+                forTaskWithIdentifier: "com.openintelligence.document-ingestion",
+                using: nil
+            ) { task in
+                guard let continuedTask = task as? BGContinuedProcessingTask else { return }
+                BackgroundTaskService.shared.handleContinuedIngestion(task: continuedTask)
+            }
         }
     }
 }

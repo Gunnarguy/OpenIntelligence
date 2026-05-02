@@ -136,8 +136,8 @@ enum PipelineTraceExporter {
                 if let page = chunk.pageNumber {
                     lines.append("  Page:       \(page)")
                 }
-                let sectionTitle = chunk.chunk.metadata.sectionTitle ?? ""
-                let sectionPath = (chunk.chunk.metadata.sectionPath ?? []).joined(separator: " > ")
+                let sectionTitle = trustedLegacySectionLabel(chunk.chunk.metadata.sectionTitle) ?? ""
+                let sectionPath = (trustedLegacySectionPath(chunk.chunk.metadata.sectionPath) ?? []).joined(separator: " > ")
                 let structureType = chunk.chunk.metadata.structureType ?? ""
                 if !sectionTitle.isEmpty {
                     lines.append("  Section:    \(sectionTitle)")
@@ -149,7 +149,12 @@ enum PipelineTraceExporter {
                     lines.append("  Structure:  \(structureType)")
                 }
                 // Show first 300 chars of content
-                let preview = String(chunk.chunk.text.prefix(300))
+                let preview = String(
+                    sanitizedPreviewContent(
+                        chunk.chunk.text,
+                        cleanedSectionPath: trustedLegacySectionPath(chunk.chunk.metadata.sectionPath)
+                    ).prefix(300)
+                )
                     .replacingOccurrences(of: "\n", with: " ")
                 lines.append("  Content:    \(preview)\(chunk.chunk.text.count > 300 ? "..." : "")")
             }
@@ -191,6 +196,64 @@ enum PipelineTraceExporter {
             Log.error("Failed to write pipeline trace: \(error)", category: .pipeline)
             return nil
         }
+    }
+
+    private nonisolated static func trustedLegacySectionPath(_ rawPath: [String]?) -> [String]? {
+        let cleaned = (rawPath ?? []).compactMap(trustedLegacySectionLabel)
+        guard !cleaned.isEmpty else { return nil }
+
+        return cleaned.reduce(into: [String]()) { result, component in
+            if result.last?.caseInsensitiveCompare(component) != .orderedSame {
+                result.append(component)
+            }
+        }
+    }
+
+    private nonisolated static func trustedLegacySectionLabel(_ raw: String?) -> String? {
+        guard let raw else { return nil }
+
+        let normalized = OCRConfiguration.normalizeExtractedText(raw)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalized.isEmpty else { return nil }
+        guard !normalized.contains("_"), !normalized.contains("|") else { return nil }
+
+        let scalars = normalized.unicodeScalars
+        let letterCount = scalars.filter { CharacterSet.letters.contains($0) }.count
+        let alnumCount = scalars.filter { CharacterSet.alphanumerics.contains($0) }.count
+        let latinCount = scalars.filter { scalar in
+            (0x0041...0x005A).contains(scalar.value) || (0x0061...0x007A).contains(scalar.value)
+        }.count
+        let cyrillicCount = scalars.filter { scalar in
+            (0x0400...0x04FF).contains(scalar.value) || (0x0500...0x052F).contains(scalar.value)
+        }.count
+
+        guard letterCount >= 2 else { return nil }
+        if scalars.count >= 8, Double(alnumCount) / Double(max(1, scalars.count)) < 0.55 {
+            return nil
+        }
+        if latinCount > 0, cyrillicCount > 0 {
+            return nil
+        }
+
+        return normalized
+    }
+
+    private nonisolated static func sanitizedPreviewContent(_ text: String, cleanedSectionPath: [String]?) -> String {
+        let lines = text.components(separatedBy: .newlines)
+        guard let firstLine = lines.first else { return text }
+        guard firstLine.trimmingCharacters(in: .whitespacesAndNewlines).hasPrefix("Section Path:") else { return text }
+
+        var updatedLines = lines
+        if let cleanedSectionPath, !cleanedSectionPath.isEmpty {
+            updatedLines[0] = "Section Path: \(cleanedSectionPath.joined(separator: " > "))"
+        } else {
+            updatedLines.removeFirst()
+            while updatedLines.first?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == true {
+                updatedLines.removeFirst()
+            }
+        }
+
+        return updatedLines.joined(separator: "\n")
     }
 }
 

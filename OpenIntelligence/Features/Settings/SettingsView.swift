@@ -743,9 +743,9 @@ Text(deviceService.chipName)
             @ViewBuilder
             private func hardwareEnvelopeSection(deviceService: DeviceCapabilityService) -> some View {
                 let envelope = deviceService.hardwareExecutionEnvelope
-                let fidelityDPI = settings.ingestionFidelityMode == .maximum ? 432 : 360
-                let perPageMB = fidelityDPI == 432 ? envelope.pdfPageMemory432MB : envelope.pdfPageMemory360MB
-                let imageBudgetMB = perPageMB * envelope.pdfRenderSlots
+                let minImageBudgetMB = envelope.pdfPageMemory360MB * envelope.pdfRenderSlots
+                let maxImageBudgetMB = envelope.pdfPageMemory432MB * envelope.pdfRenderSlots
+                let imageBudgetText = "\(envelope.pdfRenderSlots) pages • ~\(minImageBudgetMB)-\(maxImageBudgetMB) MB @ adaptive 360-432 DPI"
                 let gpuCeilingText: String = {
                     if envelope.activeGPUAccelerationLevel < envelope.requestedGPUAccelerationLevel {
                         return "\(Int(envelope.activeGPUAccelerationLevel * 100))% active of \(Int(envelope.requestedGPUAccelerationLevel * 100))% requested"
@@ -783,7 +783,7 @@ Text(deviceService.chipName)
                         hardwareLimitRow(icon: "cpu", label: "CoreML Route", value: envelope.coreMLRoute)
                         hardwareLimitRow(icon: "text.badge.checkmark", label: "Embedding Route", value: envelope.embeddingRoute)
                         hardwareLimitRow(icon: "eye.fill", label: "Vision OCR Ceiling", value: "\(envelope.visionOperationConcurrency) ops • \(envelope.visionCooldownMilliseconds) ms cooldown")
-                        hardwareLimitRow(icon: "photo.stack", label: "Full-Res PDF Budget", value: "\(envelope.pdfRenderSlots) pages • ~\(imageBudgetMB) MB @ \(fidelityDPI) DPI")
+                        hardwareLimitRow(icon: "photo.stack", label: "Adaptive PDF Budget", value: imageBudgetText)
                         hardwareLimitRow(icon: "function", label: "Vector Search Ceiling", value: "\(envelope.vectorBatchSize) batch • matrix @ \(envelope.batchMatrixMultiplyThreshold)+")
                     }
                 }
@@ -1031,32 +1031,21 @@ Text(deviceService.chipName)
 
             VStack(alignment: .leading, spacing: 8) {
                 HStack(spacing: 8) {
-                    Text("Ingestion Fidelity")
+                    Text("Adaptive Visual Ingestion")
                         .font(.caption.weight(.medium))
                     Spacer()
-                    Text(settings.ingestionFidelityMode.uiBadgeText)
+                    Text("Automatic")
                         .font(.caption2.weight(.medium))
-                        .foregroundColor(ingestionFidelityColor(for: settings.ingestionFidelityMode))
+                        .foregroundColor(.orange)
                         .padding(.horizontal, 6)
                         .padding(.vertical, 2)
-                        .background(ingestionFidelityColor(for: settings.ingestionFidelityMode).opacity(0.15))
+                        .background(Color.orange.opacity(0.15))
                         .clipShape(Capsule())
                 }
 
-                Text("This controls how aggressively PDFs stay full-resolution during OCR and structured parsing. Lower modes can skip heavier recovery passes on pages heuristics mark safe. If fidelity matters more than speed, use Maximum. This only affects new ingests and re-ingests.")
+                Text("PDFs and images now use one automatic source-preservation strategy. The engine raises OCR detail, structure recovery, and visual analysis when pages are garbled, table-heavy, columnar, image-heavy, or small-text risky, and stays lighter on clean text-native pages.")
                     .font(.caption)
                     .foregroundColor(.secondary)
-
-                VStack(spacing: 8) {
-                    ForEach(IngestionFidelityMode.allCases) { mode in
-                        Button {
-                            settings.ingestionFidelityMode = mode
-                        } label: {
-                            ingestionFidelityRow(mode: mode, isSelected: settings.ingestionFidelityMode == mode)
-                        }
-                        .buttonStyle(.plain)
-                    }
-                }
             }
             .padding(10)
             .background(Color.orange.opacity(0.08))
@@ -1132,17 +1121,13 @@ Text(deviceService.chipName)
                     .font(.caption.weight(.medium))
                 let renderSlots = deviceService.pdfRenderingConcurrency
                 let batches = 400 / renderSlots
-                let secondsPerBatch: Int = {
-                    switch settings.ingestionFidelityMode {
-                    case .balanced: return 3
-                    case .high: return 4
-                    case .maximum: return 5
-                    }
-                }()
-                let estimatedSeconds = batches * secondsPerBatch
-                let minutes = estimatedSeconds / 60
-                let seconds = estimatedSeconds % 60
-                Text("~\(minutes)m \(seconds)s extraction • \(batches) batches of \(renderSlots) pages • \(settings.ingestionFidelityMode.displayName) fidelity")
+                let fastestSeconds = batches * 3
+                let slowestSeconds = batches * 5
+                let fastMinutes = fastestSeconds / 60
+                let fastRemainder = fastestSeconds % 60
+                let slowMinutes = slowestSeconds / 60
+                let slowRemainder = slowestSeconds % 60
+                Text("~\(fastMinutes)m \(fastRemainder)s to \(slowMinutes)m \(slowRemainder)s extraction • \(batches) batches of \(renderSlots) pages • adaptive visual ingestion")
                     .font(.caption2.monospacedDigit())
                     .foregroundColor(.secondary)
             }
@@ -1212,47 +1197,6 @@ Text(deviceService.chipName)
             Text(value)
                 .font(.caption2.weight(.medium))
                 .foregroundColor(.secondary)
-        }
-    }
-
-    @ViewBuilder
-    private func ingestionFidelityRow(mode: IngestionFidelityMode, isSelected: Bool) -> some View {
-        HStack(spacing: 10) {
-            VStack(alignment: .leading, spacing: 2) {
-                HStack(spacing: 6) {
-                    Text(mode.displayName)
-                        .font(.caption.weight(.medium))
-                        .foregroundColor(isSelected ? ingestionFidelityColor(for: mode) : .primary)
-                    if isSelected {
-                        Image(systemName: "checkmark.circle.fill")
-                            .font(.caption2)
-                            .foregroundColor(ingestionFidelityColor(for: mode))
-                    }
-                }
-                Text(mode.shortDescription)
-                    .font(.caption2)
-                    .foregroundColor(.secondary)
-            }
-
-            Spacer()
-        }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 8)
-        .background(
-            RoundedRectangle(cornerRadius: 10)
-                .fill(isSelected ? ingestionFidelityColor(for: mode).opacity(0.12) : Color.secondary.opacity(0.06))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 10)
-                .stroke(isSelected ? ingestionFidelityColor(for: mode).opacity(0.35) : Color.clear, lineWidth: 1)
-        )
-    }
-
-    private func ingestionFidelityColor(for mode: IngestionFidelityMode) -> Color {
-        switch mode {
-        case .balanced: return .blue
-        case .high: return .orange
-        case .maximum: return .red
         }
     }
 

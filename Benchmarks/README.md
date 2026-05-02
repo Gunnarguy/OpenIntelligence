@@ -95,6 +95,8 @@ By default the studio uses:
 - PCC consent: `allow`
 - app refresh limit: disabled through the runner default
 
+Note: the Mac runtime here is an App Catalyst evaluation path, not a separate native macOS app target.
+
 The Debug configuration enables Mac Catalyst for benchmarking. The runner uses
 that path when you choose `--runtime mac`, copies uploaded documents into the
 app's Mac container, launches the debug harness locally, then copies the report

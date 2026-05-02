@@ -458,7 +458,7 @@ class ImageUnderstandingService {
     /// At 542 pages + 8 images, unbounded parallelism caused watchdog kills.
     func analyzeDocumentImages(
         images: [(image: CIImage, pageNumber: Int, bounds: CGRect)],
-        textObservations: [[VNRecognizedTextObservation]] // Per-page text
+        textObservationsByPage: [Int: [VNRecognizedTextObservation]]
     ) async -> (images: [AnalyzedImage], metadata: VisualContentMetadata) {
         guard !images.isEmpty else {
             return ([], VisualContentMetadata(
@@ -485,7 +485,7 @@ class ImageUnderstandingService {
             // Seed the group with initial batch
             while index < min(maxConcurrent, images.count) {
                 let (image, pageNumber, bounds) = images[index]
-                let pageTextObs = pageNumber <= textObservations.count ? textObservations[pageNumber - 1] : []
+                let pageTextObs = textObservationsByPage[pageNumber] ?? []
                 let capturedIndex = index
                 group.addTask { [self] in
                     do {
@@ -510,7 +510,7 @@ class ImageUnderstandingService {
                 // Launch next image if any remain
                 if index < images.count {
                     let (image, pageNumber, bounds) = images[index]
-                    let pageTextObs = pageNumber <= textObservations.count ? textObservations[pageNumber - 1] : []
+                    let pageTextObs = textObservationsByPage[pageNumber] ?? []
                     let capturedIndex = index
                     group.addTask { [self] in
                         do {
@@ -576,13 +576,8 @@ class ImageUnderstandingService {
         // 2. Find associated caption
         let caption = findAssociatedCaption(for: bounds, in: pageTextObs)
 
-        // 3. Extract text FROM the image (critical for diagrams/flowcharts)
-        var extractedText: String? = nil
-        if contentType == .diagram || contentType == .chart || contentType == .technicalDrawing || contentType == .screenshot {
-            extractedText = await extractTextFromImage(image)
-        } else {
-            extractedText = await extractTextFromImage(image)
-        }
+        // 3. Extract text FROM the image (critical for diagrams, screenshots, and annotated figures)
+        let extractedText = await extractTextFromImage(image)
 
         // 4. Find surrounding context
         let (precedingContext, followingContext) = findSurroundingContext(for: bounds, in: pageTextObs)
@@ -591,15 +586,15 @@ class ImageUnderstandingService {
         var description: String? = nil
 
         if #available(iOS 26.0, *) {
-            // Try AI description first - works best for diagrams, charts, schematics
-            if contentType == .diagram || contentType == .chart || contentType == .technicalDrawing {
-                description = await generateAIDescription(
-                    for: image,
-                    contentType: contentType,
-                    extractedText: extractedText,
-                    caption: caption
-                )
-            }
+            description = await generateAIDescription(
+                for: image,
+                contentType: contentType,
+                classifications: classifications,
+                extractedText: extractedText,
+                caption: caption,
+                precedingContext: precedingContext,
+                followingContext: followingContext
+            )
         }
 
         // Fall back to classification-based description if no AI description
@@ -637,8 +632,11 @@ class ImageUnderstandingService {
     func generateAIDescription(
         for image: CIImage,
         contentType: ImageContentType,
+        classifications: [ImageClassification],
         extractedText: String? = nil,
-        caption: String? = nil
+        caption: String? = nil,
+        precedingContext: String? = nil,
+        followingContext: String? = nil
     ) async -> String? {
         #if canImport(FoundationModels)
         do {
@@ -654,8 +652,11 @@ class ImageUnderstandingService {
             // Build context-aware prompt based on content type
             let prompt = buildImageDescriptionPrompt(
                 contentType: contentType,
+                classifications: classifications,
                 extractedText: extractedText,
-                caption: caption
+                caption: caption,
+                precedingContext: precedingContext,
+                followingContext: followingContext
             )
 
             // Generate description
@@ -681,8 +682,11 @@ class ImageUnderstandingService {
     /// Build a context-aware prompt for image description based on content type
     private func buildImageDescriptionPrompt(
         contentType: ImageContentType,
+        classifications: [ImageClassification],
         extractedText: String?,
-        caption: String?
+        caption: String?,
+        precedingContext: String?,
+        followingContext: String?
     ) -> String {
         var contextParts: [String] = []
 
@@ -706,6 +710,13 @@ class ImageUnderstandingService {
         }
         contextParts.append(typeHint)
 
+        let topClassifications = classifications
+            .prefix(5)
+            .map { $0.identifier.replacingOccurrences(of: "_", with: " ") }
+        if !topClassifications.isEmpty {
+            contextParts.append("Vision classifications: \(topClassifications.joined(separator: ", "))")
+        }
+
         // Add caption if available
         if let caption = caption, !caption.isEmpty {
             contextParts.append("Caption: \(caption)")
@@ -717,6 +728,14 @@ class ImageUnderstandingService {
             contextParts.append("Text visible in image: \(truncatedText)")
         }
 
+        if let precedingContext = precedingContext, !precedingContext.isEmpty {
+            contextParts.append("Nearby text before image: \(String(precedingContext.prefix(220)))")
+        }
+
+        if let followingContext = followingContext, !followingContext.isEmpty {
+            contextParts.append("Nearby text after image: \(String(followingContext.prefix(220)))")
+        }
+
         let context = contextParts.joined(separator: "\n")
 
         // Build the prompt
@@ -724,47 +743,72 @@ class ImageUnderstandingService {
         switch contentType {
         case .diagram:
             prompt = """
-            Based on this context, describe what this diagram shows. Focus on the flow, steps, or relationships depicted.
+            You are writing retrieval text for a document intelligence engine.
+            Based only on this context, describe what this diagram shows. Focus on the flow, steps, labels, relationships, and exact terms visible.
 
             \(context)
 
-            Provide a concise description (2-3 sentences) of the diagram's content and purpose.
+            Provide a concise grounded description (2-3 sentences). Preserve exact codes, labels, units, statuses, and arrows when they appear.
             """
 
         case .chart:
             prompt = """
-            Based on this context, describe what this chart shows. Extract any data values or trends visible.
+            You are writing retrieval text for a document intelligence engine.
+            Based only on this context, describe what this chart shows. Extract visible values, labels, legends, and trends when supported.
 
             \(context)
 
-            Provide a concise description (2-3 sentences) including specific values if visible.
+            Provide a concise grounded description (2-3 sentences) including exact values or units only if they appear in the supplied context.
             """
 
         case .technicalDrawing:
             prompt = """
-            Based on this context, describe what this technical drawing shows. Identify components, measurements, or specifications.
+            You are writing retrieval text for a document intelligence engine.
+            Based only on this context, describe what this technical drawing shows. Identify components, measurements, specifications, and labels.
 
             \(context)
 
-            Provide a concise technical description (2-3 sentences).
+            Provide a concise grounded technical description (2-3 sentences). Preserve exact component names, codes, and units where visible.
             """
 
         case .screenshot:
             prompt = """
-            Based on this context, describe what this screenshot shows. Identify the application, interface elements, or content.
+            You are writing retrieval text for a document intelligence engine.
+            Based only on this context, describe what this screenshot shows. Identify interface elements, visible text, controls, and workflow context.
 
             \(context)
 
-            Provide a concise description (2-3 sentences) of what the screenshot depicts.
+            Provide a concise grounded description (2-3 sentences) of what the screenshot depicts. Preserve exact visible UI text when possible.
+            """
+
+        case .photograph:
+            prompt = """
+            You are writing retrieval text for a document intelligence engine.
+            Based only on this context, describe what this photograph shows. Focus on the main subject, any readable labels, and the document-relevant context.
+
+            \(context)
+
+            Provide a concise grounded description (1-2 sentences).
+            """
+
+        case .logo:
+            prompt = """
+            You are writing retrieval text for a document intelligence engine.
+            Based only on this context, describe what this logo or emblem identifies.
+
+            \(context)
+
+            Provide a concise grounded description (1 sentence).
             """
 
         default:
             prompt = """
-            Based on this context, provide a brief description of what this image shows.
+            You are writing retrieval text for a document intelligence engine.
+            Based only on this context, provide a brief grounded description of what this image shows.
 
             \(context)
 
-            Describe the content in 1-2 sentences.
+            Describe the content in 1-2 sentences. Preserve exact labels, numbers, and units when visible.
             """
         }
 
@@ -786,8 +830,11 @@ class ImageUnderstandingService {
         let aiDescription = await generateAIDescription(
             for: image,
             contentType: contentType,
+            classifications: classifications,
             extractedText: extractedText,
-            caption: nil
+            caption: nil,
+            precedingContext: nil,
+            followingContext: nil
         )
 
         // Generate combined description
@@ -870,8 +917,11 @@ class ImageUnderstandingService {
             aiDescription = await generateAIDescription(
                 for: image,
                 contentType: contentType,
+                classifications: classifications,
                 extractedText: extractedText,
-                caption: nil
+                caption: nil,
+                precedingContext: nil,
+                followingContext: nil
             )
         }
 
@@ -1004,8 +1054,11 @@ class ImageDescriptionService {
             return await ImageUnderstandingService.shared.generateAIDescription(
                 for: ciImage,
                 contentType: .unknown,
+                classifications: [],
                 extractedText: nil,
-                caption: nil
+                caption: nil,
+                precedingContext: nil,
+                followingContext: nil
             )
         }
 
@@ -1030,8 +1083,11 @@ class ImageDescriptionService {
             return await ImageUnderstandingService.shared.generateAIDescription(
                 for: ciImage,
                 contentType: contentType,
+                classifications: classifications,
                 extractedText: extractedText,
-                caption: caption
+                caption: caption,
+                precedingContext: nil,
+                followingContext: nil
             )
         }
 

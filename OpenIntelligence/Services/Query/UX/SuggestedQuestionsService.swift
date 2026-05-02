@@ -164,16 +164,21 @@ actor SuggestedQuestionsService {
             dedupeSuggestedQuestionsPreservingOrder(questions),
             count: max(count, 6)
         )
+        let supplemented = supplementWithDocumentFallbacks(
+            deduped,
+            documents: documents,
+            targetCount: max(count, 6)
+        )
 
         // Cache
         cachedQuestions[containerId] = CachedEntry(
-            questions: deduped,
+            questions: supplemented,
             documentCount: documents.count,
             generatedAt: Date()
         )
-        Log.info("[SuggestedQuestions] Generated \(deduped.count) questions for container (refresh: \(forceRefresh))")
+        Log.info("[SuggestedQuestions] Generated \(supplemented.count) questions for container (refresh: \(forceRefresh))")
 
-        return Array(deduped.prefix(count))
+        return Array(supplemented.prefix(count))
     }
 
     /// Invalidate cache when documents change (ingest, delete, container switch)
@@ -529,7 +534,7 @@ actor SuggestedQuestionsService {
             drafts.append(QuestionDraft(
                 text: "What does \(cleanAbbr) stand for?",
                 category: .factRetrieval,
-                confidence: 0.86
+                confidence: 0.62
             ))
         }
 
@@ -784,6 +789,107 @@ actor SuggestedQuestionsService {
         return result
     }
 
+    private func supplementWithDocumentFallbacks(
+        _ questions: [SuggestedQuestion],
+        documents: [Document],
+        targetCount: Int
+    ) -> [SuggestedQuestion] {
+        guard questions.count < targetCount else { return questions }
+
+        let fallbackQuestions = documentAwareFallbackQuestions(from: documents)
+        let merged = dedupeSuggestedQuestionsPreservingOrder(questions + fallbackQuestions)
+        return Array(merged.prefix(targetCount))
+    }
+
+    private func documentAwareFallbackQuestions(from documents: [Document]) -> [SuggestedQuestion] {
+        let sortedDocs = documents.sorted {
+            if $0.totalChunks == $1.totalChunks {
+                return $0.addedAt > $1.addedAt
+            }
+            return $0.totalChunks > $1.totalChunks
+        }
+
+        var fallbackQuestions: [SuggestedQuestion] = []
+
+        for document in sortedDocs.prefix(3) {
+            let documentName = displayDocumentName(document.filename)
+            guard !documentName.isEmpty else { continue }
+
+            if let topic = primaryFallbackTopic(for: document) {
+                fallbackQuestions.append(SuggestedQuestion(
+                    id: UUID(),
+                    text: "What's the guidance on \(topic) in \(documentName)?",
+                    category: .factRetrieval,
+                    relevantDocuments: [documentName],
+                    sourceSections: [],
+                    confidence: 0.58
+                ))
+            }
+
+            for candidate in fallbackCandidates(for: document, documentName: documentName) {
+                fallbackQuestions.append(SuggestedQuestion(
+                    id: UUID(),
+                    text: candidate.text,
+                    category: candidate.category,
+                    relevantDocuments: [documentName],
+                    sourceSections: [],
+                    confidence: candidate.confidence
+                ))
+            }
+        }
+
+        return fallbackQuestions
+    }
+
+    private func primaryFallbackTopic(for document: Document) -> String? {
+        guard let topic = document.contentTags?
+            .map({ $0.trimmingCharacters(in: .whitespacesAndNewlines.union(.punctuationCharacters)) })
+            .first(where: { tag in
+                let lower = tag.lowercased()
+                return tag.count >= 4
+                    && tag.count <= 40
+                    && !isGenericQuestionTopic(lower)
+                    && !Self.matchStopTokens.contains(lower)
+            })
+        else {
+            return nil
+        }
+
+        return topic == topic.uppercased() ? topic.lowercased() : topic
+    }
+
+    private func fallbackCandidates(
+        for document: Document,
+        documentName: String
+    ) -> [(text: String, category: QuestionCategory, confidence: Double)] {
+        switch document.contentType {
+        case .excel, .numbers, .csv:
+            return [
+                ("What numbers or limits are listed in \(documentName)?", .numerical, 0.53),
+                ("Which values matter most in \(documentName)?", .numerical, 0.50),
+                ("Are there any standout thresholds in \(documentName)?", .numerical, 0.48),
+            ]
+        case .audio, .video, .m4a, .mp3, .wav, .mp4, .mov:
+            return [
+                ("What decisions or action items are in \(documentName)?", .procedural, 0.53),
+                ("What follow-ups are mentioned in \(documentName)?", .procedural, 0.50),
+                ("What should someone do after reading \(documentName)?", .procedural, 0.47),
+            ]
+        case .swift, .python, .javascript, .typescript, .java, .cpp, .c, .objc, .go, .rust, .ruby, .php, .html, .css, .json, .xml, .yaml, .sql, .shell, .code:
+            return [
+                ("What settings or parameters are defined in \(documentName)?", .factRetrieval, 0.53),
+                ("What schema or config details are in \(documentName)?", .factRetrieval, 0.50),
+                ("Which values or flags matter in \(documentName)?", .factRetrieval, 0.47),
+            ]
+        default:
+            return [
+                ("What exact specs or requirements are in \(documentName)?", .numerical, 0.54),
+                ("What steps or procedures are in \(documentName)?", .procedural, 0.51),
+                ("What warnings or exceptions does \(documentName) mention?", .factRetrieval, 0.49),
+            ]
+        }
+    }
+
     // MARK: - Grounding Helpers
 
     private func buildGroundedPassages(
@@ -959,9 +1065,9 @@ actor SuggestedQuestionsService {
         case .comparison:
             return 0.06
         case .analytical:
-            return -0.02
+            return -0.14
         case .summarization:
-            return -0.05
+            return -0.18
         }
     }
 
@@ -1290,9 +1396,9 @@ actor SuggestedQuestionsService {
 
     /// Generic fallback questions (absolute last resort)
     static let genericQuestions: [String] = [
-        "What are the most important numbers or specs here?",
-        "Are there any step-by-step instructions?",
-        "Any warnings or safety info I should know about?",
-        "What deadlines or dates are mentioned?"
+        "What exact specs or limits are mentioned here?",
+        "Which procedure or checklist matters most here?",
+        "What warning, restriction, or exception is called out?",
+        "What number, date, or threshold should I know?"
     ]
 }

@@ -1211,14 +1211,90 @@ struct ChatScreen: View {
             ]
         }
 
-        // Fallback prompts relevant to sample documents
-        // These are specific enough to get good answers but not too nuanced
-        return [
-            "What are the most important numbers or specs here?",
-            "Are there any step-by-step instructions?",
-            "Any warnings or safety info I should know about?",
-            "Summarize the key points."
-        ]
+        return documentAwareStarterPrompts
+    }
+
+    private var activeDocumentsForStarterPrompts: [Document] {
+        let activeId = ragService.containerService.activeContainerId
+        let defaultId = ragService.containerService.containers.first?.id
+
+        return ragService.documents.filter { doc in
+            if let cid = doc.containerId {
+                return cid == activeId
+            }
+            return activeId == defaultId
+        }
+    }
+
+    private var documentAwareStarterPrompts: [String] {
+        let docs = activeDocumentsForStarterPrompts.sorted {
+            if $0.totalChunks == $1.totalChunks {
+                return $0.addedAt > $1.addedAt
+            }
+            return $0.totalChunks > $1.totalChunks
+        }
+
+        guard !docs.isEmpty else {
+            return SuggestedQuestionsService.genericQuestions
+        }
+
+        var prompts: [String] = []
+
+        for document in docs.prefix(2) {
+            let name = starterDisplayDocumentName(document.filename)
+            guard !name.isEmpty else { continue }
+
+            if let tag = starterPromptTopic(for: document) {
+                prompts.append("What's the guidance on \(tag) in \(name)?")
+            }
+
+            switch document.contentType {
+            case .excel, .numbers, .csv:
+                prompts.append("What numbers or limits are listed in \(name)?")
+                prompts.append("Which values matter most in \(name)?")
+            case .audio, .video, .m4a, .mp3, .wav, .mp4, .mov:
+                prompts.append("What decisions or action items are in \(name)?")
+                prompts.append("What follow-ups are mentioned in \(name)?")
+            case .swift, .python, .javascript, .typescript, .java, .cpp, .c, .objc, .go, .rust, .ruby, .php, .html, .css, .json, .xml, .yaml, .sql, .shell, .code:
+                prompts.append("What settings or parameters are defined in \(name)?")
+                prompts.append("What schema or config details are in \(name)?")
+            default:
+                prompts.append("What exact specs or requirements are in \(name)?")
+                prompts.append("What warnings or exceptions does \(name) mention?")
+                prompts.append("What steps or procedures are in \(name)?")
+            }
+        }
+
+        let deduped = prompts.reduce(into: [String]()) { result, prompt in
+            guard !result.contains(where: { $0.caseInsensitiveCompare(prompt) == .orderedSame }) else { return }
+            result.append(prompt)
+        }
+
+        return Array(deduped.prefix(4))
+    }
+
+    private func starterDisplayDocumentName(_ filename: String) -> String {
+        filename
+            .replacingOccurrences(of: "\\.[^.]+$", with: "", options: .regularExpression)
+            .replacingOccurrences(of: "_", with: " ")
+            .replacingOccurrences(of: "-", with: " ")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private func starterPromptTopic(for document: Document) -> String? {
+        guard let topic = document.contentTags?
+            .map({ $0.trimmingCharacters(in: .whitespacesAndNewlines.union(.punctuationCharacters)) })
+            .first(where: { tag in
+                let lowered = tag.lowercased()
+                return tag.count >= 4
+                    && tag.count <= 40
+                    && !["analysis", "data", "document", "information", "summary", "content", "text"].contains(lowered)
+            })
+        else {
+            return nil
+        }
+
+        return topic == topic.uppercased() ? topic.lowercased() : topic
     }
 
     /// Generate dynamic suggested questions based on library content

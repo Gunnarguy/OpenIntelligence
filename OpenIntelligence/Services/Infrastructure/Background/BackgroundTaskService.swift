@@ -8,6 +8,9 @@
 
 import Foundation
 import BackgroundTasks
+#if canImport(UIKit)
+import UIKit
+#endif
 
 /// Handles background task execution for maintenance operations
 final class BackgroundTaskService: Sendable {
@@ -17,6 +20,16 @@ final class BackgroundTaskService: Sendable {
     static let indexMaintenanceIdentifier = "com.openintelligence.index-maintenance"
     static let spotlightReindexIdentifier = "com.openintelligence.spotlight-reindex"
     static let appRefreshIdentifier = "com.openintelligence.app-refresh"
+    static let continuedIngestionIdentifier = "com.openintelligence.document-ingestion"
+
+    @MainActor private var continuedIngestionRunner: (@MainActor () async -> Bool)?
+    @MainActor private var continuedIngestionExpirationHandler: (@MainActor () -> Void)?
+    @MainActor private var activeContinuedIngestionTask: BGContinuedProcessingTask?
+    @MainActor private var activeContinuedIngestionWorker: Task<Void, Never>?
+    @MainActor private var continuedIngestionRequestSubmitted = false
+#if canImport(UIKit)
+    @MainActor private var continuedIngestionBridgeTask: UIBackgroundTaskIdentifier = .invalid
+#endif
 
     private init() {}
 
@@ -63,6 +76,168 @@ final class BackgroundTaskService: Sendable {
         } catch {
             Log.error("[BackgroundTasks] Failed to schedule app refresh: \(error.localizedDescription)", category: .initialization)
         }
+    }
+
+    @MainActor
+    func configureContinuedIngestion(
+        run: @escaping @MainActor () async -> Bool,
+        expiration: @escaping @MainActor () -> Void
+    ) {
+        continuedIngestionRunner = run
+        continuedIngestionExpirationHandler = expiration
+    }
+
+    @MainActor
+    func beginUserInitiatedIngestion(title: String, subtitle: String) {
+        guard #available(iOS 26.0, *) else { return }
+        guard activeContinuedIngestionTask == nil, activeContinuedIngestionWorker == nil, !continuedIngestionRequestSubmitted else {
+            return
+        }
+
+        beginContinuedIngestionBridgeIfNeeded(reason: title)
+
+        let request = BGContinuedProcessingTaskRequest(
+            identifier: Self.continuedIngestionIdentifier,
+            title: title,
+            subtitle: tunedSubtitle(base: subtitle)
+        )
+        request.strategy = preferredSubmissionStrategy()
+        if shouldRequestBackgroundGPU(), BGTaskScheduler.supportedResources.contains(.gpu) {
+            request.requiredResources = .gpu
+        }
+
+        do {
+            continuedIngestionRequestSubmitted = true
+            try BGTaskScheduler.shared.submit(request)
+            Log.info("[BackgroundTasks] Submitted continued ingestion task", category: .initialization)
+        } catch {
+            continuedIngestionRequestSubmitted = false
+            Log.warning("[BackgroundTasks] Failed to submit continued ingestion task: \(error.localizedDescription)", category: .initialization)
+        }
+    }
+
+    @MainActor
+    @available(iOS 26.0, *)
+    func handleContinuedIngestion(task: BGContinuedProcessingTask) {
+        Log.info("[BackgroundTasks] Starting continued ingestion task", category: .initialization)
+
+        continuedIngestionRequestSubmitted = false
+        endContinuedIngestionBridgeIfNeeded()
+        activeContinuedIngestionTask = task
+        task.progress.totalUnitCount = 1000
+        task.progress.completedUnitCount = 0
+
+        task.expirationHandler = { [weak self] in
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                self.activeContinuedIngestionWorker?.cancel()
+                self.continuedIngestionExpirationHandler?()
+                self.finishContinuedIngestion(success: false)
+                Log.warning("[BackgroundTasks] Continued ingestion task expired", category: .initialization)
+            }
+        }
+
+        activeContinuedIngestionWorker?.cancel()
+        activeContinuedIngestionWorker = Task { @MainActor [weak self] in
+            guard let self else { return }
+            let success = await self.continuedIngestionRunner?() ?? false
+            self.finishContinuedIngestion(success: success)
+        }
+    }
+
+    @MainActor
+    func updateContinuedIngestionProgress(title: String, subtitle: String, fraction: Double) {
+        guard #available(iOS 26.0, *), let task = activeContinuedIngestionTask else { return }
+        let clampedFraction = max(0, min(1, fraction))
+        task.progress.totalUnitCount = 1000
+        task.progress.completedUnitCount = Int64((clampedFraction * 1000).rounded())
+        task.updateTitle(title, subtitle: tunedSubtitle(base: subtitle))
+    }
+
+    @MainActor
+    private func finishContinuedIngestion(success: Bool) {
+        guard #available(iOS 26.0, *) else { return }
+        activeContinuedIngestionTask?.setTaskCompleted(success: success)
+        activeContinuedIngestionTask = nil
+        activeContinuedIngestionWorker = nil
+        continuedIngestionRequestSubmitted = false
+        endContinuedIngestionBridgeIfNeeded()
+    }
+
+    @MainActor
+    @available(iOS 26.0, *)
+    private func preferredSubmissionStrategy() -> BGContinuedProcessingTaskRequest.SubmissionStrategy {
+        // Document ingestion should complete eventually after a user initiates it.
+        // Prefer queueing over immediate failure when the system is resource constrained.
+        .queue
+    }
+
+#if canImport(UIKit)
+    @MainActor
+    private func beginContinuedIngestionBridgeIfNeeded(reason: String) {
+        guard continuedIngestionBridgeTask == .invalid else { return }
+
+        let identifier = UIApplication.shared.beginBackgroundTask(withName: reason) { [weak self] in
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                self.continuedIngestionExpirationHandler?()
+                self.endContinuedIngestionBridgeIfNeeded()
+                Log.warning("[BackgroundTasks] UIKit bridge background task expired", category: .initialization)
+            }
+        }
+
+        guard identifier != .invalid else {
+            Log.warning("[BackgroundTasks] UIKit bridge background task unavailable", category: .initialization)
+            return
+        }
+
+        continuedIngestionBridgeTask = identifier
+        Log.debug("[BackgroundTasks] Started UIKit bridge background task", category: .initialization)
+    }
+
+    @MainActor
+    private func endContinuedIngestionBridgeIfNeeded() {
+        guard continuedIngestionBridgeTask != .invalid else { return }
+        UIApplication.shared.endBackgroundTask(continuedIngestionBridgeTask)
+        continuedIngestionBridgeTask = .invalid
+    }
+#else
+    @MainActor
+    private func beginContinuedIngestionBridgeIfNeeded(reason _: String) {}
+
+    @MainActor
+    private func endContinuedIngestionBridgeIfNeeded() {}
+#endif
+
+    @MainActor
+    @available(iOS 26.0, *)
+    private func shouldRequestBackgroundGPU() -> Bool {
+        let device = DeviceCapabilityService.shared
+        let thermalState = ProcessInfo.processInfo.thermalState
+
+        guard device.activeGPUAccelerationLevel >= 0.6 else { return false }
+        guard thermalState == .nominal || thermalState == .fair else { return false }
+
+        if device.formFactor == .iPhone && device.tier == .baseline {
+            return false
+        }
+
+        return true
+    }
+
+    @MainActor
+    private func tunedSubtitle(base: String) -> String {
+        let device = DeviceCapabilityService.shared
+        let mode: String
+        switch device.activeGPUAccelerationLevel {
+        case ..<0.3:
+            mode = "Eco"
+        case 0.3..<0.7:
+            mode = "Balanced"
+        default:
+            mode = "Turbo"
+        }
+        return "\(base) • \(device.chipName) • \(mode)"
     }
 
     // MARK: - Task Handlers

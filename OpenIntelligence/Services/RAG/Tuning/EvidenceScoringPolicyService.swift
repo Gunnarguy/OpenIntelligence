@@ -9,7 +9,7 @@
 import Foundation
 
 enum EvidenceScoringPolicyService {
-    private static let sentenceStopWords: Set<String> = [
+    nonisolated private static let sentenceStopWords: Set<String> = [
         "a", "an", "the", "is", "are", "was", "were", "be", "been", "being",
         "have", "has", "had", "do", "does", "did", "will", "would", "could", "should",
         "may", "might", "must", "shall", "can", "need", "dare", "ought", "used",
@@ -24,28 +24,28 @@ enum EvidenceScoringPolicyService {
         "he", "him", "his", "she", "her", "hers", "they", "them", "their"
     ]
 
-    private static let crossReferenceIndicators = [
+    nonisolated private static let crossReferenceIndicators = [
         "given in", "refer to", "see page", "found in", "listed in", "shown in",
         "specified in", "provided in"
     ]
 
-    private static let stateIndicatorTerms = [
+    nonisolated private static let stateIndicatorTerms = [
         "light", "lights", "indicator", "indicators", "led", "status", "signal"
     ]
 
-    private static let stateTerms = [
+    nonisolated private static let stateTerms = [
         "solid", "flashing", "flash", "blink", "blinking", "steady", "pulsing", "rapid", "slow"
     ]
 
-    private static let stateColors = [
+    nonisolated private static let stateColors = [
         "red", "green", "blue", "yellow", "amber", "orange", "purple", "white", "cyan", "magenta"
     ]
 
-    static func precisionLockThreshold(forceExtractiveAttempt: Bool) -> Float {
+    nonisolated static func precisionLockThreshold(forceExtractiveAttempt: Bool) -> Float {
         forceExtractiveAttempt ? 0.90 : 0.82
     }
 
-    static func isStateLookupQuery(_ query: String) -> Bool {
+    nonisolated static func isStateLookupQuery(_ query: String) -> Bool {
         let lower = query.lowercased()
         let hasIndicatorTerm = stateIndicatorTerms.contains { lower.contains($0) }
         let hasStateTerm = stateTerms.contains { lower.contains($0) }
@@ -56,7 +56,7 @@ enum EvidenceScoringPolicyService {
         return hasIndicatorTerm && (hasStateTerm || hasColor)
     }
 
-    static func stateLookupAnchors(from query: String) -> (colors: [String], states: [String]) {
+    nonisolated static func stateLookupAnchors(from query: String) -> (colors: [String], states: [String]) {
         let lower = query.lowercased()
         let colors = stateColors.filter { color in
             lower.range(of: #"\b\#(color)\b"#, options: .regularExpression) != nil
@@ -65,7 +65,7 @@ enum EvidenceScoringPolicyService {
         return (colors, states)
     }
 
-    static func satisfiesStateLookupAnchors(query: String, content: String) -> Bool {
+    nonisolated static func satisfiesStateLookupAnchors(query: String, content: String) -> Bool {
         let anchors = stateLookupAnchors(from: query)
         let lowerContent = content.lowercased()
 
@@ -80,7 +80,7 @@ enum EvidenceScoringPolicyService {
         return true
     }
 
-    static func stateLookupAnchorAdjustment(
+    nonisolated static func stateLookupAnchorAdjustment(
         query: String,
         content: String,
         structureType: String?
@@ -136,7 +136,7 @@ enum EvidenceScoringPolicyService {
         return normalized.range(of: specCodePattern, options: .regularExpression) != nil
     }
 
-    static func specPatternCount(in content: String) -> Int {
+    nonisolated static func specPatternCount(in content: String) -> Int {
         var score = 0
 
         let gradePattern = #"[A-Z0-9]+[-][A-Z0-9]+"#
@@ -166,7 +166,7 @@ enum EvidenceScoringPolicyService {
         return score
     }
 
-    static func isStructuredEvidence(text: String, structureType: String?) -> Bool {
+    nonisolated static func isStructuredEvidence(text: String, structureType: String?) -> Bool {
         if structureType == "table" {
             return true
         }
@@ -190,7 +190,7 @@ enum EvidenceScoringPolicyService {
         return structuredLines.count >= 2
     }
 
-    static func correctiveRetrievalScore(
+    nonisolated static func correctiveRetrievalScore(
         content: String,
         queryTerms: [String],
         structureType: String?,
@@ -218,11 +218,11 @@ enum EvidenceScoringPolicyService {
         return min(score, 0.93)
     }
 
-    static func crossReferenceScoreFloor(isSpecificationHeavy: Bool) -> Float {
+    nonisolated static func crossReferenceScoreFloor(isSpecificationHeavy: Bool) -> Float {
         isSpecificationHeavy ? 0.60 : 0.55
     }
 
-    static func crossReferenceSectionScore(
+    nonisolated static func crossReferenceSectionScore(
         content: String,
         structureType: String?,
         hasNumericData: Bool,
@@ -245,7 +245,7 @@ enum EvidenceScoringPolicyService {
         return max(rawScore, crossReferenceScoreFloor(isSpecificationHeavy: isSpecificationHeavy))
     }
 
-    static func crossReferencePageScore(
+    nonisolated static func crossReferencePageScore(
         content: String,
         structureType: String?,
         hasNumericData: Bool,
@@ -270,7 +270,7 @@ enum EvidenceScoringPolicyService {
         return score
     }
 
-    static func specSniperScore(
+    nonisolated static func specSniperScore(
         content: String,
         structureType: String?,
         queryConceptAliases: [[String]]
@@ -326,7 +326,7 @@ enum EvidenceScoringPolicyService {
         return (score, matchingConceptCount)
     }
 
-    static func extractivePriorityScore(
+    nonisolated static func extractivePriorityScore(
         content: String,
         queryKeywords: [String],
         structureType: String?
@@ -339,7 +339,7 @@ enum EvidenceScoringPolicyService {
         return specScore + structuredBonus + keywordBonus
     }
 
-    static func sentenceScore(
+    nonisolated static func sentenceScore(
         line: String,
         headingContext: String,
         queryKeywords: [String],

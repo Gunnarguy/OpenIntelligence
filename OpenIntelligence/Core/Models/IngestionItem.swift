@@ -1,6 +1,6 @@
 import Foundation
 
-enum IngestionStage: String, CaseIterable, Sendable {
+enum IngestionStage: String, CaseIterable, Codable, Sendable {
     case queued
     case loading
     case transcribing // Audio/video transcription via Speech.framework
@@ -56,7 +56,7 @@ enum IngestionStage: String, CaseIterable, Sendable {
 }
 
 /// Rich pipeline metrics for real-time transparency
-struct PipelineMetrics: Sendable, Equatable {
+struct PipelineMetrics: Codable, Sendable, Equatable {
     // Document stats
     var fileSizeMB: Double = 0
     var totalCharacters: Int = 0
@@ -133,7 +133,7 @@ struct PipelineMetrics: Sendable, Equatable {
     var rebuildReason: String = ""
 }
 
-struct IngestionItem: Identifiable, Sendable, Equatable {
+struct IngestionItem: Identifiable, Codable, Sendable, Equatable {
     let id: UUID
     let url: URL
     var stage: IngestionStage

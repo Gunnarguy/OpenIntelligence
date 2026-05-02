@@ -44,7 +44,7 @@ struct ThinkingEvent: Identifiable, Sendable, Equatable {
         case imagePlayground // Image Playground concept extraction pipeline
 
         /// Maps each kind to a system icon for quick visual scanning.
-        var systemIconName: String {
+        nonisolated var systemIconName: String {
             switch self {
             case .planning: return "list.bullet.rectangle"
             case .embedding: return "brain.head.profile"
@@ -82,7 +82,7 @@ struct ThinkingEvent: Identifiable, Sendable, Equatable {
         }
 
         /// Human-readable technique name
-        var displayName: String {
+        nonisolated var displayName: String {
             switch self {
             case .planning: return "Planning"
             case .embedding: return "Embedding"
@@ -119,7 +119,7 @@ struct ThinkingEvent: Identifiable, Sendable, Equatable {
         }
 
         /// Color for the technique category
-        var color: String {
+        nonisolated var color: String {
             switch self {
             case .planning, .agentic: return "purple"
             case .embedding, .hyde, .vectorSearch: return "blue"
@@ -153,5 +153,45 @@ struct ThinkingEvent: Identifiable, Sendable, Equatable {
         self.kind = kind
         self.title = title
         self.detail = detail
+    }
+}
+
+extension Array where Element == ThinkingEvent {
+    /// Build a compact, human-readable reasoning trace from granular pipeline events.
+    /// This is used when the engine did real work but didn't attach a higher-level
+    /// reasoningTrace payload to metadata.
+    nonisolated func compactReasoningTrace(maxSteps: Int = 8) -> [String] {
+        guard !isEmpty else { return [] }
+
+        let sortedEvents = self.sorted { $0.timestamp < $1.timestamp }
+        var steps: [String] = []
+        var seen = Set<String>()
+
+        for event in sortedEvents {
+            let trimmedTitle = event.title.trimmingCharacters(in: .whitespacesAndNewlines)
+            let trimmedDetail = event.detail?
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .nilIfEmpty
+
+            guard !trimmedTitle.isEmpty else { continue }
+
+            let entry = "\(event.kind.displayName): \(trimmedTitle)\(trimmedDetail.map { " — \($0)" } ?? "")"
+            let key = "\(event.kind.rawValue)|\(trimmedTitle.lowercased())|\((trimmedDetail ?? "").lowercased())"
+            guard seen.insert(key).inserted else { continue }
+
+            steps.append(entry)
+        }
+
+        guard steps.count > maxSteps else { return steps }
+
+        let headCount = Swift.max(1, maxSteps / 2)
+        let tailCount = Swift.max(1, maxSteps - headCount)
+        return [String](steps.prefix(headCount)) + [String](steps.suffix(tailCount))
+    }
+}
+
+private extension String {
+    nonisolated var nilIfEmpty: String? {
+        isEmpty ? nil : self
     }
 }

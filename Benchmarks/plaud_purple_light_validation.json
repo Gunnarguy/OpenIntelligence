@@ -1,0 +1,21 @@
+{
+  "version": 1,
+  "name": "plaud-purple-light-validation",
+  "defaults": {
+    "quality_mode": "standard",
+    "timeout_seconds": 300
+  },
+  "cases": [
+    {
+      "id": "plaud_purple_light_meaning",
+      "category": "exact_value",
+      "input_files": ["PlaudNoteIngestedPostAllTheseFixes.txt"],
+      "query": "What does the purple light mean on the PLAUD NOTE?",
+      "expected_behavior": "answer",
+      "expected_answer_patterns": [
+        "(?i)\\bpurple\\b.*\\bcharging\\b",
+        "(?i)\\bcharging\\b.*\\bpurple\\b"
+      ]
+    }
+  ]
+}

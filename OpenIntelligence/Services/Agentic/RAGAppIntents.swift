@@ -12,6 +12,14 @@ import AppIntents
 import Foundation
 import SwiftUI
 
+private struct DocumentImportStatusSnapshot: Sendable {
+    let activeCount: Int
+    let currentFilename: String
+    let currentStage: String
+    let queuedFilenames: [String]
+    let spokenResponse: String
+}
+
 // MARK: - Query Documents Intent (Siri Integration)
 
 /// Allows users to query their document library via Siri
@@ -189,6 +197,69 @@ struct ListDocumentsIntent: AppIntent {
     }
 }
 
+// MARK: - Document Import Status Intent
+
+/// Reports the status of any pending or active document imports.
+@available(iOS 16.0, *)
+struct DocumentImportStatusIntent: AppIntent {
+    static var title: LocalizedStringResource = "Check Document Import Status"
+    static var description: IntentDescription = .init(
+        "See whether document imports are queued or running",
+        categoryName: "Documents",
+        searchKeywords: ["import", "ingestion", "status", "queue", "processing"]
+    )
+
+    static var openAppWhenRun: Bool = false
+
+    func perform() async throws -> some IntentResult & ProvidesDialog & ShowsSnippetView {
+        Log.info("[Siri] Document Import Status intent invoked", category: .ingestion)
+
+        let ragService = await MainActor.run {
+            let service = RAGService()
+            service.restoreIngestionQueueIfNeeded()
+            return service
+        }
+
+        let snapshot = await MainActor.run { () -> DocumentImportStatusSnapshot? in
+            let pendingItems = ragService.ingestionItems.filter { !$0.stage.isTerminal }
+            guard !pendingItems.isEmpty else { return nil }
+
+            let activeItem = pendingItems.first(where: { $0.stage != .queued }) ?? pendingItems[0]
+            let spokenResponse: String
+            if pendingItems.count == 1 {
+                spokenResponse = "One document import is \(activeItem.stage.displayName.lowercased()): \(activeItem.filename)."
+            } else {
+                spokenResponse = "\(pendingItems.count) document imports are pending. Current stage: \(activeItem.stage.displayName.lowercased()) for \(activeItem.filename)."
+            }
+
+            return DocumentImportStatusSnapshot(
+                activeCount: pendingItems.count,
+                currentFilename: activeItem.filename,
+                currentStage: activeItem.stage.displayName,
+                queuedFilenames: pendingItems.map(\.filename),
+                spokenResponse: spokenResponse
+            )
+        }
+
+        guard let snapshot else {
+            return .result(
+                dialog: IntentDialog(stringLiteral: "No document imports are pending right now."),
+                view: ErrorSnippetView(message: "No pending imports")
+            )
+        }
+
+        return .result(
+            dialog: IntentDialog(stringLiteral: snapshot.spokenResponse),
+            view: DocumentImportStatusSnippetView(
+                activeCount: snapshot.activeCount,
+                currentFilename: snapshot.currentFilename,
+                currentStage: snapshot.currentStage,
+                queuedFilenames: snapshot.queuedFilenames
+            )
+        )
+    }
+}
+
 // MARK: - App Shortcuts Provider
 
 /// Provides suggested shortcuts for the Shortcuts app
@@ -215,6 +286,17 @@ struct RAGAppShortcutsProvider: AppShortcutsProvider {
             ],
             shortTitle: "List Documents",
             systemImageName: "list.bullet.rectangle"
+        )
+
+        AppShortcut(
+            intent: DocumentImportStatusIntent(),
+            phrases: [
+                "Check document import status in \(.applicationName)",
+                "Show import queue in \(.applicationName)",
+                "Is \(.applicationName) still importing documents"
+            ],
+            shortTitle: "Import Status",
+            systemImageName: "arrow.down.doc.fill"
         )
 
         AppShortcut(
@@ -433,6 +515,47 @@ struct DocumentListSnippetView: View {
                 Text("... and \(documents.count - 10) more")
                     .font(.caption)
                     .foregroundColor(.secondary)
+            }
+        }
+        .padding()
+    }
+}
+
+@available(iOS 16.0, *)
+struct DocumentImportStatusSnippetView: View {
+    let activeCount: Int
+    let currentFilename: String
+    let currentStage: String
+    let queuedFilenames: [String]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 12) {
+                Image(systemName: "arrow.down.doc.fill")
+                    .font(.system(size: 28))
+                    .foregroundStyle(.blue)
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Document Import")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Text("\(activeCount) pending")
+                        .font(.headline)
+                }
+            }
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(currentFilename)
+                    .font(.body)
+                Text(currentStage)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            if queuedFilenames.count > 1 {
+                Text(queuedFilenames.dropFirst().prefix(2).joined(separator: ", "))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
         }
         .padding()
