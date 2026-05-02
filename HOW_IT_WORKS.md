@@ -18,7 +18,7 @@ OpenIntelligence accepts common document, text, image, and media formats from th
 
 ## 2. Prepare
 
-After import, the app extracts text and structure, prepares content for search, and stores the resulting artifacts locally so future questions can be answered quickly. Preparation behavior adapts to the content type and document quality.
+After import, the app extracts text, tables, figures, and other structure, prepares content for search, and stores the resulting artifacts locally so future questions can be answered quickly. Preparation behavior adapts to the content type, document quality, and visual complexity instead of relying on a user-selected ingestion mode.
 
 ## 3. Retrieve
 

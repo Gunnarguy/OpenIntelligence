@@ -4,6 +4,10 @@ This is the public version history for OpenIntelligence. It focuses on user-visi
 
 ## 3.3 - April 2026
 
+- Large user-initiated imports now preserve queue state, resume after interruption more cleanly, and surface clearer progress on supported devices
+- Removed the old ingestion fidelity setting and replaced it with one adaptive visual-ingestion path that raises OCR/detail recovery only when a page actually needs it
+- Preserved embedded PDF figures as searchable chunks with captions, OCR labels, page context, and visual descriptions instead of dropping them during structured chunking
+- Grounded embedded-image analysis with real page text observations so figure captions and nearby instructions attach more reliably
 - Preserved parsed table titles, headers, and rows in SQLite during ingestion so uploaded reference documents remain more inspectable and queryable instead of collapsing to flattened text only
 - Added a structured table fallback path for retrieval when exact values sit under table headings, schemas, or row data that ordinary chunk search can miss
 - Kept the exact-answer cleanup from the 3.2.5 corrective line in place so direct fact questions stay brief, grounded, and less citation-heavy across Standard, Deep Think, and Maximum

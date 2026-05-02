@@ -5,9 +5,9 @@
 [![Swift](https://img.shields.io/badge/Swift-6.0-orange.svg)](https://swift.org)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
-OpenIntelligence is private document Q&A for Apple Intelligence-capable iPhone, iPad, and Mac.
+OpenIntelligence is private document Q&A for Apple Intelligence-capable iPhone and iPad today, with Mac evaluation paths in this repo through Mac Catalyst benchmarking and internal validation.
 
-Today, the public App Store target in this repository ships on iPhone and iPad. The broader Apple-native engine and product direction are being shaped for Mac as well.
+Today, the public App Store target in this repository ships on iPhone and iPad. The broader Apple-native engine and product direction include Mac, but the current repo path there is Mac Catalyst evaluation and benchmarking rather than a separately shipped native macOS product.
 
 Import documents, ask natural-language questions, inspect the evidence behind each answer, and see when the app cannot support a claim strongly enough to answer cleanly. The goal is not generic chat. The goal is grounded answers over the material you actually gave it, with local-first handling for the parts that matter most.
 
@@ -49,18 +49,18 @@ It is especially useful when the cost of a wrong answer is not abstract:
 
 ## Platform Scope
 
-Broader product positioning:
+Broader product direction in this repository:
 
 - Apple Intelligence-capable iPhone
 - Apple Intelligence-capable iPad
-- Apple Intelligence-capable Mac
+- Apple silicon Mac through Mac Catalyst evaluation and benchmarking
 
 Current public shipping target in this repository:
 
 - iPhone
 - iPad
 
-This matters for messaging. Broader product positioning can talk about iPhone, iPad, and Mac. The current App Store binary and target configuration in this repository are still iPhone and iPad rather than a native macOS app.
+This matters for messaging. The current App Store binary and primary public target configuration in this repository are still iPhone and iPad. Mac support here is an evaluation and benchmarking path through Mac Catalyst, not a separate shipped native macOS app.
 
 ## Privacy Posture
 

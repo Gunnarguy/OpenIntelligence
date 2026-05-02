@@ -2,9 +2,9 @@ Version 3.3
 
 What's new in 3.3:
 
-- Table-heavy libraries now preserve more real structure during ingestion. OpenIntelligence keeps parsed table titles, headers, and rows in SQLite instead of relying only on flattened chunk text.
-- Table lookup fallback is stronger when exact values live under table headings or spec schemas, which improves grounded retrieval for capacities, limits, measurements, compatibility data, and similar reference questions.
-- Exact-answer behavior from the 3.2 corrective line stays in place: Standard is more direct, Deep Think and Maximum still check precision paths first for simple cited lookups, and citations are less noisy on straightforward fact questions.
-- Suggested starter questions remain anchored to real passages so the first questions you tap should line up better with what the engine can actually answer.
+- Large imports are more resilient. OpenIntelligence now preserves the import queue, resumes interrupted work more cleanly, and shows clearer progress during long-running document processing.
+- PDFs and images now use one adaptive visual-ingestion path instead of a manual fidelity setting, so garbled, table-heavy, image-heavy, and small-text pages get stronger recovery automatically.
+- Embedded PDF figures and standalone images are now preserved as searchable evidence with captions, labels, and nearby context instead of being easier to lose during ingestion.
+- Exact spec and table lookups are stronger, and suggested starter questions stay closer to what your current library can actually answer cleanly.
 
-This update is focused on making the underlying library data more queryable and trustworthy, not just making the wording of answers look better.
+This update is focused on making imports and grounded answers more trustworthy again.

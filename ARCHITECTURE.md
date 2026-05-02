@@ -23,13 +23,13 @@ User Interface
 
 ## Public Component Map
 
-| Layer             | Responsibility                                                                 |
-| ----------------- | ------------------------------------------------------------------------------ |
-| User interface    | SwiftUI screens, navigation, answer presentation, onboarding, settings         |
-| Feature modules   | Chat, document management, billing, diagnostics, onboarding, telemetry         |
-| Local processing  | File import, extraction, storage, indexing, app-owned data lifecycle           |
-| Answering engine  | Evidence retrieval, answer synthesis, citation packaging                       |
-| Platform services | Apple Intelligence, OCR, speech, PDF, Metal, StoreKit, system privacy controls |
+| Layer             | Responsibility                                                                                |
+| ----------------- | --------------------------------------------------------------------------------------------- |
+| User interface    | SwiftUI screens, navigation, answer presentation, onboarding, settings                        |
+| Feature modules   | Chat, document management, billing, diagnostics, onboarding, telemetry                        |
+| Local processing  | File import, adaptive text and visual extraction, storage, indexing, app-owned data lifecycle |
+| Answering engine  | Evidence retrieval, answer synthesis, citation packaging                                      |
+| Platform services | Apple Intelligence, OCR, speech, PDF, Metal, StoreKit, system privacy controls                |
 
 ## Code Organization
 
@@ -42,6 +42,7 @@ The app source is organized to separate product experience, shared domain types,
   Documents is grouped into library, search, detail, settings, and reusable components.
   Telemetry is grouped into dashboard, visualizations, and diagnostics.
 - `Services/Document/` is grouped by pipeline stage: processing, extraction, chunking, analysis, classification, and configuration.
+  The document stack includes adaptive OCR/detail recovery and figure-aware visual understanding for PDFs and standalone images.
 - `Services/Embedding/` separates embedding orchestration from concrete provider implementations.
 - `Services/Infrastructure/` groups cross-cutting app services by concern, including configuration, monitoring, background work, compute, integrations, and presentation support.
 - `Services/Query/` groups query enhancement, rewriting, routing, analysis, and user-assist behavior.
@@ -65,6 +66,7 @@ The app source is organized to separate product experience, shared domain types,
 - Apple framework usage at a category level
 - Privacy posture and platform assumptions
 - Build and distribution context for the public app
+- Internal benchmarking includes a Mac Catalyst validation path; that should not be read as a separately shipped native macOS product
 
 ## Intentionally Private Areas
 

@@ -2,6 +2,17 @@
 
 Public release highlights for OpenIntelligence.
 
+## 3.3
+
+This is a reliability and document-understanding update focused on making imports harder to lose and technical answers more trustworthy again.
+
+## Highlights
+
+- Large user-initiated imports now preserve queue state, resume more cleanly after interruption, and surface clearer progress while work continues.
+- PDFs and images now use one adaptive visual-ingestion path instead of a manual fidelity toggle, so garbled, table-heavy, image-heavy, and small-text pages get stronger recovery automatically.
+- Embedded PDF figures and standalone images are now preserved as searchable evidence with captions, OCR labels, nearby page context, and visual descriptions.
+- Exact specification and table lookups are stronger, and starter questions stay closer to what the current library can actually answer cleanly.
+
 ## 3.2.5
 
 This is a corrective quality update for the 3.2 line, focused on making obvious source-backed answers fast and reliable again.

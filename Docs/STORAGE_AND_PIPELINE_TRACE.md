@@ -18,7 +18,7 @@ It does not prove:
 ```text
 File URL
   -> DocumentProcessor
-  -> normalized text + page text + structure metadata
+  -> normalized text + page text + structure metadata + figure semantics
   -> SemanticChunker / structured chunk construction
   -> contextual prefix + token validation
   -> EmbeddingService
@@ -34,17 +34,18 @@ The engine-relevant flow ends at the trust payload and retrieved evidence. Swift
 
 ## Ingestion Trace
 
-| Stage               | Main code                                                         | Output                            | Current note                                                            |
-| ------------------- | ----------------------------------------------------------------- | --------------------------------- | ----------------------------------------------------------------------- |
-| File classification | `DocumentProcessor.swift`                                         | document type and extraction path | Real reusable engine logic                                              |
-| Text extraction     | PDFKit, XML parsing, text/CSV parsing, OCR, speech analysis paths | raw text                          | Strong base, file-type coverage should still be tested corpus by corpus |
-| OCR fallback        | `OCRConfiguration.swift`, Vision OCR, throttle helpers            | recognized text and observations  | Good foundation, but not a claim of table-perfect capture               |
-| Cleanup             | OCR filters and normalizers                                       | normalized text                   | Reusable                                                                |
-| Page preservation   | page sentinel plus page-store calls                               | page-level rows in SQLite         | Important for source review and exact lookup                            |
-| Chunking            | `SemanticChunker.swift`                                           | `DocumentChunk` records           | Reusable, but not immune to table/procedure errors                      |
-| Enrichment          | entities, keywords, section paths, contextual prefix              | chunk metadata                    | Helps retrieval and verification                                        |
-| Embedding           | `EmbeddingService.swift` and providers                            | vectors                           | Current production path is Core ML/NL, not Apple FM embeddings          |
-| Durable storage     | `SQLiteFullTextService.swift`, `VectorStoreRouter.swift`          | local indexes                     | Real engine asset                                                       |
+| Stage                | Main code                                                         | Output                                                    | Current note                                                                       |
+| -------------------- | ----------------------------------------------------------------- | --------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| File classification  | `DocumentProcessor.swift`                                         | document type and extraction path                         | Real reusable engine logic                                                         |
+| Text extraction      | PDFKit, XML parsing, text/CSV parsing, OCR, speech analysis paths | raw text                                                  | Strong base, file-type coverage should still be tested corpus by corpus            |
+| OCR fallback         | `OCRConfiguration.swift`, Vision OCR, throttle helpers            | recognized text and observations                          | Adaptive page-by-page escalation, not a user-controlled fidelity mode              |
+| Visual understanding | `ImageUnderstandingService.swift`                                 | figure descriptions, OCR labels, captions, nearby context | Embedded PDF figures and standalone images now persist as searchable figure chunks |
+| Cleanup              | OCR filters and normalizers                                       | normalized text                                           | Reusable                                                                           |
+| Page preservation    | page sentinel plus page-store calls                               | page-level rows in SQLite                                 | Important for source review and exact lookup                                       |
+| Chunking             | `SemanticChunker.swift`                                           | `DocumentChunk` records                                   | Reusable, but not immune to table/procedure errors                                 |
+| Enrichment           | entities, keywords, section paths, contextual prefix              | chunk metadata                                            | Helps retrieval and verification                                                   |
+| Embedding            | `EmbeddingService.swift` and providers                            | vectors                                                   | Current production path is Core ML/NL, not Apple FM embeddings                     |
+| Durable storage      | `SQLiteFullTextService.swift`, `VectorStoreRouter.swift`          | local indexes                                             | Real engine asset                                                                  |
 
 ## SQLite Storage Reality
 

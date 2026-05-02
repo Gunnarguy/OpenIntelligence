@@ -11,7 +11,9 @@
 Current document intelligence implementation:
 
 - `DocumentProcessor.swift` uses PDFKit text extraction first when trustworthy, then Vision OCR fallback for scanned, garbled, or image-heavy pages.
-- OCR preprocessing uses a Metal-backed Core Image context with adaptive strategies and 5x-6x render scale depending on page quality, table risk, and fidelity mode.
+- OCR preprocessing uses a Metal-backed Core Image context with adaptive strategies and 5x-6x render scale depending on page quality, table risk, and visual-recovery heuristics.
+- Embedded PDF figures and standalone images are analyzed into searchable figure chunks with captions, OCR labels, and nearby page context.
+- Apple research may reference internal image-understanding tiers or model names, but the app does not expose those as direct runtime controls.
 - The app stores normalized full document text, page text, and chunk text into SQLite/FTS5 for exact lookup and BM25 retrieval.
 - `VNRecognizeTextRequest` is the active OCR foundation in the code path. Apple's newer `RecognizeDocumentsRequest` is important research/future API context for tables/lists/document structure, but should not be described as the active production path unless wired and verified.
 - Current embeddings are Core ML/Natural Language based. Foundation Models are generation/tool/guided-output APIs in this app, not the embedding provider.

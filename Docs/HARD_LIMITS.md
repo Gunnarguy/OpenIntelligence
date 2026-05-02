@@ -53,9 +53,14 @@ Important current implementation note:
 
 | Constraint           | Value                                    | Why it matters                                      |
 | -------------------- | ---------------------------------------- | --------------------------------------------------- |
-| OCR render scale     | **5x to 6x adaptive**                    | fidelity and memory tradeoff                        |
+| OCR render scale     | **5x to 6x adaptive**                    | internal page-by-page quality and memory tradeoff   |
 | Simulator limitation | Apple FM unavailable                     | simulator is not enough for full runtime validation |
 | Vector persistence   | memory-mapped binary files plus metadata | real engine asset, but app-path oriented today      |
+
+Important current implementation note:
+
+- the app does not expose or control Apple's internal vision-model tiers directly
+- the app does use its own adaptive OCR and visual-recovery heuristics to decide when pages need heavier processing
 
 ## What These Limits Mean For Claims
 
