@@ -23,7 +23,7 @@ It is not proof of:
 ## What Is In Here
 
 - staged `OpenIntelligenceEngine.xcframework` collateral
-- install and API docs
+- install docs and a simple explanation of how another app would use the engine
 - package summary and evaluator guide
 - sample host app materials
 - evaluation-support structure for current packet testing
@@ -56,7 +56,7 @@ If the conversation is about license, acquisition, or full source-code handoff, 
 
 1. `START_HERE.md`
 2. `PACKAGE_SUMMARY.md`
-3. `API.md`
+3. `API.md` for the engine entry-point explanation
 4. `INSTALL.md`
 
 ## Practical Rule

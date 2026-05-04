@@ -74,7 +74,8 @@ actor DocumentSummaryService {
         documentId: UUID,
         documentName: String,
         chunks: [DocumentChunk],
-        embeddingService: EmbeddingService
+        embeddingService: EmbeddingService,
+        embeddingTranslationTarget: Locale.Language? = nil
     ) async throws -> DocumentChunk {
 
         Log.info("[DocumentSummary] Generating summary for '\(documentName)' (\(chunks.count) chunks)", category: .pipeline)
@@ -89,8 +90,25 @@ actor DocumentSummaryService {
         )
 
         // 3. Generate embedding for the summary
+        let baseSummaryEmbeddingText = "[Document Summary: \(documentName)] \(summaryText)"
+        let summaryEmbeddingText: String
+        if let targetLanguage = embeddingTranslationTarget {
+            do {
+                let translationResult = try await TranslationService.shared.translate(
+                    baseSummaryEmbeddingText,
+                    to: targetLanguage
+                )
+                summaryEmbeddingText = translationResult.translatedText
+            } catch {
+                Log.warning("[DocumentSummary] Summary translation failed for '\(documentName)': \(error)", category: .pipeline)
+                summaryEmbeddingText = baseSummaryEmbeddingText
+            }
+        } else {
+            summaryEmbeddingText = baseSummaryEmbeddingText
+        }
+
         let summaryEmbedding = try await embeddingService.generateEmbedding(
-            for: "[Document Summary: \(documentName)] \(summaryText)"
+            for: summaryEmbeddingText
         )
 
         // 4. Extract entities from summary

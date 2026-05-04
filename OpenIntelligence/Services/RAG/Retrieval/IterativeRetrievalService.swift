@@ -133,6 +133,7 @@ final class IterativeRetrievalService: @unchecked Sendable {
     /// - Returns: Merged results from all iterations
     func retrieve(
         query: String,
+        originalQuery: String? = nil,
         vectorDatabase: VectorDatabase,
         config: IterativeRetrievalConfig = .default,
         topK: Int = 10,
@@ -146,6 +147,7 @@ final class IterativeRetrievalService: @unchecked Sendable {
         var iterations = 0
         var finalConfidence: Float = 0
         var hitMax = false
+        let lexicalQuery = originalQuery ?? query
 
         Log.info("[IterativeRetrieval] Starting iterative retrieval (max \(config.maxIterations) iterations)", category: .retrieval)
 
@@ -159,6 +161,7 @@ final class IterativeRetrievalService: @unchecked Sendable {
             let hybridSearch = hybridSearchFactory(vectorDatabase)
             let retrieved = try await hybridSearch.search(
                 query: currentQuery,
+                originalQuery: lexicalQuery,
                 embedding: embedding,
                 topK: topK,
                 cachedChunks: cachedChunks

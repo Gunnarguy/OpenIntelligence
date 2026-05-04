@@ -9,20 +9,25 @@
 import Foundation
 
 enum EvidenceScoringPolicyService {
-    nonisolated private static let sentenceStopWords: Set<String> = [
-        "a", "an", "the", "is", "are", "was", "were", "be", "been", "being",
-        "have", "has", "had", "do", "does", "did", "will", "would", "could", "should",
-        "may", "might", "must", "shall", "can", "need", "dare", "ought", "used",
-        "to", "of", "in", "for", "on", "with", "at", "by", "from", "as", "into",
-        "through", "during", "before", "after", "above", "below", "between",
-        "under", "again", "further", "then", "once", "here", "there", "when",
-        "where", "why", "how", "all", "each", "few", "more", "most", "other",
-        "some", "such", "no", "nor", "not", "only", "own", "same", "so", "than",
-        "too", "very", "just", "also", "now", "what", "which", "who", "whom",
-        "this", "that", "these", "those", "am", "it", "its", "i", "me", "my",
-        "myself", "we", "our", "ours", "ourselves", "you", "your", "yours",
-        "he", "him", "his", "she", "her", "hers", "they", "them", "their"
-    ]
+    nonisolated private static func isSentenceStopWord(_ token: String) -> Bool {
+        switch token {
+        case "a", "an", "the", "is", "are", "was", "were", "be", "been", "being",
+             "have", "has", "had", "do", "does", "did", "will", "would", "could", "should",
+             "may", "might", "must", "shall", "can", "need", "dare", "ought", "used",
+             "to", "of", "in", "for", "on", "with", "at", "by", "from", "as", "into",
+             "through", "during", "before", "after", "above", "below", "between",
+             "under", "again", "further", "then", "once", "here", "there", "when",
+             "where", "why", "how", "all", "each", "few", "more", "most", "other",
+             "some", "such", "no", "nor", "not", "only", "own", "same", "so", "than",
+             "too", "very", "just", "also", "now", "what", "which", "who", "whom",
+             "this", "that", "these", "those", "am", "it", "its", "i", "me", "my",
+             "myself", "we", "our", "ours", "ourselves", "you", "your", "yours",
+             "he", "him", "his", "she", "her", "hers", "they", "them", "their":
+            return true
+        default:
+            return false
+        }
+    }
 
     nonisolated private static let crossReferenceIndicators = [
         "given in", "refer to", "see page", "found in", "listed in", "shown in",
@@ -350,7 +355,7 @@ enum EvidenceScoringPolicyService {
         let headingLower = headingContext.lowercased()
         let lineWords = Set(lineLower
             .components(separatedBy: CharacterSet.alphanumerics.inverted)
-            .filter { $0.count > 2 && !sentenceStopWords.contains($0) })
+            .filter { $0.count > 2 && !Self.isSentenceStopWord($0) })
         let queryWords = Set(queryKeywords)
 
         if !lineWords.isEmpty && !queryWords.isEmpty {

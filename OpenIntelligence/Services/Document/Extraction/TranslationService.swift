@@ -201,27 +201,45 @@ final class TranslationService: ObservableObject {
             }
         }
 
-        // Translate in batch using TranslationSession
+        let batchSize = max(1, TranslationConfig.defaultEnglish.maxBatchSize)
         var results: [TranslationResult] = []
+        results.reserveCapacity(texts.count)
 
-        let session = TranslationSession(installedSource: effectiveSource, target: targetLanguage)
-        let requests = texts.map { TranslationSession.Request(sourceText: $0) }
-        let responses = try await session.translations(from: requests)
-
-        for (original, response) in zip(texts, responses) {
-            results.append(TranslationResult(
-                originalText: original,
-                translatedText: response.targetText,
-                sourceLanguage: effectiveSource,
-                targetLanguage: targetLanguage,
-                isTranslated: true
-            ))
+        for startIndex in stride(from: 0, to: texts.count, by: batchSize) {
+            let endIndex = min(startIndex + batchSize, texts.count)
+            let batch = Array(texts[startIndex..<endIndex])
+            let batchResults = try await performBatchTranslation(
+                batch,
+                from: effectiveSource,
+                to: targetLanguage
+            )
+            results.append(contentsOf: batchResults)
         }
 
         DSHaptics.success()
         Log.info("[Translation] Batch translated \(results.count) chunks from \(effectiveSource.languageCode?.identifier ?? "?") to \(targetLanguage.languageCode?.identifier ?? "en")", category: .ingestion)
 
         return results
+    }
+
+    private func performBatchTranslation(
+        _ texts: [String],
+        from sourceLanguage: Locale.Language,
+        to targetLanguage: Locale.Language
+    ) async throws -> [TranslationResult] {
+        let session = TranslationSession(installedSource: sourceLanguage, target: targetLanguage)
+        let requests = texts.map { TranslationSession.Request(sourceText: $0) }
+        let responses = try await session.translations(from: requests)
+
+        return zip(texts, responses).map { original, response in
+            TranslationResult(
+                originalText: original,
+                translatedText: response.targetText,
+                sourceLanguage: sourceLanguage,
+                targetLanguage: targetLanguage,
+                isTranslated: true
+            )
+        }
     }
 
     // MARK: - Document Pre-Processing

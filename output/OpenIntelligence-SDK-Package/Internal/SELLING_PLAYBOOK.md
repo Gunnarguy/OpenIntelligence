@@ -81,6 +81,36 @@ What you send in that motion:
 
 This is the honest version of “we can start now” without overpromising the current XCFramework status.
 
+## Exact Reference Map
+
+Keep these exact paths ready during buyer conversations:
+
+- buyer packet zip:
+  - `output/OpenIntelligence-SDK-Package/build/OpenIntelligenceEngine-Buyer-Packet.zip`
+- packet root:
+  - `output/OpenIntelligence-SDK-Package/`
+- packet-local demo app:
+  - `output/OpenIntelligence-SDK-Package/SampleApp/EngineEvaluationHost.xcodeproj`
+- packet-local demo script:
+  - `output/OpenIntelligence-SDK-Package/SampleApp/DEMO_SCRIPT.md`
+- source-of-truth demo app in repo:
+  - `Samples/EngineEvaluationHost/EngineEvaluationHost.xcodeproj`
+- current engine entry-point code file:
+  - `OpenIntelligence/SDK/OpenIntelligenceEngine.swift`
+- engine inventory:
+  - `EngineSale/ENGINE_INVENTORY.md`
+- pipeline trace:
+  - `Docs/STORAGE_AND_PIPELINE_TRACE.md`
+- packaging blocker/status note:
+  - `output/OpenIntelligence-SDK-Package/Internal/BUILD_NOTES.md`
+
+If the buyer asks "what exactly is in the package?" point them first to:
+
+- `output/OpenIntelligence-SDK-Package/START_HERE.md`
+- `output/OpenIntelligence-SDK-Package/PACKAGE_SUMMARY.md`
+- `output/OpenIntelligence-SDK-Package/API.md` for the simple explanation of how another app would use the engine
+- `output/OpenIntelligence-SDK-Package/INSTALL.md`
+
 ## 60-Second Pitch
 
 OpenIntelligence Engine is the Apple-native logic behind grounded document QA.
@@ -122,6 +152,21 @@ The final reproducible module-stable packaging path is still being finalized.
 ### So what can we do right now?
 
 Send the buyer-safe evaluation packet, demo the real capability, scope a pilot, and prepare an early integration path while stable binary packaging is completed.
+
+### What file should I show if they ask for proof?
+
+Show the thing closest to the question:
+
+- how another app would use the engine:
+  - `OpenIntelligence/SDK/OpenIntelligenceEngine.swift`
+- pipeline:
+  - `Docs/STORAGE_AND_PIPELINE_TRACE.md`
+- subsystem map:
+  - `EngineSale/ENGINE_INVENTORY.md`
+- packaging status:
+  - `output/OpenIntelligence-SDK-Package/Internal/BUILD_NOTES.md`
+- actual sendable artifact:
+  - `output/OpenIntelligence-SDK-Package/build/OpenIntelligenceEngine-Buyer-Packet.zip`
 
 ## What You Should Ask The Buyer
 

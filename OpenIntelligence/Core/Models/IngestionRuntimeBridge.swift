@@ -10,6 +10,7 @@ final class IngestionRuntimeBridge {
     ) -> Void
     typealias BeginUserInitiatedIngestionHandler = (_ title: String, _ subtitle: String) -> Void
     typealias UpdateProgressHandler = (_ title: String, _ subtitle: String, _ fraction: Double) -> Void
+    typealias CompleteUserInitiatedIngestionHandler = (_ success: Bool) -> Void
     typealias LiveActivityItemsHandler = (_ items: [IngestionItem], _ containerName: String?) -> Void
     typealias VoidHandler = () -> Void
 
@@ -18,6 +19,7 @@ final class IngestionRuntimeBridge {
     var configureContinuedIngestionHandler: ConfigureContinuedIngestionHandler?
     var beginUserInitiatedIngestionHandler: BeginUserInitiatedIngestionHandler?
     var updateContinuedIngestionProgressHandler: UpdateProgressHandler?
+    var completeUserInitiatedIngestionHandler: CompleteUserInitiatedIngestionHandler?
     var restoreLiveActivityHandler: VoidHandler?
     var syncLiveActivityHandler: LiveActivityItemsHandler?
     var finishLiveActivityHandler: LiveActivityItemsHandler?
@@ -38,6 +40,10 @@ final class IngestionRuntimeBridge {
 
     func updateContinuedIngestionProgress(title: String, subtitle: String, fraction: Double) {
         updateContinuedIngestionProgressHandler?(title, subtitle, fraction)
+    }
+
+    func completeUserInitiatedIngestion(success: Bool) {
+        completeUserInitiatedIngestionHandler?(success)
     }
 
     func restoreLiveActivityIfNeeded() {

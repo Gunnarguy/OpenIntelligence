@@ -23,13 +23,13 @@ Current code sources:
 - `OpenIntelligence/Services/Infrastructure/Configuration/QuotaPolicy.swift`
 - `fastlane/subscriptions.json`
 
-| Tier or SKU       | Current code reality                                                         | Notes                                               |
-| ----------------- | ---------------------------------------------------------------------------- | --------------------------------------------------- |
-| Free              | 5 documents, 1 library, Standard and Deep Think, 3 Maximum-mode uses per day | App-only limit                                      |
-| `pro_monthly`     | Pro subscription                                                             | 1,000 documents, 5 libraries                        |
-| `pro_annual`      | Pro subscription                                                             | same practical quota as monthly                     |
-| `lifetime_cohort` | one-time purchase                                                            | unlimited documents in code, 10 libraries           |
-| `doc_pack_addon`  | consumable add-on in code                                                    | still exists in billing code and fastlane artifacts |
+| Tier or SKU       | Current code reality                                                         | Notes                                                                                               |
+| ----------------- | ---------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| Free              | 5 documents, 1 library, Standard and Deep Think, 3 Maximum-mode uses per day | App-only limit                                                                                      |
+| `pro_monthly`     | Pro subscription                                                             | 1,000 documents, 5 libraries                                                                        |
+| `pro_annual`      | Pro subscription                                                             | same practical quota as monthly                                                                     |
+| `lifetime_cohort` | one-time purchase                                                            | unlimited documents in code, 10 libraries                                                           |
+| `doc_pack_addon`  | consumable add-on                                                            | active purchase UI, entitlement handling, quota math, and fastlane metadata still exist in the repo |
 
 ## App-Only Pricing Caveats
 
@@ -37,9 +37,12 @@ Current mismatch to keep out of buyer overclaim language:
 
 - `BillingProduct.swift` still includes `doc_pack_addon`
 - `QuotaPolicy.swift` still supports add-on increments
-- `TermsOfServiceView.swift` says legacy document packs are no longer sold in-app
+- `PlanUpgradeSheet.swift` still renders live document-pack purchase CTAs
+- `EntitlementStore.swift` still credits and persists document-pack purchases
+- `fastlane/subscriptions.json` still includes `doc_pack_addon` setup and review notes
+- `TermsOfServiceView.swift` and `DocumentQuotaBanner.swift` say document packs are no longer sold in-app
 
-That means app monetization is still in flux. Treat it as app-only business policy, not engine value.
+That means the literal repo state is inconsistent: document packs remain implemented as an active monetization path in code, while some in-app policy copy says they are no longer sold. Treat that as app-only business-policy drift, not engine value.
 
 ## What Matters For Engine Conversations
 

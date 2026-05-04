@@ -29,6 +29,8 @@ Currently staged in this folder:
 - toolchain-agnostic binary stability
 - production-grade accuracy or regulated readiness
 
+For the exact production packaging blocker, see `Internal/BUILD_NOTES.md`.
+
 ## Honest Readiness Verdict
 
 The logic is real.

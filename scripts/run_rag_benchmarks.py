@@ -41,8 +41,13 @@ DEFAULT_DERIVED_DATA_ROOT = Path("/tmp/openintelligence-rag-bench")
 DEFAULT_PCC_CONSENT = "allow"
 DEFAULT_BENCHMARK_ENTITLEMENT = "lifetime"
 DEFAULT_APP_REFRESH_FILE_LIMIT = 0
+DEFAULT_MAC_BUILD_METHOD = "scheme"
 DEVICE_STORAGE_PREFIX = "Library/Application Support/OpenIntelligenceRAGBenchmark"
 DEVICE_INPUT_PREFIX = "Documents/OpenIntelligenceRAGBenchmarkInputs"
+MAC_BENCHMARK_ENTRYPOINT = (
+    REPO_ROOT / "OpenIntelligence" / "App" / "OpenIntelligenceMacBenchmarkApp.swift"
+)
+MAC_BENCHMARK_EXCLUDED_SOURCES = "OpenIntelligenceApp.swift ContentView.swift BackgroundTaskService.swift IngestionLiveActivityAttributes.swift IngestionLiveActivityService.swift"
 
 ALLOWED_CATEGORIES = {
     "exact_value",
@@ -85,6 +90,16 @@ def now_utc() -> str:
 
 def run_id() -> str:
     return dt.datetime.now().strftime("%Y%m%d-%H%M%S")
+
+
+def ensure_text_output(value: str | bytes | bytearray | memoryview | None) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, str):
+        return value
+    if isinstance(value, memoryview):
+        return value.tobytes().decode("utf-8", errors="replace")
+    return bytes(value).decode("utf-8", errors="replace")
 
 
 def slug(value: str) -> str:
@@ -257,8 +272,8 @@ def run_command(
     except subprocess.TimeoutExpired as exc:
         if log_path is not None:
             log_path.parent.mkdir(parents=True, exist_ok=True)
-            stdout = exc.stdout.decode("utf-8", errors="replace") if isinstance(exc.stdout, bytes) else exc.stdout
-            stderr = exc.stderr.decode("utf-8", errors="replace") if isinstance(exc.stderr, bytes) else exc.stderr
+            stdout = ensure_text_output(exc.stdout)
+            stderr = ensure_text_output(exc.stderr)
             with log_path.open("a", encoding="utf-8") as fh:
                 fh.write(f"$ {' '.join(command)}\n")
                 fh.write(f"started_at={started}\n")
@@ -458,11 +473,111 @@ def product_dir_names(args: argparse.Namespace) -> list[str]:
     return [f"{args.configuration}-{product_platform_suffix(args)}"]
 
 
-def build_command(args: argparse.Namespace, derived_data: Path) -> list[str]:
+def uses_mac_app_only_build_method(args: argparse.Namespace) -> bool:
+    return args.runtime == "mac" and args.mac_build_method == "app-only"
+
+
+def mac_benchmark_project_path(args: argparse.Namespace, run_dir: Path) -> Path:
+    source_project = Path(args.project).expanduser()
+    return REPO_ROOT / f"{source_project.stem}MacBench-{run_dir.name}.xcodeproj"
+
+
+def write_mac_benchmark_entrypoint() -> Path:
+    content = """#if targetEnvironment(macCatalyst)
+import SwiftUI
+
+@main
+struct OpenIntelligenceMacBenchmarkApp: App {
+    init() {
+        #if DEBUG
+        DebugRAGValidationHarness.runHeadlessIfNeeded()
+        #endif
+    }
+
+    var body: some Scene {
+        WindowGroup {
+            Text(\"OpenIntelligence Mac Benchmark\")
+        }
+    }
+}
+#endif
+"""
+    MAC_BENCHMARK_ENTRYPOINT.write_text(content, encoding="utf-8")
+    return MAC_BENCHMARK_ENTRYPOINT
+
+
+def patch_mac_benchmark_project(project_path: Path, original_project_name: str) -> None:
+    pbxproj_path = project_path / "project.pbxproj"
+    text = pbxproj_path.read_text(encoding="utf-8")
+
+    replacements = [
+        "\t\tF0A100012F1A000100AA1001 /* OpenIntelligenceLiveActivities.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = F0A100022F1A000100AA1001 /* OpenIntelligenceLiveActivities.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };\n",
+        "\t\t\t\tF0A100072F1A000100AA1001 /* Embed App Extensions */,\n",
+        "\t\t\t\tF0A100152F1A000100AA1001 /* PBXTargetDependency */,\n",
+        "\t\tF0A100142F1A000100AA1001 /* PBXContainerItemProxy */ = {\n\t\t\tisa = PBXContainerItemProxy;\n\t\t\tcontainerPortal = B0D565D62E98AC50001274A2 /* Project object */;\n\t\t\tproxyType = 1;\n\t\t\tremoteGlobalIDString = F0A100102F1A000100AA1001;\n\t\t\tremoteInfo = OpenIntelligenceLiveActivities;\n\t\t};\n",
+        '\t\tF0A100072F1A000100AA1001 /* Embed App Extensions */ = {\n\t\t\tisa = PBXCopyFilesBuildPhase;\n\t\t\tbuildActionMask = 2147483647;\n\t\t\tdstPath = "";\n\t\t\tdstSubfolderSpec = 13;\n\t\t\tfiles = (\n\t\t\t\tF0A100012F1A000100AA1001 /* OpenIntelligenceLiveActivities.appex in Embed App Extensions */,\n\t\t\t);\n\t\t\tname = "Embed App Extensions";\n\t\t\trunOnlyForDeploymentPostprocessing = 0;\n\t\t};\n',
+        "\t\tF0A100152F1A000100AA1001 /* PBXTargetDependency */ = {\n\t\t\tisa = PBXTargetDependency;\n\t\t\ttarget = F0A100102F1A000100AA1001 /* OpenIntelligenceLiveActivities */;\n\t\t\ttargetProxy = F0A100142F1A000100AA1001 /* PBXContainerItemProxy */;\n\t\t};\n",
+    ]
+
+    for snippet in replacements:
+        text = text.replace(snippet, "")
+
+    debug_marker = "\t\t\t\tCURRENT_PROJECT_VERSION = 32;\n\t\t\t\tDERIVE_MACCATALYST_PRODUCT_BUNDLE_IDENTIFIER = NO;\n"
+    debug_replacement = (
+        "\t\t\t\tCURRENT_PROJECT_VERSION = 32;\n"
+        f'\t\t\t\t"EXCLUDED_SOURCE_FILE_NAMES[sdk=macosx*]" = "{MAC_BENCHMARK_EXCLUDED_SOURCES}";\n'
+        "\t\t\t\tDERIVE_MACCATALYST_PRODUCT_BUNDLE_IDENTIFIER = NO;\n"
+    )
+    text = text.replace(debug_marker, debug_replacement, 1)
+
+    pbxproj_path.write_text(text, encoding="utf-8")
+
+    for scheme_path in project_path.glob("xcshareddata/xcschemes/*.xcscheme"):
+        scheme_text = scheme_path.read_text(encoding="utf-8")
+        scheme_text = scheme_text.replace(
+            f"container:{original_project_name}",
+            f"container:{project_path.name}",
+        )
+        scheme_path.write_text(scheme_text, encoding="utf-8")
+
+
+def prepare_benchmark_project(args: argparse.Namespace, run_dir: Path) -> Path:
+    source_project = Path(args.project).expanduser()
+    if not uses_mac_app_only_build_method(args):
+        return source_project
+
+    temp_project = mac_benchmark_project_path(args, run_dir)
+    shutil.rmtree(temp_project, ignore_errors=True)
+    shutil.copytree(source_project, temp_project)
+    patch_mac_benchmark_project(temp_project, source_project.name)
+    return temp_project
+
+
+def prepare_benchmark_sources(args: argparse.Namespace) -> list[Path]:
+    if not uses_mac_app_only_build_method(args):
+        return []
+    return [write_mac_benchmark_entrypoint()]
+
+
+def cleanup_benchmark_project(
+    args: argparse.Namespace, project_path: Path, source_paths: list[Path]
+) -> None:
+    if uses_mac_app_only_build_method(args):
+        shutil.rmtree(project_path, ignore_errors=True)
+        for source_path in source_paths:
+            try:
+                source_path.unlink()
+            except FileNotFoundError:
+                pass
+
+
+def build_command(
+    args: argparse.Namespace, derived_data: Path, project_path: Path
+) -> list[str]:
     command = [
         "xcodebuild",
         "-project",
-        str(Path(args.project).expanduser()),
+        str(project_path),
         "-scheme",
         args.scheme,
         "-configuration",
@@ -543,8 +658,13 @@ def stop_process(process: subprocess.Popen[Any]) -> int | None:
         return process.wait(timeout=10)
 
 
-def run_xcodebuild_until_app_ready(args: argparse.Namespace, derived_data: Path, log_path: Path) -> None:
-    command = build_command(args, derived_data)
+def run_xcodebuild_until_app_ready(
+    args: argparse.Namespace,
+    derived_data: Path,
+    log_path: Path,
+    project_path: Path,
+) -> None:
+    command = build_command(args, derived_data, project_path)
     env = os.environ.copy()
     env.update(xcodebuild_env())
     started = now_utc()
@@ -599,37 +719,51 @@ def run_xcodebuild_until_app_ready(args: argparse.Namespace, derived_data: Path,
 def build_app(args: argparse.Namespace, destination: str, run_dir: Path) -> Path:
     derived_data = resolve_derived_data_path(args, run_dir)
     log_path = run_dir / "xcodebuild.log"
+    project_path = prepare_benchmark_project(args, run_dir)
+    source_paths = prepare_benchmark_sources(args)
 
-    if not args.skip_build:
-        try:
-            print(f"Building app for {build_destination(args)}", flush=True)
-            print(f"DerivedData: {derived_data}", flush=True)
-            run_xcodebuild_until_app_ready(args, derived_data, log_path)
-        except BenchmarkError as exc:
-            app_path = find_app(args, derived_data)
-            if is_timeout_error(exc) and app_path is not None:
-                with log_path.open("a", encoding="utf-8") as fh:
-                    fh.write(
-                        "\nBuild command timed out after producing an app bundle. "
-                        "Continuing because xcodebuild can hang in device-pruning after the app exists.\n\n"
-                    )
-                print("Build command timed out after producing OpenIntelligence.app; continuing.", flush=True)
-                return app_path
-            fallback = default_derived_data_path(run_dir)
-            if is_resource_fork_error(exc) and derived_data != fallback:
-                with log_path.open("a", encoding="utf-8") as fh:
-                    fh.write("\nRetrying with unsynced DerivedData under /tmp after resource-fork codesign failure.\n\n")
-                derived_data = fallback
-                print(f"Retrying build for {build_destination(args)}", flush=True)
+    try:
+        if not args.skip_build:
+            try:
+                print(f"Building app for {build_destination(args)}", flush=True)
                 print(f"DerivedData: {derived_data}", flush=True)
-                run_xcodebuild_until_app_ready(args, derived_data, log_path)
-            else:
-                raise
+                run_xcodebuild_until_app_ready(
+                    args, derived_data, log_path, project_path
+                )
+            except BenchmarkError as exc:
+                app_path = find_app(args, derived_data)
+                if is_timeout_error(exc) and app_path is not None:
+                    with log_path.open("a", encoding="utf-8") as fh:
+                        fh.write(
+                            "\nBuild command timed out after producing an app bundle. "
+                            "Continuing because xcodebuild can hang in device-pruning after the app exists.\n\n"
+                        )
+                    print(
+                        "Build command timed out after producing OpenIntelligence.app; continuing.",
+                        flush=True,
+                    )
+                    return app_path
+                fallback = default_derived_data_path(run_dir)
+                if is_resource_fork_error(exc) and derived_data != fallback:
+                    with log_path.open("a", encoding="utf-8") as fh:
+                        fh.write(
+                            "\nRetrying with unsynced DerivedData under /tmp after resource-fork codesign failure.\n\n"
+                        )
+                    derived_data = fallback
+                    print(f"Retrying build for {build_destination(args)}", flush=True)
+                    print(f"DerivedData: {derived_data}", flush=True)
+                    run_xcodebuild_until_app_ready(
+                        args, derived_data, log_path, project_path
+                    )
+                else:
+                    raise
 
-    app_path = find_app(args, derived_data)
-    if app_path is not None:
-        return app_path
-    raise BenchmarkError(f"Built app not found under {derived_data}")
+        app_path = find_app(args, derived_data)
+        if app_path is not None:
+            return app_path
+        raise BenchmarkError(f"Built app not found under {derived_data}")
+    finally:
+        cleanup_benchmark_project(args, project_path, source_paths)
 
 
 def install_app(device_udid: str, app_path: Path, run_dir: Path) -> None:
@@ -663,6 +797,71 @@ def mac_app_executable(app_path: Path) -> Path:
     return app_path / "Contents" / "MacOS" / app_path.stem
 
 
+def extract_mac_container_root(output: str) -> Path | None:
+    for line in output.splitlines():
+        prefix = "[RAGValidation] Storage: "
+        if prefix not in line:
+            continue
+
+        storage_path = Path(line.split(prefix, 1)[1].strip())
+        for candidate in [storage_path, *storage_path.parents]:
+            if candidate.name == "Data":
+                return candidate
+    return None
+
+
+def discover_mac_runtime_container_root(
+    *,
+    app_path: Path,
+    bundle_id: str,
+    run_dir: Path,
+    pcc_consent: str,
+    benchmark_entitlement: str,
+) -> Path | None:
+    probe_case_dir = run_dir / "mac_container_probe"
+    probe_stdout = probe_case_dir / "mac_probe_stdout.log"
+    probe_stderr = probe_case_dir / "mac_probe_stderr.log"
+    probe_case_dir.mkdir(parents=True, exist_ok=True)
+
+    command = [
+        str(mac_app_executable(app_path)),
+        "--rag-validation",
+        "--rag-validation-query",
+        "container probe",
+        "--rag-validation-storage",
+        f"{DEVICE_STORAGE_PREFIX}/mac-container-probe/storage",
+        "--rag-validation-quality",
+        "standard",
+        "--rag-validation-skip-ingest",
+    ]
+    if pcc_consent != "default":
+        command.extend(["--rag-validation-pcc-consent", pcc_consent])
+    if benchmark_entitlement != "current":
+        command.extend(["--rag-validation-entitlement", benchmark_entitlement])
+
+    stdout = ""
+    stderr = ""
+    try:
+        completed = subprocess.run(
+            command,
+            cwd=REPO_ROOT,
+            text=True,
+            capture_output=True,
+            timeout=20,
+        )
+        stdout = completed.stdout or ""
+        stderr = completed.stderr or ""
+    except subprocess.TimeoutExpired as exc:
+        stdout = ensure_text_output(exc.stdout)
+        stderr = ensure_text_output(exc.stderr)
+    finally:
+        probe_stdout.write_text(stdout, encoding="utf-8")
+        probe_stderr.write_text(stderr, encoding="utf-8")
+        quit_mac_app(bundle_id)
+
+    return extract_mac_container_root(stdout + "\n" + stderr)
+
+
 def quit_mac_app(bundle_id: str) -> None:
     subprocess.run(
         ["osascript", "-e", f'tell application id "{bundle_id}" to quit'],
@@ -691,7 +890,9 @@ def refresh_app_install(
         uninstall_app_from_physical_device(device_ref, args.bundle_id, run_dir)
         install_app_on_physical_device(device_ref, app_path, run_dir)
     elif args.runtime == "mac":
-        container_root = mac_app_container_root(args.bundle_id)
+        container_root = Path(
+            target_info.get("container_root") or mac_app_container_root(args.bundle_id)
+        )
         shutil.rmtree(container_root / "Documents" / "OpenIntelligenceRAGBenchmarkInputs", ignore_errors=True)
         shutil.rmtree(
             container_root / "Library" / "Application Support" / "OpenIntelligenceRAGBenchmark",
@@ -856,11 +1057,12 @@ def copy_device_artifact(
     return destination_path if destination_path.exists() else None
 
 
-def copy_case_inputs_to_mac(case: dict[str, Any], *, bundle_id: str, input_dir: str) -> list[str]:
+def copy_case_inputs_to_mac(
+    case: dict[str, Any], *, container_root: Path, input_dir: str
+) -> list[str]:
     if not case["input_files"]:
         return []
 
-    container_root = mac_app_container_root(bundle_id)
     destination_root = container_root / input_dir
     destination_root.mkdir(parents=True, exist_ok=True)
 
@@ -874,12 +1076,12 @@ def copy_case_inputs_to_mac(case: dict[str, Any], *, bundle_id: str, input_dir: 
 
 def copy_mac_artifact(
     *,
-    bundle_id: str,
+    container_root: Path,
     relative_output_dir: str,
     filename: str,
     local_output_dir: Path,
 ) -> Path | None:
-    source = mac_app_container_root(bundle_id) / relative_output_dir / filename
+    source = container_root / relative_output_dir / filename
     if not source.exists():
         return None
     local_output_dir.mkdir(parents=True, exist_ok=True)
@@ -894,6 +1096,7 @@ def launch_case_on_mac(
     run_id_value: str,
     app_path: Path,
     bundle_id: str,
+    container_root: Path,
     case_dir: Path,
     pcc_consent: str,
     benchmark_entitlement: str,
@@ -908,7 +1111,7 @@ def launch_case_on_mac(
     relative_paths = device_case_paths(run_id_value, case)
     mac_input_files = copy_case_inputs_to_mac(
         case,
-        bundle_id=bundle_id,
+        container_root=container_root,
         input_dir=relative_paths["input_dir"],
     )
 
@@ -946,8 +1149,8 @@ def launch_case_on_mac(
         returncode = completed.returncode
     except subprocess.TimeoutExpired as exc:
         timed_out = True
-        stdout = exc.stdout or ""
-        stderr = exc.stderr or ""
+        stdout = ensure_text_output(exc.stdout)
+        stderr = ensure_text_output(exc.stderr)
         returncode = -1
     latency = time.monotonic() - start
     stdout_path.write_text(stdout, encoding="utf-8")
@@ -955,13 +1158,13 @@ def launch_case_on_mac(
     quit_mac_app(bundle_id)
 
     report_path = copy_mac_artifact(
-        bundle_id=bundle_id,
+        container_root=container_root,
         relative_output_dir=relative_paths["output_dir"],
         filename="rag_validation_report.txt",
         local_output_dir=output_dir,
     )
     trace_path = copy_mac_artifact(
-        bundle_id=bundle_id,
+        container_root=container_root,
         relative_output_dir=relative_paths["output_dir"],
         filename="pipeline_trace.log",
         local_output_dir=output_dir,
@@ -1853,9 +2056,25 @@ def run_benchmark(args: argparse.Namespace) -> int:
                     "udid": None,
                     "runtime": "macOS",
                     "variant": "Mac Catalyst",
+                    "build_method": args.mac_build_method,
                 }
-                print("Using this Mac: Mac Catalyst debug build", flush=True)
+                print(
+                    f"Using this Mac: Mac Catalyst debug build ({args.mac_build_method} build method)",
+                    flush=True,
+                )
                 app_path = build_app(args, "", run_dir)
+                container_root = discover_mac_runtime_container_root(
+                    app_path=app_path,
+                    bundle_id=args.bundle_id,
+                    run_dir=run_dir,
+                    pcc_consent=args.pcc_consent,
+                    benchmark_entitlement=args.benchmark_entitlement,
+                )
+                if container_root is None:
+                    raise BenchmarkError(
+                        "Could not determine the Mac benchmark app container root"
+                    )
+                target_info["container_root"] = str(container_root)
             else:
                 simulator = find_simulator(args.device)
                 target_info = {
@@ -1911,6 +2130,7 @@ def run_benchmark(args: argparse.Namespace) -> int:
                         run_id_value=this_run_id,
                         app_path=app_path,
                         bundle_id=args.bundle_id,
+                        container_root=Path(str(target_info["container_root"])),
                         case_dir=case_dir,
                         pcc_consent=args.pcc_consent,
                         benchmark_entitlement=args.benchmark_entitlement,
@@ -2025,6 +2245,15 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         type=int,
         default=DEFAULT_BUILD_TIMEOUT_SECONDS,
         help="Stop xcodebuild if it has not finished by this timeout.",
+    )
+    parser.add_argument(
+        "--mac-build-method",
+        choices=["scheme", "app-only"],
+        default=DEFAULT_MAC_BUILD_METHOD,
+        help=(
+            "Mac runtime only: keep the default scheme build, or use a benchmark-only "
+            "temporary project copy that detaches the Live Activities extension from the app target."
+        ),
     )
     parser.add_argument("--app-name", default=DEFAULT_SCHEME)
     parser.add_argument("--bundle-id", default=DEFAULT_BUNDLE_ID)

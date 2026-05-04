@@ -1,10 +1,24 @@
-# API
+# How Another App Uses The Engine
 
-## Current Public Facade
+## First: This Is Not A Hosted API
 
-The staged public facade in `OpenIntelligence/SDK/OpenIntelligenceEngine.swift` is intentionally small.
+There is no hosted web API in this packet.
 
-It is the current evaluation boundary, not proof of a finished enterprise SDK contract.
+This file is about the small set of engine entry points another Apple app would use if it embedded the engine locally.
+
+In plain English, another app would:
+
+1. check whether the engine is available on the device
+2. create the engine
+3. import files into it
+4. ask a question
+5. get back an answer with citations
+
+## Current Engine Entry Points
+
+The staged engine entry points in `OpenIntelligence/SDK/OpenIntelligenceEngine.swift` are intentionally small.
+
+This is the current evaluation boundary, not proof of a finished enterprise SDK contract.
 
 ```swift
 public enum OIAvailabilityState: Equatable, Sendable {
@@ -73,7 +87,7 @@ public final class OIEngine {
 }
 ```
 
-## Example Integration
+## Example Of How A Buyer App Would Use It
 
 ```swift
 import OpenIntelligenceEngine

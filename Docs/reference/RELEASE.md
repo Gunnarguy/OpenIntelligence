@@ -1,6 +1,7 @@
 # Release & Operations Guide
 
 > Archived reference snapshot. For current repo-grounded guidance, use [../Release.md](../Release.md).
+> Billing and pricing details in this archived file may no longer match the current repo policy exactly; verify against code and [../PRICING_STRATEGY.md](../PRICING_STRATEGY.md) before using them.
 
 **Last Updated**: March 2026
 **Status**: Production (v2.0 — Build 19)
@@ -191,12 +192,12 @@ This repo uses **two schemes** so local StoreKit testing never leaks into “rea
 
 ### Product Catalog
 
-| Product ID        | Type           | Price     | Notes                                  |
-| ----------------- | -------------- | --------- | -------------------------------------- |
-| `pro_monthly`     | Subscription   | $5.99/mo  | Unlimited Maximum, 1,000 docs, 5 libs  |
-| `pro_annual`      | Subscription   | $49.99/yr | Same unlocks as monthly                |
-| `lifetime_cohort` | Non-consumable | $59.99    | Unlimited Maximum, unlimited docs      |
-| `doc_pack_addon`  | Consumable     | $2.99     | Legacy-only compatibility product      |
+| Product ID        | Type           | Price     | Notes                                                                                                                                          |
+| ----------------- | -------------- | --------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| `pro_monthly`     | Subscription   | $5.99/mo  | Unlimited Maximum, 1,000 docs, 5 libs                                                                                                          |
+| `pro_annual`      | Subscription   | $49.99/yr | Same unlocks as monthly                                                                                                                        |
+| `lifetime_cohort` | Non-consumable | $59.99    | Unlimited Maximum, unlimited docs                                                                                                              |
+| `doc_pack_addon`  | Consumable     | $2.99     | Active purchase UI, entitlement plumbing, quota math, and App Store metadata still exist; some in-app copy still says packs are no longer sold |
 
 ### Validate Catalog
 

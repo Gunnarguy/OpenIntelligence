@@ -181,7 +181,7 @@ const PIPELINE_DATA = {
               id: "ingest-parse-preprocessing",
               name: "Adaptive Preprocessing",
               description:
-                "1 of 5 GPU-accelerated CIFilter strategies selected per page quality. Minimal (clean digital) \u2192 Maximum (faded microfiche). Concurrent DispatchQueue.",
+                "1 of 5 GPU-accelerated CIFilter strategies selected adaptively per page quality and visual risk. Clean digital pages stay lighter; garbled, fine-text, or image-heavy pages get stronger recovery. Concurrent DispatchQueue.",
               color: "#60a5fa",
             },
             {

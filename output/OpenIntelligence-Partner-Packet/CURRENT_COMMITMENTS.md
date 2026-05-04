@@ -6,7 +6,7 @@ This is the honesty sheet for partner conversations.
 
 - there is a working Apple-native document-intelligence engine in the repo
 - the engine supports private document ingestion and grounded question answering
-- the repo includes a narrow SDK-style facade
+- the repo includes a small engine entry-point file another Apple app can call
 - the repo includes a benchmark harness and evaluation tooling
 - the current strongest offer is a founder-led evaluation, pilot, diligence, or handoff discussion
 - the codebase is a substantial head start for Apple-device document QA
@@ -42,3 +42,36 @@ The best current offer is:
 The weakest current offer is:
 
 - broad self-serve SDK sale as if packaging and validation were complete
+
+## Exact Things You Can Point To
+
+When a serious buyer asks "what is the actual thing?" use exact repo artifacts:
+
+- buyer-safe evaluation zip:
+  - `output/OpenIntelligence-SDK-Package/build/OpenIntelligenceEngine-Buyer-Packet.zip`
+- staged evaluation packet folder:
+  - `output/OpenIntelligence-SDK-Package/`
+- current public engine facade source:
+  - `OpenIntelligence/SDK/OpenIntelligenceEngine.swift`
+- canonical engine inventory:
+  - `EngineSale/ENGINE_INVENTORY.md`
+- canonical pipeline trace:
+  - `Docs/STORAGE_AND_PIPELINE_TRACE.md`
+- current SDK boundary map:
+  - `SDK_BOUNDARY_AUDIT.md`
+- packet-local demo app project:
+  - `output/OpenIntelligence-SDK-Package/SampleApp/EngineEvaluationHost.xcodeproj`
+- source-of-truth demo project in the repo:
+  - `Samples/EngineEvaluationHost/EngineEvaluationHost.xcodeproj`
+- current packaging-status note:
+  - `output/OpenIntelligence-SDK-Package/Internal/BUILD_NOTES.md`
+
+## Exact Buyer Language
+
+If the buyer asks what they are paying for, the safest concrete answer is:
+
+- the engine code in this repo
+- the small engine entry-point file another Apple app can call
+- the retrieval, verification, and benchmark infrastructure
+- the evaluation packet and sample host app
+- founder-guided diligence, pilot, or handoff support

@@ -177,40 +177,71 @@ class SemanticChunker {
             preserveStructure: true
         )
 
-        /// Recommends optimal chunking config based on document type
-        static func recommended(for documentType: DocumentType) -> ChunkingConfig {
-            switch documentType {
+        /// Recommends optimal chunking config based on document type and optional library strategy.
+        static func recommended(for documentType: DocumentType, strategyOverride: String? = nil) -> ChunkingConfig {
+            let baseline: ChunkingConfig = switch documentType {
             case .pdf:
                 // PDFs benefit from larger chunks for complete sections
-                return .technicalReference
+                .technicalReference
 
             case .swift, .python, .javascript, .typescript, .java,
                  .cpp, .c, .objc, .go, .rust, .ruby, .php, .html,
                  .css, .json, .xml, .yaml, .sql, .shell, .code:
-                return .code
+                .code
 
             case .markdown, .text, .rtf:
                 // Could be either - use balanced default
-                return ChunkingConfig()
+                ChunkingConfig()
 
             case .word, .excel, .powerpoint, .pages, .numbers, .keynote:
                 // Office docs are usually longer-form
-                return .narrative
+                .narrative
 
             case .image, .png, .jpeg, .heic, .tiff, .gif:
                 // OCR'd images - use technical preset (often scanned manuals)
-                return .technicalReference
+                .technicalReference
 
             case .csv:
                 // Data files - small chunks
-                return .technicalReference
+                .technicalReference
 
             case .audio, .video, .m4a, .mp3, .wav, .mp4, .mov:
                 // Transcribed audio/video - use narrative preset
-                return .narrative
+                .narrative
 
             case .unknown:
-                return ChunkingConfig()
+                ChunkingConfig()
+            }
+
+            guard let strategyOverride else {
+                return baseline
+            }
+
+            switch strategyOverride {
+            case "densePrecision":
+                var config = baseline
+                config.targetSize = min(config.targetSize, 190)
+                config.minSize = min(config.minSize, 60)
+                config.maxSize = min(config.maxSize, 240)
+                config.overlap = min(max(config.overlap, 30), 45)
+                config.parentWindowChars = min(config.parentWindowChars, 180)
+                config.useTopicDetection = true
+                config.preserveStructure = true
+                return config
+
+            case "elastic":
+                var config = baseline
+                config.targetSize = min(max(config.targetSize, 300), 310)
+                config.minSize = max(config.minSize, 100)
+                config.maxSize = 310
+                config.overlap = max(config.overlap, 65)
+                config.parentWindowChars = max(config.parentWindowChars, 320)
+                config.useTopicDetection = true
+                config.preserveStructure = true
+                return config
+
+            default:
+                return baseline
             }
         }
     }

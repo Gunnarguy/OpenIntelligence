@@ -51,6 +51,7 @@ actor BNNSVectorDatabase: VectorDatabase {
     // MARK: - Properties
 
     let dimension: Int
+    nonisolated let persistenceKind: VectorDBKind
     private let storageURL: URL?
 
     /// GPU compute service (lazy)
@@ -89,6 +90,7 @@ actor BNNSVectorDatabase: VectorDatabase {
     init(dimension: Int = 384, storageURL: URL? = nil) {
         self.dimension = dimension
         self.storageURL = storageURL
+        persistenceKind = storageURL == nil ? .inMemory : .persistentJSON
 
         if let url = storageURL {
             loadTask = Task {

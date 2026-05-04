@@ -87,7 +87,8 @@
 ### Billing
 
 - 3 tiers: `.free` / `.pro` / `.lifetime` via `WorkspaceTier.isAtLeast(_:)`
-- 4 products: `pro_monthly`, `pro_annual`, `lifetime_cohort`, `doc_pack_addon`
+- Code still defines 4 StoreKit product IDs: `pro_monthly`, `pro_annual`, `lifetime_cohort`, `doc_pack_addon`
+- Literal repo state: `doc_pack_addon` still has active purchase UI, entitlement handling, quota math, and App Store metadata, while some app copy still says document packs are no longer sold in-app; call that inconsistency out directly when documenting billing
 - Every feature in upgrade UI MUST be enforced in code — no aspirational claims
 
 ---
@@ -128,11 +129,11 @@ Always run `xcodebuild build` after making changes to verify compilation. Run `.
 
 ## Key Files
 
-| Path              | What's there                               |
-| ----------------- | ------------------------------------------ |
-| `ARCHITECTURE.md` | 102-service inventory, all data structures |
-| `HOW_IT_WORKS.md` | 29-step pipeline walkthrough               |
-| `ROADMAP.md`      | Task tracking (the ONLY place for tasks)   |
-| `CHANGELOG.md`    | Version history                            |
-| `SDK_BOUNDARY_AUDIT.md` | Internal map of app-vs-SDK boundary   |
-| `output/OpenIntelligence-SDK-Package/` | Deliverable docs + packaging notes |
+| Path                                   | What's there                               |
+| -------------------------------------- | ------------------------------------------ |
+| `ARCHITECTURE.md`                      | 102-service inventory, all data structures |
+| `HOW_IT_WORKS.md`                      | 29-step pipeline walkthrough               |
+| `ROADMAP.md`                           | Task tracking (the ONLY place for tasks)   |
+| `CHANGELOG.md`                         | Version history                            |
+| `SDK_BOUNDARY_AUDIT.md`                | Internal map of app-vs-SDK boundary        |
+| `output/OpenIntelligence-SDK-Package/` | Deliverable docs + packaging notes         |

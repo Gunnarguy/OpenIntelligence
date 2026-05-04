@@ -2,6 +2,17 @@
 
 Public release highlights for OpenIntelligence.
 
+## 3.5
+
+This is a polish and trust update focused on making the app feel less fake at first touch and more dependable on hard real-world documents.
+
+## Highlights
+
+- Empty-chat starter questions are now stricter and more grounded, with the model limited to polishing already-supported question drafts instead of inventing speculative asks or canned "specs / procedures / requirements" filler.
+- Weakly supported suggestion ideas now fail closed to safer prompts, especially around warnings, conditional instructions, and misleading duration or capability questions.
+- Clean digital scientific PDFs ingest more cleanly, with less chance of fake tables, broken headings, or reference-page chunk explosions contaminating retrieval.
+- Long-running user-initiated imports behave more reliably, including cleaner background-processing state and stronger Live Activity lifecycle handling.
+
 ## 3.3
 
 This is a reliability and document-understanding update focused on making imports harder to lose and technical answers more trustworthy again.

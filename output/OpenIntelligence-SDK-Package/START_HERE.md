@@ -17,7 +17,7 @@ This packet is the current evaluation slice of the OpenIntelligence engine story
 ## Fastest Review Path
 
 1. Read `PACKAGE_SUMMARY.md`.
-2. Read `API.md`.
+2. Read `API.md` for the simple explanation of how another app would use the engine.
 3. Read `INSTALL.md`.
 4. Open `SampleApp/` if you want to inspect the packet-local host path.
 

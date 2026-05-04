@@ -71,9 +71,12 @@ Important current example:
 
 - `BillingProduct.swift` still includes `doc_pack_addon`
 - `QuotaPolicy.swift` still supports add-on increments
-- `TermsOfServiceView.swift` says document packs are no longer sold in-app
+- `PlanUpgradeSheet.swift` still exposes live document-pack purchase UI
+- `EntitlementStore.swift` still persists and credits document-pack purchases
+- `fastlane/subscriptions.json` still includes App Store Connect setup for `doc_pack_addon`
+- `TermsOfServiceView.swift` and `DocumentQuotaBanner.swift` say document packs are no longer sold in-app
 
-That mismatch is an app/business-policy issue, not an engine capability.
+That is a literal code-level contradiction inside the app surface, not an engine capability issue.
 
 ## Verified Technical Boundaries
 
@@ -127,7 +130,7 @@ What it is not yet:
 3. **Table and procedure fidelity remain a real weakness.** Hard technical/manual questions can still fail due to flattening, retrieval misses, or context loss.
 4. **Claim maturity is limited.** There is no formal HIPAA, compliance, security, or regulated-workflow review.
 5. **Benchmark maturity is limited.** The harness is useful and real, but early.
-6. **Consumer monetization is not settled.** StoreKit and Terms copy still disagree about document packs.
+6. **Consumer monetization is not settled.** Active paywall, entitlement, quota, and App Store metadata still support document packs, while some in-app policy copy says they are no longer sold.
 
 ## Best Current Framing
 

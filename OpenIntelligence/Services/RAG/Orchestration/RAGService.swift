@@ -2908,6 +2908,84 @@ class RAGService: ObservableObject {
         )
     }
 
+    private func containerForId(_ containerId: UUID) async -> KnowledgeContainer? {
+        await MainActor.run {
+            self.containerService.containers.first { $0.id == containerId }
+        }
+    }
+
+    private func contentTaggingEnabled(for container: KnowledgeContainer?) async -> Bool {
+        if let override = container?.autoTagOnIngestion {
+            return override
+        }
+
+        return await MainActor.run {
+            self.settingsStore?.enableContentTagging ?? true
+        }
+    }
+
+    private func translationTargetLanguage(for container: KnowledgeContainer?) -> Locale.Language? {
+        guard let code = container?.preferredTranslationLanguage?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !code.isEmpty
+        else {
+            return nil
+        }
+
+        return Locale.Language(identifier: code)
+    }
+
+    private func translatedQueryForEmbedding(
+        _ query: String,
+        container: KnowledgeContainer?
+    ) async -> (text: String, wasTranslated: Bool) {
+        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty,
+              let targetLanguage = translationTargetLanguage(for: container)
+        else {
+            return (trimmed, false)
+        }
+
+        do {
+            let result = try await TranslationService.shared.translate(trimmed, to: targetLanguage)
+            if result.isTranslated {
+                let targetCode = targetLanguage.languageCode?.identifier ?? "?"
+                Log.info("[Translation] Prepared translated retrieval query for target \(targetCode)", category: .retrieval)
+            }
+            return (result.translatedText, result.isTranslated)
+        } catch {
+            Log.warning("[Translation] Query translation failed, using original query: \(error)", category: .retrieval)
+            return (trimmed, false)
+        }
+    }
+
+    private func translatedTextsForEmbedding(
+        _ texts: [String],
+        container: KnowledgeContainer?
+    ) async -> [String] {
+        guard !texts.isEmpty,
+              let targetLanguage = translationTargetLanguage(for: container)
+        else {
+            return texts
+        }
+
+        do {
+            let results = try await TranslationService.shared.translateBatch(texts, to: targetLanguage)
+            let translatedCount = results.reduce(into: 0) { partialResult, result in
+                if result.isTranslated {
+                    partialResult += 1
+                }
+            }
+            if translatedCount > 0 {
+                let targetCode = targetLanguage.languageCode?.identifier ?? "?"
+                Log.info("[Translation] Prepared translated embeddings for \(translatedCount)/\(texts.count) chunks (target: \(targetCode))", category: .ingestion)
+            }
+            return results.map(\ .translatedText)
+        } catch {
+            Log.warning("[Translation] Chunk translation failed, embedding original text: \(error)", category: .ingestion)
+            return texts
+        }
+    }
+
     // MARK: - LLM Service Management
 
     /// Dynamically updates the LLM service (called from Settings)
@@ -2930,7 +3008,9 @@ class RAGService: ObservableObject {
         guard !trimmed.isEmpty else { throw RAGServiceError.emptyQuery }
 
         let embeddingContext = await resolveEmbeddingContext()
-        let queryEmbedding = try await embeddingContext.service.generateEmbedding(for: trimmed)
+        let container = await containerForId(embeddingContext.containerId)
+        let translatedQuery = await translatedQueryForEmbedding(trimmed, container: container)
+        let queryEmbedding = try await embeddingContext.service.generateEmbedding(for: translatedQuery.text)
         let database = await dbFor(embeddingContext.containerId)
         let searchCount = max(1, min(topK * 2, topK + 4))
         var candidates = try await database.search(embedding: queryEmbedding, topK: searchCount)
@@ -3182,25 +3262,46 @@ class RAGService: ObservableObject {
     private func overallIngestionProgressFraction(currentItemId: UUID?) -> Double {
         guard !ingestionItems.isEmpty else { return 0 }
 
-        let completedCount = ingestionItems.filter { $0.stage == .complete }.count
+        let terminalCount = ingestionItems.filter { $0.stage.isTerminal }.count
         let activeContribution: Double
         if let currentItemId,
            let activeItem = ingestionItems.first(where: { $0.id == currentItemId }) {
-            if let explicitProgress = activeItem.progress {
-                activeContribution = explicitProgress
-            } else if activeItem.stage.isTerminal {
-                activeContribution = activeItem.stage == .complete ? 1 : 0
-            } else if let pipelineIndex = activeItem.stage.pipelineIndex {
-                activeContribution = Double(pipelineIndex + 1) / Double(max(1, IngestionStage.pipelineStages.count))
-            } else {
-                activeContribution = 0
-            }
+            activeContribution = pipelineProgressContribution(for: activeItem)
         } else {
             activeContribution = 0
         }
 
-        let aggregate = Double(completedCount) + activeContribution
+        let aggregate = Double(terminalCount) + activeContribution
         return aggregate / Double(max(1, ingestionItems.count))
+    }
+
+    @MainActor
+    private func pipelineProgressContribution(for item: IngestionItem) -> Double {
+        if item.stage.isTerminal {
+            return 1
+        }
+
+        guard let pipelineIndex = item.stage.pipelineIndex else {
+            return 0
+        }
+
+        let stageCount = Double(max(1, IngestionStage.pipelineStages.count))
+        let stageBase = Double(pipelineIndex) / stageCount
+        let stageSpan = 1.0 / stageCount
+        let stageProgress = min(max(item.progress ?? defaultPipelineStageProgress(for: item.stage), 0), 1)
+        return min(0.999, stageBase + stageProgress * stageSpan)
+    }
+
+    @MainActor
+    private func defaultPipelineStageProgress(for stage: IngestionStage) -> Double {
+        switch stage {
+        case .queued:
+            return 0
+        case .loading, .transcribing, .extracting, .chunking, .analyzing, .adapting, .reindexing, .embedding, .indexing, .storing:
+            return 0.35
+        case .complete, .failed:
+            return 1
+        }
     }
 
     /// Haptic feedback based on ingestion stage
@@ -3307,7 +3408,9 @@ class RAGService: ObservableObject {
         let trackedSnapshot = ingestionItems.filter { liveActivityTrackedIngestionIds.contains($0.id) }
         let containerName = containerService.activeContainer?.name
         if !trackedSnapshot.isEmpty, trackedSnapshot.allSatisfy({ $0.stage.isTerminal }) {
+            let success = trackedSnapshot.allSatisfy { $0.stage == .complete }
             IngestionRuntimeBridge.shared.finishLiveActivity(items: trackedSnapshot, containerName: containerName)
+            IngestionRuntimeBridge.shared.completeUserInitiatedIngestion(success: success)
             liveActivityTrackedIngestionIds.removeAll()
             return
         }
@@ -3826,11 +3929,15 @@ class RAGService: ObservableObject {
             // This uses parallel embedding (TaskGroup) in the provider layer
             var textsToEmbed: [String] = []
             textsToEmbed.reserveCapacity(processedChunks.count)
+            let translatedChunkTexts = await translatedTextsForEmbedding(
+                processedChunks.map(\ .text),
+                container: container
+            )
 
             // Get token limits from the embedding service
             let maxTokens = containerEmbeddingService.maxSafeTokens  // 510 for CoreML
 
-            for chunk in processedChunks {
+            for (chunk, translatedChunkText) in zip(processedChunks, translatedChunkTexts) {
                 // Build chunk-specific contextual prefix with FULL section hierarchy
                 // Uses sectionPath (e.g. ["SPECIFICATIONS", "Engine Oil"]) for maximum
                 // heading context in the embedding. This is THE key to making embeddings
@@ -3850,7 +3957,7 @@ class RAGService: ObservableObject {
                 contextualPrefixes.append(contextualPrefix)
 
                 // Embed with contextual prefix prepended (Anthropic's key insight)
-                var textForEmbedding = contextualPrefix + chunk.text
+                var textForEmbedding = contextualPrefix + translatedChunkText
 
                 // CRITICAL: Validate token count using ACTUAL tokenizer
                 // NLTokenizer word count != BPE/WordPiece token count!
@@ -4126,7 +4233,8 @@ class RAGService: ObservableObject {
                         documentId: document.id,
                         documentName: filename,
                         chunks: documentChunks,
-                        embeddingService: containerEmbeddingService
+                        embeddingService: containerEmbeddingService,
+                        embeddingTranslationTarget: translationTargetLanguage(for: container)
                     )
 
                     // Store the summary chunk alongside detail chunks
@@ -4175,7 +4283,7 @@ class RAGService: ObservableObject {
             }
 
             var generatedContentTags: [String]?
-            let contentTaggingEnabled = await MainActor.run { self.settingsStore?.enableContentTagging ?? true }
+            let contentTaggingEnabled = await contentTaggingEnabled(for: container)
             if #available(iOS 26.0, *), contentTaggingEnabled {
                 let taggingService = ContentTaggingService.shared
                 if taggingService.isAvailable {
@@ -4724,8 +4832,12 @@ class RAGService: ObservableObject {
     }
 
     private func chunkingOverride(for container: KnowledgeContainer?) -> DocumentProcessor.ChunkingOverride? {
-        guard let directive = container?.chunkingDirective else { return nil }
+        guard let container, let directive = container.chunkingDirective else { return nil }
+        if container.autoAdaptDimension, directive.source != .auto {
+            return nil
+        }
         return DocumentProcessor.ChunkingOverride(
+            strategy: directive.strategy,
             targetWordWindow: directive.targetWordWindow,
             overlapWords: directive.overlapWords
         )
@@ -5629,8 +5741,9 @@ class RAGService: ObservableObject {
 
         var inferenceConfig = config ?? InferenceConfig()
         let networkAvailable = NetworkMonitor.shared.isConnected
-        // Reliability mode always enabled — UI toggle removed for simplicity
-        let reliabilityModeEnabled = true
+        let reliabilityModeEnabled = await MainActor.run {
+            self.settingsStore?.reliabilityModeEnabled ?? true
+        }
         if reliabilityModeEnabled {
             Log.info("[RAG] Reliability-first fallbacks enabled", category: .pipeline)
         }
@@ -5785,7 +5898,6 @@ class RAGService: ObservableObject {
         let qualityModeUsesHyDE = qualityMode.usesHyDE
         let qualityModeUsesReRanking = qualityMode.usesReRanking
         let qualityModeUsesMMR = qualityMode.usesMMR
-        let qualityModeMMRLambda = qualityMode.mmrLambda
         let qualityModeUsesVerificationGates = qualityMode.usesVerificationGates
         let qualityModeUsesQueryExpansion = qualityMode.usesQueryExpansion
         let qualityModeMaxQueryExpansions = qualityMode.maxQueryExpansions
@@ -6059,6 +6171,8 @@ class RAGService: ObservableObject {
 
                 let queryEnhancer = QueryEnhancementService(corpusVocabulary: finalCorpusVocabulary)
                 let simpleGroundedLookup = initialQueryPlan.preferLiteralQuery
+                let translatedInitialQuery = await translatedQueryForEmbedding(question, container: selectedContainer)
+                let originalKeywordQuery = translatedInitialQuery.wasTranslated ? question : nil
 
                 // Check advanced RAG settings
                 let rewriteEnabledBySettings = settingsStore?.enableQueryRewriting ?? qualityModeUsesQueryRewriting
@@ -6067,7 +6181,7 @@ class RAGService: ObservableObject {
                 // and can be force-enabled via settings toggle. See Step 3 below.
 
                 // Step 1: LLM-Powered Query Understanding (if enabled)
-                var effectiveQuery = question
+                var effectiveQuery = translatedInitialQuery.text
                 var queryWasRewritten = false
                 var rewriteTime: TimeInterval = 0
 
@@ -6127,7 +6241,7 @@ class RAGService: ObservableObject {
 
                     do {
                         let rewriteResult = try await queryRewriter.rewrite(
-                            query: question,
+                            query: effectiveQuery,
                             documentNames: documentNames,
                             conversationContext: recentTurns
                         )
@@ -6529,6 +6643,7 @@ class RAGService: ObservableObject {
                     // Pass cached chunks to avoid redundant allChunks() calls in iterative retrieval
                     let iterativeResult = try await iterativeService.retrieve(
                         query: expandedQueries.joined(separator: " "),
+                        originalQuery: originalKeywordQuery ?? effectiveQuery,
                         vectorDatabase: vdb,
                         config: iterativeConfig,
                         topK: effectiveTopK,
@@ -6595,7 +6710,7 @@ class RAGService: ObservableObject {
                     // Pass containerId to enable FTS5-accelerated BM25 (10-100X faster than in-memory)
                     retrievedChunks = try await hybridSearch.search(
                         query: expandedQueries.joined(separator: " "),
-                        originalQuery: effectiveQuery,  // Original query for FTS5 + keyword boost
+                        originalQuery: originalKeywordQuery ?? effectiveQuery,
                         embedding: queryEmbedding,
                         topK: effectiveTopK * 3,
                         cachedChunks: filteredCachedChunks,
@@ -6638,7 +6753,8 @@ class RAGService: ObservableObject {
                             Log.debug("[MultiVector] Running \(supplementaryQueries.count) supplementary vector searches", category: .retrieval)
                             for suppQuery in supplementaryQueries {
                                 do {
-                                    let suppEmbedding = try await queryEmbeddingService.generateEmbedding(for: suppQuery)
+                                    let translatedSupplementaryQuery = await translatedQueryForEmbedding(suppQuery, container: selectedContainer)
+                                    let suppEmbedding = try await queryEmbeddingService.generateEmbedding(for: translatedSupplementaryQuery.text)
                                     let suppResults = try await vdb.search(embedding: suppEmbedding, topK: effectiveTopK)
                                     let newChunks = suppResults.filter { !existingChunkIds.contains($0.chunk.id) }
                                     if !newChunks.isEmpty {
@@ -6916,6 +7032,7 @@ class RAGService: ObservableObject {
                     )
                     let cascadeRetrieved = try await cascadeHybrid.search(
                         query: cascadeQuery,
+                        originalQuery: originalKeywordQuery ?? question,
                         embedding: queryEmbedding,
                         topK: cascadeDecision.topK
                     )
@@ -7022,7 +7139,9 @@ class RAGService: ObservableObject {
 
                 // Step 4.3: Filter low-confidence chunks using container's retrieval config
                 // Adaptive gating: consider "lenient" mode, quality mode, and trivial/short queries
-                let lenient = UserDefaults.standard.bool(forKey: "lenientRetrievalMode")
+                let lenient = await MainActor.run {
+                    self.settingsStore?.lenientRetrievalMode ?? false
+                }
                 auditLenient = lenient
 
                 // Relative-score metrics (computed on reranked results)
@@ -7286,7 +7405,7 @@ class RAGService: ObservableObject {
                 var mmrTime: TimeInterval = 0 // Defined at outer scope for final logging
 
                 var diverseChunks: [RetrievedChunk] = []
-                var mmrLambda: Float = qualityModeMMRLambda // Default to quality mode value
+                var mmrLambda: Float = retrievalConfig.mmrLambda
 
                 // Check if MMR is enabled for this quality mode
                 if !qualityModeUsesMMR {
@@ -7309,9 +7428,9 @@ class RAGService: ObservableObject {
 
                     // Procedural query override: favor relevance over diversity for step-by-step content
                     // Consecutive chunks from same document are valuable context, not redundant
-                    // Note: isProceduralQuery already defined in Step 4.3
-                    // Use quality mode lambda as base, override for procedural queries
-                    mmrLambda = isProceduralQuery ? max(qualityModeMMRLambda, 0.85) : qualityModeMMRLambda
+                    // Note: isProceduralQuery already defined in Step 4.3.
+                    // Use the library's retrieval config as the base, override for procedural queries.
+                    mmrLambda = isProceduralQuery ? max(retrievalConfig.mmrLambda, 0.85) : retrievalConfig.mmrLambda
                     if isProceduralQuery {
                         Log.info("[RAG] Procedural query - boosting MMR lambda to \(mmrLambda) (favor sequential chunks)", category: .retrieval)
                     }
@@ -10590,6 +10709,7 @@ class RAGService: ObservableObject {
                     self.currentQueryContainerId ?? self.containerService.activeContainerId
                 }
                 let embeddingContext = await resolveEmbeddingContext(preferredContainerId: preferredContainerId)
+                let verificationContainer = await containerForId(embeddingContext.containerId)
 
                 let responseEmbedding: [Float]?
                 let queryEmbedding: [Float]?
@@ -10597,16 +10717,24 @@ class RAGService: ObservableObject {
                     llmResponse.text,
                     answerIntent: answerIntent
                 )
+                let translatedResponseForEmbedding = await translatedQueryForEmbedding(
+                    responseForEmbedding,
+                    container: verificationContainer
+                )
+                let translatedQuestionForEmbedding = await translatedQueryForEmbedding(
+                    question,
+                    container: verificationContainer
+                )
 
                 do {
-                    responseEmbedding = try await embeddingContext.service.generateEmbedding(for: responseForEmbedding)
+                    responseEmbedding = try await embeddingContext.service.generateEmbedding(for: translatedResponseForEmbedding.text)
                 } catch {
                     Log.warning("[RAG] Reliability fallback could not embed response for grounding check: \(error.localizedDescription)", category: .pipeline)
                     responseEmbedding = nil
                 }
 
                 do {
-                    queryEmbedding = try await embeddingContext.service.generateEmbedding(for: question)
+                    queryEmbedding = try await embeddingContext.service.generateEmbedding(for: translatedQuestionForEmbedding.text)
                 } catch {
                     Log.warning("[RAG] Reliability fallback could not embed query for grounding check: \(error.localizedDescription)", category: .pipeline)
                     queryEmbedding = nil
@@ -12706,7 +12834,12 @@ class RAGService: ObservableObject {
         let forceExtractiveAttempt = !answerIntent.isExtractiveFirst && isPrecisionValueQuery(question)
         guard answerIntent.isExtractiveFirst || forceExtractiveAttempt else { return nil }
 
-        let candidateChunks = Array(retrievedChunks.prefix(18))
+        let candidateChunks: [RetrievedChunk]
+        if EvidenceScoringPolicyService.isStateLookupQuery(question) {
+            candidateChunks = prioritizedStateLookupCandidates(from: Array(retrievedChunks.prefix(18)), query: question)
+        } else {
+            candidateChunks = Array(retrievedChunks.prefix(18))
+        }
         let extractorIntent: AnswerIntent = answerIntent.isExtractiveFirst ? answerIntent : .lookup
         let extraction = await specificationExtractor.extract(
             query: question,
@@ -12741,6 +12874,50 @@ class RAGService: ObservableObject {
         }
 
         return result.formattedAnswer
+    }
+
+    private func prioritizedStateLookupCandidates(
+        from chunks: [RetrievedChunk],
+        query: String
+    ) -> [RetrievedChunk] {
+        chunks.sorted { lhs, rhs in
+            let lhsScore = stateLookupCandidatePriority(lhs, query: query)
+            let rhsScore = stateLookupCandidatePriority(rhs, query: query)
+            if lhsScore == rhsScore {
+                if lhs.similarityScore == rhs.similarityScore {
+                    return lhs.rank < rhs.rank
+                }
+                return lhs.similarityScore > rhs.similarityScore
+            }
+            return lhsScore > rhsScore
+        }
+    }
+
+    private func stateLookupCandidatePriority(_ chunk: RetrievedChunk, query: String) -> Int {
+        let content = (chunk.chunk.parentContent ?? chunk.chunk.content).lowercased()
+        var score = 0
+
+        if EvidenceScoringPolicyService.satisfiesStateLookupAnchors(query: query, content: content) {
+            score += 6
+        }
+
+        if content.contains("table:") || content.contains("[rows]") || content.contains("row 1:") {
+            score += 4
+        }
+
+        if content.contains("[summary]") || content.contains("this reference table") || content.contains("this technical reference") {
+            score += 2
+        }
+
+        if content.contains("[cells]") || content.contains("cell r") {
+            score -= 5
+        }
+
+        if content.contains("column 1") || content.contains("column 2") {
+            score -= 2
+        }
+
+        return score
     }
 
     private func enrichedPrecisionAnswerSpan(for result: SpecificationExtractionResult) -> String {
@@ -13818,7 +13995,9 @@ extension RAGService: RAGToolHandler {
 
         // Use the existing RAG pipeline to search
         let embeddingContext = await resolveEmbeddingContext()
-        let queryEmbedding = try await embeddingContext.service.generateEmbedding(for: query)
+        let container = await containerForId(embeddingContext.containerId)
+        let translatedQuery = await translatedQueryForEmbedding(query, container: container)
+        let queryEmbedding = try await embeddingContext.service.generateEmbedding(for: translatedQuery.text)
 
         let db = await dbFor(embeddingContext.containerId)
 
@@ -13875,13 +14054,21 @@ extension RAGService: RAGToolHandler {
         } else {
             mode = await MainActor.run { self.settingsStore?.ragQualityMode ?? .standard }
         }
-        let effectiveMinSimilarity = minSimilarity ?? RetrievalPolicyService.agenticMinSimilarity(for: mode, stage: .search)
         let embeddingContext = await resolveEmbeddingContext()
+        let container = await containerForId(embeddingContext.containerId)
+        let resolvedRetrievalConfig = await MainActor.run {
+            self.containerService.containers.first { $0.id == embeddingContext.containerId }?.retrievalConfig ?? .default
+        }
+        let effectiveMinSimilarity = minSimilarity ?? resolvedRetrievalConfig.minSimilarity
         let db = await dbFor(embeddingContext.containerId)
         let allChunks = try await db.allChunks()
 
         // Skip if no chunks
         guard !allChunks.isEmpty else { return [] }
+
+        let translatedQuery = await translatedQueryForEmbedding(query, container: container)
+        let semanticQuery = translatedQuery.text
+        let originalKeywordQuery = translatedQuery.wasTranslated ? query : semanticQuery
 
         // Emit: Starting retrieval pipeline
         await onDetailedEvent?(.planning, "Query analysis", "Analyzing: \"\(query.prefix(50))...\"")
@@ -13890,7 +14077,7 @@ extension RAGService: RAGToolHandler {
         // Only filter chunks if query routing is enabled AND we have summaries
         let queryRoutingEnabled = await MainActor.run { self.settingsStore?.enableQueryRouting ?? true }
         let queryProfile = await QueryProfileService.shared.buildProfile(
-            for: query,
+            for: semanticQuery,
             queryRouter: queryRouter,
             routingEnabled: queryRoutingEnabled
         )
@@ -13909,10 +14096,10 @@ extension RAGService: RAGToolHandler {
             }
         }
 
-        // Step 1: Use original query for embedding
+        // Step 1: Use the semantic retrieval query for embedding
         // NOTE: HyDE disabled in Deep Think - it hallucinates without document context
         // and poisons retrieval with irrelevant content (e.g., "serial numbers" for "button" queries)
-        let textToEmbed = query
+        let textToEmbed = semanticQuery
 
         // Step 2: Generate query embedding
         await onDetailedEvent?(.embedding, "Encoding query", "384-dim neural embedding")
@@ -13938,7 +14125,7 @@ extension RAGService: RAGToolHandler {
 
         let queryEnhancer = QueryEnhancementService(corpusVocabulary: agenticVocab)
         let queryIntent = queryProfile.searchIntent
-        let adjustedWeights = queryProfile.adjustedHybridWeights(from: .default)
+        let adjustedWeights = queryProfile.adjustedHybridWeights(from: resolvedRetrievalConfig)
         let vectorWeight = adjustedWeights.vectorWeight
         let keywordWeight = adjustedWeights.keywordWeight
 
@@ -13947,10 +14134,10 @@ extension RAGService: RAGToolHandler {
 
         // EXPAND query with synonyms for better keyword matching
         // e.g., "button" → "button switch toggle control key trigger"
-        var expandedQueries = queryEnhancer.expandQuery(query)
+        var expandedQueries = queryEnhancer.expandQuery(semanticQuery)
 
         // Gazetteer domain vocabulary enrichment
-        let gazetteerMatchesFR = await GazetteerService.shared.matchingTerms(for: query)
+        let gazetteerMatchesFR = await GazetteerService.shared.matchingTerms(for: semanticQuery)
         if !gazetteerMatchesFR.isEmpty {
             let uniqueGazetteer = gazetteerMatchesFR.map { $0.term }.filter { !expandedQueries.contains($0) }
             expandedQueries.append(contentsOf: uniqueGazetteer.prefix(5))
@@ -13977,7 +14164,7 @@ extension RAGService: RAGToolHandler {
 
         var retrievedChunks = try await hybridSearch.search(
             query: expandedQueryString, // Use expanded query for better keyword matching
-            originalQuery: query, // Pass clean original query for FTS5 + keyword boost (Round 3 fix)
+            originalQuery: originalKeywordQuery,
             embedding: queryEmbedding,
             topK: topK * 2, // Get extra for re-ranking
             cachedChunks: effectiveChunks, // Use RAPTOR-lite filtered chunks
@@ -13990,12 +14177,12 @@ extension RAGService: RAGToolHandler {
         await onDetailedEvent?(.rerank, "AI re-ranking", "Scoring \(retrievedChunks.count) chunks with neural model")
 
         let engine = RAGEngine.shared
-        retrievedChunks = await engine.rerank(chunks: retrievedChunks, query: query, topK: topK * 2)
+        retrievedChunks = await engine.rerank(chunks: retrievedChunks, query: semanticQuery, topK: topK * 2)
 
         await onDetailedEvent?(.rerank, "Re-ranking complete", "Top scores: \(retrievedChunks.prefix(3).map { String(format: "%.0f%%", $0.similarityScore * 100) }.joined(separator: ", "))")
 
         // Step 6: MMR Diversification (uses quality mode lambda)
-        let mmrLambda: Float = mode.mmrLambda
+        let mmrLambda: Float = resolvedRetrievalConfig.mmrLambda
         await onDetailedEvent?(.mmr, "MMR diversification", "Optimizing for coverage (λ=\(String(format: "%.2f", mmrLambda)))")
         retrievedChunks = await engine.applyMMR(
             candidates: retrievedChunks,
@@ -14111,45 +14298,53 @@ extension RAGService: RAGToolHandler {
     /// Search and return raw chunks for agentic orchestrator (not just formatted string)
     /// Uses hybrid search (vector + BM25) for better retrieval quality on technical documents.
     /// Used internally by AgenticOrchestrator to collect chunks for UnifiedMetricsBar
-    func searchDocumentsRaw(query: String, topK: Int = 10, minSimilarity: Float = 0.25) async throws -> [RetrievedChunk] {
+    func searchDocumentsRaw(query: String, topK: Int = 10, minSimilarity: Float? = nil) async throws -> [RetrievedChunk] {
         let embeddingContext = await resolveEmbeddingContext()
-        let queryEmbedding = try await embeddingContext.service.generateEmbedding(for: query)
+        let container = await containerForId(embeddingContext.containerId)
+        let translatedQuery = await translatedQueryForEmbedding(query, container: container)
+        let queryEmbedding = try await embeddingContext.service.generateEmbedding(for: translatedQuery.text)
 
         let db = await dbFor(embeddingContext.containerId)
+        let queryRoutingEnabled = await MainActor.run { self.settingsStore?.enableQueryRouting ?? true }
+        let queryProfile = await QueryProfileService.shared.buildProfile(
+            for: translatedQuery.text,
+            queryRouter: queryRouter,
+            routingEnabled: queryRoutingEnabled
+        )
+        let retrievalConfig = await MainActor.run {
+            self.containerService.containers.first { $0.id == embeddingContext.containerId }?.retrievalConfig ?? .default
+        }
+        let adjustedWeights = queryProfile.adjustedHybridWeights(from: retrievalConfig)
 
         // Use hybrid search (vector + BM25) for better keyword matching on technical terms
         // Critical for technical docs where exact terms like codes and specs matter
         let hybridSearch = HybridSearchService(
             vectorDatabase: db,
-            vectorWeight: 0.5, // Balance vector and keyword for technical queries
-            keywordWeight: 0.5
+            vectorWeight: adjustedWeights.vectorWeight,
+            keywordWeight: adjustedWeights.keywordWeight
         )
 
-        // Index BM25 with available chunks (for lexical recall)
         let allChunks = try await db.allChunks()
 
         // RAPTOR-lite: Query routing for summary-first retrieval
-        let queryRoutingEnabled = await MainActor.run { self.settingsStore?.enableQueryRouting ?? true }
         var effectiveChunks = allChunks
 
         if queryRoutingEnabled {
-            let queryClassification = await queryRouter.classifyQuery(query)
+            let queryClassification = queryProfile.routingClassification
             let hasSummaries = allChunks.contains { $0.metadata.abstractionLevel == .documentSummary }
 
             if hasSummaries && queryClassification.queryType == .overview && queryClassification.confidence >= 0.5 {
-                let searchLevels = await queryRouter.abstractionLevelsToSearch(for: queryClassification)
+                let searchLevels = queryProfile.abstractionLevelsToSearch
                 effectiveChunks = allChunks.filter { searchLevels.contains($0.metadata.abstractionLevel) }
                 Log.info("[RAPTOR-lite] Raw search using \(effectiveChunks.count) summary chunks", category: .retrieval)
             }
         }
 
-        let bm25Scorer = BM25Scorer()
-        bm25Scorer.indexDocuments(effectiveChunks)
-
         // Request more candidates for better coverage
         let effectiveTopK = max(topK, 15)
         var retrievedChunks = try await hybridSearch.search(
-            query: query,
+            query: translatedQuery.text,
+            originalQuery: translatedQuery.wasTranslated ? query : translatedQuery.text,
             embedding: queryEmbedding,
             topK: effectiveTopK,
             cachedChunks: effectiveChunks,
@@ -14157,7 +14352,10 @@ extension RAGService: RAGToolHandler {
         )
 
         let engine = RAGEngine.shared
-        retrievedChunks = await engine.filterBySimilarity(chunks: retrievedChunks, min: minSimilarity)
+        retrievedChunks = await engine.filterBySimilarity(
+            chunks: retrievedChunks,
+            min: minSimilarity ?? retrievalConfig.minSimilarity
+        )
 
         // Enrich with source document names
         var enrichedChunks: [RetrievedChunk] = []
@@ -14179,23 +14377,12 @@ extension RAGService: RAGToolHandler {
     func searchDocuments(query: String, topK: Int?, minSimilarity: Float?) async throws -> String {
         Log.debug("[Tool Call] search_documents(query: \"\(query)\", topK: \(topK?.description ?? "nil"), minSimilarity: \(minSimilarity?.description ?? "nil"))")
 
-        // Step 1: Embed the query using the container's provider/dimension
-        let embeddingContext = await resolveEmbeddingContext()
-        let queryEmbedding = try await embeddingContext.service.generateEmbedding(for: query)
-
-        // Step 2: Vector search with optional k
         let k = max(1, topK ?? 3)
-        let db = await dbFor(embeddingContext.containerId)
-        var retrievedChunks = try await db.search(
-            embedding: queryEmbedding,
-            topK: k
+        let retrievedChunks = try await searchDocumentsRaw(
+            query: query,
+            topK: k,
+            minSimilarity: minSimilarity
         )
-
-        // Step 3: Optional similarity filtering
-        if let minSim = minSimilarity {
-            let engine = RAGEngine.shared
-            retrievedChunks = await engine.filterBySimilarity(chunks: retrievedChunks, min: minSim)
-        }
 
         // Edge case: No results
         if retrievedChunks.isEmpty {
@@ -14205,7 +14392,7 @@ extension RAGService: RAGToolHandler {
         // Step 4: Format retrieved chunks for LLM consumption (citations + preview)
         var result = "Found \(retrievedChunks.count) relevant chunks:\n\n"
         for (index, retrieved) in retrievedChunks.enumerated() {
-            let docName = await documentName(for: retrieved.chunk.documentId)
+            let docName = retrieved.sourceDocument
             result += "[\(index + 1)] From \(docName)"
             if let page = retrieved.chunk.metadata.pageNumber {
                 result += " (Page \(page))"
@@ -14485,17 +14672,25 @@ extension RAGService: RAGToolHandler {
 
         // Get semantic search results using HybridSearchService
         let embeddingContext = await resolveEmbeddingContext()
-        let queryEmbedding = try await embeddingContext.service.generateEmbedding(for: topic)
+        let container = await containerForId(embeddingContext.containerId)
+        let translatedTopic = await translatedQueryForEmbedding(topic, container: container)
+        let queryEmbedding = try await embeddingContext.service.generateEmbedding(for: translatedTopic.text)
         let db = await dbFor(embeddingContext.containerId)
+        let retrievalConfig = await MainActor.run {
+            self.containerService.containers.first { $0.id == embeddingContext.containerId }?.retrievalConfig ?? .default
+        }
+        let queryProfile = await QueryProfileService.shared.buildProfile(for: translatedTopic.text, routingEnabled: false)
+        let adjustedWeights = queryProfile.adjustedHybridWeights(from: retrievalConfig)
 
         let hybridSearch = HybridSearchService(
             vectorDatabase: db,
-            vectorWeight: 0.6,
-            keywordWeight: 0.4
+            vectorWeight: adjustedWeights.vectorWeight,
+            keywordWeight: adjustedWeights.keywordWeight
         )
 
         let results = try await hybridSearch.search(
-            query: topic,
+            query: translatedTopic.text,
+            originalQuery: translatedTopic.wasTranslated ? topic : translatedTopic.text,
             embedding: queryEmbedding,
             topK: safeMaxResults * 3,
             cachedChunks: nil as [DocumentChunk]?,
@@ -14553,17 +14748,25 @@ extension RAGService: RAGToolHandler {
 
         // Search for the topic using HybridSearchService
         let embeddingContext = await resolveEmbeddingContext()
-        let queryEmbedding = try await embeddingContext.service.generateEmbedding(for: topic)
+        let container = await containerForId(embeddingContext.containerId)
+        let translatedTopic = await translatedQueryForEmbedding(topic, container: container)
+        let queryEmbedding = try await embeddingContext.service.generateEmbedding(for: translatedTopic.text)
         let db = await dbFor(embeddingContext.containerId)
+        let retrievalConfig = await MainActor.run {
+            self.containerService.containers.first { $0.id == embeddingContext.containerId }?.retrievalConfig ?? .default
+        }
+        let queryProfile = await QueryProfileService.shared.buildProfile(for: translatedTopic.text, routingEnabled: false)
+        let adjustedWeights = queryProfile.adjustedHybridWeights(from: retrievalConfig)
 
         let hybridSearch = HybridSearchService(
             vectorDatabase: db,
-            vectorWeight: 0.6,
-            keywordWeight: 0.4
+            vectorWeight: adjustedWeights.vectorWeight,
+            keywordWeight: adjustedWeights.keywordWeight
         )
 
         let results = try await hybridSearch.search(
-            query: topic,
+            query: translatedTopic.text,
+            originalQuery: translatedTopic.wasTranslated ? topic : translatedTopic.text,
             embedding: queryEmbedding,
             topK: 20,
             cachedChunks: nil as [DocumentChunk]?,
@@ -14644,92 +14847,5 @@ extension RAGService: RAGToolHandler {
         formatter.dateStyle = .medium
         formatter.timeStyle = .short
         return formatter.string(from: date)
-    }
-
-    // MARK: - Cross-Container Search (Unified RAG)
-
-    /// Search ALL knowledge containers simultaneously using Reciprocal Rank Fusion.
-    ///
-    /// This enables the LLM to synthesize knowledge from multiple knowledge bases,
-    /// e.g., combining legal documents, technical manuals, and internal policies
-    /// into a unified answer.
-    ///
-    /// - Parameters:
-    ///   - query: Natural language search query
-    ///   - globalTopK: Maximum results after cross-container fusion
-    ///
-    /// - Returns: Formatted string with fused results and container source attribution
-    func searchAllContainers(query: String, globalTopK: Int = 10) async throws -> String {
-        Log.debug(" [Tool Call] search_all_containers(query: \"\(query)\", globalTopK: \(globalTopK))")
-
-        // Get all containers (MainActor - no await needed)
-        let allContainers = containerService.containers
-
-        guard !allContainers.isEmpty else {
-            return "No knowledge containers available."
-        }
-
-        // Embed the query - use the active container's embedding service
-        let embeddingContext = await resolveEmbeddingContext()
-        let queryEmbedding = try await embeddingContext.service.generateEmbedding(for: query)
-
-        // Perform cross-container search with RRF
-        let results = await vectorRouter.searchAll(
-            embedding: queryEmbedding,
-            containers: allContainers,
-            topK: 10,
-            globalTopK: globalTopK
-        )
-
-        if results.isEmpty {
-            return "No relevant information found across all containers for: \(query)"
-        }
-
-        // Format results with container attribution
-        var output = "Found \(results.count) results across \(allContainers.count) knowledge containers:\n\n"
-
-        for result in results {
-            let docName = await documentName(for: result.chunk.documentId)
-            output += "[\(result.fusedRank)] From \(docName) [📁 \(result.containerName)]"
-            if let page = result.chunk.metadata.pageNumber {
-                output += " (Page \(page))"
-            }
-            output += " (Relevance: \(String(format: "%.1f%%", result.similarityScore * 100))):\n"
-
-            let fullText = result.chunk.content.trimmingCharacters(in: .whitespacesAndNewlines)
-            let preview = fullText.count > 500 ? String(fullText.prefix(500)) + " [...]" : fullText
-            output += preview
-            output += "\n\n"
-        }
-
-        Log.info(" [Tool Call] Cross-container search returned \(results.count) fused results")
-        return output
-    }
-
-    /// Raw cross-container search returning structured results (for agentic orchestrator).
-    /// Returns enriched results with container metadata for UI display.
-    func searchAllContainersRaw(
-        query: String,
-        globalTopK: Int = 10,
-        minSimilarity: Float = 0.3
-    ) async throws -> [VectorStoreRouter.CrossContainerResult] {
-        // MainActor - no await needed for containerService access
-        let allContainers = containerService.containers
-        guard !allContainers.isEmpty else { return [] }
-
-        let embeddingContext = await resolveEmbeddingContext()
-        let queryEmbedding = try await embeddingContext.service.generateEmbedding(for: query)
-
-        var results = await vectorRouter.searchAll(
-            embedding: queryEmbedding,
-            containers: allContainers,
-            topK: 10,
-            globalTopK: globalTopK
-        )
-
-        // Filter by minimum similarity
-        results = results.filter { $0.similarityScore >= minSimilarity }
-
-        return results
     }
 }

@@ -113,7 +113,7 @@ xcodebuild -scheme OpenIntelligence -destination 'platform=iOS Simulator,name=iP
 
 Current repo note:
 
-- the shared schemes currently exposed in the project are the app schemes
+- the project also contains a shared `OpenIntelligenceEngine` evaluation scheme, but this guide is about the app release path rather than the framework handoff
 - the staged engine evaluation materials live under `output/OpenIntelligence-SDK-Package/`
 - do not treat this release guide as proof of a currently shared, reproducible engine-framework build path
 

@@ -1,10 +1,17 @@
-Version 3.3
+Version 3.5
 
-What's new in 3.3:
+What's new in 3.5:
 
-- Large imports are more resilient. OpenIntelligence now preserves the import queue, resumes interrupted work more cleanly, and shows clearer progress during long-running document processing.
-- PDFs and images now use one adaptive visual-ingestion path instead of a manual fidelity setting, so garbled, table-heavy, image-heavy, and small-text pages get stronger recovery automatically.
-- Embedded PDF figures and standalone images are now preserved as searchable evidence with captions, labels, and nearby context instead of being easier to lose during ingestion.
-- Exact spec and table lookups are stronger, and suggested starter questions stay closer to what your current library can actually answer cleanly.
+This release rolls up the work since 3.2.5.
 
-This update is focused on making imports and grounded answers more trustworthy again.
+The last few updates aimed high and, in some places, made the app feel worse than it should have. Sorry about that. 3.5 is focused on making OpenIntelligence feel grounded, reliable, and much less fake in everyday use.
+
+- Starter questions are much more context-aware. They stay closer to real uploaded passages and avoid vague filler or made-up "specs / procedures / requirements" prompts.
+- Large imports are more resilient. Queue state, progress, background processing, and long-running ingestion cleanup behave more reliably.
+- PDFs and images now use one adaptive visual-ingestion path instead of a manual fidelity setting, improving recovery on garbled, table-heavy, image-heavy, and small-text pages.
+- Embedded PDF figures and standalone images are preserved as searchable evidence with captions, labels, and nearby page context.
+- Exact spec, table, and measurement lookups are stronger across Standard, Deep Think, and Maximum, with cleaner short answers when the source clearly contains the answer.
+- Clean scientific PDFs ingest more cleanly, with less fake table recovery, fewer bogus headings, and less reference-section noise polluting retrieval.
+- Library and settings surfaces were cleaned up to better match real per-library behavior.
+
+This update is about trust: better first-touch prompts, stronger imports, and more dependable source-grounded answers.

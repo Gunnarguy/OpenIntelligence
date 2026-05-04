@@ -446,12 +446,15 @@ struct DocumentLibraryView: View {
         let trimmedName = newLibraryName.trimmingCharacters(in: .whitespacesAndNewlines)
         let libraryName = trimmedName.isEmpty ? "Library \(containerService.containers.count + 1)" : trimmedName
 
-        // CoreML Sentence Embedding is the primary provider (384D, Neural Engine accelerated)
-        let embeddingProvider = "coreml_sentence_embedding"
+        let embeddingService = EmbeddingService.forProvider(
+            id: settings.defaultEmbeddingProvider,
+            allowFallback: true
+        )
 
         let newContainer = containerService.createContainer(
             name: libraryName,
-            embeddingProviderId: embeddingProvider
+            embeddingProviderId: embeddingService.actualProviderId,
+            embeddingDim: embeddingService.outputDimension
         )
         containerService.setActive(newContainer.id)
         newLibraryName = "" // Reset for next time

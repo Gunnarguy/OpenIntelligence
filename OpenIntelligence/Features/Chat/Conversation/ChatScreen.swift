@@ -1243,26 +1243,7 @@ struct ChatScreen: View {
         for document in docs.prefix(2) {
             let name = starterDisplayDocumentName(document.filename)
             guard !name.isEmpty else { continue }
-
-            if let tag = starterPromptTopic(for: document) {
-                prompts.append("What's the guidance on \(tag) in \(name)?")
-            }
-
-            switch document.contentType {
-            case .excel, .numbers, .csv:
-                prompts.append("What numbers or limits are listed in \(name)?")
-                prompts.append("Which values matter most in \(name)?")
-            case .audio, .video, .m4a, .mp3, .wav, .mp4, .mov:
-                prompts.append("What decisions or action items are in \(name)?")
-                prompts.append("What follow-ups are mentioned in \(name)?")
-            case .swift, .python, .javascript, .typescript, .java, .cpp, .c, .objc, .go, .rust, .ruby, .php, .html, .css, .json, .xml, .yaml, .sql, .shell, .code:
-                prompts.append("What settings or parameters are defined in \(name)?")
-                prompts.append("What schema or config details are in \(name)?")
-            default:
-                prompts.append("What exact specs or requirements are in \(name)?")
-                prompts.append("What warnings or exceptions does \(name) mention?")
-                prompts.append("What steps or procedures are in \(name)?")
-            }
+            prompts.append(contentsOf: SuggestedQuestionsService.starterFallbackPrompts(for: document, documentName: name).prefix(2))
         }
 
         let deduped = prompts.reduce(into: [String]()) { result, prompt in
@@ -1279,22 +1260,6 @@ struct ChatScreen: View {
             .replacingOccurrences(of: "_", with: " ")
             .replacingOccurrences(of: "-", with: " ")
             .trimmingCharacters(in: .whitespacesAndNewlines)
-    }
-
-    private func starterPromptTopic(for document: Document) -> String? {
-        guard let topic = document.contentTags?
-            .map({ $0.trimmingCharacters(in: .whitespacesAndNewlines.union(.punctuationCharacters)) })
-            .first(where: { tag in
-                let lowered = tag.lowercased()
-                return tag.count >= 4
-                    && tag.count <= 40
-                    && !["analysis", "data", "document", "information", "summary", "content", "text"].contains(lowered)
-            })
-        else {
-            return nil
-        }
-
-        return topic == topic.uppercased() ? topic.lowercased() : topic
     }
 
     /// Generate dynamic suggested questions based on library content

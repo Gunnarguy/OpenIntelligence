@@ -174,14 +174,14 @@ extension ContainerSettingsSheet {
     @ViewBuilder
     var aiFeatureOverridesSection: some View {
         Section(header: Text("AI features — per-library overrides")) {
-            Text("Control which Apple Intelligence features are active for this library. These override the global settings.")
+            Text("Control which Apple Intelligence features are active for this library. Where supported, these can diverge from the global defaults.")
                 .font(.caption)
                 .foregroundColor(.secondary)
 
             Toggle(isOn: $autoTagOnIngestion) {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Auto-Tag on Ingestion")
-                    Text("Automatically extract entities and tags when documents are added")
+                    Text("Automatically generate content tags when documents are added")
                         .font(.caption2)
                         .foregroundColor(.secondary)
                 }
@@ -192,7 +192,7 @@ extension ContainerSettingsSheet {
                     .font(.subheadline.weight(.semibold))
 
                 Picker("Translation Language", selection: $preferredTranslationLanguage) {
-                    Text("Auto-detect").tag("auto")
+                    Text("No override").tag("auto")
                     Text("English").tag("en")
                     Text("Spanish").tag("es")
                     Text("French").tag("fr")
@@ -206,7 +206,7 @@ extension ContainerSettingsSheet {
                 }
                 .pickerStyle(.menu)
 
-                Text("Preferred language for translating queries and document content in this library.")
+                Text("Choose a target retrieval language for this library. Changing it requires re-indexing existing documents.")
                     .font(.caption2)
                     .foregroundColor(.secondary)
             }
@@ -251,9 +251,9 @@ extension ContainerSettingsSheet {
                     detail: "Topic detection via embeddings"
                 )
                 siliconFeatureRow(
-                    icon: "rectangle.stack.fill",
-                    label: "Cross-Container Search",
-                    detail: "Unified search with RRF fusion"
+                    icon: "lock.fill",
+                    label: "Library Isolation",
+                    detail: "Retrieval stays scoped to this library"
                 )
             }
 
@@ -1139,7 +1139,7 @@ extension ContainerSettingsSheet {
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Library Deep Dive")
                             .font(.subheadline.weight(.semibold))
-                        Text("Statistics for nerds 🤓")
+                        Text("Library-scoped diagnostics")
                             .font(.caption2)
                             .foregroundColor(.secondary)
                     }
@@ -1163,9 +1163,6 @@ extension ContainerSettingsSheet {
 
             // Vector Space Statistics
             vectorSpaceStatsCard
-
-            // Storage Breakdown
-            storageBreakdownCard
 
             // Document Distribution
             documentDistributionCard
@@ -1252,17 +1249,19 @@ extension ContainerSettingsSheet {
                     .font(.caption.weight(.semibold))
                     .foregroundColor(.cyan)
 
-                let estimatedMemoryBytes = container.totalChunks * container.embeddingDim * 4
+                let documentCount = activeContainerDocuments.count
+                let chunkCount = activeContainerDocuments.reduce(0) { $0 + $1.totalChunks }
+                let estimatedMemoryBytes = chunkCount * container.embeddingDim * 4
                 let bytesPerVector = container.embeddingDim * 4
 
                 LazyVGrid(columns: [
                     GridItem(.flexible()),
                     GridItem(.flexible())
                 ], spacing: 8) {
-                    nerdStatCell(label: "Embeddings", value: "\(container.totalChunks)", icon: "point.3.filled.connected.trianglepath.dotted")
+                    nerdStatCell(label: "Chunks", value: "\(chunkCount)", icon: "point.3.filled.connected.trianglepath.dotted")
                     nerdStatCell(label: "Dimension", value: "\(container.embeddingDim)D", icon: "cube.fill")
-                    nerdStatCell(label: "Documents", value: "\(container.totalDocuments)", icon: "doc.fill")
-                    nerdStatCell(label: "Memory", value: formatBytes(estimatedMemoryBytes), icon: "memorychip")
+                    nerdStatCell(label: "Documents", value: "\(documentCount)", icon: "doc.fill")
+                    nerdStatCell(label: "Est. Vector Bytes", value: formatBytes(estimatedMemoryBytes), icon: "memorychip")
                 }
 
                 HStack(spacing: 4) {
@@ -1271,51 +1270,13 @@ extension ContainerSettingsSheet {
                         .font(.caption2)
                     Text("~\(bytesPerVector) bytes/vector")
                         .font(.caption2.monospacedDigit())
-                    Text("(Float32)")
+                    Text("(Float32 estimate)")
                         .font(.caption2)
                         .foregroundColor(.secondary)
                 }
             }
             .padding(12)
             .background(Color.cyan.opacity(0.06))
-            .clipShape(RoundedRectangle(cornerRadius: 10))
-        }
-    }
-
-    @ViewBuilder
-    private var storageBreakdownCard: some View {
-        if let container = activeContainer {
-            VStack(alignment: .leading, spacing: 8) {
-                Label("Storage", systemImage: "internaldrive.fill")
-                    .font(.caption.weight(.semibold))
-                    .foregroundColor(.purple)
-
-                let avgChunkSize = container.totalChunks > 0 ? container.dbSizeBytes / Int64(container.totalChunks) : 0
-
-                LazyVGrid(columns: [
-                    GridItem(.flexible()),
-                    GridItem(.flexible())
-                ], spacing: 8) {
-                    nerdStatCell(label: "DB Size", value: formatBytes64(container.dbSizeBytes), icon: "cylinder.fill")
-                    nerdStatCell(label: "Chunks", value: "\(container.totalChunks)", icon: "square.stack.3d.up.fill")
-                    nerdStatCell(label: "Documents", value: "\(container.totalDocuments)", icon: "doc.on.doc.fill")
-                    nerdStatCell(label: "Avg/Chunk", value: formatBytes64(avgChunkSize), icon: "ruler")
-                }
-
-                // Last indexed
-                if let lastIndexed = container.lastIndexedAt {
-                    HStack(spacing: 4) {
-                        Image(systemName: "clock.fill")
-                            .font(.caption2)
-                            .foregroundColor(.secondary)
-                        Text("Last indexed \(lastIndexed.relativeDescription)")
-                            .font(.caption2)
-                            .foregroundColor(.secondary)
-                    }
-                }
-            }
-            .padding(12)
-            .background(Color.purple.opacity(0.06))
             .clipShape(RoundedRectangle(cornerRadius: 10))
         }
     }
@@ -1389,7 +1350,7 @@ extension ContainerSettingsSheet {
     @ViewBuilder
     private var topTermsCard: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Label("Top Terms (Global)", systemImage: "textformat.abc")
+            Label("Top Terms (This Library)", systemImage: "textformat.abc")
                 .font(.caption.weight(.semibold))
                 .foregroundColor(.orange)
 
@@ -1417,7 +1378,7 @@ extension ContainerSettingsSheet {
 
                 // Vocabulary summary
                 HStack(spacing: 12) {
-                    Label("\(containerTopTerms.count)+ unique terms", systemImage: "text.book.closed")
+                    Label("Loaded \(containerTopTerms.count) frequent terms", systemImage: "text.book.closed")
                         .font(.caption2)
                         .foregroundColor(.secondary)
                 }

@@ -19,150 +19,259 @@ The strongest logic assets now in the codebase are:
 The main weakness is architectural concentration.
 Too much of the decision logic still lives inside `RAGService.swift`, which makes the behavior harder to reason about, validate, and transfer cleanly in a sale or diligence process.
 
+## Current Query Policy Map
+
+The active question-understanding stack is now best thought of as nine policy layers:
+
+1. Canonical per-query profiling
+
+- `OpenIntelligence/Services/Query/Analysis/QueryProfileService.swift`
+- Builds one shared profile for a question: triviality, adaptive complexity, reasoning complexity, answer intent, search intent, RAPTOR-lite routing classification, and abstraction levels.
+- This is now the first consolidation point used by the Standard pipeline and the full retrieval pipeline.
+
+2. Intent and hybrid-search bias
+
+- `OpenIntelligence/Services/Query/Enhancement/QueryEnhancementService.swift`
+- Still owns the hardcoded answer-intent and search-intent phrase logic.
+- The difference after consolidation is that the pipeline consumes those decisions through a shared `QueryProfile` instead of recomputing them ad hoc at each stage.
+
+3. Retrieval threshold and fallback policy
+
+- `OpenIntelligence/Services/RAG/Tuning/RetrievalPolicyService.swift`
+- Owns dynamic similarity floors, retrieval-cascade policy, parent-document expansion defaults, and shared agentic retrieval thresholds.
+- This is now the second major consolidation point for live retrieval behavior.
+
+4. Summary-vs-detail routing
+
+- `OpenIntelligence/Services/Query/Routing/QueryRouterService.swift`
+- Still owns RAPTOR-lite routing heuristics for overview, detail, and cross-topic questions.
+- These results now flow through `QueryProfile` for the main live paths instead of being re-queried independently later in the pipeline.
+
+5. Adaptive device/cost complexity
+
+- `OpenIntelligence/Services/Infrastructure/Optimization/AdaptivePipelineOptimizer.swift`
+- Still owns device-pressure and coarse query-complexity adaptation.
+- Its `QueryComplexity` estimate is now captured inside the shared `QueryProfile` for the main Standard path.
+
+6. Evidence scoring and extractive prioritization
+
+- `OpenIntelligence/Services/RAG/Tuning/EvidenceScoringPolicyService.swift`
+- Owns precision-lock thresholds, sentence scoring, extractive candidate priority, corrective retrieval scoring, and the remaining cross-reference/spec-sniper evidence weights.
+- This is now the shared scoring layer for the high-precision extraction path instead of leaving those weights scattered through `RAGService.swift`.
+
+7. Confidence and safety policy
+
+- `OpenIntelligence/Services/RAG/Tuning/ConfidencePolicyService.swift`
+- `OpenIntelligence/Services/RAG/Safety/VerificationGateService.swift`
+- `OpenIntelligence/Services/RAG/Safety/ConfidenceCalibrationService.swift`
+- Verification gate thresholds, abstention thresholds, and calibration parameters are now chosen through a shared per-query confidence policy instead of an ad hoc mix of mode checks and string matching in `RAGService.swift`.
+
+8. Agentic stopping and escalation policy
+
+- `OpenIntelligence/Services/RAG/Tuning/AgenticPolicyService.swift`
+- Owns retrieval-quality grading, speculative acceptance thresholds, hard irrelevance gates, confidence progression, repetition/saturation stopping, and verification acceptance rules for Deep Think and Maximum.
+- The agentic loop still orchestrates execution, but the live stop/escalation policy is no longer spread across the reasoning loop.
+
+9. Orchestration and remaining policy islands
+
+- `OpenIntelligence/Services/RAG/Orchestration/RAGService.swift`
+- Still contains the largest concentration of remaining decision policy: cascade thresholds, parent-document promotion rules, compression policy, evidence-first gates, verification entry conditions, and developer-only reasoning-chain overrides.
+- This file is materially smaller in terms of threshold duplication than before, but it is still the main concentration risk.
+
+## Consolidation Status
+
+What is now consolidated:
+
+1. Standard-mode query complexity, trivial-query detection, answer intent, search intent, and RAPTOR-lite routing are now built once via `QueryProfileService` and reused.
+2. The full retrieval pipeline used by Deep Think and Maximum now reuses the same shared profile for routing, hybrid weight selection, and extractive-intent detection.
+3. Hybrid weight clamping now has a single shared per-query calculation path via `QueryProfile.adjustedHybridWeights(from:)`.
+4. Similarity floors, retrieval-cascade thresholds, parent-document expansion defaults, and agentic broad-search thresholds now flow through `RetrievalPolicyService`.
+5. Verification gate strictness, verification pass thresholds, and calibration abstention thresholds now flow through `ConfidencePolicyService`.
+6. Precision-lock thresholds, sentence scoring, extractive candidate ranking, cross-reference evidence weights, and spec-sniper scoring now flow through `EvidenceScoringPolicyService`.
+7. Deep Think and Maximum retrieval grading, speculative acceptance, hard irrelevance gating, confidence progression, and evidence-driven stopping now flow through `AgenticPolicyService`.
+
+What is still fragmented:
+
+1. `RAGService.swift` still contains multiple remaining policy decisions around context packing, evidence-first fallback, compression, and corrective retrieval.
+2. `AgenticOrchestrator.swift` still contains some answer-grading and synthesis heuristics, even though the main stop-confidence and escalation targets are now centralized.
+3. There are still isolated score heuristics in answer-structure, claim filtering, and non-extractive grading paths that are not yet driven by a single policy layer.
+
 ## What The New Logic Actually Does
 
 ### 1. Deterministic Extraction Lane
 
 Relevant files:
+
 - `OpenIntelligence/Services/RAG/Orchestration/RAGService.swift`
 - `OpenIntelligence/Services/Query/Analysis/GroundedAnswerPolicy.swift`
 - `OpenIntelligence/Services/Query/Enhancement/QueryEnhancementService.swift`
 
 Purpose:
+
 - Route direct factual lookups away from unnecessary recursive reasoning.
 
 Why it matters:
+
 - Questions about timing, dose, route, counts, sample size, or exact values should behave like disciplined reading, not synthesis.
 - This reduces "thinking past the answer" and lowers the chance of contaminating the result with nearby but irrelevant content.
 
 Core commercial value:
+
 - This is one of the most defensible pieces of retrieval logic in the app because it is tied to observable product behavior and directly improves trust on high-friction questions.
 
 Current status:
+
 - `SHIP`, with regression coverage.
 
 ### 2. Grounded Prompt Contract
 
 Relevant file:
+
 - `OpenIntelligence/Services/RAG/Orchestration/RAGService.swift`
 
 Purpose:
+
 - Replace loose generation instructions with an explicit evidence-grounded operating contract aligned to the `Future` guidance.
 
 Why it matters:
+
 - This is the highest-ROI prompt-layer improvement.
 - It forces extraction vs synthesis behavior, conservative abstention, sentence-level discipline, and "shorter but faithful" answers.
 
 Core commercial value:
+
 - This is packaging-friendly logic because it can be described clearly to a buyer: the engine is instructed to answer from evidence, not from generic model prior.
 
 Current status:
+
 - `SHIP`, but it should not be oversold as the whole solution.
 
 ### 3. Source-Only Claim Verification
 
 Relevant files:
+
 - `OpenIntelligence/Services/RAG/Safety/SourceOnlyAnswerService.swift`
 - `OpenIntelligence/Core/Models/StructuredAnswer.swift`
 - `OpenIntelligence/Core/Models/ChatMessage.swift`
 - `OpenIntelligence/Features/Chat/Response/ResponseDetailsView.swift`
 
 Purpose:
+
 - Take a candidate answer, decompose it into claims, verify those claims against retrieved evidence, and present only supported claims or abstain.
 
 Why it matters:
+
 - This is the main step that turns "cited answer" into "inspectable supported answer."
 - It improves trust posture because unsupported claims can be dropped instead of silently passing through.
 
 Important implementation note:
+
 - The verifier now has two modes:
   - general evidence-grounded mode for ordinary document QA
   - strict scientific-domain mode for experimental literature
 
 Why that split matters:
+
 - Without it, the engine would overfit scientific logic onto manuals, playbooks, and ordinary business documents.
 
 Core commercial value:
+
 - High.
 - This is one of the most saleable logic assets in the repo because it is concrete, inspectable, and product-visible.
 
 Current status:
+
 - `WATCH`.
 - Strong logic, but needs lane-by-lane behavior validation so it does not over-block useful answers.
 
 ### 4. Verification Gates
 
 Relevant file:
+
 - `OpenIntelligence/Services/RAG/Safety/VerificationGateService.swift`
 
 Purpose:
+
 - Run post-generation checks on retrieval confidence, evidence coverage, numeric sanity, contradiction risk, semantic grounding, answer completeness, and domain isolation.
 
 Why it matters:
+
 - Gives the engine an explicit refusal path instead of relying only on prompt compliance.
 
 Core commercial value:
+
 - Medium to high.
 - Buyers like "it knows when not to answer" more than they like vague AI confidence language.
 
 Current status:
+
 - `WATCH`.
 - Good direction, but verification policy is starting to overlap with source-only verification and needs careful regression coverage to avoid duplicated or conflicting failure paths.
 
 ### 5. Structured Trust Output
 
 Relevant files:
+
 - `OpenIntelligence/Core/Models/StructuredAnswer.swift`
 - `OpenIntelligence/Features/Chat/Conversation/MessageBubbleV2.swift`
 - `OpenIntelligence/Features/Chat/Response/AnswerIntelligenceView.swift`
 - `OpenIntelligence/Features/Chat/Response/ResponseDetailsView.swift`
 
 Purpose:
+
 - Preserve claims, evidence, rejected claims, missing facets, and gate results in a structured model that the UI can inspect.
 
 Why it matters:
+
 - This converts hidden engine behavior into visible product trust behavior.
 - It also makes buyer demos stronger because the engine can show why a claim survived or was dropped.
 
 Core commercial value:
+
 - High for demos, diligence, and transfer value.
 
 Current status:
+
 - `SHIP`.
 
 ### 6. Audit Tooling
 
 Relevant files:
+
 - `scripts/run_generation_audit.sh`
 - `scripts/build_simulator_smoke.sh`
 - `OpenIntelligence/Services/RAG/Orchestration/RAGService.swift`
 
 Purpose:
+
 - Create a repeatable way to test source-faithful behavior instead of relying on ad hoc manual runs.
 
 Why it matters:
+
 - This is how the logic becomes defensible.
 - Without regression checks, the engine will drift between releases.
 
 Core commercial value:
+
 - High internally, medium externally.
 - A buyer may not care about the script itself, but they will care that the system has a validation story.
 
 Current status:
+
 - `SHIP`, but it needs a maintained scenario set.
 
 ## Ship / Watch / Risky
 
-| Area | Status | Why |
-|---|---|---|
-| Deterministic extraction routing | SHIP | Clear upside, directly tied to observable failure reduction |
-| Grounded generation prompt contract | SHIP | High-ROI, low-risk compared with deeper engine rewrites |
-| Structured answer / trust payloads | SHIP | Product-visible improvement with strong transfer value |
-| Source-only claim verification | WATCH | Strong logic, but can become too strict or slow if left uncalibrated |
-| Scientific domain isolation | WATCH | Valuable for experimental literature, but must stay conditional |
-| Expanded verification gates | WATCH | Good safety posture, but may overlap with claim verifier |
-| Further giant edits to `RAGService.swift` | RISKY | Too much policy already lives there; more changes increase transfer and regression risk |
-| Large pre-release architecture refactor | RISKY | Correct in the long run, but not the right move immediately before shipping |
+| Area                                      | Status | Why                                                                                     |
+| ----------------------------------------- | ------ | --------------------------------------------------------------------------------------- |
+| Deterministic extraction routing          | SHIP   | Clear upside, directly tied to observable failure reduction                             |
+| Grounded generation prompt contract       | SHIP   | High-ROI, low-risk compared with deeper engine rewrites                                 |
+| Structured answer / trust payloads        | SHIP   | Product-visible improvement with strong transfer value                                  |
+| Source-only claim verification            | WATCH  | Strong logic, but can become too strict or slow if left uncalibrated                    |
+| Scientific domain isolation               | WATCH  | Valuable for experimental literature, but must stay conditional                         |
+| Expanded verification gates               | WATCH  | Good safety posture, but may overlap with claim verifier                                |
+| Further giant edits to `RAGService.swift` | RISKY  | Too much policy already lives there; more changes increase transfer and regression risk |
+| Large pre-release architecture refactor   | RISKY  | Correct in the long run, but not the right move immediately before shipping             |
 
 ## What Is Actually Sellable Here
 
@@ -183,6 +292,7 @@ The weakest part of the current system is not the product idea.
 It is concentration of logic.
 
 The following files still carry too much policy:
+
 - `OpenIntelligence/Services/RAG/Orchestration/RAGService.swift`
 - `OpenIntelligence/Services/Document/Processing/DocumentProcessor.swift`
 - `OpenIntelligence/Services/Agentic/AgenticOrchestrator.swift`

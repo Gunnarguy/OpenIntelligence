@@ -46,6 +46,9 @@ struct OpenIntelligenceApp: App {
                 fraction: fraction
             )
         }
+        IngestionRuntimeBridge.shared.completeUserInitiatedIngestionHandler = { success in
+            BackgroundTaskService.shared.completeUserInitiatedIngestion(success: success)
+        }
         IngestionRuntimeBridge.shared.restoreLiveActivityHandler = {
             if #available(iOS 17.0, *) {
                 IngestionLiveActivityService.shared.restoreExistingActivityIfNeeded()

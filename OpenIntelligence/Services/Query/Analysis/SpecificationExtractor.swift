@@ -135,6 +135,15 @@ actor SpecificationExtractor {
         Log.debug("[ExtractiveQA] Primary entities: \(queryEntities.primaryEntities)", category: .retrieval)
         Log.debug("[ExtractiveQA] Descriptive keywords: \(queryEntities.descriptiveKeywords.prefix(5))", category: .retrieval)
 
+        if let explicitStateResult = extractFromExplicitStateStructures(
+            chunks: chunks,
+            query: query,
+            queryEntities: queryEntities
+        ) {
+            Log.info("[ExtractiveQA] ✓ Explicit state structure lookup succeeded: '\(explicitStateResult.matchedLabel ?? "")' → '\(explicitStateResult.answerSpan)'", category: .retrieval)
+            return .success(explicitStateResult)
+        }
+
         if let stateResult = extractFromStateMappings(
             chunks: chunks,
             query: query,
@@ -644,6 +653,66 @@ actor SpecificationExtractor {
 
     // MARK: - Proximity-Based Extraction
 
+    private func extractFromExplicitStateStructures(
+        chunks: [RetrievedChunk],
+        query: String,
+        queryEntities: QueryEntities
+    ) -> SpecificationExtractionResult? {
+        let anchors = EvidenceScoringPolicyService.stateLookupAnchors(from: query)
+        guard !anchors.colors.isEmpty || !anchors.states.isEmpty else { return nil }
+
+        var bestMatch: (label: String, value: String, score: Float, chunk: RetrievedChunk)?
+
+        for chunk in chunks {
+            let content = extractionContent(for: chunk)
+
+            for mapping in parseExplicitStateMappings(in: content) {
+                let cleanedLabel = normalizeStateLabel(mapping.label)
+                let cleanedValue = cleanupStateMappingValue(mapping.value)
+
+                guard !isDegenerateStateMapping(label: cleanedLabel, value: cleanedValue) else {
+                    continue
+                }
+
+                guard stateMappingSatisfiesAnchors(cleanedLabel, anchors: anchors) else {
+                    continue
+                }
+
+                var score = mapping.score
+                if chunk.chunk.metadata.structureType == "table" {
+                    score += 0.03
+                }
+                if queryEntities.descriptiveKeywords.contains(where: { keyword in
+                    keyword.count >= 4 && cleanedValue.lowercased().contains(keyword)
+                }) {
+                    score += 0.02
+                }
+                score += min(0.04, chunk.similarityScore * 0.05)
+
+                if shouldPreferStateMapping(
+                    candidate: (cleanedLabel, cleanedValue, min(0.99, score), chunk),
+                    over: bestMatch
+                ) {
+                    bestMatch = (cleanedLabel, cleanedValue, min(0.99, score), chunk)
+                }
+            }
+        }
+
+        guard let match = bestMatch, match.score >= 0.90 else {
+            return nil
+        }
+
+        return SpecificationExtractionResult(
+            answerSpan: match.value,
+            matchedLabel: match.label,
+            confidence: match.score,
+            sourceChunk: match.chunk,
+            surroundingContext: "\(match.label) \(match.value)",
+            specificationType: "StateMapping",
+            matchedKeywords: queryEntities.keywords
+        )
+    }
+
     private func extractFromStateMappings(
         chunks: [RetrievedChunk],
         query: String,
@@ -651,14 +720,26 @@ actor SpecificationExtractor {
     ) -> SpecificationExtractionResult? {
         let queryLabels = buildStateLookupLabels(from: query)
         guard !queryLabels.isEmpty else { return nil }
+        let queryAnchors = EvidenceScoringPolicyService.stateLookupAnchors(from: query)
 
         var bestMatch: (label: String, value: String, score: Float, chunk: RetrievedChunk)?
 
         for chunk in chunks {
             let content = extractionContent(for: chunk)
+            guard !isCellOnlyStateMappingSource(content) else {
+                continue
+            }
             let mappings = parseStateMappings(in: content)
 
             for mapping in mappings {
+                guard !isDegenerateStateMapping(label: mapping.label, value: mapping.value) else {
+                    continue
+                }
+
+                guard stateMappingSatisfiesAnchors(mapping.label, anchors: queryAnchors) else {
+                    continue
+                }
+
                 let labelScore = scoreStateLabelMatch(mapping.label, queryLabels: queryLabels)
                 guard labelScore >= 0.78 else { continue }
 
@@ -677,7 +758,10 @@ actor SpecificationExtractor {
                 }
                 score += min(0.04, chunk.similarityScore * 0.05)
 
-                if bestMatch == nil || score > bestMatch!.score {
+                if shouldPreferStateMapping(
+                    candidate: (mapping.label, mapping.value, min(0.98, score), chunk),
+                    over: bestMatch
+                ) {
                     bestMatch = (mapping.label, mapping.value, min(0.98, score), chunk)
                 }
             }
@@ -696,6 +780,175 @@ actor SpecificationExtractor {
             specificationType: "StateMapping",
             matchedKeywords: queryEntities.keywords
         )
+    }
+
+    private func isDegenerateStateMapping(label: String, value: String) -> Bool {
+        let normalizedLabel = normalizeStatePhrase(label)
+        let normalizedValue = normalizeStatePhrase(value)
+
+        guard !normalizedValue.isEmpty else { return true }
+        if normalizedValue == normalizedLabel { return true }
+        if isStateLabel(value) { return true }
+        if isNoisyStateMappingValue(value) { return true }
+
+        return false
+    }
+
+    private func parseExplicitStateMappings(in content: String) -> [(label: String, value: String, score: Float)] {
+        var results: [(label: String, value: String, score: Float)] = []
+        var seen = Set<String>()
+
+        func appendMapping(label: String, value: String, score: Float) {
+            let cleanedLabel = normalizeStateLabel(label)
+            let cleanedValue = cleanupStateMappingValue(value)
+            guard !cleanedLabel.isEmpty, !cleanedValue.isEmpty else { return }
+            let dedupeKey = "\(cleanedLabel.lowercased())::\(cleanedValue.lowercased())"
+            guard seen.insert(dedupeKey).inserted else { return }
+            results.append((cleanedLabel, cleanedValue, score))
+        }
+
+        if let summaryRegex = try? NSRegularExpression(
+            pattern: #"^The\s+((?:Flashing|Solid|Blinking|Steady|Pulsing|Rapid|Slow)\s+[A-Za-z][A-Za-z-]*(?:\s*\([^)]*\))?)\s+is\s+(.+?)(?:\.|$)"#,
+            options: [.caseInsensitive]
+        ) {
+            for line in content.components(separatedBy: .newlines) {
+                let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !trimmed.isEmpty else { continue }
+                let nsLine = trimmed as NSString
+                guard let match = summaryRegex.firstMatch(in: trimmed, range: NSRange(location: 0, length: nsLine.length)),
+                      match.numberOfRanges >= 3 else {
+                    continue
+                }
+
+                appendMapping(
+                    label: nsLine.substring(with: match.range(at: 1)),
+                    value: nsLine.substring(with: match.range(at: 2)),
+                    score: 0.95
+                )
+            }
+        }
+
+        let flattened = content
+            .replacingOccurrences(of: "\n", with: " ")
+            .replacingOccurrences(of: "\t", with: " ")
+            .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+
+        if let rowRegex = try? NSRegularExpression(
+            pattern: #"Row\s+\d+:\s*(?:Row\s+\d+\s*\|\s*)?Color of Light=([^;]+);\s*PLAUD Status=([^\r\n]+?)(?=\s+Row\s+\d+:|$)"#,
+            options: [.caseInsensitive]
+        ) {
+            let nsContent = flattened as NSString
+            let matches = rowRegex.matches(in: flattened, range: NSRange(location: 0, length: nsContent.length))
+            for match in matches where match.numberOfRanges >= 3 {
+                appendMapping(
+                    label: nsContent.substring(with: match.range(at: 1)),
+                    value: nsContent.substring(with: match.range(at: 2)),
+                    score: 0.93
+                )
+            }
+        }
+
+        if let tableRegex = try? NSRegularExpression(
+            pattern: #"\|\s*((?:Flashing|Solid|Blinking|Steady|Pulsing|Rapid|Slow)\s+[A-Za-z][A-Za-z-]*(?:\s*\([^)]*\))?)\s*\|\s*([^|]+?)\s*\|"#,
+            options: [.caseInsensitive]
+        ) {
+            for line in content.components(separatedBy: .newlines) {
+                let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard trimmed.contains("|") else { continue }
+                let nsLine = trimmed as NSString
+                let matches = tableRegex.matches(in: trimmed, range: NSRange(location: 0, length: nsLine.length))
+                for match in matches where match.numberOfRanges >= 3 {
+                    appendMapping(
+                        label: nsLine.substring(with: match.range(at: 1)),
+                        value: nsLine.substring(with: match.range(at: 2)),
+                        score: 0.91
+                    )
+                }
+            }
+        }
+
+        return results
+    }
+
+    private func stateMappingSatisfiesAnchors(
+        _ label: String,
+        anchors: (colors: [String], states: [String])
+    ) -> Bool {
+        let lowerLabel = normalizeStatePhrase(label)
+
+        if !anchors.colors.isEmpty,
+           !anchors.colors.allSatisfy({ lowerLabel.contains($0) }) {
+            return false
+        }
+
+        if !anchors.states.isEmpty,
+           !anchors.states.contains(where: { lowerLabel.contains($0) }) {
+            return false
+        }
+
+        return true
+    }
+
+    private func isCellOnlyStateMappingSource(_ content: String) -> Bool {
+        let lowerContent = content.lowercased()
+        let hasCellStructure = lowerContent.contains("[cells]") || lowerContent.contains("cell r")
+        let hasRowStructure = lowerContent.contains("[rows]") || lowerContent.contains("row 1:")
+        return hasCellStructure && !hasRowStructure
+    }
+
+    private func isNoisyStateMappingValue(_ value: String) -> Bool {
+        let lowerValue = value.lowercased()
+        let artifactMarkers = [
+            "cell r",
+            "[plaud status]",
+            "[color of light]",
+            "column 1",
+            "column 2",
+            "row 1:",
+            "row 2:",
+            "row 3:"
+        ]
+
+        return artifactMarkers.contains(where: { lowerValue.contains($0) })
+    }
+
+    private func shouldPreferStateMapping(
+        candidate: (label: String, value: String, score: Float, chunk: RetrievedChunk),
+        over best: (label: String, value: String, score: Float, chunk: RetrievedChunk)?
+    ) -> Bool {
+        guard let best else { return true }
+
+        if candidate.score > best.score + 0.01 {
+            return true
+        }
+        if best.score > candidate.score + 0.01 {
+            return false
+        }
+
+        let candidateIsTable = candidate.chunk.chunk.metadata.structureType == "table"
+        let bestIsTable = best.chunk.chunk.metadata.structureType == "table"
+        if candidateIsTable != bestIsTable {
+            return candidateIsTable
+        }
+
+        let candidateValue = normalizeStatePhrase(candidate.value)
+        let bestValue = normalizeStatePhrase(best.value)
+        let candidateEchoesLabel = candidateValue == normalizeStatePhrase(candidate.label)
+        let bestEchoesLabel = bestValue == normalizeStatePhrase(best.label)
+        if candidateEchoesLabel != bestEchoesLabel {
+            return !candidateEchoesLabel
+        }
+
+        if candidate.value.count != best.value.count {
+            return candidate.value.count > best.value.count
+        }
+
+        if candidate.chunk.similarityScore != best.chunk.similarityScore {
+            return candidate.chunk.similarityScore > best.chunk.similarityScore
+        }
+
+        return false
     }
 
     private func buildStateLookupLabels(from query: String) -> [String] {
@@ -718,7 +971,8 @@ actor SpecificationExtractor {
         let indicatorTerms = ["indicator", "light", "lights", "led", "status", "signal"]
         let colorPattern = #"\b(red|green|blue|yellow|amber|orange|purple|white|cyan(?:-blue)?|cyan|magenta)\b"#
 
-        if indicatorTerms.contains(where: { lowerQuery.contains($0) }),
+        if labels.isEmpty,
+           indicatorTerms.contains(where: { lowerQuery.contains($0) }),
            let colorRegex = try? NSRegularExpression(pattern: colorPattern, options: .caseInsensitive) {
             let colorMatches = colorRegex.matches(in: query, range: NSRange(location: 0, length: nsQuery.length))
             for match in colorMatches {
@@ -744,10 +998,17 @@ actor SpecificationExtractor {
 
     private func scoreStateLabelMatch(_ label: String, queryLabels: [String]) -> Float {
         let normalizedLabel = normalizeStatePhrase(label)
+        let labelState = explicitStateToken(in: normalizedLabel)
         var best: Float = 0
 
         for queryLabel in queryLabels {
             let normalizedQuery = normalizeStatePhrase(queryLabel)
+            let queryState = explicitStateToken(in: normalizedQuery)
+
+            if let queryState, let labelState, queryState != labelState {
+                continue
+            }
+
             if normalizedLabel == normalizedQuery {
                 best = max(best, 0.95)
                 continue
@@ -765,11 +1026,27 @@ actor SpecificationExtractor {
             if coverage >= 1.0 {
                 best = max(best, 0.90)
             } else if coverage >= 0.5 {
-                best = max(best, 0.80)
+                if queryState != nil {
+                    best = max(best, 0.45)
+                } else {
+                    best = max(best, 0.80)
+                }
             }
         }
 
         return best
+    }
+
+    private func explicitStateToken(in normalizedPhrase: String) -> String? {
+        let stateTokens: Set<String> = [
+            "flashing", "solid", "blinking", "steady", "pulsing", "rapid", "slow"
+        ]
+
+        guard let firstToken = normalizedPhrase.split(separator: " ").first.map(String.init) else {
+            return nil
+        }
+
+        return stateTokens.contains(firstToken) ? firstToken : nil
     }
 
     private func normalizeStatePhrase(_ phrase: String) -> String {
@@ -805,6 +1082,7 @@ actor SpecificationExtractor {
             let cleanedLabel = normalizeStateLabel(label)
             let cleanedValue = cleanupStateMappingValue(value)
             guard !cleanedLabel.isEmpty, !cleanedValue.isEmpty else { return }
+            guard !isDegenerateStateMapping(label: cleanedLabel, value: cleanedValue) else { return }
             let dedupeKey = "\(cleanedLabel.lowercased())::\(cleanedValue.lowercased())"
             if seen.insert(dedupeKey).inserted {
                 results.append((cleanedLabel, cleanedValue))
@@ -983,12 +1261,17 @@ actor SpecificationExtractor {
     private func cleanupStateMappingValue(_ rawValue: String) -> String {
         rawValue
             .replacingOccurrences(of: #"\bROW\s+\d+\s*:\s*"#, with: "", options: .regularExpression)
+            .replacingOccurrences(of: #"\bCell\s+r\d+c\d+\s*\[[^\]]+\]\s*[|:]\s*"#, with: "", options: [.regularExpression, .caseInsensitive])
+            .replacingOccurrences(of: #"\bCell\s+r\d+c\d+\b\s*"#, with: "", options: [.regularExpression, .caseInsensitive])
+            .replacingOccurrences(of: #"\[(?:Color of Light|PLAUD Status)\]\s*[|:]\s*"#, with: "", options: [.regularExpression, .caseInsensitive])
             .replacingOccurrences(of: #"^\(\d+\s*"#, with: "", options: .regularExpression)
             .replacingOccurrences(of: #"^\d+\s+"#, with: "", options: .regularExpression)
             .replacingOccurrences(of: #"\bsecs?\)"#, with: "", options: .regularExpression)
+            .replacingOccurrences(of: #"^[\.\|:;-]+\s*"#, with: "", options: .regularExpression)
             .replacingOccurrences(of: #"^[|\-:]+\s*"#, with: "", options: .regularExpression)
+            .replacingOccurrences(of: #"\s*[\|:;-]+$"#, with: "", options: .regularExpression)
             .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
-            .trimmingCharacters(in: CharacterSet(charactersIn: " -:\t\n()"))
+            .trimmingCharacters(in: CharacterSet(charactersIn: " .-:\t\n()"))
     }
 
     /// Extract answers using proximity scoring - finds part numbers near query keywords.

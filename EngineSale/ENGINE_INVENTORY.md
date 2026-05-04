@@ -8,14 +8,14 @@ The repo contains a real engine inside a real app codebase. Some parts are stron
 
 ## Core Engine
 
-### SDK facade
+### Engine entry-point file
 
 - File path: `OpenIntelligence/SDK/OpenIntelligenceEngine.swift`
-- Purpose: exposes the narrow public ingest/query boundary.
-- Why it matters: gives a buyer a practical starting API instead of forcing them into the entire app surface.
+- Purpose: gives another Apple app a small set of engine entry points for checking availability, creating the engine, importing files, and asking questions.
+- Why it matters: gives a buyer a practical starting integration boundary instead of forcing them into the entire app surface.
 - Reusable outside the app: yes, with caveats.
 - App coupling risk: wraps `ContainerService`, `RAGService`, and app runtime paths.
-- Buyer caveat: this is an evaluation-stage facade, not a finished SDK contract.
+- Buyer caveat: this is an evaluation-stage entry-point file, not a finished SDK contract.
 
 ### Document ingestion
 
@@ -51,7 +51,7 @@ The repo contains a real engine inside a real app codebase. Some parts are stron
 - Why it matters: vector search depends on this layer.
 - Reusable outside the app: yes.
 - App coupling risk: provider selection and runtime assumptions are still app-config driven.
-- Buyer caveat: current real path is Core ML and Natural Language; Apple FM embeddings are not implemented.
+- Buyer caveat: current real path is Core ML and Natural Language. `AppleFMEmbeddingProvider.swift` exists only as an unavailable scaffold and is not an active embedding provider.
 
 ### Storage
 

@@ -206,7 +206,7 @@ struct ContainerSettingsSheet: View {
                     autoAdaptDimension = c.autoAdaptDimension
 
                     // Load per-library AI feature overrides
-                    autoTagOnIngestion = c.autoTagOnIngestion ?? true
+                    autoTagOnIngestion = c.autoTagOnIngestion ?? settings.enableContentTagging
                     preferredTranslationLanguage = c.preferredTranslationLanguage ?? "auto"
 
                     // Load chunking settings
@@ -436,6 +436,7 @@ struct ContainerSettingsSheet: View {
         let previousDB = container.vectorDBKind
         let previousAutoAdapt = container.autoAdaptDimension
         let previousChunking = container.chunkingDirective
+        let previousTranslationLanguage = container.preferredTranslationLanguage
 
         container.name = name
         container.icon = icon
@@ -447,12 +448,15 @@ struct ContainerSettingsSheet: View {
         container.autoAdaptDimension = autoAdaptDimension
 
         // Save per-library AI feature overrides
-        container.autoTagOnIngestion = autoTagOnIngestion
-        container.preferredTranslationLanguage = preferredTranslationLanguage == "auto" ? nil : preferredTranslationLanguage
+        container.autoTagOnIngestion = autoTagOnIngestion == settings.enableContentTagging ? nil : autoTagOnIngestion
+        let resolvedTranslationLanguage = preferredTranslationLanguage == "auto" ? nil : preferredTranslationLanguage
+        container.preferredTranslationLanguage = resolvedTranslationLanguage
 
-        // Update chunking directive if manually changed
-        if !autoAdaptDimension || chunkingSource == .manual {
-            container.chunkingDirective = ChunkingDirective(
+        let resolvedChunkingDirective: ChunkingDirective?
+        if autoAdaptDimension {
+            resolvedChunkingDirective = previousChunking?.source == .auto ? previousChunking : nil
+        } else {
+            resolvedChunkingDirective = ChunkingDirective(
                 source: .manual,
                 strategy: chunkingStrategy,
                 targetWordWindow: targetWordWindow,
@@ -460,18 +464,35 @@ struct ContainerSettingsSheet: View {
                 rationale: ["Manually configured by user"]
             )
         }
+        container.chunkingDirective = resolvedChunkingDirective
+
+        if autoAdaptDimension, !previousAutoAdapt {
+            container.lastSelfTuneAt = nil
+        }
 
         let providerChanged = previousProvider != providerId
         let dimensionChanged = previousDim != dim
         let dbKindChanged = previousDB != dbKind
-        let chunkingChanged = previousChunking?.targetWordWindow != targetWordWindow ||
-            previousChunking?.overlapWords != overlapWords ||
-            previousChunking?.strategy != chunkingStrategy
+        let chunkingModeChanged = previousAutoAdapt != autoAdaptDimension
+        let translationChanged = previousTranslationLanguage != resolvedTranslationLanguage
+        let chunkingChanged = chunkingModeChanged ||
+            previousChunking?.source != resolvedChunkingDirective?.source ||
+            previousChunking?.targetWordWindow != resolvedChunkingDirective?.targetWordWindow ||
+            previousChunking?.overlapWords != resolvedChunkingDirective?.overlapWords ||
+            previousChunking?.strategy != resolvedChunkingDirective?.strategy
 
         // Mark as user-configured to prevent auto-adapt from immediately overriding
-        if providerChanged || dimensionChanged || chunkingChanged {
+        let userConfiguredChunking = !autoAdaptDimension && chunkingChanged
+        if providerChanged || dimensionChanged || userConfiguredChunking {
             container.lastSelfTuneAt = Date()
-            Log.info("[ContainerSettings] User manually configured embedding: \(providerId) @ \(dim)D", category: .embedding)
+            var manualChanges: [String] = []
+            if providerChanged || dimensionChanged {
+                manualChanges.append("embeddings \(providerId) @ \(dim)D")
+            }
+            if userConfiguredChunking {
+                manualChanges.append("chunking \(chunkingStrategy) \(targetWordWindow)w/\(overlapWords)w")
+            }
+            Log.info("[ContainerSettings] User manually configured \(manualChanges.joined(separator: " • "))", category: .ingestion)
         }
 
         // CRITICAL: Invalidate cached vector store BEFORE updating container
@@ -493,14 +514,18 @@ struct ContainerSettingsSheet: View {
         if dbKindChanged {
             Log.info("[ContainerSettings] Vector DB changed to \(dbKind.rawValue).", category: .vectorDB)
         }
+        if translationChanged {
+            let targetDisplay = resolvedTranslationLanguage ?? "none"
+            Log.info("[ContainerSettings] Retrieval translation target changed to \(targetDisplay).", category: .retrieval)
+        }
 
-        let needsReembed = (providerChanged || dimensionChanged) && !activeContainerDocuments.isEmpty
+        let needsReembed = (providerChanged || dimensionChanged || translationChanged) && !activeContainerDocuments.isEmpty
         let needsRechunk = chunkingChanged && !activeContainerDocuments.isEmpty && !needsReembed
 
         if needsReembed {
             pendingReembedContext = ReembedContext(
                 containerId: container.id,
-                reason: reembedReason(providerChanged: providerChanged, dimensionChanged: dimensionChanged),
+                reason: reembedReason(providerChanged: providerChanged, dimensionChanged: dimensionChanged, translationChanged: translationChanged),
                 documentCount: activeContainerDocuments.count
             )
             showingReembedConfirmation = true
@@ -516,14 +541,20 @@ struct ContainerSettingsSheet: View {
         }
     }
 
-    private func reembedReason(providerChanged: Bool, dimensionChanged: Bool) -> String {
-        switch (providerChanged, dimensionChanged) {
-        case (true, true):
+    private func reembedReason(providerChanged: Bool, dimensionChanged: Bool, translationChanged: Bool) -> String {
+        switch (providerChanged, dimensionChanged, translationChanged) {
+        case (true, true, _):
             return "provider & resolution"
-        case (true, false):
+        case (true, false, true):
+            return "embedding provider & translation target"
+        case (true, false, false):
             return "embedding provider"
-        case (false, true):
+        case (false, true, true):
+            return "vector resolution & translation target"
+        case (false, true, false):
             return "vector resolution"
+        case (false, false, true):
+            return "translation target"
         default:
             return "configuration"
         }
@@ -565,8 +596,8 @@ struct ContainerSettingsSheet: View {
             // Load FTS document stats for this container
             let ftsDocStats = await SQLiteFullTextService.shared.getDocumentStats(containerId: container.id)
 
-            // Load top terms (global for now, could be filtered by container)
-            let topTerms = await SQLiteFullTextService.shared.getTopTerms(limit: 20)
+            // Load top terms for this library only
+            let topTerms = await SQLiteFullTextService.shared.getTopTermsForContainer(containerId: container.id, limit: 20)
 
             await MainActor.run {
                 containerFTSStats = ftsDocStats

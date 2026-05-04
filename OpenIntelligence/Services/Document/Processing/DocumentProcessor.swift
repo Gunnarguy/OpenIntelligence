@@ -290,6 +290,7 @@ class DocumentProcessor {
     }
 
     struct ChunkingOverride: Sendable {
+        let strategy: String?
         let targetWordWindow: Int
         let overlapWords: Int
     }
@@ -778,7 +779,10 @@ class DocumentProcessor {
 
         // Create semantic chunker configuration
         // Use content-adaptive defaults if no override provided
-        let baseConfig = SemanticChunker.ChunkingConfig.recommended(for: documentType)
+        let baseConfig = SemanticChunker.ChunkingConfig.recommended(
+            for: documentType,
+            strategyOverride: chunkOverride?.strategy
+        )
         let activeWindow = chunkOverride?.targetWordWindow ?? baseConfig.targetSize
         let activeOverlap = chunkOverride?.overlapWords ?? baseConfig.overlap
 
@@ -1294,6 +1298,7 @@ class DocumentProcessor {
             .trimmingCharacters(in: .whitespacesAndNewlines)
 
         guard !normalizedText.isEmpty else { return [] }
+        guard shouldAttemptStructuredRecoveryFromPDFPageText(normalizedText) else { return [] }
 
         let inferredElements = detectStructuredElementsInPageText(normalizedText, pageNumber: pageNumber)
         guard inferredElements.contains(where: { $0.elementType == "table" || $0.elementType == "list" }) else {
@@ -2077,6 +2082,10 @@ class DocumentProcessor {
         pageText: String,
         pageNumber: Int
     ) -> (elements: [StructuredElementWrapper], didPromote: Bool) {
+        guard shouldAttemptStructuredRecoveryFromPDFPageText(pageText) else {
+            return (existingElements, false)
+        }
+
         guard let recoveredElement = recoveredParallelKeyValueTableElement(from: pageText, pageNumber: pageNumber) else {
             return (existingElements, false)
         }
@@ -2536,6 +2545,169 @@ class DocumentProcessor {
         let rowCount = tableText.components(separatedBy: "Row ").count - 1
         let keyValueMarkers = tableText.components(separatedBy: "=").count - 1
         return rowCount >= 3 && keyValueMarkers >= rowCount
+    }
+
+    private nonisolated func isRecoveredHeuristicTable(_ element: StructuredElementWrapper) -> Bool {
+        guard element.elementType == "table" else { return false }
+
+        switch element.extractionSource {
+        case "parallel_key_value_recovery", "indicator_state_recovery", "text_inferred":
+            return true
+        default:
+            return false
+        }
+    }
+
+    private nonisolated func scientificNarrativeSignalCount(in text: String) -> Int {
+        let lower = text.lowercased()
+        let signals = [
+            "abstract", "introduction", "methods", "materials", "results",
+            "discussion", "conclusion", "references", "bibliography", "doi",
+            "confidence interval", "randomized", "participants", "study"
+        ]
+
+        return signals.reduce(into: 0) { count, signal in
+            if lower.contains(signal) {
+                count += 1
+            }
+        }
+    }
+
+    private nonisolated func isLikelyScientificNarrativeSample(_ text: String) -> Bool {
+        let lower = text.lowercased()
+        let signalCount = scientificNarrativeSignalCount(in: lower)
+
+        if signalCount >= 3 {
+            return true
+        }
+
+        return signalCount >= 2 && (
+            lower.contains("abstract")
+            || lower.contains("references")
+            || lower.contains("doi")
+        )
+    }
+
+    private nonisolated func isLikelyScientificReferenceLine(_ line: String) -> Bool {
+        let normalized = OCRConfiguration.normalizeExtractedText(line)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let lower = normalized.lowercased()
+
+        guard normalized.count >= 24 else { return false }
+
+        let words = normalized.split(whereSeparator: \.isWhitespace)
+        guard words.count >= 6 else { return false }
+
+        let punctuationCount = normalized.unicodeScalars.filter {
+            CharacterSet.punctuationCharacters.contains($0)
+        }.count
+        let punctuationRatio = Double(punctuationCount) / Double(max(1, normalized.count))
+        let hasYear = lower.range(of: #"\b(?:19|20)\d{2}\b"#, options: .regularExpression) != nil
+        let citationPatternMatches = [
+            #"^\[?\d+\]?\s+[A-Z]"#,
+            #"\bet al\b"#,
+            #"\bdoi(?::|\s)"#,
+            #"\bpmid\b"#,
+            #"\b\d{4}\s*;\s*\d"#
+        ].contains { pattern in
+            normalized.range(of: pattern, options: [.regularExpression, .caseInsensitive]) != nil
+        }
+
+        return citationPatternMatches || (hasYear && punctuationRatio >= 0.08 && (lower.contains("doi") || lower.contains("et al") || lower.contains(";")))
+    }
+
+    private nonisolated func isLikelyScientificReferencePage(_ pageText: String) -> Bool {
+        let lines = pageText
+            .components(separatedBy: .newlines)
+            .map { OCRConfiguration.normalizeExtractedText($0).trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+
+        guard lines.count >= 4 else { return false }
+
+        let leadingHeading = lines.prefix(3).contains { line in
+            let lower = line.lowercased()
+            return lower == "references" || lower == "bibliography" || lower.hasPrefix("references ")
+        }
+        let referenceLineCount = lines.filter(isLikelyScientificReferenceLine(_:)).count
+        let referenceLineRatio = Double(referenceLineCount) / Double(max(1, lines.count))
+
+        if leadingHeading {
+            return referenceLineCount >= 2 || lines.count >= 8
+        }
+
+        return referenceLineCount >= 4 && referenceLineRatio >= 0.28
+    }
+
+    private nonisolated func isNarrativeDominantPageText(_ pageText: String) -> Bool {
+        let lines = pageText
+            .components(separatedBy: .newlines)
+            .map { OCRConfiguration.normalizeExtractedText($0).trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+
+        guard lines.count >= 4 else { return false }
+
+        let sentenceLikeLines = lines.filter { line in
+            let wordCount = line.split(whereSeparator: \.isWhitespace).count
+            return wordCount >= 8 && (line.count >= 60 || line.contains(".") || line.contains(";"))
+        }.count
+        let shortLabelLikeLines = lines.filter { line in
+            let wordCount = line.split(whereSeparator: \.isWhitespace).count
+            return wordCount <= 5 && line.count <= 42 && !line.hasSuffix(".")
+        }.count
+
+        let sentenceRatio = Double(sentenceLikeLines) / Double(max(1, lines.count))
+        let shortLabelRatio = Double(shortLabelLikeLines) / Double(max(1, lines.count))
+        return sentenceRatio >= 0.45 && shortLabelRatio <= 0.35
+    }
+
+    private nonisolated func shouldAttemptStructuredRecoveryFromPDFPageText(_ pageText: String) -> Bool {
+        let normalized = pageText
+            .replacingOccurrences(of: "\r\n", with: "\n")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+
+        guard !normalized.isEmpty else { return false }
+        guard !isLikelyScientificReferencePage(normalized) else { return false }
+
+        if isLikelyScientificNarrativeSample(normalized) && isNarrativeDominantPageText(normalized) {
+            return false
+        }
+
+        return true
+    }
+
+    private nonisolated func normalizedHeadingMatchText(_ text: String) -> String {
+        OCRConfiguration.normalizeExtractedText(text)
+            .lowercased()
+            .replacingOccurrences(of: #"[^\p{L}\p{N}\s]+"#, with: " ", options: .regularExpression)
+            .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private nonisolated func titleMatchesTrustedPageText(_ title: String, pageText: String) -> Bool {
+        let normalizedTitle = normalizedHeadingMatchText(title)
+        let normalizedPageText = normalizedHeadingMatchText(pageText)
+
+        guard !normalizedTitle.isEmpty else { return false }
+        guard !normalizedPageText.isEmpty else { return true }
+
+        if normalizedPageText.contains(normalizedTitle) {
+            return true
+        }
+
+        let preservedShortTerms: Set<String> = ["ifu", "faq", "ocr", "doi", "fda", "iec"]
+        let significantTerms = normalizedTitle
+            .split(whereSeparator: \.isWhitespace)
+            .map(String.init)
+            .filter { $0.count >= 4 || preservedShortTerms.contains($0) }
+
+        guard !significantTerms.isEmpty else { return true }
+
+        let matchedTermCount = significantTerms.filter { normalizedPageText.contains($0) }.count
+        if significantTerms.count == 1 {
+            return matchedTermCount == 1
+        }
+
+        return matchedTermCount >= max(2, significantTerms.count - 1)
     }
 
     private nonisolated func canonicalIndicatorStateToken(_ token: String) -> String {
@@ -4096,6 +4268,8 @@ class DocumentProcessor {
                             // HYBRID MODE: Use layout-aware text for paragraphs (correct column order)
                             // Keep Vision's tables, lists, titles (structural elements)
                             let layoutText = renderData.layoutText
+                            let trustedPageTextForTitles = (bestAvailableText ?? layoutText ?? structuredContent.rawText)
+                                .trimmingCharacters(in: .whitespacesAndNewlines)
                             var usedLayoutForParagraph = false
 
                             // Convert structured elements to wrappers and count types
@@ -4138,7 +4312,14 @@ class DocumentProcessor {
                                 switch element {
                                 case .title(let text, _):
                                     sanitizedText = await MainActor.run {
-                                        self.sanitizeStructuredLabel(text)
+                                        guard let cleaned = self.sanitizeStructuredLabel(text) else {
+                                            return nil
+                                        }
+                                        guard self.titleMatchesTrustedPageText(cleaned, pageText: trustedPageTextForTitles) else {
+                                            Log.debug("[DocumentProcessor] Dropping structured title that does not match trusted page text on page \(pageNumber)", category: .ingestion)
+                                            return nil
+                                        }
+                                        return cleaned
                                     }
                                 case .paragraph(let text, _):
                                     sanitizedText = await MainActor.run {
@@ -4898,7 +5079,11 @@ class DocumentProcessor {
                         siblingGroupId: siblingGroupId
                     )
 
-                    if shouldEmitCompatibilityRowChunks(tableData: tableData, tableTitle: tableTitle) {
+                    if shouldEmitCompatibilityRowChunks(
+                        tableData: tableData,
+                        tableTitle: tableTitle,
+                        extractionSource: element.extractionSource
+                    ) {
                         let rowTexts = buildCompatibilityRowTexts(
                             tableData: tableData,
                             tableTitle: tableTitle,
@@ -5076,6 +5261,7 @@ class DocumentProcessor {
         let scientificTerms = ["abstract", "introduction", "methods", "materials", "results", "discussion", "conclusion", "references", "doi", "p <", "confidence interval", "randomized", "study"]
         let regulatoryTerms = ["compliance", "regulatory", "iec", "fda", "emc", "warning", "contraindications", "adverse", "authorized representative", "labeling"]
         let referenceTerms = ["table", "specification", "capacity", "dimensions", "part number", "model number", "sku", "compatibility", "matrix", "requirements"]
+        let scientificNarrativeSample = isLikelyScientificNarrativeSample(sample)
 
         for term in strongTechnicalTerms where sample.contains(term) || lowerFilename.contains(term) {
             add(.technicalManual, lowerFilename.contains(term) ? 1.2 : 0.7)
@@ -5094,13 +5280,19 @@ class DocumentProcessor {
         }
 
         for term in referenceTerms where sample.contains(term) || lowerFilename.contains(term) {
+            if scientificNarrativeSample && term == "table" {
+                continue
+            }
             add(.referenceTable, lowerFilename.contains(term) ? 1.2 : 0.7)
         }
 
         let tableCount = structuredElements.filter { $0.elementType == "table" }.count
+        let trustedTableCount = structuredElements.filter { $0.elementType == "table" && !isRecoveredHeuristicTable($0) }.count
         let listCount = structuredElements.filter { $0.elementType == "list" }.count
-        if tableCount >= 3 {
+        if trustedTableCount >= 3 {
             add(.referenceTable, 0.9)
+        } else if tableCount >= 3 && scientificNarrativeSample {
+            add(.scientificPaper, 0.2)
         }
         if listCount >= 3 {
             add(.regulatory, 0.25)
@@ -5108,8 +5300,14 @@ class DocumentProcessor {
 
         let numericDensity = Double(sample.filter { $0.isNumber }.count) / Double(max(sample.count, 1))
         if numericDensity > 0.08 {
-            add(.referenceTable, 0.35)
+            if !scientificNarrativeSample {
+                add(.referenceTable, 0.35)
+            }
             add(.scientificPaper, 0.15)
+        }
+
+        if scientificNarrativeSample {
+            add(.scientificPaper, 0.45)
         }
 
         if sample.contains("table ") && sample.contains("figure ") {
@@ -5410,7 +5608,16 @@ class DocumentProcessor {
         return sentences.joined(separator: " ")
     }
 
-    private func shouldEmitCompatibilityRowChunks(tableData: TableData, tableTitle: String) -> Bool {
+    private func shouldEmitCompatibilityRowChunks(
+        tableData: TableData,
+        tableTitle: String,
+        extractionSource: String?
+    ) -> Bool {
+        let trustedSources: Set<String> = ["vision_document", "layout_table", "crop_rescue"]
+        if let extractionSource, !trustedSources.contains(extractionSource) {
+            return false
+        }
+
         let headers = inferredHeaders(for: tableData).map { $0.lowercased() }
         let lowerTitle = tableTitle.lowercased()
         let signals = ["compat", "requirement", "supported", "model", "camera", "head", "coupler"]

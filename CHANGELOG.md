@@ -2,6 +2,14 @@
 
 This is the public version history for OpenIntelligence. It focuses on user-visible product changes and intentionally omits private engine tuning, thresholds, and internal implementation details.
 
+## 3.5 - May 2026
+
+- Tightened starter-question quality again so the empty-chat chips stay anchored to deterministic passage-grounded drafts and stop falling back to canned specs/procedures boilerplate when the source support is weak
+- Made suggestion generation fail closed on weak support, including stricter handling for warnings, restrictions, conditional instructions, and unsupported duration/capability questions
+- Reduced ingestion pollution on clean scientific PDFs by blocking fake recovered tables, bogus section titles, and reference-section chunk explosions from low-trust structure recovery
+- Improved user-initiated import reliability again, including background-processing cleanup and Live Activity lifecycle handling after long-running ingestion sessions
+- Cleaned up library and settings surfaces so they describe real per-library isolation and live runtime behavior instead of stale or decorative controls
+
 ## 3.3 - April 2026
 
 - Large user-initiated imports now preserve queue state, resume after interruption more cleanly, and surface clearer progress on supported devices

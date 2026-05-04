@@ -17,11 +17,11 @@ import FoundationModels
 
 /// Service that generates contextual suggested questions from actual document content.
 ///
-/// **Architecture (v3 — source-first, content-grounded):**
+/// **Architecture (v4 — source-first, fail-closed grounding):**
 ///
 /// 1. Select diverse representative chunks across the library (different docs, sections, topics)
 /// 2. Generate deterministic questions from specs, procedures, warnings, and definitions
-/// 3. Let Apple FM add variety only when outputs pass strict passage-grounding checks
+/// 3. Let Apple FM only polish already-grounded drafts when outputs pass strict passage-grounding checks
 /// 4. Fall back to safe generic chat starters instead of fake-specific questions
 ///
 /// **Why this is 10x:**
@@ -96,8 +96,8 @@ actor SuggestedQuestionsService {
 
     /// Generate suggested questions for a specific library container.
     ///
-    /// Questions are generated directly from chunk content using Apple FM (LLM-first).
-    /// Falls back to content-phrase extraction when LLM is unavailable.
+    /// Questions are generated directly from chunk content first.
+    /// Apple FM may polish grounded drafts, but it does not invent new topics.
     ///
     /// - Parameters:
     ///   - containerId: Active container UUID
@@ -144,13 +144,16 @@ actor SuggestedQuestionsService {
         let contentQuestions = generateFromContent(chunks: diverseChunks, documents: documents)
 
         #if canImport(FoundationModels)
-        if #available(iOS 26.0, *) {
+        if #available(iOS 26.0, *), !contentQuestions.isEmpty {
             let llmQuestions = await generateWithLLM(
+                baseQuestions: contentQuestions,
                 chunks: diverseChunks,
                 documents: documents,
                 avoidTexts: previousTexts
             )
-            questions = dedupeSuggestedQuestionsPreservingOrder(llmQuestions + contentQuestions)
+            questions = llmQuestions.isEmpty
+                ? contentQuestions
+                : dedupeSuggestedQuestionsPreservingOrder(llmQuestions)
         }
         #endif
 
@@ -288,6 +291,10 @@ actor SuggestedQuestionsService {
         // Penalize very short chunks (likely headers or fragments)
         if wc < 15 { score -= 5.0 }
 
+        // Down-rank boilerplate/front-matter chunks so research PDFs don't
+        // produce junk prompts from copyright or author-manuscript text.
+        score += frontMatterAdjustment(for: chunk)
+
         return score
     }
 
@@ -308,6 +315,19 @@ actor SuggestedQuestionsService {
         return topChunkScore
             + Double(min(uniqueSections, 4)) * 1.25
             + Double(min(structuredCount, 3)) * 0.75
+    }
+
+    private func frontMatterAdjustment(for chunk: DocumentChunk) -> Double {
+        if let section = primarySectionLabel(for: chunk), isGenericSectionTitle(section) {
+            return -5.0
+        }
+
+        let lower = groundedPassageContent(for: chunk).lowercased()
+        if containsFrontMatterSignal(lower) {
+            return -4.0
+        }
+
+        return 0
     }
 
     private func primarySectionLabel(for chunk: DocumentChunk) -> String? {
@@ -339,11 +359,21 @@ actor SuggestedQuestionsService {
         let confidence: Double
     }
 
+    private enum FallbackPromptProfile {
+        case spreadsheet
+        case media
+        case code
+        case research
+        case manual
+        case general
+    }
+
     // MARK: - Step 2: LLM Generation (iOS 26+)
 
     #if canImport(FoundationModels)
     @available(iOS 26.0, *)
     private func generateWithLLM(
+        baseQuestions: [SuggestedQuestion],
         chunks: [DocumentChunk],
         documents: [Document],
         avoidTexts: [String] = []
@@ -353,16 +383,33 @@ actor SuggestedQuestionsService {
             Log.debug("[SuggestedQuestions] Apple FM not available, falling back to content extraction")
             return []
         }
+        guard !baseQuestions.isEmpty else { return [] }
 
         let passages = buildGroundedPassages(from: chunks, documents: documents, limit: 5)
         guard !passages.isEmpty else { return [] }
 
-        let passageText = passages.enumerated().map { index, passage in
+        let rewriteTargets = baseQuestions.compactMap { question -> (SuggestedQuestion, GroundedPassage)? in
+            guard let groundedPassage = bestGroundingPassage(for: question.text, passages: passages) else {
+                return nil
+            }
+            return (question, groundedPassage)
+        }
+        let limitedTargets = Array(rewriteTargets.prefix(6))
+        guard limitedTargets.count >= 2 else { return [] }
+
+        let candidateText = limitedTargets.enumerated().map { index, target in
+            let question = target.0
+            let passage = target.1
             var headerParts = ["Document: \(passage.documentName)"]
             if let section = passage.sectionName, !section.isEmpty {
                 headerParts.append("Section: \(section)")
             }
-            return "[\(index + 1)] \(headerParts.joined(separator: " | "))\n\(passage.content)"
+            return """
+            [\(index + 1)] \(headerParts.joined(separator: " | "))
+            Candidate question: \(question.text)
+            Passage:
+            \(passage.content)
+            """
         }.joined(separator: "\n\n")
 
         // If refreshing, tell the LLM to avoid previously-shown questions
@@ -377,36 +424,24 @@ actor SuggestedQuestionsService {
         }
 
         let prompt = """
-        You are writing suggested questions for a document Q&A app. Below are passages from the user's documents.
+        You are editing starter question chips for a document Q&A app.
 
-        Write 6 short questions that sound like a real person casually asking about their documents.
+        Rewrite each candidate question so it sounds natural, direct, and grounded in its passage.
 
         Rules:
-        - Every question MUST reference a specific detail FROM the passages below — a name, number, date, step, requirement, or spec that actually appears in the text
-        - Each question should clearly come from ONE specific passage, not from a blurry mix of the whole library
-        - Every question must be answerable mostly from that one passage with little or no inference
-        - Prefer questions the app can answer in one short grounded response
-        - Prefer details that make it obvious which document or section the question came from
-        - Sound natural and direct — under 12 words each
-        - Prefer answerable lookup or instruction questions: "what is", "how much/many", "which", "when", "what should you do if"
-        - Do NOT use phrases like "What role does", "What is the significance of", "What are the key", "Can you explain", "Why is X important"
-        - Avoid broad prompts like "What values are listed" or questions that would require summarizing multiple unrelated details
-        - Do NOT ask about the documents themselves ("What does the document say about...")
-        - Do NOT include square brackets, placeholders, or template text like "[thing from passage]"
-        - Do NOT write a quantity question that already includes the answer number or measurement
-        - If the passage is a manual, warning, or procedure, prefer a concrete condition, requirement, or required action from that passage
-        - If a passage says "If X, do Y", prefer "What should you do if X?" over "What happens if X?"
-        - Do NOT copy or rephrase any example below — your questions must come ONLY from the passages
-        - Ask about the CONTENT as if you read it and want to know more
-        - If you cannot anchor a question to exact words in one passage, omit it
-
-        Style guide (for tone only — do NOT reuse these topics):
-        - "What happens if a required step is skipped?"
-        - "How can the timer be adjusted?"
-        - "Which setting should be used here?"
+        - Keep the SAME meaning, target fact, action, number, entity, and scope as the candidate
+        - Do NOT invent a new topic, device, quantity, duration, condition, or capability
+        - Every rewritten question must still be answerable mostly from that one passage with little or no inference
+        - Keep each question under 12 words when possible
+        - Prefer direct grounded forms like "What is...", "Which...", "When...", "How much...", or "What should you do if..."
+        - If the passage is a warning, prohibition, or conditional instruction, keep the question concrete and safety-grounded
+        - Do NOT turn a warning or restriction into a speculative capability question like "Can you..." or "How long can you..." unless the passage explicitly states that allowed capability or duration
+        - Do NOT ask about the documents themselves
+        - Do NOT include square brackets, placeholders, bullets, numbering, or quotes
+        - Return the SAME NUMBER of questions in the SAME ORDER as the candidates below
         \(avoidClause)
-        PASSAGES:
-        \(passageText)
+        CANDIDATES:
+        \(candidateText)
 
         Return ONLY plain question strings through the schema. Do not number them. Do not add bullets or quotes.
         """
@@ -416,47 +451,45 @@ actor SuggestedQuestionsService {
             // @Generable: typed [String] array — eliminates numbered-line regex parsing.
             // Constrained sampling enforces the declared schema at the token level.
             let response = try await session.respond(to: prompt, generating: SuggestedQuestionList.self)
-            let candidates = dedupeQuestionTextsPreservingOrder(
-                response.content.questions.compactMap { sanitizeGeneratedQuestion($0) }
-            ).compactMap { text -> (text: String, passage: GroundedPassage)? in
-                guard let groundedPassage = bestGroundingPassage(for: text, passages: passages) else {
-                    return nil
-                }
-                guard isUsableGeneratedQuestion(text, passages: [groundedPassage]),
-                      !isSelfAnsweringGeneratedQuestion(text),
-                      isAnswerableSuggestedQuestion(text, passage: groundedPassage)
-                else {
-                    return nil
-                }
-                return (text, groundedPassage)
-            }
-
-            guard candidates.count >= 2 else {
-                Log.warning("[SuggestedQuestions] LLM returned too few valid questions (\(candidates.count))")
+            let rewrittenTexts = response.content.questions.compactMap { sanitizeGeneratedQuestion($0) }
+            guard rewrittenTexts.count == limitedTargets.count else {
+                Log.warning("[SuggestedQuestions] LLM rewrite count mismatch (\(rewrittenTexts.count) vs \(limitedTargets.count))")
                 return []
             }
 
-            let questions = candidates.prefix(6).enumerated().map { index, candidate in
-                let cleanText = candidate.text.hasSuffix("?") ? candidate.text : candidate.text + "?"
-                let groundedPassage = candidate.passage
-                let sourceDoc = groundedPassage.documentName
-                let sourceSection = groundedPassage.sectionName
-                let confidence = groundedConfidence(for: cleanText, passage: groundedPassage)
+            let questions = zip(limitedTargets, rewrittenTexts).map { target, rewrittenText in
+                let original = target.0
+                let groundedPassage = target.1
+
+                guard isFaithfulQuestionRewrite(original: original.text, rewritten: rewrittenText, passage: groundedPassage),
+                      isUsableGeneratedQuestion(rewrittenText, passages: [groundedPassage]),
+                      !isSelfAnsweringGeneratedQuestion(rewrittenText),
+                      isAnswerableSuggestedQuestion(rewrittenText, passage: groundedPassage)
+                else {
+                    return original
+                }
+
                 return SuggestedQuestion(
                     id: UUID(),
-                    text: cleanText,
-                    category: inferCategory(for: cleanText, passage: groundedPassage, fallbackIndex: index),
-                    relevantDocuments: [sourceDoc],
-                    sourceSections: sourceSection.map { [$0] } ?? [],
-                    confidence: confidence
+                    text: rewrittenText,
+                    category: original.category,
+                    relevantDocuments: original.relevantDocuments,
+                    sourceSections: original.sourceSections,
+                    confidence: max(original.confidence, groundedConfidence(for: rewrittenText, passage: groundedPassage))
                 )
             }
 
-            Log.info("[SuggestedQuestions] LLM generated \(questions.count) grounded questions")
-            return questions
+            let deduped = dedupeSuggestedQuestionsPreservingOrder(questions)
+            guard deduped.count >= 2 else {
+                Log.warning("[SuggestedQuestions] LLM returned too few valid rewrites (\(deduped.count))")
+                return []
+            }
+
+            Log.info("[SuggestedQuestions] LLM polished \(deduped.count) grounded questions")
+            return deduped
 
         } catch {
-            Log.warning("[SuggestedQuestions] LLM generation failed: \(error.localizedDescription)")
+            Log.warning("[SuggestedQuestions] LLM rewrite failed: \(error.localizedDescription)")
             return []
         }
     }
@@ -538,12 +571,9 @@ actor SuggestedQuestionsService {
             ))
         }
 
-        if passage.chunk.metadata.hasListStructure,
-           let topic = concreteTopic(from: passage.sectionName),
-           passage.content.count >= 80
-        {
+        if let proceduralQuestion = extractProceduralQuestion(from: passage) {
             drafts.append(QuestionDraft(
-                text: "What are the steps for \(topic)?",
+                text: proceduralQuestion,
                 category: .procedural,
                 confidence: 0.84
             ))
@@ -598,6 +628,85 @@ actor SuggestedQuestionsService {
             return usesPluralVerb ? "What are the \(topic)?" : "What is the \(topic)?"
         }
         return nil
+    }
+
+    private func extractProceduralQuestion(from passage: GroundedPassage) -> String? {
+        guard passage.chunk.metadata.hasListStructure else { return nil }
+        guard passage.content.count >= 80 else { return nil }
+        guard passageLooksProcedural(passage.content) else { return nil }
+        guard !containsFrontMatterSignal(passage.content) else { return nil }
+        guard let topic = normalizedProceduralTopic(from: passage.sectionName ?? passage.chunk.metadata.tableTitle) else {
+            return nil
+        }
+
+        let topicTokens = meaningfulTokens(from: topic)
+        let bodyOverlap = topicTokens.intersection(passage.bodyTokens).count
+        let requiredBodyOverlap = min(max(topicTokens.count, 1), 2)
+        guard bodyOverlap >= requiredBodyOverlap else { return nil }
+
+        return proceduralQuestionText(for: topic)
+    }
+
+    private func proceduralQuestionText(for topic: String) -> String {
+        let normalizedTopic = naturalQuestionTopic(topic)
+        let firstToken = normalizedTopic
+            .split(separator: " ")
+            .first?
+            .lowercased() ?? ""
+
+        if firstToken.hasSuffix("ing") || Self.proceduralActionStarters.contains(firstToken) {
+            return "How do you \(normalizedTopic)?"
+        }
+
+        return "How do you handle \(normalizedTopic)?"
+    }
+
+    private func normalizedProceduralTopic(from text: String?) -> String? {
+        guard let text else { return nil }
+
+        let stripped = text
+            .replacingOccurrences(
+                of: #"(?i)^(?:(?:performing|perform|procedure|procedures|process|steps|step|instructions?)\s+(?:for\s+)?)"#,
+                with: "",
+                options: .regularExpression
+            )
+            .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines.union(.punctuationCharacters))
+
+        guard let topic = concreteTopic(from: stripped), !isWeakProceduralTopic(topic) else {
+            return nil
+        }
+
+        return naturalQuestionTopic(topic)
+    }
+
+    private func isWeakProceduralTopic(_ topic: String) -> Bool {
+        let tokens = meaningfulTokens(from: topic)
+        guard !tokens.isEmpty else { return true }
+
+        if tokens.contains(where: { Self.proceduralTopicStopTokens.contains($0) }) {
+            return true
+        }
+
+        return isGenericQuestionTopic(topic)
+    }
+
+    private func passageLooksProcedural(_ text: String) -> Bool {
+        let lower = text.lowercased()
+        let hasEnumeratedList = lower.range(
+            of: #"(?m)^\s*(?:\d+[\.)]|[-•])\s+[a-z]"#,
+            options: .regularExpression
+        ) != nil
+        let proceduralSignals = [
+            "step", "steps", "remove", "install", "detach", "attach", "clean", "rinse", "dry",
+            "inspect", "check", "start", "stop", "press", "turn", "place", "load", "connect",
+            "disconnect", "apply", "ensure", "repeat", "perform", "follow"
+        ]
+        let signalCount = proceduralSignals.reduce(0) { partialResult, signal in
+            partialResult + (lower.contains(signal) ? 1 : 0)
+        }
+
+        return hasEnumeratedList || signalCount >= 3
     }
 
     private func candidateLines(from text: String) -> [String] {
@@ -713,7 +822,8 @@ actor SuggestedQuestionsService {
         guard cleaned.count >= 4,
               cleaned.count <= 80,
               !isGenericSectionTitle(cleaned),
-              !isGenericQuestionTopic(cleaned)
+              !isGenericQuestionTopic(cleaned),
+              !containsFrontMatterSignal(cleaned)
         else {
             return nil
         }
@@ -815,18 +925,7 @@ actor SuggestedQuestionsService {
             let documentName = displayDocumentName(document.filename)
             guard !documentName.isEmpty else { continue }
 
-            if let topic = primaryFallbackTopic(for: document) {
-                fallbackQuestions.append(SuggestedQuestion(
-                    id: UUID(),
-                    text: "What's the guidance on \(topic) in \(documentName)?",
-                    category: .factRetrieval,
-                    relevantDocuments: [documentName],
-                    sourceSections: [],
-                    confidence: 0.58
-                ))
-            }
-
-            for candidate in fallbackCandidates(for: document, documentName: documentName) {
+            for candidate in Self.fallbackCandidates(for: document, documentName: documentName) {
                 fallbackQuestions.append(SuggestedQuestion(
                     id: UUID(),
                     text: candidate.text,
@@ -841,52 +940,71 @@ actor SuggestedQuestionsService {
         return fallbackQuestions
     }
 
-    private func primaryFallbackTopic(for document: Document) -> String? {
-        guard let topic = document.contentTags?
-            .map({ $0.trimmingCharacters(in: .whitespacesAndNewlines.union(.punctuationCharacters)) })
-            .first(where: { tag in
-                let lower = tag.lowercased()
-                return tag.count >= 4
-                    && tag.count <= 40
-                    && !isGenericQuestionTopic(lower)
-                    && !Self.matchStopTokens.contains(lower)
-            })
-        else {
-            return nil
-        }
-
-        return topic == topic.uppercased() ? topic.lowercased() : topic
-    }
-
-    private func fallbackCandidates(
+    private static func fallbackCandidates(
         for document: Document,
         documentName: String
     ) -> [(text: String, category: QuestionCategory, confidence: Double)] {
+        switch Self.fallbackPromptProfile(for: document, documentName: documentName) {
+        case .spreadsheet:
+            return [
+                ("Which numbers in \(documentName) matter most?", .numerical, 0.53),
+                ("Are there any thresholds or outliers in \(documentName)?", .numerical, 0.50),
+                ("What changed or stands out in \(documentName)?", .analytical, 0.47),
+            ]
+        case .media:
+            return [
+                ("What decisions came out of \(documentName)?", .procedural, 0.53),
+                ("What follow-up is mentioned in \(documentName)?", .procedural, 0.50),
+                ("Was anything left unresolved in \(documentName)?", .analytical, 0.47),
+            ]
+        case .code:
+            return [
+                ("What does \(documentName) configure?", .factRetrieval, 0.53),
+                ("Which setting in \(documentName) matters most?", .factRetrieval, 0.50),
+                ("Is there anything risky or easy to miss in \(documentName)?", .analytical, 0.47),
+            ]
+        case .research:
+            return [
+                ("What question is \(documentName) trying to answer?", .analytical, 0.53),
+                ("What did \(documentName) actually find?", .factRetrieval, 0.50),
+                ("Were any limits or caveats called out in \(documentName)?", .analytical, 0.47),
+            ]
+        case .manual:
+            return [
+                ("What should I pay attention to first in \(documentName)?", .factRetrieval, 0.53),
+                ("Are there any warnings or limits in \(documentName)?", .factRetrieval, 0.50),
+                ("What does \(documentName) say to do next?", .procedural, 0.47),
+            ]
+        case .general:
+            return [
+                ("What should I pay attention to in \(documentName)?", .factRetrieval, 0.53),
+                ("Is there anything easy to miss in \(documentName)?", .analytical, 0.50),
+                ("What numbers, limits, or warnings stand out in \(documentName)?", .factRetrieval, 0.47),
+            ]
+        }
+    }
+
+    static func starterFallbackPrompts(for document: Document, documentName: String) -> [String] {
+        Self.fallbackCandidates(for: document, documentName: documentName).map(\.text)
+    }
+
+    private static func fallbackPromptProfile(for document: Document, documentName: String) -> FallbackPromptProfile {
         switch document.contentType {
         case .excel, .numbers, .csv:
-            return [
-                ("What numbers or limits are listed in \(documentName)?", .numerical, 0.53),
-                ("Which values matter most in \(documentName)?", .numerical, 0.50),
-                ("Are there any standout thresholds in \(documentName)?", .numerical, 0.48),
-            ]
+            return .spreadsheet
         case .audio, .video, .m4a, .mp3, .wav, .mp4, .mov:
-            return [
-                ("What decisions or action items are in \(documentName)?", .procedural, 0.53),
-                ("What follow-ups are mentioned in \(documentName)?", .procedural, 0.50),
-                ("What should someone do after reading \(documentName)?", .procedural, 0.47),
-            ]
+            return .media
         case .swift, .python, .javascript, .typescript, .java, .cpp, .c, .objc, .go, .rust, .ruby, .php, .html, .css, .json, .xml, .yaml, .sql, .shell, .code:
-            return [
-                ("What settings or parameters are defined in \(documentName)?", .factRetrieval, 0.53),
-                ("What schema or config details are in \(documentName)?", .factRetrieval, 0.50),
-                ("Which values or flags matter in \(documentName)?", .factRetrieval, 0.47),
-            ]
+            return .code
         default:
-            return [
-                ("What exact specs or requirements are in \(documentName)?", .numerical, 0.54),
-                ("What steps or procedures are in \(documentName)?", .procedural, 0.51),
-                ("What warnings or exceptions does \(documentName) mention?", .factRetrieval, 0.49),
-            ]
+            let lowerName = documentName.lowercased()
+            if researchFilenameSignals.contains(where: { lowerName.contains($0) }) {
+                return .research
+            }
+            if manualFilenameSignals.contains(where: { lowerName.contains($0) }) {
+                return .manual
+            }
+            return .general
         }
     }
 
@@ -1020,6 +1138,12 @@ actor SuggestedQuestionsService {
         let sectionOverlap = tokens.intersection(passage.sectionTokens).count
         let grounding = groundingScore(for: question, passage: passage)
         let lower = question.lowercased()
+        if lower.hasPrefix("how long") && !passageContainsExplicitDuration(passage.content) {
+            return false
+        }
+        if isCapabilityQuestionFraming(lower) && passageLooksSafetyCritical(passage.content) {
+            return false
+        }
         let proceduralSupport = passage.chunk.metadata.hasListStructure
             || lower.hasPrefix("what should you do if")
             || lower.hasPrefix("what do you do if")
@@ -1103,7 +1227,26 @@ actor SuggestedQuestionsService {
         if !cleaned.hasSuffix("?") {
             cleaned += "?"
         }
+        guard !isBoilerplateQuestionTemplate(cleaned) else { return nil }
         return cleaned
+    }
+
+    private func isBoilerplateQuestionTemplate(_ question: String) -> Bool {
+        let lower = question.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
+        let bannedPrefixes = [
+            "what exact specs or requirements are in ",
+            "what exact specs or limits are mentioned here",
+            "what steps or procedures are in ",
+            "which procedure or checklist matters most",
+            "what numbers or limits are listed in ",
+            "which values matter most in ",
+            "what settings or parameters are defined in ",
+            "what schema or config details are in ",
+            "what should someone do after reading ",
+            "what are the steps for "
+        ]
+
+        return bannedPrefixes.contains(where: { lower.hasPrefix($0) })
     }
 
     private func dedupeQuestionTextsPreservingOrder(_ questions: [String]) -> [String] {
@@ -1145,6 +1288,9 @@ actor SuggestedQuestionsService {
         passages: [GroundedPassage]
     ) -> Bool {
         let lower = question.lowercased()
+        if isBoilerplateQuestionTemplate(lower) {
+            return false
+        }
         let bannedFragments = [
             "[", "]", "{", "}", "<", ">",
             "thing from passage",
@@ -1206,6 +1352,81 @@ actor SuggestedQuestionsService {
         isQuantityQuestion(question) && !extractNumericTokens(from: question).isEmpty
     }
 
+    private func isFaithfulQuestionRewrite(
+        original: String,
+        rewritten: String,
+        passage: GroundedPassage
+    ) -> Bool {
+        let originalLower = original.lowercased()
+        let rewrittenLower = rewritten.lowercased()
+        let originalTokens = meaningfulTokens(from: originalLower)
+        let rewrittenTokens = meaningfulTokens(from: rewrittenLower)
+        let passageTokens = passage.documentTokens.union(passage.sectionTokens).union(passage.bodyTokens)
+        let importantOriginalTokens = originalTokens.filter { token in
+            token.contains(where: \.isNumber) || passageTokens.contains(token)
+        }
+
+        if !importantOriginalTokens.isEmpty {
+            let preservedCount = importantOriginalTokens.filter { rewrittenTokens.contains($0) }.count
+            if preservedCount < min(2, importantOriginalTokens.count) {
+                return false
+            }
+        }
+
+        let originalGrounding = groundingScore(for: original, passage: passage)
+        let rewrittenGrounding = groundingScore(for: rewritten, passage: passage)
+        guard rewrittenGrounding >= max(3.5, originalGrounding - 0.5) else {
+            return false
+        }
+
+        if originalLower.hasPrefix("what should you do if") || originalLower.hasPrefix("what do you do if") {
+            guard rewrittenLower.hasPrefix("what should you do if")
+                || rewrittenLower.hasPrefix("what do you do if")
+            else {
+                return false
+            }
+        }
+
+        if isQuantityQuestion(original) && !isQuantityQuestion(rewritten) {
+            return false
+        }
+
+        if rewrittenLower.hasPrefix("how long") && !passageContainsExplicitDuration(passage.content) {
+            return false
+        }
+
+        if isCapabilityQuestionFraming(rewrittenLower) && passageLooksSafetyCritical(passage.content) {
+            return false
+        }
+
+        return true
+    }
+
+    private func isCapabilityQuestionFraming(_ question: String) -> Bool {
+        let lower = question.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
+        return lower.hasPrefix("can ")
+            || lower.hasPrefix("can you ")
+            || lower.hasPrefix("could ")
+            || lower.hasPrefix("could you ")
+            || lower.hasPrefix("is it okay to ")
+    }
+
+    private func passageContainsExplicitDuration(_ text: String) -> Bool {
+        text.range(
+            of: #"\b\d+(?:[.,]\d+)?\s*(?:ms|sec|secs|seconds?|s|min|mins|minutes?|hr|hrs|hours?|days?)\b"#,
+            options: [.regularExpression, .caseInsensitive]
+        ) != nil
+    }
+
+    private func passageLooksSafetyCritical(_ text: String) -> Bool {
+        let lower = text.lowercased()
+        let safetySignals = [
+            "warning", "caution", "danger", "contraindication", "do not", "must not",
+            "single use", "steril", "reuse", "forbidden", "prohibit", "required", "ensure"
+        ]
+        return safetySignals.contains(where: { lower.contains($0) })
+    }
+
     private func naturalQuestionTopic(_ topic: String) -> String {
         let cleaned = topic.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !cleaned.isEmpty else { return topic }
@@ -1244,9 +1465,17 @@ actor SuggestedQuestionsService {
             "introduction", "conclusion", "summary", "overview", "abstract",
             "references", "bibliography", "appendix", "index", "table of contents",
             "acknowledgements", "disclaimer", "copyright", "notes", "glossary",
-            "contents", "preface", "foreword", "about"
+            "contents", "preface", "foreword", "about", "author manuscript",
+            "keywords", "conflict of interest", "conflicts of interest",
+            "competing interests", "author contributions", "funding", "ethics statement"
         ]
-        return generic.contains(title.lowercased().trimmingCharacters(in: .whitespaces))
+        let normalized = title.lowercased().trimmingCharacters(in: .whitespaces)
+        return generic.contains(normalized) || containsFrontMatterSignal(normalized)
+    }
+
+    private func containsFrontMatterSignal(_ text: String) -> Bool {
+        let lower = text.lowercased()
+        return Self.frontMatterSignals.contains { lower.contains($0) }
     }
 
     /// Generic nouns that NLTagger marks as "entities" but are useless for questions
@@ -1256,6 +1485,10 @@ actor SuggestedQuestionsService {
         "implementation", "performance", "evaluation", "table", "figure",
         "section", "chapter", "page", "document", "paper", "report",
         "specification", "specifications",
+        "author", "authors", "manuscript", "article", "journal", "publication",
+        "keyword", "keywords", "copyright", "funding", "disclosure", "disclosures",
+        "conflict", "conflicts", "interest", "interests", "acknowledgement", "acknowledgements",
+        "supplement", "supplements", "supplementary",
         "information", "content", "text", "type", "level", "value",
         "group", "number", "part", "case", "example", "form", "area",
         "point", "time", "work", "thing", "way", "issue", "problem",
@@ -1268,14 +1501,47 @@ actor SuggestedQuestionsService {
         "here", "there", "under", "over", "should", "would", "could", "after",
         "before", "using", "used", "than", "then", "they", "them", "much",
         "many", "long", "happens", "important", "actually", "main", "point",
-        "points", "details", "explain", "tell"
+        "points", "details", "explain", "tell", "analyze", "evaluate", "review",
+        "discuss", "summarize", "author", "authors", "manuscript", "article",
+        "journal", "publication", "guidance"
     ]
 
     private static let specSubjectStopTokens: Set<String> = [
         "recommended", "equivalent", "maximum", "minimum", "approx", "approximately",
         "about", "page", "section", "table", "figure", "see", "refer", "when",
         "where", "which", "with", "without", "and", "or", "the", "for", "from",
-        "value", "values", "specification", "specifications"
+        "value", "values", "specification", "specifications", "author", "authors",
+        "manuscript", "article", "journal", "publication"
+    ]
+
+    private static let proceduralTopicStopTokens: Set<String> = [
+        "author", "authors", "manuscript", "article", "journal", "publication",
+        "abstract", "summary", "overview", "reference", "references", "copyright",
+        "appendix", "appendices", "supplement", "supplementary", "keyword", "keywords",
+        "funding", "disclosure", "disclosures", "conflict", "conflicts", "interest", "interests"
+    ]
+
+    private static let proceduralActionStarters: Set<String> = [
+        "install", "remove", "replace", "connect", "disconnect", "attach", "detach",
+        "clean", "inspect", "check", "start", "stop", "press", "turn", "load",
+        "apply", "perform", "prepare", "operate", "configure", "calibrate", "reset"
+    ]
+
+    private static let researchFilenameSignals: Set<String> = [
+        "study", "trial", "research", "paper", "manuscript", "journal", "abstract",
+        "supplement", "supplementary", "review", "meta analysis", "preprint"
+    ]
+
+    private static let manualFilenameSignals: Set<String> = [
+        "manual", "guide", "ifu", "instruction", "instructions", "handbook", "datasheet",
+        "spec", "specification", "requirements", "protocol", "procedure", "sop", "reference"
+    ]
+
+    private static let frontMatterSignals: Set<String> = [
+        "author manuscript", "all rights reserved", "rights reserved", "copyright",
+        "corresponding author", "published online", "accepted for publication", "doi",
+        "conflict of interest", "conflicts of interest", "competing interests",
+        "author contributions", "funding", "acknowledg", "keywords"
     ]
 
     /// Extract number-in-context phrases like "360 DPI", "14.3 US gal", "$49.99/year"
@@ -1377,8 +1643,6 @@ actor SuggestedQuestionsService {
             if actionIndicators.contains(where: { consequenceLower.contains($0) }) {
                 return "What should you do if \(conditionLower)?"
             }
-
-            return "What happens if \(conditionLower)?"
         }
 
         return nil
@@ -1396,9 +1660,9 @@ actor SuggestedQuestionsService {
 
     /// Generic fallback questions (absolute last resort)
     static let genericQuestions: [String] = [
-        "What exact specs or limits are mentioned here?",
-        "Which procedure or checklist matters most here?",
-        "What warning, restriction, or exception is called out?",
-        "What number, date, or threshold should I know?"
+        "What should I pay attention to first?",
+        "Is there anything easy to miss here?",
+        "What warnings, limits, or caveats stand out?",
+        "What number, date, or threshold matters most?"
     ]
 }

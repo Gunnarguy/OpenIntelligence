@@ -72,14 +72,15 @@ struct IngestionLiveActivityWidget: Widget {
 
     private func expandedStats(_ context: ActivityViewContext<IngestionLiveActivityAttributes>) -> some View {
         VStack(alignment: .trailing, spacing: 6) {
-            Text(context.state.currentStage)
-                .font(.headline)
-
-            Text("\(context.state.processedCount)/\(context.state.totalCount)")
-                .font(.system(.title3, design: .rounded).weight(.semibold))
+            Text("\(liveActivityProgressPercent(context))%")
+                .font(.system(.title3, design: .rounded).weight(.bold))
+                .monospacedDigit()
                 .contentTransition(.numericText())
 
-            Text(context.state.deviceSummary)
+            Text(context.state.currentStage)
+                .font(.caption.weight(.semibold))
+
+            Text(liveActivityQueueSummary(context))
                 .font(.caption2)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.trailing)
@@ -93,7 +94,7 @@ struct IngestionLiveActivityWidget: Widget {
 
             HStack(alignment: .top) {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(context.state.performanceSummary)
+                    Text(liveActivityQueueSummary(context))
                         .font(.caption)
                         .foregroundStyle(.secondary)
 
@@ -107,62 +108,45 @@ struct IngestionLiveActivityWidget: Widget {
                 Spacer()
 
                 VStack(alignment: .trailing, spacing: 4) {
-                    Text("\(Int((context.state.progress * 100).rounded()))%")
+                    Text("\(liveActivityProgressPercent(context))%")
                         .font(.headline.monospacedDigit())
-                    Text("\(context.state.activeCount) active")
+                    Text(liveActivityCompactStageLabel(context.state.currentStage))
                         .font(.caption)
                         .foregroundStyle(.secondary)
-                }
-            }
-
-            if !context.state.remainingDocuments.isEmpty {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Queue")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(.secondary)
-
-                    ForEach(context.state.remainingDocuments, id: \.self) { title in
-                        Text("• \(title)")
-                            .font(.caption)
-                            .lineLimit(1)
-                    }
                 }
             }
         }
     }
 
     private func compactLeading(_ context: ActivityViewContext<IngestionLiveActivityAttributes>) -> some View {
-        ZStack {
-            Circle()
-                .fill(keylineTint(for: context.state.processingMode).opacity(0.18))
-            Image(systemName: "doc.badge.gearshape")
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(keylineTint(for: context.state.processingMode))
-        }
-        .frame(width: 24, height: 24)
+        LiveActivityAppIconView(
+            tint: keylineTint(for: context.state.processingMode),
+            size: 24,
+            cornerRadius: 6
+        )
         .accessibilityLabel("Document ingestion in progress")
     }
 
     private func compactTrailing(_ context: ActivityViewContext<IngestionLiveActivityAttributes>) -> some View {
         VStack(alignment: .trailing, spacing: 0) {
-            Text("\(Int((context.state.progress * 100).rounded()))%")
+            Text("\(liveActivityProgressPercent(context))%")
                 .font(.system(size: 12, weight: .semibold, design: .rounded))
                 .contentTransition(.numericText())
-            Text("\(context.state.activeCount)")
+            Text(liveActivityCompactStageLabel(context.state.currentStage))
                 .font(.system(size: 10, weight: .medium, design: .rounded))
                 .foregroundStyle(.secondary)
+                .lineLimit(1)
         }
-        .accessibilityLabel("\(Int((context.state.progress * 100).rounded())) percent complete with \(context.state.activeCount) active documents")
+        .accessibilityLabel("\(liveActivityProgressPercent(context)) percent complete during \(context.state.currentStage)")
     }
 
     private func minimalView(_ context: ActivityViewContext<IngestionLiveActivityAttributes>) -> some View {
-        ZStack {
-            Circle()
-                .fill(keylineTint(for: context.state.processingMode).opacity(0.18))
-            Text("\(max(1, context.state.activeCount))")
-                .font(.system(size: 11, weight: .bold, design: .rounded))
-        }
-        .accessibilityLabel("\(context.state.activeCount) active document imports")
+        LiveActivityAppIconView(
+            tint: keylineTint(for: context.state.processingMode),
+            size: 28,
+            cornerRadius: 8
+        )
+        .accessibilityLabel("\(context.state.currentStage) in progress")
     }
 }
 
@@ -183,29 +167,46 @@ private struct IngestionLiveActivityLockScreenView: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: isActivityFullscreen ? 14 : 10) {
-            ViewThatFits(in: .horizontal) {
-                horizontalHeader
-                stackedHeader
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .center, spacing: 12) {
+                LiveActivityAppIconView(tint: tint, size: isActivityFullscreen ? 42 : 34, cornerRadius: 10)
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(context.attributes.containerName)
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.secondary)
+
+                    Text(context.state.currentFilename)
+                        .font(isActivityFullscreen ? .title3.weight(.semibold) : .headline)
+                        .lineLimit(isActivityFullscreen ? 2 : 1)
+
+                    Text(context.state.currentStage)
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(tint)
+                }
+
+                Spacer(minLength: 12)
+
+                VStack(alignment: .trailing, spacing: 4) {
+                    Text("\(liveActivityProgressPercent(context))%")
+                        .font(.system(isActivityFullscreen ? .title2 : .title3, design: .rounded).weight(.bold))
+                        .monospacedDigit()
+                        .contentTransition(.numericText())
+
+                    Text(lockScreenProgressSummary)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.trailing)
+                }
             }
 
             ProgressView(value: context.state.progress, total: 1.0)
                 .tint(tint)
 
-            ViewThatFits(in: .horizontal) {
-                horizontalStatus
-                stackedStatus
-            }
-
-            if !context.state.remainingDocuments.isEmpty {
-                VStack(alignment: .leading, spacing: 4) {
-                    ForEach(context.state.remainingDocuments, id: \.self) { document in
-                        Text("• \(document)")
-                            .font(.caption)
-                            .lineLimit(1)
-                    }
-                }
-            }
+            Text(lockScreenStatusLine)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
 
             if context.state.thermalBucket == .serious || context.state.thermalBucket == .critical {
                 Label("Thermal management active", systemImage: "thermometer.medium")
@@ -213,95 +214,90 @@ private struct IngestionLiveActivityLockScreenView: View {
                     .foregroundStyle(.orange)
             }
         }
-        .padding(.vertical, isActivityFullscreen ? 8 : 0)
+        .padding(.vertical, isActivityFullscreen ? 6 : 0)
     }
 
-    private var horizontalHeader: some View {
-        HStack(alignment: .top) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text(context.attributes.containerName)
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.secondary)
-
-                Text(context.state.currentFilename)
-                    .font(isActivityFullscreen ? .title3.weight(.semibold) : .headline)
-                    .lineLimit(isActivityFullscreen ? 2 : 1)
-            }
-
-            Spacer(minLength: 12)
-
-            headerMeta
+    private var lockScreenProgressSummary: String {
+        if context.state.totalCount == 1 {
+            return "1 document"
         }
+        return "\(context.state.processedCount) of \(context.state.totalCount) complete"
     }
 
-    private var stackedHeader: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text(context.attributes.containerName)
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.secondary)
-
-                Text(context.state.currentFilename)
-                    .font(isActivityFullscreen ? .title3.weight(.semibold) : .headline)
-                    .lineLimit(2)
-            }
-
-            headerMeta
-                .frame(maxWidth: .infinity, alignment: .leading)
+    private var lockScreenStatusLine: String {
+        if !context.state.remainingDocuments.isEmpty {
+            return "\(liveActivityQueueSummary(context)) • Next: \(context.state.remainingDocuments[0])"
         }
+        return liveActivityQueueSummary(context)
     }
+}
 
-    private var headerMeta: some View {
-        VStack(alignment: .trailing, spacing: 4) {
-            Text(context.state.currentStage)
-                .font(.caption.weight(.semibold))
-                .padding(.horizontal, 8)
-                .padding(.vertical, 4)
-                .background(tint.opacity(isLuminanceReduced ? 0.16 : 0.22), in: Capsule())
+@available(iOSApplicationExtension 17.0, *)
+private struct LiveActivityAppIconView: View {
+    let tint: Color
+    let size: CGFloat
+    let cornerRadius: CGFloat
 
-            Text("\(context.state.processedCount) of \(context.state.totalCount)")
-                .font(.caption)
-                .foregroundStyle(.secondary)
+    var body: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                .fill(tint.opacity(0.16))
+
+            Image(systemName: "doc.badge.gearshape")
+                .font(.system(size: size * 0.44, weight: .semibold))
+                .foregroundStyle(tint)
+
+            Image("OpenIntelligenceActivityIcon")
+                .resizable()
+                .scaledToFill()
         }
+        .frame(width: size, height: size)
+        .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+    }
+}
+
+@available(iOSApplicationExtension 17.0, *)
+private func liveActivityProgressPercent(_ context: ActivityViewContext<IngestionLiveActivityAttributes>) -> Int {
+    Int((context.state.progress * 100).rounded())
+}
+
+@available(iOSApplicationExtension 17.0, *)
+private func liveActivityCompactStageLabel(_ stage: String) -> String {
+    switch stage.lowercased() {
+    case "loading": return "Load"
+    case "transcribing": return "Audio"
+    case "extracting": return "Text"
+    case "chunking": return "Chunk"
+    case "analyzing": return "Analyze"
+    case "adapting": return "Tune"
+    case "re-indexing": return "Reindex"
+    case "embedding": return "Embed"
+    case "indexing": return "Index"
+    case "storing": return "Store"
+    case "complete": return "Done"
+    case "failed": return "Issue"
+    default: return stage
+    }
+}
+
+@available(iOSApplicationExtension 17.0, *)
+private func liveActivityQueueSummary(_ context: ActivityViewContext<IngestionLiveActivityAttributes>) -> String {
+    let queuedCount = max(0, context.state.totalCount - context.state.processedCount - context.state.activeCount)
+    var parts: [String] = []
+
+    if context.state.activeCount > 0 {
+        parts.append("\(context.state.activeCount) active")
+    }
+    if queuedCount > 0 {
+        parts.append("\(queuedCount) queued")
+    }
+    if context.state.processedCount > 0 {
+        parts.append("\(context.state.processedCount) complete")
     }
 
-    private var horizontalStatus: some View {
-        HStack(alignment: .top) {
-            statusCopy
-
-            Spacer(minLength: 12)
-
-            progressPercent
-        }
+    if parts.isEmpty {
+        return liveActivityCompactStageLabel(context.state.currentStage)
     }
 
-    private var stackedStatus: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            statusCopy
-
-            progressPercent
-                .frame(maxWidth: .infinity, alignment: .trailing)
-        }
-    }
-
-    private var statusCopy: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(context.state.performanceSummary)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .lineLimit(2)
-
-            Text(context.state.deviceSummary)
-                .font(.caption2)
-                .foregroundStyle(.secondary)
-                .lineLimit(1)
-        }
-    }
-
-    private var progressPercent: some View {
-        Text("\(Int((context.state.progress * 100).rounded()))%")
-            .font(.system(isActivityFullscreen ? .title2 : .title3, design: .rounded).weight(.bold))
-            .monospacedDigit()
-            .contentTransition(.numericText())
-    }
+    return parts.joined(separator: " • ")
 }

@@ -106,9 +106,12 @@ Current app-specific pricing note:
 
 - `BillingProduct.swift` still includes `doc_pack_addon`
 - `QuotaPolicy.swift` still supports add-on increments
-- `TermsOfServiceView.swift` says document packs are no longer sold in-app
+- `PlanUpgradeSheet.swift` still shows document-pack purchase controls and refill CTAs
+- `EntitlementStore.swift` still credits and stores document-pack purchases
+- `fastlane/subscriptions.json` still contains App Store Connect setup for `doc_pack_addon`
+- `TermsOfServiceView.swift` and `DocumentQuotaBanner.swift` say document packs are no longer sold in-app
 
-That inconsistency should be treated as app-surface churn, not engine scope.
+That is a literal app-surface contradiction, not engine scope.
 
 ## Packaging Reality
 

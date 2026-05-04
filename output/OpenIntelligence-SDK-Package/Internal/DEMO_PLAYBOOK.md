@@ -35,6 +35,19 @@ Prepare:
 - one policy or reference doc
 - one second workspace with clearly different content
 
+Have these files open before the call:
+
+- packet-local demo app:
+  - `output/OpenIntelligence-SDK-Package/SampleApp/EngineEvaluationHost.xcodeproj`
+- packet-local operator script:
+  - `output/OpenIntelligence-SDK-Package/SampleApp/DEMO_SCRIPT.md`
+- packet summary:
+  - `output/OpenIntelligence-SDK-Package/PACKAGE_SUMMARY.md`
+- current engine entry-point code file:
+  - `OpenIntelligence/SDK/OpenIntelligenceEngine.swift`
+- current packaging note:
+  - `output/OpenIntelligence-SDK-Package/Internal/BUILD_NOTES.md`
+
 Pick questions where the answer and the citation are obvious.
 
 ## Recommended Demo Flow
@@ -81,7 +94,7 @@ Narrate:
 
 ### 5. Close With Integration Framing
 
-Show the small API shape from the SDK docs.
+Show the small engine entry-point shape from the SDK docs.
 
 Say:
 

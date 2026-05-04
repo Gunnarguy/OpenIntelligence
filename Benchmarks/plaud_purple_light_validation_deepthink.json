@@ -1,13 +1,13 @@
 {
   "version": 1,
-  "name": "plaud-purple-light-validation",
+  "name": "plaud-purple-light-validation-deep-think",
   "defaults": {
-    "quality_mode": "standard",
-    "timeout_seconds": 300
+    "quality_mode": "deep-think",
+    "timeout_seconds": 600
   },
   "cases": [
     {
-      "id": "plaud_solid_purple_light_meaning",
+      "id": "plaud_solid_purple_light_meaning_deepthink",
       "category": "exact_value",
       "input_files": ["PlaudNoteUserManualSQLite.txt"],
       "query": "What does the solid purple light mean on the PLAUD NOTE?",
@@ -18,7 +18,7 @@
       ]
     },
     {
-      "id": "plaud_flashing_purple_light_meaning",
+      "id": "plaud_flashing_purple_light_meaning_deepthink",
       "category": "exact_value",
       "input_files": ["PlaudNoteUserManualSQLite.txt"],
       "query": "What does the flashing purple light mean on the PLAUD NOTE?",

@@ -10,14 +10,19 @@ final class IngestionLiveActivityService {
     private var currentActivity: Activity<IngestionLiveActivityAttributes>?
     private var lastContentState: IngestionLiveActivityAttributes.ContentState?
     private var lastUpdateAt: Date = .distantPast
+    private var activityOperationTask: Task<Void, Never>?
+    private var activityStateObservationTask: Task<Void, Never>?
 
     private init() {
-        currentActivity = Activity<IngestionLiveActivityAttributes>.activities.first
+        currentActivity = restorableActivity()
+        observeCurrentActivityIfNeeded()
     }
 
     func restoreExistingActivityIfNeeded() {
+        discardInactiveActivityIfNeeded()
         if currentActivity == nil {
-            currentActivity = Activity<IngestionLiveActivityAttributes>.activities.first
+            currentActivity = restorableActivity()
+            observeCurrentActivityIfNeeded()
         }
     }
 
@@ -46,15 +51,24 @@ final class IngestionLiveActivityService {
         let content = ActivityContent(state: contentState, staleDate: staleDate)
 
         if let currentActivity {
-            Task { [weak self] in
+            let sessionID = currentActivity.attributes.sessionID
+            activityOperationTask?.cancel()
+            activityOperationTask = Task { [weak self] in
+                guard !Task.isCancelled else { return }
                 await currentActivity.update(content)
+                guard !Task.isCancelled else { return }
+
                 await MainActor.run { [weak self] in
                     guard let self else { return }
-                    self.lastContentState = contentState
-                    self.lastUpdateAt = Date()
+                    if self.currentActivity?.attributes.sessionID == sessionID {
+                        self.lastContentState = contentState
+                        self.lastUpdateAt = Date()
+                    }
+                    self.activityOperationTask = nil
                 }
             }
         } else {
+            guard activityOperationTask == nil else { return }
             do {
                 let activity = try Activity.request(
                     attributes: IngestionLiveActivityAttributes(
@@ -67,6 +81,7 @@ final class IngestionLiveActivityService {
                 currentActivity = activity
                 lastContentState = contentState
                 lastUpdateAt = Date()
+                observeCurrentActivityIfNeeded()
             } catch {
                 Log.warning("[IngestionLiveActivity] Failed to start Live Activity: \(error.localizedDescription)", category: .ui)
             }
@@ -76,7 +91,15 @@ final class IngestionLiveActivityService {
     func endCurrentActivity(finalState: IngestionLiveActivityAttributes.ContentState?) {
         guard let currentActivity else { return }
 
-        Task { [weak self] in
+        activityOperationTask?.cancel()
+        activityOperationTask = nil
+        activityStateObservationTask?.cancel()
+        activityStateObservationTask = nil
+        self.currentActivity = nil
+        lastContentState = nil
+        lastUpdateAt = .distantPast
+
+        activityOperationTask = Task { [weak self] in
             if let finalState {
                 await currentActivity.end(
                     ActivityContent(state: finalState, staleDate: nil),
@@ -87,10 +110,7 @@ final class IngestionLiveActivityService {
             }
 
             await MainActor.run { [weak self] in
-                guard let self else { return }
-                self.currentActivity = nil
-                self.lastContentState = nil
-                self.lastUpdateAt = .distantPast
+                self?.activityOperationTask = nil
             }
         }
     }
@@ -104,8 +124,9 @@ final class IngestionLiveActivityService {
         let device = DeviceCapabilityService.shared
         let completedCount = items.filter { $0.stage == .complete }.count
         let failedCount = items.filter { $0.stage == .failed }.count
+        let terminalCount = items.filter { $0.stage.isTerminal }.count
         let totalCount = items.count
-        let progress = totalCount == 0 ? 1.0 : Double(completedCount) / Double(totalCount)
+        let progress = totalCount == 0 ? 1.0 : Double(terminalCount) / Double(totalCount)
         let stageLabel = failedCount > 0 ? "Finished with issues" : "Complete"
         let headline: String
         if failedCount > 0 {
@@ -130,6 +151,47 @@ final class IngestionLiveActivityService {
         )
 
         endCurrentActivity(finalState: finalState)
+    }
+
+    private func restorableActivity() -> Activity<IngestionLiveActivityAttributes>? {
+        Activity<IngestionLiveActivityAttributes>.activities.first(where: { $0.activityState == .active })
+    }
+
+    private func discardInactiveActivityIfNeeded() {
+        guard let currentActivity, currentActivity.activityState != .active else { return }
+        activityStateObservationTask?.cancel()
+        activityStateObservationTask = nil
+        self.currentActivity = nil
+        lastContentState = nil
+        lastUpdateAt = .distantPast
+    }
+
+    private func observeCurrentActivityIfNeeded() {
+        guard let currentActivity else {
+            activityStateObservationTask?.cancel()
+            activityStateObservationTask = nil
+            return
+        }
+
+        let sessionID = currentActivity.attributes.sessionID
+        activityStateObservationTask?.cancel()
+        activityStateObservationTask = Task { [weak self] in
+            for await state in currentActivity.activityStateUpdates {
+                guard !Task.isCancelled else { return }
+                await MainActor.run { [weak self] in
+                    guard let self else { return }
+                    guard self.currentActivity?.attributes.sessionID == sessionID else { return }
+
+                    if state != .active {
+                        self.currentActivity = nil
+                        self.lastContentState = nil
+                        self.lastUpdateAt = .distantPast
+                        self.activityStateObservationTask?.cancel()
+                        self.activityStateObservationTask = nil
+                    }
+                }
+            }
+        }
     }
 
     private var shouldPresentLiveActivities: Bool {
@@ -195,17 +257,37 @@ final class IngestionLiveActivityService {
     private func overallProgress(for items: [IngestionItem], currentItem: IngestionItem) -> Double {
         guard !items.isEmpty else { return 0 }
 
-        let completedCount = items.filter { $0.stage == .complete }.count
-        let activeContribution: Double
-        if let explicitProgress = currentItem.progress {
-            activeContribution = explicitProgress
-        } else if let pipelineIndex = currentItem.stage.pipelineIndex {
-            activeContribution = Double(pipelineIndex + 1) / Double(max(1, IngestionStage.pipelineStages.count))
-        } else {
-            activeContribution = currentItem.stage.isTerminal ? 1 : 0
+        let terminalCount = items.filter { $0.stage.isTerminal }.count
+        let activeContribution = pipelineContribution(for: currentItem)
+
+        return min(1, (Double(terminalCount) + activeContribution) / Double(items.count))
+    }
+
+    private func pipelineContribution(for item: IngestionItem) -> Double {
+        if item.stage.isTerminal {
+            return 1
         }
 
-        return min(1, (Double(completedCount) + activeContribution) / Double(items.count))
+        guard let pipelineIndex = item.stage.pipelineIndex else {
+            return 0
+        }
+
+        let stageCount = Double(max(1, IngestionStage.pipelineStages.count))
+        let stageBase = Double(pipelineIndex) / stageCount
+        let stageSpan = 1.0 / stageCount
+        let stageProgress = min(max(item.progress ?? defaultStageProgress(for: item.stage), 0), 1)
+        return min(0.999, stageBase + stageProgress * stageSpan)
+    }
+
+    private func defaultStageProgress(for stage: IngestionStage) -> Double {
+        switch stage {
+        case .queued:
+            return 0
+        case .loading, .transcribing, .extracting, .chunking, .analyzing, .adapting, .reindexing, .embedding, .indexing, .storing:
+            return 0.35
+        case .complete, .failed:
+            return 1
+        }
     }
 
     private func progressQuantum(for device: DeviceCapabilityService) -> Double {
@@ -215,13 +297,13 @@ final class IngestionLiveActivityService {
 
         switch device.tier {
         case .unsupported:
-            return 0.10
-        case .baseline:
             return 0.05
-        case .enhanced:
+        case .baseline:
             return 0.03
-        case .advanced, .ultraAdvanced:
+        case .enhanced:
             return 0.02
+        case .advanced, .ultraAdvanced:
+            return 0.01
         }
     }
 

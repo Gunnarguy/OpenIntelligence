@@ -80,7 +80,7 @@ Search behavior today:
 
 - smaller searches use Accelerate/vDSP
 - larger searches can use Metal compute
-- the router can search across containers and fuse results when requested
+- the router keeps vector stores isolated per container and recreates them when library config changes
 
 This is real engine code and reusable. The main current caveat is runtime coupling through app support paths and app-shaped lifecycle behavior.
 

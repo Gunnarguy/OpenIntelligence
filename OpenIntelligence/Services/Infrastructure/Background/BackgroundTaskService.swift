@@ -155,13 +155,32 @@ final class BackgroundTaskService: Sendable {
     }
 
     @MainActor
+    func completeUserInitiatedIngestion(success: Bool) {
+        guard #available(iOS 26.0, *) else { return }
+
+        if activeContinuedIngestionTask != nil {
+            finishContinuedIngestion(success: success)
+            return
+        }
+
+        activeContinuedIngestionWorker?.cancel()
+        activeContinuedIngestionWorker = nil
+        continuedIngestionRequestSubmitted = false
+        BGTaskScheduler.shared.cancel(taskRequestWithIdentifier: Self.continuedIngestionIdentifier)
+        endContinuedIngestionBridgeIfNeeded()
+    }
+
+    @MainActor
     private func finishContinuedIngestion(success: Bool) {
         guard #available(iOS 26.0, *) else { return }
-        activeContinuedIngestionTask?.setTaskCompleted(success: success)
+        guard let task = activeContinuedIngestionTask else { return }
+
         activeContinuedIngestionTask = nil
         activeContinuedIngestionWorker = nil
         continuedIngestionRequestSubmitted = false
         endContinuedIngestionBridgeIfNeeded()
+        task.expirationHandler = nil
+        task.setTaskCompleted(success: success)
     }
 
     @MainActor

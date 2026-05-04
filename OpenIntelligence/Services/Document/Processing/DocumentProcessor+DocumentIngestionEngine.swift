@@ -8,6 +8,7 @@ extension DocumentProcessor: DocumentIngestionEngine {
     ) async throws -> IngestedDocumentPayload {
         let resolvedOverride = chunkOverride.map {
             ChunkingOverride(
+                strategy: nil,
                 targetWordWindow: $0.targetWordWindow,
                 overlapWords: $0.overlapWords
             )

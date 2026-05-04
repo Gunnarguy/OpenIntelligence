@@ -881,9 +881,9 @@ Text(deviceService.chipName)
                     detail: "Topic boundaries via embeddings"
                 )
                 siliconFeatureRow(
-                    icon: "rectangle.stack.fill",
-                    label: "Cross-Container Search",
-                    detail: "Unified search with RRF fusion"
+                    icon: "lock.fill",
+                    label: "Library Isolation",
+                    detail: "Queries stay scoped to the active library"
                 )
             }
 
@@ -1585,7 +1585,6 @@ Text(deviceService.chipName)
             settings.enableSpotlightIndexing,
             settings.enableBackgroundMaintenance,
             settings.enableWritingTools,
-            settings.enableTranslation,
             settings.enableSpeechAnalysis,
         ].filter { $0 }.count
     }
@@ -1618,12 +1617,12 @@ Text(deviceService.chipName)
                 Text("Apple Intelligence")
                     .font(.headline)
                 Spacer()
-                Text("\(activeAIFeatureCount)/7")
+                Text("\(activeAIFeatureCount)/6")
                     .font(.caption.weight(.semibold).monospacedDigit())
                     .foregroundColor(.white)
                     .padding(.horizontal, 8)
                     .padding(.vertical, 3)
-                    .background(activeAIFeatureCount == 7 ? Color.green : Color.orange)
+                    .background(activeAIFeatureCount == 6 ? Color.green : Color.orange)
                     .clipShape(Capsule())
             }
             .padding()
@@ -1670,14 +1669,6 @@ Text(deviceService.chipName)
                     title: "Writing Tools",
                     subtitle: "Summarize, rewrite, proofread",
                     isOn: $settings.enableWritingTools
-                )
-
-                aiFeatureToggleRow(
-                    icon: "translate",
-                    color: .cyan,
-                    title: "Translation",
-                    subtitle: "Multilingual document queries",
-                    isOn: $settings.enableTranslation
                 )
 
                 aiFeatureToggleRow(
