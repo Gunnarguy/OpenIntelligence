@@ -1257,8 +1257,10 @@ struct ChatScreen: View {
     private func starterDisplayDocumentName(_ filename: String) -> String {
         filename
             .replacingOccurrences(of: "\\.[^.]+$", with: "", options: .regularExpression)
-            .replacingOccurrences(of: "_", with: " ")
-            .replacingOccurrences(of: "-", with: " ")
+            .replacingOccurrences(of: #"([A-Z]+)([A-Z][a-z])"#, with: "$1 $2", options: .regularExpression)
+            .replacingOccurrences(of: #"([a-z0-9])([A-Z])"#, with: "$1 $2", options: .regularExpression)
+            .replacingOccurrences(of: #"[_-]+"#, with: " ", options: .regularExpression)
+            .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
             .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 

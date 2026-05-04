@@ -6,7 +6,7 @@ This release rolls up the work since 3.2.5.
 
 The last few updates aimed high and, in some places, made the app feel worse than it should have. Sorry about that. 3.5 is focused on making OpenIntelligence feel grounded, reliable, and much less fake in everyday use.
 
-- Starter questions are much more context-aware. They stay closer to real uploaded passages and avoid vague filler or made-up "specs / procedures / requirements" prompts.
+- Starter questions are much more context-aware. They now pick up real document topics, tags, and reference-heavy files instead of falling back to vague filler or made-up "specs / procedures / requirements" prompts.
 - Large imports are more resilient. Queue state, progress, background processing, and long-running ingestion cleanup behave more reliably.
 - PDFs and images now use one adaptive visual-ingestion path instead of a manual fidelity setting, improving recovery on garbled, table-heavy, image-heavy, and small-text pages.
 - Embedded PDF figures and standalone images are preserved as searchable evidence with captions, labels, and nearby page context.

@@ -11,7 +11,7 @@ TECHNICAL CAPABILITIES:
 • 3 Quality Modes: Standard (single-pass fast responses), Deep Think (multi-session agentic reasoning), and Maximum (unlimited reasoning until 98% verified confidence).
 • 8 Agentic Tools: Search, compare, summarize, timeline, extract, define, calculate, and analyze across your library.
 • Adaptive Follow-Ups: Dynamic suggestions generated from the current answer and context flow.
-• Active Library Starter Questions: Contextual prompts grounded in the active library instead of generic filler.
+• Active Library Starter Questions: First-touch prompts now key off real document topics, tags, and reference-heavy files so the app opens with sharper, less generic questions.
 • AI Hub Transforms: Convert answers fluidly into Key Facts, Step-by-Steps, Plain English, Gap Analysis, and Illustrations.
 • Advanced OCR Engine: Multi-column 360 DPI optical character recognition with font cipher detection.
 • Motherboard HUD: A real-time Apple Silicon telemetry overlay to watch your device work.

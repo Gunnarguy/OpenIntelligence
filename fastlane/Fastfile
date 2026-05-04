@@ -42,6 +42,8 @@ platform :ios do
       export_method: "app-store",
       output_directory: "./build",
       output_name: "OpenIntelligence.ipa",
+      xcargs: "-allowProvisioningUpdates",
+      export_xcargs: "-allowProvisioningUpdates",
       export_options: {
         signingStyle: "automatic",
         teamID: TEAM_ID
@@ -132,7 +134,9 @@ platform :ios do
     build_app(
       scheme: SCHEME,
       project: PROJECT_PATH,
-      export_method: "app-store"
+      export_method: "app-store",
+      xcargs: "-allowProvisioningUpdates",
+      export_xcargs: "-allowProvisioningUpdates"
     )
     upload_to_testflight(
       api_key: api_key,

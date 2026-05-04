@@ -231,6 +231,10 @@ final class BackgroundTaskService: Sendable {
     @MainActor
     @available(iOS 26.0, *)
     private func shouldRequestBackgroundGPU() -> Bool {
+#if !DEBUG
+        return false
+#else
+
         let device = DeviceCapabilityService.shared
         let thermalState = ProcessInfo.processInfo.thermalState
 
@@ -242,6 +246,7 @@ final class BackgroundTaskService: Sendable {
         }
 
         return true
+#endif
     }
 
     @MainActor

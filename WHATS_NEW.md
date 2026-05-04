@@ -9,6 +9,7 @@ This is a polish and trust update focused on making the app feel less fake at fi
 ## Highlights
 
 - Empty-chat starter questions are now stricter and more grounded, with the model limited to polishing already-supported question drafts instead of inventing speculative asks or canned "specs / procedures / requirements" filler.
+- First-touch starter prompts now also lean on real document topics, tags, and reference-heavy file signals, so the app opens with sharper questions instead of flat document-type boilerplate.
 - Weakly supported suggestion ideas now fail closed to safer prompts, especially around warnings, conditional instructions, and misleading duration or capability questions.
 - Clean digital scientific PDFs ingest more cleanly, with less chance of fake tables, broken headings, or reference-page chunk explosions contaminating retrieval.
 - Long-running user-initiated imports behave more reliably, including cleaner background-processing state and stronger Live Activity lifecycle handling.

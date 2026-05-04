@@ -944,51 +944,251 @@ actor SuggestedQuestionsService {
         for document: Document,
         documentName: String
     ) -> [(text: String, category: QuestionCategory, confidence: Double)] {
-        switch Self.fallbackPromptProfile(for: document, documentName: documentName) {
-        case .spreadsheet:
-            return [
-                ("Which numbers in \(documentName) matter most?", .numerical, 0.53),
-                ("Are there any thresholds or outliers in \(documentName)?", .numerical, 0.50),
-                ("What changed or stands out in \(documentName)?", .analytical, 0.47),
-            ]
-        case .media:
-            return [
-                ("What decisions came out of \(documentName)?", .procedural, 0.53),
-                ("What follow-up is mentioned in \(documentName)?", .procedural, 0.50),
-                ("Was anything left unresolved in \(documentName)?", .analytical, 0.47),
-            ]
-        case .code:
-            return [
-                ("What does \(documentName) configure?", .factRetrieval, 0.53),
-                ("Which setting in \(documentName) matters most?", .factRetrieval, 0.50),
-                ("Is there anything risky or easy to miss in \(documentName)?", .analytical, 0.47),
-            ]
-        case .research:
-            return [
-                ("What question is \(documentName) trying to answer?", .analytical, 0.53),
-                ("What did \(documentName) actually find?", .factRetrieval, 0.50),
-                ("Were any limits or caveats called out in \(documentName)?", .analytical, 0.47),
-            ]
-        case .manual:
-            return [
-                ("What should I pay attention to first in \(documentName)?", .factRetrieval, 0.53),
-                ("Are there any warnings or limits in \(documentName)?", .factRetrieval, 0.50),
-                ("What does \(documentName) say to do next?", .procedural, 0.47),
-            ]
-        case .general:
-            return [
-                ("What should I pay attention to in \(documentName)?", .factRetrieval, 0.53),
-                ("Is there anything easy to miss in \(documentName)?", .analytical, 0.50),
-                ("What numbers, limits, or warnings stand out in \(documentName)?", .factRetrieval, 0.47),
-            ]
+        let profile = Self.fallbackPromptProfile(for: document, documentName: documentName)
+        let topics = Self.fallbackTopicPhrases(for: document, documentName: documentName)
+        let hasStructuredSignals = Self.hasStructuredReferenceSignals(for: document)
+
+        var candidates: [(text: String, category: QuestionCategory, confidence: Double)] = []
+
+        for topic in topics.prefix(2) {
+            candidates.append(contentsOf: Self.topicDrivenFallbackCandidates(
+                profile: profile,
+                topic: topic,
+                documentName: documentName,
+                hasStructuredSignals: hasStructuredSignals
+            ))
         }
+
+        if candidates.count < 3 {
+            candidates.append(contentsOf: Self.genericFallbackCandidates(
+                profile: profile,
+                documentName: documentName,
+                hasStructuredSignals: hasStructuredSignals
+            ))
+        }
+
+        return Array(Self.dedupeFallbackCandidates(candidates).prefix(3))
     }
 
     static func starterFallbackPrompts(for document: Document, documentName: String) -> [String] {
         Self.fallbackCandidates(for: document, documentName: documentName).map(\.text)
     }
 
+    private static func topicDrivenFallbackCandidates(
+        profile: FallbackPromptProfile,
+        topic: String,
+        documentName: String,
+        hasStructuredSignals: Bool
+    ) -> [(text: String, category: QuestionCategory, confidence: Double)] {
+        switch profile {
+        case .spreadsheet:
+            return [
+                ("Which values in \(documentName) matter most for \(topic)?", .numerical, 0.61),
+                ("Are there thresholds, outliers, or deltas around \(topic) in \(documentName)?", .numerical, 0.58),
+                ("What changed most around \(topic) in \(documentName)?", .analytical, 0.55),
+            ]
+        case .media:
+            return [
+                ("What did people decide about \(topic) in \(documentName)?", .procedural, 0.61),
+                ("What follow-up around \(topic) is mentioned in \(documentName)?", .procedural, 0.58),
+                ("What still sounds unresolved about \(topic) in \(documentName)?", .analytical, 0.55),
+            ]
+        case .code:
+            return [
+                ("Where is \(topic) defined or configured in \(documentName)?", .factRetrieval, 0.61),
+                ("What would changing \(topic) affect in \(documentName)?", .analytical, 0.58),
+                ("Which setting tied to \(topic) is easiest to miss in \(documentName)?", .factRetrieval, 0.55),
+            ]
+        case .research:
+            return [
+                ("What does \(documentName) actually say about \(topic)?", .factRetrieval, 0.61),
+                ("What result or evidence around \(topic) matters most in \(documentName)?", .analytical, 0.58),
+                ("What caveats or limits around \(topic) show up in \(documentName)?", .analytical, 0.55),
+            ]
+        case .manual:
+            let firstQuestion: (text: String, category: QuestionCategory, confidence: Double)
+            if hasStructuredSignals {
+                firstQuestion = ("Which specs or limits for \(topic) should I check in \(documentName)?", .factRetrieval, 0.61)
+            } else {
+                firstQuestion = ("What does \(documentName) say to do with \(topic)?", .procedural, 0.61)
+            }
+
+            return [
+                firstQuestion,
+                ("Are there any warnings or edge cases around \(topic) in \(documentName)?", .analytical, 0.58),
+                ("What should I verify first about \(topic) in \(documentName)?", .factRetrieval, 0.55),
+            ]
+        case .general:
+            let firstQuestion: (text: String, category: QuestionCategory, confidence: Double)
+            if hasStructuredSignals {
+                firstQuestion = ("Which numbers or limits around \(topic) stand out in \(documentName)?", .numerical, 0.61)
+            } else {
+                firstQuestion = ("What should I understand first about \(topic) in \(documentName)?", .factRetrieval, 0.61)
+            }
+
+            return [
+                firstQuestion,
+                ("What detail about \(topic) is easy to miss in \(documentName)?", .analytical, 0.58),
+                ("What does \(documentName) make clear about \(topic)?", .factRetrieval, 0.55),
+            ]
+        }
+    }
+
+    private static func genericFallbackCandidates(
+        profile: FallbackPromptProfile,
+        documentName: String,
+        hasStructuredSignals: Bool
+    ) -> [(text: String, category: QuestionCategory, confidence: Double)] {
+        switch profile {
+        case .spreadsheet:
+            return [
+                ("Which specs, values, or deltas in \(documentName) matter most?", .numerical, 0.56),
+                ("Where are the thresholds or outliers in \(documentName)?", .numerical, 0.53),
+                ("What changed most inside \(documentName)?", .analytical, 0.50),
+            ]
+        case .media:
+            return [
+                ("What decisions or follow-up items came out of \(documentName)?", .procedural, 0.56),
+                ("What does \(documentName) leave unresolved?", .analytical, 0.53),
+                ("What should I act on after reading \(documentName)?", .procedural, 0.50),
+            ]
+        case .code:
+            return [
+                ("Which config or constant in \(documentName) is easiest to miss?", .factRetrieval, 0.56),
+                ("What does \(documentName) actually control?", .factRetrieval, 0.53),
+                ("What in \(documentName) looks risky to change?", .analytical, 0.50),
+            ]
+        case .research:
+            return [
+                ("What result in \(documentName) actually matters?", .factRetrieval, 0.56),
+                ("What evidence in \(documentName) feels strongest?", .analytical, 0.53),
+                ("What caveat or limitation should I keep in mind from \(documentName)?", .analytical, 0.50),
+            ]
+        case .manual:
+            let firstQuestion: (text: String, category: QuestionCategory, confidence: Double)
+            if hasStructuredSignals {
+                firstQuestion = ("Which step, spec, or limit in \(documentName) should I check first?", .factRetrieval, 0.56)
+            } else {
+                firstQuestion = ("Which step or warning in \(documentName) should I check first?", .factRetrieval, 0.56)
+            }
+
+            return [
+                firstQuestion,
+                ("What does \(documentName) say to verify before moving on?", .procedural, 0.53),
+                ("What detail in \(documentName) is easiest to miss?", .analytical, 0.50),
+            ]
+        case .general:
+            let firstQuestion: (text: String, category: QuestionCategory, confidence: Double)
+            if hasStructuredSignals {
+                firstQuestion = ("Which specs, values, or limits in \(documentName) matter most?", .numerical, 0.56)
+            } else {
+                firstQuestion = ("Which part of \(documentName) deserves attention first?", .factRetrieval, 0.56)
+            }
+
+            return [
+                firstQuestion,
+                ("What in \(documentName) is easiest to miss the first time through?", .analytical, 0.53),
+                ("What numbers, constraints, or tradeoffs stand out in \(documentName)?", .factRetrieval, 0.50),
+            ]
+        }
+    }
+
+    private static func fallbackTopicPhrases(for document: Document, documentName: String) -> [String] {
+        var phrases: [String] = []
+
+        if let tags = document.contentTags {
+            phrases.append(contentsOf: tags.compactMap(Self.sanitizedFallbackTopic))
+        }
+
+        phrases.append(contentsOf: Self.filenameTopicPhrases(from: documentName))
+
+        var seen: Set<String> = []
+        return phrases.filter { phrase in
+            seen.insert(phrase.lowercased()).inserted
+        }
+    }
+
+    private static func filenameTopicPhrases(from documentName: String) -> [String] {
+        let words = Self.humanizedDocumentName(documentName)
+            .split { !$0.isLetter && !$0.isNumber }
+            .map(String.init)
+            .filter { token in
+                let lower = token.lowercased()
+                return lower.count >= 3
+                    && !Self.genericStopEntities.contains(lower)
+                    && !Self.matchStopTokens.contains(lower)
+                    && !Self.researchFilenameSignals.contains(lower)
+                    && !Self.manualFilenameSignals.contains(lower)
+                    && !Self.filenameTopicNoiseTokens.contains(lower)
+            }
+
+        guard !words.isEmpty else { return [] }
+
+        var candidates: [String] = []
+        if words.count >= 2 {
+            candidates.append(words.prefix(2).joined(separator: " "))
+        }
+        if words.count >= 3 {
+            candidates.append(words.prefix(3).joined(separator: " "))
+        }
+        candidates.append(words[0])
+
+        return candidates.compactMap(Self.sanitizedFallbackTopic)
+    }
+
+    private static func sanitizedFallbackTopic(_ rawValue: String) -> String? {
+        let words = Self.humanizedDocumentName(rawValue)
+            .split { !$0.isLetter && !$0.isNumber }
+            .map(String.init)
+            .filter { token in
+                let lower = token.lowercased()
+                return lower.count >= 3
+                    && !Self.genericStopEntities.contains(lower)
+                    && !Self.matchStopTokens.contains(lower)
+                    && !Self.researchFilenameSignals.contains(lower)
+                    && !Self.manualFilenameSignals.contains(lower)
+                    && !Self.filenameTopicNoiseTokens.contains(lower)
+            }
+
+        guard !words.isEmpty else { return nil }
+        return words.prefix(3).joined(separator: " ")
+    }
+
+    private static func hasStructuredReferenceSignals(for document: Document) -> Bool {
+        if document.contentType == .excel || document.contentType == .numbers || document.contentType == .csv {
+            return true
+        }
+
+        guard let metadata = document.processingMetadata else { return false }
+        return metadata.documentCategory == .referenceTable
+            || metadata.tablesExtracted > 0
+            || metadata.tableRowsTotal > 0
+            || metadata.tableColumnsMax > 0
+    }
+
+    private static func dedupeFallbackCandidates(
+        _ candidates: [(text: String, category: QuestionCategory, confidence: Double)]
+    ) -> [(text: String, category: QuestionCategory, confidence: Double)] {
+        var seen: Set<String> = []
+        return candidates.filter { candidate in
+            seen.insert(candidate.text.lowercased()).inserted
+        }
+    }
+
     private static func fallbackPromptProfile(for document: Document, documentName: String) -> FallbackPromptProfile {
+        if let category = document.processingMetadata?.documentCategory {
+            switch category {
+            case .referenceTable:
+                return .spreadsheet
+            case .scientificPaper:
+                return .research
+            case .technicalManual, .regulatory:
+                return .manual
+            case .general:
+                break
+            }
+        }
+
         switch document.contentType {
         case .excel, .numbers, .csv:
             return .spreadsheet
@@ -1196,10 +1396,16 @@ actor SuggestedQuestionsService {
     }
 
     private func displayDocumentName(_ filename: String) -> String {
+        Self.humanizedDocumentName(filename)
+    }
+
+    private static func humanizedDocumentName(_ filename: String) -> String {
         filename
             .replacingOccurrences(of: "\\.[^.]+$", with: "", options: .regularExpression)
-            .replacingOccurrences(of: "_", with: " ")
-            .replacingOccurrences(of: "-", with: " ")
+            .replacingOccurrences(of: #"([A-Z]+)([A-Z][a-z])"#, with: "$1 $2", options: .regularExpression)
+            .replacingOccurrences(of: #"([a-z0-9])([A-Z])"#, with: "$1 $2", options: .regularExpression)
+            .replacingOccurrences(of: #"[_-]+"#, with: " ", options: .regularExpression)
+            .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
             .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
@@ -1542,6 +1748,13 @@ actor SuggestedQuestionsService {
         "corresponding author", "published online", "accepted for publication", "doi",
         "conflict of interest", "conflicts of interest", "competing interests",
         "author contributions", "funding", "acknowledg", "keywords"
+    ]
+
+    private static let filenameTopicNoiseTokens: Set<String> = [
+        "trace", "response", "mode", "quality", "maximum", "minimum", "sample",
+        "samples", "fixture", "fixtures", "final", "draft", "copy", "scan",
+        "image", "photo", "validation", "deepthink", "latest", "output",
+        "random", "test", "tests", "version"
     ]
 
     /// Extract number-in-context phrases like "360 DPI", "14.3 US gal", "$49.99/year"
