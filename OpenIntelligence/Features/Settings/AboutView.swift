@@ -1,11 +1,9 @@
 import SwiftUI
 
 enum OpenIntelligenceLinks {
-    static let roadmapURL = URL(string: "https://gunzino.notion.site/98fb2f9dc3294cb5a283fabfaf7aee0a?v=33b49a74d54f81c5a6f2000c94fb8c3b&pvs=25")!
-    static let feedbackBoardURL = URL(string: "https://gunzino.notion.site/483120d0efa34513816f9fa43764ee2e?v=97202e3dfa49450b93f0159beb0978c9&pvs=25")!
     static let githubURL = URL(string: "https://github.com/Gunnarguy/OpenIntelligence")!
     static let appStoreURL = URL(string: "https://apps.apple.com/us/app/openintelligence/id6756559175")!
-    static let feedbackEmailAddress = "Gunnarguy@me.com"
+    static let feedbackEmailAddress = "gunnarguy@me.com"
 
     static func feedbackMailtoURL(source: String) -> URL {
         let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "unknown"
@@ -140,23 +138,15 @@ struct AboutView: View {
                     }
 
                     SurfaceCard {
-                        SectionHeader(icon: "map", title: "Roadmap & Feedback")
+                        SectionHeader(icon: "bubble.left.and.exclamationmark.bubble.right.fill", title: "Feature Requests")
                         VStack(alignment: .leading, spacing: 10) {
                             externalLinkRow(
-                                title: "Roadmap",
-                                subtitle: "See what shipped, what is active, and what is next",
-                                icon: "map.fill",
-                                tint: .teal
-                            ) {
-                                openURL(OpenIntelligenceLinks.roadmapURL)
-                            }
-                            externalLinkRow(
-                                title: "Feature Requests & Feedback",
-                                subtitle: "Vote on ideas and add bugs or product requests",
-                                icon: "bubble.left.and.exclamationmark.bubble.right.fill",
+                                title: "Send a Feature Request",
+                                subtitle: "Email feature ideas and product requests directly from the app",
+                                icon: "sparkles.rectangle.stack.fill",
                                 tint: .orange
                             ) {
-                                openURL(OpenIntelligenceLinks.feedbackBoardURL)
+                                openFeatureRequestEmail()
                             }
                         }
                     }
@@ -171,7 +161,7 @@ struct AboutView: View {
 
                             externalLinkRow(
                                 title: OpenIntelligenceLinks.feedbackEmailAddress,
-                                subtitle: "Feature ideas, bugs, and roadmap feedback land in the product inbox",
+                                subtitle: "Feature ideas, bugs, and product feedback land in the product inbox",
                                 icon: "envelope.fill",
                                 tint: .accentColor
                             ) {
@@ -276,6 +266,10 @@ struct AboutView: View {
 
     private func openEmail() {
         openURL(OpenIntelligenceLinks.feedbackMailtoURL(source: "About Screen"))
+    }
+
+    private func openFeatureRequestEmail() {
+        openURL(OpenIntelligenceLinks.feedbackMailtoURL(source: "About Screen Feature Request"))
     }
 }
 
