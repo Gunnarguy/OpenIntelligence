@@ -4,6 +4,10 @@
 
 Status: `EVALUATION PACKET READY, PRODUCTION SDK BLOCKED BY UPSTREAM INTERFACE VERIFICATION`
 
+Current release alignment: `3.5`
+
+Operational rule: rebuild the evaluation packet from current source after each public release so the buyer packet stays aligned to the live app and engine line.
+
 ## What Is Packaged Right Now
 
 Currently staged in this folder:
@@ -18,6 +22,7 @@ Currently staged in this folder:
 
 - the repo has a small public engine facade
 - the evaluation XCFramework can be rebuilt from current source
+- the staged XCFramework now carries the engine's required model and vocabulary assets
 - staged SDK-style collateral exists
 - the engine can be evaluated as a serious Apple-native prototype
 - a guided import-and-review path exists for technical evaluation

@@ -25,6 +25,20 @@ OpenIntelligence is built for people who need answers from their own material, n
 
 The market shift is away from AI novelty and toward trustworthy answers over private material. That is why the product centers local-first handling, source review, and visible uncertainty instead of generic chatbot performance.
 
+## Repo Lanes
+
+This repository currently carries three distinct lanes:
+
+- public app and product surface
+- engine and SDK evaluation materials
+- buyer and partner operating materials
+
+| Lane | Start here | Why |
+| --- | --- | --- |
+| App and product lane | `HOW_IT_WORKS.md`, `ARCHITECTURE.md`, `CHANGELOG.md`, `WHATS_NEW.md` | Understand the shipping product story and public app surface. |
+| Engine and SDK lane | `output/OpenIntelligence-SDK-Package/START_HERE.md`, `SDK_BOUNDARY_AUDIT.md`, `EngineSale/ENGINE_INVENTORY.md`, `OpenIntelligence/SDK/OpenIntelligenceEngine.swift` | Understand the sellable engine boundary and current technical evaluation packet. |
+| Buyer and partner lane | `EngineSale/README.md`, `output/OpenIntelligence-Partner-Packet/README.md` | Understand what lives where, what is pushable, and what a buyer actually sees. |
+
 It is especially useful when the cost of a wrong answer is not abstract:
 
 - product and technical documentation
@@ -111,6 +125,8 @@ In this private working repository, the current founder/design-partner packet an
 - `output/OpenIntelligence-SDK-Package/`
 - `output/OpenIntelligence-Partner-Packet/`
 
+Those materials should track the current public release line. The app and engine targets are currently on 3.5, so rebuild the buyer packet from current source before sending it after any future release.
+
 ## Documentation
 
 - [HOW_IT_WORKS.md](HOW_IT_WORKS.md): high-level workflow
@@ -119,6 +135,8 @@ In this private working repository, the current founder/design-partner packet an
 - [CHANGELOG.md](CHANGELOG.md): version history
 - [WHATS_NEW.md](WHATS_NEW.md): release highlights
 - [PRIVACY.md](PRIVACY.md): privacy posture and data handling
+- `EngineSale/README.md`: control tower for the sale lane, push policy, and packet map
+- `EngineSale/ENGINE_INVENTORY.md`: current reusable engine inventory and SDK-boundary hotspot list
 - `output/OpenIntelligence-SDK-Package/START_HERE.md`: private evaluation SDK packet entrypoint
 - `output/OpenIntelligence-Partner-Packet/README.md`: private design-partner and outreach packet
 

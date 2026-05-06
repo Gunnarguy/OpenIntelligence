@@ -118,6 +118,8 @@ Library/Developer/CoreSimulator/Devices/
 *.xcarchive
 output/OpenIntelligence-SDK-Package/build/
 output/OpenIntelligence-SDK-Package/**/*.zip
+output/OpenIntelligence-Partner-Packet/build/
+output/OpenIntelligence-Partner-Packet/**/*.zip
 output/OpenIntelligence-SDK-Package/**/DerivedData/
 output/OpenIntelligence-SDK-Package/**/SDKStatCaches.noindex/
 

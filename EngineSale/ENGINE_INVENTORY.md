@@ -6,6 +6,18 @@ OpenIntelligence Engine is best understood today as a substantial Apple-native d
 
 The repo contains a real engine inside a real app codebase. Some parts are strongly reusable. Some are still tightly tied to the app. This file separates those categories.
 
+## Current SDK Boundary Hotspots
+
+These are the file-level hotspots still worth watching during sellable-engine cleanup:
+
+- `OpenIntelligence/Services/LLM/LLMService.swift`: carries Apple ChatGPT extension and AppIntents code. The framework compile path now excludes the real AppIntents implementation and falls back to the compatibility stub.
+- `OpenIntelligence/Services/Infrastructure/Integration/ContainerService.swift`: still persists active-library state and Spotlight-related toggles through raw `UserDefaults` keys.
+- `OpenIntelligence/Services/Infrastructure/Configuration/SettingsStore.swift`: still mixes engine runtime configuration with SwiftUI-facing app settings and app-storage semantics.
+- `OpenIntelligence/Services/Infrastructure/Monitoring/HardwareTelemetryState.swift`: motherboard HUD diagnostics remain in an engine-included folder because core services still report telemetry through it.
+- `OpenIntelligence/Services/Storage/DocumentationCacheService.swift`: cached web-doc support is app-facing and is now excluded from the engine target.
+- `OpenIntelligence/Services/LLM/ModelResolutionService.swift`: model-status UI service is dead code and is now excluded from the engine target.
+- `OpenIntelligence/Services/Infrastructure/Background/IngestionLiveActivityAttributes.swift`: this app live-activity type was only a stray recovered project reference and has been removed from project metadata.
+
 ## Core Engine
 
 ### Engine entry-point file

@@ -10,7 +10,7 @@ Companion docs:
 - [Implementation Analysis](./IMPLEMENTATION_ANALYSIS_2026_04_24.md)
 - [Storage and Pipeline Trace](./STORAGE_AND_PIPELINE_TRACE.md)
 - [Buyer Readiness and Evaluation](./BUYER_READINESS_AND_EVALUATION.md)
-- [EngineSale README](../EngineSale/README.md)
+- [EngineSale Control Tower](../EngineSale/README.md)
 
 ## Current Status
 

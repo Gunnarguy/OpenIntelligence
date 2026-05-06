@@ -7,11 +7,44 @@ BUILD_DIR="${BUILD_DIR:-$OUTPUT_DIR/build}"
 BUNDLE_DIR="$BUILD_DIR/OpenIntelligenceEngine-Buyer-Packet"
 ZIP_PATH="$BUILD_DIR/OpenIntelligenceEngine-Buyer-Packet.zip"
 FRAMEWORK_NAME="${FRAMEWORK_NAME:-OpenIntelligenceEngine}"
+PROJECT_FILE="${PROJECT_FILE:-OpenIntelligence.xcodeproj/project.pbxproj}"
+XCFRAMEWORK_PATH="$OUTPUT_DIR/${FRAMEWORK_NAME}.xcframework"
 
 function fail() {
   echo "error: $1" >&2
   exit 1
 }
+
+function detect_release_line() {
+  local project_file="$1"
+  if [[ -f "$project_file" ]]; then
+    /usr/bin/grep -m 1 'MARKETING_VERSION = ' "$project_file" | /usr/bin/sed -E 's/.*MARKETING_VERSION = ([^;]+);/\1/' | /usr/bin/tr -d '[:space:]'
+  fi
+}
+
+function has_find_any() {
+  local path="$1"
+  shift
+
+  for pattern in "$@"; do
+    if /usr/bin/find "$path" -name "$pattern" -print -quit 2>/dev/null | /usr/bin/grep -q .; then
+      return 0
+    fi
+  done
+
+  return 1
+}
+
+function bool_string() {
+  if [[ "$1" -eq 0 ]]; then
+    echo "yes"
+  else
+    echo "no"
+  fi
+}
+
+RELEASE_LINE="${RELEASE_LINE:-$(detect_release_line "$PROJECT_FILE")}"
+[[ -n "$RELEASE_LINE" ]] || RELEASE_LINE="unknown"
 
 [[ -d "$OUTPUT_DIR" ]] || fail "SDK packet not found at $OUTPUT_DIR"
 
@@ -46,10 +79,67 @@ if [[ -d "$OUTPUT_DIR/SampleApp" ]]; then
   /bin/cp -R "$OUTPUT_DIR/SampleApp" "$BUNDLE_DIR/"
 fi
 
+has_swiftinterface=1
+if has_find_any "$XCFRAMEWORK_PATH" '*.swiftinterface'; then
+  has_swiftinterface=0
+fi
+
+has_embedding_model=1
+if has_find_any "$XCFRAMEWORK_PATH" 'EmbeddingModel.mlmodelc' 'EmbeddingModel.mlpackage'; then
+  has_embedding_model=0
+fi
+
+has_reranker_model=1
+if has_find_any "$XCFRAMEWORK_PATH" 'ReRankerModel.mlmodelc' 'ReRankerModel.mlpackage'; then
+  has_reranker_model=0
+fi
+
+has_embedding_vocab=1
+if has_find_any "$XCFRAMEWORK_PATH" 'embedding_vocab.json'; then
+  has_embedding_vocab=0
+fi
+
+has_reranker_vocab=1
+if has_find_any "$XCFRAMEWORK_PATH" 'reranker_vocab.json'; then
+  has_reranker_vocab=0
+fi
+
+has_privacy_manifest=1
+if has_find_any "$XCFRAMEWORK_PATH" 'PrivacyInfo.xcprivacy'; then
+  has_privacy_manifest=0
+fi
+
+cat > "$BUNDLE_DIR/ARTIFACT_STATUS.txt" <<EOF
+OpenIntelligence Engine artifact status
+
+Built from repo release line: $RELEASE_LINE
+
+Hard truth:
+- staged XCFramework present: $(if [[ -d "$XCFRAMEWORK_PATH" ]]; then echo "yes"; else echo "no"; fi)
+- required model resources bundled in staged XCFramework: $(if [[ $has_embedding_model -eq 0 && $has_reranker_model -eq 0 && $has_embedding_vocab -eq 0 && $has_reranker_vocab -eq 0 ]]; then echo "yes"; else echo "no"; fi)
+- packaged privacy manifest present: $(bool_string $has_privacy_manifest)
+- evaluation compiler support included: $(if [[ -d "$OUTPUT_DIR/EvaluationSupport" ]]; then echo "yes"; else echo "no"; fi)
+- packet-local sample host app included: $(if [[ -d "$OUTPUT_DIR/SampleApp" ]]; then echo "yes"; else echo "no"; fi)
+- module-stable swiftinterface files present: $(bool_string $has_swiftinterface)
+- packet classification: $(if [[ $has_swiftinterface -eq 0 ]]; then echo "module-stable candidate"; else echo "evaluation-only"; fi)
+- self-serve commercial SDK ready: $(if [[ $has_swiftinterface -eq 0 ]]; then echo "not yet verified"; else echo "no"; fi)
+
+Why the answer is still no:
+- this buyer packet is currently built by the evaluation path
+- the evaluation XCFramework is created with BUILD_LIBRARY_FOR_DISTRIBUTION=NO and allow-internal-distribution
+- stable commercial archive is still blocked by swift-transformers interface verification during BUILD_LIBRARY_FOR_DISTRIBUTION=YES packaging
+
+Public engine facade source:
+- OpenIntelligence/SDK/OpenIntelligenceEngine.swift
+EOF
+
 cat > "$BUNDLE_DIR/CONTENTS.txt" <<EOF
 OpenIntelligence Engine buyer-safe packet
 
+Built from repo release line: $RELEASE_LINE
+
 Included:
+- ARTIFACT_STATUS.txt
 - START_HERE.md
 - README.md
 - INSTALL.md
@@ -65,6 +155,7 @@ Excluded on purpose:
 If present, ${FRAMEWORK_NAME}.xcframework is included.
 If present, EvaluationSupport/ is included for same-toolchain evaluation imports.
 If present, SampleApp/ is included as a self-contained evaluation host app.
+Read ARTIFACT_STATUS.txt first if you need the direct yes/no status of this packet.
 EOF
 
 (cd "$BUILD_DIR" && /usr/bin/zip -qry "$(basename "$ZIP_PATH")" "$(basename "$BUNDLE_DIR")")
