@@ -329,7 +329,8 @@ extension StructuredAnswer {
         answerIntent: AnswerIntent,
         verificationResult: RAGVerificationResult?,
         structuredGeneration: StructuredRAGGeneration? = nil,
-        loops: Int = 1
+        loops: Int = 1,
+        includeInlineCitations: Bool = true
     ) -> StructuredAnswer {
         let trimmedResponse = response.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedResponse.isEmpty else {
@@ -349,7 +350,8 @@ extension StructuredAnswer {
                 answerIntent: answerIntent,
                 verificationResult: verificationResult,
                 structuredGeneration: structuredGeneration,
-                loops: loops
+                loops: loops,
+                includeInlineCitations: includeInlineCitations
             )
         }
 
@@ -441,7 +443,8 @@ extension StructuredAnswer {
         return sanitizeForVerification(
             builder.build(),
             answerIntent: answerIntent,
-            verificationResult: verificationResult
+            verificationResult: verificationResult,
+            includeInlineCitations: includeInlineCitations
         )
     }
 
@@ -451,7 +454,8 @@ extension StructuredAnswer {
         answerIntent: AnswerIntent,
         verificationResult: RAGVerificationResult?,
         structuredGeneration: StructuredRAGGeneration,
-        loops: Int
+        loops: Int,
+        includeInlineCitations: Bool
     ) -> StructuredAnswer {
         let preferredAnswer = structuredGeneration.answer.trimmingCharacters(in: .whitespacesAndNewlines)
         let answerText = preferredAnswer.isEmpty ? response : preferredAnswer
@@ -543,7 +547,8 @@ extension StructuredAnswer {
         return sanitizeForVerification(
             builder.build(),
             answerIntent: answerIntent,
-            verificationResult: verificationResult
+            verificationResult: verificationResult,
+            includeInlineCitations: includeInlineCitations
         )
     }
 
@@ -795,7 +800,8 @@ extension StructuredAnswer {
     nonisolated private static func sanitizeForVerification(
         _ structuredAnswer: StructuredAnswer,
         answerIntent: AnswerIntent,
-        verificationResult: RAGVerificationResult?
+        verificationResult: RAGVerificationResult?,
+        includeInlineCitations: Bool
     ) -> StructuredAnswer {
         guard let verificationResult else { return structuredAnswer }
 
@@ -840,7 +846,8 @@ extension StructuredAnswer {
         let sanitizedAnswer = renderAnswer(
             from: renderableClaims,
             answerIntent: answerIntent,
-            fallback: structuredAnswer.answer
+            fallback: structuredAnswer.answer,
+            includeInlineCitations: includeInlineCitations
         )
 
         return StructuredAnswer(
@@ -868,10 +875,11 @@ extension StructuredAnswer {
     nonisolated private static func renderAnswer(
         from claims: [StructuredAnswerRenderableClaim],
         answerIntent: AnswerIntent,
-        fallback: String
+        fallback: String,
+        includeInlineCitations: Bool
     ) -> String {
         let renderedClaims = claims
-            .map(renderedClaimText)
+            .map { renderedClaimText($0, includeInlineCitations: includeInlineCitations) }
             .filter { !$0.isEmpty }
 
         guard !renderedClaims.isEmpty else {
@@ -880,7 +888,11 @@ extension StructuredAnswer {
 
         switch answerIntent {
         case .lookup, .tableLookup, .compute:
-            return renderCompactFactAnswer(from: claims, fallback: fallback)
+            return renderCompactFactAnswer(
+                from: claims,
+                fallback: fallback,
+                includeInlineCitations: includeInlineCitations
+            )
         case .procedure:
             return renderedClaims.enumerated().map { index, claim in
                 "\(index + 1). \(claim)"
@@ -890,10 +902,13 @@ extension StructuredAnswer {
         }
     }
 
-    nonisolated private static func renderedClaimText(_ claim: StructuredAnswerRenderableClaim) -> String {
+    nonisolated private static func renderedClaimText(
+        _ claim: StructuredAnswerRenderableClaim,
+        includeInlineCitations: Bool
+    ) -> String {
         let baseText = renderedClaimBody(claim)
 
-        guard !claim.citations.isEmpty else {
+        guard includeInlineCitations, !claim.citations.isEmpty else {
             return baseText
         }
 
@@ -914,10 +929,30 @@ extension StructuredAnswer {
 
     nonisolated private static func renderCompactFactAnswer(
         from claims: [StructuredAnswerRenderableClaim],
-        fallback: String
+        fallback: String,
+        includeInlineCitations: Bool
     ) -> String {
         let fallbackTrimmed = fallback.trimmingCharacters(in: .whitespacesAndNewlines)
-        let selectedClaims = Array(claims.prefix(2))
+        let fallbackWordCount = wordCount(in: fallbackTrimmed)
+        let targetWordBudget = max(48, min(120, max(fallbackWordCount + 12, 64)))
+
+        var selectedClaims: [StructuredAnswerRenderableClaim] = []
+        var accumulatedWords = 0
+
+        for claim in claims.prefix(4) {
+            let body = renderedClaimBody(claim).trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !body.isEmpty else { continue }
+
+            let bodyWords = wordCount(in: body)
+            if !selectedClaims.isEmpty,
+               selectedClaims.count >= 2,
+               accumulatedWords + bodyWords > targetWordBudget {
+                break
+            }
+
+            selectedClaims.append(claim)
+            accumulatedWords += bodyWords
+        }
 
         let compactBodies = selectedClaims
             .map(renderedClaimBody)
@@ -930,7 +965,11 @@ extension StructuredAnswer {
 
         let compactAnswer = compactBodies.joined(separator: " ")
         let mergedCitations = mergedCitationLabels(from: selectedClaims)
-        return paragraphWithCitations(compactAnswer, citations: mergedCitations)
+        return paragraphWithCitations(
+            compactAnswer,
+            citations: mergedCitations,
+            includeInlineCitations: includeInlineCitations
+        )
     }
 
     nonisolated private static func mergedCitationLabels(
@@ -940,13 +979,17 @@ extension StructuredAnswer {
         return Array(NSOrderedSet(array: labels)) as? [String] ?? labels
     }
 
-    nonisolated private static func paragraphWithCitations(_ paragraph: String, citations: [String]) -> String {
+    nonisolated private static func paragraphWithCitations(
+        _ paragraph: String,
+        citations: [String],
+        includeInlineCitations: Bool
+    ) -> String {
         let trimmed = paragraph.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else {
             return citations.joined(separator: " ")
         }
 
-        guard !citations.isEmpty else {
+        guard includeInlineCitations, !citations.isEmpty else {
             return trimmed
         }
 
@@ -955,6 +998,10 @@ extension StructuredAnswer {
         }
 
         return sentenceWithCitations(trimmed, citations: citations)
+    }
+
+    nonisolated private static func wordCount(in text: String) -> Int {
+        text.split(whereSeparator: { $0.isWhitespace || $0.isNewline }).count
     }
 
     nonisolated private static func hedgedClaimText(_ claim: String) -> String {

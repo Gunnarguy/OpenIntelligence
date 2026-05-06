@@ -11,6 +11,12 @@ import UIKit
 import CoreML
 import Metal
 
+enum IngestionExecutionProfile: Sendable {
+    case interactive
+    case continuedProcessingCPUOnly
+    case continuedProcessingGPU
+}
+
 /// Device capability tiers for Apple Intelligence
 enum DeviceCapabilityTier: String, Sendable, Comparable {
     case baseline // A17 Pro (iPhone 15 Pro/Pro Max) - first Apple Intelligence
@@ -143,6 +149,9 @@ struct HardwareExecutionEnvelope: Sendable {
 final class DeviceCapabilityService: @unchecked Sendable {
     static let shared = DeviceCapabilityService()
 
+    private nonisolated static let ingestionExecutionProfileLock = NSLock()
+    private nonisolated(unsafe) static var ingestionExecutionProfileStorage: IngestionExecutionProfile = .interactive
+
     private let cachedTier: DeviceCapabilityTier
     private let cachedChipName: String
     private let cachedMemoryGB: Double
@@ -255,6 +264,10 @@ final class DeviceCapabilityService: @unchecked Sendable {
 
     /// Actual Vision OCR concurrency ceiling used to avoid Metal command buffer instability.
     var visionOperationConcurrency: Int {
+        if isBackgroundCPUSafeIngestionActive {
+            return 1
+        }
+
         if isMac || ProcessInfo.processInfo.isiOSAppOnMac {
             return 4
         }
@@ -462,6 +475,10 @@ final class DeviceCapabilityService: @unchecked Sendable {
     /// IMPORTANT: Mac needs LOWER values despite more power!
     /// macOS Metal command buffer scheduling differs from iOS.
     var visionParsingConcurrency: Int {
+        if isBackgroundCPUSafeIngestionActive {
+            return 1
+        }
+
         // Mac check - active cooling allows sustained throughput
         if isMac || ProcessInfo.processInfo.isiOSAppOnMac {
             return 8  // Mac: 2x the 4 Vision ops, active cooling
@@ -486,6 +503,10 @@ final class DeviceCapabilityService: @unchecked Sendable {
     ///
     /// CRITICAL: Values must coordinate with VisionOCRThrottle maxConcurrentVisionOps!
     var ocrExtractionConcurrency: Int {
+        if isBackgroundCPUSafeIngestionActive {
+            return 1
+        }
+
         // Mac check - active cooling allows sustained throughput
         if isMac || ProcessInfo.processInfo.isiOSAppOnMac {
             return 8  // Mac: matches visionParsingConcurrency, active cooling
@@ -514,6 +535,10 @@ final class DeviceCapabilityService: @unchecked Sendable {
     /// This prevents the OOM crash where 10 × 206 MB = 2 GB of images were held simultaneously.
     /// Quality is UNCHANGED: still 360 DPI, same preprocessing, same Vision accuracy.
     var pdfRenderingConcurrency: Int {
+        if isBackgroundCPUSafeIngestionActive {
+            return 1
+        }
+
         if isMac || ProcessInfo.processInfo.isiOSAppOnMac {
             return 6  // Mac: 16-96 GB RAM, active cooling, 6 × 206 MB = 1.2 GB
         }
@@ -536,6 +561,10 @@ final class DeviceCapabilityService: @unchecked Sendable {
     /// STABLE: Reduced after Metal synchronizeResource crashes.
     /// GPU boost mode disabled - caused Metal command buffer conflicts.
     var embeddingConcurrency: Int {
+        if isBackgroundCPUSafeIngestionActive {
+            return 2
+        }
+
         // Mac check - active cooling allows sustained GPU embedding throughput
         if isMac || ProcessInfo.processInfo.isiOSAppOnMac {
             return 12  // Mac: Active cooling, separate GPU from ANE Vision ops
@@ -570,6 +599,10 @@ final class DeviceCapabilityService: @unchecked Sendable {
 
     /// CoreML compute units based on GPU acceleration level
     var preferredComputeUnits: MLComputeUnits {
+        if isBackgroundCPUSafeIngestionActive {
+            return .cpuOnly
+        }
+
         let level = activeGPUAccelerationLevel
         if level >= 0.9 {
             return .cpuAndGPU  // Force GPU, bypass Neural Engine
@@ -588,6 +621,10 @@ final class DeviceCapabilityService: @unchecked Sendable {
     ///
     /// This prevents ANE contention and can nearly double ingestion throughput.
     var embeddingComputeUnitsDuringIngestion: MLComputeUnits {
+        if isBackgroundCPUSafeIngestionActive {
+            return .cpuOnly
+        }
+
         // Always use GPU for embeddings during ingestion to free ANE for Vision
         // GPU is 5-6% utilized during ingestion - let's put it to work!
         switch cachedTier {
@@ -600,7 +637,11 @@ final class DeviceCapabilityService: @unchecked Sendable {
 
     /// Whether to use GPU-backed CIContext for PDF rendering
     var useGPUForPDFRendering: Bool {
-        activeGPUAccelerationLevel >= 0.3
+        if isBackgroundCPUSafeIngestionActive {
+            return false
+        }
+
+        return activeGPUAccelerationLevel >= 0.3
     }
 
     /// Maximum concurrent GPU operations (image processing, rendering)
@@ -614,6 +655,10 @@ final class DeviceCapabilityService: @unchecked Sendable {
     /// IMPORTANT: Mac needs LOWER values despite more GPU cores!
     /// macOS Metal command buffer scheduling differs from iOS.
     var gpuConcurrency: Int {
+        if isBackgroundCPUSafeIngestionActive {
+            return 1
+        }
+
         // Mac check - active cooling allows sustained GPU throughput
         if isMac || ProcessInfo.processInfo.isiOSAppOnMac {
             return 6  // Mac: Active cooling, more GPU cores
@@ -655,7 +700,39 @@ final class DeviceCapabilityService: @unchecked Sendable {
 
     /// Whether to use Metal compute shaders for vector operations
     var useMetalForVectorOps: Bool {
-        activeGPUAccelerationLevel >= 0.6
+        if isBackgroundCPUSafeIngestionActive {
+            return false
+        }
+
+        return activeGPUAccelerationLevel >= 0.6
+    }
+
+    nonisolated var ingestionExecutionProfile: IngestionExecutionProfile {
+        Self.ingestionExecutionProfileLock.lock()
+        defer { Self.ingestionExecutionProfileLock.unlock() }
+        return Self.ingestionExecutionProfileStorage
+    }
+
+    nonisolated static var isBackgroundCPUSafeIngestionProfileActive: Bool {
+        ingestionExecutionProfileLock.lock()
+        defer { ingestionExecutionProfileLock.unlock() }
+
+        switch ingestionExecutionProfileStorage {
+        case .continuedProcessingCPUOnly:
+            return true
+        case .interactive, .continuedProcessingGPU:
+            return false
+        }
+    }
+
+    nonisolated var isBackgroundCPUSafeIngestionActive: Bool {
+        Self.isBackgroundCPUSafeIngestionProfileActive
+    }
+
+    nonisolated func setIngestionExecutionProfile(_ profile: IngestionExecutionProfile) {
+        Self.ingestionExecutionProfileLock.lock()
+        Self.ingestionExecutionProfileStorage = profile
+        Self.ingestionExecutionProfileLock.unlock()
     }
 
     /// Get optimized AgenticConfig for current device

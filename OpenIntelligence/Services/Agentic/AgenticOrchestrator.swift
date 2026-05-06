@@ -1208,7 +1208,7 @@ final class AgenticOrchestrator: Sendable {
         // sentences from ALL candidates. With 2800 chars, this fits targeted
         // data from 8-12 sources instead of 3 whole chunks.
         // Universal across all document types.
-        let extraction = ragService.extractRelevantSentences(
+        let extraction = await ragService.extractRelevantSentences(
             from: chunks,
             query: query,
             maxChars: maxContextChars,
@@ -3791,7 +3791,7 @@ extension AgenticOrchestrator {
             for c in windowChunks { allSources.insert(c.sourceDocument) }
             sessionSourceSets.append(Set(windowChunks.map(\.sourceDocument)))
 
-            let extraction = ragService.extractRelevantSentences(
+            let extraction = await ragService.extractRelevantSentences(
                 from: windowChunks,
                 query: query,
                 maxChars: contextBudget,
@@ -5117,7 +5117,7 @@ extension AgenticOrchestrator {
             // This fits targeted data from all available chunks instead of
             // truncating mid-sentence. Universal across all document types.
             let maxContextChars = 2500 // ~600 tokens, leaves room for prompt + response
-            let extraction = ragService.extractRelevantSentences(
+            let extraction = await ragService.extractRelevantSentences(
                 from: sessionChunks,
                 query: query,
                 maxChars: maxContextChars,

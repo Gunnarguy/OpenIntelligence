@@ -1758,20 +1758,42 @@ struct LLMResponse {
             let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !trimmed.isEmpty else { return false }
 
-            // Short responses are always considered complete — the LLM said what it wanted
+            let terminalPunctuation: Set<Character> = [".", "!", "?", ":", ";", "\"", "'", ")", "]", "}"]
+            guard let lastChar = trimmed.last else { return false }
+            let lastLine = trimmed.components(separatedBy: .newlines).last?.trimmingCharacters(in: .whitespacesAndNewlines) ?? trimmed
+            let listPrefixes = ["- ", "* ", "• "]
+            let incompleteMarkers: Set<String> = ["and", "or", "but", "the", "a", "an", "to", "of"]
+            let lastWord = String(trimmed.split(separator: " ").last ?? "").lowercased()
+            let looksStandaloneValue = wordCountLooksLikeStandaloneValue(trimmed)
+
+            // Very short value answers are usually complete even without a final period.
+            // For other short answers, still allow continuation when they clearly end mid-thought.
             let wordCount = trimmed.split(separator: " ").count
-            if wordCount < 15 { return false }
+            if wordCount < 15 {
+                if looksStandaloneValue {
+                    return false
+                }
+
+                if !terminalPunctuation.contains(lastChar) {
+                    return true
+                }
+
+                if listPrefixes.contains(where: { lastLine.hasPrefix($0) }) && !terminalPunctuation.contains(lastChar) {
+                    return true
+                }
+
+                if incompleteMarkers.contains(lastWord) {
+                    return true
+                }
+
+                return false
+            }
 
             // If response contains repetition already, do NOT continue — it'll only get worse
             if containsRepetition(trimmed) { return false }
 
             // Check for obvious truncation indicators
-            guard let lastChar = trimmed.last else { return false }
-            let lastLine = trimmed.components(separatedBy: .newlines).last?.trimmingCharacters(in: .whitespacesAndNewlines) ?? trimmed
-            let listPrefixes = ["- ", "* ", "• "]
-
             // Response ends mid-sentence (no terminal punctuation)
-            let terminalPunctuation: Set<Character> = [".", "!", "?", ":", ";", "\"", "'", ")", "]", "}"]
             if !terminalPunctuation.contains(lastChar) {
                 // But not if it's a code block or explicit newline termination
                 if !trimmed.hasSuffix("```") && !trimmed.hasSuffix("\n") {
@@ -1785,8 +1807,6 @@ struct LLMResponse {
             }
 
             // Response ends with incomplete conjunction/article (genuine mid-sentence cutoff)
-            let incompleteMarkers: Set<String> = ["and", "or", "but", "the", "a", "an", "to", "of"]
-            let lastWord = String(trimmed.split(separator: " ").last ?? "").lowercased()
             if incompleteMarkers.contains(lastWord) {
                 return true
             }
@@ -1798,6 +1818,13 @@ struct LLMResponse {
             }
 
             return false
+        }
+
+        private func wordCountLooksLikeStandaloneValue(_ text: String) -> Bool {
+            text.range(
+                of: #"^\s*(?:[A-Z]{2,}|\d+(?:[.,]\d+)?(?:\s*[A-Za-z%/.-]+){0,3}|[A-Za-z]+\s*:\s*\d+(?:[.,]\d+)?(?:\s*[A-Za-z%/.-]+){0,3})(?:\s*\[[^\]]+\])?\s*$"#,
+                options: [.regularExpression, .caseInsensitive]
+            ) != nil
         }
 
         /// Detects if text contains significant repetition (same phrase appearing multiple times)

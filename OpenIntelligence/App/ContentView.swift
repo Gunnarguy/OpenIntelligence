@@ -272,8 +272,11 @@ struct ContentView: View {
             }
 
         case .inactive:
-            // Transitional state - no action needed
-            break
+            Task { @MainActor in
+                ragService.persistIngestionQueueState()
+                ragService.saveSessionTranscript()
+                Log.debug("[App] Scene became inactive - checkpointed transcript and ingestion state", category: .initialization)
+            }
 
         @unknown default:
             break
@@ -286,6 +289,8 @@ struct ContentView: View {
 
         if url.host == "documents" {
             selectedTab = .documents
+        } else if url.host == "chat" {
+            selectedTab = .chat
         }
     }
 }

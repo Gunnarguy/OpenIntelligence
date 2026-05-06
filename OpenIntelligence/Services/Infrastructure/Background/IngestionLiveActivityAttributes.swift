@@ -49,6 +49,7 @@ enum IngestionLiveActivityThermalBucket: String, Codable, Hashable, Sendable {
 enum OpenIntelligenceDeepLink {
     static let scheme = "openintelligence"
     static let ingestionQueueURL = URL(string: "openintelligence://documents/ingestion")!
+    static let queryChatURL = URL(string: "openintelligence://chat/query")!
 }
 
 #if canImport(ActivityKit)
@@ -71,5 +72,16 @@ struct IngestionLiveActivityAttributes: ActivityAttributes {
 
     let sessionID: UUID
     let containerName: String
+}
+
+@available(iOS 17.0, *)
+struct QueryLiveActivityAttributes: ActivityAttributes {
+    struct ContentState: Codable, Hashable, Sendable {
+        let progress: Double
+        let title: String
+        let subtitle: String
+    }
+
+    let sessionID: UUID
 }
 #endif

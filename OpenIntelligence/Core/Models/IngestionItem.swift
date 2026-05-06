@@ -13,20 +13,38 @@ enum IngestionStage: String, CaseIterable, Codable, Sendable {
     case indexing // BM25 + vector index building
     case storing
     case complete
+    case cancelled
     case failed
 
-    static let pipelineStages: [IngestionStage] = [
+        nonisolated static let pipelineStages: [IngestionStage] = [
         .loading,
-.transcribing,
+        .transcribing,
         .extracting,
         .chunking,
         .analyzing,
-.adapting,
+        .adapting,
         .reindexing,
         .embedding,
-.indexing,
+        .indexing,
         .storing,
     ]
+
+    nonisolated private static let pipelineStageWeights: [IngestionStage: Double] = [
+        .loading: 0.05,
+        .transcribing: 0.03,
+        .extracting: 0.52,
+        .chunking: 0.08,
+        .analyzing: 0.08,
+        .adapting: 0.04,
+        .reindexing: 0.04,
+        .embedding: 0.10,
+        .indexing: 0.04,
+        .storing: 0.02,
+    ]
+
+    nonisolated private static let pipelineTotalWeight: Double = pipelineStages.reduce(0) {
+        $0 + (pipelineStageWeights[$1] ?? 0)
+    }
 
     var displayName: String {
         switch self {
@@ -42,16 +60,36 @@ enum IngestionStage: String, CaseIterable, Codable, Sendable {
         case .indexing: return "Indexing"
         case .storing: return "Storing"
         case .complete: return "Complete"
+        case .cancelled: return "Cancelled"
         case .failed: return "Failed"
         }
     }
 
-    var pipelineIndex: Int? {
+    nonisolated var pipelineIndex: Int? {
         IngestionStage.pipelineStages.firstIndex(of: self)
     }
 
+    nonisolated var pipelineBaseFraction: Double? {
+        guard pipelineIndex != nil, Self.pipelineTotalWeight > 0 else { return nil }
+
+        var accumulatedWeight = 0.0
+        for stage in Self.pipelineStages {
+            if stage == self {
+                return accumulatedWeight / Self.pipelineTotalWeight
+            }
+            accumulatedWeight += Self.pipelineStageWeights[stage] ?? 0
+        }
+
+        return nil
+    }
+
+    nonisolated var pipelineWeightFraction: Double? {
+        guard pipelineIndex != nil, Self.pipelineTotalWeight > 0 else { return nil }
+        return (Self.pipelineStageWeights[self] ?? 0) / Self.pipelineTotalWeight
+    }
+
     var isTerminal: Bool {
-        self == .complete || self == .failed
+        self == .complete || self == .cancelled || self == .failed
     }
 }
 

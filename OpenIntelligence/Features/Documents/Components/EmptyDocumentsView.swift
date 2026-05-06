@@ -51,7 +51,7 @@ struct EmptyDocumentsView: View {
                     .font(.title2)
                     .fontWeight(.bold)
 
-                Text("Build your knowledge base by adding documents")
+                Text("Start with files that keep their structure")
                     .font(.subheadline)
                     .foregroundColor(.secondary)
                     .multilineTextAlignment(.center)
@@ -93,7 +93,7 @@ struct EmptyDocumentsView: View {
                         .multilineTextAlignment(.center)
                         .foregroundStyle(.secondary)
                 } else {
-                    Text("Sample documents never leave your device. They simply prime the RAG pipeline so your first chat feels grounded.")
+                    Text("PDFs, DOCX/XLSX/PPTX, TXT/MD, CSV, images, and transcriptable media import cleanly. Legacy Office, iWork, XML, code-heavy exports, and dense scientific tables often need cleanup or conversion first.")
                         .font(.footnote)
                         .multilineTextAlignment(.center)
                         .foregroundStyle(.secondary)
@@ -105,19 +105,19 @@ struct EmptyDocumentsView: View {
                 DocumentFeatureRow(
                     icon: "doc.fill",
                     title: "Multiple Formats",
-                    description: "PDF, Text, Markdown, and more"
+                    description: "PDF, Office XML, text, images, and transcripts"
                 )
 
                 DocumentFeatureRow(
                     icon: "bolt.fill",
                     title: "Fast Processing",
-                    description: "Automatic chunking and embedding"
+                    description: "Adaptive OCR, chunking, and local indexing"
                 )
 
                 DocumentFeatureRow(
-                    icon: "cylinder.fill",
-                    title: "Persistent Storage",
-                    description: "Saved locally on your device"
+                    icon: "exclamationmark.triangle.fill",
+                    title: "Format Caveats",
+                    description: "Legacy formats and unusual exports often need cleanup first"
                 )
             }
             .padding(.horizontal, 32)

@@ -45,9 +45,144 @@ private struct ConsolidatedMetrics {
     var mmrLambda: Double = 0.6
 }
 
+@MainActor
+private final class ContinuedQueryCoordinator: ObservableObject {
+    var expirationHandler: (() -> Void)?
+
+    private var trackedSessionId: UUID?
+    private var lastFinishedSessionId: UUID?
+    private var lastFinishedSuccess: Bool?
+    private var title: String = "Answering your question"
+    private var queryPreview: String = ""
+    private var firstTokenObserved = false
+
+    init() {
+        QueryRuntimeBridge.shared.configureContinuedQuery(
+            run: { [weak self] in
+                guard let self else { return false }
+                return await self.awaitTrackedQueryCompletion()
+            },
+            expiration: { [weak self] in
+                self?.expirationHandler?()
+            }
+        )
+    }
+
+    func begin(query: String, sessionId: UUID) {
+        trackedSessionId = sessionId
+        lastFinishedSessionId = nil
+        lastFinishedSuccess = nil
+        firstTokenObserved = false
+        title = "Answering your question"
+        queryPreview = Self.makeQueryPreview(from: query)
+
+        QueryRuntimeBridge.shared.beginUserInitiatedQuery(
+            title: title,
+            subtitle: queryPreview
+        )
+        reportProgress(subtitle: "Preparing answer", fraction: 0.02)
+    }
+
+    func markEmbedding() {
+        reportProgress(subtitle: "Understanding your question", fraction: 0.12)
+    }
+
+    func markSearching() {
+        reportProgress(subtitle: "Searching this library", fraction: 0.36)
+    }
+
+    func markGenerating() {
+        reportProgress(subtitle: "Building the answer", fraction: 0.62)
+    }
+
+    func markFirstToken() {
+        guard !firstTokenObserved else { return }
+        firstTokenObserved = true
+        reportProgress(subtitle: "Writing the answer", fraction: 0.82)
+    }
+
+    func handleScenePhaseChange(_ phase: ScenePhase, isProcessing: Bool) {
+        guard trackedSessionId != nil else {
+            if phase == .active {
+                QueryRuntimeBridge.shared.endForegroundFallbackQueryExtension()
+            }
+            return
+        }
+
+        switch phase {
+        case .inactive, .background:
+            guard isProcessing else { return }
+            QueryRuntimeBridge.shared.beginForegroundFallbackQueryExtensionIfNeeded(
+                reason: "App moved to the background while answering a question."
+            )
+        case .active:
+            QueryRuntimeBridge.shared.endForegroundFallbackQueryExtension()
+        @unknown default:
+            break
+        }
+    }
+
+    func complete(sessionId: UUID, success: Bool) {
+        guard trackedSessionId == sessionId else { return }
+
+        lastFinishedSessionId = sessionId
+        lastFinishedSuccess = success
+        QueryRuntimeBridge.shared.completeUserInitiatedQuery(success: success)
+        trackedSessionId = nil
+        firstTokenObserved = false
+    }
+
+    func cancelCurrentQuery() {
+        guard let trackedSessionId else {
+            QueryRuntimeBridge.shared.endForegroundFallbackQueryExtension()
+            return
+        }
+
+        complete(sessionId: trackedSessionId, success: false)
+    }
+
+    private func reportProgress(subtitle: String, fraction: Double) {
+        guard trackedSessionId != nil else { return }
+
+        QueryRuntimeBridge.shared.updateContinuedQueryProgress(
+            title: title,
+            subtitle: subtitle,
+            fraction: fraction
+        )
+    }
+
+    private func awaitTrackedQueryCompletion() async -> Bool {
+        while !Task.isCancelled {
+            if let trackedSessionId,
+               trackedSessionId == lastFinishedSessionId,
+               let lastFinishedSuccess {
+                return lastFinishedSuccess
+            }
+
+            if trackedSessionId == nil {
+                return lastFinishedSuccess ?? false
+            }
+
+            try? await Task.sleep(nanoseconds: 200_000_000)
+        }
+
+        return false
+    }
+
+    private static func makeQueryPreview(from query: String) -> String {
+        let collapsed = query
+            .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+
+        guard collapsed.count > 72 else { return collapsed }
+        return String(collapsed.prefix(69)).trimmingCharacters(in: .whitespacesAndNewlines) + "..."
+    }
+}
+
 // ChatV2 entry point (feature-flagged from ContentView)
 @MainActor
 struct ChatScreen: View {
+    @Environment(\.scenePhase) private var scenePhase
     @EnvironmentObject private var onboardingStore: OnboardingStateStore
     @EnvironmentObject private var settings: SettingsStore
     @EnvironmentObject private var entitlementStore: EntitlementStore
@@ -140,6 +275,7 @@ struct ChatScreen: View {
     @State private var lastSpeedSampleTokens: Int = 0
     @State private var lastSpeedSampleTime: Date = .init()
     @State private var lastSemanticQuery: String? = nil
+    @StateObject private var continuedQueryCoordinator = ContinuedQueryCoordinator()
 
     @ObservedObject private var networkMonitor = NetworkMonitor.shared
 
@@ -383,9 +519,13 @@ struct ChatScreen: View {
                 _ = processingClock.connect()
             }
         }
+        .onChange(of: scenePhase) { _, newPhase in
+            continuedQueryCoordinator.handleScenePhaseChange(newPhase, isProcessing: isProcessing)
+        }
         // Recalculate counts when active container changes
         .task(id: ragService.containerService.activeContainerId) {
             // Cancel any in-flight query from the previous library to prevent cross-container bleed
+            continuedQueryCoordinator.cancelCurrentQuery()
             currentQuerySessionId = nil
             currentQueryTask?.cancel()
             currentQueryTask = nil
@@ -402,7 +542,10 @@ struct ChatScreen: View {
             if didSeedScreenshotDemo { return }
             #endif
             let activeId = ragService.containerService.activeContainerId
-            messages = ragService.chatHistory(for: activeId)
+            messages = await ragService.preloadChatHistory(for: activeId)
+            guard !Task.isCancelled,
+                ragService.containerService.activeContainerId == activeId
+            else { return }
             await recalcActiveCounts()
 
             // Clear stale per-conversation state from previous library
@@ -561,20 +704,22 @@ struct ChatScreen: View {
             Text(maximumModeLimitDialogMessage)
         }
 .onAppear {
+    continuedQueryCoordinator.expirationHandler = { [weak ragService] in
+        ragService?.cancelActiveGeneration(resetSession: true)
+        Task { @MainActor in
+            self.currentQueryTask?.cancel()
+            self.currentQueryTask = nil
+            self.currentQuerySessionId = nil
+            self.isProcessing = false
+            self.stage = .idle
+            self.resetStreamingState()
+            self.generationStart = nil
+        }
+    }
+    continuedQueryCoordinator.handleScenePhaseChange(scenePhase, isProcessing: isProcessing)
     // Seed screenshot demo FIRST before loading persisted history
     seedScreenshotDemoIfNeeded()
     entitlementStore.refreshTransientState()
-
-    // Only load persisted history if not in screenshot demo mode
-    #if DEBUG
-    if !didSeedScreenshotDemo {
-        let activeId = ragService.containerService.activeContainerId
-        messages = ragService.chatHistory(for: activeId)
-    }
-    #else
-    let activeId = ragService.containerService.activeContainerId
-    messages = ragService.chatHistory(for: activeId)
-    #endif
 }
 // MARK: - NSUserActivity / Handoff
 .userActivity("com.openintelligence.chat") { activity in
@@ -906,7 +1051,7 @@ struct ChatScreen: View {
                 ChatMessage(
                     role: .assistant,
                     content:
-                    "• Privacy-first: Your docs stay on-device by default, with optional Private Cloud Compute.\n" +
+                    "• Privacy-first: Your docs stay on-device by default, with Apple Private Cloud Compute for eligible higher-capacity requests.\n" +
                         "• Fast, grounded answers: Hybrid search + re-ranking helps keep responses tied to your library.\n" +
                         "• Upgrade when ready: Pro unlocks up to 1,000 docs, more libraries, and fewer workspace limits."
                 ),
@@ -1194,8 +1339,13 @@ struct ChatScreen: View {
         messages.isEmpty
     }
 
-    /// Starter prompts - uses dynamic questions if available, falls back to sample doc prompts
+    /// Starter prompts - prefer curated sample-workspace questions, then dynamic questions.
+    /// If a library does not yield grounded prompts yet, fail closed instead of inventing them.
     private var starterPrompts: [String] {
+        if let sampleWorkspaceStarterPrompts = sampleWorkspaceStarterPrompts {
+            return sampleWorkspaceStarterPrompts
+        }
+
         // If we have dynamic questions based on library content, use them
         if !dynamicSuggestedQuestions.isEmpty {
             return dynamicSuggestedQuestions
@@ -1205,13 +1355,13 @@ struct ChatScreen: View {
         if activeDocCount == 0 {
             return [
                 "Import a document from the Documents tab to get started.",
-                "What file types can I import?",
-                "How does on-device search work?",
-                "What kinds of questions can I ask?"
+                "What file types does OpenIntelligence handle best?",
+                "How do answers stay tied to the source?",
+                "When does processing stay on-device?"
             ]
         }
 
-        return documentAwareStarterPrompts
+        return []
     }
 
     private var activeDocumentsForStarterPrompts: [Document] {
@@ -1226,40 +1376,39 @@ struct ChatScreen: View {
         }
     }
 
-    private var documentAwareStarterPrompts: [String] {
-        let docs = activeDocumentsForStarterPrompts.sorted {
-            if $0.totalChunks == $1.totalChunks {
-                return $0.addedAt > $1.addedAt
+    private var sampleWorkspaceStarterPrompts: [String]? {
+        let activeNames = Set(
+            activeDocumentsForStarterPrompts.map {
+                normalizeStarterWorkspaceDocumentName(starterDisplayDocumentName($0.filename))
             }
-            return $0.totalChunks > $1.totalChunks
-        }
+        )
+        let sampleNames: Set<String> = [
+            "openintelligence pricing",
+            "rag technical architecture",
+            "apple intelligence & private cloud compute",
+        ]
 
-        guard !docs.isEmpty else {
-            return SuggestedQuestionsService.genericQuestions
-        }
+        guard activeNames.intersection(sampleNames).count >= 2 else { return nil }
 
-        var prompts: [String] = []
-
-        for document in docs.prefix(2) {
-            let name = starterDisplayDocumentName(document.filename)
-            guard !name.isEmpty else { continue }
-            prompts.append(contentsOf: SuggestedQuestionsService.starterFallbackPrompts(for: document, documentName: name).prefix(2))
-        }
-
-        let deduped = prompts.reduce(into: [String]()) { result, prompt in
-            guard !result.contains(where: { $0.caseInsensitiveCompare(prompt) == .orderedSame }) else { return }
-            result.append(prompt)
-        }
-
-        return Array(deduped.prefix(4))
+        return [
+            "How does OpenIntelligence work around the 4,096-token model limit?",
+            "What file types does OpenIntelligence handle best?",
+            "Why is OpenIntelligence different from a generic AI chat app?",
+            "When does processing stay on-device, and when does Apple Private Cloud Compute step in?"
+        ]
     }
 
     private func starterDisplayDocumentName(_ filename: String) -> String {
         filename
             .replacingOccurrences(of: "\\.[^.]+$", with: "", options: .regularExpression)
-            .replacingOccurrences(of: #"([A-Z]+)([A-Z][a-z])"#, with: "$1 $2", options: .regularExpression)
-            .replacingOccurrences(of: #"([a-z0-9])([A-Z])"#, with: "$1 $2", options: .regularExpression)
-            .replacingOccurrences(of: #"[_-]+"#, with: " ", options: .regularExpression)
+            .replacingOccurrences(of: "_", with: " ")
+            .replacingOccurrences(of: "-", with: " ")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private func normalizeStarterWorkspaceDocumentName(_ name: String) -> String {
+        name
+            .lowercased()
             .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
             .trimmingCharacters(in: .whitespacesAndNewlines)
     }
@@ -2189,6 +2338,7 @@ struct ChatScreen: View {
         let querySessionId = UUID()
         currentQuerySessionId = querySessionId
         resetStreamingState()
+        continuedQueryCoordinator.begin(query: query, sessionId: querySessionId)
 
         // Track this task for potential cancellation
         currentQueryTask = Task(priority: .userInitiated) { [weak ragService] in
@@ -2240,6 +2390,7 @@ struct ChatScreen: View {
                     self.searchingElapsedFinal = nil
                     self.generatingStartTS = nil
                     self.generatingElapsedFinal = nil
+                    self.continuedQueryCoordinator.markEmbedding()
                     // StatusPillV2 shows stage - no toast needed
                     DSHaptics.processingPulse() // Feel the pipeline starting
                 }
@@ -2255,6 +2406,7 @@ struct ChatScreen: View {
                     if let embStart = self.embeddingStart {
                         self.embeddingElapsedFinal = Date().timeIntervalSince(embStart)
                     }
+                    self.continuedQueryCoordinator.markSearching()
                     // StatusPillV2 shows stage - no toast needed
                     DSHaptics.processingPulse() // Feel the search starting
                 }
@@ -2286,6 +2438,7 @@ struct ChatScreen: View {
                     if let searchStart = self.searchingStart, let genStart = self.generationStart {
                         self.searchingElapsedFinal = genStart.timeIntervalSince(searchStart)
                     }
+                    self.continuedQueryCoordinator.markGenerating()
                     // StatusPillV2 shows stage - no toast needed
                     DSHaptics.messageReceived() // Feel the response starting
                 }
@@ -2300,6 +2453,7 @@ struct ChatScreen: View {
                             if event.isFinal {
                                 self.flushStreamingBufferToVisibleText()
                             } else {
+                                self.continuedQueryCoordinator.markFirstToken()
                                 self.enqueueStreamingText(event.text)
                             }
                         }
@@ -2360,6 +2514,7 @@ struct ChatScreen: View {
 
                 await MainActor.run {
                     guard self.currentQuerySessionId == querySessionId else { return }
+                    self.continuedQueryCoordinator.complete(sessionId: querySessionId, success: true)
                     // flushStreamingBufferToVisibleText already handled cleanup when isFinal arrived
                     // No need to reset again here - would race with final flush
                     self.appendAndPersistMessage(assistant, for: capturedUsedContainerId)
@@ -2426,6 +2581,7 @@ struct ChatScreen: View {
                 Log.error("Query failed: \(error.localizedDescription)", category: .llm)
                 await MainActor.run {
                     guard self.currentQuerySessionId == querySessionId else { return }
+                    self.continuedQueryCoordinator.complete(sessionId: querySessionId, success: false)
 
                     // If the user switched libraries, suppress stale cancellation/error UI in the new context
                     guard self.ragService.containerService.activeContainerId == capturedUsedContainerId else {
@@ -2543,6 +2699,7 @@ struct ChatScreen: View {
     }
 
     private func cancelInFlightQueryWork(resetLLMSession: Bool = true) {
+        continuedQueryCoordinator.cancelCurrentQuery()
         currentQuerySessionId = nil
         currentQueryTask?.cancel()
         currentQueryTask = nil
@@ -3235,8 +3392,12 @@ private struct FirstQueryPromptView: View {
             return "Import documents from the Documents tab, then try one of these prompts."
         }
 
+        guard !prompts.isEmpty else {
+            return "No grounded suggestions are ready yet. Ask about a specific warning, requirement, step, setting, or value in this library."
+        }
+
         guard !questionDetails.isEmpty else {
-            return "Suggestions are based on this library's uploaded documents."
+            return "Suggestions are generated from specific passages in this library."
         }
 
         if libraryDocumentCount > sourceDocumentCount && sourceDocumentCount > 0 {
@@ -3282,8 +3443,8 @@ private struct FirstQueryPromptView: View {
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 Spacer()
-                // Refresh button — only show when we have document-grounded suggestions
-                if hasDocuments && !prompts.isEmpty {
+                // Refresh button — allow retry even when the current grounded set is empty.
+                if hasDocuments {
                     Button {
                         DSHaptics.selection()
                         onRefresh()
@@ -3305,46 +3466,48 @@ private struct FirstQueryPromptView: View {
                 }
             }
 
-            VStack(alignment: .leading, spacing: DSSpacing.sm) {
-                ForEach(prompts, id: \.self) { prompt in
-                    Button {
-                        onPromptSelected(prompt)
-                    } label: {
-                        HStack(spacing: DSSpacing.sm) {
-                            // Category icon badge
-                            if let category = categories[prompt] {
-                                Image(systemName: category.icon)
-                                    .font(.system(size: 12, weight: .medium))
-                                    .foregroundStyle(DSColors.accent.opacity(0.7))
-                                    .frame(width: 20, height: 20)
-                            }
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text(prompt)
-                                    .font(DSTypography.body)
-                                    .multilineTextAlignment(.leading)
-                                    .fixedSize(horizontal: false, vertical: true)
-
-                                if let source = sourceLine(for: prompt) {
-                                    Text(source)
-                                        .font(DSTypography.meta)
-                                        .foregroundStyle(DSColors.secondaryText)
-                                        .lineLimit(1)
+            if !prompts.isEmpty {
+                VStack(alignment: .leading, spacing: DSSpacing.sm) {
+                    ForEach(prompts, id: \.self) { prompt in
+                        Button {
+                            onPromptSelected(prompt)
+                        } label: {
+                            HStack(spacing: DSSpacing.sm) {
+                                // Category icon badge
+                                if let category = categories[prompt] {
+                                    Image(systemName: category.icon)
+                                        .font(.system(size: 12, weight: .medium))
+                                        .foregroundStyle(DSColors.accent.opacity(0.7))
+                                        .frame(width: 20, height: 20)
                                 }
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text(prompt)
+                                        .font(DSTypography.body)
+                                        .multilineTextAlignment(.leading)
+                                        .fixedSize(horizontal: false, vertical: true)
+
+                                    if let source = sourceLine(for: prompt) {
+                                        Text(source)
+                                            .font(DSTypography.meta)
+                                            .foregroundStyle(DSColors.secondaryText)
+                                            .lineLimit(1)
+                                    }
+                                }
+                                Spacer(minLength: DSSpacing.sm)
+                                Image(systemName: "arrow.up.circle.fill")
+                                    .foregroundStyle(DSColors.accent)
                             }
-                            Spacer(minLength: DSSpacing.sm)
-                            Image(systemName: "arrow.up.circle.fill")
-                                .foregroundStyle(DSColors.accent)
+                            .padding(.vertical, DSSpacing.xs)
                         }
-                        .padding(.vertical, DSSpacing.xs)
+                        .buttonStyle(.plain)
+                        .padding(.horizontal, DSSpacing.md)
+                        .padding(.vertical, DSSpacing.sm)
+                        .background(
+                            RoundedRectangle(cornerRadius: DSCorners.sheet, style: .continuous)
+                                .fill(DSColors.surface)
+                                .shadow(color: .black.opacity(0.05), radius: 6, x: 0, y: 3)
+                        )
                     }
-                    .buttonStyle(.plain)
-                    .padding(.horizontal, DSSpacing.md)
-                    .padding(.vertical, DSSpacing.sm)
-                    .background(
-                        RoundedRectangle(cornerRadius: DSCorners.sheet, style: .continuous)
-                            .fill(DSColors.surface)
-                            .shadow(color: .black.opacity(0.05), radius: 6, x: 0, y: 3)
-                    )
                 }
             }
         }

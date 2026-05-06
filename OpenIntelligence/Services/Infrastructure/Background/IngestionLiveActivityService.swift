@@ -124,9 +124,8 @@ final class IngestionLiveActivityService {
         let device = DeviceCapabilityService.shared
         let completedCount = items.filter { $0.stage == .complete }.count
         let failedCount = items.filter { $0.stage == .failed }.count
-        let terminalCount = items.filter { $0.stage.isTerminal }.count
         let totalCount = items.count
-        let progress = totalCount == 0 ? 1.0 : Double(terminalCount) / Double(totalCount)
+        let progress = totalCount == 0 ? 1.0 : Double(completedCount) / Double(totalCount)
         let stageLabel = failedCount > 0 ? "Finished with issues" : "Complete"
         let headline: String
         if failedCount > 0 {
@@ -257,37 +256,17 @@ final class IngestionLiveActivityService {
     private func overallProgress(for items: [IngestionItem], currentItem: IngestionItem) -> Double {
         guard !items.isEmpty else { return 0 }
 
-        let terminalCount = items.filter { $0.stage.isTerminal }.count
-        let activeContribution = pipelineContribution(for: currentItem)
-
-        return min(1, (Double(terminalCount) + activeContribution) / Double(items.count))
-    }
-
-    private func pipelineContribution(for item: IngestionItem) -> Double {
-        if item.stage.isTerminal {
-            return 1
+        let completedCount = items.filter { $0.stage == .complete }.count
+        let activeContribution: Double
+        if let explicitProgress = currentItem.progress {
+            activeContribution = explicitProgress
+        } else if let pipelineIndex = currentItem.stage.pipelineIndex {
+            activeContribution = Double(pipelineIndex + 1) / Double(max(1, IngestionStage.pipelineStages.count))
+        } else {
+            activeContribution = currentItem.stage.isTerminal ? 1 : 0
         }
 
-        guard let pipelineIndex = item.stage.pipelineIndex else {
-            return 0
-        }
-
-        let stageCount = Double(max(1, IngestionStage.pipelineStages.count))
-        let stageBase = Double(pipelineIndex) / stageCount
-        let stageSpan = 1.0 / stageCount
-        let stageProgress = min(max(item.progress ?? defaultStageProgress(for: item.stage), 0), 1)
-        return min(0.999, stageBase + stageProgress * stageSpan)
-    }
-
-    private func defaultStageProgress(for stage: IngestionStage) -> Double {
-        switch stage {
-        case .queued:
-            return 0
-        case .loading, .transcribing, .extracting, .chunking, .analyzing, .adapting, .reindexing, .embedding, .indexing, .storing:
-            return 0.35
-        case .complete, .failed:
-            return 1
-        }
+        return min(1, (Double(completedCount) + activeContribution) / Double(items.count))
     }
 
     private func progressQuantum(for device: DeviceCapabilityService) -> Double {
@@ -297,13 +276,13 @@ final class IngestionLiveActivityService {
 
         switch device.tier {
         case .unsupported:
-            return 0.05
+            return 0.10
         case .baseline:
-            return 0.03
+            return 0.05
         case .enhanced:
-            return 0.02
+            return 0.03
         case .advanced, .ultraAdvanced:
-            return 0.01
+            return 0.02
         }
     }
 

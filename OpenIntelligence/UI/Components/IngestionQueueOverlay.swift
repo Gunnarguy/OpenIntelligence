@@ -57,6 +57,8 @@ private func shortChunkStrategy(_ strategy: String) -> String {
 
 struct IngestionQueueOverlay: View {
     let items: [IngestionItem]
+    var onCancelItem: ((UUID) -> Void)? = nil
+    var onCancelAll: (() -> Void)? = nil
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @State private var isMinimized = false
     @State private var isDismissed = false
@@ -73,7 +75,7 @@ struct IngestionQueueOverlay: View {
         case .queued: return 1
         case .loading, .transcribing, .extracting, .chunking, .analyzing, .embedding, .storing,
              .adapting, .reindexing, .indexing: return 0
-        case .complete, .failed: return 2
+        case .complete, .cancelled, .failed: return 2
         }
     }
 
@@ -87,6 +89,14 @@ struct IngestionQueueOverlay: View {
 
     private var failedCount: Int {
         items.filter { $0.stage == .failed }.count
+    }
+
+    private var cancelledCount: Int {
+        items.filter { $0.stage == .cancelled }.count
+    }
+
+    private var hasCancelableItems: Bool {
+        items.contains { !$0.stage.isTerminal }
     }
 
     // MARK: - Aggregated Totals
@@ -136,6 +146,12 @@ struct IngestionQueueOverlay: View {
 
     private var overlayAccentColor: Color {
         if activeCount == 0 {
+            if failedCount > 0 {
+                return .red
+            }
+            if cancelledCount > 0 {
+                return .orange
+            }
             return DSColors.accent
         }
         return gpuBoostActive ? .orange : DSColors.accent
@@ -172,7 +188,10 @@ struct IngestionQueueOverlay: View {
 
                     VStack(spacing: 10) {
                         ForEach(visibleItems) { item in
-                            IngestionQueueRow(item: item)
+                            IngestionQueueRow(
+                                item: item,
+                                onCancel: item.stage.isTerminal ? nil : { onCancelItem?(item.id) }
+                            )
                         }
                     }
 
@@ -280,7 +299,7 @@ struct IngestionQueueOverlay: View {
                 Circle()
                     .fill(overlayAccentColor.opacity(activeCount > 0 ? 0.16 : 0.10))
 
-                Image(systemName: activeCount > 0 ? "tray.and.arrow.down.fill" : "checkmark.circle.fill")
+                Image(systemName: headerIcon)
                     .foregroundStyle(overlayAccentColor)
                     .font(.system(size: 13, weight: .semibold))
             }
@@ -288,7 +307,7 @@ struct IngestionQueueOverlay: View {
 
             VStack(alignment: .leading, spacing: 4) {
                 HStack(spacing: 6) {
-                    Text(activeCount > 0 ? "Processing uploads" : "Upload complete")
+                    Text(headerTitle)
                         .font(.system(size: 14, weight: .semibold))
                         .foregroundStyle(DSColors.primaryText)
 
@@ -345,6 +364,21 @@ struct IngestionQueueOverlay: View {
                 .help(gpuBoostActive ? "Turbo Mode - Tap to cycle" : "Tap to cycle GPU modes")
             }
 
+            if hasCancelableItems {
+                Button {
+                    onCancelAll?()
+                } label: {
+                    Image(systemName: "stop.fill")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(Color.red)
+                        .frame(width: 28, height: 28)
+                        .background(Color.red.opacity(0.10))
+                        .clipShape(Circle())
+                }
+                .buttonStyle(.plain)
+                .help("Cancel all uploads")
+            }
+
             Button {
                 withAnimation { isMinimized.toggle() }
             } label: {
@@ -374,15 +408,46 @@ struct IngestionQueueOverlay: View {
     private var statusLine: String {
         let total = items.count
         let completed = completedCount
-        if failedCount > 0 {
-            return "\(completed)/\(total) complete • \(failedCount) failed"
+        var segments = ["\(completed)/\(total) complete"]
+        if cancelledCount > 0 {
+            segments.append("\(cancelledCount) cancelled")
         }
-        return "\(completed)/\(total) complete"
+        if failedCount > 0 {
+            segments.append("\(failedCount) failed")
+        }
+        return segments.joined(separator: " • ")
+    }
+
+    private var headerTitle: String {
+        if activeCount > 0 {
+            return "Processing uploads"
+        }
+        if failedCount > 0 {
+            return "Upload failed"
+        }
+        if cancelledCount > 0 {
+            return "Upload cancelled"
+        }
+        return "Upload complete"
+    }
+
+    private var headerIcon: String {
+        if activeCount > 0 {
+            return "tray.and.arrow.down.fill"
+        }
+        if failedCount > 0 {
+            return "xmark.octagon.fill"
+        }
+        if cancelledCount > 0 {
+            return "slash.circle.fill"
+        }
+        return "checkmark.circle.fill"
     }
 }
 
 private struct IngestionQueueRow: View {
     let item: IngestionItem
+    var onCancel: (() -> Void)? = nil
     @State private var showDetails = false
 
     var body: some View {
@@ -399,6 +464,15 @@ private struct IngestionQueueRow: View {
                     .foregroundStyle(DSColors.primaryText)
 
                 Spacer()
+
+                if let onCancel, !item.stage.isTerminal {
+                    Button(action: onCancel) {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundStyle(Color.red.opacity(0.9))
+                    }
+                    .buttonStyle(.plain)
+                }
 
                 Text(item.stage.displayName)
                     .font(.caption2)
@@ -1215,6 +1289,7 @@ private struct IngestionQueueRow: View {
         case .indexing: return "magnifyingglass"
         case .storing: return "tray.and.arrow.down"
         case .complete: return "checkmark.circle.fill"
+        case .cancelled: return "slash.circle.fill"
         case .failed: return "xmark.octagon.fill"
         }
     }
@@ -1223,6 +1298,7 @@ private struct IngestionQueueRow: View {
         switch item.stage {
         case .failed: return .red
         case .complete: return .green
+        case .cancelled: return .orange
         case .queued: return .gray
         default: return DSColors.accent
         }
@@ -1250,6 +1326,7 @@ private struct IngestionPipelineSteps: View {
 
     private func stepColor(for index: Int, activeIndex: Int) -> Color {
         if item.stage == .failed { return .red.opacity(0.7) }
+        if item.stage == .cancelled { return .orange.opacity(0.7) }
         if activeIndex == -1 { return Color.gray.opacity(0.2) }
         if index < activeIndex { return Color.green.opacity(0.8) }
         if index == activeIndex { return DSColors.accent }

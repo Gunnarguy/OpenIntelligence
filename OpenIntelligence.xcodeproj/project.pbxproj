@@ -9,39 +9,12 @@
 /* Begin PBXBuildFile section */
 		B016E7B72F0F5F5F00AABA0C /* Tokenizers in Frameworks */ = {isa = PBXBuildFile; productRef = B016E7B62F0F5F5F00AABA0C /* Tokenizers */; };
 		E0A100022F0F5F5F00AABA0C /* Tokenizers in Frameworks */ = {isa = PBXBuildFile; productRef = B016E7B62F0F5F5F00AABA0C /* Tokenizers */; };
-		F0A100012F1A000100AA1001 /* OpenIntelligenceLiveActivities.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = F0A100022F1A000100AA1001 /* OpenIntelligenceLiveActivities.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
-		F0A100032F1A000100AA1001 /* OpenIntelligence/Services/Infrastructure/Background/IngestionLiveActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0A100042F1A000100AA1001 /* OpenIntelligence/Services/Infrastructure/Background/IngestionLiveActivityAttributes.swift */; };
 /* End PBXBuildFile section */
-
-/* Begin PBXContainerItemProxy section */
-		F0A100142F1A000100AA1001 /* PBXContainerItemProxy */ = {
-			isa = PBXContainerItemProxy;
-			containerPortal = B0D565D62E98AC50001274A2 /* Project object */;
-			proxyType = 1;
-			remoteGlobalIDString = F0A100102F1A000100AA1001;
-			remoteInfo = OpenIntelligenceLiveActivities;
-		};
-/* End PBXContainerItemProxy section */
-
-/* Begin PBXCopyFilesBuildPhase section */
-		F0A100072F1A000100AA1001 /* Embed App Extensions */ = {
-			isa = PBXCopyFilesBuildPhase;
-			buildActionMask = 2147483647;
-			dstPath = "";
-			dstSubfolderSpec = 13;
-			files = (
-				F0A100012F1A000100AA1001 /* OpenIntelligenceLiveActivities.appex in Embed App Extensions */,
-			);
-			name = "Embed App Extensions";
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-/* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
 		B0D565DE2E98AC50001274A2 /* OpenIntelligence.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = OpenIntelligence.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		DDFD1600670D479C7075E2C2 /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS18.0.sdk/System/Library/Frameworks/Foundation.framework; sourceTree = DEVELOPER_DIR; };
 		E0A100042F0F5F5F00AABA0C /* OpenIntelligenceEngine.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = OpenIntelligenceEngine.framework; sourceTree = BUILT_PRODUCTS_DIR; };
-		F0A100022F1A000100AA1001 /* OpenIntelligenceLiveActivities.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = OpenIntelligenceLiveActivities.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		F0A100042F1A000100AA1001 /* OpenIntelligence/Services/Infrastructure/Background/IngestionLiveActivityAttributes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenIntelligence/Services/Infrastructure/Background/IngestionLiveActivityAttributes.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -68,13 +41,6 @@
 				WritingToolsService.swift,
 			);
 			target = E0A100072F0F5F5F00AABA0C /* OpenIntelligenceEngine */;
-		};
-		F0A100162F1A000100AA1001 /* Exceptions for "OpenIntelligenceLiveActivities" folder in "OpenIntelligenceLiveActivities" target */ = {
-			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
-			membershipExceptions = (
-				Info.plist,
-			);
-			target = F0A100102F1A000100AA1001 /* OpenIntelligenceLiveActivities */;
 		};
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
@@ -168,14 +134,6 @@
 			path = OpenIntelligence/Services/VectorStore;
 			sourceTree = "<group>";
 		};
-		F0A100052F1A000100AA1001 /* OpenIntelligenceLiveActivities */ = {
-			isa = PBXFileSystemSynchronizedRootGroup;
-			exceptions = (
-				F0A100162F1A000100AA1001 /* Exceptions for "OpenIntelligenceLiveActivities" folder in "OpenIntelligenceLiveActivities" target */,
-			);
-			path = OpenIntelligenceLiveActivities;
-			sourceTree = "<group>";
-		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -192,13 +150,6 @@
 			buildActionMask = 2147483647;
 			files = (
 				E0A100022F0F5F5F00AABA0C /* Tokenizers in Frameworks */,
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		F0A100062F1A000100AA1001 /* Frameworks */ = {
-			isa = PBXFrameworksBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -240,7 +191,6 @@
 			isa = PBXGroup;
 			children = (
 				B0D565E02E98AC50001274A2 /* OpenIntelligence */,
-				F0A100052F1A000100AA1001 /* OpenIntelligenceLiveActivities */,
 				B0B991682F0F4BC700BBE97E /* Frameworks */,
 				B0D565DF2E98AC50001274A2 /* Products */,
 				B015094A2FA3A465008E428B /* Recovered References */,
@@ -252,7 +202,6 @@
 			children = (
 				B0D565DE2E98AC50001274A2 /* OpenIntelligence.app */,
 				E0A100042F0F5F5F00AABA0C /* OpenIntelligenceEngine.framework */,
-				F0A100022F1A000100AA1001 /* OpenIntelligenceLiveActivities.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -275,12 +224,10 @@
 				B0D565DA2E98AC50001274A2 /* Sources */,
 				B0D565DB2E98AC50001274A2 /* Frameworks */,
 				B0D565DC2E98AC50001274A2 /* Resources */,
-				F0A100072F1A000100AA1001 /* Embed App Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
-				F0A100152F1A000100AA1001 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				B0D565E02E98AC50001274A2 /* OpenIntelligence */,
@@ -330,28 +277,6 @@
 			productReference = E0A100042F0F5F5F00AABA0C /* OpenIntelligenceEngine.framework */;
 			productType = "com.apple.product-type.framework";
 		};
-		F0A100102F1A000100AA1001 /* OpenIntelligenceLiveActivities */ = {
-			isa = PBXNativeTarget;
-			buildConfigurationList = F0A100112F1A000100AA1001 /* Build configuration list for PBXNativeTarget "OpenIntelligenceLiveActivities" */;
-			buildPhases = (
-				F0A100082F1A000100AA1001 /* Sources */,
-				F0A100062F1A000100AA1001 /* Frameworks */,
-				F0A100092F1A000100AA1001 /* Resources */,
-			);
-			buildRules = (
-			);
-			dependencies = (
-			);
-			fileSystemSynchronizedGroups = (
-				F0A100052F1A000100AA1001 /* OpenIntelligenceLiveActivities */,
-			);
-			name = OpenIntelligenceLiveActivities;
-			packageProductDependencies = (
-			);
-			productName = OpenIntelligenceLiveActivities;
-			productReference = F0A100022F1A000100AA1001 /* OpenIntelligenceLiveActivities.appex */;
-			productType = "com.apple.product-type.app-extension";
-		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -366,9 +291,6 @@
 						CreatedOnToolsVersion = 26.0;
 					};
 					E0A100072F0F5F5F00AABA0C = {
-						CreatedOnToolsVersion = 26.0;
-					};
-					F0A100102F1A000100AA1001 = {
 						CreatedOnToolsVersion = 26.0;
 					};
 				};
@@ -392,7 +314,6 @@
 			targets = (
 				B0D565DD2E98AC50001274A2 /* OpenIntelligence */,
 				E0A100072F0F5F5F00AABA0C /* OpenIntelligenceEngine */,
-				F0A100102F1A000100AA1001 /* OpenIntelligenceLiveActivities */,
 			);
 		};
 /* End PBXProject section */
@@ -406,13 +327,6 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		E0A100122F0F5F5F00AABA0C /* Resources */ = {
-			isa = PBXResourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		F0A100092F1A000100AA1001 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -436,23 +350,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		F0A100082F1A000100AA1001 /* Sources */ = {
-			isa = PBXSourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-				F0A100032F1A000100AA1001 /* OpenIntelligence/Services/Infrastructure/Background/IngestionLiveActivityAttributes.swift in Sources */,
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
 /* End PBXSourcesBuildPhase section */
-
-/* Begin PBXTargetDependency section */
-		F0A100152F1A000100AA1001 /* PBXTargetDependency */ = {
-			isa = PBXTargetDependency;
-			target = F0A100102F1A000100AA1001 /* OpenIntelligenceLiveActivities */;
-			targetProxy = F0A100142F1A000100AA1001 /* PBXContainerItemProxy */;
-		};
-/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		B0D565E72E98AC51001274A2 /* Debug */ = {
@@ -582,7 +480,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				"CODE_SIGN_ENTITLEMENTS[sdk=iphone*]" = OpenIntelligence/OpenIntelligence.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 35;
+				CURRENT_PROJECT_VERSION = 36;
 				DERIVE_MACCATALYST_PRODUCT_BUNDLE_IDENTIFIER = NO;
 				DEVELOPMENT_TEAM = Z3E334EXZD;
 				ENABLE_APP_SANDBOX = YES;
@@ -639,9 +537,9 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				"CODE_SIGN_ENTITLEMENTS[sdk=iphone*]" = OpenIntelligence/OpenIntelligence.Release.entitlements;
+				"CODE_SIGN_ENTITLEMENTS[sdk=iphone*]" = OpenIntelligence/OpenIntelligence.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 35;
+				CURRENT_PROJECT_VERSION = 36;
 				DEVELOPMENT_TEAM = Z3E334EXZD;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
@@ -696,7 +594,7 @@
 				APPLICATION_EXTENSION_API_ONLY = NO;
 				BUILD_LIBRARY_FOR_DISTRIBUTION = YES;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 35;
+				CURRENT_PROJECT_VERSION = 36;
 				DEFINES_MODULE = YES;
 				DEVELOPMENT_TEAM = Z3E334EXZD;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -733,7 +631,7 @@
 				APPLICATION_EXTENSION_API_ONLY = NO;
 				BUILD_LIBRARY_FOR_DISTRIBUTION = YES;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 35;
+				CURRENT_PROJECT_VERSION = 36;
 				DEFINES_MODULE = YES;
 				DEVELOPMENT_TEAM = Z3E334EXZD;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -758,68 +656,6 @@
 				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_OBJC_INTEROP_MODE = objcxx;
-				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
-				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
-			};
-			name = Release;
-		};
-		F0A100122F1A000100AA1001 /* Debug */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				APPLICATION_EXTENSION_API_ONLY = YES;
-				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 35;
-				DEVELOPMENT_TEAM = Z3E334EXZD;
-				GENERATE_INFOPLIST_FILE = NO;
-				INFOPLIST_FILE = OpenIntelligenceLiveActivities/Info.plist;
-				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/Frameworks",
-					"@executable_path/../../Frameworks",
-				);
-				MARKETING_VERSION = 3.5;
-				PRODUCT_BUNDLE_IDENTIFIER = Gunndamental.OpenIntelligence.LiveActivities;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				SDKROOT = iphoneos;
-				SKIP_INSTALL = YES;
-				STRING_CATALOG_GENERATE_SYMBOLS = YES;
-				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
-				SWIFT_APPROACHABLE_CONCURRENCY = YES;
-				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
-				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
-				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
-			};
-			name = Debug;
-		};
-		F0A100132F1A000100AA1001 /* Release */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				APPLICATION_EXTENSION_API_ONLY = YES;
-				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 35;
-				DEVELOPMENT_TEAM = Z3E334EXZD;
-				GENERATE_INFOPLIST_FILE = NO;
-				INFOPLIST_FILE = OpenIntelligenceLiveActivities/Info.plist;
-				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/Frameworks",
-					"@executable_path/../../Frameworks",
-				);
-				MARKETING_VERSION = 3.5;
-				PRODUCT_BUNDLE_IDENTIFIER = Gunndamental.OpenIntelligence.LiveActivities;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				SDKROOT = iphoneos;
-				SKIP_INSTALL = YES;
-				STRING_CATALOG_GENERATE_SYMBOLS = YES;
-				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
-				SWIFT_APPROACHABLE_CONCURRENCY = YES;
-				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
-				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
@@ -852,15 +688,6 @@
 			buildConfigurations = (
 				E0A100082F0F5F5F00AABA0C /* Debug */,
 				E0A100092F0F5F5F00AABA0C /* Release */,
-			);
-			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
-		};
-		F0A100112F1A000100AA1001 /* Build configuration list for PBXNativeTarget "OpenIntelligenceLiveActivities" */ = {
-			isa = XCConfigurationList;
-			buildConfigurations = (
-				F0A100122F1A000100AA1001 /* Debug */,
-				F0A100132F1A000100AA1001 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

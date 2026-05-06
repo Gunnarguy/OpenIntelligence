@@ -182,11 +182,11 @@ platform :ios do
   desc "Validate app metadata and screenshots"
   lane :validate do
     api_key = asc_api_key
-    deliver(
+    precheck(
       api_key: api_key,
-      verify_only: true,
-      skip_screenshots: true,
-      skip_binary_upload: true
+      app_identifier: APP_IDENTIFIER,
+      default_rule_level: :warn,
+      include_in_app_purchases: false
     )
   end
 

@@ -431,4 +431,16 @@ enum AppSupportPaths {
     nonisolated static func ingestionQueueURL() -> URL {
         baseDir().appendingPathComponent("ingestion_queue.json")
     }
+
+    nonisolated static func continuedIngestionStatusURL() -> URL {
+        baseDir().appendingPathComponent("continued_ingestion_status.json")
+    }
+
+    nonisolated static func continuedQueryStateURL() -> URL {
+        baseDir().appendingPathComponent("continued_query_state.json")
+    }
+
+    nonisolated static func continuedQueryStatusURL() -> URL {
+        baseDir().appendingPathComponent("continued_query_status.json")
+    }
 }

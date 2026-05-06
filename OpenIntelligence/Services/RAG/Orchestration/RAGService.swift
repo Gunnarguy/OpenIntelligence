@@ -61,7 +61,7 @@ struct RAGAuditFeatureFlags: Sendable {
     let usedSupplementaryVectorSearch: Bool
     let usedFullUnlimitedReasoning: Bool
 
-    static let empty = RAGAuditFeatureFlags(
+    nonisolated static let empty = RAGAuditFeatureFlags(
         answerIntent: "unknown",
         queryWasRewritten: false,
         queryExpansionCount: 0,
@@ -305,6 +305,8 @@ enum IngestionContext: String, Codable, Sendable {
 /// Main orchestrator for the RAG (Retrieval-Augmented Generation) pipeline
 /// Coordinates document processing, embedding, retrieval, and generation
 class RAGService: ObservableObject {
+    nonisolated private static let maxPersistedChatHistoryBytes = 4 * 1024 * 1024
+
     // MARK: - Dependencies
 
     private let documentProcessor: DocumentProcessor
@@ -465,6 +467,25 @@ class RAGService: ObservableObject {
         return loaded
     }
 
+    /// Preloads chat history without blocking the main actor on disk IO or JSON decoding.
+    func preloadChatHistory(for containerId: UUID?) async -> [ChatMessage] {
+        let resolvedId = await MainActor.run { containerId ?? self.containerService.activeContainerId }
+
+        if let cached = await MainActor.run(body: { self.chatHistories[resolvedId] }) {
+            return cached
+        }
+
+        let url = AppSupportPaths.chatHistoryURL(containerId: resolvedId)
+        let loaded = await Task.detached(priority: .utility) {
+            Self.readChatHistoryFromDisk(at: url, containerId: resolvedId)
+        }.value
+
+        return await MainActor.run {
+            self.chatHistories[resolvedId] = loaded
+            return loaded
+        }
+    }
+
     /// Maximum messages to retain per container to prevent unbounded memory/disk growth.
     /// With an average of ~500 chars per message, 200 messages ≈ 100KB per container.
     private static let maxMessagesPerContainer = 200
@@ -479,7 +500,7 @@ class RAGService: ObservableObject {
             ? Array(messages.suffix(Self.maxMessagesPerContainer))
             : messages
         chatHistories[resolvedId] = trimmedMessages
-        saveChatHistory(trimmedMessages, for: resolvedId)
+        saveChatHistory(trimmedMessages.map { $0.sanitizedForPersistence() }, for: resolvedId)
     }
 
     /// Clears chat history for a container both in memory and on disk.
@@ -607,13 +628,49 @@ class RAGService: ObservableObject {
     @MainActor
     private func loadChatHistoryFromDisk(for containerId: UUID) -> [ChatMessage] {
         let url = AppSupportPaths.chatHistoryURL(containerId: containerId)
+        return Self.readChatHistoryFromDisk(at: url, containerId: containerId)
+    }
+
+    private nonisolated static func readChatHistoryFromDisk(at url: URL, containerId: UUID) -> [ChatMessage] {
         guard FileManager.default.fileExists(atPath: url.path) else { return [] }
+
+        if let fileSize = chatHistoryFileSize(at: url), fileSize > maxPersistedChatHistoryBytes {
+            quarantineOversizedChatHistory(at: url, containerId: containerId, fileSize: fileSize)
+            return []
+        }
+
         do {
             let data = try Data(contentsOf: url)
-            return try JSONDecoder().decode([ChatMessage].self, from: data)
+            let messages = try JSONDecoder().decode([ChatMessage].self, from: data)
+            return messages.map { $0.sanitizedForPersistence() }
         } catch {
             Log.error("[RAGService] Failed to load chat history for container \(containerId): \(error.localizedDescription)", category: .initialization)
             return []
+        }
+    }
+
+    private nonisolated static func chatHistoryFileSize(at url: URL) -> Int? {
+        guard let attrs = try? FileManager.default.attributesOfItem(atPath: url.path) else { return nil }
+        return attrs[.size] as? Int
+    }
+
+    private nonisolated static func quarantineOversizedChatHistory(at url: URL, containerId: UUID, fileSize: Int) {
+        let quarantineURL = AppSupportPaths.baseDir().appendingPathComponent(
+            "chat_history_\(containerId.uuidString).oversized_\(Int(Date().timeIntervalSince1970)).json"
+        )
+
+        do {
+            try FileManager.default.moveItem(at: url, to: quarantineURL)
+            Log.warning(
+                "[RAGService] Quarantined oversized chat history for container \(containerId) (\(fileSize) bytes)",
+                category: .initialization
+            )
+        } catch {
+            try? FileManager.default.removeItem(at: url)
+            Log.warning(
+                "[RAGService] Removed oversized chat history for container \(containerId) after quarantine failed: \(error.localizedDescription)",
+                category: .initialization
+            )
         }
     }
 
@@ -2018,6 +2075,122 @@ class RAGService: ObservableObject {
         }
     }
 
+    private func applyContextualDefinitionBoost(
+        chunks: [RetrievedChunk],
+        query: String
+    ) -> [RetrievedChunk]? {
+        let queryTerms = Array(Set(extractQueryTerms(query)))
+        guard !queryTerms.isEmpty else { return nil }
+
+        var adjustedAny = false
+
+        let boosted = chunks.map { candidate -> (chunk: RetrievedChunk, structured: Bool) in
+            let content = candidate.chunk.parentContent ?? candidate.chunk.content
+            let lowerContent = content.lowercased()
+            let metadata = candidate.chunk.metadata
+            let sectionKeywords = Self.trustedSectionKeywordSet(
+                title: metadata.sectionTitle,
+                path: metadata.sectionPath
+            )
+            let sectionMatchCount = queryTerms.reduce(into: 0) { result, term in
+                if sectionKeywords.contains(term) {
+                    result += 1
+                }
+            }
+            let contentMatchCount = queryTerms.reduce(into: 0) { result, term in
+                if lowerContent.contains(term) {
+                    result += 1
+                }
+            }
+
+            let hasDefinitionCue = lowerContent.range(
+                of: #"\b(?:is|are|refers to|means|known as|called|defined as|first used in)\b"#,
+                options: [.regularExpression, .caseInsensitive]
+            ) != nil || lowerContent.contains(" or ")
+            let hasAliasCue = lowerContent.contains("(") && lowerContent.contains(")")
+            let structuredText = looksTableLike(text: content, structureType: metadata.structureType)
+                || lowerContent.contains("cell r")
+                || lowerContent.contains("row ")
+                || lowerContent.contains("column ")
+                || content.contains("|")
+            let paragraphLike = metadata.structureType == nil || metadata.structureType == "paragraph"
+
+            var adjustedScore = candidate.similarityScore
+
+            if metadata.abstractionLevel.isSummary {
+                adjustedScore += 0.12
+            }
+            if metadata.chunkType == .prose || paragraphLike {
+                adjustedScore += 0.05
+            }
+            if sectionMatchCount > 0 {
+                adjustedScore += min(Float(sectionMatchCount) * 0.04, 0.12)
+            }
+            if contentMatchCount > 0 {
+                adjustedScore += min(Float(contentMatchCount) * 0.03, 0.10)
+            }
+            if hasDefinitionCue {
+                adjustedScore += 0.08
+            }
+            if hasAliasCue {
+                adjustedScore += 0.04
+            }
+
+            if structuredText {
+                adjustedScore -= 0.16
+            }
+            if metadata.chunkType == .tableStructural || metadata.chunkType == .tableSemantic {
+                adjustedScore -= 0.10
+            }
+            if let tableTitle = metadata.tableTitle,
+               !tableTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                adjustedScore -= 0.06
+            }
+            if metadata.hasNumericData && !hasDefinitionCue && !metadata.abstractionLevel.isSummary {
+                adjustedScore -= 0.03
+            }
+
+            adjustedScore = max(0.0, min(adjustedScore, 1.0))
+            if abs(adjustedScore - candidate.similarityScore) >= 0.01 {
+                adjustedAny = true
+            }
+
+            return (
+                RetrievedChunk(
+                    chunk: candidate.chunk,
+                    similarityScore: adjustedScore,
+                    rank: candidate.rank,
+                    sourceDocument: candidate.sourceDocument,
+                    pageNumber: candidate.pageNumber
+                ),
+                structuredText
+            )
+        }
+
+        guard adjustedAny else { return nil }
+
+        return boosted
+            .sorted { lhs, rhs in
+                if abs(lhs.chunk.similarityScore - rhs.chunk.similarityScore) >= 0.01 {
+                    return lhs.chunk.similarityScore > rhs.chunk.similarityScore
+                }
+                if lhs.structured != rhs.structured {
+                    return !lhs.structured
+                }
+                return lhs.chunk.rank < rhs.chunk.rank
+            }
+            .enumerated()
+            .map { index, element in
+                RetrievedChunk(
+                    chunk: element.chunk.chunk,
+                    similarityScore: element.chunk.similarityScore,
+                    rank: index + 1,
+                    sourceDocument: element.chunk.sourceDocument,
+                    pageNumber: element.chunk.pageNumber
+                )
+            }
+    }
+
     private static func trustedSectionKeywordSet(title: String?, path: [String]?) -> Set<String> {
         var keywords = Set<String>()
 
@@ -2108,10 +2281,12 @@ class RAGService: ObservableObject {
     // MARK: - Sentence-Level Extraction for Lookup Queries
 
     /// Result from sentence-level extraction
-    struct SentenceExtractionResult {
+    struct SentenceExtractionResult: Sendable {
         let context: String
         let sourcesUsed: Int
         let sentencesIncluded: Int
+
+        nonisolated static let empty = SentenceExtractionResult(context: "", sourcesUsed: 0, sentencesIncluded: 0)
     }
 
     /// Extracts query-relevant sentences from ALL candidate chunks and packs them
@@ -2126,16 +2301,145 @@ class RAGService: ObservableObject {
         maxChars: Int,
         compact: Bool,
         isExtractiveFirst: Bool = false
+    ) async -> SentenceExtractionResult {
+        let extractionTask = Task.detached(priority: .utility) {
+            Self.extractRelevantSentencesOffMain(
+                from: candidates,
+                query: query,
+                maxChars: maxChars,
+                compact: compact,
+                isExtractiveFirst: isExtractiveFirst
+            )
+        }
+
+        return await withTaskCancellationHandler {
+            await extractionTask.value
+        } onCancel: {
+            extractionTask.cancel()
+        }
+    }
+
+    private nonisolated static func extractRelevantSentencesOffMain(
+        from candidates: [RetrievedChunk],
+        query: String,
+        maxChars: Int,
+        compact: Bool,
+        isExtractiveFirst: Bool
     ) -> SentenceExtractionResult {
+        if Task.isCancelled {
+            return .empty
+        }
+
+        // Keep sentence-scoring resources local to this detached task.
+        // Shared static Set/regex storage has proven crash-prone on the utility queue.
+        let lexicalStopWords: Set<String> = [
+            "a", "an", "the", "is", "are", "was", "were", "be", "been", "being",
+            "have", "has", "had", "do", "does", "did", "will", "would", "could", "should",
+            "may", "might", "must", "shall", "can", "need", "dare", "ought", "used",
+            "to", "of", "in", "for", "on", "with", "at", "by", "from", "as", "into",
+            "through", "during", "before", "after", "above", "below", "between",
+            "under", "again", "further", "then", "once", "here", "there", "when",
+            "where", "why", "how", "all", "each", "few", "more", "most", "other",
+            "some", "such", "no", "nor", "not", "only", "own", "same", "so", "than",
+            "too", "very", "just", "also", "now", "what", "which", "who", "whom",
+            "this", "that", "these", "those", "am", "it", "its", "i", "me", "my",
+            "myself", "we", "our", "ours", "ourselves", "you", "your", "yours",
+            "he", "him", "his", "she", "her", "hers", "they", "them", "their"
+        ]
+        let sentenceUnitRegex = try? NSRegularExpression(
+            pattern: #"\d+(?:\.\d+)?\s*(?:qt|quart|gal|gallon|L|liter|litre|ml|oz|fl|kg|g|lb|lbs|mg|mcg|ug|mm|cm|m|km|in|ft|yd|mi|psi|kPa|MPa|bar|atm|rpm|hp|kW|MW|GW|Hz|kHz|MHz|GHz|TB|GB|MB|KB|V|mV|A|mA|W|kWh|MWh|Ah|mAh|cal|kcal|kJ|MJ|BTU|dB|dBm|lux|lm|cd|mol|IU|%)\b"#,
+            options: .caseInsensitive
+        )
+        let sentenceSpecCodeRegex = try? NSRegularExpression(
+            pattern: #"\b(?:API|ISO|SAE|ACEA|ASTM|IEEE|ANSI|IEC|NIST|OSHA|EPA|FDA|WHO|USP|NF|BP|JP|MIL-|SPEC-|UL|CE|FCC|RoHS|REACH|GMP|HACCP|NFPA|ASHRAE|ACI|AISI|AISC|AWS|ASME|DOT|FMVSS|ECE|JIS|DIN|EN|BS|AS|NZS|CSA|CAN|GB|GB/T)\s*[A-Z0-9./-]+"#
+        )
+        let sentenceStructuredCodeRegex = try? NSRegularExpression(
+            pattern: #"\b[A-Z0-9]{1,6}[-./][A-Z0-9]{1,6}(?:[-./][A-Z0-9]{1,6})?\b"#
+        )
+
+        func meaningfulSentenceTokens(from lowercasedText: String) -> Set<String> {
+            var tokens = Set<String>()
+            tokens.reserveCapacity(16)
+
+            for rawToken in lowercasedText.split(whereSeparator: { !$0.isLetter && !$0.isNumber }) {
+                guard rawToken.count > 2 else { continue }
+
+                let token = String(rawToken)
+                guard !lexicalStopWords.contains(token) else { continue }
+                tokens.insert(token)
+            }
+
+            return tokens
+        }
+
         // Extract discriminative query keywords
         let queryLower = query.lowercased()
         let queryKeywords = queryLower
             .components(separatedBy: CharacterSet.alphanumerics.inverted)
-            .filter { $0.count > 2 && !Self.stopWords.contains($0) }
+            .filter { $0.count > 2 && !lexicalStopWords.contains($0) }
 
         guard !queryKeywords.isEmpty else {
             // Fallback: no usable keywords, return empty
-            return SentenceExtractionResult(context: "", sourcesUsed: 0, sentencesIncluded: 0)
+            return .empty
+        }
+        let queryWordSet = Set(queryKeywords)
+
+        func sentenceScore(
+            line: String,
+            headingContext: String,
+            chunkIndex: Int,
+            isExtractiveFirst: Bool
+        ) -> Double? {
+            let lineLower = line.lowercased()
+            let headingLower = headingContext.lowercased()
+            let lineWords = meaningfulSentenceTokens(from: lineLower)
+
+            if !lineWords.isEmpty && !queryWordSet.isEmpty {
+                let overlap = lineWords.intersection(queryWordSet).count
+                let lineUnique = lineWords.subtracting(queryWordSet).count
+                if overlap >= queryWordSet.count && lineUnique <= 1 {
+                    return nil
+                }
+            }
+
+            var directHits = 0
+            for keyword in queryKeywords where lineLower.contains(keyword) {
+                directHits += 1
+            }
+
+            var headingHits = 0
+            for keyword in queryKeywords where headingLower.contains(keyword) {
+                headingHits += 1
+            }
+
+            let totalKeywordHits = directHits + headingHits
+            guard totalKeywordHits > 0 else { return nil }
+
+            let specBoostMultiplier: Double = isExtractiveFirst ? 2.5 : 1.0
+            let hasNumbers = line.rangeOfCharacter(from: .decimalDigits) != nil
+            let numberBonus: Double = hasNumbers ? 2.0 : 0.0
+
+            let unitHits = sentenceUnitRegex?
+                .numberOfMatches(in: line, range: NSRange(line.startIndex..., in: line)) ?? 0
+            let unitBonus = Double(min(unitHits, 3)) * 1.5 * specBoostMultiplier
+
+            let specHits = sentenceSpecCodeRegex?
+                .numberOfMatches(in: line, range: NSRange(line.startIndex..., in: line)) ?? 0
+            let specBonus = Double(min(specHits, 3)) * 2.0 * specBoostMultiplier
+
+            let keyValueBonus: Double = (line.contains(":") && hasNumbers) ? 1.5 * specBoostMultiplier : 0.0
+
+            let codeHits = sentenceStructuredCodeRegex?
+                .numberOfMatches(in: line, range: NSRange(line.startIndex..., in: line)) ?? 0
+            let codeBonus = Double(min(codeHits, 3)) * 1.5 * specBoostMultiplier
+
+            let rankBonus = max(0.0, 1.0 - Double(chunkIndex) * 0.05)
+            let keywordScore = Double(directHits) * 3.0 + Double(headingHits) * 2.0
+            let coverageFraction = Double(totalKeywordHits) / Double(max(1, queryKeywords.count))
+            let coveragePenalty: Double = (queryKeywords.count >= 2 && coverageFraction < 0.5) ? 0.4 : 1.0
+
+            return (keywordScore + numberBonus + unitBonus + specBonus + keyValueBonus + codeBonus + rankBonus)
+                * coveragePenalty
         }
 
         // Score every sentence across all candidates
@@ -2151,6 +2455,10 @@ class RAGService: ObservableObject {
         var scoredSentences: [ScoredSentence] = []
 
         for (chunkIdx, candidate) in candidates.enumerated() {
+            if Task.isCancelled {
+                return .empty
+            }
+
             let content = candidate.chunk.parentContent ?? candidate.chunk.content
             let source = candidate.sourceDocument
             let page = candidate.pageNumber
@@ -2189,6 +2497,10 @@ class RAGService: ObservableObject {
                 }
 
                 for subLine in subLines {
+                    if Task.isCancelled {
+                        return .empty
+                    }
+
                     guard subLine.count > 5 else { continue }
                     var headingContext = ""
                     if !isHeading {
@@ -2198,10 +2510,9 @@ class RAGService: ObservableObject {
                         }
                     }
 
-                    guard let totalScore = EvidenceScoringPolicyService.sentenceScore(
+                    guard let totalScore = sentenceScore(
                         line: subLine,
                         headingContext: headingContext,
-                        queryKeywords: queryKeywords,
                         chunkIndex: chunkIdx,
                         isExtractiveFirst: isExtractiveFirst
                     ) else { continue }
@@ -2259,10 +2570,14 @@ class RAGService: ObservableObject {
             var keptWordSets: [Set<String>] = []
 
             for sentence in scoredSentences {
+                if Task.isCancelled {
+                    return .empty
+                }
+
                 let words = Set(
                     sentence.text.lowercased()
                         .components(separatedBy: CharacterSet.alphanumerics.inverted)
-                        .filter { $0.count > 2 && !Self.stopWords.contains($0) }
+                        .filter { $0.count > 2 && !lexicalStopWords.contains($0) }
                 )
                 // Very short sentences: skip fuzzy dedup (not enough signal)
                 guard words.count >= 3 else {
@@ -2315,6 +2630,10 @@ class RAGService: ObservableObject {
         var sourceLabels: [Int: String] = [:]  // sourceIndex → label
 
         for sentence in scoredSentences {
+            if Task.isCancelled {
+                return .empty
+            }
+
             let displayText = sentence.headingContext.isEmpty
                 ? sentence.text
                 : "\(sentence.headingContext) > \(sentence.text)"
@@ -2347,6 +2666,10 @@ class RAGService: ObservableObject {
 
         // Pack source paragraphs into budget
         for srcIdx in sourceOrder {
+            if Task.isCancelled {
+                return .empty
+            }
+
             guard let sentences = sourceBuffers[srcIdx],
                   let label = sourceLabels[srcIdx] else { continue }
 
@@ -2427,7 +2750,7 @@ class RAGService: ObservableObject {
     // MARK: - Lexical Relevance Check
 
     /// Stop words to exclude from keyword matching
-    private static let stopWords: Set<String> = [
+    private nonisolated static let stopWords: Set<String> = [
         "a", "an", "the", "is", "are", "was", "were", "be", "been", "being",
         "have", "has", "had", "do", "does", "did", "will", "would", "could", "should",
         "may", "might", "must", "shall", "can", "need", "dare", "ought", "used",
@@ -2784,19 +3107,282 @@ class RAGService: ObservableObject {
         let db = vectorRouter.db(for: container)
         let allChunks = try await db.allChunks()
         let detailChunks = allChunks.filter { $0.metadata.abstractionLevel == .detail }
-        let sampleSource = detailChunks.isEmpty ? allChunks : detailChunks
+        let summaryChunks = allChunks.filter { $0.metadata.abstractionLevel == .documentSummary }
 
-        // Return a representative sample: first, middle, and distributed chunks
-        guard !sampleSource.isEmpty else { return [] }
-        guard sampleSource.count > limit else { return sampleSource }
+        guard !allChunks.isEmpty else { return [] }
 
-        var sampleIndices: Set<Int> = []
-        let stride = sampleSource.count / limit
-        for i in 0..<limit {
-            sampleIndices.insert(min(i * stride, sampleSource.count - 1))
+        if detailChunks.isEmpty {
+            let sampleSource = summaryChunks.isEmpty ? allChunks : summaryChunks
+            return prioritizedSuggestedQuestionSample(
+                from: sampleSource,
+                limit: min(limit, sampleSource.count)
+            )
         }
 
-        return sampleIndices.sorted().map { sampleSource[$0] }
+        let summaryLimit = min(summaryChunks.count, max(1, min(3, limit / 4)))
+        let detailLimit = min(detailChunks.count, max(0, limit - summaryLimit))
+
+        let detailSample = detailLimit > 0
+            ? prioritizedSuggestedQuestionSample(from: detailChunks, limit: detailLimit)
+            : []
+
+        guard summaryLimit > 0 else {
+            return Array(detailSample.prefix(limit))
+        }
+
+        let summarySample = prioritizedSuggestedQuestionSample(
+            from: summaryChunks,
+            limit: min(summaryLimit, max(0, limit - detailSample.count))
+        )
+
+        guard !summarySample.isEmpty else {
+            return Array(detailSample.prefix(limit))
+        }
+
+        return interleaveSuggestedQuestionSamples(
+            primary: detailSample,
+            secondary: summarySample,
+            limit: limit
+        )
+    }
+
+    private func interleaveSuggestedQuestionSamples(
+        primary: [DocumentChunk],
+        secondary: [DocumentChunk],
+        limit: Int
+    ) -> [DocumentChunk] {
+        guard limit > 0 else { return [] }
+
+        var result: [DocumentChunk] = []
+        var primaryIndex = 0
+        var secondaryIndex = 0
+
+        if secondaryIndex < secondary.count {
+            result.append(secondary[secondaryIndex])
+            secondaryIndex += 1
+        }
+
+        while result.count < limit && (primaryIndex < primary.count || secondaryIndex < secondary.count) {
+            for _ in 0..<2 {
+                guard result.count < limit, primaryIndex < primary.count else { break }
+                result.append(primary[primaryIndex])
+                primaryIndex += 1
+            }
+
+            if result.count < limit, secondaryIndex < secondary.count {
+                result.append(secondary[secondaryIndex])
+                secondaryIndex += 1
+            }
+        }
+
+        return result
+    }
+
+    private func prioritizedSuggestedQuestionSample(
+        from chunks: [DocumentChunk],
+        limit: Int
+    ) -> [DocumentChunk] {
+        guard !chunks.isEmpty else { return [] }
+
+        var byDocument: [UUID: [DocumentChunk]] = [:]
+        for chunk in chunks {
+            byDocument[chunk.documentId, default: []].append(chunk)
+        }
+
+        for docId in byDocument.keys {
+            byDocument[docId]?.sort { lhs, rhs in
+                suggestedQuestionSampleScore(lhs) > suggestedQuestionSampleScore(rhs)
+            }
+        }
+
+        let orderedDocumentIds = byDocument.keys.sorted { lhs, rhs in
+            suggestedQuestionDocumentScore(byDocument[lhs] ?? []) > suggestedQuestionDocumentScore(byDocument[rhs] ?? [])
+        }
+
+        var selected: [DocumentChunk] = []
+        var selectedIds: Set<UUID> = []
+        var usedSections: Set<String> = []
+        var round = 0
+
+        while selected.count < limit {
+            var addedThisRound = false
+
+            for docId in orderedDocumentIds {
+                guard selected.count < limit else { break }
+                guard let docChunks = byDocument[docId], round < docChunks.count else { continue }
+
+                let candidate = docChunks[round]
+                guard selectedIds.insert(candidate.id).inserted else { continue }
+
+                let section = suggestedQuestionSampleSection(for: candidate) ?? "default_\(candidate.id.uuidString.prefix(4))"
+                let sectionKey = "\(docId.uuidString)::\(section.lowercased())"
+
+                if usedSections.contains(sectionKey), selected.count >= orderedDocumentIds.count {
+                    continue
+                }
+
+                selected.append(candidate)
+                usedSections.insert(sectionKey)
+                addedThisRound = true
+            }
+
+            if !addedThisRound {
+                break
+            }
+
+            round += 1
+        }
+
+        if selected.count < limit {
+            let remainder = orderedDocumentIds
+                .flatMap { byDocument[$0] ?? [] }
+                .sorted { lhs, rhs in
+                    suggestedQuestionSampleScore(lhs) > suggestedQuestionSampleScore(rhs)
+                }
+
+            for candidate in remainder {
+                guard selected.count < limit else { break }
+                guard selectedIds.insert(candidate.id).inserted else { continue }
+                selected.append(candidate)
+            }
+        }
+
+        return selected
+    }
+
+    private func suggestedQuestionDocumentScore(_ chunks: [DocumentChunk]) -> Double {
+        guard !chunks.isEmpty else { return 0 }
+
+        let topChunkScore = chunks
+            .map(suggestedQuestionSampleScore)
+            .sorted(by: >)
+            .prefix(3)
+            .reduce(0, +)
+
+        let uniqueSections = Set(chunks.compactMap { suggestedQuestionSampleSection(for: $0)?.lowercased() }).count
+        let structuredChunks = chunks.filter { chunk in
+            (chunk.metadata.structureType?.isEmpty == false) && chunk.metadata.structureType != "paragraph"
+        }.count
+
+        return topChunkScore
+            + Double(min(uniqueSections, 5)) * 1.25
+            + Double(min(structuredChunks, 4)) * 0.75
+    }
+
+    private func suggestedQuestionSampleScore(_ chunk: DocumentChunk) -> Double {
+        var score = 0.0
+        let wordCount = chunk.metadata.wordCount
+
+        if wordCount >= 50 && wordCount <= 220 {
+            score += 3.0
+        } else if wordCount >= 30 && wordCount <= 320 {
+            score += 2.0
+        } else if wordCount >= 15 {
+            score += 1.0
+        }
+
+        if chunk.metadata.hasNumericData {
+            score += 2.5
+        }
+
+        if chunk.metadata.hasListStructure {
+            score += 1.5
+        }
+
+        if chunk.metadata.sectionTitle != nil || chunk.metadata.sectionPath?.isEmpty == false {
+            score += 1.0
+        }
+
+        if let structureType = chunk.metadata.structureType, structureType != "paragraph" {
+            score += 2.0
+        }
+
+        if let imageDescription = chunk.metadata.imageDescription,
+           !imageDescription.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            score += 1.0
+        }
+
+        if chunk.metadata.hasCrossReferences {
+            score += 0.75
+        }
+
+        score += min(Double(chunk.metadata.entities.count), 3.0)
+        score += min(Double(chunk.metadata.abbreviations.count) * 1.25, 2.5)
+
+        if wordCount < 15 {
+            score -= 5.0
+        }
+
+        score += suggestedQuestionSampleFrontMatterAdjustment(for: chunk)
+        return score
+    }
+
+    private func suggestedQuestionSampleFrontMatterAdjustment(for chunk: DocumentChunk) -> Double {
+        if let section = suggestedQuestionSampleSection(for: chunk),
+           suggestedQuestionSampleUsesGenericSection(section) {
+            return -5.0
+        }
+
+        let lower = suggestedQuestionSampleContent(for: chunk).lowercased()
+        if suggestedQuestionSampleContainsFrontMatterSignal(lower) {
+            return -4.0
+        }
+
+        return 0
+    }
+
+    private func suggestedQuestionSampleSection(for chunk: DocumentChunk) -> String? {
+        if let section = chunk.metadata.sectionTitle?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !section.isEmpty {
+            return section
+        }
+
+        if let lastSection = chunk.metadata.sectionPath?.last?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !lastSection.isEmpty {
+            return lastSection
+        }
+
+        if let tableTitle = chunk.metadata.tableTitle?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !tableTitle.isEmpty {
+            return tableTitle
+        }
+
+        return nil
+    }
+
+    private func suggestedQuestionSampleContent(for chunk: DocumentChunk) -> String {
+        let combined = [chunk.contextualPrefix, chunk.parentContent ?? chunk.content]
+            .compactMap { value -> String? in
+                let cleaned = value?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+                return cleaned.isEmpty ? nil : cleaned
+            }
+            .joined(separator: "\n")
+
+        return combined.isEmpty ? chunk.content : combined
+    }
+
+    private func suggestedQuestionSampleUsesGenericSection(_ title: String) -> Bool {
+        let normalized = title.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
+        let genericSections: Set<String> = [
+            "abstract", "acknowledgements", "about", "appendix", "author manuscript",
+            "author contributions", "bibliography", "conflict of interest", "conclusion",
+            "contents", "copyright", "disclaimer", "foreword", "funding", "glossary",
+            "index", "introduction", "keywords", "notes", "overview", "preface",
+            "references", "summary", "table of contents"
+        ]
+
+        return genericSections.contains(normalized) || suggestedQuestionSampleContainsFrontMatterSignal(normalized)
+    }
+
+    private func suggestedQuestionSampleContainsFrontMatterSignal(_ text: String) -> Bool {
+        let signals: [String] = [
+            "accepted for publication", "all rights reserved", "author contributions",
+            "author manuscript", "competing interests", "conflict of interest",
+            "conflicts of interest", "copyright", "corresponding author", "doi",
+            "funding", "keywords", "published online", "rights reserved"
+        ]
+
+        return signals.contains { text.contains($0) }
     }
 
     func embeddingDiagnosticsSnapshot() async -> EmbeddingDiagnosticsSnapshot {
@@ -3262,46 +3848,25 @@ class RAGService: ObservableObject {
     private func overallIngestionProgressFraction(currentItemId: UUID?) -> Double {
         guard !ingestionItems.isEmpty else { return 0 }
 
-        let terminalCount = ingestionItems.filter { $0.stage.isTerminal }.count
+        let completedCount = ingestionItems.filter { $0.stage == .complete }.count
         let activeContribution: Double
         if let currentItemId,
            let activeItem = ingestionItems.first(where: { $0.id == currentItemId }) {
-            activeContribution = pipelineProgressContribution(for: activeItem)
+            if let explicitProgress = activeItem.progress {
+                activeContribution = explicitProgress
+            } else if activeItem.stage.isTerminal {
+                activeContribution = activeItem.stage == .complete ? 1 : 0
+            } else if let pipelineIndex = activeItem.stage.pipelineIndex {
+                activeContribution = Double(pipelineIndex + 1) / Double(max(1, IngestionStage.pipelineStages.count))
+            } else {
+                activeContribution = 0
+            }
         } else {
             activeContribution = 0
         }
 
-        let aggregate = Double(terminalCount) + activeContribution
+        let aggregate = Double(completedCount) + activeContribution
         return aggregate / Double(max(1, ingestionItems.count))
-    }
-
-    @MainActor
-    private func pipelineProgressContribution(for item: IngestionItem) -> Double {
-        if item.stage.isTerminal {
-            return 1
-        }
-
-        guard let pipelineIndex = item.stage.pipelineIndex else {
-            return 0
-        }
-
-        let stageCount = Double(max(1, IngestionStage.pipelineStages.count))
-        let stageBase = Double(pipelineIndex) / stageCount
-        let stageSpan = 1.0 / stageCount
-        let stageProgress = min(max(item.progress ?? defaultPipelineStageProgress(for: item.stage), 0), 1)
-        return min(0.999, stageBase + stageProgress * stageSpan)
-    }
-
-    @MainActor
-    private func defaultPipelineStageProgress(for stage: IngestionStage) -> Double {
-        switch stage {
-        case .queued:
-            return 0
-        case .loading, .transcribing, .extracting, .chunking, .analyzing, .adapting, .reindexing, .embedding, .indexing, .storing:
-            return 0.35
-        case .complete, .failed:
-            return 1
-        }
     }
 
     /// Haptic feedback based on ingestion stage
@@ -3322,6 +3887,8 @@ class RAGService: ObservableObject {
             DSHaptics.soft()
         case .complete:
             DSHaptics.documentIngested() // Success!
+        case .cancelled:
+            break
         case .failed:
             DSHaptics.warning() // Something went wrong
         case .reindexing, .queued:
@@ -5074,7 +5641,8 @@ class RAGService: ObservableObject {
         startTime: Date
     ) async throws -> RAGResponse? {
         let answerIntent = QueryEnhancementService().classifyAnswerIntent(question)
-        guard answerIntent.isExtractiveFirst || isPrecisionValueQuery(question) else {
+        guard !isConceptualLookupQuery(question),
+              (answerIntent.isExtractiveFirst || isPrecisionValueQuery(question)) else {
             return nil
         }
 
@@ -5250,6 +5818,12 @@ class RAGService: ObservableObject {
         config: InferenceConfig?,
         qualityMode: RAGQualityMode
     ) async throws -> RAGResponse {
+        let selectedContainer = await MainActor.run {
+            self.containerService.containers.first { $0.id == containerId }
+        }
+        let selectedContainerName = selectedContainer?.name ?? "Library"
+        let selectedRetrievalConfig = selectedContainer?.retrievalConfig ?? .default
+
         // Check if user selected Maximum (unlimited) mode
         let isUnlimitedMode = qualityMode.isUnlimitedMode
         let modeLabel = isUnlimitedMode ? "MAXIMUM REASONING MODE" : "AGENTIC REASONING MODE"
@@ -5454,7 +6028,7 @@ class RAGService: ObservableObject {
                 timestamp: Date(),
                 query: question,
                 containerId: containerId,
-                containerName: "Agentic",
+                containerName: selectedContainerName,
                 embeddingProviderId: "agentic",
                 embeddingDim: 512,
                 vectorDBKind: .persistentJSON,
@@ -5462,7 +6036,7 @@ class RAGService: ObservableObject {
                 chunkingOverlapWords: 50,
                 chunkingSource: "agentic",
                 qualityModeName: isUnlimitedMode ? "Maximum" : "Deep Think",
-                retrievalConfig: .default,
+                retrievalConfig: selectedRetrievalConfig,
                 lenientRetrieval: true,
                 dynamicMin: 0.3,
                 topSim: 0.7,
@@ -5548,7 +6122,7 @@ class RAGService: ObservableObject {
             }()
 
             let agenticAnswerIntent = QueryEnhancementService().classifyAnswerIntent(question)
-            let generatedAgenticAnswer = repairMalformedURLs(humanizeCitations(result.finalAnswer, chunks: result.retrievedChunks))
+            let generatedAgenticAnswer = repairMalformedURLs(cleanupResponseText(result.finalAnswer))
             let extractiveAgenticAnswer = await highPrecisionLookupOverrideAnswer(
                 question: question,
                 answerIntent: agenticAnswerIntent,
@@ -5637,6 +6211,16 @@ class RAGService: ObservableObject {
                 }
             }
             await MainActor.run { self.activeAgenticTask = nil }
+
+            if response.metadata.usedAgenticMode {
+                return await finalizeResponse(
+                    query: question,
+                    containerId: containerId,
+                    containerName: selectedContainerName,
+                    response: response
+                )
+            }
+
             return response
         } catch is CancellationError {
             await MainActor.run {
@@ -6411,16 +6995,36 @@ class RAGService: ObservableObject {
                 // Classify query intent to optimize retrieval and answering strategy
                 let answerIntent = effectiveQueryProfile.answerIntent
                 let isProceduralQuery = answerIntent == .procedure
+                let hasSummaryChunks = cachedAllChunks?.contains { $0.metadata.abstractionLevel == .documentSummary } ?? false
+                let contextualDefinitionLookup = shouldUseContextualDefinitionLookupMode(
+                    query: effectiveQuery,
+                    answerIntent: answerIntent,
+                    qualityMode: qualityMode,
+                    hasSummaryChunks: hasSummaryChunks
+                )
+                let answerIntentIsExtractive = answerIntent.isExtractiveFirst && !contextualDefinitionLookup
+                let answerNeedsDocumentSummary = answerIntent.requiresDocumentSummary || contextualDefinitionLookup
                 auditAnswerIntent = answerIntent.rawValue
                 Log.info(
-                    "✓ Answer intent: \(answerIntent.rawValue) (extractive-first: \(answerIntent.isExtractiveFirst), multi-hop: \(answerIntent.benefitsFromMultiHop))",
+                    "✓ Answer intent: \(answerIntent.rawValue) (extractive-first: \(answerIntentIsExtractive), multi-hop: \(answerIntent.benefitsFromMultiHop)\(contextualDefinitionLookup ? ", contextual-definition: true" : ""))",
                     category: .pipeline
                 )
                 emitThinkingEvent(
                     .intentRoute,
                     title: "Intent: \(answerIntent.rawValue)",
-                    detail: answerIntent.isExtractiveFirst ? "Extractive-first" : (answerIntent.benefitsFromMultiHop ? "Multi-hop enabled" : "Standard")
+                    detail: contextualDefinitionLookup ? "Contextual definition lookup" : (answerIntentIsExtractive ? "Extractive-first" : (answerIntent.benefitsFromMultiHop ? "Multi-hop enabled" : "Standard"))
                 )
+                if contextualDefinitionLookup {
+                    Log.info(
+                        "[RAG] Standard contextual lookup: definition-style query will use summary + detail evidence",
+                        category: .pipeline
+                    )
+                    emitThinkingEvent(
+                        .planning,
+                        title: "Contextual lookup",
+                        detail: "Definition-style query → summary + detail grounding"
+                    )
+                }
 
                 // Step 2: Embed the user's query
                 Log.section("Step 2: Query Embedding", level: .info, category: .pipeline)
@@ -6437,7 +7041,7 @@ class RAGService: ObservableObject {
                 // HyDE can guess wrong values (e.g., "5W-40" when answer is "0W-20") and pull wrong chunks
                 // Extractive-first intents (lookup, tableLookup) work better with keyword matching
                 // Procedure intents need HyDE for semantic behavioral matching ("what does the button do?")
-                let hydeDisabledForIntent = answerIntent.isExtractiveFirst
+                let hydeDisabledForIntent = answerIntentIsExtractive
                 if hydeDisabledForIntent && hydeEnabledForMode {
                     Log.debug("[HyDE] Disabled for extractive intent '\(answerIntent.rawValue)' - keyword matching preferred", category: .retrieval)
                 }
@@ -6543,7 +7147,7 @@ class RAGService: ObservableObject {
                 // (compare, investigate, findings) even if user hasn't toggled the setting.
                 // The infrastructure is fully built — this just activates it where it matters.
                 let userEnabledIterative = settingsStore?.enableIterativeRetrieval ?? false
-                let iterativeAllowedForIntent = !answerIntent.isExtractiveFirst
+                let iterativeAllowedForIntent = !answerIntentIsExtractive
                 let useIterative = iterativeAllowedForIntent && (userEnabledIterative || (answerIntent.benefitsFromMultiHop && qualityModeUsesIterativeRetrieval))
                 let iterativeConfig = IterativeRetrievalConfig.default
 
@@ -6579,7 +7183,10 @@ class RAGService: ObservableObject {
                         ("confidence", String(format: "%.0f%%", queryClassification.confidence * 100))
                     ])
                 }
-                let searchLevels = effectiveQueryProfile.abstractionLevelsToSearch
+                var searchLevels = effectiveQueryProfile.abstractionLevelsToSearch
+                if contextualDefinitionLookup && !searchLevels.contains(.documentSummary) {
+                    searchLevels.insert(.documentSummary, at: 0)
+                }
 
                 if queryRoutingEnabled {
                     Log.info(
@@ -6593,20 +7200,31 @@ class RAGService: ObservableObject {
                 // Filter cached chunks by abstraction level if we have summaries AND routing is enabled
                 var filteredCachedChunks: [DocumentChunk]? = cachedAllChunks
                 if queryRoutingEnabled, let allChunks = cachedAllChunks {
-                    let hasSummaries = allChunks.contains { $0.metadata.abstractionLevel == .documentSummary }
-                    if hasSummaries && queryClassification.queryType == .overview && queryClassification.confidence >= 0.5 {
+                    if hasSummaryChunks && (contextualDefinitionLookup || (queryClassification.queryType == .overview && queryClassification.confidence >= 0.5)) {
                         // For overview queries, prioritize summary chunks
                         filteredCachedChunks = allChunks.filter { searchLevels.contains($0.metadata.abstractionLevel) }
-                        auditUsedSummaryRouting = true
-                        Log.info(
-                            "[RAPTOR-lite] Filtered to \(filteredCachedChunks?.count ?? 0) chunks (from \(allChunks.count)) for overview query",
-                            category: .retrieval
-                        )
-                        emitThinkingEvent(
-                            .planning,
-                            title: "Using document summaries",
-                            detail: "Overview query → searching L1 summaries first"
-                        )
+                        if contextualDefinitionLookup {
+                            Log.info(
+                                "[RAPTOR-lite] Filtered to \(filteredCachedChunks?.count ?? 0) chunks (from \(allChunks.count)) for contextual definition lookup",
+                                category: .retrieval
+                            )
+                            emitThinkingEvent(
+                                .planning,
+                                title: "Using summaries + details",
+                                detail: "Definition query → blend document summaries with detail chunks"
+                            )
+                        } else {
+                            auditUsedSummaryRouting = true
+                            Log.info(
+                                "[RAPTOR-lite] Filtered to \(filteredCachedChunks?.count ?? 0) chunks (from \(allChunks.count)) for overview query",
+                                category: .retrieval
+                            )
+                            emitThinkingEvent(
+                                .planning,
+                                title: "Using document summaries",
+                                detail: "Overview query → searching L1 summaries first"
+                            )
+                        }
                     }
                 }
 
@@ -6730,7 +7348,7 @@ class RAGService: ObservableObject {
                     // "What vehicle of oil does this automobile takes" embed into a completely
                     // different semantic neighborhood and pull in irrelevant chunks.
                     // Appended queries like "oil type specification SAE" stay on-topic.
-                    let allowSupplementaryVectorSearch = !answerIntent.isExtractiveFirst && !isTrivial
+                    let allowSupplementaryVectorSearch = !answerIntentIsExtractive && !isTrivial
                     if allowSupplementaryVectorSearch && expandedQueries.count > 1 {
                         let existingChunkIds = Set(retrievedChunks.map { $0.chunk.id })
                         let effectiveQueryLower = effectiveQuery.lowercased()
@@ -6767,7 +7385,7 @@ class RAGService: ObservableObject {
                                 }
                             }
                         }
-                    } else if answerIntent.isExtractiveFirst && expandedQueries.count > 1 {
+                    } else if answerIntentIsExtractive && expandedQueries.count > 1 {
                         Log.debug("[MultiVector] Supplementary vector search skipped for extractive intent '\(answerIntent.rawValue)'", category: .retrieval)
                     }
                 }
@@ -7093,6 +7711,18 @@ class RAGService: ObservableObject {
                     }
                 }
 
+                if contextualDefinitionLookup,
+                   let boostedDefinitionChunks = applyContextualDefinitionBoost(
+                    chunks: rerankedChunks,
+                    query: question
+                   ) {
+                    rerankedChunks = boostedDefinitionChunks
+                    Log.info(
+                        "[RAG] Contextual definition ranking applied: preferring summary/prose evidence over structured comparison fragments",
+                        category: .retrieval
+                    )
+                }
+
                 if rerankedChunks.isEmpty {
                     Log.warning(
                         "⚠️  [RAGService] Re-ranking yielded no candidates",
@@ -7229,7 +7859,7 @@ class RAGService: ObservableObject {
                     // SPEC PRESERVATION: For extractive queries, rescue chunks with actual specification values.
                     // Cross-encoders often score table/spec chunks lower (sparse text, dense data)
                     // but these are exactly the chunks that contain the answer.
-                    if answerIntent.isExtractiveFirst {
+                    if answerIntentIsExtractive {
                         let filteredIds = Set(filteredChunks.map { $0.chunk.id })
                         let droppedChunks = rerankedChunks.filter { !filteredIds.contains($0.chunk.id) }
 
@@ -7608,7 +8238,7 @@ class RAGService: ObservableObject {
                 // - Smart deduplication to avoid redundant content
                 // - Dynamic chunk count based on available tokens
                 // ═══════════════════════════════════════════════════════════════════════════════
-                if answerIntent.requiresDocumentSummary && !isEnumerationQuery, let allChunks = cachedAllChunks {
+                if answerNeedsDocumentSummary && !isEnumerationQuery, let allChunks = cachedAllChunks {
                     let summaryChunks = allChunks.filter { $0.metadata.abstractionLevel == .documentSummary }
                     let existingIds = Set(contextCandidates.map { $0.chunk.id })
 
@@ -7948,7 +8578,7 @@ class RAGService: ObservableObject {
                 // reranker scores prose cross-references higher than the actual table.
                 // Scan retrieved chunks for cross-refs and fetch the referenced content.
                 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-                if answerIntent.isExtractiveFirst {
+                if answerIntentIsExtractive {
                     let crossRefChunks = await resolveCrossReferencesStandard(
                         chunks: contextCandidates,
                         query: question,
@@ -7974,7 +8604,7 @@ class RAGService: ObservableObject {
                 // This is the "needle in a haystack" sniper — universal across domains:
                 // medical dosages, legal statute numbers, technical specs, financial data.
                 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-                if answerIntent.isExtractiveFirst, let allChunks = cachedAllChunks {
+                if answerIntentIsExtractive, let allChunks = cachedAllChunks {
                     let existingIds = Set(contextCandidates.map { $0.chunk.id })
                     let sniperResults = specTableSniper(
                         query: question,
@@ -8248,7 +8878,7 @@ class RAGService: ObservableObject {
                 let shouldAttemptCorrective = shouldAttemptCorrectiveRetrieval(
                     query: effectiveQuery,
                     candidates: contextCandidates,
-                    answerIntentIsExtractive: answerIntent.isExtractiveFirst,
+                    answerIntentIsExtractive: answerIntentIsExtractive,
                     targetCount: effectiveTopK
                 )
 
@@ -8312,11 +8942,11 @@ class RAGService: ObservableObject {
                             let shouldAdoptCorrective =
                                 postCorrectiveLexical > preCorrectiveLexical + 0.08
                                 || postCorrectiveTopSim > preCorrectiveTopSim + 0.04
-                                || (answerIntent.isExtractiveFirst
+                                || (answerIntentIsExtractive
                                     && postCorrectiveLexical >= preCorrectiveLexical
                                     && hasStructuredEvidence
                                     && !hadStructuredEvidence)
-                                || (answerIntent.isExtractiveFirst
+                                || (answerIntentIsExtractive
                                     && preCorrectiveLexical < 0.55
                                     && postCorrectiveLexical >= preCorrectiveLexical)
 
@@ -8554,7 +9184,7 @@ class RAGService: ObservableObject {
                         return a.rank < b.rank
                     })
                     Log.info("[RAG] Procedural query - preserving document order for sequence fidelity", category: .retrieval)
-                } else if answerIntent.isExtractiveFirst {
+                } else if answerIntentIsExtractive {
                     // For lookup/table queries, prioritize chunks containing specifications
                     // that MATCH the query topic — not just any specs
                     let queryKeywords = extractQueryTerms(question)
@@ -8626,13 +9256,13 @@ class RAGService: ObservableObject {
                 let context: String
                 let actualChunksUsed: Int
 
-                if answerIntent.isExtractiveFirst && !isProceduralQuery {
-                    let extractionResult = extractRelevantSentences(
+                if answerIntentIsExtractive && !isProceduralQuery {
+                    let extractionResult = await extractRelevantSentences(
                         from: orderedCandidates,
                         query: question,
                         maxChars: maxContextChars,
                         compact: useCompactMode,
-                        isExtractiveFirst: answerIntent.isExtractiveFirst
+                        isExtractiveFirst: answerIntentIsExtractive
                     )
                     context = extractionResult.context
                     actualChunksUsed = extractionResult.sourcesUsed
@@ -8656,15 +9286,15 @@ class RAGService: ObservableObject {
                     // without replacing whole-chunk packing for the primary chunks.
                     let droppedChunks = Array(orderedCandidates.dropFirst(assembled.used))
                     let remainingBudget = maxContextChars - assembledContext.count
-                    let rescueBudgetFloor = (answerIntent.isExtractiveFirst || isPrecisionValueQuery(question)) ? 80 : 160
+                    let rescueBudgetFloor = (answerIntentIsExtractive || isPrecisionValueQuery(question)) ? 80 : 160
 
                     if !droppedChunks.isEmpty && remainingBudget > rescueBudgetFloor {
-                        let rescueResult = extractRelevantSentences(
+                        let rescueResult = await extractRelevantSentences(
                             from: droppedChunks,
                             query: question,
                             maxChars: remainingBudget,
                             compact: true,  // Always compact for rescue sentences to maximize density
-                            isExtractiveFirst: answerIntent.isExtractiveFirst
+                            isExtractiveFirst: answerIntentIsExtractive
                         )
                         if rescueResult.sentencesIncluded > 0 {
                             assembledContext += "\n---\n" + rescueResult.context
@@ -9045,11 +9675,12 @@ class RAGService: ObservableObject {
                 // proceed to LLM generation for reliable answers.
                 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-                if let extractiveOverride = await highPrecisionLookupOverrideAnswer(
-                    question: question,
-                    answerIntent: answerIntent,
-                    retrievedChunks: precisionLookupCandidates
-                ) {
+                if answerIntentIsExtractive || isPrecisionValueQuery(question),
+                   let extractiveOverride = await highPrecisionLookupOverrideAnswer(
+                       question: question,
+                       answerIntent: answerIntent,
+                       retrievedChunks: precisionLookupCandidates
+                   ) {
                     Log.info("[ExtractiveQA] Returning direct source extraction before LLM generation", category: .retrieval)
 
                     var extractiveAnswer = extractiveOverride
@@ -9184,11 +9815,22 @@ class RAGService: ObservableObject {
                         Count carefully — only include items explicitly mentioned in the excerpts. Never duplicate items. Never invent items not in the source.
                         Use only the minimum citations needed for the count sentence or for bullets that come from different sources.
                         """
+                    } else if contextualDefinitionLookup {
+                        intentSpecificInstructions = """
+                        Define the subject directly in the first sentence.
+                        Then explain the most relevant grounded context or significance from the excerpts.
+                        Use concise prose, but allow 2-4 sentences when the excerpts support a fuller explanation.
+                        Do not collapse a research concept into a nearby product, delivery form, or adjacent therapy unless the excerpts explicitly equate them.
+                        If the excerpts distinguish the subject from similar items, state that distinction clearly.
+                        Use the minimum citations needed — usually one citation cluster at the end of a sentence or short paragraph.
+                        """
                     } else {
                         intentSpecificInstructions = """
                         Answer only the exact question being asked.
-                        Prefer one short paragraph, at most two sentences. State the answer in the first sentence.
-                        Add only one brief support sentence if it materially helps.
+                        Start with the direct answer in the first sentence.
+                        If the excerpts support additional details that materially answer the question, include them instead of collapsing everything into a one-line reply.
+                        Use concise prose by default, but allow 2-4 sentences when needed for a complete grounded answer.
+                        Keep it to one short paragraph unless bullets materially improve clarity.
                         Copy numbers, units, and codes VERBATIM.
                         Use the minimum citations needed — usually one citation cluster at the end of the sentence or paragraph. Do not repeat citations after every clause or restated fact.
                         Many excerpts say similar things in different words — combine them into one cohesive explanation. Never repeat the same fact twice.
@@ -9245,7 +9887,7 @@ class RAGService: ObservableObject {
                 Rules: Cite sources [S1]/[S2] using the minimum citations needed to support the answer. Copy values VERBATIM. Answer exactly what was asked; be complete for the request, not exhaustive. If the excerpts do not address the user's question, say so clearly — briefly state what the excerpts cover and that the requested topic is not in the documents. Do NOT fabricate answers from unrelated context. If the question is vague, interpret it from document topics.
                 CRITICAL: NEVER invent numbers, measurements, or values. Use ONLY values that appear in the excerpts. If a specific value is not in the excerpts, state that clearly.
                 ABBREVIATIONS: If an [Abbreviations] glossary appears in the context, use those EXACT definitions when expanding abbreviations. Never expand an abbreviation differently than the glossary defines it. Example: if glossary says "ED = Emotional Dysregulation", NEVER write "oppositional defiant disorder (ED)".
-                Format: Write naturally and match format to the question. Use ### headers only for multi-topic answers or explicit summaries. Use **bold** sparingly for key terms only. Use bullets only for actual lists, sequential steps, or specifications the user asked to enumerate. Write prose paragraphs for direct explanations and factual lookups. Combine overlapping excerpts into unified sentences — never repeat the same fact. For direct factual questions, prefer one short paragraph over sections or lists.
+                Format: Write naturally and match format to the question. Use ### headers only for multi-topic answers or explicit summaries. Use **bold** sparingly for key terms only. Use bullets only for actual lists, sequential steps, or specifications the user asked to enumerate. Write prose paragraphs for direct explanations and factual lookups. Combine overlapping excerpts into unified sentences — never repeat the same fact. For direct factual questions, prefer concise prose over sections or lists, but include all materially supported details. When multiple grounded facts are needed, use 2-4 sentences rather than a one-line reply.
                 \(contextIsHomogeneous ? "IMPORTANT: The source excerpts contain highly repetitive or redundant entries. SYNTHESIZE across all excerpts into a SINGLE unified answer. Do NOT list or enumerate each excerpt separately. Mention each unique fact, date, or value ONCE. Combine similar entries." : "")
                 """
 
@@ -9257,7 +9899,7 @@ class RAGService: ObservableObject {
                     Rules: Cite only the minimum supporting sources needed for each grounded point. Copy values VERBATIM. Answer exactly what was asked. Do NOT fill gaps with assumptions. NEVER invent numbers.
                     ABBREVIATIONS: If an [Abbreviations] glossary appears, use those EXACT definitions. Never expand abbreviations differently.
                     For procedures: preserve exact order, never omit steps, include feedback indicators.
-                    Format: Write naturally. Use ### headers only for multi-topic answers. Use **bold** sparingly for key terms only. Use bullets only for actual lists or sequential steps. Write prose paragraphs for explanations and direct factual answers. Merge overlapping excerpts into unified sentences. For direct factual questions, answer in one short paragraph unless the user explicitly asked for a list or steps.
+                    Format: Write naturally. Use ### headers only for multi-topic answers. Use **bold** sparingly for key terms only. Use bullets only for actual lists or sequential steps. Write prose paragraphs for explanations and direct factual answers. Merge overlapping excerpts into unified sentences. For direct factual questions, stay concise but include all materially supported details. Do not force a one-line answer when the evidence supports a fuller grounded explanation.
                     \(contextIsHomogeneous ? "IMPORTANT: Excerpts contain repetitive entries. SYNTHESIZE into ONE answer. Mention each fact ONCE." : "")
                     End with: What sources show → What's missing → Confidence note.
                     """
@@ -9899,11 +10541,12 @@ class RAGService: ObservableObject {
                     }
 
                     var sourceLockedFinalResponse = false
-                    if let extractiveOverride = await highPrecisionLookupOverrideAnswer(
-                        question: question,
-                        answerIntent: answerIntent,
-                        retrievedChunks: generationRetrievedChunks
-                    )
+                    if (answerIntentIsExtractive || isPrecisionValueQuery(question)),
+                       let extractiveOverride = await highPrecisionLookupOverrideAnswer(
+                           question: question,
+                           answerIntent: answerIntent,
+                           retrievedChunks: generationRetrievedChunks
+                       )
                     {
                         sourceLockedFinalResponse = true
                         let normalizedLLM = responseText.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -10033,7 +10676,7 @@ class RAGService: ObservableObject {
                             }
 
                             let effectiveThreshold = confidencePolicy.verificationPassThreshold
-                            if answerIntent.isExtractiveFirst {
+                            if answerIntentIsExtractive {
                                 Log.debug("[Verification] Extractive intent '\(answerIntent.rawValue)' - using relaxed threshold \(String(format: "%.0f", effectiveThreshold * 100))%", category: .pipeline)
                             }
 
@@ -10042,7 +10685,7 @@ class RAGService: ObservableObject {
 
                             // If grounded-only mode and verification fails, abstain
                             if !allowUngroundedFallback || belowConfidenceThreshold {
-                                let thresholdDisplay = answerIntent.isExtractiveFirst
+                                let thresholdDisplay = answerIntentIsExtractive
                                     ? "\(qualityModeDisplayName) threshold \(String(format: "%.0f", effectiveThreshold * 100))% (relaxed for extractive)"
                                     : "\(qualityModeDisplayName) threshold \(String(format: "%.0f", effectiveThreshold * 100))%"
                                 let reason = belowConfidenceThreshold
@@ -10208,6 +10851,7 @@ class RAGService: ObservableObject {
 
 #if canImport(FoundationModels)
                     if #available(iOS 26.0, *),
+                       (answerIntentIsExtractive || isPrecisionValueQuery(question)),
                        let sourceOnlyOutcome = await sourceOnlyOutcomeIfNeeded(
                            query: question,
                            candidateAnswer: responseText,
@@ -12224,8 +12868,8 @@ class RAGService: ObservableObject {
     ) async -> RAGResponse {
         // Clean up the response text (normalize whitespace, preserve markdown formatting)
         let cleanedResponse = cleanupResponseText(response.generatedResponse)
-        let humanizedResponse = humanizeCitations(cleanedResponse, chunks: response.retrievedChunks)
-        let repairedResponse = repairMalformedURLs(humanizedResponse)
+        let stabilizedResponse = trimIncompleteResponseTail(cleanedResponse)
+        let repairedResponse = repairMalformedURLs(stabilizedResponse)
         let finalizedStructuredAnswer = response.structuredAnswer?.updatingAnswer(repairedResponse)
         let fallbackReasoningTrace = await MainActor.run {
             self.thinkingEvents.compactReasoningTrace()
@@ -12298,7 +12942,7 @@ class RAGService: ObservableObject {
             return nil
         }
 
-        let preserveAbstention = (isStateLookupQuery(query) || isPrecisionValueQuery(query)) && !isSourceLocked
+        let preserveAbstention = (Self.isStateLookupQuery(query) || isPrecisionValueQuery(query)) && !isSourceLocked
 
         // Keep this conservative for user-facing quality.
         // Use source-only when it strengthens a grounded lookup answer, not when it
@@ -12759,6 +13403,17 @@ class RAGService: ObservableObject {
         candidate: String,
         answerType: StructuredAnswer.AnswerType
     ) -> Bool {
+        let candidateIssues = responseIntegrityIssues(candidate)
+        let fallbackIssues = responseIntegrityIssues(fallback)
+
+        if !candidateIssues.isEmpty && fallbackIssues.isEmpty {
+            return true
+        }
+
+        if looksFragmentaryDisplayText(candidate) && !looksFragmentaryDisplayText(fallback) {
+            return true
+        }
+
         if shouldPreserveStructuredExactDisplay(candidate: candidate, answerType: answerType) {
             return false
         }
@@ -12780,7 +13435,7 @@ class RAGService: ObservableObject {
                 if candidateCitations > max(2, fallbackCitations + 1) {
                     return true
                 }
-                if candidateWords > fallbackWords + 18 {
+                if candidateWords > 120 && candidateWords > fallbackWords + 40 {
                     return true
                 }
             }
@@ -12816,6 +13471,96 @@ class RAGService: ObservableObject {
             || (hasCitation && (hasQuotedValue || hasLabelValue || hasSpecificationCue))
     }
 
+    private func looksFragmentaryDisplayText(_ text: String) -> Bool {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return false }
+
+        let nonEmptyLines = trimmed.components(separatedBy: .newlines)
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        let incompleteMarkers: Set<String> = ["and", "or", "but", "the", "a", "an", "to", "of", "in", "for", "with"]
+        let lastWord = String(trimmed.split(separator: " ").last ?? "").lowercased()
+        let endsCleanly = Self.hasResponseTerminalBoundary(trimmed)
+
+        if !endsCleanly && incompleteMarkers.contains(lastWord) {
+            return true
+        }
+
+        let fragmentLines = nonEmptyLines.filter { line in
+            let wordCount = line.split(whereSeparator: { $0.isWhitespace || $0.isNewline }).count
+            let looksListLine = line.range(of: #"^(?:[-•*]|\d+[.)])\s+"#, options: .regularExpression) != nil
+            return !looksListLine && wordCount >= 3 && wordCount <= 8 && !Self.hasResponseTerminalBoundary(line)
+        }
+
+        return nonEmptyLines.count >= 2 && fragmentLines.count * 2 >= nonEmptyLines.count
+    }
+
+    private nonisolated func trimIncompleteResponseTail(_ text: String) -> String {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return trimmed }
+
+        if Self.hasResponseTerminalBoundary(trimmed) {
+            return trimmed
+        }
+
+        if Self.looksLikeStandaloneValueResponse(trimmed) {
+            return trimmed
+        }
+
+        let incompleteMarkers: Set<String> = ["and", "or", "but", "the", "a", "an", "to", "of", "in", "for", "with", "if", "when", "because", "that", "which"]
+        let lastWord = String(trimmed.split(separator: " ").last ?? "").lowercased()
+        let lines = trimmed.components(separatedBy: .newlines)
+        let nonEmptyLines = lines.filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+
+        if let lastLine = nonEmptyLines.last?.trimmingCharacters(in: .whitespacesAndNewlines) {
+            let lastLineWordCount = lastLine.split(whereSeparator: { $0.isWhitespace || $0.isNewline }).count
+            let looksShortDanglingLine = lastLineWordCount > 0 && lastLineWordCount <= 6
+            let looksBullet = lastLine.range(of: #"^(?:[-•*]|\d+[.)])\s+"#, options: .regularExpression) != nil
+
+            if (looksShortDanglingLine || incompleteMarkers.contains(lastWord)) && nonEmptyLines.count > 1 {
+                let droppedLastLine = nonEmptyLines.dropLast().joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
+                if !droppedLastLine.isEmpty && (Self.hasResponseTerminalBoundary(droppedLastLine) || !looksBullet) {
+                    return droppedLastLine
+                }
+            }
+        }
+
+        if let boundaryIndex = Self.lastCompleteSentenceBoundary(in: trimmed) {
+            let candidate = String(trimmed[...boundaryIndex]).trimmingCharacters(in: .whitespacesAndNewlines)
+            if candidate.count >= max(24, trimmed.count / 3) {
+                return candidate
+            }
+        }
+
+        return trimmed
+    }
+
+    private nonisolated static func hasResponseTerminalBoundary(_ text: String) -> Bool {
+        guard let last = text.trimmingCharacters(in: .whitespacesAndNewlines).last else { return false }
+        return [".", "!", "?", "]", ")", "}", "\"", "'"] .contains(last)
+    }
+
+    private nonisolated static func looksLikeStandaloneValueResponse(_ text: String) -> Bool {
+        text.range(
+            of: #"^\s*(?:\d+(?:[.,]\d+)?(?:\s*[A-Za-z%/.-]+){0,4}|[A-Za-z][A-Za-z0-9 /_-]{0,24}:\s*\d+(?:[.,]\d+)?(?:\s*[A-Za-z%/.-]+){0,4})(?:\s*\[[^\]]+\])?\s*$"#,
+            options: [.regularExpression, .caseInsensitive]
+        ) != nil
+    }
+
+    private nonisolated static func lastCompleteSentenceBoundary(in text: String) -> String.Index? {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+
+        for index in trimmed.indices.reversed() {
+            let character = trimmed[index]
+            if character == "." || character == "!" || character == "?" {
+                return index
+            }
+        }
+
+        return nil
+    }
+
     private func citationCount(in text: String) -> Int {
         guard let regex = Self.citationRegex else { return 0 }
         let range = NSRange(text.startIndex ..< text.endIndex, in: text)
@@ -12828,6 +13573,7 @@ class RAGService: ObservableObject {
         retrievedChunks: [RetrievedChunk]
     ) async -> String? {
         guard !retrievedChunks.isEmpty else { return nil }
+        guard !isConceptualLookupQuery(question) else { return nil }
 
         // Universal behavior: if intent classification misses but the query is clearly
         // asking for a precise value/spec, still attempt extractive locking with a stricter threshold.
@@ -12966,29 +13712,80 @@ class RAGService: ObservableObject {
         return indicators.contains { description.contains($0) }
     }
 
+    /// Detects lookup questions that are really asking for a conceptual explanation,
+    /// even when they contain values like “4,096” that might otherwise look extractive.
+    private nonisolated func isConceptualLookupQuery(_ query: String) -> Bool {
+        let lower = query.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !lower.isEmpty else { return false }
+
+        let normalized = lower.trimmingCharacters(in: .punctuationCharacters)
+        let conceptualOpeners = [
+            "what is ", "what are ", "what's ", "how does ", "how do ",
+            "why is ", "why does ", "explain ", "tell me about ", "walk me through ",
+        ]
+        let hasConceptualOpener = conceptualOpeners.contains { normalized.hasPrefix($0) }
+        guard hasConceptualOpener else { return false }
+
+        let conceptualMarkers = [
+            "token limit", "context window", "private cloud compute", "apple intelligence",
+            "foundation model", "hybrid search", "rag pipeline", "retrieval augmented generation",
+            "retrieval-augmented generation", "architecture", "workflow", "quality mode",
+            "on-device", "on device", "citation", "source card", "file format", "supported format",
+            "document import", "sample workspace", "grounded answer", "grounded response", "4,096", "4096",
+        ]
+        guard conceptualMarkers.contains(where: { normalized.contains($0) }) else { return false }
+
+        let strongValueMarkers = [
+            "capacity", "size", "amount", "value", "rating", "weight", "length", "width", "height",
+            "volume", "pressure", "temperature", "speed", "torque", "power", "voltage", "current",
+            "frequency", "dose", "dosage", "price", "cost", "part number", "model number", "serial number",
+            "catalog number", "item number", "product code", "sku",
+        ]
+        guard !strongValueMarkers.contains(where: { normalized.contains($0) }) else { return false }
+
+        return true
+    }
+
     /// Detects queries that ask for a concrete numeric/measurement value.
     /// This is domain-agnostic and intentionally conservative.
     private nonisolated func isPrecisionValueQuery(_ query: String) -> Bool {
         let lower = query.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
         guard !lower.isEmpty else { return false }
 
-        let numericIntentMarkers = [
-            "how many", "how much", "what is", "what's", "give me the", "exact", "spec", "specification",
+        guard !isConceptualLookupQuery(lower) else { return false }
+
+        let strongNumericIntentMarkers = [
+            "how many", "how much", "give me the", "exact", "spec", "specification",
         ]
-        let valueMarkers = [
-            "capacity", "size", "amount", "value", "rating", "limit", "range", "weight", "length", "width", "height",
-            "volume", "pressure", "temperature", "speed", "torque", "power", "voltage", "current", "frequency", "dose", "dosage",
-            "price", "cost",
+        let weakNumericIntentMarkers = ["what is", "what's"]
+        let strongValueMarkers = [
+            "capacity", "size", "amount", "value", "rating", "weight", "length", "width", "height",
+            "volume", "pressure", "temperature", "speed", "torque", "power", "voltage", "current", "frequency",
+            "dose", "dosage", "price", "cost", "count", "number", "total", "date", "deadline", "fee",
+            "part number", "model number", "serial number", "catalog number", "item number", "product code", "sku",
+        ]
+        let ambiguousValueMarkers = [
+            "limit", "range", "setting", "mode", "level", "interval", "threshold",
         ]
 
-        let hasNumericIntent = numericIntentMarkers.contains { lower.contains($0) }
-        let hasValueTarget = valueMarkers.contains { lower.contains($0) }
+        let hasStrongNumericIntent = strongNumericIntentMarkers.contains { lower.contains($0) }
+        let hasWeakNumericIntent = weakNumericIntentMarkers.contains { lower.contains($0) }
+        let hasStrongValueTarget = strongValueMarkers.contains { lower.contains($0) }
+        let hasAmbiguousValueTarget = ambiguousValueMarkers.contains { lower.contains($0) }
 
         // Unit-like tokens in the question are a strong indicator of precision lookup.
         let unitPattern = #"\b(?:gal(?:lon)?s?|l(?:iter)?s?|ml|kg|g|lb?s?|oz|mm|cm|m|km|mi|mph|km/h|psi|kpa|bar|v|a|w|kw|hz|mhz|ghz|°c|°f|%)\b"#
         let hasUnits = lower.range(of: unitPattern, options: .regularExpression) != nil
 
-        return (hasNumericIntent && hasValueTarget) || (hasNumericIntent && hasUnits)
+        if hasStrongNumericIntent && (hasStrongValueTarget || hasAmbiguousValueTarget || hasUnits) {
+            return true
+        }
+
+        if hasWeakNumericIntent && (hasStrongValueTarget || hasUnits) {
+            return true
+        }
+
+        return false
     }
 
     /// Ensures we only force-lock answers that contain concrete values.
@@ -13067,8 +13864,65 @@ class RAGService: ObservableObject {
             .filter { !$0.isEmpty && dedupedSeen.insert($0).inserted }
     }
 
-    private nonisolated func isStateLookupQuery(_ query: String) -> Bool {
+    private nonisolated static func isStateLookupQuery(_ query: String) -> Bool {
         EvidenceScoringPolicyService.isStateLookupQuery(query)
+    }
+
+    private nonisolated static func isDefinitionStyleLookupQuery(_ query: String) -> Bool {
+        let lower = query.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !lower.isEmpty else { return false }
+
+        let normalized = lower.trimmingCharacters(in: .punctuationCharacters)
+        let definitionPatterns = [
+            "what is ", "what are ", "what's ", "define ",
+            "definition of ", "meaning of ", "what does ",
+        ]
+        let hasDefinitionCue = definitionPatterns.contains { normalized.hasPrefix($0) }
+            || normalized.contains(" definition of ")
+            || normalized.contains(" meaning of ")
+
+        guard hasDefinitionCue else { return false }
+
+        let exactValueSignals = [
+            "capacity", "spec", "specification", "torque", "pressure", "temperature", "speed",
+            "voltage", "current", "frequency", "power", "weight", "height", "width", "length",
+            "dimensions", "size", "setting", "mode", "level", "schedule", "interval", "dose",
+            "dosage", "reference number", "part number", "model number", "serial number",
+            "catalog number", "item number", "product code", "sku", "recommended", "maximum", "minimum"
+        ]
+        if exactValueSignals.contains(where: { normalized.contains($0) }) {
+            return false
+        }
+
+        let numericUnitPattern = #"\b\d+(?:[.,]\d+)?\s*(?:%|mg|g|kg|mcg|ug|ml|l|qt|gal|mm|cm|m|km|in|ft|psi|kpa|bar|v|a|w|kw|hz|mhz|ghz|°c|°f)\b"#
+        if normalized.range(of: numericUnitPattern, options: .regularExpression) != nil {
+            return false
+        }
+
+        return true
+    }
+
+    private nonisolated func isStandardEquivalentQualityMode(_ qualityMode: RAGQualityMode) -> Bool {
+        switch qualityMode {
+        case .standard, .balanced, .fast, .thorough:
+            return true
+        case .deepThink, .agentic, .maximum:
+            return false
+        }
+    }
+
+    private nonisolated func shouldUseContextualDefinitionLookupMode(
+        query: String,
+        answerIntent: AnswerIntent,
+        qualityMode: RAGQualityMode,
+        hasSummaryChunks: Bool
+    ) -> Bool {
+        guard isStandardEquivalentQualityMode(qualityMode) else { return false }
+        guard answerIntent == .lookup else { return false }
+        guard hasSummaryChunks else { return false }
+        if isConceptualLookupQuery(query) { return true }
+        guard !isPrecisionValueQuery(query) else { return false }
+        return Self.isDefinitionStyleLookupQuery(query)
     }
 
     private func looksTableLike(text: String, structureType: String?) -> Bool {
@@ -13102,7 +13956,7 @@ class RAGService: ObservableObject {
         guard !queryTerms.isEmpty else { return [] }
 
         let queryVariants = buildCorrectiveRetrievalQueries(from: query)
-        let useStateAnchorGuard = isStateLookupQuery(query)
+        let useStateAnchorGuard = Self.isStateLookupQuery(query)
         let useStructuredRowRescue = answerIntent.isExtractiveFirst || isPrecisionValueQuery(query)
         let chunkLookup: [String: DocumentChunk] = {
             guard let allChunks else { return [:] }

@@ -9,24 +9,57 @@
 import Foundation
 
 enum EvidenceScoringPolicyService {
+    nonisolated private static let sentenceStopWords: Set<String> = [
+        "a", "an", "the", "is", "are", "was", "were", "be", "been", "being",
+        "have", "has", "had", "do", "does", "did", "will", "would", "could", "should",
+        "may", "might", "must", "shall", "can", "need", "dare", "ought", "used",
+        "to", "of", "in", "for", "on", "with", "at", "by", "from", "as", "into",
+        "through", "during", "before", "after", "above", "below", "between",
+        "under", "again", "further", "then", "once", "here", "there", "when",
+        "where", "why", "how", "all", "each", "few", "more", "most", "other",
+        "some", "such", "no", "nor", "not", "only", "own", "same", "so", "than",
+        "too", "very", "just", "also", "now", "what", "which", "who", "whom",
+        "this", "that", "these", "those", "am", "it", "its", "i", "me", "my",
+        "myself", "we", "our", "ours", "ourselves", "you", "your", "yours",
+        "he", "him", "his", "she", "her", "hers", "they", "them", "their"
+    ]
+
+    nonisolated private static let sentenceUnitRegex: NSRegularExpression? = {
+        try? NSRegularExpression(
+            pattern: #"\d+(?:\.\d+)?\s*(?:qt|quart|gal|gallon|L|liter|litre|ml|oz|fl|kg|g|lb|lbs|mg|mcg|ug|mm|cm|m|km|in|ft|yd|mi|psi|kPa|MPa|bar|atm|rpm|hp|kW|MW|GW|Hz|kHz|MHz|GHz|TB|GB|MB|KB|V|mV|A|mA|W|kWh|MWh|Ah|mAh|cal|kcal|kJ|MJ|BTU|dB|dBm|lux|lm|cd|mol|IU|%)\b"#,
+            options: .caseInsensitive
+        )
+    }()
+
+    nonisolated private static let sentenceSpecCodeRegex: NSRegularExpression? = {
+        try? NSRegularExpression(
+            pattern: #"\b(?:API|ISO|SAE|ACEA|ASTM|IEEE|ANSI|IEC|NIST|OSHA|EPA|FDA|WHO|USP|NF|BP|JP|MIL-|SPEC-|UL|CE|FCC|RoHS|REACH|GMP|HACCP|NFPA|ASHRAE|ACI|AISI|AISC|AWS|ASME|DOT|FMVSS|ECE|JIS|DIN|EN|BS|AS|NZS|CSA|CAN|GB|GB/T)\s*[A-Z0-9./-]+"#
+        )
+    }()
+
+    nonisolated private static let sentenceStructuredCodeRegex: NSRegularExpression? = {
+        try? NSRegularExpression(
+            pattern: #"\b[A-Z0-9]{1,6}[-./][A-Z0-9]{1,6}(?:[-./][A-Z0-9]{1,6})?\b"#
+        )
+    }()
+
     nonisolated private static func isSentenceStopWord(_ token: String) -> Bool {
-        switch token {
-        case "a", "an", "the", "is", "are", "was", "were", "be", "been", "being",
-             "have", "has", "had", "do", "does", "did", "will", "would", "could", "should",
-             "may", "might", "must", "shall", "can", "need", "dare", "ought", "used",
-             "to", "of", "in", "for", "on", "with", "at", "by", "from", "as", "into",
-             "through", "during", "before", "after", "above", "below", "between",
-             "under", "again", "further", "then", "once", "here", "there", "when",
-             "where", "why", "how", "all", "each", "few", "more", "most", "other",
-             "some", "such", "no", "nor", "not", "only", "own", "same", "so", "than",
-             "too", "very", "just", "also", "now", "what", "which", "who", "whom",
-             "this", "that", "these", "those", "am", "it", "its", "i", "me", "my",
-             "myself", "we", "our", "ours", "ourselves", "you", "your", "yours",
-             "he", "him", "his", "she", "her", "hers", "they", "them", "their":
-            return true
-        default:
-            return false
+        sentenceStopWords.contains(token)
+    }
+
+    nonisolated private static func meaningfulSentenceTokens(from lowercasedText: String) -> Set<String> {
+        var tokens = Set<String>()
+        tokens.reserveCapacity(16)
+
+        for rawToken in lowercasedText.split(whereSeparator: { !$0.isLetter && !$0.isNumber }) {
+            guard rawToken.count > 2 else { continue }
+
+            let token = String(rawToken)
+            guard !isSentenceStopWord(token) else { continue }
+            tokens.insert(token)
         }
+
+        return tokens
     }
 
     nonisolated private static let crossReferenceIndicators = [
@@ -353,9 +386,7 @@ enum EvidenceScoringPolicyService {
     ) -> Double? {
         let lineLower = line.lowercased()
         let headingLower = headingContext.lowercased()
-        let lineWords = Set(lineLower
-            .components(separatedBy: CharacterSet.alphanumerics.inverted)
-            .filter { $0.count > 2 && !Self.isSentenceStopWord($0) })
+        let lineWords = Self.meaningfulSentenceTokens(from: lineLower)
         let queryWords = Set(queryKeywords)
 
         if !lineWords.isEmpty && !queryWords.isEmpty {
@@ -383,20 +414,17 @@ enum EvidenceScoringPolicyService {
         let hasNumbers = line.rangeOfCharacter(from: .decimalDigits) != nil
         let numberBonus: Double = hasNumbers ? 2.0 : 0.0
 
-        let unitPattern = #"\d+(?:\.\d+)?\s*(?:qt|quart|gal|gallon|L|liter|litre|ml|oz|fl|kg|g|lb|lbs|mg|mcg|ug|mm|cm|m|km|in|ft|yd|mi|psi|kPa|MPa|bar|atm|rpm|hp|kW|MW|GW|Hz|kHz|MHz|GHz|TB|GB|MB|KB|V|mV|A|mA|W|kWh|MWh|Ah|mAh|cal|kcal|kJ|MJ|BTU|dB|dBm|lux|lm|cd|mol|IU|%)\b"#
-        let unitHits = (try? NSRegularExpression(pattern: unitPattern, options: .caseInsensitive))?
+        let unitHits = Self.sentenceUnitRegex?
             .numberOfMatches(in: line, range: NSRange(line.startIndex..., in: line)) ?? 0
         let unitBonus = Double(min(unitHits, 3)) * 1.5 * specBoostMultiplier
 
-        let specCodePattern = #"\b(?:API|ISO|SAE|ACEA|ASTM|IEEE|ANSI|IEC|NIST|OSHA|EPA|FDA|WHO|USP|NF|BP|JP|MIL-|SPEC-|UL|CE|FCC|RoHS|REACH|GMP|HACCP|NFPA|ASHRAE|ACI|AISI|AISC|AWS|ASME|DOT|FMVSS|ECE|JIS|DIN|EN|BS|AS|NZS|CSA|CAN|GB|GB/T)\s*[A-Z0-9./-]+"#
-        let specHits = (try? NSRegularExpression(pattern: specCodePattern))?
+        let specHits = Self.sentenceSpecCodeRegex?
             .numberOfMatches(in: line, range: NSRange(line.startIndex..., in: line)) ?? 0
         let specBonus = Double(min(specHits, 3)) * 2.0 * specBoostMultiplier
 
         let keyValueBonus: Double = (line.contains(":") && hasNumbers) ? 1.5 * specBoostMultiplier : 0.0
 
-        let structuredCodePattern = #"\b[A-Z0-9]{1,6}[-./][A-Z0-9]{1,6}(?:[-./][A-Z0-9]{1,6})?\b"#
-        let codeHits = (try? NSRegularExpression(pattern: structuredCodePattern))?
+        let codeHits = Self.sentenceStructuredCodeRegex?
             .numberOfMatches(in: line, range: NSRange(line.startIndex..., in: line)) ?? 0
         let codeBonus = Double(min(codeHits, 3)) * 1.5 * specBoostMultiplier
 

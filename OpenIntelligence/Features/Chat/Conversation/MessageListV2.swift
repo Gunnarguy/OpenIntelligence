@@ -155,6 +155,16 @@ struct MessageListV2: View {
 private struct EmptyStateV2: View {
     var body: some View {
         VStack(spacing: 16) {
+            Text("Local-First")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(DSColors.accent)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+                .background(
+                    Capsule(style: .continuous)
+                        .fill(DSColors.accent.opacity(0.12))
+                )
+
             ZStack {
                 Circle()
                     .fill(DSColors.accent.opacity(0.1))
@@ -166,11 +176,11 @@ private struct EmptyStateV2: View {
             }
 
             VStack(spacing: 8) {
-                Text("Start a conversation")
+                Text("Grounded chat over your library")
                     .font(.system(size: 20, weight: .semibold))
                     .foregroundStyle(DSColors.primaryText)
 
-                Text("Ask questions about your documents\nor chat with AI")
+                Text("Grounded answers over your files, with strong support for PDFs, modern Office files, text, scans, images, code, and transcriptable media.")
                     .font(.system(size: 15))
                     .foregroundStyle(Color.secondary)
                     .multilineTextAlignment(.center)

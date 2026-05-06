@@ -19,72 +19,101 @@ final class SampleDocumentManager {
             filename: "OpenIntelligence Pricing",
             extension: "md",
             body: #"""
-# OpenIntelligence Pricing Guide
+# OpenIntelligence Product Guide
 
-## What is OpenIntelligence?
+## What makes OpenIntelligence different?
 
-OpenIntelligence is a privacy-first AI document assistant that runs entirely on your device. It uses Retrieval-Augmented Generation (RAG) to answer questions from your imported documents — no cloud uploads, no data collection, no account required.
+OpenIntelligence is a local-first document intelligence app, not a generic cloud chat tool.
 
-Every query, every embedding, and every answer stays on your iPhone or iPad.
+It stands apart in four important ways:
 
----
+1. **It answers from your library.** The app retrieves relevant passages from your files before it writes a response.
+2. **It keeps evidence visible.** You can inspect source cards, filenames, excerpts, and supporting passages instead of trusting a black box.
+3. **It keeps the workflow private.** Core parsing, OCR, chunking, retrieval, and indexing run on your device.
+4. **It is built for Apple platforms.** The app is designed around Apple Intelligence, Apple frameworks, and private local workflows instead of third-party AI APIs.
 
-## Pricing Tiers
-
-### Free Tier
-- **5 documents** maximum
-- 1 library / container
-- Full privacy dashboard
-- On-device AI processing (Apple Foundation Model)
-- Hybrid search (semantic + keyword)
-- No account required — works immediately
-
-### Pro Subscription
-- **Monthly**: $5.99/month
-- **Annual**: $49.99/year (save 30%)
-- Up to **1,000 documents**
-- **5 libraries** for topic organization
-- Priority ingestion queue
-- AI Hub transforms (Key Facts, Step-by-Step, Plain English, What's Missing?, Illustrate)
-- Advanced RAG features: iterative retrieval, contextual compression, RAPTOR-lite routing
-- Entity extraction and domain classification
-
-### Lifetime License
-- **One-time**: $59.99
-- Up to **1,000 documents** forever
-- **10 libraries** maximum
-- All Pro features included
-- No recurring payments — pay once, own it
+The short version: OpenIntelligence combines grounded retrieval, visible evidence, local processing, and Apple-native AI in one document workflow.
 
 ---
 
-## Key Capabilities
+## What files can OpenIntelligence accept?
 
-### Privacy Architecture
-1. **100% On-Device**: All AI processing uses Apple's Foundation Model (3B parameters on-device)
-2. **Private Cloud Compute**: When needed, Apple's PCC provides server-side AI with zero data retention
-3. **No Telemetry**: We collect zero usage data — not even crash reports unless you opt in
-4. **Works Offline**: Query your documents without internet connection
+### Strongest import formats
 
-### Document Intelligence
-- **Multi-format support**: PDF, Word (.docx), Excel (.xlsx), Markdown, plain text, images (via OCR)
-- **OCR Pipeline**: 360 DPI rendering with 5 adaptive preprocessing strategies for scanned documents
-- **Semantic Chunking**: Content is split at natural boundaries (sections, paragraphs, topic shifts)
-- **Entity Extraction**: Automatically identifies people, organizations, dates, and technical terms
+OpenIntelligence is strongest with:
 
-### Search & Retrieval
-- **Hybrid Search**: Combines 384-dimensional vector embeddings with BM25 keyword matching
-- **Cross-Encoder Reranking**: Neural reranker scores each result for relevance
-- **MMR Diversification**: Ensures variety in retrieved sources (no redundant chunks)
-- **Lost-in-Middle Reordering**: Places strongest evidence at the start and end of context
+- PDF
+- DOCX, XLSX, PPTX
+- Markdown and plain text
+- CSV and RTF
+- HTML, JSON, XML, YAML
+- source code and technical notes
+- JPEG, PNG, HEIC, TIFF, GIF
+- MP3, M4A, WAV, AIFF, MP4, and MOV through transcription workflows
 
-### AI Hub Transforms
-Transform any AI answer with one tap:
-- **Key Facts**: Extract bullet-point facts from the response
-- **Step-by-Step**: Convert into numbered procedural steps
-- **Plain English**: Simplify jargon and technical language
-- **What's Missing?**: Identify gaps in the response relative to your question
-- **Illustrate**: Generate a visual concept description for the answer
+### Formats that usually need cleanup first
+
+These formats still import, but they often lose structure or need conversion first:
+
+- legacy Office files
+- Apple iWork exports
+- dense scanned tables
+- unusual structured exports
+- visually complex scientific PDFs
+
+If a file is messy, exporting it to PDF or a modern Office format usually improves results.
+
+---
+
+## How answers stay grounded
+
+OpenIntelligence does not dump an entire document into one giant prompt. Instead, it uses a document pipeline:
+
+1. **Parse the file** into readable text and structure.
+2. **Chunk the content** into smaller sections that can be searched and cited.
+3. **Index the chunks** for semantic and keyword retrieval.
+4. **Retrieve the best evidence** for the user’s question.
+5. **Generate an answer from that evidence** instead of free-associating from model memory.
+6. **Show source context** so the answer can be audited.
+
+This is why the app can answer questions about a large library without pretending the whole library fits into one model prompt.
+
+---
+
+## What kinds of questions is the app good at?
+
+OpenIntelligence is strongest on questions like:
+
+- “What file types does OpenIntelligence handle best?”
+- “How does OpenIntelligence work around the 4,096-token limit?”
+- “What is the difference between on-device processing and Private Cloud Compute?”
+- “What did this contract say about termination?”
+- “Which section of this report explains the pricing model?”
+- “Summarize the risks in this proposal and cite the sources.”
+
+It is strongest when the answer should come from a document you can inspect afterward.
+
+---
+
+## Plans
+
+### Free
+- 5 documents
+- 1 library
+- Full grounded question answering
+- All quality modes, with a daily quota on Maximum
+
+### Pro Monthly / Annual
+- Up to 1,000 documents
+- Up to 5 libraries
+- Better room for large ongoing research and multi-project work
+
+### Lifetime
+- One-time unlock
+- Up to 1,000 documents
+- Up to 10 libraries
+
+The plan structure is about scale and organization. The core product idea stays the same: grounded answers over your own files.
 """#
         ),
         SampleDocumentDescriptor(
@@ -93,91 +122,111 @@ Transform any AI answer with one tap:
             body: #"""
 # RAG Technical Architecture
 
-## What is RAG?
+## What is the 4,096 token limit?
 
-RAG (Retrieval-Augmented Generation) is an AI technique that grounds language model responses in your actual documents. Instead of relying on the model's training data (which can hallucinate), RAG retrieves relevant passages from your documents and provides them as context to the AI. This produces accurate, sourced answers with dramatically reduced hallucination.
+The 4,096 token limit is the size of the on-device model’s context window.
 
----
+That limit is the total budget for:
 
-## The OpenIntelligence Pipeline
+- system instructions
+- retrieved evidence
+- the user’s question
+- and space for the model to write an answer
 
-### Ingestion (6 Steps)
+OpenIntelligence does **not** literally exceed the 4,096-token limit. It works around the limit by selecting the most relevant evidence from the library and packing only that evidence into the available context window.
 
-**Step 1 — Parse**
-Documents are parsed based on type: PDFKit for PDFs, ZIP extraction for Office XML (.docx, .xlsx), or plain text reading. Scanned PDFs trigger Vision OCR at 360 DPI with 5 adaptive preprocessing strategies (minimal, moderate, high contrast, deskew, maximum). A PHASE -1 Jaccard validation catches font-encoded PDFs (like Kia/Hyundai manuals) where characters look normal but are actually cipher-shifted.
-
-**Step 2 — Semantic Chunking**
-Content is split into chunks of up to 310 words at natural boundaries: section headers, paragraph breaks, and embedding-similarity topic shifts. Each chunk gets a contextual prefix (document title + section path) so it can stand alone when retrieved later. A BertTokenizer validates that no chunk exceeds the 510-token embedding limit.
-
-**Step 3 — Entity Extraction**
-NLTagger NER identifies people, organizations, locations, and dates. PascalCase technical terms are detected via regex. Entities are stored in an inverted index for cross-document search.
-
-**Step 4 — Token Validation**
-Every chunk is tokenized with BertTokenizer to verify it fits within the MiniLM-L6-v2 512-token window (510 usable after CLS/SEP tokens). Oversized chunks are re-split.
-
-**Step 5 — Embedding**
-Each chunk is converted to a 384-dimensional vector using CoreML MiniLM-L6-v2. These vectors capture semantic meaning — similar concepts produce similar vectors regardless of exact wording.
-
-**Step 6 — Store**
-Vectors are indexed in an HNSW graph (Hierarchical Navigable Small World) for fast approximate nearest-neighbor search. Full text is stored in SQLite FTS5 for keyword search. Entities go into a separate inverted index.
+That is the core idea behind the product.
 
 ---
 
-### Query Processing (10+ Steps)
+## Why the limit matters
 
-**Step 1 — Query Understanding**
-Pronouns are resolved using conversation history. Named entities are extracted. The query is classified by intent: lookup, procedure, comparison, or summarization.
+If you paste an entire manual, policy set, or research paper into a small model context, three things happen:
 
-**Step 2 — Query Expansion**
-The original query is enriched with corpus-specific vocabulary and synonyms to improve recall. For example, "rent" might expand to include "monthly payment" and "lease amount".
+1. the prompt becomes too large,
+2. the important evidence gets buried,
+3. and the answer becomes less reliable.
 
-**Step 3 — Hybrid Search**
-Two parallel searches run:
-- **Vector Search**: The query embedding is compared against all chunk embeddings using cosine similarity in the HNSW index
-- **BM25 Keyword Search**: SQLite FTS5 scores chunks by term frequency and inverse document frequency
-
-Results are fused using Reciprocal Rank Fusion (RRF), which combines rankings without needing score calibration.
-
-**Step 4 — Cross-Encoder Reranking**
-A TinyBERT cross-encoder model scores each (query, chunk) pair for relevance. This is more accurate than embedding similarity because it sees both texts together.
-
-**Step 5 — MMR Diversification**
-Maximal Marginal Relevance ensures retrieved chunks aren't redundant. Lambda = 0.6 balances relevance vs. diversity.
-
-**Step 6 — Context Assembly**
-Selected chunks are reordered using Lost-in-Middle placement: strongest evidence at the beginning and end of the context window (LLMs attend less to middle content). Total context is capped at 5,500 characters (~4,000 tokens) to fit the 4,096-token Apple Foundation Model limit.
-
-**Step 7 — LLM Generation**
-Apple's Foundation Model generates a response grounded in the retrieved context. The prompt instructs the model to cite sources and avoid speculation beyond what the documents contain.
-
-**Step 8 — Verification Gates**
-Seven gates (A-G) check the response:
-- **Gate A**: Does the top retrieval score show confident evidence?
-- **Gate B**: Is every claim supported by retrieved context?
-- **Gate C**: Do numbers in the response match source documents?
-- **Gate D**: Does the response contradict any source evidence?
-- **Gate E**: Is the response semantically grounded in source chunks?
-- **Gate F**: Are quoted terms faithful to their source definitions?
-- **Gate G**: Is the text free from repetition loops and degeneration?
+RAG solves this by retrieving the right slices of the document set instead of sending everything at once.
 
 ---
 
-## Technical Specifications
+## How OpenIntelligence works around the limit
 
-| Component | Technology | Details |
-|-----------|-----------|---------|
-| Embeddings | MiniLM-L6-v2 (CoreML) | 384 dimensions, <100ms per chunk |
-| Vector Index | HNSW graph | BNNS-accelerated on Apple Silicon |
-| Keyword Search | SQLite FTS5 | BM25 scoring with porter stemming |
-| Cross-Encoder | TinyBERT (CoreML) | Pairwise relevance scoring |
-| LLM | Apple Foundation Model | 3B parameters on-device, 4096 token context |
-| OCR | Apple Vision framework | 360 DPI, 5 preprocessing strategies |
+### 1. Parse
 
-## Performance Targets
-- **Embedding**: <100ms per chunk on A17 Pro
-- **Retrieval**: <500ms for 10,000 chunks (hybrid search + rerank)
-- **Generation**: 15–25 tokens/second on-device
-- **Total query latency**: <3 seconds end-to-end
+The app reads PDFs, modern Office files, notes, text, images, and transcriptable media using Apple-native parsing and OCR paths.
+
+### 2. Chunk
+
+Instead of storing one huge blob, the app breaks content into smaller sections that preserve headings, nearby context, and natural boundaries.
+
+### 3. Embed
+
+Each chunk is converted into a semantic vector so similar ideas can be found even when the wording changes.
+
+### 4. Search two ways
+
+OpenIntelligence combines:
+
+- **semantic retrieval** for meaning
+- **keyword retrieval** for exact terms and phrases
+
+This hybrid approach is more reliable than using only embeddings or only keywords.
+
+### 5. Re-rank and diversify
+
+The system scores candidates again, removes redundant chunks, and tries to keep the evidence set varied but relevant.
+
+### 6. Pack the context window carefully
+
+Only the strongest passages make it into the final prompt. The app uses a compact evidence pack instead of raw full-document stuffing.
+
+### 7. Generate a grounded answer
+
+The answer is generated from retrieved evidence, and the user can inspect where it came from.
+
+---
+
+## Why this is better than pasting whole documents
+
+This approach gives OpenIntelligence four advantages:
+
+- it answers questions over documents that are much larger than the model context window,
+- it stays faster on-device,
+- it preserves citations and evidence review,
+- and it reduces hallucination compared with generic chat workflows.
+
+The app’s value is not that it has an unusually large model. The value is that it makes a smaller local model useful over larger document collections.
+
+---
+
+## Quality modes
+
+### Standard
+
+Standard is the fast grounded mode. It aims for concise, source-backed answers and should be the default for most lookups.
+
+### Deep Think
+
+Deep Think is the higher-effort reasoning mode for broader synthesis, comparison, and more involved document reasoning.
+
+### Maximum
+
+Maximum is the highest-effort mode. It is for cases where you want the system to spend more effort on retrieval and reasoning before answering.
+
+---
+
+## What makes the architecture trustworthy?
+
+OpenIntelligence is designed to keep the retrieval layer visible:
+
+- answers cite sources,
+- retrieved evidence is inspectable,
+- exact-value questions stay concise,
+- and the app abstains when the evidence is weak.
+
+That combination of grounded retrieval, inspectable evidence, and Apple-native execution is what makes the architecture useful in a real product.
 """#
         ),
         SampleDocumentDescriptor(
@@ -186,115 +235,80 @@ Seven gates (A-G) check the response:
             body: #"""
 # Apple Intelligence & Private Cloud Compute
 
-## What is Apple Intelligence?
+## What role does Apple Intelligence play in OpenIntelligence?
 
-Apple Intelligence is Apple's personal intelligence system, deeply integrated into iOS, iPadOS, and macOS. It combines on-device machine learning models with optional Private Cloud Compute (PCC) to deliver AI features while maintaining Apple's privacy standards.
+OpenIntelligence is built around Apple’s native AI stack. The app uses Apple platform frameworks for parsing, OCR, indexing, retrieval, and language-model workflows.
 
-OpenIntelligence is built 100% on Apple's native AI stack — no OpenAI, no third-party models, no data leaving your control.
-
----
-
-## On-Device Foundation Model
-
-### Architecture
-Apple's on-device model is a ~3 billion parameter language model optimized for Apple Silicon. Key specifications:
-
-| Spec | Value |
-|------|-------|
-| Parameters | ~3B |
-| Context window | 4,096 tokens |
-| Inference speed | 15–25 tokens/sec (A17 Pro) |
-| Model format | CoreML optimized |
-| Quantization | Mixed INT4/INT8 |
-| Memory footprint | ~2.5 GB |
-
-### FoundationModels Framework (iOS 26+)
-The `FoundationModels` framework provides Swift-native access to Apple's on-device LLM:
-
-```swift
-import FoundationModels
-
-let session = LanguageModelSession()
-let response = try await session.respond(to: "Your prompt here")
-```
-
-Key features:
-- **Guardrails API**: Built-in content safety filtering
-- **Structured generation**: JSON schema-constrained output via `@Generable`
-- **Tool calling**: `@Tool` protocol for function-calling patterns
-- **Streaming**: Token-by-token response streaming
-- **Session management**: Conversation context across multiple turns
-
-### The 4,096 Token Limit
-This is the single most important constraint for RAG applications:
-- ~3,000 words of English text maximum in a single prompt
-- The prompt must include: system instructions + retrieved context + user question + generation space
-- OpenIntelligence budgets ~5,500 characters for context (~4,000 tokens with margin)
-- RAG solves this by retrieving only the most relevant chunks instead of feeding entire documents
+This matters because the product is designed around privacy, local execution, and Apple hardware rather than a third-party hosted AI dependency.
 
 ---
 
-## Private Cloud Compute (PCC)
+## When does the app stay on-device?
 
-### What is PCC?
-When on-device processing isn't sufficient for complex tasks, Apple's Private Cloud Compute provides server-side AI with privacy guarantees that no other cloud AI can match.
+For the main document workflow, the app is local-first.
 
-### How PCC Works
+Core tasks that stay on-device include:
 
-1. **Encryption**: Your device encrypts the request with a one-time key
-2. **Routing**: Request is sent to a verified, attested PCC node
-3. **Isolation**: The node processes the request in isolated, encrypted memory
-4. **Response**: Result is encrypted and returned to your device
-5. **Purge**: All data is immediately and cryptographically erased from the node
+- document parsing
+- OCR and visual recovery
+- chunking
+- indexing
+- semantic retrieval
+- keyword retrieval
+- evidence packing
+- and many everyday question-answering tasks
 
-### Privacy Guarantees
-
-PCC provides guarantees enforced by hardware and cryptography, not just policy:
-
-- **No Persistence**: User data is never written to persistent storage on any server
-- **No Logging**: Prompts and responses are never logged, even for debugging
-- **No Access**: Apple engineers cannot view, read, or extract request content — even with physical access to servers
-- **Verifiable Code**: Every PCC server image is cryptographically signed and published for independent security research verification
-- **Stateless Processing**: Each request is processed in a fresh, isolated compute environment
-
-### When Does OpenIntelligence Use PCC?
-
-| Scenario | Processing Location |
-|----------|-------------------|
-| Simple factual queries | On-device (3B model) |
-| Quick document lookups | On-device |
-| Offline operation | On-device |
-| Complex multi-step reasoning | PCC (when available) |
-| Large context analysis | PCC (when available) |
-| Resource-constrained device | PCC (when available) |
-
-The app always prefers on-device processing. PCC is only used when the on-device model indicates lower confidence or when the task complexity exceeds local capabilities.
+The short answer is simple: the core document pipeline stays local.
 
 ---
 
-## Apple Native Frameworks Used
+## What is Private Cloud Compute?
 
-OpenIntelligence uses 23 Apple frameworks with zero third-party AI dependencies:
+Private Cloud Compute, or PCC, is Apple’s privacy-preserving server-side compute path for requests that benefit from more remote inference capacity.
 
-| Framework | Purpose |
-|-----------|---------|
-| **FoundationModels** | On-device LLM inference |
-| **Vision** | OCR, document structure recognition |
-| **NaturalLanguage** | NER, tokenization, language detection |
-| **CoreML** | MiniLM embeddings, TinyBERT reranking |
-| **PDFKit** | PDF text extraction and rendering |
-| **Speech** | Audio transcription for voice files |
-| **Metal** | GPU-accelerated vector operations |
-| **CoreSpotlight** | System-wide document search integration |
-| **StoreKit 2** | Subscription and purchase management |
-| **TipKit** | Contextual user education |
+In OpenIntelligence, PCC is not the identity of the app. It is the higher-capacity path for requests that benefit from Apple’s private cloud.
 
-### Why All-Apple Matters
-- **Offline-first**: Core on-device queries work without a network connection
-- **No API keys**: Nothing to configure, leak, or pay for
-- **No data egress**: Your documents never leave your device (or Apple PCC)
-- **Optimized for hardware**: CoreML models exploit Neural Engine, GPU, and AMX units
-- **Future-proof**: Built on Apple's roadmap, not a startup's funding runway
+---
+
+## When can PCC enter the picture?
+
+PCC enters the picture for harder requests such as:
+
+- broader synthesis over retrieved evidence,
+- more demanding multi-step reasoning,
+- or tasks where on-device processing is not the best fit.
+
+The product still prefers local execution first.
+
+If someone asks, “When does a question stay on-device versus use Private Cloud Compute?”, the answer is:
+
+- straightforward retrieval and many grounded answers stay local,
+- while more demanding reasoning uses Apple’s private cloud path when the platform routes it there.
+
+---
+
+## Why this is different from a normal cloud AI product
+
+OpenIntelligence is not built around sending your library to a developer-run AI backend.
+
+Its design priorities are:
+
+1. local document handling,
+2. Apple-native model access,
+3. cited retrieval over your own files,
+4. and private higher-capability fallback through Apple infrastructure instead of a generic third-party API.
+
+That is a major part of what makes the app feel different from a generic AI chat app.
+
+---
+
+## Privacy summary
+
+- No developer-operated cloud is required for core document question answering.
+- The app is designed around local storage, local indexing, and local retrieval.
+- PCC, when used, is Apple’s privacy-preserving cloud path rather than an ordinary app vendor backend.
+
+The product goal is simple: your documents should feel like your library, not like training data that escaped your control.
 """#
         ),
     ]
@@ -351,8 +365,8 @@ OpenIntelligence uses 23 Apple frameworks with zero third-party AI dependencies:
                 .appendingPathComponent(filename)
                 .appendingPathExtension(sample.extension)
 
-            // Only write if file doesn't already exist (prevents duplicate ingestion)
-            if !FileManager.default.fileExists(atPath: fileURL.path) {
+            let existingBody = try? String(contentsOf: fileURL, encoding: .utf8)
+            if existingBody != sample.body {
                 try sample.body.write(to: fileURL, atomically: true, encoding: .utf8)
             }
             urls.append(fileURL)

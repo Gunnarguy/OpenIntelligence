@@ -497,7 +497,7 @@ struct StructuredPageContent: Sendable {
     /// Use structured elements if quality is good, otherwise fall back to raw text
     nonisolated var effectiveContent: [StructuredElement] {
         // If structured parsing captured less than 50% of raw text, use raw text instead
-        if qualityScore < 0.5 && !rawText.isEmpty {
+        if qualityScore < 0.5 && !rawText.isEmpty && !hasStructuredContent {
             return [.paragraph(text: rawText, pageNumber: pageNumber)]
         }
         return elements

@@ -743,15 +743,8 @@ final class SourceOnlyAnswerService {
 
         let renderedClaims = supportedClaims.map { claim in
             let rankedLabels = rankedEvidenceLabels(for: claim, evidenceMap: evidenceMap)
-            let citations = rankedLabels.compactMap { label -> String? in
-                guard let record = evidenceMap[label] else { return nil }
-                let pageNumber = record.chunk.pageNumber ?? record.chunk.chunk.metadata.pageNumber
-                if let pageNumber {
-                    return "\(record.chunk.sourceDocument), p.\(pageNumber)"
-                }
-                return record.chunk.sourceDocument.isEmpty ? label : record.chunk.sourceDocument
-            }
-            let citationSuffix = citations.isEmpty ? "" : " [\(citations.joined(separator: "; "))]"
+            let citations = rankedLabels.map(compactCitationLabel(for:))
+            let citationSuffix = citations.isEmpty ? "" : " " + citations.joined(separator: " ")
             return normalizedSentence(claim.claimText) + citationSuffix
         }
 
@@ -781,6 +774,15 @@ final class SourceOnlyAnswerService {
         }
 
         return answer.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private func compactCitationLabel(for evidenceLabel: String) -> String {
+        guard evidenceLabel.first?.uppercased() == "E",
+              let index = Int(evidenceLabel.dropFirst()),
+              index > 0 else {
+            return "[\(evidenceLabel)]"
+        }
+        return "[S\(index)]"
     }
 
     private func rankedEvidenceLabels(

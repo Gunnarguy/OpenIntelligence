@@ -1,6 +1,6 @@
 # Release and Operations Guide
 
-**Last Updated**: April 25, 2026
+**Last Updated**: May 5, 2026
 **Status**: App release operations guide.
 
 ## Current Status
@@ -42,6 +42,8 @@ Primary companion docs:
 - [ ] App metadata does not claim direct PCC server-model access
 - [ ] App metadata does not claim a 65K public Foundation Models context
 - [ ] App metadata does not claim Apple Foundation Models embeddings
+- [ ] App metadata does not claim universal ingest or "any document" support without qualification
+- [ ] Quality mode copy matches actual behavior: Standard is the grounded single-session mode with shared retrieval/synthesis hardening; Deep Think and Maximum are the multi-session agentic modes
 - [ ] Buyer-facing or review-facing copy does not imply HIPAA, diagnostic, clinical, legal, safety, or IFU readiness
 - [ ] Release notes do not describe the current repo as a finished enterprise SDK
 
@@ -129,6 +131,8 @@ Release helper scripts:
 Before submission, verify:
 
 - App Store metadata matches actual behavior
+- `fastlane/review_notes.txt` matches the current version and actual review path
+- `fastlane/expedited_review_request.txt` matches the current live regression if expedited review will be requested
 - privacy language matches actual data handling
 - monetization copy matches current product behavior
 - no buyer or marketing materials accidentally present the app as a finished enterprise SDK

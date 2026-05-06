@@ -4270,6 +4270,9 @@ class DocumentProcessor {
                             let layoutText = renderData.layoutText
                             let trustedPageTextForTitles = (bestAvailableText ?? layoutText ?? structuredContent.rawText)
                                 .trimmingCharacters(in: .whitespacesAndNewlines)
+                            let pageHasStructuredTables = elementsToUse.contains { structuredElement in
+                                structuredElement.elementType == "table"
+                            } || !renderData.layoutTables.isEmpty
                             var usedLayoutForParagraph = false
 
                             // Convert structured elements to wrappers and count types
@@ -4291,7 +4294,7 @@ class DocumentProcessor {
 
                                 // In hybrid mode: replace Vision paragraphs with layout-aware text
                                 // This fixes multi-column reading order issues
-                                if isHybridMode && element.elementType == "paragraph" {
+                                if isHybridMode && element.elementType == "paragraph" && !pageHasStructuredTables {
                                     if !usedLayoutForParagraph, let layout = layoutText, !layout.isEmpty {
                                         // Use layout-aware text instead of Vision's paragraph
                                         elements.append(StructuredElementWrapper(
@@ -4323,7 +4326,10 @@ class DocumentProcessor {
                                     }
                                 case .paragraph(let text, _):
                                     sanitizedText = await MainActor.run {
-                                        self.sanitizeStructuredNarrativeText(text)
+                                        self.sanitizeStructuredNarrativeText(
+                                            text,
+                                            pageHasTables: pageHasStructuredTables
+                                        )
                                     }
                                 default:
                                     sanitizedText = OCRConfiguration.normalizeExtractedText(element.textForEmbedding)
@@ -4356,7 +4362,8 @@ class DocumentProcessor {
                             }
 
                             // If hybrid mode but no paragraphs were in structured content, add layout text
-                            if isHybridMode && !usedLayoutForParagraph, let layout = layoutText, !layout.isEmpty {
+                            if isHybridMode && !pageHasStructuredTables && !usedLayoutForParagraph,
+                               let layout = layoutText, !layout.isEmpty {
                                 elements.append(StructuredElementWrapper(
                                     text: layout.trimmingCharacters(in: .whitespacesAndNewlines),
                                     elementType: "paragraph",
@@ -5879,7 +5886,7 @@ class DocumentProcessor {
 
     /// Sanitizes narrative structured text used for chunking/storage.
     /// Reject low-confidence OCR wrappers and text that collapses to garbage after cleanup.
-    private func sanitizeStructuredNarrativeText(_ raw: String) -> String? {
+    private func sanitizeStructuredNarrativeText(_ raw: String, pageHasTables: Bool = false) -> String? {
         let normalized = OCRConfiguration
             .normalizeExtractedText(raw)
             .trimmingCharacters(in: .whitespacesAndNewlines)
@@ -5902,7 +5909,57 @@ class DocumentProcessor {
             return nil
         }
 
+        if pageHasTables, isLikelyTableLeakageNarrative(candidate) {
+            return nil
+        }
+
         return candidate
+    }
+
+    private func isLikelyTableLeakageNarrative(_ text: String) -> Bool {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed.count >= 80 else { return false }
+
+        let lower = trimmed.lowercased()
+        if trimmed.contains("|") {
+            return true
+        }
+        if lower.range(of: #"\b(?:row|column)\s+\d+\b"#, options: .regularExpression) != nil {
+            return true
+        }
+
+        let scalars = trimmed.unicodeScalars
+        let digitCount = scalars.filter { CharacterSet.decimalDigits.contains($0) }.count
+        let digitRatio = Double(digitCount) / Double(max(1, scalars.count))
+        let sentenceStopCount = trimmed.filter { ".!?".contains($0) }.count
+        let trademarkCount = trimmed.filter { $0 == "®" || $0 == "™" || $0 == "©" }.count
+
+        let fragmentCount = trimmed
+            .split(whereSeparator: { $0 == "," || $0 == ";" })
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+            .count
+
+        let citationClusterCount: Int = {
+            guard let regex = try? NSRegularExpression(
+                pattern: #"\b\d{1,3}(?:,\d{1,3}){1,}\b|\b\d{1,3}-\d{1,3}\b"#,
+                options: []
+            ) else {
+                return 0
+            }
+            let range = NSRange(trimmed.startIndex..., in: trimmed)
+            return regex.numberOfMatches(in: trimmed, options: [], range: range)
+        }()
+
+        if digitRatio >= 0.08 && sentenceStopCount == 0 && (fragmentCount >= 4 || trademarkCount >= 1 || citationClusterCount >= 2) {
+            return true
+        }
+
+        if trademarkCount >= 2 && fragmentCount >= 3 {
+            return true
+        }
+
+        return false
     }
 
     /// Split an oversized atomic chunk (table/list) into multiple smaller chunks

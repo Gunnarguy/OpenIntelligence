@@ -30,10 +30,12 @@ protocol KnowledgeRetrievalEngine: AnyObject {
 
 /// Stable chunking override shape for app-facing ingestion calls.
 struct DocumentChunkingOverride {
+    let strategy: String?
     let targetWordWindow: Int
     let overlapWords: Int
 
-    init(targetWordWindow: Int, overlapWords: Int) {
+    init(strategy: String? = nil, targetWordWindow: Int, overlapWords: Int) {
+        self.strategy = strategy
         self.targetWordWindow = targetWordWindow
         self.overlapWords = overlapWords
     }

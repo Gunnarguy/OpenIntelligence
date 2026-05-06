@@ -1,0 +1,1787 @@
+--- Page 1 ---
+CNS Spectrums
+www.cambridge.org/cns
+Review
+2025). Understanding the delivery technology
+cite this article: Cutler AJ, and Hanaie J
+to individualize treatment. CNS Spectrums,
+used in ADHD stimulant medications can help
+30(1), e30, 1-13.
+https://doi.org/10.1017/S1092852925000070
+Received: 26 September 2024
+Accepted: 25 January 2025
+Keywords:
+treatment; stimulant medications; extended
+ADHD; delivery technology; individualized
+release
+Andrew J. Cutler;
+Corresponding author:
+Email: acutler@ajcmd.com
+© The Author(s), 2025. Published by Cambridge
+distributed under the terms of the Creative
+University Press. This is an Open Access article,
+Commons Attribution licence (http://
+creativecommons.org/licenses/by/4.0), which
+reproduction, provided the original article is
+permits unrestricted re-use, distribution and
+properly cited.
+UNIVERSITY PRESS
+CAMBRIDGE
+
+Understanding the delivery technology used in
+ADHD stimulant medications can help to
+individualize treatment
+Andrew J. Cutler,2 D and Jacob Hanaie?
+Upstate Medical University, Syracuse, NY, USA and Department of Psychiatry, Kedren Community Mental Health,
+'Chief Medical Officer, Neuroscience Education Institute, Carlsbad, CA, USA; 'Department of Psychiatry, SUNY
+Los Angeles, CA, USA
+Abstract
+treatment personalization is essential. Stimulant medications are the first-line option for ADHD
+Attention-deficit/hyperactivity disorder (ADHD) is a highly heterogeneous disorder for which
+management due to their high efficacy. While the choice of stimulant is limited to methylphepotential benefits and restrictions. The goal is to deliver a stimulant medication that provides an
+nidate or amphetamine, there are numerous formulation options each associated with different
+article reviews the technologies used to deliver stimulants and the impact their characteristics
+even, continuous control of symptoms tailored to the patient's symptoms and lifestyle. This
+aim was to help clinicians in their treatment decision-making process and provide patients with
+have on the pharmacokinetic profiles, dosing regimens, and flexibility of the medication. The
+effective and individualized management of their ADHD symptoms.
+Clinical implications
+1. A universal approach to treat attention-deficit/hyperactivity disorder (ADHD) is unlikely to
+be optimal for all patients due to the heterogeneity in etiology, neurobiology, symptoms,
+2. There are a limited number of therapeutic categories of medication to treat this highly variable
+impairment, comorbidities, and disease course.
+3. The most desired features of stimulant medication are a quick onset of efficacy, a long and
+option, becomes more relevant as clinicians look to personalize treatment.
+consistent duration, minimal interactions with concomitant medications or food, reduced
+4. ADHD delivery technologies impact the pharmacokinetic profile by altering the timing of
+abusability, and a smooth pharmacokinetic curve without a sharp peak or an abrupt offset.
+drug release and the plasma concentrations achieved over the course of the day, which
+5. This review discusses the benefits and restrictions of the various stimulant delivery technolinfluence the clinical onset and duration as well as tolerability of the medication.
+ogies to help guide healthcare providers in their ADHD treatment choices.
+Introduction
+ized by inattention, hyperactivity, and impulsivity.' Since ADHD is heterogeneous in etiology,
+Attention-deficit/hyperactivity disorder (ADHD) is a neurodevelopmental disorder characterto treat ADHD is unlikely to be optimal for all patients. Considerations that impact treatment
+neurobiology, symptoms, impairment, comorbidities, and disease course, a universal approach
+decisions include the patient's response to current or previous medication, the onset and
+duration of coverage for which symptom relief is required, concomitant medications and their
+the likelihood of adherence to different formulations 34 With the substantial neurobiological and
+effects on the patient and/or other medications, present comorbidities, patient preference, and
+medication available for treatment, the technology involved in the delivery of these medications
+clinical variability associated with ADHD and the limited number of therapeutic categories of
+becomes more relevant for their effective utilization.
+ADHD, as stimulants are the first-line treatment option in ADHD management due to their high
+This article focuses on the delivery technologies typically used in stimulant medications for
+efficacy.? Amphetamine (AMP) and methylphenidate (MPH) are the two types of stimulants
+formulations contain one of the isomers or a racemic mixture. As ADHD symptoms and
+approved in the United States (US) to treat ADHD. Both are short-acting, and different
+in extended-release (ER) technologies to provide all-day coverage, and several formulations of
+impairments often persist all day long beyond work or school hours, there has been an evolution
+
+--- Page 2 ---
+important to understand the characteristics of the technologies
+long-acting stimulants have received approval in recent years. It is
+used, their clinical relevance, and the resulting impact on treatment
+that were developed in response to the evolving needs and underoutcomes. This article presents the technologies and formulations
+standing of the ADHD disease state, highlighting the advantages
+and limitations of these solutions.
+common goals of a stimulant-to provide a quick onset of efficacy,
+New formulations possess unique advantages to accomplish the
+a long and consistent duration, minimal interactions with medications or food, reduced abusability, and a smooth pharmacokinetic
+(PK) curve, avoiding a sharp peak or an abrupt offset. In 2019, the
+Industry on developing stimulants for ADHD, which stated that
+US Food and Drug Administration (FDA) issued a Guidance for
+efficacy and safety. This refers to the relationship between the PK
+stimulants have a strong concentration-response relationship for
+macodynamics (PD; clinical effect) of the drug. ADHD delivery
+(plasma level, or the movement of drugs in the body) and phartechnologies impact the PK profile by influencing the timing of
+course of the day, which in turn translate into the clinical onset
+drug release and the plasma concentrations achieved over the
+there are PK characteristics that should be considered when transand duration as well as tolerability of the medication? Additionally,
+consider threshold levels but ascension to the threshold as an
+lation to efficacy is the goal,' for example, one should not just
+some formulations have demonstrated undesirable inter- and
+important part of the efficacy story. Due to different properties,
+intraindividual variability in clinical effects, and therefore, stimulants have to be individualized for optimal efficacy and tolerability.
+amine may differ between individuals due to genetic variability in
+Notably, the metabolism of both methylphenidate and amphetthe enzymes that metabolize them and/or dopaminergic tone or
+lant medications can assist clinicians in tailoring ADHD treatment
+An increased understanding of the technologies used in stimuto patients' needs. The following review covers the evolution of
+involved, with a discussion based on the authors' clinical experilong-acting stimulant formulations and the various technologies
+vidualization and optimization for their patients.
+ence in using the different technologies to guide treatment indi-
+Development of delivery technologies
+release (IR) formulations of amphetamine or methylphenidate.
+The first stimulant medications to treat ADHD were immediate-
+However, due to the short duration of action, patients required
+significant fluctuations in medication levels in the blood over the
+multiple doses each day. This has led to poor adherence!,
+course of the day, which can manifest clinically as side effects at the
+peak plasma level, a rapid decrease in etticacy, or a rebound or
+lability, etc.) due to sharp decline in plasma level.? Early technolcrash" syndrome (cognitive impairment, irritability, emotional
+was the standard at the time. It was subsequently realized that a
+ogies were developed to mimic twice-a-day (BID) dosing, which
+smoother PK curve with a broader peak and a gradual descent in
+plasma levels was preferable.
+Osmotic release
+tion was osmotic release, including OROS® (osmotic-controlled
+One of the first technologies developed to extend therapeutic durarelease oral system) used in Concerta® and Osmodex® used in
+
+A. J. Cutler and J. Hanaie
+methylphenidate that is absorbed immediately to provide an early
+Relexxii®. Osmotic delivery systems utilize both an overcoat of IR
+onset of efficacy and an ER component dependent on osmotic
+¡cation or serve as an inert "push" compartment. As medication
+pressure. Tablets have multiple chambers that either contain medtravels through the gastrointestinal (GI) tract, water is absorbed by
+an osmotic membrane in the "push" chamber, causing it to swell and
+hole.!2 This technology successfully extended the duration of effipush the medication out of the tablet through a small laser-drilled
+cacy, allowing for once-daily dosing. However, at the time of develwhich may or may not have been clinically relevant, resulting in an
+opment, a tachyphylaxis phenomenon was noted during the day,
+second peak. ' Utilizing two asymmetric release points is one of the
+attempt to provide ascending plasma levels from the first to the
+result in undesirable variability in plasma medication levels
+several limitations that persist with osmotic delivery,! which could
+to deliver 22% of the total methylphenidate via the IR coating and
+throughout the day. In fact, the OROS® technology was designed
+78% via osmotic delivery.' As there is a close relationship between
+the PKs of a stimulant and its clinical effect, this could result in
+delay and variability in efficacy throughout the day.
+severe GI narrowing.? must be swallowed whole and cannot be given to patients with
+Additionally, the controlled-release tablet does not deform-it
+Multiple beads
+Beaded technologies emerged as an alternative ER delivery system.
+leverage the changing pH throughout the GI system to direct the
+Beaded systems using multiple different beads in one capsule often
+release of medication at distinct locations to give IR and ER. The
+first iteration of ER medication utilizing this technology, Diffucaps®
+ylphenidate HCI ER tablet), allowed for once-daily dosing. 4 In this
+used in Metadate CD° (currently only available as a generic, methbead, and 70% is delivered by the ER bead. '* However, like the PK
+medication, 30% of the methylphenidate is delivered with the IR
+formulation continued to show peaks and troughs in blood levels
+curve seen with BID IR dosing and osmotic release, this long-acting
+across the day. * The Microtrol technology! 5 used in Adderall
+lations of beads. The first is an IR bead designed to release
+XR®-° similarly delivers mixed amphetamine salts using two popumedication in the stomach (pH 1.5-3.5), and the second is an ER
+Diffucaps®, the MicrotrolTMTM technology delivers mixed amphetamine
+which provides a smoother PK curve. However, clinicians found the
+salts in an equal 50:50 split of IR and ER between the two beads,
+duration of efficacy to be too short for some patients, particularly
+adults, leading to the development of another formulation used in
+tion even more distally in the intestine (at pH 7), thus potentially
+Mydayis®. This medication adds a third bead that releases medicaered in an equal percentage of 1⁄3:1⁄3:1⁄3 between the three beads.18
+extending the efficacy to up to 16 hours.' Amphetamine is deliv-
+(SODAS®), is used in Focalin XR° and Ritalin LA®. SODAS® also
+Another technology, the spheroidal oral drug absorption system
+methylphenidate delivery,!920 Please refer to Table 1 and Figure 1
+uses two populations of IR and ER beads with an equal 50:50 split in
+for specific compositions of the technologies mentioned.
+Multilayer beads
+Other beaded systems use one population of beads with multiple
+functional layers. Examples of this multilayer-release (MLR) bead
+
+--- Page 3 ---
+Table 1. Overview of drug delivery technologies and the brands that use those technologies to provide extended-release formulations of stimulant medications for the tr
+those that are easily available from the prescribing information (PI) of each product
+technology Technology components
+Delivery system
+Osmotic release
+OROS® 2-layer push-stick osmotic A controlled rate of water
+pump (PSOP),
+reservoirs and an IR
+comprising two drug
+"Push" layer comprises
+outer layer
+control the rate of
+osmopolymers to
+The layers are surrounded
+active drug release
+nondissoluble
+by a semirigia,
+precision laser-drilled
+membrane with a
+hole for drug
+delivery 13,21
+Diffucaps® Release-controlling
+Multiple beads
+are applied to a neutral
+polymer membranes
+beads of <1.5 mm
+core in multilayered
+Each dose may include a
+diameter
+mixture of beads with
+coating or uniform
+different levels of
+multilayered beads to
+ER, or DR dissolution 23
+achieve the desired IR,
+
+Mechanism of release products)
+Example
+entry through a non- tablets 12
+Concerta® MPH
+semipermeable membrane;
+degradable,
+osmotic layer and hydrates
+causes swelling of the
+The swollen push layer
+active drug
+hydrated active drug
+controls the rate of
+release through the delivery
+hole at the same rate as
+vater entry 10,21
+alexxii® MP
+ablets
+Beads comprise active drug, Metadate CD®
+pH-dependent layers control patients only 14
+controlling polymers for pediatric
+excipients, and release- MPH capsules
+the bead microenvironment
+to ensure drug solubility
+desired PK profile 23
+and dissolution for the
+
+Release
+PK features (healthy adults)
+profile Tmax (hours) T1⁄2 (hours)
+Two peaks 18 mg dose 3.5 ‡ 0.4 (A)
+6.8 + 1.8 (A)
+Two peaks 18 mg dose 3.5 + 0.4 (A)
+6.8 + 1.8 (A)
+Two peaks 20 mg dose 6.8
+Fa: Tmax1: 1.5
+Fa: Tmax2: 4.5
+
+instru
+Spec
+Must
+liq
+ch
+di
+Must
+liq
+di
+ch
+Take
+ap
+
+Table:
+
+[Rows]
+Row 1: Table 1. Overview of drug delivery technologies and the brands that use those technologies to provide extended-release formulations of stimulant medications for the tr those that are easily available from the prescribing information (PI) of each product technology Technology components=ablets
+Row 2: Delivery system=Beads comprise active drug, Metadate CD® pH-dependent layers control patients only 14 controlling polymers for pediatric excipients, and release- MPH capsules the bead microenvironment to ensure drug solubility desired PK profile 23 and dissolution for the
+Row 3: Osmotic release OROS® 2-layer push-stick osmotic A controlled rate of water pump (PSOP), reservoirs and an IR comprising two drug=Release
+Row 4: "Push" layer comprises outer layer control the rate of osmopolymers to=PK features (healthy adults) profile Tmax (hours) T1⁄2 (hours)
+Row 5: The layers are surrounded active drug release nondissoluble by a semirigia, precision laser-drilled membrane with a hole for drug delivery 13,21=Two peaks 18 mg dose 3.5 ‡ 0.4 (A)
+Row 6: Diffucaps® Release-controlling=6.8 + 1.8 (A)
+Row 7: Multiple beads are applied to a neutral polymer membranes beads of <1.5 mm core in multilayered=Two peaks 18 mg dose 3.5 + 0.4 (A)
+Row 8: Each dose may include a diameter mixture of beads with coating or uniform different levels of multilayered beads to=6.8 + 1.8 (A)
+Row 9: ER, or DR dissolution 23 achieve the desired IR,=Two peaks 20 mg dose 6.8
+Row 10: Mechanism of release products) Example entry through a non- tablets 12=Fa: Tmax1: 1.5
+Row 11: Concerta® MPH semipermeable membrane; degradable, osmotic layer and hydrates causes swelling of the=Fa: Tmax2: 4.5 instru Spec Must liq ch di Must liq di ch Take ap
+
+[Cells]
+Cell r1c1 [Column 1]: Table 1. Overview of drug delivery technologies and the brands that use those technologies to provide extended-release formulations of stimulant medications for the tr those that are easily available from the prescribing information (PI) of each product technology Technology components
+Cell r1c2 [Column 2]: ablets
+Cell r2c1 [Column 1]: Delivery system
+Cell r2c2 [Column 2]: Beads comprise active drug, Metadate CD® pH-dependent layers control patients only 14 controlling polymers for pediatric excipients, and release- MPH capsules the bead microenvironment to ensure drug solubility desired PK profile 23 and dissolution for the
+Cell r3c1 [Column 1]: Osmotic release OROS® 2-layer push-stick osmotic A controlled rate of water pump (PSOP), reservoirs and an IR comprising two drug
+Cell r3c2 [Column 2]: Release
+Cell r4c1 [Column 1]: "Push" layer comprises outer layer control the rate of osmopolymers to
+Cell r4c2 [Column 2]: PK features (healthy adults) profile Tmax (hours) T1⁄2 (hours)
+Cell r5c1 [Column 1]: The layers are surrounded active drug release nondissoluble by a semirigia, precision laser-drilled membrane with a hole for drug delivery 13,21
+Cell r5c2 [Column 2]: Two peaks 18 mg dose 3.5 ‡ 0.4 (A)
+Cell r6c1 [Column 1]: Diffucaps® Release-controlling
+Cell r6c2 [Column 2]: 6.8 + 1.8 (A)
+Cell r7c1 [Column 1]: Multiple beads are applied to a neutral polymer membranes beads of <1.5 mm core in multilayered
+Cell r7c2 [Column 2]: Two peaks 18 mg dose 3.5 + 0.4 (A)
+Cell r8c1 [Column 1]: Each dose may include a diameter mixture of beads with coating or uniform different levels of multilayered beads to
+Cell r8c2 [Column 2]: 6.8 + 1.8 (A)
+Cell r9c1 [Column 1]: ER, or DR dissolution 23 achieve the desired IR,
+Cell r9c2 [Column 2]: Two peaks 20 mg dose 6.8
+
+[Table Data]
+| Table 1. Overview of drug delivery technologies and the brands that use those technologies to provide extended-release formulations of stimulant medications for the tr those that are easily available from the prescribing information (PI) of each product technology Technology components | ablets |
+| Delivery system | Beads comprise active drug, Metadate CD® pH-dependent layers control patients only 14 controlling polymers for pediatric excipients, and release- MPH capsules the bead microenvironment to ensure drug solubility desired PK profile 23 and dissolution for the |
+| Osmotic release OROS® 2-layer push-stick osmotic A controlled rate of water pump (PSOP), reservoirs and an IR comprising two drug | Release |
+| "Push" layer comprises outer layer control the rate of osmopolymers to | PK features (healthy adults) profile Tmax (hours) T1⁄2 (hours) |
+| The layers are surrounded active drug release nondissoluble by a semirigia, precision laser-drilled membrane with a hole for drug delivery 13,21 | Two peaks 18 mg dose 3.5 ‡ 0.4 (A) |
+| Diffucaps® Release-controlling | 6.8 + 1.8 (A) |
+| Multiple beads are applied to a neutral polymer membranes beads of <1.5 mm core in multilayered | Two peaks 18 mg dose 3.5 + 0.4 (A) |
+| Each dose may include a diameter mixture of beads with coating or uniform different levels of multilayered beads to | 6.8 + 1.8 (A) |
+| ER, or DR dissolution 23 achieve the desired IR, | Two peaks 20 mg dose 6.8 |
+| Mechanism of release products) Example entry through a non- tablets 12 | Fa: Tmax1: 1.5 |
+| Concerta® MPH semipermeable membrane; degradable, osmotic layer and hydrates causes swelling of the | Fa: Tmax2: 4.5 instru Spec Must liq ch di Must liq di ch Take ap |
+
+--- Page 4 ---
+Table 1. Continued
+technology Technology components
+Delivery system
+MicrotrolTMTM IR and ER beads
+(2 bead) IR beads comprise an inert
+ER beads comprise IR
+core + active drug, with/
+SODAS® Uniform sherical
+Oral Drug
+System) copolymer outer
+Absorption
+sealant to delay release
+of active drug
+Triple bead IR beads comprise 0.5-
+0.6 mm inert sugar
+active drug
+spheres coated with
+Successive layers of
+added to create two
+protective coating are
+delayed-release
+layers 17,25
+
+Mechanism of release product(s) profile
+Example Release
+IR beads begin to release Adderall XR° Single peak
+drugs immediately after MAS 30 mi
+The coating of the ER beads
+psules'
+gradually degrades
+pores) in the higher pH
+(forming drug-releasing
+(~5.5) of the small intestine
+ER beads coated with an Focalin XR® d-MPH Two peaks
+capsules 19
+Ritalin LA® MPH Two peaks
+capsules2°
+The three bead types release Mydayis® MAS Single peak
+evels, enabling prolongec
+ctive drugs at different pł capsules
+delivery over time as the pH
+the stomach; DR-1 at pH 5.5
+in the Gl tract changes: IR in
+(proximal small intestine);
+intestine) 17,25
+DR-2 at pH 7.0 (distal small
+
+PK features (healthy adults)
+
+Table: Tmax (hours) T1⁄2 (hours)
+
+[Summary]
+The 30 mg dose d-amp is 10 (A);.
+The fe d-amp is 7.7 11 (AD); 9 (C).
+The fe i-amp is 8.3 I-AMP: 13 (A);.
+The fa d-amp is 5.2 13-14 (AD);.
+The fa i-amp is 5.6 11 (C).
+
+[Rows]
+Row 1: 30 mg dose d-AMP=10 (A);
+Row 2: Fe d-AMP=7.7 11 (AD); 9 (C)
+Row 3: Fe I-AMP=8.3 I-AMP: 13 (A);
+Row 4: Fa d-AMP=5.2 13-14 (AD);
+Row 5: Fa I-AMP=5.6 11 (C)
+
+[Cells]
+Cell r1c1 [Column 1]: 30 mg dose d-AMP
+Cell r1c2 [Column 2]: 10 (A);
+Cell r2c1 [Column 1]: Fe d-AMP
+Cell r2c2 [Column 2]: 7.7 11 (AD); 9 (C)
+Cell r3c1 [Column 1]: Fe I-AMP
+Cell r3c2 [Column 2]: 8.3 I-AMP: 13 (A);
+Cell r4c1 [Column 1]: Fa d-AMP
+Cell r4c2 [Column 2]: 5.2 13-14 (AD);
+Cell r5c1 [Column 1]: Fa I-AMP
+Cell r5c2 [Column 2]: 5.6 11 (C)
+
+[Table Data]
+| 30 mg dose d-AMP | 10 (A); |
+| Fe d-AMP | 7.7 11 (AD); 9 (C) |
+| Fe I-AMP | 8.3 I-AMP: 13 (A); |
+| Fa d-AMP | 5.2 13-14 (AD); |
+| Fa I-AMP | 5.6 11 (C) |
+
+Table: 20 mg dose (A) ~3(A)
+
+[Summary]
+The tmax2 is 6.5 (4.5-7).
+The tmax1 is 1.5 (1-4) 2-3 (C).
+
+[Rows]
+Row 1: Tmax2=6.5 (4.5-7)
+Row 2: Tmax1=1.5 (1-4) 2-3 (C)
+
+[Cells]
+Cell r1c1 [Column 1]: Tmax2
+Cell r1c2 [Column 2]: 6.5 (4.5-7)
+Cell r2c1 [Column 1]: Tmax1
+Cell r2c2 [Column 2]: 1.5 (1-4) 2-3 (C)
+
+[Table Data]
+| Tmax2 | 6.5 (4.5-7) |
+| Tmax1 | 1.5 (1-4) 2-3 (C) |
+
+20 mg dose 3.3 + 0.4
+Tmax1: 2.0 + 0.9 (3.0-4.2) (A)
+2.0 = 0.8 (1-3) (C) (1.5-4.0) (C)
+(1.3-4.0) (A); 2.4 + 0.7
+Tmax2: 5.5 + 0.8
+6.6 = 1.5 (5-11)
+(4.3-6.5) (A);
+
+50 mg dose d AMP: 10-11
+
+Fe /-AMP: 12
+
+Fe d-AMP: 12
+
+Fa I-AMP: 7.5
+Fa d-AMP: 7
+
+Spec
+instri
+Take
+ap
+Take
+Take
+(n
+ap
+Take
+Adm
+ap
+an
+to
+ins
+foi
+
+--- Page 5 ---
+Table 1. Continued
+technology Technology components
+Delivery system
+Multilayered beads
+MLR Nonpareil ~1 mm spheres
+polymer-coated CR
+with an IR layer and a
+layer 26
+2-layer Outer DR layer comprises
+microbead time- and
+(DELEXIS®) pH-dependent
+predictable delay in
+polymers to provide a
+by ratio of components
+drug release, controlled
+and rate of erosion
+that affect wettability
+Inner ER layer comprises
+hydrophobic and poreregulate permeability
+forming polymers to
+and control the
+dissolution of active
+drug 30,31
+DOT Matrix® Comprises three layers:
+Transdermal patch
+skin patch adhesive drug reservoir,
+Transdermal: acrylic and silicone
+adhesive skin contact
+pressure sensitive
+liner 33,34
+layer, and protective
+
+Mechanism of release products) profile
+Example Release
+Active drug is released from Aptensio XRTM MPH Two peaks
+coating dissolves in the GI
+the CR layer as the polymer capsules 28
+Adhansia XR° MPH Two peaks
+capsules 2
+DR layer remains intact until Jornay PM® MPH Single peak
+(pH 7.4) ~6-8 hours after
+the beads reach the ileum capsules 32
+ingestion
+dis deed a core drug from
+Active drug diffuses Daytrana® MPH Single peak
+reservoir layer of the patch
+transdermally from the
+The amount of drug absorbed
+to the circulation
+is a function of patch size
+and wear time
+
+PK features (healthy adults)
+Tmax (hours) T1⁄2 (hours)
+Fa Tmax1: 2 5.43
+80 mg dose 5.09 (capsule);
+(capsule/ (sprinkled)
+Fa Tmax2: ~8
+sprinkled)
+(capsule/
+100 mg dose
+sprinkled)
+Fa: Tmax1: 1.5
+
+Table: (1-2.5)
+
+[Summary]
+The 100 mg dose fa is 5.9 (A).
+The fa is 14 (A).
+
+[Rows]
+Row 1: 100 mg dose Fa=5.9 (A)
+Row 2: Fa=14 (A)
+
+[Cells]
+Cell r1c1 [Column 1]: 100 mg dose Fa
+Cell r1c2 [Column 2]: 5.9 (A)
+Cell r2c1 [Column 1]: Fa
+Cell r2c2 [Column 2]: 14 (A)
+
+[Table Data]
+| 100 mg dose Fa | 5.9 (A) |
+
+12.5-37.5 cm? 4-5 hrs after
+Single use: ~10 removal
+patch patch
+Repeat exposure: 8 (for patients
+17 years)
+aged 6-
+
+instri
+Spec
+Take
+ap
+Take
+ap
+Requ
+fo
+Must
+on
+rer
+ca
+tal
+pr
+fol
+ev
+APpl
+be
+Rem
+ne
+<9
+eff
+du
+Abso
+of
+MF
+se
+CO
+
+--- Page 6 ---
+Table 1. Continued
+technology Technology components
+Delivery system
+LAT® prodrug Ligand is added to the
+Prodrug
+active drug molecule to
+bioreversible derivative
+create an inactive,
+activated after oral
+prodrug that is
+tablet 35
+administration of the
+Prodrug has no or limited
+activity 35
+pharmacological
+
+Mechanism of release products)
+Example
+Xelstrym" d-AMP
+transderma
+patch 3
+LDX is rapidly taken up from Vyvanse® LDX
+the small intestine by active capsules
+carrier-mediated transport (pediatric) 38
+Hydrolysis of LDX to release
+of red blood cells, which
+d-AMP occurs in the cytosol
+netabolism of LDX 37
+ave a high capacity for the
+Vyvanse® LDX
+chewable
+tablets 38
+In addition to an IR d-MPH Azstarys® SDX
+component, SDX is (70%), IR d-MPH
+cleavage in the lower GI capsules 41
+bioactivated by serine (30%)
+tract to release d-MPH 39-41
+
+Release
+PK features (healthy adults)
+profile Tmax (hours) T1⁄2 (hours)
+Single peak 18 mg/9 hours Patch removal
+Single application: wear time:
+dose after 9 hrs
+Repeat 6.4 (C)
+
+(6-12 years)
+
+d-MPH)
+
+Spec
+instri
+aft
+Appl
+be
+ex
+ca
+th
+abA
+ex
+Avoic
+Take
+fo
+th
+wi
+co
+or
+Avoic
+im
+do
+fo
+th
+Chev
+Take
+
+Table:
+
+[Schema]
+Columns: Delivery system technology | Technology components | Mechanism of release | Example products)
+XelstrymTM d-AMP transderma patch 3 | PK features (healthy adults) | Column 6 | Column 7
+
+[Rows]
+Row 1: Delivery system technology=Release profile; Technology components=Tmax (hours)
+Single peak 18 mg/9 hours
+dose
+Single application:
+Repeat
+applications: 6; Mechanism of release=T1⁄2 (hours)
+Patch removal after 9 hrs wear time:
+11.5 (A);
+6.4 (C)
+Row 3: Delivery system technology=Prodrug
+Row 5: Delivery system technology=LAT® prodrug; Technology components=Ligand is added to the active drug molecule to create an inactive, bioreversible derivative prodrug that is activated after oral administration of the tablet 35
+Prodrug has no or limited pharmacological activity 35; Mechanism of release=LDX is rapidly taken up from the small intestine by active carrier-mediated transport
+Hydrolysis of LDX to release d-AMP occurs in the cytosol of red blood cells, which have a high capacity for the metabolism of LDX 37; Example products)
+XelstrymTM d-AMP transderma patch 3=Vyvanse® LD)
+capsules (pediatric) 38; PK features (healthy adults)=Single peak; Column 6=30, 50, or 70 mg
+dose
+Fa LDX: ~1
+(6-12 years)
+Fa: d-AMP: ~3.5
+(6-12 years); Column 7=LDX: <1
+d-AMP: 12
+Row 6: Example products)
+XelstrymTM d-AMP transderma patch 3=Vyvanse® LDX
+chewable tablets 38; PK features (healthy adults)=Single peak; Column 6=60 mg dose
+FaLDX: LDX: (A)
+Fa d-AMP: 4.4 (A); Column 7=LDX: <1
+d-AMP: ~12
+Row 7: Mechanism of release=In addition to an IR d-MPH component, SDX is bioactivated by serine cleavage in the lower GI tract to release d-MPH 39-41; Example products)
+XelstrymTM d-AMP transderma patch 3=Azstarys® SDX
+(70%), IR d-MPH
+(30%)
+capsules 41; PK features (healthy adults)=Single peak; Column 6=52.3 mg/10.4 mg
+dose
+Fa: ~2 hrs (SDX and d-MPH); Column 7=SDX: 5.7
+d-MPH: 11.7
+
+[Cells]
+Cell r1c1 [Delivery system technology]: Release profile
+Cell r1c2 [Technology components]: Tmax (hours)
+Single peak 18 mg/9 hours
+dose
+Single application:
+Repeat
+applications: 6
+Cell r1c3 [Mechanism of release]: T1⁄2 (hours)
+Patch removal after 9 hrs wear time:
+11.5 (A);
+6.4 (C)
+Cell r3c1 [Delivery system technology]: Prodrug
+Cell r5c1 [Delivery system technology]: LAT® prodrug
+Cell r5c2 [Technology components]: Ligand is added to the active drug molecule to create an inactive, bioreversible derivative prodrug that is activated after oral administration of the tablet 35
+Prodrug has no or limited pharmacological activity 35
+Cell r5c3 [Mechanism of release]: LDX is rapidly taken up from the small intestine by active carrier-mediated transport
+Hydrolysis of LDX to release d-AMP occurs in the cytosol of red blood cells, which have a high capacity for the metabolism of LDX 37
+Cell r5c4 [Example products)
+XelstrymTM d-AMP transderma patch 3]: Vyvanse® LD)
+capsules (pediatric) 38
+Cell r5c5 [PK features (healthy adults)]: Single peak
+Cell r5c6 [Column 6]: 30, 50, or 70 mg
+dose
+Fa LDX: ~1
+(6-12 years)
+Fa: d-AMP: ~3.5
+(6-12 years)
+Cell r5c7 [Column 7]: LDX: <1
+d-AMP: 12
+Cell r6c4 [Example products)
+XelstrymTM d-AMP transderma patch 3]: Vyvanse® LDX
+chewable tablets 38
+Cell r6c5 [PK features (healthy adults)]: Single peak
+Cell r6c6 [Column 6]: 60 mg dose
+FaLDX: LDX: (A)
+Fa d-AMP: 4.4 (A)
+Cell r6c7 [Column 7]: LDX: <1
+d-AMP: ~12
+Cell r7c3 [Mechanism of release]: In addition to an IR d-MPH component, SDX is bioactivated by serine cleavage in the lower GI tract to release d-MPH 39-41
+Cell r7c4 [Example products)
+XelstrymTM d-AMP transderma patch 3]: Azstarys® SDX
+(70%), IR d-MPH
+(30%)
+capsules 41
+Cell r7c5 [PK features (healthy adults)]: Single peak
+
+[Table Data]
+| Delivery system technology | Technology components | Mechanism of release | Example products)
+XelstrymTM d-AMP transderma patch 3 | PK features (healthy adults) | | |
+| Release profile | Tmax (hours)
+Single peak 18 mg/9 hours
+dose
+Single application:
+Repeat
+applications: 6 | T1⁄2 (hours)
+Patch removal after 9 hrs wear time:
+11.5 (A);
+| LAT® prodrug | Ligand is added to the active drug molecule to create an inactive, bioreversible derivative prodrug that is activated after oral administration of the tablet 35
+Prodrug has no or limited pharmacological activity 35 | LDX is rapidly taken up from the small intestine by active carrier-mediated transport
+Hydrolysis of LDX to release d-AMP occurs in the cytosol of red blood cells, which have a high capacity for the metabolism of LDX 37 | Vyvanse® LD)
+capsules (pediatric) 38 | Single peak | 30, 50, or 70 mg
+dose
+Fa LDX: ~1
+(6-12 years)
+Fa: d-AMP: ~3.5
+(6-12 years) | LDX: <1
+d-AMP: 12 |
+| | | | Vyvanse® LDX
+chewable tablets 38 | Single peak | 60 mg dose
+FaLDX: LDX: (A)
+Fa d-AMP: 4.4 (A) | LDX: <1
+d-AMP: ~12 |
+| | | In addition to an IR d-MPH component, SDX is bioactivated by serine cleavage in the lower GI tract to release d-MPH 39-41 | Azstarys® SDX
+(70%), IR d-MPH
+(30%)
+capsules 41 | Single peak | 52.3 mg/10.4 mg
+dose
+Fa: ~2 hrs (SDX and d-MPH) | SDX: 5.7
+d-MPH: 11.7 |
+
+--- Page 7 ---
+Table 1. Continued
+technology Technology components
+Delivery system
+lon-exchange resins
+Microparticles: Each ODT has drug
+cation ionically bound to
+exchange 100 000-200 000
+resin
+le positively charg
+presence oran and
+ug is dissolved in t
+eplaces the Nation
+ne resin to form stabl
+LiquiXR®: coated tive drug complex
+resin complex th ion-exchange re
+sized particles
+polymers in micron-
+Varying thicknesses of
+applied to resin
+polymer coating
+Millions of drug-resin
+particles
+dose 46,47
+complexes in each
+technology.
+Note: All products can be taken with or without food unless as described in clinical considerations column; the impact of high-fat meals on Cmax and/or Tmax for methylphenidates is due to variability a
+oral system; PK, pharmacokinetic; PPI, proton pump inhibitor; SDX, serdexmethylphenidate; SODAS, spheroidal oral drug absorption system; T1⁄2, terminal half-life; Tmax, time to peak plasma concent
+Abbreviations: A, adults; AD, adolescents; ADHD, attention-deficit/hyperactivity disorder; AE, adverse event; AMP, amphetamine; C, children; Cmax, peak plasma concentration; CR, controlled release; DR,
+extended release; Fe, fed; Fa, fasted; Gl, gastrointestinal; IR, immediate release; LDX, lisdexamfetamine; MAS, mixed amphetamine salts; MLR, multilayer release; MPH, methylphenidate; ODT, orally disint
+*Take whole or sprinkled on applesauce without chewing.
+
+Mechanism of release products) profile
+Example Release
+IR portion releases the drug Cotempla Single peak
+immediately in the gastric XR-ODT• MPH
+Release is delayed until the disintegrating
+orally
+small intestine for tablets
+a pH-sensitive polymer
+nicroparticles coated wit
+Adzenys XR-ODT® Single peak
+disintegrating
+AMP orally
+Adzenys ERTM Single peak
+AMP oral
+suspension 45
+IR uncoated particles Quillivant XR Single peak
+ER particles coated with MPH extendedaqueous, pH-independent suspension 48
+varying thicknesses of an release oral
+Positively charged ions diffuse QuilliChew ER®
+non-dissolving polymer
+across the particle coating Single peak
+water-soluble drug from the
+to displace protonated, MPH chewable
+resin 46,47
+tablets 49
+release oral
+MPH extended
+Dyanavel XR® AMP Single peak 20 mg dose
+suspension 5°
+tablets 50
+chewable
+
+PK features (healthy adults)
+Tmax (hours) T1⁄2 (hours)
+51.8 mg dose ~4 Take
+Fa: 5
+18.8 mg dose Fe: 11.33 + 2.0
+Fa: 5(3-12) (A) Fa: 11.25 + 2.0
+Fe: 7(3-16) (A) (A)
+(A)
+18.8 mg dose d-AMP: Shak
+Fa: d-AMP: 5 11.4 + 2.3 (A);
+-a: I-AMP: 5(3-8) I-AMP: 14.1+3.5
+(3-7.5) (A) 12.7 = 6.4 (C)
+(A) (A);
+60 mg dose Fe: 5.2 + 1.0 (A); Reco
+15.3 + 14.4 (C)
+Fe: 4.04 (1.3-7.3 5.0 + 0.2 (AD);
+4.0) (AD); 4.05
+(A); 2.0 (1.98- 5.2 + 0.1 (C)
+40 mg dose Fe: 5.2
+(3.98-6.0) (C)
+Fa 5
+18.8 mg dose d-AMP: 12.4 Shak
+Fa d-AMP: 4(2-7) I-AMP: 15.1
+Fa I-AMP: 5(3-7)
+(A)
+Fa d- & I-AMP: 5 I-AMP: 17.3
+d-AMP: 13.5 5 mg
+(2-9))
+
+Take
+for
+wi
+tal
+sa
+Shak
+ad
+be
+Reco
+- ≤.
+di
+SC
+Shak
+eq
+ev
+pr
+or
+5 mg
+di
+
+Table: Fa / 5
+
+[Schema]
+Columns: Fa | 5
+
+[Rows]
+Row 1: Fa=Delivery system lon-exchange resins; 5=Fa: 5(3-12) (A) Fa: 11.25 + 2.0
+Row 2: Fa=Microparticles: Each ODT has drug cation ionically bound to exchange 100 000-200 000 resin le positively charg presence oran and ug is dissolved in t eplaces the Nation ne resin to form stabl; 5=Fe: 7(3-16) (A) (A) (A)
+Row 3: Fa=LiquiXR®: coated tive drug complex resin complex th ion-exchange re sized particles polymers in micron-; 5=18.8 mg dose d-AMP: Shak
+Row 4: Fa=Varying thicknesses of applied to resin polymer coating; 5=Fa: d-AMP: 5 11.4 + 2.3 (A);
+Row 5: Fa=Millions of drug-resin particles dose 46,47 complexes in each technology. Note: All products can be taken with or without food unless as described in clinical considerations column; the impact of high-fat meals on Cmax and/or Tmax for methylphenidates is due to variability a oral system; PK, pharmacokinetic; PPI, proton pump inhibitor; SDX, serdexmethylphenidate; SODAS, spheroidal oral drug absorption system; T1⁄2, terminal half-life; Tmax, time to peak plasma concent Abbreviations: A, adults; AD, adolescents; ADHD, attention-deficit/hyperactivity disorder; AE, adverse event; AMP, amphetamine; C, children; Cmax, peak plasma concentration; CR, controlled release; DR, extended release; Fe, fed; Fa, fasted; Gl, gastrointestinal; IR, immediate release; LDX, lisdexamfetamine; MAS, mixed amphetamine salts; MLR, multilayer release; MPH, methylphenidate; ODT, orally disint; 5=-a: I-AMP: 5(3-8) I-AMP: 14.1+3.5
+Row 6: Fa=*Take whole or sprinkled on applesauce without chewing.; 5=(3-7.5) (A) 12.7 = 6.4 (C) (A) (A);
+Row 7: Fa=Mechanism of release products) profile; 5=60 mg dose Fe: 5.2 + 1.0 (A); Reco
+Row 8: Fa=Example Release IR portion releases the drug Cotempla Single peak immediately in the gastric XR-ODT• MPH Release is delayed until the disintegrating orally small intestine for tablets a pH-sensitive polymer nicroparticles coated wit; 5=15.3 + 14.4 (C)
+Row 9: Fa=Adzenys XR-ODT® Single peak disintegrating; 5=Fe: 4.04 (1.3-7.3 5.0 + 0.2 (AD);
+Row 10: Fa=AMP orally; 5=4.0) (AD); 4.05
+Row 11: Fa=Adzenys ERTM Single peak AMP oral suspension 45 IR uncoated particles Quillivant XR Single peak; 5=(A); 2.0 (1.98- 5.2 + 0.1 (C)
+Row 12: Fa=ER particles coated with MPH extended- aqueous, pH-independent suspension 48 varying thicknesses of an release oral Positively charged ions diffuse QuilliChew ER® non-dissolving polymer across the particle coating Single peak water-soluble drug from the to displace protonated, MPH chewable resin 46,47 tablets 49; 5=40 mg dose Fe: 5.2
+Row 13: Fa=Dyanavel XR® AMP Single peak release oral; 5=(3.98-6.0) (C) Fa 5
+Row 14: Fa=MPH extended; 5=18.8 mg dose d-AMP: 12.4 Shak
+Row 15: Fa=Dyanavel XR® AMP Single peak 20 mg dose suspension 5° tablets 50 chewable; 5=Fa d-AMP: 4(2-7) I-AMP: 15.1
+Row 16: Fa=PK features (healthy adults); 5=Fa I-AMP: 5(3-7) (A)
+Row 17: Fa=Tmax (hours) T1⁄2 (hours); 5=Fa d- & I-AMP: 5 I-AMP: 17.3 d-AMP: 13.5 5 mg
+Row 18: Fa=51.8 mg dose ~4 Take; 5=(2-9)) Take for wi tal sa Shak ad be Reco
+
+[Cells]
+Cell r1c1 [Fa]: Delivery system lon-exchange resins
+Cell r1c2 [5]: Fa: 5(3-12) (A) Fa: 11.25 + 2.0
+Cell r2c1 [Fa]: Microparticles: Each ODT has drug cation ionically bound to exchange 100 000-200 000 resin le positively charg presence oran and ug is dissolved in t eplaces the Nation ne resin to form stabl
+Cell r2c2 [5]: Fe: 7(3-16) (A) (A) (A)
+Cell r3c1 [Fa]: LiquiXR®: coated tive drug complex resin complex th ion-exchange re sized particles polymers in micron-
+Cell r3c2 [5]: 18.8 mg dose d-AMP: Shak
+Cell r4c1 [Fa]: Varying thicknesses of applied to resin polymer coating
+Cell r4c2 [5]: Fa: d-AMP: 5 11.4 + 2.3 (A);
+Cell r5c1 [Fa]: Millions of drug-resin particles dose 46,47 complexes in each technology. Note: All products can be taken with or without food unless as described in clinical considerations column; the impact of high-fat meals on Cmax and/or Tmax for methylphenidates is due to variability a oral system; PK, pharmacokinetic; PPI, proton pump inhibitor; SDX, serdexmethylphenidate; SODAS, spheroidal oral drug absorption system; T1⁄2, terminal half-life; Tmax, time to peak plasma concent Abbreviations: A, adults; AD, adolescents; ADHD, attention-deficit/hyperactivity disorder; AE, adverse event; AMP, amphetamine; C, children; Cmax, peak plasma concentration; CR, controlled release; DR, extended release; Fe, fed; Fa, fasted; Gl, gastrointestinal; IR, immediate release; LDX, lisdexamfetamine; MAS, mixed amphetamine salts; MLR, multilayer release; MPH, methylphenidate; ODT, orally disint
+Cell r5c2 [5]: -a: I-AMP: 5(3-8) I-AMP: 14.1+3.5
+Cell r6c1 [Fa]: *Take whole or sprinkled on applesauce without chewing.
+Cell r6c2 [5]: (3-7.5) (A) 12.7 = 6.4 (C) (A) (A);
+Cell r7c1 [Fa]: Mechanism of release products) profile
+Cell r7c2 [5]: 60 mg dose Fe: 5.2 + 1.0 (A); Reco
+Cell r8c1 [Fa]: Example Release IR portion releases the drug Cotempla Single peak immediately in the gastric XR-ODT• MPH Release is delayed until the disintegrating orally small intestine for tablets a pH-sensitive polymer nicroparticles coated wit
+Cell r8c2 [5]: 15.3 + 14.4 (C)
+Cell r9c1 [Fa]: Adzenys XR-ODT® Single peak disintegrating
+Cell r9c2 [5]: Fe: 4.04 (1.3-7.3 5.0 + 0.2 (AD);
+
+[Table Data]
+| Table 1. Continued technology Technology components | 18.8 mg dose Fe: 11.33 + 2.0 |
+| Delivery system lon-exchange resins | Fa: 5(3-12) (A) Fa: 11.25 + 2.0 |
+| Microparticles: Each ODT has drug cation ionically bound to exchange 100 000-200 000 resin le positively charg presence oran and ug is dissolved in t eplaces the Nation ne resin to form stabl | Fe: 7(3-16) (A) (A) (A) |
+| LiquiXR®: coated tive drug complex resin complex th ion-exchange re sized particles polymers in micron- | 18.8 mg dose d-AMP: Shak |
+| Varying thicknesses of applied to resin polymer coating | Fa: d-AMP: 5 11.4 + 2.3 (A); |
+| Millions of drug-resin particles dose 46,47 complexes in each technology. Note: All products can be taken with or without food unless as described in clinical considerations column; the impact of high-fat meals on Cmax and/or Tmax for methylphenidates is due to variability a oral system; PK, pharmacokinetic; PPI, proton pump inhibitor; SDX, serdexmethylphenidate; SODAS, spheroidal oral drug absorption system; T1⁄2, terminal half-life; Tmax, time to peak plasma concent Abbreviations: A, adults; AD, adolescents; ADHD, attention-deficit/hyperactivity disorder; AE, adverse event; AMP, amphetamine; C, children; Cmax, peak plasma concentration; CR, controlled release; DR, extended release; Fe, fed; Fa, fasted; Gl, gastrointestinal; IR, immediate release; LDX, lisdexamfetamine; MAS, mixed amphetamine salts; MLR, multilayer release; MPH, methylphenidate; ODT, orally disint | -a: I-AMP: 5(3-8) I-AMP: 14.1+3.5 |
+| *Take whole or sprinkled on applesauce without chewing. | (3-7.5) (A) 12.7 = 6.4 (C) (A) (A); |
+| Mechanism of release products) profile | 60 mg dose Fe: 5.2 + 1.0 (A); Reco |
+| Example Release IR portion releases the drug Cotempla Single peak immediately in the gastric XR-ODT• MPH Release is delayed until the disintegrating orally small intestine for tablets a pH-sensitive polymer nicroparticles coated wit | 15.3 + 14.4 (C) |
+| Adzenys XR-ODT® Single peak disintegrating | Fe: 4.04 (1.3-7.3 5.0 + 0.2 (AD); |
+| AMP orally | 4.0) (AD); 4.05 |
+| Adzenys ERTM Single peak AMP oral suspension 45 IR uncoated particles Quillivant XR Single peak | (A); 2.0 (1.98- 5.2 + 0.1 (C) |
+| ER particles coated with MPH extended- aqueous, pH-independent suspension 48 varying thicknesses of an release oral Positively charged ions diffuse QuilliChew ER® non-dissolving polymer across the particle coating Single peak water-soluble drug from the to displace protonated, MPH chewable resin 46,47 tablets 49 | 40 mg dose Fe: 5.2 |
+| MPH extended | 18.8 mg dose d-AMP: 12.4 Shak |
+| Dyanavel XR® AMP Single peak 20 mg dose suspension 5° tablets 50 chewable | Fa d-AMP: 4(2-7) I-AMP: 15.1 |
+| PK features (healthy adults) | Fa I-AMP: 5(3-7) (A) |
+| Tmax (hours) T1⁄2 (hours) | Fa d- & I-AMP: 5 I-AMP: 17.3 d-AMP: 13.5 5 mg |
+| 51.8 mg dose ~4 Take | (2-9)) Take for wi tal sa Shak ad be Reco |
+
+--- Page 8 ---
+OSMOTIC RELEASE
+• 2-layer push-stick osmotic pump (PSOP) with a drug
+ER technology
+OROS®
+layer and a non-degradable 'push' layer, all contained
+• Water enters through the semipermeable membrane,
+hole for drug delivery 2,13,22
+
+Table: within a semi-rigid, non-dissoluble membrane with a
+
+[Summary]
+The pk curve is 2 peaks12,22 25-30% of patients who take Metadate CD®14.
+The hydrated active drug through the delivery orifice 12,13,22 pk curve is 2 peaks, although only 1 peak is observed in.
+
+[Rows]
+Row 1: PK curve=2 peaks12,22 25-30% of patients who take Metadate CD®14
+Row 2: hydrated active drug through the delivery orifice 12,13,22 PK curve=2 peaks, although only 1 peak is observed in
+
+[Cells]
+Cell r1c1 [Column 1]: PK curve
+Cell r1c2 [Column 2]: 2 peaks12,22 25-30% of patients who take Metadate CD®14
+Cell r2c1 [Column 1]: hydrated active drug through the delivery orifice 12,13,22 PK curve
+Cell r2c2 [Column 2]: 2 peaks, although only 1 peak is observed in
+
+[Table Data]
+| PK curve | 2 peaks12,22 25-30% of patients who take Metadate CD®14 |
+| hydrated active drug through the delivery orifice 12,13,22 PK curve | 2 peaks, although only 1 peak is observed in |
+
+causing the osmotic 'push' layer to swell and push
+Delivery orifice
+Concerta® and Relexii®12,13,21,22
+Drug overcoat
+Active drug layer #1
+Non-dissoluble
+Active drug layer #2
+- Inert 'push' layer
+TRANSDERMAL
+ER technology • Small pores form in polymer coating that allow fluid to
+Comprises three layers: an acrylic and silicone
+DOT Matrix®
+Transdermal diffusion of drug from patch reservoir layer
+adhesive drug reservoir; a pressure-sensitive adhesive
+to the circulation 33,34
+skin contact layer; and a protective liner 33,34
+PK curve: 1 peak 33.34
+Amount of drug absorbed is a function of patch size and
+wear time 33,34
+Different sizes
+of patch - Protective liner
+Daytrana®33 and XelstrymTM34
+and dose of
+are available
+active drug) - Adhesive layer
+Reservoir
+of active drug
+ER technology
+
+Table: Addition of ligand to the active drug creates an inactive,
+
+[Schema]
+Columns: LAT® prodrug | GI tract39-41
+
+[Rows]
+Row 1: LAT® prodrug=• Lisdexamfetamine dimesylate (LDX) is rapidly taken up blood/GI tract35 bioreversible derivative prodrug that is activated in the • Polymer coating dissolves atter the beads have passed; GI tract39-41=PK curve: 1 peak33,41 also contains Bioactivation
+Row 2: LAT® prodrug=• Serdexmethylphenidate (SDX) is bioactivated in the lower from the small intestine by active carrier-mediated transport; GI tract39-41=Azstarys ®41 Azstarys® and Vyvanse ®38,41,59
+
+[Cells]
+Cell r1c1 [LAT® prodrug]: • Lisdexamfetamine dimesylate (LDX) is rapidly taken up blood/GI tract35 bioreversible derivative prodrug that is activated in the • Polymer coating dissolves atter the beads have passed
+Cell r1c2 [GI tract39-41]: PK curve: 1 peak33,41 also contains Bioactivation
+Cell r2c1 [LAT® prodrug]: • Serdexmethylphenidate (SDX) is bioactivated in the lower from the small intestine by active carrier-mediated transport
+Cell r2c2 [GI tract39-41]: Azstarys ®41 Azstarys® and Vyvanse ®38,41,59
+
+[Table Data]
+| PRODRUG | and hydrolyzed in the cytosol of red blood cells 36,38 |
+| • Lisdexamfetamine dimesylate (LDX) is rapidly taken up blood/GI tract35 bioreversible derivative prodrug that is activated in the • Polymer coating dissolves atter the beads have passed | PK curve: 1 peak33,41 also contains Bioactivation |
+| • Serdexmethylphenidate (SDX) is bioactivated in the lower from the small intestine by active carrier-mediated transport | Azstarys ®41 Azstarys® and Vyvanse ®38,41,59 |
+
+IR d-MPH occurs to
+Active release active
+drug
+drug from ligand
+Inactive, bioreversible drug
+Ligand
+Active'
+(either LDX or SDX)
+derivative prodrug
+• Active drug is bound ionically to the micro-particles and coated with a
+ER technology
+Micro-particles
+PK curve
+Cotempla XR-ODT®: 1 peak43
+pH-sensitive polymer that delays drug release until the small intestine 6.60,61
+Adzenys XR-ODT® and Adzenys ER®: 1 peak14,45
+disintegrating
+Orally.
+Cotempla XR-ODT043 Adzenys XR-ODT®44 and ER45
+tablet
+Active
+drug release polymers (blue) some micro-particles
+Active drug (orange) ionically pH-sensitive polymer
+bound to micro-particle delays release of
+
+ER technology
+Diffucaps®
+MULTIPLE BEADS
+Functional polymer membranes are applied to a drug
+Organic acid layer is placed underneath the drug layer;
+alkaline buffer is placed over the drug layer51-53
+core, resulting in a small, multi-layered bead51-53
+PK curve: 2 peaks, although only 1 peak is observed in
+Coatings ensure that individual layers are not depleted
+25-30% of patients who take Metadate CD®14
+until release of the drug is complete 51-53
+IR bead Continuous release layers
+Drug core
+Metadate CD®54
+Release-controt
+Protective
+mell dries
+membrane
+Active drug-
+ER technology
+Beads coated with ammonio methacrylate copolymer
+SODAS®
+• Small pores form in polymer coating that allow fluid to
+drug from inner drug layer24
+outer inactive layer that delays release of the active
+PK curve: 2 peaks 19,20
+enter and dissolve the ER layer2
+Focalin XR® and Ritalin LA®19,20,55,56
+IR bead
+- Release control
+- Protective coating
+Active drug Small pores that allow
+polymers 1 & 2
+fluid to enter and dissolve
+the ER layer
+ER technology
+MLR
+MULTILAYERED BEADS
+Identical beads, with an outer IR layer which, when
+• Polymer coating dissolves atter the beads have passed
+covers the CR component
+absorbed, then exposes the pH sensitive polymer that
+PK curve
+Aptensio XR®: Two distinct peaks at 2 hours and
+through the stomach at pH ≥727
+Adhansia XR®: Two distinct peaks at 1.5 (1-2.5) hours
+8 hours28
+and 12 (8.5-16.0) hours29
+Outer IR active • -Delayed-release
+Adhansia XR®26,28 and Aptensio XR 26,29
+drug layer polymer coating that
+dissolves in Gl tract
+Inner activedrug layer
+ION EXCHANGE RESINS
+ER technology
+• Each dose has millions of drug-resin complexes. Particles are coated with varying thicknesses of an
+Active drug complexed with ion-exchange resin polymers in micron sized particles 46,47
+PK curve: 1 peak47-50
+Quillivant XR®48, QuilliChew ER®49, Dyanavel XR® oral suspension,50 and Dyanavel XR® tabletsso
+aqueous, pH-independent polymer 6,47
+immediate release displacing protonated, water-soluble drug from the resin,
+coating provides to provide extended release; positive ions diffuse across polymer,
+No polymer Particles are covered with varying thickness of polymer
+which then diffuses through the polymer coating
+Active drug (orange) complexed
+with ion exchange resin (blue)
+gradually to extend the duration of efficacy for adolescents and
+second release layer was changed to release medication even more
+adults.
+
+A. J. Cutler and J. Hanaie
+ER technology
+Release rate-controlling compound and pore-forming
+Microtro|TMM
+The ER coating degrades at higher pH in the small
+overcoat 3,15
+PK curve: 1 peak'6
+intestine, with the formation of drug-releasing pores 13,15
+IR bead ER bead
+Adderall XR®13, 15,16
+membrane
+Protective
+-Core
+Active drug
+Polymer overcoat that degrades at higher pH
+in the small intestine to form pores through
+wrien ine active arug Is released
+ER technology
+Successive layers of protective coating added to create
+Triple bead
+DR-2 in distal small intestine 725,57
+DR-1 and DR-2 beads that release active ingredient at
+
+Table: • ER-1 coating is porous; ER-2 is pH-dependent 7,25,57
+
+[Summary]
+The different ph levels is DR-1 in proximal small intestine;.
+The pk curve is 1 peak'.
+
+[Rows]
+Row 1: different pH levels=DR-1 in proximal small intestine;
+Row 2: PK curve=1 peak'
+
+[Cells]
+Cell r1c1 [Column 1]: different pH levels
+Cell r1c2 [Column 2]: DR-1 in proximal small intestine;
+Cell r2c1 [Column 1]: PK curve
+Cell r2c2 [Column 2]: 1 peak'
+
+[Table Data]
+| different pH levels | DR-1 in proximal small intestine; |
+| PK curve | 1 peak' |
+
+IR bead ER-1 bead ER-2 bead
+Mydayis®58
+-Core 」 Core
+- Active - Active
+Porous coating pH-dependent delayed-release
+drug drug
+drug in the proximal active drug in the distal
+that releases active polymer coating that releases
+small intestine small intestine
+ER technology
+A composite bead in which drug release rate is not
+2-layer microbead (DELEXIS®)
+Outer DR layer comprises time- and pH-dependent
+dependent on any single factor30
+(pH 7.4) after ~ 6-8 hours 30,31
+release; it remains intact until the beads reach the ileum
+polymers that provide a predictable delay in drug
+• As the DR layer breaks down, pores form in the ER
+• The inner ER layer comprises hydrophobic and
+ayer, enabling a slow release of dissolved active
+pore-forming polymers that regulate permeability and
+ingredient from the drug-loaded core of the bead 30,31
+PK curve: Single peak at ~14 hours32
+tightly control the dissolution of the active ingredient 30,31
+DR outer time- and - Active drugpH-dependent loaded core
+Jornay PM®31
+polymer that degrades
+ER layer that forms /
+in ine neum
+pores as the outer
+layer degrades
+LiquixR
+which then diffuses through the polymer coating
+
+--- Page 9 ---
+CNS Spectrums
+PM®. DELEXIS® consists of a single population of two-layer
+Another multilayered technology is DELEXIS®, used in Jornay
+drug-loaded core, allowing for evening dosing with onset of efficacy
+microbeads with delayed-release (DR) and ER layers around a
+given in the evening showed an initial time lag of 10 hours. 32 As the
+the following morning. In healthy adults, a single 100 mg oral dose
+bead traverses the GI tract, increasing wettability leads to the
+breakdown of the hard outer DR layer overnight, forming pores
+wetting of this soluble ER layer causes it to slowly dissolve, allowing
+that expose the underlying ER layer to GI fluids. The increased
+intestinal lumen, where it is absorbed. ,3. Since colonic absorption
+for gradual diffusion of the medication from the core into the
+is less efficient than that in other regions of the GI tract, it conas well as a broad peak concentration and a subsequent gradual
+tributes to a smooth rise in plasma medication levels during release,
+descent in plasma levels. 7,60 This technology is associated with
+to clinical effect.
+considerable intraindividual consistency in the time from ingestion
+smoother PK curves, extended clinical duration, and flexibility
+While the evolution of beaded technologies has allowed for
+around the time of dosing, the biggest limitation for most of
+them lies in the potential for factors that influence pH (diet,
+medications) and GI transit time, thereby altering the release
+profile.
+Transdermal delivery
+lations led to the development of transdermal delivery systems. The
+A desire for flexible daily dosing and an alternative to oral formu-
+(amphetamine) allows patients to adjust medication duration by
+DOT Matrix® used in Daytrana® (methylphenidate) and XelstrymTM
+simply changing the wear time, providing a potentially shortened
+duration when the patch is peeled off early (although MPH conlikely due to continued distribution of MPH from the skin after
+centrations are reported to decline in a biexponential manner,
+patch removal). It also provides visual verification of adherence.34
+This technology offers an option for patients who cannot or prefer
+co-occurring autism spectrum disorder." While transdermal
+not to swallow pills, commonly seen in children or patients with
+delivery addresses several patient needs, it is limited by a delayed
+increased rate and extent of absorption when applied to inflamed
+onset of efficacy, dermal side effects such as skin irritation, and
+Prodrug
+stimulant formulations. A prodrug is an active medication cova-
+Prodrug technology represented a significant advancement in
+lently bound to an inactive moiety, which renders the prodrug
+active medication. This gradual process results in a slow release of
+inactive until it is cleaved by an endogenous enzyme to release the
+the medication The LAT® prodrug technology first used in
+to dextroamphetamine), requires absorption in the large intestine
+Vyvanse®, or lisdexamfetamine (LDX, a molecule of lysine attached
+and subsequent cleavage of the lysine group in red blood cells to
+subject variability of 25% or less,3 and there could be variation in
+release the medication. Of note, its package insert reports interof LDX.° To overcome this delay in clinical onset of effect,
+clinical effect based upon variations of absorption and conversion
+provide an early onset of efficacy while preserving a smooth
+Azstarys® also has an IR component (dexmethylphenidate) to
+extended duration of release.3o The prodrug delivery system results
+
+in a gradual increase in plasma amphetamine levels, a characteristic
+believed to confer properties of reduced abuse potential? Two
+does not elicit high "likeability" scores from patients with a history
+studies have demonstrated that Vyvanse®, at FDA-approved doses,
+of stimulant abuse compared to responses to IR d-AMP. 3,64 While
+the serdexmethylphenidate prodrug component of Azstarys®
+drug 65 the combination with IR dexmethylphenidate renders Azsshowed decreased potential for abuse and by itself is a C-IV
+tarys® a C-II drug, like other stimulants.
+lon-exchange resins
+ylphenidate 66-68 can mediate the duration of clinical efficacy when
+Individual differences in metabolism of amphetamine and meththe medication is released as a bolus, characteristic of beaded and
+dissolving methylphenidate or amphetamine salt. The base drug
+osmotic pump technologies. Ion-exchange resins are formed by
+(a positively charged cation) is separated from the negatively
+charged anion salt molecule and bound to a negatively charged
+resin particle. Ion-exchange technology allowed for the develop-
+(ODTs), and chewables for patients who cannot or prefer not to
+ment of ER formulations such as liquids, oral dissolving tablets
+IR components), and extended duration (via ER components),
+swallow pills. While providing a smooth PK profile, fast onset (via
+pla XR-ODT® rely on the changing pH throughout the GI tract to
+microparticle technologies used in Adzenys XR-ODT® and Cotemnologies, drug release can be altered by diet- and medicationmediate medication release." Therefore, similar to beaded techinduced changes to gut pH.
+used in Dyanavel XR°, Quillivant XR°, and QuilliChew ER® that
+LiquiXR° is an advanced ion-exchange and diffusion technology
+addresses this shortcoming by utilizing pH-independent processes.
+are coated with a protective layer that does not dissolve as the
+Each dose contains a mixture of ER and IR particles. ER particles
+charged ions endogenous to the gut diffuse through the coating
+medication moves throughout the GI tract. Instead, positively
+and dislodge medication molecules, which then diffuse through the
+coating thickness around particles varies, resulting in numerous
+coating into the GI cavity where the medication is absorbed. The
+release points rather than a bolus-style release; this is reflected in a
+end of the day.*-50 Thinner coatings provide a shorter diffusion
+smooth rise in plasma medication levels and a gradual decline at the
+distance and release molecules of medication sooner in the day,
+fore release the medication later. This unique combination of
+whereas thicker coatings require a longer diffusion path and therecontinuous extended release of the medication, while uncoated
+diffusion coating thicknesses across ER particles achieves a smooth,
+pase & provide immediate medication release for a fast clinical
+few branded products still on the market, so access may be limited
+The drugs that use LiquiR technology are among the
+by their potential expense.
+cation within each class of delivery systems have improved many
+The variety of delivery technologies and progressive sophistisystem advancements have provided medication options with early
+aspects of the clinical profile of stimulants. Cumulatively, delivery
+onset and extended duration of efficacy, improved tolerability via
+adjustments, provided non-oral formulation options, reduced
+decreased fluctuations in plasma levels, allowed flexibility for dose
+abuse potential, and limited variability of therapeutic response
+system addresses a unique set of challenges faced by patients while
+from individual differences in pH or metabolism. Each delivery
+
+--- Page 10 ---
+AVOID technologies that
+For patients who struggle to maintain routines
+routines for timing of effect
+need strict administration
+require consistency of
+AVOID technologies that
+administration with
+food/without food
+For patients in whom a single peak of
+ADHD stimulant is preferred
+provides a single peak in
+SELECT a technology that
+medication blood levels
+AVOID technologies that require a tablet/capsule to be swallowed whole
+Figure 2. A summary of clinical considerations for ADHD stimulant treatment, based on the characteristics of the different technologies. ADHD, attention-deficit/hyperactivity
+disorder; OROS, osmotic-controlled release oral system; SODAS, spheroidal oral drug absorption system.
+to consider these factors to optimize patient outcomes.
+carrying its own limitations. It is, therefore, important for clinicians
+Discussion
+lants will better equip clinicians to customize ADHD treatment
+Understanding the technologies used in different ADHD stimuaccording to patient needs and preferences (Figure 2). Provided are
+some examples that demonstrate how various technologies meet
+patient need.
+administration. Flexible dosing may be appreciated during initial
+Some patients may prefer flexibility in dose adjustments or
+tolerability or for those anticipating different duration needs. Fortitration in patients who require small adjustments due to sensitive
+mulations with ease of adjustment include liquid formulations that
+and transdermal patches which can be removed early to shorten the
+allow small dose adjustments, scored tablets which can be halved,
+duration of exposure. For flexibility of administration, patients who
+liquid, chewable, sprinkled, orally disintegrated, or transdermal
+cannot or prefer not to swallow pills can take formulations that are
+through a patch.
+tency in administration and might not be suitable for all patients. For
+Certain technologies used in ADHD medications require consisexample, medications that have a delayed onset-including the
+may require advanced planning. In the case of the DELEXIS® mulosmotic delivery system, transdermal patch, and IDX prodrughave missed the dose the night before, they cannot take it until the
+tilayer bead, if the patient wakes in the morning and realizes that they
+meals for certain medications as food (based on fat content or
+next scheduled time. Furthermore, patients may need to time their
+acidity) can alter drug release in some formulations. Other concerns
+include the need to avoid coadministration of certain medications or
+agents that would alter gut pH; for the latter, patients may benefit
+from medications that release independently of pH.
+
+• DOT Matrix®
+• Triple bead
+• Diffucaps®
+• Triple bead
+• 2-layer microbead (DELEXIS®)
+• Microparticles
+• LiquiXR®
+• MicrotrolTM (2 bead)
+• 2-layer microbead (DELEXIS®)
+• Triple bead
+• LAT® prodrug
+• DOT Matrix®
+For patients with trouble swallowing
+
+For patients who take gastric acid modulators
+which concomitant gastric
+SELECT a technology for
+pH modulators are not
+contraindicated or do not
+require monitoring
+For patients who may need dose modification or flexibility
+SELECT a flexible technology • LiquiR®
+reliable way to increase/
+that provides a simple and
+decrease the normal dose or
+duration of action
+allows simple switching of
+SELECT a technology that
+dosage form
+ery technologies. Patients may have individual needs for therapeu-
+The timing of medication release differs with the ADHD delivtic onset based on their lifestyle or, preferences. For example, the
+technologies have a delayed drug release and subsequent delay in
+LDX prodrug,38 osmotic release,
+providing efficacy. If a patient commutes to school or works
+shortly after waking and taking medication, they may prefer an
+patients may have different needs when it comes to the duration
+alternative formulation with a more rapid effect. Moreover,
+and delivery technologies, for example, adjusting the timing of
+of effect, which can also be matched to appropriate formulations
+effect to reduce appetite suppression around mealtimes or choosing
+ER formulations with a shorter duration of efficacy might suit
+proportion of IR and ER components used in different technologies
+younger patients or those with shorter school or work days. The
+is an important consideration when selecting medication for a
+higher proportion of ER, whereas Microtrol" beaded technology
+desired onset and duration. For example, osmotic release has a
+uses a 50/50 split of IR and ER components.
+working, while many prefer a smooth on and off. Technologies to
+Some patients report that they like feeling their medication start
+which the delayed absorption in the colon translates into less
+smooth the PK peaks include the 2-layer microbead (DELEXIS®), in
+pronounced peaks than those relying on absorption earlier along
+variable coating thicknesses to consistently deliver the active drug.
+the GI tract, and LiquiXR°, which contains numerous particles with
+perhaps to regain appetite during parts of the day when plasma
+Other patients may prefer the release of medications in boluses,
+levels dip. Formulations with a smoother PK curve, and especially
+with a slower decline in plasma levels, may contribute to a more
+gradual offset of efficacy and lower risk of rebound and crash.
+needed or as supplementation to an ER or transdermal formulation
+Furthermore, immediate-release formulations can|
+to extend the duration of action.
+
+A. J. Cutler and J. Hanaie
+• LiquiXR®
+• Diffucaps®
+• 2-layer microbead (DELEXIS®)
+• SODAS®
+• OROS®
+• LAT® prodrug
+• DOT Matrix®
+• DOT Matrix TM
+• LiquiXR®
+・ OROS®
+and transdermal patch 33,34
+be used as
+
+Table: SELECT a / technology for
+
+[Schema]
+Columns: SELECT a | technology for
+
+[Rows]
+Row 1: SELECT a=AVOID technologies that administration with food/without food; technology for=For patients who may need dose modification or flexibility
+Row 2: SELECT a=For patients in whom a single peak of; technology for=SELECT a flexible technology • LiquiR® reliable way to increase/ that provides a simple and decrease the normal dose or duration of action allows simple switching of
+Row 3: SELECT a=ADHD stimulant is preferred provides a single peak in; technology for=SELECT a technology that dosage form ery technologies. Patients may have individual needs for therapeu-
+Row 4: SELECT a=SELECT a technology that medication blood levels AVOID technologies that require a tablet/capsule to be swallowed whole Figure 2. A summary of clinical considerations for ADHD stimulant treatment, based on the characteristics of the different technologies. ADHD, attention-deficit/hyperactivity disorder; OROS, osmotic-controlled release oral system; SODAS, spheroidal oral drug absorption system. to consider these factors to optimize patient outcomes. carrying its own limitations. It is, therefore, important for clinicians; technology for=The timing of medication release differs with the ADHD deliv- tic onset based on their lifestyle or, preferences. For example, the technologies have a delayed drug release and subsequent delay in
+Row 5: SELECT a=Discussion lants will better equip clinicians to customize ADHD treatment Understanding the technologies used in different ADHD stimu- according to patient needs and preferences (Figure 2). Provided are some examples that demonstrate how various technologies meet patient need. administration. Flexible dosing may be appreciated during initial Some patients may prefer flexibility in dose adjustments or tolerability or for those anticipating different duration needs. For- titration in patients who require small adjustments due to sensitive mulations with ease of adjustment include liquid formulations that and transdermal patches which can be removed early to shorten the allow small dose adjustments, scored tablets which can be halved, duration of exposure. For flexibility of administration, patients who liquid, chewable, sprinkled, orally disintegrated, or transdermal cannot or prefer not to swallow pills can take formulations that are through a patch. tency in administration and might not be suitable for all patients. For Certain technologies used in ADHD medications require consis- example, medications that have a delayed onset-including the may require advanced planning. In the case of the DELEXIS® mul- osmotic delivery system, transdermal patch, and IDX prodrug- have missed the dose the night before, they cannot take it until the tilayer bead, if the patient wakes in the morning and realizes that they meals for certain medications as food (based on fat content or next scheduled time. Furthermore, patients may need to time their acidity) can alter drug release in some formulations. Other concerns include the need to avoid coadministration of certain medications or agents that would alter gut pH; for the latter, patients may benefit from medications that release independently of pH.; technology for=LDX prodrug,38 osmotic release, providing efficacy. If a patient commutes to school or works shortly after waking and taking medication, they may prefer an patients may have different needs when it comes to the duration alternative formulation with a more rapid effect. Moreover, and delivery technologies, for example, adjusting the timing of of effect, which can also be matched to appropriate formulations effect to reduce appetite suppression around mealtimes or choosing
+Row 6: SELECT a=• DOT Matrix®; technology for=ER formulations with a shorter duration of efficacy might suit proportion of IR and ER components used in different technologies younger patients or those with shorter school or work days. The is an important consideration when selecting medication for a higher proportion of ER, whereas Microtrol" beaded technology desired onset and duration. For example, osmotic release has a uses a 50/50 split of IR and ER components. working, while many prefer a smooth on and off. Technologies to
+Row 7: SELECT a=• Triple bead; technology for=Some patients report that they like feeling their medication start which the delayed absorption in the colon translates into less smooth the PK peaks include the 2-layer microbead (DELEXIS®), in pronounced peaks than those relying on absorption earlier along variable coating thicknesses to consistently deliver the active drug. the GI tract, and LiquiXR°, which contains numerous particles with perhaps to regain appetite during parts of the day when plasma
+Row 8: SELECT a=• Diffucaps®; technology for=Other patients may prefer the release of medications in boluses, levels dip. Formulations with a smoother PK curve, and especially with a slower decline in plasma levels, may contribute to a more gradual offset of efficacy and lower risk of rebound and crash. needed or as supplementation to an ER or transdermal formulation
+Row 9: SELECT a=• Triple bead; technology for=Furthermore, immediate-release formulations can| to extend the duration of action.
+Row 10: SELECT a=• 2-layer microbead (DELEXIS®); technology for=A. J. Cutler and J. Hanaie
+Row 11: SELECT a=• Microparticles; technology for=• LiquiXR®
+Row 12: SELECT a=• LiquiXR®; technology for=• Diffucaps®
+Row 13: SELECT a=• MicrotrolTM (2 bead); technology for=• 2-layer microbead (DELEXIS®)
+Row 14: SELECT a=• 2-layer microbead (DELEXIS®); technology for=• SODAS®
+Row 15: SELECT a=• Triple bead; technology for=• OROS®
+Row 16: SELECT a=• LAT® prodrug; technology for=• LAT® prodrug
+Row 17: SELECT a=• DOT Matrix®; technology for=• DOT Matrix®
+Row 18: SELECT a=For patients with trouble swallowing For patients who take gastric acid modulators which concomitant gastric; technology for=• DOT Matrix TM
+
+[Cells]
+Cell r1c1 [SELECT a]: AVOID technologies that administration with food/without food
+Cell r1c2 [technology for]: For patients who may need dose modification or flexibility
+Cell r2c1 [SELECT a]: For patients in whom a single peak of
+Cell r2c2 [technology for]: SELECT a flexible technology • LiquiR® reliable way to increase/ that provides a simple and decrease the normal dose or duration of action allows simple switching of
+Cell r3c1 [SELECT a]: ADHD stimulant is preferred provides a single peak in
+Cell r3c2 [technology for]: SELECT a technology that dosage form ery technologies. Patients may have individual needs for therapeu-
+Cell r4c1 [SELECT a]: SELECT a technology that medication blood levels AVOID technologies that require a tablet/capsule to be swallowed whole Figure 2. A summary of clinical considerations for ADHD stimulant treatment, based on the characteristics of the different technologies. ADHD, attention-deficit/hyperactivity disorder; OROS, osmotic-controlled release oral system; SODAS, spheroidal oral drug absorption system. to consider these factors to optimize patient outcomes. carrying its own limitations. It is, therefore, important for clinicians
+Cell r4c2 [technology for]: The timing of medication release differs with the ADHD deliv- tic onset based on their lifestyle or, preferences. For example, the technologies have a delayed drug release and subsequent delay in
+Cell r5c1 [SELECT a]: Discussion lants will better equip clinicians to customize ADHD treatment Understanding the technologies used in different ADHD stimu- according to patient needs and preferences (Figure 2). Provided are some examples that demonstrate how various technologies meet patient need. administration. Flexible dosing may be appreciated during initial Some patients may prefer flexibility in dose adjustments or tolerability or for those anticipating different duration needs. For- titration in patients who require small adjustments due to sensitive mulations with ease of adjustment include liquid formulations that and transdermal patches which can be removed early to shorten the allow small dose adjustments, scored tablets which can be halved, duration of exposure. For flexibility of administration, patients who liquid, chewable, sprinkled, orally disintegrated, or transdermal cannot or prefer not to swallow pills can take formulations that are through a patch. tency in administration and might not be suitable for all patients. For Certain technologies used in ADHD medications require consis- example, medications that have a delayed onset-including the may require advanced planning. In the case of the DELEXIS® mul- osmotic delivery system, transdermal patch, and IDX prodrug- have missed the dose the night before, they cannot take it until the tilayer bead, if the patient wakes in the morning and realizes that they meals for certain medications as food (based on fat content or next scheduled time. Furthermore, patients may need to time their acidity) can alter drug release in some formulations. Other concerns include the need to avoid coadministration of certain medications or agents that would alter gut pH; for the latter, patients may benefit from medications that release independently of pH.
+Cell r5c2 [technology for]: LDX prodrug,38 osmotic release, providing efficacy. If a patient commutes to school or works shortly after waking and taking medication, they may prefer an patients may have different needs when it comes to the duration alternative formulation with a more rapid effect. Moreover, and delivery technologies, for example, adjusting the timing of of effect, which can also be matched to appropriate formulations effect to reduce appetite suppression around mealtimes or choosing
+Cell r6c1 [SELECT a]: • DOT Matrix®
+Cell r6c2 [technology for]: ER formulations with a shorter duration of efficacy might suit proportion of IR and ER components used in different technologies younger patients or those with shorter school or work days. The is an important consideration when selecting medication for a higher proportion of ER, whereas Microtrol" beaded technology desired onset and duration. For example, osmotic release has a uses a 50/50 split of IR and ER components. working, while many prefer a smooth on and off. Technologies to
+Cell r7c1 [SELECT a]: • Triple bead
+Cell r7c2 [technology for]: Some patients report that they like feeling their medication start which the delayed absorption in the colon translates into less smooth the PK peaks include the 2-layer microbead (DELEXIS®), in pronounced peaks than those relying on absorption earlier along variable coating thicknesses to consistently deliver the active drug. the GI tract, and LiquiXR°, which contains numerous particles with perhaps to regain appetite during parts of the day when plasma
+Cell r8c1 [SELECT a]: • Diffucaps®
+Cell r8c2 [technology for]: Other patients may prefer the release of medications in boluses, levels dip. Formulations with a smoother PK curve, and especially with a slower decline in plasma levels, may contribute to a more gradual offset of efficacy and lower risk of rebound and crash. needed or as supplementation to an ER or transdermal formulation
+Cell r9c1 [SELECT a]: • Triple bead
+Cell r9c2 [technology for]: Furthermore, immediate-release formulations can| to extend the duration of action.
+
+[Table Data]
+| AVOID technologies that For patients who struggle to maintain routines routines for timing of effect need strict administration require consistency of | pH modulators are not contraindicated or do not require monitoring |
+| AVOID technologies that administration with food/without food | For patients who may need dose modification or flexibility |
+| For patients in whom a single peak of | SELECT a flexible technology • LiquiR® reliable way to increase/ that provides a simple and decrease the normal dose or duration of action allows simple switching of |
+| ADHD stimulant is preferred provides a single peak in | SELECT a technology that dosage form ery technologies. Patients may have individual needs for therapeu- |
+| SELECT a technology that medication blood levels AVOID technologies that require a tablet/capsule to be swallowed whole Figure 2. A summary of clinical considerations for ADHD stimulant treatment, based on the characteristics of the different technologies. ADHD, attention-deficit/hyperactivity disorder; OROS, osmotic-controlled release oral system; SODAS, spheroidal oral drug absorption system. to consider these factors to optimize patient outcomes. carrying its own limitations. It is, therefore, important for clinicians | The timing of medication release differs with the ADHD deliv- tic onset based on their lifestyle or, preferences. For example, the technologies have a delayed drug release and subsequent delay in |
+| Discussion lants will better equip clinicians to customize ADHD treatment Understanding the technologies used in different ADHD stimu- according to patient needs and preferences (Figure 2). Provided are some examples that demonstrate how various technologies meet patient need. administration. Flexible dosing may be appreciated during initial Some patients may prefer flexibility in dose adjustments or tolerability or for those anticipating different duration needs. For- titration in patients who require small adjustments due to sensitive mulations with ease of adjustment include liquid formulations that and transdermal patches which can be removed early to shorten the allow small dose adjustments, scored tablets which can be halved, duration of exposure. For flexibility of administration, patients who liquid, chewable, sprinkled, orally disintegrated, or transdermal cannot or prefer not to swallow pills can take formulations that are through a patch. tency in administration and might not be suitable for all patients. For Certain technologies used in ADHD medications require consis- example, medications that have a delayed onset-including the may require advanced planning. In the case of the DELEXIS® mul- osmotic delivery system, transdermal patch, and IDX prodrug- have missed the dose the night before, they cannot take it until the tilayer bead, if the patient wakes in the morning and realizes that they meals for certain medications as food (based on fat content or next scheduled time. Furthermore, patients may need to time their acidity) can alter drug release in some formulations. Other concerns include the need to avoid coadministration of certain medications or agents that would alter gut pH; for the latter, patients may benefit from medications that release independently of pH. | LDX prodrug,38 osmotic release, providing efficacy. If a patient commutes to school or works shortly after waking and taking medication, they may prefer an patients may have different needs when it comes to the duration alternative formulation with a more rapid effect. Moreover, and delivery technologies, for example, adjusting the timing of of effect, which can also be matched to appropriate formulations effect to reduce appetite suppression around mealtimes or choosing |
+| • DOT Matrix® | ER formulations with a shorter duration of efficacy might suit proportion of IR and ER components used in different technologies younger patients or those with shorter school or work days. The is an important consideration when selecting medication for a higher proportion of ER, whereas Microtrol" beaded technology desired onset and duration. For example, osmotic release has a uses a 50/50 split of IR and ER components. working, while many prefer a smooth on and off. Technologies to |
+| • Triple bead | Some patients report that they like feeling their medication start which the delayed absorption in the colon translates into less smooth the PK peaks include the 2-layer microbead (DELEXIS®), in pronounced peaks than those relying on absorption earlier along variable coating thicknesses to consistently deliver the active drug. the GI tract, and LiquiXR°, which contains numerous particles with perhaps to regain appetite during parts of the day when plasma |
+| • Diffucaps® | Other patients may prefer the release of medications in boluses, levels dip. Formulations with a smoother PK curve, and especially with a slower decline in plasma levels, may contribute to a more gradual offset of efficacy and lower risk of rebound and crash. needed or as supplementation to an ER or transdermal formulation |
+| • Triple bead | Furthermore, immediate-release formulations can| to extend the duration of action. |
+| • 2-layer microbead (DELEXIS®) | A. J. Cutler and J. Hanaie |
+| • Microparticles | • LiquiXR® |
+| • LiquiXR® | • Diffucaps® |
+| • MicrotrolTM (2 bead) | • 2-layer microbead (DELEXIS®) |
+| • 2-layer microbead (DELEXIS®) | • SODAS® |
+| • Triple bead | • OROS® |
+| • LAT® prodrug | • LAT® prodrug |
+| • DOT Matrix® | • DOT Matrix® |
+| For patients with trouble swallowing For patients who take gastric acid modulators which concomitant gastric | • DOT Matrix TM |
+
+--- Page 11 ---
+CNS Spectrums
+cacy, are an important component in the management of ADHD.
+Medications, particularly stimulants due to their signiticant etti-
+Numerous variables need to be considered when evaluating the
+lant formulations has evolved over time, as has our understanding
+optimal choice to treat ADHD patients. The technology of stimuon how ADHD stimulants should be administered-from early
+formulations which mimicked multiple IR dosing daily, with or
+smooth, consistent level of stimulant release for the duration of
+without an ascending peak, to the current goal of providing a
+the dose, with rapid onset and gradual offset of action.
+symptom control during a dosing period. Since plasma levels of
+The key outcome in the management of ADHD is the level of
+delivery technologies can affect the concentration of stimulant in
+ADHD stimulants translate into clinical effect, different drug
+the blood and impact how well the medication controls symptoms.
+the proportion of IR and ER components determine the resulting
+The timing of medication release by delivery technologies as well as
+onset and duration of efficacy. Furthermore, the nature of drug
+release, as distinct boluses or a continuous pattern, results in
+distinct patterns of plasma levels and thus symptom control over
+the day. Technologies that rely on certain factors for drug release,
+tions or diet, and these interactions can have clinical consequences.
+such as pH, can be affected by external factors including medicato match the clinical needs, lifestyle, and social circumstances of
+The management of ADHD requires numerous considerations
+each patient. The different formulation technologies of stimulants
+present clinicians with a wide range of options from which the most
+interval, route of administration, concomitant medications, patient
+appropriate treatment-based on symptom presentation, dosing
+preferences, and lifestyle-can be selected. Ultimately, cost and
+access dictate many of our treatment choices, but for most patients,
+vide a faster onset, smoother PK curve, longer duration, and more
+the newer formulations with more desirable PK profiles that prodesirable.
+gradual decrease at the end of the day (less crash/rebound) are
+cation, Oxford, United Kingdom, sponsored by Tris Pharma, Inc., Monmouth
+Acknowledgments. Editorial support was provided by Highfield Communi-
+Junction, New Jersey, USA.
+Author contribution. Conceptualization: J.H., A.J.C.; Visualization: J.H.,
+A.).C.; Writing - original dratt: ).H., A.).C.; Writing - review & editing: ).H.,
+A.J.C.; Formal analysis: A.J.C.; Supervision: A.J.C.
+for AbbVie, Acadia, Altasigma, Alkermes, Anavex Lite Sciences, Axsome,
+Competing interest. Dr Cutler has acted as a consultant at Advisory Boards
+Biogen, Biohaven, BioXcel, Boehringer Ingelheim, Brii Biosciences, Bristol
+por, Evolution Research Group, 4M Therapeutics, Intra-Cellular Therapies,
+Myers Squibb, Cerevel, Chase Therapeutics, Cognitive Research, Corium, Del-
+Ironshore Pharmaceuticals, Janssen/J&J, Jazz Pharma, Karuna, LivoNova,
+tavi, Neumora, Neurocrine, Neuroscience Education Institute, NeuroSigma,
+Lundbeck, Luye Pharma, Maplight Therapeutics, MedAvante-ProPhase, Menapeutics, Sumitomo Pharma America, Sunovion, Supernus, Teva, Thynk, Tris
+Noven, Otsuka, PaxMedica, PureTech Health, Relmada, Reviva, Sage Ther-
+Pharma, Vanda Pharmaceuticals, VistaGen, and VivoSense. He is a Speaker
+Corium, Intra-Cellular Therapies, Ironshore Pharmaceuticals, Janssen/J&J,
+Bureau member for AbbVie, Acadia, Alfasigma, Alkermes, Axsome, BioXcel,
+Lundbeck, Neurocrine, Noven, Otsuka, Sunovion, Supernus, Teva,
+apeutics and Relmada. He is a member of the Data Safety Monitoring Board
+Pharma, and Vanda Pharmaceuticals. He holds stock options for 4M Therfor Alar Pharma, COMPASS Pathways, Freedom Biosciences, and Pain
+Therapeutics.
+
+Alkermes, Biogen, BioXcel, Bristol Myers Squibb, Intra-Cellular Therapies,
+Dr Hanaie has acted as a consultant at Advisory Boards for AbbVie,
+and Sunovion. He has also been a member of Speaker Bureaux for AbbVie,
+Alkermes, BioXcel, Intra-Cellular Therapies, Sunovion, and Teva.
+Junction, New Jersey, USA.
+Funding. Editorial support was funded by Tris Pharma, Inc., Monmouth
+References
+1. American Psychiatric Association. Diagnostic and Statistical Manual of
+2. Faraone SV, Bellgrove MA, Brikell I, et al.Attention-deficit/hyperactivity dis-
+Mental Disorders (DSM-5-TR). 5th ed. 2022.
+3. Mechler K, Banaschewski T, Hohmann S, Häge A.Evidence-based pharorder. Nat Rev Dis Primers.2024;10(1): 11. doi:10.1038/s41572-024-00495-0
+macological treatment options for ADHD in children and adolescents.
+4. Cutler AJ, Mattingly GW. Beyond the pill: new medication delivery options for
+Pharmacol Ther.2022;230:107940. doi:10.1016/j.pharmthera.2021.107940
+5. Childress AC. Novel formulations of ADHD medications: stimulant selec-
+ADHD. CNS Spectr.2017;22(6):463-474. doi:10.1017/s1092852916000936
+10.1176/appi.focus.20200032.
+tion and management. Focus (Am Psychiatr Publ). 2021;19:31-38. doi:
+6. U.S. Food & Drug Administration. Attention Deficit Hyperactivity Disorhttps://www.fda.gov/regulatory-information/search-fda-guidance-documents/
+der: Developing Stimulant Drugs for Treatment Guidance for Industry.
+guidance-industry.
+attention-deficit-hyperactivity-disorder-developing-stimulant-drugs-treatment-
+7. Childress AC, Komolova M, Sallee FR. An update on the pharmacokinetic
+date and amphetamine formulations. Expert Opin Drug Metab Toxiconsiderations in the treatment of ADHD with long-acting methylpheni-
+8. Ermer JC, Adeyi BA, Pucci ML. Pharmacokinetic variability of long-acting
+col.2019;15(11):937-974. doi:10.1080/17425255.2019.1675636
+hyperactivity disorder. CNS Drugs.2010;24(12):1009-1025. doi:10.2165/
+stimulants in the treatment of children and adults with attention-deficit
+9. Volkow ND, Swanson JM. Variables that affect the clinical use and abuse of
+11539410-000000000-00000
+(11):1909-1918.doi:10.1176/appi.ajp.160.11.1909
+methylphenidate in the treatment of ADHD. Am ) Psychiatry. 2003;160
+10. Ahmed R, Aslani P.Attention-deficit/hyperactivity disorder: an update on
+Expert Rev Pharmacoecon Outcomes Res.2013;13(6):791-815. doi: 10.1586/
+medication adherence and persistence in children, adolescents and adults.
+11. Christensen L, Sasané R, Hodgkins P, Harley C, Tetali S.Pharmacological
+14737167.2013.841544
+treatment patterns among patients with attention-deficit/hyperactivity
+Curr Med Res Opin.2010;26(4):977-989. doi:10.1185/03007991003673617
+disorder: retrospective claims-based analysis of a managed care population.
+12. U.S. Food & Drug Administration. CONCERTA Prescribing information.
+021121s0491bl.pdf
+https://www.accessdata.fda.gov/drugsatfda_docs/label/2023/
+13. Swanson JM. Long-acting stimulants: development and dosing. Can Child
+14. U.S. Food & Drug Administration. METADATE CD Prescribing Informa-
+021259s034lbl.pdf.
+tion. https://www.accessdata.fda.gov/drugsatfda_docs/label/2023/
+15. Sallee FR, Smirnoff AV. Adderall XR: long acting stimulant for single daily
+16. U.S. Food & Drug Administration. ADDERALL XR Prescribing Information.
+dosing. Expert Rev Neurother.2004;4(6):927-934. doi:10.1586/14737175.4.6.927
+17. U.S. Food & Drug Administration. MYDAYIS Prescribing Information. https://
+https://www.accessdata.fda.gov/drugsatfda_docs/label/2023/021303s0381bl.pdf.
+18. Strawn JR, Dobson ET, Giles LL. Primary pediatric care psychopharmacology:
+Adolesc Health Care.2017;47(1):3-14. doi:10.1016/j.cppeds.2016.11.008
+focus on medications for ADHD, depression, and anxiety. Curr Probl Pediatr
+19. U.S. Food & Drug Administration. FOCALIN XR Prescribing Information.
+0411bl.pdf.
+https://www.accessdata.fda.gov/drugsatfda_docs/label/2023/021802s038s
+
+--- Page 12 ---
+20. U.S. Food & Drug Administration. RITALIN LA Prescribing Information.
+https://www.accessdata.fda.gov/drugsatfda_docs/label/2023/021284s042
+21. Carter NJ, Keating GM. OROS hydromorphone prolonged release: a review
+s046lbl.pdf.
+Drugs.2010;24(4):337-361. doi:10.2165/11202580-000000000-00000
+of its use in the management of chronic, moderate to severe pain. CNS
+22. U.S. Food & Drug Administration. RELEXXII Prescribing Information.
+https://www.accessdata.fda.gov/drugsatfda_docs/label/2023/216117s001
+23. Jain D, Raturi R, Jain V, Bansal P, Singh R.Recent technologies in pulsatile drug
+24. Patel RR, Patel JK. Novel technologies of oral controlled release drug
+delivery systems. Biomatter.2011;1(1):57-65. doi: 10.4161/biom.1.1.17717
+
+Table: 25. Nugent SG, Kumar D, Rampton DS, Evans DF. Intestinal luminal pH in
+
+[Summary]
+The delivery system. srp.2010;1(2) is 128-132. doi: 10.4103/0975-8453.75054.
+The inflammatory bowel disease is possible determinants and implications for.
+
+[Rows]
+Row 1: delivery system. SRP.2010;1(2)=128-132. doi: 10.4103/0975-8453.75054
+Row 2: inflammatory bowel disease=possible determinants and implications for
+
+[Cells]
+Cell r1c1 [Column 1]: delivery system. SRP.2010;1(2)
+Cell r1c2 [Column 2]: 128-132. doi: 10.4103/0975-8453.75054
+Cell r2c1 [Column 1]: inflammatory bowel disease
+Cell r2c2 [Column 2]: possible determinants and implications for
+
+[Table Data]
+| delivery system. SRP.2010;1(2) | 128-132. doi: 10.4103/0975-8453.75054 |
+| inflammatory bowel disease | possible determinants and implications for |
+
+doi:10.1136/gut.48.4.571
+therapy with aminosalicylates and other drugs. Gut.2001;48(4):571-577.
+26. Childress AC, Brams MN, Cutler A), Donnelly GAE, Bhaskar S.Efficacy
+and safety of multilayer, extended-release methylphenidate (PRC-063) in
+children 6-12 years of age with attention-deficit/hyperactivity disorder: a
+laboratory classroom study. J Child Adolesc Psychopharmacol.2020;30(10):
+27. Katzman MA, Mattingly G, Klassen LJ, Cataldo MJ, Donnelly GAE. Ran-
+580-589. doi:10.1089/cap.2020.0109
+healthy adults. J Clin Psychopharmacol.2020;40(6):579-587. doi: 10.1097/
+novel multilayer extended-release formulation of methylphenidate, in
+28. U.S. Food & Drug Administration. APTENSIO XR Prescribing Information.
+jcp. 0000000000001277
+29. U.S. Food & Drug Administration. ADHANSIA XR Prescribing Information.
+https://www.accessdata.fda.gov/drugsatfda_docs/label/2023/205831s008lbl.pdf.
+https://www.accessdata.fda.gov/drugsatfda_docs/label/2021/212038s0021bl.pdf.
+31. Highland Therapeutics. Next-generation drug delivery targets early-morning
+Virtual Conference; 2020.
+32. U.S. Food & Drug Administration. JORNAY PM Prescribing Information.
+release. 2016. https://www.nature.com/articles/d43747-020-00123-2.pdf
+33. U.S. Food & Drug Administration. DAYTRANA Prescribing Information.
+https://www.accessdata.fda.gov/drugsatfda_docs/label/2023/209311s010lbl.pdf
+https://www.accessdata.fda.gov/drugsatfda_docs/label/2023/021514s036
+34. U.S. Food & Drug Administration. XELSTRYM Prescribing Information.
+https://www.accessdata.fda.gov/drugsatfda_docs/label/2023/215401s008
+35. Markovic M, Ben-Shabat S, Dahan A.Prodrugs for improved drug delivery:
+ceutics.2020;12(11):1031. doi:10.3390/pharmaceutics12111031
+lessons learned from recently developed and marketed products. Pharma-
+36. Ermer JC, Pennick M, Frick G.Lisdexamfetamine dimesylate: prodrug
+delivery, amphetamine exposure and duration of efficacy. Clin Drug Inves-
+37. Sharman J, Pennick M.Lisdexamfetamine prodrug activation by peptidasetig.2016;36(5):341-356. doi:10.1007/s40261-015-0354-y
+Treat.2014;10:2275-2280. doi:10.2147/NDT.S70382
+mediated hydrolysis in the cytosol of red blood cells. Neuropsychiatr Dis
+38. U.S. Food & Drug Administration. VYVANSE Prescribing Information.
+208510s0071bl.pdf.
+https://www.accessdata.fda.gov/drugsatfda_docs/label/2023/021977s050,
+39. Center for Drug Evaluation and Research. Multi-discipline review (Azstarys).
+https://www.accessdata.fda.gov/drugsatfda_docs/label/2023/212994s0041bl.
+40. Braeckman R, Guenther S, Mickle TC, Barrett AC, Smith A, Oh C.Dose
+pdf
+proportionality and steady-state pharmacokinetics of serdexmethylphenideficit/hyperactivity disorder. J Child Adolesc Psychopharmacol.2022;32(5):
+date/dexmethylphenidate, a novel prodrug combination to treat attention-
+41. U.S. Food & Drug Administration. AZSTARYS Prescribing Information.
+288-295. doi:10.1089/cap.2022.0015
+https://www.accessdata.fda.gov/drugsatfda_docs/label/2023/212994s007
+
+A. J. Cutler and J. Hanaie
+42. Mattingly GW, Young JL. A clinician's guide for navigating the world of
+attention-deficit hyperactivity disorder medications. CNS Spectr.2021;26
+43. U.S. Food & Drug Administration. COTEMPLA XR-ODT Prescribing
+(2):104-114. doi:10.1017/S1092852921000146
+Information. https://www.accessdata.fda.gov/drugsatfda_docs/label/2023/
+44. U.S. Food & Drug Administration. ADZENYS XR-ODT Prescribing Infor-
+205489s012.bl.pdf.
+mation. https://www.accessdata.fda.gov/drugsatfda_docs/label/2023/
+45. U.S. Food & Drug Administration. ADZENYS ER Prescribing Information.
+204326s0111bl.pdf.
+3lbl.pdf.
+https://www.accessdata.fda.gov/drugsatfda_docs/label/2022/204325s00
+46. Pardo A, King TR, Rafla E, Kando JC. Assessing palatability of a new
+amphetamine extended-release tablet formulation for the treatment of
+S309378
+ADHD. Drug Des Devel Ther.2021;15:2979-2985. doi: 10.2147/dddt.
+47. Tris Pharma. Technologies. https://www.trispharma.com/our-focus/technology-
+48. U.S. Food & Drug Administration. QUILLIVANT XR Prescribing Inforplatform/
+mation. https://www.accessdata.fda.gov/drugsatfda_docs/label/2023/
+49. U.S. Food & Drug Administration. QUILLICHEW ER Prescribing Infor-
+202100Orig1s023lbl.pdf.
+mation. https://www.accessdata.fda.gov/drugsatfda_docs/label/2023/
+50. U.S. Food & Drug Administration. DYANAVEL XR Prescribing Informa-
+207960orig1s016lbl.pdf.
+tion. https://www.accessdata.fda.gov/drugsatfda_docs/label/2023/
+51. Adare Pharma Solutions. Diffucaps®. https://adarepharmasolutions.com/
+52. Adjei A, Teuscher NS, Kupper RJ, et al.Single-dose pharmacokinetics of
+technologies/diffucaps/.
+methylphenidate extended-release multiple layer beads administered as
+intact capsule or sprinkles versus methylphenidate immediate-release tabcol.2014;24(10):570-578. doi:10.1089/cap.2013.0135
+lets (Ritalin®) in healthy adult volunteers. J Child Adolesc Psychopharma-
+53. Buck ML. Improving compliance with medication regimens. Pediatr Pharsites/237/2015/12/199708.pdf
+macother.; 1997;3:8. https://med.virginia.edu/pediatrics/wp-content/uploads/
+54. Connor DF, Steingard RJ. New formulations of stimulants for attentiondeficit hyperactivity disorder: therapeutic potential. CNS Drugs. 2004;18
+55. Moodley K, Pillay V, Choonara YE, et al.Oral drug delivery systems
+(14):1011-1030. doi:10.2165/00023210-200418140-00005
+Int) Mol Mol doi: doi:10.3390/ijms13010018
+comprising altered geometric configurations for controlled drug delivery.
+56. Siddiqui MA. SODAS® (Spheroidal Oral Drug Absorption System). Phar-
+07/05/sodas-spheroidal-oral-drug-absorption-system/.
+maceutical Research. https://pharmaceuticalresearch.wordpress.com/2012/
+57. Steingard R, Taskiran S, Connor DF, Markowitz JS, Stein MA. New
+chopharmacol.2019;29(5):324-339.doi:10.1089/cap.2019.0043
+formulations of stimulants: an update for clinicians. / Child Adolesc Psy-
+59. KemPharm. KemPharm's LAT Platform. https://www.youtube.com/watch?
+58. Mydayis. https://www.mydayis-pro.com/mechanism-of-delivery.
+60. Incledon B, Incledon C, Gomeni R, et al.Effect of colonic absorption on the
+v=doWMh263h0g.
+ylphenidate: in vivo, in vitro, and modeling evaluations. Clin Pharmacol
+pharmacokinetic properties of delayed-release and extended-release meth-
+61. Mattingly GW, Wilson J, Ugarte L, Glaser P.Individualization of attention-
+Drug Dev.2022;11(8):966-975. doi:10.1002/cpdd.1089
+deficit/hyperactivity disorder treatment: pharmacotherapy considerations
+10.1017/s1092852919001822
+by age and co-occurring conditions. CNS Spectr.2021;26(3):202-221. doi:
+62. Wigal T, Brams M, Gasior M, et al.Randomized, double-blind, placebodimesylate in adults with attention-deficit/hyperactivity disorder: novel
+controlled, crossover study of the efficacy and safety of lisdexamfetamine
+Brain Funct. 2010;6:34. doi: 10.1186/1744-9081-6-34.
+findings using a simulated adult workplace environment design. Behav
+63. Jasinski DR, Krishnan S.Human pharmacology of intravenous lisdexamfemacol.2009;23(4):410-418. doi:10.1177/0269881108093841
+tamine dimesylate: abuse liability in adult stimulant abusers. J Psychophar-
+
+--- Page 13 ---
+CNS Spectrums
+64. Jasinski DR, Krishnan S.Abuse liability and safety of oral lisdexamfetamine
+macol.2009;23(4):419-427. doi:10.1177/0269881109103113
+dimesylate in individuals with a history of stimulant abuse. ) Psychophar-
+65. Shram MJ, Setnik B, Webster L, et al.Oral, intranasal, and intravenous
+abuse potential of serdexmethylphenidate, a novel prodrug of d-methyl-
+95.2022.2076474(
+phenidate. Curr Med Res Opin.2022;38(7):1237-1250. doi:10.1080/030079
+66. Markowitz JS, Patrick KS. The clinical pharmacokinetics of amphetamines utilized in the treatment of attention-deficit/hyperactivity disorcap.2017.0071
+der. J Child Adolesc Psychopharmacol.2017;27(8):678-689. doi:10.1089/
+67. Zhu HJ, Patrick KS, Yuan HJ, et al.Two CESI gene mutations lead to
+molecular basis. Am J Hum Genet.2008;82(6):1241-1248. doi:10.1016/j.
+dysfunctional carboxylesterase 1 activity in man: clinical significance and
+ajhg. 2008.04.015
+
+68. Dinis-Oliveira RJ. Metabolomics of methylphenidate and ethylphenidate:
+implications in pharmacological and toxicological effects. Eur | Drug Metab
+69. Trofimiuk M, Wasilewska K, Winnicka K.How to modify drug release in
+Pharmacokinet.2017;42(1):11-16. doi:10.1007|s13318-016-0362-1
+paediatric dosage forms? Novel technologies and modern approaches with
+regard to children's population. Int) Mol Sci.2019;20(13):3200. doi:10.3390/
+70. Cutler AJ, Childress AC, Pardo A, et al.Randomized, double-blind, placebo-
+1jms20133200
+controlled, fixed-dose study to evaluate the efficacy and safety of amphetamine
+J Clin Psychiatry.2022;83(5):22m14438. doi:10.4088/JCP.22m14438
+extended-release tablets in adults with attention-deficit/hyperactivity disorder.
+71. Childress AC, Kando JC, King TR, Pardo A, Herman BK. Early-onset efficacy
+the treatment of children with attention-deficit/hyperactivity disorder. J Child
+and safety pilot study of amphetamine extended-release oral suspension in
+AdolescPsychopharmacol.2019;29(1):2-8.doi:10.1089/cap.2018.0078

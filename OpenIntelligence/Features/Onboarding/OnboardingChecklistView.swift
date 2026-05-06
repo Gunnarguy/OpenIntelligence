@@ -47,7 +47,7 @@ struct OnboardingChecklistView: View {
     // Processing state
     @State private var hasSentImportRequest = false
     @State private var isProcessing = false
-    @State private var processingStatus = "Preparing documents..."
+    @State private var processingStatus = "Preparing sample workspace..."
     @State private var processingComplete = false
     @State private var processingFailed = false
 
@@ -76,8 +76,6 @@ struct OnboardingChecklistView: View {
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel("Skip onboarding")
-                    .opacity(isProcessing && !processingComplete ? 0 : 1)
-                    .disabled(isProcessing && !processingComplete)
                 }
                 .padding(.top, 16)
                 .padding(.trailing, 8)
@@ -119,7 +117,7 @@ struct OnboardingChecklistView: View {
                 Button {
                     DSHaptics.medium()
                     withAnimation(.easeInOut(duration: 0.4)) { currentPage = 1 }
-                    Task { try? await Task.sleep(for: .milliseconds(500)); startWithSamples() }
+                    startWithSamples()
                 } label: {
                     HStack(spacing: 8) {
                         Text("See It in Action").font(.headline)
@@ -191,6 +189,23 @@ struct OnboardingChecklistView: View {
         VStack(spacing: 0) {
             Spacer()
 
+            Text("Built for Your Files")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.white.opacity(0.88))
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+                .background(
+                    Capsule(style: .continuous)
+                        .fill(Color.white.opacity(0.12))
+                        .overlay(
+                            Capsule(style: .continuous)
+                                .stroke(Color.white.opacity(0.15), lineWidth: 1)
+                        )
+                )
+                .padding(.bottom, 18)
+                .opacity(showHeadline ? 1 : 0)
+                .offset(y: showHeadline ? 0 : 8)
+
             ZStack {
                 Circle()
                     .fill(LinearGradient(colors: [Color.accentColor.opacity(0.3), Color.purple.opacity(0.2)], startPoint: .topLeading, endPoint: .bottomTrailing))
@@ -205,14 +220,14 @@ struct OnboardingChecklistView: View {
             .offset(y: showHeadline ? 0 : 10)
 
             VStack(spacing: 10) {
-                Text("Import anything.\nAsk anything.")
+                Text("Your documents.\nClear answers.")
                     .font(.title.bold())
                     .foregroundStyle(.white)
                     .multilineTextAlignment(.center)
                     .opacity(showHeadline ? 1 : 0)
                     .offset(y: showHeadline ? 0 : 15)
 
-                Text("AI that reads your documents and answers questions from them. 100% on-device, powered by Apple Intelligence.")
+                Text("Import PDFs, Office files, scans, images, code, and transcripts. Every answer stays tied to the source.")
                     .font(.subheadline)
                     .foregroundStyle(.white.opacity(0.75))
                     .multilineTextAlignment(.center)
@@ -224,11 +239,11 @@ struct OnboardingChecklistView: View {
             Spacer().frame(height: 32)
 
             VStack(spacing: 12) {
-                UseCaseCard(icon: "tag.fill", iconColor: .blue, docType: "Pricing Guide", exampleQuestion: "How much is the Lifetime license?")
+                UseCaseCard(icon: "tag.fill", iconColor: .blue, docType: "Product Guide", exampleQuestion: "What file types does OpenIntelligence handle best?")
                     .opacity(cardsRevealed > 0 ? 1 : 0).offset(y: cardsRevealed > 0 ? 0 : 20)
-                UseCaseCard(icon: "cpu.fill", iconColor: .orange, docType: "RAG Architecture", exampleQuestion: "How does hybrid search work?")
+                UseCaseCard(icon: "cpu.fill", iconColor: .orange, docType: "RAG Architecture", exampleQuestion: "How does OpenIntelligence work around the 4,096-token limit?")
                     .opacity(cardsRevealed > 1 ? 1 : 0).offset(y: cardsRevealed > 1 ? 0 : 20)
-                UseCaseCard(icon: "lock.shield.fill", iconColor: .purple, docType: "Apple Intelligence & PCC", exampleQuestion: "What happens to my data in Private Cloud Compute?")
+                UseCaseCard(icon: "lock.shield.fill", iconColor: .purple, docType: "Apple Intelligence & PCC", exampleQuestion: "When does processing stay on-device, and when does Apple Private Cloud Compute step in?")
                     .opacity(cardsRevealed > 2 ? 1 : 0).offset(y: cardsRevealed > 2 ? 0 : 20)
             }
             .padding(.horizontal, 28)
@@ -244,7 +259,7 @@ struct OnboardingChecklistView: View {
         VStack(spacing: 0) {
             // Compact header
             VStack(spacing: 4) {
-                Text("Watch the AI read your documents")
+                Text("Watch your library come online")
                     .font(.title3.bold())
                     .foregroundStyle(.white)
                     .multilineTextAlignment(.center)
@@ -513,9 +528,9 @@ struct OnboardingChecklistView: View {
                 Text("Try asking something like:")
                     .font(.subheadline.weight(.medium)).foregroundStyle(.white.opacity(0.6))
                 VStack(spacing: 6) {
-                    ExampleQuestionPill(text: "What\u{2019}s the difference between Pro and Lifetime?", icon: "tag.fill", color: .blue)
-                    ExampleQuestionPill(text: "How does the RAG pipeline find relevant chunks?", icon: "cpu.fill", color: .orange)
-                    ExampleQuestionPill(text: "Is my data ever sent to Apple\u{2019}s servers?", icon: "lock.shield.fill", color: .purple)
+                    ExampleQuestionPill(text: "How does OpenIntelligence work around the 4,096-token limit?", icon: "cpu.fill", color: .orange)
+                    ExampleQuestionPill(text: "What file types does OpenIntelligence handle best?", icon: "tag.fill", color: .blue)
+                    ExampleQuestionPill(text: "When does processing stay on-device, and when does Apple Private Cloud Compute step in?", icon: "lock.shield.fill", color: .purple)
                 }
             }
         }
@@ -665,6 +680,7 @@ struct OnboardingChecklistView: View {
         case .indexing: return PipelineLogEntry(icon: "magnifyingglass", color: .teal, text: "[\(fn)] BM25 + HNSW indexing...")
         case .storing: return PipelineLogEntry(icon: "externaldrive", color: .gray, text: "[\(fn)] Persisting to vector store...")
         case .complete: return nil
+        case .cancelled: return PipelineLogEntry(icon: "slash.circle.fill", color: .orange, text: "[\(fn)] Cancelled")
         case .failed:
             let err = item.errorMessage ?? "Unknown error"
             return PipelineLogEntry(icon: "xmark.circle.fill", color: .red, text: "[\(fn)] Failed: \(err)")
@@ -743,7 +759,6 @@ struct OnboardingChecklistView: View {
                 }
 
                 DSHaptics.success()
-                try? await Task.sleep(for: .milliseconds(600))
                 withAnimation(.easeInOut(duration: 0.5)) { processingComplete = true }
                 ragService.resetLLMSession()
 
@@ -751,7 +766,6 @@ struct OnboardingChecklistView: View {
                 Log.error("Sample import failed: \(error)", category: .initialization)
                 processingStatus = "Import failed \u{2014} tap Retry"
                 DSHaptics.error()
-                try? await Task.sleep(for: .seconds(1))
                 withAnimation(.easeInOut(duration: 0.3)) {
                     isProcessing = false
                     processingFailed = true

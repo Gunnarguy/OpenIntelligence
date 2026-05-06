@@ -1,0 +1,1565 @@
+ℹ️  StoreKit test harness disabled (StoreKitTest framework linking not available in this build)
+ℹ️  [DocumentProcessor] Loaded BertTokenizer for accurate chunk validation
+numANECores: Unknown aneSubType
+ℹ️  [CoreMLSentenceEmbeddingProvider] Loaded EmbeddingModel.mlmodelc - compute: ANE+CPU (efficiency mode)
+ℹ️  [CoreMLSentenceEmbeddingProvider] Loaded tokenizer
+ℹ️  🔧 Initializing with user's selected model: apple_intelligence
+🔍 AppleFoundationLLMService initialized (model will be loaded on first use)
+ℹ️  ✓ Using Apple Foundation Models (on-device + PCC)
+🔍 🔥 Preloading model in background for instant first query
+ℹ️   Foundation Models available on device
+ℹ️  🔗 Tool handler connected for agentic RAG
+ℹ️    [RAGService] No existing documents metadata found
+ℹ️   Foundation Models available on device
+ℹ️  🔍 Requesting 4 products from StoreKit: pro_monthly, pro_annual, lifetime_cohort, doc_pack_addon
+ℹ️  🧾 StoreKit diagnostics: environment=device, bundleId=Gunndamental.OpenIntelligence, appVersion=3.5, buildNumber=35, receiptPresent=unknown, receiptSandboxHint=unknown
+Reading from public effective user settings.
+ℹ️   Foundation Models available on device
+fopen failed for data file: errno = 2 (No such file or directory)
+🔍 [Warm-up] Starting Foundation Model preload...
+🔍 Foundation Models available - creating session...
+🔍 Initialized 4 engine-native tools for agentic RAG
+ℹ️  Apple Foundation Model session initialized (Agentic RAG)
+ℹ️  [Warm-up] Foundation Model preloaded in 1.10s (using prewarm API)
+ℹ️  [MetalBufferPool] 📦 Cache configured: 32MB, 4 buffers/bucket
+fopen failed for data file: errno = 2 (No such file or directory)
+ℹ️  [GPUComputeService] ✓ SIMD4 cosine similarity pipeline ready (4x faster)
+ℹ️  [GPUComputeService] ✓ SIMD4 normalize pipeline ready
+ℹ️  [GPUComputeService] ✓ Threadgroup cosine similarity pipeline ready (fastest)
+ℹ️  [GPUComputeService] ✓ Metal 4 residency set initialized (capacity: 64)
+ℹ️  [GPUComputeService] 🚀 Metal GPU initialized: Apple A18 Pro GPU
+ℹ️  [GPUComputeService] 📦 Buffer pool ready (0MB cache)
+ℹ️  [GPUComputeService] ✓ Batch cosine similarity pipeline ready
+ℹ️  🚀 GPU Compute: Apple A18 Pro GPU ready for vector operations
+ℹ️  🚀 GPU Image Processing: Metal context ready for OCR
+ℹ️  [Consent Prewarm] Checking key 'cloudConsent.applePCC' = 'nil'
+ℹ️  [Consent Prewarm] Showing PCC consent popup proactively
+ℹ️  📦 StoreKit returned 4 products
+ℹ️    ✅ Loaded: doc_pack_addon - Document Pack ($2.99)
+ℹ️    ✅ Loaded: lifetime_cohort - Lifetime Cohort ($59.99)
+ℹ️    ✅ Loaded: pro_monthly - Pro Monthly ($5.99)
+ℹ️    ✅ Loaded: pro_annual - Pro Annual ($49.99)
+🔍 [SuggestedQuestions] Cache invalidated for container 57F1E2B9
+📝 [HardwareTelemetry] Haptic pulse: light
+📝 [HardwareTelemetry] Haptic pulse: light
+void * _Nullable NSMapGet(NSMapTable * _Nonnull, const void * _Nullable): map table argument is NULL
+ℹ️  🌍 StoreKit storefront: USA, id: 143441
+ℹ️  [BILLING] Products refreshed – {bundleId=Gunndamental.OpenIntelligence, environment=device, expected=4, loaded=4, loadedIDs=doc_pack_addon,lifetime_cohort,pro_annual,pro_monthly, missingIDs=, receiptPresent=unknown, receiptSandboxHint=unknown}
+🔍 [SuggestedQuestions] Cache invalidated for container 57F1E2B9
+📝 [HardwareTelemetry] Haptic pulse: success
+ℹ️  [Consent] Persisted Apple PCC = allowed
+ℹ️  [SYSTEM] Cloud call authorized – {bytes=0, chars=0, chunks=0, grant=remembered, model=Apple Foundation Model (On-Device), provider=Apple PCC}
+ℹ️  [SYSTEM] Settings changed – {exec=automatic, fallbacks=1, model=apple_intelligence}
+🔍 AppleFoundationLLMService initialized (model will be loaded on first use)
+ℹ️  ✓ Using Apple Foundation Models (on-device + PCC)
+🔍 🔥 Preloading model in background for instant first query
+🔍 AppleFoundationLLMService initialized (model will be loaded on first use)
+ℹ️  ✓ Updated model: Apple Foundation Model (On-Device) with 0 fallback(s)
+🔍 [Warm-up] Starting Foundation Model preload...
+🔍 Foundation Models available - creating session...
+🔍 Initialized 4 engine-native tools for agentic RAG
+ℹ️  Apple Foundation Model session initialized (Agentic RAG)
+ℹ️  [Warm-up] Foundation Model preloaded in 0.02s (using prewarm API)
+🔍 [Warm-up] Starting Foundation Model preload...
+🔍 Foundation Models available - creating session...
+ℹ️  Apple Foundation Model session initialized (Agentic RAG)
+ℹ️  [Warm-up] Foundation Model preloaded in 0.00s (using prewarm API)
+Passing along Session CCA376D3-97E4-475F-BC7F-909329FEC25D in Canceled state in response to PrewarmSession
+📝 [HardwareTelemetry] Haptic pulse: tab
+ℹ️  [BILLING] Paywall presented – {entryPoint=libraryCreation}
+ℹ️  [BILLING] Paywall viewed – {currentTier=free, entryPoint=documents}
+ℹ️  [BILLING] Paywall CTA tapped – {entryPoint=documents, product=lifetime_cohort}
+ℹ️  [BILLING] Purchase initiated – {product=lifetime_cohort}
+0.5661058
+Potential Structural Swift Concurrency Issue: unsafeForcedSync called from Swift Concurrent context.
+0.5661058
+🔍 [TranscriptPersistence] Saved transcript with 1 entries for container 57F1E2B9-69E6-44D8-9644-FFB6759F67E9
+🔍 [App] Scene became inactive - checkpointed transcript and ingestion state
+⚠️  [BILLING] Purchase cancelled – {product=lifetime_cohort}
+59638328 Plugin query method called
+(501) Invalidation handler invoked, clearing connection
+(501) personaAttributesForPersonaType for type:0 failed with error Error Domain=NSCocoaErrorDomain Code=4099 "The connection to service named com.apple.mobile.usermanagerd.xpc was invalidated from this process." UserInfo={NSDebugDescription=The connection to service named com.apple.mobile.usermanagerd.xpc was invalidated from this process.}
+LaunchServices: store (null) or url (null) was nil: Error Domain=NSOSStatusErrorDomain Code=-54 "process may not map database" UserInfo={_LSLine=75, _LSFunction=_LSServer_GetServerStoreForConnectionWithCompletionHandler, _LSFile=LSDReadService.mm, NSDebugDescription=process may not map database}
+Attempt to map database failed: permission was denied. This attempt will not be retried.
+Failed to initialize client context with error Error Domain=NSOSStatusErrorDomain Code=-54 "process may not map database" UserInfo={_LSLine=75, _LSFunction=_LSServer_GetServerStoreForConnectionWithCompletionHandler, _LSFile=LSDReadService.mm, NSDebugDescription=process may not map database}
+sendUserActivityToServer, called on activity 75E2646C-B17C-46B7-8385-014C5ED3B5A1 after it had been invalidated, so doing nothing.
+🔍 📚 Processing 1 selected file(s)...
+🔍 ✓ Queued: S1092852925000070a.pdf
+ℹ️  [BackgroundTasks] Submitted continued ingestion task
+📝 [HardwareTelemetry] Haptic pulse: drop
+ℹ️  [SYSTEM] Continued ingestion submitted – {backgroundGPU=disabled, battery=55%, chip=A18 Pro, deviceTier=enhanced, formFactor=iPhone, lowPowerMode=off, mode=balanced, rationale=This device does not advertise background GPU support. | Requested GPU level stays below the safe background threshold for this device profile. | Continue on CPU/ANE-first routing to maximize survivability under background constraints., subtitle=S1092852925000070a.pdf, thermal=Nominal, title=Importing documents}
+ℹ️  [CoreMLSentenceEmbeddingProvider] ⚡ Ingestion mode ON → GPU+CPU (ingestion: ANE free for Vision)
+ℹ️  [RAGService] ⚡ Ingestion mode: GPU embeddings + ANE Vision OCR
+ℹ️  [CoreMLSentenceEmbeddingProvider] Loaded EmbeddingModel.mlmodelc - compute: ANE+CPU (efficiency mode)
+ℹ️  [CoreMLSentenceEmbeddingProvider] Loaded tokenizer
+ℹ️  [EmbeddingService] Using provider 'coreml_sentence_embedding' (available: true)
+📝 [HardwareTelemetry] Haptic pulse: soft
+ℹ️  [DocumentProcessor] Processing S1092852925000070a.pdf (0.52 MB)
+🔍 [DocumentProcessor] Document type: pdf
+📝 [HardwareTelemetry] Haptic pulse: soft
+🔍 [DocumentProcessor] Adaptive preprocessing: using 'standard' strategy (quality=0.7, scanned=false)
+ℹ️  [DocumentProcessor] 🚀 GPU acceleration enabled via Metal: Apple A18 Pro GPU
+🔍 [DocumentProcessor] Rendered PDF page at 2969×3960px (360 DPI) [GPU-accelerated]
+ℹ️  [DocumentProcessor] [iOS26] Text layer Jaccard = 0.953 (OCR: 433 words, PDFKit: 436 words, shared: 424)
+🔍 [DocumentProcessor] [iOS26] ✓ Text layer validated (Jaccard=0.953)
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=98%, entropy=4.2, lang=en) Sample: "CNS Spectrums↵www.cambridge.org/cns↵Review↵Cite this article: Cutler AJ, and Hanaie J↵(2025). Unders..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=95%, entropy=4.3, lang=en) Sample: "Table 1. Overview of drug delivery technologies and the brands that use those technologies to provid..."
+🔍 [DocumentProcessor] ❌ FAIL: High control character ratio: 6.2%
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=97%, entropy=4.4, lang=en) Sample: "8 A. J. Cutler and J. Hanaie↵OSMOTIC RELEASE↵MULTIPLE BEADS↵OROS®↵ER technology↵• 2-layer push-stick..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=98%, entropy=4.5, lang=en) Sample: "CNS Spectrums 11↵Conclusion↵Medications, particularly stimulants due to their significant effi-↵cacy..."
+ℹ️  [DocumentProcessor] � LAYOUT-AWARE HYBRID MODE enabled (digital PDF with good text)
+ℹ️  [DocumentProcessor] 📐 Multi-column layouts will be detected and read in proper order
+ℹ️  [DocumentProcessor] Starting structured parsing for 13 pages (iOS 26+)
+ℹ️  [DocumentProcessor] 🚀 Hybrid (Layout + Structure) extraction with 12 concurrent pages (tier: enhanced)
+📝 [HardwareTelemetry] Pulse Image Processing @ 90%
+ℹ️  [PageComplexityAnalyzer] Batch analysis complete:
+  Total pages: 13 | Analysis time: 584.9ms (44.99ms/page)
+  • basicOCR: 3 pages (23%)
+  • enhancedOCR: 9 pages (69%)
+  • fullOCR: 1 pages (7%)
+  → Estimated OCR skip rate: 0% (0 of 13 pages)
+ℹ️  [DocumentProcessor] Complexity pre-scan: 665ms for 13 pages
+ℹ️  [DocumentProcessor] 🚀 ADAPTIVE: 0 pages skip Vision OCR, 13 need layout detection
+ℹ️  [DocumentProcessor] Memory-safe Vision rendering: max 4 page images alive at once (~824 MB)
+ℹ️  [DocumentProcessor] Page 1: fine text risk 11% → rendering at 432 DPI
+Updating content for activity D14D7F7C-69C2-4395-9307-5A04985AC954
+🔍 [DocumentProcessor] Adaptive preprocessing: using 'standard' strategy (quality=0.7, scanned=false)
+🔍 [DocumentProcessor] Rendered PDF page at 3563×4752px (432 DPI) [GPU-accelerated]
+🔍 [DocumentProcessor] Adaptive preprocessing: using 'minimal' strategy (quality=1.0, scanned=false)
+ℹ️  [DocumentProcessor] Page 2: fine text risk 88% → rendering at 432 DPI
+🔍 [DocumentProcessor] Adaptive preprocessing: using 'standard' strategy (quality=0.7, scanned=false)
+🔍 [DocumentProcessor] Rendered PDF page at 3563×4752px (432 DPI) [GPU-accelerated]
+🔍 [DocumentProcessor] Adaptive preprocessing: using 'minimal' strategy (quality=1.0, scanned=false)
+ℹ️  [DocumentProcessor] Page 3: fine text risk 55% → rendering at 432 DPI
+ℹ️  [DocumentProcessor] PDF page has rotation=90° — using cropBox for correct orientation
+🔍 [DocumentProcessor] Adaptive preprocessing: using 'standard' strategy (quality=0.7, scanned=false)
+🔍 [DocumentProcessor] Rendered PDF page at 3563×4752px (432 DPI) [GPU-accelerated]
+🔍 [DocumentProcessor] Adaptive preprocessing: using 'enhanced' strategy (quality=1.0, scanned=true)
+ℹ️  [DocumentProcessor] Page 4: fine text risk 55% → rendering at 432 DPI
+ℹ️  [DocumentProcessor] PDF page has rotation=90° — using cropBox for correct orientation
+🔍 [DocumentProcessor] Adaptive preprocessing: using 'standard' strategy (quality=0.7, scanned=false)
+🔍 [DocumentProcessor] Rendered PDF page at 3563×4752px (432 DPI) [GPU-accelerated]
+🔍 [DocumentProcessor] Adaptive preprocessing: using 'minimal' strategy (quality=1.0, scanned=false)
+📝 [HardwareTelemetry] Pulse Image Processing @ 90%
+📝 [HardwareTelemetry] Pulse Image Processing @ 90%
+📝 [HardwareTelemetry] Pulse Image Processing @ 90%
+📝 [HardwareTelemetry] Pulse Image Processing @ 90%
+ℹ️  [LayoutAwareExtractor] 🔍 Analyzing page 1 layout (image: 3564×4752)
+ℹ️  [LayoutAwareExtractor] 🔍 Analyzing page 2 layout (image: 3564×4752)
+ℹ️  [LayoutAwareExtractor] 🔍 Analyzing page 3 layout (image: 3564×4752)
+ℹ️  [LayoutAwareExtractor] 🔍 Analyzing page 4 layout (image: 3564×4752)
+📝 [HardwareTelemetry] Pulse ReRanking @ 70%
+📝 [HardwareTelemetry] Pulse ReRanking @ 70%
+📝 [HardwareTelemetry] Pulse ReRanking @ 70%
+📝 [HardwareTelemetry] Pulse ReRanking @ 70%
+Locale not supported: pl
+🔍 [LayoutAwareExtractor] Page 1: Vision returned 79 text blocks
+🔍 [LayoutAwareExtractor] Block 0: X=0.07-0.19, text='CNS Spectrums'
+🔍 [LayoutAwareExtractor] Block 1: X=0.07-0.24, text='www.cambridge.org/cns'
+🔍 [LayoutAwareExtractor] Block 2: X=0.07-0.13, text='Review'
+🔍 [LayoutAwareExtractor] Block 3: X=0.07-0.29, text='cite this article: Cutler AJ, '
+🔍 [LayoutAwareExtractor] Block 4: X=0.07-0.31, text='2025). Understanding the deliv'
+🔍 [LayoutAwareExtractor] Found 3 column left-edge peaks at X: ["0.06", "0.32", "0.34"]
+ℹ️  [LayoutAwareExtractor] ✅ Detected 2-column layout
+ℹ️  [LayoutAwareExtractor] Page 1: 2 columns detected, 79 blocks, 0 tables
+🔍 [LayoutAwareExtractor] Page 2: Vision returned 116 text blocks
+🔍 [LayoutAwareExtractor] Block 0: X=0.07-0.49, text='long-acting stimulants have re'
+🔍 [LayoutAwareExtractor] Block 1: X=0.07-0.49, text='important to understand the ch'
+🔍 [LayoutAwareExtractor] Block 2: X=0.07-0.49, text='used, their clinical relevance'
+🔍 [LayoutAwareExtractor] Block 3: X=0.07-0.49, text='outcomes. This article present'
+🔍 [LayoutAwareExtractor] Block 4: X=0.07-0.49, text='that were developed in respons'
+🔍 [LayoutAwareExtractor] Found 2 column left-edge peaks at X: ["0.06", "0.50"]
+ℹ️  [LayoutAwareExtractor] ✅ Detected 2-column layout
+ℹ️  [LayoutAwareExtractor] Page 2: 2 columns detected, 116 blocks, 0 tables
+🔍 [LayoutAwareExtractor] Page 3: Vision returned 99 text blocks
+🔍 [LayoutAwareExtractor] Block 0: X=0.09-1.00, text='Table 1. Overview of drug deli'
+🔍 [LayoutAwareExtractor] Block 1: X=0.09-0.54, text='those that are easily availabl'
+🔍 [LayoutAwareExtractor] Block 2: X=0.10-0.18, text='Delivery system'
+🔍 [LayoutAwareExtractor] Block 3: X=0.10-0.16, text='technology'
+🔍 [LayoutAwareExtractor] Block 4: X=0.10-0.19, text='Osmotic release'
+🔍 [LayoutAwareExtractor] Found 10 column left-edge peaks at X: ["0.08", "0.20", "0.22", "0.36", "0.54", "0.66", "0.74", "0.86", "0.96", "0.98"]
+ℹ️  [LayoutAwareExtractor] ✅ Detected 4-column layout
+ℹ️  [LayoutAwareExtractor] Page 3: 4 columns detected, 99 blocks, 0 tables
+🔍 [LayoutAwareExtractor] Page 4: Vision returned 113 text blocks
+🔍 [LayoutAwareExtractor] Block 0: X=0.09-0.19, text='Table 1. Continued'
+🔍 [LayoutAwareExtractor] Block 1: X=0.10-0.18, text='Delivery system'
+🔍 [LayoutAwareExtractor] Block 2: X=0.09-0.16, text='technology'
+🔍 [LayoutAwareExtractor] Block 3: X=0.10-0.15, text='Microtrol™™'
+🔍 [LayoutAwareExtractor] Block 4: X=0.11-0.16, text='(2 bead)'
+🔍 [LayoutAwareExtractor] Found 9 column left-edge peaks at X: ["0.08", "0.20", "0.22", "0.36", "0.54", "0.74", "0.86", "0.96", "0.98"]
+ℹ️  [LayoutAwareExtractor] ✅ Detected 4-column layout
+ℹ️  [LayoutAwareExtractor] Page 4: 4 columns detected, 113 blocks, 0 tables
+📝 [HardwareTelemetry] Pulse LLM Inference @ 80%
+ℹ️  [StructuredDocumentParser] Page 2: using full-resolution structure parsing for maximum fidelity
+📝 [HardwareTelemetry] Pulse LLM Inference @ 80%
+ℹ️  [StructuredDocumentParser] Page 3: using full-resolution structure parsing for maximum fidelity
+📝 [HardwareTelemetry] Pulse LLM Inference @ 80%
+📝 [HardwareTelemetry] Haptic pulse: thermal-40
+ℹ️  [StructuredDocumentParser] Page 4: using full-resolution structure parsing for maximum fidelity
+📝 [HardwareTelemetry] Pulse LLM Inference @ 80%
+ℹ️  [StructuredDocumentParser] Page 1: using full-resolution structure parsing for maximum fidelity
+🔍 [StructuredDocumentParser] Found title: (A) A.O + 2.E...
+🔍 [StructuredDocumentParser] Deconfused Cyrillic→Latin: '9zоb an 81' → '9zob an 81'
+🔍 [StructuredDocumentParser] Fixed reversed text: 'Isาtu9n 6 ot boilaqs 916' → 'Isาtu9n 6 to sqaliob 916'
+🔍 [StructuredDocumentParser] Fixed reversed text: 'vilidulo2 guyb 9ruzns ot' → 'vilidulo2 byug 9ruzns to'
+⚠️  [StructuredDocumentParser] Low quality parsing on page 3: captured 100/73 words (36%)
+ℹ️  [StructuredDocumentParser] Parsed page 3: 27 elements (0 tables, 0 lists) quality=36% in 3.54s
+🔍 [StructuredDocumentParser] Found title: (etlubs vntls9r) 291ม‡69t >9...
+🔍 [StructuredDocumentParser] Fixed reversed text: 'A) sz0b gr os' → 'A) sz0b rg so'
+🔍 [StructuredDocumentParser] Deconfused Cyrillic→Latin: '24690 0W Н9-bЯnil6207' → '24690 0W H9-bRnil6207'
+🔍 [StructuredDocumentParser] Fixed reversed text: 'SI:9MA-b97' → '79b-AM9:IS'
+🔍 [StructuredDocumentParser] Fixed reversed text: 'SI :qMA g7' → 'IS :qMA g7'
+⚠️  [StructuredDocumentParser] Low quality parsing on page 4: captured 113/86 words (34%)
+ℹ️  [StructuredDocumentParser] Parsed page 4: 40 elements (0 tables, 0 lists) quality=34% in 3.34s
+🔍 [StructuredDocumentParser] Found title: Inomts9rt 9silsubivibri...
+🔍 [StructuredDocumentParser] Fixed reversed text: 'mursa 2notont9 9รibivibni ot' → 'asrum 2notont9 9รibivibni to'
+ℹ️  [StructuredDocumentParser] Quality too low (12%), trying RecognizeTextRequest fallback
+🔍 [TableData] Building textRepresentation: 5 rows, 2 cols, headerRow=false
+🔍 [TableData] Generated 5 key-value pairs
+🔍 [TableData] Building textRepresentation: 2 rows, 2 cols, headerRow=false
+🔍 [TableData] Generated 2 key-value pairs
+ℹ️  [DocumentProcessor] Page 4: recovered 2 table(s) from layout/OCR fallback text
+ℹ️  [CoreMLRegionDetector] DETR model not bundled, using Vision framework fallback
+🔍 [TableData] Building textRepresentation: 11 rows, 2 cols, headerRow=false
+ℹ️  [DocumentProcessor] Page 3: rebuilt parallel key/value table from page text to replace malformed row-column pairing
+🔍 [StructuredDocumentParser] Found title: bris psy ontais oil 00 mol ier uli ft %e atl o ab ... (low quality)
+🔍 [StructuredDocumentParser] Deconfused Cyrillic→Latin: 'berea bbinw АНОА ob' → 'berea bbinw AHOA ob'
+🔍 [StructuredDocumentParser] Deconfused Cyrillic→Latin: 'bas gritso Я edt siv atsbinedqlydtom Ist' → 'bas gritso R edt siv atsbinedqlydtom Ist'
+🔍 [StructuredDocumentParser] Fixed reversed text: 'diw atasitsq ot novig od tonaso bas glod' → 'wid qstisata to givon do osanot sab wdol'
+🔍 [StructuredDocumentParser] Deconfused Cyrillic→Latin: '-atsibemmi głow АНЛА tsert ot anoitsoibo' → '-atsibemmi głow AHЛA tsert ot anoitsoibo'
+🔍 [StructuredDocumentParser] Deconfused Cyrillic→Latin: 'ni tilqe OZOa lsnpe ns diiw absed bas Яо' → 'ni tilqe OZOa lsnpe ns diiw absed bas Ro'
+ℹ️  [StructuredDocumentParser] Quality too low (14%), trying RecognizeTextRequest fallback
+ℹ️  [CoreMLRegionDetector] DETR model not bundled, using Vision framework fallback
+🔍 [StructuredDocumentParser] Fixed reversed text: 'mursa notont9 9sibivibni ot' → 'asrum notont9 9sibivibni to'
+🔍 [StructuredDocumentParser] RecognizeTextRequest fallback captured 675 chars
+ℹ️  [StructuredDocumentParser] RecognizeTextRequest captured 66 words (better than structured parsing)
+ℹ️  [StructuredDocumentParser] Parsed page 1: 16 elements (0 tables, 0 lists) quality=100% in 5.69s
+🔍 [DocumentProcessor] Dropping structured title that does not match trusted page text on page 1
+ℹ️  [CoreMLRegionDetector] DETR model not bundled, using Vision framework fallback
+🔍 [StructuredDocumentParser] Deconfused Cyrillic→Latin: 'atsibemmi głow АНЛА isert ot anoitsoibom' → 'atsibemmi głow AHЛA isert ot anoitsoibom'
+🔍 [StructuredDocumentParser] Deconfused Cyrillic→Latin: 'berea boinw АНОА ob' → 'berea boinw AHOA ob'
+🔍 [StructuredDocumentParser] Deconfused Cyrillic→Latin: 'ni tilqe OZOa lsnpe ns diiw absed bas Яо' → 'ni tilqe OZOa lsnpe ns diiw absed bas Ro'
+🔍 [StructuredDocumentParser] Fixed reversed text: 'diw atasitsq ot novig od tonaso bas glod' → 'wid qstisata to givon do osanot sab wdol'
+🔍 [StructuredDocumentParser] Deconfused Cyrillic→Latin: 'bas gnitso ЯІ edt siv atsbinedqlydtom Is' → 'bas gnitso RІ edt siv atsbinedqlydtom Is'
+🔍 [StructuredDocumentParser] RecognizeTextRequest fallback captured 697 chars
+ℹ️  [StructuredDocumentParser] RecognizeTextRequest captured 98 words (better than structured parsing)
+ℹ️  [StructuredDocumentParser] Parsed page 2: 13 elements (0 tables, 0 lists) quality=100% in 7.11s
+ℹ️  [CoreMLRegionDetector] DETR model not bundled, using Vision framework fallback
+LaunchServices: store (null) or url (null) was nil: Error Domain=NSOSStatusErrorDomain Code=-54 "process may not map database" UserInfo={_LSLine=75, _LSFunction=_LSServer_GetServerStoreForConnectionWithCompletionHandler, _LSFile=LSDReadService.mm, NSDebugDescription=process may not map database}
+Attempt to map database failed: permission was denied. This attempt will not be retried.
+Failed to initialize client context with error Error Domain=NSOSStatusErrorDomain Code=-54 "process may not map database" UserInfo={_LSLine=75, _LSFunction=_LSServer_GetServerStoreForConnectionWithCompletionHandler, _LSFile=LSDReadService.mm, NSDebugDescription=process may not map database}
+ℹ️  [IntelligentProcessor] Page 1: crop rescue kept 1 region(s) -> 0 table(s), 1 list(s), 0 text block(s)
+ℹ️  [DocumentProcessor] Page 5: fine text risk 55% → rendering at 432 DPI
+ℹ️  [DocumentProcessor] PDF page has rotation=90° — using cropBox for correct orientation
+🔍 [DocumentProcessor] Adaptive preprocessing: using 'standard' strategy (quality=0.7, scanned=false)
+🔍 [DocumentProcessor] Rendered PDF page at 3563×4752px (432 DPI) [GPU-accelerated]
+🔍 [DocumentProcessor] Adaptive preprocessing: using 'minimal' strategy (quality=1.0, scanned=false)
+ℹ️  [DocumentProcessor] Page 6: fine text risk 55% → rendering at 432 DPI
+ℹ️  [DocumentProcessor] PDF page has rotation=90° — using cropBox for correct orientation
+🔍 [DocumentProcessor] Adaptive preprocessing: using 'standard' strategy (quality=0.7, scanned=false)
+🔍 [DocumentProcessor] Rendered PDF page at 3563×4752px (432 DPI) [GPU-accelerated]
+🔍 [DocumentProcessor] Adaptive preprocessing: using 'minimal' strategy (quality=1.0, scanned=false)
+ℹ️  [DocumentProcessor] Page 7: fine text risk 55% → rendering at 432 DPI
+ℹ️  [DocumentProcessor] PDF page has rotation=90° — using cropBox for correct orientation
+🔍 [DocumentProcessor] Adaptive preprocessing: using 'standard' strategy (quality=0.7, scanned=false)
+🔍 [DocumentProcessor] Rendered PDF page at 3563×4752px (432 DPI) [GPU-accelerated]
+🔍 [DocumentProcessor] Adaptive preprocessing: using 'minimal' strategy (quality=1.0, scanned=false)
+ℹ️  [DocumentProcessor] Page 8: fine text risk 85% → rendering at 432 DPI
+🔍 [DocumentProcessor] Adaptive preprocessing: using 'standard' strategy (quality=0.7, scanned=false)
+🔍 [DocumentProcessor] Rendered PDF page at 3563×4752px (432 DPI) [GPU-accelerated]
+🔍 [DocumentProcessor] Adaptive preprocessing: using 'minimal' strategy (quality=1.0, scanned=false)
+📝 [HardwareTelemetry] Pulse Image Processing @ 90%
+📝 [HardwareTelemetry] Pulse Image Processing @ 90%
+📝 [HardwareTelemetry] Pulse Image Processing @ 90%
+📝 [HardwareTelemetry] Pulse Image Processing @ 90%
+ℹ️  [LayoutAwareExtractor] 🔍 Analyzing page 5 layout (image: 3564×4752)
+ℹ️  [LayoutAwareExtractor] 🔍 Analyzing page 6 layout (image: 3564×4752)
+ℹ️  [LayoutAwareExtractor] 🔍 Analyzing page 7 layout (image: 3564×4752)
+ℹ️  [LayoutAwareExtractor] 🔍 Analyzing page 8 layout (image: 3564×4752)
+Updating content for activity D14D7F7C-69C2-4395-9307-5A04985AC954
+📝 [HardwareTelemetry] Pulse ReRanking @ 70%
+📝 [HardwareTelemetry] Pulse ReRanking @ 70%
+📝 [HardwareTelemetry] Pulse ReRanking @ 70%
+📝 [HardwareTelemetry] Pulse ReRanking @ 70%
+Updating content for activity D14D7F7C-69C2-4395-9307-5A04985AC954
+🔍 [LayoutAwareExtractor] Page 5: Vision returned 128 text blocks
+🔍 [LayoutAwareExtractor] Block 0: X=0.09-0.19, text='Table 1. Continued'
+🔍 [LayoutAwareExtractor] Block 1: X=0.10-0.18, text='Delivery system'
+🔍 [LayoutAwareExtractor] Block 2: X=0.10-0.16, text='technology'
+🔍 [LayoutAwareExtractor] Block 3: X=0.09-0.20, text='Multilayered beads'
+🔍 [LayoutAwareExtractor] Block 4: X=0.10-0.12, text='MLR'
+🔍 [LayoutAwareExtractor] Found 9 column left-edge peaks at X: ["0.08", "0.20", "0.22", "0.36", "0.54", "0.74", "0.86", "0.96", "0.98"]
+ℹ️  [LayoutAwareExtractor] ✅ Detected 4-column layout
+ℹ️  [LayoutAwareExtractor] Page 5: 4 columns detected, 128 blocks, 0 tables
+🔍 [LayoutAwareExtractor] Page 6: Vision returned 107 text blocks
+🔍 [LayoutAwareExtractor] Block 0: X=0.09-0.19, text='Table 1. Continued'
+🔍 [LayoutAwareExtractor] Block 1: X=0.10-0.18, text='Delivery system'
+🔍 [LayoutAwareExtractor] Block 2: X=0.10-0.16, text='technology'
+🔍 [LayoutAwareExtractor] Block 3: X=0.21-0.34, text='Technology components'
+🔍 [LayoutAwareExtractor] Block 4: X=0.10-0.14, text='Prodrug'
+🔍 [LayoutAwareExtractor] Found 10 column left-edge peaks at X: ["0.08", "0.22", "0.36", "0.38", "0.54", "0.66", "0.74", "0.86", "0.96", "0.98"]
+ℹ️  [LayoutAwareExtractor] ✅ Detected 4-column layout
+ℹ️  [LayoutAwareExtractor] Page 6: 4 columns detected, 107 blocks, 0 tables
+🔍 [LayoutAwareExtractor] Page 7: Vision returned 153 text blocks
+🔍 [LayoutAwareExtractor] Block 0: X=0.09-0.19, text='Table 1. Continued'
+🔍 [LayoutAwareExtractor] Block 1: X=0.09-0.18, text='Delivery system'
+🔍 [LayoutAwareExtractor] Block 2: X=0.09-0.16, text='technology'
+🔍 [LayoutAwareExtractor] Block 3: X=0.09-0.21, text='lon-exchange resins'
+🔍 [LayoutAwareExtractor] Block 4: X=0.09-0.18, text='Microparticles:'
+🔍 [LayoutAwareExtractor] Found 8 column left-edge peaks at X: ["0.08", "0.20", "0.22", "0.36", "0.54", "0.74", "0.86", "0.98"]
+ℹ️  [LayoutAwareExtractor] ✅ Detected 4-column layout
+ℹ️  [LayoutAwareExtractor] Page 7: 4 columns detected, 153 blocks, 0 tables
+🔍 [LayoutAwareExtractor] Page 8: Vision returned 242 text blocks
+🔍 [LayoutAwareExtractor] Block 0: X=0.17-0.31, text='OSMOTIC RELEASE'
+🔍 [LayoutAwareExtractor] Block 1: X=0.22-0.27, text='OROS®'
+🔍 [LayoutAwareExtractor] Block 2: X=0.11-0.18, text='ER technology'
+🔍 [LayoutAwareExtractor] Block 3: X=0.11-0.34, text='• 2-layer push-stick osmotic p'
+🔍 [LayoutAwareExtractor] Block 4: X=0.12-0.35, text='layer and a non-degradable 'pu'
+🔍 [LayoutAwareExtractor] Found 4 column left-edge peaks at X: ["0.10", "0.12", "0.40", "0.64"]
+ℹ️  [LayoutAwareExtractor] ✅ Detected 3-column layout
+ℹ️  [LayoutAwareExtractor] Page 8: 3 columns detected, 242 blocks, 0 tables
+Updating content for activity D14D7F7C-69C2-4395-9307-5A04985AC954
+📝 [HardwareTelemetry] Pulse LLM Inference @ 80%
+Updating content for activity D14D7F7C-69C2-4395-9307-5A04985AC954
+ℹ️  [StructuredDocumentParser] Page 5: using full-resolution structure parsing for maximum fidelity
+📝 [HardwareTelemetry] Pulse LLM Inference @ 80%
+ℹ️  [StructuredDocumentParser] Page 6: using full-resolution structure parsing for maximum fidelity
+📝 [HardwareTelemetry] Pulse LLM Inference @ 80%
+ℹ️  [StructuredDocumentParser] Page 7: using full-resolution structure parsing for maximum fidelity
+📝 [HardwareTelemetry] Pulse LLM Inference @ 80%
+ℹ️  [StructuredDocumentParser] Page 8: using full-resolution structure parsing for maximum fidelity
+🔍 [TranscriptPersistence] Saved transcript with 1 entries for container 57F1E2B9-69E6-44D8-9644-FFB6759F67E9
+🔍 [App] Scene became inactive - checkpointed transcript and ingestion state
+🔍 [BackgroundTasks] Scheduled index maintenance
+🔍 [BackgroundTasks] Scheduled app refresh
+🔍 [BackgroundTasks] Scheduled Spotlight reindex
+🔍 [TranscriptPersistence] Saved transcript with 1 entries for container 57F1E2B9-69E6-44D8-9644-FFB6759F67E9
+🔍 [App] Scene entered background - saved transcript
+Locale not supported: ro
+🔍 [TranscriptPersistence] Saved transcript with 1 entries for container 57F1E2B9-69E6-44D8-9644-FFB6759F67E9
+🔍 [App] Scene became inactive - checkpointed transcript and ingestion state
+🔍 [StructuredDocumentParser] Found title: MKsb...
+🔍 [StructuredDocumentParser] Fixed reversed text: 'SI: :9MA-b' → 'b-AM9: :IS'
+🔍 [StructuredDocumentParser] Deconfused Cyrillic→Latin: 'дn 05 10020' → 'dn 05 10020'
+🔍 [StructuredDocumentParser] Fixed reversed text: '(2769y SI-a) (' → '( )a-IS y9672('
+🔍 [StructuredDocumentParser] Fixed reversed text: 'SI~ :9MA-b' → 'b-AM9: ~IS'
+🔍 [StructuredDocumentParser] Fixed reversed text: 'ot slubolom gutb svitbs' → 'to molobuls btug sbtivs'
+ℹ️  [StructuredDocumentParser] Quality too low (25%), trying RecognizeTextRequest fallback
+🔍 [StructuredDocumentParser] Found title: (belsninqe)...
+🔍 [StructuredDocumentParser] Deconfused Cyrillic→Latin: 'наМ "ЯХ oiznetq/' → 'haM "RX oiznetq/'
+🔍 [StructuredDocumentParser] Fixed reversed text: 'noitsluatio ont ot' → 'oitaulstion tno to'
+🔍 [StructuredDocumentParser] Fixed reversed text: 'ni volob ldstiborg' → 'in bolov grobitsdl'
+⚠️  [StructuredDocumentParser] Low quality parsing on page 5: captured 114/88 words (37%)
+ℹ️  [StructuredDocumentParser] Parsed page 5: 41 elements (0 tables, 0 lists) quality=37% in 4.98s
+🔍 [TableData] Building textRepresentation: 2 rows, 2 cols, headerRow=false
+🔍 [TableData] Generated 2 key-value pairs
+ℹ️  [DocumentProcessor] Page 5: recovered 1 table(s) from layout/OCR fallback text
+ℹ️  [CoreMLRegionDetector] DETR model not bundled, using Vision framework fallback
+🔍 [StructuredDocumentParser] Found title: (5-9)2. ลอ...
+🔍 [StructuredDocumentParser] Fixed reversed text: '(D) A.D + T.SI' → 'IS.T + D.A )D('
+🔍 [StructuredDocumentParser] Fixed reversed text: '(A) (SI-E) 2 :67' → '76: 2 )E-IS( )A('
+🔍 [StructuredDocumentParser] Fixed reversed text: 'ot bad lin' → 'to dab nil'
+🔍 [StructuredDocumentParser] Fixed reversed text: 'doss ni zsxslqmos' → 'ssod in somqlsxsz'
+🔍 [StructuredDocumentParser] Fixed reversed text: 'gniwor tuontiw use9lggs no boldnirge ro ' → 'rowing witnout use9lggs on egrindlob or '
+ℹ️  [StructuredDocumentParser] Quality too low (29%), trying RecognizeTextRequest fallback
+🔍 [StructuredDocumentParser] Found title: 8...
+🔍 [StructuredDocumentParser] Fixed reversed text: 'Npuont astog mot ot onitestni llsme ont ' → 'tnoupN gotsa tom to intsetino emsll tno '
+🔍 [StructuredDocumentParser] Deconfused Cyrillic→Latin: 'Taas, T' anitaatni Ilsma Istaib ni S-Яa' → 'Taas, T' anitaatni Ilsma Istaib ni S-Ra'
+🔍 [StructuredDocumentParser] Fixed reversed text: 'sa@ziysbyM' → 'Mybsyiz@as'
+🔍 [StructuredDocumentParser] Fixed reversed text: 'Ismixonq onlt ni putb' → 'qnoximsI tlno in btup'
+🔍 [StructuredDocumentParser] Deconfused Cyrillic→Latin: 'eSS@AX oianetaA bng 8S,®ЯX siansrbA' → 'eSS@AX oianetaA bng 8S,®RX siansrbA'
+🔍 [StructuredDocumentParser] Fixed reversed text: '‡s1t ID ni esvloaaib' → '‡s1t DI in biaaolvse'
+🔍 [StructuredDocumentParser] Fixed reversed text: 'purborq ®TA_' → '_AT® qrobrup'
+🔍 [StructuredDocumentParser] Fixed reversed text: 'TA-eEos1t เอ' → 'อเ t1soEe-AT'
+🔍 [StructuredDocumentParser] Fixed reversed text: 'ot วามววด' → 'to ดววมาว'
+🔍 [StructuredDocumentParser] Deconfused Cyrillic→Latin: 'H9M-b ЯІ' → 'H9M-b RІ'
+🔍 [StructuredDocumentParser] Deconfused Cyrillic→Latin: '»ЯЗ bns ЮТАО-ЯХ axnesbA' → '»RЗ bns ЮTAO-RX axnesbA'
+🔍 [StructuredDocumentParser] Deconfused Cyrillic→Latin: 'OTAO-ЯХ slamatoo' → 'OTAO-RX slamatoo'
+⚠️  [StructuredDocumentParser] Low quality parsing on page 8: captured 305/231 words (36%)
+ℹ️  [StructuredDocumentParser] Parsed page 8: 70 elements (0 tables, 0 lists) quality=36% in 5.84s
+🔍 [TableData] Building textRepresentation: 2 rows, 2 cols, headerRow=false
+🔍 [TableData] Generated 2 key-value pairs
+🔍 [TableData] Building textRepresentation: 3 rows, 2 cols, headerRow=true
+🔍 [TableData] Building textRepresentation: 2 rows, 2 cols, headerRow=false
+🔍 [TableData] Generated 2 key-value pairs
+ℹ️  [DocumentProcessor] Page 8: recovered 3 table(s) from layout/OCR fallback text
+ℹ️  [CoreMLRegionDetector] DETR model not bundled, using Vision framework fallback
+🔍 [StructuredDocumentParser] Fixed reversed text: 'ot slubolom gurb svitbs' → 'to molobuls brug sbtivs'
+🔍 [StructuredDocumentParser] Fixed reversed text: 'SI~ : 9MA-b' → 'b-AM9 : ~IS'
+🔍 [StructuredDocumentParser] Fixed reversed text: '(2769y SI-a) (' → '( )a-IS y9672('
+🔍 [StructuredDocumentParser] Deconfused Cyrillic→Latin: 'дn 05 100208' → 'dn 05 100208'
+🔍 [StructuredDocumentParser] Fixed reversed text: 'SI : 9MA-b' → 'IS : 9MA-b'
+🔍 [StructuredDocumentParser] RecognizeTextRequest fallback captured 662 chars
+ℹ️  [StructuredDocumentParser] RecognizeTextRequest captured 98 words (better than structured parsing)
+ℹ️  [StructuredDocumentParser] Parsed page 6: 22 elements (0 tables, 0 lists) quality=62% in 7.39s
+🔍 [DocumentProcessor] Dropping structured title that does not match trusted page text on page 6
+🔍 [TableData] Building textRepresentation: 3 rows, 2 cols, headerRow=false
+🔍 [TableData] Generated 3 key-value pairs
+🔍 [TableData] Building textRepresentation: 6 rows, 2 cols, headerRow=false
+🔍 [TableData] Generated 6 key-value pairs
+ℹ️  [DocumentProcessor] Page 6: recovered 2 table(s) from layout/OCR fallback text
+ℹ️  [CoreMLRegionDetector] DETR model not bundled, using Vision framework fallback
+🔍 [StructuredDocumentParser] Fixed reversed text: 'gniwor tuontiw ause9lggs no boldnirge ro' → 'rowing witnout ause9lggs on egrindlob or'
+🔍 [StructuredDocumentParser] Fixed reversed text: 'doss ni zsxslamos' → 'ssod in somalsxsz'
+🔍 [StructuredDocumentParser] Fixed reversed text: '(D) A.D + T.SI' → 'IS.T + D.A )D('
+🔍 [StructuredDocumentParser] Fixed reversed text: '(A) (SI-E) 2 :67' → '76: 2 )E-IS( )A('
+🔍 [StructuredDocumentParser] Fixed reversed text: 'ot lite ball 21' → 'to etil llab 21'
+🔍 [StructuredDocumentParser] RecognizeTextRequest fallback captured 1174 chars
+ℹ️  [StructuredDocumentParser] RecognizeTextRequest captured 174 words (better than structured parsing)
+ℹ️  [StructuredDocumentParser] Parsed page 7: 46 elements (0 tables, 0 lists) quality=75% in 8.93s
+ℹ️  [OCR] Non-Latin document detected (th) — using language-safe garbage filter
+🔍 [TableData] Building textRepresentation: 19 rows, 2 cols, headerRow=true
+ℹ️  [DocumentProcessor] Page 7: rebuilt parallel key/value table from page text to replace malformed row-column pairing
+ℹ️  [IntelligentProcessor] Page 8: crop rescue kept 5 region(s) -> 0 table(s), 5 list(s), 0 text block(s)
+ℹ️  [IntelligentProcessor] Page 6: crop rescue kept 1 region(s) -> 1 table(s), 0 list(s), 0 text block(s)
+🔍 [TableData] Building textRepresentation: 8 rows, 5 cols, headerRow=true
+ℹ️  [DocumentProcessor] Page 6: crop rescue promoted 1 table(s), 0 list(s), 0 figure region(s)
+ℹ️  [DocumentProcessor] Page 9: fine text risk 87% → rendering at 432 DPI
+🔍 [DocumentProcessor] Adaptive preprocessing: using 'standard' strategy (quality=0.7, scanned=false)
+🔍 [DocumentProcessor] Rendered PDF page at 3563×4752px (432 DPI) [GPU-accelerated]
+🔍 [DocumentProcessor] Adaptive preprocessing: using 'minimal' strategy (quality=1.0, scanned=false)
+ℹ️  [DocumentProcessor] Page 10: fine text risk 62% → rendering at 432 DPI
+🔍 [DocumentProcessor] Adaptive preprocessing: using 'standard' strategy (quality=0.7, scanned=false)
+🔍 [DocumentProcessor] Rendered PDF page at 3563×4752px (432 DPI) [GPU-accelerated]
+🔍 [DocumentProcessor] Adaptive preprocessing: using 'minimal' strategy (quality=1.0, scanned=false)
+ℹ️  [DocumentProcessor] Page 11: fine text risk 90% → rendering at 432 DPI
+🔍 [DocumentProcessor] Adaptive preprocessing: using 'standard' strategy (quality=0.7, scanned=false)
+🔍 [DocumentProcessor] Rendered PDF page at 3563×4752px (432 DPI) [GPU-accelerated]
+🔍 [DocumentProcessor] Adaptive preprocessing: using 'minimal' strategy (quality=1.0, scanned=false)
+ℹ️  [DocumentProcessor] Page 12: fine text risk 90% → rendering at 432 DPI
+🔍 [DocumentProcessor] Adaptive preprocessing: using 'standard' strategy (quality=0.7, scanned=false)
+🔍 [DocumentProcessor] Rendered PDF page at 3563×4752px (432 DPI) [GPU-accelerated]
+🔍 [DocumentProcessor] Adaptive preprocessing: using 'minimal' strategy (quality=1.0, scanned=false)
+📝 [HardwareTelemetry] Pulse Image Processing @ 90%
+📝 [HardwareTelemetry] Pulse Image Processing @ 90%
+📝 [HardwareTelemetry] Pulse Image Processing @ 90%
+📝 [HardwareTelemetry] Pulse Image Processing @ 90%
+ℹ️  [LayoutAwareExtractor] 🔍 Analyzing page 9 layout (image: 3564×4752)
+ℹ️  [LayoutAwareExtractor] 🔍 Analyzing page 10 layout (image: 3564×4752)
+ℹ️  [LayoutAwareExtractor] 🔍 Analyzing page 11 layout (image: 3564×4752)
+ℹ️  [LayoutAwareExtractor] 🔍 Analyzing page 12 layout (image: 3564×4752)
+📝 [HardwareTelemetry] Pulse ReRanking @ 70%
+📝 [HardwareTelemetry] Pulse ReRanking @ 70%
+📝 [HardwareTelemetry] Pulse ReRanking @ 70%
+📝 [HardwareTelemetry] Pulse ReRanking @ 70%
+🔍 [LayoutAwareExtractor] Page 9: Vision returned 120 text blocks
+🔍 [LayoutAwareExtractor] Block 0: X=0.07-0.17, text='CNS Spectrums'
+🔍 [LayoutAwareExtractor] Block 1: X=0.09-0.49, text='Another multilayered technolog'
+🔍 [LayoutAwareExtractor] Block 2: X=0.07-0.49, text='PM®. DELEXIS® consists of a si'
+🔍 [LayoutAwareExtractor] Block 3: X=0.07-0.49, text='microbeads with delayed-releas'
+🔍 [LayoutAwareExtractor] Block 4: X=0.07-0.49, text='drug-loaded core, allowing for'
+🔍 [LayoutAwareExtractor] Found 2 column left-edge peaks at X: ["0.06", "0.50"]
+ℹ️  [LayoutAwareExtractor] ✅ Detected 2-column layout
+ℹ️  [LayoutAwareExtractor] Page 9: 2 columns detected, 120 blocks, 0 tables
+🔍 [LayoutAwareExtractor] Page 10: Vision returned 124 text blocks
+🔍 [LayoutAwareExtractor] Block 0: X=0.07-0.09, text='10'
+🔍 [LayoutAwareExtractor] Block 1: X=0.77-0.93, text='A. J. Cutler and J. Hanaie'
+🔍 [LayoutAwareExtractor] Block 2: X=0.14-0.45, text='For patients who struggle to m'
+🔍 [LayoutAwareExtractor] Block 3: X=0.11-0.25, text='AVOID technologies that'
+🔍 [LayoutAwareExtractor] Block 4: X=0.29-0.38, text='• DOT Matrix®'
+🔍 [LayoutAwareExtractor] Found 5 column left-edge peaks at X: ["0.06", "0.10", "0.28", "0.50", "0.70"]
+ℹ️  [LayoutAwareExtractor] ✅ Detected 4-column layout
+ℹ️  [LayoutAwareExtractor] Page 10: 4 columns detected, 124 blocks, 0 tables
+🔍 [LayoutAwareExtractor] Page 11: Vision returned 125 text blocks
+🔍 [LayoutAwareExtractor] Block 0: X=0.07-0.17, text='CNS Spectrums'
+🔍 [LayoutAwareExtractor] Block 1: X=0.07-0.49, text='Medications, particularly stim'
+🔍 [LayoutAwareExtractor] Block 2: X=0.07-0.49, text='cacy, are an important compone'
+🔍 [LayoutAwareExtractor] Block 3: X=0.07-0.49, text='Numerous variables need to be '
+🔍 [LayoutAwareExtractor] Block 4: X=0.07-0.49, text='optimal choice to treat ADHD p'
+🔍 [LayoutAwareExtractor] Found 3 column left-edge peaks at X: ["0.06", "0.50", "0.52"]
+ℹ️  [LayoutAwareExtractor] ✅ Detected 2-column layout
+ℹ️  [LayoutAwareExtractor] Page 11: 2 columns detected, 125 blocks, 0 tables
+🔍 [LayoutAwareExtractor] Page 12: Vision returned 136 text blocks
+🔍 [LayoutAwareExtractor] Block 0: X=0.07-0.09, text='12'
+🔍 [LayoutAwareExtractor] Block 1: X=0.77-0.93, text='A. J. Cutler and J. Hanaie'
+🔍 [LayoutAwareExtractor] Block 2: X=0.07-0.49, text='20. U.S. Food & Drug Administr'
+🔍 [LayoutAwareExtractor] Block 3: X=0.09-0.49, text='https://www.accessdata.fda.gov'
+🔍 [LayoutAwareExtractor] Block 4: X=0.09-0.16, text='s046lbl.pdf.'
+🔍 [LayoutAwareExtractor] Found 4 column left-edge peaks at X: ["0.06", "0.08", "0.50", "0.52"]
+ℹ️  [LayoutAwareExtractor] ✅ Detected 2-column layout
+ℹ️  [LayoutAwareExtractor] Page 12: 2 columns detected, 136 blocks, 0 tables
+📝 [HardwareTelemetry] Pulse LLM Inference @ 80%
+ℹ️  [StructuredDocumentParser] Page 9: using full-resolution structure parsing for maximum fidelity
+📝 [HardwareTelemetry] Pulse LLM Inference @ 80%
+ℹ️  [StructuredDocumentParser] Page 10: using full-resolution structure parsing for maximum fidelity
+📝 [HardwareTelemetry] Pulse LLM Inference @ 80%
+ℹ️  [StructuredDocumentParser] Page 11: using full-resolution structure parsing for maximum fidelity
+📝 [HardwareTelemetry] Pulse LLM Inference @ 80%
+ℹ️  [StructuredDocumentParser] Page 12: using full-resolution structure parsing for maximum fidelity
+🔍 [StructuredDocumentParser] Found title: aqXiupi」・...
+🔍 [StructuredDocumentParser] Fixed reversed text: 'ton ob 1o batsoibnistno' → 'not bo 1o ontsinbiostab'
+ℹ️  [StructuredDocumentParser] Quality too low (19%), trying RecognizeTextRequest fallback
+🔍 [StructuredDocumentParser] Found title: divomroM „onl „smısd9 airT yd bebrut asw trogque I... (low quality)
+🔍 [StructuredDocumentParser] Deconfused Cyrillic→Latin: 'notsmoni gnidio АТЯНОИО noitstinimbA gui' → 'notsmoni gnidio ATRHOИO noitstinimbA gui'
+ℹ️  [StructuredDocumentParser] Quality too low (18%), trying RecognizeTextRequest fallback
+ℹ️  [BILLING] Paywall presented – {entryPoint=libraryCreation}
+ℹ️  [BILLING] Paywall viewed – {currentTier=free, entryPoint=libraryCreation}
+<0x10b22b200> Gesture: System gesture gate timed out.
+🔍 [StructuredDocumentParser] Found title: 2niesy 9prprax9-nol...
+ℹ️  [StructuredDocumentParser] Quality too low (6%), trying RecognizeTextRequest fallback
+🔍 [StructuredDocumentParser] Found title: •noitsm...
+🔍 [StructuredDocumentParser] Deconfused Cyrillic→Latin: 'nottsmrołal gridio X ОКИНТА noitstainimb' → 'nottsmrołal gridio X OKИHTA noitstainimb'
+🔍 [StructuredDocumentParser] Deconfused Cyrillic→Latin: 'v-AâEO-āIO-IaSO#|T00I.OI:iob.д2&-IАЕ:(a)' → 'v-AâEO-āIO-IaSO#|T00I.OI:iob.d2&-IAE:(a)'
+ℹ️  [StructuredDocumentParser] Quality too low (10%), trying RecognizeTextRequest fallback
+ℹ️  [BILLING] Paywall CTA tapped – {entryPoint=libraryCreation, product=lifetime_cohort}
+ℹ️  [BILLING] Purchase initiated – {product=lifetime_cohort}
+ℹ️  [AdaptivePipeline] Optimization level changed to Power Saver due to: thermal=Serious, battery=55%
+ℹ️  [SYSTEM] Pipeline optimization adjusted – {battery=55%, level=efficient, thermal=Serious}
+📝 [HardwareTelemetry] Haptic pulse: thermal-70
+🔍 [StructuredDocumentParser] RecognizeTextRequest fallback captured 990 chars
+ℹ️  [StructuredDocumentParser] RecognizeTextRequest captured 135 words (better than structured parsing)
+ℹ️  [StructuredDocumentParser] Parsed page 10: 27 elements (0 tables, 0 lists) quality=100% in 9.00s
+🔍 [DocumentProcessor] Dropping structured title that does not match trusted page text on page 10
+🔍 [TableData] Building textRepresentation: 19 rows, 2 cols, headerRow=true
+ℹ️  [DocumentProcessor] Page 10: rebuilt parallel key/value table from page text to replace malformed row-column pairing
+🔍 [StructuredDocumentParser] RecognizeTextRequest fallback captured 929 chars
+⚠️  [StructuredDocumentParser] Low quality parsing on page 11: captured 152/94 words (18%)
+ℹ️  [StructuredDocumentParser] Parsed page 11: 19 elements (0 tables, 0 lists) quality=18% in 9.99s
+ℹ️  [CoreMLRegionDetector] DETR model not bundled, using Vision framework fallback
+🔍 [TranscriptPersistence] Saved transcript with 1 entries for container 57F1E2B9-69E6-44D8-9644-FFB6759F67E9
+🔍 [App] Scene became inactive - checkpointed transcript and ingestion state
+🔍 [StructuredDocumentParser] RecognizeTextRequest fallback captured 374 chars
+ℹ️  [StructuredDocumentParser] RecognizeTextRequest captured 41 words (better than structured parsing)
+ℹ️  [StructuredDocumentParser] Parsed page 9: 10 elements (0 tables, 0 lists) quality=100% in 11.85s
+🔍 [DocumentProcessor] Dropping structured title that does not match trusted page text on page 9
+🔍 [StructuredDocumentParser] Deconfused Cyrillic→Latin: 'notsmrołal gridio X ОКИНТА noitstainimbA' → 'notsmrołal gridio X OKИHTA noitstainimbA'
+🔍 [StructuredDocumentParser] Deconfused Cyrillic→Latin: 'notsmonI gridies АЛИШАТІЯ noitsrainimbA ' → 'notsmonI gridies AЛИШATІR noitsrainimbA '
+🔍 [StructuredDocumentParser] Deconfused Cyrillic→Latin: 'дA1000ISeS28SeOI2ITIOI.OI:iOb ATI-POI:(S' → 'dA1000ISeS28SeOI2ITIOI.OI:iOb ATI-POI:(S'
+🔍 [StructuredDocumentParser] Fixed reversed text: '₩9 SA' → '₩9 AS'
+🔍 [StructuredDocumentParser] RecognizeTextRequest fallback captured 797 chars
+⚠️  [StructuredDocumentParser] Low quality parsing on page 12: captured 72/38 words (10%)
+ℹ️  [StructuredDocumentParser] Parsed page 12: 18 elements (0 tables, 0 lists) quality=10% in 11.98s
+🔍 [TableData] Building textRepresentation: 2 rows, 2 cols, headerRow=false
+🔍 [TableData] Generated 2 key-value pairs
+ℹ️  [DocumentProcessor] Page 12: recovered 1 table(s) from layout/OCR fallback text
+ℹ️  [CoreMLRegionDetector] DETR model not bundled, using Vision framework fallback
+🔍 [TranscriptPersistence] Saved transcript with 1 entries for container 57F1E2B9-69E6-44D8-9644-FFB6759F67E9
+🔍 [App] Scene became inactive - checkpointed transcript and ingestion state
+ℹ️  [BILLING] Purchase succeeded – {product=lifetime_cohort, transactionId=0}
+ℹ️  [BILLING] Purchase processed – {product=lifetime_cohort, transactionId=0}
+ℹ️  [CoreMLRegionDetector] DETR model not bundled, using Vision framework fallback
+ℹ️  [IntelligentProcessor] Page 12: crop rescue kept 4 region(s) -> 0 table(s), 4 list(s), 0 text block(s)
+ℹ️  [IntelligentProcessor] Page 11: crop rescue kept 2 region(s) -> 0 table(s), 2 list(s), 0 text block(s)
+Updating content for activity D14D7F7C-69C2-4395-9307-5A04985AC954
+ℹ️  [DocumentProcessor] Page 13: fine text risk 0% → rendering at 432 DPI
+🔍 [DocumentProcessor] Adaptive preprocessing: using 'standard' strategy (quality=0.7, scanned=false)
+🔍 [DocumentProcessor] Rendered PDF page at 3563×4752px (432 DPI) [GPU-accelerated]
+🔍 [DocumentProcessor] Adaptive preprocessing: using 'minimal' strategy (quality=1.0, scanned=false)
+Updating content for activity D14D7F7C-69C2-4395-9307-5A04985AC954
+📝 [HardwareTelemetry] Pulse Image Processing @ 90%
+ℹ️  [LayoutAwareExtractor] 🔍 Analyzing page 13 layout (image: 3564×4752)
+📝 [HardwareTelemetry] Pulse ReRanking @ 70%
+Updating content for activity D14D7F7C-69C2-4395-9307-5A04985AC954
+Updating content for activity D14D7F7C-69C2-4395-9307-5A04985AC954
+🔍 [LayoutAwareExtractor] Page 13: Vision returned 32 text blocks
+🔍 [LayoutAwareExtractor] Block 0: X=0.07-0.17, text='CNS Spectrums'
+🔍 [LayoutAwareExtractor] Block 1: X=0.07-0.49, text='64. Jasinski DR, Krishnan S.Ab'
+🔍 [LayoutAwareExtractor] Block 2: X=0.09-0.49, text='dimesylate in individuals with'
+🔍 [LayoutAwareExtractor] Block 3: X=0.09-0.42, text='macol.2009;23(4):419-427. doi:'
+🔍 [LayoutAwareExtractor] Block 4: X=0.07-0.49, text='65. Shram MJ, Setnik B, Webste'
+🔍 [LayoutAwareExtractor] Found 4 column left-edge peaks at X: ["0.06", "0.08", "0.50", "0.52"]
+ℹ️  [LayoutAwareExtractor] ✅ Detected 2-column layout
+ℹ️  [LayoutAwareExtractor] Page 13: 2 columns detected, 32 blocks, 0 tables
+📝 [HardwareTelemetry] Pulse LLM Inference @ 80%
+ℹ️  [StructuredDocumentParser] Page 13: using full-resolution structure parsing for maximum fidelity
+🔍 [StructuredDocumentParser] Found title: Itiw ersorggs rrsborr brs esigolordst IsvoM Serrro... (low quality)
+ℹ️  [StructuredDocumentParser] Quality too low (18%), trying RecognizeTextRequest fallback
+🔍 [StructuredDocumentParser] Fixed reversed text: 'OOSEE IO Sa mii' → 'EESOO OI aS iim'
+🔍 [StructuredDocumentParser] RecognizeTextRequest fallback captured 220 chars
+ℹ️  [StructuredDocumentParser] RecognizeTextRequest captured 18 words (better than structured parsing)
+ℹ️  [StructuredDocumentParser] Parsed page 13: 7 elements (0 tables, 0 lists) quality=100% in 2.12s
+ℹ️  [CoreMLRegionDetector] DETR model not bundled, using Vision framework fallback
+ℹ️  [IntelligentProcessor] Page 13: crop rescue kept 2 region(s) -> 0 table(s), 2 list(s), 0 text block(s)
+🔍 [DocumentProcessor] Removed 1 garbage line(s) from page 5 (pdf-structured)
+🔍 [DocumentProcessor] Removed 5 garbage line(s) from page 6 (pdf-structured)
+🔍 [DocumentProcessor] Removed 3 garbage line(s) from page 7 (pdf-structured)
+🔍 [DocumentProcessor] Removed 2 garbage line(s) from page 8 (pdf-structured)
+🔍 [DocumentProcessor] Removed 1 garbage line(s) from page 10 (pdf-structured)
+🔍 [DocumentProcessor] Removed 2 garbage line(s) from page 11 (pdf-structured)
+🔍 [DocumentProcessor] Removed 1 garbage line(s) from page 12 (pdf-structured)
+ℹ️  [DocumentProcessor] Garbage filter removed 15 line(s) across 7 page(s) (pdf-structured)
+ℹ️  [DocumentProcessor] Structured parsing complete: 8/13 pages with tables/lists, 48 elements extracted
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=98%, entropy=4.2, lang=en) Sample: "CNS Spectrums↵www.cambridge.org/cns↵Review↵Cite this article: Cutler AJ, and Hanaie J↵(2025). Unders..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=98%, entropy=4.2, lang=en) Sample: "2 A. J. Cutler and J. Hanaie↵long-acting stimulants have received approval in recent years. It is↵im..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=95%, entropy=4.3, lang=en) Sample: "Table 1. Overview of drug delivery technologies and the brands that use those technologies to provid..."
+🔍 [DocumentProcessor] ❌ FAIL: High control character ratio: 5.7%
+ℹ️  [DocumentProcessor] PDF page has rotation=90° — using cropBox for correct orientation
+🔍 [DocumentProcessor] Adaptive preprocessing: using 'standard' strategy (quality=0.7, scanned=false)
+🔍 [DocumentProcessor] Rendered PDF page at 1187×1584px (144 DPI) [GPU-accelerated]
+ℹ️  [DocumentProcessor] PDF page has rotation=90° — using cropBox for correct orientation
+🔍 [DocumentProcessor] Adaptive preprocessing: using 'standard' strategy (quality=0.7, scanned=false)
+🔍 [DocumentProcessor] Rendered PDF page at 1187×1584px (144 DPI) [GPU-accelerated]
+🔍 [DocumentProcessor] ❌ FAIL: High control character ratio: 5.8%
+ℹ️  [DocumentProcessor] PDF page has rotation=90° — using cropBox for correct orientation
+🔍 [DocumentProcessor] Adaptive preprocessing: using 'standard' strategy (quality=0.7, scanned=false)
+🔍 [DocumentProcessor] Rendered PDF page at 1187×1584px (144 DPI) [GPU-accelerated]
+ℹ️  [DocumentProcessor] PDF page has rotation=90° — using cropBox for correct orientation
+🔍 [DocumentProcessor] Adaptive preprocessing: using 'standard' strategy (quality=0.7, scanned=false)
+🔍 [DocumentProcessor] Rendered PDF page at 1187×1584px (144 DPI) [GPU-accelerated]
+ℹ️  [ImageUnderstanding] 🚀 Analyzing 2 images (max 2 concurrent)
+📝 [HardwareTelemetry] Pulse Image Processing @ 90%
+📝 [HardwareTelemetry] Pulse Image Processing @ 90%
+📝 [HardwareTelemetry] Pulse ReRanking @ 80%
+📝 [HardwareTelemetry] Pulse Image Processing @ 90%
+📝 [HardwareTelemetry] Pulse Image Processing @ 90%
+📝 [HardwareTelemetry] Pulse ReRanking @ 80%
+🔍 [ImageUnderstanding] Classified image: ["document: 0.31", "printed_page: 0.31", "screenshot: 0.13"]
+🔍 [ImageUnderstanding] Extracted 124 text elements from image
+🔍 [ImageUnderstanding] Classified image: ["document: 0.36", "printed_page: 0.36", "screenshot: 0.14"]
+🔍 [ImageUnderstanding] Extracted 127 text elements from image
+ℹ️  [ImageUnderstanding] AI generated description: The screenshot shows a document intelligence interface with a table titled "Table 1. Continued techn...
+ℹ️  [ImageUnderstanding] AI generated description: This screenshot shows a document intelligence engine interface displaying a table titled "Table 1. C...
+ℹ️  [ImageUnderstanding] ✅ Parallel analysis complete: 2/2 images processed (0 captioned, 2 OCR, 2 described)
+🔍 [DocumentProcessor] ❌ FAIL: High control character ratio: 6.2%
+ℹ️  [DocumentProcessor] PDF page has rotation=90° — using cropBox for correct orientation
+🔍 [DocumentProcessor] Adaptive preprocessing: using 'standard' strategy (quality=0.7, scanned=false)
+🔍 [DocumentProcessor] Rendered PDF page at 1187×1584px (144 DPI) [GPU-accelerated]
+ℹ️  [DocumentProcessor] PDF page has rotation=90° — using cropBox for correct orientation
+🔍 [DocumentProcessor] Adaptive preprocessing: using 'standard' strategy (quality=0.7, scanned=false)
+🔍 [DocumentProcessor] Rendered PDF page at 1187×1584px (144 DPI) [GPU-accelerated]
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=95%, entropy=4.5, lang=en) Sample: "Table 1. Continued↵PK features (healthy adults)↵Delivery system↵technology Technology components Mec..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=97%, entropy=4.4, lang=en) Sample: "8 A. J. Cutler and J. Hanaie↵OSMOTIC RELEASE↵MULTIPLE BEADS↵OROS®↵ER technology↵• 2-layer push-stick..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=98%, entropy=4.2, lang=en) Sample: "CNS Spectrums 9↵Another multilayered technology is DELEXIS®, used in Jornay↵PM®. DELEXIS® consists o..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=98%, entropy=4.2, lang=en) Sample: "10 A. J. Cutler and J. Hanaie↵For patients who struggle to maintain routines For patients who take g..."
+ℹ️  [ImageUnderstanding] 🚀 Analyzing 1 images (max 2 concurrent)
+📝 [HardwareTelemetry] Pulse Image Processing @ 90%
+📝 [HardwareTelemetry] Pulse Image Processing @ 90%
+📝 [HardwareTelemetry] Pulse ReRanking @ 80%
+🔍 [ImageUnderstanding] Classified image: ["document: 0.30", "screenshot: 0.26", "printed_page: 0.25"]
+🔍 [ImageUnderstanding] Extracted 104 text elements from image
+ℹ️  [ImageUnderstanding] AI generated description: This screenshot shows a document intelligence engine interface, displaying a table titled "Table 1. ...
+ℹ️  [ImageUnderstanding] ✅ Parallel analysis complete: 1/1 images processed (0 captioned, 1 OCR, 1 described)
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=98%, entropy=4.5, lang=en) Sample: "CNS Spectrums 11↵Conclusion↵Medications, particularly stimulants due to their significant effi-↵cacy..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=98%, entropy=4.7, lang=en) Sample: "12 20. U.S. Food & Drug Administration. RITALIN LA Prescribing Information.↵https://www.accessdata.f..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=98%, entropy=4.7, lang=en) Sample: "CNS Spectrums 13↵64. Jasinski DR, Krishnan S.Abuse liability and safety of oral lisdexamfetamine↵dim..."
+ℹ️  [DocumentProcessor] Analyzed 3 embedded images, created 3 visual content chunks
+ℹ️  [DocumentProcessor] Added 3 visual content chunks from images/diagrams
+ℹ️  [DocumentProcessor] Structured parsing: 11 tables, 0 lists extracted
+🔍 [DocumentProcessor] Extracted 98363 chars (12777 words) in 114.04s
+ℹ️  [DocumentProcessor] Text normalization: cleaned 131 chars (98363→98232)
+ℹ️  [SQLiteFTS5] Database initialized at /var/mobile/Containers/Data/Application/0D38720A-64F9-40FC-B049-14D6D04C5049/Library/Application Support/OpenIntelligence/FTS5/fulltext.sqlite
+ℹ️  [SQLiteFTS5] Chunk-level FTS5 table initialized
+ℹ️  [SQLiteFTS5] Page-level FTS5 table initialized
+🔍 [SQLiteFTS5] Deleted document 3EF06D4A-D816-4A9E-9C55-8648C7BBB44F
+🔍 [SQLiteFTS5] Stored document 3EF06D4A-D816-4A9E-9C55-8648C7BBB44F (98215 chars, 14498 words)
+🔍 [DocumentProcessor] Stored normalized text (98215 chars) to FTS5 for exact query support
+ℹ️  [SQLiteFTS5] Stored 13 pages for document 3EF06D4A-D816-4A9E-9C55-8648C7BBB44F
+ℹ️  [DocumentProcessor] Stored 13 individual pages to FTS5 for page-level context
+ℹ️  [DocumentProcessor] Document category: scientific_paper
+🔍 [DocumentProcessor] Using pdf chunking: target=240w, overlap=45w
+🔍 [SemanticChunker] Starting advanced chunking
+🔍 [SemanticChunker] Target: 240w, Min: 80w, Max: 310w
+🔍 [SemanticChunker] Overlap: 45w
+🔍 [SemanticChunker] Detected 16 sections
+🔍 [SemanticChunker] Detected 6 linguistic topic boundaries
+📝 [SemanticChunker] Processing chunk 1
+📝 [SemanticChunker] Snapping to section: UNIVERSITY PRESS
+📝 [SemanticChunker] Chunk 1: 115 words
+📝 [SemanticChunker] Processing chunk 2
+📝 [SemanticChunker] Snapping to section: Los Angeles, CA, USA
+📝 [SemanticChunker] Chunk 2: 121 words
+📝 [SemanticChunker] Processing chunk 3
+📝 [SemanticChunker] Snapping to section: 1. A universal approach to treat attention-deficit/hyperactivity disorder (ADHD) is unlikely to
+📝 [SemanticChunker] Chunk 3: 194 words
+📝 [SemanticChunker] Processing chunk 4
+📝 [SemanticChunker] Snapping to section: 3. The most desired features of stimulant medication are a quick onset of efficacy, a long and
+📝 [SemanticChunker] Chunk 4: 99 words
+📝 [SemanticChunker] Processing chunk 5
+📝 [SemanticChunker] Snapping to section: 4. ADHD delivery technologies impact the pharmacokinetic profile by altering the timing of
+📝 [SemanticChunker] Chunk 5: 93 words
+📝 [SemanticChunker] Processing chunk 6
+📝 [SemanticChunker] Snapping to section: 5. This review discusses the benefits and restrictions of the various stimulant delivery technolinfluence the clinical onset and duration as well as tolerability of the medication.
+📝 [SemanticChunker] Chunk 6: 94 words
+📝 [SemanticChunker] Processing chunk 7
+📝 [SemanticChunker] Snapping to section: Introduction
+📝 [SemanticChunker] Chunk 7: 88 words
+📝 [SemanticChunker] Processing chunk 8
+📝 [SemanticChunker] Chunk 8: 267 words
+📝 [SemanticChunker] Processing chunk 9
+📝 [SemanticChunker] Snapping to topic boundary
+📝 [SemanticChunker] Chunk 9: 288 words
+📝 [SemanticChunker] Processing chunk 10
+📝 [SemanticChunker] Snapping to topic boundary
+📝 [SemanticChunker] Chunk 10: 216 words
+📝 [SemanticChunker] Processing chunk 11
+📝 [SemanticChunker] Snapping to section: A. J. Cutler and J. Hanaie
+📝 [SemanticChunker] Chunk 11: 192 words
+📝 [SemanticChunker] Processing chunk 12
+📝 [SemanticChunker] Snapping to topic boundary
+📝 [SemanticChunker] Chunk 12: 158 words
+📝 [SemanticChunker] Processing chunk 13
+📝 [SemanticChunker] Snapping to topic boundary
+📝 [SemanticChunker] Chunk 13: 189 words
+📝 [SemanticChunker] Processing chunk 14
+📝 [SemanticChunker] Snapping to topic boundary
+📝 [SemanticChunker] Chunk 14: 146 words
+📝 [SemanticChunker] Processing chunk 15
+📝 [SemanticChunker] Snapping to topic boundary
+📝 [SemanticChunker] Chunk 15: 144 words
+📝 [SemanticChunker] Processing chunk 16
+📝 [SemanticChunker] Snapping to section: Diffucaps® Release-controlling
+📝 [SemanticChunker] Chunk 16: 310 words
+📝 [SemanticChunker] Processing chunk 17
+📝 [SemanticChunker] Snapping to section: Concerta® MPH
+📝 [SemanticChunker] Chunk 17: 130 words
+📝 [SemanticChunker] Processing chunk 18
+📝 [SemanticChunker] Snapping to section: 6.8 + 1.8 (A)
+📝 [SemanticChunker] Chunk 18: 164 words
+📝 [SemanticChunker] Processing chunk 19
+📝 [SemanticChunker] Chunk 19: 100 words
+📝 [SemanticChunker] Processing chunk 20
+📝 [SemanticChunker] Chunk 20: 69 words
+📝 [SemanticChunker] Processing chunk 21
+📝 [SemanticChunker] Chunk 21: 66 words
+🔍 [SemanticChunker] Created 21 semantically-aware chunks
+🔍 [SemanticChunker] Avg words/chunk: 154
+🔍 [SemanticChunker] Avg semantic density: 0.63
+🔍 [SemanticChunker] Chunks with sections: 21
+🔍 [SemanticChunker] Chunks with numeric data: 19
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.0, lang=en) Sample: "2. There are a limited number of therapeutic categories of medication to treat this highly variable..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.0, lang=en) Sample: "2. There are a limited number of therapeutic categories of medication to treat this highly variable..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.0, lang=en) Sample: "3. The most desired features of stimulant medication are a quick onset of efficacy, a long and..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.0, lang=en) Sample: "3. The most desired features of stimulant medication are a quick onset of efficacy, a long and..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.1, lang=en) Sample: "4. ADHD delivery technologies impact the pharmacokinetic profile by altering the timing of..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.1, lang=en) Sample: "4. ADHD delivery technologies impact the pharmacokinetic profile by altering the timing of..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=3.4, lang=en) Sample: "A. J. Cutler and J. Hanaie..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=3.4, lang=en) Sample: "A. J. Cutler and J. Hanaie..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=3.4, lang=en) Sample: "A. J. Cutler and J. Hanaie..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=3.4, lang=en) Sample: "A. J. Cutler and J. Hanaie..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=3.4, lang=en) Sample: "A. J. Cutler and J. Hanaie..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=3.4, lang=en) Sample: "A. J. Cutler and J. Hanaie..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=3.4, lang=en) Sample: "A. J. Cutler and J. Hanaie..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=3.4, lang=en) Sample: "A. J. Cutler and J. Hanaie..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=3.4, lang=en) Sample: "A. J. Cutler and J. Hanaie..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=3.4, lang=en) Sample: "A. J. Cutler and J. Hanaie..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=3.4, lang=en) Sample: "A. J. Cutler and J. Hanaie..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=3.4, lang=en) Sample: "A. J. Cutler and J. Hanaie..."
+🔍 [DocumentProcessor] Created companion table chunks for page 3, section: none
+🔍 [SemanticChunker] Starting advanced chunking
+🔍 [SemanticChunker] Target: 240w, Min: 80w, Max: 310w
+🔍 [SemanticChunker] Overlap: 45w
+🔍 [SemanticChunker] Detected 6 sections
+🔍 [SemanticChunker] Detected 0 linguistic topic boundaries
+📝 [SemanticChunker] Processing chunk 1
+📝 [SemanticChunker] Snapping to section: Ritalin LA® MPH Two peaks
+📝 [SemanticChunker] Chunk 1: 131 words
+📝 [SemanticChunker] Processing chunk 2
+📝 [SemanticChunker] Chunk 2: 125 words
+📝 [SemanticChunker] Processing chunk 3
+📝 [SemanticChunker] Chunk 3: 60 words
+📝 [SemanticChunker] Processing chunk 4
+📝 [SemanticChunker] Chunk 4: 58 words
+🔍 [SemanticChunker] Created 4 semantically-aware chunks
+🔍 [SemanticChunker] Avg words/chunk: 93
+🔍 [SemanticChunker] Avg semantic density: 0.65
+🔍 [SemanticChunker] Chunks with sections: 3
+🔍 [SemanticChunker] Chunks with numeric data: 4
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=3.7, lang=en) Sample: "Ritalin LA® MPH Two peaks..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=3.7, lang=en) Sample: "Ritalin LA® MPH Two peaks..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=3.7, lang=en) Sample: "Ritalin LA® MPH Two peaks..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=3.5, lang=en) Sample: "Tmax (hours) T1⁄2 (hours)..."
+🔍 [DocumentProcessor] Created companion table chunks for page 4, section: none
+🔍 [DocumentProcessor] Created companion table chunks for page 4, section: none
+🔍 [SemanticChunker] Starting advanced chunking
+🔍 [SemanticChunker] Target: 240w, Min: 80w, Max: 310w
+🔍 [SemanticChunker] Overlap: 45w
+🔍 [SemanticChunker] Detected 5 sections
+🔍 [SemanticChunker] Detected 0 linguistic topic boundaries
+📝 [SemanticChunker] Processing chunk 1
+📝 [SemanticChunker] Snapping to section: DOT Matrix® Comprises three layers:
+📝 [SemanticChunker] Chunk 1: 149 words
+📝 [SemanticChunker] Processing chunk 2
+📝 [SemanticChunker] Snapping to section: Example Release
+📝 [SemanticChunker] Chunk 2: 99 words
+📝 [SemanticChunker] Processing chunk 3
+📝 [SemanticChunker] Snapping to section: Adhansia XR° MPH Two peaks
+📝 [SemanticChunker] Chunk 3: 89 words
+📝 [SemanticChunker] Processing chunk 4
+📝 [SemanticChunker] Chunk 4: 162 words
+📝 [SemanticChunker] Processing chunk 5
+📝 [SemanticChunker] Chunk 5: 64 words
+📝 [SemanticChunker] Processing chunk 6
+📝 [SemanticChunker] Chunk 6: 63 words
+🔍 [SemanticChunker] Created 6 semantically-aware chunks
+🔍 [SemanticChunker] Avg words/chunk: 104
+🔍 [SemanticChunker] Avg semantic density: 0.61
+🔍 [SemanticChunker] Chunks with sections: 5
+🔍 [SemanticChunker] Chunks with numeric data: 6
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=3.8, lang=en) Sample: "Adhansia XR° MPH Two peaks..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=3.8, lang=en) Sample: "Adhansia XR° MPH Two peaks..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=3.8, lang=en) Sample: "Adhansia XR° MPH Two peaks..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=3.8, lang=en) Sample: "Adhansia XR° MPH Two peaks..."
+🔍 [DocumentProcessor] Created companion table chunks for page 5, section: none
+🔍 [SemanticChunker] Starting advanced chunking
+🔍 [SemanticChunker] Target: 240w, Min: 80w, Max: 310w
+🔍 [SemanticChunker] Overlap: 45w
+🔍 [SemanticChunker] Detected 1 sections
+🔍 [SemanticChunker] Detected 0 linguistic topic boundaries
+📝 [SemanticChunker] Processing chunk 1
+📝 [SemanticChunker] Snapping to section: Vyvanse® LDX
+📝 [SemanticChunker] Chunk 1: 150 words
+📝 [SemanticChunker] Processing chunk 2
+📝 [SemanticChunker] Chunk 2: 162 words
+📝 [SemanticChunker] Processing chunk 3
+📝 [SemanticChunker] Chunk 3: 93 words
+📝 [SemanticChunker] Processing chunk 4
+📝 [SemanticChunker] Chunk 4: 90 words
+🔍 [SemanticChunker] Created 4 semantically-aware chunks
+🔍 [SemanticChunker] Avg words/chunk: 123
+🔍 [SemanticChunker] Avg semantic density: 0.50
+🔍 [SemanticChunker] Chunks with sections: 2
+🔍 [SemanticChunker] Chunks with numeric data: 4
+🔍 [DocumentProcessor] Created companion table chunks for page 6, section: none
+🔍 [SemanticChunker] Starting advanced chunking
+🔍 [SemanticChunker] Target: 240w, Min: 80w, Max: 310w
+🔍 [SemanticChunker] Overlap: 45w
+🔍 [SemanticChunker] Detected 10 sections
+🔍 [SemanticChunker] Detected 0 linguistic topic boundaries
+📝 [SemanticChunker] Processing chunk 1
+📝 [SemanticChunker] Snapping to section: Example Release
+📝 [SemanticChunker] Chunk 1: 205 words
+📝 [SemanticChunker] Processing chunk 2
+📝 [SemanticChunker] Snapping to section: Adzenys XR-ODT® Single peak
+📝 [SemanticChunker] Chunk 2: 87 words
+📝 [SemanticChunker] Processing chunk 3
+📝 [SemanticChunker] Snapping to section: Dyanavel XR® AMP Single peak
+📝 [SemanticChunker] Chunk 3: 129 words
+📝 [SemanticChunker] Processing chunk 4
+📝 [SemanticChunker] Snapping to section: 51.8 mg dose ~4 Take
+📝 [SemanticChunker] Chunk 4: 93 words
+📝 [SemanticChunker] Processing chunk 5
+📝 [SemanticChunker] Snapping to section: 18.8 mg dose d-AMP: Shak
+📝 [SemanticChunker] Chunk 5: 94 words
+📝 [SemanticChunker] Processing chunk 6
+📝 [SemanticChunker] Snapping to section: 15.3 + 14.4 (C)
+📝 [SemanticChunker] Chunk 6: 107 words
+📝 [SemanticChunker] Processing chunk 7
+📝 [SemanticChunker] Snapping to section: 18.8 mg dose d-AMP: 12.4 Shak
+📝 [SemanticChunker] Chunk 7: 96 words
+📝 [SemanticChunker] Processing chunk 8
+📝 [SemanticChunker] Chunk 8: 119 words
+📝 [SemanticChunker] Processing chunk 9
+📝 [SemanticChunker] Chunk 9: 86 words
+📝 [SemanticChunker] Processing chunk 10
+📝 [SemanticChunker] Chunk 10: 85 words
+🔍 [SemanticChunker] Created 10 semantically-aware chunks
+🔍 [SemanticChunker] Avg words/chunk: 110
+🔍 [SemanticChunker] Avg semantic density: 0.57
+🔍 [SemanticChunker] Chunks with sections: 9
+🔍 [SemanticChunker] Chunks with numeric data: 9
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=3.9, lang=en) Sample: "Microparticles: Each ODT has drug..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=3.9, lang=en) Sample: "Microparticles: Each ODT has drug..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=3.9, lang=en) Sample: "Microparticles: Each ODT has drug..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=3.9, lang=en) Sample: "Microparticles: Each ODT has drug..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=3.9, lang=en) Sample: "Adzenys XR-ODT® Single peak..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=3.9, lang=en) Sample: "Adzenys XR-ODT® Single peak..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=3.8, lang=en) Sample: "Adzenys ERTM Single peak..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=3.8, lang=en) Sample: "Adzenys ERTM Single peak..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=3.8, lang=en) Sample: "Adzenys ERTM Single peak..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=3.8, lang=en) Sample: "Adzenys ERTM Single peak..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=3.5, lang=fr) Sample: "18.8 mg dose d-AMP: Shak..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=3.5, lang=fr) Sample: "18.8 mg dose d-AMP: Shak..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=3.5, lang=fr) Sample: "18.8 mg dose d-AMP: Shak..."
+🔍 [DocumentProcessor] Created companion table chunks for page 7, section: none
+🔍 [SemanticChunker] Starting advanced chunking
+🔍 [SemanticChunker] Target: 240w, Min: 80w, Max: 310w
+🔍 [SemanticChunker] Overlap: 45w
+⚠️  [SemanticChunker] Text too small (35 words); creating single chunk
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=3.9, lang=en) Sample: "within a semi-rigid, non-dissoluble membrane with a..."
+🔍 [DocumentProcessor] Created companion table chunks for page 8, section: none
+🔍 [SemanticChunker] Starting advanced chunking
+🔍 [SemanticChunker] Target: 240w, Min: 80w, Max: 310w
+🔍 [SemanticChunker] Overlap: 45w
+🔍 [SemanticChunker] Detected 2 sections
+🔍 [SemanticChunker] Detected 0 linguistic topic boundaries
+📝 [SemanticChunker] Processing chunk 1
+📝 [SemanticChunker] Chunk 1: 123 words
+📝 [SemanticChunker] Processing chunk 2
+📝 [SemanticChunker] Chunk 2: 63 words
+📝 [SemanticChunker] Processing chunk 3
+📝 [SemanticChunker] Chunk 3: 59 words
+🔍 [SemanticChunker] Created 3 semantically-aware chunks
+🔍 [SemanticChunker] Avg words/chunk: 81
+🔍 [SemanticChunker] Avg semantic density: 0.64
+🔍 [SemanticChunker] Chunks with sections: 2
+🔍 [SemanticChunker] Chunks with numeric data: 3
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=3.8, lang=en) Sample: "Addition of ligand to the active drug creates an inactive,..."
+🔍 [DocumentProcessor] Created companion table chunks for page 8, section: none
+🔍 [SemanticChunker] Starting advanced chunking
+🔍 [SemanticChunker] Target: 240w, Min: 80w, Max: 310w
+🔍 [SemanticChunker] Overlap: 45w
+🔍 [SemanticChunker] Detected 4 sections
+🔍 [SemanticChunker] Detected 0 linguistic topic boundaries
+📝 [SemanticChunker] Processing chunk 1
+📝 [SemanticChunker] Snapping to section: MULTIPLE BEADS
+📝 [SemanticChunker] Chunk 1: 104 words
+📝 [SemanticChunker] Processing chunk 2
+📝 [SemanticChunker] Snapping to section: MULTILAYERED BEADS
+📝 [SemanticChunker] Chunk 2: 250 words
+📝 [SemanticChunker] Processing chunk 3
+📝 [SemanticChunker] Snapping to section: ION EXCHANGE RESINS
+📝 [SemanticChunker] Chunk 3: 146 words
+📝 [SemanticChunker] Processing chunk 4
+📝 [SemanticChunker] Snapping to section: A. J. Cutler and J. Hanaie
+📝 [SemanticChunker] Chunk 4: 191 words
+📝 [SemanticChunker] Processing chunk 5
+📝 [SemanticChunker] Chunk 5: 163 words
+📝 [SemanticChunker] Processing chunk 6
+📝 [SemanticChunker] Chunk 6: 64 words
+📝 [SemanticChunker] Processing chunk 7
+📝 [SemanticChunker] Chunk 7: 62 words
+🔍 [SemanticChunker] Created 7 semantically-aware chunks
+🔍 [SemanticChunker] Avg words/chunk: 140
+🔍 [SemanticChunker] Avg semantic density: 0.59
+🔍 [SemanticChunker] Chunks with sections: 5
+🔍 [SemanticChunker] Chunks with numeric data: 7
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=3.4, lang=en) Sample: "A. J. Cutler and J. Hanaie..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=3.4, lang=en) Sample: "A. J. Cutler and J. Hanaie..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=3.4, lang=en) Sample: "A. J. Cutler and J. Hanaie..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=3.4, lang=en) Sample: "A. J. Cutler and J. Hanaie..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.0, lang=en) Sample: "• ER-1 coating is porous; ER-2 is pH-dependent 7,25,57..."
+🔍 [DocumentProcessor] Created companion table chunks for page 8, section: none
+🔍 [SemanticChunker] Starting advanced chunking
+🔍 [SemanticChunker] Target: 240w, Min: 80w, Max: 310w
+🔍 [SemanticChunker] Overlap: 45w
+🔍 [SemanticChunker] Detected 7 sections
+🔍 [SemanticChunker] Detected 3 linguistic topic boundaries
+📝 [SemanticChunker] Processing chunk 1
+📝 [SemanticChunker] Snapping to section: CNS Spectrums
+📝 [SemanticChunker] Chunk 1: 191 words
+📝 [SemanticChunker] Processing chunk 2
+📝 [SemanticChunker] Chunk 2: 278 words
+📝 [SemanticChunker] Processing chunk 3
+📝 [SemanticChunker] Chunk 3: 265 words
+📝 [SemanticChunker] Processing chunk 4
+📝 [SemanticChunker] Chunk 4: 275 words
+📝 [SemanticChunker] Processing chunk 5
+📝 [SemanticChunker] Chunk 5: 274 words
+📝 [SemanticChunker] Processing chunk 6
+📝 [SemanticChunker] Chunk 6: 266 words
+📝 [SemanticChunker] Processing chunk 7
+📝 [SemanticChunker] Snapping to section: Discussion
+📝 [SemanticChunker] Chunk 7: 193 words
+📝 [SemanticChunker] Processing chunk 8
+📝 [SemanticChunker] Snapping to topic boundary
+📝 [SemanticChunker] Chunk 8: 270 words
+📝 [SemanticChunker] Processing chunk 9
+📝 [SemanticChunker] Snapping to section: • DOT Matrix®
+📝 [SemanticChunker] Chunk 9: 99 words
+📝 [SemanticChunker] Processing chunk 10
+📝 [SemanticChunker] Snapping to section: • DOT Matrix®
+📝 [SemanticChunker] Chunk 10: 80 words
+📝 [SemanticChunker] Processing chunk 11
+📝 [SemanticChunker] Snapping to topic boundary
+📝 [SemanticChunker] Chunk 11: 207 words
+📝 [SemanticChunker] Processing chunk 12
+📝 [SemanticChunker] Snapping to section: A. J. Cutler and J. Hanaie
+📝 [SemanticChunker] Chunk 12: 295 words
+📝 [SemanticChunker] Processing chunk 13
+📝 [SemanticChunker] Chunk 13: 82 words
+📝 [SemanticChunker] Processing chunk 14
+📝 [SemanticChunker] Chunk 14: 59 words
+📝 [SemanticChunker] Processing chunk 15
+📝 [SemanticChunker] Chunk 15: 53 words
+🔍 [SemanticChunker] Created 15 semantically-aware chunks
+🔍 [SemanticChunker] Avg words/chunk: 192
+🔍 [SemanticChunker] Avg semantic density: 0.65
+🔍 [SemanticChunker] Chunks with sections: 13
+🔍 [SemanticChunker] Chunks with numeric data: 14
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=3.6, lang=en) Sample: "SELECT a / technology for..."
+🔍 [DocumentProcessor] Created companion table chunks for page 10, section: none
+🔍 [SemanticChunker] Starting advanced chunking
+🔍 [SemanticChunker] Target: 240w, Min: 80w, Max: 310w
+🔍 [SemanticChunker] Overlap: 45w
+🔍 [SemanticChunker] Detected 27 sections
+🔍 [SemanticChunker] Detected 1 linguistic topic boundaries
+📝 [SemanticChunker] Processing chunk 1
+📝 [SemanticChunker] Snapping to topic boundary
+📝 [SemanticChunker] Chunk 1: 172 words
+📝 [SemanticChunker] Processing chunk 2
+📝 [SemanticChunker] Snapping to section: Biogen, Biohaven, BioXcel, Boehringer Ingelheim, Brii Biosciences, Bristol
+📝 [SemanticChunker] Chunk 2: 291 words
+📝 [SemanticChunker] Processing chunk 3
+📝 [SemanticChunker] Snapping to section: References
+📝 [SemanticChunker] Chunk 3: 251 words
+📝 [SemanticChunker] Processing chunk 4
+📝 [SemanticChunker] Snapping to section: 3. Mechler K, Banaschewski T, Hohmann S, Häge A.Evidence-based pharorder. Nat Rev Dis Primers.2024;10(1): 11. doi:10.1038/s41572-024-00495-0
+📝 [SemanticChunker] Chunk 4: 87 words
+📝 [SemanticChunker] Processing chunk 5
+📝 [SemanticChunker] Snapping to section: 4. Cutler AJ, Mattingly GW. Beyond the pill: new medication delivery options for
+📝 [SemanticChunker] Chunk 5: 99 words
+📝 [SemanticChunker] Processing chunk 6
+📝 [SemanticChunker] Snapping to section: 5. Childress AC. Novel formulations of ADHD medications: stimulant selec-
+📝 [SemanticChunker] Chunk 6: 87 words
+📝 [SemanticChunker] Processing chunk 7
+📝 [SemanticChunker] Snapping to section: 6. U.S. Food & Drug Administration. Attention Deficit Hyperactivity Disorhttps://www.fda.gov/regulatory-information/search-fda-guidance-documents/
+📝 [SemanticChunker] Chunk 7: 114 words
+📝 [SemanticChunker] Processing chunk 8
+📝 [SemanticChunker] Snapping to section: 6. U.S. Food & Drug Administration. Attention Deficit Hyperactivity Disorhttps://www.fda.gov/regulatory-information/search-fda-guidance-documents/
+📝 [SemanticChunker] Chunk 8: 83 words
+📝 [SemanticChunker] Processing chunk 9
+📝 [SemanticChunker] Snapping to section: 6. U.S. Food & Drug Administration. Attention Deficit Hyperactivity Disorhttps://www.fda.gov/regulatory-information/search-fda-guidance-documents/
+📝 [SemanticChunker] Chunk 9: 80 words
+📝 [SemanticChunker] Processing chunk 10
+📝 [SemanticChunker] Snapping to section: 9. Volkow ND, Swanson JM. Variables that affect the clinical use and abuse of
+📝 [SemanticChunker] Chunk 10: 111 words
+📝 [SemanticChunker] Processing chunk 11
+📝 [SemanticChunker] Snapping to section: 10. Ahmed R, Aslani P.Attention-deficit/hyperactivity disorder: an update on
+📝 [SemanticChunker] Chunk 11: 101 words
+📝 [SemanticChunker] Processing chunk 12
+📝 [SemanticChunker] Snapping to section: 11. Christensen L, Sasané R, Hodgkins P, Harley C, Tetali S.Pharmacological
+📝 [SemanticChunker] Chunk 12: 110 words
+📝 [SemanticChunker] Processing chunk 13
+📝 [SemanticChunker] Snapping to section: 12. U.S. Food & Drug Administration. CONCERTA Prescribing information.
+📝 [SemanticChunker] Chunk 13: 119 words
+📝 [SemanticChunker] Processing chunk 14
+📝 [SemanticChunker] Snapping to section: 13. Swanson JM. Long-acting stimulants: development and dosing. Can Child
+📝 [SemanticChunker] Chunk 14: 91 words
+📝 [SemanticChunker] Processing chunk 15
+📝 [SemanticChunker] Snapping to section: 13. Swanson JM. Long-acting stimulants: development and dosing. Can Child
+📝 [SemanticChunker] Chunk 15: 81 words
+📝 [SemanticChunker] Processing chunk 16
+📝 [SemanticChunker] Snapping to section: 14. U.S. Food & Drug Administration. METADATE CD Prescribing Informa-
+📝 [SemanticChunker] Chunk 16: 85 words
+📝 [SemanticChunker] Processing chunk 17
+📝 [SemanticChunker] Snapping to section: 15. Sallee FR, Smirnoff AV. Adderall XR: long acting stimulant for single daily
+📝 [SemanticChunker] Chunk 17: 110 words
+📝 [SemanticChunker] Processing chunk 18
+📝 [SemanticChunker] Snapping to section: 15. Sallee FR, Smirnoff AV. Adderall XR: long acting stimulant for single daily
+📝 [SemanticChunker] Chunk 18: 91 words
+📝 [SemanticChunker] Processing chunk 19
+📝 [SemanticChunker] Snapping to section: 15. Sallee FR, Smirnoff AV. Adderall XR: long acting stimulant for single daily
+📝 [SemanticChunker] Chunk 19: 87 words
+📝 [SemanticChunker] Processing chunk 20
+📝 [SemanticChunker] Snapping to section: 19. U.S. Food & Drug Administration. FOCALIN XR Prescribing Information.
+📝 [SemanticChunker] Chunk 20: 101 words
+📝 [SemanticChunker] Processing chunk 21
+📝 [SemanticChunker] Snapping to section: 19. U.S. Food & Drug Administration. FOCALIN XR Prescribing Information.
+📝 [SemanticChunker] Chunk 21: 87 words
+📝 [SemanticChunker] Processing chunk 22
+📝 [SemanticChunker] Snapping to section: 23. Jain D, Raturi R, Jain V, Bansal P, Singh R.Recent technologies in pulsatile drug
+📝 [SemanticChunker] Chunk 22: 98 words
+📝 [SemanticChunker] Processing chunk 23
+📝 [SemanticChunker] Snapping to section: 23. Jain D, Raturi R, Jain V, Bansal P, Singh R.Recent technologies in pulsatile drug
+📝 [SemanticChunker] Chunk 23: 97 words
+📝 [SemanticChunker] Processing chunk 24
+📝 [SemanticChunker] Snapping to section: 23. Jain D, Raturi R, Jain V, Bansal P, Singh R.Recent technologies in pulsatile drug
+📝 [SemanticChunker] Chunk 24: 93 words
+📝 [SemanticChunker] Processing chunk 25
+📝 [SemanticChunker] Chunk 25: 40 words
+🔍 [SemanticChunker] Created 25 semantically-aware chunks
+🔍 [SemanticChunker] Avg words/chunk: 110
+🔍 [SemanticChunker] Avg semantic density: 0.55
+🔍 [SemanticChunker] Chunks with sections: 25
+🔍 [SemanticChunker] Chunks with numeric data: 23
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=3.7, lang=nl) Sample: "Biogen, Biohaven, BioXcel, Boehringer Ingelheim, Brii Biosciences, Bristol..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=3.7, lang=nl) Sample: "Biogen, Biohaven, BioXcel, Boehringer Ingelheim, Brii Biosciences, Bristol..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=3.7, lang=nl) Sample: "Biogen, Biohaven, BioXcel, Boehringer Ingelheim, Brii Biosciences, Bristol..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=3.7, lang=nl) Sample: "Biogen, Biohaven, BioXcel, Boehringer Ingelheim, Brii Biosciences, Bristol..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=3.8, lang=en) Sample: "1. American Psychiatric Association. Diagnostic and Statistical Manual of..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=3.8, lang=en) Sample: "1. American Psychiatric Association. Diagnostic and Statistical Manual of..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.1, lang=en) Sample: "2. Faraone SV, Bellgrove MA, Brikell I, et al.Attention-deficit/hyperactivity dis-..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.1, lang=en) Sample: "2. Faraone SV, Bellgrove MA, Brikell I, et al.Attention-deficit/hyperactivity dis-..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.5, lang=en) Sample: "3. Mechler K, Banaschewski T, Hohmann S, Häge A.Evidence-based pharorder. Nat Rev Dis Primers.2024;1..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.5, lang=en) Sample: "3. Mechler K, Banaschewski T, Hohmann S, Häge A.Evidence-based pharorder. Nat Rev Dis Primers.2024;1..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.5, lang=en) Sample: "3. Mechler K, Banaschewski T, Hohmann S, Häge A.Evidence-based pharorder. Nat Rev Dis Primers.2024;1..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.5, lang=en) Sample: "3. Mechler K, Banaschewski T, Hohmann S, Häge A.Evidence-based pharorder. Nat Rev Dis Primers.2024;1..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.2, lang=en) Sample: "6. U.S. Food & Drug Administration. Attention Deficit Hyperactivity Disorhttps://www.fda.gov/regulat..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.0, lang=en) Sample: "5. Childress AC. Novel formulations of ADHD medications: stimulant selec-..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.0, lang=en) Sample: "7. Childress AC, Komolova M, Sallee FR. An update on the pharmacokinetic..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.0, lang=en) Sample: "7. Childress AC, Komolova M, Sallee FR. An update on the pharmacokinetic..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.1, lang=tr) Sample: "8. Ermer JC, Adeyi BA, Pucci ML. Pharmacokinetic variability of long-acting..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.1, lang=tr) Sample: "8. Ermer JC, Adeyi BA, Pucci ML. Pharmacokinetic variability of long-acting..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.1, lang=tr) Sample: "8. Ermer JC, Adeyi BA, Pucci ML. Pharmacokinetic variability of long-acting..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.1, lang=tr) Sample: "8. Ermer JC, Adeyi BA, Pucci ML. Pharmacokinetic variability of long-acting..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.0, lang=en) Sample: "10. Ahmed R, Aslani P.Attention-deficit/hyperactivity disorder: an update on..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.0, lang=en) Sample: "10. Ahmed R, Aslani P.Attention-deficit/hyperactivity disorder: an update on..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.0, lang=en) Sample: "10. Ahmed R, Aslani P.Attention-deficit/hyperactivity disorder: an update on..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.0, lang=en) Sample: "10. Ahmed R, Aslani P.Attention-deficit/hyperactivity disorder: an update on..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.0, lang=en) Sample: "10. Ahmed R, Aslani P.Attention-deficit/hyperactivity disorder: an update on..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.0, lang=en) Sample: "10. Ahmed R, Aslani P.Attention-deficit/hyperactivity disorder: an update on..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.0, lang=en) Sample: "10. Ahmed R, Aslani P.Attention-deficit/hyperactivity disorder: an update on..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.0, lang=en) Sample: "10. Ahmed R, Aslani P.Attention-deficit/hyperactivity disorder: an update on..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.0, lang=en) Sample: "11. Christensen L, Sasané R, Hodgkins P, Harley C, Tetali S.Pharmacological..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.0, lang=en) Sample: "11. Christensen L, Sasané R, Hodgkins P, Harley C, Tetali S.Pharmacological..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.0, lang=en) Sample: "11. Christensen L, Sasané R, Hodgkins P, Harley C, Tetali S.Pharmacological..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.0, lang=en) Sample: "11. Christensen L, Sasané R, Hodgkins P, Harley C, Tetali S.Pharmacological..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.0, lang=en) Sample: "15. Sallee FR, Smirnoff AV. Adderall XR: long acting stimulant for single daily..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.0, lang=en) Sample: "14. U.S. Food & Drug Administration. METADATE CD Prescribing Informa-..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.0, lang=en) Sample: "16. U.S. Food & Drug Administration. ADDERALL XR Prescribing Information...."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.0, lang=en) Sample: "16. U.S. Food & Drug Administration. ADDERALL XR Prescribing Information...."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.0, lang=en) Sample: "19. U.S. Food & Drug Administration. FOCALIN XR Prescribing Information...."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.2, lang=en) Sample: "18. Strawn JR, Dobson ET, Giles LL. Primary pediatric care psychopharmacology:..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.0, lang=en) Sample: "19. U.S. Food & Drug Administration. FOCALIN XR Prescribing Information...."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.0, lang=en) Sample: "19. U.S. Food & Drug Administration. FOCALIN XR Prescribing Information...."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.0, lang=en) Sample: "19. U.S. Food & Drug Administration. FOCALIN XR Prescribing Information...."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.0, lang=en) Sample: "19. U.S. Food & Drug Administration. FOCALIN XR Prescribing Information...."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.0, lang=en) Sample: "23. Jain D, Raturi R, Jain V, Bansal P, Singh R.Recent technologies in pulsatile drug..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.0, lang=en) Sample: "22. U.S. Food & Drug Administration. RELEXXII Prescribing Information...."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.0, lang=en) Sample: "25. Nugent SG, Kumar D, Rampton DS, Evans DF. Intestinal luminal pH in..."
+🔍 [DocumentProcessor] Created companion table chunks for page 12, section: none
+🔍 [SemanticChunker] Starting advanced chunking
+🔍 [SemanticChunker] Target: 240w, Min: 80w, Max: 310w
+🔍 [SemanticChunker] Overlap: 45w
+🔍 [SemanticChunker] Detected 47 sections
+🔍 [SemanticChunker] Detected 0 linguistic topic boundaries
+📝 [SemanticChunker] Processing chunk 1
+📝 [SemanticChunker] Snapping to section: 28. U.S. Food & Drug Administration. APTENSIO XR Prescribing Information.
+📝 [SemanticChunker] Chunk 1: 98 words
+📝 [SemanticChunker] Processing chunk 2
+📝 [SemanticChunker] Snapping to section: 29. U.S. Food & Drug Administration. ADHANSIA XR Prescribing Information.
+📝 [SemanticChunker] Chunk 2: 82 words
+📝 [SemanticChunker] Processing chunk 3
+📝 [SemanticChunker] Snapping to section: 31. Highland Therapeutics. Next-generation drug delivery targets early-morning
+📝 [SemanticChunker] Chunk 3: 104 words
+📝 [SemanticChunker] Processing chunk 4
+📝 [SemanticChunker] Snapping to section: 31. Highland Therapeutics. Next-generation drug delivery targets early-morning
+📝 [SemanticChunker] Chunk 4: 89 words
+📝 [SemanticChunker] Processing chunk 5
+📝 [SemanticChunker] Snapping to section: 31. Highland Therapeutics. Next-generation drug delivery targets early-morning
+📝 [SemanticChunker] Chunk 5: 87 words
+📝 [SemanticChunker] Processing chunk 6
+📝 [SemanticChunker] Snapping to section: 35. Markovic M, Ben-Shabat S, Dahan A.Prodrugs for improved drug delivery:
+📝 [SemanticChunker] Chunk 6: 84 words
+📝 [SemanticChunker] Processing chunk 7
+📝 [SemanticChunker] Snapping to section: 38. U.S. Food & Drug Administration. VYVANSE Prescribing Information.
+📝 [SemanticChunker] Chunk 7: 91 words
+📝 [SemanticChunker] Processing chunk 8
+📝 [SemanticChunker] Snapping to section: 39. Center for Drug Evaluation and Research. Multi-discipline review (Azstarys).
+📝 [SemanticChunker] Chunk 8: 91 words
+📝 [SemanticChunker] Processing chunk 9
+📝 [SemanticChunker] Snapping to section: 39. Center for Drug Evaluation and Research. Multi-discipline review (Azstarys).
+📝 [SemanticChunker] Chunk 9: 81 words
+📝 [SemanticChunker] Processing chunk 10
+📝 [SemanticChunker] Snapping to section: A. J. Cutler and J. Hanaie
+📝 [SemanticChunker] Chunk 10: 86 words
+📝 [SemanticChunker] Processing chunk 11
+📝 [SemanticChunker] Snapping to section: A. J. Cutler and J. Hanaie
+📝 [SemanticChunker] Chunk 11: 85 words
+📝 [SemanticChunker] Processing chunk 12
+📝 [SemanticChunker] Snapping to section: A. J. Cutler and J. Hanaie
+📝 [SemanticChunker] Chunk 12: 83 words
+📝 [SemanticChunker] Processing chunk 13
+📝 [SemanticChunker] Snapping to section: 46. Pardo A, King TR, Rafla E, Kando JC. Assessing palatability of a new
+📝 [SemanticChunker] Chunk 13: 102 words
+📝 [SemanticChunker] Processing chunk 14
+📝 [SemanticChunker] Snapping to section: 46. Pardo A, King TR, Rafla E, Kando JC. Assessing palatability of a new
+📝 [SemanticChunker] Chunk 14: 95 words
+📝 [SemanticChunker] Processing chunk 15
+📝 [SemanticChunker] Snapping to section: 46. Pardo A, King TR, Rafla E, Kando JC. Assessing palatability of a new
+📝 [SemanticChunker] Chunk 15: 94 words
+📝 [SemanticChunker] Processing chunk 16
+📝 [SemanticChunker] Snapping to section: 50. U.S. Food & Drug Administration. DYANAVEL XR Prescribing Informa-
+📝 [SemanticChunker] Chunk 16: 89 words
+📝 [SemanticChunker] Processing chunk 17
+📝 [SemanticChunker] Snapping to section: 50. U.S. Food & Drug Administration. DYANAVEL XR Prescribing Informa-
+📝 [SemanticChunker] Chunk 17: 88 words
+📝 [SemanticChunker] Processing chunk 18
+📝 [SemanticChunker] Snapping to section: 50. U.S. Food & Drug Administration. DYANAVEL XR Prescribing Informa-
+📝 [SemanticChunker] Chunk 18: 83 words
+📝 [SemanticChunker] Processing chunk 19
+📝 [SemanticChunker] Snapping to section: 53. Buck ML. Improving compliance with medication regimens. Pediatr Pharsites/237/2015/12/199708.pdf
+📝 [SemanticChunker] Chunk 19: 83 words
+📝 [SemanticChunker] Processing chunk 20
+📝 [SemanticChunker] Snapping to section: 53. Buck ML. Improving compliance with medication regimens. Pediatr Pharsites/237/2015/12/199708.pdf
+📝 [SemanticChunker] Chunk 20: 82 words
+📝 [SemanticChunker] Processing chunk 21
+📝 [SemanticChunker] Snapping to section: 54. Connor DF, Steingard RJ. New formulations of stimulants for attentiondeficit hyperactivity disorder: therapeutic potential. CNS Drugs. 2004;18
+📝 [SemanticChunker] Chunk 21: 106 words
+📝 [SemanticChunker] Processing chunk 22
+📝 [SemanticChunker] Snapping to section: 54. Connor DF, Steingard RJ. New formulations of stimulants for attentiondeficit hyperactivity disorder: therapeutic potential. CNS Drugs. 2004;18
+📝 [SemanticChunker] Chunk 22: 82 words
+📝 [SemanticChunker] Processing chunk 23
+📝 [SemanticChunker] Snapping to section: 54. Connor DF, Steingard RJ. New formulations of stimulants for attentiondeficit hyperactivity disorder: therapeutic potential. CNS Drugs. 2004;18
+📝 [SemanticChunker] Chunk 23: 81 words
+📝 [SemanticChunker] Processing chunk 24
+📝 [SemanticChunker] Snapping to section: 57. Steingard R, Taskiran S, Connor DF, Markowitz JS, Stein MA. New
+📝 [SemanticChunker] Chunk 24: 80 words
+📝 [SemanticChunker] Processing chunk 25
+📝 [SemanticChunker] Snapping to section: 59. KemPharm. KemPharm's LAT Platform. https://www.youtube.com/watch?
+📝 [SemanticChunker] Chunk 25: 107 words
+📝 [SemanticChunker] Processing chunk 26
+📝 [SemanticChunker] Snapping to section: 59. KemPharm. KemPharm's LAT Platform. https://www.youtube.com/watch?
+📝 [SemanticChunker] Chunk 26: 87 words
+📝 [SemanticChunker] Processing chunk 27
+📝 [SemanticChunker] Snapping to section: 59. KemPharm. KemPharm's LAT Platform. https://www.youtube.com/watch?
+📝 [SemanticChunker] Chunk 27: 81 words
+📝 [SemanticChunker] Processing chunk 28
+📝 [SemanticChunker] Snapping to section: 62. Wigal T, Brams M, Gasior M, et al.Randomized, double-blind, placebodimesylate in adults with attention-deficit/hyperactivity disorder: novel
+📝 [SemanticChunker] Chunk 28: 101 words
+📝 [SemanticChunker] Processing chunk 29
+📝 [SemanticChunker] Snapping to section: 62. Wigal T, Brams M, Gasior M, et al.Randomized, double-blind, placebodimesylate in adults with attention-deficit/hyperactivity disorder: novel
+📝 [SemanticChunker] Chunk 29: 80 words
+📝 [SemanticChunker] Processing chunk 30
+📝 [SemanticChunker] Snapping to section: 63. Jasinski DR, Krishnan S.Human pharmacology of intravenous lisdexamfemacol.2009;23(4):410-418. doi:10.1177/0269881108093841
+📝 [SemanticChunker] Chunk 30: 125 words
+📝 [SemanticChunker] Processing chunk 31
+📝 [SemanticChunker] Snapping to section: CNS Spectrums
+📝 [SemanticChunker] Chunk 31: 99 words
+📝 [SemanticChunker] Processing chunk 32
+📝 [SemanticChunker] Snapping to section: 65. Shram MJ, Setnik B, Webster L, et al.Oral, intranasal, and intravenous
+📝 [SemanticChunker] Chunk 32: 102 words
+📝 [SemanticChunker] Processing chunk 33
+📝 [SemanticChunker] Snapping to section: 66. Markowitz JS, Patrick KS. The clinical pharmacokinetics of amphetamines utilized in the treatment of attention-deficit/hyperactivity disorcap.2017.0071
+📝 [SemanticChunker] Chunk 33: 107 words
+📝 [SemanticChunker] Processing chunk 34
+📝 [SemanticChunker] Snapping to section: 67. Zhu HJ, Patrick KS, Yuan HJ, et al.Two CESI gene mutations lead to
+📝 [SemanticChunker] Chunk 34: 99 words
+📝 [SemanticChunker] Processing chunk 35
+📝 [SemanticChunker] Snapping to section: 68. Dinis-Oliveira RJ. Metabolomics of methylphenidate and ethylphenidate:
+📝 [SemanticChunker] Chunk 35: 108 words
+📝 [SemanticChunker] Processing chunk 36
+📝 [SemanticChunker] Snapping to section: 69. Trofimiuk M, Wasilewska K, Winnicka K.How to modify drug release in
+📝 [SemanticChunker] Chunk 36: 85 words
+📝 [SemanticChunker] Processing chunk 37
+📝 [SemanticChunker] Snapping to section: 70. Cutler AJ, Childress AC, Pardo A, et al.Randomized, double-blind, placebo-
+📝 [SemanticChunker] Chunk 37: 113 words
+📝 [SemanticChunker] Processing chunk 38
+📝 [SemanticChunker] Snapping to section: 71. Childress AC, Kando JC, King TR, Pardo A, Herman BK. Early-onset efficacy
+📝 [SemanticChunker] Chunk 38: 119 words
+📝 [SemanticChunker] Processing chunk 39
+📝 [SemanticChunker] Snapping to section: 71. Childress AC, Kando JC, King TR, Pardo A, Herman BK. Early-onset efficacy
+📝 [SemanticChunker] Chunk 39: 81 words
+📝 [SemanticChunker] Processing chunk 40
+📝 [SemanticChunker] Chunk 40: 121 words
+📝 [SemanticChunker] Processing chunk 41
+📝 [SemanticChunker] Chunk 41: 79 words
+📝 [SemanticChunker] Processing chunk 42
+📝 [SemanticChunker] Chunk 42: 74 words
+🔍 [SemanticChunker] Created 42 semantically-aware chunks
+🔍 [SemanticChunker] Avg words/chunk: 92
+🔍 [SemanticChunker] Avg semantic density: 0.52
+🔍 [SemanticChunker] Chunks with sections: 41
+🔍 [SemanticChunker] Chunks with numeric data: 42
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.1, lang=en) Sample: "26. Childress AC, Brams MN, Cutler A), Donnelly GAE, Bhaskar S.Efficacy..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.1, lang=en) Sample: "26. Childress AC, Brams MN, Cutler A), Donnelly GAE, Bhaskar S.Efficacy..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.1, lang=en) Sample: "26. Childress AC, Brams MN, Cutler A), Donnelly GAE, Bhaskar S.Efficacy..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.1, lang=en) Sample: "26. Childress AC, Brams MN, Cutler A), Donnelly GAE, Bhaskar S.Efficacy..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.1, lang=en) Sample: "26. Childress AC, Brams MN, Cutler A), Donnelly GAE, Bhaskar S.Efficacy..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.1, lang=en) Sample: "26. Childress AC, Brams MN, Cutler A), Donnelly GAE, Bhaskar S.Efficacy..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.1, lang=en) Sample: "26. Childress AC, Brams MN, Cutler A), Donnelly GAE, Bhaskar S.Efficacy..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.1, lang=en) Sample: "26. Childress AC, Brams MN, Cutler A), Donnelly GAE, Bhaskar S.Efficacy..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.1, lang=en) Sample: "31. Highland Therapeutics. Next-generation drug delivery targets early-morning..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.0, lang=en) Sample: "29. U.S. Food & Drug Administration. ADHANSIA XR Prescribing Information...."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.2, lang=en) Sample: "35. Markovic M, Ben-Shabat S, Dahan A.Prodrugs for improved drug delivery:..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.1, lang=en) Sample: "34. U.S. Food & Drug Administration. XELSTRYM Prescribing Information...."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.2, lang=en) Sample: "35. Markovic M, Ben-Shabat S, Dahan A.Prodrugs for improved drug delivery:..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.2, lang=en) Sample: "35. Markovic M, Ben-Shabat S, Dahan A.Prodrugs for improved drug delivery:..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.2, lang=en) Sample: "36. Ermer JC, Pennick M, Frick G.Lisdexamfetamine dimesylate: prodrug..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.2, lang=en) Sample: "36. Ermer JC, Pennick M, Frick G.Lisdexamfetamine dimesylate: prodrug..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.2, lang=en) Sample: "39. Center for Drug Evaluation and Research. Multi-discipline review (Azstarys)...."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.1, lang=en) Sample: "38. U.S. Food & Drug Administration. VYVANSE Prescribing Information...."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.2, lang=en) Sample: "39. Center for Drug Evaluation and Research. Multi-discipline review (Azstarys)...."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.2, lang=en) Sample: "39. Center for Drug Evaluation and Research. Multi-discipline review (Azstarys)...."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.2, lang=en) Sample: "39. Center for Drug Evaluation and Research. Multi-discipline review (Azstarys)...."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.2, lang=en) Sample: "39. Center for Drug Evaluation and Research. Multi-discipline review (Azstarys)...."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=3.4, lang=en) Sample: "A. J. Cutler and J. Hanaie..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.0, lang=en) Sample: "41. U.S. Food & Drug Administration. AZSTARYS Prescribing Information...."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.1, lang=en) Sample: "42. Mattingly GW, Young JL. A clinician's guide for navigating the world of..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.1, lang=en) Sample: "42. Mattingly GW, Young JL. A clinician's guide for navigating the world of..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.1, lang=en) Sample: "42. Mattingly GW, Young JL. A clinician's guide for navigating the world of..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.1, lang=en) Sample: "42. Mattingly GW, Young JL. A clinician's guide for navigating the world of..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.0, lang=en) Sample: "46. Pardo A, King TR, Rafla E, Kando JC. Assessing palatability of a new..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.0, lang=en) Sample: "45. U.S. Food & Drug Administration. ADZENYS ER Prescribing Information...."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.0, lang=en) Sample: "46. Pardo A, King TR, Rafla E, Kando JC. Assessing palatability of a new..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.0, lang=en) Sample: "46. Pardo A, King TR, Rafla E, Kando JC. Assessing palatability of a new..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.0, lang=en) Sample: "46. Pardo A, King TR, Rafla E, Kando JC. Assessing palatability of a new..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.0, lang=en) Sample: "46. Pardo A, King TR, Rafla E, Kando JC. Assessing palatability of a new..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.1, lang=en) Sample: "50. U.S. Food & Drug Administration. DYANAVEL XR Prescribing Informa-..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.2, lang=en) Sample: "49. U.S. Food & Drug Administration. QUILLICHEW ER Prescribing Infor-..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.1, lang=en) Sample: "50. U.S. Food & Drug Administration. DYANAVEL XR Prescribing Informa-..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.1, lang=en) Sample: "50. U.S. Food & Drug Administration. DYANAVEL XR Prescribing Informa-..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.1, lang=en) Sample: "50. U.S. Food & Drug Administration. DYANAVEL XR Prescribing Informa-..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.1, lang=en) Sample: "50. U.S. Food & Drug Administration. DYANAVEL XR Prescribing Informa-..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.0, lang=en) Sample: "51. Adare Pharma Solutions. Diffucaps®. https://adarepharmasolutions.com/..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.0, lang=en) Sample: "51. Adare Pharma Solutions. Diffucaps®. https://adarepharmasolutions.com/..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.0, lang=en) Sample: "51. Adare Pharma Solutions. Diffucaps®. https://adarepharmasolutions.com/..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.0, lang=en) Sample: "51. Adare Pharma Solutions. Diffucaps®. https://adarepharmasolutions.com/..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.3, lang=en) Sample: "54. Connor DF, Steingard RJ. New formulations of stimulants for attentiondeficit hyperactivity disor..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.6, lang=en) Sample: "53. Buck ML. Improving compliance with medication regimens. Pediatr Pharsites/237/2015/12/199708.pdf..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.3, lang=en) Sample: "54. Connor DF, Steingard RJ. New formulations of stimulants for attentiondeficit hyperactivity disor..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.3, lang=en) Sample: "54. Connor DF, Steingard RJ. New formulations of stimulants for attentiondeficit hyperactivity disor..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.0, lang=en) Sample: "55. Moodley K, Pillay V, Choonara YE, et al.Oral drug delivery systems..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.0, lang=en) Sample: "55. Moodley K, Pillay V, Choonara YE, et al.Oral drug delivery systems..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.0, lang=en) Sample: "55. Moodley K, Pillay V, Choonara YE, et al.Oral drug delivery systems..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.0, lang=en) Sample: "55. Moodley K, Pillay V, Choonara YE, et al.Oral drug delivery systems..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.1, lang=en) Sample: "59. KemPharm. KemPharm's LAT Platform. https://www.youtube.com/watch?..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=3.9, lang=id) Sample: "57. Steingard R, Taskiran S, Connor DF, Markowitz JS, Stein MA. New..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=3.8, lang=en) Sample: "60. Incledon B, Incledon C, Gomeni R, et al.Effect of colonic absorption on the..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=3.8, lang=en) Sample: "60. Incledon B, Incledon C, Gomeni R, et al.Effect of colonic absorption on the..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=3.8, lang=en) Sample: "60. Incledon B, Incledon C, Gomeni R, et al.Effect of colonic absorption on the..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=3.8, lang=en) Sample: "60. Incledon B, Incledon C, Gomeni R, et al.Effect of colonic absorption on the..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.1, lang=en) Sample: "61. Mattingly GW, Wilson J, Ugarte L, Glaser P.Individualization of attention-..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.1, lang=en) Sample: "61. Mattingly GW, Wilson J, Ugarte L, Glaser P.Individualization of attention-..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.2, lang=en) Sample: "62. Wigal T, Brams M, Gasior M, et al.Randomized, double-blind, placebodimesylate in adults with att..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.2, lang=en) Sample: "62. Wigal T, Brams M, Gasior M, et al.Randomized, double-blind, placebodimesylate in adults with att..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.2, lang=en) Sample: "62. Wigal T, Brams M, Gasior M, et al.Randomized, double-blind, placebodimesylate in adults with att..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.2, lang=en) Sample: "62. Wigal T, Brams M, Gasior M, et al.Randomized, double-blind, placebodimesylate in adults with att..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.1, lang=en) Sample: "64. Jasinski DR, Krishnan S.Abuse liability and safety of oral lisdexamfetamine..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.1, lang=en) Sample: "64. Jasinski DR, Krishnan S.Abuse liability and safety of oral lisdexamfetamine..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=3.9, lang=en) Sample: "65. Shram MJ, Setnik B, Webster L, et al.Oral, intranasal, and intravenous..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=3.9, lang=en) Sample: "65. Shram MJ, Setnik B, Webster L, et al.Oral, intranasal, and intravenous..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.3, lang=en) Sample: "66. Markowitz JS, Patrick KS. The clinical pharmacokinetics of amphetamines utilized in the treatmen..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.3, lang=en) Sample: "66. Markowitz JS, Patrick KS. The clinical pharmacokinetics of amphetamines utilized in the treatmen..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.3, lang=en) Sample: "66. Markowitz JS, Patrick KS. The clinical pharmacokinetics of amphetamines utilized in the treatmen..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.3, lang=en) Sample: "66. Markowitz JS, Patrick KS. The clinical pharmacokinetics of amphetamines utilized in the treatmen..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.1, lang=en) Sample: "67. Zhu HJ, Patrick KS, Yuan HJ, et al.Two CESI gene mutations lead to..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.1, lang=en) Sample: "67. Zhu HJ, Patrick KS, Yuan HJ, et al.Two CESI gene mutations lead to..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.1, lang=pl) Sample: "69. Trofimiuk M, Wasilewska K, Winnicka K.How to modify drug release in..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.1, lang=pl) Sample: "69. Trofimiuk M, Wasilewska K, Winnicka K.How to modify drug release in..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.1, lang=pl) Sample: "69. Trofimiuk M, Wasilewska K, Winnicka K.How to modify drug release in..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.1, lang=pl) Sample: "69. Trofimiuk M, Wasilewska K, Winnicka K.How to modify drug release in..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.0, lang=en) Sample: "70. Cutler AJ, Childress AC, Pardo A, et al.Randomized, double-blind, placebo-..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.0, lang=en) Sample: "70. Cutler AJ, Childress AC, Pardo A, et al.Randomized, double-blind, placebo-..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.0, lang=en) Sample: "70. Cutler AJ, Childress AC, Pardo A, et al.Randomized, double-blind, placebo-..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.0, lang=en) Sample: "70. Cutler AJ, Childress AC, Pardo A, et al.Randomized, double-blind, placebo-..."
+ℹ️  [DocumentProcessor] Structure-aware chunking: 31 tables, 0 lists, 138 paragraphs
+ℹ️  [DocumentProcessor] Created 172 structure-aware chunks
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=3.4, lang=en) Sample: "A. J. Cutler and J. Hanaie..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=3.4, lang=en) Sample: "A. J. Cutler and J. Hanaie..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=3.4, lang=en) Sample: "A. J. Cutler and J. Hanaie..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=3.4, lang=en) Sample: "A. J. Cutler and J. Hanaie..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=3.4, lang=en) Sample: "A. J. Cutler and J. Hanaie..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=3.4, lang=en) Sample: "A. J. Cutler and J. Hanaie..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=3.4, lang=en) Sample: "A. J. Cutler and J. Hanaie..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=3.4, lang=en) Sample: "A. J. Cutler and J. Hanaie..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=3.4, lang=en) Sample: "A. J. Cutler and J. Hanaie..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=3.4, lang=en) Sample: "A. J. Cutler and J. Hanaie..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=3.4, lang=en) Sample: "A. J. Cutler and J. Hanaie..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=3.4, lang=en) Sample: "A. J. Cutler and J. Hanaie..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=3.7, lang=en) Sample: "Ritalin LA® MPH Two peaks..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=3.7, lang=en) Sample: "Ritalin LA® MPH Two peaks..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=3.7, lang=en) Sample: "Ritalin LA® MPH Two peaks..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=3.8, lang=en) Sample: "Adhansia XR° MPH Two peaks..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=3.8, lang=en) Sample: "Adhansia XR° MPH Two peaks..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=3.8, lang=en) Sample: "Adhansia XR° MPH Two peaks..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=3.8, lang=en) Sample: "Adhansia XR° MPH Two peaks..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=3.9, lang=en) Sample: "Microparticles: Each ODT has drug..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=3.9, lang=en) Sample: "Microparticles: Each ODT has drug..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=3.9, lang=en) Sample: "Microparticles: Each ODT has drug..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=3.9, lang=en) Sample: "Microparticles: Each ODT has drug..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=3.9, lang=en) Sample: "Adzenys XR-ODT® Single peak..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=3.9, lang=en) Sample: "Adzenys XR-ODT® Single peak..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=3.8, lang=en) Sample: "Adzenys ERTM Single peak..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=3.8, lang=en) Sample: "Adzenys ERTM Single peak..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=3.8, lang=en) Sample: "Adzenys ERTM Single peak..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=3.8, lang=en) Sample: "Adzenys ERTM Single peak..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=3.5, lang=fr) Sample: "18.8 mg dose d-AMP: Shak..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=3.5, lang=fr) Sample: "18.8 mg dose d-AMP: Shak..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=3.5, lang=fr) Sample: "18.8 mg dose d-AMP: Shak..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=3.4, lang=en) Sample: "A. J. Cutler and J. Hanaie..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=3.4, lang=en) Sample: "A. J. Cutler and J. Hanaie..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=3.4, lang=en) Sample: "A. J. Cutler and J. Hanaie..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=3.4, lang=en) Sample: "A. J. Cutler and J. Hanaie..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=3.7, lang=nl) Sample: "Biogen, Biohaven, BioXcel, Boehringer Ingelheim, Brii Biosciences, Bristol..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=3.7, lang=nl) Sample: "Biogen, Biohaven, BioXcel, Boehringer Ingelheim, Brii Biosciences, Bristol..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=3.7, lang=nl) Sample: "Biogen, Biohaven, BioXcel, Boehringer Ingelheim, Brii Biosciences, Bristol..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=3.7, lang=nl) Sample: "Biogen, Biohaven, BioXcel, Boehringer Ingelheim, Brii Biosciences, Bristol..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=3.8, lang=en) Sample: "1. American Psychiatric Association. Diagnostic and Statistical Manual of..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=3.8, lang=en) Sample: "1. American Psychiatric Association. Diagnostic and Statistical Manual of..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.1, lang=en) Sample: "2. Faraone SV, Bellgrove MA, Brikell I, et al.Attention-deficit/hyperactivity dis-..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.1, lang=en) Sample: "2. Faraone SV, Bellgrove MA, Brikell I, et al.Attention-deficit/hyperactivity dis-..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.2, lang=en) Sample: "6. U.S. Food & Drug Administration. Attention Deficit Hyperactivity Disorhttps://www.fda.gov/regulat..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.0, lang=en) Sample: "5. Childress AC. Novel formulations of ADHD medications: stimulant selec-..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.0, lang=en) Sample: "7. Childress AC, Komolova M, Sallee FR. An update on the pharmacokinetic..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.0, lang=en) Sample: "7. Childress AC, Komolova M, Sallee FR. An update on the pharmacokinetic..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.1, lang=tr) Sample: "8. Ermer JC, Adeyi BA, Pucci ML. Pharmacokinetic variability of long-acting..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.1, lang=tr) Sample: "8. Ermer JC, Adeyi BA, Pucci ML. Pharmacokinetic variability of long-acting..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.1, lang=tr) Sample: "8. Ermer JC, Adeyi BA, Pucci ML. Pharmacokinetic variability of long-acting..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.1, lang=tr) Sample: "8. Ermer JC, Adeyi BA, Pucci ML. Pharmacokinetic variability of long-acting..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.0, lang=en) Sample: "10. Ahmed R, Aslani P.Attention-deficit/hyperactivity disorder: an update on..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.0, lang=en) Sample: "10. Ahmed R, Aslani P.Attention-deficit/hyperactivity disorder: an update on..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.0, lang=en) Sample: "10. Ahmed R, Aslani P.Attention-deficit/hyperactivity disorder: an update on..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.0, lang=en) Sample: "10. Ahmed R, Aslani P.Attention-deficit/hyperactivity disorder: an update on..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.0, lang=en) Sample: "10. Ahmed R, Aslani P.Attention-deficit/hyperactivity disorder: an update on..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.0, lang=en) Sample: "10. Ahmed R, Aslani P.Attention-deficit/hyperactivity disorder: an update on..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.0, lang=en) Sample: "10. Ahmed R, Aslani P.Attention-deficit/hyperactivity disorder: an update on..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.0, lang=en) Sample: "10. Ahmed R, Aslani P.Attention-deficit/hyperactivity disorder: an update on..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.0, lang=en) Sample: "11. Christensen L, Sasané R, Hodgkins P, Harley C, Tetali S.Pharmacological..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.0, lang=en) Sample: "11. Christensen L, Sasané R, Hodgkins P, Harley C, Tetali S.Pharmacological..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.0, lang=en) Sample: "11. Christensen L, Sasané R, Hodgkins P, Harley C, Tetali S.Pharmacological..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.0, lang=en) Sample: "11. Christensen L, Sasané R, Hodgkins P, Harley C, Tetali S.Pharmacological..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.0, lang=en) Sample: "14. U.S. Food & Drug Administration. METADATE CD Prescribing Informa-..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.0, lang=en) Sample: "16. U.S. Food & Drug Administration. ADDERALL XR Prescribing Information...."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.0, lang=en) Sample: "16. U.S. Food & Drug Administration. ADDERALL XR Prescribing Information...."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.0, lang=en) Sample: "19. U.S. Food & Drug Administration. FOCALIN XR Prescribing Information...."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.2, lang=en) Sample: "18. Strawn JR, Dobson ET, Giles LL. Primary pediatric care psychopharmacology:..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.0, lang=en) Sample: "19. U.S. Food & Drug Administration. FOCALIN XR Prescribing Information...."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.0, lang=en) Sample: "19. U.S. Food & Drug Administration. FOCALIN XR Prescribing Information...."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.0, lang=en) Sample: "19. U.S. Food & Drug Administration. FOCALIN XR Prescribing Information...."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.0, lang=en) Sample: "19. U.S. Food & Drug Administration. FOCALIN XR Prescribing Information...."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.0, lang=en) Sample: "22. U.S. Food & Drug Administration. RELEXXII Prescribing Information...."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.1, lang=en) Sample: "26. Childress AC, Brams MN, Cutler A), Donnelly GAE, Bhaskar S.Efficacy..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.1, lang=en) Sample: "26. Childress AC, Brams MN, Cutler A), Donnelly GAE, Bhaskar S.Efficacy..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.1, lang=en) Sample: "26. Childress AC, Brams MN, Cutler A), Donnelly GAE, Bhaskar S.Efficacy..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.1, lang=en) Sample: "26. Childress AC, Brams MN, Cutler A), Donnelly GAE, Bhaskar S.Efficacy..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.1, lang=en) Sample: "26. Childress AC, Brams MN, Cutler A), Donnelly GAE, Bhaskar S.Efficacy..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.1, lang=en) Sample: "26. Childress AC, Brams MN, Cutler A), Donnelly GAE, Bhaskar S.Efficacy..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.1, lang=en) Sample: "26. Childress AC, Brams MN, Cutler A), Donnelly GAE, Bhaskar S.Efficacy..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.1, lang=en) Sample: "26. Childress AC, Brams MN, Cutler A), Donnelly GAE, Bhaskar S.Efficacy..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.1, lang=en) Sample: "31. Highland Therapeutics. Next-generation drug delivery targets early-morning..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.0, lang=en) Sample: "29. U.S. Food & Drug Administration. ADHANSIA XR Prescribing Information...."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.2, lang=en) Sample: "35. Markovic M, Ben-Shabat S, Dahan A.Prodrugs for improved drug delivery:..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.1, lang=en) Sample: "34. U.S. Food & Drug Administration. XELSTRYM Prescribing Information...."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.2, lang=en) Sample: "35. Markovic M, Ben-Shabat S, Dahan A.Prodrugs for improved drug delivery:..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.2, lang=en) Sample: "35. Markovic M, Ben-Shabat S, Dahan A.Prodrugs for improved drug delivery:..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.2, lang=en) Sample: "36. Ermer JC, Pennick M, Frick G.Lisdexamfetamine dimesylate: prodrug..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.2, lang=en) Sample: "36. Ermer JC, Pennick M, Frick G.Lisdexamfetamine dimesylate: prodrug..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.2, lang=en) Sample: "39. Center for Drug Evaluation and Research. Multi-discipline review (Azstarys)...."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.1, lang=en) Sample: "38. U.S. Food & Drug Administration. VYVANSE Prescribing Information...."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.2, lang=en) Sample: "39. Center for Drug Evaluation and Research. Multi-discipline review (Azstarys)...."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.2, lang=en) Sample: "39. Center for Drug Evaluation and Research. Multi-discipline review (Azstarys)...."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.2, lang=en) Sample: "39. Center for Drug Evaluation and Research. Multi-discipline review (Azstarys)...."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.2, lang=en) Sample: "39. Center for Drug Evaluation and Research. Multi-discipline review (Azstarys)...."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=3.4, lang=en) Sample: "A. J. Cutler and J. Hanaie..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.0, lang=en) Sample: "41. U.S. Food & Drug Administration. AZSTARYS Prescribing Information...."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.0, lang=en) Sample: "45. U.S. Food & Drug Administration. ADZENYS ER Prescribing Information...."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.1, lang=en) Sample: "50. U.S. Food & Drug Administration. DYANAVEL XR Prescribing Informa-..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.2, lang=en) Sample: "49. U.S. Food & Drug Administration. QUILLICHEW ER Prescribing Infor-..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.1, lang=en) Sample: "50. U.S. Food & Drug Administration. DYANAVEL XR Prescribing Informa-..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.1, lang=en) Sample: "50. U.S. Food & Drug Administration. DYANAVEL XR Prescribing Informa-..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.1, lang=en) Sample: "50. U.S. Food & Drug Administration. DYANAVEL XR Prescribing Informa-..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.1, lang=en) Sample: "50. U.S. Food & Drug Administration. DYANAVEL XR Prescribing Informa-..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.0, lang=en) Sample: "51. Adare Pharma Solutions. Diffucaps®. https://adarepharmasolutions.com/..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.0, lang=en) Sample: "51. Adare Pharma Solutions. Diffucaps®. https://adarepharmasolutions.com/..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.0, lang=en) Sample: "51. Adare Pharma Solutions. Diffucaps®. https://adarepharmasolutions.com/..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.0, lang=en) Sample: "51. Adare Pharma Solutions. Diffucaps®. https://adarepharmasolutions.com/..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.6, lang=en) Sample: "53. Buck ML. Improving compliance with medication regimens. Pediatr Pharsites/237/2015/12/199708.pdf..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.0, lang=en) Sample: "55. Moodley K, Pillay V, Choonara YE, et al.Oral drug delivery systems..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.0, lang=en) Sample: "55. Moodley K, Pillay V, Choonara YE, et al.Oral drug delivery systems..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.0, lang=en) Sample: "55. Moodley K, Pillay V, Choonara YE, et al.Oral drug delivery systems..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.0, lang=en) Sample: "55. Moodley K, Pillay V, Choonara YE, et al.Oral drug delivery systems..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.1, lang=en) Sample: "59. KemPharm. KemPharm's LAT Platform. https://www.youtube.com/watch?..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=3.9, lang=id) Sample: "57. Steingard R, Taskiran S, Connor DF, Markowitz JS, Stein MA. New..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.1, lang=en) Sample: "61. Mattingly GW, Wilson J, Ugarte L, Glaser P.Individualization of attention-..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.1, lang=en) Sample: "61. Mattingly GW, Wilson J, Ugarte L, Glaser P.Individualization of attention-..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.1, lang=en) Sample: "64. Jasinski DR, Krishnan S.Abuse liability and safety of oral lisdexamfetamine..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.1, lang=en) Sample: "64. Jasinski DR, Krishnan S.Abuse liability and safety of oral lisdexamfetamine..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=3.9, lang=en) Sample: "65. Shram MJ, Setnik B, Webster L, et al.Oral, intranasal, and intravenous..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=3.9, lang=en) Sample: "65. Shram MJ, Setnik B, Webster L, et al.Oral, intranasal, and intravenous..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.1, lang=pl) Sample: "69. Trofimiuk M, Wasilewska K, Winnicka K.How to modify drug release in..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.1, lang=pl) Sample: "69. Trofimiuk M, Wasilewska K, Winnicka K.How to modify drug release in..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.1, lang=pl) Sample: "69. Trofimiuk M, Wasilewska K, Winnicka K.How to modify drug release in..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.1, lang=pl) Sample: "69. Trofimiuk M, Wasilewska K, Winnicka K.How to modify drug release in..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.0, lang=en) Sample: "70. Cutler AJ, Childress AC, Pardo A, et al.Randomized, double-blind, placebo-..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.0, lang=en) Sample: "70. Cutler AJ, Childress AC, Pardo A, et al.Randomized, double-blind, placebo-..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.0, lang=en) Sample: "70. Cutler AJ, Childress AC, Pardo A, et al.Randomized, double-blind, placebo-..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=4.0, lang=en) Sample: "70. Cutler AJ, Childress AC, Pardo A, et al.Randomized, double-blind, placebo-..."
+⚠️  [DocumentProcessor] ⚠️ SPLIT OVERSIZED CHUNK: 514t/336w → 2 sub-chunks (section: none, type: table)
+⚠️  [DocumentProcessor] ⚠️ SPLIT OVERSIZED CHUNK: 554t/337w → 2 sub-chunks (section: none, type: table)
+⚠️  [DocumentProcessor] ⚠️ SPLIT OVERSIZED CHUNK: 691t/357w → 3 sub-chunks (section: none, type: table)
+⚠️  [DocumentProcessor] ⚠️ SPLIT OVERSIZED CHUNK: 726t/399w → 2 sub-chunks (section: none, type: table)
+⚠️  [DocumentProcessor] ⚠️ SPLIT OVERSIZED CHUNK: 439t/239w → 2 sub-chunks (section: none, type: table)
+⚠️  [DocumentProcessor] ⚠️ SPLIT OVERSIZED CHUNK: 467t/350w → 2 sub-chunks (section: none, type: table)
+⚠️  [DocumentProcessor] ⚠️ SPLIT OVERSIZED CHUNK: 484t/326w → 2 sub-chunks (section: none, type: table)
+⚠️  [DocumentProcessor] ⚠️ SPLIT OVERSIZED CHUNK: 464t/348w → 2 sub-chunks (section: none, type: table)
+⚠️  [DocumentProcessor] ⚠️ SPLIT OVERSIZED CHUNK: 452t/287w → 2 sub-chunks (section: none, type: table)
+⚠️  [DocumentProcessor] ⚠️ SPLIT OVERSIZED CHUNK: 552t/251w → 2 sub-chunks (section: CNS Spectrums, type: paragraph)
+ℹ️  [DocumentProcessor] Token limit enforcement: split 10 oversized chunks → 172 → 183 total
+🔍 [DocumentProcessor] Token limit enforcement complete: 172→183 chunks, split=10, maxTokens=424/430
+🔍 [DocumentProcessor] ✅ Content coverage: 91.7% words, 147% chars (includes overlap)
+🔍 [DocumentProcessor] Created 183 semantic chunks in 4.090s
+🔍    📑 Semantic features:
+🔍       - Sections detected: 101/183
+🔍       - Keywords extracted: 183/183
+🔍       - Numeric data: 177/183
+🔍       - List structures: 131/183
+🔍       - Avg semantic density: 0.646
+🔍    📊 Chunk stats: avg=784, min=162, max=1974 chars
+🔍    ✅ Total processing: 118.62s
+ℹ️  [DocumentProcessor] Structured parsing stats: 11 tables, 0 lists, 0 titles, 0 entities detected
+📝 [HardwareTelemetry] Pulse Text Chunking @ 75%
+📝 [HardwareTelemetry] Pulse Query Processing @ 60%
+🔍 [Gazetteer] Added 55 terms with label 'Person' from S1092852925000070a.pdf
+📝 [HardwareTelemetry] Pulse Text Chunking @ 50%
+📝 [HardwareTelemetry] Pulse Query Processing @ 50%
+🔍 [Gazetteer] Added 54 terms with label 'Organization' from S1092852925000070a.pdf
+🔍 [Gazetteer] Added 27 terms with label 'Place' from S1092852925000070a.pdf
+🔍 [Gazetteer] Added 218 terms with label 'Technical' from S1092852925000070a.pdf
+📝 [HardwareTelemetry] Pulse Text Chunking @ 50%
+📝 [HardwareTelemetry] Pulse Query Processing @ 50%
+📝 [HardwareTelemetry] Pulse Text Chunking @ 50%
+📝 [HardwareTelemetry] Pulse Query Processing @ 50%
+📝 [HardwareTelemetry] Pulse Text Chunking @ 50%
+📝 [HardwareTelemetry] Pulse Query Processing @ 50%
+🔍 [Gazetteer] Saved 354 terms to disk
+🔍 [Gazetteer] Saved 354 terms to disk
+🔍 [Gazetteer] Saved 354 terms to disk
+🔍 [Gazetteer] Saved 354 terms to disk
+📝 [HardwareTelemetry] Haptic pulse: tick
+Updating content for activity D14D7F7C-69C2-4395-9307-5A04985AC954
+📝 [HardwareTelemetry] Haptic pulse: tick
+Updating content for activity D14D7F7C-69C2-4395-9307-5A04985AC954
+🔍 [Spotlight] Indexed document 'S1092852925000070a.pdf' in container 'General'
+📝 [HardwareTelemetry] Pulse Data Decoding @ 50%
+ℹ️  Skipping self-tuning rebuild: config updated during first ingest and there are no prior documents to rebuild.
+ℹ️  [Contextual] Document prefix: '[S1092852925000070a]'
+🔍 Generating embeddings for 183 chunks
+📝 [HardwareTelemetry] Haptic pulse: processing
+📝 [HardwareTelemetry] Sustain START Embedding
+📝 [HardwareTelemetry] Pulse Embedding @ 100%
+🔍 [Spotlight] Indexed container 'General'
+📝 [HardwareTelemetry] Haptic pulse: soft
+Updating content for activity D14D7F7C-69C2-4395-9307-5A04985AC954
+Updating content for activity D14D7F7C-69C2-4395-9307-5A04985AC954
+ℹ️  Embedded 183 chunks in 3.29s (avg: 18ms)
+📝 [HardwareTelemetry] Sustain STOP Embedding
+📝 [HardwareTelemetry] Haptic pulse: tick
+📝 [HardwareTelemetry] Haptic pulse: soft
+🔍 [BNNS] Batch buffered 183 chunks (persist deferred)
+ℹ️  [SQLiteFTS5] Stored 183 chunks for document 3EF06D4A-D816-4A9E-9C55-8648C7BBB44F
+ℹ️  [RAGService] Stored 183 chunks in FTS5 chunk index
+🔍 [ContainerVocabularyService] Loaded 0 container vocabularies
+ℹ️  [DocumentSummary] Generating summary for 'S1092852925000070a.pdf' (183 chunks)
+🔍 Foundation Models available - creating session...
+🔍 Initialized 4 engine-native tools for agentic RAG
+ℹ️  Apple Foundation Model session initialized (Agentic RAG)
+🔍 General chat mode: prompt=You are a document summarization assistant. Genera...
+🔍 Generation: ~4180 tokens, exec=automatic
+ℹ️  [GENERATION] Apple FM: Generation started – {execPref=automatic, maxTokens=200, pccAllowed=true, temperature=0.3}
+📝 [HardwareTelemetry] Sustain START LLM Inference
+ℹ️  [FM] Private Cloud Compute (TTFT: 4.43s)
+📝 [HardwareTelemetry] Haptic pulse: generation-start
+📝 [HardwareTelemetry] Haptic pulse: generation-tick
+📝 [HardwareTelemetry] Haptic pulse: generation-tick
+📝 [HardwareTelemetry] Sustain STOP LLM Inference
+🔍 [FM] Stream complete: 16 snapshots, 764 chars
+ℹ️  [FM] Generation complete: 109 words in 9.23s (☁️ Private Cloud Compute)
+📝 [HardwareTelemetry] Haptic pulse: generation-complete
+ℹ️  [GENERATION] Apple FM: Generation complete – {exec=Apple Foundation Model (Private Cloud Compute), tokens=109, totalTime=9.23, ttft=4.43}
+📝 [HardwareTelemetry] Pulse Embedding @ 80%
+📝 [HardwareTelemetry] Pulse Embedding @ 70%
+ℹ️  [DocumentSummary] Generated 109-word summary
+🔍 [BNNS] Batch buffered 1 chunks (persist deferred)
+ℹ️  [RAGService] RAPTOR-lite: Generated L1 summary for 'S1092852925000070a.pdf'
+🔍 [BNNS] Persisted 184 chunks (184 mmap'd)
+ℹ️  [ContentTagging] Content tagging model available
+📝 [HardwareTelemetry] Sustain START LLM Inference
+Updating content for activity D14D7F7C-69C2-4395-9307-5A04985AC954
+📝 [HardwareTelemetry] Sustain STOP LLM Inference
+ℹ️  [ContentTagging] Content flagged by Apple FM safety filter, using NLTagger fallback for S1092852925000070a.pdf
+ℹ️  [ContentTagging] NLTagger fallback: andrew, cambridge, delivery, informative, oros, review, technology, understanding
+ℹ️  [GENERATION] Content tags generated – {count=8, file=S1092852925000070a.pdf, tags=andrew, cambridge, delivery, informative, oros, review, technology, understanding}
+🔍  [RAGService] Saved 1 documents metadata
+🔍 [SuggestedQuestions] Cache invalidated for container 57F1E2B9
+🔍 [RetrievalConfig] Auto-recommended: default (narrative corpus: 1/1)
+📝 [HardwareTelemetry] Haptic pulse: ingested
+Updating content for activity D14D7F7C-69C2-4395-9307-5A04985AC954
+ℹ️  [CoreMLSentenceEmbeddingProvider] Ingestion mode OFF → restored default compute units
+ℹ️  [DatabaseDash] Phase 1: requesting getStatistics()
+ℹ️  [SQLiteFTS5] getStatistics() entered
+ℹ️  [SQLiteFTS5] getStatistics() complete — 1 docs
+📝 [HardwareTelemetry] Haptic pulse: tab
+ℹ️  [DatabaseDash] Phase 1: getStatistics() complete, requesting getDocumentStats()
+ℹ️  [SQLiteFTS5] getDocumentStats() entered
+ℹ️  [SQLiteFTS5] getDocumentStats() complete — 1 docs
+ℹ️  [DatabaseDash] Phase 1: getDocumentStats() complete — showing UI
+ℹ️  [DatabaseDash] Phase 2: loading diagnostics/vocabulary
+ℹ️  [DatabaseDash] Phase 2: complete
+🔍 [QueryEnhancement] Specification query → lookup
+ℹ️  [SelfTuning] Skipping auto-rebuild for container 57F1E2B9-69E6-44D8-9644-FFB6759F67E9 - in cooldown period (4.3s < 30.0s)
+🔍 [QueryEnhancement] Specification query → lookup
+ℹ️  [SuggestedQuestions] LLM polished 2 grounded questions
+ℹ️  [SuggestedQuestions] Generated 5 questions for container (refresh: false)
+🔍 [ChatScreen] Generated 4 dynamic suggested questions (force: false)
+Debug session ended with code 9: killed

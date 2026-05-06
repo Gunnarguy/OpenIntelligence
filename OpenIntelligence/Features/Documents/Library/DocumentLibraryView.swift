@@ -37,6 +37,9 @@ struct DocumentLibraryView: View {
     // Vision Capture and Cached Docs
     @State private var showVisionCapture = false
     @State private var showCachedDocs = false
+    @State private var pendingImportURLs: [URL] = []
+    @State private var pendingImportReview: DocumentImportReview?
+    @State private var showingImportReview = false
 
     let onViewVisualizations: (() -> Void)?
 
@@ -160,8 +163,130 @@ struct DocumentLibraryView: View {
     }
 
     var body: some View {
+        libraryAlertView
+    }
+
+    private var libraryAlertView: some View {
+        librarySheetView
+            .alert("Sample Import Failed", isPresented: sampleImportErrorBinding) {
+                Button("OK", role: .cancel) { sampleImportError = nil }
+            } message: {
+                if let message = sampleImportError {
+                    Text(message)
+                }
+            }
+            .alert("Error Processing Document", isPresented: ragServiceErrorBinding) {
+                Button("OK", role: .cancel) {
+                    ragService.lastError = nil
+                }
+            } message: {
+                if let error = ragService.lastError {
+                    Text(error)
+                }
+            }
+            .alert("Billing Error", isPresented: entitlementErrorBinding) {
+                Button("OK", role: .cancel) {
+                    Task { @MainActor in
+                        entitlementStore.lastError = nil
+                    }
+                }
+            } message: {
+                if let error = entitlementStore.lastError {
+                    Text(error)
+                }
+            }
+            .alert("New Library", isPresented: $showingNewLibraryPrompt) {
+                TextField("Library name", text: $newLibraryName)
+                Button("Cancel", role: .cancel) {
+                    newLibraryName = ""
+                }
+                Button("Create") {
+                    createNewLibrary()
+                }
+            } message: {
+                Text("Enter a name for your new library")
+            }
+            .alert("Delete Library?", isPresented: $showingDeleteConfirmation) {
+                Button("Cancel", role: .cancel) {
+                    libraryToDelete = nil
+                }
+                Button("Delete", role: .destructive) {
+                    confirmDeleteLibrary()
+                }
+            } message: {
+                if let lib = libraryToDelete {
+                    let docCount = ragService.documents.filter { $0.containerId == lib.id }.count
+                    Text("This will permanently delete \"\(lib.name)\" and all \(docCount) document\(docCount == 1 ? "" : "s") inside it. This cannot be undone.")
+                } else {
+                    Text("This will permanently delete this library and all documents inside it.")
+                }
+            }
+            .alert("Review Import", isPresented: $showingImportReview) {
+                Button("Cancel", role: .cancel) {
+                    discardPendingImportFiles()
+                    pendingImportReview = nil
+                }
+                Button("Import Anyway") {
+                    confirmPendingImport()
+                }
+            } message: {
+                if let review = pendingImportReview {
+                    Text(review.message)
+                }
+            }
+            .userActivity("com.openintelligence.documents") { activity in
+                activity.title = "Browse Document Library"
+                activity.isEligibleForSearch = true
+                activity.isEligibleForHandoff = true
+                if let containerId = containerService.activeContainerId as UUID? {
+                    activity.userInfo = ["containerId": containerId]
+                }
+            }
+    }
+
+    private var librarySheetView: some View {
+        libraryChromeView
+            .sheet(isPresented: $showingFilePicker) {
+                DocumentPicker { urls in
+                    reviewAndEnqueueDocuments(urls)
+                }
+            }
+            .sheet(isPresented: $showingContainerSettings) {
+                ContainerSettingsSheet(containerService: containerService, ragService: ragService)
+            }
+            .sheet(isPresented: $showingSemanticSearch) {
+                SemanticSearchView(
+                    ragService: ragService,
+                    containerService: containerService
+                )
+            }
+            .sheet(isPresented: $showingPlanSheet) {
+                PlanUpgradeSheet(entryPoint: activePaywallEntryPoint)
+                    .environmentObject(entitlementStore)
+            }
+            .sheet(isPresented: $showCachedDocs) {
+                CachedDocsView(ragService: ragService)
+            }
+    }
+
+    private var libraryChromeView: some View {
+        libraryContentView
+            .navigationTitle("Documents")
+            #if os(iOS)
+            .navigationBarTitleDisplayMode(.large)
+            #endif
+            .toolbar {
+                libraryToolbarContent
+            }
+            .overlay(alignment: .bottomTrailing) {
+                IngestionQueueOverlay(items: ragService.ingestionItems)
+                .padding(.trailing, 16)
+                .padding(.bottom, 16)
+            }
+    }
+
+    private var libraryContentView: some View {
         ZStack {
-            // Modern gradient background
             LinearGradient(
                 colors: [
                     DSColors.background,
@@ -178,194 +303,95 @@ struct DocumentLibraryView: View {
                 documentListView
             }
 
-            // Motherboard HUD - Full-screen X-ray overlay
-            // Shows glowing borders at the ACTUAL physical locations where
-            // the Neural Engine, GPU, and CPU sit behind the screen
             if settings.showSiliconHUD {
                 HardwareXRayOverlay()
-                    .allowsHitTesting(false) // Don't block touches
+                    .allowsHitTesting(false)
                     .transition(.opacity)
             }
         }
-        .navigationTitle("Documents")
-        #if os(iOS)
-            .navigationBarTitleDisplayMode(.large)
-        #endif
-            .toolbar {
-                ToolbarItem(placement: .automatic) {
-                    Button(action: presentDocumentPickerOrUpgrade) {
-                        Label("Add Document", systemImage: "plus")
-                    }
-                }
+    }
 
-                // MARK: - Vision Capture (v2 feature - disabled for v1 App Store release)
-                // ToolbarItem(placement: .automatic) {
-                //     Button {
-                //         showVisionCapture = true
-                //     } label: {
-                //         Label("Scan Document", systemImage: "doc.viewfinder")
-                //     }
-                // }
+    @ToolbarContentBuilder
+    private var libraryToolbarContent: some ToolbarContent {
+        ToolbarItem(placement: .automatic) {
+            Button(action: presentDocumentPickerOrUpgrade) {
+                Label("Add Document", systemImage: "plus")
+            }
+        }
 
-                // Cached Documentation browser
-                ToolbarItem(placement: .automatic) {
-                    Button {
-                        showCachedDocs = true
-                    } label: {
-                        Label("Cached Docs", systemImage: "doc.on.doc")
-                    }
-                }
+        ToolbarItem(placement: .automatic) {
+            Button {
+                showCachedDocs = true
+            } label: {
+                Label("Cached Docs", systemImage: "doc.on.doc")
+            }
+        }
 
-                ToolbarItem(placement: .automatic) {
-                    Button {
-                        showingContainerSettings = true
-                    } label: {
-                        Label("Manage Library", systemImage: "gearshape")
-                    }
-                }
+        ToolbarItem(placement: .automatic) {
+            Button {
+                showingContainerSettings = true
+            } label: {
+                Label("Manage Library", systemImage: "gearshape")
+            }
+        }
 
-                ToolbarItem(placement: .automatic) {
-                    Button {
-                        showingSemanticSearch = true
-                    } label: {
-                        Label("Semantic Search", systemImage: "text.magnifyingglass")
-                    }
-                    .disabled(ragService.documents.isEmpty)
-                }
+        ToolbarItem(placement: .automatic) {
+            Button {
+                showingSemanticSearch = true
+            } label: {
+                Label("Semantic Search", systemImage: "text.magnifyingglass")
+            }
+            .disabled(ragService.documents.isEmpty)
+        }
 
-                if filteredDocuments.count > 0 {
-                    ToolbarItem(placement: .automatic) {
-                        Button {
-                            onViewVisualizations?()
-                        } label: {
-                            Label("Visualize", systemImage: "cube.transparent")
-                        }
-                    }
-                }
-
-                if !ragService.documents.isEmpty {
-                    ToolbarItem(placement: .automatic) {
-                        Button(role: .destructive) {
-                            Task {
-                                try? await ragService.clearAllDocuments()
-                            }
-                        } label: {
-                            Label("Clear All", systemImage: "trash")
-                        }
-                    }
+        if !filteredDocuments.isEmpty {
+            ToolbarItem(placement: .automatic) {
+                Button {
+                    onViewVisualizations?()
+                } label: {
+                    Label("Visualize", systemImage: "cube.transparent")
                 }
             }
-            .sheet(isPresented: $showingFilePicker) {
-                DocumentPicker { urls in
-                    enqueueDocumentIngestion(urls)
-                }
-            }
-            .alert("Sample Import Failed", isPresented: Binding(
-                get: { sampleImportError != nil },
-                set: { if !$0 { sampleImportError = nil } }
-            )) {
-                Button("OK", role: .cancel) { sampleImportError = nil }
-            } message: {
-                if let message = sampleImportError {
-                    Text(message)
-                }
-            }
-            .alert("Error Processing Document", isPresented: Binding(
-                get: { ragService.lastError != nil },
-                set: { if !$0 { ragService.lastError = nil } }
-            )) {
-                Button("OK", role: .cancel) {
-                    ragService.lastError = nil
-                }
-            } message: {
-                if let error = ragService.lastError {
-                    Text(error)
-                }
-            }
-            .alert("Billing Error", isPresented: Binding(
-                get: { entitlementStore.lastError != nil },
-                set: { newValue in
-                    if !newValue {
-                        Task { @MainActor in
-                            entitlementStore.lastError = nil
-                        }
+        }
+
+        if !ragService.documents.isEmpty {
+            ToolbarItem(placement: .automatic) {
+                Button(role: .destructive) {
+                    Task {
+                        try? await ragService.clearAllDocuments()
                     }
+                } label: {
+                    Label("Clear All", systemImage: "trash")
                 }
-            )) {
-                Button("OK", role: .cancel) {
+            }
+        }
+    }
+
+    private var sampleImportErrorBinding: Binding<Bool> {
+        Binding(
+            get: { sampleImportError != nil },
+            set: { if !$0 { sampleImportError = nil } }
+        )
+    }
+
+    private var ragServiceErrorBinding: Binding<Bool> {
+        Binding(
+            get: { ragService.lastError != nil },
+            set: { if !$0 { ragService.lastError = nil } }
+        )
+    }
+
+    private var entitlementErrorBinding: Binding<Bool> {
+        Binding(
+            get: { entitlementStore.lastError != nil },
+            set: { newValue in
+                if !newValue {
                     Task { @MainActor in
                         entitlementStore.lastError = nil
                     }
                 }
-            } message: {
-                if let error = entitlementStore.lastError {
-                    Text(error)
-                }
             }
-            .overlay(alignment: .bottomTrailing) {
-                IngestionQueueOverlay(items: ragService.ingestionItems)
-                    .padding(.trailing, 16)
-                    .padding(.bottom, 16)
-            }
-            .sheet(isPresented: $showingContainerSettings) {
-                ContainerSettingsSheet(containerService: containerService, ragService: ragService)
-            }
-            // ProcessingSummaryView sheet removed - IngestionQueueOverlay now handles upload status
-            .sheet(isPresented: $showingSemanticSearch) {
-                SemanticSearchView(
-                    ragService: ragService,
-                    containerService: containerService
-                )
-            }
-            .sheet(isPresented: $showingPlanSheet) {
-                PlanUpgradeSheet(entryPoint: activePaywallEntryPoint)
-                    .environmentObject(entitlementStore)
-            }
-            // MARK: - Vision Capture (v2 feature - disabled for v1 App Store release)
-            // .fullScreenCover(isPresented: $showVisionCapture) {
-            //     DocumentCaptureView(
-            //         ragService: ragService,
-            //         containerService: containerService
-            //     )
-            // }
-            .sheet(isPresented: $showCachedDocs) {
-                CachedDocsView(ragService: ragService)
-            }
-.alert("New Library", isPresented: $showingNewLibraryPrompt) {
-    TextField("Library name", text: $newLibraryName)
-    Button("Cancel", role: .cancel) {
-        newLibraryName = ""
-    }
-    Button("Create") {
-        createNewLibrary()
-    }
-} message: {
-    Text("Enter a name for your new library")
-}
-.alert("Delete Library?", isPresented: $showingDeleteConfirmation) {
-    Button("Cancel", role: .cancel) {
-        libraryToDelete = nil
-    }
-    Button("Delete", role: .destructive) {
-        confirmDeleteLibrary()
-    }
-} message: {
-    if let lib = libraryToDelete {
-        let docCount = ragService.documents.filter { $0.containerId == lib.id }.count
-        Text("This will permanently delete \"\(lib.name)\" and all \(docCount) document\(docCount == 1 ? "" : "s") inside it. This cannot be undone.")
-    } else {
-        Text("This will permanently delete this library and all documents inside it.")
-    }
-}
-// MARK: - NSUserActivity / Handoff
-.userActivity("com.openintelligence.documents") { activity in
-    activity.title = "Browse Document Library"
-    activity.isEligibleForSearch = true
-    activity.isEligibleForHandoff = true
-    if let containerId = containerService.activeContainerId as UUID? {
-        activity.userInfo = ["containerId": containerId]
-    }
-}
+        )
     }
 
     /// Launches the file picker if the user still has document quota remaining.
@@ -386,6 +412,38 @@ struct DocumentLibraryView: View {
         Task { @MainActor in
             onboardingStore.markSamplesImported()
         }
+    }
+
+    @MainActor
+    private func reviewAndEnqueueDocuments(_ urls: [URL]) {
+        guard !urls.isEmpty else { return }
+
+        let review = DocumentImportReview(urls: urls)
+        if review.needsReview {
+            pendingImportURLs = urls
+            pendingImportReview = review
+            showingImportReview = true
+            return
+        }
+
+        enqueueDocumentIngestion(urls)
+    }
+
+    @MainActor
+    private func confirmPendingImport() {
+        let urls = pendingImportURLs
+        pendingImportURLs = []
+        pendingImportReview = nil
+        enqueueDocumentIngestion(urls)
+    }
+
+    @MainActor
+    private func discardPendingImportFiles() {
+        let fileManager = FileManager.default
+        for url in pendingImportURLs {
+            try? fileManager.removeItem(at: url)
+        }
+        pendingImportURLs = []
     }
 
     /// Imports the curated onboarding workspace so the document list is not empty.
@@ -507,6 +565,86 @@ struct DocumentLibraryView: View {
             "Paywall presented",
             metadata: ["entryPoint": entryPoint.analyticsValue]
         )
+    }
+}
+
+private struct DocumentImportReview {
+    private let transcriptOnlyFiles: [String]
+    private let experimentalFiles: [String]
+    private let convertFirstFiles: [String]
+
+    init(urls: [URL]) {
+        transcriptOnlyFiles = urls
+            .filter { DocumentImportReadiness.classify(url: $0) == .transcriptOnly }
+            .map(\ .lastPathComponent)
+        experimentalFiles = urls
+            .filter { DocumentImportReadiness.classify(url: $0) == .experimental }
+            .map(\ .lastPathComponent)
+        convertFirstFiles = urls
+            .filter { DocumentImportReadiness.classify(url: $0) == .convertFirst }
+            .map(\ .lastPathComponent)
+    }
+
+    var needsReview: Bool {
+        !transcriptOnlyFiles.isEmpty || !experimentalFiles.isEmpty || !convertFirstFiles.isEmpty
+    }
+
+    var message: String {
+        var parts: [String] = [
+            "Strongest imports: PDF, DOCX/XLSX/PPTX, TXT/MD, CSV, images, and scans."
+        ]
+
+        if !transcriptOnlyFiles.isEmpty {
+            parts.append("Transcript only: \(shortList(transcriptOnlyFiles)). Video and audio imports index spoken content, not full visual meaning.")
+        }
+
+        if !experimentalFiles.isEmpty {
+            parts.append("Reduced-fidelity parsing: \(shortList(experimentalFiles)). These files often lose structure and usually need cleanup first.")
+        }
+
+        if !convertFirstFiles.isEmpty {
+            parts.append("Convert first for the cleanest results: \(shortList(convertFirstFiles)). Exporting to PDF or modern Office usually gives cleaner retrieval.")
+        }
+
+        parts.append("Import anyway?")
+        return parts.joined(separator: "\n\n")
+    }
+
+    private func shortList(_ files: [String]) -> String {
+        let preview = files.prefix(3).joined(separator: ", ")
+        if files.count > 3 {
+            return "\(preview), +\(files.count - 3) more"
+        }
+        return preview
+    }
+}
+
+private enum DocumentImportReadiness {
+    case strong
+    case transcriptOnly
+    case experimental
+    case convertFirst
+
+    static func classify(url: URL) -> Self {
+        switch url.pathExtension.lowercased() {
+        case "pdf", "txt", "md", "markdown", "mdown", "rtf", "csv",
+             "docx", "xlsx", "pptx",
+             "png", "jpg", "jpeg", "heic", "heif", "tiff", "tif", "gif", "bmp", "webp":
+            return .strong
+        case "m4a", "aac", "mp3", "wav", "wave", "aiff", "aif", "caf", "mp4", "m4v", "mov":
+            return .transcriptOnly
+        case "doc", "xls", "ppt", "pages", "numbers", "key":
+            return .convertFirst
+        case "xml", "json", "jsonc", "html", "htm", "yaml", "yml", "css", "scss", "sass", "less",
+             "sql", "sh", "bash", "zsh", "fish",
+             "swift", "py", "pyw", "pyx", "js", "mjs", "cjs", "ts", "tsx", "java", "class",
+             "cpp", "cc", "cxx", "c++", "c", "h", "m", "mm", "go", "rs", "rb", "php",
+             "kt", "kts", "scala", "clj", "ex", "exs", "elm", "hs", "lua", "pl", "r", "dart", "vim",
+             "avi", "mkv", "webm":
+            return .experimental
+        default:
+            return .experimental
+        }
     }
 }
 

@@ -8,6 +8,9 @@
 import Foundation
 
 struct ChatMessage: Identifiable, Codable, Sendable {
+    nonisolated private static let maxPersistedRetrievedChunks = 12
+    nonisolated private static let maxPersistedChunkCharacters = 600
+
     let id: UUID
     let role: Role
     let content: String
@@ -36,7 +39,7 @@ struct ChatMessage: Identifiable, Codable, Sendable {
     var userReportReason: String? = nil
     var userReportNotes: String? = nil
 
-    init(
+    nonisolated init(
         id: UUID = UUID(),
         role: Role,
         content: String,
@@ -100,5 +103,51 @@ struct ChatMessage: Identifiable, Codable, Sendable {
         userReportedAt = try container.decodeIfPresent(Date.self, forKey: .userReportedAt)
         userReportReason = try container.decodeIfPresent(String.self, forKey: .userReportReason)
         userReportNotes = try container.decodeIfPresent(String.self, forKey: .userReportNotes)
+    }
+
+    nonisolated func sanitizedForPersistence() -> ChatMessage {
+        ChatMessage(
+            id: id,
+            role: role,
+            content: content,
+            timestamp: timestamp,
+            metadata: metadata?.compactedForPersistence(),
+            retrievedChunks: sanitizedRetrievedChunks(),
+            structuredAnswer: structuredAnswer,
+            containerId: containerId,
+            isHidden: isHidden,
+            userReportedAt: userReportedAt,
+            userReportReason: userReportReason,
+            userReportNotes: userReportNotes
+        )
+    }
+
+    nonisolated private func sanitizedRetrievedChunks() -> [RetrievedChunk]? {
+        guard let retrievedChunks, !retrievedChunks.isEmpty else { return nil }
+
+        return Array(retrievedChunks.prefix(Self.maxPersistedRetrievedChunks)).map { chunk in
+            let sanitizedChunk = DocumentChunk(
+                id: chunk.chunk.id,
+                documentId: chunk.chunk.documentId,
+                content: Self.truncated(chunk.chunk.content, maxLength: Self.maxPersistedChunkCharacters),
+                parentContent: nil,
+                contextualPrefix: chunk.chunk.contextualPrefix,
+                embedding: [],
+                metadata: chunk.chunk.metadata
+            )
+
+            return RetrievedChunk(
+                chunk: sanitizedChunk,
+                similarityScore: chunk.similarityScore,
+                rank: chunk.rank,
+                sourceDocument: chunk.sourceDocument,
+                pageNumber: chunk.pageNumber
+            )
+        }
+    }
+
+    nonisolated private static func truncated(_ value: String, maxLength: Int) -> String {
+        guard value.count > maxLength else { return value }
+        return String(value.prefix(maxLength)) + "..."
     }
 }

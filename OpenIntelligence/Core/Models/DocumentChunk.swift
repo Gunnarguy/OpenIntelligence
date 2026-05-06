@@ -70,7 +70,7 @@ enum ChunkAbstractionLevel: Int, Codable, Sendable, CaseIterable {
     case librarySummary = 3
 
     /// Human-readable description for logging
-    var description: String {
+    nonisolated var description: String {
         switch self {
         case .detail: return "Detail (L0)"
         case .documentSummary: return "Document Summary (L1)"
@@ -80,7 +80,7 @@ enum ChunkAbstractionLevel: Int, Codable, Sendable, CaseIterable {
     }
 
     /// Whether this level represents summarized content (L1+)
-    var isSummary: Bool { rawValue > 0 }
+    nonisolated var isSummary: Bool { rawValue > 0 }
 }
 
 /// High-level semantic category inferred from document content.

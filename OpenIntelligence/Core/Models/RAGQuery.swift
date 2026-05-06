@@ -98,7 +98,7 @@ struct ResponseMetadata: Codable, Sendable {
     /// Each string is one step: ["🔍 Analyzing: found X...", "🧠 Patterns: theme is Y...", etc.]
     let reasoningTrace: [String]?
 
-    init(timeToFirstToken: TimeInterval? = nil,
+    nonisolated init(timeToFirstToken: TimeInterval? = nil,
          totalGenerationTime: TimeInterval,
          tokensGenerated: Int,
          tokensPerSecond: Float? = nil,
@@ -141,7 +141,7 @@ struct ResponseMetadata: Codable, Sendable {
         !usedAgenticMode && originalQuery != nil
     }
 
-    func withReasoningTrace(_ fallbackTrace: [String]?) -> ResponseMetadata {
+    nonisolated func withReasoningTrace(_ fallbackTrace: [String]?) -> ResponseMetadata {
         let resolvedTrace: [String]?
         if let reasoningTrace, !reasoningTrace.isEmpty {
             resolvedTrace = reasoningTrace
@@ -166,6 +166,34 @@ struct ResponseMetadata: Codable, Sendable {
             qualityModeName: qualityModeName,
             originalQuery: originalQuery,
             reasoningTrace: resolvedTrace
+        )
+    }
+
+    nonisolated func compactedForPersistence(maxReasoningSteps: Int = 8, maxCharactersPerStep: Int = 280) -> ResponseMetadata {
+        let compactedTrace = reasoningTrace?
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+            .prefix(maxReasoningSteps)
+            .map { step in
+                guard step.count > maxCharactersPerStep else { return step }
+                return String(step.prefix(maxCharactersPerStep)) + "..."
+            }
+
+        return ResponseMetadata(
+            timeToFirstToken: timeToFirstToken,
+            totalGenerationTime: totalGenerationTime,
+            tokensGenerated: tokensGenerated,
+            tokensPerSecond: tokensPerSecond,
+            modelUsed: modelUsed,
+            retrievalTime: retrievalTime,
+            retrievalConfigSummary: retrievalConfigSummary,
+            gatingDecision: gatingDecision,
+            toolCallsMade: toolCallsMade,
+            embeddingProvider: embeddingProvider,
+            usedAgenticMode: usedAgenticMode,
+            qualityModeName: qualityModeName,
+            originalQuery: originalQuery,
+            reasoningTrace: compactedTrace?.isEmpty == true ? nil : compactedTrace
         )
     }
 }

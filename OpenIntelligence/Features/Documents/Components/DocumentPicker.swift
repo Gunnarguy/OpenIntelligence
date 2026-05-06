@@ -19,6 +19,7 @@ struct DocumentPicker: UIViewControllerRepresentable {
             .plainText,
             .text,
             UTType(filenameExtension: "md") ?? .plainText,
+            UTType(filenameExtension: "markdown") ?? .plainText,
             .rtf,
             // Office & Productivity
             UTType(filenameExtension: "doc") ?? .data,
@@ -31,7 +32,20 @@ struct DocumentPicker: UIViewControllerRepresentable {
             UTType(filenameExtension: "numbers") ?? .data,
             UTType(filenameExtension: "key") ?? .data,
             .commaSeparatedText,
+            // Images and scans
+            .image,
+            // Structured and web text
+            UTType(filenameExtension: "xml") ?? .text,
+            UTType(filenameExtension: "yaml") ?? .text,
+            UTType(filenameExtension: "yml") ?? .text,
+            UTType(filenameExtension: "css") ?? .sourceCode,
+            UTType(filenameExtension: "scss") ?? .sourceCode,
+            UTType(filenameExtension: "sass") ?? .sourceCode,
+            UTType(filenameExtension: "sql") ?? .sourceCode,
+            UTType(filenameExtension: "sh") ?? .sourceCode,
+            UTType(filenameExtension: "zsh") ?? .sourceCode,
             // Code
+            .sourceCode,
             UTType(filenameExtension: "swift") ?? .sourceCode,
             UTType(filenameExtension: "py") ?? .sourceCode,
             UTType(filenameExtension: "js") ?? .sourceCode,

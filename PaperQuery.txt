@@ -1,0 +1,102 @@
+════════════════════════════════════════════════════════════════════════
+  OPENINTELLIGENCE PIPELINE TRACE
+  Generated: 2026-05-05T22:07:35Z
+  Message ID: 0FFC97DD-871F-44E6-904A-3664A0860CFB
+  Container: 57F1E2B9-69E6-44D8-9644-FFB6759F67E9
+════════════════════════════════════════════════════════════════════════
+
+▶ QUERY
+────────────────────────────────────────────────────────────────────────
+What is vyvanse® LDX?
+
+▶ RESPONSE (330 chars)
+────────────────────────────────────────────────────────────────────────
+### Vyvanse® LDX
+
+Vyvanse® LDX is a **bioreversible derivative prodrug** of Lisdexamfetamine Dimesylate (LDX), which is rapidly taken up from the small intestine by active carrier-mediated transport. It is a **rapidly absorbed** drug that is **bioactivated** in the lower GI tract. It is a **rapidly absorbed** drug that is **bio.
+
+▶ METADATA
+────────────────────────────────────────────────────────────────────────
+  Model:            Apple Foundation Model (Private Cloud Compute)
+  Quality Mode:     Standard
+  Agentic:          NO
+  Retrieval Config: Balanced
+  Retrieval Time:   152ms
+  Total Gen Time:   43.2s
+  TTFT:             1449ms
+  Tokens Generated: 49
+  Tokens/sec:       1.1
+  Gating:           acceptance_override,unverified:Gate I: Domain Isolation
+  Embedding:        coreml_sentence_embedding
+
+▶ THINKING EVENTS (24 events)
+────────────────────────────────────────────────────────────────────────
+  +000000ms [Planning] Execution plan: Standard Retrieval │ Retrieving vyvanse from the document
+  +000069ms [Planning] Standard mode │ HyDE • ReRank • MMR • Verify • Expand • Vocab • Parent • Compress
+  +000069ms [Planning] Scoping query │ Top 50 • General
+  +001901ms [Query Rewrite] Query expansion │ 6 variants generated
+  +001934ms [Intent Routing] Intent: lookup │ Contextual definition lookup
+  +001934ms [Planning] Contextual lookup │ Definition-style query → summary + detail grounding
+  +003536ms [HyDE] HyDE generation │ Hypothetical doc for vocabulary bridging
+  +003601ms [Embedding] Embedding ready │ coreml_sentence_embedding • 384D in 1665 ms
+  +003602ms [Planning] Using summaries + details │ Definition query → blend document summaries with detail chunks
+  +003798ms [Vector Search] Vector search │ Semantic similarity • 50% weight
+  +003798ms [BM25 (Keyword)] BM25 search │ Keyword matching • 50% weight
+  +003798ms [RRF Fusion] RRF fusion │ 155 candidates merged
+  +004050ms [Re-ranking] Cross-encoder rerank │ 150 candidates scored
+  +004079ms [Confidence Gate] Confidence gate (Balanced) │ min 0.24 • top 0.78
+  +004108ms [MMR Diversity] MMR diversity │ λ=0.6 • 15 selected
+  +004108ms [Context Assembly] GOD MODE: Hybrid Context │ 1 summaries + 3 details = comprehensive coverage
+  +007640ms [Compression] Context compressed │ Saved 187 tokens • 4 chunks
+  +008765ms [Position Reorder] Position reorder │ Attention-optimal placement
+  +008765ms [Context Assembly] Context ready │ 3 chunks • 265 words
+  +008903ms [Generation] Generating answer │ Apple Foundation Model (On-Device)
+  +052124ms [Warning] Missing citations │ Using best available answer
+  +052124ms [Generation] Answer composed │ 49 tokens in 43.25s
+  +052245ms [Verification Gates] Gates failed ✗ │ Confidence: 88%
+  +052246ms [Confidence Calibration] Confidence: high │ 70% P(correct)
+
+▶ REASONING TRACE (8 sessions)
+────────────────────────────────────────────────────────────────────────
+  Session 1: Planning: Execution plan: Standard Retrieval — Retrieving vyvanse from the document
+  Session 2: Planning: Standard mode — HyDE • ReRank • MMR • Verify • Expand • Vocab • Parent • Compress
+  Session 3: Planning: Scoping query — Top 50 • General
+  Session 4: Query Rewrite: Query expansion — 6 variants generated
+  Session 5: Warning: Missing citations — Using best available answer
+  Session 6: Generation: Answer composed — 49 tokens in 43.25s
+  Session 7: Verification Gates: Gates failed ✗ — Confidence: 88%
+  Session 8: Confidence Calibration: Confidence: high — 70% P(correct)
+
+▶ RETRIEVED CHUNKS (3 chunks)
+────────────────────────────────────────────────────────────────────────
+
+  ── Chunk 1 ──
+  Source:     S1092852925000070a.pdf
+  Rank:       0
+  Similarity: 0.9800
+  Section:    Document Summary
+  Content:    - "Beads contain active drug, pH-dependent layers, and polymers to control drug release and solubility." - "Osmotic release uses a controlled water pump to deliver drugs at a steady rate." - "Push layer systems involve a semirigid membrane with a hole for drug delivery." - "Examples of products incl...
+
+  ── Chunk 2 ──
+  Source:     S1092852925000070a.pdf
+  Rank:       3
+  Similarity: 0.7800
+  Page:       6
+  Section:    Vyvanse® LDX
+  Path:       Vyvanse® LDX
+  Structure:  paragraph
+  Content:    an IR d-MPH Azstarys® SDX component, SDX is (70%), IR d-MPH cleavage in the lower GI capsules 41 bioactivated by serine (30%) tract to release d-MPH 39-41  Release PK features (healthy adults) profile Tmax (hours) T1⁄2 (hours) Single peak 18 mg/9 hours Patch removal Single application: wear time: do...
+
+  ── Chunk 3 ──
+  Source:     S1092852925000070a.pdf
+  Rank:       2
+  Similarity: 0.7669
+  Page:       6
+  Section:    Vyvanse® LDX
+  Path:       Vyvanse® LDX
+  Structure:  paragraph
+  Content:    In addition to an IR d-MPH Azstarys® SDX component, SDX is (70%), IR d-MPH cleavage in the lower GI capsules 41 bioactivated by serine (30%) tract to release d-MPH 39-41  Release PK features (healthy adults) profile Tmax (hours) T1⁄2 (hours) Single peak 18 mg/9 hours Patch removal Single application...
+
+════════════════════════════════════════════════════════════════════════
+  END OF TRACE
+════════════════════════════════════════════════════════════════════════

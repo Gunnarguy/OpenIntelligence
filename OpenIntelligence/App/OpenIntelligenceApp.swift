@@ -18,6 +18,7 @@ struct OpenIntelligenceApp: App {
         #endif
 
         configureIngestionRuntimeBridge()
+        configureQueryRuntimeBridge()
 
         // Configure TipKit for contextual user guidance
         AppTipConfiguration.configure()
@@ -34,10 +35,16 @@ struct OpenIntelligenceApp: App {
 
     private func configureIngestionRuntimeBridge() {
         IngestionRuntimeBridge.shared.configureContinuedIngestionHandler = { run, expiration in
-            BackgroundTaskService.shared.configureContinuedIngestion(run: run, expiration: expiration)
+            BackgroundTaskService.shared.configureContinuedIngestion(
+                run: run,
+                expiration: expiration
+            )
         }
         IngestionRuntimeBridge.shared.beginUserInitiatedIngestionHandler = { title, subtitle in
-            BackgroundTaskService.shared.beginUserInitiatedIngestion(title: title, subtitle: subtitle)
+            BackgroundTaskService.shared.beginUserInitiatedIngestion(
+                title: title,
+                subtitle: subtitle
+            )
         }
         IngestionRuntimeBridge.shared.updateContinuedIngestionProgressHandler = { title, subtitle, fraction in
             BackgroundTaskService.shared.updateContinuedIngestionProgress(
@@ -49,25 +56,62 @@ struct OpenIntelligenceApp: App {
         IngestionRuntimeBridge.shared.completeUserInitiatedIngestionHandler = { success in
             BackgroundTaskService.shared.completeUserInitiatedIngestion(success: success)
         }
-        IngestionRuntimeBridge.shared.restoreLiveActivityHandler = {
-            if #available(iOS 17.0, *) {
+#if canImport(ActivityKit)
+        if #available(iOS 17.0, *) {
+            IngestionRuntimeBridge.shared.restoreLiveActivityHandler = {
                 IngestionLiveActivityService.shared.restoreExistingActivityIfNeeded()
             }
-        }
-        IngestionRuntimeBridge.shared.syncLiveActivityHandler = { items, containerName in
-            if #available(iOS 17.0, *) {
+            IngestionRuntimeBridge.shared.syncLiveActivityHandler = { items, containerName in
                 IngestionLiveActivityService.shared.sync(items: items, containerName: containerName)
             }
-        }
-        IngestionRuntimeBridge.shared.finishLiveActivityHandler = { items, containerName in
-            if #available(iOS 17.0, *) {
+            IngestionRuntimeBridge.shared.finishLiveActivityHandler = { items, containerName in
                 IngestionLiveActivityService.shared.finish(items: items, containerName: containerName)
             }
-        }
-        IngestionRuntimeBridge.shared.endLiveActivityHandler = {
-            if #available(iOS 17.0, *) {
+            IngestionRuntimeBridge.shared.endLiveActivityHandler = {
                 IngestionLiveActivityService.shared.endCurrentActivity(finalState: nil)
             }
+        } else {
+            IngestionRuntimeBridge.shared.restoreLiveActivityHandler = nil
+            IngestionRuntimeBridge.shared.syncLiveActivityHandler = nil
+            IngestionRuntimeBridge.shared.finishLiveActivityHandler = nil
+            IngestionRuntimeBridge.shared.endLiveActivityHandler = nil
+        }
+#else
+        IngestionRuntimeBridge.shared.restoreLiveActivityHandler = nil
+        IngestionRuntimeBridge.shared.syncLiveActivityHandler = nil
+        IngestionRuntimeBridge.shared.finishLiveActivityHandler = nil
+        IngestionRuntimeBridge.shared.endLiveActivityHandler = nil
+#endif
+    }
+
+    private func configureQueryRuntimeBridge() {
+        QueryRuntimeBridge.shared.configureContinuedQueryHandler = { run, expiration in
+            BackgroundTaskService.shared.configureContinuedQuery(
+                run: run,
+                expiration: expiration
+            )
+        }
+        QueryRuntimeBridge.shared.beginUserInitiatedQueryHandler = { title, subtitle in
+            BackgroundTaskService.shared.beginUserInitiatedQuery(
+                title: title,
+                subtitle: subtitle
+            )
+        }
+        QueryRuntimeBridge.shared.updateContinuedQueryProgressHandler = { title, subtitle, fraction in
+            BackgroundTaskService.shared.updateContinuedQueryProgress(
+                title: title,
+                subtitle: subtitle,
+                fraction: fraction
+            )
+        }
+        QueryRuntimeBridge.shared.completeUserInitiatedQueryHandler = { success in
+            BackgroundTaskService.shared.completeUserInitiatedQuery(success: success)
+        }
+        QueryRuntimeBridge.shared.beginForegroundFallbackQueryHandler = { reason in
+            BackgroundTaskService.shared.beginForegroundFallbackQueryExtensionIfNeeded(reason: reason)
+        }
+        QueryRuntimeBridge.shared.endForegroundFallbackQueryHandler = {
+            BackgroundTaskService.shared.endForegroundFallbackQueryExtension()
         }
     }
 
@@ -75,6 +119,32 @@ struct OpenIntelligenceApp: App {
 
     /// Register background processing and refresh tasks
     private func registerBackgroundTasks() {
+        if #available(iOS 26.0, *) {
+            BGTaskScheduler.shared.register(
+                forTaskWithIdentifier: BackgroundTaskService.continuedIngestionIdentifier,
+                using: nil
+            ) { task in
+                guard let continuedTask = task as? BGContinuedProcessingTask else {
+                    task.setTaskCompleted(success: false)
+                    return
+                }
+
+                BackgroundTaskService.shared.handleContinuedIngestion(task: continuedTask)
+            }
+
+            BGTaskScheduler.shared.register(
+                forTaskWithIdentifier: BackgroundTaskService.continuedQueryIdentifier,
+                using: nil
+            ) { task in
+                guard let continuedTask = task as? BGContinuedProcessingTask else {
+                    task.setTaskCompleted(success: false)
+                    return
+                }
+
+                BackgroundTaskService.shared.handleContinuedQuery(task: continuedTask)
+            }
+        }
+
         // Background index maintenance (vector DB compaction, entity index cleanup)
         BGTaskScheduler.shared.register(
             forTaskWithIdentifier: "com.openintelligence.index-maintenance",
@@ -102,14 +172,5 @@ struct OpenIntelligenceApp: App {
             BackgroundTaskService.shared.handleAppRefresh(task: refreshTask)
         }
 
-        if #available(iOS 26.0, *) {
-            BGTaskScheduler.shared.register(
-                forTaskWithIdentifier: "com.openintelligence.document-ingestion",
-                using: nil
-            ) { task in
-                guard let continuedTask = task as? BGContinuedProcessingTask else { return }
-                BackgroundTaskService.shared.handleContinuedIngestion(task: continuedTask)
-            }
-        }
     }
 }

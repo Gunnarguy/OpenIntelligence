@@ -161,26 +161,33 @@ final class PageComplexityAnalyzer: @unchecked Sendable {
     /// Shared instance for document processing
     static let shared = PageComplexityAnalyzer()
 
-    /// GPU context for fast image analysis
-    private let ciContext: CIContext
+    /// Shared Metal device for fast image analysis while foreground GPU work is allowed.
+    private nonisolated static let metalDevice: MTLDevice? = MTLCreateSystemDefaultDevice()
 
-    /// Metal device for GPU-accelerated analysis
-    private let metalDevice: MTLDevice?
-
-    /// Serial queue for GPU operations
-    private let gpuQueue = DispatchQueue(label: "com.openintelligence.complexity-gpu", qos: .userInitiated)
-
-    private init() {
-        self.metalDevice = MTLCreateSystemDefaultDevice()
+    /// GPU-backed analysis context used during interactive ingestion.
+    private nonisolated static let gpuContext: CIContext = {
         if let device = metalDevice {
-            self.ciContext = CIContext(mtlDevice: device, options: [
+            return CIContext(mtlDevice: device, options: [
                 .cacheIntermediates: false,
                 .priorityRequestLow: false
             ])
-        } else {
-            self.ciContext = CIContext(options: [.useSoftwareRenderer: true])
         }
+
+        return CIContext(options: [.useSoftwareRenderer: true])
+    }()
+
+    /// Software renderer used when continued ingestion must avoid background GPU work.
+    private nonisolated static let cpuContext = CIContext(options: [.useSoftwareRenderer: true])
+
+    private nonisolated static func activeImageRenderContext() -> CIContext {
+        if DeviceCapabilityService.isBackgroundCPUSafeIngestionProfileActive {
+            return cpuContext
+        }
+
+        return gpuContext
     }
+
+    private init() {}
 
     // MARK: - Main Analysis Entry Point
 
@@ -848,8 +855,8 @@ final class PageComplexityAnalyzer: @unchecked Sendable {
         var chartConfidence = 0.0
         var figureConfidence = 0.0
 
-        // Convert CIImage to CGImage for Vision (CIContext is thread-safe)
-        let cgImage = ciContext.createCGImage(image, from: image.extent)
+        // Convert CIImage to CGImage for Vision using the active foreground/background-safe context.
+        let cgImage = Self.activeImageRenderContext().createCGImage(image, from: image.extent)
 
         guard let cgImg = cgImage else {
             return VisionAnalysisResults(imageConfidence: 0, tableConfidence: 0, chartConfidence: 0, figureConfidence: 0)
