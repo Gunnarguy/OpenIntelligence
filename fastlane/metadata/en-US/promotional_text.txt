@@ -1,1 +1,1 @@
-100% on-device AI agent with multi-step reasoning. Index Audio, Video, Code, Office & PDFs to get cited answers natively via Apple Intelligence. Complete privacy.
+Apple Intelligence for private, local-first document Q&A across PDFs, Office docs, code, images, and audio with cited answers and grounded quality modes.

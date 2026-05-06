@@ -6,7 +6,9 @@ Public release highlights for OpenIntelligence.
 
 Changes since 3.2.5:
 
-This is the corrective rollup release for the work shipped across 3.3 and 3.5. It focuses on stronger exact answers, cleaner hard-document ingestion, and a clearer first-run experience.
+Sorry for the rough edges in the last few updates. Version 3.5 is the cleanup release that should have landed sooner.
+
+If dense PDFs, exact-value lookups, starter prompts, or long-running imports felt less reliable than they should have, this is the corrective pass. It rolls up the real fixes shipped after 3.2.5 and makes the app more dependable on hard documents.
 
 ## Highlights
 
