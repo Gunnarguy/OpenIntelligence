@@ -4,15 +4,19 @@ Public release highlights for OpenIntelligence.
 
 ## 3.5
 
-This is a polish and trust update focused on making the app feel less fake at first touch and more dependable on hard real-world documents.
+Changes since 3.2.5:
+
+This is the corrective rollup release for the work shipped across 3.3 and 3.5. It focuses on stronger exact answers, cleaner hard-document ingestion, and a clearer first-run experience.
 
 ## Highlights
 
-- Empty-chat starter questions are now stricter and more grounded, with the model limited to polishing already-supported question drafts instead of inventing speculative asks or canned "specs / procedures / requirements" filler.
-- First-touch starter prompts now also lean on real document topics, tags, and reference-heavy file signals, so the app opens with sharper questions instead of flat document-type boilerplate.
-- Weakly supported suggestion ideas now fail closed to safer prompts, especially around warnings, conditional instructions, and misleading duration or capability questions.
-- Clean digital scientific PDFs ingest more cleanly, with less chance of fake tables, broken headings, or reference-page chunk explosions contaminating retrieval.
-- Long-running user-initiated imports behave more reliably, including cleaner background-processing state and stronger Live Activity lifecycle handling.
+- Exact answers are stronger across Standard, Deep Think, and Maximum for direct source-backed questions over tables, specs, measurements, counts, dates, prices, and similar exact values.
+- Starter questions and follow-ups are more grounded and are less likely to surface weak, generic, or misleading prompts when the source support is thin.
+- Onboarding, empty states, and the bundled sample workspace explain the app more clearly, including best-supported file types, the 4,096-token model limit, and when processing stays on-device versus uses Apple Private Cloud Compute.
+- PDFs and images now share one adaptive visual-ingestion path, searchable figures and structured tables survive more often, and clean scientific PDFs are less likely to produce fake tables, broken headings, or reference-section noise.
+- Table-heavy pages are less likely to collapse back into scrambled paragraph text during ingestion, which improves retrieval quality after re-import.
+- Large user-initiated imports are more reliable, with better queue recovery, background cleanup, and stronger Live Activity behavior on long-running work.
+- Library and settings copy better matches the app's real per-library isolation and runtime behavior.
 
 ## 3.3
 

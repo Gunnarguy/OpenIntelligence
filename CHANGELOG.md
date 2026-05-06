@@ -4,11 +4,13 @@ This is the public version history for OpenIntelligence. It focuses on user-visi
 
 ## 3.5 - May 2026
 
-- Tightened starter-question quality again so the empty-chat chips stay anchored to deterministic passage-grounded drafts and stop falling back to canned specs/procedures boilerplate when the source support is weak
-- Made suggestion generation fail closed on weak support, including stricter handling for warnings, restrictions, conditional instructions, and unsupported duration/capability questions
-- Reduced ingestion pollution on clean scientific PDFs by blocking fake recovered tables, bogus section titles, and reference-section chunk explosions from low-trust structure recovery
-- Improved user-initiated import reliability again, including background-processing cleanup and Live Activity lifecycle handling after long-running ingestion sessions
-- Cleaned up library and settings surfaces so they describe real per-library isolation and live runtime behavior instead of stale or decorative controls
+- Rolled up the corrective work since 3.2.5 into a more stable 3.5 release focused on trust, first-touch clarity, and harder real-world documents
+- Strengthened exact answers across Standard, Deep Think, and Maximum for direct source-backed lookups over tables, specifications, measurements, counts, dates, prices, and similar exact values
+- Tightened starter questions and follow-up suggestions so they stay grounded in actual passage support, fail closed more often on weak evidence, and avoid canned filler around procedures, requirements, and duration claims
+- Reworked onboarding, empty states, and the bundled sample workspace so first-run guidance explains the real product story more clearly: model limits, best-supported file types, and when processing stays on-device versus uses Apple Private Cloud Compute
+- Unified PDF and image visual ingestion behind one adaptive path, preserved searchable figures and structured tables more reliably, and reduced fake tables, broken headings, mixed table/prose contamination, and reference-section noise on scientific PDFs
+- Improved long-running user-initiated imports with better queue recovery, background cleanup, and Live Activity lifecycle handling
+- Cleaned up library and settings surfaces so per-library isolation and live runtime behavior are described more accurately
 
 ## 3.3 - April 2026
 

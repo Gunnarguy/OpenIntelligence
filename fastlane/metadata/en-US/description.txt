@@ -1,39 +1,31 @@
-No login required. No account creation. The app works entirely offline by default.
+No login required. No account creation. OpenIntelligence works offline by default.
 
-OpenIntelligence is a local-first AI assistant for documents on iPhone, iPad, and Mac. Import your files, and the app indexes them into a locally stored SQLite database. When queried, it runs a 29-step retrieval pipeline to answer natural-language questions with cited source passages. Core document parsing, indexing, retrieval, and Apple Foundation Models generation are designed to run without a developer-operated cloud.
+OpenIntelligence is a local-first document intelligence app for iPhone, iPad, and Mac. Import files into private libraries, ask natural-language questions, and inspect the exact passages behind each answer. Core parsing, OCR, indexing, retrieval, and library management do not require a developer-operated cloud.
 
-TECHNICAL CAPABILITIES:
+WHAT YOU CAN DO:
 
-• 29-Step Neural Pipeline: Full semantic chunking, hybrid search (BM25 + neural embeddings), cross-encoder reranking, MMR diversification, parent document retrieval, graph context packing, and lost-in-the-middle mitigation.
-• 9 Anti-Hallucination Gates (A-I): Real-time checks for retrieval confidence, evidence coverage, numeric sanity, contradiction detection, semantic grounding, quote faithfulness, generation quality, answer completeness, and domain isolation. Tighter evidence verification prevents bluffs when support is weak.
-• Grounded-QA Routing: Strict dual-pipeline evaluation paths. Fact-heavy questions are rigidly grounded; deep synthesis questions scale flexibly.
-• Evidence-First Mode: When query-document overlap is low, the engine states available evidence directly instead of generating unsupported answers.
-• 3 Quality Modes: Standard (single-pass fast responses), Deep Think (multi-session agentic reasoning), and Maximum (unlimited reasoning until 98% verified confidence).
-• 8 Agentic Tools: Search, compare, summarize, timeline, extract, define, calculate, and analyze across your library.
-• Adaptive Follow-Ups: Dynamic suggestions generated from the current answer and context flow.
-• Active Library Starter Questions: First-touch prompts now key off real document topics, tags, and reference-heavy files so the app opens with sharper, less generic questions.
-• AI Hub Transforms: Convert answers fluidly into Key Facts, Step-by-Steps, Plain English, Gap Analysis, and Illustrations.
-• Advanced OCR Engine: Multi-column 360 DPI optical character recognition with font cipher detection.
-• Motherboard HUD: A real-time Apple Silicon telemetry overlay to watch your device work.
-• Dynamic Metal Shaders: 3-tier GPU optimizations that automatically adapt to your specific chip family (A15 through M4).
-• Rich Markdown: Beautiful inline rendering for code blocks, tables, lists, quotes, math equations, and complex formats.
+• Ask grounded questions over PDFs, Office documents, notes, spreadsheets, code, images, and transcriptable audio or video.
+• Inspect source cards and excerpts instead of treating answers like a black box.
+• Use Standard for fast grounded answers, or choose Deep Think and Maximum for higher-effort reasoning.
+• Search embedded PDF figures and structured table evidence when the source supports it.
+• Turn answers into formats like Key Facts, Step-by-Step, Plain English, and Gap Analysis.
+• Keep work separated in private libraries instead of one giant mixed corpus.
 
-RESPONSE INSPECTION:
-Zero black-box hallucinations. Every generated response includes deterministic source cards with explicit filenames and scrollable excerpts. You see exactly which passages the on-device Neural RAG engine used to synthesize its answer, providing complete confidence and transparency.
-
-SUPPORTED CONTENT:
-Documents: PDF, Word (DOCX), Excel (XLSX), PowerPoint (PPTX), Apple iWork, Markdown, CSV, RTF, TXT.
+BEST SUPPORTED CONTENT:
+Documents: PDF, DOCX, XLSX, PPTX, Markdown, CSV, RTF, TXT, HTML, JSON, XML, YAML, and source code.
 Images: JPEG, PNG, HEIC, TIFF, GIF.
-Audio & Video (Transcription): MP3, M4A, WAV, AIFF, MP4, MOV.
-Code: Swift, Python, JavaScript, TypeScript, JSON, YAML.
+Audio & Video (transcription): MP3, M4A, WAV, AIFF, MP4, MOV.
 
-PRIVACY BY DESIGN:
-Zero third-party models by default. Zero analytics. Document parsing, embedding generation, OCR, SQLite full-text indexing, and vector indexing stay bound to your local hardware for core functionality. OpenIntelligence is budgeted around Apple's public Foundation Models session limits and avoids any developer-operated cloud dependency for core document Q&A.
+CURRENT LIMITS:
+Some dense table-heavy PDFs, legacy Office files, Apple iWork files, and unusual structured exports may still need cleanup or conversion for the cleanest results. OpenIntelligence is strongest on modern PDFs, Office documents, notes, code, images, and transcriptable media.
+
+PRIVACY:
+No analytics. No tracking. Core document parsing, OCR, SQLite full-text indexing, vector indexing, and retrieval stay on your hardware for the app's main workflows. Generation uses Apple Foundation Models where available. No developer-operated cloud is required for core document Q&A.
 
 SUBSCRIPTIONS:
-• Free tier: 5 documents, 1 library, full 29-step pipeline, all quality modes. Maximum mode enforces a daily free quota.
+• Free tier: 5 documents, 1 library, full grounded pipeline, all quality modes. Maximum mode enforces a daily free quota.
 • Pro Monthly / Annual: 1,000 documents, 5 separate libraries.
-• Lifetime unlock: Unlimited documents, 10 libraries, one-time payment, all features forever.
+• Lifetime unlock: Unlimited documents, 10 libraries, one-time purchase.
 
 Payment is charged to your Apple ID on confirmation. Subscriptions renew unless canceled. Manage in account settings.
 

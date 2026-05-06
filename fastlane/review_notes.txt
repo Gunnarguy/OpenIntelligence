@@ -1,12 +1,11 @@
-Version 3.2.5 is a corrective follow-up to 3.2. The last updates were ambitious and improved much of the document reasoning pipeline, but they also made some simple source-backed questions slower or less reliable than they should have been. Sorry for the back-to-back submission. This build restores the intended behavior: when an exact answer is present in an uploaded document, the app should find and cite it directly, while Deep Think and Maximum are still available for genuinely harder questions.
-
-No login required. No account creation. No demo credentials needed. The app works offline.
+No login, account, or demo credentials are required.
 
 Suggested review path:
 1. Launch the app and complete onboarding.
-2. Let the included sample documents import, or import any PDF/table-heavy document.
-3. Ask a specific exact-value question, such as a count, price, measurement, date, limit, or value from a table.
-4. Try the same style of question in Standard, Deep Think, and Maximum.
-5. Verify the answer is concise, cited, and does not require unnecessary long reasoning when the source value is clear.
+2. Let the bundled sample documents import.
+3. In Standard mode, ask one of these sample questions: "How does OpenIntelligence work around the 4,096-token limit?" or "What file types does OpenIntelligence handle best?"
+4. Open response details or source cards to inspect the supporting passages.
 
-Privacy: Processing is local by default using Apple Foundation Models where available. No third-party AI services by default. No analytics. No tracking.
+Standard is the fast grounded mode. Deep Think and Maximum are the separate higher-effort modes.
+
+The app works offline by default. Core parsing, OCR, indexing, and retrieval are local-first. Generation uses Apple Foundation Models where available.
