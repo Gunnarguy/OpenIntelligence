@@ -1,6 +1,6 @@
 # OpenIntelligence Architecture
 
-Version 2.0
+Public snapshot: May 2026
 
 This is the public architecture summary for OpenIntelligence. It documents the major product layers and their responsibilities without exposing private engine internals.
 
@@ -18,10 +18,10 @@ User Interface
 
 | Layer             | Responsibility                                                                 |
 | ----------------- | ------------------------------------------------------------------------------ |
-| User interface    | SwiftUI screens, navigation, answer presentation, onboarding, settings         |
+| User interface    | SwiftUI screens, navigation, answer presentation, source review, onboarding, settings |
 | Feature modules   | Chat, document management, billing, diagnostics, onboarding, telemetry         |
 | Local processing  | File import, extraction, storage, indexing, app-owned data lifecycle           |
-| Answering engine  | Evidence retrieval, answer synthesis, citation packaging                       |
+| Answering engine  | Evidence retrieval, answer synthesis, citation packaging, refusal behavior     |
 | Platform services | Apple Intelligence, OCR, speech, PDF, Metal, StoreKit, system privacy controls |
 
 ## Code Organization
@@ -49,6 +49,7 @@ The app source is organized to separate product experience, shared domain types,
 - Local-first data handling
 - Clear separation between app experience and engine internals
 - Platform integrations routed through Apple frameworks whenever possible
+- Source review and explicit uncertainty are first-class product concerns
 - Product features shipped only when they are supportable in code and UI
 
 ## Publicly Documented Areas
