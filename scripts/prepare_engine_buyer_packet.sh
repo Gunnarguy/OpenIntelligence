@@ -17,12 +17,26 @@ function detect_release_line() {
 RELEASE_LINE="${RELEASE_LINE:-$(detect_release_line)}"
 [[ -n "$RELEASE_LINE" ]] || RELEASE_LINE="unknown"
 
+function heal_duplicate_output_artifacts() {
+  /bin/zsh ./scripts/clean_duplicate_output_artifacts.sh --quiet || true
+}
+
+function cleanup_on_exit() {
+  local exit_code="$1"
+  heal_duplicate_output_artifacts
+  exit "$exit_code"
+}
+
 function fail() {
   echo "error: $1" >&2
   exit 1
 }
 
 cd "$REPO_ROOT"
+
+trap 'trap - EXIT; cleanup_on_exit $?' EXIT
+
+heal_duplicate_output_artifacts
 
 echo "Staging evaluation XCFramework and simulator support..."
 /bin/zsh ./scripts/build_engine_evaluation_xcframework.sh
