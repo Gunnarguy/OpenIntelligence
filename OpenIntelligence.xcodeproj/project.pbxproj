@@ -15,7 +15,6 @@
 		B0D565DE2E98AC50001274A2 /* OpenIntelligence.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = OpenIntelligence.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		DDFD1600670D479C7075E2C2 /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS18.0.sdk/System/Library/Frameworks/Foundation.framework; sourceTree = DEVELOPER_DIR; };
 		E0A100042F0F5F5F00AABA0C /* OpenIntelligenceEngine.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = OpenIntelligenceEngine.framework; sourceTree = BUILT_PRODUCTS_DIR; };
-		F0A100042F1A000100AA1001 /* OpenIntelligence/Services/Infrastructure/Background/IngestionLiveActivityAttributes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenIntelligence/Services/Infrastructure/Background/IngestionLiveActivityAttributes.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -39,6 +38,29 @@
 				RAGAppIntents.swift,
 				VisualIntelligenceIntents.swift,
 				WritingToolsService.swift,
+			);
+			target = E0A100072F0F5F5F00AABA0C /* OpenIntelligenceEngine */;
+		};
+		F0A100052F1A000100AA1001 /* Exceptions for "OpenIntelligence/Services/LLM" folder in "OpenIntelligenceEngine" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				ModelResolutionService.swift,
+			);
+			target = E0A100072F0F5F5F00AABA0C /* OpenIntelligenceEngine */;
+		};
+		F0A100062F1A000100AA1001 /* Exceptions for "OpenIntelligence/Services/Storage" folder in "OpenIntelligenceEngine" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				DocumentationCacheService.swift,
+			);
+			target = E0A100072F0F5F5F00AABA0C /* OpenIntelligenceEngine */;
+		};
+		F0A100072F1A000100AA1001 /* Exceptions for "OpenIntelligence/Resources" folder in "OpenIntelligenceEngine" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Assets/Assets.xcassets,
+				StoreKit/StoreKitConfiguration.storekit,
+				StoreKit/StoreKitTestHarness.swift,
 			);
 			target = E0A100072F0F5F5F00AABA0C /* OpenIntelligenceEngine */;
 		};
@@ -111,6 +133,9 @@
 		};
 		E0A100252F0F5F5F00AABA0C /* OpenIntelligence/Services/LLM */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				F0A100052F1A000100AA1001 /* Exceptions for "OpenIntelligence/Services/LLM" folder in "OpenIntelligenceEngine" target */,
+			);
 			path = OpenIntelligence/Services/LLM;
 			sourceTree = "<group>";
 		};
@@ -126,12 +151,23 @@
 		};
 		E0A100282F0F5F5F00AABA0C /* OpenIntelligence/Services/Storage */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				F0A100062F1A000100AA1001 /* Exceptions for "OpenIntelligence/Services/Storage" folder in "OpenIntelligenceEngine" target */,
+			);
 			path = OpenIntelligence/Services/Storage;
 			sourceTree = "<group>";
 		};
 		E0A100292F0F5F5F00AABA0C /* OpenIntelligence/Services/VectorStore */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = OpenIntelligence/Services/VectorStore;
+			sourceTree = "<group>";
+		};
+		F0A100082F1A000100AA1001 /* OpenIntelligence/Resources */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				F0A100072F1A000100AA1001 /* Exceptions for "OpenIntelligence/Resources" folder in "OpenIntelligenceEngine" target */,
+			);
+			path = OpenIntelligence/Resources;
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -160,6 +196,7 @@
 			isa = PBXGroup;
 			children = (
 				E0A100152F0F5F5F00AABA0C /* OpenIntelligence/Core */,
+				F0A100082F1A000100AA1001 /* OpenIntelligence/Resources */,
 				E0A100162F0F5F5F00AABA0C /* OpenIntelligence/SDK */,
 				E0A100172F0F5F5F00AABA0C /* OpenIntelligence/Services/Agentic */,
 				E0A100182F0F5F5F00AABA0C /* OpenIntelligence/Services/Document */,
@@ -174,7 +211,6 @@
 				E0A100272F0F5F5F00AABA0C /* OpenIntelligence/Services/RAG */,
 				E0A100282F0F5F5F00AABA0C /* OpenIntelligence/Services/Storage */,
 				E0A100292F0F5F5F00AABA0C /* OpenIntelligence/Services/VectorStore */,
-				F0A100042F1A000100AA1001 /* OpenIntelligence/Services/Infrastructure/Background/IngestionLiveActivityAttributes.swift */,
 			);
 			name = "Recovered References";
 			sourceTree = "<group>";
@@ -268,6 +304,7 @@
 				E0A100272F0F5F5F00AABA0C /* OpenIntelligence/Services/RAG */,
 				E0A100282F0F5F5F00AABA0C /* OpenIntelligence/Services/Storage */,
 				E0A100292F0F5F5F00AABA0C /* OpenIntelligence/Services/VectorStore */,
+				F0A100082F1A000100AA1001 /* OpenIntelligence/Resources */,
 			);
 			name = OpenIntelligenceEngine;
 			packageProductDependencies = (

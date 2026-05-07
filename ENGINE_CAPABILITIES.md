@@ -2,6 +2,12 @@
 
 This engine ingests internal documents, turns them into an answerable knowledge base, and lets users ask plain-English questions against that material with source-backed responses. It is designed for private, Apple-native deployment, prioritizes grounded answers over fluent guessing, and is built to show when evidence is strong, when support is thin, and when the document set does not contain a defensible answer. For a buyer, that means faster access to product knowledge, support content, and commercial collateral without handing proprietary information to a third-party software vendor.
 
+This document is engine-only.
+
+It does not describe the entire app. The full app also includes the SwiftUI product surface, onboarding, settings, billing, diagnostics, app lifecycle behavior, and other product layers that sit around the engine.
+
+If you need the whole-repo mental model, start with `README.md`. If you need the exact current SDK boundary, use `SDK_BOUNDARY_AUDIT.md` and `EngineSale/ENGINE_INVENTORY.md`.
+
 | Capability                          | Why It Matters To A Buyer                                                                                                                           |
 | ----------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Private document ingestion          | Lets a company load proprietary manuals, internal references, and customer-facing materials into a controlled environment.                          |

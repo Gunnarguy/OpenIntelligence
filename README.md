@@ -25,6 +25,21 @@ OpenIntelligence is built for people who need answers from their own material, n
 
 The market shift is away from AI novelty and toward trustworthy answers over private material. That is why the product centers local-first handling, source review, and visible uncertainty instead of generic chatbot performance.
 
+## Simplest Mental Model
+
+If you only want one answer about what this repo is, use this:
+
+- `OpenIntelligence` is the full shipping Apple app and product codebase.
+- `OpenIntelligenceEngine` is the narrower reusable engine boundary living inside that same codebase.
+- The engine is real, but it does not include the entire app shell.
+- The repo also carries evaluation and buyer materials around that engine.
+
+In practical terms, the app includes the full product surface: SwiftUI screens, onboarding, settings, billing, diagnostics, app lifecycle behavior, and the engine integrated into a user-facing product.
+
+The engine lane is the reusable document-intelligence core: ingestion, OCR and parsing, chunking, indexing, storage, retrieval, reranking, grounded answer generation, citations, verification, and availability checks for Apple Intelligence paths.
+
+That means this repository is not "just the app" and it is not "just an SDK" either. It is the app, plus the internal engine boundary, plus the material needed to evaluate and explain that boundary.
+
 ## Repo Lanes
 
 This repository currently carries three distinct lanes:
@@ -33,11 +48,21 @@ This repository currently carries three distinct lanes:
 - engine and SDK evaluation materials
 - buyer and partner operating materials
 
-| Lane | Start here | Why |
-| --- | --- | --- |
-| App and product lane | `HOW_IT_WORKS.md`, `ARCHITECTURE.md`, `CHANGELOG.md`, `WHATS_NEW.md` | Understand the shipping product story and public app surface. |
-| Engine and SDK lane | `output/OpenIntelligence-SDK-Package/START_HERE.md`, `SDK_BOUNDARY_AUDIT.md`, `EngineSale/ENGINE_INVENTORY.md`, `OpenIntelligence/SDK/OpenIntelligenceEngine.swift` | Understand the sellable engine boundary and current technical evaluation packet. |
-| Buyer and partner lane | `EngineSale/README.md`, `output/OpenIntelligence-Partner-Packet/README.md` | Understand what lives where, what is pushable, and what a buyer actually sees. |
+| Lane                   | Start here                                                                                                                                                          | Why                                                                              |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| App and product lane   | `HOW_IT_WORKS.md`, `ARCHITECTURE.md`, `CHANGELOG.md`, `WHATS_NEW.md`                                                                                                | Understand the shipping product story and public app surface.                    |
+| Engine and SDK lane    | `output/OpenIntelligence-SDK-Package/START_HERE.md`, `SDK_BOUNDARY_AUDIT.md`, `EngineSale/ENGINE_INVENTORY.md`, `OpenIntelligence/SDK/OpenIntelligenceEngine.swift` | Understand the sellable engine boundary and current technical evaluation packet. |
+| Buyer and partner lane | `EngineSale/README.md`, `output/OpenIntelligence-Partner-Packet/README.md`                                                                                          | Understand what lives where, what is pushable, and what a buyer actually sees.   |
+
+## App vs Engine
+
+| Scope                       | What it includes                                                                                                                                       | What it explicitly does not mean                                                               | Current status                                                |
+| --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------- | ------------------------------------------------------------- |
+| Full app                    | user experience, SwiftUI screens, onboarding, settings, billing, diagnostics, app lifecycle behavior, document libraries, and the engine in product    | not a standalone SDK boundary                                                                  | shipping public product on iPhone and iPad                    |
+| Engine boundary             | ingestion, parsing, OCR, chunking, embeddings, local storage, FTS/vector retrieval, reranking, grounded answer generation, citations, and verification | not the whole app repackaged; excludes the full product shell and other app-only surfaces      | real evaluation-stage engine boundary inside the app codebase |
+| Evaluation and buyer packet | staged XCFramework, sample host app, install docs, packet docs, and commercialization support material                                                 | not a full source-code transfer and not a finished self-serve universal commercial SDK handoff | usable for evaluation and partner conversations today         |
+
+If you need the precise version of that split, read `ARCHITECTURE.md` for the app lane, `ENGINE_CAPABILITIES.md` and `EngineSale/ENGINE_INVENTORY.md` for the engine lane, and `SDK_BOUNDARY_AUDIT.md` for the exact current SDK boundary.
 
 It is especially useful when the cost of a wrong answer is not abstract:
 
@@ -130,11 +155,13 @@ Those materials should track the current public release line. The app and engine
 ## Documentation
 
 - [HOW_IT_WORKS.md](HOW_IT_WORKS.md): high-level workflow
-- [ARCHITECTURE.md](ARCHITECTURE.md): public architecture summary
+- [ARCHITECTURE.md](ARCHITECTURE.md): public app and product architecture summary
 - [ROADMAP.md](ROADMAP.md): product roadmap
 - [CHANGELOG.md](CHANGELOG.md): version history
 - [WHATS_NEW.md](WHATS_NEW.md): release highlights
 - [PRIVACY.md](PRIVACY.md): privacy posture and data handling
+- `ENGINE_CAPABILITIES.md`: buyer-level summary of what the engine itself does and does not include
+- `SDK_BOUNDARY_AUDIT.md`: internal map of the smallest credible SDK boundary and what stays out of it
 - `EngineSale/README.md`: control tower for the sale lane, push policy, and packet map
 - `EngineSale/ENGINE_INVENTORY.md`: current reusable engine inventory and SDK-boundary hotspot list
 - `output/OpenIntelligence-SDK-Package/START_HERE.md`: private evaluation SDK packet entrypoint

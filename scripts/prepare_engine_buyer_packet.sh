@@ -5,6 +5,7 @@ export PATH="/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:${PA
 REPO_ROOT="${REPO_ROOT:-$(cd "$(dirname "$0")/.." && pwd)}"
 OUTPUT_DIR="${OUTPUT_DIR:-$REPO_ROOT/output/OpenIntelligence-SDK-Package}"
 ZIP_PATH="$OUTPUT_DIR/build/OpenIntelligenceEngine-Buyer-Packet.zip"
+BUILD_MODE_FILE="$OUTPUT_DIR/build/evaluation/build-mode.txt"
 
 function detect_release_line() {
   local project_file="$REPO_ROOT/OpenIntelligence.xcodeproj/project.pbxproj"
@@ -37,8 +38,24 @@ echo "Building buyer-safe packet..."
 
 [[ -f "$ZIP_PATH" ]] || fail "Buyer packet zip was not created at $ZIP_PATH"
 
+BUILD_MODE="unknown"
+if [[ -f "$BUILD_MODE_FILE" ]]; then
+  BUILD_MODE="$(<"$BUILD_MODE_FILE")"
+fi
+
+if [[ "$BUILD_MODE" == "fresh" ]]; then
+  PACKET_STATUS="Buyer-ready evaluation packet created from current source"
+  PACKET_NOTE="- packet artifact freshness: fresh current-source evaluation build"
+elif [[ "$BUILD_MODE" == "restored" ]]; then
+  PACKET_STATUS="Buyer-ready evaluation packet rebuilt from the last known good staged evaluation artifact"
+  PACKET_NOTE="- packet artifact freshness: restored staged evaluation artifact after fresh build failure"
+else
+  PACKET_STATUS="Buyer-ready evaluation packet created"
+  PACKET_NOTE="- packet artifact freshness: unknown"
+fi
+
 cat <<EOF
-Buyer-ready evaluation packet created from current source:
+$PACKET_STATUS:
   $ZIP_PATH
 
 Release line:
@@ -47,6 +64,7 @@ Release line:
 Use this packet for:
 - founder or design-partner evaluation on a matching Xcode and Swift toolchain
 - guided sample import validation
+$PACKET_NOTE
 
 Do not promise yet:
 - toolchain-agnostic binary stability

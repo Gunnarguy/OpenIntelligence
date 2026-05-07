@@ -20,7 +20,7 @@ import NaturalLanguage
 // - AppIntents: Siri integration and system AI service access
 // - AssistantServices: ChatGPT Extension and other assistant providers
 
-#if canImport(AppIntents)
+#if canImport(AppIntents) && !OPENINTELLIGENCE_ENGINE_SDK
     import AppIntents
 #endif
 
@@ -3058,7 +3058,7 @@ class OnDeviceAnalysisService: LLMService {
 // Requires iOS 18.1+, user must enable ChatGPT in Settings > Apple Intelligence & Siri
 // NO OpenAI account required, free tier available, user consents per request
 
-#if canImport(AppIntents)
+#if canImport(AppIntents) && !OPENINTELLIGENCE_ENGINE_SDK
 
     // MARK: - AssistChatIntent (iOS 18.1+ Apple Intelligence API)
 
@@ -3295,6 +3295,7 @@ class OnDeviceAnalysisService: LLMService {
 #else
     // Stub for platforms without AppIntents
     class AppleChatGPTExtensionService: LLMService {
+        var toolHandler: RAGToolHandler?
         var isAvailable: Bool { false }
         var modelName: String { "ChatGPT Extension (Requires iOS 18.1+)" }
 

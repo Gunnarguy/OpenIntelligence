@@ -22,6 +22,7 @@ SIM_ARCHIVE="$BUILD_DIR/${FRAMEWORK_NAME}-iphonesimulator.xcarchive"
 CLEAN_DIR="$BUILD_DIR/clean-xcframework-inputs"
 DEVICE_BUILD_PRODUCTS="$DEVICE_DERIVED_DATA_DIR/Build/Intermediates.noindex/ArchiveIntermediates/$TARGET/BuildProductsPath/Release-iphoneos"
 SIM_BUILD_PRODUCTS="$SIM_DERIVED_DATA_DIR/Build/Intermediates.noindex/ArchiveIntermediates/$TARGET/BuildProductsPath/Release-iphonesimulator"
+BUILD_MODE_FILE="$BUILD_DIR/build-mode.txt"
 
 function fail() {
   echo "error: $1" >&2
@@ -145,8 +146,16 @@ function stage_from_existing_artifacts() {
     fail "No restorable evaluation XCFramework found. Checked $BUYER_XCFRAMEWORK_PATH and $XCFRAMEWORK_PATH"
   fi
 
+  if [[ -d "$BUYER_PACKET_DIR/EvaluationSupport" ]]; then
+    echo "Restoring evaluation compiler support from buyer packet..."
+    rm -rf "$SUPPORT_DIR"
+    /bin/cp -R "$BUYER_PACKET_DIR/EvaluationSupport" "$OUTPUT_DIR/"
+  fi
+
   stage_simulator_support
   stage_device_support
+
+  printf 'restored\n' > "$BUILD_MODE_FILE"
 
   cat <<EOF
 Staged evaluation XCFramework from existing on-disk artifacts:
@@ -189,24 +198,24 @@ function build_from_project() {
     "${common_args[@]}" \
     -derivedDataPath "$DEVICE_DERIVED_DATA_DIR" \
     -destination "generic/platform=iOS" \
-    -archivePath "$DEVICE_ARCHIVE"
+    -archivePath "$DEVICE_ARCHIVE" || return 1
 
   echo "Archiving evaluation iOS simulator slice..."
   xcodebuild archive \
     "${common_args[@]}" \
     -derivedDataPath "$SIM_DERIVED_DATA_DIR" \
     -destination "generic/platform=iOS Simulator" \
-    -archivePath "$SIM_ARCHIVE"
+    -archivePath "$SIM_ARCHIVE" || return 1
 
   mkdir -p "$CLEAN_DIR/device" "$CLEAN_DIR/sim"
 
   echo "Preparing clean XCFramework inputs..."
   /usr/bin/ditto --noextattr --noqtn \
     "$DEVICE_ARCHIVE/Products/Library/Frameworks/${FRAMEWORK_NAME}.framework" \
-    "$CLEAN_DIR/device/${FRAMEWORK_NAME}.framework"
+    "$CLEAN_DIR/device/${FRAMEWORK_NAME}.framework" || return 1
   /usr/bin/ditto --noextattr --noqtn \
     "$SIM_ARCHIVE/Products/Library/Frameworks/${FRAMEWORK_NAME}.framework" \
-    "$CLEAN_DIR/sim/${FRAMEWORK_NAME}.framework"
+    "$CLEAN_DIR/sim/${FRAMEWORK_NAME}.framework" || return 1
 
   /bin/rm -rf \
     "$CLEAN_DIR/device/${FRAMEWORK_NAME}.framework/swift-transformers" \
@@ -214,15 +223,17 @@ function build_from_project() {
     "$CLEAN_DIR/device/${FRAMEWORK_NAME}.framework/.gitignore" \
     "$CLEAN_DIR/sim/${FRAMEWORK_NAME}.framework/.gitignore"
 
-  stage_simulator_support
-  stage_device_support
+  stage_simulator_support || return 1
+  stage_device_support || return 1
 
   echo "Creating evaluation XCFramework..."
   xcodebuild -create-xcframework \
     -allow-internal-distribution \
     -framework "$CLEAN_DIR/device/${FRAMEWORK_NAME}.framework" \
     -framework "$CLEAN_DIR/sim/${FRAMEWORK_NAME}.framework" \
-    -output "$XCFRAMEWORK_PATH"
+    -output "$XCFRAMEWORK_PATH" || return 1
+
+  printf 'fresh\n' > "$BUILD_MODE_FILE"
 
   cat <<EOF
 Created evaluation XCFramework:
@@ -240,7 +251,10 @@ EOF
 [[ -d "$PROJECT" ]] || fail "Project not found at $PROJECT"
 
 if has_buildable_engine_target; then
-  build_from_project
+  if ! ( build_from_project ); then
+    echo "warning: fresh evaluation build failed; restoring the last known good staged evaluation artifact" >&2
+    stage_from_existing_artifacts
+  fi
 else
   stage_from_existing_artifacts
 fi

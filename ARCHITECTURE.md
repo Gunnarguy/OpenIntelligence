@@ -4,12 +4,23 @@ Version 2.0
 
 This is the public architecture summary for OpenIntelligence. It documents the major product layers and their responsibilities without exposing private engine internals.
 
+This document is about the shipped app and public product architecture.
+
+It is not the same thing as the engine boundary. The engine is a narrower reusable subset inside the same source tree, not a synonym for the whole app.
+
 For internal/source-grounded analysis, use:
 
 - [Docs/CURRENT_STATE_AND_GAPS.md](./Docs/CURRENT_STATE_AND_GAPS.md)
 - [Docs/IMPLEMENTATION_ANALYSIS_2026_04_24.md](./Docs/IMPLEMENTATION_ANALYSIS_2026_04_24.md)
 - [Docs/STORAGE_AND_PIPELINE_TRACE.md](./Docs/STORAGE_AND_PIPELINE_TRACE.md)
 - [Docs/BUYER_READINESS_AND_EVALUATION.md](./Docs/BUYER_READINESS_AND_EVALUATION.md)
+
+If you need the repo split rather than the app architecture, start with:
+
+- [README.md](./README.md)
+- [ENGINE_CAPABILITIES.md](./ENGINE_CAPABILITIES.md)
+- [SDK_BOUNDARY_AUDIT.md](./SDK_BOUNDARY_AUDIT.md)
+- [EngineSale/ENGINE_INVENTORY.md](./EngineSale/ENGINE_INVENTORY.md)
 
 ## High-Level View
 
