@@ -17,6 +17,24 @@ This repository is intentionally product-facing. It shows the app, the native cl
   </a>
 </p>
 
+## If You Starred This Repo, Start Here
+
+| If you want to know... | Read this |
+| --- | --- |
+| What the product looks like today | [WHATS_NEW.md](WHATS_NEW.md) |
+| How the app works at a high level | [HOW_IT_WORKS.md](HOW_IT_WORKS.md) |
+| How the public architecture is organized | [ARCHITECTURE.md](ARCHITECTURE.md) |
+| Where the product is headed | [ROADMAP.md](ROADMAP.md) |
+| How privacy is handled | [PRIVACY.md](PRIVACY.md) |
+
+## Current Public Snapshot
+
+- More source-backed answers with clearer refusal when evidence is weak
+- Better answer review with stronger source inspection and cleaner citation presentation
+- Improved handling for larger, messier, and mixed-format document sets
+- Continued polish across onboarding, settings, diagnostics, and everyday workflows
+- Ongoing focus on privacy-first Apple-platform behavior instead of generic chatbot UX
+
 ## Product Snapshot
 
 OpenIntelligence is built for people who need answers from their own material, not another free-form model summary. The app ingests documents locally, organizes them into private libraries, retrieves supporting evidence, and returns answers that are designed to stay tied to source material instead of drifting into confident filler.
@@ -50,7 +68,16 @@ The current app target is built for:
 - iPhone
 - iPad
 
-The codebase is also being shaped for broader Apple-native engine packaging, but this public app target is currently an iPhone and iPad product rather than a native macOS app.
+The broader codebase direction includes Mac evaluation paths through Mac Catalyst and Apple silicon testing, but the current public product target is still an iPhone and iPad app rather than a separately shipped native macOS app.
+
+## What This Repo Does And Does Not Show
+
+| This repo shows | This repo does not publish |
+| --- | --- |
+| Product behavior users can understand and inspect | Proprietary retrieval thresholds and ranking logic |
+| Native SwiftUI app structure and Apple-platform integration | Internal verification heuristics in full detail |
+| Public product docs, release notes, and roadmap | Private SDK packaging and partner materials |
+| Privacy posture and user-visible trust model | Internal evaluation workflows and commercialization docs |
 
 ## Privacy Posture
 
@@ -104,6 +131,7 @@ This repo intentionally does not publish:
 - [CHANGELOG.md](CHANGELOG.md): version history
 - [WHATS_NEW.md](WHATS_NEW.md): release highlights
 - [PRIVACY.md](PRIVACY.md): privacy posture and data handling
+- [Docs/reference/RAG_TECHNICAL.md](Docs/reference/RAG_TECHNICAL.md): public technical overview
 
 ## Build
 
