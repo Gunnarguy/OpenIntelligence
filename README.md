@@ -1,6 +1,7 @@
 # OpenIntelligence
 
 [![App Store](https://img.shields.io/badge/App%20Store-Download-blue.svg?logo=apple)](https://apps.apple.com/us/app/openintelligence/id6756559175)
+[![Current Release](https://img.shields.io/badge/current%20release-3.5-black.svg)](https://github.com/Gunnarguy/OpenIntelligence/releases)
 [![Platforms](https://img.shields.io/badge/platform-iPhone%20%7C%20iPad-blue.svg)](https://developer.apple.com/ios/)
 [![Swift](https://img.shields.io/badge/Swift-6.0-orange.svg)](https://swift.org)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
@@ -11,6 +12,10 @@ Import documents, ask natural-language questions, inspect the evidence behind ea
 
 This repository is intentionally product-facing. It shows the app, the native client architecture, and the user-visible trust model without publishing the full private SDK packaging, internal evaluation playbook, or commercial transfer materials.
 
+Current public product release line: 3.5.
+
+GitHub releases in this repository are public product snapshot markers aligned to the shipped app version. They are not full-source drops of the private working repository.
+
 <p align="center">
   <a href="https://apps.apple.com/us/app/openintelligence/id6756559175">
     <img src="https://developer.apple.com/assets/elements/badges/download-on-the-app-store.svg" alt="Download on the App Store" height="50">
@@ -19,13 +24,13 @@ This repository is intentionally product-facing. It shows the app, the native cl
 
 ## If You Starred This Repo, Start Here
 
-| If you want to know... | Read this |
-| --- | --- |
-| What the product looks like today | [WHATS_NEW.md](WHATS_NEW.md) |
-| How the app works at a high level | [HOW_IT_WORKS.md](HOW_IT_WORKS.md) |
+| If you want to know...                   | Read this                          |
+| ---------------------------------------- | ---------------------------------- |
+| What the product looks like today        | [WHATS_NEW.md](WHATS_NEW.md)       |
+| How the app works at a high level        | [HOW_IT_WORKS.md](HOW_IT_WORKS.md) |
 | How the public architecture is organized | [ARCHITECTURE.md](ARCHITECTURE.md) |
-| Where the product is headed | [ROADMAP.md](ROADMAP.md) |
-| How privacy is handled | [PRIVACY.md](PRIVACY.md) |
+| Where the product is headed              | [ROADMAP.md](ROADMAP.md)           |
+| How privacy is handled                   | [PRIVACY.md](PRIVACY.md)           |
 
 ## Current Public Snapshot
 
@@ -72,12 +77,12 @@ The broader codebase direction includes Mac evaluation paths through Mac Catalys
 
 ## What This Repo Does And Does Not Show
 
-| This repo shows | This repo does not publish |
-| --- | --- |
-| Product behavior users can understand and inspect | Proprietary retrieval thresholds and ranking logic |
-| Native SwiftUI app structure and Apple-platform integration | Internal verification heuristics in full detail |
-| Public product docs, release notes, and roadmap | Private SDK packaging and partner materials |
-| Privacy posture and user-visible trust model | Internal evaluation workflows and commercialization docs |
+| This repo shows                                             | This repo does not publish                               |
+| ----------------------------------------------------------- | -------------------------------------------------------- |
+| Product behavior users can understand and inspect           | Proprietary retrieval thresholds and ranking logic       |
+| Native SwiftUI app structure and Apple-platform integration | Internal verification heuristics in full detail          |
+| Public product docs, release notes, and roadmap             | Private SDK packaging and partner materials              |
+| Privacy posture and user-visible trust model                | Internal evaluation workflows and commercialization docs |
 
 ## Privacy Posture
 
@@ -99,12 +104,12 @@ This does not make the product magic or infallible. It means the app is intentio
 
 ## Supported Content
 
-| Category | Examples |
-| --- | --- |
-| Documents | PDF, TXT, MD, RTF |
-| Office | DOCX, XLSX, PPTX |
+| Category      | Examples                                             |
+| ------------- | ---------------------------------------------------- |
+| Documents     | PDF, TXT, MD, RTF                                    |
+| Office        | DOCX, XLSX, PPTX                                     |
 | Code and data | Swift, Python, JavaScript, JSON, CSV, XML, YAML, SQL |
-| Media | PNG, JPEG, HEIC, TIFF, MP3, WAV, MP4, MOV |
+| Media         | PNG, JPEG, HEIC, TIFF, MP3, WAV, MP4, MOV            |
 
 ## Public vs Private Scope
 

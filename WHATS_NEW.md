@@ -2,6 +2,8 @@
 
 Last updated: May 2026
 
+Current public release line: 3.5
+
 Public release highlights for OpenIntelligence.
 
 ## Current Public Snapshot

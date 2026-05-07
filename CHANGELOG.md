@@ -2,6 +2,8 @@
 
 This is the public version history for OpenIntelligence. It focuses on user-visible product changes and intentionally omits private engine tuning, thresholds, and internal implementation details.
 
+Current public release line: 3.5
+
 ## May 2026
 
 - More source-backed answers with clearer refusal when evidence is weak
