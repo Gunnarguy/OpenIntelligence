@@ -82,6 +82,18 @@ Before transfer day, do all of this:
 7. Run a short handoff call.
 8. Get written confirmation that the buyer received access and artifacts.
 
+## Tonight Closing Rule
+
+If someone is ready to close tonight, keep the process brutally simple:
+
+1. align on scope in writing
+2. align on price in writing
+3. use NDA if deeper non-public material is being shared before payment
+4. keep diligence short and packet-based
+5. transfer only after cleared payment
+
+Do not create a custom process in the middle of a live deal unless the buyer's legal or procurement flow forces it.
+
 ## Post-Transfer First-Read Set
 
 Tell the buyer to read these first:

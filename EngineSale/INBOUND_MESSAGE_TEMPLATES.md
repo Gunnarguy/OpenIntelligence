@@ -10,6 +10,12 @@ Use this for normal inbound:
 
 "Thanks for reaching out. The honest framing is that this is not a polished self-serve SDK yet. What exists today is the engine logic, the evaluation packet, the sample host app, and a real Apple-native path for ingestion, retrieval, citations, and verification behavior. If useful, I can do a short 20-minute call, show the exact demo, and then send the current packet if it looks like a fit."
 
+## 1A. Tonight Short Version
+
+Use this if you want the tightest possible reply:
+
+"Thanks for reaching out. The honest version is: this is a real Apple-native document-intelligence engine and codebase head start, not a polished self-serve SDK. If useful, I can do a quick 20-minute walkthrough tonight, show exactly what is real, and send the current packet right after if it looks like a fit."
+
 ## 2. First Reply If They Sound Like A Direct Buyer
 
 Use this when they sound like they may buy the whole project:

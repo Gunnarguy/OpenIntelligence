@@ -8,6 +8,34 @@ If you only remember three things, remember these:
 2. Do not send the full repo casually. Send the packet zips first.
 3. Do not transfer repo access or any credentials until scope is written down and payment has cleared.
 
+## Tonight Fast Path
+
+If the goal is to be sellable tonight, do exactly this and nothing fancier:
+
+1. Run `./scripts/prepare_sale_packets.sh`.
+2. Reply with the short inbound template from `EngineSale/INBOUND_MESSAGE_TEMPLATES.md`.
+3. Book a 20-minute call.
+4. On the call, decide whether this is `evaluation first` or `direct buyout`.
+5. If they are serious, get NDA in place.
+6. After NDA, send both packet zips.
+7. If they want the whole project, use the direct-buyout language and handoff checklist.
+
+That is the whole operating path for tonight. Do not improvise a bigger process unless the buyer gives you a reason.
+
+## What You Can Honestly Sell Tonight
+
+You can honestly sell any of these tonight:
+
+- a short paid evaluation or pilot conversation around the engine
+- a design-partner style diligence process using the current packets
+- a direct asset buyout of the repo and sale materials at the current asking price
+
+You cannot honestly sell this tonight as:
+
+- a finished self-serve enterprise SDK
+- a toolchain-agnostic commercial binary SDK
+- a regulated-use or compliance-ready AI system
+
 ## Public Asking Price
 
 The current SideProjectors listing price is `$7,500`.
@@ -15,6 +43,44 @@ The current SideProjectors listing price is `$7,500`.
 If a buyer accepts that range and wants the whole project instead of a pilot, use the direct-buyout lane below.
 
 If they want to evaluate capability first, use the evaluation lane below.
+
+## Tonight Send Order
+
+Use this order. It keeps the conversation moving without oversharing.
+
+### Cold inbound
+
+Send:
+
+- the first-reply template
+- `EngineSale/ENGINE_PITCH.md` if they want more color
+
+Do not send packet zips yet.
+
+### Serious pre-NDA buyer
+
+Show live on a call:
+
+- the demo host app
+- `EngineSale/ENGINE_INVENTORY.md`
+- `EngineSale/KNOWN_LIMITATIONS.md`
+
+Still do not send the full repo.
+
+### Post-NDA serious buyer
+
+Send:
+
+- `output/OpenIntelligence-SDK-Package/build/OpenIntelligenceEngine-Buyer-Packet.zip`
+- `output/OpenIntelligence-Partner-Packet/build/OpenIntelligence-Partner-Packet.zip`
+
+### Direct buyout after price alignment
+
+Send or walk through:
+
+- `EngineSale/HANDOFF_CHECKLIST.md`
+- `EngineSale/CLAIMS_GUARDRAILS.md`
+- `EngineSale/KNOWN_LIMITATIONS.md`
 
 ## One-Command Prep
 

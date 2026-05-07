@@ -35,6 +35,15 @@ function has_buildable_engine_target() {
   /usr/bin/grep -Fq "Build configuration list for PBXNativeTarget \"$TARGET\"" "$PROJECT_FILE"
 }
 
+function best_effort_remove_path() {
+  local path="$1"
+
+  [[ -e "$path" ]] || return 0
+
+  /bin/chmod -R u+w "$path" 2>/dev/null || true
+  /bin/rm -rf "$path" 2>/dev/null || true
+}
+
 function stage_simulator_support() {
   setopt local_options null_glob
 
@@ -71,10 +80,10 @@ function stage_simulator_support() {
 function stage_device_support() {
   setopt local_options null_glob
 
-  rm -rf "$DEVICE_SUPPORT_DIR"
-  mkdir -p "$DEVICE_SUPPORT_DIR"
-
   if [[ -d "$DEVICE_BUILD_PRODUCTS" ]]; then
+    rm -rf "$DEVICE_SUPPORT_DIR"
+    mkdir -p "$DEVICE_SUPPORT_DIR"
+
     local copied_support=0
 
     echo "Staging device support modules..."
@@ -96,8 +105,13 @@ function stage_device_support() {
     return
   fi
 
+  if [[ -d "$DEVICE_SUPPORT_DIR" ]]; then
+    return 0
+  fi
+
   [[ -d "$SIM_SUPPORT_DIR" ]] || fail "Simulator support must be staged before generating device compatibility modules"
 
+  mkdir -p "$DEVICE_SUPPORT_DIR"
   mkdir -p "$BUILD_DIR"
   local stub_source="$BUILD_DIR/device-support-stub.swift"
   : > "$stub_source"
@@ -175,14 +189,11 @@ EOF
 function build_from_project() {
   mkdir -p "$OUTPUT_DIR" "$BUILD_DIR"
 
-  rm -rf \
-    "$DEVICE_ARCHIVE" \
-    "$SIM_ARCHIVE" \
-    "$XCFRAMEWORK_PATH" \
-    "$CLEAN_DIR" \
-    "$SUPPORT_DIR" \
-    "$DEVICE_DERIVED_DATA_DIR" \
-    "$SIM_DERIVED_DATA_DIR"
+  best_effort_remove_path "$DEVICE_ARCHIVE"
+  best_effort_remove_path "$SIM_ARCHIVE"
+  best_effort_remove_path "$CLEAN_DIR"
+  best_effort_remove_path "$DEVICE_DERIVED_DATA_DIR"
+  best_effort_remove_path "$SIM_DERIVED_DATA_DIR"
 
   local common_args=(
     -project "$PROJECT"
@@ -227,6 +238,7 @@ function build_from_project() {
   stage_device_support || return 1
 
   echo "Creating evaluation XCFramework..."
+  best_effort_remove_path "$XCFRAMEWORK_PATH"
   xcodebuild -create-xcframework \
     -allow-internal-distribution \
     -framework "$CLEAN_DIR/device/${FRAMEWORK_NAME}.framework" \
