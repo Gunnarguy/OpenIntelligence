@@ -3,12 +3,13 @@
 
 require 'spaceship'
 require 'json'
+require_relative 'app_store_connect_env'
 
 # Authenticate with App Store Connect API
 api_key = Spaceship::ConnectAPI::Token.create(
-  key_id: ENV['APP_STORE_CONNECT_API_KEY_ID'],
-  issuer_id: ENV['APP_STORE_CONNECT_ISSUER_ID'],
-  filepath: ENV['APP_STORE_CONNECT_API_KEY_PATH']
+  key_id: AppStoreConnectEnv.required_value('APP_STORE_CONNECT_KEY_ID', 'APP_STORE_CONNECT_API_KEY_ID', 'ASC_KEY_ID'),
+  issuer_id: AppStoreConnectEnv.required_value('APP_STORE_CONNECT_ISSUER', 'APP_STORE_CONNECT_ISSUER_ID', 'ASC_ISSUER_ID'),
+  filepath: AppStoreConnectEnv.required_path('APP_STORE_CONNECT_PRIVATE_KEY_PATH', 'APP_STORE_CONNECT_API_KEY_PATH', 'ASC_KEY_PATH')
 )
 Spaceship::ConnectAPI.token = api_key
 

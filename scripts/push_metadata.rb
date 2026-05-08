@@ -9,11 +9,12 @@ require "openssl"
 require "net/http"
 require "json"
 require "uri"
+require_relative "app_store_connect_env"
 
 # ── Config ──────────────────────────────────────────────────────────────────
-KEY_PATH   = File.expand_path("~/AuthKey_JT97AQ3U4U.p8")
-KEY_ID     = "JT97AQ3U4U"
-ISSUER_ID  = "843e4ca0-4a91-49c5-93d1-c4e336d7c43b"
+KEY_PATH   = AppStoreConnectEnv.required_path("APP_STORE_CONNECT_PRIVATE_KEY_PATH", "APP_STORE_CONNECT_API_KEY_PATH", "ASC_KEY_PATH")
+KEY_ID     = AppStoreConnectEnv.required_value("APP_STORE_CONNECT_KEY_ID", "APP_STORE_CONNECT_API_KEY_ID", "ASC_KEY_ID")
+ISSUER_ID  = AppStoreConnectEnv.required_value("APP_STORE_CONNECT_ISSUER", "APP_STORE_CONNECT_ISSUER_ID", "ASC_ISSUER_ID")
 BUNDLE_ID  = "Gunndamental.OpenIntelligence"
 METADATA   = File.join(__dir__, "..", "fastlane", "metadata", "en-US")
 BASE_URL   = "https://api.appstoreconnect.apple.com/v1"

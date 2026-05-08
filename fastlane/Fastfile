@@ -2,14 +2,15 @@
 # More documentation: https://docs.fastlane.tools
 
 default_platform(:ios)
+require_relative "../scripts/app_store_connect_env"
 
 APP_IDENTIFIER = "Gunndamental.OpenIntelligence".freeze
 PROJECT_PATH = "OpenIntelligence.xcodeproj".freeze
 SCHEME = "OpenIntelligence".freeze
 TEAM_ID = "Z3E334EXZD".freeze
-ASC_KEY_ID = "JT97AQ3U4U".freeze
-ASC_ISSUER_ID = "843e4ca0-4a91-49c5-93d1-c4e336d7c43b".freeze
-ASC_KEY_PATH = File.expand_path("~/AuthKey_JT97AQ3U4U.p8").freeze
+ASC_KEY_ID = AppStoreConnectEnv.value("APP_STORE_CONNECT_KEY_ID", "APP_STORE_CONNECT_API_KEY_ID", "ASC_KEY_ID").freeze
+ASC_ISSUER_ID = AppStoreConnectEnv.value("APP_STORE_CONNECT_ISSUER", "APP_STORE_CONNECT_ISSUER_ID", "ASC_ISSUER_ID").freeze
+ASC_KEY_PATH = AppStoreConnectEnv.path_value("APP_STORE_CONNECT_PRIVATE_KEY_PATH", "APP_STORE_CONNECT_API_KEY_PATH", "ASC_KEY_PATH").freeze
 
 # Old fastlane versions treat APP_STORE_CONNECT_API_KEY_PATH as a second
 # auth source and conflict with the explicit api_key we pass in lanes below.
@@ -19,6 +20,10 @@ platform :ios do
 
   # --- Shared API key config ---
   private_lane :asc_api_key do
+    unless ASC_KEY_ID && ASC_ISSUER_ID && ASC_KEY_PATH
+      UI.user_error!("Missing App Store Connect credentials. Set APP_STORE_CONNECT_KEY_ID, APP_STORE_CONNECT_ISSUER, and APP_STORE_CONNECT_PRIVATE_KEY_PATH in your shell or repo .env file.")
+    end
+
     app_store_connect_api_key(
       key_id: ASC_KEY_ID,
       issuer_id: ASC_ISSUER_ID,
