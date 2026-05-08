@@ -52,9 +52,6 @@
             ReferencedContainer = "container:OpenIntelligence.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
-      <StoreKitConfigurationFileReference
-         identifier = "../../OpenIntelligence/Resources/StoreKit/StoreKitConfiguration.storekit">
-      </StoreKitConfigurationFileReference>
    </LaunchAction>
    <ProfileAction
       buildConfiguration = "Release"

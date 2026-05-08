@@ -19,7 +19,6 @@ Public demo app shell
 | ---------------- | --------------------------------------------------------------- |
 | Demo app shell   | A lightweight SwiftUI app that communicates the product story   |
 | Public docs      | README, architecture, workflow, privacy, and release materials  |
-| Marketing assets | App Store copy, screenshots, and SideProjectors-facing material |
 | Build support    | Public-safe build workflows and helper scripts                  |
 
 ## What Does Not Live Here

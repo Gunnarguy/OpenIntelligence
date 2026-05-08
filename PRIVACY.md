@@ -20,7 +20,6 @@ Last updated: February 2026
 ## Keys & Credentials
 
 - **No third-party API keys required.** OpenIntelligence uses only Apple Intelligence (on-device + Private Cloud Compute).
-- App Store credentials for StoreKit subscriptions are managed by Apple's secure infrastructure.
 - No external cloud services, no API keys to manage, no data leaving Apple's ecosystem.
 
 ## Storage & Retention

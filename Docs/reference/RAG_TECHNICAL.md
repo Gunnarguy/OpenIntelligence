@@ -27,7 +27,7 @@ This is the public technical overview for OpenIntelligence. It describes the pro
 | Document understanding | Apple parsing, OCR, and media handling capabilities          |
 | Local storage          | App-owned document libraries and supporting indexes          |
 | Answer generation      | Apple platform intelligence features and answer presentation |
-| Platform commerce      | StoreKit and app entitlement handling                        |
+| Platform integration   | App lifecycle, permissions, and Apple platform capabilities |
 
 ## What This Public Document Does Not Include
 

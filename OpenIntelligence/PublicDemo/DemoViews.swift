@@ -28,7 +28,7 @@ private let demoFeatures: [DemoFeature] = [
     DemoFeature(title: "Private document workflows", detail: "Shows the product category, trust posture, and Apple-native UX direction.", symbol: "folder.badge.questionmark"),
     DemoFeature(title: "Grounded-answer experience", detail: "Demonstrates how the product presents evidence-first answers instead of generic chat vibes.", symbol: "checkmark.seal.text.page"),
     DemoFeature(title: "Founder-ready diligence signal", detail: "Keeps public materials, screenshots, docs, and architecture summaries visible without shipping the private moat.", symbol: "briefcase"),
-    DemoFeature(title: "App Store product framing", detail: "Carries public release notes, privacy posture, and marketing copy for the shipping product line.", symbol: "iphone.gen3")
+    DemoFeature(title: "Product framing", detail: "Carries public release notes, privacy posture, and the product-facing story for the shipped app.", symbol: "iphone.gen3")
 ]
 
 private let workflowSteps: [DemoStep] = [
@@ -208,7 +208,7 @@ struct DemoExperienceView: View {
             Text("What ships publicly")
                 .font(.system(size: 22, weight: .semibold, design: .rounded))
 
-            Text("This demo repo keeps docs, screenshots, release notes, marketing copy, and a lightweight product-facing app shell. It does not ship the private engine implementation.")
+            Text("This demo repo keeps docs, release notes, and a lightweight product-facing app shell. It does not ship the private engine implementation.")
                 .foregroundStyle(.secondary)
 
             Text("Sample docs included in the repo")
@@ -233,7 +233,7 @@ struct DemoBoundaryView: View {
             VStack(alignment: .leading, spacing: 22) {
                 section(
                     title: "What stays in this repo",
-                    body: "A curated demo app shell, public docs, release notes, marketing materials, and product-facing architecture summaries."
+                    body: "A curated demo app shell, public docs, release notes, and product-facing architecture summaries."
                 )
 
                 section(
