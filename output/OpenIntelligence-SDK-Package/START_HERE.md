@@ -42,6 +42,16 @@ The fastest productization path is now the source SDK lane, not the sealed binar
 3. Read `INSTALL.md`.
 4. Open `SampleApp/` if you want to inspect the packet-local host path.
 
+## Fastest Source SDK Repo Path
+
+Inside the private engine repo, the fastest source-SDK check is now:
+
+1. `./scripts/validate_source_sdk_package.sh`
+2. `Samples/SourceSDKHost/build_sample_app.sh`
+3. or `./scripts/validate_source_sdk_consumer_flow.sh` to run both
+
+The committed `Samples/SourceSDKHost/SourceSDKHost.xcodeproj` should build directly. Regenerating it with XcodeGen is optional, not required for the default validation path.
+
 ## Commercial Framing
 
 Use this packet for design-partner and technical-evaluation conversations.

@@ -7,13 +7,19 @@ PROJECT_SPEC="$ROOT_DIR/project.yml"
 PROJECT_FILE="$ROOT_DIR/SourceSDKHost.xcodeproj"
 DESTINATION="${DESTINATION:-platform=iOS Simulator,name=iPhone 17 Pro}"
 DERIVED_DATA_PATH="${DERIVED_DATA_PATH:-/tmp/OpenIntelligenceEngine-SourceSDKHost}"
+REGENERATE_PROJECT="${REGENERATE_PROJECT:-0}"
 
-if ! command -v xcodegen >/dev/null 2>&1; then
-  echo "error: xcodegen is required to generate the sample project" >&2
-  exit 1
+if [[ "$REGENERATE_PROJECT" == "1" || ! -d "$PROJECT_FILE" ]]; then
+  if ! command -v xcodegen >/dev/null 2>&1; then
+    echo "error: xcodegen is required only when regenerating $PROJECT_FILE" >&2
+    exit 1
+  fi
+
+  echo "Regenerating sample project from $PROJECT_SPEC..."
+  xcodegen generate --spec "$PROJECT_SPEC" >/dev/null
+else
+  echo "Using committed sample project at $PROJECT_FILE"
 fi
-
-xcodegen generate --spec "$PROJECT_SPEC" >/dev/null
 
 /usr/bin/xcodebuild \
   -quiet \

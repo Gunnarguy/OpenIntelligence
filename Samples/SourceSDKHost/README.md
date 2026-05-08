@@ -11,9 +11,15 @@ What it proves:
 Fastest path:
 
 1. Run `./build_sample_app.sh`.
-2. Open the generated `SourceSDKHost.xcodeproj` in Xcode.
+2. Open the committed `SourceSDKHost.xcodeproj` in Xcode.
 3. Select an Apple Intelligence-capable device for live Foundation Models behavior.
 4. Use `Load Bundled Demo Pack`, then `Index Documents`, then ask a question.
+
+Notes about tooling:
+
+- the committed `SourceSDKHost.xcodeproj` should build directly through `./build_sample_app.sh`
+- `xcodegen` is only required if you intentionally want to regenerate the sample project from `project.yml`
+- to force regeneration, run `REGENERATE_PROJECT=1 ./build_sample_app.sh`
 
 Important:
 

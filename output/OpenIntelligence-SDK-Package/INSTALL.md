@@ -26,6 +26,7 @@ The private engine repo now includes:
 - a validation script: `scripts/validate_source_sdk_package.sh`
 - a package consumer sample app template: `Samples/SourceSDKHost/`
 - a full consumer-flow validator: `scripts/validate_source_sdk_consumer_flow.sh`
+- a committed consumer sample project: `Samples/SourceSDKHost/SourceSDKHost.xcodeproj`
 
 That path currently proves:
 
@@ -33,6 +34,7 @@ That path currently proves:
 - the package builds for iOS Simulator
 - engine resources are bundled through the package path
 - a separate host app can compile against the package path
+- the committed sample project can be built directly without regenerating it first
 - those two steps can be re-run through one repo-level validation script
 
 That path does **not** yet prove:
@@ -40,6 +42,16 @@ That path does **not** yet prove:
 - docs-only buyer installation without founder help
 - final consumer sample app integration
 - finished no-guidance SDK productization
+
+## Fastest Source SDK Validation Path
+
+From the private engine repo root:
+
+1. Run `./scripts/validate_source_sdk_package.sh`.
+2. Run `Samples/SourceSDKHost/build_sample_app.sh`.
+3. Or run `./scripts/validate_source_sdk_consumer_flow.sh` to perform both steps in sequence.
+
+The committed sample project should build directly. `xcodegen` is only needed if you deliberately regenerate `Samples/SourceSDKHost/SourceSDKHost.xcodeproj` from `project.yml`.
 
 ## Runtime Prerequisites
 
