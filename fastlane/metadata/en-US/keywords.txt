@@ -1,1 +1,0 @@
-rag,pdf,ai,chat,research,offline,ocr,private,documents,neural,search,local,agent,apple,intelligence

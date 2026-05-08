@@ -1,5 +1,7 @@
 # Public Product Constraints
 
+> Archived reference snapshot. For current repo-grounded guidance, use [../HARD_LIMITS.md](../HARD_LIMITS.md).
+
 This file documents only the public-facing constraints that matter for understanding OpenIntelligence as a product. Detailed engine limits and internal safety thresholds are intentionally kept private.
 
 ## Product Constraints

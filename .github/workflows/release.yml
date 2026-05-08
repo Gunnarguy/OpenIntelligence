@@ -73,12 +73,14 @@ jobs:
             ## Installation
             1. Clone the repository
             2. Open in Xcode 26+
-            3. Build and run on your device
-            4. Configure your API keys in Settings
+            3. Build and run on your device or simulator
+
+            ## Notes
+            - This public snapshot intentionally excludes private engine internals.
+            - App Store submission and commercialization tooling stay in the private engine repo.
 
             ## Requirements
             - iOS 26.0+
             - Xcode 26+
-            - Valid API keys for enabled services
           draft: false
           prerelease: false
