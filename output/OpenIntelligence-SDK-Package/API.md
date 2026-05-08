@@ -10,9 +10,10 @@ In plain English, another app would:
 
 1. check whether the engine is available on the device
 2. create the engine
-3. import files into it
-4. ask a question
-5. get back an answer with citations
+3. create or select a library
+4. import files into it
+5. ask a question
+6. get back an answer with citations
 
 ## Current Engine Entry Points
 
@@ -41,6 +42,13 @@ public struct OIEngineConfiguration: Sendable {
     public var storageURL: URL?
     public var allowPrivateCloudCompute: Bool
     public var executionContext: OIExecutionContext
+}
+
+public struct OILibrary: Identifiable, Hashable, Sendable {
+    public let id: UUID
+    public let name: String
+    public let documentCount: Int
+    public let chunkCount: Int
 }
 
 public struct OIIngestRequest: Sendable {
@@ -82,8 +90,13 @@ public struct OIQueryResult: Sendable {
 public final class OIEngine {
     public static func availability() -> OIAvailabilityState
     public init(configuration: OIEngineConfiguration = OIEngineConfiguration())
+    public func listLibraries() -> [OILibrary]
+    public func createLibrary(name: String) throws -> OILibrary
+    public func deleteLibrary(id: UUID) throws
     public func ingest(_ request: OIIngestRequest) async throws -> OIIngestResult
+    public func ingest(_ request: OIIngestRequest, into libraryID: UUID) async throws -> OIIngestResult
     public func query(_ request: OIQueryRequest) async throws -> OIQueryResult
+    public func query(_ request: OIQueryRequest, in libraryID: UUID) async throws -> OIQueryResult
 }
 ```
 
@@ -102,13 +115,11 @@ func runDemo(documentURLs: [URL]) async throws {
         )
     )
 
-    let ingestResult = try await engine.ingest(
-        OIIngestRequest(urls: documentURLs, libraryName: "Support Docs")
-    )
+    let library = try engine.createLibrary(name: "Support Docs")
 
-    let queryResult = try await engine.query(
-        OIQueryRequest(question: "What happens if the strap is not removed?", libraryName: "Support Docs", topK: 6)
-    )
+    let ingestResult = try await engine.ingest(OIIngestRequest(urls: documentURLs), into: library.id)
+
+    let queryResult = try await engine.query(OIQueryRequest(question: "What happens if the strap is not removed?", topK: 6), in: library.id)
 
     print(ingestResult.importedDocuments)
     print(queryResult.answer)
@@ -118,6 +129,7 @@ func runDemo(documentURLs: [URL]) async throws {
 
 ## Current Caveats
 
+- The source SDK now has a root `Package.swift` and a consumer sample under `Samples/SourceSDKHost/`, but that is still productization progress rather than finished no-guidance completion.
 - `storageURL` lets the caller redirect the base storage location, but the current facade still wraps app-era internals.
 - `allowPrivateCloudCompute` is a permission/control flag, not proof of direct server-model access or larger public context windows.
 - `availability()` should be treated as a practical runtime check, not a full packaging-readiness statement.

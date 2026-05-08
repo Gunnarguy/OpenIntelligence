@@ -13,6 +13,9 @@ The workspace currently contains:
 Current validation completed:
 
 - `OpenIntelligenceEngine` framework builds from current source for `generic/platform=iOS Simulator`
+- root `Package.swift` source SDK manifest resolves from current source
+- source SDK package build succeeds for iOS Simulator via `scripts/validate_source_sdk_package.sh`
+- package consumer sample app template under `Samples/SourceSDKHost/` builds against the local package path
 - evaluation device and simulator archives succeed with isolated per-platform DerivedData paths
 - evaluation XCFramework rebuild succeeds from current source
 - buyer packet staging and rebuild succeed from the fresh evaluation artifact
@@ -43,6 +46,8 @@ Practical implication:
 
 - the engine is demoable now
 - an evaluation XCFramework is available now
+- a source SDK packaging path is now real and buildable
+- a source-SDK consumer app path is now real and buildable
 - a buyer-safe ZIP with a packet-local sample app is available now
 - the pitch demo can be compiled locally now and taken to Apple Intelligence-capable iPhone hardware for live runtime validation
 - the engine is not yet ready for sealed module-stable binary handoff
@@ -100,8 +105,14 @@ Do not sell it as:
 - `scripts/prepare_engine_buyer_packet.sh`
 - `scripts/validate_sdk_package.sh`
 - `scripts/build_sdk_buyer_bundle.sh`
+- `scripts/validate_source_sdk_package.sh`
 
-These scripts are real and currently support a source-backed evaluation handoff path. The stable commercial path is still blocked by upstream package interface verification.
+These scripts are real and currently support:
+
+- a source-backed evaluation handoff path
+- an initial source-SDK package validation path
+
+The stable commercial binary path is still blocked by upstream package interface verification.
 
 Additional packet-local sample staging script:
 

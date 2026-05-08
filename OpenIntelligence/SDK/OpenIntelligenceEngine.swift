@@ -36,6 +36,25 @@ public struct OIEngineConfiguration: Sendable {
     }
 }
 
+public struct OILibrary: Identifiable, Hashable, Sendable {
+    public let id: UUID
+    public let name: String
+    public let documentCount: Int
+    public let chunkCount: Int
+
+    nonisolated public init(
+        id: UUID,
+        name: String,
+        documentCount: Int,
+        chunkCount: Int
+    ) {
+        self.id = id
+        self.name = name
+        self.documentCount = documentCount
+        self.chunkCount = chunkCount
+    }
+}
+
 public struct OIIngestRequest: Sendable {
     public var urls: [URL]
     public var libraryName: String?
@@ -196,12 +215,55 @@ public final class OIEngine {
         ragService = RAGService(containerService: containerService)
     }
 
+    public func listLibraries() -> [OILibrary] {
+        containerService.containers.map(Self.makeLibrary)
+    }
+
+    @discardableResult
+    public func createLibrary(name: String) throws -> OILibrary {
+        let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedName.isEmpty else {
+            throw OpenIntelligenceEngineError.invalidRequest("Library name must not be empty.")
+        }
+
+        if let existing = findContainer(named: trimmedName) {
+            return Self.makeLibrary(from: existing)
+        }
+
+        let created = containerService.createContainer(name: trimmedName)
+        return Self.makeLibrary(from: created)
+    }
+
+    public func deleteLibrary(id: UUID) throws {
+        guard findContainer(id: id) != nil else {
+            throw OpenIntelligenceEngineError.invalidRequest("Library not found.")
+        }
+
+        guard containerService.containers.count > 1 else {
+            throw OpenIntelligenceEngineError.invalidRequest("At least one library must remain.")
+        }
+
+        containerService.deleteContainer(id: id)
+    }
+
     public func ingest(_ request: OIIngestRequest) async throws -> OIIngestResult {
         guard !request.urls.isEmpty else {
             throw OpenIntelligenceEngineError.invalidRequest("At least one document URL is required.")
         }
 
         let container = ensureContainer(named: request.libraryName)
+        return try await ingest(request, into: container.id)
+    }
+
+    public func ingest(_ request: OIIngestRequest, into libraryID: UUID) async throws -> OIIngestResult {
+        guard !request.urls.isEmpty else {
+            throw OpenIntelligenceEngineError.invalidRequest("At least one document URL is required.")
+        }
+
+        guard let container = findContainer(id: libraryID) else {
+            throw OpenIntelligenceEngineError.invalidRequest("Library not found.")
+        }
+
         containerService.setActive(container.id)
 
         let result = await ragService.ingestDocuments(request.urls, context: .userInitiated)
@@ -234,6 +296,24 @@ public final class OIEngine {
         }
 
         let container = ensureContainer(named: request.libraryName)
+        return try await query(request, in: container.id)
+    }
+
+    public func query(_ request: OIQueryRequest, in libraryID: UUID) async throws -> OIQueryResult {
+        let availability = Self.availability()
+        if availability != .available {
+            throw OpenIntelligenceEngineError.unavailable(availability)
+        }
+
+        let trimmedQuestion = request.question.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedQuestion.isEmpty else {
+            throw OpenIntelligenceEngineError.invalidRequest("Question must not be empty.")
+        }
+
+        guard let container = findContainer(id: libraryID) else {
+            throw OpenIntelligenceEngineError.invalidRequest("Library not found.")
+        }
+
         containerService.setActive(container.id)
 
         var config = InferenceConfig.ragOptimized
@@ -262,19 +342,36 @@ public final class OIEngine {
         )
     }
 
+    private func findContainer(id: UUID) -> KnowledgeContainer? {
+        containerService.containers.first(where: { $0.id == id })
+    }
+
+    private func findContainer(named libraryName: String) -> KnowledgeContainer? {
+        containerService.containers.first(where: {
+            $0.name.compare(libraryName, options: [.caseInsensitive, .diacriticInsensitive]) == .orderedSame
+        })
+    }
+
     private func ensureContainer(named libraryName: String?) -> KnowledgeContainer {
         let trimmed = libraryName?.trimmingCharacters(in: .whitespacesAndNewlines)
         guard let trimmed, !trimmed.isEmpty else {
             return containerService.activeContainer ?? containerService.createContainer(name: "General")
         }
 
-        if let existing = containerService.containers.first(where: {
-            $0.name.compare(trimmed, options: [.caseInsensitive, .diacriticInsensitive]) == .orderedSame
-        }) {
+        if let existing = findContainer(named: trimmed) {
             return existing
         }
 
         return containerService.createContainer(name: trimmed)
+    }
+
+    private static func makeLibrary(from container: KnowledgeContainer) -> OILibrary {
+        OILibrary(
+            id: container.id,
+            name: container.name,
+            documentCount: container.totalDocuments,
+            chunkCount: container.totalChunks
+        )
     }
 
     private func mapExecutionContext(_ value: OIExecutionContext) -> ExecutionContext {

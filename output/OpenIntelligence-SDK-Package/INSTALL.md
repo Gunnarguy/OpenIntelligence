@@ -6,6 +6,8 @@ This document describes how to work with the staged evaluation packet.
 
 It does not turn the current packet into a finished enterprise SDK story.
 
+There is now also a root source-SDK package path in the private engine repo, but that path is still in productization and validation work rather than buyer-ready no-guidance completion.
+
 ## Intended Evaluation Path
 
 If the staged XCFramework artifact is present, the current packet can support a same-toolchain evaluation flow:
@@ -14,6 +16,28 @@ If the staged XCFramework artifact is present, the current packet can support a 
 2. Link required Apple frameworks if needed.
 3. Use the sample host materials in this packet as a reference.
 4. Test on a physical Apple Intelligence-capable device for live Foundation Models behavior.
+
+## Source SDK Path Inside The Private Repo
+
+The private engine repo now includes:
+
+- a root `Package.swift`
+- a source-distributed `OpenIntelligenceEngine` package target
+- a validation script: `scripts/validate_source_sdk_package.sh`
+- a package consumer sample app template: `Samples/SourceSDKHost/`
+
+That path currently proves:
+
+- the source SDK manifest resolves
+- the package builds for iOS Simulator
+- engine resources are bundled through the package path
+- a separate host app can compile against the package path
+
+That path does **not** yet prove:
+
+- docs-only buyer installation without founder help
+- final consumer sample app integration
+- finished no-guidance SDK productization
 
 ## Runtime Prerequisites
 
@@ -38,3 +62,5 @@ Do not treat it as:
 ## Practical Rule
 
 If the conversation is about serious licensing or code transfer, this packet should support that conversation, not replace the deeper repo and codebase review.
+
+If the conversation is specifically about the fastest route to a polished SDK product, use the source package path as the lead productization lane and treat the XCFramework packet as the evaluation lane.

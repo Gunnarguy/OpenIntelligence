@@ -58,13 +58,17 @@ check_path "$OUTPUT_DIR/START_HERE.md"
 check_path "$OUTPUT_DIR/Internal/BUILD_NOTES.md"
 check_path "$OUTPUT_DIR/Internal/SELLING_PLAYBOOK.md"
 check_path "$OUTPUT_DIR/Internal/DEMO_PLAYBOOK.md"
+check_path "Package.swift"
 check_path "SDK_BOUNDARY_AUDIT.md"
 check_path "scripts/build_sdk_buyer_bundle.sh"
 check_path "scripts/prepare_engine_buyer_packet.sh"
 check_path "scripts/build_engine_xcframework.sh"
 check_path "scripts/build_engine_evaluation_host.sh"
 check_path "scripts/stage_sdk_sample_app.sh"
+check_path "scripts/validate_source_sdk_package.sh"
 check_path "scripts/validate_sdk_package.sh"
+check_path "Samples/SourceSDKHost/project.yml"
+check_path "Samples/SourceSDKHost/build_sample_app.sh"
 check_path "$XCFRAMEWORK_PATH"
 check_path "$OUTPUT_DIR/EvaluationSupport/iphonesimulator"
 check_path "$OUTPUT_DIR/EvaluationSupport/iphoneos"
@@ -101,6 +105,8 @@ Current evaluation packet alignment: release line $RELEASE_LINE.
 
 The documentation scaffold exists and the XCFramework artifact is present.
 Required engine resources are bundled inside the staged XCFramework.
+Root source SDK package manifest present: yes.
+Source SDK validation script present: yes.
 
 Artifact truth:
 - built packet type: $(if has_swiftinterface; then echo "module-stable candidate"; else echo "evaluation-only"; fi)

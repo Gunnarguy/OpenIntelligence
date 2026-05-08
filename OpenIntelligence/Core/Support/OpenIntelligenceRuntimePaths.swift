@@ -33,8 +33,12 @@ enum OpenIntelligenceRuntimePaths {
 enum OpenIntelligenceResourceBundle {
     private final class Marker: NSObject {}
 
-    nonisolated static var current: Bundle {
+    nonisolated(unsafe) static var current: Bundle {
+#if SWIFT_PACKAGE
+        Bundle.module
+#else
         Bundle(for: Marker.self)
+#endif
     }
 
     nonisolated static func url(forResource name: String, withExtension ext: String) -> URL? {

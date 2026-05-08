@@ -1,0 +1,50 @@
+name: SourceSDKHost
+options:
+  minimumXcodeGenVersion: 2.38.0
+settings:
+  base:
+    CLANG_CXX_LANGUAGE_STANDARD: gnu++20
+    SWIFT_VERSION: 5.0
+    DEVELOPMENT_TEAM: Z3E334EXZD
+    CODE_SIGN_STYLE: Automatic
+    GENERATE_INFOPLIST_FILE: YES
+    INFOPLIST_KEY_CFBundleDisplayName: Source SDK Host
+    INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES
+    INFOPLIST_KEY_UILaunchScreen_Generation: YES
+    INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents: YES
+    INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad:
+      - UIInterfaceOrientationPortrait
+      - UIInterfaceOrientationPortraitUpsideDown
+      - UIInterfaceOrientationLandscapeLeft
+      - UIInterfaceOrientationLandscapeRight
+    INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone:
+      - UIInterfaceOrientationPortrait
+      - UIInterfaceOrientationPortraitUpsideDown
+      - UIInterfaceOrientationLandscapeLeft
+      - UIInterfaceOrientationLandscapeRight
+    CURRENT_PROJECT_VERSION: 1
+    MARKETING_VERSION: 0.1.0
+    OTHER_SWIFT_FLAGS:
+      - $(inherited)
+      - -cxx-interoperability-mode=default
+    PRODUCT_BUNDLE_IDENTIFIER: Gunndamental.SourceSDKHost
+    TARGETED_DEVICE_FAMILY: "1,2"
+packages:
+  OpenIntelligenceEngine:
+    path: ../..
+targets:
+  SourceSDKHost:
+    type: application
+    platform: iOS
+    deploymentTarget: "26.0"
+    sources:
+      - path: SourceSDKHost
+        excludes:
+          - DemoAssets
+          - "* 2.swift"
+      - path: SourceSDKHost/DemoAssets
+        type: folder
+        buildPhase: resources
+    dependencies:
+      - package: OpenIntelligenceEngine
+        product: OpenIntelligenceEngine
