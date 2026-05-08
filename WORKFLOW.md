@@ -191,6 +191,35 @@ Public-safe usually means:
 - marketing metadata
 - UI-level app improvements that do not expose private engine logic
 
+## Public Demo Export
+
+When the public repo needs to behave like a SideProjectors-safe demo snapshot,
+do not curate it manually inside the public working copy.
+
+Use the private engine repo as source of truth and run the engine-side export
+tools:
+
+- `scripts/public_demo_manifest.sh` — exact allowlist, denylist, and stub-needed paths
+- `scripts/export_public_demo.sh` — dry-run or apply the curated export into `OpenIntelligence-Public/`
+- `scripts/audit_public_demo_boundary.sh` — fail-closed audit that checks the public repo against the boundary
+
+The export flow also overlays curated files from:
+
+- `public_demo_overlay/`
+
+That overlay is where the public demo app shell and public-facing doc overrides belong.
+
+Recommended flow:
+
+1. build and commit normally in `OpenIntelligence-Engine/`
+2. run `./scripts/export_public_demo.sh` first without `--apply`
+3. run it again with `--apply` once the plan looks right
+4. run `./scripts/audit_public_demo_boundary.sh` if you want an explicit standalone check
+5. review the diff in `OpenIntelligence-Public/`
+6. keep or add demo stubs for any stripped service areas before pushing public changes
+
+This keeps the public repo as a generated publish target rather than another dev repo.
+
 ## Summary-Only Rule
 
 Some changes should be described publicly without promoting the code.

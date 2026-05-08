@@ -118,6 +118,18 @@ Preferred pattern:
 
 If a commit mixes both, leave it private and write a public summary instead.
 
+## Operational Boundary
+
+The policy above is the intent.
+
+The concrete engine-to-public export boundary is encoded in:
+
+- `scripts/public_demo_manifest.sh`
+- `scripts/export_public_demo.sh`
+
+If the public repo needs to serve as a portfolio/demo snapshot, use those files
+as the enforceable path boundary instead of manually copying directories.
+
 ## What I Would Do If This Were Mine
 
 - keep the public repo alive
