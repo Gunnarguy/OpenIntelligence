@@ -15,16 +15,6 @@
 		EE1CF3053119E55F4B2987BC /* SourceSDKSmokeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B80EC8444BF7B4D8BBB7624 /* SourceSDKSmokeTests.swift */; };
 /* End PBXBuildFile section */
 
-/* Begin PBXContainerItemProxy section */
-		E3E87BA7B11522E4571B20DF /* PBXContainerItemProxy */ = {
-			isa = PBXContainerItemProxy;
-			containerPortal = CE7DC2F6EDFD64501EF18C63 /* Project object */;
-			proxyType = 1;
-			remoteGlobalIDString = EB4791C14CC29C29851997CF;
-			remoteInfo = SourceSDKHost;
-		};
-/* End PBXContainerItemProxy section */
-
 /* Begin PBXFileReference section */
 		0BD3D54A79DB4B4B259097D4 /* DemoAssets */ = {isa = PBXFileReference; lastKnownFileType = folder; name = DemoAssets; path = SourceSDKHost/DemoAssets; sourceTree = SOURCE_ROOT; };
 		293AD799F67DD9FE67115D76 /* SourceSDKHost.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = SourceSDKHost.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -113,7 +103,6 @@
 			buildRules = (
 			);
 			dependencies = (
-				6B8146C362E210ACC241850B /* PBXTargetDependency */,
 			);
 			name = SourceSDKHostTests;
 			packageProductDependencies = (
@@ -215,14 +204,6 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
-
-/* Begin PBXTargetDependency section */
-		6B8146C362E210ACC241850B /* PBXTargetDependency */ = {
-			isa = PBXTargetDependency;
-			target = EB4791C14CC29C29851997CF /* SourceSDKHost */;
-			targetProxy = E3E87BA7B11522E4571B20DF /* PBXContainerItemProxy */;
-		};
-/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		0952CF13097329CDA9C65AAB /* Debug */ = {
@@ -423,7 +404,6 @@
 				);
 				SDKROOT = iphoneos;
 				TARGETED_DEVICE_FAMILY = "1,2";
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/SourceSDKHost.app/SourceSDKHost";
 			};
 			name = Debug;
 		};
@@ -439,7 +419,6 @@
 				);
 				SDKROOT = iphoneos;
 				TARGETED_DEVICE_FAMILY = "1,2";
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/SourceSDKHost.app/SourceSDKHost";
 			};
 			name = Release;
 		};
