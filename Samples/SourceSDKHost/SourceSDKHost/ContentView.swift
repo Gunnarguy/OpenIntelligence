@@ -2,6 +2,10 @@ import OpenIntelligenceEngine
 import SwiftUI
 import UniformTypeIdentifiers
 
+private enum SourceSDKHostRuntime {
+    static let isRunningTests = ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
+}
+
 struct ContentView: View {
     @StateObject private var model = SourceSDKDemoViewModel()
     @FocusState private var isQuestionFocused: Bool
@@ -23,6 +27,7 @@ struct ContentView: View {
             .navigationBarTitleDisplayMode(.inline)
         }
         .task {
+            guard !SourceSDKHostRuntime.isRunningTests else { return }
             model.bootstrapIfNeeded()
         }
         .fileImporter(
@@ -304,7 +309,7 @@ final class SourceSDKDemoViewModel: ObservableObject {
     let executionContext: OIExecutionContext = .automatic
     let allowPrivateCloudCompute = true
 
-    private let engine = OIEngine(
+    private lazy var engine = OIEngine(
         configuration: OIEngineConfiguration(
             allowPrivateCloudCompute: true,
             executionContext: .automatic
@@ -326,6 +331,12 @@ final class SourceSDKDemoViewModel: ObservableObject {
     func bootstrapIfNeeded() {
         guard !hasBootstrapped else { return }
         hasBootstrapped = true
+
+        guard !SourceSDKHostRuntime.isRunningTests else {
+            lastAction = "Running under XCTest smoke tests."
+            return
+        }
+
         refreshLibraries()
         ensureLibrary()
         lastAction = "Source SDK host initialized."
