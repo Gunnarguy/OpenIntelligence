@@ -668,6 +668,8 @@ class OIIngestRequest { } SWIFT_UNAVAILABLE_MSG("actor-isolated struct 'OIIngest
 
 class OIIngestResult { } SWIFT_UNAVAILABLE_MSG("actor-isolated struct 'OIIngestResult' can not be exposed to C++");
 
+class OILibrary { } SWIFT_UNAVAILABLE_MSG("actor-isolated struct 'OILibrary' can not be exposed to C++");
+
 class OIQueryRequest { } SWIFT_UNAVAILABLE_MSG("actor-isolated struct 'OIQueryRequest' can not be exposed to C++");
 
 class OIQueryResult { } SWIFT_UNAVAILABLE_MSG("actor-isolated struct 'OIQueryResult' can not be exposed to C++");

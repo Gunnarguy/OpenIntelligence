@@ -6,6 +6,13 @@ There is no hosted web API in this packet.
 
 This file is about the small set of engine entry points another Apple app would use if it embedded the engine locally.
 
+Today there are two productization lanes:
+
+- the primary commercial lane: the source-distributed SDK in the private engine repo
+- the packet-local evaluation lane: the staged XCFramework for same-toolchain review
+
+This API surface is the source-SDK-facing boundary.
+
 In plain English, another app would:
 
 1. check whether the engine is available on the device
@@ -19,7 +26,7 @@ In plain English, another app would:
 
 The staged engine entry points in `OpenIntelligence/SDK/OpenIntelligenceEngine.swift` are intentionally small.
 
-This is the current evaluation boundary, not proof of a finished enterprise SDK contract.
+This is the current source-SDK v1 boundary, not proof of a finished no-guidance enterprise SDK contract.
 
 ```swift
 public enum OIAvailabilityState: Equatable, Sendable {
@@ -142,10 +149,16 @@ If you want a concrete reference implementation, use `Samples/SourceSDKHost/` in
 
 For simulator-safe contract checks that do not depend on live Apple Intelligence generation, use `Samples/SourceSDKHost/run_smoke_tests.sh`.
 
+Current commercial framing for this boundary is:
+
+- private source-distributed SDK
+- assisted integration
+- design-partner evaluation
+
 ## Current Caveats
 
 - The source SDK now has a root `Package.swift` and a consumer sample under `Samples/SourceSDKHost/`, but that is still productization progress rather than finished no-guidance completion.
 - `storageURL` lets the caller redirect the base storage location, but the current facade still wraps app-era internals.
 - `allowPrivateCloudCompute` is a permission/control flag, not proof of direct server-model access or larger public context windows.
 - `availability()` should be treated as a practical runtime check, not a full packaging-readiness statement.
-- This boundary is good enough for evaluation. It is not yet the final long-term SDK contract.
+- This boundary is good enough for assisted source-distributed integration today. It is not yet the final no-guidance or sealed-binary SDK contract.

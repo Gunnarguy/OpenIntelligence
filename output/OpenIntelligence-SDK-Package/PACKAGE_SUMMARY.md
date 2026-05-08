@@ -2,7 +2,7 @@
 
 ## Current Status
 
-Status: `EVALUATION PACKET READY, PRODUCTION SDK BLOCKED BY UPSTREAM INTERFACE VERIFICATION`
+Status: `SOURCE SDK DESIGN-PARTNER LANE READY, SEALED BINARY BLOCKED BY UPSTREAM INTERFACE VERIFICATION`
 
 Current release alignment: `3.5`
 
@@ -14,9 +14,15 @@ Currently staged in this folder:
 
 - evaluation-facing docs
 - a fresh source-built evaluation `OpenIntelligenceEngine.xcframework` artifact
-- sample host-app materials
+- packet-local evaluation host-app materials
 - install and API notes
 - package-readiness notes
+
+Commercially relevant alongside this folder:
+
+- a root `Package.swift` source-SDK path in the private engine repo
+- a canonical repo-side consumer sample under `Samples/SourceSDKHost/`
+- repo-side source-SDK validation scripts
 
 ## What This Packet Proves
 
@@ -27,12 +33,14 @@ Currently staged in this folder:
 - the engine can be evaluated as a serious Apple-native prototype
 - a guided import-and-review path exists for technical evaluation
 - a source-SDK package path now builds from current source
-- a source-SDK consumer sample now builds through a repo-level validation script on a clean machine path
-- a source-SDK consumer smoke-test path now checks the public facade on simulator
+- a repo-side source-SDK consumer sample now builds through a repo-level validation script on a clean-machine path
+- a repo-side source-SDK consumer smoke-test path now checks the public facade on simulator
+- the engine can be sold honestly as a private source-distributed design-partner SDK with assisted integration
 
 ## What This Packet Does Not Prove
 
 - reproducible final module-stable SDK packaging from source
+- docs-only no-guidance source-SDK buyer installation
 - cleanly decoupled enterprise SDK productization
 - toolchain-agnostic binary stability
 - production-grade accuracy or regulated readiness
@@ -42,20 +50,22 @@ For the exact production packaging blocker, see `Internal/BUILD_NOTES.md`.
 ## Honest Readiness Verdict
 
 The logic is real.
+The source-SDK lane is real.
 The evaluation materials are real.
-The prototype is substantial.
 
-What is still missing is the final packaging and separation work needed to represent the engine as a finished enterprise SDK.
+What is still missing is the final no-guidance productization work for the source lane and the upstream-unblocked packaging work for the sealed binary lane.
 
 ## Best Buyer Interpretation
 
 The best current interpretation is:
 
 - strong codebase head start
+- real private source-SDK starting point
 - useful evaluation artifact
 - serious diligence collateral
-- possible design-partner starting point
+- design-partner starting point with assisted integration
 
 The wrong interpretation is:
 
 - finished off-the-shelf SDK ready for broad self-serve rollout
+- sealed stable binary SDK ready for immediate handoff

@@ -1,19 +1,27 @@
 # Start Here
 
-This packet is the current evaluation slice of the OpenIntelligence engine story.
+This packet is the current source-first diligence slice of the OpenIntelligence engine story.
 
 ## What It Is
 
 - a staged evaluation packet
 - a technical-review aid
 - a same-toolchain testing path when the staged artifact is present
-- a now-real source-SDK packaging path inside the private engine repo
+- a buyer-facing explanation of the real source-SDK path inside the private engine repo
 
 ## What It Is Not
 
 - a full source-code handoff
 - a finished enterprise SDK
+- a docs-only self-serve SDK
 - a regulated-use artifact
+
+## Delivery Lanes
+
+There are currently two lanes:
+
+- Source SDK lane: the primary commercial lane today. This lives in the private engine repo, where the root `Package.swift`, `Samples/SourceSDKHost/`, and the repo-level validation scripts prove the engine can be integrated as a source-distributed SDK.
+- Packet-local evaluation lane: the fallback evaluation lane. This uses the staged XCFramework and packet-local sample app for same-toolchain technical review and room demos.
 
 ## Current Release Alignment
 
@@ -24,10 +32,13 @@ Treat this staged packet as a 3.5-aligned evaluation artifact and rebuild it fro
 ## Hard Status
 
 - Built from current source and staged into this packet: yes, when generated through `scripts/prepare_engine_buyer_packet.sh`.
+- Root source SDK package present in the private engine repo: yes.
+- Repo-side source consumer sample present in the private engine repo: yes (`Samples/SourceSDKHost/`).
+- Repo-side source consumer validator present in the private engine repo: yes (`scripts/validate_source_sdk_consumer_flow.sh`).
 - Required engine model and vocabulary assets are expected inside the staged XCFramework, not as separate loose files.
 - Same-toolchain technical evaluation path: yes.
-- Root source SDK package present in the private engine repo: yes.
 - Source SDK package validation script present in the private engine repo: yes (`scripts/validate_source_sdk_package.sh`).
+- Source-distributed design-partner SDK lane: yes, with private repo access and assisted integration.
 - Module-stable commercial binary SDK: no.
 - Self-serve no-guidance buyer handoff: no.
 
@@ -57,6 +68,20 @@ If you want to wire the SDK into another app instead of only validating the samp
 
 ## Commercial Framing
 
-Use this packet for design-partner and technical-evaluation conversations.
+Use this packet for:
 
-Do not use it by itself to claim the engine is already a polished, finished SDK product.
+- source-SDK diligence conversations
+- design-partner and technical-evaluation conversations
+- explaining why the source lane is the honest commercial lane today
+
+Current commercial wording is:
+
+- private source-distributed SDK
+- assisted integration
+- design-partner evaluation
+
+Do not use this packet by itself to claim:
+
+- sealed stable binary SDK
+- docs-only no-guidance self-serve SDK
+- finished enterprise SDK productization

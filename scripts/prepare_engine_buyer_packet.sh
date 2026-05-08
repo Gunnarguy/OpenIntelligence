@@ -41,7 +41,7 @@ heal_duplicate_output_artifacts
 echo "Staging evaluation XCFramework and simulator support..."
 /bin/zsh ./scripts/build_engine_evaluation_xcframework.sh
 
-echo "Staging self-contained sample app..."
+echo "Staging packet-local evaluation sample app..."
 /bin/zsh ./scripts/stage_sdk_sample_app.sh
 
 echo "Validating SDK package..."
@@ -76,11 +76,14 @@ Release line:
   $RELEASE_LINE
 
 Use this packet for:
+- source-SDK diligence alongside private repo access
 - founder or design-partner evaluation on a matching Xcode and Swift toolchain
 - guided sample import validation
 $PACKET_NOTE
 
 Do not promise yet:
+- docs-only self-serve SDK handoff
 - toolchain-agnostic binary stability
 - zero-guidance production SDK handoff
+- sealed stable binary SDK handoff
 EOF

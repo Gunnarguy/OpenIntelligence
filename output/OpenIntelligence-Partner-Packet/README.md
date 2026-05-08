@@ -2,7 +2,7 @@
 
 This folder is the operator packet for live buyer conversations.
 
-## If You Are Trying To Sell Tonight
+## If You Are Running A Live Buyer Conversation
 
 Use this exact order:
 
@@ -19,7 +19,7 @@ The companion docs-only asset is:
 
 - `build/OpenIntelligence-Partner-Packet.zip`
 
-This packet is meant to help you qualify, scope, and close a real conversation tonight without pretending the engine is already a polished self-serve SDK.
+This packet is meant to help you qualify, scope, and close a real buyer conversation without pretending the engine is already a polished self-serve SDK.
 
 ## What This Packet Lets You Say Honestly
 

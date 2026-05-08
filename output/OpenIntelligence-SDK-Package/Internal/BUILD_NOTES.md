@@ -90,7 +90,7 @@ This is appropriate for:
 
 This is not the final packaging answer for a stable commercial SDK.
 
-## Tomorrow-Safe Commercial Framing
+## Current Commercial Framing
 
 Until the archive blocker is fixed, sell this as:
 

@@ -1,7 +1,7 @@
 # Target Account Framework
 
 This is the sheet for building the first real company list.
-Use it with Dave tomorrow so you do not waste time chasing bad-fit accounts.
+Use it during buyer-target review so you do not waste time chasing bad-fit accounts.
 
 ## Goal
 
@@ -114,7 +114,7 @@ Use this rough mix:
 | 19   |         |             |                 |                |            |       |       |
 | 20   |         |             |                 |                |            |       |       |
 
-## Tomorrow Meeting Agenda With Dave
+## Review Meeting Agenda
 
 1. Pick the top `2` verticals only.
 2. Define the exact pilot offer you want to sell first.

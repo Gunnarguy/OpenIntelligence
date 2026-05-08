@@ -8,9 +8,9 @@ If you only remember three things, remember these:
 2. Do not send the full repo casually. Send the packet zips first.
 3. Do not transfer repo access or any credentials until scope is written down and payment has cleared.
 
-## Tonight Fast Path
+## Live Buyer Fast Path
 
-If the goal is to be sellable tonight, do exactly this and nothing fancier:
+If the goal is to be sale-ready for a live buyer conversation, do exactly this and nothing fancier:
 
 1. Run `./scripts/prepare_sale_packets.sh`.
 2. Reply with the short inbound template from `EngineSale/INBOUND_MESSAGE_TEMPLATES.md`.
@@ -20,17 +20,17 @@ If the goal is to be sellable tonight, do exactly this and nothing fancier:
 6. After NDA, send both packet zips.
 7. If they want the whole project, use the direct-buyout language and handoff checklist.
 
-That is the whole operating path for tonight. Do not improvise a bigger process unless the buyer gives you a reason.
+That is the whole operating path for a live sale conversation. Do not improvise a bigger process unless the buyer gives you a reason.
 
-## What You Can Honestly Sell Tonight
+## What You Can Honestly Sell Now
 
-You can honestly sell any of these tonight:
+You can honestly sell any of these now:
 
 - a short paid evaluation or pilot conversation around the engine
 - a design-partner style diligence process using the current packets
 - a direct asset buyout of the repo and sale materials at the current asking price
 
-You cannot honestly sell this tonight as:
+You cannot honestly sell this as:
 
 - a finished self-serve enterprise SDK
 - a toolchain-agnostic commercial binary SDK
@@ -38,13 +38,13 @@ You cannot honestly sell this tonight as:
 
 ## Public Asking Price
 
-The current SideProjectors listing price is `$7,500`.
+Use the currently published SideProjectors listing price as the public asking price reference.
 
 If a buyer accepts that range and wants the whole project instead of a pilot, use the direct-buyout lane below.
 
 If they want to evaluate capability first, use the evaluation lane below.
 
-## Tonight Send Order
+## Recommended Send Order
 
 Use this order. It keeps the conversation moving without oversharing.
 
@@ -261,7 +261,7 @@ If it is not written down, treat it as not included.
 
 Use a simple written line like this:
 
-`Price is $7,500 for the agreed asset scope, subject to short diligence, signed transfer paper, and cleared payment before repo transfer.`
+`Price is the currently published SideProjectors asking price for the agreed asset scope, subject to short diligence, signed transfer paper, and cleared payment before repo transfer.`
 
 ### Step 3: NDA
 

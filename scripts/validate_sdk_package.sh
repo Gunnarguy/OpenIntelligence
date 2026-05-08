@@ -68,6 +68,7 @@ check_path "scripts/stage_sdk_sample_app.sh"
 check_path "scripts/validate_source_sdk_consumer_flow.sh"
 check_path "scripts/validate_source_sdk_package.sh"
 check_path "scripts/validate_sdk_package.sh"
+check_path "Samples/SourceSDKHost/README.md"
 check_path "Samples/SourceSDKHost/project.yml"
 check_path "Samples/SourceSDKHost/SourceSDKHost.xcodeproj"
 check_path "Samples/SourceSDKHost/build_sample_app.sh"
@@ -75,6 +76,7 @@ check_path "Samples/SourceSDKHost/run_smoke_tests.sh"
 check_path "$XCFRAMEWORK_PATH"
 check_path "$OUTPUT_DIR/EvaluationSupport/iphonesimulator"
 check_path "$OUTPUT_DIR/EvaluationSupport/iphoneos"
+check_path "$OUTPUT_DIR/SampleApp/README.md"
 check_path "$OUTPUT_DIR/SampleApp/EngineEvaluationHost.xcodeproj"
 check_path "$OUTPUT_DIR/SampleApp/build_sample_app.sh"
 check_path "$OUTPUT_DIR/SampleApp/DEMO_SCRIPT.md"
@@ -110,8 +112,11 @@ The documentation scaffold exists and the XCFramework artifact is present.
 Required engine resources are bundled inside the staged XCFramework.
 Root source SDK package manifest present: yes.
 Source SDK validation script present: yes.
+Repo-side source consumer sample present: yes.
 
 Artifact truth:
+- source-distributed design-partner SDK lane ready: yes, with private repo access and assisted integration
+- docs-only no-guidance source SDK ready: no
 - built packet type: $(if has_swiftinterface; then echo "module-stable candidate"; else echo "evaluation-only"; fi)
 - module-stable swiftinterface files present: $(if has_swiftinterface; then echo "yes"; else echo "no"; fi)
 - self-serve commercial SDK ready: $(if has_swiftinterface; then echo "not yet verified"; else echo "no"; fi)

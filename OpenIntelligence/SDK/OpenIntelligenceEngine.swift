@@ -174,7 +174,7 @@ public enum OpenIntelligenceEngineError: LocalizedError, Sendable {
 public final class OIEngine {
     private let configuration: OIEngineConfiguration
     private let containerService: ContainerService
-    private let ragService: RAGService
+    private var ragService: RAGService?
 
     public static func availability() -> OIAvailabilityState {
         #if targetEnvironment(simulator)
@@ -212,7 +212,6 @@ public final class OIEngine {
         self.configuration = configuration
         AppSupportPaths.configureBaseDir(configuration.storageURL)
         containerService = ContainerService()
-        ragService = RAGService(containerService: containerService)
     }
 
     public func listLibraries() -> [OILibrary] {
@@ -266,7 +265,7 @@ public final class OIEngine {
 
         containerService.setActive(container.id)
 
-        let result = await ragService.ingestDocuments(request.urls, context: .userInitiated)
+        let result = await resolvedRAGService().ingestDocuments(request.urls, context: .userInitiated)
         let warnings: [String]
         if result.failureCount > 0 {
             warnings = ["\(result.failureCount) document(s) failed during ingestion."]
@@ -320,7 +319,7 @@ public final class OIEngine {
         config.executionContext = mapExecutionContext(configuration.executionContext)
         config.allowPrivateCloudCompute = configuration.allowPrivateCloudCompute
 
-        let response = try await ragService.query(
+        let response = try await resolvedRAGService().query(
             trimmedQuestion,
             topK: request.topK,
             config: config,
@@ -372,6 +371,16 @@ public final class OIEngine {
             documentCount: container.totalDocuments,
             chunkCount: container.totalChunks
         )
+    }
+
+    private func resolvedRAGService() -> RAGService {
+        if let ragService {
+            return ragService
+        }
+
+        let ragService = RAGService(containerService: containerService)
+        self.ragService = ragService
+        return ragService
     }
 
     private func mapExecutionContext(_ value: OIExecutionContext) -> ExecutionContext {

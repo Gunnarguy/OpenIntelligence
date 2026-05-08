@@ -79,6 +79,26 @@ if [[ -d "$OUTPUT_DIR/SampleApp" ]]; then
   /bin/cp -R "$OUTPUT_DIR/SampleApp" "$BUNDLE_DIR/"
 fi
 
+has_source_package=1
+if [[ -f "Package.swift" ]]; then
+  has_source_package=0
+fi
+
+has_source_sample=1
+if [[ -d "Samples/SourceSDKHost" && -f "Samples/SourceSDKHost/SourceSDKHost.xcodeproj/project.pbxproj" ]]; then
+  has_source_sample=0
+fi
+
+has_source_validation=1
+if [[ -f "scripts/validate_source_sdk_package.sh" && -f "scripts/validate_source_sdk_consumer_flow.sh" ]]; then
+  has_source_validation=0
+fi
+
+has_source_docs=1
+if [[ -f "$OUTPUT_DIR/START_HERE.md" && -f "$OUTPUT_DIR/INSTALL.md" && -f "$OUTPUT_DIR/API.md" && -f "$OUTPUT_DIR/PACKAGE_SUMMARY.md" ]]; then
+  has_source_docs=0
+fi
+
 has_swiftinterface=1
 if has_find_any "$XCFRAMEWORK_PATH" '*.swiftinterface'; then
   has_swiftinterface=0
@@ -109,12 +129,22 @@ if has_find_any "$XCFRAMEWORK_PATH" 'PrivacyInfo.xcprivacy'; then
   has_privacy_manifest=0
 fi
 
+source_sdk_lane_ready=1
+if [[ $has_source_package -eq 0 && $has_source_sample -eq 0 && $has_source_validation -eq 0 && $has_source_docs -eq 0 ]]; then
+  source_sdk_lane_ready=0
+fi
+
 cat > "$BUNDLE_DIR/ARTIFACT_STATUS.txt" <<EOF
 OpenIntelligence Engine artifact status
 
 Built from repo release line: $RELEASE_LINE
 
 Hard truth:
+- root source SDK package present in private repo: $(bool_string $has_source_package)
+- repo-side source consumer sample present: $(bool_string $has_source_sample)
+- repo-side source consumer validation path present: $(bool_string $has_source_validation)
+- source-distributed design-partner SDK lane ready: $(if [[ $source_sdk_lane_ready -eq 0 ]]; then echo "yes, with private repo access and assisted integration"; else echo "not proven"; fi)
+- docs-only self-serve source SDK ready: no
 - staged XCFramework present: $(if [[ -d "$XCFRAMEWORK_PATH" ]]; then echo "yes"; else echo "no"; fi)
 - required model resources bundled in staged XCFramework: $(if [[ $has_embedding_model -eq 0 && $has_reranker_model -eq 0 && $has_embedding_vocab -eq 0 && $has_reranker_vocab -eq 0 ]]; then echo "yes"; else echo "no"; fi)
 - packaged privacy manifest present: $(bool_string $has_privacy_manifest)
@@ -125,12 +155,42 @@ Hard truth:
 - self-serve commercial SDK ready: $(if [[ $has_swiftinterface -eq 0 ]]; then echo "not yet verified"; else echo "no"; fi)
 
 Why the answer is still no:
+- the commercial lane today is the source-distributed SDK path in the private repo, not the staged XCFramework
 - this buyer packet is currently built by the evaluation path
 - the evaluation XCFramework is created with BUILD_LIBRARY_FOR_DISTRIBUTION=NO and allow-internal-distribution
 - stable commercial archive is still blocked by swift-transformers interface verification during BUILD_LIBRARY_FOR_DISTRIBUTION=YES packaging
 
 Public engine facade source:
 - OpenIntelligence/SDK/OpenIntelligenceEngine.swift
+EOF
+
+cat > "$BUNDLE_DIR/SOURCE_SDK_STATUS.txt" <<EOF
+OpenIntelligence source SDK status
+
+Primary commercial lane today:
+- private source-distributed SDK with assisted integration
+
+What exists right now in the private engine repo:
+- root Package.swift: $(bool_string $has_source_package)
+- canonical source consumer sample: $(bool_string $has_source_sample)
+- repo-side source validation scripts: $(bool_string $has_source_validation)
+- buyer-facing packet docs describing the source lane: $(bool_string $has_source_docs)
+
+Canonical repo-side validation path:
+1. ./scripts/validate_source_sdk_package.sh
+2. Samples/SourceSDKHost/build_sample_app.sh
+3. Samples/SourceSDKHost/run_smoke_tests.sh
+4. or ./scripts/validate_source_sdk_consumer_flow.sh
+
+Honest sales wording:
+- source-distributed design-partner SDK
+- private repo access
+- assisted integration
+
+Do not promise:
+- docs-only no-guidance self-serve SDK
+- sealed stable binary SDK
+- toolchain-agnostic binary handoff
 EOF
 
 cat > "$BUNDLE_DIR/CONTENTS.txt" <<EOF
@@ -140,6 +200,7 @@ Built from repo release line: $RELEASE_LINE
 
 Included:
 - ARTIFACT_STATUS.txt
+- SOURCE_SDK_STATUS.txt
 - START_HERE.md
 - README.md
 - INSTALL.md
@@ -154,7 +215,7 @@ Excluded on purpose:
 
 If present, ${FRAMEWORK_NAME}.xcframework is included.
 If present, EvaluationSupport/ is included for same-toolchain evaluation imports.
-If present, SampleApp/ is included as a self-contained evaluation host app.
+If present, SampleApp/ is included as a packet-local evaluation host app.
 Read ARTIFACT_STATUS.txt first if you need the direct yes/no status of this packet.
 EOF
 

@@ -1,11 +1,15 @@
 # SDK Boundary Audit
 
-This document defines the smallest credible boundary for turning the current app into a closed-source Apple SDK.
+This document defines the smallest credible boundary for turning the current app into a source-distributed Apple SDK, and records where the sealed binary path is still blocked.
 It is written for internal productization work, not for buyers.
 
 ## Executive Verdict
 
-The codebase contains a real sellable engine, but it is not yet packaged as a sellable SDK.
+The codebase contains a real sellable engine.
+
+The fastest honest commercial lane is now a source-distributed SDK with assisted integration and explicit design-partner framing.
+
+The sealed stable binary lane is still blocked by upstream Swift interface verification in `swift-transformers`.
 
 The fastest credible SDK boundary is:
 
@@ -297,22 +301,20 @@ That is enough to sell and integrate.
 
 ## Honest Timeline Read
 
-### Could Be Ready In A Few Focused Days If Scope Stays Narrow
+### Source SDK Lane Can Be Sold If Scope Stays Honest
 
-- create framework target
-- move resource loading off `Bundle.main`
-- define public API wrapper
-- exclude UI/app-only services
-- produce XCFramework
-- refine the pitch-demo app and sample dataset
+- narrow public facade exists
+- root `Package.swift` exists
+- package-safe runtime/resource lookup exists
+- repo-side consumer sample exists under `Samples/SourceSDKHost/`
+- repo-side validation path exists via `scripts/validate_source_sdk_consumer_flow.sh`
+- buyer still needs private repo access and assisted integration if the goal is a clean current sale or handoff
 
-### Not Ready In A Few Days If Scope Expands To "The Whole App Brain"
+### Sealed Binary Lane Is Still Not Ready
 
-- full agentic layer
-- all diagnostics
-- all telemetry
-- all image and multimodal extras
-- all app conveniences and system integrations
+- stable `BUILD_LIBRARY_FOR_DISTRIBUTION=YES` packaging is still blocked upstream
+- the evaluation XCFramework exists, but it is not the final commercial binary answer
+- do not expand scope to the full app shell or app-only integrations
 
 ## Final Boundary Recommendation
 
@@ -333,19 +335,23 @@ Do not package:
 
 ## Current Readiness
 
-Current repo status for a sealed SDK:
+Current repo status:
 
 - engine logic exists: yes
 - coherent extraction boundary exists: yes
-- public API exists: partially
-- framework target exists: no
-- XCFramework build path exists: no
-- demo app using packaged binary exists: yes, for evaluation
+- public API exists: yes, as a narrow source-SDK facade in `OpenIntelligence/SDK/OpenIntelligenceEngine.swift`
+- framework target exists: yes
+- root source SDK package exists: yes
+- repo-side source consumer sample exists: yes
+- repo-side source consumer validation path exists: yes
+- XCFramework build path exists: yes, for evaluation
 - buyer-ready binary deliverable exists: yes, for evaluation
-- on-device pitch demo path exists on Apple Intelligence-capable iPhone hardware: yes
+- no-guidance self-serve SDK handoff exists: no
+- sealed stable binary SDK exists: no
 
 Verdict:
 
 - conceptually productizable: yes
-- actually ready to send as an evaluation closed-source SDK today: yes
-- actually ready to send as a sealed stable SDK today: no
+- actually ready to sell as a private source-distributed design-partner SDK with assisted integration: yes
+- actually ready to represent as a no-guidance self-serve SDK today: no
+- actually ready to send as a sealed stable binary SDK today: no

@@ -45,13 +45,23 @@ mkdir -p "$SAMPLE_DIR"
 cat > "$SAMPLE_DIR/README.md" <<'EOF'
 # Evaluation Sample App
 
-This folder is a self-contained iOS host app for validating the OpenIntelligence evaluation SDK handoff.
+This folder is the packet-local XCFramework host app for validating the OpenIntelligence evaluation handoff.
+
+It is not the canonical source-distributed SDK sample.
+That canonical source-SDK consumer lives in the private engine repo at `Samples/SourceSDKHost/`.
 
 What it proves:
 
 - the XCFramework imports into a separate app
 - the evaluation support modules are wired correctly for same-toolchain testing
 - the bundled demo documents can be indexed and queried locally
+- a buyer can inspect the engine flow without guessing where to start
+
+What it does not prove:
+
+- private-repo source SDK installation
+- docs-only no-guidance integration
+- sealed module-stable binary packaging
 
 Fastest path:
 
@@ -62,7 +72,8 @@ Fastest path:
 
 Important:
 
-- This is an evaluation host, not the final buyer UX.
+- This is the packet-local evaluation host, not the primary commercial delivery lane.
+- The primary commercial lane today is the source-distributed SDK in the private engine repo.
 - The project is configured to look for `../OpenIntelligenceEngine.xcframework` and `../EvaluationSupport/` in this packet.
 - For device runs, choose your own development team in Xcode if required.
 EOF
@@ -108,6 +119,7 @@ Use a real Apple Intelligence-capable device for the live question-answering ste
 ## Talk Track
 
 - "This host app is importing the OpenIntelligence evaluation engine from the packet you received."
+- "The commercial lane today is the source-distributed SDK in the private repo. This packet-local host is the self-contained evaluation fallback."
 - "I can load a private document set, index it locally, and ask a real question."
 - "The important part is not just the answer. It is the evidence."
 - "If the model is uncertain, we want the system to surface that instead of bluffing."
@@ -146,5 +158,5 @@ EOF
 
 /bin/chmod +x "$SAMPLE_DIR/build_sample_app.sh"
 
-echo "Staged self-contained buyer sample app at:"
+echo "Staged packet-local evaluation sample app at:"
 echo "  $SAMPLE_DIR"

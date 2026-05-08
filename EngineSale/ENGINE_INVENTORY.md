@@ -6,6 +6,34 @@ OpenIntelligence Engine is best understood today as a substantial Apple-native d
 
 The repo contains a real engine inside a real app codebase. Some parts are strongly reusable. Some are still tightly tied to the app. This file separates those categories.
 
+## Engine Architecture View
+
+This is the practical engine-only view, separate from the shipped app architecture in `ARCHITECTURE.md`.
+
+```text
+Caller app
+	-> OIEngine facade
+		-> runtime paths + container selection
+			-> document import + OCR/text extraction
+				-> semantic chunking + metadata enrichment
+					-> SQLite full-text + vector storage
+						-> hybrid retrieval + reranking + context packing
+							-> Apple Foundation Models answer path
+								-> citations + source review + verification gates
+```
+
+In repo terms, the main engine path is:
+
+- `OpenIntelligence/SDK/OpenIntelligenceEngine.swift`
+- `OpenIntelligence/Services/Document/*`
+- `OpenIntelligence/Services/Embedding/*`
+- `OpenIntelligence/Services/Storage/*`
+- `OpenIntelligence/Services/VectorStore/*`
+- `OpenIntelligence/Services/RAG/*`
+- `OpenIntelligence/Services/LLM/*`
+
+The main thing to understand is that the engine is real, but it still lives inside a larger app tree. That is why the current strongest commercial lane is source-distributed SDK plus assisted integration rather than a polished self-serve SDK.
+
 ## Current SDK Boundary Hotspots
 
 These are the file-level hotspots still worth watching during sellable-engine cleanup:

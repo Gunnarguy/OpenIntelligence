@@ -66,9 +66,9 @@ Examples:
 - one workspace per department
 - one workspace per project
 
-## Tomorrow's Offer
+## Current Offer
 
-Best commercial framing for tomorrow:
+Best commercial framing right now:
 
 - private capability demo
 - technical evaluation

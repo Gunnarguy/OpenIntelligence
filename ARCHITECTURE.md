@@ -22,6 +22,9 @@ If you need the repo split rather than the app architecture, start with:
 - [SDK_BOUNDARY_AUDIT.md](./SDK_BOUNDARY_AUDIT.md)
 - [EngineSale/ENGINE_INVENTORY.md](./EngineSale/ENGINE_INVENTORY.md)
 
+`ARCHITECTURE.md` is the app/product view.
+`EngineSale/ENGINE_INVENTORY.md` now includes the compact engine-only architecture view for diligence and handoff.
+
 ## High-Level View
 
 ```text

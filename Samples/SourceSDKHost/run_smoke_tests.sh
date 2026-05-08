@@ -6,6 +6,7 @@ ROOT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_SPEC="$ROOT_DIR/project.yml"
 PROJECT_FILE="$ROOT_DIR/SourceSDKHost.xcodeproj"
 DERIVED_DATA_PATH="${DERIVED_DATA_PATH:-/tmp/OpenIntelligenceEngine-SourceSDKHost-Tests}"
+RESULT_BUNDLE_PATH="${RESULT_BUNDLE_PATH:-$DERIVED_DATA_PATH/SourceSDKHostTests.xcresult}"
 REGENERATE_PROJECT="${REGENERATE_PROJECT:-0}"
 
 function detect_destination() {
@@ -47,16 +48,31 @@ else
   echo "Using committed sample project at $PROJECT_FILE"
 fi
 
-/usr/bin/xcodebuild \
+rm -rf "$RESULT_BUNDLE_PATH"
+
+if ! /usr/bin/xcodebuild \
   -quiet \
   -project "$PROJECT_FILE" \
   -scheme SourceSDKHost \
   -destination "$DESTINATION_RESOLVED" \
   -derivedDataPath "$DERIVED_DATA_PATH" \
+  -resultBundlePath "$RESULT_BUNDLE_PATH" \
   -parallel-testing-enabled NO \
   CODE_SIGNING_ALLOWED=NO \
   CODE_SIGNING_REQUIRED=NO \
-  test
+  test; then
+  echo "error: Source SDK smoke tests failed." >&2
+  echo "Result bundle: $RESULT_BUNDLE_PATH" >&2
+
+  if command -v xcrun >/dev/null 2>&1 && [[ -d "$RESULT_BUNDLE_PATH" ]]; then
+    echo "---- xcresult summary ----" >&2
+    xcrun xcresulttool get test-results summary --path "$RESULT_BUNDLE_PATH" 2>/dev/null || true
+    echo "---- xcresult issues ----" >&2
+    xcrun xcresulttool get log --path "$RESULT_BUNDLE_PATH" 2>/dev/null || true
+  fi
+
+  exit 1
+fi
 
 echo "Source SDK smoke tests succeeded."
 echo "Destination: $DESTINATION_RESOLVED"

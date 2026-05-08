@@ -10,11 +10,11 @@ Use this for normal inbound:
 
 "Thanks for reaching out. The honest framing is that this is not a polished self-serve SDK yet. What exists today is the engine logic, the evaluation packet, the sample host app, and a real Apple-native path for ingestion, retrieval, citations, and verification behavior. If useful, I can do a short 20-minute call, show the exact demo, and then send the current packet if it looks like a fit."
 
-## 1A. Tonight Short Version
+## 1A. Short Version
 
 Use this if you want the tightest possible reply:
 
-"Thanks for reaching out. The honest version is: this is a real Apple-native document-intelligence engine and codebase head start, not a polished self-serve SDK. If useful, I can do a quick 20-minute walkthrough tonight, show exactly what is real, and send the current packet right after if it looks like a fit."
+"Thanks for reaching out. The honest version is: this is a real Apple-native document-intelligence engine and codebase head start, not a polished self-serve SDK. If useful, I can do a quick 20-minute walkthrough, show exactly what is real, and send the current packet right after if it looks like a fit."
 
 ## 2. First Reply If They Sound Like A Direct Buyer
 
@@ -55,7 +55,7 @@ Use with:
 
 Use this when the buyer wants to buy the whole thing:
 
-"If you want the full asset transfer path instead of a pilot, the current public asking price is $7,500. The clean version is: confirm scope, short diligence, simple transfer paper, cleared payment, then repo and packet handoff. If that range works, I can send the exact diligence materials and handoff checklist next."
+"If you want the full asset transfer path instead of a pilot, the current public asking price is the amount shown on the active SideProjectors listing. The clean version is: confirm scope, short diligence, simple transfer paper, cleared payment, then repo and packet handoff. If that range works, I can send the exact diligence materials and handoff checklist next."
 
 ## 8. Direct Buyout Scope Confirmation
 

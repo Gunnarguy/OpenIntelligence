@@ -38,6 +38,7 @@ Use a real Apple Intelligence-capable device for the live question-answering ste
 ## Talk Track
 
 - "This host app is importing the OpenIntelligence evaluation engine from the packet you received."
+- "The commercial lane today is the source-distributed SDK in the private repo. This packet-local host is the self-contained evaluation fallback."
 - "I can load a private document set, index it locally, and ask a real question."
 - "The important part is not just the answer. It is the evidence."
 - "If the model is uncertain, we want the system to surface that instead of bluffing."

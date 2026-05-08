@@ -82,9 +82,9 @@ Before transfer day, do all of this:
 7. Run a short handoff call.
 8. Get written confirmation that the buyer received access and artifacts.
 
-## Tonight Closing Rule
+## Closing Rule
 
-If someone is ready to close tonight, keep the process brutally simple:
+If someone is ready to close, keep the process brutally simple:
 
 1. align on scope in writing
 2. align on price in writing

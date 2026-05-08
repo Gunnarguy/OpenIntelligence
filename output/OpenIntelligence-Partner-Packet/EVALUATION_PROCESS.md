@@ -147,15 +147,15 @@ For OpenIntelligence right now, the strongest sequence is:
 5. If they want hands-on access, execute evaluation or beta terms
 6. Convert into a paid evaluation or design-partner pilot
 
-## Tomorrow-Safe Script
+## Practical Script
 
-If Dave asks, "Do we need an NDA for every call?"
+If a buyer asks, "Do we need an NDA for every call?"
 
 Use this:
 
 "No. Not for cold outreach or a first intro. We want the NDA ready for serious prospects before we share non-public technical detail or let anyone into hands-on evaluation."
 
-If Dave asks, "What do we need before software access?"
+If a buyer asks, "What do we need before software access?"
 
 Use this:
 
