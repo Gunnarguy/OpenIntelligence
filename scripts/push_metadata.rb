@@ -12,9 +12,9 @@ require "uri"
 require_relative "app_store_connect_env"
 
 # ── Config ──────────────────────────────────────────────────────────────────
-KEY_PATH   = AppStoreConnectEnv.required_path("APP_STORE_CONNECT_PRIVATE_KEY_PATH", "APP_STORE_CONNECT_API_KEY_PATH", "ASC_KEY_PATH")
-KEY_ID     = AppStoreConnectEnv.required_value("APP_STORE_CONNECT_KEY_ID", "APP_STORE_CONNECT_API_KEY_ID", "ASC_KEY_ID")
-ISSUER_ID  = AppStoreConnectEnv.required_value("APP_STORE_CONNECT_ISSUER", "APP_STORE_CONNECT_ISSUER_ID", "ASC_ISSUER_ID")
+KEY_PATH   = AppStoreConnectEnv.required_app_store_connect_key_path
+KEY_ID     = AppStoreConnectEnv.required_app_store_connect_key_id
+ISSUER_ID  = AppStoreConnectEnv.required_app_store_connect_issuer
 BUNDLE_ID  = "Gunndamental.OpenIntelligence"
 METADATA   = File.join(__dir__, "..", "fastlane", "metadata", "en-US")
 BASE_URL   = "https://api.appstoreconnect.apple.com/v1"
