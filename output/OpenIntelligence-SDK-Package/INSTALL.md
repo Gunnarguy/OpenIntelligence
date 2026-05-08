@@ -25,6 +25,7 @@ The private engine repo now includes:
 - a source-distributed `OpenIntelligenceEngine` package target
 - a validation script: `scripts/validate_source_sdk_package.sh`
 - a package consumer sample app template: `Samples/SourceSDKHost/`
+- a full consumer-flow validator: `scripts/validate_source_sdk_consumer_flow.sh`
 
 That path currently proves:
 
@@ -32,6 +33,7 @@ That path currently proves:
 - the package builds for iOS Simulator
 - engine resources are bundled through the package path
 - a separate host app can compile against the package path
+- those two steps can be re-run through one repo-level validation script
 
 That path does **not** yet prove:
 
