@@ -1,5 +1,7 @@
 # Apple Document Intelligence Reference
 
+> Archived reference snapshot. For current repo-grounded guidance, use [../APPLE_DOCUMENT_INTELLIGENCE.md](../APPLE_DOCUMENT_INTELLIGENCE.md).
+
 > **Comprehensive reference for Apple's document processing, OCR, NLP, and ML frameworks.**
 > Last updated: February 2026 | iOS 26.0+ APIs included
 > **Implementation Status**: `OCRConfiguration.swift` centralizes all Vision OCR config. `AdaptivePreprocessor` provides 5 GPU strategies. `ConfidenceVerifier` uses `topCandidates(5)` for multi-candidate OCR.

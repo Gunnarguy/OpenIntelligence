@@ -8,7 +8,7 @@ on:
 
 jobs:
   build:
-    name: Build and Check
+    name: Build Demo
     runs-on: macos-15
     timeout-minutes: 45
 

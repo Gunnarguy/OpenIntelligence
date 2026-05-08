@@ -1,6 +1,6 @@
 # OpenIntelligence Roadmap
 
-Last Updated: May 2026
+Last Updated: April 2026
 
 This is the public product roadmap. It is meant to show direction, priorities, and product intent without disclosing internal engine plans or private implementation details.
 
@@ -8,7 +8,7 @@ This is the public product roadmap. It is meant to show direction, priorities, a
 
 - Improve answer reliability and user trust
 - Make document import and organization smoother
-- Strengthen answer review, source inspection, and explainability
+- Strengthen onboarding and explainability for new users
 - Keep the app aligned with Apple platform capabilities and privacy expectations
 
 ## Near-Term Priorities
@@ -17,7 +17,6 @@ This is the public product roadmap. It is meant to show direction, priorities, a
 - Better answer review and source inspection
 - More polished diagnostics and quality-of-life settings
 - Broader support around sharing, export, and everyday productivity use cases
-- Better multi-library ergonomics and overall navigation clarity
 
 ## Medium-Term Themes
 

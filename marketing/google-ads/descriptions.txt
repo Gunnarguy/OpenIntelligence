@@ -2,27 +2,27 @@
 # Max 90 characters each | Provide 4-5 variations
 # ================================================
 
-# Description 1: Core Pipeline
-23-step RAG pipeline: HyDE, BM25, cross-encoder reranking, MMR. Enterprise search on iPhone.
+# Description 1: Core Result
+Ask PDFs, notes, code, and spreadsheets questions. Get cited answers you can inspect.
 
-# Description 2: The Result
-Ask "What oil does my car take?" Get "SAE 0W-20, 5.3 quarts" with a citation to tap.
+# Description 2: Platform Fit
+Private document Q&A on iPhone and iPad. Keep files local-first and check the source.
 
-# Description 3: Privacy Reality
-Everything runs on-device. No accounts. No uploads. Apple Private Cloud Compute fallback only.
+# Description 3: Market Contrast
+Find answers in your own files, not generic web summaries. Built for trust-sensitive work.
 
-# Description 4: Deep Think Mode
-Deep Think spawns multiple reasoning sessions, cross-validates evidence, synthesizes answers.
+# Description 4: Trust Signal
+Import docs, ask in plain English, and see when the evidence is weak before you trust it.
 
-# Description 5: File Support
-PDF, Word, Excel, PowerPoint, CSV, Markdown, images. 384-dim embeddings. Hybrid search.
+# Description 5: Local-First Proof
+Search, OCR, and document prep stay local-first. Source review is built in.
 
 # ================================================
 # COPY-PASTE READY (no comments):
 # ================================================
 
-23-step RAG pipeline: HyDE, BM25, cross-encoder reranking, MMR. Enterprise search on iPhone.
-Ask "What oil does my car take?" Get "SAE 0W-20, 5.3 quarts" with a citation to tap.
-Everything runs on-device. No accounts. No uploads. Apple Private Cloud Compute fallback only.
-Deep Think spawns multiple reasoning sessions, cross-validates evidence, synthesizes answers.
-PDF, Word, Excel, PowerPoint, CSV, Markdown, images. 384-dim embeddings. Hybrid search.
+Ask PDFs, notes, code, and spreadsheets questions. Get cited answers you can inspect.
+Private document Q&A on iPhone and iPad. Keep files local-first and check the source.
+Find answers in your own files, not generic web summaries. Built for trust-sensitive work.
+Import docs, ask in plain English, and see when the evidence is weak before you trust it.
+Search, OCR, and document prep stay local-first. Source review is built in.

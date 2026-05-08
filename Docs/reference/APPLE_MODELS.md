@@ -1,5 +1,7 @@
 # Apple Intelligence Models & Specs
 
+> Archived reference snapshot. For current repo-grounded guidance, use [../APPLE_MODELS.md](../APPLE_MODELS.md).
+
 > **Scope**: Token limits, context rules, and integration constraints for iOS 26+ Foundation Models.
 > **Source**: Official Apple Developer Documentation (iOS 26.0+)
 > **Last Updated**: February 2026
