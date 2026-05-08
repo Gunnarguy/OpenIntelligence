@@ -1,12 +1,14 @@
 #!/usr/bin/env ruby
+require_relative "app_store_connect_env"
+
 require "jwt"
 require "net/http"
 require "json"
 require "uri"
 
-key_path = File.expand_path("~/AuthKey_JT97AQ3U4U.p8")
-key_id = "JT97AQ3U4U"
-issuer_id = "843e4ca0-4a91-49c5-93d1-c4e336d7c43b"
+key_path = AppStoreConnectEnv.required_path("APP_STORE_CONNECT_PRIVATE_KEY_PATH", "APP_STORE_CONNECT_API_KEY_PATH", "ASC_KEY_PATH")
+key_id = AppStoreConnectEnv.required_value("APP_STORE_CONNECT_KEY_ID", "APP_STORE_CONNECT_API_KEY_ID", "ASC_KEY_ID")
+issuer_id = AppStoreConnectEnv.required_value("APP_STORE_CONNECT_ISSUER", "APP_STORE_CONNECT_ISSUER_ID", "ASC_ISSUER_ID")
 app_id = "6756559175"
 
 private_key = OpenSSL::PKey::EC.new(File.read(key_path))

@@ -95,9 +95,13 @@ t.txt
 .vscode/
 buildServer.json
 
+.env
 *.env
 .env.local
 .env.*.local
+AuthKey*.p8
+*.p8
+*.p12
 
 # Xcode previews and canvas caches
 *.preview-thumbnails
