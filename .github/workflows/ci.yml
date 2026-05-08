@@ -53,6 +53,13 @@ jobs:
             -project OpenIntelligence.xcodeproj \
             -scheme OpenIntelligence
 
+      - name: Validate Source SDK Consumer Flow
+        run: |
+          chmod +x scripts/validate_source_sdk_package.sh \
+                   scripts/validate_source_sdk_consumer_flow.sh \
+                   Samples/SourceSDKHost/build_sample_app.sh
+          ./scripts/validate_source_sdk_consumer_flow.sh
+
       - name: Build (iOS Simulator)
         run: |
           xcodebuild clean build \

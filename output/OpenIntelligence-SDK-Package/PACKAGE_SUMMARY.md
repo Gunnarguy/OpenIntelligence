@@ -26,6 +26,8 @@ Currently staged in this folder:
 - staged SDK-style collateral exists
 - the engine can be evaluated as a serious Apple-native prototype
 - a guided import-and-review path exists for technical evaluation
+- a source-SDK package path now builds from current source
+- a source-SDK consumer sample now builds through a repo-level validation script on a clean machine path
 
 ## What This Packet Does Not Prove
 

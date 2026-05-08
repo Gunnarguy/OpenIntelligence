@@ -127,6 +127,19 @@ func runDemo(documentURLs: [URL]) async throws {
 }
 ```
 
+## Minimum Integration Contract
+
+Today, the practical source-SDK integration contract is:
+
+- add the repo root as a Swift package dependency
+- link the `OpenIntelligenceEngine` product into your app target
+- call the public engine facade from a `@MainActor` context
+- create or select a library explicitly
+- ingest document URLs explicitly
+- query a specific library explicitly when you want predictable isolation
+
+If you want a concrete reference implementation, use `Samples/SourceSDKHost/` in the private engine repo.
+
 ## Current Caveats
 
 - The source SDK now has a root `Package.swift` and a consumer sample under `Samples/SourceSDKHost/`, but that is still productization progress rather than finished no-guidance completion.

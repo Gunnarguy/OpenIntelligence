@@ -18,6 +18,7 @@ Fastest path:
 Notes about tooling:
 
 - the committed `SourceSDKHost.xcodeproj` should build directly through `./build_sample_app.sh`
+- the build script auto-detects an available iPhone simulator if you do not provide `DESTINATION`
 - `xcodegen` is only required if you intentionally want to regenerate the sample project from `project.yml`
 - to force regeneration, run `REGENERATE_PROJECT=1 ./build_sample_app.sh`
 

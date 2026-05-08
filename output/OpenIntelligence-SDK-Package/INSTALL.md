@@ -52,6 +52,35 @@ From the private engine repo root:
 3. Or run `./scripts/validate_source_sdk_consumer_flow.sh` to perform both steps in sequence.
 
 The committed sample project should build directly. `xcodegen` is only needed if you deliberately regenerate `Samples/SourceSDKHost/SourceSDKHost.xcodeproj` from `project.yml`.
+If you do not provide `DESTINATION`, the sample build script will auto-detect an available iPhone simulator.
+
+## Manual Source SDK Integration Into Another App
+
+If you want to integrate the source SDK into your own app instead of only running the sample:
+
+1. Clone the private engine repo locally.
+2. Add the repo root as a Swift package dependency in Xcode, or point Xcode at the private Git URL for this repo.
+3. Add the `OpenIntelligenceEngine` product to your app target.
+4. Import `OpenIntelligenceEngine` in a `@MainActor` integration point.
+5. Create an `OIEngine` with your preferred `OIEngineConfiguration`.
+6. Create or select a library.
+7. Ingest document URLs into that library.
+8. Query that library and inspect the returned answer, warnings, and citations.
+
+Use `Samples/SourceSDKHost/` as the reference integration shape for:
+
+- package wiring
+- library creation and selection
+- ingest flow
+- grounded query flow
+- citation rendering
+
+The minimum practical runtime contract is still:
+
+- Xcode 26+
+- iOS 26+
+- a `@MainActor` caller for the current public engine facade
+- physical-device validation for live Apple Foundation Models behavior
 
 ## Runtime Prerequisites
 

@@ -52,6 +52,8 @@ Inside the private engine repo, the fastest source-SDK check is now:
 
 The committed `Samples/SourceSDKHost/SourceSDKHost.xcodeproj` should build directly. Regenerating it with XcodeGen is optional, not required for the default validation path.
 
+If you want to wire the SDK into another app instead of only validating the sample, go next to `INSTALL.md` for the manual package-integration steps and `API.md` for the minimum integration contract.
+
 ## Commercial Framing
 
 Use this packet for design-partner and technical-evaluation conversations.
