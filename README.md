@@ -14,6 +14,12 @@ It is meant to show:
 
 It is not the full private engine repository.
 
+<p align="center">
+	<a href="https://apps.apple.com/us/app/openintelligence/id6756559175">
+		<img src="https://developer.apple.com/assets/elements/badges/download-on-the-app-store.svg" alt="Download on the App Store" height="50">
+	</a>
+</p>
+
 ## What This Repo Includes
 
 - a lightweight SwiftUI demo app shell
