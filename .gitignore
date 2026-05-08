@@ -100,6 +100,7 @@ t.txt
 .vscode/
 buildServer.json
 
+.env
 *.env
 .env.local
 .env.*.local

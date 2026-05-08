@@ -10,7 +10,7 @@ It is meant to show:
 - the trust posture
 - the app-facing experience
 - the public architecture and documentation
-- public release notes, privacy posture, and marketing materials
+- public release notes and privacy posture
 
 It is not the full private engine repository.
 
@@ -25,7 +25,6 @@ It is not the full private engine repository.
 - a lightweight SwiftUI demo app shell
 - public docs and reference material
 - release notes and roadmap context
-- marketing materials
 - public-safe build automation
 
 ## What This Repo Does Not Include

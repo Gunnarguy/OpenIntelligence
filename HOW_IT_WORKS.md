@@ -15,7 +15,7 @@ Understand the product -> inspect the public docs -> review the demo app shell -
 1. What the product is trying to do.
 2. How the public trust model is framed.
 3. What the user-facing experience looks like.
-4. How the public docs, release notes, and marketing materials are organized.
+4. How the public docs and release notes are organized.
 
 ## What Is Intentionally Not Shipped Here
 
