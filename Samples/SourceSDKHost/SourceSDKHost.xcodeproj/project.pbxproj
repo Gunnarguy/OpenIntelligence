@@ -9,19 +9,41 @@
 /* Begin PBXBuildFile section */
 		190A3C07DE336FE8CEE41C3A /* SourceSDKHostApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5DC548A3B96B7B1795409995 /* SourceSDKHostApp.swift */; };
 		5CCC3A5346F8B131A6D29450 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E417846778C04ED7969809FE /* ContentView.swift */; };
+		6604EE27482BAF1473A3EFCF /* OpenIntelligenceEngine in Frameworks */ = {isa = PBXBuildFile; productRef = 70F298F9F21BDDBBC05931B2 /* OpenIntelligenceEngine */; };
 		8ADAD8DC6631D152288F4D50 /* OpenIntelligenceEngine in Frameworks */ = {isa = PBXBuildFile; productRef = 711ABB390C48DE7A5B479C2C /* OpenIntelligenceEngine */; };
 		B8C548607C3A6DBDDECF10BC /* DemoAssets in Resources */ = {isa = PBXBuildFile; fileRef = 0BD3D54A79DB4B4B259097D4 /* DemoAssets */; };
+		EE1CF3053119E55F4B2987BC /* SourceSDKSmokeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B80EC8444BF7B4D8BBB7624 /* SourceSDKSmokeTests.swift */; };
 /* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		E3E87BA7B11522E4571B20DF /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = CE7DC2F6EDFD64501EF18C63 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = EB4791C14CC29C29851997CF;
+			remoteInfo = SourceSDKHost;
+		};
+/* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
 		0BD3D54A79DB4B4B259097D4 /* DemoAssets */ = {isa = PBXFileReference; lastKnownFileType = folder; name = DemoAssets; path = SourceSDKHost/DemoAssets; sourceTree = SOURCE_ROOT; };
 		293AD799F67DD9FE67115D76 /* SourceSDKHost.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = SourceSDKHost.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		2B80EC8444BF7B4D8BBB7624 /* SourceSDKSmokeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SourceSDKSmokeTests.swift; sourceTree = "<group>"; };
 		5DC548A3B96B7B1795409995 /* SourceSDKHostApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SourceSDKHostApp.swift; sourceTree = "<group>"; };
 		8857211F85AC5AB14846C8E9 /* OpenIntelligence-Engine */ = {isa = PBXFileReference; lastKnownFileType = folder; name = "OpenIntelligence-Engine"; path = ../..; sourceTree = SOURCE_ROOT; };
+		920D84D77CC408D8DD21091F /* SourceSDKHostTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = SourceSDKHostTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		E417846778C04ED7969809FE /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
+		29797E0D87768CCCB06F6299 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				6604EE27482BAF1473A3EFCF /* OpenIntelligenceEngine in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		FA13343B9FDB46E248BC93DA /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
@@ -47,6 +69,7 @@
 				0BD3D54A79DB4B4B259097D4 /* DemoAssets */,
 				12448396D2753886DF362862 /* Packages */,
 				A25AA5BE3F7D31914B92B0C1 /* SourceSDKHost */,
+				A244993E045CACB3254EAAF6 /* SourceSDKHostTests */,
 				3105AFA9A29D11F2922DC85B /* Products */,
 			);
 			sourceTree = "<group>";
@@ -55,8 +78,17 @@
 			isa = PBXGroup;
 			children = (
 				293AD799F67DD9FE67115D76 /* SourceSDKHost.app */,
+				920D84D77CC408D8DD21091F /* SourceSDKHostTests.xctest */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		A244993E045CACB3254EAAF6 /* SourceSDKHostTests */ = {
+			isa = PBXGroup;
+			children = (
+				2B80EC8444BF7B4D8BBB7624 /* SourceSDKSmokeTests.swift */,
+			);
+			path = SourceSDKHostTests;
 			sourceTree = "<group>";
 		};
 		A25AA5BE3F7D31914B92B0C1 /* SourceSDKHost */ = {
@@ -71,6 +103,26 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
+		60237F876E12946CE27A25A9 /* SourceSDKHostTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 451901F726B755729EE77DF6 /* Build configuration list for PBXNativeTarget "SourceSDKHostTests" */;
+			buildPhases = (
+				18AC3EBC71C9D016F7F16D32 /* Sources */,
+				29797E0D87768CCCB06F6299 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				6B8146C362E210ACC241850B /* PBXTargetDependency */,
+			);
+			name = SourceSDKHostTests;
+			packageProductDependencies = (
+				70F298F9F21BDDBBC05931B2 /* OpenIntelligenceEngine */,
+			);
+			productName = SourceSDKHostTests;
+			productReference = 920D84D77CC408D8DD21091F /* SourceSDKHostTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 		EB4791C14CC29C29851997CF /* SourceSDKHost */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = 00165122BBD656D8BD1A6F78 /* Build configuration list for PBXNativeTarget "SourceSDKHost" */;
@@ -100,6 +152,10 @@
 				BuildIndependentTargetsInParallel = YES;
 				LastUpgradeCheck = 1430;
 				TargetAttributes = {
+					60237F876E12946CE27A25A9 = {
+						DevelopmentTeam = Z3E334EXZD;
+						ProvisioningStyle = Automatic;
+					};
 					EB4791C14CC29C29851997CF = {
 						DevelopmentTeam = Z3E334EXZD;
 						ProvisioningStyle = Automatic;
@@ -124,6 +180,7 @@
 			projectRoot = "";
 			targets = (
 				EB4791C14CC29C29851997CF /* SourceSDKHost */,
+				60237F876E12946CE27A25A9 /* SourceSDKHostTests */,
 			);
 		};
 /* End PBXProject section */
@@ -140,6 +197,14 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		18AC3EBC71C9D016F7F16D32 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				EE1CF3053119E55F4B2987BC /* SourceSDKSmokeTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		3D69E7E275B2EE89A1EF68C9 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -150,6 +215,14 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		6B8146C362E210ACC241850B /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = EB4791C14CC29C29851997CF /* SourceSDKHost */;
+			targetProxy = E3E87BA7B11522E4571B20DF /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		0952CF13097329CDA9C65AAB /* Debug */ = {
@@ -338,6 +411,38 @@
 			};
 			name = Debug;
 		};
+		ACC1B785EA95616EFDC80833 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/SourceSDKHost.app/SourceSDKHost";
+			};
+			name = Debug;
+		};
+		B85E0A601C67574EE9A4D5D2 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/SourceSDKHost.app/SourceSDKHost";
+			};
+			name = Release;
+		};
 		CF68FCF543C6C9F2C30251CD /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -365,6 +470,15 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Debug;
 		};
+		451901F726B755729EE77DF6 /* Build configuration list for PBXNativeTarget "SourceSDKHostTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				ACC1B785EA95616EFDC80833 /* Debug */,
+				B85E0A601C67574EE9A4D5D2 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
 		5C18E243B3F05E2B95660775 /* Build configuration list for PBXProject "SourceSDKHost" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
@@ -384,6 +498,10 @@
 /* End XCLocalSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
+		70F298F9F21BDDBBC05931B2 /* OpenIntelligenceEngine */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = OpenIntelligenceEngine;
+		};
 		711ABB390C48DE7A5B479C2C /* OpenIntelligenceEngine */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = OpenIntelligenceEngine;

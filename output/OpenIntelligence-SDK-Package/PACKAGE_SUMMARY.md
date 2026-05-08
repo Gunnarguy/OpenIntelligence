@@ -28,6 +28,7 @@ Currently staged in this folder:
 - a guided import-and-review path exists for technical evaluation
 - a source-SDK package path now builds from current source
 - a source-SDK consumer sample now builds through a repo-level validation script on a clean machine path
+- a source-SDK consumer smoke-test path now checks the public facade on simulator
 
 ## What This Packet Does Not Prove
 

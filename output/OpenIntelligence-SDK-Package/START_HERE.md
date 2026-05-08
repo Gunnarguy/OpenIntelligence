@@ -48,7 +48,8 @@ Inside the private engine repo, the fastest source-SDK check is now:
 
 1. `./scripts/validate_source_sdk_package.sh`
 2. `Samples/SourceSDKHost/build_sample_app.sh`
-3. or `./scripts/validate_source_sdk_consumer_flow.sh` to run both
+3. `Samples/SourceSDKHost/run_smoke_tests.sh`
+4. or `./scripts/validate_source_sdk_consumer_flow.sh` to run all three
 
 The committed `Samples/SourceSDKHost/SourceSDKHost.xcodeproj` should build directly. Regenerating it with XcodeGen is optional, not required for the default validation path.
 

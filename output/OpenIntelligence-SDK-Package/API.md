@@ -140,6 +140,8 @@ Today, the practical source-SDK integration contract is:
 
 If you want a concrete reference implementation, use `Samples/SourceSDKHost/` in the private engine repo.
 
+For simulator-safe contract checks that do not depend on live Apple Intelligence generation, use `Samples/SourceSDKHost/run_smoke_tests.sh`.
+
 ## Current Caveats
 
 - The source SDK now has a root `Package.swift` and a consumer sample under `Samples/SourceSDKHost/`, but that is still productization progress rather than finished no-guidance completion.

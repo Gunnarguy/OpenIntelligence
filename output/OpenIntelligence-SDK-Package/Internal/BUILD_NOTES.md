@@ -17,6 +17,7 @@ Current validation completed:
 - source SDK package build succeeds for iOS Simulator via `scripts/validate_source_sdk_package.sh`
 - package consumer sample app template under `Samples/SourceSDKHost/` builds against the local package path
 - package consumer sample app script auto-detects an available iPhone simulator when one is not explicitly provided
+- package consumer smoke tests succeed against the public SDK facade on iOS Simulator
 - repo-level source SDK consumer flow succeeds via `scripts/validate_source_sdk_consumer_flow.sh`
 - evaluation device and simulator archives succeed with isolated per-platform DerivedData paths
 - evaluation XCFramework rebuild succeeds from current source
@@ -51,6 +52,7 @@ Practical implication:
 - a source SDK packaging path is now real and buildable
 - a source-SDK consumer app path is now real and buildable
 - a clean-machine source-SDK consumer validation path is now scriptable and CI-friendly
+- a simulator-safe public-facade smoke-test path is now scriptable and CI-friendly
 - a buyer-safe ZIP with a packet-local sample app is available now
 - the pitch demo can be compiled locally now and taken to Apple Intelligence-capable iPhone hardware for live runtime validation
 - the engine is not yet ready for sealed module-stable binary handoff
@@ -110,12 +112,14 @@ Do not sell it as:
 - `scripts/build_sdk_buyer_bundle.sh`
 - `scripts/validate_source_sdk_package.sh`
 - `scripts/validate_source_sdk_consumer_flow.sh`
+- `Samples/SourceSDKHost/run_smoke_tests.sh`
 
 These scripts are real and currently support:
 
 - a source-backed evaluation handoff path
 - an initial source-SDK package validation path
 - a combined source-SDK consumer validation path
+- a simulator-safe source-SDK smoke-test path
 
 The stable commercial binary path is still blocked by upstream package interface verification.
 

@@ -48,3 +48,13 @@ targets:
     dependencies:
       - package: OpenIntelligenceEngine
         product: OpenIntelligenceEngine
+  SourceSDKHostTests:
+    type: bundle.unit-test
+    platform: iOS
+    deploymentTarget: "26.0"
+    sources:
+      - path: SourceSDKHostTests
+    dependencies:
+      - target: SourceSDKHost
+      - package: OpenIntelligenceEngine
+        product: OpenIntelligenceEngine
