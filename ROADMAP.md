@@ -10,6 +10,7 @@ This is the public product roadmap. It is meant to show direction, priorities, a
 - Make document import and organization smoother
 - Strengthen onboarding and explainability for new users
 - Keep the app aligned with Apple platform capabilities and privacy expectations
+- Keep the public repo useful as a buyer-facing product surface without exposing private engine code
 
 ## Near-Term Priorities
 
@@ -17,6 +18,7 @@ This is the public product roadmap. It is meant to show direction, priorities, a
 - Better answer review and source inspection
 - More polished diagnostics and quality-of-life settings
 - Broader support around sharing, export, and everyday productivity use cases
+- Cleaner public demos, screenshots, and engine explanations for interested evaluators
 
 ## Medium-Term Themes
 

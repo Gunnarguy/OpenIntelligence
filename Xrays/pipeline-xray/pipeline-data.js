@@ -11,10 +11,11 @@
 const PIPELINE_DATA = {
   version: "1.0",
   name: "OpenIntelligence Pipeline",
-  description: "29-step end-to-end RAG pipeline: 6 ingestion + 23 query steps",
+  description:
+    "Public conceptual RAG pipeline map: ingestion, retrieval, answer generation, and review",
   source:
-    "Derived from .github/copilot-instructions.md, HOW_IT_WORKS.md, ARCHITECTURE.md, ThinkingEvent.swift, RAGService.swift",
-  generatedDate: "2026-03-06",
+    "Public overview for demos and diligence. Not a private implementation specification.",
+  generatedDate: "2026-05-08",
   hardLimits: {
     embeddingTokens: {
       value: 510,

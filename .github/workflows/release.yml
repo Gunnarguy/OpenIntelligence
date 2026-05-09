@@ -16,17 +16,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          submodules: recursive
           fetch-depth: 0
-
-      - name: Cache SwiftPM
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/Library/Developer/Xcode/DerivedData/SwiftPackageManager
-            ~/Library/Caches/org.swift.swiftpm
-          key: ${{ runner.os }}-spm-${{ hashFiles('**/Package.resolved') }}
-          restore-keys: ${{ runner.os }}-spm-
 
       - name: Setup Xcode 26.2
         run: |
@@ -44,12 +34,6 @@ jobs:
           done
           DEVICE=$(xcrun simctl list devices available | grep -oE 'iPhone [^(]+' | head -1 | xargs)
           echo "device=$DEVICE" >> "$GITHUB_OUTPUT"
-
-      - name: Resolve dependencies
-        run: |
-          xcodebuild -resolvePackageDependencies \
-            -project OpenIntelligence.xcodeproj \
-            -scheme OpenIntelligence
 
       - name: Build for Release
         run: |
@@ -71,13 +55,13 @@ jobs:
             - Auto-generated release from tag ${{ github.ref_name }}
 
             ## Installation
-            1. Clone the repository
-            2. Open in Xcode 26+
-            3. Build and run on your device or simulator
+            - Install the shipped product from the App Store link in README.md.
+            - Clone this repository only if you want to build the public SwiftUI demo shell.
 
             ## Notes
             - This public snapshot intentionally excludes private engine internals.
             - App Store submission and commercialization tooling stay in the private engine repo.
+            - The GitHub release is source/docs for the public surface, not an installable iOS binary.
 
             ## Requirements
             - iOS 26.0+

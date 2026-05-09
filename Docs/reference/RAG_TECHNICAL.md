@@ -1,6 +1,8 @@
 # OpenIntelligence Technical Overview
 
-> Archived reference snapshot. For current repo-grounded guidance, use [../RagTechnical.md](../RagTechnical.md).
+> Archived reference snapshot. For current repo-grounded guidance, use
+> [../../ENGINE_OVERVIEW.md](../../ENGINE_OVERVIEW.md) and
+> [../../ARCHITECTURE.md](../../ARCHITECTURE.md).
 
 This is the public technical overview for OpenIntelligence. It describes the product shape and engineering goals at a high level without exposing proprietary retrieval or reasoning details.
 

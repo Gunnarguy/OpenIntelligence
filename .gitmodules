@@ -1,3 +1,0 @@
-[submodule "OpenIntelligence/swift-transformers"]
-	path = OpenIntelligence/swift-transformers
-	url = https://github.com/huggingface/swift-transformers.git
