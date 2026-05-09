@@ -308,6 +308,35 @@ struct ContentView: View {
                 }
             }
 
+            VStack(alignment: .leading, spacing: 10) {
+                Text("Indexed in active library")
+                    .font(.subheadline.weight(.semibold))
+
+                if let activeLibrary = model.activeLibrary {
+                    if model.indexedDocuments.isEmpty {
+                        DemoEmptyState(
+                            title: "No indexed docs in \(activeLibrary.name)",
+                            message: "Once you index files, they will show up here so you can remove them and reingest without deleting the app."
+                        )
+                    } else {
+                        Text("\(activeLibrary.name) currently has \(model.indexedDocuments.count) indexed doc\(model.indexedDocuments.count == 1 ? "" : "s").")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+
+                        ForEach(model.indexedDocuments) { document in
+                            DemoIndexedDocumentCard(document: document) {
+                                Task { await model.removeIndexedDocument(document) }
+                            }
+                        }
+                    }
+                } else {
+                    DemoEmptyState(
+                        title: "No active library selected",
+                        message: "Create or select a library first, then index documents into it."
+                    )
+                }
+            }
+
             if let ingestSummary = model.ingestSummary {
                 DemoInfoBanner(
                     title: "Latest ingest",
@@ -600,6 +629,7 @@ final class SourceSDKDemoViewModel: ObservableObject {
     @Published var activeLibrary: OILibrary?
     @Published private(set) var bundledDemoPack: [DemoDocument] = []
     @Published var selectedDocuments: [DemoDocument] = []
+    @Published var indexedDocuments: [OIDocument] = []
     @Published var queryResult: OIQueryResult?
     @Published var ingestSummary: String?
     @Published var ingestWarnings: [String] = []
@@ -827,6 +857,21 @@ final class SourceSDKDemoViewModel: ObservableObject {
         } else {
             activeLibrary = libraries.first
         }
+
+        refreshIndexedDocuments()
+    }
+
+    func refreshIndexedDocuments() {
+        guard let activeLibrary else {
+            indexedDocuments = []
+            return
+        }
+
+        do {
+            indexedDocuments = try engine.listDocuments(in: activeLibrary.id)
+        } catch {
+            indexedDocuments = []
+        }
     }
 
     func loadBundledDemoPack() {
@@ -881,6 +926,17 @@ final class SourceSDKDemoViewModel: ObservableObject {
             return
         }
 
+        var securedURLs: [URL] = []
+        for document in selectedDocuments where document.url.startAccessingSecurityScopedResource() {
+            securedURLs.append(document.url)
+        }
+
+        defer {
+            for url in securedURLs {
+                url.stopAccessingSecurityScopedResource()
+            }
+        }
+
         do {
             operationState = DemoOperationState(
                 kind: .indexing,
@@ -906,6 +962,33 @@ final class SourceSDKDemoViewModel: ObservableObject {
         }
 
         operationState = nil
+    }
+
+    func removeIndexedDocument(_ document: OIDocument) async {
+        guard let activeLibrary else {
+            alert = DemoAlert(title: "No Library", message: "Create or select a library first.")
+            return
+        }
+
+        operationState = DemoOperationState(
+            kind: .loading,
+            title: "Removing \(document.filename)",
+            detail: "Deleting the indexed document from \(activeLibrary.name).",
+            nextStep: "Next: re-index the file again if you changed its contents."
+        )
+
+        defer { operationState = nil }
+
+        do {
+            try await engine.removeDocument(id: document.id, from: activeLibrary.id)
+            queryResult = nil
+            ingestWarnings = []
+            ingestSummary = nil
+            refreshLibraries(activeID: activeLibrary.id)
+            lastAction = "Removed \(document.filename) from \(activeLibrary.name)."
+        } catch {
+            alert = DemoAlert(title: "Remove Error", message: error.localizedDescription)
+        }
     }
 
     func runQuery() async {
@@ -1212,6 +1295,49 @@ private struct DemoDocumentCard: View {
                 DemoMiniBadge(text: document.source.label, tint: document.source == .bundled ? .teal : .indigo)
                 DemoMiniBadge(text: document.fileType, tint: .gray)
                 DemoMiniBadge(text: document.fileSizeDescription, tint: .gray)
+            }
+        }
+        .padding(14)
+        .background(Color(uiColor: .secondarySystemBackground), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+    }
+}
+
+private struct DemoIndexedDocumentCard: View {
+    let document: OIDocument
+    let onRemove: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .top, spacing: 12) {
+                Image(systemName: "doc.text.fill")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(.green)
+                    .frame(width: 30, height: 30)
+                    .background(Color.green.opacity(0.14), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(document.filename)
+                        .font(.subheadline.weight(.semibold))
+
+                    HStack(spacing: 8) {
+                        DemoMiniBadge(text: "\(document.chunkCount) chunks", tint: .green)
+                        DemoMiniBadge(text: document.contentType, tint: .gray)
+                    }
+
+                    Text(document.addedAt, style: .relative)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                Spacer(minLength: 0)
+
+                Button(role: .destructive, action: onRemove) {
+                    Image(systemName: "trash")
+                        .font(.system(size: 14, weight: .semibold))
+                        .frame(width: 34, height: 34)
+                }
+                .buttonStyle(.bordered)
+                .tint(.red)
             }
         }
         .padding(14)

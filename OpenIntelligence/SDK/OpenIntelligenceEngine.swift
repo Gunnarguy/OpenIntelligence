@@ -55,6 +55,31 @@ public struct OILibrary: Identifiable, Hashable, Sendable {
     }
 }
 
+public struct OIDocument: Identifiable, Hashable, Sendable {
+    public let id: UUID
+    public let filename: String
+    public let addedAt: Date
+    public let chunkCount: Int
+    public let libraryID: UUID?
+    public let contentType: String
+
+    nonisolated public init(
+        id: UUID,
+        filename: String,
+        addedAt: Date,
+        chunkCount: Int,
+        libraryID: UUID?,
+        contentType: String
+    ) {
+        self.id = id
+        self.filename = filename
+        self.addedAt = addedAt
+        self.chunkCount = chunkCount
+        self.libraryID = libraryID
+        self.contentType = contentType
+    }
+}
+
 public struct OIIngestRequest: Sendable {
     public var urls: [URL]
     public var libraryName: String?
@@ -245,6 +270,46 @@ public final class OIEngine {
         containerService.deleteContainer(id: id)
     }
 
+    public func listDocuments(in libraryID: UUID) throws -> [OIDocument] {
+        guard let container = findContainer(id: libraryID) else {
+            throw OpenIntelligenceEngineError.invalidRequest("Library not found.")
+        }
+
+        return resolvedRAGService()
+            .documents
+            .filter { $0.containerId == container.id }
+            .sorted { lhs, rhs in
+                if lhs.addedAt == rhs.addedAt {
+                    return lhs.filename.localizedCaseInsensitiveCompare(rhs.filename) == .orderedAscending
+                }
+                return lhs.addedAt > rhs.addedAt
+            }
+            .map(Self.makeDocument)
+    }
+
+    public func removeDocument(id: UUID, from libraryID: UUID) async throws {
+        guard findContainer(id: libraryID) != nil else {
+            throw OpenIntelligenceEngineError.invalidRequest("Library not found.")
+        }
+
+        let ragService = resolvedRAGService()
+        guard let document = ragService.documents.first(where: { $0.id == id && $0.containerId == libraryID }) else {
+            throw OpenIntelligenceEngineError.invalidRequest("Document not found in the specified library.")
+        }
+
+        containerService.setActive(libraryID)
+        try await ragService.removeDocument(document)
+    }
+
+    public func clearLibrary(id: UUID) async throws {
+        guard let container = findContainer(id: id) else {
+            throw OpenIntelligenceEngineError.invalidRequest("Library not found.")
+        }
+
+        containerService.setActive(container.id)
+        try await resolvedRAGService().clearAllDocuments()
+    }
+
     public func ingest(_ request: OIIngestRequest) async throws -> OIIngestResult {
         guard !request.urls.isEmpty else {
             throw OpenIntelligenceEngineError.invalidRequest("At least one document URL is required.")
@@ -370,6 +435,17 @@ public final class OIEngine {
             name: container.name,
             documentCount: container.totalDocuments,
             chunkCount: container.totalChunks
+        )
+    }
+
+    private static func makeDocument(from document: Document) -> OIDocument {
+        OIDocument(
+            id: document.id,
+            filename: document.filename,
+            addedAt: document.addedAt,
+            chunkCount: document.totalChunks,
+            libraryID: document.containerId,
+            contentType: document.contentType.rawValue.uppercased()
         )
     }
 
