@@ -2,10 +2,6 @@ import OpenIntelligenceEngine
 import SwiftUI
 import UniformTypeIdentifiers
 
-private enum SourceSDKHostRuntime {
-    static let isRunningTests = ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
-}
-
 struct ContentView: View {
     @StateObject private var model = SourceSDKDemoViewModel()
     @FocusState private var isQuestionFocused: Bool
@@ -27,7 +23,7 @@ struct ContentView: View {
             .navigationBarTitleDisplayMode(.inline)
         }
         .task {
-            guard !SourceSDKHostRuntime.isRunningTests else { return }
+            guard !SourceSDKHostRuntime.shouldSkipInteractiveBootstrap else { return }
             model.bootstrapIfNeeded()
         }
         .fileImporter(
@@ -332,8 +328,8 @@ final class SourceSDKDemoViewModel: ObservableObject {
         guard !hasBootstrapped else { return }
         hasBootstrapped = true
 
-        guard !SourceSDKHostRuntime.isRunningTests else {
-            lastAction = "Running under XCTest smoke tests."
+        guard !SourceSDKHostRuntime.shouldSkipInteractiveBootstrap else {
+            lastAction = "Skipping interactive bootstrap for automated smoke execution."
             return
         }
 

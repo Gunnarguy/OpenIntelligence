@@ -12,6 +12,7 @@
 		6604EE27482BAF1473A3EFCF /* OpenIntelligenceEngine in Frameworks */ = {isa = PBXBuildFile; productRef = 70F298F9F21BDDBBC05931B2 /* OpenIntelligenceEngine */; };
 		8ADAD8DC6631D152288F4D50 /* OpenIntelligenceEngine in Frameworks */ = {isa = PBXBuildFile; productRef = 711ABB390C48DE7A5B479C2C /* OpenIntelligenceEngine */; };
 		B8C548607C3A6DBDDECF10BC /* DemoAssets in Resources */ = {isa = PBXBuildFile; fileRef = 0BD3D54A79DB4B4B259097D4 /* DemoAssets */; };
+		BA8CE595533565D153EB4525 /* SourceSDKSmokeHarness.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1EF20E5A95B694FEDEAD4EA /* SourceSDKSmokeHarness.swift */; };
 		EE1CF3053119E55F4B2987BC /* SourceSDKSmokeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B80EC8444BF7B4D8BBB7624 /* SourceSDKSmokeTests.swift */; };
 /* End PBXBuildFile section */
 
@@ -22,6 +23,7 @@
 		5DC548A3B96B7B1795409995 /* SourceSDKHostApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SourceSDKHostApp.swift; sourceTree = "<group>"; };
 		8857211F85AC5AB14846C8E9 /* OpenIntelligence-Engine */ = {isa = PBXFileReference; lastKnownFileType = folder; name = "OpenIntelligence-Engine"; path = ../..; sourceTree = SOURCE_ROOT; };
 		920D84D77CC408D8DD21091F /* SourceSDKHostTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = SourceSDKHostTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		E1EF20E5A95B694FEDEAD4EA /* SourceSDKSmokeHarness.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SourceSDKSmokeHarness.swift; sourceTree = "<group>"; };
 		E417846778C04ED7969809FE /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -86,6 +88,7 @@
 			children = (
 				E417846778C04ED7969809FE /* ContentView.swift */,
 				5DC548A3B96B7B1795409995 /* SourceSDKHostApp.swift */,
+				E1EF20E5A95B694FEDEAD4EA /* SourceSDKSmokeHarness.swift */,
 			);
 			path = SourceSDKHost;
 			sourceTree = "<group>";
@@ -200,6 +203,7 @@
 			files = (
 				5CCC3A5346F8B131A6D29450 /* ContentView.swift in Sources */,
 				190A3C07DE336FE8CEE41C3A /* SourceSDKHostApp.swift in Sources */,
+				BA8CE595533565D153EB4525 /* SourceSDKSmokeHarness.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

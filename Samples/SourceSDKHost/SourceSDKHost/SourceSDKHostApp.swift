@@ -4,7 +4,11 @@ import SwiftUI
 struct SourceSDKHostApp: App {
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            if SourceSDKHostRuntime.isRunningSmokeHarness {
+                SourceSDKSmokeHarnessView()
+            } else {
+                ContentView()
+            }
         }
     }
 }
