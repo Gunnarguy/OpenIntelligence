@@ -13,6 +13,13 @@ private struct DemoStep: Identifiable {
     let detail: String
 }
 
+private struct EngineCapability: Identifiable {
+    let id = UUID()
+    let title: String
+    let detail: String
+    let symbol: String
+}
+
 private struct DemoMessage: Identifiable {
     enum Role {
         case user
@@ -25,24 +32,33 @@ private struct DemoMessage: Identifiable {
 }
 
 private let demoFeatures: [DemoFeature] = [
-    DemoFeature(title: "Private document workflows", detail: "Shows the product category, trust posture, and Apple-native UX direction.", symbol: "folder.badge.questionmark"),
-    DemoFeature(title: "Grounded-answer experience", detail: "Demonstrates how the product presents evidence-first answers instead of generic chat vibes.", symbol: "checkmark.seal.text.page"),
-    DemoFeature(title: "Founder-ready diligence signal", detail: "Keeps public materials, screenshots, docs, and architecture summaries visible without shipping the private moat.", symbol: "briefcase"),
-    DemoFeature(title: "Product framing", detail: "Carries public release notes, privacy posture, and the product-facing story for the shipped app.", symbol: "iphone.gen3")
+    DemoFeature(title: "Private document intelligence", detail: "Explains the Apple-native product category and why the engine is more than a wrapper around chat.", symbol: "folder.badge.questionmark"),
+    DemoFeature(title: "Grounded-answer pipeline", detail: "Shows the retrieval, answer, review, and uncertainty loop at a public level without publishing ranking logic.", symbol: "checkmark.seal.text.page"),
+    DemoFeature(title: "Buyer-ready first stop", detail: "Gives SideProjectors visitors a concrete product surface before any private diligence process starts.", symbol: "briefcase"),
+    DemoFeature(title: "App Store funnel", detail: "Points evaluators to the shipped app while keeping the proprietary engine in the private repo.", symbol: "iphone.gen3")
 ]
 
 private let workflowSteps: [DemoStep] = [
-    DemoStep(title: "1. Import", detail: "The shipped product ingests private documents and prepares them locally."),
-    DemoStep(title: "2. Retrieve", detail: "The private engine finds supporting evidence before answer generation."),
-    DemoStep(title: "3. Answer", detail: "Answers are designed to stay grounded in the provided material."),
-    DemoStep(title: "4. Review", detail: "Users inspect support details, citations, and uncertainty in the product UI.")
+    DemoStep(title: "1. Import", detail: "Users bring documents, scans, images, or technical material into a private library."),
+    DemoStep(title: "2. Understand", detail: "The private engine prepares text, layout, tables, figures, and OCR-derived evidence for retrieval."),
+    DemoStep(title: "3. Retrieve", detail: "Questions pull relevant source support before answer generation begins."),
+    DemoStep(title: "4. Answer", detail: "The app presents grounded answers with review affordances instead of generic chat output."),
+    DemoStep(title: "5. Inspect", detail: "Users can check source context, uncertainty, and cited support when accuracy matters.")
+]
+
+private let engineCapabilities: [EngineCapability] = [
+    EngineCapability(title: "Ingestion", detail: "Turns user-controlled documents into a searchable private workspace.", symbol: "tray.and.arrow.down"),
+    EngineCapability(title: "Evidence preservation", detail: "Keeps useful text, table, layout, figure, and OCR context available for later retrieval.", symbol: "doc.text.magnifyingglass"),
+    EngineCapability(title: "Library-scoped indexing", detail: "Organizes evidence around app libraries instead of one undifferentiated global pile.", symbol: "books.vertical"),
+    EngineCapability(title: "Retrieval before generation", detail: "Finds support first so answers can stay tied to the user's material.", symbol: "point.3.connected.trianglepath.dotted"),
+    EngineCapability(title: "Answer review", detail: "Surfaces source context and uncertainty so users can decide whether to trust an answer.", symbol: "checkmark.shield")
 ]
 
 private let demoMessages: [DemoMessage] = [
-    DemoMessage(role: .user, text: "What does this public repo actually show?"),
-    DemoMessage(role: .assistant, text: "This repo is a curated public demo snapshot. It shows the product surface, docs, trust model, and public-facing app story without exposing the private engine implementation."),
-    DemoMessage(role: .user, text: "What stays private?"),
-    DemoMessage(role: .assistant, text: "Retrieval logic, verification heuristics, ingestion internals, embedding/vector search, SDK packaging, and commercialization materials stay in the private engine repo.")
+    DemoMessage(role: .user, text: "What is OpenIntelligence?"),
+    DemoMessage(role: .assistant, text: "It is a native Apple document intelligence app built around a private engine for grounded Q&A over user-controlled material."),
+    DemoMessage(role: .user, text: "What does this public repo prove?"),
+    DemoMessage(role: .assistant, text: "It shows the product story, privacy posture, public architecture, shipped release history, and a buildable demo shell without exposing the proprietary engine implementation.")
 ]
 
 struct DemoOverviewView: View {
@@ -64,14 +80,14 @@ struct DemoOverviewView: View {
             Text("Public Demo Snapshot")
                 .font(.system(size: 34, weight: .bold, design: .rounded))
 
-            Text("A product-facing, SideProjectors-ready repo that explains what OpenIntelligence is, what users see, and what stays private.")
+            Text("A product-facing repo for understanding the shipped app, the private engine, and the public/private boundary.")
                 .font(.system(size: 18, weight: .medium, design: .rounded))
                 .foregroundStyle(.secondary)
 
             HStack(spacing: 12) {
-                DemoPill(label: "Public docs")
-                DemoPill(label: "Demo app")
-                DemoPill(label: "Private engine kept out")
+                DemoPill(label: "App Store app")
+                DemoPill(label: "Engine overview")
+                DemoPill(label: "Private source protected")
             }
         }
         .padding(24)
@@ -94,7 +110,7 @@ struct DemoOverviewView: View {
 
     private var featureGrid: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("What this repo is for")
+            Text("What this repo communicates")
                 .font(.system(size: 22, weight: .semibold, design: .rounded))
 
             ForEach(demoFeatures) { feature in
@@ -124,6 +140,7 @@ struct DemoOverviewView: View {
                 .font(.system(size: 22, weight: .semibold, design: .rounded))
 
             Link("App Store listing", destination: URL(string: "https://apps.apple.com/us/app/openintelligence/id6756559175")!)
+            Link("SideProjectors listing", destination: URL(string: "https://www.sideprojectors.com/project/78816/openintelligence")!)
             Link("GitHub repository", destination: URL(string: "https://github.com/Gunnarguy/OpenIntelligence")!)
         }
         .padding(20)
@@ -208,7 +225,7 @@ struct DemoExperienceView: View {
             Text("What ships publicly")
                 .font(.system(size: 22, weight: .semibold, design: .rounded))
 
-            Text("This demo repo keeps docs, release notes, and a lightweight product-facing app shell. It does not ship the private engine implementation.")
+            Text("This repo ships public docs, release notes, reference material, and a lightweight product-facing app shell. The App Store app and private engine are maintained outside this public source tree.")
                 .foregroundStyle(.secondary)
 
             Text("Sample docs included in the repo")
@@ -231,30 +248,72 @@ struct DemoBoundaryView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 22) {
+                engineSummary
+                capabilityList
+
                 section(
-                    title: "What stays in this repo",
-                    body: "A curated demo app shell, public docs, release notes, and product-facing architecture summaries."
+                    title: "What this public repo proves",
+                    body: "The repo shows product positioning, privacy posture, release history, public architecture, reference docs, and a demo shell that can be built without private source access."
                 )
 
                 section(
                     title: "What stays private",
-                    body: "Document processing internals, chunking, retrieval, verification, embeddings, vector search, SDK packaging, buyer packets, and commercialization materials remain in OpenIntelligence-Engine."
+                    body: "Ranking logic, thresholds, verification heuristics, indexing details, private prompts, internal tests, SDK packaging, and diligence materials remain in OpenIntelligence-Engine."
                 )
 
                 section(
-                    title: "How updates happen",
-                    body: "Private development happens in OpenIntelligence-Engine. The public repo is regenerated from that repo using an allowlist export plus a fail-closed boundary audit."
+                    title: "How buyer evaluation should work",
+                    body: "Public visitors can install the App Store app and inspect this repo. Serious private engine review should move through SideProjectors or direct diligence terms."
                 )
 
                 section(
-                    title: "Why this exists",
-                    body: "The public repo is for product signal and demo positioning. The private repo is the actual engine, SDK, and sale/evaluation workspace."
+                    title: "Why this boundary exists",
+                    body: "The public repo should create confidence and explain the engine. The private repo preserves the implementation value that matters in a sale."
                 )
             }
             .padding(20)
         }
         .background(Color(.secondarySystemBackground).ignoresSafeArea())
-        .navigationTitle("Boundary")
+        .navigationTitle("Engine")
+    }
+
+    private var engineSummary: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("What the engine is")
+                .font(.system(size: 24, weight: .bold, design: .rounded))
+
+            Text("A private Apple-native document intelligence pipeline for importing user material, preserving evidence, retrieving support, and producing grounded answers with source review.")
+                .foregroundStyle(.secondary)
+        }
+        .padding(20)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(.background, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+    }
+
+    private var capabilityList: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Engine responsibilities")
+                .font(.system(size: 22, weight: .semibold, design: .rounded))
+
+            ForEach(engineCapabilities) { capability in
+                HStack(alignment: .top, spacing: 14) {
+                    Image(systemName: capability.symbol)
+                        .font(.system(size: 18, weight: .semibold))
+                        .frame(width: 36, height: 36)
+                        .background(Color.accentColor.opacity(0.12), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(capability.title)
+                            .font(.system(size: 17, weight: .semibold, design: .rounded))
+                        Text(capability.detail)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .padding(18)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(.background, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+            }
+        }
     }
 
     private func section(title: String, body: String) -> some View {

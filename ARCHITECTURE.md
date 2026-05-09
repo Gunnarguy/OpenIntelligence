@@ -1,16 +1,21 @@
-# OpenIntelligence Public Demo Architecture
+# OpenIntelligence Public Architecture
 
 Public snapshot: May 2026
 
-This repository is structured as a public demo surface, not as the private engine source tree.
+This repository is structured as a public product surface, not as the private
+engine source tree.
 
 ## High-Level Layout
 
 ```text
-Public demo app shell
-    -> Product-facing demo screens
-        -> Public docs and release materials
-            -> Private engine stays outside this repo
+App Store product
+    -> Private OpenIntelligence engine
+        -> Controlled privately in OpenIntelligence-Engine
+
+Public GitHub repo
+    -> SwiftUI demo shell
+    -> Public docs, privacy notes, release history, roadmap
+    -> Engine overview without proprietary implementation
 ```
 
 ## What Lives Here
@@ -20,6 +25,25 @@ Public demo app shell
 | Demo app shell   | A lightweight SwiftUI app that communicates the product story   |
 | Public docs      | README, architecture, workflow, privacy, and release materials  |
 | Build support    | Public-safe build workflows and helper scripts                  |
+
+The Xcode project in this repo is intentionally scoped to the public demo app.
+It should open cleanly for visitors without implying that the private engine
+framework is available here.
+
+## Public Engine Model
+
+At a public level, OpenIntelligence is organized around these responsibilities:
+
+```text
+Import
+    -> document understanding
+        -> library-scoped indexing
+            -> retrieval
+                -> grounded answer generation
+                    -> source review and uncertainty handling
+```
+
+The private repo owns the implementation details behind those boxes.
 
 ## What Does Not Live Here
 
@@ -39,3 +63,7 @@ This repo is intentionally generated from a private source-of-truth workflow.
 
 The private repo is authoritative.
 The public repo is a curated export target.
+
+That boundary is part of the product strategy: the public repo should create
+confidence and explain the engine, while the private repo preserves the
+implementation that matters in an acquisition or licensing discussion.

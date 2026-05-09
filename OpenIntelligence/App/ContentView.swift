@@ -25,9 +25,9 @@ struct ContentView: View {
                 DemoBoundaryView()
             }
             .tabItem {
-                Label("Boundary", systemImage: "shield.lefthalf.filled")
+                Label("Engine", systemImage: "cpu")
             }
-            .tag(DemoTab.boundary)
+            .tag(DemoTab.engine)
         }
     }
 }
@@ -35,7 +35,7 @@ struct ContentView: View {
 private enum DemoTab {
     case overview
     case experience
-    case boundary
+    case engine
 }
 
 #Preview {

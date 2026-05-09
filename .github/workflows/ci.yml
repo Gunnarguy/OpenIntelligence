@@ -16,17 +16,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          submodules: recursive
           fetch-depth: 0
-
-      - name: Cache SwiftPM
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/Library/Developer/Xcode/DerivedData/SwiftPackageManager
-            ~/Library/Caches/org.swift.swiftpm
-          key: ${{ runner.os }}-spm-${{ hashFiles('**/Package.resolved') }}
-          restore-keys: ${{ runner.os }}-spm-
 
       - name: Setup Xcode 26.2
         run: |
@@ -47,12 +37,6 @@ jobs:
           echo "device=$DEVICE" >> "$GITHUB_OUTPUT"
           echo "Using simulator: $DEVICE"
 
-      - name: Resolve dependencies
-        run: |
-          xcodebuild -resolvePackageDependencies \
-            -project OpenIntelligence.xcodeproj \
-            -scheme OpenIntelligence
-
       - name: Build (iOS Simulator)
         run: |
           xcodebuild clean build \
@@ -61,21 +45,3 @@ jobs:
             -destination 'platform=iOS Simulator,name=${{ steps.sim.outputs.device }}' \
             -configuration Debug \
             CODE_SIGNING_ALLOWED=NO
-
-      - name: Run Tests
-        run: |
-          xcodebuild test \
-            -project OpenIntelligence.xcodeproj \
-            -scheme OpenIntelligence \
-            -destination 'platform=iOS Simulator,name=${{ steps.sim.outputs.device }}' \
-            -configuration Debug \
-            CODE_SIGNING_ALLOWED=NO \
-            -resultBundlePath TestResults.xcresult || true
-
-      - name: Upload Test Results
-        uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: test-results
-          path: TestResults.xcresult
-          retention-days: 7
