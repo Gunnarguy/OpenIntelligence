@@ -1,1 +1,15 @@
-Board Briefing\n\nOpenIntelligence is building a private Apple-native document intelligence engine for sensitive document workflows.\n\nImmediate wedge:\n- technical manuals\n- board packets\n- diligence notes\n- internal research\n\nWhy it matters:\nTeams want AI help with private documents without casually routing them through generic hosted workflows.\n\nShort-term product goal:\nShip a source-distributed SDK that can ingest documents, create libraries, answer grounded questions, and return citations inside a separate iOS host app.\n
+Board Briefing
+
+OpenIntelligence is building a private Apple-native document intelligence engine for sensitive document workflows.
+
+Immediate wedge:
+- technical manuals
+- board packets
+- diligence notes
+- internal research
+
+Why it matters:
+Teams want AI help with private documents without casually routing them through generic hosted workflows.
+
+Short-term product goal:
+Ship a source-distributed SDK that can ingest documents, create libraries, answer grounded questions, and return citations inside a separate iOS host app.

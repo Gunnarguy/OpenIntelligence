@@ -675,6 +675,26 @@ class RAGService: ObservableObject {
     }
 
     @MainActor
+    private func syncContainerStats(for containerId: UUID, lastIndexedAt: Date? = nil) {
+        let containerDocuments = documentsForContainer(containerId)
+        let totalChunks = containerDocuments.reduce(0) { $0 + $1.totalChunks }
+        containerService.updateStats(
+            for: containerId,
+            totalDocuments: containerDocuments.count,
+            totalChunks: totalChunks,
+            lastIndexedAt: lastIndexedAt
+        )
+    }
+
+    @MainActor
+    private func syncAllContainerStats() {
+        let containerIds = containerService.containers.map(\.id)
+        for containerId in containerIds {
+            syncContainerStats(for: containerId)
+        }
+    }
+
+    @MainActor
     private func saveChatHistory(_ messages: [ChatMessage], for containerId: UUID) {
         let url = AppSupportPaths.chatHistoryURL(containerId: containerId)
         do {
@@ -2984,6 +3004,7 @@ class RAGService: ObservableObject {
             Task { @MainActor in
                 self.documents = loadedDocuments
                 self.totalChunksStored = loadedDocuments.reduce(0) { $0 + $1.totalChunks }
+                self.syncAllContainerStats()
                 Log.info("[RAGService] Loaded \(loadedDocuments.count) documents (\(totalChunksStored) chunks)")
                 if !loadedDocuments.isEmpty {
                     self.refreshIntelligence(for: nil)
@@ -4982,6 +5003,7 @@ class RAGService: ObservableObject {
             await MainActor.run {
                 documents.append(updatedDocument)
                 totalChunksStored += documentChunks.count
+                syncContainerStats(for: activeContainerId, lastIndexedAt: Date())
                 if !suppressProcessingSummary {
                     lastProcessingSummary = summary
                 }
@@ -5114,6 +5136,7 @@ class RAGService: ObservableObject {
         await MainActor.run {
             documents.removeAll { $0.id == document.id }
             totalChunksStored -= document.totalChunks
+            syncContainerStats(for: activeId)
         }
 
         saveDocumentsToDisk()
@@ -5151,6 +5174,7 @@ class RAGService: ObservableObject {
         await MainActor.run {
             documents.removeAll { $0.containerId == activeId }
             totalChunksStored = documents.reduce(0) { $0 + $1.totalChunks }
+            syncContainerStats(for: activeId)
         }
 
         saveDocumentsToDisk()
