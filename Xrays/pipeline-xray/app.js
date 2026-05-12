@@ -166,8 +166,8 @@ function switchMode(mode) {
 
   if (mode === "canonical") {
     dot.dataset.source = "canonical";
-    label.textContent = "Public conceptual map";
-    detail.textContent = `${State.allSteps.length}-step public overview`;
+    label.textContent = "Derived from docs/code";
+    detail.textContent = `${State.allSteps.length}-step canonical pipeline`;
     document.getElementById("drop-zone").classList.add("hidden");
     renderCanonical();
   } else if (mode === "replay") {
@@ -549,13 +549,13 @@ function showStepDetail(stepId) {
     html += "</div>";
   }
 
-  // Public trace event categories
+  // ThinkingEvent kinds
   if (
     step.thinkingKinds &&
     step.thinkingKinds.length > 0 &&
     State.pipeline.thinkingKindMap
   ) {
-    html += `<div class="step-thinking-kinds"><h4>Trace Event Categories</h4><div class="kind-tags">`;
+    html += `<div class="step-thinking-kinds"><h4>ThinkingEvent Kinds</h4><div class="kind-tags">`;
     for (const kind of step.thinkingKinds) {
       const info = State.pipeline.thinkingKindMap[kind];
       if (info) {

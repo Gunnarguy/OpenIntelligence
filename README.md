@@ -1,82 +1,101 @@
-<a href='https://www.sideprojectors.com/project/78816/openintelligence' alt='OpenIntelligence is for sale at @SideProjectors'><img style='position:fixed;z-index:1000;top:-5px; right: 20px; border: 0;' src='https://www.sideprojectors.com/img/badges/badge_2_red.png' alt='OpenIntelligence is sale at @SideProjectors'></a>
+# OpenIntelligence
 
-# OpenIntelligence Public Product Surface
+OpenIntelligence is an experimental Apple-native document intelligence prototype for working with user-controlled files.
 
-This repository is the public-facing product and diligence surface for
-OpenIntelligence. It exists so someone coming from the App Store,
-SideProjectors, or GitHub can understand what the product is, what the
-engine does, and what is intentionally kept private.
+It explores local-first document ingestion, library-based organization, retrieval, source-backed answers, citations, confidence signals, and AI-assisted reasoning on Apple platforms.
 
-It is not the private engine source tree.
+This is a proof-of-concept and portfolio project. It is not a finished enterprise SDK, regulated healthcare system, clinical decision-support tool, production-ready commercial product, or clinical decision-support system.
 
-<p align="center">
-	<a href="https://apps.apple.com/us/app/openintelligence/id6756559175">
-		<img src="https://developer.apple.com/assets/elements/badges/download-on-the-app-store.svg" alt="Download on the App Store" height="50">
-	</a>
-</p>
+## Why It Exists
 
-## What OpenIntelligence Is
+OpenIntelligence was built to explore what a document intelligence system feels like when the product is organized around evidence instead of generic chat. The central idea is simple: users should be able to import their own files, ask questions, and inspect the sources behind an answer.
 
-OpenIntelligence is an Apple-native document intelligence app and private
-engine for asking grounded questions over user-controlled documents.
+The project demonstrates practical AI product engineering across ingestion, chunking, retrieval, answer generation, citations, and uncertainty handling in a native Apple app.
 
-The engine is built around a local-first pipeline:
+## What It Does Today
 
-1. Import and normalize documents, images, and technical material.
-2. Preserve useful text, layout, table, and visual evidence.
-3. Build private per-library indexes for retrieval.
-4. Retrieve source-backed evidence before answering.
-5. Generate answers that stay tied to inspectable support.
-6. Surface uncertainty, citations, and review affordances in the app.
+- Imports user-selected documents and supporting files into local app workflows.
+- Organizes material into libraries or workspaces so retrieval stays scoped.
+- Chunks and indexes content for retrieval-oriented question answering.
+- Retrieves source material before producing grounded answers.
+- Displays citations, evidence review surfaces, confidence signals, and warnings.
+- Includes diagnostics and validation surfaces for inspecting retrieval quality.
+- Carries an experimental Swift package boundary for the document intelligence engine.
 
-For more detail, start with [ENGINE_OVERVIEW.md](ENGINE_OVERVIEW.md).
+## Core Concepts
 
-## What This Repo Is For
+- local-first document workflows
+- user-controlled files
+- document ingestion
+- chunking and retrieval
+- library or workspace isolation
+- source-backed answers
+- citations and evidence review
+- confidence and warning signals
+- Apple-native app architecture
+- Swift and SwiftUI implementation
 
-- Explaining the product and engine at a useful public level.
-- Giving buyers and evaluators a clean first stop from SideProjectors.
-- Linking to the real App Store app without publishing private source.
-- Showing public architecture, privacy posture, release history, and roadmap.
-- Providing a lightweight SwiftUI demo shell that builds without the private engine.
+## Architecture Overview
 
-## What This Repo Is Not
+The app is structured around a native SwiftUI shell and a document intelligence core:
 
-- It is not the private `OpenIntelligence-Engine` repo.
-- It is not the App Store submission workspace.
-- It is not a buyer-ready SDK package.
-- It is not a complete implementation of ingestion, retrieval, verification, or ranking.
+- `OpenIntelligence/App`: app entry points and composition.
+- `OpenIntelligence/Features`: document, chat, settings, diagnostics, telemetry, onboarding, and related user-facing features.
+- `OpenIntelligence/Services`: ingestion, extraction, chunking, embedding, storage, retrieval, RAG orchestration, answer safety, and platform integration services.
+- `OpenIntelligence/SDK`: experimental package-facing API surface for the engine boundary.
+- `OpenIntelligence/Resources`: assets, privacy metadata, and local model resources.
 
-Those remain private until there is a real diligence or acquisition process.
+See `Docs/ARCHITECTURE.md` and `Docs/RETRIEVAL_PIPELINE.md` for the technical overview.
 
-## What This Repo Does Not Include
+## What This Demonstrates
 
-- private ingestion and chunking internals
-- retrieval and verification logic
-- embedding and vector search implementation
-- SDK packaging and buyer packet materials
-- commercialization and diligence documents
-- App Store submission and release-ops tooling
+- AI product engineering
+- retrieval-oriented system design
+- Apple-platform development
+- practical handling of context constraints
+- source-grounded answer design
+- iterative prototype development
 
-Those remain in the private `OpenIntelligence-Engine` repo.
+## Tech Stack
 
-## For Buyers And Evaluators
+- Swift
+- SwiftUI
+- Xcode projects and Swift Package Manager
+- Apple document and text processing APIs
+- Local storage, full-text search, vector retrieval, and reranking experiments
+- On-device model resources for embedding and ranking experiments
 
-Use this repo to understand the public product, install the App Store app, and
-decide whether deeper diligence is worth pursuing. Hands-on review of the
-private engine, SDK shape, commercialization material, or internal evaluation
-work should happen through the sale process, not through this public repo.
+## Limitations
 
-Useful entry points:
+- Experimental prototype.
+- Not validated for regulated workflows.
+- Not intended for clinical, legal, financial, or safety-critical decision-making.
+- Not guaranteed to produce complete or correct answers.
+- May require device-specific Apple Intelligence availability for some paths.
+- Packaging and setup may require developer familiarity.
 
-- [ENGINE_OVERVIEW.md](ENGINE_OVERVIEW.md) for the engine story
-- [HOW_IT_WORKS.md](HOW_IT_WORKS.md) for the public workflow
-- [ARCHITECTURE.md](ARCHITECTURE.md) for the public/private boundary
-- [PRIVACY.md](PRIVACY.md) for privacy posture
-- [WHATS_NEW.md](WHATS_NEW.md) and [CHANGELOG.md](CHANGELOG.md) for shipped product history
-- [ROADMAP.md](ROADMAP.md) for public direction
-- [Xrays/pipeline-xray/index.html](Xrays/pipeline-xray/index.html) for a static public pipeline visualizer
+## What It Is Not
 
-## Build The Public Demo Shell
+OpenIntelligence is not:
+
+- a finished enterprise SDK
+- a sealed binary SDK
+- a production enterprise product
+- a regulated healthcare tool
+- a clinical decision-support system
+- a diagnostic system
+- a buyer-ready handoff
+- a company
+- a product for sale
+
+## Setup
+
+Requirements:
+
+- macOS with Xcode installed
+- iOS 26.0+ SDK/toolchain support
+
+Build the app target:
 
 ```bash
 xcodebuild \
@@ -87,15 +106,30 @@ xcodebuild \
   build
 ```
 
-This builds the public SwiftUI demo shell. Install the real shipped app from
-the App Store link above.
+Run the simulator smoke script:
 
-## Boundary
+```bash
+./scripts/build_simulator_smoke.sh
+```
 
-The goal is to keep this repo useful and honest without publishing the private
-engine implementation. The public repo is the product-facing surface. The
-private engine repo is the source of truth for the proprietary implementation.
+Inspect the experimental package boundary:
+
+```bash
+swift package describe
+```
+
+## Documentation
+
+- `Docs/ARCHITECTURE.md`: app and engine architecture.
+- `Docs/RETRIEVAL_PIPELINE.md`: ingestion, chunking, retrieval, and answer flow.
+- `Docs/LIMITATIONS.md`: known limitations and non-goals.
+- `Docs/ROADMAP.md`: near-term technical direction.
+- `Docs/DEMO.md`: suggested demo flow and screenshots guidance.
+
+## Relationship To OpenClinic
+
+OpenClinic and OpenIntelligence are separate projects. OpenIntelligence is a general document intelligence prototype and is not a clinical tool. Any healthcare-adjacent examples should be treated as generic document workflows, not medical guidance or regulated functionality.
 
 ## License
 
-See [LICENSE](LICENSE).
+See `LICENSE`.
