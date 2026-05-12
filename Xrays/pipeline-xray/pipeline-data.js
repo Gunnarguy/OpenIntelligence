@@ -11,11 +11,10 @@
 const PIPELINE_DATA = {
   version: "1.0",
   name: "OpenIntelligence Pipeline",
-  description:
-    "Public conceptual RAG pipeline map: ingestion, retrieval, answer generation, and review",
+  description: "29-step end-to-end RAG pipeline: 6 ingestion + 23 query steps",
   source:
-    "Public overview for demos and diligence. Not a private implementation specification.",
-  generatedDate: "2026-05-08",
+    "Derived from .github/copilot-instructions.md, HOW_IT_WORKS.md, ARCHITECTURE.md, ThinkingEvent.swift, RAGService.swift",
+  generatedDate: "2026-03-06",
   hardLimits: {
     embeddingTokens: {
       value: 510,
@@ -182,7 +181,7 @@ const PIPELINE_DATA = {
               id: "ingest-parse-preprocessing",
               name: "Adaptive Preprocessing",
               description:
-                "1 of 5 GPU-accelerated CIFilter strategies selected per page quality. Minimal (clean digital) \u2192 Maximum (faded microfiche). Concurrent DispatchQueue.",
+                "1 of 5 GPU-accelerated CIFilter strategies selected adaptively per page quality and visual risk. Clean digital pages stay lighter; garbled, fine-text, or image-heavy pages get stronger recovery. Concurrent DispatchQueue.",
               color: "#60a5fa",
             },
             {

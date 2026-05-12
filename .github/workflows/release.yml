@@ -1,4 +1,4 @@
-name: Create Release
+name: Release Build
 
 on:
   push:
@@ -9,62 +9,34 @@ permissions:
   contents: write
 
 jobs:
-  create-release:
+  build:
+    name: Build Tagged Snapshot
     runs-on: macos-15
+    timeout-minutes: 45
 
     steps:
-      - name: Checkout code
+      - name: Checkout
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
-      - name: Setup Xcode 26.2
+      - name: Select Xcode
         run: |
-          sudo xcode-select -s /Applications/Xcode_26.2.app/Contents/Developer
-          echo "Using: $(xcodebuild -version | head -1)"
+          if [ -d /Applications/Xcode_26.2.app ]; then
+            sudo xcode-select -s /Applications/Xcode_26.2.app/Contents/Developer
+          fi
+          xcodebuild -version
 
-      - name: Get Simulator
-        id: sim
+      - name: Build App
         run: |
-          for DEVICE in "iPhone 17 Pro Max" "iPhone 17 Pro" "iPhone 16 Pro Max" "iPhone 16 Pro"; do
-            if xcrun simctl list devices available | grep -q "$DEVICE"; then
-              echo "device=$DEVICE" >> "$GITHUB_OUTPUT"
-              exit 0
-            fi
-          done
-          DEVICE=$(xcrun simctl list devices available | grep -oE 'iPhone [^(]+' | head -1 | xargs)
-          echo "device=$DEVICE" >> "$GITHUB_OUTPUT"
-
-      - name: Build for Release
-        run: |
-          xcodebuild \
+          xcodebuild clean build \
             -project OpenIntelligence.xcodeproj \
             -scheme OpenIntelligence \
-            -destination 'platform=iOS Simulator,name=${{ steps.sim.outputs.device }}' \
+            -destination 'generic/platform=iOS Simulator' \
             -configuration Release \
-            -derivedDataPath build/ \
-            CODE_SIGNING_ALLOWED=NO \
-            clean build
+            CODE_SIGNING_ALLOWED=NO
 
-      - name: Create Release
+      - name: Create GitHub Release
         uses: softprops/action-gh-release@v1
         with:
           generate_release_notes: true
-          body: |
-            ## What's Changed
-            - Auto-generated release from tag ${{ github.ref_name }}
-
-            ## Installation
-            - Install the shipped product from the App Store link in README.md.
-            - Clone this repository only if you want to build the public SwiftUI demo shell.
-
-            ## Notes
-            - This public snapshot intentionally excludes private engine internals.
-            - App Store submission and commercialization tooling stay in the private engine repo.
-            - The GitHub release is source/docs for the public surface, not an installable iOS binary.
-
-            ## Requirements
-            - iOS 26.0+
-            - Xcode 26+
           draft: false
           prerelease: false
