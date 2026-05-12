@@ -6297,12 +6297,17 @@ class RAGService: ObservableObject {
         topK: Int = 3,
         config: InferenceConfig? = nil,
         containerId: UUID? = nil,
+        qualityModeOverride: RAGQualityMode? = nil,
         streamHandler: LLMStreamHandler? = nil
     ) async throws -> RAGResponse {
         resetThinkingTimeline()
         return try await LLMStreamingContext.$handler.withValue(streamHandler) {
             try await self.queryInternal(
-                question, topK: topK, config: config, containerId: containerId, qualityModeOverride: nil
+                question,
+                topK: topK,
+                config: config,
+                containerId: containerId,
+                qualityModeOverride: qualityModeOverride
             )
         }
     }
@@ -6312,6 +6317,7 @@ class RAGService: ObservableObject {
         topK: Int = 3,
         config: InferenceConfig? = nil,
         containerId: UUID? = nil,
+        qualityModeOverride: RAGQualityMode? = nil,
         streamHandler: LLMStreamHandler? = nil
     ) async throws -> (response: RAGResponse, auditSnapshot: RAGAuditSnapshot?) {
         let response = try await query(
@@ -6319,6 +6325,7 @@ class RAGService: ObservableObject {
             topK: topK,
             config: config,
             containerId: containerId,
+            qualityModeOverride: qualityModeOverride,
             streamHandler: streamHandler
         )
         return (response, lastAuditSnapshot)

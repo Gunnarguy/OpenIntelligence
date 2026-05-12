@@ -20,6 +20,47 @@ public enum OIExecutionContext: String, Sendable {
     case cloudOnly
 }
 
+public enum OIQueryQualityMode: String, CaseIterable, Identifiable, Sendable {
+    case standard
+    case deepThink
+    case maximum
+
+    public var id: String { rawValue }
+
+    public var displayName: String {
+        switch self {
+        case .standard:
+            return "Standard"
+        case .deepThink:
+            return "Deep Think"
+        case .maximum:
+            return "Maximum"
+        }
+    }
+
+    public var description: String {
+        switch self {
+        case .standard:
+            return "Fastest grounded pass with verification and citations."
+        case .deepThink:
+            return "Multi-step reasoning with deeper retrieval before answering."
+        case .maximum:
+            return "Highest-effort reasoning with the broadest search and strictest verification."
+        }
+    }
+
+    public var systemImage: String {
+        switch self {
+        case .standard:
+            return "sparkles"
+        case .deepThink:
+            return "brain.head.profile"
+        case .maximum:
+            return "flame.fill"
+        }
+    }
+}
+
 public struct OIEngineConfiguration: Sendable {
     public var storageURL: URL?
     public var allowPrivateCloudCompute: Bool
@@ -119,16 +160,117 @@ public struct OIQueryRequest: Sendable {
     public var question: String
     public var libraryName: String?
     public var topK: Int
+    public var qualityMode: OIQueryQualityMode
 
     nonisolated public init(
         question: String,
         libraryName: String? = nil,
-        topK: Int = 6
+        topK: Int = 6,
+        qualityMode: OIQueryQualityMode = .standard
     ) {
         self.question = question
         self.libraryName = libraryName
         self.topK = topK
+        self.qualityMode = qualityMode
     }
+}
+
+public struct OIQueryStreamEvent: Sendable {
+    public let text: String
+    public let isFinal: Bool
+
+    nonisolated public init(text: String, isFinal: Bool) {
+        self.text = text
+        self.isFinal = isFinal
+    }
+}
+
+public typealias OIQueryStreamHandler = @Sendable (OIQueryStreamEvent) async -> Void
+
+public struct OIQueryProgressEvent: Identifiable, Sendable {
+    public let id: UUID
+    public let timestamp: Date
+    public let phase: String
+    public let title: String
+    public let detail: String?
+    public let systemImage: String
+    public let isGenerating: Bool
+    public let liveTokenCount: Int
+    public let liveStepCount: Int
+    public let liveConfidence: Float
+
+    nonisolated public init(
+        id: UUID = UUID(),
+        timestamp: Date = Date(),
+        phase: String,
+        title: String,
+        detail: String? = nil,
+        systemImage: String,
+        isGenerating: Bool = false,
+        liveTokenCount: Int = 0,
+        liveStepCount: Int = 0,
+        liveConfidence: Float = 0
+    ) {
+        self.id = id
+        self.timestamp = timestamp
+        self.phase = phase
+        self.title = title
+        self.detail = detail
+        self.systemImage = systemImage
+        self.isGenerating = isGenerating
+        self.liveTokenCount = liveTokenCount
+        self.liveStepCount = liveStepCount
+        self.liveConfidence = liveConfidence
+    }
+}
+
+public typealias OIQueryProgressHandler = @Sendable (OIQueryProgressEvent) async -> Void
+
+public struct OIQueryDiagnostics: Sendable {
+    public let retrievedChunkCount: Int
+    public let candidateChunkCount: Int?
+    public let rerankedChunkCount: Int?
+    public let contextChunkCount: Int?
+    public let retrievalTime: TimeInterval
+    public let generationTime: TimeInterval
+    public let timeToFirstToken: TimeInterval?
+    public let tokensGenerated: Int
+    public let tokensPerSecond: Float?
+    public let contextStrategy: String?
+    public let featureFlags: [String]
+
+    nonisolated public init(
+        retrievedChunkCount: Int,
+        candidateChunkCount: Int? = nil,
+        rerankedChunkCount: Int? = nil,
+        contextChunkCount: Int? = nil,
+        retrievalTime: TimeInterval,
+        generationTime: TimeInterval,
+        timeToFirstToken: TimeInterval? = nil,
+        tokensGenerated: Int,
+        tokensPerSecond: Float? = nil,
+        contextStrategy: String? = nil,
+        featureFlags: [String] = []
+    ) {
+        self.retrievedChunkCount = retrievedChunkCount
+        self.candidateChunkCount = candidateChunkCount
+        self.rerankedChunkCount = rerankedChunkCount
+        self.contextChunkCount = contextChunkCount
+        self.retrievalTime = retrievalTime
+        self.generationTime = generationTime
+        self.timeToFirstToken = timeToFirstToken
+        self.tokensGenerated = tokensGenerated
+        self.tokensPerSecond = tokensPerSecond
+        self.contextStrategy = contextStrategy
+        self.featureFlags = featureFlags
+    }
+
+    nonisolated public static let empty = OIQueryDiagnostics(
+        retrievedChunkCount: 0,
+        retrievalTime: 0,
+        generationTime: 0,
+        tokensGenerated: 0
+    )
 }
 
 public struct OICitation: Sendable {
@@ -150,6 +292,9 @@ public struct OIQueryResult: Sendable {
     public let abstained: Bool
     public let warnings: [String]
     public let modelName: String
+    public let qualityMode: OIQueryQualityMode
+    public let reasoningTrace: [String]
+    public let diagnostics: OIQueryDiagnostics
 
     nonisolated public init(
         answer: String,
@@ -157,7 +302,10 @@ public struct OIQueryResult: Sendable {
         confidence: Float,
         abstained: Bool,
         warnings: [String],
-        modelName: String
+        modelName: String,
+        qualityMode: OIQueryQualityMode = .standard,
+        reasoningTrace: [String] = [],
+        diagnostics: OIQueryDiagnostics = .empty
     ) {
         self.answer = answer
         self.citations = citations
@@ -165,6 +313,9 @@ public struct OIQueryResult: Sendable {
         self.abstained = abstained
         self.warnings = warnings
         self.modelName = modelName
+        self.qualityMode = qualityMode
+        self.reasoningTrace = reasoningTrace
+        self.diagnostics = diagnostics
     }
 }
 
@@ -310,6 +461,10 @@ public final class OIEngine {
         try await resolvedRAGService().clearAllDocuments()
     }
 
+    public func cancelActiveQuery(resetSession: Bool = true) {
+        ragService?.cancelActiveGeneration(resetSession: resetSession)
+    }
+
     public func ingest(_ request: OIIngestRequest) async throws -> OIIngestResult {
         guard !request.urls.isEmpty else {
             throw OpenIntelligenceEngineError.invalidRequest("At least one document URL is required.")
@@ -348,7 +503,11 @@ public final class OIEngine {
         )
     }
 
-    public func query(_ request: OIQueryRequest) async throws -> OIQueryResult {
+    public func query(
+        _ request: OIQueryRequest,
+        onStreamEvent streamHandler: OIQueryStreamHandler? = nil,
+        onProgressEvent progressHandler: OIQueryProgressHandler? = nil
+    ) async throws -> OIQueryResult {
         let availability = Self.availability()
         if availability != .available {
             throw OpenIntelligenceEngineError.unavailable(availability)
@@ -360,10 +519,20 @@ public final class OIEngine {
         }
 
         let container = ensureContainer(named: request.libraryName)
-        return try await query(request, in: container.id)
+        return try await query(
+            request,
+            in: container.id,
+            onStreamEvent: streamHandler,
+            onProgressEvent: progressHandler
+        )
     }
 
-    public func query(_ request: OIQueryRequest, in libraryID: UUID) async throws -> OIQueryResult {
+    public func query(
+        _ request: OIQueryRequest,
+        in libraryID: UUID,
+        onStreamEvent streamHandler: OIQueryStreamHandler? = nil,
+        onProgressEvent progressHandler: OIQueryProgressHandler? = nil
+    ) async throws -> OIQueryResult {
         let availability = Self.availability()
         if availability != .available {
             throw OpenIntelligenceEngineError.unavailable(availability)
@@ -380,21 +549,70 @@ public final class OIEngine {
 
         containerService.setActive(container.id)
 
+    let qualityMode = Self.mapQualityMode(request.qualityMode)
+
         var config = InferenceConfig.ragOptimized
         config.executionContext = mapExecutionContext(configuration.executionContext)
         config.allowPrivateCloudCompute = configuration.allowPrivateCloudCompute
 
-        let response = try await resolvedRAGService().query(
+        let llmStreamHandler: LLMStreamHandler?
+        if let streamHandler {
+            llmStreamHandler = { event in
+                await streamHandler(OIQueryStreamEvent(text: event.text, isFinal: event.isFinal))
+            }
+        } else {
+            llmStreamHandler = nil
+        }
+
+        let ragService = resolvedRAGService()
+        let progressTask = makeProgressMonitor(
+            for: ragService,
+            handler: progressHandler,
+            libraryName: container.name
+        )
+        defer { progressTask?.cancel() }
+
+        let (response, auditSnapshot) = try await ragService.queryWithAudit(
             trimmedQuestion,
             topK: request.topK,
             config: config,
             containerId: container.id,
-            streamHandler: nil
+            qualityModeOverride: qualityMode,
+            streamHandler: llmStreamHandler
         )
 
         let citations = buildCitations(from: response)
         let abstained = response.structuredAnswer?.refuse ?? false
         let warnings = response.qualityWarnings + (response.structuredAnswer?.missing ?? [])
+        let resolvedQualityMode = Self.mapQualityModeName(response.metadata.qualityModeName) ?? request.qualityMode
+        let diagnostics = OIQueryDiagnostics(
+            retrievedChunkCount: response.retrievedChunks.count,
+            candidateChunkCount: auditSnapshot?.candidatesCount,
+            rerankedChunkCount: auditSnapshot?.rerankedCount,
+            contextChunkCount: auditSnapshot?.contextChunksUsed,
+            retrievalTime: response.metadata.retrievalTime,
+            generationTime: response.metadata.totalGenerationTime,
+            timeToFirstToken: response.metadata.timeToFirstToken,
+            tokensGenerated: response.metadata.tokensGenerated,
+            tokensPerSecond: response.metadata.tokensPerSecond,
+            contextStrategy: auditSnapshot?.contextStrategy,
+            featureFlags: auditSnapshot?.featureFlags.enabledFeatures ?? []
+        )
+
+        if let progressHandler {
+            await progressHandler(
+                OIQueryProgressEvent(
+                    phase: "Query Complete",
+                    title: "Retrieved \(diagnostics.retrievedChunkCount) chunks and generated \(diagnostics.tokensGenerated) tokens.",
+                    detail: Self.makeCompletionDetail(from: diagnostics),
+                    systemImage: "checkmark.seal.fill",
+                    isGenerating: false,
+                    liveTokenCount: ragService.deepThinkLiveTokens,
+                    liveStepCount: ragService.deepThinkLiveSteps,
+                    liveConfidence: ragService.deepThinkLiveConfidence
+                )
+            )
+        }
 
         return OIQueryResult(
             answer: response.generatedResponse,
@@ -402,7 +620,10 @@ public final class OIEngine {
             confidence: response.confidenceScore,
             abstained: abstained,
             warnings: Array(warnings.prefix(6)),
-            modelName: response.metadata.modelUsed
+            modelName: response.metadata.modelUsed,
+            qualityMode: resolvedQualityMode,
+            reasoningTrace: response.metadata.reasoningTrace ?? [],
+            diagnostics: diagnostics
         )
     }
 
@@ -429,6 +650,30 @@ public final class OIEngine {
         return containerService.createContainer(name: trimmed)
     }
 
+    private static func mapQualityMode(_ qualityMode: OIQueryQualityMode) -> RAGQualityMode {
+        switch qualityMode {
+        case .standard:
+            return .standard
+        case .deepThink:
+            return .deepThink
+        case .maximum:
+            return .maximum
+        }
+    }
+
+    private static func mapQualityModeName(_ qualityModeName: String?) -> OIQueryQualityMode? {
+        switch qualityModeName?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
+        case "standard":
+            return .standard
+        case "deep think", "deepthink":
+            return .deepThink
+        case "maximum":
+            return .maximum
+        default:
+            return nil
+        }
+    }
+
     private static func makeLibrary(from container: KnowledgeContainer) -> OILibrary {
         OILibrary(
             id: container.id,
@@ -447,6 +692,117 @@ public final class OIEngine {
             libraryID: document.containerId,
             contentType: document.contentType.rawValue.uppercased()
         )
+    }
+
+    private func makeProgressMonitor(
+        for ragService: RAGService,
+        handler: OIQueryProgressHandler?,
+        libraryName: String
+    ) -> Task<Void, Never>? {
+        guard let handler else {
+            return nil
+        }
+
+        return Task { @MainActor in
+            var deliveredEventCount = 0
+            var lastGeneratingState = false
+            var lastTokenCount = -1
+            var lastStepCount = -1
+            var lastConfidence = Float.nan
+            var hasDeliveredInitialEvent = false
+
+            while !Task.isCancelled {
+                if !hasDeliveredInitialEvent {
+                    hasDeliveredInitialEvent = true
+                    await handler(
+                        OIQueryProgressEvent(
+                            phase: "Planning",
+                            title: "Query submitted",
+                            detail: "The SDK handed the question to the retrieval pipeline for \(libraryName).",
+                            systemImage: "paperplane.fill"
+                        )
+                    )
+                }
+
+                let thinkingEvents = ragService.thinkingEvents
+                let isGenerating = ragService.isLLMResponding
+                let liveTokenCount = ragService.deepThinkLiveTokens
+                let liveStepCount = ragService.deepThinkLiveSteps
+                let liveConfidence = ragService.deepThinkLiveConfidence
+
+                if thinkingEvents.count > deliveredEventCount {
+                    for event in thinkingEvents[deliveredEventCount...] {
+                        await handler(
+                            OIQueryProgressEvent(
+                                timestamp: event.timestamp,
+                                phase: event.kind.displayName,
+                                title: event.title,
+                                detail: event.detail,
+                                systemImage: event.kind.systemIconName,
+                                isGenerating: isGenerating,
+                                liveTokenCount: liveTokenCount,
+                                liveStepCount: liveStepCount,
+                                liveConfidence: liveConfidence
+                            )
+                        )
+                    }
+                    deliveredEventCount = thinkingEvents.count
+                }
+
+                let confidenceChanged: Bool
+                if lastConfidence.isNaN {
+                    confidenceChanged = true
+                } else {
+                    confidenceChanged = abs(lastConfidence - liveConfidence) >= 0.01
+                }
+
+                if isGenerating != lastGeneratingState {
+                    lastGeneratingState = isGenerating
+                    await handler(
+                        OIQueryProgressEvent(
+                            phase: isGenerating ? "Generation" : "Pipeline",
+                            title: isGenerating ? "Model started generating" : "Generation paused",
+                            detail: isGenerating
+                                ? "The model is now writing the answer text."
+                                : "The pipeline is still working, but the model is not actively emitting tokens right now.",
+                            systemImage: isGenerating ? "sparkles" : "pause.circle",
+                            isGenerating: isGenerating,
+                            liveTokenCount: liveTokenCount,
+                            liveStepCount: liveStepCount,
+                            liveConfidence: liveConfidence
+                        )
+                    )
+                }
+
+                if liveTokenCount != lastTokenCount || liveStepCount != lastStepCount || confidenceChanged {
+                    lastTokenCount = liveTokenCount
+                    lastStepCount = liveStepCount
+                    lastConfidence = liveConfidence
+
+                    guard liveTokenCount > 0 || liveStepCount > 0 || liveConfidence > 0 else {
+                        try? await Task.sleep(nanoseconds: 250_000_000)
+                        continue
+                    }
+
+                    await handler(
+                        OIQueryProgressEvent(
+                            phase: "Live Metrics",
+                            title: "Steps \(liveStepCount) · Tokens \(liveTokenCount)",
+                            detail: liveConfidence > 0
+                                ? "Confidence \(Self.percentString(for: liveConfidence))."
+                                : nil,
+                            systemImage: "waveform.path.ecg",
+                            isGenerating: isGenerating,
+                            liveTokenCount: liveTokenCount,
+                            liveStepCount: liveStepCount,
+                            liveConfidence: liveConfidence
+                        )
+                    )
+                }
+
+                try? await Task.sleep(nanoseconds: 250_000_000)
+            }
+        }
     }
 
     private func resolvedRAGService() -> RAGService {
@@ -491,5 +847,47 @@ public final class OIEngine {
                 quote: String(quote.prefix(240))
             )
         }
+    }
+
+    private static func makeCompletionDetail(from diagnostics: OIQueryDiagnostics) -> String {
+        var parts: [String] = []
+
+        if let candidateChunkCount = diagnostics.candidateChunkCount {
+            parts.append("Candidates \(candidateChunkCount)")
+        }
+
+        if let rerankedChunkCount = diagnostics.rerankedChunkCount {
+            parts.append("Reranked \(rerankedChunkCount)")
+        }
+
+        if let contextChunkCount = diagnostics.contextChunkCount {
+            parts.append("Context \(contextChunkCount)")
+        }
+
+        parts.append("Retrieval \(formattedSeconds(diagnostics.retrievalTime))")
+        parts.append("Generation \(formattedSeconds(diagnostics.generationTime))")
+
+        if let timeToFirstToken = diagnostics.timeToFirstToken {
+            parts.append("TTFT \(formattedSeconds(timeToFirstToken))")
+        }
+
+        if let contextStrategy = diagnostics.contextStrategy, !contextStrategy.isEmpty {
+            parts.append(contextStrategy)
+        }
+
+        if !diagnostics.featureFlags.isEmpty {
+            parts.append(diagnostics.featureFlags.joined(separator: ", "))
+        }
+
+        return parts.joined(separator: " · ")
+    }
+
+    private static func formattedSeconds(_ value: TimeInterval) -> String {
+        String(format: "%.2fs", value)
+    }
+
+    private static func percentString(for value: Float) -> String {
+        let percentage = Int((value * 100).rounded())
+        return "\(percentage)%"
     }
 }

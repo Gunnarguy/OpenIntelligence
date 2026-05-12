@@ -6,6 +6,7 @@ import UniformTypeIdentifiers
 struct ContentView: View {
     @StateObject private var model = SourceSDKDemoViewModel()
     @FocusState private var isQuestionFocused: Bool
+    @State private var libraryPendingDeletion: OILibrary?
 
     var body: some View {
         NavigationStack {
@@ -51,6 +52,36 @@ struct ContentView: View {
                 dismissButton: .default(Text("OK"))
             )
         }
+        .confirmationDialog(
+            libraryDeletionTitle,
+            isPresented: Binding(
+                get: { libraryPendingDeletion != nil },
+                set: { if !$0 { libraryPendingDeletion = nil } }
+            ),
+            titleVisibility: .visible
+        ) {
+            Button("Delete Library", role: .destructive) {
+                guard let library = libraryPendingDeletion else { return }
+                libraryPendingDeletion = nil
+                Task { await model.deleteLibrary(library) }
+            }
+
+            Button("Cancel", role: .cancel) {
+                libraryPendingDeletion = nil
+            }
+        } message: {
+            if let library = libraryPendingDeletion {
+                Text("This removes \(library.documentCount) indexed doc\(library.documentCount == 1 ? "" : "s") and deletes \"\(library.name)\". You can create a fresh library right after.")
+            }
+        }
+    }
+
+    private var libraryDeletionTitle: String {
+        guard let library = libraryPendingDeletion else {
+            return "Delete Library?"
+        }
+
+        return "Delete \(library.name)?"
     }
 
     private var demoBackground: some View {
@@ -193,7 +224,14 @@ struct ContentView: View {
             DemoSectionHeader(
                 step: "1",
                 title: "Choose the library that will hold indexed chunks",
-                caption: "If the library already exists, the sample will reuse it instead of creating a duplicate."
+                caption: "Tap a known library to switch. Type a name and either reuse it or create a fresh one explicitly."
+            )
+
+            DemoInfoBanner(
+                title: "Library controls",
+                message: "Use Create / Select Library to reuse or auto-create the typed name. Use New Library when you want an explicit fresh library. Delete Active Library removes that library and its indexed content.",
+                systemImage: "books.vertical.fill",
+                tint: .teal
             )
 
             TextField("Library name", text: $model.libraryName)
@@ -205,12 +243,24 @@ struct ContentView: View {
             ViewThatFits(in: .horizontal) {
                 HStack(spacing: 12) {
                     libraryActionButton
-                    activeLibrarySummary
+                    newLibraryButton
                 }
 
-                VStack(alignment: .leading, spacing: 12) {
+                VStack(spacing: 10) {
                     libraryActionButton
-                    activeLibrarySummary
+                    newLibraryButton
+                }
+            }
+
+            activeLibrarySummary
+
+            if let activeLibrary = model.activeLibrary {
+                if model.canDeleteLibraries {
+                    deleteLibraryButton(for: activeLibrary)
+                } else {
+                    Text("Create another library to enable deletion. At least one library must remain.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
             }
 
@@ -218,6 +268,10 @@ struct ContentView: View {
                 VStack(alignment: .leading, spacing: 10) {
                     Text("Known libraries")
                         .font(.subheadline.weight(.semibold))
+
+                    Text("Tap any row to switch the active library.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
 
                     ForEach(model.libraries, id: \.id) { library in
                         Button {
@@ -243,6 +297,29 @@ struct ContentView: View {
                 .frame(maxWidth: .infinity)
         }
         .buttonStyle(.borderedProminent)
+        .disabled(model.isWorking || model.libraryNameTrimmed.isEmpty)
+    }
+
+    private var newLibraryButton: some View {
+        Button {
+            model.createNewLibrary()
+        } label: {
+            Label("New Library", systemImage: "plus.circle")
+                .frame(maxWidth: .infinity)
+        }
+        .buttonStyle(.bordered)
+        .disabled(model.isWorking || model.libraryNameTrimmed.isEmpty)
+    }
+
+    private func deleteLibraryButton(for library: OILibrary) -> some View {
+        Button(role: .destructive) {
+            libraryPendingDeletion = library
+        } label: {
+            Label("Delete Active Library", systemImage: "trash")
+                .frame(maxWidth: .infinity)
+        }
+        .buttonStyle(.bordered)
+        .tint(.red)
         .disabled(model.isWorking)
     }
 
@@ -253,6 +330,9 @@ struct ContentView: View {
                 Text(activeLibrary.name)
                     .font(.subheadline.weight(.semibold))
                 Text("\(activeLibrary.documentCount) indexed docs · \(activeLibrary.chunkCount) chunks")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Text("Deleting this library removes its indexed content. Your selected source files stay available for re-indexing.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -328,6 +408,15 @@ struct ContentView: View {
                                 Task { await model.removeIndexedDocument(document) }
                             }
                         }
+
+                        if let bundledDemoChunkExplanation = model.bundledDemoChunkExplanation {
+                            DemoInfoBanner(
+                                title: "Why those demo docs are only one chunk",
+                                message: bundledDemoChunkExplanation,
+                                systemImage: "info.circle.fill",
+                                tint: .purple
+                            )
+                        }
                     }
                 } else {
                     DemoEmptyState(
@@ -402,7 +491,7 @@ struct ContentView: View {
             DemoSectionHeader(
                 step: "3",
                 title: "Ask a grounded question",
-                caption: "If the current library has chunks, the answer should come back with source citations."
+                caption: "If the current library has chunks, the sample should make live query progress visible instead of feeling stuck."
             )
 
             DemoInfoBanner(
@@ -430,20 +519,69 @@ struct ContentView: View {
             }
             .background(Color(uiColor: .secondarySystemBackground), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
 
-            ScrollView(.horizontal, showsIndicators: false) {
+            VStack(alignment: .leading, spacing: 10) {
+                Text("Answer mode")
+                    .font(.subheadline.weight(.semibold))
+
+                Text("Standard is the fastest demo path. Deep Think and Maximum can spend longer searching and planning before any text starts streaming.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
                 HStack(spacing: 10) {
-                    ForEach(model.demoPrompts, id: \.self) { prompt in
-                        Button(prompt) {
-                            model.question = prompt
-                            isQuestionFocused = true
+                    ForEach(OIQueryQualityMode.allCases, id: \.id) { mode in
+                        DemoQueryModeButton(
+                            mode: mode,
+                            isSelected: model.queryMode == mode
+                        ) {
+                            model.selectQueryMode(mode)
                         }
-                        .buttonStyle(.bordered)
+                    }
+                }
+
+                DemoInfoBanner(
+                    title: "\(model.queryMode.displayName) mode",
+                    message: model.queryModeSelectionMessage,
+                    systemImage: model.queryMode.systemImage,
+                    tint: model.queryModeTint
+                )
+            }
+
+            VStack(alignment: .leading, spacing: 10) {
+                Text("Suggested questions")
+                    .font(.subheadline.weight(.semibold))
+
+                Text("Tap one to load it, then edit it if you want. These are tuned for the bundled demo docs.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 10) {
+                        ForEach(model.demoPrompts, id: \.self) { prompt in
+                            Button(prompt) {
+                                model.question = prompt
+                                isQuestionFocused = true
+                            }
+                            .buttonStyle(.bordered)
+                        }
                     }
                 }
             }
 
+            if model.isQuerying {
+                DemoLiveQueryCard(
+                    title: model.queryStatusTitle,
+                    detail: model.queryStatusDetail,
+                    summary: model.liveQuerySummary,
+                    elapsed: model.queryElapsedSummary,
+                    metricSummary: model.liveQueryMetricSummary,
+                    partialAnswer: model.liveQueryPreview,
+                    progressEvents: model.liveQueryEvents,
+                    onCancel: model.cancelQuery
+                )
+            }
+
             Button {
-                Task { await model.runQuery() }
+                model.startQuery()
             } label: {
                 Label("Ask Grounded Question", systemImage: "bubble.left.and.text.bubble.right.fill")
                     .frame(maxWidth: .infinity)
@@ -498,6 +636,18 @@ struct ContentView: View {
                                 value: model.confidenceSummary,
                                 tint: model.confidenceTint
                             )
+                            if let lastQueryDurationSummary = model.lastQueryDurationSummary {
+                                DemoMetricPill(
+                                    label: "Duration",
+                                    value: lastQueryDurationSummary,
+                                    tint: .orange
+                                )
+                            }
+                            DemoMetricPill(
+                                label: "Mode",
+                                value: queryResult.qualityMode.displayName,
+                                tint: model.tint(for: queryResult.qualityMode)
+                            )
                             DemoMetricPill(
                                 label: "Citations",
                                 value: "\(queryResult.citations.count)",
@@ -508,6 +658,41 @@ struct ContentView: View {
                                 value: queryResult.modelName,
                                 tint: .indigo
                             )
+                        }
+                    }
+
+                    if let queryDiagnosticsSummary = model.queryDiagnosticsSummary {
+                        DemoInfoBanner(
+                            title: "Pipeline audit",
+                            message: queryDiagnosticsSummary,
+                            systemImage: "waveform.path.ecg",
+                            tint: .indigo
+                        )
+                    }
+
+                    if !model.queryDiagnosticsFeatureFlags.isEmpty {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Features used")
+                                .font(.subheadline.weight(.semibold))
+
+                            ScrollView(.horizontal, showsIndicators: false) {
+                                HStack(spacing: 8) {
+                                    ForEach(model.queryDiagnosticsFeatureFlags, id: \.self) { feature in
+                                        DemoMiniBadge(text: feature, tint: .indigo)
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    if !queryResult.reasoningTrace.isEmpty {
+                        VStack(alignment: .leading, spacing: 10) {
+                            Text("Reasoning trace")
+                                .font(.subheadline.weight(.semibold))
+
+                            ForEach(Array(queryResult.reasoningTrace.enumerated()), id: \.offset) { index, step in
+                                DemoTraceStepRow(index: index + 1, step: step)
+                            }
                         }
                     }
 
@@ -623,7 +808,7 @@ final class SourceSDKDemoViewModel: ObservableObject {
         let message: String
     }
 
-    @Published var libraryName = "Board Briefing"
+    @Published var libraryName = "Source SDK Demo"
     @Published var question = "What is the fastest path to a real no-guidance SDK?"
     @Published var libraries: [OILibrary] = []
     @Published var activeLibrary: OILibrary?
@@ -637,16 +822,25 @@ final class SourceSDKDemoViewModel: ObservableObject {
     @Published var isDocumentPickerPresented = false
     @Published var operationState: DemoOperationState?
     @Published var lastAction: String?
+    @Published private(set) var liveQueryPreview = ""
+    @Published private(set) var liveQueryEvents: [OIQueryProgressEvent] = []
+    @Published private(set) var queryStatusTitle = "Ready to query"
+    @Published private(set) var queryStatusDetail = "Index documents, then ask a grounded question."
+    @Published private(set) var queryElapsedSeconds = 0
+    @Published private(set) var lastQueryDurationSeconds: Int?
+    @Published var queryMode: OIQueryQualityMode = .standard
 
     let demoPrompts: [String] = [
+        "What is the short-term product goal?",
         "What is the fastest path to a real no-guidance SDK?",
-        "What are the biggest remaining risks before a no-guidance SDK claim?",
-        "What progress has already been made toward a source-distributed SDK?"
+        "What is still blocking a no-guidance SDK claim?",
+        "Why does this product matter for private documents?"
     ]
 
     let executionContext: OIExecutionContext = .automatic
     let allowPrivateCloudCompute = true
 
+    private let defaultQueryTopK = 6
     private lazy var engine = OIEngine(
         configuration: OIEngineConfiguration(
             allowPrivateCloudCompute: true,
@@ -654,6 +848,13 @@ final class SourceSDKDemoViewModel: ObservableObject {
         )
     )
     private var hasBootstrapped = false
+    private var queryTask: Task<Void, Never>?
+    private var queryTimerTask: Task<Void, Never>?
+
+    deinit {
+        queryTask?.cancel()
+        queryTimerTask?.cancel()
+    }
 
     var availabilityLabel: String {
         switch OIEngine.availability() {
@@ -709,6 +910,18 @@ final class SourceSDKDemoViewModel: ObservableObject {
         operationState != nil
     }
 
+    var isQuerying: Bool {
+        operationState?.kind == .querying
+    }
+
+    var libraryNameTrimmed: String {
+        libraryName.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    var canDeleteLibraries: Bool {
+        libraries.count > 1 && !isWorking
+    }
+
     var questionTrimmed: String {
         question.trimmingCharacters(in: .whitespacesAndNewlines)
     }
@@ -735,7 +948,7 @@ final class SourceSDKDemoViewModel: ObservableObject {
 
     var documentReadinessMessage: String {
         if selectedDocuments.isEmpty {
-            return "Use the bundled demo pack to see two tiny sample docs: a board briefing and a risk memo."
+            return "Use the bundled demo pack to load two tiny synthetic text docs. They exist to prove ingestion and citations quickly, so one chunk each is normal."
         }
 
         let bundledCount = selectedDocuments.filter { $0.source == .bundled }.count
@@ -766,7 +979,87 @@ final class SourceSDKDemoViewModel: ObservableObject {
             return "Pick one of the suggested prompts or type your own question about the indexed documents."
         }
 
-        return "Ready. The query will run against the active library and should return citations if the answer is grounded."
+        return "Ready. \(queryMode.displayName) will run against the active library and should return citations if the answer is grounded."
+    }
+
+    var liveQuerySummary: String {
+        guard let activeLibrary else {
+            return "No active library selected."
+        }
+
+        return "\(queryMode.displayName) · \(activeLibrary.documentCount) docs · \(activeLibrary.chunkCount) chunks · top \(defaultQueryTopK) retrieval"
+    }
+
+    var queryElapsedSummary: String {
+        formattedDuration(queryElapsedSeconds)
+    }
+
+    var liveQueryMetricSummary: String? {
+        guard let latestEvent = liveQueryEvents.last else {
+            return nil
+        }
+
+        var parts: [String] = []
+        if latestEvent.liveStepCount > 0 {
+            parts.append("Steps \(latestEvent.liveStepCount)")
+        }
+        if latestEvent.liveTokenCount > 0 {
+            parts.append("Tokens \(latestEvent.liveTokenCount)")
+        }
+        if latestEvent.liveConfidence > 0 {
+            let percentage = Int((latestEvent.liveConfidence * 100).rounded())
+            parts.append("Confidence \(percentage)%")
+        }
+
+        return parts.isEmpty ? nil : parts.joined(separator: " · ")
+    }
+
+    var lastQueryDurationSummary: String? {
+        guard let lastQueryDurationSeconds else {
+            return nil
+        }
+
+        return formattedDuration(lastQueryDurationSeconds)
+    }
+
+    var bundledDemoChunkExplanation: String? {
+        let bundledFilenames = ["board_brief.txt", "risk_memo.txt"]
+        let bundledIndexedDocuments = indexedDocuments.filter { document in
+            bundledFilenames.contains(document.filename.lowercased())
+        }
+
+        guard !bundledIndexedDocuments.isEmpty else {
+            return nil
+        }
+
+        let counts = bundledIndexedDocuments
+            .sorted { $0.filename.localizedCaseInsensitiveCompare($1.filename) == .orderedAscending }
+            .map { "\($0.filename): \($0.chunkCount) chunk\($0.chunkCount == 1 ? "" : "s")" }
+            .joined(separator: " · ")
+
+        return "Board Briefing and Risk Memo are tiny synthetic demo text files. One chunk each is expected. Import a longer PDF or TXT if you want to watch multi-chunk retrieval. Current counts: \(counts)."
+    }
+
+    var queryModeSelectionMessage: String {
+        switch queryMode {
+        case .standard:
+            return "Best presentation default. It is the quickest path to a visible grounded answer and usually starts streaming first."
+        case .deepThink:
+            return "Runs multi-step reasoning and deeper retrieval. Expect a longer quiet planning phase before text starts showing up."
+        case .maximum:
+            return "Uses the highest-effort search and verification path. It can stay in searching or generating longer than the other modes before streaming text."
+        }
+    }
+
+    var queryModeTint: Color {
+        switch queryMode {
+        case .standard:
+            return .blue
+        case .deepThink:
+            return .purple
+        case .maximum:
+            return .orange
+        }
     }
 
     var confidenceSummary: String {
@@ -800,6 +1093,44 @@ final class SourceSDKDemoViewModel: ObservableObject {
         }
     }
 
+    var queryDiagnosticsSummary: String? {
+        guard let queryResult else {
+            return nil
+        }
+
+        let diagnostics = queryResult.diagnostics
+        var parts: [String] = ["Retrieved \(diagnostics.retrievedChunkCount) chunks"]
+
+        if let candidateChunkCount = diagnostics.candidateChunkCount {
+            parts.append("Candidates \(candidateChunkCount)")
+        }
+
+        if let rerankedChunkCount = diagnostics.rerankedChunkCount {
+            parts.append("Reranked \(rerankedChunkCount)")
+        }
+
+        if let contextChunkCount = diagnostics.contextChunkCount {
+            parts.append("Context \(contextChunkCount)")
+        }
+
+        parts.append("Retrieval \(formattedPreciseDuration(diagnostics.retrievalTime))")
+        parts.append("Generation \(formattedPreciseDuration(diagnostics.generationTime))")
+
+        if let timeToFirstToken = diagnostics.timeToFirstToken {
+            parts.append("TTFT \(formattedPreciseDuration(timeToFirstToken))")
+        }
+
+        if diagnostics.tokensGenerated > 0 {
+            parts.append("Tokens \(diagnostics.tokensGenerated)")
+        }
+
+        return parts.joined(separator: " · ")
+    }
+
+    var queryDiagnosticsFeatureFlags: [String] {
+        queryResult?.diagnostics.featureFlags ?? []
+    }
+
     func bootstrapIfNeeded() {
         guard !hasBootstrapped else { return }
         hasBootstrapped = true
@@ -822,12 +1153,12 @@ final class SourceSDKDemoViewModel: ObservableObject {
     }
 
     func ensureLibrary() {
-        libraryName = libraryName.trimmingCharacters(in: .whitespacesAndNewlines)
+        libraryName = libraryNameTrimmed
 
         if let existing = libraries.first(where: {
             $0.name.caseInsensitiveCompare(libraryName) == .orderedSame
         }) {
-            activeLibrary = existing
+            refreshLibraries(activeID: existing.id)
             libraryName = existing.name
             lastAction = "Selected existing library: \(existing.name)."
             return
@@ -837,6 +1168,39 @@ final class SourceSDKDemoViewModel: ObservableObject {
             let library = try engine.createLibrary(name: libraryName)
             refreshLibraries(activeID: library.id)
             lastAction = "Active library: \(library.name)."
+        } catch {
+            alert = DemoAlert(title: "Library Error", message: error.localizedDescription)
+        }
+    }
+
+    func createNewLibrary() {
+        let trimmedName = libraryNameTrimmed
+        guard !trimmedName.isEmpty else {
+            alert = DemoAlert(title: "Library Name Required", message: "Type a library name before creating a new one.")
+            return
+        }
+
+        if let existing = libraries.first(where: {
+            $0.name.caseInsensitiveCompare(trimmedName) == .orderedSame
+        }) {
+            refreshLibraries(activeID: existing.id)
+            libraryName = existing.name
+            alert = DemoAlert(
+                title: "Library Already Exists",
+                message: "\"\(existing.name)\" already exists, so the sample switched to it instead of creating a duplicate."
+            )
+            lastAction = "Switched to existing library: \(existing.name)."
+            return
+        }
+
+        do {
+            let library = try engine.createLibrary(name: trimmedName)
+            refreshLibraries(activeID: library.id)
+            libraryName = library.name
+            queryResult = nil
+            ingestSummary = nil
+            ingestWarnings = []
+            lastAction = "Created new library: \(library.name)."
         } catch {
             alert = DemoAlert(title: "Library Error", message: error.localizedDescription)
         }
@@ -893,6 +1257,42 @@ final class SourceSDKDemoViewModel: ObservableObject {
         queryResult = nil
         operationState = nil
         lastAction = "Loaded bundled demo pack (\(selectedDocuments.count) docs)."
+    }
+
+    func startQuery() {
+        guard queryTask == nil else { return }
+
+        queryTask = Task { [weak self] in
+            await self?.runQuery()
+            self?.clearQueryTaskReference()
+        }
+    }
+
+    func cancelQuery() {
+        guard isQuerying else { return }
+
+        queryTask?.cancel()
+        queryTimerTask?.cancel()
+        queryTimerTask = nil
+        engine.cancelActiveQuery(resetSession: true)
+        operationState = nil
+        liveQueryPreview = ""
+        queryStatusTitle = "Query cancelled"
+        queryStatusDetail = "Edit the question or try a different prompt, then run it again."
+        lastAction = activeLibrary.map { "Cancelled query in \($0.name)." } ?? "Cancelled query."
+    }
+
+    func selectQueryMode(_ mode: OIQueryQualityMode) {
+        guard !isWorking else { return }
+        guard queryMode != mode else { return }
+
+        queryMode = mode
+        queryResult = nil
+        lastQueryDurationSeconds = nil
+        liveQueryPreview = ""
+        queryStatusTitle = "Ready to query"
+        queryStatusDetail = "\(mode.displayName) is selected. Ask a grounded question when you are ready."
+        lastAction = "Query mode set to \(mode.displayName)."
     }
 
     func handleDocumentSelection(_ result: Result<[URL], Error>) {
@@ -991,6 +1391,53 @@ final class SourceSDKDemoViewModel: ObservableObject {
         }
     }
 
+    func deleteLibrary(_ library: OILibrary) async {
+        guard libraries.count > 1 else {
+            alert = DemoAlert(
+                title: "Cannot Delete Last Library",
+                message: "Create another library first. The sample must always keep at least one library available."
+            )
+            return
+        }
+
+        do {
+            let documentsToRemove = try engine.listDocuments(in: library.id)
+            let preferredActiveID = activeLibrary?.id == library.id ? nil : activeLibrary?.id
+
+            operationState = DemoOperationState(
+                kind: .loading,
+                title: "Deleting \(library.name)",
+                detail: documentsToRemove.isEmpty
+                    ? "Removing the empty library."
+                    : "Removing \(documentsToRemove.count) indexed doc\(documentsToRemove.count == 1 ? "" : "s") and deleting the library.",
+                nextStep: "Next: create or select another library and re-index the files you want to keep querying."
+            )
+
+            defer { operationState = nil }
+
+            for document in documentsToRemove {
+                try await engine.removeDocument(id: document.id, from: library.id)
+            }
+
+            try engine.deleteLibrary(id: library.id)
+
+            queryResult = nil
+            ingestSummary = nil
+            ingestWarnings = []
+
+            refreshLibraries(activeID: preferredActiveID)
+            if let activeLibrary {
+                libraryName = activeLibrary.name
+                lastAction = "Deleted \(library.name). Active library is now \(activeLibrary.name)."
+            } else {
+                lastAction = "Deleted \(library.name)."
+            }
+        } catch {
+            operationState = nil
+            alert = DemoAlert(title: "Delete Library Error", message: error.localizedDescription)
+        }
+    }
+
     func runQuery() async {
         guard let activeLibrary else {
             alert = DemoAlert(title: "No Library", message: "Create or select a library first.")
@@ -1014,22 +1461,40 @@ final class SourceSDKDemoViewModel: ObservableObject {
         }
 
         do {
+            beginQueryTracking(for: activeLibrary)
             operationState = DemoOperationState(
                 kind: .querying,
                 title: "Searching \(activeLibrary.name)",
-                detail: "Retrieving evidence for “\(questionTrimmed)”.",
-                nextStep: "Next: the answer card will show supporting citations."
+                detail: "Retrieving evidence for “\(questionTrimmed)” in \(queryMode.displayName) mode. Watch the live status card for progress.",
+                nextStep: "Next: verify the answer against the citations below."
             )
+            queryResult = nil
             queryResult = try await engine.query(
-                OIQueryRequest(question: questionTrimmed),
-                in: activeLibrary.id
+                OIQueryRequest(
+                    question: questionTrimmed,
+                    topK: defaultQueryTopK,
+                    qualityMode: queryMode
+                ),
+                in: activeLibrary.id,
+                onStreamEvent: { [weak self] event in
+                    guard let self else { return }
+                    await self.handleQueryStream(event)
+                },
+                onProgressEvent: { [weak self] event in
+                    guard let self else { return }
+                    await self.handleQueryProgress(event)
+                }
             )
-            lastAction = "Query completed for \(activeLibrary.name)."
+            lastQueryDurationSeconds = queryElapsedSeconds
+            lastAction = "Query completed for \(activeLibrary.name) in \((queryResult?.qualityMode ?? queryMode).displayName) mode."
             refreshLibraries(activeID: activeLibrary.id)
+        } catch is CancellationError {
+            lastQueryDurationSeconds = nil
         } catch {
             alert = DemoAlert(title: "Query Error", message: error.localizedDescription)
         }
 
+        finishQueryTracking()
         operationState = nil
     }
 
@@ -1094,6 +1559,157 @@ final class SourceSDKDemoViewModel: ObservableObject {
         }
 
         return ByteCountFormatter.string(fromByteCount: Int64(fileSize), countStyle: .file)
+    }
+
+    private func clearQueryTaskReference() {
+        queryTask = nil
+    }
+
+    private func beginQueryTracking(for library: OILibrary) {
+        queryTimerTask?.cancel()
+        queryElapsedSeconds = 0
+        lastQueryDurationSeconds = nil
+        liveQueryPreview = ""
+        liveQueryEvents = []
+        queryStatusTitle = "Searching \(library.name)"
+        queryStatusDetail = "Running \(queryMode.displayName) across \(library.documentCount) indexed doc\(library.documentCount == 1 ? "" : "s") and \(library.chunkCount) chunk\(library.chunkCount == 1 ? "" : "s")."
+
+        queryTimerTask = Task { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: 1_000_000_000)
+                guard let self else { return }
+                self.advanceQueryClock(libraryName: library.name)
+            }
+        }
+    }
+
+    private func finishQueryTracking() {
+        queryTimerTask?.cancel()
+        queryTimerTask = nil
+        liveQueryPreview = ""
+    }
+
+    private func advanceQueryClock(libraryName: String) {
+        queryElapsedSeconds += 1
+
+        if !liveQueryPreview.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            queryStatusTitle = "Generating \(queryMode.displayName) answer"
+            queryStatusDetail = "Streaming grounded answer from \(libraryName) in \(queryMode.displayName) mode. \(queryElapsedSummary) elapsed."
+            return
+        }
+
+        switch queryMode {
+        case .standard:
+            switch queryElapsedSeconds {
+            case 0..<4:
+                queryStatusTitle = "Searching \(libraryName)"
+                queryStatusDetail = "Standard mode is looking for the strongest supporting chunks first."
+            case 4..<12:
+                queryStatusTitle = "Building grounded answer"
+                queryStatusDetail = "Relevant evidence is likely in hand. Waiting on Apple Intelligence to respond."
+            default:
+                queryStatusTitle = "Still working"
+                queryStatusDetail = "Standard mode is slower than the happy path. You can cancel, shorten the question, or try a smaller library."
+            }
+        case .deepThink:
+            switch queryElapsedSeconds {
+            case 0..<8:
+                queryStatusTitle = "Planning deeper retrieval"
+                queryStatusDetail = "Deep Think is decomposing the question and deciding what evidence to pull next."
+            case 8..<18:
+                queryStatusTitle = "Cross-checking evidence"
+                queryStatusDetail = "Deep Think is still working. It often stays quiet longer before text starts streaming."
+            default:
+                queryStatusTitle = "Still thinking"
+                queryStatusDetail = "Deep Think is taking longer than the happy path. You can cancel or switch back to Standard for the fastest demo."
+            }
+        case .maximum:
+            switch queryElapsedSeconds {
+            case 0..<10:
+                queryStatusTitle = "Exploring broader evidence"
+                queryStatusDetail = "Maximum mode is searching more broadly and verifying more aggressively before it starts answering."
+            case 10..<24:
+                queryStatusTitle = "Verifying maximum answer"
+                queryStatusDetail = "Maximum mode often has the longest quiet phase before text streams back."
+            default:
+                queryStatusTitle = "Still working hard"
+                queryStatusDetail = "Maximum mode is still searching and verifying. Cancel or use Standard if you need the fastest presentation path."
+            }
+        }
+    }
+
+    private func handleQueryStream(_ event: OIQueryStreamEvent) {
+        guard !event.isFinal else { return }
+        mergeLiveQueryPreview(with: event.text)
+
+        guard let activeLibrary else { return }
+        queryStatusTitle = "Generating \(queryMode.displayName) answer"
+        queryStatusDetail = "Streaming grounded answer from \(activeLibrary.name) in \(queryMode.displayName) mode. \(queryElapsedSummary) elapsed."
+    }
+
+    private func handleQueryProgress(_ event: OIQueryProgressEvent) {
+        liveQueryEvents.append(event)
+        if liveQueryEvents.count > 12 {
+            liveQueryEvents.removeFirst(liveQueryEvents.count - 12)
+        }
+
+        guard event.phase != "Live Metrics" else {
+            return
+        }
+
+        queryStatusTitle = event.phase
+        if let detail = event.detail, !detail.isEmpty {
+            queryStatusDetail = "\(event.title) · \(detail)"
+        } else {
+            queryStatusDetail = event.title
+        }
+    }
+
+    private func mergeLiveQueryPreview(with incoming: String) {
+        let trimmedIncoming = incoming.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedIncoming.isEmpty else { return }
+
+        if liveQueryPreview.isEmpty {
+            liveQueryPreview = trimmedIncoming
+            return
+        }
+
+        if trimmedIncoming.hasPrefix(liveQueryPreview) {
+            liveQueryPreview = trimmedIncoming
+            return
+        }
+
+        if liveQueryPreview.hasSuffix(trimmedIncoming) {
+            return
+        }
+
+        let separator = liveQueryPreview.hasSuffix(" ") || incoming.hasPrefix(" ") ? "" : " "
+        liveQueryPreview += separator + trimmedIncoming
+    }
+
+    private func formattedDuration(_ seconds: Int) -> String {
+        if seconds < 60 {
+            return "\(seconds)s"
+        }
+
+        let minutes = seconds / 60
+        let remainingSeconds = seconds % 60
+        return "\(minutes)m \(remainingSeconds)s"
+    }
+
+    private func formattedPreciseDuration(_ seconds: TimeInterval) -> String {
+        String(format: "%.2fs", seconds)
+    }
+
+    func tint(for mode: OIQueryQualityMode) -> Color {
+        switch mode {
+        case .standard:
+            return .blue
+        case .deepThink:
+            return .purple
+        case .maximum:
+            return .orange
+        }
     }
 }
 
@@ -1223,6 +1839,206 @@ private struct DemoInfoBanner: View {
         }
         .padding(14)
         .background(Color(uiColor: .secondarySystemBackground), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+    }
+}
+
+private struct DemoQueryModeButton: View {
+    let mode: OIQueryQualityMode
+    let isSelected: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            VStack(spacing: 8) {
+                Image(systemName: mode.systemImage)
+                    .font(.system(size: 15, weight: .semibold))
+
+                Text(mode.displayName)
+                    .font(.caption.weight(.semibold))
+                    .multilineTextAlignment(.center)
+                    .lineLimit(2)
+
+                Text(tagline)
+                    .font(.caption2)
+                    .foregroundStyle(isSelected ? tint.opacity(0.9) : .secondary)
+                    .multilineTextAlignment(.center)
+                    .lineLimit(2)
+            }
+            .frame(maxWidth: .infinity)
+            .frame(minHeight: 82)
+            .foregroundStyle(isSelected ? tint : .primary)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 10)
+            .background(
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .fill(isSelected ? tint.opacity(0.14) : Color(uiColor: .secondarySystemBackground))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 18, style: .continuous)
+                            .stroke(isSelected ? tint.opacity(0.28) : Color.black.opacity(0.05), lineWidth: 1)
+                    )
+            )
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(mode.displayName)
+        .accessibilityHint(mode.description)
+    }
+
+    private var tagline: String {
+        switch mode {
+        case .standard:
+            return "Fastest"
+        case .deepThink:
+            return "Deeper"
+        case .maximum:
+            return "Highest effort"
+        }
+    }
+
+    private var tint: Color {
+        switch mode {
+        case .standard:
+            return .blue
+        case .deepThink:
+            return .purple
+        case .maximum:
+            return .orange
+        }
+    }
+}
+
+private struct DemoLiveQueryCard: View {
+    let title: String
+    let detail: String
+    let summary: String
+    let elapsed: String
+    let metricSummary: String?
+    let partialAnswer: String
+    let progressEvents: [OIQueryProgressEvent]
+    let onCancel: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .top, spacing: 12) {
+                ProgressView()
+                    .tint(.purple)
+                    .padding(.top, 2)
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(title)
+                        .font(.subheadline.weight(.semibold))
+                    Text(detail)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                Spacer(minLength: 0)
+
+                Button("Cancel", role: .destructive, action: onCancel)
+                    .buttonStyle(.bordered)
+            }
+
+            HStack(spacing: 8) {
+                DemoMiniBadge(text: elapsed, tint: .purple)
+                DemoMiniBadge(text: summary, tint: .indigo)
+                if let metricSummary, !metricSummary.isEmpty {
+                    DemoMiniBadge(text: metricSummary, tint: .orange)
+                }
+            }
+
+            Text(partialAnswer.isEmpty ? "Nothing has streamed back yet. The sample is still searching or waiting on the model." : partialAnswer)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(12)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Color.white.opacity(0.55), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Live pipeline trace")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+
+                if progressEvents.isEmpty {
+                    Text("No retrieval or reasoning events have arrived yet.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                } else {
+                    ForEach(Array(progressEvents.suffix(6))) { event in
+                        DemoQueryProgressRow(event: event)
+                    }
+                }
+            }
+        }
+        .padding(14)
+        .background(Color.purple.opacity(0.08), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .stroke(Color.purple.opacity(0.18), lineWidth: 1)
+        )
+    }
+}
+
+private struct DemoQueryProgressRow: View {
+    let event: OIQueryProgressEvent
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: event.systemImage)
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(event.isGenerating ? Color.purple : Color.indigo)
+                .frame(width: 24, height: 24)
+                .background(
+                    (event.isGenerating ? Color.purple : Color.indigo)
+                        .opacity(0.14),
+                    in: RoundedRectangle(cornerRadius: 8, style: .continuous)
+                )
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text(event.phase)
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.secondary)
+
+                Text(event.title)
+                    .font(.caption.weight(.semibold))
+
+                if let detail = event.detail, !detail.isEmpty {
+                    Text(detail)
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+
+            Spacer(minLength: 0)
+        }
+        .padding(10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.white.opacity(0.4), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+    }
+}
+
+private struct DemoTraceStepRow: View {
+    let index: Int
+    let step: String
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 10) {
+            Text("\(index)")
+                .font(.caption.weight(.bold))
+                .foregroundStyle(.indigo)
+                .frame(width: 22, height: 22)
+                .background(Color.indigo.opacity(0.14), in: Circle())
+
+            Text(step)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            Spacer(minLength: 0)
+        }
+        .padding(12)
+        .background(Color(uiColor: .secondarySystemBackground), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
     }
 }
 
