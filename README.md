@@ -4,96 +4,120 @@ OpenIntelligence is an experimental Apple-native document intelligence prototype
 
 It explores local-first document ingestion, library-based organization, retrieval, source-backed answers, citations, confidence signals, and AI-assisted reasoning on Apple platforms.
 
-This is a proof-of-concept and portfolio project. It is not a finished enterprise SDK, regulated healthcare system, clinical decision-support tool, production-ready commercial product, or clinical decision-support system.
+This repository is meant to show the engineering work directly: the SwiftUI app, document ingestion services, retrieval stack, answer grounding logic, benchmark harness, local model resources, and technical notes are all linked from this front page.
 
-## Why It Exists
+OpenIntelligence is a proof-of-concept and portfolio project. It is not a finished enterprise SDK, regulated healthcare system, clinical decision-support tool, diagnostic system, production-ready commercial product, company, or product for sale.
 
-OpenIntelligence was built to explore what a document intelligence system feels like when the product is organized around evidence instead of generic chat. The central idea is simple: users should be able to import their own files, ask questions, and inspect the sources behind an answer.
+## Start Here
 
-The project demonstrates practical AI product engineering across ingestion, chunking, retrieval, answer generation, citations, and uncertainty handling in a native Apple app.
+- [Architecture](Docs/ARCHITECTURE.md): app structure, service boundaries, data flow, and package boundary.
+- [Retrieval pipeline](Docs/RETRIEVAL_PIPELINE.md): ingestion, chunking, retrieval, context packing, grounded answer generation, and diagnostics.
+- [RAG technical specifications](Docs/Engineering/RAG_TECHNICAL.md): deeper implementation notes for HyDE, parent retrieval, compression, verification, reranking, and retrieval policy.
+- [Storage and pipeline trace](Docs/Engineering/STORAGE_AND_PIPELINE_TRACE.md): current storage reality, SQLite/vector traces, container isolation, and benchmark hooks.
+- [Benchmarks](Benchmarks/README.md): manifest format, local RAG validation runner, document studio, outputs, and fixture guidance.
+- [Demo guide](Docs/DEMO.md): suggested public demo flow and safe demo-document guidance.
+- [Limitations](Docs/LIMITATIONS.md): product, safety, technical, and demo limits.
+- [Roadmap](Docs/ROADMAP.md): near-term engineering direction.
 
-## What It Does Today
+## What It Demonstrates
 
-- Imports user-selected documents and supporting files into local app workflows.
-- Organizes material into libraries or workspaces so retrieval stays scoped.
-- Chunks and indexes content for retrieval-oriented question answering.
-- Retrieves source material before producing grounded answers.
-- Displays citations, evidence review surfaces, confidence signals, and warnings.
-- Includes diagnostics and validation surfaces for inspecting retrieval quality.
-- Carries an experimental Swift package boundary for the document intelligence engine.
+- AI product engineering in a native Apple app.
+- Local-first document workflows built around user-controlled files.
+- Document ingestion, OCR-oriented extraction, chunking, enrichment, and indexing.
+- Retrieval-oriented answer generation with citations and evidence review.
+- Library/workspace isolation so questions stay scoped to the selected material.
+- Confidence, warning, and verification surfaces instead of pretending every answer is final.
+- Benchmarking and diagnostics for inspecting retrieval quality.
+- A Swift/SwiftUI implementation with a developing engine boundary.
 
-## Core Concepts
+## Repository Map
 
-- local-first document workflows
-- user-controlled files
-- document ingestion
-- chunking and retrieval
-- library or workspace isolation
-- source-backed answers
-- citations and evidence review
-- confidence and warning signals
-- Apple-native app architecture
-- Swift and SwiftUI implementation
+| Area | What to look at |
+| --- | --- |
+| App shell | [`OpenIntelligence/App`](OpenIntelligence/App) |
+| Core models and protocols | [`OpenIntelligence/Core`](OpenIntelligence/Core) |
+| Document library UI | [`OpenIntelligence/Features/Documents`](OpenIntelligence/Features/Documents) |
+| Chat and answer surfaces | [`OpenIntelligence/Features/Chat`](OpenIntelligence/Features/Chat) |
+| Diagnostics and validation UI | [`OpenIntelligence/Features/Diagnostics`](OpenIntelligence/Features/Diagnostics) |
+| Telemetry and visualizations | [`OpenIntelligence/Features/Telemetry`](OpenIntelligence/Features/Telemetry) |
+| Document processing services | [`OpenIntelligence/Services/Document`](OpenIntelligence/Services/Document) |
+| Embedding providers | [`OpenIntelligence/Services/Embedding`](OpenIntelligence/Services/Embedding) |
+| Query analysis and rewriting | [`OpenIntelligence/Services/Query`](OpenIntelligence/Services/Query) |
+| RAG orchestration, retrieval, and safety | [`OpenIntelligence/Services/RAG`](OpenIntelligence/Services/RAG) |
+| Storage and vector search | [`OpenIntelligence/Services/Storage`](OpenIntelligence/Services/Storage), [`OpenIntelligence/Services/VectorStore`](OpenIntelligence/Services/VectorStore) |
+| Experimental engine API boundary | [`OpenIntelligence/SDK/OpenIntelligenceEngine.swift`](OpenIntelligence/SDK/OpenIntelligenceEngine.swift) |
+| Local model resources | [`OpenIntelligence/Resources/MLModels`](OpenIntelligence/Resources/MLModels) |
+| Benchmark and audit scripts | [`scripts`](scripts) |
+| Benchmark manifests and studio | [`Benchmarks`](Benchmarks) |
 
-## Architecture Overview
+## Engineering Highlights
 
-The app is structured around a native SwiftUI shell and a document intelligence core:
+The main app flow runs through a native SwiftUI shell and a document intelligence service layer:
 
-- `OpenIntelligence/App`: app entry points and composition.
-- `OpenIntelligence/Features`: document, chat, settings, diagnostics, telemetry, onboarding, and related user-facing features.
-- `OpenIntelligence/Services`: ingestion, extraction, chunking, embedding, storage, retrieval, RAG orchestration, answer safety, and platform integration services.
-- `OpenIntelligence/SDK`: experimental package-facing API surface for the engine boundary.
-- `OpenIntelligence/Resources`: assets, privacy metadata, and local model resources.
+- [`OpenIntelligence/App/OpenIntelligenceApp.swift`](OpenIntelligence/App/OpenIntelligenceApp.swift): app entry point.
+- [`OpenIntelligence/App/ContentView.swift`](OpenIntelligence/App/ContentView.swift): top-level app composition.
+- [`OpenIntelligence/App/DebugRAGValidationHarness.swift`](OpenIntelligence/App/DebugRAGValidationHarness.swift): debug validation entry point for scripted RAG runs.
+- [`OpenIntelligence/Features/Documents/Library/DocumentLibraryView.swift`](OpenIntelligence/Features/Documents/Library/DocumentLibraryView.swift): document/library management surface.
+- [`OpenIntelligence/Features/Chat/Conversation/ChatScreen.swift`](OpenIntelligence/Features/Chat/Conversation/ChatScreen.swift): main question-answering experience.
+- [`OpenIntelligence/Features/Chat/Response/RetrievalSourcesTray.swift`](OpenIntelligence/Features/Chat/Response/RetrievalSourcesTray.swift): source review UI.
+- [`OpenIntelligence/Features/Chat/Response/RetrievalQualityView.swift`](OpenIntelligence/Features/Chat/Response/RetrievalQualityView.swift): retrieval-quality feedback surface.
+- [`OpenIntelligence/Features/Diagnostics/Validation/RAGAccuracyView.swift`](OpenIntelligence/Features/Diagnostics/Validation/RAGAccuracyView.swift): validation dashboard.
 
-See `Docs/ARCHITECTURE.md` and `Docs/RETRIEVAL_PIPELINE.md` for the technical overview.
+The document and retrieval stack is split across focused services:
 
-## What This Demonstrates
+- [`DocumentProcessor.swift`](OpenIntelligence/Services/Document/Processing/DocumentProcessor.swift): document ingestion and processing coordinator.
+- [`SemanticChunker.swift`](OpenIntelligence/Services/Document/Chunking/SemanticChunker.swift): semantic chunking experiments.
+- [`EmbeddingService.swift`](OpenIntelligence/Services/Embedding/EmbeddingService.swift): embedding abstraction.
+- [`SQLiteFullTextService.swift`](OpenIntelligence/Services/Storage/SQLiteFullTextService.swift): full-text storage path.
+- [`VectorStoreRouter.swift`](OpenIntelligence/Services/VectorStore/VectorStoreRouter.swift): vector store routing.
+- [`RAGService.swift`](OpenIntelligence/Services/RAG/Orchestration/RAGService.swift): retrieval-augmented answer orchestration.
+- [`HybridSearchService.swift`](OpenIntelligence/Services/RAG/Retrieval/HybridSearchService.swift): hybrid retrieval.
+- [`ContextPackingService.swift`](OpenIntelligence/Services/RAG/Retrieval/ContextPackingService.swift): context budget and evidence packing.
+- [`SourceOnlyAnswerService.swift`](OpenIntelligence/Services/RAG/Safety/SourceOnlyAnswerService.swift): source-backed answer checks.
+- [`VerificationGateService.swift`](OpenIntelligence/Services/RAG/Safety/VerificationGateService.swift): answer verification gates.
 
-- AI product engineering
-- retrieval-oriented system design
-- Apple-platform development
-- practical handling of context constraints
-- source-grounded answer design
-- iterative prototype development
+## Retrieval Pipeline
 
-## Tech Stack
+At a high level:
 
-- Swift
-- SwiftUI
-- Xcode projects and Swift Package Manager
-- Apple document and text processing APIs
-- Local storage, full-text search, vector retrieval, and reranking experiments
-- On-device model resources for embedding and ranking experiments
+1. A user imports files into a selected library/workspace.
+2. The app extracts text and document structure where available.
+3. The document processor chunks and enriches content.
+4. Text and vector indexes are updated for scoped retrieval.
+5. A query is analyzed, rewritten, or routed depending on quality mode.
+6. Candidate chunks are retrieved, reranked, compressed, and packed into context.
+7. The answer layer produces a response grounded in retrieved evidence.
+8. Citations, confidence signals, warnings, and diagnostics are exposed in the UI.
 
-## Limitations
+See [Retrieval Pipeline](Docs/RETRIEVAL_PIPELINE.md), [RAG Technical Specifications](Docs/Engineering/RAG_TECHNICAL.md), and [Storage and Pipeline Trace](Docs/Engineering/STORAGE_AND_PIPELINE_TRACE.md) for the detailed flow.
 
-- Experimental prototype.
-- Not validated for regulated workflows.
-- Not intended for clinical, legal, financial, or safety-critical decision-making.
-- Not guaranteed to produce complete or correct answers.
-- May require device-specific Apple Intelligence availability for some paths.
-- Packaging and setup may require developer familiarity.
+## Technical References
 
-## What It Is Not
+- [Apple Document Intelligence Reference](Docs/Engineering/APPLE_DOCUMENT_INTELLIGENCE.md): Vision, VisionKit, Natural Language, PDFKit, Speech, and related Apple document APIs.
+- [Apple Intelligence Foundation Language Models Tech Report Notes](Docs/Engineering/APPLE_FM_TECH_REPORT_2025.md): model architecture and platform constraints relevant to the prototype.
+- [Apple Intelligence Models and Specs](Docs/Engineering/APPLE_MODELS.md): context-window, token-budget, `LanguageModelSession`, tool-calling, and guided-generation notes.
+- [Private Cloud Compute Reference](Docs/Engineering/PRIVATE_CLOUD_COMPUTE.md): PCC architecture notes and conservative wording for what it does and does not imply.
 
-OpenIntelligence is not:
+## Benchmarks And Diagnostics
 
-- a finished enterprise SDK
-- a sealed binary SDK
-- a production enterprise product
-- a regulated healthcare tool
-- a clinical decision-support system
-- a diagnostic system
-- a buyer-ready handoff
-- a company
-- a product for sale
+The repo includes a local benchmark harness for testing RAG behavior against controlled manifests:
+
+- [`Benchmarks/rag_validation_sample.json`](Benchmarks/rag_validation_sample.json): sample manifest.
+- [`Benchmarks/studio.html`](Benchmarks/studio.html): lightweight ad hoc document studio.
+- [`scripts/run_rag_benchmarks.py`](scripts/run_rag_benchmarks.py): benchmark runner.
+- [`scripts/rag_benchmark_studio.py`](scripts/rag_benchmark_studio.py): local benchmark-studio helper.
+- [`scripts/prepare_rag_research_fixtures.py`](scripts/prepare_rag_research_fixtures.py): fixture preparation helper.
+- [`scripts/secret_scan.py`](scripts/secret_scan.py): lightweight local secret scan.
+
+The benchmark path exists to make retrieval failures inspectable: source mismatches, weak answers, abstention behavior, missing evidence, and context-packing issues should be visible rather than hidden behind a polished answer.
 
 ## Setup
 
 Requirements:
 
-- macOS with Xcode installed
-- iOS 26.0+ SDK/toolchain support
+- macOS with Xcode installed.
+- iOS 26.0+ SDK/toolchain support.
+- Developer familiarity with Xcode, SwiftPM, and local simulator builds.
 
 Build the app target:
 
@@ -118,13 +142,25 @@ Inspect the experimental package boundary:
 swift package describe
 ```
 
-## Documentation
+Run the lightweight secret scan:
 
-- `Docs/ARCHITECTURE.md`: app and engine architecture.
-- `Docs/RETRIEVAL_PIPELINE.md`: ingestion, chunking, retrieval, and answer flow.
-- `Docs/LIMITATIONS.md`: known limitations and non-goals.
-- `Docs/ROADMAP.md`: near-term technical direction.
-- `Docs/DEMO.md`: suggested demo flow and screenshots guidance.
+```bash
+python3 scripts/secret_scan.py .
+```
+
+## Limits And Non-Goals
+
+OpenIntelligence is intentionally honest about what it is:
+
+- Experimental prototype.
+- Not validated for regulated workflows.
+- Not intended for clinical, legal, financial, or safety-critical decision-making.
+- Not guaranteed to produce complete or correct answers.
+- Some paths may depend on device-specific Apple Intelligence availability.
+- Packaging and setup may require developer familiarity.
+- The engine boundary is exploratory and should not be treated as a finished public SDK contract.
+
+See [Limitations](Docs/LIMITATIONS.md) for the full version.
 
 ## Relationship To OpenClinic
 
@@ -132,4 +168,4 @@ OpenClinic and OpenIntelligence are separate projects. OpenIntelligence is a gen
 
 ## License
 
-See `LICENSE`.
+See [`LICENSE`](LICENSE).
