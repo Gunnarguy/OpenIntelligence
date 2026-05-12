@@ -1,27 +1,16 @@
 # Pull Request
 
-## Description
-<!-- Describe your changes in detail. Why is this change required? What problem does it solve? -->
+## Summary
 
-## Type of Change
+Describe the change and the user-facing or engineering reason for it.
 
-- [ ] 🐛 Bug fix (non-breaking change which fixes an issue)
-- [ ] ✨ New feature (non-breaking change which adds functionality)
-- [ ] 💥 Breaking change (fix or feature that would cause existing functionality to not work as expected)
-- [ ] 📝 Documentation update
-- [ ] 🎨 UI/UX improvement
+## Validation
 
-## How Has This Been Tested?
-<!-- Please describe the tests that you ran to verify your changes. -->
+- [ ] Built the app or documented why the build could not run
+- [ ] Reviewed docs for public-facing accuracy
+- [ ] Checked for secrets or private credentials
+- [ ] Checked for private employer, hospital, patient, offer, or packet material
 
-- [ ] Ran `smoke_test.md` procedure
-- [ ] Verified Telemetry Dashboard metrics
-- [ ] Checked for new warnings in Xcode
+## Notes
 
-## Checklist
-
-- [ ] My code follows the style guidelines of this project
-- [ ] I have performed a self-review of my own code
-- [ ] I have commented my code, particularly in hard-to-understand areas
-- [ ] I have made corresponding changes to the documentation
-- [ ] My changes generate no new warnings
+Call out any known limitations, environment constraints, or follow-up cleanup.

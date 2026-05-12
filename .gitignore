@@ -44,6 +44,13 @@ Pods/
 # Carthage
 Carthage/Build/
 
+# Fastlane
+fastlane/report.xml
+fastlane/Preview.html
+fastlane/screenshots/
+fastlane/test_output/
+fastlane/metadata/review_information/
+
 # Device screenshots (internal debugging only)
 Xrays/*.jpeg
 Xrays/*.png
@@ -93,7 +100,6 @@ t.txt
 .vscode/
 buildServer.json
 
-.env
 *.env
 .env.local
 .env.*.local
@@ -132,7 +138,7 @@ __pycache__/
 OpenIntelligence.app.dSYM.zip
 *.ipa
 
-# Sensitive pricing docs (kept local only)
+# Private go-to-market notes (kept local only)
 Docs/reference/PRICING_STRATEGY.md
 
 # Local-only planning / scratch files

@@ -1,0 +1,450 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>OpenIntelligence RAG Benchmark Studio</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --bg: #f6f7f4;
+      --panel: #ffffff;
+      --text: #1d2428;
+      --muted: #647078;
+      --border: #d7ddd9;
+      --accent: #176b87;
+      --accent-strong: #0f5369;
+      --danger: #b3261e;
+      --pass: #16794c;
+      --warn: #856300;
+      --code: #eef2f1;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #111416;
+        --panel: #1b2023;
+        --text: #eef2f3;
+        --muted: #a3adb4;
+        --border: #333c40;
+        --accent: #79c7e3;
+        --accent-strong: #a7dff0;
+        --code: #252b2e;
+      }
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font: 14px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    main { max-width: 1160px; margin: 0 auto; padding: 24px; }
+    header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 18px;
+    }
+    h1 { font-size: 25px; margin: 0 0 4px; }
+    h2 { font-size: 17px; margin: 0 0 12px; }
+    h3 { font-size: 13px; margin: 0 0 8px; text-transform: uppercase; color: var(--muted); letter-spacing: .04em; }
+    p { margin: 0 0 10px; }
+    label { display: block; font-weight: 650; margin-bottom: 6px; }
+    input, select, textarea, button {
+      font: inherit;
+    }
+    input[type="text"], input[type="number"], select, textarea {
+      width: 100%;
+      border: 1px solid var(--border);
+      border-radius: 7px;
+      background: var(--panel);
+      color: var(--text);
+      padding: 9px 10px;
+    }
+    textarea { min-height: 74px; resize: vertical; }
+    button {
+      border: 1px solid var(--border);
+      border-radius: 7px;
+      background: var(--panel);
+      color: var(--text);
+      padding: 9px 12px;
+      cursor: pointer;
+    }
+    button.primary {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: white;
+      font-weight: 750;
+    }
+    button.primary:disabled {
+      opacity: .55;
+      cursor: progress;
+    }
+    button.ghost { background: transparent; }
+    a { color: var(--accent-strong); }
+    code {
+      background: var(--code);
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      padding: 1px 5px;
+    }
+    pre {
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+      max-height: 360px;
+      overflow: auto;
+      background: var(--code);
+      border: 1px solid var(--border);
+      border-radius: 7px;
+      padding: 12px;
+    }
+    .muted { color: var(--muted); }
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 16px;
+      margin: 12px 0;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 12px;
+    }
+    .grid.two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .span-2 { grid-column: span 2; }
+    .span-4 { grid-column: 1 / -1; }
+    .dropzone {
+      display: grid;
+      place-items: center;
+      min-height: 130px;
+      border: 1px dashed color-mix(in srgb, var(--accent) 55%, var(--border));
+      border-radius: 8px;
+      background: color-mix(in srgb, var(--panel) 80%, var(--bg));
+      text-align: center;
+      padding: 16px;
+    }
+    .dropzone.dragover {
+      border-color: var(--accent);
+      background: color-mix(in srgb, var(--accent) 10%, var(--panel));
+    }
+    .question {
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 12px;
+      margin: 10px 0;
+    }
+    .question-top {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+    .status-line {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+    }
+    .badge {
+      display: inline-block;
+      border-radius: 999px;
+      padding: 3px 9px;
+      color: white;
+      background: var(--muted);
+      font-weight: 750;
+      font-size: 12px;
+    }
+    .badge.running { background: var(--accent); }
+    .badge.completed { background: var(--pass); }
+    .badge.failed { background: var(--danger); }
+    .badge.idle { background: var(--warn); }
+    .notice {
+      border-left: 4px solid var(--warn);
+      padding-left: 10px;
+      color: var(--muted);
+    }
+    @media (max-width: 780px) {
+      main { padding: 16px; }
+      header { display: block; }
+      .grid, .grid.two { grid-template-columns: 1fr; }
+      .span-2, .span-4 { grid-column: auto; }
+    }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <div>
+      <h1>RAG Benchmark Studio</h1>
+      <p class="muted">Local Mac controller for document-specific benchmark runs.</p>
+    </div>
+    <div class="status-line">
+      <span id="serverStatus" class="badge idle">idle</span>
+      <span id="runId" class="muted"></span>
+    </div>
+  </header>
+
+  <section class="panel">
+    <h2>Document</h2>
+    <div id="dropzone" class="dropzone">
+      <div>
+        <p><strong>Drop files here</strong></p>
+        <p class="muted">PDF, txt, markdown, CSV, or any file type the app can ingest.</p>
+        <input id="documents" name="documents" type="file" multiple>
+      </div>
+    </div>
+    <p id="fileList" class="muted"></p>
+  </section>
+
+  <section class="panel">
+    <h2>Run Settings</h2>
+    <div class="grid">
+      <div>
+        <label for="runtime">Target</label>
+        <select id="runtime" name="runtime">
+          <option value="mac">This MacBook</option>
+          <option value="device">Connected iPhone or iPad</option>
+          <option value="simulator">iOS Simulator</option>
+        </select>
+      </div>
+      <div>
+        <label for="device">Device Filter</label>
+        <input id="device" name="device" type="text" placeholder="iPhone 16 Pro Max">
+      </div>
+      <div>
+        <label for="qualityMode">Quality Mode</label>
+        <select id="qualityMode" name="quality_mode">
+          <option value="standard">standard</option>
+          <option value="deep-think">deep-think</option>
+          <option value="maximum">maximum</option>
+        </select>
+      </div>
+      <div>
+        <label for="timeout">Timeout</label>
+        <input id="timeout" name="timeout_seconds" type="number" min="30" value="420">
+      </div>
+      <div>
+        <label for="entitlement">Benchmark Entitlement</label>
+        <select id="entitlement" name="benchmark_entitlement">
+          <option value="lifetime">lifetime</option>
+          <option value="pro">pro</option>
+          <option value="free">free</option>
+          <option value="current">current</option>
+        </select>
+      </div>
+      <div>
+        <label for="pcc">PCC Consent</label>
+        <select id="pcc" name="pcc_consent">
+          <option value="allow">allow</option>
+          <option value="default">default</option>
+          <option value="deny">deny</option>
+        </select>
+      </div>
+      <div class="span-2">
+        <label for="runLabel">Run Label</label>
+        <input id="runLabel" name="run_label" type="text" placeholder="optional label">
+      </div>
+    </div>
+    <p class="notice">This uses the Debug Mac Catalyst destination on Apple silicon Macs. Use a connected device only when you explicitly want phone hardware parity.</p>
+  </section>
+
+  <section class="panel">
+    <div class="question-top">
+      <h2>Questions</h2>
+      <button type="button" id="addQuestion">Add Question</button>
+    </div>
+    <div id="questions"></div>
+  </section>
+
+  <section class="panel">
+    <div class="status-line">
+      <button id="runButton" class="primary" type="button">Run Benchmark</button>
+      <a id="dashboardLink" href="#" hidden>Open dashboard</a>
+      <a id="resultsLink" href="#" hidden>results.json</a>
+      <a id="manifestLink" href="#" hidden>manifest.json</a>
+    </div>
+    <pre id="log" aria-live="polite"></pre>
+  </section>
+</main>
+
+<script>
+const apiBase = location.protocol === "file:" ? "http://127.0.0.1:8765" : "";
+const docsInput = document.getElementById("documents");
+const dropzone = document.getElementById("dropzone");
+const fileList = document.getElementById("fileList");
+const questionsEl = document.getElementById("questions");
+const runButton = document.getElementById("runButton");
+const logEl = document.getElementById("log");
+const serverStatus = document.getElementById("serverStatus");
+const runIdEl = document.getElementById("runId");
+const dashboardLink = document.getElementById("dashboardLink");
+const resultsLink = document.getElementById("resultsLink");
+const manifestLink = document.getElementById("manifestLink");
+let pollTimer = null;
+
+function updateFileList() {
+  const files = Array.from(docsInput.files || []);
+  fileList.textContent = files.length ? files.map(file => file.name).join(", ") : "";
+}
+
+function addQuestion(initial = {}) {
+  const index = questionsEl.children.length + 1;
+  const wrapper = document.createElement("div");
+  wrapper.className = "question";
+  wrapper.innerHTML = `
+    <div class="question-top">
+      <strong>Question ${index}</strong>
+      <button type="button" class="ghost remove-question">Remove</button>
+    </div>
+    <div class="grid">
+      <div class="span-4">
+        <label>Query</label>
+        <textarea class="query" placeholder="Ask the exact question to run against this document."></textarea>
+      </div>
+      <div>
+        <label>Category</label>
+        <select class="category">
+          <option value="summary">summary</option>
+          <option value="exact_value">exact_value</option>
+          <option value="table_spec">table_spec</option>
+          <option value="multi_hop">multi_hop</option>
+          <option value="missing_evidence">missing_evidence</option>
+          <option value="retrieval_only">retrieval_only</option>
+        </select>
+      </div>
+      <div>
+        <label>Expected Behavior</label>
+        <select class="expected-behavior">
+          <option value="answer">answer</option>
+          <option value="abstain">abstain</option>
+        </select>
+      </div>
+      <div class="span-2">
+        <label>Expected Answer Regex</label>
+        <input class="expected-pattern" type="text" placeholder="optional">
+      </div>
+    </div>
+  `;
+  wrapper.querySelector(".query").value = initial.query || "";
+  wrapper.querySelector(".category").value = initial.category || "summary";
+  wrapper.querySelector(".expected-behavior").value = initial.expected_behavior || "answer";
+  wrapper.querySelector(".expected-pattern").value = initial.expected_pattern || "";
+  wrapper.querySelector(".remove-question").addEventListener("click", () => {
+    wrapper.remove();
+    renumberQuestions();
+  });
+  questionsEl.appendChild(wrapper);
+}
+
+function renumberQuestions() {
+  Array.from(questionsEl.children).forEach((child, idx) => {
+    child.querySelector("strong").textContent = `Question ${idx + 1}`;
+  });
+}
+
+function collectQuestions() {
+  return Array.from(questionsEl.children).map((row) => ({
+    query: row.querySelector(".query").value.trim(),
+    category: row.querySelector(".category").value,
+    expected_behavior: row.querySelector(".expected-behavior").value,
+    expected_pattern: row.querySelector(".expected-pattern").value.trim()
+  })).filter(item => item.query.length > 0);
+}
+
+function setStatus(status, runId = "") {
+  serverStatus.className = `badge ${status || "idle"}`;
+  serverStatus.textContent = status || "idle";
+  runIdEl.textContent = runId ? `Run ${runId}` : "";
+  runButton.disabled = status === "running";
+}
+
+function setLinks(job) {
+  const hasRun = job && job.run_id;
+  dashboardLink.hidden = !(hasRun && job.dashboard_url);
+  resultsLink.hidden = !(hasRun && job.results_url);
+  manifestLink.hidden = !(hasRun && job.manifest_url);
+  if (hasRun && job.dashboard_url) dashboardLink.href = apiBase + job.dashboard_url;
+  if (hasRun && job.results_url) resultsLink.href = apiBase + job.results_url;
+  if (hasRun && job.manifest_url) manifestLink.href = apiBase + job.manifest_url;
+}
+
+async function pollStatus() {
+  try {
+    const response = await fetch(`${apiBase}/api/status`);
+    const data = await response.json();
+    const job = data.job || {};
+    setStatus(job.status || "idle", job.run_id || "");
+    setLinks(job);
+    logEl.textContent = (job.log || []).join("");
+    if (job.status !== "running" && pollTimer) {
+      clearInterval(pollTimer);
+      pollTimer = null;
+    }
+  } catch (error) {
+    setStatus("failed");
+    logEl.textContent = `Could not reach local studio server: ${error}`;
+  }
+}
+
+async function runBenchmark() {
+  const files = Array.from(docsInput.files || []);
+  const questions = collectQuestions();
+  if (!files.length) {
+    alert("Add at least one document.");
+    return;
+  }
+  if (!questions.length) {
+    alert("Add at least one question.");
+    return;
+  }
+
+  const formData = new FormData();
+  for (const file of files) formData.append("documents", file, file.name);
+  formData.append("cases_json", JSON.stringify(questions));
+  formData.append("runtime", document.getElementById("runtime").value);
+  formData.append("device", document.getElementById("device").value.trim());
+  formData.append("quality_mode", document.getElementById("qualityMode").value);
+  formData.append("timeout_seconds", document.getElementById("timeout").value);
+  formData.append("benchmark_entitlement", document.getElementById("entitlement").value);
+  formData.append("pcc_consent", document.getElementById("pcc").value);
+  formData.append("run_label", document.getElementById("runLabel").value.trim());
+
+  setStatus("running");
+  logEl.textContent = "Starting...\n";
+  setLinks(null);
+
+  const response = await fetch(`${apiBase}/api/run`, { method: "POST", body: formData });
+  const data = await response.json();
+  if (!response.ok) {
+    setStatus("failed");
+    logEl.textContent = data.error || "Run failed to start.";
+    return;
+  }
+  setStatus("running", data.run_id);
+  if (pollTimer) clearInterval(pollTimer);
+  pollTimer = setInterval(pollStatus, 1200);
+  pollStatus();
+}
+
+dropzone.addEventListener("dragover", (event) => {
+  event.preventDefault();
+  dropzone.classList.add("dragover");
+});
+dropzone.addEventListener("dragleave", () => dropzone.classList.remove("dragover"));
+dropzone.addEventListener("drop", (event) => {
+  event.preventDefault();
+  dropzone.classList.remove("dragover");
+  docsInput.files = event.dataTransfer.files;
+  updateFileList();
+});
+docsInput.addEventListener("change", updateFileList);
+document.getElementById("addQuestion").addEventListener("click", () => addQuestion());
+runButton.addEventListener("click", runBenchmark);
+addQuestion({ query: "" });
+pollStatus();
+</script>
+</body>
+</html>

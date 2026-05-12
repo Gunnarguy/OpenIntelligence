@@ -6,15 +6,168 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		B016E7B72F0F5F5F00AABA0C /* Tokenizers in Frameworks */ = {isa = PBXBuildFile; productRef = B016E7B62F0F5F5F00AABA0C /* Tokenizers */; };
+		E0A100022F0F5F5F00AABA0C /* Tokenizers in Frameworks */ = {isa = PBXBuildFile; productRef = B016E7B62F0F5F5F00AABA0C /* Tokenizers */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXFileReference section */
 		B0D565DE2E98AC50001274A2 /* OpenIntelligence.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = OpenIntelligence.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		DDFD1600670D479C7075E2C2 /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS18.0.sdk/System/Library/Frameworks/Foundation.framework; sourceTree = DEVELOPER_DIR; };
+		E0A100042F0F5F5F00AABA0C /* OpenIntelligenceEngine.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = OpenIntelligenceEngine.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
+
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		E0A100052F0F5F5F00AABA0C /* Exceptions for "OpenIntelligence/Core" folder in "OpenIntelligenceEngine" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Extensions/MarkdownRenderer.swift,
+			);
+			target = E0A100072F0F5F5F00AABA0C /* OpenIntelligenceEngine */;
+		};
+		E0A100132F0F5F5F00AABA0C /* Exceptions for "OpenIntelligence/Services/Infrastructure/Integration" folder in "OpenIntelligenceEngine" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				ImagePlaygroundService.swift,
+			);
+			target = E0A100072F0F5F5F00AABA0C /* OpenIntelligenceEngine */;
+		};
+		E0A100142F0F5F5F00AABA0C /* Exceptions for "OpenIntelligence/Services/Agentic" folder in "OpenIntelligenceEngine" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				RAGAppIntents.swift,
+				VisualIntelligenceIntents.swift,
+				WritingToolsService.swift,
+			);
+			target = E0A100072F0F5F5F00AABA0C /* OpenIntelligenceEngine */;
+		};
+		F0A100052F1A000100AA1001 /* Exceptions for "OpenIntelligence/Services/LLM" folder in "OpenIntelligenceEngine" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				ModelResolutionService.swift,
+			);
+			target = E0A100072F0F5F5F00AABA0C /* OpenIntelligenceEngine */;
+		};
+		F0A100062F1A000100AA1001 /* Exceptions for "OpenIntelligence/Services/Storage" folder in "OpenIntelligenceEngine" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				DocumentationCacheService.swift,
+			);
+			target = E0A100072F0F5F5F00AABA0C /* OpenIntelligenceEngine */;
+		};
+		F0A100072F1A000100AA1001 /* Exceptions for "OpenIntelligence/Resources" folder in "OpenIntelligenceEngine" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Assets/Assets.xcassets,
+				StoreKit/StoreKitConfiguration.storekit,
+				StoreKit/StoreKitTestHarness.swift,
+			);
+			target = E0A100072F0F5F5F00AABA0C /* OpenIntelligenceEngine */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		B0D565E02E98AC50001274A2 /* OpenIntelligence */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = OpenIntelligence;
+			sourceTree = "<group>";
+		};
+		E0A100152F0F5F5F00AABA0C /* OpenIntelligence/Core */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				E0A100052F0F5F5F00AABA0C /* Exceptions for "OpenIntelligence/Core" folder in "OpenIntelligenceEngine" target */,
+			);
+			path = OpenIntelligence/Core;
+			sourceTree = "<group>";
+		};
+		E0A100162F0F5F5F00AABA0C /* OpenIntelligence/SDK */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = OpenIntelligence/SDK;
+			sourceTree = "<group>";
+		};
+		E0A100172F0F5F5F00AABA0C /* OpenIntelligence/Services/Agentic */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				E0A100142F0F5F5F00AABA0C /* Exceptions for "OpenIntelligence/Services/Agentic" folder in "OpenIntelligenceEngine" target */,
+			);
+			path = OpenIntelligence/Services/Agentic;
+			sourceTree = "<group>";
+		};
+		E0A100182F0F5F5F00AABA0C /* OpenIntelligence/Services/Document */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = OpenIntelligence/Services/Document;
+			sourceTree = "<group>";
+		};
+		E0A100192F0F5F5F00AABA0C /* OpenIntelligence/Services/Embedding */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = OpenIntelligence/Services/Embedding;
+			sourceTree = "<group>";
+		};
+		E0A100202F0F5F5F00AABA0C /* OpenIntelligence/Services/Infrastructure/Compute */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = OpenIntelligence/Services/Infrastructure/Compute;
+			sourceTree = "<group>";
+		};
+		E0A100212F0F5F5F00AABA0C /* OpenIntelligence/Services/Infrastructure/Configuration */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = OpenIntelligence/Services/Infrastructure/Configuration;
+			sourceTree = "<group>";
+		};
+		E0A100222F0F5F5F00AABA0C /* OpenIntelligence/Services/Infrastructure/Integration */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				E0A100132F0F5F5F00AABA0C /* Exceptions for "OpenIntelligence/Services/Infrastructure/Integration" folder in "OpenIntelligenceEngine" target */,
+			);
+			path = OpenIntelligence/Services/Infrastructure/Integration;
+			sourceTree = "<group>";
+		};
+		E0A100232F0F5F5F00AABA0C /* OpenIntelligence/Services/Infrastructure/Monitoring */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = OpenIntelligence/Services/Infrastructure/Monitoring;
+			sourceTree = "<group>";
+		};
+		E0A100242F0F5F5F00AABA0C /* OpenIntelligence/Services/Infrastructure/Optimization */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = OpenIntelligence/Services/Infrastructure/Optimization;
+			sourceTree = "<group>";
+		};
+		E0A100252F0F5F5F00AABA0C /* OpenIntelligence/Services/LLM */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				F0A100052F1A000100AA1001 /* Exceptions for "OpenIntelligence/Services/LLM" folder in "OpenIntelligenceEngine" target */,
+			);
+			path = OpenIntelligence/Services/LLM;
+			sourceTree = "<group>";
+		};
+		E0A100262F0F5F5F00AABA0C /* OpenIntelligence/Services/Query */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = OpenIntelligence/Services/Query;
+			sourceTree = "<group>";
+		};
+		E0A100272F0F5F5F00AABA0C /* OpenIntelligence/Services/RAG */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = OpenIntelligence/Services/RAG;
+			sourceTree = "<group>";
+		};
+		E0A100282F0F5F5F00AABA0C /* OpenIntelligence/Services/Storage */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				F0A100062F1A000100AA1001 /* Exceptions for "OpenIntelligence/Services/Storage" folder in "OpenIntelligenceEngine" target */,
+			);
+			path = OpenIntelligence/Services/Storage;
+			sourceTree = "<group>";
+		};
+		E0A100292F0F5F5F00AABA0C /* OpenIntelligence/Services/VectorStore */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = OpenIntelligence/Services/VectorStore;
+			sourceTree = "<group>";
+		};
+		F0A100082F1A000100AA1001 /* OpenIntelligence/Resources */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				F0A100072F1A000100AA1001 /* Exceptions for "OpenIntelligence/Resources" folder in "OpenIntelligenceEngine" target */,
+			);
+			path = OpenIntelligence/Resources;
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -24,12 +177,44 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				B016E7B72F0F5F5F00AABA0C /* Tokenizers in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		E0A100062F0F5F5F00AABA0C /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				E0A100022F0F5F5F00AABA0C /* Tokenizers in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		B015094A2FA3A465008E428B /* Recovered References */ = {
+			isa = PBXGroup;
+			children = (
+				E0A100152F0F5F5F00AABA0C /* OpenIntelligence/Core */,
+				F0A100082F1A000100AA1001 /* OpenIntelligence/Resources */,
+				E0A100162F0F5F5F00AABA0C /* OpenIntelligence/SDK */,
+				E0A100172F0F5F5F00AABA0C /* OpenIntelligence/Services/Agentic */,
+				E0A100182F0F5F5F00AABA0C /* OpenIntelligence/Services/Document */,
+				E0A100192F0F5F5F00AABA0C /* OpenIntelligence/Services/Embedding */,
+				E0A100202F0F5F5F00AABA0C /* OpenIntelligence/Services/Infrastructure/Compute */,
+				E0A100212F0F5F5F00AABA0C /* OpenIntelligence/Services/Infrastructure/Configuration */,
+				E0A100222F0F5F5F00AABA0C /* OpenIntelligence/Services/Infrastructure/Integration */,
+				E0A100232F0F5F5F00AABA0C /* OpenIntelligence/Services/Infrastructure/Monitoring */,
+				E0A100242F0F5F5F00AABA0C /* OpenIntelligence/Services/Infrastructure/Optimization */,
+				E0A100252F0F5F5F00AABA0C /* OpenIntelligence/Services/LLM */,
+				E0A100262F0F5F5F00AABA0C /* OpenIntelligence/Services/Query */,
+				E0A100272F0F5F5F00AABA0C /* OpenIntelligence/Services/RAG */,
+				E0A100282F0F5F5F00AABA0C /* OpenIntelligence/Services/Storage */,
+				E0A100292F0F5F5F00AABA0C /* OpenIntelligence/Services/VectorStore */,
+			);
+			name = "Recovered References";
+			sourceTree = "<group>";
+		};
 		B0B991682F0F4BC700BBE97E /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
@@ -44,6 +229,7 @@
 				B0D565E02E98AC50001274A2 /* OpenIntelligence */,
 				B0B991682F0F4BC700BBE97E /* Frameworks */,
 				B0D565DF2E98AC50001274A2 /* Products */,
+				B015094A2FA3A465008E428B /* Recovered References */,
 			);
 			sourceTree = "<group>";
 		};
@@ -51,6 +237,7 @@
 			isa = PBXGroup;
 			children = (
 				B0D565DE2E98AC50001274A2 /* OpenIntelligence.app */,
+				E0A100042F0F5F5F00AABA0C /* OpenIntelligenceEngine.framework */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -83,10 +270,49 @@
 			);
 			name = OpenIntelligence;
 			packageProductDependencies = (
+				B016E7B62F0F5F5F00AABA0C /* Tokenizers */,
 			);
 			productName = OpenIntelligence;
 			productReference = B0D565DE2E98AC50001274A2 /* OpenIntelligence.app */;
 			productType = "com.apple.product-type.application";
+		};
+		E0A100072F0F5F5F00AABA0C /* OpenIntelligenceEngine */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = E0A100102F0F5F5F00AABA0C /* Build configuration list for PBXNativeTarget "OpenIntelligenceEngine" */;
+			buildPhases = (
+				E0A100112F0F5F5F00AABA0C /* Sources */,
+				E0A100062F0F5F5F00AABA0C /* Frameworks */,
+				E0A100122F0F5F5F00AABA0C /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				E0A100152F0F5F5F00AABA0C /* OpenIntelligence/Core */,
+				E0A100162F0F5F5F00AABA0C /* OpenIntelligence/SDK */,
+				E0A100172F0F5F5F00AABA0C /* OpenIntelligence/Services/Agentic */,
+				E0A100182F0F5F5F00AABA0C /* OpenIntelligence/Services/Document */,
+				E0A100192F0F5F5F00AABA0C /* OpenIntelligence/Services/Embedding */,
+				E0A100202F0F5F5F00AABA0C /* OpenIntelligence/Services/Infrastructure/Compute */,
+				E0A100212F0F5F5F00AABA0C /* OpenIntelligence/Services/Infrastructure/Configuration */,
+				E0A100222F0F5F5F00AABA0C /* OpenIntelligence/Services/Infrastructure/Integration */,
+				E0A100232F0F5F5F00AABA0C /* OpenIntelligence/Services/Infrastructure/Monitoring */,
+				E0A100242F0F5F5F00AABA0C /* OpenIntelligence/Services/Infrastructure/Optimization */,
+				E0A100252F0F5F5F00AABA0C /* OpenIntelligence/Services/LLM */,
+				E0A100262F0F5F5F00AABA0C /* OpenIntelligence/Services/Query */,
+				E0A100272F0F5F5F00AABA0C /* OpenIntelligence/Services/RAG */,
+				E0A100282F0F5F5F00AABA0C /* OpenIntelligence/Services/Storage */,
+				E0A100292F0F5F5F00AABA0C /* OpenIntelligence/Services/VectorStore */,
+				F0A100082F1A000100AA1001 /* OpenIntelligence/Resources */,
+			);
+			name = OpenIntelligenceEngine;
+			packageProductDependencies = (
+				B016E7B62F0F5F5F00AABA0C /* Tokenizers */,
+			);
+			productName = OpenIntelligenceEngine;
+			productReference = E0A100042F0F5F5F00AABA0C /* OpenIntelligenceEngine.framework */;
+			productType = "com.apple.product-type.framework";
 		};
 /* End PBXNativeTarget section */
 
@@ -101,6 +327,9 @@
 					B0D565DD2E98AC50001274A2 = {
 						CreatedOnToolsVersion = 26.0;
 					};
+					E0A100072F0F5F5F00AABA0C = {
+						CreatedOnToolsVersion = 26.0;
+					};
 				};
 			};
 			buildConfigurationList = B0D565D92E98AC50001274A2 /* Build configuration list for PBXProject "OpenIntelligence" */;
@@ -113,6 +342,7 @@
 			mainGroup = B0D565D52E98AC50001274A2;
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
+				B016E7B32F0F5F5F00AABA0C /* XCLocalSwiftPackageReference "OpenIntelligence/swift-transformers" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = B0D565DF2E98AC50001274A2 /* Products */;
@@ -120,6 +350,7 @@
 			projectRoot = "";
 			targets = (
 				B0D565DD2E98AC50001274A2 /* OpenIntelligence */,
+				E0A100072F0F5F5F00AABA0C /* OpenIntelligenceEngine */,
 			);
 		};
 /* End PBXProject section */
@@ -132,10 +363,24 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		E0A100122F0F5F5F00AABA0C /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		B0D565DA2E98AC50001274A2 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		E0A100112F0F5F5F00AABA0C /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -270,6 +515,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				"CODE_SIGN_ENTITLEMENTS[sdk=iphone*]" = OpenIntelligence/OpenIntelligence.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 36;
 				DERIVE_MACCATALYST_PRODUCT_BUNDLE_IDENTIFIER = NO;
@@ -328,6 +574,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				"CODE_SIGN_ENTITLEMENTS[sdk=iphone*]" = OpenIntelligence/OpenIntelligence.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 36;
 				DEVELOPMENT_TEAM = Z3E334EXZD;
@@ -378,6 +625,80 @@
 			};
 			name = Release;
 		};
+		E0A100082F0F5F5F00AABA0C /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = NO;
+				BUILD_LIBRARY_FOR_DISTRIBUTION = YES;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 36;
+				DEFINES_MODULE = YES;
+				DEVELOPMENT_TEAM = Z3E334EXZD;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = OpenIntelligenceEngine;
+				INFOPLIST_KEY_CFBundleName = OpenIntelligenceEngine;
+				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				MARKETING_VERSION = 3.5;
+				PRODUCT_BUNDLE_IDENTIFIER = Gunndamental.OpenIntelligenceEngine;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = NO;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "OPENINTELLIGENCE_ENGINE_SDK DEBUG $(inherited)";
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_OBJC_INTEROP_MODE = objcxx;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		E0A100092F0F5F5F00AABA0C /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = NO;
+				BUILD_LIBRARY_FOR_DISTRIBUTION = YES;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 36;
+				DEFINES_MODULE = YES;
+				DEVELOPMENT_TEAM = Z3E334EXZD;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = OpenIntelligenceEngine;
+				INFOPLIST_KEY_CFBundleName = OpenIntelligenceEngine;
+				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				MARKETING_VERSION = 3.5;
+				PRODUCT_BUNDLE_IDENTIFIER = Gunndamental.OpenIntelligenceEngine;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = NO;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "OPENINTELLIGENCE_ENGINE_SDK $(inherited)";
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_OBJC_INTEROP_MODE = objcxx;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -399,8 +720,30 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
+		E0A100102F0F5F5F00AABA0C /* Build configuration list for PBXNativeTarget "OpenIntelligenceEngine" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				E0A100082F0F5F5F00AABA0C /* Debug */,
+				E0A100092F0F5F5F00AABA0C /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 /* End XCConfigurationList section */
 
+/* Begin XCLocalSwiftPackageReference section */
+		B016E7B32F0F5F5F00AABA0C /* XCLocalSwiftPackageReference "OpenIntelligence/swift-transformers" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = "OpenIntelligence/swift-transformers";
+		};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		B016E7B62F0F5F5F00AABA0C /* Tokenizers */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = Tokenizers;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = B0D565D62E98AC50001274A2 /* Project object */;
 }
