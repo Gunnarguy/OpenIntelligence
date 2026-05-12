@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import argparse
 import datetime as dt
+import hashlib
 import html
 import json
 import os
@@ -119,6 +120,28 @@ def resolve_repo_path(value: str | Path) -> Path:
     if not path.is_absolute():
         path = REPO_ROOT / path
     return path
+
+
+def input_file_identity(path: Path) -> str:
+    resolved_root = REPO_ROOT.resolve()
+    resolved_path = path.resolve(strict=False)
+    try:
+        return str(resolved_path.relative_to(resolved_root))
+    except ValueError:
+        return str(resolved_path)
+
+
+def staged_case_input_name(case: dict[str, Any], input_file: Path) -> str:
+    matching_names = [
+        path for path in case["input_files"] if path.name.casefold() == input_file.name.casefold()
+    ]
+    if len(matching_names) <= 1:
+        return input_file.name
+
+    suffix = input_file.suffix
+    stem = slug(input_file.stem or "input")
+    digest = hashlib.sha1(input_file_identity(input_file).encode("utf-8")).hexdigest()[:10]
+    return f"{stem}-{digest}{suffix}"
 
 
 def case_file_entries(case: dict[str, Any]) -> list[dict[str, Any]]:
@@ -996,7 +1019,8 @@ def copy_case_inputs_to_device(
 
     device_paths: list[str] = []
     for input_file in case["input_files"]:
-        destination = f"{input_dir}/{input_file.name}"
+        staged_name = staged_case_input_name(case, input_file)
+        destination = f"{input_dir}/{staged_name}"
         command = [
             "xcrun",
             "devicectl",
@@ -1068,9 +1092,10 @@ def copy_case_inputs_to_mac(
 
     mac_paths: list[str] = []
     for input_file in case["input_files"]:
-        destination = destination_root / input_file.name
+        staged_name = staged_case_input_name(case, input_file)
+        destination = destination_root / staged_name
         shutil.copy2(input_file, destination)
-        mac_paths.append(f"{input_dir}/{input_file.name}")
+        mac_paths.append(f"{input_dir}/{staged_name}")
     return mac_paths
 
 
@@ -1336,6 +1361,15 @@ def any_pattern_matches(patterns: list[str], text: str) -> bool | None:
     return any(re.search(pattern, text or "") is not None for pattern in patterns)
 
 
+def normalized_source_filename(value: Any) -> str:
+    raw = str(value or "").strip()
+    if not raw:
+        return ""
+    parsed = urllib.parse.urlparse(raw)
+    source_path = urllib.parse.unquote(parsed.path if parsed.scheme else raw)
+    return Path(source_path).name.casefold()
+
+
 def source_matches(expected_source: dict[str, Any], sources: list[dict[str, Any]]) -> bool | None:
     expected_filename = expected_source.get("filename")
     expected_page = expected_source.get("page")
@@ -1345,8 +1379,9 @@ def source_matches(expected_source: dict[str, Any], sources: list[dict[str, Any]
         source_file_ok = True
         page_ok = True
         if expected_filename:
-            expected_basename = Path(expected_filename).name.lower()
-            source_file_ok = expected_basename in str(source.get("source", "")).lower()
+            expected_basename = normalized_source_filename(expected_filename)
+            source_basename = normalized_source_filename(source.get("source", ""))
+            source_file_ok = source_basename == expected_basename
         if expected_page:
             page_ok = str(source.get("page")) == str(expected_page)
         if source_file_ok and page_ok:
