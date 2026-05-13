@@ -5,12 +5,12 @@
 
 ## Primary Sources
 
-| Area | Source | Why It Matters for OpenIntelligence |
-| --- | --- | --- |
-| Cache-Augmented Generation | [Don't Do RAG: When Cache-Augmented Generation is All You Need for Knowledge Tasks](https://arxiv.org/abs/2412.15605) | Shows CAG can beat or complement RAG when the knowledge base is limited and can fit in an extended context. |
-| Apple context limit | [TN3193: Managing the on-device foundation model's context window](https://developer.apple.com/documentation/technotes/tn3193-managing-the-on-device-foundation-model-s-context-window) | Apple documents a 4096-token context window for each on-device FoundationModels session. |
-| FoundationModels sessions | [LanguageModelSession](https://developer.apple.com/documentation/foundationmodels/languagemodelsession) | Session state, transcript reuse, tools, and guided generation all consume context. |
-| Contextual retrieval | [Anthropic: Contextual Retrieval](https://www.anthropic.com/research/contextual-retrieval) | Better fit for this app than whole-corpus CAG: add concise context to chunks, retrieve dynamically, rerank, then generate. |
+| Area                       | Source                                                                                                                                                                                  | Why It Matters for OpenIntelligence                                                                                        |
+| -------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| Cache-Augmented Generation | [Don't Do RAG: When Cache-Augmented Generation is All You Need for Knowledge Tasks](https://arxiv.org/abs/2412.15605)                                                                   | Shows CAG can beat or complement RAG when the knowledge base is limited and can fit in an extended context.                |
+| Apple context limit        | [TN3193: Managing the on-device foundation model's context window](https://developer.apple.com/documentation/technotes/tn3193-managing-the-on-device-foundation-model-s-context-window) | Apple documents a 4096-token context window for each on-device FoundationModels session.                                   |
+| FoundationModels sessions  | [LanguageModelSession](https://developer.apple.com/documentation/foundationmodels/languagemodelsession)                                                                                 | Session state, transcript reuse, tools, and guided generation all consume context.                                         |
+| Contextual retrieval       | [Anthropic: Contextual Retrieval](https://www.anthropic.com/research/contextual-retrieval)                                                                                              | Better fit for this app than whole-corpus CAG: add concise context to chunks, retrieve dynamically, rerank, then generate. |
 
 ## PDF Links
 

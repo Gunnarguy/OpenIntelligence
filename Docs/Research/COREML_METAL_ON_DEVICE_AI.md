@@ -5,16 +5,16 @@
 
 ## Primary Sources
 
-| Area | Source | Why It Matters for OpenIntelligence |
-| --- | --- | --- |
-| Core ML model loading/config | [MLModelConfiguration](https://developer.apple.com/documentation/coreml/mlmodelconfiguration) | Controls model parameters and compute-device choices. |
-| Compute unit selection | [MLComputeUnits](https://developer.apple.com/documentation/coreml/mlcomputeunits) | Supports choosing CPU, GPU, Neural Engine, or combinations for model execution. |
-| Metal Performance Shaders | [Metal Performance Shaders](https://developer.apple.com/documentation/metalperformanceshaders) | Apple's optimized GPU compute and ML kernels. |
-| MPSGraph | [Metal Performance Shaders Graph](https://developer.apple.com/documentation/metalperformanceshadersgraph) | Higher-level compute graphs across GPU/CPU/Neural Engine. |
-| Accelerate | [Accelerate](https://developer.apple.com/documentation/accelerate) | CPU vector math and signal-processing foundation for efficient local compute. |
-| BNNS | [BNNS](https://developer.apple.com/documentation/accelerate/bnns) | Neural-network routines under Accelerate. |
-| Core ML Tools compression | [coremltools palettization](https://apple.github.io/coremltools/source/coremltools.optimize.torch.palettization.html) | Relevant to future model-size reduction and adapter/model packaging. |
-| Apple 2025 model report | [Apple Intelligence Foundation Language Models Tech Report 2025](https://machinelearning.apple.com/research/apple-foundation-models-tech-report-2025) | Apple-specific evidence for quantization-aware training and on-device model optimization. |
+| Area                         | Source                                                                                                                                                | Why It Matters for OpenIntelligence                                                       |
+| ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| Core ML model loading/config | [MLModelConfiguration](https://developer.apple.com/documentation/coreml/mlmodelconfiguration)                                                         | Controls model parameters and compute-device choices.                                     |
+| Compute unit selection       | [MLComputeUnits](https://developer.apple.com/documentation/coreml/mlcomputeunits)                                                                     | Supports choosing CPU, GPU, Neural Engine, or combinations for model execution.           |
+| Metal Performance Shaders    | [Metal Performance Shaders](https://developer.apple.com/documentation/metalperformanceshaders)                                                        | Apple's optimized GPU compute and ML kernels.                                             |
+| MPSGraph                     | [Metal Performance Shaders Graph](https://developer.apple.com/documentation/metalperformanceshadersgraph)                                             | Higher-level compute graphs across GPU/CPU/Neural Engine.                                 |
+| Accelerate                   | [Accelerate](https://developer.apple.com/documentation/accelerate)                                                                                    | CPU vector math and signal-processing foundation for efficient local compute.             |
+| BNNS                         | [BNNS](https://developer.apple.com/documentation/accelerate/bnns)                                                                                     | Neural-network routines under Accelerate.                                                 |
+| Core ML Tools compression    | [coremltools palettization](https://apple.github.io/coremltools/source/coremltools.optimize.torch.palettization.html)                                 | Relevant to future model-size reduction and adapter/model packaging.                      |
+| Apple 2025 model report      | [Apple Intelligence Foundation Language Models Tech Report 2025](https://machinelearning.apple.com/research/apple-foundation-models-tech-report-2025) | Apple-specific evidence for quantization-aware training and on-device model optimization. |
 
 ## Repo Mapping
 

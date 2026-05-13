@@ -10,6 +10,7 @@ OpenIntelligence is a proof-of-concept and portfolio project. It is not a finish
 
 ## Start Here
 
+- [App Store](https://apps.apple.com/us/app/openintelligence/id6756559175): live public listing.
 - [How it works](HOW_IT_WORKS.md): public workflow overview from import to cited answers.
 - [Architecture](Docs/ARCHITECTURE.md): app structure, service boundaries, data flow, and package boundary.
 - [Retrieval pipeline](Docs/RETRIEVAL_PIPELINE.md): ingestion, chunking, retrieval, context packing, grounded answer generation, and diagnostics.
@@ -35,23 +36,23 @@ OpenIntelligence is a proof-of-concept and portfolio project. It is not a finish
 
 ## Repository Map
 
-| Area | What to look at |
-| --- | --- |
-| App shell | [`OpenIntelligence/App`](OpenIntelligence/App) |
-| Core models and protocols | [`OpenIntelligence/Core`](OpenIntelligence/Core) |
-| Document library UI | [`OpenIntelligence/Features/Documents`](OpenIntelligence/Features/Documents) |
-| Chat and answer surfaces | [`OpenIntelligence/Features/Chat`](OpenIntelligence/Features/Chat) |
-| Diagnostics and validation UI | [`OpenIntelligence/Features/Diagnostics`](OpenIntelligence/Features/Diagnostics) |
-| Telemetry and visualizations | [`OpenIntelligence/Features/Telemetry`](OpenIntelligence/Features/Telemetry) |
-| Document processing services | [`OpenIntelligence/Services/Document`](OpenIntelligence/Services/Document) |
-| Embedding providers | [`OpenIntelligence/Services/Embedding`](OpenIntelligence/Services/Embedding) |
-| Query analysis and rewriting | [`OpenIntelligence/Services/Query`](OpenIntelligence/Services/Query) |
-| RAG orchestration, retrieval, and safety | [`OpenIntelligence/Services/RAG`](OpenIntelligence/Services/RAG) |
-| Storage and vector search | [`OpenIntelligence/Services/Storage`](OpenIntelligence/Services/Storage), [`OpenIntelligence/Services/VectorStore`](OpenIntelligence/Services/VectorStore) |
-| Experimental engine API boundary | [`OpenIntelligence/SDK/OpenIntelligenceEngine.swift`](OpenIntelligence/SDK/OpenIntelligenceEngine.swift) |
-| Local model resources | [`OpenIntelligence/Resources/MLModels`](OpenIntelligence/Resources/MLModels) |
-| Benchmark and audit scripts | [`scripts`](scripts) |
-| Benchmark manifests and studio | [`Benchmarks`](Benchmarks) |
+| Area                                     | What to look at                                                                                                                                            |
+| ---------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| App shell                                | [`OpenIntelligence/App`](OpenIntelligence/App)                                                                                                             |
+| Core models and protocols                | [`OpenIntelligence/Core`](OpenIntelligence/Core)                                                                                                           |
+| Document library UI                      | [`OpenIntelligence/Features/Documents`](OpenIntelligence/Features/Documents)                                                                               |
+| Chat and answer surfaces                 | [`OpenIntelligence/Features/Chat`](OpenIntelligence/Features/Chat)                                                                                         |
+| Diagnostics and validation UI            | [`OpenIntelligence/Features/Diagnostics`](OpenIntelligence/Features/Diagnostics)                                                                           |
+| Telemetry and visualizations             | [`OpenIntelligence/Features/Telemetry`](OpenIntelligence/Features/Telemetry)                                                                               |
+| Document processing services             | [`OpenIntelligence/Services/Document`](OpenIntelligence/Services/Document)                                                                                 |
+| Embedding providers                      | [`OpenIntelligence/Services/Embedding`](OpenIntelligence/Services/Embedding)                                                                               |
+| Query analysis and rewriting             | [`OpenIntelligence/Services/Query`](OpenIntelligence/Services/Query)                                                                                       |
+| RAG orchestration, retrieval, and safety | [`OpenIntelligence/Services/RAG`](OpenIntelligence/Services/RAG)                                                                                           |
+| Storage and vector search                | [`OpenIntelligence/Services/Storage`](OpenIntelligence/Services/Storage), [`OpenIntelligence/Services/VectorStore`](OpenIntelligence/Services/VectorStore) |
+| Experimental engine API boundary         | [`OpenIntelligence/SDK/OpenIntelligenceEngine.swift`](OpenIntelligence/SDK/OpenIntelligenceEngine.swift)                                                   |
+| Local model resources                    | [`OpenIntelligence/Resources/MLModels`](OpenIntelligence/Resources/MLModels)                                                                               |
+| Benchmark and audit scripts              | [`scripts`](scripts)                                                                                                                                       |
+| Benchmark manifests and studio           | [`Benchmarks`](Benchmarks)                                                                                                                                 |
 
 ## Engineering Highlights
 
