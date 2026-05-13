@@ -4,16 +4,19 @@ OpenIntelligence is an experimental Apple-native document intelligence prototype
 
 It explores local-first document ingestion, library-based organization, retrieval, source-backed answers, citations, confidence signals, and AI-assisted reasoning on Apple platforms.
 
-This repository is meant to show the engineering work directly: the SwiftUI app, document ingestion services, retrieval stack, answer grounding logic, benchmark harness, local model resources, and technical notes are all linked from this front page.
+This repository is meant to show the engineering work directly: the SwiftUI app, document ingestion services, retrieval stack, answer grounding logic, benchmark harness, local model resources, technical notes, research references, and inspection assets are linked from this front page.
 
 OpenIntelligence is a proof-of-concept and portfolio project. It is not a finished enterprise SDK, regulated healthcare system, clinical decision-support tool, diagnostic system, production-ready commercial product, company, or product for sale.
 
 ## Start Here
 
+- [How it works](HOW_IT_WORKS.md): public workflow overview from import to cited answers.
 - [Architecture](Docs/ARCHITECTURE.md): app structure, service boundaries, data flow, and package boundary.
 - [Retrieval pipeline](Docs/RETRIEVAL_PIPELINE.md): ingestion, chunking, retrieval, context packing, grounded answer generation, and diagnostics.
 - [RAG technical specifications](Docs/Engineering/RAG_TECHNICAL.md): deeper implementation notes for HyDE, parent retrieval, compression, verification, reranking, and retrieval policy.
+- [Hard limits and claim boundaries](Docs/Engineering/HARD_LIMITS.md): current token budgets, model constraints, and safe claim boundaries.
 - [Storage and pipeline trace](Docs/Engineering/STORAGE_AND_PIPELINE_TRACE.md): current storage reality, SQLite/vector traces, container isolation, and benchmark hooks.
+- [Research index](Docs/Research/README.md): supporting references for Apple Foundation Models, RAG, OCR, and local AI design choices.
 - [Benchmarks](Benchmarks/README.md): manifest format, local RAG validation runner, document studio, outputs, and fixture guidance.
 - [Demo guide](Docs/DEMO.md): suggested public demo flow and safe demo-document guidance.
 - [Limitations](Docs/LIMITATIONS.md): product, safety, technical, and demo limits.
@@ -97,6 +100,21 @@ See [Retrieval Pipeline](Docs/RETRIEVAL_PIPELINE.md), [RAG Technical Specificati
 - [Apple Intelligence Foundation Language Models Tech Report Notes](Docs/Engineering/APPLE_FM_TECH_REPORT_2025.md): model architecture and platform constraints relevant to the prototype.
 - [Apple Intelligence Models and Specs](Docs/Engineering/APPLE_MODELS.md): context-window, token-budget, `LanguageModelSession`, tool-calling, and guided-generation notes.
 - [Private Cloud Compute Reference](Docs/Engineering/PRIVATE_CLOUD_COMPUTE.md): PCC architecture notes and conservative wording for what it does and does not imply.
+
+## Research Notes And Supporting Assets
+
+- [Research index](Docs/Research/README.md): source map and repo mapping for the deeper research notes.
+- [Apple Intelligence and Foundation Models research](Docs/Research/APPLE_INTELLIGENCE_AND_FOUNDATION_MODELS.md)
+- [RAG and retrieval research](Docs/Research/RAG_AND_RETRIEVAL_2024_2026.md)
+- [CAG and context engineering research](Docs/Research/CAG_AND_CONTEXT_ENGINEERING_2024_2026.md)
+- [Core ML, Metal, and on-device AI research](Docs/Research/COREML_METAL_ON_DEVICE_AI.md)
+- [Document intelligence and OCR research](Docs/Research/DOCUMENT_INTELLIGENCE_AND_OCR.md)
+- [Public workflow overview](HOW_IT_WORKS.md)
+- [Test documents](Docs/TestDocuments/README.md)
+- [Benchmark fixtures](Benchmarks/Fixtures/README.md)
+- [Research fixtures](Benchmarks/ResearchFixtures/README.md)
+- [Pipeline xray](Xrays/pipeline-xray/index.html)
+- [What's New](WHATS_NEW.md), [Changelog](CHANGELOG.md), [Privacy](PRIVACY.md), and [Third Party Notices](THIRD_PARTY_NOTICES.md)
 
 ## Benchmarks And Diagnostics
 
