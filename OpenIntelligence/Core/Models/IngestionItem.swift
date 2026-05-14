@@ -173,7 +173,12 @@ struct PipelineMetrics: Codable, Sendable, Equatable {
 
 struct IngestionItem: Identifiable, Codable, Sendable, Equatable {
     let id: UUID
-    let url: URL
+    private let legacyURL: URL?
+    let storageRelativePath: String?
+    var documentHash: String?
+    var leaseOwnerDeviceId: String?
+    var leaseExpiresAt: Date?
+    var lastLeaseHeartbeatAt: Date?
     var stage: IngestionStage
     var detail: String
     var progress: Double?
@@ -182,9 +187,43 @@ struct IngestionItem: Identifiable, Codable, Sendable, Equatable {
     var errorMessage: String?
     var metrics: PipelineMetrics = .init()
 
+    var url: URL {
+        if let storageRelativePath {
+            return AppSupportPaths.documentURL(forRelativePath: storageRelativePath)
+        }
+
+        if let legacyURL {
+            return legacyURL
+        }
+
+        return AppSupportPaths.importedDocumentsDirectoryURL().appendingPathComponent(id.uuidString)
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case id
+        case url
+        case storageRelativePath
+        case documentHash
+        case leaseOwnerDeviceId
+        case leaseExpiresAt
+        case lastLeaseHeartbeatAt
+        case stage
+        case detail
+        case progress
+        case startedAt
+        case finishedAt
+        case errorMessage
+        case metrics
+    }
+
     init(
         id: UUID = UUID(),
         url: URL,
+        storageRelativePath: String? = nil,
+        documentHash: String? = nil,
+        leaseOwnerDeviceId: String? = nil,
+        leaseExpiresAt: Date? = nil,
+        lastLeaseHeartbeatAt: Date? = nil,
         stage: IngestionStage = .queued,
         detail: String = "Queued",
         progress: Double? = nil,
@@ -193,8 +232,15 @@ struct IngestionItem: Identifiable, Codable, Sendable, Equatable {
         errorMessage: String? = nil,
         metrics: PipelineMetrics = PipelineMetrics()
     ) {
+        let resolvedRelativePath = storageRelativePath ?? AppSupportPaths.relativePath(for: url)
+
         self.id = id
-        self.url = url
+        self.legacyURL = resolvedRelativePath == nil ? url : nil
+        self.storageRelativePath = resolvedRelativePath
+        self.documentHash = documentHash
+        self.leaseOwnerDeviceId = leaseOwnerDeviceId
+        self.leaseExpiresAt = leaseExpiresAt
+        self.lastLeaseHeartbeatAt = lastLeaseHeartbeatAt
         self.stage = stage
         self.detail = detail
         self.progress = progress
@@ -204,8 +250,71 @@ struct IngestionItem: Identifiable, Codable, Sendable, Equatable {
         self.metrics = metrics
     }
 
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(UUID.self, forKey: .id)
+        let decodedLegacyURL = try container.decodeIfPresent(URL.self, forKey: .url)
+        let decodedRelativePath = try container.decodeIfPresent(String.self, forKey: .storageRelativePath)
+        let resolvedRelativePath = decodedRelativePath ?? decodedLegacyURL.flatMap { AppSupportPaths.relativePath(for: $0) }
+        legacyURL = resolvedRelativePath == nil ? decodedLegacyURL : nil
+        storageRelativePath = resolvedRelativePath
+        documentHash = try container.decodeIfPresent(String.self, forKey: .documentHash)
+        leaseOwnerDeviceId = try container.decodeIfPresent(String.self, forKey: .leaseOwnerDeviceId)
+        leaseExpiresAt = try container.decodeIfPresent(Date.self, forKey: .leaseExpiresAt)
+        lastLeaseHeartbeatAt = try container.decodeIfPresent(Date.self, forKey: .lastLeaseHeartbeatAt)
+        stage = try container.decode(IngestionStage.self, forKey: .stage)
+        detail = try container.decode(String.self, forKey: .detail)
+        progress = try container.decodeIfPresent(Double.self, forKey: .progress)
+        startedAt = try container.decodeIfPresent(Date.self, forKey: .startedAt)
+        finishedAt = try container.decodeIfPresent(Date.self, forKey: .finishedAt)
+        errorMessage = try container.decodeIfPresent(String.self, forKey: .errorMessage)
+        metrics = try container.decodeIfPresent(PipelineMetrics.self, forKey: .metrics) ?? .init()
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(id, forKey: .id)
+        try container.encodeIfPresent(legacyURL, forKey: .url)
+        try container.encodeIfPresent(storageRelativePath, forKey: .storageRelativePath)
+        try container.encodeIfPresent(documentHash, forKey: .documentHash)
+        try container.encodeIfPresent(leaseOwnerDeviceId, forKey: .leaseOwnerDeviceId)
+        try container.encodeIfPresent(leaseExpiresAt, forKey: .leaseExpiresAt)
+        try container.encodeIfPresent(lastLeaseHeartbeatAt, forKey: .lastLeaseHeartbeatAt)
+        try container.encode(stage, forKey: .stage)
+        try container.encode(detail, forKey: .detail)
+        try container.encodeIfPresent(progress, forKey: .progress)
+        try container.encodeIfPresent(startedAt, forKey: .startedAt)
+        try container.encodeIfPresent(finishedAt, forKey: .finishedAt)
+        try container.encodeIfPresent(errorMessage, forKey: .errorMessage)
+        try container.encode(metrics, forKey: .metrics)
+    }
+
     var filename: String {
         url.lastPathComponent
+    }
+
+    func hasActiveLease(at date: Date = Date()) -> Bool {
+        guard let leaseOwnerDeviceId, !leaseOwnerDeviceId.isEmpty,
+              let leaseExpiresAt else {
+            return false
+        }
+        return leaseExpiresAt > date
+    }
+
+    func isLeased(to deviceId: String, at date: Date = Date()) -> Bool {
+        hasActiveLease(at: date) && leaseOwnerDeviceId == deviceId
+    }
+
+    mutating func claimLease(ownerDeviceId: String, duration: TimeInterval, now: Date = Date()) {
+        leaseOwnerDeviceId = ownerDeviceId
+        lastLeaseHeartbeatAt = now
+        leaseExpiresAt = now.addingTimeInterval(duration)
+    }
+
+    mutating func clearLease() {
+        leaseOwnerDeviceId = nil
+        leaseExpiresAt = nil
+        lastLeaseHeartbeatAt = nil
     }
 }
 

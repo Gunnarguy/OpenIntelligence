@@ -13,7 +13,7 @@ struct PrivacyPolicyView: View {
                         .font(.largeTitle.weight(.bold))
                         .padding(.bottom, 8)
 
-                    Text("Last updated: February 28, 2026")
+                    Text("Last updated: May 13, 2026")
                         .font(.caption)
                         .foregroundStyle(.secondary)
 
@@ -21,7 +21,7 @@ struct PrivacyPolicyView: View {
 
                     Group {
                         section(title: "Our Privacy Commitment", content: """
-OpenIntelligence is designed privacy-first. Your documents stay on your device by default. If Apple-managed platform processing or another provider you explicitly enable is used, OpenIntelligence does not store your raw documents on any developer-operated server.
+OpenIntelligence is designed privacy-first. Your documents stay on your device by default. If you explicitly enable Shared Workspace Sync, the app copies your workspace into your iCloud Drive container so your own devices can share the same imported files and processed libraries. If Apple-managed platform processing or another provider you explicitly enable is used, OpenIntelligence does not store your raw documents on any developer-operated server.
 """)
 
                         section(title: "Information We Collect", content: """
@@ -29,6 +29,11 @@ OpenIntelligence is designed privacy-first. Your documents stay on your device b
 • Document content and embeddings stored locally in app sandbox
 • Usage telemetry (feature usage, performance metrics) - stays on-device only
 • No data leaves your device for developer-operated processing unless you explicitly enable an external provider path
+
+**Shared Workspace Sync (Optional):**
+• Imported source files, processed libraries, and chat history can be stored in your iCloud Drive app container when you enable Shared Workspace Sync
+• This sync path is Apple-managed and intended only for sharing your workspace across your own devices signed into the same Apple account
+• OpenIntelligence does not copy this synced workspace to any developer-operated server
 
 **Cloud Processing (With Your Consent or Platform Routing):**
 • Apple-managed platform processing, where available, is governed by Apple's privacy and security policies
@@ -55,6 +60,7 @@ We never:
 
                         section(title: "Data Storage & Security", content: """
 • **Local Storage**: Documents and embeddings are stored in the app sandbox and protected by platform data protection
+• **Optional iCloud Sync**: When Shared Workspace Sync is enabled, the app stores synced workspace data in your iCloud Drive container so another device can reuse the same imported and processed files
 • **Cloud Providers**: Any enabled provider path is governed by that provider's privacy and security policies
 • **Retention**: Local data persists until you delete it; provider retention is governed by the relevant provider policy
 • **Backups**: iCloud backups may include local app data if enabled in device settings
@@ -65,6 +71,7 @@ We never:
 • **Data Deletion**: Delete documents, containers, or entire workspace in Settings
 • **Telemetry**: Opt out of anonymous telemetry in Settings → Developer
 • **Cloud Access**: Revoke cloud provider consent anytime in Settings → Privacy
+• **Workspace Sync**: Turn Shared Workspace Sync on or off anytime in Settings → Shared Workspace Sync
 """)
 
                         section(title: "Third-Party Services", content: """

@@ -97,15 +97,11 @@ struct DocumentPicker: UIViewControllerRepresentable {
 
                 defer { url.stopAccessingSecurityScopedResource() }
 
-                // Copy to app's document directory
+                // Copy into the app-managed workspace so the same source file can sync across devices.
                 let fileManager = FileManager.default
-                let documentsPath = fileManager.urls(for: .documentDirectory, in: .userDomainMask)[0]
-                let destinationURL = documentsPath.appendingPathComponent(url.lastPathComponent)
+                let destinationURL = AppSupportPaths.nextAvailableImportedDocumentURL(preferredFileName: url.lastPathComponent)
 
                 do {
-                    if fileManager.fileExists(atPath: destinationURL.path) {
-                        try fileManager.removeItem(at: destinationURL)
-                    }
                     try fileManager.copyItem(at: url, to: destinationURL)
                     copiedURLs.append(destinationURL)
                     Log.debug("✓ Queued: \(url.lastPathComponent)", category: .ingestion)

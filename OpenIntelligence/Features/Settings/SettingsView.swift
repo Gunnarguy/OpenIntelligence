@@ -12,6 +12,7 @@ struct SettingsView: View {
     @ObservedObject var ragService: RAGService
     @EnvironmentObject private var settings: SettingsStore
     @EnvironmentObject private var entitlementStore: EntitlementStore
+    @EnvironmentObject private var workspaceSyncService: WorkspaceSyncService
     @Environment(\.openURL) private var openURL
 
     // Note: SystemStateMonitor moved to LiveSystemMonitorWrapper to avoid full-view redraws
@@ -32,6 +33,9 @@ struct SettingsView: View {
 
                     // Privacy & Execution (combined)
                     privacyExecutionCard
+
+                    // Shared Workspace Sync
+                    sharedWorkspaceCard
 
                     // Subscription
                     billingCard
@@ -507,6 +511,71 @@ Text(label)
 .padding()
     .background(DSColors.surface)
     .clipShape(RoundedRectangle(cornerRadius: 16))
+    }
+
+    @ViewBuilder
+    private var sharedWorkspaceCard: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack {
+                Image(systemName: "icloud.and.arrow.up.fill")
+                    .foregroundColor(.accentColor)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Shared Workspace Sync")
+                        .font(.headline)
+                    Text("Keep the same libraries across iPhone and iPad")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+                Spacer()
+
+                Text(workspaceSyncService.isUsingSharedWorkspace ? "iCloud Drive" : "Local Only")
+                    .font(.caption.weight(.semibold))
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 4)
+                    .background((workspaceSyncService.isUsingSharedWorkspace ? Color.green : Color.secondary).opacity(0.15))
+                    .foregroundColor(workspaceSyncService.isUsingSharedWorkspace ? .green : .secondary)
+                    .clipShape(Capsule())
+            }
+
+            Toggle(isOn: $settings.enableSharedWorkspaceSync) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Sync imported files, processed libraries, and pickup state")
+                        .font(.subheadline.weight(.medium))
+                    Text("When enabled, imports are copied into one shared app workspace so another device can use the same processed library instead of re-converting it.")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+            }
+
+            VStack(alignment: .leading, spacing: 6) {
+                pccBenefitRow(icon: "checkmark.circle.fill", text: "Imports copied into a shared workspace instead of staying device-local", color: .green)
+                pccBenefitRow(icon: "arrow.trianglehead.2.clockwise.rotate.90", text: "A second device can pick up queued work if the first one drops out", color: .accentColor)
+                pccBenefitRow(icon: "person.crop.circle.badge.checkmark", text: "Requires iCloud Drive and the same Apple account on both devices", color: .secondary)
+            }
+            .padding(10)
+            .background(Color.accentColor.opacity(0.06))
+            .clipShape(RoundedRectangle(cornerRadius: 10))
+
+            Text(workspaceSyncService.statusMessage)
+                .font(.caption)
+                .foregroundColor(.secondary)
+
+            if let rootDescription = workspaceSyncService.workspaceRootDescription, workspaceSyncService.isUsingSharedWorkspace {
+                Text(rootDescription)
+                    .font(.caption2)
+                    .foregroundColor(.secondary.opacity(0.8))
+                    .textSelection(.enabled)
+            }
+
+            if let lastErrorMessage = workspaceSyncService.lastErrorMessage, settings.enableSharedWorkspaceSync {
+                Text(lastErrorMessage)
+                    .font(.caption)
+                    .foregroundColor(.orange)
+            }
+        }
+        .padding()
+        .background(DSColors.surface)
+        .clipShape(RoundedRectangle(cornerRadius: 16))
     }
 
     @ViewBuilder

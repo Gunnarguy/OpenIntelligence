@@ -87,6 +87,9 @@ final class SettingsStore: ObservableObject {
         static let enableTranslation = "enableTranslation" // Bool
         static let enableSpeechAnalysis = "enableSpeechAnalysis" // Bool
         static let smartReplyCount = "smartReplyCount" // Int (1-5)
+
+        // Shared Workspace Sync
+        static let enableSharedWorkspaceSync = WorkspaceSyncService.syncEnabledDefaultsKey
     }
 
     // MARK: - Published Settings (bind from UI)
@@ -254,6 +257,9 @@ final class SettingsStore: ObservableObject {
 
     /// Number of smart reply suggestions to generate (1-5).
     @Published var smartReplyCount: Int
+
+    /// Sync imported documents, processed libraries, and chat history through a shared iCloud workspace.
+    @Published var enableSharedWorkspaceSync: Bool
 
     // MARK: - Infra
 
@@ -462,6 +468,7 @@ final class SettingsStore: ObservableObject {
         enableTranslation = defaults.object(forKey: Keys.enableTranslation) as? Bool ?? true
         enableSpeechAnalysis = defaults.object(forKey: Keys.enableSpeechAnalysis) as? Bool ?? true
         smartReplyCount = defaults.object(forKey: Keys.smartReplyCount) as? Int ?? 3
+        enableSharedWorkspaceSync = defaults.object(forKey: Keys.enableSharedWorkspaceSync) as? Bool ?? false
 
         // Quality mode - load from UserDefaults or default to standard
         if let savedMode = defaults.string(forKey: Keys.ragQualityMode),
@@ -548,6 +555,7 @@ final class SettingsStore: ObservableObject {
             $enableTranslation.map { _ in () }.eraseToAnyPublisher(),
             $enableSpeechAnalysis.map { _ in () }.eraseToAnyPublisher(),
             $smartReplyCount.map { _ in () }.eraseToAnyPublisher(),
+            $enableSharedWorkspaceSync.map { _ in () }.eraseToAnyPublisher(),
         ]
         Publishers.MergeMany(publishers)
             .sink { [weak self] in
@@ -691,6 +699,7 @@ final class SettingsStore: ObservableObject {
         defaults.set(enableTranslation, forKey: Keys.enableTranslation)
         defaults.set(enableSpeechAnalysis, forKey: Keys.enableSpeechAnalysis)
         defaults.set(smartReplyCount, forKey: Keys.smartReplyCount)
+        defaults.set(enableSharedWorkspaceSync, forKey: Keys.enableSharedWorkspaceSync)
     }
 
     // MARK: - Side Effects (Debounced)

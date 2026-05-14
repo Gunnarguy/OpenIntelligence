@@ -54,6 +54,29 @@ final class ContainerService: ObservableObject {
         }
     }
 
+    func reloadFromDisk() {
+        let loaded = Self.loadContainers()
+        if loaded.isEmpty {
+            let def = Self.defaultContainer()
+            containers = [def]
+            activeContainerId = def.id
+            Self.saveContainers(containers)
+        } else {
+            containers = loaded
+            if !containers.contains(where: { $0.id == activeContainerId }) {
+                if let savedActive = UserDefaults.standard.string(forKey: "activeContainerId"),
+                   let uuid = UUID(uuidString: savedActive),
+                   loaded.contains(where: { $0.id == uuid }) {
+                    activeContainerId = uuid
+                } else if let first = loaded.first {
+                    activeContainerId = first.id
+                }
+            }
+        }
+
+        UserDefaults.standard.set(activeContainerId.uuidString, forKey: "activeContainerId")
+    }
+
     func createContainer(
         name: String,
         icon: String = "folder.fill",

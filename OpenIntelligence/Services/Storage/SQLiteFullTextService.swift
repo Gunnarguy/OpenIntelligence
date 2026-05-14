@@ -71,9 +71,15 @@ actor SQLiteFullTextService {
     private let fileManager = FileManager.default
     private let jsonEncoder = JSONEncoder()
 
+    nonisolated private static var directDatabaseURL: URL {
+        OpenIntelligenceRuntimePaths.localCacheDirectory()
+            .appendingPathComponent("FTS5", isDirectory: true)
+            .appendingPathComponent("fulltext.sqlite")
+    }
+
     /// Database file location
     private var databasePath: URL {
-        let dir = AppSupportPaths.baseDir().appendingPathComponent("FTS5", isDirectory: true)
+        let dir = AppSupportPaths.localCacheDir().appendingPathComponent("FTS5", isDirectory: true)
         try? fileManager.createDirectory(at: dir, withIntermediateDirectories: true)
         return dir.appendingPathComponent("fulltext.sqlite")
     }
@@ -2718,12 +2724,7 @@ actor SQLiteFullTextService {
     /// Opens its own connection — does NOT touch the actor. Called once
     /// after the Database tab loads so subsequent document taps are instant.
     nonisolated static func backgroundPopulateContentTable() {
-        let fm = FileManager.default
-        guard let appSupport = fm.urls(for: .applicationSupportDirectory, in: .userDomainMask).first else { return }
-        let dbPath = appSupport
-            .appendingPathComponent("OpenIntelligence/FTS5", isDirectory: true)
-            .appendingPathComponent("fulltext.sqlite")
-            .path
+        let dbPath = directDatabaseURL.path
 
         var db: OpaquePointer?
         guard sqlite3_open_v2(dbPath, &db, SQLITE_OPEN_READWRITE, nil) == SQLITE_OK else {
@@ -2776,14 +2777,7 @@ actor SQLiteFullTextService {
     /// This static method sidesteps the issue entirely by opening its own
     /// read-only connection. Safe because SQLite WAL mode supports concurrent readers.
     nonisolated static func readContentDirectly(documentId: UUID) -> String? {
-        let fm = FileManager.default
-        guard let appSupport = fm.urls(for: .applicationSupportDirectory, in: .userDomainMask).first else {
-            return nil
-        }
-        let dbPath = appSupport
-            .appendingPathComponent("OpenIntelligence/FTS5", isDirectory: true)
-            .appendingPathComponent("fulltext.sqlite")
-            .path
+        let dbPath = directDatabaseURL.path
 
         // Open separate read-only connection — does NOT touch the actor's connection
         var db: OpaquePointer?

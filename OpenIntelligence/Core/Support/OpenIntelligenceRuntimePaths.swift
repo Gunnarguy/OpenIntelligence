@@ -2,11 +2,33 @@ import Foundation
 
 enum OpenIntelligenceRuntimePaths {
     nonisolated(unsafe) private static var overrideBaseDirectory: URL?
+    nonisolated(unsafe) private static var overrideLocalCacheDirectory: URL?
 
     nonisolated static func setBaseDirectory(_ url: URL?) {
         objc_sync_enter(Self.self)
         defer { objc_sync_exit(Self.self) }
         overrideBaseDirectory = url
+    }
+
+    nonisolated static func setLocalCacheDirectory(_ url: URL?) {
+        objc_sync_enter(Self.self)
+        defer { objc_sync_exit(Self.self) }
+        overrideLocalCacheDirectory = url
+    }
+
+    nonisolated static func resetOverrides() {
+        objc_sync_enter(Self.self)
+        defer { objc_sync_exit(Self.self) }
+        overrideBaseDirectory = nil
+        overrideLocalCacheDirectory = nil
+    }
+
+    nonisolated static func applicationSupportRoot(defaultFolderName: String = "OpenIntelligence") -> URL {
+        let fm = FileManager.default
+        let appSupport = fm.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+        let dir = appSupport.appendingPathComponent(defaultFolderName, isDirectory: true)
+        try? fm.createDirectory(at: dir, withIntermediateDirectories: true)
+        return dir
     }
 
     nonisolated static func baseDirectory(defaultFolderName: String = "OpenIntelligence") -> URL {
@@ -22,10 +44,25 @@ enum OpenIntelligenceRuntimePaths {
             return overrideBaseDirectory
         }
 
-        let fm = FileManager.default
-        let appSupport = fm.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-        let dir = appSupport.appendingPathComponent(defaultFolderName, isDirectory: true)
-        try? fm.createDirectory(at: dir, withIntermediateDirectories: true)
+        return applicationSupportRoot(defaultFolderName: defaultFolderName)
+    }
+
+    nonisolated static func localCacheDirectory(defaultFolderName: String = "OpenIntelligence") -> URL {
+        objc_sync_enter(Self.self)
+        let overrideLocalCacheDirectory = overrideLocalCacheDirectory
+        objc_sync_exit(Self.self)
+
+        if let overrideLocalCacheDirectory {
+            try? FileManager.default.createDirectory(
+                at: overrideLocalCacheDirectory,
+                withIntermediateDirectories: true
+            )
+            return overrideLocalCacheDirectory
+        }
+
+        let dir = applicationSupportRoot(defaultFolderName: defaultFolderName)
+            .appendingPathComponent("LocalCache", isDirectory: true)
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         return dir
     }
 }

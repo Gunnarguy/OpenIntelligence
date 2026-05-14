@@ -306,6 +306,7 @@ enum IngestionContext: String, Codable, Sendable {
 /// Coordinates document processing, embedding, retrieval, and generation
 class RAGService: ObservableObject {
     nonisolated private static let maxPersistedChatHistoryBytes = 4 * 1024 * 1024
+    nonisolated private static let ingestionLeaseDuration: TimeInterval = 120
 
     // MARK: - Dependencies
 
@@ -331,6 +332,7 @@ class RAGService: ObservableObject {
     @MainActor private var ingestionTask: Task<Void, Never>?
     @MainActor private var ingestionContexts: [UUID: IngestionContext] = [:]
     @MainActor private var liveActivityTrackedIngestionIds: Set<UUID> = []
+    @MainActor private var lastLocalIndexSyncFingerprint: String?
 
     /// Helper to get document name by ID
     @MainActor
@@ -753,20 +755,33 @@ class RAGService: ObservableObject {
             let state = try decoder.decode(PersistedIngestionQueueState.self, from: data)
             var restoredItems: [IngestionItem] = []
             var restoredContexts: [UUID: IngestionContext] = [:]
+            let currentDeviceID = WorkspaceSyncService.currentDeviceID()
+            let now = Date()
 
             for item in state.items {
-                if item.url.isFileURL, !FileManager.default.fileExists(atPath: item.url.path) {
-                    Log.warning("[RAGService] Skipping persisted ingestion item because file is missing: \(item.url.lastPathComponent)", category: .ingestion)
-                    continue
+                if item.url.isFileURL {
+                    if FileManager.default.isUbiquitousItem(at: item.url) {
+                        try? FileManager.default.startDownloadingUbiquitousItem(at: item.url)
+                    } else if !FileManager.default.fileExists(atPath: item.url.path) {
+                        Log.warning("[RAGService] Skipping persisted ingestion item because file is missing: \(item.url.lastPathComponent)", category: .ingestion)
+                        continue
+                    }
                 }
 
                 var resumedItem = item
-                resumedItem.stage = .queued
-                resumedItem.detail = "Queued for resume"
-                resumedItem.progress = nil
-                resumedItem.startedAt = nil
-                resumedItem.finishedAt = nil
-                resumedItem.errorMessage = nil
+
+                if item.isLeased(to: currentDeviceID, at: now) || !item.hasActiveLease(at: now) {
+                    resumedItem.stage = .queued
+                    resumedItem.detail = item.stage == .queued ? "Queued" : "Queued for pickup"
+                    resumedItem.progress = nil
+                    resumedItem.startedAt = nil
+                    resumedItem.finishedAt = nil
+                    resumedItem.errorMessage = nil
+                    resumedItem.clearLease()
+                } else {
+                    resumedItem.detail = "Processing on another device"
+                }
+
                 restoredItems.append(resumedItem)
             }
 
@@ -820,6 +835,7 @@ class RAGService: ObservableObject {
             ingestionItems[index].finishedAt = nil
             ingestionItems[index].errorMessage = nil
             ingestionItems[index].metrics = .init()
+            ingestionItems[index].clearLease()
         }
 
         Log.warning("[RAGService] Continued ingestion expired; queued \(activeIndices.count) item(s) for resume", category: .ingestion)
@@ -2980,38 +2996,65 @@ class RAGService: ObservableObject {
     // MARK: - Document Persistence
 
     private var documentsStorageURL: URL {
-        let fileManager = FileManager.default
-        let appSupportURL = fileManager.urls(
-            for: .applicationSupportDirectory, in: .userDomainMask
-        )[0]
-        let appDirectory = appSupportURL.appendingPathComponent("OpenIntelligence", isDirectory: true)
-        try? fileManager.createDirectory(at: appDirectory, withIntermediateDirectories: true)
-        return appDirectory.appendingPathComponent("documents_metadata.json")
+        AppSupportPaths.documentsMetadataURL()
     }
 
     private func loadDocumentsFromDisk() {
+        let loadedDocuments = loadDocumentsSnapshotFromDisk()
+        Task { @MainActor [weak self] in
+            self?.applyLoadedDocuments(loadedDocuments)
+        }
+    }
+
+    private func loadDocumentsSnapshotFromDisk() -> [Document] {
         let fileManager = FileManager.default
         guard fileManager.fileExists(atPath: documentsStorageURL.path) else {
             Log.info("  [RAGService] No existing documents metadata found")
-            return
+            return []
         }
 
         do {
             let data = try Data(contentsOf: documentsStorageURL)
-            let decoder = JSONDecoder()
-            let loadedDocuments = try decoder.decode([Document].self, from: data)
-
-            Task { @MainActor in
-                self.documents = loadedDocuments
-                self.totalChunksStored = loadedDocuments.reduce(0) { $0 + $1.totalChunks }
-                self.syncAllContainerStats()
-                Log.info("[RAGService] Loaded \(loadedDocuments.count) documents (\(totalChunksStored) chunks)")
-                if !loadedDocuments.isEmpty {
-                    self.refreshIntelligence(for: nil)
-                }
-            }
+            return try JSONDecoder().decode([Document].self, from: data)
         } catch {
             Log.error(" [RAGService] Failed to load documents metadata: \(error.localizedDescription)")
+            return []
+        }
+    }
+
+    @MainActor
+    private func applyLoadedDocuments(_ loadedDocuments: [Document]) {
+        documents = loadedDocuments
+        totalChunksStored = loadedDocuments.reduce(0) { $0 + $1.totalChunks }
+        syncAllContainerStats()
+        Log.info("[RAGService] Loaded \(loadedDocuments.count) documents (\(totalChunksStored) chunks)")
+        if !loadedDocuments.isEmpty {
+            refreshIntelligence(for: nil)
+        }
+    }
+
+    @MainActor
+    func reloadWorkspaceData() {
+        vectorRouter.clearAll()
+
+        let loadedDocuments = loadDocumentsSnapshotFromDisk()
+        applyLoadedDocuments(loadedDocuments)
+        restorePersistedIngestionQueueIfNeeded()
+
+        let fingerprint = localIndexSyncFingerprint(for: loadedDocuments)
+        guard fingerprint != lastLocalIndexSyncFingerprint else {
+            return
+        }
+
+        lastLocalIndexSyncFingerprint = fingerprint
+        Task { [weak self] in
+            guard let self else { return }
+            let succeeded = await self.rebuildLocalSearchIndexesFromCanonicalState(documents: loadedDocuments)
+            if !succeeded {
+                await MainActor.run {
+                    self.lastLocalIndexSyncFingerprint = nil
+                }
+            }
         }
     }
 
@@ -3814,7 +3857,20 @@ class RAGService: ObservableObject {
 
     @MainActor
     private func nextQueuedIngestionItem() -> IngestionItem? {
-        ingestionItems.first { $0.stage == .queued }
+        let now = Date()
+        let currentDeviceID = WorkspaceSyncService.currentDeviceID()
+        guard let index = ingestionItems.firstIndex(where: { item in
+            guard item.stage == .queued else { return false }
+            return !item.hasActiveLease(at: now) || item.isLeased(to: currentDeviceID, at: now)
+        }) else {
+            return nil
+        }
+
+        var item = ingestionItems[index]
+        item.claimLease(ownerDeviceId: currentDeviceID, duration: Self.ingestionLeaseDuration, now: now)
+        ingestionItems[index] = item
+        savePersistedIngestionQueueState()
+        return item
     }
 
     @MainActor
@@ -3837,6 +3893,7 @@ class RAGService: ObservableObject {
         }
 
         var item = ingestionItems[index]
+        let currentDeviceID = WorkspaceSyncService.currentDeviceID()
         item.stage = stage
         item.detail = detail
         item.progress = progress
@@ -3848,6 +3905,11 @@ class RAGService: ObservableObject {
             if let startedAt = item.startedAt {
                 item.metrics.totalTimeMs = Int(Date().timeIntervalSince(startedAt) * 1000)
             }
+            item.clearLease()
+        } else if stage == .queued {
+            item.clearLease()
+        } else {
+            item.claimLease(ownerDeviceId: currentDeviceID, duration: Self.ingestionLeaseDuration)
         }
         if let errorMessage {
             item.errorMessage = errorMessage
@@ -4024,7 +4086,9 @@ class RAGService: ObservableObject {
         trackingId: UUID? = nil,
         manageProcessingState: Bool = true
     ) async throws {
-        let filename = url.lastPathComponent
+        let managedURL = try prepareManagedDocumentURL(from: url)
+        try await WorkspaceSyncService.ensureItemAvailableLocally(at: managedURL)
+        let filename = managedURL.lastPathComponent
 
         // Onboarding sample docs bypass quota — they're educational material
         // that ships with the app, not user-generated content
@@ -4186,7 +4250,7 @@ class RAGService: ObservableObject {
             // Step 1: Parse document and extract chunks
             let extractionStartTime = Date()
             let (document, processedChunks) = try await documentProcessor.processDocument(
-                at: url,
+                at: managedURL,
                 chunkOverride: chunkOverride,
                 containerId: activeContainerId  // FTS5 storage with container isolation
             )
@@ -4201,7 +4265,7 @@ class RAGService: ObservableObject {
             let maxChunkWords = chunkWordCounts.max() ?? 0
 
             // Get file metadata
-            let fileAttrs = try? FileManager.default.attributesOfItem(atPath: url.path)
+            let fileAttrs = try? FileManager.default.attributesOfItem(atPath: managedURL.path)
             let fileSizeMB = Double((fileAttrs?[.size] as? Int64) ?? 0) / 1_048_576.0
 
             TelemetryCenter.emit(
@@ -4954,10 +5018,13 @@ class RAGService: ObservableObject {
                     id: document.id,
                     filename: document.filename,
                     fileURL: document.fileURL,
+                    storageRelativePath: document.storageRelativePath,
+                    fileHash: document.fileHash,
                     contentType: document.contentType,
                     addedAt: document.addedAt,
                     totalChunks: document.totalChunks,
                     processingMetadata: completeMetadata,
+                    containerId: document.containerId,
                     contentTags: generatedContentTags
                 )
             }
@@ -4967,6 +5034,8 @@ class RAGService: ObservableObject {
                 id: updatedDocument.id,
                 filename: updatedDocument.filename,
                 fileURL: updatedDocument.fileURL,
+                storageRelativePath: updatedDocument.storageRelativePath,
+                fileHash: updatedDocument.fileHash,
                 contentType: updatedDocument.contentType,
                 addedAt: updatedDocument.addedAt,
                 totalChunks: updatedDocument.totalChunks,
@@ -5088,6 +5157,111 @@ class RAGService: ObservableObject {
                 ]
             )
             throw error
+        }
+    }
+
+    private func prepareManagedDocumentURL(from url: URL) throws -> URL {
+        if let relativePath = AppSupportPaths.relativePath(for: url) {
+            return AppSupportPaths.documentURL(forRelativePath: relativePath)
+        }
+
+        let destinationURL = AppSupportPaths.nextAvailableImportedDocumentURL(preferredFileName: url.lastPathComponent)
+        if !FileManager.default.fileExists(atPath: destinationURL.path) {
+            try FileManager.default.copyItem(at: url, to: destinationURL)
+        }
+        return destinationURL
+    }
+
+    @MainActor
+    private func localIndexSyncFingerprint(for documents: [Document]) -> String {
+        documents
+            .sorted { $0.id.uuidString < $1.id.uuidString }
+            .map { document in
+                let containerComponent = document.containerId?.uuidString ?? "none"
+                let pathComponent = document.storageRelativePath ?? document.fileURL.path
+                return "\(document.id.uuidString)|\(containerComponent)|\(document.totalChunks)|\(pathComponent)"
+            }
+            .joined(separator: ";")
+    }
+
+    private func rebuildLocalSearchIndexesFromCanonicalState(documents: [Document]) async -> Bool {
+        let snapshot = await MainActor.run {
+            (self.containerService.containers, self.containerService.containers.first?.id)
+        }
+        let containers = snapshot.0
+        let defaultContainerId = snapshot.1
+
+        do {
+            for container in containers {
+                await SQLiteFullTextService.shared.deleteContainer(containerId: container.id)
+                await SQLiteFullTextService.shared.deleteChunksForContainer(containerId: container.id)
+
+                let containerDocuments = documents.filter { document in
+                    (document.containerId ?? defaultContainerId) == container.id
+                }
+                guard !containerDocuments.isEmpty else { continue }
+
+                let database = await MainActor.run { self.vectorRouter.db(for: container) }
+                let allChunks = try await database.allChunks()
+                let chunksByDocument = Dictionary(grouping: allChunks, by: \ .documentId)
+
+                for document in containerDocuments {
+                    guard let unsortedChunks = chunksByDocument[document.id], !unsortedChunks.isEmpty else {
+                        continue
+                    }
+
+                    let documentChunks = unsortedChunks.sorted { $0.metadata.chunkIndex < $1.metadata.chunkIndex }
+                    let fullText = documentChunks.map(\ .content).joined(separator: "\n\n")
+                    await SQLiteFullTextService.shared.store(text: fullText, for: document.id, containerId: container.id)
+
+                    let chunkPayload = documentChunks.map { chunk in
+                        (
+                            chunkIndex: chunk.metadata.chunkIndex,
+                            pageNumber: chunk.metadata.pageNumber,
+                            sectionTitle: chunk.metadata.sectionTitle,
+                            sectionPath: chunk.metadata.sectionPath?.joined(separator: " > "),
+                            structureType: chunk.metadata.structureType,
+                            chunkType: chunk.metadata.chunkType?.rawValue,
+                            tableTitle: chunk.metadata.tableTitle,
+                            content: chunk.content,
+                            structuredMetadata: Optional<SQLiteFullTextService.StructuredChunkMetadata>.none
+                        )
+                    }
+                    await SQLiteFullTextService.shared.storeChunks(
+                        documentId: document.id,
+                        containerId: container.id,
+                        chunks: chunkPayload
+                    )
+
+                    let pages = Dictionary(grouping: documentChunks.compactMap { chunk -> (Int, String)? in
+                        guard let pageNumber = chunk.metadata.pageNumber else { return nil }
+                        return (pageNumber, chunk.content)
+                    }, by: { $0.0 })
+                        .map { pageNumber, contentPairs in
+                            (
+                                pageNumber: pageNumber,
+                                content: contentPairs
+                                    .sorted { $0.0 < $1.0 }
+                                    .map(\ .1)
+                                    .joined(separator: "\n\n")
+                            )
+                        }
+                        .sorted { $0.pageNumber < $1.pageNumber }
+
+                    if !pages.isEmpty {
+                        await SQLiteFullTextService.shared.storePages(
+                            pages: pages,
+                            for: document.id,
+                            containerId: container.id
+                        )
+                    }
+                }
+            }
+
+            return true
+        } catch {
+            Log.error("[RAGService] Failed to rebuild local indexes from shared workspace: \(error.localizedDescription)", category: .ingestion)
+            return false
         }
     }
 

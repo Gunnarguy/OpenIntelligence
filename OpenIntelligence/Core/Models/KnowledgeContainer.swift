@@ -407,12 +407,28 @@ enum AppSupportPaths {
         OpenIntelligenceRuntimePaths.setBaseDirectory(url)
     }
 
+    nonisolated static func configureLocalCacheDir(_ url: URL?) {
+        OpenIntelligenceRuntimePaths.setLocalCacheDirectory(url)
+    }
+
+    nonisolated static func resetRuntimeDirectories() {
+        OpenIntelligenceRuntimePaths.resetOverrides()
+    }
+
     nonisolated static func baseDir() -> URL {
         OpenIntelligenceRuntimePaths.baseDirectory()
     }
 
+    nonisolated static func localCacheDir() -> URL {
+        OpenIntelligenceRuntimePaths.localCacheDirectory()
+    }
+
     nonisolated static func containersListURL() -> URL {
         baseDir().appendingPathComponent("containers.json")
+    }
+
+    nonisolated static func documentsMetadataURL() -> URL {
+        baseDir().appendingPathComponent("documents_metadata.json")
     }
 
     nonisolated static func documentsListURL(containerId: UUID) -> URL {
@@ -432,15 +448,54 @@ enum AppSupportPaths {
         baseDir().appendingPathComponent("ingestion_queue.json")
     }
 
+    nonisolated static func importedDocumentsDirectoryURL() -> URL {
+        let directory = baseDir().appendingPathComponent("ImportedDocuments", isDirectory: true)
+        try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        return directory
+    }
+
+    nonisolated static func documentURL(forRelativePath relativePath: String) -> URL {
+        baseDir().appendingPathComponent(relativePath)
+    }
+
+    nonisolated static func relativePath(for url: URL) -> String? {
+        let rootPath = baseDir().standardizedFileURL.path
+        let filePath = url.standardizedFileURL.path
+        let rootPrefix = rootPath.hasSuffix("/") ? rootPath : rootPath + "/"
+
+        guard filePath.hasPrefix(rootPrefix) else { return nil }
+        return String(filePath.dropFirst(rootPrefix.count))
+    }
+
+    nonisolated static func nextAvailableImportedDocumentURL(preferredFileName: String) -> URL {
+        let directory = importedDocumentsDirectoryURL()
+        let sanitizedFileName = preferredFileName.replacingOccurrences(of: "/", with: "-")
+        let nsName = sanitizedFileName as NSString
+        let ext = nsName.pathExtension
+        let stem = nsName.deletingPathExtension.isEmpty ? "Document" : nsName.deletingPathExtension
+
+        var candidateName = sanitizedFileName.isEmpty ? "Document" : sanitizedFileName
+        var counter = 2
+        var candidateURL = directory.appendingPathComponent(candidateName)
+
+        while FileManager.default.fileExists(atPath: candidateURL.path) {
+            candidateName = ext.isEmpty ? "\(stem)-\(counter)" : "\(stem)-\(counter).\(ext)"
+            candidateURL = directory.appendingPathComponent(candidateName)
+            counter += 1
+        }
+
+        return candidateURL
+    }
+
     nonisolated static func continuedIngestionStatusURL() -> URL {
-        baseDir().appendingPathComponent("continued_ingestion_status.json")
+        localCacheDir().appendingPathComponent("continued_ingestion_status.json")
     }
 
     nonisolated static func continuedQueryStateURL() -> URL {
-        baseDir().appendingPathComponent("continued_query_state.json")
+        localCacheDir().appendingPathComponent("continued_query_state.json")
     }
 
     nonisolated static func continuedQueryStatusURL() -> URL {
-        baseDir().appendingPathComponent("continued_query_status.json")
+        localCacheDir().appendingPathComponent("continued_query_status.json")
     }
 }

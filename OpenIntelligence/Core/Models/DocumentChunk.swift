@@ -422,7 +422,9 @@ struct ChunkMetadata: Codable, Sendable {
 struct Document: Identifiable, Codable {
     let id: UUID
     let filename: String
-    let fileURL: URL
+    private let legacyFileURL: URL?
+    let storageRelativePath: String?
+    let fileHash: String?
     let contentType: DocumentType
     let addedAt: Date
     let totalChunks: Int
@@ -433,10 +435,38 @@ struct Document: Identifiable, Codable {
     /// Contains topics, actions, emotions, and objects extracted from document content
     let contentTags: [String]?
 
+    var fileURL: URL {
+        if let storageRelativePath {
+            return AppSupportPaths.documentURL(forRelativePath: storageRelativePath)
+        }
+
+        if let legacyFileURL {
+            return legacyFileURL
+        }
+
+        return AppSupportPaths.importedDocumentsDirectoryURL().appendingPathComponent(filename)
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case id
+        case filename
+        case fileURL
+        case storageRelativePath
+        case fileHash
+        case contentType
+        case addedAt
+        case totalChunks
+        case processingMetadata
+        case containerId
+        case contentTags
+    }
+
     init(
         id: UUID = UUID(),
         filename: String,
         fileURL: URL,
+        storageRelativePath: String? = nil,
+        fileHash: String? = nil,
         contentType: DocumentType,
         addedAt: Date = Date(),
         totalChunks: Int = 0,
@@ -444,15 +474,52 @@ struct Document: Identifiable, Codable {
         containerId: UUID? = nil,
         contentTags: [String]? = nil
     ) {
+        let resolvedRelativePath = storageRelativePath ?? AppSupportPaths.relativePath(for: fileURL)
+
         self.id = id
         self.filename = filename
-        self.fileURL = fileURL
+        self.legacyFileURL = resolvedRelativePath == nil ? fileURL : nil
+        self.storageRelativePath = resolvedRelativePath
+        self.fileHash = fileHash
         self.contentType = contentType
         self.addedAt = addedAt
         self.totalChunks = totalChunks
         self.processingMetadata = processingMetadata
         self.containerId = containerId
         self.contentTags = contentTags
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(UUID.self, forKey: .id)
+        filename = try container.decode(String.self, forKey: .filename)
+        let decodedLegacyURL = try container.decodeIfPresent(URL.self, forKey: .fileURL)
+        let decodedRelativePath = try container.decodeIfPresent(String.self, forKey: .storageRelativePath)
+        let resolvedRelativePath = decodedRelativePath ?? decodedLegacyURL.flatMap { AppSupportPaths.relativePath(for: $0) }
+        legacyFileURL = resolvedRelativePath == nil ? decodedLegacyURL : nil
+        storageRelativePath = resolvedRelativePath
+        fileHash = try container.decodeIfPresent(String.self, forKey: .fileHash)
+        contentType = try container.decode(DocumentType.self, forKey: .contentType)
+        addedAt = try container.decode(Date.self, forKey: .addedAt)
+        totalChunks = try container.decodeIfPresent(Int.self, forKey: .totalChunks) ?? 0
+        processingMetadata = try container.decodeIfPresent(ProcessingMetadata.self, forKey: .processingMetadata)
+        containerId = try container.decodeIfPresent(UUID.self, forKey: .containerId)
+        contentTags = try container.decodeIfPresent([String].self, forKey: .contentTags)
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(id, forKey: .id)
+        try container.encode(filename, forKey: .filename)
+        try container.encodeIfPresent(legacyFileURL, forKey: .fileURL)
+        try container.encodeIfPresent(storageRelativePath, forKey: .storageRelativePath)
+        try container.encodeIfPresent(fileHash, forKey: .fileHash)
+        try container.encode(contentType, forKey: .contentType)
+        try container.encode(addedAt, forKey: .addedAt)
+        try container.encode(totalChunks, forKey: .totalChunks)
+        try container.encodeIfPresent(processingMetadata, forKey: .processingMetadata)
+        try container.encodeIfPresent(containerId, forKey: .containerId)
+        try container.encodeIfPresent(contentTags, forKey: .contentTags)
     }
 }
 

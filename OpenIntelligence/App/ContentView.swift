@@ -11,6 +11,7 @@ import SwiftUI
 
 struct ContentView: View {
     @Environment(\.scenePhase) private var scenePhase
+    @StateObject private var workspaceSyncService: WorkspaceSyncService
     @StateObject private var containerService: ContainerService
     @StateObject private var ragService: RAGService
     @StateObject private var settingsStore: SettingsStore
@@ -30,10 +31,12 @@ struct ContentView: View {
                 StoreKitTestHarness.startIfNeeded()
             }
         #endif
+        let workspaceSyncSvc = WorkspaceSyncService()
         let containerSvc = ContainerService()
         let billingSvc = StoreKitBillingService()
         let entitlementStore = EntitlementStore(billingService: billingSvc)
         let ragSvc = RAGService(containerService: containerSvc, entitlementStore: entitlementStore)
+        _workspaceSyncService = StateObject(wrappedValue: workspaceSyncSvc)
         _containerService = StateObject(wrappedValue: containerSvc)
         _ragService = StateObject(wrappedValue: ragSvc)
         _settingsStore = StateObject(wrappedValue: SettingsStore(ragService: ragSvc))
@@ -119,6 +122,7 @@ struct ContentView: View {
 .animation(.spring(response: 0.35, dampingFraction: 0.82), value: onboardingStore.hasDismissedPermanently)
         .environmentObject(onboardingStore)
         .environmentObject(entitlementStore)
+        .environmentObject(workspaceSyncService)
         // `DocumentLibraryView` (and other tabs) relies on SettingsStore via @EnvironmentObject.
         // Previously we only injected it on the Settings tab, which caused a runtime crash when
         // Documents tried to create a new library (it reads settings.useHighAccuracyEmbeddings).
@@ -127,6 +131,8 @@ struct ContentView: View {
         // In production this fetches App Store Connect products; in DEBUG/simulator,
         // this will emit a single warning if no StoreKit configuration is present.
         .task {
+            await refreshSharedWorkspaceIfNeeded(forceReload: true)
+
             #if DEBUG
             let environment = ProcessInfo.processInfo.environment
             let arguments = ProcessInfo.processInfo.arguments
@@ -159,6 +165,11 @@ struct ContentView: View {
 .onChange(of: scenePhase) { oldPhase, newPhase in
     handleScenePhaseChange(from: oldPhase, to: newPhase)
 }
+        .onChange(of: settingsStore.enableSharedWorkspaceSync) { _, _ in
+            Task { @MainActor in
+                await refreshSharedWorkspaceIfNeeded(forceReload: true)
+            }
+        }
         .onChange(of: selectedTab) { _, _ in
             DSHaptics.tabChanged()
         }
@@ -261,6 +272,9 @@ struct ContentView: View {
 
         case .active:
             entitlementStore.refreshTransientState()
+            Task { @MainActor in
+                await refreshSharedWorkspaceIfNeeded(forceReload: workspaceSyncService.isUsingSharedWorkspace)
+            }
             // Restore transcript when returning to foreground
             // Only restore if coming from background (not on initial launch)
             if oldPhase == .background {
@@ -281,6 +295,17 @@ struct ContentView: View {
         @unknown default:
             break
         }
+    }
+
+    @MainActor
+    private func refreshSharedWorkspaceIfNeeded(forceReload: Bool = false) async {
+        let didChangeWorkspaceRoots = await workspaceSyncService.reconfigureIfNeeded()
+        guard didChangeWorkspaceRoots || forceReload || workspaceSyncService.isUsingSharedWorkspace else {
+            return
+        }
+
+        containerService.reloadFromDisk()
+        ragService.reloadWorkspaceData()
     }
 
     @MainActor
