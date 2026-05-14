@@ -13,10 +13,12 @@ struct ContainerSettingsSheet: View {
     @ObservedObject var containerService: ContainerService
     @ObservedObject var ragService: RAGService
     @EnvironmentObject private var settings: SettingsStore
+    @EnvironmentObject private var workspaceSyncService: WorkspaceSyncService
     @Environment(\.dismiss) var dismiss
     @State var name: String = ""
     @State var icon: String = "folder.fill"
     @State var colorHex: String = "#4F46E5"
+    @State var syncMode: LibrarySyncMode = .localOnly
     @State var providerId: String = "coreml_sentence_embedding"
     @State var dim: Int = 384
     @State var dbKind: VectorDBKind = .persistentJSON
@@ -149,6 +151,7 @@ struct ContainerSettingsSheet: View {
         NavigationView {
             Form {
                 identitySection
+                storageSection
                 accuracyDefaultsSection
                 intelligenceSection
                 chunkingSection
@@ -184,6 +187,7 @@ struct ContainerSettingsSheet: View {
                     name = c.name
                     icon = c.icon
                     colorHex = c.colorHex
+                    syncMode = c.syncMode
                     providerId = c.embeddingProviderId
                     // Validate dimension for provider before setting
                     let validDims = supportedDimensions(for: c.embeddingProviderId)
@@ -290,6 +294,32 @@ struct ContainerSettingsSheet: View {
                 if let message = reembedError {
                     Text(message)
                 }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var storageSection: some View {
+        Section("Storage & Sync") {
+            Picker("Library Storage", selection: $syncMode) {
+                ForEach(LibrarySyncMode.allCases, id: \.self) { mode in
+                    Text(mode.displayName).tag(mode)
+                }
+            }
+            .pickerStyle(.segmented)
+
+            Text(syncMode.shortDescription)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            if syncMode == .iCloudShared {
+                Text("Only this library uses iCloud Drive. Local Only libraries in the app stay on-device and do not enter the shared iCloud workspace.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            } else {
+                Text("This library remains fully local on this device. It won't be copied into the shared iCloud workspace.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
         }
     }
@@ -431,6 +461,7 @@ struct ContainerSettingsSheet: View {
 
     private func handleSave() {
         guard var container = activeContainer else { return }
+        let previousSyncMode = container.syncMode
         let previousProvider = container.embeddingProviderId
         let previousDim = container.embeddingDim
         let previousDB = container.vectorDBKind
@@ -441,6 +472,7 @@ struct ContainerSettingsSheet: View {
         container.name = name
         container.icon = icon
         container.colorHex = colorHex
+        container.syncMode = syncMode
         container.embeddingProviderId = providerId
         container.embeddingDim = dim
         container.vectorDBKind = dbKind
@@ -471,6 +503,7 @@ struct ContainerSettingsSheet: View {
         }
 
         let providerChanged = previousProvider != providerId
+        let syncModeChanged = previousSyncMode != syncMode
         let dimensionChanged = previousDim != dim
         let dbKindChanged = previousDB != dbKind
         let chunkingModeChanged = previousAutoAdapt != autoAdaptDimension
@@ -503,6 +536,14 @@ struct ContainerSettingsSheet: View {
         }
 
         containerService.updateContainer(container)
+
+        if syncModeChanged {
+            Task { @MainActor in
+                _ = await workspaceSyncService.reconfigureIfNeeded()
+                containerService.reloadFromDisk()
+                ragService.reloadWorkspaceData()
+            }
+        }
 
         if autoAdaptDimension, !previousAutoAdapt {
             ragService.refreshIntelligence(for: container.id, force: true)

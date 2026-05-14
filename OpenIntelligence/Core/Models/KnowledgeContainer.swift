@@ -14,6 +14,29 @@ enum VectorDBKind: String, Codable, CaseIterable, Sendable {
     case inMemory // Volatile (for testing)
 }
 
+enum LibrarySyncMode: String, Codable, CaseIterable, Sendable {
+    case localOnly
+    case iCloudShared
+
+    var displayName: String {
+        switch self {
+        case .localOnly:
+            return "Local Only"
+        case .iCloudShared:
+            return "iCloud Drive"
+        }
+    }
+
+    var shortDescription: String {
+        switch self {
+        case .localOnly:
+            return "Stays on this device unless you export it."
+        case .iCloudShared:
+            return "Replicates across your devices through your iCloud Drive."
+        }
+    }
+}
+
 struct KnowledgeContainer: Identifiable, Codable, Equatable, Sendable {
     let id: UUID
     var name: String
@@ -45,6 +68,7 @@ struct KnowledgeContainer: Identifiable, Codable, Equatable, Sendable {
     // Per-library AI feature overrides
     var autoTagOnIngestion: Bool?
     var preferredTranslationLanguage: String?
+    var syncMode: LibrarySyncMode
 
     // MARK: - Coding Keys for Migration
 
@@ -55,6 +79,7 @@ struct KnowledgeContainer: Identifiable, Codable, Equatable, Sendable {
         case retrievalConfig
         case totalDocuments, totalChunks, dbSizeBytes, lastIndexedAt
         case autoTagOnIngestion, preferredTranslationLanguage
+        case syncMode
         // Legacy key for migration
         case strictMode
     }
@@ -81,6 +106,10 @@ struct KnowledgeContainer: Identifiable, Codable, Equatable, Sendable {
 
         autoTagOnIngestion = try container.decodeIfPresent(Bool.self, forKey: .autoTagOnIngestion)
         preferredTranslationLanguage = try container.decodeIfPresent(String.self, forKey: .preferredTranslationLanguage)
+        syncMode = try container.decodeIfPresent(LibrarySyncMode.self, forKey: .syncMode)
+            ?? ((UserDefaults.standard.object(forKey: WorkspaceSyncService.syncEnabledDefaultsKey) as? Bool ?? false)
+                ? .iCloudShared
+                : .localOnly)
 
         // Migration: convert legacy strictMode to retrievalConfig
         if let config = try container.decodeIfPresent(RetrievalConfig.self, forKey: .retrievalConfig) {
@@ -114,6 +143,7 @@ struct KnowledgeContainer: Identifiable, Codable, Equatable, Sendable {
         try container.encodeIfPresent(lastIndexedAt, forKey: .lastIndexedAt)
         try container.encodeIfPresent(autoTagOnIngestion, forKey: .autoTagOnIngestion)
         try container.encodeIfPresent(preferredTranslationLanguage, forKey: .preferredTranslationLanguage)
+        try container.encode(syncMode, forKey: .syncMode)
     }
 
     init(
@@ -135,7 +165,8 @@ struct KnowledgeContainer: Identifiable, Codable, Equatable, Sendable {
         dbSizeBytes: Int64 = 0,
         lastIndexedAt: Date? = nil,
         autoTagOnIngestion: Bool? = nil,
-        preferredTranslationLanguage: String? = nil
+        preferredTranslationLanguage: String? = nil,
+        syncMode: LibrarySyncMode = .localOnly
     ) {
         self.id = id
         self.name = name
@@ -156,6 +187,7 @@ struct KnowledgeContainer: Identifiable, Codable, Equatable, Sendable {
         self.lastIndexedAt = lastIndexedAt
         self.autoTagOnIngestion = autoTagOnIngestion
         self.preferredTranslationLanguage = preferredTranslationLanguage
+        self.syncMode = syncMode
     }
 
     // MARK: - Factory Methods

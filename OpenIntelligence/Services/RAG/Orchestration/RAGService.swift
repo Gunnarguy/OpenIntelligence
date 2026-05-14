@@ -642,7 +642,7 @@ class RAGService: ObservableObject {
         }
 
         do {
-            let data = try Data(contentsOf: url)
+            let data = try WorkspaceSyncService.coordinatedReadData(from: url)
             let messages = try JSONDecoder().decode([ChatMessage].self, from: data)
             return messages.map { $0.sanitizedForPersistence() }
         } catch {
@@ -662,13 +662,14 @@ class RAGService: ObservableObject {
         )
 
         do {
+            try? WorkspaceSyncService.coordinatedRemoveItem(at: quarantineURL)
             try FileManager.default.moveItem(at: url, to: quarantineURL)
             Log.warning(
                 "[RAGService] Quarantined oversized chat history for container \(containerId) (\(fileSize) bytes)",
                 category: .initialization
             )
         } catch {
-            try? FileManager.default.removeItem(at: url)
+            try? WorkspaceSyncService.coordinatedRemoveItem(at: url)
             Log.warning(
                 "[RAGService] Removed oversized chat history for container \(containerId) after quarantine failed: \(error.localizedDescription)",
                 category: .initialization
@@ -703,7 +704,7 @@ class RAGService: ObservableObject {
             let encoder = JSONEncoder()
             encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
             let data = try encoder.encode(messages)
-            try data.write(to: url, options: .atomic)
+            try WorkspaceSyncService.coordinatedWriteData(data, to: url)
         } catch {
             Log.error("[RAGService] Failed to save chat history for container \(containerId): \(error.localizedDescription)", category: .initialization)
         }
@@ -725,7 +726,7 @@ class RAGService: ObservableObject {
         let activeItems = ingestionItems.filter { !$0.stage.isTerminal }
 
         guard !activeItems.isEmpty else {
-            try? FileManager.default.removeItem(at: url)
+            try? WorkspaceSyncService.coordinatedRemoveItem(at: url)
             return
         }
 
@@ -739,7 +740,7 @@ class RAGService: ObservableObject {
             let encoder = JSONEncoder()
             encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
             let data = try encoder.encode(state)
-            try data.write(to: url, options: .atomic)
+            try WorkspaceSyncService.coordinatedWriteData(data, to: url)
         } catch {
             Log.error("[RAGService] Failed to persist ingestion queue: \(error.localizedDescription)", category: .ingestion)
         }
@@ -748,7 +749,7 @@ class RAGService: ObservableObject {
     @MainActor
     private func restorePersistedIngestionQueueIfNeeded() {
         let url = AppSupportPaths.ingestionQueueURL()
-        guard let data = try? Data(contentsOf: url) else { return }
+        guard let data = try? WorkspaceSyncService.coordinatedReadData(from: url) else { return }
 
         do {
             let decoder = JSONDecoder()
@@ -786,7 +787,7 @@ class RAGService: ObservableObject {
             }
 
             guard !restoredItems.isEmpty else {
-                try? FileManager.default.removeItem(at: url)
+                try? WorkspaceSyncService.coordinatedRemoveItem(at: url)
                 return
             }
 
@@ -810,7 +811,7 @@ class RAGService: ObservableObject {
             startIngestionTaskIfNeeded()
         } catch {
             Log.error("[RAGService] Failed to restore persisted ingestion queue: \(error.localizedDescription)", category: .ingestion)
-            try? FileManager.default.removeItem(at: url)
+            try? WorkspaceSyncService.coordinatedRemoveItem(at: url)
         }
     }
 
@@ -3014,7 +3015,7 @@ class RAGService: ObservableObject {
         }
 
         do {
-            let data = try Data(contentsOf: documentsStorageURL)
+            let data = try WorkspaceSyncService.coordinatedReadData(from: documentsStorageURL)
             return try JSONDecoder().decode([Document].self, from: data)
         } catch {
             Log.error(" [RAGService] Failed to load documents metadata: \(error.localizedDescription)")
@@ -3064,7 +3065,7 @@ class RAGService: ObservableObject {
                 let encoder = JSONEncoder()
                 encoder.outputFormatting = .prettyPrinted
                 let data = try encoder.encode(documents)
-                try data.write(to: documentsStorageURL, options: .atomic)
+                try WorkspaceSyncService.coordinatedWriteData(data, to: documentsStorageURL)
                 Log.debug(" [RAGService] Saved \(documents.count) documents metadata")
             } catch {
                 Log.error("[RAGService] Failed to save documents metadata: \(error.localizedDescription)")
@@ -3703,8 +3704,14 @@ class RAGService: ObservableObject {
     @discardableResult
     func enqueueDocuments(_ urls: [URL], context: IngestionContext = .userInitiated) -> [UUID] {
         guard !urls.isEmpty else { return [] }
+        let activeContainerId = containerService.activeContainerId
         let newItems = urls.map { url in
-            let item = IngestionItem(url: url, stage: .queued, detail: "Queued")
+            let item = IngestionItem(
+                url: url,
+                containerId: activeContainerId,
+                stage: .queued,
+                detail: "Queued"
+            )
             ingestionContexts[item.id] = context
             return item
         }
@@ -5427,6 +5434,7 @@ class RAGService: ObservableObject {
             return IngestionItem(
                 id: UUID(),
                 url: doc.fileURL,
+                containerId: doc.containerId ?? targetContainerId,
                 stage: .queued,
                 detail: "Queued for rebuild",
                 metrics: metrics

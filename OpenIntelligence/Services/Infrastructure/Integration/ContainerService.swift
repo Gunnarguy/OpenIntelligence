@@ -86,6 +86,7 @@ final class ContainerService: ObservableObject {
         embeddingDim: Int = 384,
         vectorDBKind: VectorDBKind = .persistentJSON,
         autoAdaptDimension: Bool = true,  // Enabled by default for optimal chunking
+        syncMode: LibrarySyncMode = .localOnly,
         retrievalConfig: RetrievalConfig? = nil
     ) -> KnowledgeContainer {
         let effectiveRetrievalConfig = retrievalConfig ?? .default
@@ -98,7 +99,8 @@ final class ContainerService: ObservableObject {
             embeddingDim: embeddingDim,
             vectorDBKind: vectorDBKind,
             autoAdaptDimension: autoAdaptDimension,
-            retrievalConfig: effectiveRetrievalConfig
+            retrievalConfig: effectiveRetrievalConfig,
+            syncMode: syncMode
         )
         containers.append(container)
         Self.saveContainers(containers)
@@ -159,7 +161,7 @@ final class ContainerService: ObservableObject {
         let url = AppSupportPaths.containersListURL()
         guard FileManager.default.fileExists(atPath: url.path) else { return [] }
         do {
-            let data = try Data(contentsOf: url)
+            let data = try WorkspaceSyncService.coordinatedReadData(from: url)
             var decoded = try JSONDecoder().decode([KnowledgeContainer].self, from: data)
 
             // MIGRATION: Fix containers with incorrect embedding dimensions or unsupported providers
@@ -211,7 +213,7 @@ final class ContainerService: ObservableObject {
             let enc = JSONEncoder()
             enc.outputFormatting = [.prettyPrinted, .sortedKeys]
             let data = try enc.encode(containers)
-            try data.write(to: url, options: .atomic)
+            try WorkspaceSyncService.coordinatedWriteData(data, to: url)
         } catch {
             Log.error("[ContainerService] Failed to save containers: \(error.localizedDescription)", category: .initialization)
         }

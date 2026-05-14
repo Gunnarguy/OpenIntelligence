@@ -58,7 +58,7 @@ final class TranscriptPersistenceService {
             let encoder = JSONEncoder()
             encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
             let data = try encoder.encode(transcript)
-            try data.write(to: url, options: .atomic)
+            try WorkspaceSyncService.coordinatedWriteData(data, to: url)
 
             let entryCount = transcript.count
             Log.debug("[TranscriptPersistence] Saved transcript with \(entryCount) entries for container \(containerId)", category: .initialization)
@@ -82,7 +82,7 @@ final class TranscriptPersistenceService {
         }
 
         do {
-            let data = try Data(contentsOf: url)
+            let data = try WorkspaceSyncService.coordinatedReadData(from: url)
             let transcript = try JSONDecoder().decode(Transcript.self, from: data)
             Log.info("[TranscriptPersistence] Loaded transcript with \(transcript.count) entries for container \(containerId)", category: .initialization)
             return transcript
@@ -108,7 +108,7 @@ final class TranscriptPersistenceService {
         guard FileManager.default.fileExists(atPath: url.path) else { return }
 
         do {
-            try FileManager.default.removeItem(at: url)
+            try WorkspaceSyncService.coordinatedRemoveItem(at: url)
             Log.debug("[TranscriptPersistence] Deleted transcript for container \(containerId)", category: .initialization)
         } catch {
             Log.error("[TranscriptPersistence] Failed to delete transcript for container \(containerId): \(error.localizedDescription)", category: .initialization)

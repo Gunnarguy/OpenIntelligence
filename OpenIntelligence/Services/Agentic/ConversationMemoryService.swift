@@ -677,7 +677,7 @@ final class ConversationMemoryService {
             encoder.outputFormatting = [.prettyPrinted]
             encoder.dateEncodingStrategy = .iso8601
             let data = try encoder.encode(memory)
-            try data.write(to: url, options: .atomic)
+            try WorkspaceSyncService.coordinatedWriteData(data, to: url)
         } catch {
             Log.error("[ConversationMemory] Failed to save memory: \(error)", category: .retrieval)
         }
@@ -688,7 +688,7 @@ final class ConversationMemoryService {
         guard FileManager.default.fileExists(atPath: url.path) else { return nil }
 
         do {
-            let data = try Data(contentsOf: url)
+            let data = try WorkspaceSyncService.coordinatedReadData(from: url)
             let decoder = JSONDecoder()
             decoder.dateDecodingStrategy = .iso8601
             return try decoder.decode(ConversationMemory.self, from: data)
@@ -700,7 +700,7 @@ final class ConversationMemoryService {
 
     private func deleteMemory(for containerId: UUID) {
         let url = memoryURL(for: containerId)
-        try? FileManager.default.removeItem(at: url)
+        try? WorkspaceSyncService.coordinatedRemoveItem(at: url)
     }
 }
 

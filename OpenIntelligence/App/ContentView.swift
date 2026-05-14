@@ -123,6 +123,7 @@ struct ContentView: View {
         .environmentObject(onboardingStore)
         .environmentObject(entitlementStore)
         .environmentObject(workspaceSyncService)
+        .environmentObject(containerService)
         // `DocumentLibraryView` (and other tabs) relies on SettingsStore via @EnvironmentObject.
         // Previously we only injected it on the Settings tab, which caused a runtime crash when
         // Documents tried to create a new library (it reads settings.useHighAccuracyEmbeddings).
@@ -165,7 +166,12 @@ struct ContentView: View {
 .onChange(of: scenePhase) { oldPhase, newPhase in
     handleScenePhaseChange(from: oldPhase, to: newPhase)
 }
-        .onChange(of: settingsStore.enableSharedWorkspaceSync) { _, _ in
+        .onChange(of: containerService.containers.map { "\($0.id.uuidString):\($0.syncMode.rawValue)" }.joined(separator: "|")) { _, _ in
+            Task { @MainActor in
+                await refreshSharedWorkspaceIfNeeded(forceReload: true)
+            }
+        }
+        .onChange(of: workspaceSyncService.observedWorkspaceChangeCount) { _, _ in
             Task { @MainActor in
                 await refreshSharedWorkspaceIfNeeded(forceReload: true)
             }

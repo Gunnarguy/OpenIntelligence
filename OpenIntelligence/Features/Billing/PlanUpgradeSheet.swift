@@ -1,6 +1,8 @@
 import StoreKit
 import SwiftUI
+#if canImport(UIKit)
 import UIKit
+#endif
 
 /// Full-screen paywall surface that highlights plan tiers, add-ons, and billing controls.
 struct PlanUpgradeSheet: View {
@@ -590,6 +592,7 @@ private extension PlanUpgradeSheet {
     func manageSubscriptions() {
         Task {
             do {
+#if canImport(UIKit) && !targetEnvironment(macCatalyst)
                 let scene = await MainActor.run {
                     UIApplication.shared.connectedScenes
                         .compactMap { $0 as? UIWindowScene }
@@ -602,6 +605,11 @@ private extension PlanUpgradeSheet {
                 }
 
                 try await AppStore.showManageSubscriptions(in: windowScene)
+#elseif os(macOS)
+                alertMessage = "To manage subscriptions on Mac, open the App Store app and go to Account Settings → Subscriptions."
+#else
+                alertMessage = "Subscription management is unavailable on this platform."
+#endif
             } catch {
                 alertMessage = error.localizedDescription
             }

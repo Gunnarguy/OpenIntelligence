@@ -12,6 +12,7 @@ struct ContainerPickerStrip: View {
     var allowsCreation: Bool = false
     var onCreateLibrary: (() -> Void)? = nil
     var onDeleteLibrary: ((KnowledgeContainer) -> Void)?
+    var onSetLibraryStorage: ((KnowledgeContainer, LibrarySyncMode) -> Void)? = nil
 
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
@@ -25,6 +26,9 @@ struct ContainerPickerStrip: View {
                                 withAnimation {
                                     containerService.setActive(container.id)
                                 }
+                        },
+                        onSetLibraryStorage: { syncMode in
+                            onSetLibraryStorage?(container, syncMode)
                         },
                         onDelete: {
                                 onDeleteLibrary?(container)
@@ -58,11 +62,39 @@ struct ContainerPill: View {
     let isSelected: Bool
     var canDelete: Bool = true
     let onSelect: () -> Void
+    var onSetLibraryStorage: ((LibrarySyncMode) -> Void)? = nil
     var onDelete: (() -> Void)?
 
     /// The container's custom color, or accent color as fallback
     private var containerColor: Color {
         Color(hex: container.colorHex) ?? .accentColor
+    }
+
+    private var storageBadgeText: String {
+        switch container.syncMode {
+        case .localOnly:
+            return "Local"
+        case .iCloudShared:
+            return "iCloud"
+        }
+    }
+
+    private var storageBadgeForeground: Color {
+        switch container.syncMode {
+        case .localOnly:
+            return isSelected ? .white.opacity(0.95) : .secondary
+        case .iCloudShared:
+            return isSelected ? .white.opacity(0.95) : .blue
+        }
+    }
+
+    private var storageBadgeBackground: Color {
+        switch container.syncMode {
+        case .localOnly:
+            return isSelected ? .white.opacity(0.16) : Color.secondary.opacity(0.12)
+        case .iCloudShared:
+            return isSelected ? .white.opacity(0.16) : Color.blue.opacity(0.12)
+        }
     }
 
     var body: some View {
@@ -73,6 +105,14 @@ struct ContainerPill: View {
                 Text(container.name)
                     .font(.subheadline)
                     .fontWeight(.medium)
+                    .lineLimit(1)
+                Text(storageBadgeText)
+                    .font(.caption2.weight(.bold))
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 3)
+                    .background(storageBadgeBackground)
+                    .foregroundStyle(storageBadgeForeground)
+                    .clipShape(Capsule())
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
@@ -92,6 +132,28 @@ struct ContainerPill: View {
                 onSelect()
             } label: {
                 Label("Select Library", systemImage: "checkmark.circle")
+            }
+
+            if let onSetLibraryStorage {
+                Divider()
+
+                Button {
+                    onSetLibraryStorage(.localOnly)
+                } label: {
+                    Label(
+                        container.syncMode == .localOnly ? "Local Only (Current)" : "Make Local Only",
+                        systemImage: container.syncMode == .localOnly ? "checkmark.circle.fill" : "lock.fill"
+                    )
+                }
+
+                Button {
+                    onSetLibraryStorage(.iCloudShared)
+                } label: {
+                    Label(
+                        container.syncMode == .iCloudShared ? "iCloud Drive (Current)" : "Make iCloud Drive",
+                        systemImage: container.syncMode == .iCloudShared ? "checkmark.circle.fill" : "icloud.fill"
+                    )
+                }
             }
 
             if canDelete {

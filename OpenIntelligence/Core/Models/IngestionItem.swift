@@ -175,6 +175,7 @@ struct IngestionItem: Identifiable, Codable, Sendable, Equatable {
     let id: UUID
     private let legacyURL: URL?
     let storageRelativePath: String?
+    let containerId: UUID?
     var documentHash: String?
     var leaseOwnerDeviceId: String?
     var leaseExpiresAt: Date?
@@ -203,6 +204,7 @@ struct IngestionItem: Identifiable, Codable, Sendable, Equatable {
         case id
         case url
         case storageRelativePath
+        case containerId
         case documentHash
         case leaseOwnerDeviceId
         case leaseExpiresAt
@@ -220,6 +222,7 @@ struct IngestionItem: Identifiable, Codable, Sendable, Equatable {
         id: UUID = UUID(),
         url: URL,
         storageRelativePath: String? = nil,
+        containerId: UUID? = nil,
         documentHash: String? = nil,
         leaseOwnerDeviceId: String? = nil,
         leaseExpiresAt: Date? = nil,
@@ -237,6 +240,7 @@ struct IngestionItem: Identifiable, Codable, Sendable, Equatable {
         self.id = id
         self.legacyURL = resolvedRelativePath == nil ? url : nil
         self.storageRelativePath = resolvedRelativePath
+        self.containerId = containerId
         self.documentHash = documentHash
         self.leaseOwnerDeviceId = leaseOwnerDeviceId
         self.leaseExpiresAt = leaseExpiresAt
@@ -258,6 +262,7 @@ struct IngestionItem: Identifiable, Codable, Sendable, Equatable {
         let resolvedRelativePath = decodedRelativePath ?? decodedLegacyURL.flatMap { AppSupportPaths.relativePath(for: $0) }
         legacyURL = resolvedRelativePath == nil ? decodedLegacyURL : nil
         storageRelativePath = resolvedRelativePath
+        containerId = try container.decodeIfPresent(UUID.self, forKey: .containerId)
         documentHash = try container.decodeIfPresent(String.self, forKey: .documentHash)
         leaseOwnerDeviceId = try container.decodeIfPresent(String.self, forKey: .leaseOwnerDeviceId)
         leaseExpiresAt = try container.decodeIfPresent(Date.self, forKey: .leaseExpiresAt)
@@ -276,6 +281,7 @@ struct IngestionItem: Identifiable, Codable, Sendable, Equatable {
         try container.encode(id, forKey: .id)
         try container.encodeIfPresent(legacyURL, forKey: .url)
         try container.encodeIfPresent(storageRelativePath, forKey: .storageRelativePath)
+        try container.encodeIfPresent(containerId, forKey: .containerId)
         try container.encodeIfPresent(documentHash, forKey: .documentHash)
         try container.encodeIfPresent(leaseOwnerDeviceId, forKey: .leaseOwnerDeviceId)
         try container.encodeIfPresent(leaseExpiresAt, forKey: .leaseExpiresAt)

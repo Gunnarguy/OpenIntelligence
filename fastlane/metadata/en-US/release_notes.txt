@@ -1,0 +1,15 @@
+Changes since 3.5:
+
+Version 3.6 adds optional iCloud reuse for the libraries you choose, without giving up the app's local-first default.
+
+If you've been loading a large library on iPad and wishing that exact processed library could show up on iPhone or your other devices without starting over, this is the update aimed at that problem.
+
+Shoutout to Tim for asking for this.
+
+- Every library can now be set to Local Only or iCloud Drive individually.
+- Local Only libraries stay fully on-device unless you explicitly change them.
+- Libraries you mark iCloud Drive can reuse imported files and processed state across your own Apple devices on the same iCloud account.
+- If a long-running import is interrupted on one device, another device can pick up queued work for that iCloud library instead of forcing a full restart.
+- The iCloud controls in Documents and Settings are cleaner, with clearer status, Sync Now actions, and direct library storage controls.
+
+This release is about making cross-device reuse practical without compromising the app's privacy-first, local-by-default model.
