@@ -1,5 +1,13 @@
 default_platform(:ios)
 
+def project_root(*parts)
+  File.expand_path(File.join(__dir__, "..", *parts))
+end
+
+def fastlane_path(*parts)
+  File.expand_path(File.join(__dir__, *parts))
+end
+
 def cached_asc_env(key)
   @cached_asc_env ||= {
     "APP_STORE_CONNECT_API_KEY_ID" => ENV["APP_STORE_CONNECT_API_KEY_ID"],
@@ -56,7 +64,7 @@ platform :ios do
       force: true,
       skip_binary_upload: true,
       skip_screenshots: true,
-      metadata_path: "fastlane/metadata",
+      metadata_path: fastlane_path("metadata"),
       precheck_include_in_app_purchases: false,
       submission_information: release_submission_information
     )
@@ -67,13 +75,15 @@ platform :ios do
     version = options[:version] || "3.6"
     build_number = options[:build] || "37"
     output_name = "OpenIntelligence-#{version}-#{build_number}.ipa"
+    build_output_directory = project_root("build")
+    release_notes_path = fastlane_path("metadata", "en-US", "release_notes.txt")
 
     build_app(
-      project: "OpenIntelligence.xcodeproj",
+      project: project_root("OpenIntelligence.xcodeproj"),
       scheme: "OpenIntelligence",
       clean: true,
       export_method: "app-store",
-      output_directory: "build",
+      output_directory: build_output_directory,
       output_name: output_name,
       xcargs: "-allowProvisioningUpdates"
     )
@@ -81,9 +91,9 @@ platform :ios do
     upload_to_testflight(
       api_key: asc_api_key,
       app_identifier: "Gunndamental.OpenIntelligence",
-      ipa: File.join("build", output_name),
+      ipa: File.join(build_output_directory, output_name),
       skip_waiting_for_build_processing: false,
-      changelog: File.read("fastlane/metadata/en-US/release_notes.txt")
+      changelog: File.read(release_notes_path)
     )
   end
 
@@ -100,7 +110,7 @@ platform :ios do
       force: true,
       skip_binary_upload: true,
       skip_screenshots: true,
-      metadata_path: "fastlane/metadata",
+      metadata_path: fastlane_path("metadata"),
       submit_for_review: true,
       automatic_release: false,
       precheck_include_in_app_purchases: false,
