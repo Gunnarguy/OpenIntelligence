@@ -77,21 +77,25 @@ platform :ios do
     output_name = "OpenIntelligence-#{version}-#{build_number}.ipa"
     build_output_directory = project_root("build")
     release_notes_path = fastlane_path("metadata", "en-US", "release_notes.txt")
+    ipa_path = File.join(build_output_directory, output_name)
+    skip_build = options[:skip_build] == true || options[:skip_build].to_s == "true"
 
-    build_app(
-      project: project_root("OpenIntelligence.xcodeproj"),
-      scheme: "OpenIntelligence",
-      clean: true,
-      export_method: "app-store",
-      output_directory: build_output_directory,
-      output_name: output_name,
-      xcargs: "-allowProvisioningUpdates"
-    )
+    unless skip_build && File.exist?(ipa_path)
+      build_app(
+        project: project_root("OpenIntelligence.xcodeproj"),
+        scheme: "OpenIntelligence",
+        clean: true,
+        export_method: "app-store",
+        output_directory: build_output_directory,
+        output_name: output_name,
+        xcargs: "-allowProvisioningUpdates"
+      )
+    end
 
     upload_to_testflight(
       api_key: asc_api_key,
       app_identifier: "Gunndamental.OpenIntelligence",
-      ipa: File.join(build_output_directory, output_name),
+      ipa: ipa_path,
       skip_waiting_for_build_processing: false,
       changelog: File.read(release_notes_path)
     )
