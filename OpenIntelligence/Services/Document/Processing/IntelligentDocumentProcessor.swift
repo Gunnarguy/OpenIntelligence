@@ -854,27 +854,33 @@ actor IntelligentDocumentProcessor {
             }
             // Throttle Vision operations to prevent Metal GPU race conditions
             let configuredRequest = request
-            let observations = try await VisionOCRThrottle.performAsync {
-                try await configuredRequest.perform(on: imageData)
-            }
+            let extractedRows = try await VisionOCRThrottle.performAsync {
+                let observations = try await configuredRequest.perform(on: imageData)
 
-            // Get the document from the first observation
-            guard let document = observations.first?.document else {
-                return []
-            }
+                // Get the document from the first observation
+                guard let document = observations.first?.document else {
+                    return [[String]]()
+                }
 
-            // Find first table
-            for table in document.tables {
-                var rows: [[String]] = []
-                for row in table.rows {
-                    let cells = row.map { cell in
-                        cell.content.text.transcript.trimmingCharacters(in: .whitespacesAndNewlines)
+                // Find first table
+                for table in document.tables {
+                    var rows: [[String]] = []
+                    for row in table.rows {
+                        let cells = row.map { cell in
+                            cell.content.text.transcript.trimmingCharacters(in: .whitespacesAndNewlines)
+                        }
+                        rows.append(cells)
                     }
-                    rows.append(cells)
+                    if !rows.isEmpty {
+                        return rows
+                    }
                 }
-                if !rows.isEmpty {
-                    return rows
-                }
+
+                return [[String]]()
+            }
+
+            if !extractedRows.isEmpty {
+                return extractedRows
             }
         } catch {
             Log.debug("[IntelligentProcessor] Table extraction failed: \(error)", category: .ingestion)

@@ -9,7 +9,11 @@ This is the public version history for OpenIntelligence. It focuses on user-visi
 - Kept the app local-first by default, with only iCloud-marked libraries entering the shared iCloud workspace
 - Added cross-device reuse for iCloud libraries so imported files and processed library state can show up on the user's other Apple devices
 - Added queue lease handling so another device can resume long-running work for an iCloud library if the first device drops out
-- Cleaned up the Documents and Settings sync surfaces with clearer status, shorter copy, direct library storage controls, and manual Sync Now actions
+- Cleaned up the Documents and Settings sync surfaces with clearer status, shorter copy, direct library storage controls, manual Sync Now actions, and less truncation on tighter layouts
+- Smoothed out the Documents tab follow-up layout so the new sync UI is easier to read and tap without crowding the rest of the page
+- Made in-app import cancellation work more reliably from the upload queue overlay
+- Prevented deleted or reconfigured libraries from reviving old queued documents after sync or reload, and tightened cleanup when removing a library
+- Improved OCR and image-analysis stability during document import
 
 ## 3.5 - May 2026
 

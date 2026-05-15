@@ -331,6 +331,7 @@ class RAGService: ObservableObject {
     @MainActor private var suppressProcessingSummary: Bool = false
     @MainActor private var ingestionTask: Task<Void, Never>?
     @MainActor private var ingestionContexts: [UUID: IngestionContext] = [:]
+    @MainActor private var requestedIngestionCancellationIds: Set<UUID> = []
     @MainActor private var liveActivityTrackedIngestionIds: Set<UUID> = []
     @MainActor private var lastLocalIndexSyncFingerprint: String?
 
@@ -758,8 +759,20 @@ class RAGService: ObservableObject {
             var restoredContexts: [UUID: IngestionContext] = [:]
             let currentDeviceID = WorkspaceSyncService.currentDeviceID()
             let now = Date()
+            let validContainerIds = Set(containerService.containers.map(\ .id))
+            let defaultContainerId = containerService.containers.first?.id
 
             for item in state.items {
+                if let containerId = item.containerId, !validContainerIds.contains(containerId) {
+                    Log.warning("[RAGService] Skipping persisted ingestion item for deleted library: \(item.url.lastPathComponent)", category: .ingestion)
+                    continue
+                }
+
+                if item.containerId == nil, defaultContainerId == nil {
+                    Log.warning("[RAGService] Skipping persisted ingestion item because no default library exists: \(item.url.lastPathComponent)", category: .ingestion)
+                    continue
+                }
+
                 if item.url.isFileURL {
                     if FileManager.default.isUbiquitousItem(at: item.url) {
                         try? FileManager.default.startDownloadingUbiquitousItem(at: item.url)
@@ -813,6 +826,18 @@ class RAGService: ObservableObject {
             Log.error("[RAGService] Failed to restore persisted ingestion queue: \(error.localizedDescription)", category: .ingestion)
             try? WorkspaceSyncService.coordinatedRemoveItem(at: url)
         }
+    }
+
+    @MainActor
+    private func clearRuntimeIngestionQueueState() {
+        guard !ingestionItems.isEmpty || !ingestionContexts.isEmpty || !liveActivityTrackedIngestionIds.isEmpty else {
+            return
+        }
+
+        ingestionItems.removeAll()
+        ingestionContexts.removeAll()
+        liveActivityTrackedIngestionIds.removeAll()
+        syncIngestionLiveActivity()
     }
 
     @MainActor
@@ -3040,6 +3065,9 @@ class RAGService: ObservableObject {
 
         let loadedDocuments = loadDocumentsSnapshotFromDisk()
         applyLoadedDocuments(loadedDocuments)
+        if !FileManager.default.fileExists(atPath: AppSupportPaths.ingestionQueueURL().path), ingestionTask == nil {
+            clearRuntimeIngestionQueueState()
+        }
         restorePersistedIngestionQueueIfNeeded()
 
         let fingerprint = localIndexSyncFingerprint(for: loadedDocuments)
@@ -3764,8 +3792,103 @@ class RAGService: ObservableObject {
         return result.failureCount == 0 && result.completedIds.count == ids.count
     }
 
+    @MainActor
+    func cancelIngestionItem(_ id: UUID) {
+        guard let index = ingestionItems.firstIndex(where: { $0.id == id }) else { return }
+        let item = ingestionItems[index]
+        guard !item.stage.isTerminal else { return }
+
+        if item.stage == .queued {
+            updateIngestionItem(
+                id: id,
+                filename: item.filename,
+                stage: .cancelled,
+                detail: "Cancelled"
+            )
+            finalizeCancelledIngestionTracking(for: [id])
+            pruneCompletedIngestionItems()
+            return
+        }
+
+        requestedIngestionCancellationIds.insert(id)
+        ingestionTask?.cancel()
+    }
+
+    @MainActor
+    func cancelAllIngestion() {
+        let activeIds = ingestionItems
+            .filter { !$0.stage.isTerminal }
+            .map(\ .id)
+
+        guard !activeIds.isEmpty else { return }
+
+        for item in ingestionItems where item.stage == .queued {
+            updateIngestionItem(
+                id: item.id,
+                filename: item.filename,
+                stage: .cancelled,
+                detail: "Cancelled"
+            )
+        }
+
+        let activeNonQueuedIds = ingestionItems
+            .filter { !$0.stage.isTerminal && $0.stage != .queued }
+            .map(\ .id)
+
+        if activeNonQueuedIds.isEmpty {
+            finalizeCancelledIngestionTracking(for: activeIds)
+            pruneCompletedIngestionItems()
+            return
+        }
+
+        requestedIngestionCancellationIds.formUnion(activeNonQueuedIds)
+        ingestionTask?.cancel()
+    }
+
+    @MainActor
+    func cancelAndPurgeIngestion(for containerId: UUID) async {
+        let matchingItems = ingestionItems.filter { $0.containerId == containerId }
+        guard !matchingItems.isEmpty else { return }
+
+        let immediateRemovalIds = Set(
+            matchingItems
+                .filter { $0.stage == .queued || $0.stage.isTerminal }
+                .map(\ .id)
+        )
+
+        if !immediateRemovalIds.isEmpty {
+            ingestionItems.removeAll { immediateRemovalIds.contains($0.id) }
+            finalizeCancelledIngestionTracking(for: Array(immediateRemovalIds))
+        }
+
+        let activeIds = matchingItems
+            .filter { !immediateRemovalIds.contains($0.id) }
+            .map(\ .id)
+
+        guard !activeIds.isEmpty else {
+            savePersistedIngestionQueueState()
+            syncIngestionLiveActivity()
+            return
+        }
+
+        requestedIngestionCancellationIds.formUnion(activeIds)
+        ingestionTask?.cancel()
+
+        _ = await waitForIngestionCompletion(ids: activeIds)
+
+        let settledIds = ingestionItems
+            .filter { activeIds.contains($0.id) }
+            .map(\ .id)
+        ingestionItems.removeAll { activeIds.contains($0.id) }
+        finalizeCancelledIngestionTracking(for: settledIds)
+        savePersistedIngestionQueueState()
+        syncIngestionLiveActivity()
+    }
+
     private func runIngestionLoop() async {
         await MainActor.run { self.isProcessing = true }
+
+        var shouldRestartQueueAfterUserCancellation = false
 
         // Enable GPU embeddings to free ANE for Vision OCR (true parallelism)
         embeddingService.enableIngestionMode()
@@ -3783,10 +3906,18 @@ class RAGService: ObservableObject {
                 )
                 if Task.isCancelled { break }
             } catch is CancellationError {
-                await MainActor.run {
-                    self.handleContinuedIngestionExpiration()
+                let userInitiatedCancellation = await MainActor.run {
+                    self.handleUserRequestedIngestionCancellation(activeItemId: next.id)
                 }
-                break
+                if userInitiatedCancellation {
+                    shouldRestartQueueAfterUserCancellation = true
+                    break
+                } else {
+                    await MainActor.run {
+                        self.handleContinuedIngestionExpiration()
+                    }
+                    break
+                }
             } catch {
                 await MainActor.run {
                     self.markIngestionFailed(id: next.id, error: error)
@@ -3806,6 +3937,10 @@ class RAGService: ObservableObject {
             self.syncIngestionLiveActivity()
             self.pruneCompletedIngestionItems()
             self.kickPendingReembedIfNeeded()
+            if shouldRestartQueueAfterUserCancellation,
+               self.ingestionItems.contains(where: { $0.stage == .queued }) {
+                self.startIngestionTaskIfNeeded()
+            }
         }
     }
 
@@ -3997,6 +4132,39 @@ class RAGService: ObservableObject {
                 errorMessage: error.localizedDescription
             )
         }
+    }
+
+    @MainActor
+    private func handleUserRequestedIngestionCancellation(activeItemId: UUID) -> Bool {
+        guard !requestedIngestionCancellationIds.isEmpty else { return false }
+
+        let idsToFinalize = requestedIngestionCancellationIds
+        requestedIngestionCancellationIds.removeAll()
+
+        if idsToFinalize.contains(activeItemId),
+           let activeItem = ingestionItems.first(where: { $0.id == activeItemId && !$0.stage.isTerminal }) {
+            updateIngestionItem(
+                id: activeItemId,
+                filename: activeItem.filename,
+                stage: .cancelled,
+                detail: "Cancelled"
+            )
+        }
+
+        finalizeCancelledIngestionTracking(for: Array(idsToFinalize))
+        pruneCompletedIngestionItems()
+        return true
+    }
+
+    @MainActor
+    private func finalizeCancelledIngestionTracking(for ids: [UUID]) {
+        guard !ids.isEmpty else { return }
+
+        let idSet = Set(ids)
+        ingestionContexts = ingestionContexts.filter { key, _ in !idSet.contains(key) }
+        liveActivityTrackedIngestionIds.subtract(idSet)
+        savePersistedIngestionQueueState()
+        syncIngestionLiveActivity()
     }
 
     private func waitForIngestionCompletion(ids: [UUID]) async -> IngestionBatchResult {
@@ -5135,6 +5303,29 @@ class RAGService: ObservableObject {
             }
 
         } catch {
+            if error is CancellationError {
+                await MainActor.run {
+                    if manageProcessingState { isProcessing = false }
+                    if manageProcessingState, trackingId == nil {
+                        processingStatus = ""
+                    }
+                    if let trackingId,
+                           requestedIngestionCancellationIds.contains(trackingId),
+                       let item = ingestionItems.first(where: { $0.id == trackingId && !$0.stage.isTerminal }) {
+                        updateIngestionItem(
+                            id: trackingId,
+                            filename: item.filename,
+                            stage: .cancelled,
+                            detail: "Cancelled"
+                        )
+                    }
+                    self.kickPendingReembedIfNeeded()
+                }
+
+                Log.info("[RAGService] Ingestion cancelled for \(filename)", category: .ingestion)
+                throw error
+            }
+
             // Reset processing state on error
             await MainActor.run {
                 if manageProcessingState { isProcessing = false }
@@ -5296,7 +5487,10 @@ class RAGService: ObservableObject {
 
     /// Remove a document from the knowledge base
     func removeDocument(_ document: Document) async throws {
-        let db = await dbForActiveContainer()
+        let targetContainerId = await MainActor.run {
+            document.containerId ?? self.containerService.containers.first?.id ?? self.containerService.activeContainerId
+        }
+        let db = await dbFor(targetContainerId)
         try await db.deleteChunks(forDocument: document.id)
 
         // Delete full text storage for ZERO data orphans (both FTS5 and legacy file storage)
@@ -5310,21 +5504,20 @@ class RAGService: ObservableObject {
         // Remove entity index entries to prevent ghost entities from deleted documents
         await EntityIndexService.shared.removeDocument(document.id)
 
-        // Invalidate visualization cache for active container after removal
-        let activeId = await MainActor.run { self.containerService.activeContainerId }
-        ProjectionCache.shared.invalidate(forContainer: activeId)
+        // Invalidate visualization cache for the document's library after removal
+        ProjectionCache.shared.invalidate(forContainer: targetContainerId)
 
         await MainActor.run {
             documents.removeAll { $0.id == document.id }
             totalChunksStored -= document.totalChunks
-            syncContainerStats(for: activeId)
+            syncContainerStats(for: targetContainerId)
         }
 
         saveDocumentsToDisk()
 
         Log.info(" Removed document: \(document.filename)")
 
-        refreshIntelligence(for: activeId, force: true)
+        refreshIntelligence(for: targetContainerId, force: true)
     }
 
     /// Clear all documents from the knowledge base

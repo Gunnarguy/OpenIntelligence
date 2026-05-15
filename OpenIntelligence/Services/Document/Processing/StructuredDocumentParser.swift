@@ -516,6 +516,14 @@ actor StructuredDocumentParser {
         let minX: CGFloat
     }
 
+    private struct StructuredDocumentSnapshot: Sendable {
+        let elements: [StructuredElement]
+        let figureReferences: [String]
+        let rawText: String
+        let tableCount: Int
+        let listCount: Int
+    }
+
     /// Dynamic custom words for the current document being processed.
     /// Set by DocumentProcessor before structured parsing begins.
     /// Merges universal terms with document-specific vocabulary.
@@ -611,11 +619,16 @@ actor StructuredDocumentParser {
 
         // Perform the structured document recognition (throttled to prevent Metal GPU races)
         let configuredRequest = request
-        let observations = try await VisionOCRThrottle.performAsync {
-            try await configuredRequest.perform(on: structureImageData)
+        let structuredSnapshot: StructuredDocumentSnapshot? = try await VisionOCRThrottle.performAsync { [self] in
+            let observations = try await configuredRequest.perform(on: structureImageData)
+            guard let document = observations.first?.document else {
+                return nil
+            }
+
+            return await self.makeStructuredDocumentSnapshot(from: document, pageNumber: pageNumber)
         }
 
-        guard let document = observations.first?.document else {
+        guard let structuredSnapshot else {
             // RecognizeDocumentsRequest found no document structure
             // Fall back to RecognizeTextRequest for plain text extraction.
             // Use full-resolution image here — VNRecognizeTextRequest is pure OCR and benefits
@@ -640,89 +653,9 @@ actor StructuredDocumentParser {
             throw StructuredParsingError.noDocumentDetected
         }
 
-        // Extract structured elements
-        var elements: [StructuredElement] = []
-        var figureReferences: [String] = []
-
-        // 1. Extract title if present (with OCR quality validation)
-        var pageTitle: String? = nil
-        if let title = document.title {
-            var rawTitle = title.transcript.trimmingCharacters(in: .whitespacesAndNewlines)
-            // Step 1: Fix Cyrillic/reversed text BEFORE quality validation
-            rawTitle = deconfuseCyrillicLatin(rawTitle)
-            rawTitle = fixReversedTextIfNeeded(rawTitle)
-            // Step 2: Clean and validate title - flag but don't discard
-            let (cleanedTitle, isLowQuality) = validateAndCleanOCR(rawTitle)
-            if !cleanedTitle.isEmpty {
-                let finalTitle = isLowQuality ? "[OCR unclear] \(cleanedTitle)" : cleanedTitle
-                pageTitle = finalTitle
-                elements.append(.title(text: finalTitle, pageNumber: pageNumber))
-                Log.debug("[StructuredDocumentParser] Found title: \(cleanedTitle.prefix(50))...\(isLowQuality ? " (low quality)" : "")", category: .ingestion)
-            }
-        }
-
-        // Collect figure/diagram references from paragraphs
-        // These help users understand what visual content exists even if we can't describe it
-        let figurePatterns = [
-            #"(?i)(?:see\s+)?(?:figure|fig\.?|diagram|illustration|image|photo|picture)\s*\d*\s*[:\-]?\s*[^.]*"#,
-            #"(?i)as\s+shown\s+(?:in\s+)?(?:the\s+)?(?:figure|diagram|image)"#,
-            #"(?i)refer\s+to\s+(?:the\s+)?(?:figure|diagram|image)"#
-        ]
-
-        // 2. Extract tables - preserves structured data (specs, schedules, comparisons)
-        // Trust Vision's table detection - these are REAL tables
-        for (_, table) in document.tables.enumerated() {
-            let tableData = parseTable(table, pageNumber: pageNumber, caption: pageTitle)
-            elements.append(.table(tableData))
-            Log.debug("[StructuredDocumentParser] Found table with \(tableData.rows.count) rows on page \(pageNumber)", category: .ingestion)
-        }
-
-        // 3. Extract lists (bullet points, numbered items)
-        for list in document.lists {
-            let items = parseList(list)
-            if !items.isEmpty {
-                elements.append(.list(items: items, pageNumber: pageNumber))
-                Log.debug("[StructuredDocumentParser] Found list with \(items.count) items on page \(pageNumber)", category: .ingestion)
-            }
-        }
-
-        // 4. Extract paragraphs - TRUST Vision's classification, don't re-parse
-        // The key insight: Vision already determined what's a paragraph vs table
-        // Re-parsing as "spec blocks" was FRAGMENTING content unnecessarily
-        for paragraph in document.paragraphs {
-            var rawText = paragraph.transcript.trimmingCharacters(in: .whitespacesAndNewlines)
-
-            // Fix Cyrillic/reversed text before validation
-            rawText = deconfuseCyrillicLatin(rawText)
-            rawText = fixReversedTextIfNeeded(rawText)
-
-            // Validate and clean, but FLAG don't discard
-            let (cleanedText, isLowQuality) = validateAndCleanOCR(rawText)
-
-            if !cleanedText.isEmpty && cleanedText.count > 10 {
-                // Check for figure references
-                for pattern in figurePatterns {
-                    if let regex = try? NSRegularExpression(pattern: pattern, options: []) {
-                        let range = NSRange(cleanedText.startIndex..., in: cleanedText)
-                        for match in regex.matches(in: cleanedText, range: range) {
-                            if let matchRange = Range(match.range, in: cleanedText) {
-                                let figRef = String(cleanedText[matchRange]).trimmingCharacters(in: .whitespaces)
-                                if !figRef.isEmpty {
-                                    figureReferences.append(figRef)
-                                }
-                            }
-                        }
-                    }
-                }
-
-                // Add paragraph with quality flag if needed
-                let finalText = isLowQuality ? "[OCR quality: low] \(cleanedText)" : cleanedText
-                elements.append(.paragraph(text: finalText, pageNumber: pageNumber))
-            }
-        }
-
-        // Get raw text from structured parsing
-        var rawText = document.text.transcript
+        let elements = structuredSnapshot.elements
+        let figureReferences = structuredSnapshot.figureReferences
+        var rawText = structuredSnapshot.rawText
 
         // Calculate quality score: how much content did structured parsing capture?
         // If structured elements have significantly fewer words than raw text, quality is low
@@ -762,7 +695,7 @@ actor StructuredDocumentParser {
         }
 
         let elapsed = Date().timeIntervalSince(startTime)
-        Log.info("[StructuredDocumentParser] Parsed page \(pageNumber): \(elements.count) elements (\(document.tables.count) tables, \(document.lists.count) lists) quality=\(Int(qualityScore * 100))% in \(String(format: "%.2f", elapsed))s", category: .ingestion)
+        Log.info("[StructuredDocumentParser] Parsed page \(pageNumber): \(elements.count) elements (\(structuredSnapshot.tableCount) tables, \(structuredSnapshot.listCount) lists) quality=\(Int(qualityScore * 100))% in \(String(format: "%.2f", elapsed))s", category: .ingestion)
 
         if !figureReferences.isEmpty {
             Log.debug("[StructuredDocumentParser] Found \(figureReferences.count) figure references on page \(pageNumber)", category: .ingestion)
@@ -774,6 +707,79 @@ actor StructuredDocumentParser {
             rawText: rawText,
             qualityScore: qualityScore,
             figureReferences: figureReferences
+        )
+    }
+
+    private func makeStructuredDocumentSnapshot(from document: DocumentObservation.Container, pageNumber: Int) -> StructuredDocumentSnapshot {
+        var elements: [StructuredElement] = []
+        var figureReferences: [String] = []
+
+        var pageTitle: String? = nil
+        if let title = document.title {
+            var rawTitle = title.transcript.trimmingCharacters(in: .whitespacesAndNewlines)
+            rawTitle = deconfuseCyrillicLatin(rawTitle)
+            rawTitle = fixReversedTextIfNeeded(rawTitle)
+            let (cleanedTitle, isLowQuality) = validateAndCleanOCR(rawTitle)
+            if !cleanedTitle.isEmpty {
+                let finalTitle = isLowQuality ? "[OCR unclear] \(cleanedTitle)" : cleanedTitle
+                pageTitle = finalTitle
+                elements.append(.title(text: finalTitle, pageNumber: pageNumber))
+                Log.debug("[StructuredDocumentParser] Found title: \(cleanedTitle.prefix(50))...\(isLowQuality ? " (low quality)" : "")", category: .ingestion)
+            }
+        }
+
+        let figurePatterns = [
+            #"(?i)(?:see\s+)?(?:figure|fig\.?|diagram|illustration|image|photo|picture)\s*\d*\s*[:\-]?\s*[^.]*"#,
+            #"(?i)as\s+shown\s+(?:in\s+)?(?:the\s+)?(?:figure|diagram|image)"#,
+            #"(?i)refer\s+to\s+(?:the\s+)?(?:figure|diagram|image)"#
+        ]
+
+        for table in document.tables {
+            let tableData = parseTable(table, pageNumber: pageNumber, caption: pageTitle)
+            elements.append(.table(tableData))
+            Log.debug("[StructuredDocumentParser] Found table with \(tableData.rows.count) rows on page \(pageNumber)", category: .ingestion)
+        }
+
+        for list in document.lists {
+            let items = parseList(list)
+            if !items.isEmpty {
+                elements.append(.list(items: items, pageNumber: pageNumber))
+                Log.debug("[StructuredDocumentParser] Found list with \(items.count) items on page \(pageNumber)", category: .ingestion)
+            }
+        }
+
+        for paragraph in document.paragraphs {
+            var rawParagraphText = paragraph.transcript.trimmingCharacters(in: .whitespacesAndNewlines)
+            rawParagraphText = deconfuseCyrillicLatin(rawParagraphText)
+            rawParagraphText = fixReversedTextIfNeeded(rawParagraphText)
+            let (cleanedText, isLowQuality) = validateAndCleanOCR(rawParagraphText)
+
+            if !cleanedText.isEmpty && cleanedText.count > 10 {
+                for pattern in figurePatterns {
+                    if let regex = try? NSRegularExpression(pattern: pattern, options: []) {
+                        let range = NSRange(cleanedText.startIndex..., in: cleanedText)
+                        for match in regex.matches(in: cleanedText, range: range) {
+                            if let matchRange = Range(match.range, in: cleanedText) {
+                                let figRef = String(cleanedText[matchRange]).trimmingCharacters(in: .whitespaces)
+                                if !figRef.isEmpty {
+                                    figureReferences.append(figRef)
+                                }
+                            }
+                        }
+                    }
+                }
+
+                let finalText = isLowQuality ? "[OCR quality: low] \(cleanedText)" : cleanedText
+                elements.append(.paragraph(text: finalText, pageNumber: pageNumber))
+            }
+        }
+
+        return StructuredDocumentSnapshot(
+            elements: elements,
+            figureReferences: figureReferences,
+            rawText: document.text.transcript,
+            tableCount: document.tables.count,
+            listCount: document.lists.count
         )
     }
 
@@ -1240,11 +1246,10 @@ actor StructuredDocumentParser {
         request.customWords = customWords
 
         let configuredRequest = request
-        let observations = try await VisionOCRThrottle.performAsync {
-            try await configuredRequest.perform(on: imageData)
+        let recognizedText = try await VisionOCRThrottle.performAsync { [self] in
+            let observations = try await configuredRequest.perform(on: imageData)
+            return await self.assembleSpatiallyOrderedFallbackText(from: observations)
         }
-
-        let recognizedText = assembleSpatiallyOrderedFallbackText(from: observations)
 
         Log.debug("[StructuredDocumentParser] RecognizeTextRequest fallback captured \(recognizedText.count) chars", category: .ingestion)
         return recognizedText

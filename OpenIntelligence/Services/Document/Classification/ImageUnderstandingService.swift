@@ -144,16 +144,16 @@ class ImageUnderstandingService {
 
         do {
             // Throttle Vision operations to prevent Metal GPU race conditions
-            let results = try await VisionOCRThrottle.performAsync {
-                try await request.perform(on: cgImage)
+            let classifications = try await VisionOCRThrottle.performAsync {
+                let results = try await request.perform(on: cgImage)
+                return results
+                    .filter { $0.confidence > 0.1 }
+                    .map { ImageClassification(identifier: $0.identifier, confidence: $0.confidence) }
             }
 
-            // Filter to high-confidence classifications
-            let filtered = results.filter { $0.confidence > 0.1 }
+            Log.debug("[ImageUnderstanding] Classified image: \(classifications.prefix(5).map { "\($0.identifier): \(String(format: "%.2f", $0.confidence))" })", category: .ingestion)
 
-            Log.debug("[ImageUnderstanding] Classified image: \(filtered.prefix(5).map { "\($0.identifier): \(String(format: "%.2f", $0.confidence))" })", category: .ingestion)
-
-            return filtered.map { ImageClassification(identifier: $0.identifier, confidence: $0.confidence) }
+            return classifications
         } catch {
             Log.warning("[ImageUnderstanding] Classification failed: \(error.localizedDescription)", category: .ingestion)
             return []

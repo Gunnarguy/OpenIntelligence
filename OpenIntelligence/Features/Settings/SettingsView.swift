@@ -588,24 +588,58 @@ Text(label)
                         .font(.caption)
                         .foregroundColor(.secondary)
 
-                    HStack(spacing: 10) {
-                        Button {
-                            resolvePendingBootstrap(.mergeLibraries)
-                        } label: {
-                            Text("Keep Both Sets")
-                                .frame(maxWidth: .infinity)
-                        }
-                        .buttonStyle(.borderedProminent)
-                        .disabled(isRefreshingSharedWorkspace)
+                    ViewThatFits(in: .horizontal) {
+                        HStack(spacing: 10) {
+                            Button {
+                                resolvePendingBootstrap(.mergeLibraries)
+                            } label: {
+                                Text("Keep Both Sets")
+                                    .multilineTextAlignment(.center)
+                                    .lineLimit(2)
+                                    .minimumScaleFactor(0.9)
+                                    .frame(maxWidth: .infinity, minHeight: 44)
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .disabled(isRefreshingSharedWorkspace)
 
-                        Button {
-                            resolvePendingBootstrap(.useICloudWorkspace)
-                        } label: {
-                            Text("Use Existing iCloud Set")
-                                .frame(maxWidth: .infinity)
+                            Button {
+                                resolvePendingBootstrap(.useICloudWorkspace)
+                            } label: {
+                                Text("Use Existing iCloud Set")
+                                    .multilineTextAlignment(.center)
+                                    .lineLimit(2)
+                                    .minimumScaleFactor(0.9)
+                                    .frame(maxWidth: .infinity, minHeight: 44)
+                            }
+                            .buttonStyle(.bordered)
+                            .disabled(isRefreshingSharedWorkspace)
                         }
-                        .buttonStyle(.bordered)
-                        .disabled(isRefreshingSharedWorkspace)
+
+                        VStack(spacing: 10) {
+                            Button {
+                                resolvePendingBootstrap(.mergeLibraries)
+                            } label: {
+                                Text("Keep Both Sets")
+                                    .multilineTextAlignment(.center)
+                                    .lineLimit(2)
+                                    .minimumScaleFactor(0.9)
+                                    .frame(maxWidth: .infinity, minHeight: 44)
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .disabled(isRefreshingSharedWorkspace)
+
+                            Button {
+                                resolvePendingBootstrap(.useICloudWorkspace)
+                            } label: {
+                                Text("Use Existing iCloud Set")
+                                    .multilineTextAlignment(.center)
+                                    .lineLimit(2)
+                                    .minimumScaleFactor(0.9)
+                                    .frame(maxWidth: .infinity, minHeight: 44)
+                            }
+                            .buttonStyle(.bordered)
+                            .disabled(isRefreshingSharedWorkspace)
+                        }
                     }
 
                     Text("Keep Both Sets is recommended. Use Existing iCloud Set if the copy already in iCloud is the source of truth. Local Only libraries stay local either way.")
@@ -618,76 +652,9 @@ Text(label)
             }
 
             if !workspaceSyncService.requiresBootstrapDecision {
-                HStack(spacing: 10) {
-                    if let activeLibrary {
-                        Menu {
-                            Button {
-                                setLibrarySyncMode(activeLibrary, .localOnly)
-                            } label: {
-                                Label(
-                                    activeLibrary.syncMode == .localOnly ? "Local Only (Current)" : "Make Local Only",
-                                    systemImage: activeLibrary.syncMode == .localOnly ? "checkmark.circle.fill" : "lock.fill"
-                                )
-                            }
-
-                            Button {
-                                setLibrarySyncMode(activeLibrary, .iCloudShared)
-                            } label: {
-                                Label(
-                                    activeLibrary.syncMode == .iCloudShared ? "iCloud Drive (Current)" : "Make iCloud Drive",
-                                    systemImage: activeLibrary.syncMode == .iCloudShared ? "checkmark.circle.fill" : "icloud.fill"
-                                )
-                            }
-                        } label: {
-                            Label(activeLibrary.syncMode.displayName, systemImage: activeLibrary.syncMode == .iCloudShared ? "icloud.fill" : "lock.fill")
-                                .font(.caption.weight(.semibold))
-                                .frame(maxWidth: .infinity)
-                        }
-                        .buttonStyle(.bordered)
-                        .disabled(isRefreshingSharedWorkspace)
-                    }
-
-                    if hasConfiguredICloudLibraries {
-                        Button {
-                            refreshSharedWorkspaceNow()
-                        } label: {
-                            HStack(spacing: 8) {
-                                if isRefreshingSharedWorkspace {
-                                    ProgressView()
-                                        .controlSize(.small)
-                                } else {
-                                    Image(systemName: "arrow.clockwise")
-                                        .font(.caption.weight(.semibold))
-                                }
-
-                                Text(isRefreshingSharedWorkspace ? "Syncing..." : "Sync Now")
-                                    .font(.caption.weight(.semibold))
-                            }
-                            .frame(maxWidth: .infinity)
-                        }
-                        .buttonStyle(.borderedProminent)
-                        .disabled(isRefreshingSharedWorkspace)
-                    } else {
-                        Button {
-                            connectExistingICloudLibraries()
-                        } label: {
-                            HStack(spacing: 8) {
-                                if isRefreshingSharedWorkspace {
-                                    ProgressView()
-                                        .controlSize(.small)
-                                } else {
-                                    Image(systemName: "icloud.and.arrow.down")
-                                        .font(.caption.weight(.semibold))
-                                }
-
-                                Text(isRefreshingSharedWorkspace ? "Connecting..." : "Connect Existing")
-                                    .font(.caption.weight(.semibold))
-                            }
-                            .frame(maxWidth: .infinity)
-                        }
-                        .buttonStyle(.borderedProminent)
-                        .disabled(isRefreshingSharedWorkspace)
-                    }
+                ViewThatFits(in: .horizontal) {
+                    sharedWorkspaceActionRow(horizontal: true)
+                    sharedWorkspaceActionRow(horizontal: false)
                 }
             }
 
@@ -723,6 +690,108 @@ Text(label)
         .padding()
         .background(DSColors.surface)
         .clipShape(RoundedRectangle(cornerRadius: 16))
+    }
+
+    @ViewBuilder
+    private func sharedWorkspaceActionRow(horizontal: Bool) -> some View {
+        let stackSpacing: CGFloat = 10
+
+        Group {
+            if horizontal {
+                HStack(spacing: stackSpacing) {
+                    sharedWorkspacePrimaryAction
+                    sharedWorkspaceSecondaryAction
+                }
+            } else {
+                VStack(spacing: stackSpacing) {
+                    sharedWorkspacePrimaryAction
+                    sharedWorkspaceSecondaryAction
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var sharedWorkspacePrimaryAction: some View {
+        if let activeLibrary {
+            Menu {
+                Button {
+                    setLibrarySyncMode(activeLibrary, .localOnly)
+                } label: {
+                    Label(
+                        activeLibrary.syncMode == .localOnly ? "Local Only (Current)" : "Make Local Only",
+                        systemImage: activeLibrary.syncMode == .localOnly ? "checkmark.circle.fill" : "lock.fill"
+                    )
+                }
+
+                Button {
+                    setLibrarySyncMode(activeLibrary, .iCloudShared)
+                } label: {
+                    Label(
+                        activeLibrary.syncMode == .iCloudShared ? "iCloud Drive (Current)" : "Make iCloud Drive",
+                        systemImage: activeLibrary.syncMode == .iCloudShared ? "checkmark.circle.fill" : "icloud.fill"
+                    )
+                }
+            } label: {
+                Label(activeLibrary.syncMode.displayName, systemImage: activeLibrary.syncMode == .iCloudShared ? "icloud.fill" : "lock.fill")
+                    .font(.caption.weight(.semibold))
+                    .multilineTextAlignment(.center)
+                    .lineLimit(2)
+                    .frame(maxWidth: .infinity, minHeight: 44)
+            }
+            .buttonStyle(.bordered)
+            .disabled(isRefreshingSharedWorkspace)
+        }
+    }
+
+    private var sharedWorkspaceSecondaryAction: some View {
+        Group {
+            if hasConfiguredICloudLibraries {
+                Button {
+                    refreshSharedWorkspaceNow()
+                } label: {
+                    HStack(spacing: 8) {
+                        if isRefreshingSharedWorkspace {
+                            ProgressView()
+                                .controlSize(.small)
+                        } else {
+                            Image(systemName: "arrow.clockwise")
+                                .font(.caption.weight(.semibold))
+                        }
+
+                        Text(isRefreshingSharedWorkspace ? "Syncing..." : "Sync Now")
+                            .font(.caption.weight(.semibold))
+                            .multilineTextAlignment(.center)
+                            .lineLimit(2)
+                    }
+                    .frame(maxWidth: .infinity, minHeight: 44)
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(isRefreshingSharedWorkspace)
+            } else {
+                Button {
+                    connectExistingICloudLibraries()
+                } label: {
+                    HStack(spacing: 8) {
+                        if isRefreshingSharedWorkspace {
+                            ProgressView()
+                                .controlSize(.small)
+                        } else {
+                            Image(systemName: "icloud.and.arrow.down")
+                                .font(.caption.weight(.semibold))
+                        }
+
+                        Text(isRefreshingSharedWorkspace ? "Connecting..." : "Connect Existing")
+                            .font(.caption.weight(.semibold))
+                            .multilineTextAlignment(.center)
+                            .lineLimit(2)
+                    }
+                    .frame(maxWidth: .infinity, minHeight: 44)
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(isRefreshingSharedWorkspace)
+            }
+        }
     }
 
     private var syncActivitySummary: String? {

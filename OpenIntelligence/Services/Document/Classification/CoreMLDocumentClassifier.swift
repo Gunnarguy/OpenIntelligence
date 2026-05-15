@@ -339,12 +339,15 @@ actor CoreMLDocumentClassifier {
                 let request = ClassifyImageRequest()
                 // Throttle Vision operations to prevent Metal GPU race conditions
                 let results = try await VisionOCRThrottle.performAsync {
-                    try await request.perform(on: cgImage)
+                    let observations = try await request.perform(on: cgImage)
+                    return observations.prefix(20).map {
+                        ImageClassification(identifier: $0.identifier, confidence: $0.confidence)
+                    }
                 }
 
                 var typeScores: [DocumentContentType: Float] = [:]
 
-                for observation in results.prefix(20) {
+                for observation in results {
                     let identifier = observation.identifier.lowercased()
 
                     // Map Vision classifications to document types

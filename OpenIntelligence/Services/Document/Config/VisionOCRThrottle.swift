@@ -158,9 +158,18 @@ private actor AsyncVisionSemaphore {
 /// Uses actor isolation for proper Swift Concurrency integration
 nonisolated private let asyncVisionSemaphore = AsyncVisionSemaphore(maxConcurrent: maxConcurrentVisionOps)
 
-/// Legacy semaphore for truly synchronous operations only
-/// NOTE: This will cause priority inversion warnings - unavoidable for sync code
-nonisolated private let syncVisionSemaphore = DispatchSemaphore(value: maxConcurrentVisionOps)
+/// Dedicated high-priority queue for legacy synchronous Vision operations.
+///
+/// We still have to block the caller for sync APIs, but by running the actual OCR
+/// work on a bounded user-interactive queue we avoid user-interactive callers waiting
+/// on lower-QoS utility threads that happen to be holding the throttle slot.
+nonisolated private let syncVisionOperationQueue: OperationQueue = {
+    let queue = OperationQueue()
+    queue.name = "OpenIntelligence.VisionOCRThrottle.Sync"
+    queue.maxConcurrentOperationCount = maxConcurrentVisionOps
+    queue.qualityOfService = .userInteractive
+    return queue
+}()
 
 // MARK: - VisionOCRThrottle
 
@@ -168,32 +177,56 @@ nonisolated private let syncVisionSemaphore = DispatchSemaphore(value: maxConcur
 /// Allows limited parallelism while preventing Metal crashes
 enum VisionOCRThrottle {
 
+    nonisolated private static func executeSyncOperation<T>(_ operation: @escaping () throws -> T) -> Result<T, Error> {
+        let cooldown = gpuCooldownSeconds
+        var result: Result<T, Error>?
+
+        syncVisionOperationQueue.addOperations([
+            BlockOperation {
+                result = autoreleasepool {
+                    do {
+                        return .success(try operation())
+                    } catch {
+                        return .failure(error)
+                    }
+                }
+
+                synchronizeGPU()
+                if cooldown > 0 {
+                    Thread.sleep(forTimeInterval: cooldown)
+                }
+            }
+        ], waitUntilFinished: true)
+
+        return result ?? .failure(CocoaError(.coderInvalidValue))
+    }
+
     /// Execute a Vision OCR operation synchronously with throttling and GPU sync
     /// Use this for callback-based Vision APIs (VNImageRequestHandler.perform)
-    /// NOTE: This uses DispatchSemaphore which may cause priority inversion warnings.
+    /// This stays synchronous for legacy APIs, but executes the work on a bounded
+    /// high-priority queue so user-facing callers don't block behind utility QoS work.
+    /// For new code, prefer performAsync or perform (async) methods.
+    /// - Parameter operation: The closure containing VNImageRequestHandler.perform()
+    /// - Returns: Whatever the operation returns
+    nonisolated static func performSync<T>(_ operation: @escaping () -> T) -> T {
+        switch executeSyncOperation(operation) {
+        case let .success(value):
+            return value
+        case let .failure(error):
+            fatalError("Non-throwing VisionOCRThrottle.performSync failed unexpectedly: \(error)")
+        }
+    }
+
+    /// Execute a throwing Vision OCR operation synchronously with throttling and GPU sync.
+    /// Use this for callback-based Vision APIs (VNImageRequestHandler.perform)
+    /// This stays synchronous for legacy APIs, but executes the work on a bounded
+    /// high-priority queue so user-facing callers don't block behind utility QoS work.
     /// For new code, prefer performAsync or perform (async) methods.
     /// - Parameter operation: The closure containing VNImageRequestHandler.perform()
     /// - Returns: Whatever the operation returns
     /// - Throws: Re-throws any error from the operation
-    nonisolated static func performSync<T>(_ operation: () throws -> T) rethrows -> T {
-        // Acquire sync semaphore slot - this is inherently blocking
-        // Priority inversion is unavoidable for truly synchronous operations
-        syncVisionSemaphore.wait()
-
-        // Capture cooldown value locally to avoid actor isolation issues
-        let cooldown = gpuCooldownSeconds
-
-        defer {
-            // Force GPU completion before releasing slot
-            synchronizeGPU()
-            Thread.sleep(forTimeInterval: cooldown)
-            syncVisionSemaphore.signal()
-        }
-
-        // Use autoreleasepool to ensure GPU resources are released promptly
-        return try autoreleasepool {
-            try operation()
-        }
+    nonisolated static func performSync<T>(_ operation: @escaping () throws -> T) throws -> T {
+        try executeSyncOperation(operation).get()
     }
 
     /// Execute an async Vision operation with throttling and GPU sync

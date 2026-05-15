@@ -10,6 +10,7 @@ Shoutout to Tim for asking for this.
 - Local Only libraries stay fully on-device unless you explicitly change them.
 - Libraries you mark iCloud Drive can reuse imported files and processed state across your own Apple devices on the same iCloud account.
 - If a long-running import is interrupted on one device, another device can pick up queued work for that iCloud library instead of forcing a full restart.
-- The iCloud controls in Documents and Settings are cleaner, with clearer status, Sync Now actions, and direct library storage controls.
+- The iCloud controls in Documents and Settings are cleaner, with clearer status, Sync Now actions, direct library storage controls, and less truncation.
+- This follow-up 3.6 build also smooths the Documents layout, improves import cancellation, and prevents old queued work from deleted libraries from coming back unexpectedly.
 
 This release is about making cross-device reuse practical without compromising the app's privacy-first, local-by-default model.

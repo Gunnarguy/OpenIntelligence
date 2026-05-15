@@ -433,57 +433,61 @@ actor CoreMLRegionDetector {
             }
             // Throttle Vision operations to prevent Metal GPU race conditions
             let configuredRequest = request
-            let observations = try await VisionOCRThrottle.performAsync {
-                try await configuredRequest.perform(on: imageData)
-            }
+            regions = try await VisionOCRThrottle.performAsync {
+                let observations = try await configuredRequest.perform(on: imageData)
 
-            // Get the document from the first observation
-            guard let document = observations.first?.document else {
-                return regions
-            }
+                // Get the document from the first observation
+                guard let document = observations.first?.document else {
+                    return [DocumentDetectedRegion]()
+                }
 
-            // Extract tables
-            for table in document.tables {
-                // Tables don't have a direct bounds property, but we can estimate from cells
-                // For now, we'll create a region without precise bounds
-                regions.append(DocumentDetectedRegion(
-                    type: .table,
-                    boundingBox: CGRect(x: 0, y: 0, width: 1, height: 1), // Full page placeholder
-                    confidence: 0.9,
-                    pageNumber: pageNumber,
-                    extractedContent: nil,
-                    metadata: [
-                        "rows": "\(table.rows.count)",
-                        "columns": "\(table.rows.first?.count ?? 0)"
-                    ]
-                ))
-            }
+                var extractedRegions: [DocumentDetectedRegion] = []
 
-            // Extract lists
-            for _ in document.lists {
-                regions.append(DocumentDetectedRegion(
-                    type: .list,
-                    boundingBox: CGRect(x: 0, y: 0, width: 1, height: 1), // Full page placeholder
-                    confidence: 0.85,
-                    pageNumber: pageNumber,
-                    extractedContent: nil,
-                    metadata: [:]
-                ))
-            }
+                // Extract tables
+                for table in document.tables {
+                    // Tables don't have a direct bounds property, but we can estimate from cells
+                    // For now, we'll create a region without precise bounds
+                    extractedRegions.append(DocumentDetectedRegion(
+                        type: .table,
+                        boundingBox: CGRect(x: 0, y: 0, width: 1, height: 1), // Full page placeholder
+                        confidence: 0.9,
+                        pageNumber: pageNumber,
+                        extractedContent: nil,
+                        metadata: [
+                            "rows": "\(table.rows.count)",
+                            "columns": "\(table.rows.first?.count ?? 0)"
+                        ]
+                    ))
+                }
 
-            // Extract paragraphs as text blocks
-            for paragraph in document.paragraphs {
-                let text = paragraph.transcript.trimmingCharacters(in: .whitespacesAndNewlines)
-                guard !text.isEmpty else { continue }
+                // Extract lists
+                for _ in document.lists {
+                    extractedRegions.append(DocumentDetectedRegion(
+                        type: .list,
+                        boundingBox: CGRect(x: 0, y: 0, width: 1, height: 1), // Full page placeholder
+                        confidence: 0.85,
+                        pageNumber: pageNumber,
+                        extractedContent: nil,
+                        metadata: [:]
+                    ))
+                }
 
-                regions.append(DocumentDetectedRegion(
-                    type: .textBlock,
-                    boundingBox: CGRect(x: 0, y: 0, width: 1, height: 1), // Full page placeholder
-                    confidence: 0.85,
-                    pageNumber: pageNumber,
-                    extractedContent: text,
-                    metadata: [:]
-                ))
+                // Extract paragraphs as text blocks
+                for paragraph in document.paragraphs {
+                    let text = paragraph.transcript.trimmingCharacters(in: .whitespacesAndNewlines)
+                    guard !text.isEmpty else { continue }
+
+                    extractedRegions.append(DocumentDetectedRegion(
+                        type: .textBlock,
+                        boundingBox: CGRect(x: 0, y: 0, width: 1, height: 1), // Full page placeholder
+                        confidence: 0.85,
+                        pageNumber: pageNumber,
+                        extractedContent: text,
+                        metadata: [:]
+                    ))
+                }
+
+                return extractedRegions
             }
         } catch {
             Log.debug("[CoreMLRegionDetector] Document structure detection failed: \(error)", category: .ingestion)

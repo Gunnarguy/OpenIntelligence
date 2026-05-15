@@ -143,7 +143,7 @@ struct DocumentLibraryView: View {
             )
             .padding(.horizontal)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     private var documentListView: some View {
@@ -199,65 +199,36 @@ struct DocumentLibraryView: View {
 
     @ViewBuilder
     private var sharedWorkspaceBanner: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(spacing: 10) {
-                Image(systemName: workspaceSyncService.isUsingSharedWorkspace ? "icloud.fill" : "icloud.slash")
-                    .font(.title3)
-                    .foregroundColor(workspaceSyncService.isUsingSharedWorkspace ? .green : .accentColor)
+        if let bootstrapConflict = workspaceSyncService.pendingBootstrapConflict,
+           hasConfiguredICloudLibraries {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(spacing: 10) {
+                    Image(systemName: "icloud.trianglebadge.exclamationmark")
+                        .font(.subheadline)
+                        .foregroundStyle(Color.accentColor)
 
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("iCloud Libraries")
+                    Text("Choose how to connect these iCloud libraries")
                         .font(.subheadline.weight(.semibold))
-                    Text(workspaceSyncHeadline)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+
+                    Spacer()
                 }
 
-                Spacer()
-
-                Text(sharedWorkspaceModeLabel)
-                    .font(.caption.weight(.semibold))
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 5)
-                    .background(sharedWorkspaceModeColor.opacity(0.15))
-                    .foregroundStyle(sharedWorkspaceModeColor)
-                    .clipShape(Capsule())
-            }
-
-            Text(sharedWorkspaceSummary)
+                Text(
+                    "This device has \(bootstrapConflict.localLibraryCount) iCloud librar\(bootstrapConflict.localLibraryCount == 1 ? "y" : "ies") / \(bootstrapConflict.localDocumentCount) docs. iCloud already has \(bootstrapConflict.sharedLibraryCount) librar\(bootstrapConflict.sharedLibraryCount == 1 ? "y" : "ies") / \(bootstrapConflict.sharedDocumentCount) docs."
+                )
                 .font(.caption)
                 .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
 
-            if let compatibilityMessage = workspaceSyncService.syncCompatibilityMessage,
-               hasConfiguredICloudLibraries {
-                Text(compatibilityMessage)
-                    .font(.caption)
-                    .foregroundStyle(.orange)
-                    .padding(10)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(Color.orange.opacity(0.08))
-                    .clipShape(RoundedRectangle(cornerRadius: 10))
-            }
-
-            if let bootstrapConflict = workspaceSyncService.pendingBootstrapConflict,
-               hasConfiguredICloudLibraries {
-                VStack(alignment: .leading, spacing: 10) {
-                    Text("This device and iCloud already both have iCloud libraries")
-                        .font(.subheadline.weight(.semibold))
-
-                    Text(
-                        "Only libraries marked iCloud Drive are involved here. This device has \(bootstrapConflict.localLibraryCount) iCloud librar\(bootstrapConflict.localLibraryCount == 1 ? "y" : "ies") / \(bootstrapConflict.localDocumentCount) documents, while iCloud already has \(bootstrapConflict.sharedLibraryCount) iCloud librar\(bootstrapConflict.sharedLibraryCount == 1 ? "y" : "ies") / \(bootstrapConflict.sharedDocumentCount) documents. Keeping both sets would result in \(bootstrapConflict.mergedLibraryCount) iCloud librar\(bootstrapConflict.mergedLibraryCount == 1 ? "y" : "ies") and \(bootstrapConflict.mergedDocumentCount) documents."
-                    )
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-
+                ViewThatFits(in: .horizontal) {
                     HStack(spacing: 10) {
                         Button {
                             resolvePendingBootstrap(.mergeLibraries)
                         } label: {
                             Text("Keep Both Sets")
-                                .frame(maxWidth: .infinity)
+                                .multilineTextAlignment(.center)
+                                .lineLimit(2)
+                                .minimumScaleFactor(0.9)
+                                .frame(maxWidth: .infinity, minHeight: 44)
                         }
                         .buttonStyle(.borderedProminent)
                         .disabled(isRefreshingSharedWorkspace)
@@ -266,128 +237,252 @@ struct DocumentLibraryView: View {
                             resolvePendingBootstrap(.useICloudWorkspace)
                         } label: {
                             Text("Use Existing iCloud Set")
-                                .frame(maxWidth: .infinity)
+                                .multilineTextAlignment(.center)
+                                .lineLimit(2)
+                                .minimumScaleFactor(0.9)
+                                .frame(maxWidth: .infinity, minHeight: 44)
                         }
                         .buttonStyle(.bordered)
                         .disabled(isRefreshingSharedWorkspace)
                     }
 
-                    Text("Keep Both Sets is recommended. Use Existing iCloud Set if the copy already in iCloud is the source of truth. Local Only libraries stay local either way.")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                }
-                .padding(12)
-                .background(Color.accentColor.opacity(0.06))
-                .clipShape(RoundedRectangle(cornerRadius: 12))
-            }
+                    VStack(spacing: 10) {
+                        Button {
+                            resolvePendingBootstrap(.mergeLibraries)
+                        } label: {
+                            Text("Keep Both Sets")
+                                .multilineTextAlignment(.center)
+                                .lineLimit(2)
+                                .minimumScaleFactor(0.9)
+                                .frame(maxWidth: .infinity, minHeight: 44)
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .disabled(isRefreshingSharedWorkspace)
 
-            if !workspaceSyncService.requiresBootstrapDecision {
+                        Button {
+                            resolvePendingBootstrap(.useICloudWorkspace)
+                        } label: {
+                            Text("Use Existing iCloud Set")
+                                .multilineTextAlignment(.center)
+                                .lineLimit(2)
+                                .minimumScaleFactor(0.9)
+                                .frame(maxWidth: .infinity, minHeight: 44)
+                        }
+                        .buttonStyle(.bordered)
+                        .disabled(isRefreshingSharedWorkspace)
+                    }
+                }
+
+                Text("Keep Both Sets is recommended.")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+            .padding(12)
+            .background(
+                RoundedRectangle(cornerRadius: 14)
+                    .fill(DSColors.surface)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 14)
+                    .stroke(Color.accentColor.opacity(0.16), lineWidth: 1)
+            )
+        } else if shouldShowCompactSharedWorkspaceBanner {
+            VStack(alignment: .leading, spacing: 8) {
                 HStack(spacing: 10) {
-                    if let activeLibrary {
-                        Menu {
-                            Button {
-                                handleSetLibrarySyncMode(activeLibrary, .localOnly)
-                            } label: {
-                                Label(
-                                    activeLibrary.syncMode == .localOnly ? "Local Only (Current)" : "Make Local Only",
-                                    systemImage: activeLibrary.syncMode == .localOnly ? "checkmark.circle.fill" : "lock.fill"
-                                )
-                            }
+                    Image(systemName: workspaceSyncService.isUsingSharedWorkspace ? "icloud.fill" : "icloud")
+                        .font(.subheadline)
+                        .foregroundStyle(workspaceSyncService.isUsingSharedWorkspace ? .green : .accentColor)
 
-                            Button {
-                                handleSetLibrarySyncMode(activeLibrary, .iCloudShared)
-                            } label: {
-                                Label(
-                                    activeLibrary.syncMode == .iCloudShared ? "iCloud Drive (Current)" : "Make iCloud Drive",
-                                    systemImage: activeLibrary.syncMode == .iCloudShared ? "checkmark.circle.fill" : "icloud.fill"
-                                )
-                            }
-                        } label: {
-                            Label(activeLibrary.syncMode.displayName, systemImage: activeLibrary.syncMode == .iCloudShared ? "icloud.fill" : "lock.fill")
-                                .font(.caption.weight(.semibold))
-                                .frame(maxWidth: .infinity)
-                        }
-                        .buttonStyle(.bordered)
-                        .disabled(isRefreshingSharedWorkspace)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("iCloud Libraries")
+                            .font(.subheadline.weight(.semibold))
+                        Text(compactSharedWorkspaceSummary)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(2)
                     }
 
-                    if hasConfiguredICloudLibraries {
-                        Button {
-                            refreshSharedWorkspaceNow()
-                        } label: {
-                            HStack(spacing: 8) {
-                                if isRefreshingSharedWorkspace {
-                                    ProgressView()
-                                        .controlSize(.small)
-                                } else {
-                                    Image(systemName: "arrow.clockwise")
-                                        .font(.caption.weight(.semibold))
-                                }
-                                Text(isRefreshingSharedWorkspace ? "Syncing..." : "Sync Now")
-                                    .font(.caption.weight(.semibold))
-                            }
-                            .frame(maxWidth: .infinity)
-                        }
-                        .buttonStyle(.borderedProminent)
-                        .disabled(isRefreshingSharedWorkspace)
-                    } else {
-                        Button {
-                            connectExistingICloudLibraries()
-                        } label: {
-                            HStack(spacing: 8) {
-                                if isRefreshingSharedWorkspace {
-                                    ProgressView()
-                                        .controlSize(.small)
-                                } else {
-                                    Image(systemName: "icloud.and.arrow.down")
-                                        .font(.caption.weight(.semibold))
-                                }
-                                Text(isRefreshingSharedWorkspace ? "Connecting..." : "Connect Existing")
-                                    .font(.caption.weight(.semibold))
-                            }
-                            .frame(maxWidth: .infinity)
-                        }
-                        .buttonStyle(.borderedProminent)
-                        .disabled(isRefreshingSharedWorkspace)
-                    }
+                    Spacer()
+
+                    Text(sharedWorkspaceModeLabel)
+                        .font(.caption.weight(.semibold))
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 4)
+                        .background(sharedWorkspaceModeColor.opacity(0.15))
+                        .foregroundStyle(sharedWorkspaceModeColor)
+                        .clipShape(Capsule())
+                }
+
+                if let detail = compactSharedWorkspaceDetail {
+                    Text(detail)
+                        .font(.caption2)
+                        .foregroundStyle(compactSharedWorkspaceDetailColor)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                ViewThatFits(in: .horizontal) {
+                    sharedWorkspaceActionRow(horizontal: true)
+                    sharedWorkspaceActionRow(horizontal: false)
                 }
             }
+            .padding(12)
+            .background(
+                RoundedRectangle(cornerRadius: 14)
+                    .fill(DSColors.surface)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 14)
+                    .stroke((workspaceSyncService.isUsingSharedWorkspace ? Color.green : Color.accentColor).opacity(0.16), lineWidth: 1)
+            )
+        }
+    }
 
-            Text(workspaceSyncService.statusMessage)
-                .font(.caption)
-                .foregroundStyle(.secondary)
+    private var shouldShowCompactSharedWorkspaceBanner: Bool {
+        workspaceSyncService.isUsingSharedWorkspace
+            || hasConfiguredICloudLibraries
+            || workspaceSyncService.syncCompatibilityMessage != nil
+            || workspaceSyncService.lastErrorMessage != nil
+            || sharedWorkspaceRefreshMessage != nil
+    }
 
-            if let syncActivitySummary {
-                Text(syncActivitySummary)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
+    private var compactSharedWorkspaceSummary: String {
+        if hasConfiguredICloudLibraries {
+            return "\(iCloudLibraryCount) iCloud • \(localOnlyLibraryCount) local"
+        }
 
-            if let sharedWorkspaceRefreshMessage {
-                Text(sharedWorkspaceRefreshMessage)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
+        return "No iCloud libraries configured"
+    }
 
-            if let lastErrorMessage = workspaceSyncService.lastErrorMessage {
-                Text(lastErrorMessage)
-                    .font(.caption)
-                    .foregroundStyle(.orange)
-            } else if !hasConfiguredICloudLibraries {
-                Text("Local Only libraries remain fully on-device until you explicitly choose iCloud Drive for a library.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+    private var compactSharedWorkspaceDetail: String? {
+        if let compatibilityMessage = workspaceSyncService.syncCompatibilityMessage {
+            return compatibilityMessage
+        }
+
+        if let lastErrorMessage = workspaceSyncService.lastErrorMessage {
+            return lastErrorMessage
+        }
+
+        if let sharedWorkspaceRefreshMessage {
+            return sharedWorkspaceRefreshMessage
+        }
+
+        if let syncActivitySummary {
+            return syncActivitySummary
+        }
+
+        if hasConfiguredICloudLibraries || workspaceSyncService.isUsingSharedWorkspace {
+            return workspaceSyncService.statusMessage
+        }
+
+        return nil
+    }
+
+    private var compactSharedWorkspaceDetailColor: Color {
+        if workspaceSyncService.syncCompatibilityMessage != nil || workspaceSyncService.lastErrorMessage != nil {
+            return .orange
+        }
+
+        return .secondary
+    }
+
+    @ViewBuilder
+    private func sharedWorkspaceActionRow(horizontal: Bool) -> some View {
+        let stackSpacing: CGFloat = 10
+
+        Group {
+            if horizontal {
+                HStack(spacing: stackSpacing) {
+                    sharedWorkspacePrimaryAction
+                    sharedWorkspaceSecondaryAction
+                }
+            } else {
+                VStack(spacing: stackSpacing) {
+                    sharedWorkspacePrimaryAction
+                    sharedWorkspaceSecondaryAction
+                }
             }
         }
-        .padding(14)
-        .background(
-            RoundedRectangle(cornerRadius: 16)
-                .fill(DSColors.surface)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 16)
-                .stroke((workspaceSyncService.isUsingSharedWorkspace ? Color.green : Color.accentColor).opacity(0.16), lineWidth: 1)
-        )
+    }
+
+    @ViewBuilder
+    private var sharedWorkspacePrimaryAction: some View {
+        if let activeLibrary {
+            Menu {
+                Button {
+                    handleSetLibrarySyncMode(activeLibrary, .localOnly)
+                } label: {
+                    Label(
+                        activeLibrary.syncMode == .localOnly ? "Local Only (Current)" : "Make Local Only",
+                        systemImage: activeLibrary.syncMode == .localOnly ? "checkmark.circle.fill" : "lock.fill"
+                    )
+                }
+
+                Button {
+                    handleSetLibrarySyncMode(activeLibrary, .iCloudShared)
+                } label: {
+                    Label(
+                        activeLibrary.syncMode == .iCloudShared ? "iCloud Drive (Current)" : "Make iCloud Drive",
+                        systemImage: activeLibrary.syncMode == .iCloudShared ? "checkmark.circle.fill" : "icloud.fill"
+                    )
+                }
+            } label: {
+                Label(activeLibrary.syncMode.displayName, systemImage: activeLibrary.syncMode == .iCloudShared ? "icloud.fill" : "lock.fill")
+                    .font(.caption.weight(.semibold))
+                    .multilineTextAlignment(.center)
+                    .lineLimit(2)
+                    .frame(maxWidth: .infinity, minHeight: 44)
+            }
+            .buttonStyle(.bordered)
+            .disabled(isRefreshingSharedWorkspace)
+        }
+    }
+
+    private var sharedWorkspaceSecondaryAction: some View {
+        Group {
+            if hasConfiguredICloudLibraries {
+                Button {
+                    refreshSharedWorkspaceNow()
+                } label: {
+                    HStack(spacing: 8) {
+                        if isRefreshingSharedWorkspace {
+                            ProgressView()
+                                .controlSize(.small)
+                        } else {
+                            Image(systemName: "arrow.clockwise")
+                                .font(.caption.weight(.semibold))
+                        }
+                        Text(isRefreshingSharedWorkspace ? "Syncing..." : "Sync Now")
+                            .font(.caption.weight(.semibold))
+                            .multilineTextAlignment(.center)
+                            .lineLimit(2)
+                    }
+                    .frame(maxWidth: .infinity, minHeight: 44)
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(isRefreshingSharedWorkspace)
+            } else {
+                Button {
+                    connectExistingICloudLibraries()
+                } label: {
+                    HStack(spacing: 8) {
+                        if isRefreshingSharedWorkspace {
+                            ProgressView()
+                                .controlSize(.small)
+                        } else {
+                            Image(systemName: "icloud.and.arrow.down")
+                                .font(.caption.weight(.semibold))
+                        }
+                        Text(isRefreshingSharedWorkspace ? "Connecting..." : "Connect Existing")
+                            .font(.caption.weight(.semibold))
+                            .multilineTextAlignment(.center)
+                            .lineLimit(2)
+                    }
+                    .frame(maxWidth: .infinity, minHeight: 44)
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(isRefreshingSharedWorkspace)
+            }
+        }
     }
 
     private var workspaceSyncHeadline: String {
@@ -734,7 +829,11 @@ struct DocumentLibraryView: View {
                 libraryToolbarContent
             }
             .overlay(alignment: .bottomTrailing) {
-                IngestionQueueOverlay(items: ragService.ingestionItems)
+                IngestionQueueOverlay(
+                    items: ragService.ingestionItems,
+                    onCancelItem: { ragService.cancelIngestionItem($0) },
+                    onCancelAll: { ragService.cancelAllIngestion() }
+                )
                 .padding(.trailing, 16)
                 .padding(.bottom, 16)
             }
@@ -1020,29 +1119,26 @@ struct DocumentLibraryView: View {
 
         // Haptic for destructive action
         DSHaptics.delete()
+        libraryToDelete = nil
 
-        // Get documents in this library before deletion
-        let docsToRemove = ragService.documents.filter { $0.containerId == container.id }
-
-        // Remove all documents in this library
         Task {
+            await ragService.cancelAndPurgeIngestion(for: container.id)
+
+            let docsToRemove = await MainActor.run {
+                ragService.documents.filter { $0.containerId == container.id }
+            }
+
             for doc in docsToRemove {
                 try? await ragService.removeDocument(doc)
             }
-        }
 
-        // Delete the container
-        containerService.deleteContainer(id: container.id)
+            await MainActor.run {
+                containerService.deleteContainer(id: container.id)
+                LibraryVisualizationEngine.shared.invalidateCache(for: container.id)
+            }
 
-        // Invalidate visualization cache
-        LibraryVisualizationEngine.shared.invalidateCache(for: container.id)
-
-        // Clean up entity index for deleted container
-        Task {
             await EntityIndexService.shared.removeContainer(container.id)
         }
-
-        libraryToDelete = nil
     }
 
     @MainActor

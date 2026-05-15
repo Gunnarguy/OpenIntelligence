@@ -481,7 +481,11 @@ struct ChatScreen: View {
             ToastStackView(items: toastManager.toasts, maxVisible: 1)
                 .padding(.top, 60)
 
-            IngestionQueueOverlay(items: ragService.ingestionItems)
+            IngestionQueueOverlay(
+                items: ragService.ingestionItems,
+                onCancelItem: { ragService.cancelIngestionItem($0) },
+                onCancelAll: { ragService.cancelAllIngestion() }
+            )
                 .padding(.horizontal, 16)
                 .padding(.bottom, 88)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)

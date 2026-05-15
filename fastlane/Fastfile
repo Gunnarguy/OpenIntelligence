@@ -73,7 +73,7 @@ platform :ios do
   desc "Build and upload the current release build to App Store Connect"
   lane :upload_release_build do |options|
     version = options[:version] || "3.6"
-    build_number = options[:build] || "37"
+    build_number = options[:build] || "38"
     output_name = "OpenIntelligence-#{version}-#{build_number}.ipa"
     build_output_directory = project_root("build")
     release_notes_path = fastlane_path("metadata", "en-US", "release_notes.txt")
@@ -104,7 +104,8 @@ platform :ios do
   desc "Submit the current App Store version for review using an existing processed build"
   lane :submit_release do |options|
     version = options[:version] || "3.6"
-    build_number = options[:build] || "37"
+    build_number = options[:build] || "38"
+    reject_if_possible = options.key?(:reject_if_possible) ? options[:reject_if_possible] : true
 
     deliver(
       api_key: asc_api_key,
@@ -117,6 +118,7 @@ platform :ios do
       metadata_path: fastlane_path("metadata"),
       submit_for_review: true,
       automatic_release: false,
+      reject_if_possible: reject_if_possible,
       precheck_include_in_app_purchases: false,
       submission_information: release_submission_information
     )
@@ -125,10 +127,10 @@ platform :ios do
   desc "Push metadata, upload build, and submit version for review"
   lane :release_to_review do |options|
     version = options[:version] || "3.6"
-    build_number = options[:build] || "37"
+    build_number = options[:build] || "38"
 
     upload_release_metadata(version: version)
     upload_release_build(version: version, build: build_number)
-    submit_release(version: version, build: build_number)
+    submit_release(version: version, build: build_number, reject_if_possible: options[:reject_if_possible])
   end
 end

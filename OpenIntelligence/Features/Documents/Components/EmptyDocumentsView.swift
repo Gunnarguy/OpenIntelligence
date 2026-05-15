@@ -18,6 +18,8 @@ struct EmptyDocumentsView: View {
 
     var body: some View {
         VStack(spacing: 24) {
+            Spacer(minLength: 0)
+
             // Hero icon with gradient
             ZStack {
                 Circle()
@@ -119,10 +121,10 @@ struct EmptyDocumentsView: View {
                 )
             }
             .padding(.horizontal, 32)
+
+            Spacer(minLength: 0)
         }
-        .frame(maxWidth: .infinity, alignment: .top)
-        .padding(.top, 24)
-        .padding(.bottom, 24)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }
 

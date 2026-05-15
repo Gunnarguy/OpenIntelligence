@@ -206,7 +206,7 @@ actor YOLODetectionService {
                 if let classifications = classifyRequest.results {
                     for classification in classifications.prefix(5) where classification.confidence >= threshold {
                         objects.append(DetectedObject(
-                            label: formatLabel(classification.identifier),
+                            label: self.formatLabel(classification.identifier),
                             confidence: classification.confidence,
                             boundingBox: CGRect(x: 0, y: 0, width: 1, height: 1)  // Full frame
                         ))
@@ -218,7 +218,7 @@ actor YOLODetectionService {
                     for animal in animals {
                         if let topLabel = animal.labels.first, topLabel.confidence >= threshold {
                             objects.append(DetectedObject(
-                                label: formatLabel(topLabel.identifier),
+                                label: self.formatLabel(topLabel.identifier),
                                 confidence: topLabel.confidence,
                                 boundingBox: animal.boundingBox
                             ))

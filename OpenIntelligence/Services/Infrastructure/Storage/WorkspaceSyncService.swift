@@ -49,6 +49,12 @@ final class WorkspaceSyncService: ObservableObject {
         let documents: [Document]
     }
 
+    private struct ContainerMergeResult {
+        let containers: [KnowledgeContainer]
+        let sourceToCanonical: [UUID: UUID]
+        let canonicalToSources: [UUID: [UUID]]
+    }
+
     private struct PendingBootstrapPlan {
         let localRoot: URL
         let sharedRoot: URL
@@ -444,7 +450,22 @@ final class WorkspaceSyncService: ObservableObject {
             from: root.appendingPathComponent("documents_metadata.json")
         ) ?? []
 
-        return WorkspaceInventory(containers: containers, documents: documents)
+        let ingestionQueue = try Self.readJSONIfPresent(
+            PersistedIngestionQueueStateRecord.self,
+            from: root.appendingPathComponent("ingestion_queue.json")
+        )
+
+        let repairResult = try repairWorkspaceMetadataIfNeeded(
+            at: root,
+            containers: containers,
+            documents: documents,
+            ingestionQueue: ingestionQueue
+        )
+
+        return WorkspaceInventory(
+            containers: repairResult.containers,
+            documents: repairResult.documents
+        )
     }
 
     private func configuredSyncedContainerIDs() -> Set<UUID> {
@@ -516,54 +537,73 @@ final class WorkspaceSyncService: ObservableObject {
                 .filter { !localOnlyContainerIDs.contains($0.id) }
         )
 
+        let mergeResult = mergeContainers(
+            shared: sharedVisibleContainers,
+            local: localSyncedContainers.map(normalizeSharedContainer)
+        )
+        let canonicalContainerById = Dictionary(uniqueKeysWithValues: mergeResult.containers.map { ($0.id, $0) })
+        let sharedCanonicalContainerIDs = Set(sharedVisibleContainers.map { mergeResult.sourceToCanonical[$0.id] ?? $0.id })
+
         let finalSyncedContainers: [KnowledgeContainer]
         switch strategy {
         case .mergeLibraries:
-            finalSyncedContainers = mergeContainers(
-                shared: sharedVisibleContainers,
-                local: localSyncedContainers.map(normalizeSharedContainer)
-            )
+            finalSyncedContainers = mergeResult.containers
 
         case .useICloudWorkspace:
-            let sharedIDs = Set(sharedVisibleContainers.map(\.id))
+            let sharedIDs = sharedCanonicalContainerIDs
             let demotedLocalContainers = localSyncedContainers
-                .filter { !sharedIDs.contains($0.id) }
+                .filter {
+                    let canonicalId = mergeResult.sourceToCanonical[$0.id] ?? $0.id
+                    return !sharedIDs.contains(canonicalId)
+                }
                 .map { container -> KnowledgeContainer in
                     var demoted = container
                     demoted.syncMode = .localOnly
                     return demoted
                 }
             localOnlyContainers = sortedContainers(localOnlyContainers + demotedLocalContainers)
-            finalSyncedContainers = sharedVisibleContainers
+            finalSyncedContainers = sortedContainers(sharedIDs.compactMap { canonicalContainerById[$0] })
 
         case .importExistingICloudLibraries:
-            finalSyncedContainers = sharedVisibleContainers
+            finalSyncedContainers = sortedContainers(sharedCanonicalContainerIDs.compactMap { canonicalContainerById[$0] })
         }
 
         let finalSyncedContainerIDs = Set(finalSyncedContainers.map(\.id))
         let localDefaultContainerId = allLocalContainers.first?.id
         let sharedDefaultContainerId = sharedVisibleContainers.first?.id
 
-        let localSyncedDocuments = localInventory.documents.filter { document in
-            guard let containerId = resolvedContainerID(for: document, defaultContainerId: localDefaultContainerId) else {
-                return false
+        let localSyncedDocuments = localInventory.documents.compactMap { document -> Document? in
+            guard let rawContainerId = resolvedContainerID(for: document, defaultContainerId: localDefaultContainerId) else {
+                return nil
             }
-            guard finalSyncedContainerIDs.contains(containerId) else { return false }
-            return localContainerById[containerId]?.syncMode == .iCloudShared
+
+            guard localContainerById[rawContainerId]?.syncMode == .iCloudShared else {
+                return nil
+            }
+
+            let canonicalId = mergeResult.sourceToCanonical[rawContainerId] ?? rawContainerId
+            guard finalSyncedContainerIDs.contains(canonicalId) else { return nil }
+            return applyingContainerAliases(to: document, aliases: mergeResult.sourceToCanonical)
         }
 
-        let localOnlyDocuments = localInventory.documents.filter { document in
-            guard let containerId = resolvedContainerID(for: document, defaultContainerId: localDefaultContainerId) else {
-                return true
+        let localOnlyDocuments = localInventory.documents.compactMap { document -> Document? in
+            guard let rawContainerId = resolvedContainerID(for: document, defaultContainerId: localDefaultContainerId) else {
+                return document
             }
-            return !finalSyncedContainerIDs.contains(containerId)
+
+            let canonicalId = mergeResult.sourceToCanonical[rawContainerId] ?? rawContainerId
+            guard !finalSyncedContainerIDs.contains(canonicalId) else { return nil }
+            return applyingContainerAliases(to: document, aliases: mergeResult.sourceToCanonical)
         }
 
-        let effectiveSharedDocuments = sharedInventory.documents.filter { document in
-            guard let containerId = resolvedContainerID(for: document, defaultContainerId: sharedDefaultContainerId) else {
-                return false
+        let effectiveSharedDocuments = sharedInventory.documents.compactMap { document -> Document? in
+            guard let rawContainerId = resolvedContainerID(for: document, defaultContainerId: sharedDefaultContainerId) else {
+                return nil
             }
-            return finalSyncedContainerIDs.contains(containerId) && localContainerById[containerId]?.syncMode != .localOnly
+
+            let canonicalId = mergeResult.sourceToCanonical[rawContainerId] ?? rawContainerId
+            guard finalSyncedContainerIDs.contains(canonicalId) else { return nil }
+            return applyingContainerAliases(to: document, aliases: mergeResult.sourceToCanonical)
         }
 
         let documentSources = effectiveSharedDocuments.map { SourcedDocument(document: $0, sourceRoot: sharedRoot) }
@@ -574,7 +614,7 @@ final class WorkspaceSyncService: ObservableObject {
         let finalSharedDocuments = try mergeDocuments(documentSources, into: sharedRoot)
         let finalLocalSyncedDocuments = try mergeDocuments(documentSources, into: localRoot)
         let finalLocalContainers = sortedContainers(localOnlyContainers + finalSyncedContainers)
-        let finalLocalDocuments = sortedDocuments(localOnlyDocuments + finalLocalSyncedDocuments)
+        let finalLocalDocuments = deduplicatedDocuments(localOnlyDocuments + finalLocalSyncedDocuments)
 
         try Self.writeJSON(finalLocalContainers, to: localRoot.appendingPathComponent("containers.json"))
         try Self.writeJSON(finalLocalDocuments, to: localRoot.appendingPathComponent("documents_metadata.json"))
@@ -598,6 +638,7 @@ final class WorkspaceSyncService: ObservableObject {
             localRoot: localRoot,
             sharedRoot: sharedRoot,
             syncedContainerIDs: finalSyncedContainerIDs,
+            containerAliases: mergeResult.sourceToCanonical,
             strategy: strategy
         )
 
@@ -606,6 +647,7 @@ final class WorkspaceSyncService: ObservableObject {
             sharedRoot: sharedRoot,
             syncedContainers: finalSyncedContainers,
             syncedDocuments: finalSharedDocuments,
+            sourceContainerIDsByCanonicalID: mergeResult.canonicalToSources,
             strategy: strategy
         )
 
@@ -646,10 +688,20 @@ final class WorkspaceSyncService: ObservableObject {
             return nil
         }
 
-        let localContainerIDs = Set(localInventory.containers.map(\.id))
-        let sharedContainerIDs = Set(sharedInventory.containers.map(\.id))
-        let localDocumentKeys = Set(localInventory.documents.map(syncDocumentIdentity))
-        let sharedDocumentKeys = Set(sharedInventory.documents.map(syncDocumentIdentity))
+        let mergeResult = mergeContainers(
+            shared: sharedInventory.containers,
+            local: localInventory.containers
+        )
+        let localContainerIDs = Set(localInventory.containers.map { mergeResult.sourceToCanonical[$0.id] ?? $0.id })
+        let sharedContainerIDs = Set(sharedInventory.containers.map { mergeResult.sourceToCanonical[$0.id] ?? $0.id })
+        let localDocumentKeys = Set(
+            applyingContainerAliases(to: localInventory.documents, aliases: mergeResult.sourceToCanonical)
+                .map(syncDocumentIdentity)
+        )
+        let sharedDocumentKeys = Set(
+            applyingContainerAliases(to: sharedInventory.documents, aliases: mergeResult.sourceToCanonical)
+                .map(syncDocumentIdentity)
+        )
 
         guard localContainerIDs != sharedContainerIDs || localDocumentKeys != sharedDocumentKeys else {
             return nil
@@ -664,12 +716,17 @@ final class WorkspaceSyncService: ObservableObject {
     }
 
     private func makePendingBootstrapConflict(from plan: PendingBootstrapPlan) -> PendingBootstrapConflict {
-        let mergedLibraryCount = Set(
-            plan.localInventory.containers.map(\.id) + plan.sharedInventory.containers.map(\.id)
-        ).count
+        let mergeResult = mergeContainers(
+            shared: plan.sharedInventory.containers,
+            local: plan.localInventory.containers
+        )
+        let mergedLibraryCount = mergeResult.containers.count
         let mergedDocumentCount = Set(
-            plan.localInventory.documents.map(syncDocumentIdentity)
-                + plan.sharedInventory.documents.map(syncDocumentIdentity)
+            deduplicatedDocuments(
+                applyingContainerAliases(to: plan.localInventory.documents, aliases: mergeResult.sourceToCanonical)
+                    + applyingContainerAliases(to: plan.sharedInventory.documents, aliases: mergeResult.sourceToCanonical)
+            )
+            .map(syncDocumentIdentity)
         ).count
 
         return PendingBootstrapConflict(
@@ -781,7 +838,7 @@ final class WorkspaceSyncService: ObservableObject {
 
         guard !localContainers.isEmpty || !sharedContainers.isEmpty else { return [] }
 
-        let mergedContainers = mergeContainers(shared: sharedContainers, local: localContainers)
+        let mergedContainers = mergeContainers(shared: sharedContainers, local: localContainers).containers
         try Self.writeJSON(mergedContainers, to: sharedURL)
         return mergedContainers
     }
@@ -821,32 +878,55 @@ final class WorkspaceSyncService: ObservableObject {
         try Self.writeJSON(mergedQueue, to: sharedQueueURL)
     }
 
-    private func mergeContainers(shared: [KnowledgeContainer], local: [KnowledgeContainer]) -> [KnowledgeContainer] {
-        var orderedIds: [UUID] = []
-        var byId: [UUID: KnowledgeContainer] = [:]
+    private func mergeContainers(shared: [KnowledgeContainer], local: [KnowledgeContainer]) -> ContainerMergeResult {
+        var orderedCanonicalIDs: [UUID] = []
+        var canonicalById: [UUID: KnowledgeContainer] = [:]
+        var mergeKeyToCanonicalID: [String: UUID] = [:]
+        var sourceToCanonical: [UUID: UUID] = [:]
+        var canonicalToSources: [UUID: [UUID]] = [:]
 
-        for container in shared {
-            if byId[container.id] == nil {
-                orderedIds.append(container.id)
+        func register(_ container: KnowledgeContainer) {
+            if let existing = canonicalById[container.id] {
+                canonicalById[container.id] = mergeContainer(primary: existing, secondary: container)
+                sourceToCanonical[container.id] = container.id
+                canonicalToSources[container.id] = uniqueContainerIDs(canonicalToSources[container.id] ?? [container.id])
+                if let mergeKey = containerMergeKey(for: canonicalById[container.id] ?? container) {
+                    mergeKeyToCanonicalID[mergeKey] = container.id
+                }
+                return
             }
-            byId[container.id] = container
+
+            if let mergeKey = containerMergeKey(for: container),
+               let canonicalID = mergeKeyToCanonicalID[mergeKey],
+               let existing = canonicalById[canonicalID] {
+                canonicalById[canonicalID] = mergeContainer(primary: existing, secondary: container)
+                sourceToCanonical[container.id] = canonicalID
+                canonicalToSources[canonicalID] = uniqueContainerIDs((canonicalToSources[canonicalID] ?? [canonicalID]) + [container.id])
+                return
+            }
+
+            orderedCanonicalIDs.append(container.id)
+            canonicalById[container.id] = container
+            sourceToCanonical[container.id] = container.id
+            canonicalToSources[container.id] = [container.id]
+            if let mergeKey = containerMergeKey(for: container) {
+                mergeKeyToCanonicalID[mergeKey] = container.id
+            }
         }
 
-        for container in local {
-            if let existing = byId[container.id] {
-                byId[container.id] = mergeContainer(primary: existing, secondary: container)
-            } else {
-                orderedIds.append(container.id)
-                byId[container.id] = container
-            }
+        for container in sortedContainers(shared) {
+            register(container)
         }
 
-        return orderedIds.compactMap { byId[$0] }.sorted { lhs, rhs in
-            if lhs.createdAt != rhs.createdAt {
-                return lhs.createdAt < rhs.createdAt
-            }
-            return lhs.name.localizedCaseInsensitiveCompare(rhs.name) == .orderedAscending
+        for container in sortedContainers(local) {
+            register(container)
         }
+
+        return ContainerMergeResult(
+            containers: sortedContainers(orderedCanonicalIDs.compactMap { canonicalById[$0] }),
+            sourceToCanonical: sourceToCanonical,
+            canonicalToSources: canonicalToSources.mapValues(uniqueContainerIDs)
+        )
     }
 
     private func mergeContainer(primary: KnowledgeContainer, secondary: KnowledgeContainer) -> KnowledgeContainer {
@@ -1158,12 +1238,19 @@ final class WorkspaceSyncService: ObservableObject {
         localRoot: URL,
         sharedRoot: URL,
         syncedContainerIDs: Set<UUID>,
+        containerAliases: [UUID: UUID],
         strategy: SyncResolutionStrategy
     ) throws {
         let localQueueURL = localRoot.appendingPathComponent("ingestion_queue.json")
         let sharedQueueURL = sharedRoot.appendingPathComponent("ingestion_queue.json")
-        let localQueue = try Self.readJSONIfPresent(PersistedIngestionQueueStateRecord.self, from: localQueueURL)
-        let sharedQueue = try Self.readJSONIfPresent(PersistedIngestionQueueStateRecord.self, from: sharedQueueURL)
+        let localQueue = applyingContainerAliases(
+            to: try Self.readJSONIfPresent(PersistedIngestionQueueStateRecord.self, from: localQueueURL),
+            aliases: containerAliases
+        )
+        let sharedQueue = applyingContainerAliases(
+            to: try Self.readJSONIfPresent(PersistedIngestionQueueStateRecord.self, from: sharedQueueURL),
+            aliases: containerAliases
+        )
 
         let localOnlyQueue = filterIngestionQueue(localQueue, mode: .excluding(syncedContainerIDs))
         let localSyncedQueue = filterIngestionQueue(localQueue, mode: .including(syncedContainerIDs))
@@ -1235,6 +1322,7 @@ final class WorkspaceSyncService: ObservableObject {
         sharedRoot: URL,
         syncedContainers: [KnowledgeContainer],
         syncedDocuments: [Document],
+        sourceContainerIDsByCanonicalID: [UUID: [UUID]],
         strategy: SyncResolutionStrategy
     ) async throws {
         let defaultContainerId = syncedContainers.first?.id
@@ -1243,27 +1331,38 @@ final class WorkspaceSyncService: ObservableObject {
 
         for container in syncedContainers {
             let allowedDocumentIds = documentIdsByContainer[container.id] ?? []
+            let sourceContainerIDs = Set(sourceContainerIDsByCanonicalID[container.id] ?? [container.id])
             try await synchronizeVectorStore(
                 for: container,
                 localRoot: localRoot,
                 sharedRoot: sharedRoot,
+                sourceContainerIDs: sourceContainerIDs,
                 allowedDocumentIds: allowedDocumentIds,
                 strategy: strategy
             )
 
             try synchronizeAuxiliaryFile(
-                localURL: localRoot.appendingPathComponent("chat_history_\(container.id.uuidString).json"),
-                sharedURL: sharedRoot.appendingPathComponent("chat_history_\(container.id.uuidString).json"),
+                filePrefix: "chat_history_",
+                canonicalContainerID: container.id,
+                sourceContainerIDs: sourceContainerIDs,
+                localRoot: localRoot,
+                sharedRoot: sharedRoot,
                 strategy: strategy
             )
             try synchronizeAuxiliaryFile(
-                localURL: localRoot.appendingPathComponent("transcript_\(container.id.uuidString).json"),
-                sharedURL: sharedRoot.appendingPathComponent("transcript_\(container.id.uuidString).json"),
+                filePrefix: "transcript_",
+                canonicalContainerID: container.id,
+                sourceContainerIDs: sourceContainerIDs,
+                localRoot: localRoot,
+                sharedRoot: sharedRoot,
                 strategy: strategy
             )
             try synchronizeAuxiliaryFile(
-                localURL: localRoot.appendingPathComponent("conversation_memory_\(container.id.uuidString).json"),
-                sharedURL: sharedRoot.appendingPathComponent("conversation_memory_\(container.id.uuidString).json"),
+                filePrefix: "conversation_memory_",
+                canonicalContainerID: container.id,
+                sourceContainerIDs: sourceContainerIDs,
+                localRoot: localRoot,
+                sharedRoot: sharedRoot,
                 strategy: strategy
             )
         }
@@ -1273,23 +1372,34 @@ final class WorkspaceSyncService: ObservableObject {
         for container: KnowledgeContainer,
         localRoot: URL,
         sharedRoot: URL,
+        sourceContainerIDs: Set<UUID>,
         allowedDocumentIds: Set<UUID>,
         strategy: SyncResolutionStrategy
     ) async throws {
         let localVectorURL = localRoot.appendingPathComponent("vector_database_\(container.id.uuidString).json")
         let sharedVectorURL = sharedRoot.appendingPathComponent("vector_database_\(container.id.uuidString).json")
+        let localSourceURLs = sourceContainerIDs.map { localRoot.appendingPathComponent("vector_database_\($0.uuidString).json") }
+        let sharedSourceURLs = sourceContainerIDs.map { sharedRoot.appendingPathComponent("vector_database_\($0.uuidString).json") }
 
         guard container.vectorDBKind == .persistentJSON else {
             try? Self.coordinatedRemoveItem(at: sharedVectorURL)
+            try? Self.coordinatedRemoveItem(at: localVectorURL)
+            for sourceContainerID in sourceContainerIDs where sourceContainerID != container.id {
+                try? Self.coordinatedRemoveItem(at: localRoot.appendingPathComponent("vector_database_\(sourceContainerID.uuidString).json"))
+                try? Self.coordinatedRemoveItem(at: sharedRoot.appendingPathComponent("vector_database_\(sourceContainerID.uuidString).json"))
+            }
             return
         }
 
-        let localChunks = fileManager.fileExists(atPath: localVectorURL.path)
-            ? (try await loadVectorChunks(from: localVectorURL, dimension: container.embeddingDim))
-            : []
-        let sharedChunks = fileManager.fileExists(atPath: sharedVectorURL.path)
-            ? (try await loadVectorChunks(from: sharedVectorURL, dimension: container.embeddingDim))
-            : []
+        var localChunks: [DocumentChunk] = []
+        for url in localSourceURLs where fileManager.fileExists(atPath: url.path) {
+            localChunks += try await loadVectorChunks(from: url, dimension: container.embeddingDim)
+        }
+
+        var sharedChunks: [DocumentChunk] = []
+        for url in sharedSourceURLs where fileManager.fileExists(atPath: url.path) {
+            sharedChunks += try await loadVectorChunks(from: url, dimension: container.embeddingDim)
+        }
 
         let resolvedChunks: [DocumentChunk]
         switch strategy {
@@ -1304,11 +1414,20 @@ final class WorkspaceSyncService: ObservableObject {
             if allowedDocumentIds.isEmpty {
                 try? Self.coordinatedRemoveItem(at: localVectorURL)
             }
+            for sourceContainerID in sourceContainerIDs where sourceContainerID != container.id {
+                try? Self.coordinatedRemoveItem(at: localRoot.appendingPathComponent("vector_database_\(sourceContainerID.uuidString).json"))
+                try? Self.coordinatedRemoveItem(at: sharedRoot.appendingPathComponent("vector_database_\(sourceContainerID.uuidString).json"))
+            }
             return
         }
 
         try await persistVectorChunks(resolvedChunks, dimension: container.embeddingDim, to: localVectorURL)
         try await persistVectorChunks(resolvedChunks, dimension: container.embeddingDim, to: sharedVectorURL)
+
+        for sourceContainerID in sourceContainerIDs where sourceContainerID != container.id {
+            try? Self.coordinatedRemoveItem(at: localRoot.appendingPathComponent("vector_database_\(sourceContainerID.uuidString).json"))
+            try? Self.coordinatedRemoveItem(at: sharedRoot.appendingPathComponent("vector_database_\(sourceContainerID.uuidString).json"))
+        }
     }
 
     private func persistVectorChunks(_ chunks: [DocumentChunk], dimension: Int, to url: URL) async throws {
@@ -1320,33 +1439,45 @@ final class WorkspaceSyncService: ObservableObject {
         }
     }
 
-    private func synchronizeAuxiliaryFile(localURL: URL, sharedURL: URL, strategy: SyncResolutionStrategy) throws {
-        let localExists = fileManager.fileExists(atPath: localURL.path)
-        let sharedExists = fileManager.fileExists(atPath: sharedURL.path)
+    private func synchronizeAuxiliaryFile(
+        filePrefix: String,
+        canonicalContainerID: UUID,
+        sourceContainerIDs: Set<UUID>,
+        localRoot: URL,
+        sharedRoot: URL,
+        strategy: SyncResolutionStrategy
+    ) throws {
+        let localURL = localRoot.appendingPathComponent("\(filePrefix)\(canonicalContainerID.uuidString).json")
+        let sharedURL = sharedRoot.appendingPathComponent("\(filePrefix)\(canonicalContainerID.uuidString).json")
+
+        let localCandidates = sourceContainerIDs.map {
+            localRoot.appendingPathComponent("\(filePrefix)\($0.uuidString).json")
+        }
+        let sharedCandidates = sourceContainerIDs.map {
+            sharedRoot.appendingPathComponent("\(filePrefix)\($0.uuidString).json")
+        }
 
         let preferredSource: URL?
         switch strategy {
         case .mergeLibraries:
-            switch (localExists, sharedExists) {
-            case (true, true):
-                let localDate = modificationDate(for: localURL)
-                let sharedDate = modificationDate(for: sharedURL)
-                preferredSource = sharedDate >= localDate ? sharedURL : localURL
-            case (true, false):
-                preferredSource = localURL
-            case (false, true):
-                preferredSource = sharedURL
-            case (false, false):
-                preferredSource = nil
-            }
+            preferredSource = (localCandidates + sharedCandidates)
+                .filter { fileManager.fileExists(atPath: $0.path) }
+                .max(by: { modificationDate(for: $0) < modificationDate(for: $1) })
 
         case .useICloudWorkspace, .importExistingICloudLibraries:
-            preferredSource = sharedExists ? sharedURL : nil
+            preferredSource = sharedCandidates
+                .filter { fileManager.fileExists(atPath: $0.path) }
+                .max(by: { modificationDate(for: $0) < modificationDate(for: $1) })
         }
 
         guard let preferredSource else {
             if strategy != .mergeLibraries {
                 try? Self.coordinatedRemoveItem(at: sharedURL)
+            }
+
+            for sourceContainerID in sourceContainerIDs where sourceContainerID != canonicalContainerID {
+                try? Self.coordinatedRemoveItem(at: localRoot.appendingPathComponent("\(filePrefix)\(sourceContainerID.uuidString).json"))
+                try? Self.coordinatedRemoveItem(at: sharedRoot.appendingPathComponent("\(filePrefix)\(sourceContainerID.uuidString).json"))
             }
             return
         }
@@ -1357,6 +1488,192 @@ final class WorkspaceSyncService: ObservableObject {
         if preferredSource.standardizedFileURL != sharedURL.standardizedFileURL {
             try copyItem(at: preferredSource, to: sharedURL)
         }
+
+        for sourceContainerID in sourceContainerIDs where sourceContainerID != canonicalContainerID {
+            try? Self.coordinatedRemoveItem(at: localRoot.appendingPathComponent("\(filePrefix)\(sourceContainerID.uuidString).json"))
+            try? Self.coordinatedRemoveItem(at: sharedRoot.appendingPathComponent("\(filePrefix)\(sourceContainerID.uuidString).json"))
+        }
+    }
+
+    private func repairWorkspaceMetadataIfNeeded(
+        at root: URL,
+        containers: [KnowledgeContainer],
+        documents: [Document],
+        ingestionQueue: PersistedIngestionQueueStateRecord?
+    ) throws -> (containers: [KnowledgeContainer], documents: [Document]) {
+        let mergeResult = mergeContainers(shared: containers, local: [])
+        let repairedDocuments = deduplicatedDocuments(
+            applyingContainerAliases(to: documents, aliases: mergeResult.sourceToCanonical)
+        )
+        let repairedQueue = applyingContainerAliases(to: ingestionQueue, aliases: mergeResult.sourceToCanonical)
+
+        let didRepairContainers = mergeResult.containers != containers
+        let didRepairDocuments = !jsonEncodedValuesMatch(repairedDocuments, documents)
+        let didRepairQueue = !jsonEncodedValuesMatch(repairedQueue, ingestionQueue)
+
+        if didRepairContainers {
+            try Self.writeJSON(mergeResult.containers, to: root.appendingPathComponent("containers.json"))
+        }
+
+        if didRepairDocuments {
+            try Self.writeJSON(repairedDocuments, to: root.appendingPathComponent("documents_metadata.json"))
+        }
+
+        if didRepairQueue {
+            let queueURL = root.appendingPathComponent("ingestion_queue.json")
+            if let repairedQueue, repairedQueue.items.isEmpty == false {
+                try Self.writeJSON(repairedQueue, to: queueURL)
+            } else {
+                try? Self.coordinatedRemoveItem(at: queueURL)
+            }
+        }
+
+        return (mergeResult.containers, repairedDocuments)
+    }
+
+    private func deduplicatedDocuments(_ documents: [Document]) -> [Document] {
+        var orderedIDs: [UUID] = []
+        var documentsByID: [UUID: Document] = [:]
+        var duplicateKeyToID: [String: UUID] = [:]
+
+        for document in documents {
+            if let existing = documentsByID[document.id] {
+                let merged = mergeDocument(primary: existing, secondary: document)
+                documentsByID[document.id] = merged
+                if let duplicateKey = documentDuplicateKey(for: merged) {
+                    duplicateKeyToID[duplicateKey] = document.id
+                }
+                continue
+            }
+
+            if let duplicateKey = documentDuplicateKey(for: document),
+               let existingID = duplicateKeyToID[duplicateKey],
+               let existing = documentsByID[existingID] {
+                let merged = mergeDocument(primary: existing, secondary: document)
+                documentsByID[existingID] = merged
+                if let mergedDuplicateKey = documentDuplicateKey(for: merged) {
+                    duplicateKeyToID[mergedDuplicateKey] = existingID
+                }
+                continue
+            }
+
+            orderedIDs.append(document.id)
+            documentsByID[document.id] = document
+            if let duplicateKey = documentDuplicateKey(for: document) {
+                duplicateKeyToID[duplicateKey] = document.id
+            }
+        }
+
+        return sortedDocuments(orderedIDs.compactMap { documentsByID[$0] })
+    }
+
+    private func applyingContainerAliases(to documents: [Document], aliases: [UUID: UUID]) -> [Document] {
+        documents.map { applyingContainerAliases(to: $0, aliases: aliases) }
+    }
+
+    private func applyingContainerAliases(to document: Document, aliases: [UUID: UUID]) -> Document {
+        guard let containerId = document.containerId,
+              let canonicalID = aliases[containerId],
+              canonicalID != containerId
+        else {
+            return document
+        }
+
+        return Document(
+            id: document.id,
+            filename: document.filename,
+            fileURL: document.fileURL,
+            storageRelativePath: document.storageRelativePath,
+            fileHash: document.fileHash,
+            contentType: document.contentType,
+            addedAt: document.addedAt,
+            totalChunks: document.totalChunks,
+            processingMetadata: document.processingMetadata,
+            containerId: canonicalID,
+            contentTags: document.contentTags
+        )
+    }
+
+    private func applyingContainerAliases(
+        to state: PersistedIngestionQueueStateRecord?,
+        aliases: [UUID: UUID]
+    ) -> PersistedIngestionQueueStateRecord? {
+        guard let state else { return nil }
+
+        let remappedItems = state.items.map { item in
+            applyingContainerAliases(to: item, aliases: aliases)
+        }
+
+        let normalizedState = PersistedIngestionQueueStateRecord(
+            items: remappedItems,
+            contexts: state.contexts,
+            updatedAt: state.updatedAt
+        )
+
+        let merged = mergeIngestionQueue(shared: nil, local: normalizedState)
+        return merged.items.isEmpty ? nil : merged
+    }
+
+    private func applyingContainerAliases(to item: IngestionItem, aliases: [UUID: UUID]) -> IngestionItem {
+        guard let containerId = item.containerId,
+              let canonicalID = aliases[containerId],
+              canonicalID != containerId
+        else {
+            return item
+        }
+
+        return IngestionItem(
+            id: item.id,
+            url: item.url,
+            storageRelativePath: item.storageRelativePath,
+            containerId: canonicalID,
+            documentHash: item.documentHash,
+            leaseOwnerDeviceId: item.leaseOwnerDeviceId,
+            leaseExpiresAt: item.leaseExpiresAt,
+            lastLeaseHeartbeatAt: item.lastLeaseHeartbeatAt,
+            stage: item.stage,
+            detail: item.detail,
+            progress: item.progress,
+            startedAt: item.startedAt,
+            finishedAt: item.finishedAt,
+            errorMessage: item.errorMessage,
+            metrics: item.metrics
+        )
+    }
+
+    private func containerMergeKey(for container: KnowledgeContainer) -> String? {
+        guard container.syncMode == .iCloudShared else { return nil }
+
+        let normalizedName = container.name
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
+
+        guard !normalizedName.isEmpty else { return nil }
+
+        return [
+            normalizedName,
+            container.embeddingProviderId,
+            String(container.embeddingDim),
+            container.vectorDBKind.rawValue,
+        ].joined(separator: "|")
+    }
+
+    private func uniqueContainerIDs(_ ids: [UUID]) -> [UUID] {
+        var seen: Set<UUID> = []
+        return ids.filter { seen.insert($0).inserted }
+    }
+
+    private func jsonEncodedValuesMatch<T: Encodable>(_ lhs: T, _ rhs: T) -> Bool {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+
+        guard let lhsData = try? encoder.encode(lhs),
+              let rhsData = try? encoder.encode(rhs)
+        else {
+            return false
+        }
+
+        return lhsData == rhsData
     }
 
     private func modificationDate(for url: URL) -> Date {
@@ -1516,7 +1833,7 @@ final class WorkspaceSyncService: ObservableObject {
                 }
             }
             let merged = collections.reduce(into: [KnowledgeContainer]()) { partial, next in
-                partial = mergeContainers(shared: partial, local: next)
+                partial = mergeContainers(shared: partial, local: next).containers
             }
             try Self.writeJSON(merged, to: url)
 
