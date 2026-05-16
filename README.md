@@ -49,237 +49,222 @@ The README now keeps a quick version index so the shipped app history is visible
 - Type-aware preparation that preserves clean digital text more conservatively while still escalating cleanup for noisy OCR and scanned material.
 - Retrieval-oriented answer generation with citations and evidence review.
 - Library/workspace isolation so questions stay scoped to the selected material.
-- Confidence, warning, and verification surfaces instead of pretending every answer is final.
-- Benchmarking and diagnostics for inspecting retrieval quality.
-- A Swift/SwiftUI implementation with a developing engine boundary.
-
-## Repository Map
-
-| Area                                     | What to look at                                                                                                                                            |
-| ---------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| App shell                                | [`OpenIntelligence/App`](OpenIntelligence/App)                                                                                                             |
-| Core models and protocols                | [`OpenIntelligence/Core`](OpenIntelligence/Core)                                                                                                           |
-| Document library UI                      | [`OpenIntelligence/Features/Documents`](OpenIntelligence/Features/Documents)                                                                               |
-| Chat and answer surfaces                 | [`OpenIntelligence/Features/Chat`](OpenIntelligence/Features/Chat)                                                                                         |
-| Diagnostics and validation UI            | [`OpenIntelligence/Features/Diagnostics`](OpenIntelligence/Features/Diagnostics)                                                                           |
-| Telemetry and visualizations             | [`OpenIntelligence/Features/Telemetry`](OpenIntelligence/Features/Telemetry)                                                                               |
-| Document processing services             | [`OpenIntelligence/Services/Document`](OpenIntelligence/Services/Document)                                                                                 |
-| Embedding providers                      | [`OpenIntelligence/Services/Embedding`](OpenIntelligence/Services/Embedding)                                                                               |
-| Query analysis and rewriting             | [`OpenIntelligence/Services/Query`](OpenIntelligence/Services/Query)                                                                                       |
-| RAG orchestration, retrieval, and safety | [`OpenIntelligence/Services/RAG`](OpenIntelligence/Services/RAG)                                                                                           |
-| Storage and vector search                | [`OpenIntelligence/Services/Storage`](OpenIntelligence/Services/Storage), [`OpenIntelligence/Services/VectorStore`](OpenIntelligence/Services/VectorStore) |
-| Experimental engine API boundary         | [`OpenIntelligence/SDK/OpenIntelligenceEngine.swift`](OpenIntelligence/SDK/OpenIntelligenceEngine.swift)                                                   |
-| Local model resources                    | [`OpenIntelligence/Resources/MLModels`](OpenIntelligence/Resources/MLModels)                                                                               |
-| Benchmark and audit scripts              | [`scripts`](scripts)                                                                                                                                       |
-| Benchmark manifests and studio           | [`Benchmarks`](Benchmarks)                                                                                                                                 |
-
-## Engineering Highlights
-
-The main app flow runs through a native SwiftUI shell and a document intelligence service layer:
-
-- [`OpenIntelligence/App/OpenIntelligenceApp.swift`](OpenIntelligence/App/OpenIntelligenceApp.swift): app entry point.
-- [`OpenIntelligence/App/ContentView.swift`](OpenIntelligence/App/ContentView.swift): top-level app composition.
-- [`OpenIntelligence/App/DebugRAGValidationHarness.swift`](OpenIntelligence/App/DebugRAGValidationHarness.swift): debug validation entry point for scripted RAG runs.
-- [`OpenIntelligence/Features/Documents/Library/DocumentLibraryView.swift`](OpenIntelligence/Features/Documents/Library/DocumentLibraryView.swift): document/library management surface.
-- [`OpenIntelligence/Features/Chat/Conversation/ChatScreen.swift`](OpenIntelligence/Features/Chat/Conversation/ChatScreen.swift): main question-answering experience.
-- [`OpenIntelligence/Features/Chat/Response/RetrievalSourcesTray.swift`](OpenIntelligence/Features/Chat/Response/RetrievalSourcesTray.swift): source review UI.
-- [`OpenIntelligence/Features/Chat/Response/RetrievalQualityView.swift`](OpenIntelligence/Features/Chat/Response/RetrievalQualityView.swift): retrieval-quality feedback surface.
-- [`OpenIntelligence/Features/Diagnostics/Validation/RAGAccuracyView.swift`](OpenIntelligence/Features/Diagnostics/Validation/RAGAccuracyView.swift): validation dashboard.
-
-The document and retrieval stack is split across focused services:
-
-- [`DocumentProcessor.swift`](OpenIntelligence/Services/Document/Processing/DocumentProcessor.swift): document ingestion and processing coordinator.
-- [`SemanticChunker.swift`](OpenIntelligence/Services/Document/Chunking/SemanticChunker.swift): semantic chunking experiments.
-- [`EmbeddingService.swift`](OpenIntelligence/Services/Embedding/EmbeddingService.swift): embedding abstraction.
-- [`SQLiteFullTextService.swift`](OpenIntelligence/Services/Storage/SQLiteFullTextService.swift): full-text storage path.
-- [`VectorStoreRouter.swift`](OpenIntelligence/Services/VectorStore/VectorStoreRouter.swift): vector store routing.
-- [`RAGService.swift`](OpenIntelligence/Services/RAG/Orchestration/RAGService.swift): retrieval-augmented answer orchestration.
-- [`HybridSearchService.swift`](OpenIntelligence/Services/RAG/Retrieval/HybridSearchService.swift): hybrid retrieval.
-- [`ContextPackingService.swift`](OpenIntelligence/Services/RAG/Retrieval/ContextPackingService.swift): context budget and evidence packing.
-- [`SourceOnlyAnswerService.swift`](OpenIntelligence/Services/RAG/Safety/SourceOnlyAnswerService.swift): source-backed answer checks.
-- [`VerificationGateService.swift`](OpenIntelligence/Services/RAG/Safety/VerificationGateService.swift): answer verification gates.
-
-Recent 3.6 follow-up work tightened two product surfaces that matter in practice:
-
-- Shared-library sync now centers on explicit per-library intent, global refresh/review in Documents, and clearer handling of additions and removals across devices.
-- Authored digital files such as text, markdown, code, CSV, transcripts, and Office-style documents now avoid the heavier OCR/PDF cleanup path unless the source quality actually calls for it.
-
-## Retrieval Pipeline
-
-The earlier README summary was too compressed. The documented system is not one straight line; it is an adaptive ingest, retrieval, verification, and inspection pipeline.
-
-The diagrams below are an audit-style systems map based on the repo docs. They are meant to show the full documented shape from import to response and review, not to imply that every document or every query runs every branch.
-
-### Ingestion To Indexed Corpus
+  If someone only looks at the README once, the intended mental model is this:
 
 ```mermaid
 flowchart LR
-  A[Import surface] --> B[Library or container selection]
-  B --> C{File and quality classification}
-  C --> D[Digital text parsing]
-  C --> E[Structured PDF or Office extraction]
-  C --> F[OCR vision or speech lane]
-  D --> G[Language detection and optional translation]
-  E --> G
-  F --> G
-  G --> H[Normalization and preservation profile]
-  H --> I[Page preservation and figure semantics]
-  I --> J[Semantic chunking]
-  J --> K[Entity keyword section metadata enrichment]
-  K --> L[Contextual prefix and token validation]
-  L --> M[Embedding generation]
-  L --> N[SQLite FTS5 documents pages chunks content metadata]
-  M --> O[Per-container vector store]
-  N --> P[Scoped indexed corpus]
-  O --> P
+  A[Import files into a library] --> B[Prepare and preserve document content]
+  B --> C[Build local search indexes]
+  C --> D[Understand and scope the question]
+  D --> E[Retrieve the best evidence]
+  E --> F[Answer from that evidence]
+  F --> G[Verify, score, and format the result]
+  G --> H[Show citations, warnings, and diagnostics]
 ```
 
-### Query To Response
+Everything else in the codebase exists to make one of those seven steps more reliable.
+
+### In Plain English
+
+1. Import and scope.
+   The app pulls files from Apple import and share surfaces into a selected library or workspace, so every later query has a defined document boundary.
+
+2. Prepare the material locally.
+   The engine decides whether the source should go through digital parsing, structured extraction, OCR, vision recovery, speech handling, or some combination of those paths.
+
+3. Preserve what matters for later retrieval.
+   It keeps page text, figure or layout signals, metadata, chunks, and enrichment so the system can answer questions with better source grounding later.
+
+4. Build two kinds of local indexes.
+   The app writes lexical search data into SQLite FTS5 and semantic search data into per-container vector storage, because exact term lookup and semantic similarity solve different retrieval failures.
+
+5. Understand the question before searching.
+   Queries are scoped to the active library, checked against device and policy constraints, classified by intent, and optionally rewritten, expanded, or HyDE-boosted before retrieval starts.
+
+6. Retrieve and assemble evidence.
+   The engine runs hybrid retrieval, reranking, diversity checks, parent expansion, compression, and context packing so the final prompt favors the strongest evidence instead of the noisiest evidence.
+
+7. Choose the right answer lane.
+   Depending on the query, the app can route into extractive QA, extractive summarization, standard Foundation Models generation, or agentic multi-session mode.
+
+8. Verify before presenting.
+   The answer is checked by safety and grounding gates, confidence is calibrated, markdown is rendered, and the UI shows citations, warnings, diagnostics, and source-review affordances.
+
+9. Inspect and iterate.
+   The same pipeline can be audited through diagnostics views, trace export, the validation harness, and the benchmark scripts so retrieval failures are visible instead of hidden.
+
+### Why It Is This Deep
+
+- Different source types fail differently, so ingestion cannot be one universal parser.
+- Exact lexical search and semantic retrieval both matter, so the app keeps both storage paths.
+- Apple’s public context budget is tight, so retrieval has to rerank, compress, and pack evidence aggressively.
+- Exact values, specs, and procedures need stricter handling than freeform synthesis.
+- The app is designed to expose uncertainty, not just produce fluent answers.
+
+### Key Constraints
+
+- The public Apple Foundation Models path is budgeted around 4096 tokens total.
+- The current embedding path uses 384-dimensional vectors with a relatively small embedding input ceiling.
+- Chunking and context packing are tuned tightly because prompt overhead, retrieved evidence, and output tokens all compete for the same budget.
+- Library isolation is enforced through scoped storage and retrieval, not by searching every imported file at once.
+
+### Code-Verified Routing Notes
+
+These control-flow notes are verified against the current implementation in [RAGService.swift](OpenIntelligence/Services/RAG/Orchestration/RAGService.swift), [QueryExecutionPlannerService.swift](OpenIntelligence/Services/Query/Analysis/QueryExecutionPlannerService.swift), and [DocumentProcessor.swift](OpenIntelligence/Services/Document/Processing/DocumentProcessor.swift).
+
+- agentic mode is chosen before the standard retrieval pipeline starts, not after context packing
+- extractive summarization is an early return, not a sibling step that runs alongside LLM generation
+- direct high-precision extraction can return before LLM generation, and can also override a generated answer later
+- verification gates and calibrated confidence are part of the standard single-pass generation path, not a universal block that every answer path re-enters
+
+<details>
+<summary>Detailed engineering views</summary>
+
+Decision diamonds below mean the code chooses one branch. They do not mean the app runs every outgoing arrow at the same time.
+
+#### Ingestion and indexing
 
 ```mermaid
 flowchart TD
-  A[User query] --> B[Device availability library scope and policy gate]
-  B --> C[Corpus vocabulary and container context]
-  C --> D[Query understanding pronouns entities references]
-  D --> E[Answer intent and search intent classification]
-  E --> F[Rewrite expansion vocabulary boost and HyDE optional]
-  F --> G[Query embedding]
-  G --> H{Retrieval route}
-  H --> I[Hybrid retrieval BM25 plus vector plus RRF]
-  H --> J[RAPTOR-lite summary retrieval]
-  H --> K[Iterative retrieval optional]
-  I --> L[Cross-encoder rerank]
-  J --> L
-  K --> L
-  L --> M[Low-confidence filtering]
-  M --> N[Source diversity and MMR]
-  N --> O[Parent and sibling expansion]
-  O --> P[Contextual compression]
-  P --> Q[Graph-style packing and lost-in-middle reorder]
-  Q --> R{Answer lane and exact-value override}
-  R --> S[Extractive QA]
-  R --> T[Extractive summarization]
-  R --> U[Foundation Models generation]
-  R --> V[Agentic multi-session mode optional]
-  S --> W[Quality assessment]
-  T --> W
-  U --> W
-  V --> W
-  W --> X[Verification gates A through I]
-  X --> Y[Source-only checks and abstention handling]
-  Y --> Z[Platt-scaled confidence trust payload and response metadata]
-  Z --> AA[Markdown rendering and response formatting]
-  AA --> AB[SwiftUI answer citations warnings diagnostics]
+   A[Import surface] --> B[Select library or container]
+   B --> C{Document type}
+   C -- PDF --> D{Good text layer and structured PDF path?}
+   D -- Yes --> E[Hybrid PDF extraction]
+   D -- No --> F[OCR or layout-aware PDF extraction]
+   C -- Image --> G[Image OCR and vision path]
+   C -- Audio or video --> H[Speech transcription path]
+   C -- Text, code, CSV, Office, XML --> I[Type-specific extraction path]
+   E --> J[Normalize and preserve text]
+   F --> J
+   G --> J
+   H --> J
+   I --> J
+   J --> K{Structured elements available?}
+   K -- Yes --> L[Structure-aware chunking]
+   K -- No --> M[Semantic chunking]
+   L --> N[Token-limit enforcement]
+   M --> N
+   N --> O[Store normalized text and pages in SQLite FTS5]
+   N --> P[Generate embeddings]
+   P --> Q[Store vectors by container]
+   O --> R[Scoped indexed corpus]
+   Q --> R
 ```
 
-### Validation And Inspection Loop
-
-```mermaid
-flowchart LR
-  A[Retrieved chunks and trust payload] --> B[Chat answer surface]
-  A --> C[Source review and retrieval quality surfaces]
-  A --> D[Diagnostics and validation UI]
-  D --> E[DebugRAGValidationHarness]
-  E --> F[run_rag_benchmarks.py]
-  E --> G[rag_benchmark_studio.py]
-  F --> H[results.json summary dashboard artifact bundle]
-  G --> H
-  H --> I[pipeline_trace.log and rag_validation_report.txt]
-  I --> J[Engineering iteration on chunking retrieval verification]
-```
-
-### Code-Level Service Map
-
-The current service layer spans more than a hundred Swift files across document processing, query analysis, retrieval, safety, telemetry, infrastructure, and agentic orchestration. The map below focuses on the primary runtime path and the main inspection surfaces rather than every helper, adapter, or experimental branch.
-
-```mermaid
-flowchart LR
-  A[DocumentLibraryView / DocumentPicker / ContainerPicker / CaptureToRAGBridge]
-  A --> B[DocumentProcessor / IntelligentDocumentProcessor]
-  B --> C[StructuredDocumentParser / LayoutAwareExtractor / OCRConfiguration / LanguageDetectionService / TranslationService / ImageUnderstandingService]
-  C --> D[SemanticChunker / ContentTaggingService / EntityIndexService / DocumentSummaryService]
-  D --> E[EmbeddingService]
-  E --> F[SQLiteFullTextService / VectorStoreRouter / BNNSVectorDatabase]
-
-  G[ChatScreen] --> H[QueryProfileService / QueryExecutionPlannerService / QueryRewriterService / HyDEService / QueryRouterService]
-  H --> I[ContainerVocabularyService / HybridSearchService / IterativeRetrievalService / ParentDocumentService]
-  I --> J[ContextualCompressionService / ContextPackingService / GraphIndexService / RAGEngine]
-  J --> K[ExtractiveQAService / ExtractiveSummarizationService / LLMService / AgenticOrchestrator]
-  K --> L[QualityAssuranceService / VerificationGateService / SourceOnlyAnswerService / ConfidenceCalibrationService / DomainIsolationService]
-
-  L --> M[RetrievalSourcesTray / RetrievalQualityView / ResponseDetailsView / AnswerIntelligenceView / PipelineTraceExporter]
-  L --> N[RAGPipelineAuditView / ChunkInspectorView / RAGAccuracyView / ContainerScopingSelfTestsView / TelemetryDashboardView]
-  N --> O[DebugRAGValidationHarness / run_rag_benchmarks.py / rag_benchmark_studio.py]
-```
-
-### Primary Files By Stage
-
-| Stage                                      | Primary engine files                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    | UI, diagnostics, and tooling                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
-| ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Import and library scope                   | [DocumentProcessor.swift](OpenIntelligence/Services/Document/Processing/DocumentProcessor.swift), [ContainerService.swift](OpenIntelligence/Services/Infrastructure/Integration/ContainerService.swift), [WorkspaceSyncService.swift](OpenIntelligence/Services/Infrastructure/Storage/WorkspaceSyncService.swift)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      | [DocumentLibraryView.swift](OpenIntelligence/Features/Documents/Library/DocumentLibraryView.swift), [DocumentPicker.swift](OpenIntelligence/Features/Documents/Components/DocumentPicker.swift), [ContainerPicker.swift](OpenIntelligence/Features/Documents/Components/ContainerPicker.swift), [CaptureToRAGBridge.swift](OpenIntelligence/Features/Camera/CaptureToRAGBridge.swift)                                                                                                                                                                                                                                                                                                                     |
-| Extraction and adaptive recovery           | [IntelligentDocumentProcessor.swift](OpenIntelligence/Services/Document/Processing/IntelligentDocumentProcessor.swift), [StructuredDocumentParser.swift](OpenIntelligence/Services/Document/Processing/StructuredDocumentParser.swift), [LayoutAwareExtractor.swift](OpenIntelligence/Services/Document/Processing/LayoutAwareExtractor.swift), [OCRConfiguration.swift](OpenIntelligence/Services/Document/Config/OCRConfiguration.swift), [LanguageDetectionService.swift](OpenIntelligence/Services/Document/Extraction/LanguageDetectionService.swift), [TranslationService.swift](OpenIntelligence/Services/Document/Extraction/TranslationService.swift), [AudioTranscriptionService.swift](OpenIntelligence/Services/Document/Extraction/AudioTranscriptionService.swift), [ImageUnderstandingService.swift](OpenIntelligence/Services/Document/Classification/ImageUnderstandingService.swift)                                                                                                  | [ProcessingOverlay.swift](OpenIntelligence/Features/Documents/Components/ProcessingOverlay.swift), [ProcessingSummaryView.swift](OpenIntelligence/Features/Documents/Components/ProcessingSummaryView.swift), [DocumentDetailsView.swift](OpenIntelligence/Features/Documents/Details/DocumentDetailsView.swift)                                                                                                                                                                                                                                                                                                                                                                                          |
-| Chunking and enrichment                    | [SemanticChunker.swift](OpenIntelligence/Services/Document/Chunking/SemanticChunker.swift), [ContentTaggingService.swift](OpenIntelligence/Services/Document/Chunking/ContentTaggingService.swift), [PageComplexityAnalyzer.swift](OpenIntelligence/Services/Document/Chunking/PageComplexityAnalyzer.swift), [EntityIndexService.swift](OpenIntelligence/Services/Document/Analysis/EntityIndexService.swift), [SpecificationDetector.swift](OpenIntelligence/Services/Document/Analysis/SpecificationDetector.swift), [DocumentSummaryService.swift](OpenIntelligence/Services/Document/Analysis/DocumentSummaryService.swift), [GazetteerService.swift](OpenIntelligence/Services/Document/Extraction/GazetteerService.swift)                                                                                                                                                                                                                                                                        | [ChunkInspectorView.swift](OpenIntelligence/Features/Diagnostics/Validation/ChunkInspectorView.swift), [NLChunkingDiagnosticsView.swift](OpenIntelligence/Features/Telemetry/Diagnostics/NLChunkingDiagnosticsView.swift)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
-| Embedding and indexing                     | [EmbeddingService.swift](OpenIntelligence/Services/Embedding/EmbeddingService.swift), [CoreMLSentenceEmbeddingProvider.swift](OpenIntelligence/Services/Embedding/Providers/CoreMLSentenceEmbeddingProvider.swift), [SQLiteFullTextService.swift](OpenIntelligence/Services/Storage/SQLiteFullTextService.swift), [VectorStoreRouter.swift](OpenIntelligence/Services/VectorStore/VectorStoreRouter.swift), [BNNSVectorDatabase.swift](OpenIntelligence/Services/VectorStore/BNNSVectorDatabase.swift)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  | [DatabaseDashboardView.swift](OpenIntelligence/Features/Database/DatabaseDashboardView.swift), [Embedding3DView.swift](OpenIntelligence/Features/Telemetry/Visualizations/Embedding3DView.swift)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
-| Query analysis and routing                 | [QueryProfileService.swift](OpenIntelligence/Services/Query/Analysis/QueryProfileService.swift), [QueryExecutionPlannerService.swift](OpenIntelligence/Services/Query/Analysis/QueryExecutionPlannerService.swift), [QueryRewriterService.swift](OpenIntelligence/Services/Query/Rewriting/QueryRewriterService.swift), [HyDEService.swift](OpenIntelligence/Services/Query/Rewriting/HyDEService.swift), [QueryEnhancementService.swift](OpenIntelligence/Services/Query/Enhancement/QueryEnhancementService.swift), [QueryRouterService.swift](OpenIntelligence/Services/Query/Routing/QueryRouterService.swift), [ContainerVocabularyService.swift](OpenIntelligence/Services/RAG/Retrieval/ContainerVocabularyService.swift), [RetrievalPolicyService.swift](OpenIntelligence/Services/RAG/Tuning/RetrievalPolicyService.swift)                                                                                                                                                                     | [ChatComposerV2.swift](OpenIntelligence/Features/Chat/Conversation/ChatComposerV2.swift), [SuggestedQuestionsService.swift](OpenIntelligence/Services/Query/UX/SuggestedQuestionsService.swift)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
-| Retrieval and context assembly             | [HybridSearchService.swift](OpenIntelligence/Services/RAG/Retrieval/HybridSearchService.swift), [IterativeRetrievalService.swift](OpenIntelligence/Services/RAG/Retrieval/IterativeRetrievalService.swift), [ParentDocumentService.swift](OpenIntelligence/Services/RAG/Retrieval/ParentDocumentService.swift), [ContextualCompressionService.swift](OpenIntelligence/Services/Query/Enhancement/ContextualCompressionService.swift), [ContextPackingService.swift](OpenIntelligence/Services/RAG/Retrieval/ContextPackingService.swift), [GraphIndexService.swift](OpenIntelligence/Services/RAG/Retrieval/GraphIndexService.swift), [RAGEngine.swift](OpenIntelligence/Services/RAG/Orchestration/RAGEngine.swift), [RAGService+KnowledgeRetrievalEngine.swift](OpenIntelligence/Services/RAG/Orchestration/RAGService+KnowledgeRetrievalEngine.swift)                                                                                                                                                | [RetrievalSourcesTray.swift](OpenIntelligence/Features/Chat/Response/RetrievalSourcesTray.swift), [RetrievalQualityView.swift](OpenIntelligence/Features/Chat/Response/RetrievalQualityView.swift), [ContextUsageIndicator.swift](OpenIntelligence/Features/Chat/Response/ContextUsageIndicator.swift)                                                                                                                                                                                                                                                                                                                                                                                                    |
-| Answer generation and safety               | [ExtractiveQAService.swift](OpenIntelligence/Services/RAG/Extraction/ExtractiveQAService.swift), [ExtractiveSummarizationService.swift](OpenIntelligence/Services/RAG/Extraction/ExtractiveSummarizationService.swift), [LLMService.swift](OpenIntelligence/Services/LLM/LLMService.swift), [AgenticOrchestrator.swift](OpenIntelligence/Services/Agentic/AgenticOrchestrator.swift), [QualityAssuranceService.swift](OpenIntelligence/Services/RAG/Safety/QualityAssuranceService.swift), [VerificationGateService.swift](OpenIntelligence/Services/RAG/Safety/VerificationGateService.swift), [SourceOnlyAnswerService.swift](OpenIntelligence/Services/RAG/Safety/SourceOnlyAnswerService.swift), [ConfidenceCalibrationService.swift](OpenIntelligence/Services/RAG/Safety/ConfidenceCalibrationService.swift), [DomainIsolationService.swift](OpenIntelligence/Services/RAG/Safety/DomainIsolationService.swift), [RAGService.swift](OpenIntelligence/Services/RAG/Orchestration/RAGService.swift) | [ChatScreen.swift](OpenIntelligence/Features/Chat/Conversation/ChatScreen.swift), [ResponseDetailsView.swift](OpenIntelligence/Features/Chat/Response/ResponseDetailsView.swift), [AnswerIntelligenceView.swift](OpenIntelligence/Features/Chat/Response/AnswerIntelligenceView.swift), [TimingBreakdownView.swift](OpenIntelligence/Features/Chat/Response/TimingBreakdownView.swift), [UnifiedMetricsBar.swift](OpenIntelligence/Features/Chat/Response/UnifiedMetricsBar.swift)                                                                                                                                                                                                                        |
-| Diagnostics, telemetry, and benchmark loop | [DebugRAGValidationHarness.swift](OpenIntelligence/App/DebugRAGValidationHarness.swift), [PipelineTraceExporter.swift](OpenIntelligence/Features/Chat/Pipeline/PipelineTraceExporter.swift)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             | [RAGPipelineAuditView.swift](OpenIntelligence/Features/Diagnostics/Validation/RAGPipelineAuditView.swift), [RAGAccuracyView.swift](OpenIntelligence/Features/Diagnostics/Validation/RAGAccuracyView.swift), [ContainerScopingSelfTestsView.swift](OpenIntelligence/Features/Diagnostics/Validation/ContainerScopingSelfTestsView.swift), [DeveloperDiagnosticsHubView.swift](OpenIntelligence/Features/Diagnostics/Hub/DeveloperDiagnosticsHubView.swift), [TelemetryDashboardView.swift](OpenIntelligence/Features/Telemetry/Dashboard/TelemetryDashboardView.swift), [scripts/run_rag_benchmarks.py](scripts/run_rag_benchmarks.py), [scripts/rag_benchmark_studio.py](scripts/rag_benchmark_studio.py) |
-
-### Fallback And Recovery Paths
+#### Standard single-pass query path
 
 ```mermaid
 flowchart TD
-  A[Complex or weak source material] --> B[Adaptive OCR layout and figure recovery]
-  B --> C[Page preservation and chunk enrichment]
-
-  D[Primary embedding provider unavailable] --> E[NaturalLanguage or hash embedding fallback]
-  E --> F[Zero-vector last resort]
-  F --> G[Chunk remains searchable through lexical retrieval]
-
-  H[Vector or lexical retrieval weak] --> I[Broader SQLite OR fallback]
-  I --> J[Corrective retrieval or retrieval cascade]
-  J --> K[Iterative pass parent expansion and repacking]
-
-  L[Exact extraction unavailable] --> M[Abstractive or agentic lane]
-  N[Model or cloud path unavailable] --> O[Fallback model or on-device path]
-  M --> P[Verification and source-only checks]
-  O --> P
-  K --> P
-
-  P --> Q{Evidence strong enough}
-  Q -->|Yes| R[Cited answer with confidence and diagnostics]
-  Q -->|No| S[Warnings corrective trace or abstention]
+   A[User query] --> B[Build query profile and execution plan]
+   B --> C{Use agentic mode?}
+   C -- Yes --> AG[Hand off to separate agentic path]
+   C -- No --> D[Resolve embedding context and retrieval config]
+   D --> E{Literal lookup?}
+   E -- Yes --> F[Keep query wording literal]
+   E -- No --> G[Optional rewrite]
+   F --> H{Expansion enabled?}
+   G --> H
+   H -- Yes --> I[Add planner, heuristic, container vocab, and gazetteer expansions]
+   H -- No --> J[Use current query as-is]
+   I --> K[Classify answer intent and routing]
+   J --> K
+   K --> L{HyDE allowed for this intent?}
+   L -- Yes --> M[Generate HyDE document and embed it]
+   L -- No --> N[Embed effective query]
+   M --> O{Iterative retrieval enabled?}
+   N --> O
+   O -- Yes --> P[Iterative retrieval]
+   O -- No --> Q[Hybrid retrieval]
+   P --> R[Rerank and confidence filtering]
+   Q --> R
+   R --> S[MMR, parent expansion, compression, graph packing, and corrective passes when allowed]
+   S --> T{Extractive summary intent?}
+   T -- Yes --> U[Return extractive summary]
+   T -- No --> V{Direct high-precision extraction available?}
+   V -- Yes --> W[Return direct source extraction]
+   V -- No --> X[LLM generation with overflow retry if needed]
+   X --> Y{Post-generation extraction override?}
+   Y -- Yes --> Z[Replace generated answer with direct extraction]
+   Y -- No --> AA[Keep generated answer]
+   Z --> AB[Quality assessment]
+   AA --> AB
+   AB --> AC{Verification gates enabled?}
+   AC -- Yes --> AD{Verification passes?}
+   AD -- No --> AE[Return grounded abstention when policy requires]
+   AD -- Yes --> AF[Calibrate confidence]
+   AC -- No --> AF
+   AF --> AH{Source-only refinement for extractive intents?}
+   AH -- Yes --> AI[Refine answer or abstain]
+   AH -- No --> AJ[Finalize response]
+   AI --> AJ
 ```
 
-The app also has multiple non-happy-path layers that are easy to miss in a single linear diagram:
+#### Agentic path
 
-- extraction escalates from cleaner digital parsing to heavier OCR, layout-aware recovery, figure understanding, and page preservation when documents get noisy
-- embeddings can fall back across providers, and in the worst case a chunk can still survive through BM25 or other lexical lookup even if vector quality drops
-- search can broaden from stricter matching into broader FTS fallback, corrective retrieval, iterative passes, and parent-context recovery when the first hit set is weak
-- exact-value and summary intents can route away from freeform generation into extractive lanes before the final answer is packaged
+```mermaid
+flowchart TD
+   A[User query] --> B[Planner or quality mode selects agentic]
+   B --> C{Precision lookup succeeds first?}
+   C -- Yes --> D[Return precision response]
+   C -- No --> E[Run AgenticOrchestrator multi-session reasoning]
+   E --> F[Collect retrieved chunks and reasoning trace]
+   F --> G{Direct extraction or source-only refinement needed?}
+   G -- Yes --> H[Refine answer or abstain]
+   G -- No --> I[Build agentic response and finalize]
+   H --> I
+```
+
+Current code-path note: agentic responses build their own audit snapshot and response metadata inside [RAGService.swift](OpenIntelligence/Services/RAG/Orchestration/RAGService.swift) rather than re-entering the standard Step 7 and Step 7.5 verification block.
+
+#### Recovery and inspection
+
+```mermaid
+flowchart TD
+   A[Weak evidence or missing answer] --> B{No chunks or empty rerank result?}
+   B -- Yes --> C[Grounded abstention or reliability fallback]
+   B -- No --> D[Broaden retrieval, cascade, or corrective retrieval]
+   D --> E[Repack context and retry generation when needed]
+   E --> F{Overflow, empty answer, or weak verification?}
+   F -- Yes --> G[Retry with smaller evidence pack, refine, or abstain]
+   F -- No --> H[Continue to final response]
+   C --> I[Chat review surfaces]
+   G --> I
+   H --> I
+   I --> J[Audit views, trace export, validation harness, and benchmarks]
+```
+
+</details>
+
+<details>
+<summary>Primary runtime files</summary>
+
+These are the main entry points, not every helper or experimental branch.
+
+| Area                    | Start here                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      | What it owns                                                        |
+| ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
+| Import and extraction   | [DocumentProcessor.swift](OpenIntelligence/Services/Document/Processing/DocumentProcessor.swift), [IntelligentDocumentProcessor.swift](OpenIntelligence/Services/Document/Processing/IntelligentDocumentProcessor.swift), [StructuredDocumentParser.swift](OpenIntelligence/Services/Document/Processing/StructuredDocumentParser.swift), [LayoutAwareExtractor.swift](OpenIntelligence/Services/Document/Processing/LayoutAwareExtractor.swift)                                                                                                                                                                                                                                                                                                                                                | file ingestion, adaptive extraction, parsing, cleanup, preservation |
+| Chunking and enrichment | [SemanticChunker.swift](OpenIntelligence/Services/Document/Chunking/SemanticChunker.swift), [ContentTaggingService.swift](OpenIntelligence/Services/Document/Chunking/ContentTaggingService.swift), [EntityIndexService.swift](OpenIntelligence/Services/Document/Analysis/EntityIndexService.swift), [DocumentSummaryService.swift](OpenIntelligence/Services/Document/Analysis/DocumentSummaryService.swift)                                                                                                                                                                                                                                                                                                                                                                                  | chunk construction, metadata, entity signals, summaries             |
+| Indexing and storage    | [EmbeddingService.swift](OpenIntelligence/Services/Embedding/EmbeddingService.swift), [SQLiteFullTextService.swift](OpenIntelligence/Services/Storage/SQLiteFullTextService.swift), [VectorStoreRouter.swift](OpenIntelligence/Services/VectorStore/VectorStoreRouter.swift), [BNNSVectorDatabase.swift](OpenIntelligence/Services/VectorStore/BNNSVectorDatabase.swift)                                                                                                                                                                                                                                                                                                                                                                                                                        | embeddings, lexical index, vector index, scoped storage             |
+| Query analysis          | [QueryProfileService.swift](OpenIntelligence/Services/Query/Analysis/QueryProfileService.swift), [QueryRewriterService.swift](OpenIntelligence/Services/Query/Rewriting/QueryRewriterService.swift), [HyDEService.swift](OpenIntelligence/Services/Query/Rewriting/HyDEService.swift), [QueryRouterService.swift](OpenIntelligence/Services/Query/Routing/QueryRouterService.swift)                                                                                                                                                                                                                                                                                                                                                                                                             | intent detection, rewriting, expansion, routing                     |
+| Retrieval and packing   | [HybridSearchService.swift](OpenIntelligence/Services/RAG/Retrieval/HybridSearchService.swift), [IterativeRetrievalService.swift](OpenIntelligence/Services/RAG/Retrieval/IterativeRetrievalService.swift), [ParentDocumentService.swift](OpenIntelligence/Services/RAG/Retrieval/ParentDocumentService.swift), [ContextPackingService.swift](OpenIntelligence/Services/RAG/Retrieval/ContextPackingService.swift)                                                                                                                                                                                                                                                                                                                                                                              | hybrid search, fallback passes, parent expansion, context packing   |
+| Answer and safety       | [ExtractiveQAService.swift](OpenIntelligence/Services/RAG/Extraction/ExtractiveQAService.swift), [ExtractiveSummarizationService.swift](OpenIntelligence/Services/RAG/Extraction/ExtractiveSummarizationService.swift), [LLMService.swift](OpenIntelligence/Services/LLM/LLMService.swift), [AgenticOrchestrator.swift](OpenIntelligence/Services/Agentic/AgenticOrchestrator.swift), [VerificationGateService.swift](OpenIntelligence/Services/RAG/Safety/VerificationGateService.swift), [SourceOnlyAnswerService.swift](OpenIntelligence/Services/RAG/Safety/SourceOnlyAnswerService.swift), [ConfidenceCalibrationService.swift](OpenIntelligence/Services/RAG/Safety/ConfidenceCalibrationService.swift), [RAGService.swift](OpenIntelligence/Services/RAG/Orchestration/RAGService.swift) | answer lanes, verification, confidence, orchestration               |
+| Review and benchmarking | [ChatScreen.swift](OpenIntelligence/Features/Chat/Conversation/ChatScreen.swift), [ResponseDetailsView.swift](OpenIntelligence/Features/Chat/Response/ResponseDetailsView.swift), [RetrievalSourcesTray.swift](OpenIntelligence/Features/Chat/Response/RetrievalSourcesTray.swift), [RAGPipelineAuditView.swift](OpenIntelligence/Features/Diagnostics/Validation/RAGPipelineAuditView.swift), [RAGAccuracyView.swift](OpenIntelligence/Features/Diagnostics/Validation/RAGAccuracyView.swift), [DebugRAGValidationHarness.swift](OpenIntelligence/App/DebugRAGValidationHarness.swift), [scripts/run_rag_benchmarks.py](scripts/run_rag_benchmarks.py)                                                                                                                                         | source review, audit views, validation, benchmark loop              |
+
+</details>
+
+<details>
+<summary>Fallback and recovery paths</summary>
+
+- extraction can escalate from cleaner digital parsing into heavier OCR, layout-aware recovery, figure understanding, and page preservation when the source gets noisy
+- embeddings can fall back across providers, and a chunk can still survive through lexical retrieval even if vector quality drops
+- search can broaden from stricter matching into broader FTS fallback, corrective retrieval, iterative passes, and parent-context recovery
+- exact-value and summary intents can route away from freeform generation into extractive lanes
 - model and execution routing can fall back across runtime and capability constraints, including on-device behavior when broader execution paths are unavailable
 - verification can still reject the result and force warnings or abstention even after the model produced something fluent
 
-### Constraints That Force This Architecture
+</details>
 
-- The public Apple Foundation Models path is budgeted around 4096 tokens total, so instructions, tool schemas, retrieved context, and the response all compete for the same window.
-- The current embedding path uses 384-dimensional vectors and an embedding input ceiling around 510 tokens, so chunking and token validation cannot be sloppy.
-- Chunking targets roughly 260 words with a hard ceiling around 310 words because contextual prefix overhead has to be reserved before embedding.
-- Context packing is tuned around roughly 3200 estimated tokens and about 5500 characters for the current public Apple path, which is why reranking, compression, and lost-in-middle reordering matter.
-- Tool schemas can consume roughly 1000 tokens, so the RAG path disables tools when context has already been assembled.
-- Library isolation is enforced through shared SQLite tables plus container filters and per-container vector stores, which is why storage and routing are more involved than a single database lookup.
-
-### Why So Many Stages Exist
-
-- Adaptive ingestion exists because clean digital text, scanned PDFs, tables, figures, images, and media transcripts fail in different ways.
-- Dual storage exists because lexical lookup and semantic similarity solve different retrieval problems.
-- Query rewrite, vocabulary expansion, and HyDE exist because users often ask in different language than the source material uses.
-- Reranking, diversity, parent retrieval, and compression exist because relevant evidence is often fragmented, duplicated, or buried in weak matches.
-- Exact-value overrides and extractive lanes exist because numbers, specs, and procedures need stricter handling than freeform synthesis.
-- Verification, calibrated confidence, warnings, and abstention exist because citations alone are not enough and the system should surface uncertainty instead of hiding it.
-- Diagnostics and benchmarks exist because the pipeline is supposed to be inspectable and regression-testable, not just persuasive when it works.
-
-See [Retrieval Pipeline](Docs/RETRIEVAL_PIPELINE.md), [RAG Technical Specifications](Docs/Engineering/RAG_TECHNICAL.md), [Storage and Pipeline Trace](Docs/Engineering/STORAGE_AND_PIPELINE_TRACE.md), [Apple Intelligence Models and Specs](Docs/Engineering/APPLE_MODELS.md), [Hard Limits and Claim Constraints](Docs/Engineering/HARD_LIMITS.md), and [Benchmarks](Benchmarks/README.md) for the deeper trace and the constraints that shape it.
+See [Retrieval Pipeline](Docs/RETRIEVAL_PIPELINE.md), [RAG Technical Specifications](Docs/Engineering/RAG_TECHNICAL.md), [Storage and Pipeline Trace](Docs/Engineering/STORAGE_AND_PIPELINE_TRACE.md), [Apple Intelligence Models and Specs](Docs/Engineering/APPLE_MODELS.md), [Hard Limits and Claim Constraints](Docs/Engineering/HARD_LIMITS.md), and [Benchmarks](Benchmarks/README.md) for the deeper trace and the implementation limits that shape it.
 
 ## Technical References
 
