@@ -27,7 +27,9 @@ OpenIntelligence is a proof-of-concept and portfolio project. It is not a finish
 
 - AI product engineering in a native Apple app.
 - Local-first document workflows built around user-controlled files.
+- Per-library Local Only versus iCloud Drive storage with cross-device review instead of one global cloud mode.
 - Document ingestion, OCR-oriented extraction, chunking, enrichment, and indexing.
+- Type-aware preparation that preserves clean digital text more conservatively while still escalating cleanup for noisy OCR and scanned material.
 - Retrieval-oriented answer generation with citations and evidence review.
 - Library/workspace isolation so questions stay scoped to the selected material.
 - Confidence, warning, and verification surfaces instead of pretending every answer is final.
@@ -79,6 +81,11 @@ The document and retrieval stack is split across focused services:
 - [`ContextPackingService.swift`](OpenIntelligence/Services/RAG/Retrieval/ContextPackingService.swift): context budget and evidence packing.
 - [`SourceOnlyAnswerService.swift`](OpenIntelligence/Services/RAG/Safety/SourceOnlyAnswerService.swift): source-backed answer checks.
 - [`VerificationGateService.swift`](OpenIntelligence/Services/RAG/Safety/VerificationGateService.swift): answer verification gates.
+
+Recent 3.6 follow-up work tightened two product surfaces that matter in practice:
+
+- Shared-library sync now centers on explicit per-library intent, global refresh/review in Documents, and clearer handling of additions and removals across devices.
+- Authored digital files such as text, markdown, code, CSV, transcripts, and Office-style documents now avoid the heavier OCR/PDF cleanup path unless the source quality actually calls for it.
 
 ## Retrieval Pipeline
 

@@ -88,7 +88,13 @@ final class ContainerService: ObservableObject {
         autoAdaptDimension: Bool = true,  // Enabled by default for optimal chunking
         syncMode: LibrarySyncMode = .localOnly,
         retrievalConfig: RetrievalConfig? = nil
-    ) -> KnowledgeContainer {
+    ) throws -> KnowledgeContainer {
+        let limit = EntitlementStore.currentLibraryLimit()
+        let tier = EntitlementStore.currentEffectiveTier()
+        guard containers.count < limit else {
+            throw LibraryQuotaError(limit: limit, attemptedCount: containers.count + 1, tier: tier)
+        }
+
         let effectiveRetrievalConfig = retrievalConfig ?? .default
         let container = KnowledgeContainer(
             name: name,

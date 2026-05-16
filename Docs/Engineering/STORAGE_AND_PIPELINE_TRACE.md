@@ -40,7 +40,7 @@ The engine-relevant flow ends at the trust payload and retrieved evidence. Swift
 | Text extraction      | PDFKit, XML parsing, text/CSV parsing, OCR, speech analysis paths | raw text                                                  | Strong base, file-type coverage should still be tested corpus by corpus            |
 | OCR fallback         | `OCRConfiguration.swift`, Vision OCR, throttle helpers            | recognized text and observations                          | Adaptive page-by-page escalation, not a user-controlled fidelity mode              |
 | Visual understanding | `ImageUnderstandingService.swift`                                 | figure descriptions, OCR labels, captions, nearby context | Embedded PDF figures and standalone images now persist as searchable figure chunks |
-| Cleanup              | OCR filters and normalizers                                       | normalized text                                           | Reusable                                                                           |
+| Cleanup              | OCR filters, normalizers, and text-preservation profiles          | normalized text                                           | Conservative for clean digital text, heavier for OCR/scanned extraction            |
 | Page preservation    | page sentinel plus page-store calls                               | page-level rows in SQLite                                 | Important for source review and exact lookup                                       |
 | Chunking             | `SemanticChunker.swift`                                           | `DocumentChunk` records                                   | Reusable, but not immune to table/procedure errors                                 |
 | Enrichment           | entities, keywords, section paths, contextual prefix              | chunk metadata                                            | Helps retrieval and verification                                                   |
@@ -96,6 +96,18 @@ This is real engine code and reusable. The main current caveat is runtime coupli
 - document and chunk counts
 
 This is useful engine configuration. It is also part of the current app coupling because the public facade still routes through container concepts and app persistence.
+
+## Shared Library Sync Reality
+
+Shared iCloud libraries now use a stable library identity for reconciliation instead of relying on display names alone.
+
+Current behavior:
+
+- per-library storage choice still determines whether a library stays local or participates in the shared iCloud workspace
+- explicit moves to iCloud Drive use a direct opt-in path rather than falling back to the broader bootstrap chooser
+- Documents owns the main global refresh and review surface for shared-library additions, removals, and pull-in decisions across devices
+
+This is closer to an intent-driven sync review model than the earlier generic "library sets differ" prompt, but it is still an app-level reconciliation layer rather than a general multi-client sync engine.
 
 ## Query Trace
 

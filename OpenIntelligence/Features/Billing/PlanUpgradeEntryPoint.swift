@@ -6,6 +6,7 @@ enum PlanUpgradeEntryPoint: String, CaseIterable {
     case documentLimit
     case sampleImport
     case libraryCreation
+    case iCloudSync
     case quotaBanner
     case settings
     case localModelGated // Free users attempting GGUF/Core ML
@@ -22,6 +23,8 @@ enum PlanUpgradeEntryPoint: String, CaseIterable {
             return "Need room for the curated sample workspace?"
         case .libraryCreation:
             return "Create more libraries to segment your knowledge"
+        case .iCloudSync:
+            return "Unlock iCloud library sync"
         case .quotaBanner:
             return "Plan ahead before you hit the limit"
         case .settings:
@@ -44,6 +47,8 @@ enum PlanUpgradeEntryPoint: String, CaseIterable {
             return "Pro unlocks enough space for the curated onboarding corpus."
         case .libraryCreation:
             return "Pro workspaces support multiple topic-specific libraries."
+        case .iCloudSync:
+            return "iCloud library sync is available on Pro and Lifetime so full-fidelity multi-device libraries stay on paid workspaces."
         case .quotaBanner:
             return "Avoid interruptions by upgrading before the limit hits 100%."
         case .settings:

@@ -18,11 +18,18 @@ Shoutout to Tim for asking for this.
 - New libraries now ask where they should live when you create them, and existing libraries can be switched later.
 - **Local Only** libraries stay fully on-device unless you explicitly change them.
 - Libraries you mark **iCloud Drive** can reuse imported files and processed state across your own Apple devices on the same iCloud account.
+- The app now treats shared libraries by stable library identity instead of by name, so same-name iCloud libraries are much less likely to collapse into one mixed library unexpectedly.
+- Explicitly choosing **iCloud Drive** for a library now acts like a direct opt-in instead of bouncing through a second generic chooser.
+- Documents now includes a global iCloud refresh and review flow so another device's new, removed, or changed shared libraries can be pulled in or reviewed more deliberately.
+- Shared-library removals are clearer too: if a library disappears from iCloud on another device, the follow-up review can now surface that change and let you decide whether to delete it here too or keep a local copy.
+- Paid workspace capacity is clearer in this release too: **Pro** now supports up to **10 libraries** and **Lifetime** supports up to **20 libraries**.
 - If a long-running import is interrupted on one device, another device can pick up queued work for that iCloud library instead of forcing you to restart from scratch.
-- The iCloud controls in Documents and Settings are cleaner, shorter, and easier to understand, with clearer status, Sync Now actions, direct library storage controls, and less truncation on tighter layouts.
+- The iCloud controls in Documents and Settings are cleaner, shorter, and easier to understand, with clearer status, a dedicated place to manage storage, and less truncation on tighter layouts.
 - The Documents tab layout is smoother in the 3.6 follow-up build, so the new sync surfaces are easier to read and tap without crowding the rest of the page.
 - Canceling in-progress imports from the in-app queue is more reliable.
 - Deleting a library or changing its sync setup now cleans up queued work more safely, so old documents from removed libraries are less likely to come back unexpectedly.
+- Plain text and other digital text imports are handled more conservatively now, so normal files are less likely to be over-cleaned by OCR-style repair logic.
+- Safer text preservation now applies across text, markdown, code/config files, CSV, transcripts, and Office/iWork-style digital documents, while noisy OCR and scanned inputs still use the heavier cleanup path.
 - OCR and image-heavy imports are also more stable in this follow-up build.
 
 This release is about making cross-device reuse practical without compromising the app's privacy-first, local-by-default model.

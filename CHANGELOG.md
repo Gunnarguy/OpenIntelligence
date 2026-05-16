@@ -8,11 +8,17 @@ This is the public version history for OpenIntelligence. It focuses on user-visi
 - Added per-library storage choice so every library can be Local Only or iCloud Drive independently
 - Kept the app local-first by default, with only iCloud-marked libraries entering the shared iCloud workspace
 - Added cross-device reuse for iCloud libraries so imported files and processed library state can show up on the user's other Apple devices
+- Stopped same-name iCloud libraries from merging implicitly by switching shared matching to stable library identity instead of display name
+- Made explicit per-library moves to iCloud Drive behave like direct opt-in instead of routing through a second generic sync-choice step
+- Added a global Documents-level refresh and sync-review flow that can surface libraries found only in iCloud, only on this device, or removed remotely
+- Added clearer follow-up handling for shared-library deletions so the app can prompt to delete the library here too or keep a local copy
 - Added queue lease handling so another device can resume long-running work for an iCloud library if the first device drops out
-- Cleaned up the Documents and Settings sync surfaces with clearer status, shorter copy, direct library storage controls, manual Sync Now actions, and less truncation on tighter layouts
+- Cleaned up the Documents and Settings sync surfaces with clearer status, shorter copy, one main place to manage storage, global refresh/review controls, and less truncation on tighter layouts
 - Smoothed out the Documents tab follow-up layout so the new sync UI is easier to read and tap without crowding the rest of the page
 - Made in-app import cancellation work more reliably from the upload queue overlay
 - Prevented deleted or reconfigured libraries from reviving old queued documents after sync or reload, and tightened cleanup when removing a library
+- Split document normalization into conservative versus aggressive paths so plain digital text is preserved more faithfully while OCR and scanned inputs still get heavier cleanup
+- Extended the conservative text path across text, markdown, code/config files, CSV, audio/video transcripts, and Office/iWork-style digital documents
 - Improved OCR and image-analysis stability during document import
 
 ## 3.5 - May 2026

@@ -135,7 +135,11 @@ final class BackgroundTaskService: Sendable {
 
     @MainActor private var continuedIngestionRunner: (@MainActor () async -> Bool)?
     @MainActor private var continuedIngestionExpirationHandler: (@MainActor () -> Void)?
+#if !targetEnvironment(macCatalyst)
     @MainActor private var activeContinuedIngestionTask: BGContinuedProcessingTask?
+#else
+    @MainActor private var activeContinuedIngestionTask: BGTask?
+#endif
     @MainActor private var activeContinuedIngestionWorker: Task<Void, Never>?
     @MainActor private var continuedIngestionRequestSubmitted = false
     @MainActor private var activeContinuedIngestionRequestContext: ContinuedIngestionRequestContext?
@@ -143,7 +147,11 @@ final class BackgroundTaskService: Sendable {
     @MainActor private var lastPersistedProgressBucket = -1
     @MainActor private var continuedQueryRunner: (@MainActor () async -> Bool)?
     @MainActor private var continuedQueryExpirationHandler: (@MainActor () -> Void)?
+#if !targetEnvironment(macCatalyst)
     @MainActor private var activeContinuedQueryTask: BGContinuedProcessingTask?
+#else
+    @MainActor private var activeContinuedQueryTask: BGTask?
+#endif
     @MainActor private var activeContinuedQueryWorker: Task<Void, Never>?
     @MainActor private var continuedQueryRequestSubmitted = false
     @MainActor private var activeContinuedQueryRequestContext: ContinuedQueryRequestContext?
@@ -222,6 +230,9 @@ final class BackgroundTaskService: Sendable {
 
     @MainActor
     func beginUserInitiatedIngestion(title: String, subtitle: String) {
+#if targetEnvironment(macCatalyst)
+        return
+#else
         guard #available(iOS 26.0, *) else { return }
         guard activeContinuedIngestionTask == nil, activeContinuedIngestionWorker == nil, !continuedIngestionRequestSubmitted else {
             return
@@ -296,10 +307,14 @@ final class BackgroundTaskService: Sendable {
             )
             Log.warning("[BackgroundTasks] Failed to submit continued ingestion task: \(error.localizedDescription)", category: .initialization)
         }
+#endif
     }
 
     @MainActor
     func beginUserInitiatedQuery(title: String, subtitle: String) {
+#if targetEnvironment(macCatalyst)
+        return
+#else
         guard #available(iOS 26.0, *) else { return }
         guard activeContinuedQueryTask == nil, activeContinuedQueryWorker == nil, !continuedQueryRequestSubmitted else {
             return
@@ -374,6 +389,7 @@ final class BackgroundTaskService: Sendable {
             )
             Log.warning("[BackgroundTasks] Failed to submit continued query task: \(error.localizedDescription)", category: .initialization)
         }
+#endif
     }
 
 #if canImport(UIKit)
@@ -516,6 +532,7 @@ final class BackgroundTaskService: Sendable {
     func endForegroundFallbackQueryExtension() {}
 #endif
 
+    #if !targetEnvironment(macCatalyst)
     @MainActor
     @available(iOS 26.0, *)
     func handleContinuedIngestion(task: BGContinuedProcessingTask) {
@@ -576,6 +593,7 @@ final class BackgroundTaskService: Sendable {
             )
         }
     }
+    #endif
 
     @MainActor
     func shouldPauseForegroundIngestionForBackgroundHandoff() -> Bool {
@@ -584,13 +602,17 @@ final class BackgroundTaskService: Sendable {
 
     @MainActor
     func applyIngestionExecutionProfileForCurrentState() {
-        guard #available(iOS 26.0, *) else {
+        #if targetEnvironment(macCatalyst)
             DeviceCapabilityService.shared.setIngestionExecutionProfile(.interactive)
-            return
-        }
+        #else
+            guard #available(iOS 26.0, *) else {
+                DeviceCapabilityService.shared.setIngestionExecutionProfile(.interactive)
+                return
+            }
 
-        let policy = activeContinuedIngestionRequestContext?.policy ?? continuedProcessingPolicy()
-        applyIngestionExecutionProfile(policy: policy)
+            let policy = activeContinuedIngestionRequestContext?.policy ?? continuedProcessingPolicy()
+            applyIngestionExecutionProfile(policy: policy)
+        #endif
     }
 
     @MainActor
@@ -604,6 +626,7 @@ final class BackgroundTaskService: Sendable {
         DeviceCapabilityService.shared.setIngestionExecutionProfile(profile)
     }
 
+    #if !targetEnvironment(macCatalyst)
     @MainActor
     @available(iOS 26.0, *)
     func handleContinuedQuery(task: BGContinuedProcessingTask) {
@@ -661,104 +684,131 @@ final class BackgroundTaskService: Sendable {
             )
         }
     }
+    #endif
 
     @MainActor
     func updateContinuedIngestionProgress(title: String, subtitle: String, fraction: Double) {
-        guard #available(iOS 26.0, *), let task = activeContinuedIngestionTask else { return }
-        let clampedFraction = max(0, min(1, fraction))
-        let displayTitle = tunedTitle(base: title)
-        let displaySubtitle = tunedSubtitle(base: subtitle)
-        task.progress.totalUnitCount = 1000
-        task.progress.completedUnitCount = Int64((clampedFraction * 1000).rounded())
-        task.updateTitle(displayTitle, subtitle: displaySubtitle)
-        persistContinuedIngestionProgress(
-            title: displayTitle,
-            subtitle: displaySubtitle,
-            fraction: clampedFraction
-        )
+        #if targetEnvironment(macCatalyst)
+            return
+        #else
+            guard #available(iOS 26.0, *), let task = activeContinuedIngestionTask else { return }
+            let clampedFraction = max(0, min(1, fraction))
+            let displayTitle = tunedTitle(base: title)
+            let displaySubtitle = tunedSubtitle(base: subtitle)
+            task.progress.totalUnitCount = 1000
+            task.progress.completedUnitCount = Int64((clampedFraction * 1000).rounded())
+            task.updateTitle(displayTitle, subtitle: displaySubtitle)
+            persistContinuedIngestionProgress(
+                title: displayTitle,
+                subtitle: displaySubtitle,
+                fraction: clampedFraction
+            )
+        #endif
     }
 
     @MainActor
     func updateContinuedQueryProgress(title: String, subtitle: String, fraction: Double) {
-        guard #available(iOS 26.0, *), let task = activeContinuedQueryTask else { return }
-        let clampedFraction = max(0, min(1, fraction))
-        let displayTitle = tunedTitle(base: title)
-        let displaySubtitle = tunedSubtitle(base: subtitle)
-        task.progress.totalUnitCount = 1000
-        task.progress.completedUnitCount = Int64((clampedFraction * 1000).rounded())
-        task.updateTitle(displayTitle, subtitle: displaySubtitle)
-        persistContinuedQueryProgress(
-            title: displayTitle,
-            subtitle: displaySubtitle,
-            fraction: clampedFraction
-        )
+        #if targetEnvironment(macCatalyst)
+            return
+        #else
+            guard #available(iOS 26.0, *), let task = activeContinuedQueryTask else { return }
+            let clampedFraction = max(0, min(1, fraction))
+            let displayTitle = tunedTitle(base: title)
+            let displaySubtitle = tunedSubtitle(base: subtitle)
+            task.progress.totalUnitCount = 1000
+            task.progress.completedUnitCount = Int64((clampedFraction * 1000).rounded())
+            task.updateTitle(displayTitle, subtitle: displaySubtitle)
+            persistContinuedQueryProgress(
+                title: displayTitle,
+                subtitle: displaySubtitle,
+                fraction: clampedFraction
+            )
+        #endif
     }
 
     @MainActor
     func completeUserInitiatedIngestion(success: Bool) {
-        guard #available(iOS 26.0, *) else { return }
+        #if targetEnvironment(macCatalyst)
+            _ = success
+            activeContinuedIngestionWorker?.cancel()
+            activeContinuedIngestionWorker = nil
+            continuedIngestionRequestSubmitted = false
+            clearIngestionExecutionProfile()
+            activeContinuedIngestionRequestContext = nil
+        #else
+            guard #available(iOS 26.0, *) else { return }
 
-        if activeContinuedIngestionTask != nil {
-            finishContinuedIngestion(
-                success: success,
+            if activeContinuedIngestionTask != nil {
+                finishContinuedIngestion(
+                    success: success,
+                    phase: success ? .completed : .failed,
+                    errorMessage: success ? nil : "The ingestion pipeline completed with one or more failures."
+                )
+                return
+            }
+
+            endForegroundFallbackIngestionExtension()
+            activeContinuedIngestionWorker?.cancel()
+            activeContinuedIngestionWorker = nil
+            continuedIngestionRequestSubmitted = false
+            clearIngestionExecutionProfile()
+            BGTaskScheduler.shared.cancel(taskRequestWithIdentifier: Self.continuedIngestionIdentifier)
+            let context = activeContinuedIngestionRequestContext
+            recordContinuedIngestionStatus(
                 phase: success ? .completed : .failed,
-                errorMessage: success ? nil : "The ingestion pipeline completed with one or more failures."
+                title: context?.title,
+                subtitle: context?.subtitle,
+                fraction: success ? 1 : continuedIngestionStatus.progressFraction,
+                policy: context?.policy,
+                errorMessage: success ? nil : "Document ingestion finished without continued background support.",
+                startedAt: continuedIngestionStatus.startedAt,
+                completedAt: Date()
             )
-            return
-        }
-
-        endForegroundFallbackIngestionExtension()
-        activeContinuedIngestionWorker?.cancel()
-        activeContinuedIngestionWorker = nil
-        continuedIngestionRequestSubmitted = false
-        clearIngestionExecutionProfile()
-        BGTaskScheduler.shared.cancel(taskRequestWithIdentifier: Self.continuedIngestionIdentifier)
-        let context = activeContinuedIngestionRequestContext
-        recordContinuedIngestionStatus(
-            phase: success ? .completed : .failed,
-            title: context?.title,
-            subtitle: context?.subtitle,
-            fraction: success ? 1 : continuedIngestionStatus.progressFraction,
-            policy: context?.policy,
-            errorMessage: success ? nil : "Document ingestion finished without continued background support.",
-            startedAt: continuedIngestionStatus.startedAt,
-            completedAt: Date()
-        )
-        activeContinuedIngestionRequestContext = nil
+            activeContinuedIngestionRequestContext = nil
+        #endif
     }
 
     @MainActor
     func completeUserInitiatedQuery(success: Bool) {
-        guard #available(iOS 26.0, *) else { return }
+        #if targetEnvironment(macCatalyst)
+            _ = success
+            activeContinuedQueryWorker?.cancel()
+            activeContinuedQueryWorker = nil
+            continuedQueryRequestSubmitted = false
+            activeContinuedQueryRequestContext = nil
+        #else
+            guard #available(iOS 26.0, *) else { return }
 
-        if activeContinuedQueryTask != nil {
-            finishContinuedQuery(
-                success: success,
+            if activeContinuedQueryTask != nil {
+                finishContinuedQuery(
+                    success: success,
+                    phase: success ? .completed : .failed,
+                    errorMessage: success ? nil : "The RAG pipeline completed with one or more failures."
+                )
+                return
+            }
+
+            endForegroundFallbackQueryExtension()
+            activeContinuedQueryWorker?.cancel()
+            activeContinuedQueryWorker = nil
+            continuedQueryRequestSubmitted = false
+            BGTaskScheduler.shared.cancel(taskRequestWithIdentifier: Self.continuedQueryIdentifier)
+            let context = activeContinuedQueryRequestContext
+            recordContinuedQueryStatus(
                 phase: success ? .completed : .failed,
-                errorMessage: success ? nil : "The RAG pipeline completed with one or more failures."
+                title: context?.title,
+                subtitle: context?.subtitle,
+                fraction: success ? 1 : continuedQueryStatus.progressFraction,
+                policy: context?.policy,
+                errorMessage: success ? nil : "Question answering finished without continued background support.",
+                startedAt: continuedQueryStatus.startedAt,
+                completedAt: Date()
             )
-            return
-        }
-
-        endForegroundFallbackQueryExtension()
-        activeContinuedQueryWorker?.cancel()
-        activeContinuedQueryWorker = nil
-        continuedQueryRequestSubmitted = false
-        BGTaskScheduler.shared.cancel(taskRequestWithIdentifier: Self.continuedQueryIdentifier)
-        let context = activeContinuedQueryRequestContext
-        recordContinuedQueryStatus(
-            phase: success ? .completed : .failed,
-            title: context?.title,
-            subtitle: context?.subtitle,
-            fraction: success ? 1 : continuedQueryStatus.progressFraction,
-            policy: context?.policy,
-            errorMessage: success ? nil : "Question answering finished without continued background support.",
-            startedAt: continuedQueryStatus.startedAt,
-            completedAt: Date()
-        )
-        activeContinuedQueryRequestContext = nil
+            activeContinuedQueryRequestContext = nil
+        #endif
     }
 
+    #if !targetEnvironment(macCatalyst)
     @MainActor
     private func finishContinuedIngestion(
         success: Bool,
@@ -934,6 +984,7 @@ final class BackgroundTaskService: Sendable {
             rationale: rationale
         )
     }
+    #endif
 
     @MainActor
     private func tunedTitle(base: String) -> String {

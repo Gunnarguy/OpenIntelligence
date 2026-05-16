@@ -405,8 +405,12 @@ public final class OIEngine {
             return Self.makeLibrary(from: existing)
         }
 
-        let created = containerService.createContainer(name: trimmedName)
-        return Self.makeLibrary(from: created)
+        do {
+            let created = try containerService.createContainer(name: trimmedName)
+            return Self.makeLibrary(from: created)
+        } catch let error as LibraryQuotaError {
+            throw OpenIntelligenceEngineError.invalidRequest(error.errorDescription ?? "Library limit reached.")
+        }
     }
 
     public func deleteLibrary(id: UUID) throws {
@@ -470,7 +474,7 @@ public final class OIEngine {
             throw OpenIntelligenceEngineError.invalidRequest("At least one document URL is required.")
         }
 
-        let container = ensureContainer(named: request.libraryName)
+        let container = try ensureContainer(named: request.libraryName)
         return try await ingest(request, into: container.id)
     }
 
@@ -518,7 +522,7 @@ public final class OIEngine {
             throw OpenIntelligenceEngineError.invalidRequest("Question must not be empty.")
         }
 
-        let container = ensureContainer(named: request.libraryName)
+        let container = try ensureContainer(named: request.libraryName)
         return try await query(
             request,
             in: container.id,
@@ -637,17 +641,29 @@ public final class OIEngine {
         })
     }
 
-    private func ensureContainer(named libraryName: String?) -> KnowledgeContainer {
+    private func ensureContainer(named libraryName: String?) throws -> KnowledgeContainer {
         let trimmed = libraryName?.trimmingCharacters(in: .whitespacesAndNewlines)
         guard let trimmed, !trimmed.isEmpty else {
-            return containerService.activeContainer ?? containerService.createContainer(name: "General")
+            if let activeContainer = containerService.activeContainer {
+                return activeContainer
+            }
+
+            do {
+                return try containerService.createContainer(name: "General")
+            } catch let error as LibraryQuotaError {
+                throw OpenIntelligenceEngineError.invalidRequest(error.errorDescription ?? "Library limit reached.")
+            }
         }
 
         if let existing = findContainer(named: trimmed) {
             return existing
         }
 
-        return containerService.createContainer(name: trimmed)
+        do {
+            return try containerService.createContainer(name: trimmed)
+        } catch let error as LibraryQuotaError {
+            throw OpenIntelligenceEngineError.invalidRequest(error.errorDescription ?? "Library limit reached.")
+        }
     }
 
     private static func mapQualityMode(_ qualityMode: OIQueryQualityMode) -> RAGQualityMode {

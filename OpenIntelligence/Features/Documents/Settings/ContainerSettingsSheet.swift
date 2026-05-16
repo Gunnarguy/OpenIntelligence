@@ -13,6 +13,7 @@ struct ContainerSettingsSheet: View {
     @ObservedObject var containerService: ContainerService
     @ObservedObject var ragService: RAGService
     @EnvironmentObject private var settings: SettingsStore
+    @EnvironmentObject private var entitlementStore: EntitlementStore
     @EnvironmentObject private var workspaceSyncService: WorkspaceSyncService
     @Environment(\.dismiss) var dismiss
     @State var name: String = ""
@@ -32,6 +33,7 @@ struct ContainerSettingsSheet: View {
     @State var providerAvailability: [String: Bool] = [:]
     @State var showingDBChangeConfirmation = false
     @State var pendingDBChange: VectorDBKind?
+    @State private var showingPlanSheet = false
 
     // Retrieval configuration
     @State var retrievalConfig: RetrievalConfig = .default
@@ -62,6 +64,10 @@ struct ContainerSettingsSheet: View {
 
     var activeIntelligenceReport: LibraryIntelligenceCenter.IntelligenceReport? {
         ragService.intelligenceReport(for: activeContainer?.id)
+    }
+
+    private var hasICloudSyncAccess: Bool {
+        entitlementStore.effectiveTier.isAtLeast(.pro)
     }
 
     var lastSelfTuneSummary: String? {
@@ -295,6 +301,10 @@ struct ContainerSettingsSheet: View {
                     Text(message)
                 }
             }
+            .sheet(isPresented: $showingPlanSheet) {
+                PlanUpgradeSheet(entryPoint: .iCloudSync)
+                    .environmentObject(entitlementStore)
+            }
         }
     }
 
@@ -462,6 +472,16 @@ struct ContainerSettingsSheet: View {
     private func handleSave() {
         guard var container = activeContainer else { return }
         let previousSyncMode = container.syncMode
+
+        if previousSyncMode != .iCloudShared,
+           syncMode == .iCloudShared,
+           !hasICloudSyncAccess
+        {
+            syncMode = previousSyncMode
+            showingPlanSheet = true
+            return
+        }
+
         let previousProvider = container.embeddingProviderId
         let previousDim = container.embeddingDim
         let previousDB = container.vectorDBKind
@@ -539,7 +559,11 @@ struct ContainerSettingsSheet: View {
 
         if syncModeChanged {
             Task { @MainActor in
-                _ = await workspaceSyncService.reconfigureIfNeeded()
+                if syncMode == .iCloudShared {
+                    _ = await workspaceSyncService.reconfigureForExplicitICloudOptIn()
+                } else {
+                    _ = await workspaceSyncService.reconfigureIfNeeded()
+                }
                 containerService.reloadFromDisk()
                 ragService.reloadWorkspaceData()
             }

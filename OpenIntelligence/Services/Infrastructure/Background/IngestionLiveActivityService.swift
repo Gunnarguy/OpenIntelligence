@@ -1,4 +1,4 @@
-#if canImport(ActivityKit)
+#if canImport(ActivityKit) && !targetEnvironment(macCatalyst)
 import ActivityKit
 import Foundation
 
@@ -369,5 +369,21 @@ final class IngestionLiveActivityService {
             return 0
         }
     }
+}
+#endif
+
+#if !canImport(ActivityKit) || targetEnvironment(macCatalyst)
+import Foundation
+
+@MainActor
+final class IngestionLiveActivityService {
+    static let shared = IngestionLiveActivityService()
+
+    private init() {}
+
+    func restoreExistingActivityIfNeeded() {}
+    func sync(items _: [IngestionItem], containerName _: String?) {}
+    func endCurrentActivity(finalState _: Any? = nil) {}
+    func finish(items _: [IngestionItem], containerName _: String?) {}
 }
 #endif

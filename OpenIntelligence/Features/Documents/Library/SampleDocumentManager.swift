@@ -105,13 +105,13 @@ It is strongest when the answer should come from a document you can inspect afte
 
 ### Pro Monthly / Annual
 - Up to 1,000 documents
-- Up to 5 libraries
+- Up to 10 libraries
 - Better room for large ongoing research and multi-project work
 
 ### Lifetime
 - One-time unlock
-- Up to 1,000 documents
-- Up to 10 libraries
+- Unlimited documents
+- Up to 20 libraries
 
 The plan structure is about scale and organization. The core product idea stays the same: grounded answers over your own files.
 """#

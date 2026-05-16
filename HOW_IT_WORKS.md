@@ -14,11 +14,11 @@ Import documents -> Prepare them locally -> Search the right evidence -> Generat
 
 ## 1. Import
 
-OpenIntelligence accepts common document, text, image, and media formats from the iPhone file system and supported Apple share surfaces. The app organizes content into user-owned libraries so work stays scoped and manageable.
+OpenIntelligence accepts common document, text, image, and media formats from the iPhone file system and supported Apple share surfaces. The app organizes content into user-owned libraries so work stays scoped and manageable. Each library can stay Local Only or be marked iCloud Drive, so shared libraries can move across the user's Apple devices without forcing everything into one global cloud mode.
 
 ## 2. Prepare
 
-After import, the app extracts text, tables, figures, and other structure, prepares content for search, and stores the resulting artifacts locally so future questions can be answered quickly. Preparation behavior adapts to the content type, document quality, and visual complexity instead of relying on a user-selected ingestion mode.
+After import, the app extracts text, tables, figures, and other structure, prepares content for search, and stores the resulting artifacts locally so future questions can be answered quickly. Preparation behavior adapts to the content type, document quality, and visual complexity instead of relying on a user-selected ingestion mode. Clean digital text such as text files, markdown, code, CSV, transcripts, and native office-style documents is preserved more conservatively, while OCR-heavy, scanned, or visually noisy sources still use stronger cleanup and recovery.
 
 ## 3. Retrieve
 
@@ -30,7 +30,7 @@ The app turns retrieved evidence into a readable response with citations. The en
 
 ## 5. Review
 
-Users can inspect the response, jump back to cited material, and evaluate whether the answer is grounded in the imported documents.
+Users can inspect the response, jump back to cited material, and evaluate whether the answer is grounded in the imported documents. For shared iCloud libraries, the Documents experience can also surface cross-device library additions or removals so the user can review whether to pull them in, keep local copies, or remove them here too.
 
 ## Design Principles
 

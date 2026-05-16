@@ -1,6 +1,6 @@
 import Foundation
 
-#if canImport(ActivityKit)
+#if canImport(ActivityKit) && !targetEnvironment(macCatalyst)
 import ActivityKit
 #endif
 
@@ -48,11 +48,12 @@ enum IngestionLiveActivityThermalBucket: String, Codable, Hashable, Sendable {
 
 enum OpenIntelligenceDeepLink {
     static let scheme = "openintelligence"
+    static let documentsURL = URL(string: "openintelligence://documents")!
     static let ingestionQueueURL = URL(string: "openintelligence://documents/ingestion")!
     static let queryChatURL = URL(string: "openintelligence://chat/query")!
 }
 
-#if canImport(ActivityKit)
+#if canImport(ActivityKit) && !targetEnvironment(macCatalyst)
 @available(iOS 17.0, *)
 struct IngestionLiveActivityAttributes: ActivityAttributes {
     struct ContentState: Codable, Hashable, Sendable {

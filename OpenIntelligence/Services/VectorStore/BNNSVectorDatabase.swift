@@ -144,39 +144,64 @@ actor BNNSVectorDatabase: VectorDatabase {
         let fm = FileManager.default
         let bin = binaryURLs(from: url)
 
+        func resetLoadedState() {
+            self.chunks.removeAll()
+            self.embeddingNorms.removeAll()
+            self.pendingEmbeddings.removeAll(keepingCapacity: false)
+            self.mappedVectors = nil
+            self.persistedChunkCount = 0
+        }
+
         // === BINARY FORMAT: mmap vectors, load lightweight metadata ===
         if fm.fileExists(atPath: bin.meta.path), fm.fileExists(atPath: bin.vectors.path) {
             do {
                 // 1. Chunk metadata — small JSON, embedding:[] (~5-10 MB)
                 let metaData = try Data(contentsOf: bin.meta)
-                self.chunks = try JSONDecoder().decode([DocumentChunk].self, from: metaData)
-                self.persistedChunkCount = chunks.count
+                let decodedChunks = try JSONDecoder().decode([DocumentChunk].self, from: metaData)
 
                 // 2. Memory-map vectors — 0 bytes heap, OS pages on demand
-                let expectedBytes = chunks.count * dimension * MemoryLayout<Float>.size
-                let mapped = try Data(contentsOf: bin.vectors, options: .alwaysMapped)
-                guard mapped.count == expectedBytes else {
-                    Log.error("[BNNS] Vector file size mismatch: \(mapped.count) vs expected \(expectedBytes)", category: .vectorDB)
-                    self.chunks.removeAll()
-                    self.persistedChunkCount = 0
-                    return
+                let expectedBytes = decodedChunks.count * dimension * MemoryLayout<Float>.size
+                var mapped = try Data(contentsOf: bin.vectors, options: .alwaysMapped)
+                if mapped.count != expectedBytes {
+                    if expectedBytes > 0,
+                       mapped.count > expectedBytes,
+                       mapped.count % expectedBytes == 0 {
+                        Log.warning(
+                            "[BNNS] Repairing oversized vector file: \(mapped.count) -> \(expectedBytes)",
+                            category: .vectorDB
+                        )
+                        let repairedData = Data(mapped.prefix(expectedBytes))
+                        try repairedData.write(to: bin.vectors, options: .atomic)
+                        mapped = try Data(contentsOf: bin.vectors, options: .alwaysMapped)
+                    }
+
+                    guard mapped.count == expectedBytes else {
+                        Log.error("[BNNS] Vector file size mismatch: \(mapped.count) vs expected \(expectedBytes)", category: .vectorDB)
+                        resetLoadedState()
+                        return
+                    }
                 }
+
+                self.chunks = decodedChunks
                 self.mappedVectors = mapped
+                self.persistedChunkCount = decodedChunks.count
+                self.pendingEmbeddings.removeAll(keepingCapacity: false)
 
                 // 3. Norms — 200 KB in RAM (acceptable)
                 if let normData = try? Data(contentsOf: bin.norms),
-                   normData.count == chunks.count * MemoryLayout<Float>.size {
-                    self.embeddingNorms = [Float](unsafeUninitializedCapacity: chunks.count) { buf, count in
+                   normData.count == decodedChunks.count * MemoryLayout<Float>.size {
+                    self.embeddingNorms = [Float](unsafeUninitializedCapacity: decodedChunks.count) { buf, count in
                         _ = normData.copyBytes(to: buf)
-                        count = chunks.count
+                        count = decodedChunks.count
                     }
                 } else {
                     recomputeNorms()
                 }
 
-                Log.info("[BNNS] Loaded \(chunks.count) chunks (mmap'd \(mapped.count / 1_048_576)MB vectors, 0 bytes heap)", category: .vectorDB)
+                Log.info("[BNNS] Loaded \(decodedChunks.count) chunks (mmap'd \(mapped.count / 1_048_576)MB vectors, 0 bytes heap)", category: .vectorDB)
                 return
             } catch {
+                resetLoadedState()
                 Log.error("[BNNS] Binary load failed: \(error). Trying legacy.", category: .vectorDB)
             }
         }
@@ -362,6 +387,7 @@ actor BNNSVectorDatabase: VectorDatabase {
     // MARK: - VectorDatabase Protocol
 
     func store(chunk: DocumentChunk) async throws {
+        await awaitLoad()
         guard chunk.embedding.count == dimension else {
             Log.error("[BNNS] Dimension mismatch: \(chunk.embedding.count) vs \(dimension)", category: .vectorDB)
             throw VectorDatabaseError.invalidEmbedding
@@ -381,6 +407,7 @@ actor BNNSVectorDatabase: VectorDatabase {
     }
 
     func storeBatch(chunks inputChunks: [DocumentChunk]) async throws {
+        await awaitLoad()
         let validChunks = inputChunks.filter { $0.embedding.count == dimension }
         if validChunks.count != inputChunks.count {
             Log.warning("[BNNS] Skipped \(inputChunks.count - validChunks.count) chunks (dim mismatch)", category: .vectorDB)
@@ -407,6 +434,7 @@ actor BNNSVectorDatabase: VectorDatabase {
 
     /// Persist pending data to disk + re-mmap
     func persist() async throws {
+        await awaitLoad()
         guard isDirty || !pendingEmbeddings.isEmpty else { return }
         try saveToDisk()
         isDirty = false
@@ -533,6 +561,7 @@ actor BNNSVectorDatabase: VectorDatabase {
     }
 
     func deleteChunks(forDocument documentId: UUID) async throws {
+        await awaitLoad()
         var newChunks: [DocumentChunk] = []
         var newNorms: [Float] = []
         var keepIndices: [Int] = []
@@ -591,6 +620,7 @@ actor BNNSVectorDatabase: VectorDatabase {
     }
 
     func clear() async throws {
+        await awaitLoad()
         chunks.removeAll()
         embeddingNorms.removeAll()
         pendingEmbeddings.removeAll()
@@ -617,6 +647,7 @@ actor BNNSVectorDatabase: VectorDatabase {
     }
 
     func updateChunk(_ chunk: DocumentChunk) async throws {
+        await awaitLoad()
         guard let idx = chunks.firstIndex(where: { $0.id == chunk.id }) else {
             try await store(chunk: chunk)
             return
@@ -689,7 +720,8 @@ actor BNNSVectorDatabase: VectorDatabase {
     private func readEmbedding(at index: Int) -> [Float] {
         guard index >= 0, index < chunks.count else { return [] }
 
-        if index < persistedChunkCount, let mapped = mappedVectors {
+        if index < persistedChunkCount {
+            guard let mapped = mappedVectors else { return [] }
             let byteOffset = index * dimension * MemoryLayout<Float>.size
             let byteCount = dimension * MemoryLayout<Float>.size
             guard byteOffset + byteCount <= mapped.count else { return [] }
@@ -700,6 +732,7 @@ actor BNNSVectorDatabase: VectorDatabase {
             }
         } else {
             let pendingIdx = index - persistedChunkCount
+            guard pendingIdx >= 0 else { return [] }
             let start = pendingIdx * dimension
             let end = start + dimension
             guard end <= pendingEmbeddings.count else { return [] }

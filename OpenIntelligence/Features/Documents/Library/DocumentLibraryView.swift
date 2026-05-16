@@ -36,6 +36,7 @@ struct DocumentLibraryView: View {
     // Delete library confirmation
     @State private var showingDeleteConfirmation = false
     @State private var libraryToDelete: KnowledgeContainer?
+    @State private var showingClearAllConfirmation = false
 
     // Vision Capture and Cached Docs
     @State private var showVisionCapture = false
@@ -45,6 +46,7 @@ struct DocumentLibraryView: View {
     @State private var showingImportReview = false
     @State private var isRefreshingSharedWorkspace = false
     @State private var sharedWorkspaceRefreshMessage: String?
+    @State private var showingSharedSyncReviewDialog = false
 
     private static let sharedWorkspaceRelativeFormatter: RelativeDateTimeFormatter = {
         let formatter = RelativeDateTimeFormatter()
@@ -101,6 +103,56 @@ struct DocumentLibraryView: View {
 
     private var activeLibrary: KnowledgeContainer? {
         containerService.activeContainer
+    }
+
+    private var hasICloudSyncAccess: Bool {
+        entitlementStore.effectiveTier.isAtLeast(.pro)
+    }
+
+    private var pendingSharedSyncConflict: WorkspaceSyncService.PendingBootstrapConflict? {
+        workspaceSyncService.pendingBootstrapConflict
+    }
+
+    private var isDeletionOnlySharedConflict: Bool {
+        guard let conflict = pendingSharedSyncConflict else { return false }
+        return !conflict.localOnlyLibraryNames.isEmpty && conflict.sharedOnlyLibraryNames.isEmpty
+    }
+
+    private var isAdditionOnlySharedConflict: Bool {
+        guard let conflict = pendingSharedSyncConflict else { return false }
+        return conflict.localOnlyLibraryNames.isEmpty && !conflict.sharedOnlyLibraryNames.isEmpty
+    }
+
+    private var sharedSyncReviewTitle: String {
+        if isDeletionOnlySharedConflict {
+            return "Libraries were removed from iCloud"
+        }
+
+        if isAdditionOnlySharedConflict {
+            return "New iCloud libraries are available"
+        }
+
+        return "Review iCloud library changes"
+    }
+
+    private var sharedSyncReviewMessage: String {
+        guard let conflict = pendingSharedSyncConflict else {
+            return "Review the latest iCloud library changes for this device."
+        }
+
+        if isDeletionOnlySharedConflict {
+            let names = conflict.localOnlyLibraryNames.joined(separator: ", ")
+            return "These libraries still exist on this device but were removed from iCloud: \(names). Delete them here too, keep them local, or restore them to iCloud."
+        }
+
+        if isAdditionOnlySharedConflict {
+            let names = conflict.sharedOnlyLibraryNames.joined(separator: ", ")
+            return "These libraries are available in iCloud but not on this device yet: \(names)."
+        }
+
+        let localNames = conflict.localOnlyLibraryNames.joined(separator: ", ")
+        let sharedNames = conflict.sharedOnlyLibraryNames.joined(separator: ", ")
+        return "Only on this device: \(localNames). Only in iCloud: \(sharedNames)."
     }
 
     private var emptyStateView: some View {
@@ -207,73 +259,131 @@ struct DocumentLibraryView: View {
                         .font(.subheadline)
                         .foregroundStyle(Color.accentColor)
 
-                    Text("Choose how to connect these iCloud libraries")
+                    Text(
+                        !bootstrapConflict.localOnlyLibraryNames.isEmpty && bootstrapConflict.sharedOnlyLibraryNames.isEmpty
+                            ? "Libraries were removed from iCloud"
+                            : (bootstrapConflict.localOnlyLibraryNames.isEmpty && !bootstrapConflict.sharedOnlyLibraryNames.isEmpty
+                                ? "New iCloud libraries are available"
+                                : "Review iCloud library changes")
+                    )
                         .font(.subheadline.weight(.semibold))
 
                     Spacer()
                 }
 
                 Text(
-                    "This device has \(bootstrapConflict.localLibraryCount) iCloud librar\(bootstrapConflict.localLibraryCount == 1 ? "y" : "ies") / \(bootstrapConflict.localDocumentCount) docs. iCloud already has \(bootstrapConflict.sharedLibraryCount) librar\(bootstrapConflict.sharedLibraryCount == 1 ? "y" : "ies") / \(bootstrapConflict.sharedDocumentCount) docs."
+                    !bootstrapConflict.localOnlyLibraryNames.isEmpty && bootstrapConflict.sharedOnlyLibraryNames.isEmpty
+                        ? "These libraries still exist on this device, but they no longer exist in iCloud."
+                        : (bootstrapConflict.localOnlyLibraryNames.isEmpty && !bootstrapConflict.sharedOnlyLibraryNames.isEmpty
+                            ? "iCloud has libraries that are not on this device yet."
+                            : "This device currently has \(bootstrapConflict.localLibraryCount) libraries marked iCloud Drive / \(bootstrapConflict.localDocumentCount) docs, and iCloud already has \(bootstrapConflict.sharedLibraryCount) shared librar\(bootstrapConflict.sharedLibraryCount == 1 ? "y" : "ies") / \(bootstrapConflict.sharedDocumentCount) docs.")
                 )
                 .font(.caption)
                 .foregroundStyle(.secondary)
 
-                ViewThatFits(in: .horizontal) {
-                    HStack(spacing: 10) {
-                        Button {
-                            resolvePendingBootstrap(.mergeLibraries)
-                        } label: {
-                            Text("Keep Both Sets")
-                                .multilineTextAlignment(.center)
-                                .lineLimit(2)
-                                .minimumScaleFactor(0.9)
-                                .frame(maxWidth: .infinity, minHeight: 44)
-                        }
-                        .buttonStyle(.borderedProminent)
-                        .disabled(isRefreshingSharedWorkspace)
+                if !bootstrapConflict.localOnlyLibraryNames.isEmpty {
+                    Text("Only on this device: \(bootstrapConflict.localOnlyLibraryNames.joined(separator: ", "))")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
 
-                        Button {
-                            resolvePendingBootstrap(.useICloudWorkspace)
-                        } label: {
-                            Text("Use Existing iCloud Set")
-                                .multilineTextAlignment(.center)
-                                .lineLimit(2)
-                                .minimumScaleFactor(0.9)
-                                .frame(maxWidth: .infinity, minHeight: 44)
-                        }
-                        .buttonStyle(.bordered)
-                        .disabled(isRefreshingSharedWorkspace)
+                if !bootstrapConflict.sharedOnlyLibraryNames.isEmpty {
+                    Text("Only in iCloud: \(bootstrapConflict.sharedOnlyLibraryNames.joined(separator: ", "))")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+
+                if bootstrapConflict.localOnlyLibraryNames.isEmpty && !bootstrapConflict.sharedOnlyLibraryNames.isEmpty {
+                    Button {
+                        resolvePendingBootstrap(.useICloudWorkspace)
+                    } label: {
+                        Text("Add iCloud Libraries Here")
+                            .multilineTextAlignment(.center)
+                            .lineLimit(2)
+                            .minimumScaleFactor(0.9)
+                            .frame(maxWidth: .infinity, minHeight: 44)
                     }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(isRefreshingSharedWorkspace)
+                } else {
+                    ViewThatFits(in: .horizontal) {
+                        HStack(spacing: 10) {
+                            Button {
+                                resolvePendingBootstrap(.mergeLibraries)
+                            } label: {
+                                Text(
+                                    !bootstrapConflict.localOnlyLibraryNames.isEmpty && bootstrapConflict.sharedOnlyLibraryNames.isEmpty
+                                        ? "Restore These to iCloud"
+                                        : "Sync Both Directions"
+                                )
+                                    .multilineTextAlignment(.center)
+                                    .lineLimit(2)
+                                    .minimumScaleFactor(0.9)
+                                    .frame(maxWidth: .infinity, minHeight: 44)
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .disabled(isRefreshingSharedWorkspace)
 
-                    VStack(spacing: 10) {
-                        Button {
-                            resolvePendingBootstrap(.mergeLibraries)
-                        } label: {
-                            Text("Keep Both Sets")
-                                .multilineTextAlignment(.center)
-                                .lineLimit(2)
-                                .minimumScaleFactor(0.9)
-                                .frame(maxWidth: .infinity, minHeight: 44)
+                            Button {
+                                resolvePendingBootstrap(.useICloudWorkspace)
+                            } label: {
+                                Text(
+                                    !bootstrapConflict.localOnlyLibraryNames.isEmpty && bootstrapConflict.sharedOnlyLibraryNames.isEmpty
+                                        ? "Keep Them Local Here"
+                                        : "Use iCloud State Here"
+                                )
+                                    .multilineTextAlignment(.center)
+                                    .lineLimit(2)
+                                    .minimumScaleFactor(0.9)
+                                    .frame(maxWidth: .infinity, minHeight: 44)
+                            }
+                            .buttonStyle(.bordered)
+                            .disabled(isRefreshingSharedWorkspace)
                         }
-                        .buttonStyle(.borderedProminent)
-                        .disabled(isRefreshingSharedWorkspace)
 
-                        Button {
-                            resolvePendingBootstrap(.useICloudWorkspace)
-                        } label: {
-                            Text("Use Existing iCloud Set")
-                                .multilineTextAlignment(.center)
-                                .lineLimit(2)
-                                .minimumScaleFactor(0.9)
-                                .frame(maxWidth: .infinity, minHeight: 44)
+                        VStack(spacing: 10) {
+                            Button {
+                                resolvePendingBootstrap(.mergeLibraries)
+                            } label: {
+                                Text(
+                                    !bootstrapConflict.localOnlyLibraryNames.isEmpty && bootstrapConflict.sharedOnlyLibraryNames.isEmpty
+                                        ? "Restore These to iCloud"
+                                        : "Sync Both Directions"
+                                )
+                                    .multilineTextAlignment(.center)
+                                    .lineLimit(2)
+                                    .minimumScaleFactor(0.9)
+                                    .frame(maxWidth: .infinity, minHeight: 44)
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .disabled(isRefreshingSharedWorkspace)
+
+                            Button {
+                                resolvePendingBootstrap(.useICloudWorkspace)
+                            } label: {
+                                Text(
+                                    !bootstrapConflict.localOnlyLibraryNames.isEmpty && bootstrapConflict.sharedOnlyLibraryNames.isEmpty
+                                        ? "Keep Them Local Here"
+                                        : "Use iCloud State Here"
+                                )
+                                    .multilineTextAlignment(.center)
+                                    .lineLimit(2)
+                                    .minimumScaleFactor(0.9)
+                                    .frame(maxWidth: .infinity, minHeight: 44)
+                            }
+                            .buttonStyle(.bordered)
+                            .disabled(isRefreshingSharedWorkspace)
                         }
-                        .buttonStyle(.bordered)
-                        .disabled(isRefreshingSharedWorkspace)
                     }
                 }
 
-                Text("Keep Both Sets is recommended.")
+                Text(
+                    !bootstrapConflict.localOnlyLibraryNames.isEmpty && bootstrapConflict.sharedOnlyLibraryNames.isEmpty
+                        ? "Restore These to iCloud puts the deleted libraries back into iCloud. Keep Them Local Here removes their iCloud status on this device and leaves them stored locally."
+                        : (bootstrapConflict.localOnlyLibraryNames.isEmpty && !bootstrapConflict.sharedOnlyLibraryNames.isEmpty
+                            ? "Add iCloud Libraries Here pulls the libraries listed as only in iCloud onto this device."
+                            : "Sync Both Directions publishes libraries listed as only on this device and pulls in libraries listed as only in iCloud. Use iCloud State Here keeps the iCloud libraries here and demotes unmatched device-only iCloud libraries to Local Only.")
+                )
                     .font(.caption2)
                     .foregroundStyle(.secondary)
             }
@@ -487,7 +597,7 @@ struct DocumentLibraryView: View {
 
     private var workspaceSyncHeadline: String {
         if workspaceSyncService.isUsingSharedWorkspace {
-            return "Your iCloud libraries are syncing on this device."
+            return "iCloud Drive is the shared copy for libraries marked iCloud Drive. There is no main device."
         }
 
         if hasConfiguredICloudLibraries {
@@ -506,12 +616,12 @@ struct DocumentLibraryView: View {
             return "Preparing your iCloud libraries for sync."
         }
 
-        return "Local Only means the library stays on this device until you explicitly choose iCloud Drive."
+        return "Local Only means the library stays on this device until you explicitly choose iCloud Drive as the shared copy."
     }
 
     private var sharedWorkspaceSummary: String {
         if hasConfiguredICloudLibraries {
-            return "\(iCloudLibraryCount) iCloud • \(localOnlyLibraryCount) local. Only libraries you mark iCloud Drive sync across your devices."
+            return "\(iCloudLibraryCount) iCloud • \(localOnlyLibraryCount) local. Libraries marked iCloud Drive use iCloud as the shared copy. Local Only libraries stay on just this device."
         }
 
         return "All libraries are Local Only right now. Turn iCloud Drive on per library when you want it on another device."
@@ -598,6 +708,11 @@ struct DocumentLibraryView: View {
 
     @MainActor
     private func resolvePendingBootstrap(_ choice: WorkspaceSyncService.BootstrapChoice) {
+        guard hasICloudSyncAccess else {
+            presentPlanSheet(for: .iCloudSync)
+            return
+        }
+
         Task { @MainActor in
             guard !isRefreshingSharedWorkspace else { return }
             isRefreshingSharedWorkspace = true
@@ -614,13 +729,18 @@ struct DocumentLibraryView: View {
             containerService.reloadFromDisk()
             ragService.reloadWorkspaceData()
             sharedWorkspaceRefreshMessage = choice == .mergeLibraries
-                ? "Local and iCloud libraries were merged into the shared workspace."
-                : "Now using the existing iCloud workspace on this device."
+                ? "This device's iCloud-marked libraries were shared to iCloud, and iCloud libraries were pulled in here."
+                : "Libraries already in iCloud were added here. Any unmatched iCloud-marked libraries on this device were kept as Local Only."
         }
     }
 
     @MainActor
     private func refreshSharedWorkspaceNow() {
+        guard hasICloudSyncAccess else {
+            presentPlanSheet(for: .iCloudSync)
+            return
+        }
+
         Task { @MainActor in
             await performSharedWorkspaceRefresh(isManual: true)
         }
@@ -628,6 +748,11 @@ struct DocumentLibraryView: View {
 
     @MainActor
     private func connectExistingICloudLibraries() {
+        guard hasICloudSyncAccess else {
+            presentPlanSheet(for: .iCloudSync)
+            return
+        }
+
         Task { @MainActor in
             guard !isRefreshingSharedWorkspace else { return }
             isRefreshingSharedWorkspace = true
@@ -662,6 +787,12 @@ struct DocumentLibraryView: View {
     }
 
     @MainActor
+    private func handleObservedSharedWorkspaceChange() async {
+        guard hasConfiguredICloudLibraries else { return }
+        await performSharedWorkspaceRefresh(isManual: false)
+    }
+
+    @MainActor
     private func performSharedWorkspaceRefresh(isManual: Bool) async {
         guard hasConfiguredICloudLibraries else { return }
         guard !isRefreshingSharedWorkspace else { return }
@@ -676,6 +807,7 @@ struct DocumentLibraryView: View {
         _ = await workspaceSyncService.reconfigureIfNeeded()
 
         guard workspaceSyncService.isUsingSharedWorkspace else {
+            presentSharedSyncReviewIfNeeded()
             if isManual {
                 sharedWorkspaceRefreshMessage = workspaceSyncService.pendingBootstrapConflict != nil
                     ? workspaceSyncService.statusMessage
@@ -690,6 +822,11 @@ struct DocumentLibraryView: View {
         if isManual {
             sharedWorkspaceRefreshMessage = "Shared workspace reloaded from iCloud Drive."
         }
+    }
+
+    @MainActor
+    private func presentSharedSyncReviewIfNeeded() {
+        showingSharedSyncReviewDialog = pendingSharedSyncConflict != nil
     }
 
     var body: some View {
@@ -749,21 +886,49 @@ struct DocumentLibraryView: View {
                     pendingNewLibraryName = ""
                 }
             } message: {
-                Text("Local Only keeps the library on this device. iCloud Drive replicates it across your devices through your iCloud account.")
+                Text("Local Only keeps the library only on this device. iCloud Drive makes iCloud the shared copy for that library across your devices.")
             }
             .alert("Delete Library?", isPresented: $showingDeleteConfirmation) {
                 Button("Cancel", role: .cancel) {
                     libraryToDelete = nil
                 }
-                Button("Delete", role: .destructive) {
-                    confirmDeleteLibrary()
+                if libraryToDelete?.syncMode == .iCloudShared {
+                    Button("Delete from iCloud", role: .destructive) {
+                        confirmDeleteLibrary()
+                    }
+                } else {
+                    Button("Delete Locally", role: .destructive) {
+                        confirmDeleteLibrary()
+                    }
                 }
             } message: {
                 if let lib = libraryToDelete {
                     let docCount = ragService.documents.filter { $0.containerId == lib.id }.count
-                    Text("This will permanently delete \"\(lib.name)\" and all \(docCount) document\(docCount == 1 ? "" : "s") inside it. This cannot be undone.")
+                    if lib.syncMode == .iCloudShared {
+                        Text("This will permanently delete \"\(lib.name)\" from iCloud Drive and remove it from every device using that shared library, along with all \(docCount) document\(docCount == 1 ? "" : "s"). This cannot be undone.")
+                    } else {
+                        Text("This will permanently delete \"\(lib.name)\" only on this device, along with all \(docCount) document\(docCount == 1 ? "" : "s") inside it. This cannot be undone.")
+                    }
                 } else {
                     Text("This will permanently delete this library and all documents inside it.")
+                }
+            }
+            .alert(activeLibrary?.syncMode == .iCloudShared ? "Remove Local Documents?" : "Clear Library?", isPresented: $showingClearAllConfirmation) {
+                Button("Cancel", role: .cancel) {}
+                Button(activeLibrary?.syncMode == .iCloudShared ? "Remove Local Copies" : "Clear All", role: .destructive) {
+                    Task {
+                        try? await ragService.clearAllDocuments()
+                    }
+                }
+            } message: {
+                if let activeLibrary {
+                    if activeLibrary.syncMode == .iCloudShared {
+                        Text("This removes the documents currently stored on this device for \"\(activeLibrary.name)\". If those documents still exist in iCloud Drive, Sync Now can bring them back.")
+                    } else {
+                        Text("This permanently deletes every document in \"\(activeLibrary.name)\" on this device. This cannot be undone.")
+                    }
+                } else {
+                    Text("This will remove all documents in the current library.")
                 }
             }
             .alert("Review Import", isPresented: $showingImportReview) {
@@ -778,6 +943,37 @@ struct DocumentLibraryView: View {
                 if let review = pendingImportReview {
                     Text(review.message)
                 }
+            }
+            .confirmationDialog(sharedSyncReviewTitle, isPresented: $showingSharedSyncReviewDialog, titleVisibility: .visible) {
+                if isDeletionOnlySharedConflict, let conflict = pendingSharedSyncConflict {
+                    Button("Delete Here Too", role: .destructive) {
+                        deleteConflictedLocalLibraries(conflict)
+                    }
+
+                    Button("Keep Them Local Here") {
+                        resolvePendingBootstrap(.useICloudWorkspace)
+                    }
+
+                    Button("Restore Them to iCloud") {
+                        resolvePendingBootstrap(.mergeLibraries)
+                    }
+                } else if isAdditionOnlySharedConflict {
+                    Button("Add iCloud Libraries Here") {
+                        resolvePendingBootstrap(.useICloudWorkspace)
+                    }
+                } else {
+                    Button("Sync Both Directions") {
+                        resolvePendingBootstrap(.mergeLibraries)
+                    }
+
+                    Button("Use iCloud State Here") {
+                        resolvePendingBootstrap(.useICloudWorkspace)
+                    }
+                }
+
+                Button("Not Now", role: .cancel) {}
+            } message: {
+                Text(sharedSyncReviewMessage)
             }
             .userActivity("com.openintelligence.documents") { activity in
                 activity.title = "Browse Document Library"
@@ -823,6 +1019,11 @@ struct DocumentLibraryView: View {
             .onAppear {
                 Task { @MainActor in
                     await autoRefreshSharedWorkspaceIfNeeded()
+                }
+            }
+            .onChange(of: workspaceSyncService.observedWorkspaceChangeCount) {
+                Task { @MainActor in
+                    await handleObservedSharedWorkspaceChange()
                 }
             }
             .toolbar {
@@ -889,6 +1090,26 @@ struct DocumentLibraryView: View {
             }
         }
 
+        if hasConfiguredICloudLibraries {
+            ToolbarItem(placement: .automatic) {
+                Button {
+                    refreshSharedWorkspaceNow()
+                } label: {
+                    if isRefreshingSharedWorkspace {
+                        Label("Refreshing iCloud Libraries", systemImage: "arrow.clockwise")
+                    } else {
+                        Label(
+                            workspaceSyncService.requiresBootstrapDecision
+                                ? "Review iCloud Changes"
+                                : "Refresh iCloud Libraries",
+                            systemImage: "arrow.clockwise"
+                        )
+                    }
+                }
+                .disabled(isRefreshingSharedWorkspace)
+            }
+        }
+
         ToolbarItem(placement: .automatic) {
             Button {
                 showingSemanticSearch = true
@@ -911,9 +1132,7 @@ struct DocumentLibraryView: View {
         if !ragService.documents.isEmpty {
             ToolbarItem(placement: .automatic) {
                 Button(role: .destructive) {
-                    Task {
-                        try? await ragService.clearAllDocuments()
-                    }
+                    showingClearAllConfirmation = true
                 } label: {
                     Label("Clear All", systemImage: "trash")
                 }
@@ -1056,6 +1275,12 @@ struct DocumentLibraryView: View {
 
     @MainActor
     private func createNewLibrary(syncMode: LibrarySyncMode) {
+        if syncMode == .iCloudShared, !hasICloudSyncAccess {
+            pendingNewLibraryName = ""
+            presentPlanSheet(for: .iCloudSync)
+            return
+        }
+
         let trimmedName = pendingNewLibraryName.isEmpty
             ? newLibraryName.trimmingCharacters(in: .whitespacesAndNewlines)
             : pendingNewLibraryName.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -1066,19 +1291,30 @@ struct DocumentLibraryView: View {
             allowFallback: true
         )
 
-        let newContainer = containerService.createContainer(
-            name: libraryName,
-            embeddingProviderId: embeddingService.actualProviderId,
-            embeddingDim: embeddingService.outputDimension,
-            syncMode: syncMode
-        )
+        let newContainer: KnowledgeContainer
+        do {
+            newContainer = try containerService.createContainer(
+                name: libraryName,
+                embeddingProviderId: embeddingService.actualProviderId,
+                embeddingDim: embeddingService.outputDimension,
+                syncMode: syncMode
+            )
+        } catch is LibraryQuotaError {
+            pendingNewLibraryName = ""
+            presentPlanSheet(for: .libraryCreation)
+            return
+        } catch {
+            pendingNewLibraryName = ""
+            return
+        }
+
         containerService.setActive(newContainer.id)
         newLibraryName = "" // Reset for next time
         pendingNewLibraryName = ""
 
         if syncMode == .iCloudShared {
             Task { @MainActor in
-                await performSharedWorkspaceRefresh(isManual: false)
+                await publishExplicitICloudOptIn(libraryName: newContainer.name)
             }
         }
     }
@@ -1087,21 +1323,95 @@ struct DocumentLibraryView: View {
     private func handleSetLibrarySyncMode(_ container: KnowledgeContainer, _ syncMode: LibrarySyncMode) {
         guard container.syncMode != syncMode else { return }
 
+        if syncMode == .iCloudShared, !hasICloudSyncAccess {
+            presentPlanSheet(for: .iCloudSync)
+            return
+        }
+
         var updatedContainer = container
         updatedContainer.syncMode = syncMode
         containerService.updateContainer(updatedContainer)
 
         Task { @MainActor in
-            isRefreshingSharedWorkspace = true
-            defer { isRefreshingSharedWorkspace = false }
+            if syncMode == .iCloudShared {
+                await publishExplicitICloudOptIn(libraryName: updatedContainer.name)
+            } else {
+                isRefreshingSharedWorkspace = true
+                defer { isRefreshingSharedWorkspace = false }
+
+                _ = await workspaceSyncService.reconfigureIfNeeded()
+                containerService.reloadFromDisk()
+                ragService.reloadWorkspaceData()
+
+                sharedWorkspaceRefreshMessage = "\(updatedContainer.name) is now Local Only and stays on this device."
+            }
+        }
+    }
+
+    @MainActor
+    private func publishExplicitICloudOptIn(libraryName: String) async {
+        guard !isRefreshingSharedWorkspace else { return }
+
+        isRefreshingSharedWorkspace = true
+        sharedWorkspaceRefreshMessage = nil
+        defer { isRefreshingSharedWorkspace = false }
+
+        _ = await workspaceSyncService.reconfigureForExplicitICloudOptIn()
+
+        containerService.reloadFromDisk()
+        ragService.reloadWorkspaceData()
+
+        if workspaceSyncService.isUsingSharedWorkspace {
+            sharedWorkspaceRefreshMessage = "\(libraryName) now syncs through iCloud Drive."
+        } else {
+            sharedWorkspaceRefreshMessage = workspaceSyncService.lastErrorMessage ?? workspaceSyncService.statusMessage
+        }
+    }
+
+    @MainActor
+    private func deleteConflictedLocalLibraries(_ conflict: WorkspaceSyncService.PendingBootstrapConflict) {
+        let targetContainerIDs = Set(conflict.localOnlyLibraryIDs)
+        guard !targetContainerIDs.isEmpty else { return }
+
+        Task {
+            await MainActor.run {
+                showingSharedSyncReviewDialog = false
+                isRefreshingSharedWorkspace = true
+                sharedWorkspaceRefreshMessage = nil
+            }
+
+            let docsToRemove = await MainActor.run {
+                ragService.documents.filter { document in
+                    guard let containerId = document.containerId else { return false }
+                    return targetContainerIDs.contains(containerId)
+                }
+            }
+
+            for doc in docsToRemove {
+                try? await ragService.removeDocument(doc)
+            }
+
+            await MainActor.run {
+                for containerId in targetContainerIDs {
+                    containerService.deleteContainer(id: containerId)
+                    LibraryVisualizationEngine.shared.invalidateCache(for: containerId)
+                }
+            }
+
+            for containerId in targetContainerIDs {
+                await EntityIndexService.shared.removeContainer(containerId)
+            }
 
             _ = await workspaceSyncService.reconfigureIfNeeded()
-            containerService.reloadFromDisk()
-            ragService.reloadWorkspaceData()
 
-            sharedWorkspaceRefreshMessage = syncMode == .iCloudShared
-                ? "\(updatedContainer.name) now syncs through iCloud Drive."
-                : "\(updatedContainer.name) is now Local Only and stays on this device."
+            await MainActor.run {
+                containerService.reloadFromDisk()
+                ragService.reloadWorkspaceData()
+                isRefreshingSharedWorkspace = false
+                sharedWorkspaceRefreshMessage = targetContainerIDs.count == 1
+                    ? "Deleted the library removed from iCloud on this device too."
+                    : "Deleted the libraries removed from iCloud on this device too."
+            }
         }
     }
 
@@ -1122,10 +1432,36 @@ struct DocumentLibraryView: View {
         libraryToDelete = nil
 
         Task {
-            await ragService.cancelAndPurgeIngestion(for: container.id)
+            if container.syncMode == .iCloudShared {
+                await MainActor.run {
+                    isRefreshingSharedWorkspace = true
+                    sharedWorkspaceRefreshMessage = nil
+                }
+
+                do {
+                    try await workspaceSyncService.deleteSharedLibrary(container)
+                } catch {
+                    await MainActor.run {
+                        isRefreshingSharedWorkspace = false
+                        sharedWorkspaceRefreshMessage = error.localizedDescription
+                    }
+                    return
+                }
+            }
+
+            let localContainerIDsToDelete = await MainActor.run {
+                resolvedLocalDeletionContainerIDs(for: container)
+            }
+
+            for containerId in localContainerIDsToDelete {
+                await ragService.cancelAndPurgeIngestion(for: containerId)
+            }
 
             let docsToRemove = await MainActor.run {
-                ragService.documents.filter { $0.containerId == container.id }
+                ragService.documents.filter { document in
+                    guard let containerId = document.containerId else { return false }
+                    return localContainerIDsToDelete.contains(containerId)
+                }
             }
 
             for doc in docsToRemove {
@@ -1133,12 +1469,50 @@ struct DocumentLibraryView: View {
             }
 
             await MainActor.run {
-                containerService.deleteContainer(id: container.id)
-                LibraryVisualizationEngine.shared.invalidateCache(for: container.id)
+                for containerId in localContainerIDsToDelete {
+                    containerService.deleteContainer(id: containerId)
+                    LibraryVisualizationEngine.shared.invalidateCache(for: containerId)
+                }
+                containerService.reloadFromDisk()
+                ragService.reloadWorkspaceData()
+                if container.syncMode == .iCloudShared {
+                    isRefreshingSharedWorkspace = false
+                    sharedWorkspaceRefreshMessage = "\(container.name) was removed from this device and iCloud Drive."
+                }
             }
 
-            await EntityIndexService.shared.removeContainer(container.id)
+            for containerId in localContainerIDsToDelete {
+                await EntityIndexService.shared.removeContainer(containerId)
+            }
         }
+    }
+
+    @MainActor
+    private func resolvedLocalDeletionContainerIDs(for targetContainer: KnowledgeContainer) -> Set<UUID> {
+        let currentContainers = containerService.containers
+
+        if currentContainers.contains(where: { $0.id == targetContainer.id }) {
+            return [targetContainer.id]
+        }
+
+        guard targetContainer.syncMode == .iCloudShared,
+              let targetMergeKey = containerDeletionMergeKey(for: targetContainer)
+        else {
+            return []
+        }
+
+        let matchingIDs = currentContainers.compactMap { container -> UUID? in
+            guard container.syncMode == .iCloudShared else { return nil }
+            return containerDeletionMergeKey(for: container) == targetMergeKey ? container.id : nil
+        }
+
+        return Set(matchingIDs)
+    }
+
+    private func containerDeletionMergeKey(for container: KnowledgeContainer) -> String? {
+        guard container.syncMode == .iCloudShared else { return nil }
+
+        return container.id.uuidString.lowercased()
     }
 
     @MainActor

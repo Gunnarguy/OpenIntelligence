@@ -707,11 +707,13 @@ class DocumentProcessor {
             filteredText = extractedText
         }
 
-        // UNIVERSAL TEXT NORMALIZATION
-        // Runs on ALL extracted text — PDFKit and OCR alike — to fix:
-        // ligatures, broken hyphens, smart quotes, zero-width chars, multi-spaces.
-        // This is the single quality gate between raw extraction and chunking/embedding.
-        let normalizedText = OCRConfiguration.normalizeExtractedText(filteredText)
+        // Document-aware text normalization
+        // OCR/PDF-heavy sources get the full repair pipeline; authored text files
+        // use a conservative profile to avoid mutating real words or formatting.
+        let normalizedText = OCRConfiguration.normalizeExtractedText(
+            filteredText,
+            profile: normalizationProfile(for: documentType)
+        )
         if normalizedText.count != filteredText.count {
             let delta = filteredText.count - normalizedText.count
             Log.info(
@@ -1035,25 +1037,8 @@ class DocumentProcessor {
             pageInfo = pdfPageInfo
 
         case .text, .markdown:
-            do {
-                // Try UTF-8 first (most common)
-                text = try String(contentsOf: url, encoding: .utf8)
-                pageInfo = PageInfo(totalPages: 1, ocrPagesUsed: 0, pageNumbers: [1])
-            } catch {
-                // Fallback to other encodings if UTF-8 fails
-                Log.warning("[DocumentProcessor] UTF-8 decode failed; trying fallback encodings", category: .ingestion)
-                if let data = try? Data(contentsOf: url) {
-                    if let decodedText = String(data: data, encoding: .isoLatin1) ?? String(data: data, encoding: .ascii) {
-                        text = decodedText
-                        pageInfo = PageInfo(totalPages: 1, ocrPagesUsed: 0, pageNumbers: [1])
-                        Log.debug("[DocumentProcessor] Decoded with fallback encoding", category: .ingestion)
-                    } else {
-                        throw DocumentProcessingError.unsupportedEncoding
-                    }
-                } else {
-                    throw error
-                }
-            }
+            text = try readTextFileWithFallbackEncodings(url: url, purpose: "text document")
+            pageInfo = PageInfo(totalPages: 1, ocrPagesUsed: 0, pageNumbers: [1])
 
         case .rtf:
             text = try extractTextFromRTF(url: url)
@@ -1095,7 +1080,7 @@ class DocumentProcessor {
         case .unknown:
             // Last resort: try treating as plain text
             Log.warning("[DocumentProcessor] Unknown format; attempting plain text extraction", category: .ingestion)
-            if let attemptedText = try? String(contentsOf: url, encoding: .utf8), !attemptedText.isEmpty {
+            if let attemptedText = try? readTextFileWithFallbackEncodings(url: url, purpose: "unknown document"), !attemptedText.isEmpty {
                 text = attemptedText
                 pageInfo = PageInfo(totalPages: 1, ocrPagesUsed: 0, pageNumbers: [1])
                 Log.debug("[DocumentProcessor] Extracted as plain text", category: .ingestion)
@@ -8021,20 +8006,49 @@ class DocumentProcessor {
         return true
     }
 
-    /// Extract text from code files - preserve syntax and structure
-    private func extractTextFromCode(url: URL) throws -> String {
-        // Try UTF-8 first (standard for code)
-        if let code = try? String(contentsOf: url, encoding: .utf8) {
-            return code
+    private func normalizationProfile(for documentType: DocumentType) -> OCRConfiguration.TextNormalizationProfile {
+        switch documentType {
+        case .text, .markdown, .rtf,
+             .swift, .python, .javascript, .typescript, .java, .cpp, .c, .objc,
+             .go, .rust, .ruby, .php, .html, .css, .json, .xml, .yaml, .sql, .shell, .code,
+             .csv,
+               .word, .excel, .powerpoint, .pages, .numbers, .keynote,
+             .audio, .video, .m4a, .mp3, .wav, .mp4, .mov:
+            return .authoredText
+
+        default:
+            return .extractedDocument
+        }
+    }
+
+    private func readTextFileWithFallbackEncodings(url: URL, purpose: String) throws -> String {
+        if let utf8 = try? String(contentsOf: url, encoding: .utf8), !utf8.isEmpty {
+            return utf8
         }
 
-        // Fallback to other encodings
-        if let data = try? Data(contentsOf: url),
-           let code = String(data: data, encoding: .isoLatin1) ?? String(data: data, encoding: .ascii) {
-            return code
+        Log.warning("[DocumentProcessor] UTF-8 decode failed for \(purpose); trying fallback encodings", category: .ingestion)
+
+        if let latin1 = try? String(contentsOf: url, encoding: .isoLatin1), !latin1.isEmpty {
+            Log.debug("[DocumentProcessor] Decoded \(purpose) with Latin-1", category: .ingestion)
+            return latin1
+        }
+
+        if let win1252 = try? String(contentsOf: url, encoding: .windowsCP1252), !win1252.isEmpty {
+            Log.debug("[DocumentProcessor] Decoded \(purpose) with Windows-1252", category: .ingestion)
+            return win1252
+        }
+
+        if let ascii = try? String(contentsOf: url, encoding: .ascii), !ascii.isEmpty {
+            Log.debug("[DocumentProcessor] Decoded \(purpose) with ASCII", category: .ingestion)
+            return ascii
         }
 
         throw DocumentProcessingError.unsupportedEncoding
+    }
+
+    /// Extract text from code files - preserve syntax and structure
+    private func extractTextFromCode(url: URL) throws -> String {
+        try readTextFileWithFallbackEncodings(url: url, purpose: "code file")
     }
 
     /// Extract text from CSV - RFC 4180 compliant parser

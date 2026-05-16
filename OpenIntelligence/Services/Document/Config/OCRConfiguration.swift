@@ -41,6 +41,11 @@ import NaturalLanguage
 /// MUST use these factory methods instead of configuring requests manually.
 enum OCRConfiguration {
 
+    enum TextNormalizationProfile {
+        case extractedDocument
+        case authoredText
+    }
+
     // MARK: - Genuinely Universal Custom Words
 
     /// Words that appear across 3+ unrelated domains. These are mathematical,
@@ -455,10 +460,14 @@ enum OCRConfiguration {
     /// - Multi-space column alignment artifacts
     /// - Stray control characters
     ///
-    /// This is the SINGLE normalization gate between raw extraction and the
-    /// chunking/embedding pipeline.  Every document — PDF, image, Office,
-    /// audio transcript — passes through here exactly once.
-    nonisolated static func normalizeExtractedText(_ text: String) -> String {
+    /// This is the normalization gate between raw extraction and the
+    /// chunking/embedding pipeline. OCR/PDF-derived content uses the full
+    /// repair pipeline; authored text files use a conservative profile that
+    /// avoids content-mutating OCR repairs.
+    nonisolated static func normalizeExtractedText(
+        _ text: String,
+        profile: TextNormalizationProfile = .extractedDocument
+    ) -> String {
         guard !text.isEmpty else { return text }
 
         // 1. Unicode NFKC: decomposes compatibility forms + recomposes canonical.
@@ -513,24 +522,28 @@ enum OCRConfiguration {
             options: .regularExpression
         )
 
-        // 6. Collapse multi-space runs (from column alignment, OCR spacing)
-        //    but preserve single newlines (paragraph structure)
-        result = result.replacingOccurrences(
-            of: #"[^\S\n]{2,}"#,
-            with: " ",
-            options: .regularExpression
-        )
+        if case .extractedDocument = profile {
+            // 6. Collapse multi-space runs (from column alignment, OCR spacing)
+            //    but preserve single newlines (paragraph structure)
+            result = result.replacingOccurrences(
+                of: #"[^\S\n]{2,}"#,
+                with: " ",
+                options: .regularExpression
+            )
+        }
 
         // 7. Normalize line endings: \r\n → \n, standalone \r → \n
         result = result.replacingOccurrences(of: "\r\n", with: "\n")
         result = result.replacingOccurrences(of: "\r", with: "\n")
 
-        // 8. Collapse 3+ consecutive blank lines into 2 (preserve paragraph gaps)
-        result = result.replacingOccurrences(
-            of: #"\n{3,}"#,
-            with: "\n\n",
-            options: .regularExpression
-        )
+        if case .extractedDocument = profile {
+            // 8. Collapse 3+ consecutive blank lines into 2 (preserve paragraph gaps)
+            result = result.replacingOccurrences(
+                of: #"\n{3,}"#,
+                with: "\n\n",
+                options: .regularExpression
+            )
+        }
 
         // 9. Remove stray control characters (C0/C1) except tab and newline
         result = String(result.unicodeScalars.filter { scalar in
@@ -541,38 +554,40 @@ enum OCRConfiguration {
             return true
         }.map { Character($0) })
 
-        // 10. Replace CJK bullet artifacts in Latin-dominant text
-        //     Many PDFs from Asian publishers (Kia, Hyundai, etc.) encode bullet
-        //     point glyphs as CJK ideographs in the text layer. PDFKit faithfully
-        //     extracts them (e.g. 僅 U+50C5 instead of •). Replace isolated CJK
-        //     chars at line starts with standard bullets when the document is
-        //     predominantly Latin script.
-        result = replaceCJKBulletArtifacts(result)
+        if case .extractedDocument = profile {
+            // 10. Replace CJK bullet artifacts in Latin-dominant text
+            //     Many PDFs from Asian publishers (Kia, Hyundai, etc.) encode bullet
+            //     point glyphs as CJK ideographs in the text layer. PDFKit faithfully
+            //     extracts them (e.g. 僅 U+50C5 instead of •). Replace isolated CJK
+            //     chars at line starts with standard bullets when the document is
+            //     predominantly Latin script.
+            result = replaceCJKBulletArtifacts(result)
 
-        // 11. Repair systematic ll-ligature encoding errors
-        //     Some PDF fonts map the "ll" ligature to a single "l" in their
-        //     ToUnicode table. PDFKit extracts "wil" instead of "will", "al"
-        //     instead of "all", etc. Detect the pattern and repair using a
-        //     curated word list where single-l is NEVER valid English.
-        result = repairLLLigature(result)
+            // 11. Repair systematic ll-ligature encoding errors
+            //     Some PDF fonts map the "ll" ligature to a single "l" in their
+            //     ToUnicode table. PDFKit extracts "wil" instead of "will", "al"
+            //     instead of "all", etc. Detect the pattern and repair using a
+            //     curated word list where single-l is NEVER valid English.
+            result = repairLLLigature(result)
 
-        // 12. Miscellaneous symbol normalization
-        //     Japanese long vowel mark ー (U+30FC) misread as dash
-        //     CJK numeral 一 (U+4E00) used as horizontal line
-        result = result.replacingOccurrences(of: "\u{30FC}", with: "-")  // Katakana ー → -
-        // Only replace 一 when surrounded by digits (used as dash in "2一8" → "2-8")
-        //     NOTE: Raw strings (#"..."#) require \x{HHHH} for ICU regex, NOT \u{HHHH}
-        result = result.replacingOccurrences(
-            of: #"(\d)\x{4E00}(\d)"#,
-            with: "$1-$2",
-            options: .regularExpression
-        )
+            // 12. Miscellaneous symbol normalization
+            //     Japanese long vowel mark ー (U+30FC) misread as dash
+            //     CJK numeral 一 (U+4E00) used as horizontal line
+            result = result.replacingOccurrences(of: "\u{30FC}", with: "-")  // Katakana ー → -
+            // Only replace 一 when surrounded by digits (used as dash in "2一8" → "2-8")
+            //     NOTE: Raw strings (#"..."#) require \x{HHHH} for ICU regex, NOT \u{HHHH}
+            result = result.replacingOccurrences(
+                of: #"(\d)\x{4E00}(\d)"#,
+                with: "$1-$2",
+                options: .regularExpression
+            )
 
-        // 13. Strip document noise artifacts
-        //     Removes lines that are ONLY internal asset codes, orphan page numbers,
-        //     or cross-reference page clusters. These are structural PDF artifacts
-        //     that waste chunk token budget and pollute BM25/vector search.
-        result = stripDocumentNoise(result)
+            // 13. Strip document noise artifacts
+            //     Removes lines that are ONLY internal asset codes, orphan page numbers,
+            //     or cross-reference page clusters. These are structural PDF artifacts
+            //     that waste chunk token budget and pollute BM25/vector search.
+            result = stripDocumentNoise(result)
+        }
 
         return result
     }

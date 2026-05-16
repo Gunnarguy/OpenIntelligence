@@ -11,8 +11,8 @@ enum QuotaPolicy {
 
     /// Base workspace (container) allowance.
     static let freeLibraryLimit: Int = 1
-    static let proLibraryLimit: Int = 5
-    static let lifetimeLibraryLimit: Int = 10
+    static let proLibraryLimit: Int = 10
+    static let lifetimeLibraryLimit: Int = 20
 
     /// Number of extra documents granted per consumable add-on.
     static let addOnDocumentIncrement: Int = 10
@@ -63,5 +63,23 @@ struct DocumentQuotaError: LocalizedError {
 
     var recoverySuggestion: String? {
         "Remove a document or upgrade to keep adding content."
+    }
+}
+
+struct LibraryQuotaError: LocalizedError {
+    let limit: Int
+    let attemptedCount: Int?
+    let tier: WorkspaceTier?
+
+    var errorDescription: String? {
+        if let attemptedCount, let tier {
+            return "This would bring your workspace to \(attemptedCount) libraries. Your \(tier.displayName) plan supports up to \(limit) libraries."
+        }
+
+        return "You've reached the current workspace limit of \(limit) libraries."
+    }
+
+    var recoverySuggestion: String? {
+        "Delete or merge a library, or upgrade to a plan with more library capacity."
     }
 }

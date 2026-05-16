@@ -12,6 +12,14 @@ struct ModernDocumentCard: View {
     @ObservedObject var ragService: RAGService
     @State private var showingDeleteAlert = false
 
+    private var documentSyncMode: LibrarySyncMode {
+        ragService.syncMode(for: document)
+    }
+
+    private var isSharedICloudDocument: Bool {
+        documentSyncMode == .iCloudShared
+    }
+
     /// Display up to 3 tags to keep the card compact
     private var displayTags: [String] {
         guard let tags = document.contentTags, !tags.isEmpty else { return [] }
@@ -79,18 +87,22 @@ struct ModernDocumentCard: View {
             Button(role: .destructive) {
                 showingDeleteAlert = true
             } label: {
-                Label("Delete", systemImage: "trash")
+                Label(isSharedICloudDocument ? "Remove Local Copy" : "Delete", systemImage: "trash")
             }
         }
-        .alert("Delete Document?", isPresented: $showingDeleteAlert) {
+        .alert(isSharedICloudDocument ? "Remove Local Document?" : "Delete Document?", isPresented: $showingDeleteAlert) {
             Button("Cancel", role: .cancel) {}
-            Button("Delete", role: .destructive) {
+            Button(isSharedICloudDocument ? "Remove Local Copy" : "Delete", role: .destructive) {
                 Task {
                     try? await ragService.removeDocument(document)
                 }
             }
         } message: {
-            Text("This will remove \"\(document.filename)\" and all its chunks from your knowledge base.")
+            if isSharedICloudDocument {
+                Text("This removes \"\(document.filename)\" from this device's current copy of the shared iCloud library. If the document still exists in iCloud, Sync Now can bring it back.")
+            } else {
+                Text("This will remove \"\(document.filename)\" and all its chunks from your knowledge base on this device.")
+            }
         }
     }
 }

@@ -239,7 +239,7 @@ actor QualityAssuranceService {
         QATestCase(
             id: "sample_library_limit",
             query: "How many libraries does the expanded workspace allow in the sample guide?",
-            expectedAnswer: "5 libraries",
+            expectedAnswer: "10 libraries",
             expectedDocumentIds: ["openintelligencesampleguide"],
             answerType: .factoid,
             difficulty: .easy

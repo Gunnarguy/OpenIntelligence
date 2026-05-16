@@ -32,7 +32,7 @@ struct PlanUpgradeSheet: View {
             isFeatured: false,
             features: [
                 "Up to 1,000 documents",
-                "5 libraries",
+                "10 libraries",
                 "Expanded workspace limits",
                 "Cancel anytime",
             ]
@@ -47,7 +47,7 @@ struct PlanUpgradeSheet: View {
             isFeatured: true,
             features: [
                 "Up to 1,000 documents",
-                "5 libraries",
+                "10 libraries",
                 "Expanded workspace limits",
                 "Save 30% vs monthly",
             ]
@@ -61,8 +61,8 @@ struct PlanUpgradeSheet: View {
             tint: .orange,
             isFeatured: false,
             features: [
-                "Up to 1,000 documents",
-                "10 libraries",
+                "Unlimited documents",
+                "20 libraries",
                 "Everything in Pro",
                 "No renewal — one-time purchase",
             ]
@@ -72,7 +72,7 @@ struct PlanUpgradeSheet: View {
     private let storySlides: [PlanStorySlide] = [
         PlanStorySlide(
             title: "Unlock more capacity",
-            subtitle: "Pro expands your workspace from the free tier to up to 1,000 documents and 5 libraries.",
+            subtitle: "Pro expands your workspace from the free tier to up to 1,000 documents and 10 libraries.",
             icon: "bolt.fill",
             tint: .orange
         ),
@@ -84,7 +84,7 @@ struct PlanUpgradeSheet: View {
         ),
         PlanStorySlide(
             title: "Lifetime, without renewal",
-            subtitle: "Lifetime keeps Pro-level access unlocked with up to 10 libraries in a single purchase.",
+            subtitle: "Lifetime keeps Pro-level access unlocked with unlimited documents and up to 20 libraries in a single purchase.",
             icon: "arrow.up.right.circle.fill",
             tint: .purple
         ),

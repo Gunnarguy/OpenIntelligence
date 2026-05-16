@@ -3115,6 +3115,12 @@ class RAGService: ObservableObject {
         }
     }
 
+    @MainActor
+    func syncMode(for document: Document) -> LibrarySyncMode {
+        let targetContainerId = document.containerId ?? containerService.containers.first?.id ?? containerService.activeContainerId
+        return containerService.containers.first(where: { $0.id == targetContainerId })?.syncMode ?? .localOnly
+    }
+
     private func dbForActiveContainer() async -> VectorDatabase {
         return await MainActor.run {
             let container = self.containerService.activeContainer

@@ -64,6 +64,10 @@ struct ContentView: View {
         return onboardingStore.hasOutstandingSteps && !onboardingStore.isChecklistVisible
     }
 
+    private var hasICloudSyncAccess: Bool {
+        entitlementStore.effectiveTier.isAtLeast(.pro)
+    }
+
     /// Computed accent color from settings, with system default fallback
     private var appAccentColor: Color {
         if let hex = settingsStore.appAccentColorHex, let color = Color(hex: hex) {
@@ -132,8 +136,6 @@ struct ContentView: View {
         // In production this fetches App Store Connect products; in DEBUG/simulator,
         // this will emit a single warning if no StoreKit configuration is present.
         .task {
-            await refreshSharedWorkspaceIfNeeded(forceReload: true)
-
             #if DEBUG
             let environment = ProcessInfo.processInfo.environment
             let arguments = ProcessInfo.processInfo.arguments
@@ -158,6 +160,8 @@ struct ContentView: View {
             // Auto-reconcile existing purchases on launch so paid users
             // are recognized immediately after reinstall or device change.
             await entitlementStore.reconcileEntitlementsOnLaunch()
+
+            await refreshSharedWorkspaceIfNeeded(forceReload: true)
 
             if screenshotMode.shouldImportSamples {
                 await importSamplesIfNeeded()
@@ -305,6 +309,10 @@ struct ContentView: View {
 
     @MainActor
     private func refreshSharedWorkspaceIfNeeded(forceReload: Bool = false) async {
+        guard hasICloudSyncAccess else {
+            return
+        }
+
         let didChangeWorkspaceRoots = await workspaceSyncService.reconfigureIfNeeded()
         guard didChangeWorkspaceRoots || forceReload || workspaceSyncService.isUsingSharedWorkspace else {
             return

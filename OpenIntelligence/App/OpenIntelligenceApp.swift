@@ -56,7 +56,7 @@ struct OpenIntelligenceApp: App {
         IngestionRuntimeBridge.shared.completeUserInitiatedIngestionHandler = { success in
             BackgroundTaskService.shared.completeUserInitiatedIngestion(success: success)
         }
-#if canImport(ActivityKit)
+#if canImport(ActivityKit) && !targetEnvironment(macCatalyst)
         if #available(iOS 17.0, *) {
             IngestionRuntimeBridge.shared.restoreLiveActivityHandler = {
                 IngestionLiveActivityService.shared.restoreExistingActivityIfNeeded()
@@ -119,6 +119,7 @@ struct OpenIntelligenceApp: App {
 
     /// Register background processing and refresh tasks
     private func registerBackgroundTasks() {
+#if !targetEnvironment(macCatalyst)
         if #available(iOS 26.0, *) {
             BGTaskScheduler.shared.register(
                 forTaskWithIdentifier: BackgroundTaskService.continuedIngestionIdentifier,
@@ -144,6 +145,7 @@ struct OpenIntelligenceApp: App {
                 BackgroundTaskService.shared.handleContinuedQuery(task: continuedTask)
             }
         }
+#endif
 
         // Background index maintenance (vector DB compaction, entity index cleanup)
         BGTaskScheduler.shared.register(
