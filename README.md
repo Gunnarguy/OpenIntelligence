@@ -11,6 +11,7 @@ OpenIntelligence is a proof-of-concept and portfolio project. It is not a finish
 ## Start Here
 
 - [App Store](https://apps.apple.com/us/app/openintelligence/id6756559175): live public listing.
+- [What's New](WHATS_NEW.md) and [Changelog](CHANGELOG.md): public release notes and version-by-version history.
 - [How it works](HOW_IT_WORKS.md): public workflow overview from import to cited answers.
 - [Architecture](Docs/ARCHITECTURE.md): app structure, service boundaries, data flow, and package boundary.
 - [Retrieval pipeline](Docs/RETRIEVAL_PIPELINE.md): ingestion, chunking, retrieval, context packing, grounded answer generation, and diagnostics.
@@ -22,6 +23,22 @@ OpenIntelligence is a proof-of-concept and portfolio project. It is not a finish
 - [Demo guide](Docs/DEMO.md): suggested public demo flow and safe demo-document guidance.
 - [Limitations](Docs/LIMITATIONS.md): product, safety, technical, and demo limits.
 - [Roadmap](Docs/ROADMAP.md): near-term engineering direction.
+
+## Release History
+
+The README now keeps a quick version index so the shipped app history is visible here without jumping straight into the deeper public notes in [WHATS_NEW.md](WHATS_NEW.md) and [CHANGELOG.md](CHANGELOG.md).
+
+| Version | Release focus                                                                                                                                                                        |
+| ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 3.6     | Per-library Local Only versus iCloud Drive storage, cross-device library review, safer shared-library reconciliation, and more conservative handling for clean digital text imports. |
+| 3.5     | Reliability cleanup for exact answers, harder PDFs, grounded starter prompts, and first-run product clarity.                                                                         |
+| 3.3     | Stronger import recovery, adaptive visual ingestion, searchable figures, and better exact table/spec lookups.                                                                        |
+| 3.2.5   | Corrective pass for direct source-backed fact answers, exact measurements, and stricter grounded starter questions.                                                                  |
+| 3.1     | Better OCR and table preservation, corrective retrieval on weak evidence, and stricter grounded answer handling.                                                                     |
+| 3.0     | Retrieval hardening for noisy PDFs and tables, stronger extractive handling, and clearer diagnostics around recovery behavior.                                                       |
+| 2.5     | Better suggested questions, stronger answer grounding and evidence review, and broader rendering and PDF-cleanup polish.                                                             |
+| 2.0.x   | Faster everyday document Q&A, sharper source review, and stability/polish follow-up work after launch.                                                                               |
+| 2.0.0   | Initial App Store release of the iPhone app with multi-format import, library organization, cited answers, and paid access tiers.                                                    |
 
 ## What It Demonstrates
 
