@@ -106,18 +106,108 @@ Recent 3.6 follow-up work tightened two product surfaces that matter in practice
 
 ## Retrieval Pipeline
 
-At a high level:
+The earlier README summary was too compressed. The documented system is not one straight line; it is an adaptive ingest, retrieval, verification, and inspection pipeline.
 
-1. A user imports files into a selected library/workspace.
-2. The app extracts text and document structure where available.
-3. The document processor chunks and enriches content.
-4. Text and vector indexes are updated for scoped retrieval.
-5. A query is analyzed, rewritten, or routed depending on quality mode.
-6. Candidate chunks are retrieved, reranked, compressed, and packed into context.
-7. The answer layer produces a response grounded in retrieved evidence.
-8. Citations, confidence signals, warnings, and diagnostics are exposed in the UI.
+The diagrams below are an audit-style systems map based on the repo docs. They are meant to show the full documented shape from import to response and review, not to imply that every document or every query runs every branch.
 
-See [Retrieval Pipeline](Docs/RETRIEVAL_PIPELINE.md), [RAG Technical Specifications](Docs/Engineering/RAG_TECHNICAL.md), and [Storage and Pipeline Trace](Docs/Engineering/STORAGE_AND_PIPELINE_TRACE.md) for the detailed flow.
+### Ingestion To Indexed Corpus
+
+```mermaid
+flowchart LR
+  A[Import surface] --> B[Library or container selection]
+  B --> C{File and quality classification}
+  C --> D[Digital text parsing]
+  C --> E[Structured PDF or Office extraction]
+  C --> F[OCR vision or speech lane]
+  D --> G[Language detection and optional translation]
+  E --> G
+  F --> G
+  G --> H[Normalization and preservation profile]
+  H --> I[Page preservation and figure semantics]
+  I --> J[Semantic chunking]
+  J --> K[Entity keyword section metadata enrichment]
+  K --> L[Contextual prefix and token validation]
+  L --> M[Embedding generation]
+  L --> N[SQLite FTS5 documents pages chunks content metadata]
+  M --> O[Per-container vector store]
+  N --> P[Scoped indexed corpus]
+  O --> P
+```
+
+### Query To Response
+
+```mermaid
+flowchart TD
+  A[User query] --> B[Device availability library scope and policy gate]
+  B --> C[Corpus vocabulary and container context]
+  C --> D[Query understanding pronouns entities references]
+  D --> E[Answer intent and search intent classification]
+  E --> F[Rewrite expansion vocabulary boost and HyDE optional]
+  F --> G[Query embedding]
+  G --> H{Retrieval route}
+  H --> I[Hybrid retrieval BM25 plus vector plus RRF]
+  H --> J[RAPTOR-lite summary retrieval]
+  H --> K[Iterative retrieval optional]
+  I --> L[Cross-encoder rerank]
+  J --> L
+  K --> L
+  L --> M[Low-confidence filtering]
+  M --> N[Source diversity and MMR]
+  N --> O[Parent and sibling expansion]
+  O --> P[Contextual compression]
+  P --> Q[Graph-style packing and lost-in-middle reorder]
+  Q --> R{Answer lane and exact-value override}
+  R --> S[Extractive QA]
+  R --> T[Extractive summarization]
+  R --> U[Foundation Models generation]
+  R --> V[Agentic multi-session mode optional]
+  S --> W[Quality assessment]
+  T --> W
+  U --> W
+  V --> W
+  W --> X[Verification gates A through I]
+  X --> Y[Source-only checks and abstention handling]
+  Y --> Z[Platt-scaled confidence trust payload and response metadata]
+  Z --> AA[Markdown rendering and response formatting]
+  AA --> AB[SwiftUI answer citations warnings diagnostics]
+```
+
+### Validation And Inspection Loop
+
+```mermaid
+flowchart LR
+  A[Retrieved chunks and trust payload] --> B[Chat answer surface]
+  A --> C[Source review and retrieval quality surfaces]
+  A --> D[Diagnostics and validation UI]
+  D --> E[DebugRAGValidationHarness]
+  E --> F[run_rag_benchmarks.py]
+  E --> G[rag_benchmark_studio.py]
+  F --> H[results.json summary dashboard artifact bundle]
+  G --> H
+  H --> I[pipeline_trace.log and rag_validation_report.txt]
+  I --> J[Engineering iteration on chunking retrieval verification]
+```
+
+### Constraints That Force This Architecture
+
+- The public Apple Foundation Models path is budgeted around 4096 tokens total, so instructions, tool schemas, retrieved context, and the response all compete for the same window.
+- The current embedding path uses 384-dimensional vectors and an embedding input ceiling around 510 tokens, so chunking and token validation cannot be sloppy.
+- Chunking targets roughly 260 words with a hard ceiling around 310 words because contextual prefix overhead has to be reserved before embedding.
+- Context packing is tuned around roughly 3200 estimated tokens and about 5500 characters for the current public Apple path, which is why reranking, compression, and lost-in-middle reordering matter.
+- Tool schemas can consume roughly 1000 tokens, so the RAG path disables tools when context has already been assembled.
+- Library isolation is enforced through shared SQLite tables plus container filters and per-container vector stores, which is why storage and routing are more involved than a single database lookup.
+
+### Why So Many Stages Exist
+
+- Adaptive ingestion exists because clean digital text, scanned PDFs, tables, figures, images, and media transcripts fail in different ways.
+- Dual storage exists because lexical lookup and semantic similarity solve different retrieval problems.
+- Query rewrite, vocabulary expansion, and HyDE exist because users often ask in different language than the source material uses.
+- Reranking, diversity, parent retrieval, and compression exist because relevant evidence is often fragmented, duplicated, or buried in weak matches.
+- Exact-value overrides and extractive lanes exist because numbers, specs, and procedures need stricter handling than freeform synthesis.
+- Verification, calibrated confidence, warnings, and abstention exist because citations alone are not enough and the system should surface uncertainty instead of hiding it.
+- Diagnostics and benchmarks exist because the pipeline is supposed to be inspectable and regression-testable, not just persuasive when it works.
+
+See [Retrieval Pipeline](Docs/RETRIEVAL_PIPELINE.md), [RAG Technical Specifications](Docs/Engineering/RAG_TECHNICAL.md), [Storage and Pipeline Trace](Docs/Engineering/STORAGE_AND_PIPELINE_TRACE.md), [Apple Intelligence Models and Specs](Docs/Engineering/APPLE_MODELS.md), [Hard Limits and Claim Constraints](Docs/Engineering/HARD_LIMITS.md), and [Benchmarks](Benchmarks/README.md) for the deeper trace and the constraints that shape it.
 
 ## Technical References
 
