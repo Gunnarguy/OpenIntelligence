@@ -13,6 +13,15 @@ It does not prove:
 - stable reusable package delivery
 - regulated or safety-critical workflow readiness
 
+Read this trace as a routed system, not as one universal sequence that every query fully executes:
+
+- import-time and query-time are separate phases, and normal query execution consumes indexes built earlier rather than rerunning `DocumentProcessor`
+- some branches are early returns, especially extractive summarization and direct high-precision extraction
+- agentic mode is chosen up front and runs through its own orchestrator rather than appearing as a late stage inside the standard path
+- verification is a trust-control layer that can warn, refine, reduce confidence, or abstain; it does not prove truth
+- exact lexical retrieval still matters alongside vector search for names, codes, and literal specs
+- container isolation currently comes from `container_id` inside shared SQLite tables, not from one SQLite database per library
+
 ## End-to-End Flow
 
 ```text
@@ -111,18 +120,20 @@ This is closer to an intent-driven sync review model than the earlier generic "l
 
 ## Query Trace
 
-| Stage                   | Main code                                                       | Current note                                                |
-| ----------------------- | --------------------------------------------------------------- | ----------------------------------------------------------- |
-| Availability/config     | `OpenIntelligenceEngine.swift`, `DeviceCapabilityService.swift` | Small public entry point exists                             |
-| Intent/routing          | query analysis and policy services                              | Real logic, still app-owned overall orchestration           |
-| Query rewrite/expansion | rewriter, HyDE, vocabulary services                             | Present and useful, but should not be oversold              |
-| Retrieval               | hybrid vector plus BM25 services                                | Strong core engine asset                                    |
-| Expansion/diversity     | parent retrieval, MMR, source diversity                         | Real and valuable                                           |
-| Context packing         | `ContextPackingService.swift`                                   | Tuned around today's public Apple token budget              |
-| Generation              | `LLMService.swift`                                              | Apple-native path where available, with app-shaped tool set |
-| Extraction fallback     | extractive QA services                                          | Important exact-value protection                            |
-| Verification            | gate and source-only services                                   | Real safeguards, not correctness proof                      |
-| Presentation            | structured response models plus SwiftUI                         | App layer                                                   |
+Read the query trace below as a routed family of paths. The standard path can early-return into extractive handling, and harder queries can be handed to agentic orchestration before the standard lane starts.
+
+| Stage                    | Main code                                                                           | What it is trying to do                                                      | Failure or risk it is managing                                       | Current note                                                |
+| ------------------------ | ----------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- | -------------------------------------------------------------------- | ----------------------------------------------------------- |
+| Availability/config      | `OpenIntelligenceEngine.swift`, `DeviceCapabilityService.swift`                     | select a runnable path for the current device and mode                       | unsupported model path or runtime mismatch                           | Small public entry point exists                             |
+| Intent/routing           | query analysis and policy services                                                  | choose the right answer lane before retrieval goes too far                   | wrong lane for the question, including standard vs agentic           | Real logic, still app-owned overall orchestration           |
+| Query rewrite/expansion  | rewriter, HyDE, vocabulary services                                                 | bridge wording gaps between user phrasing and document phrasing              | vocabulary mismatch and weak recall                                  | Present and useful, but should not be oversold              |
+| Retrieval                | hybrid vector plus BM25 services                                                    | find candidate evidence with both semantic and literal signals               | exact-term misses or semantic misses if only one method is used      | Strong core engine asset                                    |
+| Expansion/diversity      | parent retrieval, MMR, source diversity, cross-reference and graph follow-up        | widen or reshape evidence when the first hit set is incomplete or repetitive | duplicate chunks, missing surrounding context, unresolved references | Real and valuable                                           |
+| Context packing          | `ContextPackingService.swift`                                                       | decide which evidence survives into the final prompt budget                  | good chunks found but squeezed out by the token ceiling              | Tuned around today's public Apple token budget              |
+| Generation               | `LLMService.swift`                                                                  | synthesize a grounded answer when the query should go through generation     | fluent but weakly grounded output if retrieval was weak              | Apple-native path where available, with app-shaped tool set |
+| Extractive protection    | extractive QA and summarization services, direct extraction, source-only refinement | keep exact values and summaries closer to source text                        | wrong specs, wrong numbers, and freeform drift                       | Important precision protection, not a "less advanced" path  |
+| Verification/calibration | gate, confidence, and source-only services                                          | adjust trust posture after an answer is produced                             | overconfident answer without enough support                          | Real safeguards, not correctness proof                      |
+| Presentation/review      | structured response models plus SwiftUI                                             | expose citations, warnings, and trace surfaces for inspection                | polished answer hiding the real evidence situation                   | App layer                                                   |
 
 ## Reusable Engine Parts vs App-Coupled Wrappers
 

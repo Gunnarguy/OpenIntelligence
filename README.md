@@ -49,57 +49,118 @@ The README now keeps a quick version index so the shipped app history is visible
 - Type-aware preparation that preserves clean digital text more conservatively while still escalating cleanup for noisy OCR and scanned material.
 - Retrieval-oriented answer generation with citations and evidence review.
 - Library/workspace isolation so questions stay scoped to the selected material.
-  If someone only looks at the README once, the intended mental model is this:
+
+If someone only looks at the README once, the intended mental model should be: import-time first, query-time second.
 
 ```mermaid
-flowchart LR
-  A[Import files into a library] --> B[Prepare and preserve document content]
-  B --> C[Build local search indexes]
-  C --> D[Understand and scope the question]
-  D --> E[Retrieve the best evidence]
-  E --> F[Answer from that evidence]
-  F --> G[Verify, score, and format the result]
-  G --> H[Show citations, warnings, and diagnostics]
+flowchart TD
+  subgraph INGEST[Import-time]
+    A1[Import files into a library]
+    A2[Extract and normalize content]
+    A3[Chunk, enrich, and preserve structure]
+    A4[Build lexical and vector indexes]
+    A5[Indexed library ready]
+    A1 --> A2 --> A3 --> A4 --> A5
+  end
+
+  subgraph QUERY[Query-time]
+    B1[User asks a question]
+    B2[Analyze the query and choose a route]
+    B3[Retrieve and pack the best evidence]
+    B4[Answer with extractive, standard, or agentic path]
+    B5[Verify, score, and format the response]
+    B6[Show citations, warnings, and diagnostics]
+    B1 --> B2 --> B3 --> B4 --> B5 --> B6
+  end
+
+  A5 --> B3
 ```
 
-Everything else in the codebase exists to make one of those seven steps more reliable.
+Everything else in the codebase exists to make one of those two phases more reliable.
 
-### In Plain English
+### How To Read The Maps
+
+- Import-time and query-time are different phases. The import pipeline builds the searchable corpus first. The query pipeline runs later against that stored corpus.
+- These are routing maps, not universal sequences. Not every box runs on every query.
+- Rectangles are work that does happen. Decision diamonds mean the code chooses one route, not all routes.
+- Early-return branches mean the pipeline can stop there with an answer or abstention instead of continuing downstream.
+- Retry or fallback arrows mean the engine detected a weak result and is trying a narrower, broader, or safer recovery path.
+- Retrieval helpers are solving different failure modes, not decorating the pipeline. Query rewriting, HyDE, diversity control, parent expansion, graph recovery, and cross-reference follow-up each exist because retrieval can fail for different reasons.
+- Extractive and source-only paths are precision-protection paths, not "less advanced" answer paths.
+- Agentic mode is a separate orchestration path, not a later bonus step stacked on top of the standard path.
+- Verification changes the trust posture of the answer. It does not prove the answer is true.
+- Dense diagrams below are for technical fidelity. Use the overview and the talk track first, then use the dense maps to answer implementation questions.
+
+### How To Explain It Out Loud
 
 1. Import and scope.
-   The app pulls files from Apple import and share surfaces into a selected library or workspace, so every later query has a defined document boundary.
+   Plain language: The app first turns raw user files into a scoped library so later questions are grounded in a known document set.
+   Engineering: Import runs through container selection, type-aware extraction, normalization, chunking, enrichment, and index writes before query-time starts.
 
 2. Prepare the material locally.
-   The engine decides whether the source should go through digital parsing, structured extraction, OCR, vision recovery, speech handling, or some combination of those paths.
+   Plain language: Different file types need different cleanup paths, so the app does not treat a clean PDF, a scan, and an image the same way.
+   Engineering: The engine branches into digital parsing, structured extraction, OCR, layout-aware recovery, speech handling, or file-type-specific text extraction depending on document family and text quality.
 
 3. Preserve what matters for later retrieval.
-   It keeps page text, figure or layout signals, metadata, chunks, and enrichment so the system can answer questions with better source grounding later.
+   Plain language: It keeps the parts that make later answers more trustworthy, like page boundaries, structure, tags, and metadata.
+   Engineering: It preserves page text, section paths, table or list structure, chunk metadata, entity signals, summaries, and container scoping for later retrieval and review.
 
 4. Build two kinds of local indexes.
-   The app writes lexical search data into SQLite FTS5 and semantic search data into per-container vector storage, because exact term lookup and semantic similarity solve different retrieval failures.
+   Plain language: The app builds one index for exact words and another for semantic similarity because those fail in different ways.
+   Engineering: Normalized text lands in SQLite FTS5 and embeddings land in scoped vector storage so the query path can mix literal lookup, BM25-style lexical retrieval, and embedding search.
 
 5. Understand the question before searching.
-   Queries are scoped to the active library, checked against device and policy constraints, classified by intent, and optionally rewritten, expanded, or HyDE-boosted before retrieval starts.
+   Plain language: When a user asks something, the app decides what kind of question it is before it searches.
+   Engineering: Query-time resolves the active container, quality mode, embedding context, and routing plan, then may apply rewriting, expansion, HyDE, or literal lookup constraints before retrieval.
 
 6. Retrieve and assemble evidence.
-   The engine runs hybrid retrieval, reranking, diversity checks, parent expansion, compression, and context packing so the final prompt favors the strongest evidence instead of the noisiest evidence.
+   Plain language: The system does not just grab the first matching chunk; it tries to assemble the strongest evidence pack it can fit.
+   Engineering: It runs hybrid or iterative retrieval, reranking, diversity control, parent expansion, corrective passes, compression, cross-reference recovery, and context packing under strict token budgets because different retrieval misses come from different causes.
 
 7. Choose the right answer lane.
-   Depending on the query, the app can route into extractive QA, extractive summarization, standard Foundation Models generation, or agentic multi-session mode.
+   Plain language: Not every question should go through the same answer engine.
+   Engineering: The pipeline can early-return through extractive summarization or direct extraction, continue through single-pass grounded generation, or hand off up front to agentic multi-session reasoning. The extractive paths are precision-protection paths, not a downgrade.
 
 8. Verify before presenting.
-   The answer is checked by safety and grounding gates, confidence is calibrated, markdown is rendered, and the UI shows citations, warnings, diagnostics, and source-review affordances.
+   Plain language: A fluent answer is not enough; the app tries to decide whether it is grounded enough to show confidently.
+   Engineering: The standard path applies quality assessment, verification gates, confidence calibration, and optional source-only refinement before final rendering and citation review. This is a trust-control layer, not a proof-of-truth layer.
 
 9. Inspect and iterate.
-   The same pipeline can be audited through diagnostics views, trace export, the validation harness, and the benchmark scripts so retrieval failures are visible instead of hidden.
+   Plain language: The pipeline is built to be inspectable, not mysterious.
+   Engineering: The app exposes audit snapshots, source trays, diagnostics screens, trace export, a validation harness, and benchmark scripts so retrieval or grounding failures stay debuggable. Diagnostics are part of the product story, not a bolt-on debug extra.
+
+### Two Ways To Talk About It
+
+If you need a short plain-language version: OpenIntelligence builds a local library from messy files, searches that library intelligently, chooses the safest answer path for the question, and shows its work.
+
+If you need the full-blown nerd version: OpenIntelligence is a library-scoped local RAG system with type-aware ingestion, dual lexical plus vector indexing, query planning and routing, multi-stage evidence shaping, multiple answer lanes including extractive and agentic paths, explicit verification and confidence calibration, and first-class audit surfaces.
+
+### Term Crosswalk
+
+| Term                     | Plain-language meaning                                                           | Why it exists                                                                           |
+| ------------------------ | -------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| HyDE                     | Generate a hypothetical answer-like document, then search with that embedding    | Helps when the user's wording does not match the document's wording                     |
+| MMR                      | Keep strong results while avoiding too many near-duplicates                      | Prevents the context window from filling with the same evidence over and over           |
+| Parent expansion         | Pull the larger surrounding document context around a promising chunk            | Helps when the best answer spans beyond the first matching chunk                        |
+| Cross-reference recovery | Follow "see section/page/table" style references                                 | Helps when the reranker finds the pointer but not the actual target content             |
+| Context packing          | Fit the strongest evidence into the final prompt budget                          | Apple token limits force evidence to compete for space                                  |
+| Extractive summary       | Build a summary by selecting from source text instead of generating from scratch | Reduces hallucination risk for summary-style questions                                  |
+| Direct extraction        | Return an exact value or source-grounded snippet before or after generation      | Protects exact-value and spec-table answers                                             |
+| Evidence-First mode      | Switch to a more cautious prompt when retrieval looks weak or mismatched         | Tries to stop fluent nonsense when evidence quality drops                               |
+| Verification gates       | Check the answer against the evidence before final display                       | Controls trust posture rather than guaranteeing correctness                             |
+| Source-only refinement   | Force the final answer to stay tightly locked to source-supported content        | Useful for extractive and high-risk precision questions                                 |
+| Agentic mode             | Use a separate multi-step orchestrator instead of one normal pass                | Helps harder questions that need reformulation, deeper retrieval, or verification loops |
 
 ### Why It Is This Deep
 
 - Different source types fail differently, so ingestion cannot be one universal parser.
 - Exact lexical search and semantic retrieval both matter, so the app keeps both storage paths.
+- Retrieval misses are not one problem. The system has to defend against wording mismatch, duplicated evidence, missing surrounding context, unresolved cross-references, and evidence that gets lost during packing.
 - Apple’s public context budget is tight, so retrieval has to rerank, compress, and pack evidence aggressively.
 - Exact values, specs, and procedures need stricter handling than freeform synthesis.
+- Agentic mode exists because some questions fail in one pass for structural reasons, not because "more model" is always better.
 - The app is designed to expose uncertainty, not just produce fluent answers.
+- Diagnostics and audit surfaces matter because a polished answer can still be wrong for boring pipeline reasons.
 
 ### Key Constraints
 
@@ -120,117 +181,216 @@ These control-flow notes are verified against the current implementation in [RAG
 <details>
 <summary>Detailed engineering views</summary>
 
-Decision diamonds below mean the code chooses one branch. They do not mean the app runs every outgoing arrow at the same time.
+Decision diamonds below mean the code chooses one branch. Dense on purpose: these are the code-level route maps, not the simplified overview above.
 
-#### Ingestion and indexing
+#### Full-fidelity ingestion and indexing
+
+Plain-language read: this is the import-time machine that turns raw files into an indexed library.
+
+Engineering read: the code branches hard by document family and text quality, then converges on normalized text, chunking, enrichment, and dual indexing.
 
 ```mermaid
 flowchart TD
-   A[Import surface] --> B[Select library or container]
-   B --> C{Document type}
-   C -- PDF --> D{Good text layer and structured PDF path?}
-   D -- Yes --> E[Hybrid PDF extraction]
-   D -- No --> F[OCR or layout-aware PDF extraction]
-   C -- Image --> G[Image OCR and vision path]
-   C -- Audio or video --> H[Speech transcription path]
-   C -- Text, code, CSV, Office, XML --> I[Type-specific extraction path]
-   E --> J[Normalize and preserve text]
+   A[User import] --> B[Assign library and container]
+   B --> C{Document family}
+   C -- PDF --> D{Good native text layer}
+   D -- Yes --> E[Hybrid PDF extraction<br/>PDFKit text flow<br/>StructuredDocumentParser tables and lists]
+   D -- No --> F[Recovery PDF extraction<br/>LayoutAwareExtractor<br/>Vision OCR<br/>page-image rendering]
+   C -- Image --> G[Vision OCR and image understanding]
+   C -- Audio or video --> H[Speech transcription]
+   C -- Text, markdown, code, CSV, Office, XML --> I[Type-specific text extraction]
+   E --> J[Normalize and clean text<br/>repair OCR artifacts<br/>preserve page anchors and metadata]
    F --> J
    G --> J
    H --> J
    I --> J
-   J --> K{Structured elements available?}
-   K -- Yes --> L[Structure-aware chunking]
-   K -- No --> M[Semantic chunking]
-   L --> N[Token-limit enforcement]
+   J --> K{Reliable structure survived extraction}
+   K -- Yes --> L[Structure-aware chunking<br/>atomic tables and lists<br/>section paths and anchors]
+   K -- No --> M[Semantic chunking<br/>adaptive windows and overlap<br/>page mapping]
+   L --> N[Token-limit enforcement and coverage checks]
    M --> N
-   N --> O[Store normalized text and pages in SQLite FTS5]
-   N --> P[Generate embeddings]
-   P --> Q[Store vectors by container]
-   O --> R[Scoped indexed corpus]
-   Q --> R
+   N --> O[Chunk enrichment<br/>content tags, entities, abbreviations<br/>document category and summaries]
+   O --> P[Store normalized text and pages in SQLite FTS5]
+   O --> Q[Generate embeddings]
+   Q --> R[Store vectors in scoped container index]
+   P --> S[Container-scoped indexed corpus]
+   R --> S
 ```
 
-#### Standard single-pass query path
+#### Full-fidelity standard single-pass query path
+
+Plain-language read: this is the normal question-answer path when the planner does not escalate into agentic mode.
+
+Engineering read: the pipeline first decides how to search, then builds an evidence pack, then may early-return into extractive lanes, and only then goes through grounded generation, quality assessment, and verification.
 
 ```mermaid
 flowchart TD
    A[User query] --> B[Build query profile and execution plan]
-   B --> C{Use agentic mode?}
-   C -- Yes --> AG[Hand off to separate agentic path]
-   C -- No --> D[Resolve embedding context and retrieval config]
-   D --> E{Literal lookup?}
-   E -- Yes --> F[Keep query wording literal]
-   E -- No --> G[Optional rewrite]
-   F --> H{Expansion enabled?}
+   B --> C{Agentic selected}
+   C -- Yes --> AGENT[Hand off to agentic map below]
+   C -- No --> D[Resolve embedding context<br/>quality-mode toggles<br/>container retrieval config]
+   D --> E{Literal or exact-phrase lookup}
+   E -- Yes --> F[Keep user wording literal]
+   E -- No --> G[Rewrite query when enabled]
+   F --> H{Expansion enabled}
    G --> H
-   H -- Yes --> I[Add planner, heuristic, container vocab, and gazetteer expansions]
-   H -- No --> J[Use current query as-is]
+   H -- Yes --> I[Add planner expansions<br/>heuristics, container vocabulary<br/>gazetteer terms]
+   H -- No --> J[Use current effective query]
    I --> K[Classify answer intent and routing]
    J --> K
-   K --> L{HyDE allowed for this intent?}
-   L -- Yes --> M[Generate HyDE document and embed it]
-   L -- No --> N[Embed effective query]
-   M --> O{Iterative retrieval enabled?}
+   K --> L{HyDE allowed for this intent}
+   L -- Yes --> M[Generate hypothetical answer doc and embed it]
+   L -- No --> N[Embed effective query directly]
+   M --> O{Iterative retrieval enabled}
    N --> O
-   O -- Yes --> P[Iterative retrieval]
-   O -- No --> Q[Hybrid retrieval]
-   P --> R[Rerank and confidence filtering]
+   O -- Yes --> P[Iterative retrieval loop]
+   O -- No --> Q[Hybrid retrieval<br/>vector plus FTS plus exact match]
+   P --> R[Rerank and confidence filter]
    Q --> R
-   R --> S[MMR, parent expansion, compression, graph packing, and corrective passes when allowed]
-   S --> T{Extractive summary intent?}
-   T -- Yes --> U[Return extractive summary]
-   T -- No --> V{Direct high-precision extraction available?}
-   V -- Yes --> W[Return direct source extraction]
-   V -- No --> X[LLM generation with overflow retry if needed]
-   X --> Y{Post-generation extraction override?}
-   Y -- Yes --> Z[Replace generated answer with direct extraction]
-   Y -- No --> AA[Keep generated answer]
-   Z --> AB[Quality assessment]
-   AA --> AB
-   AB --> AC{Verification gates enabled?}
-   AC -- Yes --> AD{Verification passes?}
-   AD -- No --> AE[Return grounded abstention when policy requires]
-   AD -- Yes --> AF[Calibrate confidence]
-   AC -- No --> AF
-   AF --> AH{Source-only refinement for extractive intents?}
-   AH -- Yes --> AI[Refine answer or abstain]
-   AH -- No --> AJ[Finalize response]
+   R --> S[Shape the evidence pack<br/>MMR diversity, parent expansion<br/>compression, graph pack, cross-ref recovery]
+   S --> T{Corrective or cascade retrieval needed}
+   T -- Yes --> U[Broaden search and recover missing evidence]
+   T -- No --> V[Lock current evidence pack]
+   U --> V
+   V --> W[Assess evidence strength and answer intent]
+   W --> X{Summarize with extractive-first lane}
+   X -- Yes --> Y[Return extractive summary early]
+   X -- No --> Z{Exact value or extractive question}
+   Z -- Yes --> AA{High-precision direct extraction found}
+   Z -- No --> AB[Build grounded prompt<br/>citations, conversation memory<br/>intent-specific instructions]
+   AA -- Yes --> AC[Return direct source extraction early]
+   AA -- No --> AB
+   AB --> AD{Evidence weak or topical mismatch}
+   AD -- Yes --> AE[Use Evidence-First prompt]
+   AD -- No --> AF[Use standard grounded prompt]
+   AE --> AG[LLM generation]
+   AF --> AG
+   AG --> AH{Context overflow or empty answer}
+   AH -- Yes --> AI[Retry with smaller evidence pack]
+   AH -- No --> AJ[Use generated answer]
    AI --> AJ
+   AJ --> AK{Post-generation extraction override}
+   AK -- Yes --> AL[Replace answer with direct extraction]
+   AK -- No --> AM[Keep generated answer]
+   AL --> AN[Quality assessment]
+   AM --> AN
+   AN --> AO{Verification gates enabled}
+   AO -- Yes --> AP{Verification passes}
+   AP -- No --> AQ[Grounded abstention or warned response]
+   AP -- Yes --> AR[Calibrate confidence]
+   AO -- No --> AR
+   AR --> AS{Source-only refinement needed}
+   AS -- Yes --> AT[Refine answer or abstain]
+   AS -- No --> AU[Finalize cited response]
+   AQ --> AU
+   AT --> AU
 ```
 
-#### Agentic path
+#### Full-fidelity agentic path
+
+Plain-language read: this is the deeper reasoning path for harder questions, where the system may reformulate, expand, verify, and keep going instead of answering in one pass.
+
+Engineering read: agentic mode uses its own orchestrator, multi-query retrieval, hard relevance checks, expansion and reformulation loops, speculative verification, reasoning chains, and a separate finalization path.
 
 ```mermaid
 flowchart TD
-   A[User query] --> B[Planner or quality mode selects agentic]
-   B --> C{Precision lookup succeeds first?}
-   C -- Yes --> D[Return precision response]
-   C -- No --> E[Run AgenticOrchestrator multi-session reasoning]
-   E --> F[Collect retrieved chunks and reasoning trace]
-   F --> G{Direct extraction or source-only refinement needed?}
-   G -- Yes --> H[Refine answer or abstain]
-   G -- No --> I[Build agentic response and finalize]
-   H --> I
+   A[User query] --> B{Direct precision lookup succeeds first}
+   B -- Yes --> C[Return precision response]
+   B -- No --> D[Start fresh agentic session<br/>choose Deep Think or Maximum config]
+   D --> E{Self-RAG says retrieval is needed}
+   E -- No --> F[Run Self-RAG answer path<br/>self-critique and grounded answer]
+   E -- Yes --> G[Generate diverse search queries]
+   G --> H[Run multi-query search with RRF fusion]
+   H --> I[Hard relevance gate<br/>lexical check plus semantic intent check]
+   I --> J{Evidence relevant enough to continue}
+   J -- No --> K[Return honest not-found answer]
+   J -- Yes --> L{Quality moderate or low}
+   L -- Yes --> M[Graph expansion and cross-reference resolution]
+   L -- No --> N[Keep initial evidence pool]
+   M --> O{Retrieval quality after expansion}
+   N --> O
+   O -- Excellent --> P{Maximum mode}
+   P -- Yes --> Q[Gather broader chunk set<br/>run unlimited multi-session reasoning<br/>stop near confidence target]
+   P -- No --> R[Run reasoning chain on sorted chunks]
+   O -- Good --> R
+   O -- Moderate --> S[Reformulate query or recurse deeper]
+   O -- Low --> T[Speculative RAG<br/>multiple candidates plus verification]
+   S --> U[Search again and merge evidence]
+   T --> V{Speculative result clears threshold}
+   V -- Yes --> W[Accept verified candidate]
+   V -- No --> U
+   U --> X[Synthesize with accumulated context]
+   Q --> Y[Self-RAG 2.0 verification]
+   R --> Y
+   W --> Z[Use verified speculative answer]
+   X --> Y
+   Y --> AA[Build final agentic answer and reasoning trace]
+   F --> AA
+   Z --> AA
+   AA --> AB{Direct extraction or source-only refinement needed}
+   AB -- Yes --> AC[Refine answer or abstain]
+   AB -- No --> AD[Finalize agentic response]
+   AC --> AD
 ```
 
-Current code-path note: agentic responses build their own audit snapshot and response metadata inside [RAGService.swift](OpenIntelligence/Services/RAG/Orchestration/RAGService.swift) rather than re-entering the standard Step 7 and Step 7.5 verification block.
+Current code-path note: agentic responses build their own audit snapshot and response metadata inside [RAGService.swift](OpenIntelligence/Services/RAG/Orchestration/RAGService.swift) and can still apply direct extraction or source-only refinement before the final response, but they do not re-enter the standard Step 7 and Step 7.5 verification block.
 
-#### Recovery and inspection
+#### Runtime service map
+
+This is a two-phase map, not a single per-query execution chain. Import and extraction run when documents are added or reprocessed. Query analysis starts later, when a user asks something against the already-built indexes.
+
+Plain-language read: these services are organized by when they matter, not as one giant always-on runtime blob.
+
+Engineering read: the ingestion stack materializes the indexed corpus first, then the query stack consumes that corpus later, and the diagnostics surfaces sit downstream of both.
 
 ```mermaid
 flowchart TD
-   A[Weak evidence or missing answer] --> B{No chunks or empty rerank result?}
-   B -- Yes --> C[Grounded abstention or reliability fallback]
-   B -- No --> D[Broaden retrieval, cascade, or corrective retrieval]
-   D --> E[Repack context and retry generation when needed]
-   E --> F{Overflow, empty answer, or weak verification?}
-   F -- Yes --> G[Retry with smaller evidence pack, refine, or abstain]
-   F -- No --> H[Continue to final response]
-   C --> I[Chat review surfaces]
-   G --> I
+   subgraph INGEST[Import-time pipeline]
+      A[Document import]
+      B[Import and extraction<br/>DocumentProcessor<br/>IntelligentDocumentProcessor<br/>StructuredDocumentParser<br/>LayoutAwareExtractor]
+      C[Chunking and enrichment<br/>SemanticChunker<br/>ContentTaggingService<br/>EntityIndexService<br/>DocumentSummaryService]
+      D[Indexing and storage<br/>EmbeddingService<br/>SQLiteFullTextService<br/>VectorStoreRouter<br/>BNNSVectorDatabase]
+      A --> B --> C --> D
+   end
+
+   subgraph QUERY[Per-query pipeline]
+      Q[User query]
+      E[Query analysis and routing<br/>QueryProfileService<br/>QueryExecutionPlannerService<br/>QueryRewriterService<br/>HyDEService<br/>QueryRouterService]
+      F[Retrieval and packing<br/>HybridSearchService<br/>IterativeRetrievalService<br/>ParentDocumentService<br/>ContextPackingService]
+      G[Answer and safety<br/>ExtractiveQAService<br/>ExtractiveSummarizationService<br/>LLMService<br/>AgenticOrchestrator<br/>VerificationGateService<br/>SourceOnlyAnswerService<br/>ConfidenceCalibrationService<br/>RAGService]
+      Q --> E --> F --> G
+   end
+
+   D -->|indexed corpus| E
+   G --> H[Review and diagnostics<br/>ChatScreen<br/>ResponseDetailsView<br/>RetrievalSourcesTray<br/>RAGPipelineAuditView<br/>RAGAccuracyView<br/>DebugRAGValidationHarness<br/>scripts/run_rag_benchmarks.py]
+```
+
+#### Full-fidelity recovery and inspection
+
+Plain-language read: this is what happens when the easy path fails or the evidence looks weak.
+
+Engineering read: recovery spans ingestion fallback, retrieval broadening, evidence-pack retries, reliability mode, abstention, and downstream audit tooling.
+
+```mermaid
+flowchart TD
+   A[Failure or weak-evidence condition] --> B{Where did the problem surface}
+   B -- Ingestion --> C[Escalate extraction<br/>OCR, layout-aware recovery<br/>structured parser fallback, page preservation]
+   B -- Retrieval --> D[Broaden retrieval<br/>literal lookup, wider search, corrective pass<br/>iterative or parent-context recovery]
+   B -- Generation --> E[Build smaller evidence pack<br/>retry on-device with lower token budget<br/>fallback to reliability mode]
+   B -- Verification --> F[Grounded abstention<br/>warning banner, lower confidence<br/>source-only refinement]
+   B -- Empty library --> G[Direct chat mode or no-documents abstention]
+   C --> H[Re-index normalized text and vectors]
+   D --> I[Repack evidence and rerun answer lane]
+   E --> I
+   F --> J[Finalize safe response]
+   G --> J
    H --> I
-   I --> J[Audit views, trace export, validation harness, and benchmarks]
+   I --> K{Recovered enough evidence}
+   K -- Yes --> L[Return answer with citations, confidence, warnings]
+   K -- No --> J
+   L --> M[Inspection surfaces<br/>citations tray, response details<br/>audit snapshot and pipeline trace]
+   J --> M
+   M --> N[Validation harness, benchmark manifests<br/>benchmark studio and trace export]
 ```
 
 </details>
