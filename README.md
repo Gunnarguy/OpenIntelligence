@@ -50,7 +50,7 @@ The README now keeps a quick version index so the shipped app history is visible
 - Retrieval-oriented answer generation with citations and evidence review.
 - Library/workspace isolation so questions stay scoped to the selected material.
 
-If someone only looks at the README once, the intended mental model should be: import-time first, query-time second.
+At a high level, the system works in two phases: import-time first, query-time second.
 
 ```mermaid
 flowchart TD
