@@ -42,34 +42,39 @@ OpenIntelligence is a proof-of-concept and portfolio project. It is not a finish
 
 ## Product Tour
 
-<p align="center"><em>Current UI from the App Store build.</em></p>
+<p align="center"><em>Current UI from the App Store build. Click any screenshot to open the full-size image.</em></p>
 
-<table>
-   <tr>
-      <td width="50%" valign="top">
-         <a href=".github/assets/screenshots/openintelligence-onboarding.png"><img src=".github/assets/screenshots/openintelligence-onboarding.png" alt="OpenIntelligence onboarding screen on iPhone showing document AI for PDFs scans images code and transcripts with source-backed answers" width="100%"></a><br>
-         <strong>Built for your files</strong><br>
-         Import PDFs, Office docs, scans, images, code, and transcripts into a source-backed document workflow.
-      </td>
-      <td width="50%" valign="top">
-         <a href=".github/assets/screenshots/openintelligence-ingestion-pipeline.png"><img src=".github/assets/screenshots/openintelligence-ingestion-pipeline.png" alt="OpenIntelligence ingestion pipeline on iPhone showing extraction chunking embeddings and indexing while building a searchable library" width="100%"></a><br>
-         <strong>Watch the pipeline come online</strong><br>
-         Extraction, chunking, embeddings, and indexing stay visible instead of disappearing behind a spinner.
-      </td>
-   </tr>
-   <tr>
-      <td width="50%" valign="top">
-         <a href=".github/assets/screenshots/openintelligence-cited-answer-cropped.png"><img src=".github/assets/screenshots/openintelligence-cited-answer-cropped.png" alt="OpenIntelligence cited answer screen on iPhone showing source-backed retrieval and visible evidence in chat" width="100%"></a><br>
-         <strong>Cited answers, not generic chat</strong><br>
-         Answers stay tied to evidence with citations, verification state, and deeper inspection hooks.
-      </td>
-      <td width="50%" valign="top">
-         <a href=".github/assets/screenshots/openintelligence-library.png"><img src=".github/assets/screenshots/openintelligence-library.png" alt="OpenIntelligence document library on iPhone showing scoped documents chunk counts and automatic intelligence tags" width="100%"></a><br>
-         <strong>Libraries stay scoped and inspectable</strong><br>
-         Organize documents into focused libraries with chunk counts, tags, and searchable structure.
-      </td>
-   </tr>
-</table>
+### 1) Bring in the documents you actually work with
+
+<p align="center">
+   <a href=".github/assets/screenshots/openintelligence-onboarding.png"><img src=".github/assets/screenshots/openintelligence-onboarding.png" alt="OpenIntelligence onboarding screen on iPhone showing support for PDFs, scans, images, code, notes, and transcripts" width="300"></a>
+</p>
+
+Import PDFs, Office docs, scans, images, code, notes, and transcripts into one document workflow instead of one generic chat box.
+
+### 2) Watch the system build the library
+
+<p align="center">
+   <a href=".github/assets/screenshots/openintelligence-ingestion-pipeline.png"><img src=".github/assets/screenshots/openintelligence-ingestion-pipeline.png" alt="OpenIntelligence ingestion pipeline on iPhone showing extraction, chunking, embeddings, and indexing" width="300"></a>
+</p>
+
+The pipeline stays visible while the app extracts content, runs OCR when needed, chunks documents, creates embeddings, and builds a searchable library.
+
+### 3) Ask a question and inspect the answer
+
+<p align="center">
+   <a href=".github/assets/screenshots/openintelligence-answer-inspection.png"><img src=".github/assets/screenshots/openintelligence-answer-inspection.png" alt="OpenIntelligence chat screen on iPhone showing inline citations, verified answer state, and actions for details and trace" width="320"></a>
+</p>
+
+Answers include inline citations like <code>[S1]</code>, <code>[S2]</code>, and <code>[S3]</code>, plus verification state and one-tap paths into details and trace views for deeper inspection.
+
+### 4) Keep everything organized inside focused libraries
+
+<p align="center">
+   <a href=".github/assets/screenshots/openintelligence-library.png"><img src=".github/assets/screenshots/openintelligence-library.png" alt="OpenIntelligence document library on iPhone showing scoped documents, chunk counts, and automatic intelligence tags" width="300"></a>
+</p>
+
+Documents stay grouped, tagged, and searchable inside focused libraries so the app answers from the material you actually mean.
 
 <p align="center"><a href="https://apps.apple.com/us/app/openintelligence/id6756559175">See the full App Store gallery</a></p>
 
