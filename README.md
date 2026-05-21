@@ -9,11 +9,11 @@
 </p>
 
 <p align="center">
-   Apple-native document intelligence for iPhone — built to ingest PDFs, scans, screenshots, notes, and other user-controlled files, retrieve the right evidence, and answer with citations, verification signals, and visible reasoning paths.
+   Apple-native document intelligence for iOS, iPadOS, and macOS — built to ingest PDFs, scans, screenshots, notes, and other user-controlled files, retrieve the right evidence, and answer with citations, verification signals, and visible reasoning paths.
 </p>
 
 <p align="center">
-   <a href="https://apps.apple.com/us/app/openintelligence/id6756559175"><img alt="Download OpenIntelligence on the App Store for iPhone" src="https://img.shields.io/badge/App%20Store-Download%20on%20iPhone-0D96F6?style=for-the-badge&logo=appstore&logoColor=white"></a>
+   <a href="https://apps.apple.com/us/app/openintelligence/id6756559175"><img alt="Download OpenIntelligence on the App Store" src="https://img.shields.io/badge/App%20Store-Download-0D96F6?style=for-the-badge&logo=appstore&logoColor=white"></a>
    <a href="Docs/DEMO.md"><img alt="Read the OpenIntelligence demo guide" src="https://img.shields.io/badge/Demo-Guide-6E56CF?style=for-the-badge"></a>
    <a href="Docs/ARCHITECTURE.md"><img alt="Read the OpenIntelligence architecture guide" src="https://img.shields.io/badge/Architecture-Read-111827?style=for-the-badge"></a>
 </p>
@@ -26,19 +26,20 @@
 </p>
 
 <p align="center">
-   <img alt="iOS iPhone app" src="https://img.shields.io/badge/iOS-iPhone%20app-0A84FF?style=flat-square">
+   <img alt="Apple Platforms" src="https://img.shields.io/badge/Platforms-iOS%20%7C%20iPadOS%20%7C%20macOS-0A84FF?style=flat-square">
    <img alt="SwiftUI native UI" src="https://img.shields.io/badge/SwiftUI-native%20UI-FA7343?style=flat-square">
    <img alt="OCR for PDFs and scans" src="https://img.shields.io/badge/OCR-PDF%20%2B%20scans-30B0C7?style=flat-square">
-    <img alt="Cited answers with verification" src="https://img.shields.io/badge/Answers-citations%20%2B%20verification-7C3AED?style=flat-square">
+   <img alt="Privacy" src="https://img.shields.io/badge/Privacy-true%20offline-7C3AED?style=flat-square">
    <img alt="SQLite FTS5 and vector storage" src="https://img.shields.io/badge/Storage-SQLite%20FTS5%20%2B%20vectors-111827?style=flat-square">
-    <img alt="Library-scoped retrieval" src="https://img.shields.io/badge/Retrieval-library%20scoped-16A34A?style=flat-square">
 </p>
 
-OpenIntelligence is an experimental SwiftUI iPhone app for Apple-native document intelligence, PDF Q&A, OCR-aware ingestion, and source-backed answers over user-controlled files. It turns messy real-world documents into a cited, inspectable intelligence layer with library-scoped retrieval, confidence signals, and answer paths you can actually inspect.
+I built OpenIntelligence because I got annoyed with standard chat wrappers hallucinating answers about my private documents. I wanted a real, native document intelligence layer for my iPhone, iPad, and Mac—something built from the ground up for Apple platforms, not a lazy web app. There had to be another way to get verifiable, cited answers without uploading my entire life to a random SaaS cloud.
+
+So, I built a Neural RAG engine in SwiftUI that actually runs offline. You throw messy, real-world PDFs, scans, and notes at it, and it pulls out exact answers with visible reasoning paths and explicit citations you can check yourself. It works in airplane mode, utilizing Apple Intelligence and local on-device models, keeping your files yours.
 
 This repository is intentionally code-first and engineering-first: the SwiftUI app, document ingestion services, retrieval stack, answer grounding logic, benchmark harness, local model resources, technical notes, research references, and inspection assets are all linked from this front page so people can evaluate the product and the implementation side by side.
 
-OpenIntelligence is a proof-of-concept and portfolio project. It is not a finished enterprise SDK, regulated healthcare system, clinical decision-support tool, diagnostic system, production-ready commercial product, company, or product for sale.
+*Note: This is an engineering portfolio project and proof-of-concept showing how Apple Intelligence can enable powerful on-device document query systems. It is not an enterprise SDK, medical device, or VC-backed SaaS.*
 
 ## Product Tour
 
@@ -88,11 +89,11 @@ Documents stay grouped, tagged, and searchable inside focused libraries so the a
 
 ## Why It Feels Different
 
-- **Built around your files:** the app starts from user-controlled documents and scoped libraries instead of one generic cloud corpus.
-- **Type-aware ingestion:** clean digital text, scans, screenshots, tables, and harder documents do not all go through the same path.
-- **Grounded answers:** the system is designed around citations, evidence review, confidence handling, and abstention when evidence is weak.
-- **Library isolation:** retrieval stays tied to the selected material so answers are easier to inspect and reason about.
-- **Apple-native product shape:** the app is built as a native iPhone experience with SwiftUI, local storage, diagnostics surfaces, and Apple-platform constraints in mind.
+- **Built around your files:** I designed it to start from user-controlled documents and scoped libraries instead of one generic cloud corpus.
+- **Type-aware ingestion:** I built different paths because clean digital text, scans, screenshots, tables, and harder documents shouldn't all go through the same extraction process.
+- **Grounded answers:** The system is explicitly designed around citations, evidence review, confidence handling, and abstaining when evidence is weak.
+- **Library isolation:** Retrieval stays tied to the selected material so answers are easier to inspect, debug, and reason about.
+- **Apple-native product shape:** It's built as a native experience across Apple platforms with SwiftUI, local storage, diagnostics surfaces, and offline constraints in mind.
 
 ## Start Here
 
@@ -114,7 +115,7 @@ Documents stay grouped, tagged, and searchable inside focused libraries so the a
 
 ### What is OpenIntelligence?
 
-OpenIntelligence is an experimental iPhone document AI app built in SwiftUI for importing PDFs, scans, screenshots, notes, and other user-controlled files, then answering questions with citations over a scoped library.
+OpenIntelligence is an experimental iOS/macOS document AI app built in SwiftUI for importing PDFs, scans, screenshots, notes, and other user-controlled files, then answering questions with citations over a scoped library.
 
 ### Can OpenIntelligence answer questions over PDFs and scanned documents?
 
@@ -146,7 +147,7 @@ The README now keeps a quick version index so the shipped app history is visible
 | 3.0     | Retrieval hardening for noisy PDFs and tables, stronger extractive handling, and clearer diagnostics around recovery behavior.                                                       |
 | 2.5     | Better suggested questions, stronger answer grounding and evidence review, and broader rendering and PDF-cleanup polish.                                                             |
 | 2.0.x   | Faster everyday document Q&A, sharper source review, and stability/polish follow-up work after launch.                                                                               |
-| 2.0.0   | Initial App Store release of the iPhone app with multi-format import, library organization, cited answers, and paid access tiers.                                                    |
+| 2.0.0   | Initial App Store release of the app with multi-format import, library organization, cited answers, and paid access tiers.                                                    |
 
 ## What It Demonstrates
 
