@@ -67,6 +67,19 @@ struct ContainerSettingsSheet: View {
         ragService.intelligenceReport(for: activeContainer?.id)
     }
 
+    private var deleteMessageText: String {
+        guard let lib = activeContainer else {
+            return "This will permanently delete this library and all documents inside it."
+        }
+        let docCount = ragService.documents.filter { $0.containerId == lib.id }.count
+        let suffix = docCount == 1 ? "" : "s"
+        if lib.syncMode == .iCloudShared {
+            return "This will permanently delete \"\(lib.name)\" from iCloud Sync and remove it from every device using that shared library, along with all \(docCount) document\(suffix). This cannot be undone."
+        } else {
+            return "This will permanently delete \"\(lib.name)\" only on this device, along with all \(docCount) document\(suffix) inside it. This cannot be undone."
+        }
+    }
+
     private var hasICloudSyncAccess: Bool {
         entitlementStore.effectiveTier.isAtLeast(.pro)
     }
@@ -319,16 +332,7 @@ struct ContainerSettingsSheet: View {
                     }
                 }
             } message: {
-                if let lib = activeContainer {
-                    let docCount = ragService.documents.filter { $0.containerId == lib.id }.count
-                    if lib.syncMode == .iCloudShared {
-                        Text("This will permanently delete \"\(lib.name)\" from iCloud Sync and remove it from every device using that shared library, along with all \(docCount) document\(docCount == 1 ? "" : "s"). This cannot be undone.")
-                    } else {
-                        Text("This will permanently delete \"\(lib.name)\" only on this device, along with all \(docCount) document\(docCount == 1 ? "" : "s") inside it. This cannot be undone.")
-                    }
-                } else {
-                    Text("This will permanently delete this library and all documents inside it.")
-                }
+                Text(deleteMessageText)
             }
         }
     }
@@ -644,7 +648,7 @@ struct ContainerSettingsSheet: View {
                 do {
                     try await workspaceSyncService.deleteSharedLibrary(container)
                 } catch {
-                    Log.error("[ContainerSettings] Failed to delete shared library from iCloud: \(error.localizedDescription)", category: .sync)
+                    Log.error("[ContainerSettings] Failed to delete shared library from iCloud: \(error.localizedDescription)", category: .vectorDB)
                 }
             }
 

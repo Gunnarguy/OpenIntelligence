@@ -1482,6 +1482,25 @@ extension ContainerSettingsSheet {
             return "\(n)"
         }
     }
+
+    @ViewBuilder
+    var deleteLibrarySection: some View {
+        if containerService.containers.count > 1 {
+            Section(header: Text("Danger zone")) {
+                Button(role: .destructive) {
+                    showingDeleteConfirmation = true
+                } label: {
+                    HStack {
+                        Spacer()
+                        Label("Delete Library", systemImage: "trash")
+                            .foregroundColor(.red)
+                            .fontWeight(.semibold)
+                        Spacer()
+                    }
+                }
+            }
+        }
+    }
 }
 
 // MARK: - Chunking Preview Visualization
@@ -1597,25 +1616,6 @@ struct ChunkingPreview: View {
     private func chunkColor(for index: Int) -> Color {
         let colors: [Color] = [.blue, .purple, .indigo]
         return colors[index % colors.count].opacity(0.8)
-    }
-
-    @ViewBuilder
-    var deleteLibrarySection: some View {
-        if containerService.containers.count > 1 {
-            Section(header: Text("Danger zone")) {
-                Button(role: .destructive) {
-                    showingDeleteConfirmation = true
-                } label: {
-                    HStack {
-                        Spacer()
-                        Label("Delete Library", systemImage: "trash")
-                            .foregroundColor(.red)
-                            .fontWeight(.semibold)
-                        Spacer()
-                    }
-                }
-            }
-        }
     }
 }
 
