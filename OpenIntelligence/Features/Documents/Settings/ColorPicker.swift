@@ -7,6 +7,11 @@
 //
 
 import SwiftUI
+#if canImport(UIKit)
+import UIKit
+#elseif canImport(AppKit)
+import AppKit
+#endif
 
 // MARK: - Color Palette Definition
 
@@ -98,7 +103,7 @@ struct LibraryColorPicker: View {
                     .padding(.horizontal, 16)
                     .padding(.vertical, 10)
                 }
-                .background(Color(uiColor: .secondarySystemBackground))
+                .background(DSColors.surface)
 
                 Divider()
 
@@ -133,7 +138,9 @@ struct LibraryColorPicker: View {
                             HStack(spacing: 12) {
                                 TextField("#RRGGBB", text: $customHex)
                                     .textFieldStyle(.roundedBorder)
+                                    #if os(iOS)
                                     .autocapitalization(.allCharacters)
+                                    #endif
                                     .onChange(of: customHex) { _, newValue in
                                         // Auto-add # prefix
                                         if !newValue.hasPrefix("#") && !newValue.isEmpty {
@@ -163,7 +170,7 @@ struct LibraryColorPicker: View {
                         }
                     }
                     .padding(16)
-                    .background(Color(uiColor: .tertiarySystemBackground))
+                    .background(DSColors.surfaceElevated)
                     .clipShape(RoundedRectangle(cornerRadius: 12))
                     .padding(.horizontal, 16)
                     .padding(.bottom, 16)
@@ -217,7 +224,7 @@ struct LibraryColorPicker: View {
             .buttonStyle(.borderedProminent)
         }
         .padding(16)
-        .background(Color(uiColor: .secondarySystemBackground))
+        .background(DSColors.surface)
     }
 
     @ViewBuilder
@@ -239,7 +246,7 @@ struct LibraryColorPicker: View {
             .background(
                 selectedPalette == palette
                     ? Color.accentColor
-                    : Color(uiColor: .tertiarySystemBackground)
+                    : DSColors.surfaceElevated
             )
             .clipShape(Capsule())
         }
@@ -505,7 +512,13 @@ extension Color {
     }
 
     func toHex() -> String? {
+        #if canImport(UIKit)
         guard let components = UIColor(self).cgColor.components else { return nil }
+        #elseif canImport(AppKit)
+        guard let components = NSColor(self).cgColor.components else { return nil }
+        #else
+        return nil
+        #endif
 
         let r = components.count > 0 ? components[0] : 0
         let g = components.count > 1 ? components[1] : 0

@@ -157,7 +157,11 @@ struct CachedDocsView: View {
                 }
             }
         }
+        #if os(macOS)
+        .listStyle(.inset)
+        #else
         .listStyle(.insetGrouped)
+        #endif
     }
 
     // MARK: - Actions

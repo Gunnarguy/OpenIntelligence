@@ -85,7 +85,9 @@ struct OnboardingChecklistView: View {
                     welcomePage.tag(0)
                     pipelineTheaterPage.tag(1)
                 }
+                #if os(iOS)
                 .tabViewStyle(.page(indexDisplayMode: .never))
+                #endif
                 .animation(.easeInOut(duration: 0.4), value: currentPage)
 
                 // Bottom navigation

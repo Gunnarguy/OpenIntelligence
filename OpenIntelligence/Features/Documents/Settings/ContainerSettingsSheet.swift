@@ -323,7 +323,7 @@ struct ContainerSettingsSheet: View {
                 .foregroundStyle(.secondary)
 
             if syncMode == .iCloudShared {
-                Text("Only this library uses iCloud Drive. Local Only libraries in the app stay on-device and do not enter the shared iCloud workspace.")
+                Text("Only this library uses iCloud Sync. Local Only libraries in the app stay on-device and do not enter the shared iCloud workspace.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             } else {

@@ -229,16 +229,26 @@ final class EntitlementStore: ObservableObject {
     }
 
     nonisolated static func currentEffectiveTier(defaults: UserDefaults = .standard) -> WorkspaceTier {
-        let storedTier = defaults.string(forKey: Keys.tier)
+        let tierKey = "entitlement.activeTier"
+        let legacyProtectionKey = "entitlement.legacyProtectionState"
+
+        let storedTier = defaults.string(forKey: tierKey)
         let activeTier = WorkspaceTier(rawValue: storedTier ?? "") ?? .free
-        let storedLegacy = defaults.string(forKey: Keys.legacyProtection)
+        let storedLegacy = defaults.string(forKey: legacyProtectionKey)
         let legacyProtectionState = LegacyProtectionState(rawValue: storedLegacy ?? "") ?? .none
 
-        return legacyProtectionState.isProtected ? .lifetime : activeTier
+        return legacyProtectionState == .none ? activeTier : .lifetime
     }
 
     nonisolated static func currentLibraryLimit(defaults: UserDefaults = .standard) -> Int {
-        QuotaPolicy.libraryLimit(for: currentEffectiveTier(defaults: defaults))
+        switch currentEffectiveTier(defaults: defaults) {
+        case .free:
+            return 1
+        case .pro:
+            return 10
+        case .lifetime:
+            return 20
+        }
     }
 
     private func persistDocumentPacks() {

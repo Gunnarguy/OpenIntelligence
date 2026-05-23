@@ -21,7 +21,7 @@ struct PrivacyPolicyView: View {
 
                     Group {
                         section(title: "Our Privacy Commitment", content: """
-OpenIntelligence is designed privacy-first. Your documents stay on your device by default. Each library can remain Local Only or be set to iCloud Drive. Only libraries you explicitly mark for iCloud are copied into your iCloud Drive container so your own devices can reuse the same imported files and processed libraries. If Apple-managed platform processing or another provider you explicitly enable is used, OpenIntelligence does not store your raw documents on any developer-operated server.
+OpenIntelligence is designed privacy-first. Your documents stay on your device by default. Each library can remain Local Only or be set to iCloud Sync. Only libraries you explicitly mark for iCloud are copied into your iCloud Sync container so your own devices can reuse the same imported files and processed libraries. If Apple-managed platform processing or another provider you explicitly enable is used, OpenIntelligence does not store your raw documents on any developer-operated server.
 """)
 
                         section(title: "Information We Collect", content: """
@@ -31,7 +31,7 @@ OpenIntelligence is designed privacy-first. Your documents stay on your device b
 • No data leaves your device for developer-operated processing unless you explicitly enable an external provider path
 
 **Per-Library iCloud Sync (Optional):**
-• Imported source files, processed libraries, and chat history can be stored in your iCloud Drive app container for libraries you explicitly set to iCloud Drive
+• Imported source files, processed libraries, and chat history can be stored in your iCloud Sync app container for libraries you explicitly set to iCloud Sync
 • This sync path is Apple-managed and intended only for sharing your workspace across your own devices signed into the same Apple account
 • OpenIntelligence does not copy this synced workspace to any developer-operated server
 
@@ -60,7 +60,7 @@ We never:
 
                         section(title: "Data Storage & Security", content: """
 • **Local Storage**: Documents and embeddings are stored in the app sandbox and protected by platform data protection
-• **Optional iCloud Sync**: When a library is set to iCloud Drive, the app stores that library's synced data in your iCloud Drive container so another device can reuse the same imported and processed files
+• **Optional iCloud Sync**: When a library is set to iCloud Sync, the app stores that library's synced data in your iCloud Sync container so another device can reuse the same imported and processed files
 • **Cloud Providers**: Any enabled provider path is governed by that provider's privacy and security policies
 • **Retention**: Local data persists until you delete it; provider retention is governed by the relevant provider policy
 • **Backups**: iCloud backups may include local app data if enabled in device settings
@@ -71,7 +71,7 @@ We never:
 • **Data Deletion**: Delete documents, containers, or entire workspace in Settings
 • **Telemetry**: Opt out of anonymous telemetry in Settings → Developer
 • **Cloud Access**: Revoke cloud provider consent anytime in Settings → Privacy
-• **Library Storage**: Choose Local Only or iCloud Drive for each library in Documents → Library Settings
+• **Library Storage**: Choose Local Only or iCloud Sync for each library in Documents → Library Settings
 """)
 
                         section(title: "Third-Party Services", content: """

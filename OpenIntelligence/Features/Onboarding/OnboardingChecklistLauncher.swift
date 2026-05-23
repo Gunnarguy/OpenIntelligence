@@ -70,5 +70,5 @@ struct OnboardingChecklistLauncher: View {
         onDismissPermanently: {}
     )
     .padding()
-    .background(Color(.systemGroupedBackground))
+    .background(Color.secondary.opacity(0.1))
 }

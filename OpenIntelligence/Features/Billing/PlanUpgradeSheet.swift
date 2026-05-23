@@ -310,7 +310,9 @@ private extension PlanUpgradeSheet {
             }
         }
         .frame(height: 170)
+        #if os(iOS)
         .tabViewStyle(.page(indexDisplayMode: .always))
+        #endif
         .accessibilityLabel("Plan value stories")
     }
 

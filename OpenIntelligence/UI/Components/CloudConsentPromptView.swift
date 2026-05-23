@@ -108,7 +108,7 @@ struct CloudConsentPromptView: View {
         .padding(DSSpacing.md)
         .background(
             RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(Color(.secondarySystemBackground))
+                .fill(Color.secondary.opacity(0.15))
         )
     }
 
@@ -128,7 +128,7 @@ struct CloudConsentPromptView: View {
         .padding(DSSpacing.sm)
         .background(
             RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .fill(Color(.tertiarySystemBackground))
+                .fill(Color.secondary.opacity(0.1))
         )
     }
 

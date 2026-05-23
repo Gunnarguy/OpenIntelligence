@@ -159,28 +159,7 @@ struct DocumentLibraryView: View {
         VStack(spacing: 0) {
             // Fixed header section
             VStack(spacing: 12) {
-                ContainerPickerStrip(
-                    containerService: containerService,
-                    allowsCreation: true,
-                    onCreateLibrary: handleNewLibraryTapped,
-                    onDeleteLibrary: handleDeleteLibrary,
-                    onSetLibraryStorage: handleSetLibrarySyncMode
-                )
-                .padding(.horizontal)
-
-                sharedWorkspaceBanner
-                    .padding(.horizontal)
-
-                if shouldShowQuotaBanner {
-                    DocumentQuotaBanner(
-                        currentCount: ragService.documents.count,
-                        limit: documentLimit,
-                        tierName: entitlementStore.currentPlanDisplayName,
-                        addOnPacks: entitlementStore.addOnPacks,
-                        onUpgrade: { presentPlanSheet(for: .quotaBanner) }
-                    )
-                    .padding(.horizontal)
-                }
+                documentHeader
             }
 
             // Expandable content section
@@ -200,28 +179,8 @@ struct DocumentLibraryView: View {
 
     private var documentListView: some View {
         VStack(spacing: 12) {
-            ContainerPickerStrip(
-                containerService: containerService,
-                allowsCreation: true,
-                onCreateLibrary: handleNewLibraryTapped,
-                onDeleteLibrary: handleDeleteLibrary,
-                onSetLibraryStorage: handleSetLibrarySyncMode
-            )
-            .padding(.horizontal)
+            documentHeader
 
-            sharedWorkspaceBanner
-                .padding(.horizontal)
-
-            if shouldShowQuotaBanner {
-                    DocumentQuotaBanner(
-                        currentCount: ragService.documents.count,
-                        limit: documentLimit,
-                        tierName: entitlementStore.currentPlanDisplayName,
-                        addOnPacks: entitlementStore.addOnPacks,
-                    onUpgrade: { presentPlanSheet(for: .quotaBanner) }
-                )
-                .padding(.horizontal)
-            }
             // Document list with modern styling
             ScrollView {
                 LazyVStack(spacing: 12) {
@@ -247,6 +206,164 @@ struct DocumentLibraryView: View {
                     .padding(.bottom, 20)
             }
         }
+    }
+
+    private var documentHeader: some View {
+        VStack(spacing: 12) {
+            documentSectionHeader
+                .padding(.horizontal)
+
+            documentActionStrip
+
+            ContainerPickerStrip(
+                containerService: containerService,
+                allowsCreation: true,
+                onCreateLibrary: handleNewLibraryTapped,
+                onDeleteLibrary: handleDeleteLibrary,
+                onSetLibraryStorage: handleSetLibrarySyncMode
+            )
+
+            sharedWorkspaceBanner
+                .padding(.horizontal)
+
+            if shouldShowQuotaBanner {
+                DocumentQuotaBanner(
+                    currentCount: ragService.documents.count,
+                    limit: documentLimit,
+                    tierName: entitlementStore.currentPlanDisplayName,
+                    addOnPacks: entitlementStore.addOnPacks,
+                    onUpgrade: { presentPlanSheet(for: .quotaBanner) }
+                )
+                .padding(.horizontal)
+            }
+        }
+    }
+
+    private var syncModeBinding: Binding<LibrarySyncMode> {
+        Binding(
+            get: {
+                activeLibrary?.syncMode ?? .localOnly
+            },
+            set: { newMode in
+                if let activeLibrary {
+                    handleSetLibrarySyncMode(activeLibrary, newMode)
+                }
+            }
+        )
+    }
+
+    private var documentSectionHeader: some View {
+        HStack(alignment: .center, spacing: 12) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Documents")
+                    .font(.headline.weight(.semibold))
+
+                Text(documentSectionSubtitle)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+
+            Spacer(minLength: 12)
+
+            HStack(spacing: 8) {
+                if activeLibrary != nil {
+                    Picker("Sync Mode", selection: syncModeBinding) {
+                        Text("Local").tag(LibrarySyncMode.localOnly)
+                        Text("iCloud").tag(LibrarySyncMode.iCloudShared)
+                    }
+                    .pickerStyle(.segmented)
+                    .frame(width: 140)
+                    .disabled(isRefreshingSharedWorkspace)
+                }
+
+                if hasConfiguredICloudLibraries {
+                    Button {
+                        refreshSharedWorkspaceNow()
+                    } label: {
+                        if isRefreshingSharedWorkspace {
+                            ProgressView()
+                                .progressViewStyle(.circular)
+                                .scaleEffect(0.8)
+                                .frame(width: 28, height: 28)
+                        } else {
+                            Image(systemName: "arrow.clockwise")
+                                .font(.system(size: 13, weight: .bold))
+                                .foregroundColor(.accentColor)
+                                .frame(width: 28, height: 28)
+                                .background(
+                                    Circle()
+                                        .fill(Color.accentColor.opacity(0.1))
+                                )
+                        }
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(isRefreshingSharedWorkspace)
+                }
+            }
+        }
+    }
+
+    private var documentSectionSubtitle: String {
+        if let activeLibrary {
+            let documentLabel = filteredDocuments.count == 1 ? "document" : "documents"
+            return "\(filteredDocuments.count) \(documentLabel) in \(activeLibrary.name)"
+        }
+
+        let documentLabel = ragService.documents.count == 1 ? "document" : "documents"
+        return "\(ragService.documents.count) \(documentLabel) in this workspace"
+    }
+
+    private var documentActionStrip: some View {
+        LazyVGrid(columns: [GridItem(.adaptive(minimum: 140, maximum: .infinity), spacing: 8)], spacing: 8) {
+            DocumentActionChip(
+                title: "Add Document",
+                systemImage: "plus"
+            ) {
+                presentDocumentPickerOrUpgrade()
+            }
+
+            DocumentActionChip(
+                title: "Cached Docs",
+                systemImage: "doc.on.doc"
+            ) {
+                showCachedDocs = true
+            }
+
+            DocumentActionChip(
+                title: "Manage Library",
+                systemImage: "gearshape"
+            ) {
+                showingContainerSettings = true
+            }
+
+            DocumentActionChip(
+                title: "Semantic Search",
+                systemImage: "text.magnifyingglass",
+                isEnabled: !ragService.documents.isEmpty
+            ) {
+                showingSemanticSearch = true
+            }
+
+            DocumentActionChip(
+                title: "Visualize",
+                systemImage: "cube.transparent",
+                isEnabled: !filteredDocuments.isEmpty && onViewVisualizations != nil
+            ) {
+                onViewVisualizations?()
+            }
+
+            DocumentActionChip(
+                title: activeLibrary?.syncMode == .iCloudShared ? "Remove Local Copies" : "Clear All",
+                systemImage: "trash",
+                tint: .red,
+                isEnabled: !ragService.documents.isEmpty
+            ) {
+                showingClearAllConfirmation = true
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 2)
     }
 
     @ViewBuilder
@@ -276,7 +393,7 @@ struct DocumentLibraryView: View {
                         ? "These libraries still exist on this device, but they no longer exist in iCloud."
                         : (bootstrapConflict.localOnlyLibraryNames.isEmpty && !bootstrapConflict.sharedOnlyLibraryNames.isEmpty
                             ? "iCloud has libraries that are not on this device yet."
-                            : "This device currently has \(bootstrapConflict.localLibraryCount) libraries marked iCloud Drive / \(bootstrapConflict.localDocumentCount) docs, and iCloud already has \(bootstrapConflict.sharedLibraryCount) shared librar\(bootstrapConflict.sharedLibraryCount == 1 ? "y" : "ies") / \(bootstrapConflict.sharedDocumentCount) docs.")
+                            : "This device currently has \(bootstrapConflict.localLibraryCount) libraries marked iCloud Sync / \(bootstrapConflict.localDocumentCount) docs, and iCloud already has \(bootstrapConflict.sharedLibraryCount) shared librar\(bootstrapConflict.sharedLibraryCount == 1 ? "y" : "ies") / \(bootstrapConflict.sharedDocumentCount) docs.")
                 )
                 .font(.caption)
                 .foregroundStyle(.secondary)
@@ -429,11 +546,6 @@ struct DocumentLibraryView: View {
                         .foregroundStyle(compactSharedWorkspaceDetailColor)
                         .fixedSize(horizontal: false, vertical: true)
                 }
-
-                ViewThatFits(in: .horizontal) {
-                    sharedWorkspaceActionRow(horizontal: true)
-                    sharedWorkspaceActionRow(horizontal: false)
-                }
             }
             .padding(12)
             .background(
@@ -495,109 +607,9 @@ struct DocumentLibraryView: View {
         return .secondary
     }
 
-    @ViewBuilder
-    private func sharedWorkspaceActionRow(horizontal: Bool) -> some View {
-        let stackSpacing: CGFloat = 10
-
-        Group {
-            if horizontal {
-                HStack(spacing: stackSpacing) {
-                    sharedWorkspacePrimaryAction
-                    sharedWorkspaceSecondaryAction
-                }
-            } else {
-                VStack(spacing: stackSpacing) {
-                    sharedWorkspacePrimaryAction
-                    sharedWorkspaceSecondaryAction
-                }
-            }
-        }
-    }
-
-    @ViewBuilder
-    private var sharedWorkspacePrimaryAction: some View {
-        if let activeLibrary {
-            Menu {
-                Button {
-                    handleSetLibrarySyncMode(activeLibrary, .localOnly)
-                } label: {
-                    Label(
-                        activeLibrary.syncMode == .localOnly ? "Local Only (Current)" : "Make Local Only",
-                        systemImage: activeLibrary.syncMode == .localOnly ? "checkmark.circle.fill" : "lock.fill"
-                    )
-                }
-
-                Button {
-                    handleSetLibrarySyncMode(activeLibrary, .iCloudShared)
-                } label: {
-                    Label(
-                        activeLibrary.syncMode == .iCloudShared ? "iCloud Drive (Current)" : "Make iCloud Drive",
-                        systemImage: activeLibrary.syncMode == .iCloudShared ? "checkmark.circle.fill" : "icloud.fill"
-                    )
-                }
-            } label: {
-                Label(activeLibrary.syncMode.displayName, systemImage: activeLibrary.syncMode == .iCloudShared ? "icloud.fill" : "lock.fill")
-                    .font(.caption.weight(.semibold))
-                    .multilineTextAlignment(.center)
-                    .lineLimit(2)
-                    .frame(maxWidth: .infinity, minHeight: 44)
-            }
-            .buttonStyle(.bordered)
-            .disabled(isRefreshingSharedWorkspace)
-        }
-    }
-
-    private var sharedWorkspaceSecondaryAction: some View {
-        Group {
-            if hasConfiguredICloudLibraries {
-                Button {
-                    refreshSharedWorkspaceNow()
-                } label: {
-                    HStack(spacing: 8) {
-                        if isRefreshingSharedWorkspace {
-                            ProgressView()
-                                .controlSize(.small)
-                        } else {
-                            Image(systemName: "arrow.clockwise")
-                                .font(.caption.weight(.semibold))
-                        }
-                        Text(isRefreshingSharedWorkspace ? "Syncing..." : "Sync Now")
-                            .font(.caption.weight(.semibold))
-                            .multilineTextAlignment(.center)
-                            .lineLimit(2)
-                    }
-                    .frame(maxWidth: .infinity, minHeight: 44)
-                }
-                .buttonStyle(.borderedProminent)
-                .disabled(isRefreshingSharedWorkspace)
-            } else {
-                Button {
-                    connectExistingICloudLibraries()
-                } label: {
-                    HStack(spacing: 8) {
-                        if isRefreshingSharedWorkspace {
-                            ProgressView()
-                                .controlSize(.small)
-                        } else {
-                            Image(systemName: "icloud.and.arrow.down")
-                                .font(.caption.weight(.semibold))
-                        }
-                        Text(isRefreshingSharedWorkspace ? "Connecting..." : "Connect Existing")
-                            .font(.caption.weight(.semibold))
-                            .multilineTextAlignment(.center)
-                            .lineLimit(2)
-                    }
-                    .frame(maxWidth: .infinity, minHeight: 44)
-                }
-                .buttonStyle(.borderedProminent)
-                .disabled(isRefreshingSharedWorkspace)
-            }
-        }
-    }
-
     private var workspaceSyncHeadline: String {
         if workspaceSyncService.isUsingSharedWorkspace {
-            return "iCloud Drive is the shared copy for libraries marked iCloud Drive. There is no main device."
+            return "iCloud Sync is the shared copy for libraries marked iCloud Sync. There is no main device."
         }
 
         if hasConfiguredICloudLibraries {
@@ -610,26 +622,26 @@ struct DocumentLibraryView: View {
             }
 
             if workspaceSyncService.lastErrorMessage != nil {
-                return "This device has iCloud libraries configured, but iCloud Drive is not active yet."
+                return "This device has iCloud libraries configured, but iCloud Sync is not active yet."
             }
 
             return "Preparing your iCloud libraries for sync."
         }
 
-        return "Local Only means the library stays on this device until you explicitly choose iCloud Drive as the shared copy."
+        return "Local Only means the library stays on this device until you explicitly choose iCloud Sync as the shared copy."
     }
 
     private var sharedWorkspaceSummary: String {
         if hasConfiguredICloudLibraries {
-            return "\(iCloudLibraryCount) iCloud • \(localOnlyLibraryCount) local. Libraries marked iCloud Drive use iCloud as the shared copy. Local Only libraries stay on just this device."
+            return "\(iCloudLibraryCount) iCloud • \(localOnlyLibraryCount) local. Libraries marked iCloud Sync use iCloud as the shared copy. Local Only libraries stay on just this device."
         }
 
-        return "All libraries are Local Only right now. Turn iCloud Drive on per library when you want it on another device."
+        return "All libraries are Local Only right now. Turn iCloud Sync on per library when you want it on another device."
     }
 
     private var sharedWorkspaceModeLabel: String {
         if workspaceSyncService.isUsingSharedWorkspace {
-            return "iCloud Drive"
+            return "iCloud Sync"
         }
 
         if !hasConfiguredICloudLibraries {
@@ -816,11 +828,19 @@ struct DocumentLibraryView: View {
             return
         }
 
+        let hasActiveIngestion = ragService.ingestionItems.contains { !$0.stage.isTerminal }
+        guard !hasActiveIngestion else {
+            if isManual {
+                sharedWorkspaceRefreshMessage = "Finish the current import before reloading iCloud Sync."
+            }
+            return
+        }
+
         containerService.reloadFromDisk()
         ragService.reloadWorkspaceData()
 
         if isManual {
-            sharedWorkspaceRefreshMessage = "Shared workspace reloaded from iCloud Drive."
+            sharedWorkspaceRefreshMessage = "Shared workspace reloaded from iCloud Sync."
         }
     }
 
@@ -879,14 +899,14 @@ struct DocumentLibraryView: View {
                 Button("Local Only") {
                     createNewLibrary(syncMode: .localOnly)
                 }
-                Button("iCloud Drive") {
+                Button("iCloud Sync") {
                     createNewLibrary(syncMode: .iCloudShared)
                 }
                 Button("Cancel", role: .cancel) {
                     pendingNewLibraryName = ""
                 }
             } message: {
-                Text("Local Only keeps the library only on this device. iCloud Drive makes iCloud the shared copy for that library across your devices.")
+                Text("Local Only keeps the library only on this device. iCloud Sync makes iCloud the shared copy for that library across your devices.")
             }
             .alert("Delete Library?", isPresented: $showingDeleteConfirmation) {
                 Button("Cancel", role: .cancel) {
@@ -905,7 +925,7 @@ struct DocumentLibraryView: View {
                 if let lib = libraryToDelete {
                     let docCount = ragService.documents.filter { $0.containerId == lib.id }.count
                     if lib.syncMode == .iCloudShared {
-                        Text("This will permanently delete \"\(lib.name)\" from iCloud Drive and remove it from every device using that shared library, along with all \(docCount) document\(docCount == 1 ? "" : "s"). This cannot be undone.")
+                        Text("This will permanently delete \"\(lib.name)\" from iCloud Sync and remove it from every device using that shared library, along with all \(docCount) document\(docCount == 1 ? "" : "s"). This cannot be undone.")
                     } else {
                         Text("This will permanently delete \"\(lib.name)\" only on this device, along with all \(docCount) document\(docCount == 1 ? "" : "s") inside it. This cannot be undone.")
                     }
@@ -923,7 +943,7 @@ struct DocumentLibraryView: View {
             } message: {
                 if let activeLibrary {
                     if activeLibrary.syncMode == .iCloudShared {
-                        Text("This removes the documents currently stored on this device for \"\(activeLibrary.name)\". If those documents still exist in iCloud Drive, Sync Now can bring them back.")
+                        Text("This removes the documents currently stored on this device for \"\(activeLibrary.name)\". If those documents still exist in iCloud Sync, Sync Now can bring them back.")
                     } else {
                         Text("This permanently deletes every document in \"\(activeLibrary.name)\" on this device. This cannot be undone.")
                     }
@@ -1026,9 +1046,6 @@ struct DocumentLibraryView: View {
                     await handleObservedSharedWorkspaceChange()
                 }
             }
-            .toolbar {
-                libraryToolbarContent
-            }
             .overlay(alignment: .bottomTrailing) {
                 IngestionQueueOverlay(
                     items: ragService.ingestionItems,
@@ -1062,80 +1079,6 @@ struct DocumentLibraryView: View {
                 HardwareXRayOverlay()
                     .allowsHitTesting(false)
                     .transition(.opacity)
-            }
-        }
-    }
-
-    @ToolbarContentBuilder
-    private var libraryToolbarContent: some ToolbarContent {
-        ToolbarItem(placement: .automatic) {
-            Button(action: presentDocumentPickerOrUpgrade) {
-                Label("Add Document", systemImage: "plus")
-            }
-        }
-
-        ToolbarItem(placement: .automatic) {
-            Button {
-                showCachedDocs = true
-            } label: {
-                Label("Cached Docs", systemImage: "doc.on.doc")
-            }
-        }
-
-        ToolbarItem(placement: .automatic) {
-            Button {
-                showingContainerSettings = true
-            } label: {
-                Label("Manage Library", systemImage: "gearshape")
-            }
-        }
-
-        if hasConfiguredICloudLibraries {
-            ToolbarItem(placement: .automatic) {
-                Button {
-                    refreshSharedWorkspaceNow()
-                } label: {
-                    if isRefreshingSharedWorkspace {
-                        Label("Refreshing iCloud Libraries", systemImage: "arrow.clockwise")
-                    } else {
-                        Label(
-                            workspaceSyncService.requiresBootstrapDecision
-                                ? "Review iCloud Changes"
-                                : "Refresh iCloud Libraries",
-                            systemImage: "arrow.clockwise"
-                        )
-                    }
-                }
-                .disabled(isRefreshingSharedWorkspace)
-            }
-        }
-
-        ToolbarItem(placement: .automatic) {
-            Button {
-                showingSemanticSearch = true
-            } label: {
-                Label("Semantic Search", systemImage: "text.magnifyingglass")
-            }
-            .disabled(ragService.documents.isEmpty)
-        }
-
-        if !filteredDocuments.isEmpty {
-            ToolbarItem(placement: .automatic) {
-                Button {
-                    onViewVisualizations?()
-                } label: {
-                    Label("Visualize", systemImage: "cube.transparent")
-                }
-            }
-        }
-
-        if !ragService.documents.isEmpty {
-            ToolbarItem(placement: .automatic) {
-                Button(role: .destructive) {
-                    showingClearAllConfirmation = true
-                } label: {
-                    Label("Clear All", systemImage: "trash")
-                }
             }
         }
     }
@@ -1362,7 +1305,7 @@ struct DocumentLibraryView: View {
         ragService.reloadWorkspaceData()
 
         if workspaceSyncService.isUsingSharedWorkspace {
-            sharedWorkspaceRefreshMessage = "\(libraryName) now syncs through iCloud Drive."
+            sharedWorkspaceRefreshMessage = "\(libraryName) now syncs through iCloud Sync."
         } else {
             sharedWorkspaceRefreshMessage = workspaceSyncService.lastErrorMessage ?? workspaceSyncService.statusMessage
         }
@@ -1477,7 +1420,7 @@ struct DocumentLibraryView: View {
                 ragService.reloadWorkspaceData()
                 if container.syncMode == .iCloudShared {
                     isRefreshingSharedWorkspace = false
-                    sharedWorkspaceRefreshMessage = "\(container.name) was removed from this device and iCloud Drive."
+                    sharedWorkspaceRefreshMessage = "\(container.name) was removed from this device and iCloud Sync."
                 }
             }
 
@@ -1522,6 +1465,76 @@ struct DocumentLibraryView: View {
         TelemetryCenter.emitBillingEvent(
             "Paywall presented",
             metadata: ["entryPoint": entryPoint.analyticsValue]
+        )
+    }
+}
+
+private struct DocumentActionChip: View {
+    let title: String
+    let systemImage: String
+    var tint: Color = .accentColor
+    var isEnabled: Bool = true
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 8) {
+                Image(systemName: systemImage)
+                    .font(.system(size: 11, weight: .semibold))
+
+                Text(title)
+                    .font(.system(size: 12, weight: .semibold))
+                    .lineLimit(1)
+            }
+            .frame(maxWidth: .infinity)
+            .foregroundStyle(isEnabled ? tint : .secondary)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .background(
+                Capsule()
+                    .fill((isEnabled ? tint : Color.secondary).opacity(0.1))
+                    .overlay(
+                        Capsule()
+                            .stroke((isEnabled ? tint : Color.secondary).opacity(0.18), lineWidth: 1)
+                    )
+            )
+        }
+        .buttonStyle(.plain)
+        .disabled(!isEnabled)
+        .opacity(isEnabled ? 1 : 0.7)
+    }
+}
+
+private struct DocumentUtilityChipLabel: View {
+    let title: String
+    let systemImage: String
+    var tint: Color = .accentColor
+    var showsProgress: Bool = false
+
+    var body: some View {
+        HStack(spacing: 6) {
+            if showsProgress {
+                ProgressView()
+                    .controlSize(.small)
+            } else {
+                Image(systemName: systemImage)
+                    .font(.system(size: 10, weight: .semibold))
+            }
+
+            Text(title)
+                .font(.system(size: 11, weight: .semibold))
+                .lineLimit(1)
+        }
+        .foregroundStyle(tint)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .background(
+            Capsule()
+                .fill(tint.opacity(0.1))
+                .overlay(
+                    Capsule()
+                        .stroke(tint.opacity(0.16), lineWidth: 1)
+                )
         )
     }
 }

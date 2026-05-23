@@ -92,7 +92,7 @@ struct DocumentQuotaBanner: View {
         .padding(16)
         .background(
             RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .fill(Color(.systemBackground).opacity(0.9))
+                .fill(DSColors.background.opacity(0.9))
                 .shadow(color: .black.opacity(0.05), radius: 10, x: 0, y: 6)
         )
         .onAppear {

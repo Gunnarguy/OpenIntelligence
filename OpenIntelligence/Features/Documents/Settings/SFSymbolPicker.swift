@@ -156,7 +156,7 @@ struct SFSymbolPicker: View {
                     .padding(.horizontal, 16)
                     .padding(.vertical, 8)
                 }
-                .background(Color(uiColor: .secondarySystemBackground))
+                .background(DSColors.surface)
 
                 Divider()
 
@@ -177,7 +177,7 @@ struct SFSymbolPicker: View {
                 }
                 .padding(.horizontal, 12)
                 .padding(.vertical, 8)
-                .background(Color(uiColor: .tertiarySystemBackground))
+                .background(DSColors.surfaceElevated)
                 .clipShape(RoundedRectangle(cornerRadius: 10))
                 .padding(.horizontal, 16)
                 .padding(.vertical, 8)
@@ -249,7 +249,7 @@ struct SFSymbolPicker: View {
                     .buttonStyle(.borderedProminent)
                 }
                 .padding(16)
-                .background(Color(uiColor: .secondarySystemBackground))
+                .background(DSColors.surface)
             }
             .navigationTitle("Choose Icon")
             .navigationBarTitleDisplayMode(.inline)
@@ -282,7 +282,7 @@ struct SFSymbolPicker: View {
             .background(
                 selectedCategory == category
                     ? Color.accentColor
-                    : Color(uiColor: .tertiarySystemBackground)
+                    : DSColors.surfaceElevated
             )
             .clipShape(Capsule())
         }
@@ -303,7 +303,7 @@ struct SFSymbolPicker: View {
                     .background(
                         selectedSymbol == symbol
                             ? Color.accentColor
-                            : Color(uiColor: .tertiarySystemBackground)
+                            : DSColors.surfaceElevated
                     )
                     .clipShape(RoundedRectangle(cornerRadius: 8))
             }
