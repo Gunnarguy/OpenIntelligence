@@ -6,6 +6,7 @@
 //  re-indexing, and cache warmup using BGTaskScheduler.
 //
 
+#if os(iOS)
 import BackgroundTasks
 import Foundation
 
@@ -1330,3 +1331,75 @@ final class BackgroundTaskService: Sendable {
         }
     }
 }
+#else
+import Foundation
+
+final class BackgroundTaskService: Sendable {
+    static let shared = BackgroundTaskService()
+
+    static let indexMaintenanceIdentifier = "com.openintelligence.index-maintenance"
+    static let spotlightReindexIdentifier = "com.openintelligence.spotlight-reindex"
+    static let appRefreshIdentifier = "com.openintelligence.app-refresh"
+    static let continuedIngestionIdentifier = "com.openintelligence.document-ingestion"
+    static let continuedQueryIdentifier = "com.openintelligence.rag-query"
+
+    private init() {}
+
+    func scheduleIndexMaintenance() {}
+    func scheduleSpotlightReindex() {}
+    func scheduleAppRefresh() {}
+
+    @MainActor
+    func configureContinuedIngestion(
+        run: @escaping @MainActor () async -> Bool,
+        expiration: @escaping @MainActor () -> Void
+    ) {}
+
+    @MainActor
+    func configureContinuedQuery(
+        run: @escaping @MainActor () async -> Bool,
+        expiration: @escaping @MainActor () -> Void
+    ) {}
+
+    @MainActor
+    func beginUserInitiatedIngestion(title: String, subtitle: String) {}
+
+    @MainActor
+    func beginUserInitiatedQuery(title: String, subtitle: String) {}
+
+    @MainActor
+    func beginForegroundFallbackIngestionExtensionIfNeeded(reason: String) {}
+
+    @MainActor
+    func endForegroundFallbackIngestionExtension() {}
+
+    @MainActor
+    func beginForegroundFallbackQueryExtensionIfNeeded(reason: String) {}
+
+    @MainActor
+    func endForegroundFallbackQueryExtension() {}
+
+    @MainActor
+    func shouldPauseForegroundIngestionForBackgroundHandoff() -> Bool {
+        false
+    }
+
+    @MainActor
+    func applyIngestionExecutionProfileForCurrentState() {}
+
+    @MainActor
+    func clearIngestionExecutionProfile() {}
+
+    @MainActor
+    func updateContinuedIngestionProgress(title: String, subtitle: String, fraction: Double) {}
+
+    @MainActor
+    func updateContinuedQueryProgress(title: String, subtitle: String, fraction: Double) {}
+
+    @MainActor
+    func completeUserInitiatedIngestion(success: Bool) {}
+
+    @MainActor
+    func completeUserInitiatedQuery(success: Bool) {}
+}
+#endif

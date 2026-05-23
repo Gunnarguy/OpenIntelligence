@@ -1,6 +1,6 @@
 import Foundation
 
-#if canImport(ActivityKit) && !targetEnvironment(macCatalyst)
+#if os(iOS) && canImport(ActivityKit) && !targetEnvironment(macCatalyst)
 import ActivityKit
 #endif
 
@@ -18,9 +18,9 @@ enum IngestionLiveActivityProcessingMode: String, Codable, Hashable, Sendable {
 
     var displayName: String {
         switch self {
-        case .eco: return "Eco"
+        case .eco: return "Efficiency"
         case .balanced: return "Balanced"
-        case .turbo: return "Turbo"
+        case .turbo: return "Performance"
         }
     }
 }
@@ -53,7 +53,7 @@ enum OpenIntelligenceDeepLink {
     static let queryChatURL = URL(string: "openintelligence://chat/query")!
 }
 
-#if canImport(ActivityKit) && !targetEnvironment(macCatalyst)
+#if os(iOS) && canImport(ActivityKit) && !targetEnvironment(macCatalyst)
 @available(iOS 17.0, *)
 struct IngestionLiveActivityAttributes: ActivityAttributes {
     struct ContentState: Codable, Hashable, Sendable {

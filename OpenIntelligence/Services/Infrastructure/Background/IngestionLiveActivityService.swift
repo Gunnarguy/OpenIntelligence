@@ -1,4 +1,4 @@
-#if canImport(ActivityKit) && !targetEnvironment(macCatalyst)
+#if os(iOS) && canImport(ActivityKit) && !targetEnvironment(macCatalyst)
 import ActivityKit
 import Foundation
 
@@ -372,7 +372,7 @@ final class IngestionLiveActivityService {
 }
 #endif
 
-#if !canImport(ActivityKit) || targetEnvironment(macCatalyst)
+#if !os(iOS) || !canImport(ActivityKit) || targetEnvironment(macCatalyst)
 import Foundation
 
 @MainActor

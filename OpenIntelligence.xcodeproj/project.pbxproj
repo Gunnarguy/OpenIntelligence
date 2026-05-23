@@ -131,6 +131,11 @@
 			path = OpenIntelligence/Services/Infrastructure/Optimization;
 			sourceTree = "<group>";
 		};
+		E0A1002A2F0F5F5F00AABA0C /* OpenIntelligence/Services/Infrastructure/Storage */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = OpenIntelligence/Services/Infrastructure/Storage;
+			sourceTree = "<group>";
+		};
 		E0A100252F0F5F5F00AABA0C /* OpenIntelligence/Services/LLM */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
@@ -206,6 +211,7 @@
 				E0A100222F0F5F5F00AABA0C /* OpenIntelligence/Services/Infrastructure/Integration */,
 				E0A100232F0F5F5F00AABA0C /* OpenIntelligence/Services/Infrastructure/Monitoring */,
 				E0A100242F0F5F5F00AABA0C /* OpenIntelligence/Services/Infrastructure/Optimization */,
+				E0A1002A2F0F5F5F00AABA0C /* OpenIntelligence/Services/Infrastructure/Storage */,
 				E0A100252F0F5F5F00AABA0C /* OpenIntelligence/Services/LLM */,
 				E0A100262F0F5F5F00AABA0C /* OpenIntelligence/Services/Query */,
 				E0A100272F0F5F5F00AABA0C /* OpenIntelligence/Services/RAG */,
@@ -299,6 +305,7 @@
 				E0A100222F0F5F5F00AABA0C /* OpenIntelligence/Services/Infrastructure/Integration */,
 				E0A100232F0F5F5F00AABA0C /* OpenIntelligence/Services/Infrastructure/Monitoring */,
 				E0A100242F0F5F5F00AABA0C /* OpenIntelligence/Services/Infrastructure/Optimization */,
+				E0A1002A2F0F5F5F00AABA0C /* OpenIntelligence/Services/Infrastructure/Storage */,
 				E0A100252F0F5F5F00AABA0C /* OpenIntelligence/Services/LLM */,
 				E0A100262F0F5F5F00AABA0C /* OpenIntelligence/Services/Query */,
 				E0A100272F0F5F5F00AABA0C /* OpenIntelligence/Services/RAG */,

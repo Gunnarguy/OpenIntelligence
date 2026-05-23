@@ -23,7 +23,7 @@ enum LibrarySyncMode: String, Codable, CaseIterable, Sendable {
         case .localOnly:
             return "Local Only"
         case .iCloudShared:
-            return "iCloud Drive"
+            return "iCloud Sync"
         }
     }
 
@@ -32,7 +32,7 @@ enum LibrarySyncMode: String, Codable, CaseIterable, Sendable {
         case .localOnly:
             return "Stays on this device unless you export it."
         case .iCloudShared:
-            return "Replicates across your devices through your iCloud Drive."
+            return "Replicates across your devices through iCloud Sync."
         }
     }
 }

@@ -309,14 +309,13 @@ struct ContentView: View {
 
     @MainActor
     private func refreshSharedWorkspaceIfNeeded(forceReload: Bool = false) async {
-        guard hasICloudSyncAccess else {
+        let didChangeWorkspaceRoots = await workspaceSyncService.reconfigureIfNeeded()
+        guard didChangeWorkspaceRoots || forceReload || (hasICloudSyncAccess && workspaceSyncService.isUsingSharedWorkspace) else {
             return
         }
 
-        let didChangeWorkspaceRoots = await workspaceSyncService.reconfigureIfNeeded()
-        guard didChangeWorkspaceRoots || forceReload || workspaceSyncService.isUsingSharedWorkspace else {
-            return
-        }
+        let hasActiveIngestion = ragService.ingestionItems.contains { !$0.stage.isTerminal }
+        guard !hasActiveIngestion else { return }
 
         containerService.reloadFromDisk()
         ragService.reloadWorkspaceData()

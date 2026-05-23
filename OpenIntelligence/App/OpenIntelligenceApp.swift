@@ -5,7 +5,9 @@
 //  Created by Gunnar Hostetler on 10/9/25.
 //
 
+#if os(iOS)
 import BackgroundTasks
+#endif
 import Combine
 import SwiftUI
 import TipKit
@@ -24,7 +26,9 @@ struct OpenIntelligenceApp: App {
         AppTipConfiguration.configure()
 
         // Register background tasks for index maintenance
+        #if os(iOS)
         registerBackgroundTasks()
+        #endif
     }
 
     var body: some Scene {
@@ -118,6 +122,7 @@ struct OpenIntelligenceApp: App {
     // MARK: - Background Tasks
 
     /// Register background processing and refresh tasks
+    #if os(iOS)
     private func registerBackgroundTasks() {
 #if !targetEnvironment(macCatalyst)
         if #available(iOS 26.0, *) {
@@ -175,4 +180,5 @@ struct OpenIntelligenceApp: App {
         }
 
     }
+    #endif
 }

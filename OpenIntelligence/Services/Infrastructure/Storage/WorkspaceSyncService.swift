@@ -1,6 +1,10 @@
 import Combine
 import Foundation
 
+extension Notification.Name {
+    nonisolated static let localWorkspaceDidChange = Notification.Name("openIntelligence.workspaceSync.localWorkspaceDidChange")
+}
+
 @MainActor
 final class WorkspaceSyncService: ObservableObject {
     nonisolated static let syncEnabledDefaultsKey = "enableSharedWorkspaceSync"
@@ -9,6 +13,21 @@ final class WorkspaceSyncService: ObservableObject {
     nonisolated static let lastSuccessfulSyncDefaultsKey = "openIntelligence.workspaceSync.lastSuccessfulSyncAt"
     nonisolated static let lastResolvedBootstrapLocalSignatureDefaultsKey = "openIntelligence.workspaceSync.lastResolvedBootstrapLocalSignature"
     nonisolated static let lastResolvedBootstrapSharedSignatureDefaultsKey = "openIntelligence.workspaceSync.lastResolvedBootstrapSharedSignature"
+    nonisolated static let hasBootstrappedSharedWorkspaceDefaultsKey = "openIntelligence.workspaceSync.hasBootstrappedSharedWorkspace"
+
+    nonisolated(unsafe) private static var _isSyncWriteInProgress = false
+    nonisolated static var isSyncWriteInProgress: Bool {
+        get {
+            objc_sync_enter(WorkspaceSyncService.self)
+            defer { objc_sync_exit(WorkspaceSyncService.self) }
+            return _isSyncWriteInProgress
+        }
+        set {
+            objc_sync_enter(WorkspaceSyncService.self)
+            defer { objc_sync_exit(WorkspaceSyncService.self) }
+            _isSyncWriteInProgress = newValue
+        }
+    }
 
     private static let workspaceFolderName = "OpenIntelligenceWorkspace"
     private static let importedDocumentsFolderName = "ImportedDocuments"
@@ -112,6 +131,7 @@ final class WorkspaceSyncService: ObservableObject {
     private var pendingBootstrapPlan: PendingBootstrapPlan?
     private var isReconfigureInProgress = false
     private var needsReconfigurePass = false
+    private var cancellables = Set<AnyCancellable>()
 
     init(defaults: UserDefaults = .standard, fileManager: FileManager = .default) {
         self.defaults = defaults
@@ -130,6 +150,15 @@ final class WorkspaceSyncService: ObservableObject {
                 _ = await self?.reconfigureIfNeeded()
             }
         }
+
+        NotificationCenter.default.publisher(for: .localWorkspaceDidChange)
+            .debounce(for: .seconds(2.0), scheduler: DispatchQueue.main)
+            .sink { [weak self] _ in
+                Task { @MainActor [weak self] in
+                    _ = await self?.reconfigureIfNeeded(bootstrapBehavior: .autoMergeLibraries)
+                }
+            }
+            .store(in: &cancellables)
     }
 
     deinit {
@@ -183,9 +212,11 @@ final class WorkspaceSyncService: ObservableObject {
             return false
         }
 
+        Self.isSyncWriteInProgress = true
         isReconfigureInProgress = true
         defer {
             isReconfigureInProgress = false
+            Self.isSyncWriteInProgress = false
         }
 
         var anyWorkspaceChange = false
@@ -211,20 +242,53 @@ final class WorkspaceSyncService: ObservableObject {
             return activateLocalWorkspace(reason: "Could not load local libraries for iCloud sync.")
         }
 
+        // Entitlement Demotion Check: iCloud sync requires at least Pro status.
+        let effectiveTier = EntitlementStore.currentEffectiveTier(defaults: self.defaults)
+        guard effectiveTier.isAtLeast(.pro) else {
+            let hasSyncedLibraries = localInventory.containers.contains(where: { $0.syncMode == .iCloudShared })
+            if hasSyncedLibraries || isUsingSharedWorkspace {
+                var demotedContainers = localInventory.containers
+                for idx in 0..<demotedContainers.count {
+                    if demotedContainers[idx].syncMode == .iCloudShared {
+                        demotedContainers[idx].syncMode = .localOnly
+                    }
+                }
+                
+                // Write demoted containers back to local containers.json
+                do {
+                    try Self.writeJSON(demotedContainers, to: localWorkspaceRoot.appendingPathComponent("containers.json"))
+                } catch {
+                    // Fail silently to avoid breaking local usage if writing fails.
+                }
+                
+                defaults.removeObject(forKey: Self.hasBootstrappedSharedWorkspaceDefaultsKey)
+                clearPendingBootstrapState()
+                unsupportedSyncContainerNames = []
+                lastErrorMessage = nil
+                
+                return activateLocalWorkspace(reason: "iCloud sync requires a Pro subscription.")
+            }
+            
+            clearPendingBootstrapState()
+            unsupportedSyncContainerNames = []
+            return activateLocalWorkspace(reason: "All libraries are local only.")
+        }
+
         let localSyncedInventory = syncedInventory(from: localInventory)
 
         guard !localSyncedInventory.containers.isEmpty else {
             lastErrorMessage = nil
             clearPendingBootstrapState()
             unsupportedSyncContainerNames = []
+            defaults.removeObject(forKey: Self.hasBootstrappedSharedWorkspaceDefaultsKey)
             return activateLocalWorkspace(reason: "All libraries are local only.")
         }
 
         recordSyncAttempt()
 
         guard fileManager.ubiquityIdentityToken != nil else {
-            lastErrorMessage = "iCloud Drive is unavailable for the current Apple account."
-            return activateLocalWorkspace(reason: "iCloud Drive is unavailable on this device.")
+            lastErrorMessage = "iCloud Sync is unavailable for the current Apple account."
+            return activateLocalWorkspace(reason: "iCloud Sync is unavailable on this device.")
         }
 
         statusMessage = "Preparing iCloud libraries..."
@@ -262,7 +326,14 @@ final class WorkspaceSyncService: ObservableObject {
                 localInventory: localSyncedInventory,
                 sharedInventory: sharedInventory
             ) {
-                switch bootstrapBehavior {
+                let effectiveBehavior: BootstrapBehavior
+                if bootstrapBehavior == .promptUser && (isUsingSharedWorkspace || defaults.bool(forKey: Self.hasBootstrappedSharedWorkspaceDefaultsKey)) {
+                    effectiveBehavior = .autoMergeLibraries
+                } else {
+                    effectiveBehavior = bootstrapBehavior
+                }
+
+                switch effectiveBehavior {
                 case .promptUser:
                     pendingBootstrapPlan = bootstrapPlan
                     pendingBootstrapConflict = makePendingBootstrapConflict(from: bootstrapPlan)
@@ -281,7 +352,7 @@ final class WorkspaceSyncService: ObservableObject {
                     )
                     recordResolvedBootstrap(for: localSyncedInventory, sharedInventory: sharedInventory)
                     lastErrorMessage = nil
-                    return activateSharedWorkspace(root: sharedWorkspaceRoot, reason: "Syncing selected iCloud libraries through iCloud Drive.")
+                    return activateSharedWorkspace(root: sharedWorkspaceRoot, reason: "Syncing selected iCloud libraries through iCloud Sync.")
                 }
             }
 
@@ -295,7 +366,7 @@ final class WorkspaceSyncService: ObservableObject {
                 strategy: .mergeLibraries
             )
             lastErrorMessage = nil
-            return activateSharedWorkspace(root: sharedWorkspaceRoot, reason: "Syncing selected iCloud libraries through iCloud Drive.")
+            return activateSharedWorkspace(root: sharedWorkspaceRoot, reason: "Syncing selected iCloud libraries through iCloud Sync.")
         } catch {
             lastErrorMessage = error.localizedDescription
             return activateLocalWorkspace(reason: "iCloud library sync failed. Local libraries are unchanged.")
@@ -305,8 +376,14 @@ final class WorkspaceSyncService: ObservableObject {
     @discardableResult
     func resolvePendingBootstrap(using choice: BootstrapChoice) async -> Bool {
         guard isSyncEnabled else { return false }
+        guard EntitlementStore.currentEffectiveTier(defaults: self.defaults).isAtLeast(.pro) else { return false }
         guard let pendingBootstrapPlan else {
             return await reconfigureIfNeeded()
+        }
+
+        Self.isSyncWriteInProgress = true
+        defer {
+            Self.isSyncWriteInProgress = false
         }
 
         do {
@@ -330,7 +407,7 @@ final class WorkspaceSyncService: ObservableObject {
                 lastErrorMessage = nil
                 recordResolvedBootstrap(for: pendingBootstrapPlan.localInventory, sharedInventory: pendingBootstrapPlan.sharedInventory)
                 clearPendingBootstrapState()
-                return activateSharedWorkspace(root: pendingBootstrapPlan.sharedRoot, reason: "Kept both sets of iCloud libraries in iCloud Drive.")
+                return activateSharedWorkspace(root: pendingBootstrapPlan.sharedRoot, reason: "Kept both sets of iCloud libraries in iCloud Sync.")
 
             case .useICloudWorkspace:
                 try await synchronizeConfiguredLibraries(
@@ -343,7 +420,7 @@ final class WorkspaceSyncService: ObservableObject {
                 lastErrorMessage = nil
                 recordResolvedBootstrap(for: pendingBootstrapPlan.localInventory, sharedInventory: pendingBootstrapPlan.sharedInventory)
                 clearPendingBootstrapState()
-                return activateSharedWorkspace(root: pendingBootstrapPlan.sharedRoot, reason: "Using the existing set of iCloud libraries from iCloud Drive.")
+                return activateSharedWorkspace(root: pendingBootstrapPlan.sharedRoot, reason: "Using the existing set of iCloud libraries from iCloud Sync.")
             }
         } catch {
             lastErrorMessage = error.localizedDescription
@@ -353,15 +430,21 @@ final class WorkspaceSyncService: ObservableObject {
 
     @discardableResult
     func connectExistingICloudLibraries() async -> Bool {
+        guard EntitlementStore.currentEffectiveTier(defaults: self.defaults).isAtLeast(.pro) else { return false }
         let localWorkspaceRoot = OpenIntelligenceRuntimePaths.applicationSupportRoot()
+
+        Self.isSyncWriteInProgress = true
+        defer {
+            Self.isSyncWriteInProgress = false
+        }
 
         do {
             let localInventory = try workspaceInventory(at: localWorkspaceRoot)
             recordSyncAttempt()
 
             guard fileManager.ubiquityIdentityToken != nil else {
-                lastErrorMessage = "iCloud Drive is unavailable for the current Apple account."
-                return activateLocalWorkspace(reason: "iCloud Drive is unavailable on this device.")
+                lastErrorMessage = "iCloud Sync is unavailable for the current Apple account."
+                return activateLocalWorkspace(reason: "iCloud Sync is unavailable on this device.")
             }
 
             statusMessage = "Looking for existing iCloud libraries..."
@@ -369,7 +452,7 @@ final class WorkspaceSyncService: ObservableObject {
 
             guard let containerURL = await Self.resolveUbiquityContainerURL() else {
                 lastErrorMessage = "The iCloud ubiquity container could not be resolved."
-                return activateLocalWorkspace(reason: "Unable to reach iCloud Drive right now.")
+                return activateLocalWorkspace(reason: "Unable to reach iCloud Sync right now.")
             }
 
             let sharedWorkspaceRoot = sharedWorkspaceRootURL(for: containerURL)
@@ -416,13 +499,18 @@ final class WorkspaceSyncService: ObservableObject {
     func deleteSharedLibrary(_ container: KnowledgeContainer) async throws {
         guard container.syncMode == .iCloudShared else { return }
 
+        Self.isSyncWriteInProgress = true
+        defer {
+            Self.isSyncWriteInProgress = false
+        }
+
         recordSyncAttempt()
 
         guard fileManager.ubiquityIdentityToken != nil else {
             throw NSError(
                 domain: "WorkspaceSyncService",
                 code: 1,
-                userInfo: [NSLocalizedDescriptionKey: "iCloud Drive is unavailable on this device. The shared library was not deleted."]
+                userInfo: [NSLocalizedDescriptionKey: "iCloud Sync is unavailable on this device. The shared library was not deleted."]
             )
         }
 
@@ -508,8 +596,8 @@ final class WorkspaceSyncService: ObservableObject {
         clearPendingBootstrapState()
         lastErrorMessage = nil
         statusMessage = remainingContainers.isEmpty
-            ? "All iCloud libraries were removed from iCloud Drive."
-            : "Removed \(container.name) from iCloud Drive."
+            ? "All iCloud libraries were removed from iCloud Sync."
+            : "Removed \(container.name) from iCloud Sync."
         recordSuccessfulSync()
     }
 
@@ -567,6 +655,7 @@ final class WorkspaceSyncService: ObservableObject {
 
         startObservingSharedWorkspace(at: root)
         recordSuccessfulSync()
+        defaults.set(true, forKey: Self.hasBootstrappedSharedWorkspaceDefaultsKey)
         return didChange
     }
 
@@ -1452,7 +1541,12 @@ final class WorkspaceSyncService: ObservableObject {
             guard let state else { return }
             let stateContextMap = Dictionary(uniqueKeysWithValues: state.contexts.map { ($0.id, $0.context) })
 
-            for item in state.items where !item.stage.isTerminal {
+            for item in state.items {
+                if item.stage.isTerminal {
+                    if let finishedAt = item.finishedAt, now.timeIntervalSince(finishedAt) > 900 {
+                        continue
+                    }
+                }
                 let itemKey = ingestionDuplicateKey(for: item)
                 if let existingId = itemKeyToId[itemKey], let existingItem = itemsById[existingId] {
                     let preferred = preferredIngestionItem(primary: existingItem, secondary: item, now: now)
@@ -2094,6 +2188,27 @@ final class WorkspaceSyncService: ObservableObject {
     }
 
     private func preferredIngestionItem(primary: IngestionItem, secondary: IngestionItem, now: Date) -> IngestionItem {
+        let primaryIsTerminal = primary.stage.isTerminal
+        let secondaryIsTerminal = secondary.stage.isTerminal
+
+        if primaryIsTerminal || secondaryIsTerminal {
+            if primaryIsTerminal && !secondaryIsTerminal {
+                // Same ID means they are the same ingestion attempt. Terminal wins.
+                // Different IDs means the active one is a new retry attempt. Active wins.
+                return primary.id == secondary.id ? primary : secondary
+            } else if !primaryIsTerminal && secondaryIsTerminal {
+                return primary.id == secondary.id ? secondary : primary
+            } else {
+                // Both are terminal. Compare finishedAt times.
+                let primaryFinished = primary.finishedAt ?? .distantPast
+                let secondaryFinished = secondary.finishedAt ?? .distantPast
+                if primaryFinished != secondaryFinished {
+                    return secondaryFinished > primaryFinished ? secondary : primary
+                }
+                return secondary.id.uuidString > primary.id.uuidString ? secondary : primary
+            }
+        }
+
         let primaryPriority = ingestionPriority(primary, now: now)
         let secondaryPriority = ingestionPriority(secondary, now: now)
         return secondaryPriority > primaryPriority ? secondary : primary
@@ -2135,8 +2250,8 @@ final class WorkspaceSyncService: ObservableObject {
             case .indexing: return 9
             case .storing: return 10
             case .complete: return 11
-            case .cancelled: return -1
-            case .failed: return -2
+            case .cancelled: return 12
+            case .failed: return 13
             }
         }()
         let heartbeatScore = Int(item.lastLeaseHeartbeatAt?.timeIntervalSince1970 ?? 0)
@@ -2346,9 +2461,9 @@ final class WorkspaceSyncService: ObservableObject {
         if publishObservedChange {
             recordSuccessfulSync()
             observedWorkspaceChangeCount += 1
-            statusMessage = "Detected shared workspace changes from iCloud Drive."
+            statusMessage = "Detected shared workspace changes from iCloud Sync."
         } else if isUsingSharedWorkspace {
-            statusMessage = "Watching iCloud Drive for shared workspace changes."
+            statusMessage = "Watching iCloud Sync for shared workspace changes."
         }
     }
 
@@ -2362,6 +2477,11 @@ final class WorkspaceSyncService: ObservableObject {
         let filePath = standardizedURL.path
 
         guard filePath == rootPath || filePath.hasPrefix(rootPrefix) else { return false }
+
+        let lastComponent = standardizedURL.lastPathComponent
+        if lastComponent.hasPrefix("vector_database_") {
+            return false
+        }
 
         return !standardizedURL.pathComponents.contains(where: { Self.localOnlyEntryNames.contains($0) })
     }
@@ -2483,6 +2603,11 @@ final class WorkspaceSyncService: ObservableObject {
         if let writeError {
             throw writeError
         }
+
+        if url.path.hasPrefix(OpenIntelligenceRuntimePaths.applicationSupportRoot().path),
+           !WorkspaceSyncService.isSyncWriteInProgress {
+            NotificationCenter.default.post(name: .localWorkspaceDidChange, object: nil)
+        }
     }
 
     nonisolated static func coordinatedRemoveItem(at url: URL) throws {
@@ -2505,6 +2630,11 @@ final class WorkspaceSyncService: ObservableObject {
         }
         if let removeError {
             throw removeError
+        }
+
+        if url.path.hasPrefix(OpenIntelligenceRuntimePaths.applicationSupportRoot().path),
+           !WorkspaceSyncService.isSyncWriteInProgress {
+            NotificationCenter.default.post(name: .localWorkspaceDidChange, object: nil)
         }
     }
 
@@ -2537,6 +2667,11 @@ final class WorkspaceSyncService: ObservableObject {
         }
         if let copyError {
             throw copyError
+        }
+
+        if destination.path.hasPrefix(OpenIntelligenceRuntimePaths.applicationSupportRoot().path),
+           !WorkspaceSyncService.isSyncWriteInProgress {
+            NotificationCenter.default.post(name: .localWorkspaceDidChange, object: nil)
         }
     }
 

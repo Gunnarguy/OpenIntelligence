@@ -57,6 +57,7 @@ let package = Package(
                 "Services/Infrastructure/Integration",
                 "Services/Infrastructure/Monitoring",
                 "Services/Infrastructure/Optimization",
+                "Services/Infrastructure/Storage",
                 "Services/LLM",
                 "Services/Query",
                 "Services/RAG",
