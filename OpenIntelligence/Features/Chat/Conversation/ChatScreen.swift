@@ -264,7 +264,11 @@ struct ChatScreen: View {
     @State private var dynamicQuestionDetails: [String: SuggestedQuestionsService.SuggestedQuestion] = [:]
     @State private var suggestedQuestionsTask: Task<Void, Never>? = nil
     @State private var isRefreshingSuggestions = false
-    private let suggestedQuestionsService = SuggestedQuestionsService()
+    private let suggestedQuestionsService = SuggestedQuestionsService.shared
+    @State private var lastProcessedContainerId: UUID? = nil
+    @State private var lastProcessedDocuments: [Document]? = nil
+    @State private var isAppeared = false
+    @State private var needsSuggestedQuestionsRefresh = false
 
     // Smart Reply follow-up suggestions (shown after AI response)
     @State private var followUpSuggestions: [SmartReply] = []
@@ -546,37 +550,55 @@ struct ChatScreen: View {
             if didSeedScreenshotDemo { return }
             #endif
             let activeId = ragService.containerService.activeContainerId
-            messages = await ragService.preloadChatHistory(for: activeId)
-            guard !Task.isCancelled,
-                ragService.containerService.activeContainerId == activeId
-            else { return }
-            await recalcActiveCounts()
+            let isSameContainer = (lastProcessedContainerId == activeId)
 
-            // Clear stale per-conversation state from previous library
-            followUpSuggestionsTask?.cancel()
-            followUpSuggestions = []
-            thinkingEvents = []
-            speedHistory = []
+            if !isSameContainer {
+                messages = await ragService.preloadChatHistory(for: activeId)
+                guard !Task.isCancelled,
+                    ragService.containerService.activeContainerId == activeId
+                else { return }
+                await recalcActiveCounts()
 
-            // Immediately clear old suggested questions so stale pills never flash
-            dynamicSuggestedQuestions = []
-            dynamicQuestionCategories = [:]
-            dynamicQuestionDetails = [:]
+                // Clear stale per-conversation state from previous library
+                followUpSuggestionsTask?.cancel()
+                followUpSuggestions = []
+                thinkingEvents = []
+                speedHistory = []
 
-            // Invalidate cached questions for the new container before regenerating
-            await suggestedQuestionsService.invalidateCache(for: activeId)
+                // Immediately clear old suggested questions so stale pills never flash
+                dynamicSuggestedQuestions = []
+                dynamicQuestionCategories = [:]
+                dynamicQuestionDetails = [:]
 
-            // Generate dynamic suggested questions based on library content
-            refreshDynamicQuestions()
+                // Invalidate cached questions for the new container before regenerating
+                lastProcessedContainerId = activeId
+                lastProcessedDocuments = ragService.documents
+                await suggestedQuestionsService.invalidateCache(for: activeId)
+                needsSuggestedQuestionsRefresh = false
+                refreshDynamicQuestions()
+            } else {
+                if needsSuggestedQuestionsRefresh || dynamicSuggestedQuestions.isEmpty {
+                    needsSuggestedQuestionsRefresh = false
+                    refreshDynamicQuestions()
+                }
+            }
         }
         // React to document ingestion/removal immediately
-        .onReceive(ragService.$documents) { _ in
+        .onReceive(ragService.$documents) { newDocs in
+            let activeId = ragService.containerService.activeContainerId
+            guard lastProcessedContainerId != activeId || lastProcessedDocuments != newDocs else { return }
+            lastProcessedContainerId = activeId
+            lastProcessedDocuments = newDocs
+
             Task {
                 await recalcActiveCounts()
                 // Invalidate stale questions and regenerate from new content
-                let containerId = ragService.containerService.activeContainerId
-                await suggestedQuestionsService.invalidateCache(for: containerId)
-                refreshDynamicQuestions()
+                await suggestedQuestionsService.invalidateCache(for: activeId)
+                if isAppeared {
+                    refreshDynamicQuestions()
+                } else {
+                    needsSuggestedQuestionsRefresh = true
+                }
             }
         }
         // Ensure counts refresh if the user switches containers outside this view
@@ -724,13 +746,19 @@ struct ChatScreen: View {
     // Seed screenshot demo FIRST before loading persisted history
     seedScreenshotDemoIfNeeded()
     entitlementStore.refreshTransientState()
+    isAppeared = true
+}
+.onDisappear {
+    isAppeared = false
 }
 // MARK: - NSUserActivity / Handoff
 .userActivity("com.openintelligence.chat") { activity in
     activity.title = "Chat with Documents"
     activity.isEligibleForSearch = true
     activity.isEligibleForHandoff = true
+    #if os(iOS)
     activity.isEligibleForPrediction = true
+    #endif
     if let containerId = ragService.containerService.activeContainerId as UUID? {
         activity.userInfo = ["containerId": containerId]
     }
@@ -1450,8 +1478,20 @@ struct ChatScreen: View {
             // Scale the analysis sample with library size so large containers do not
             // collapse into vague, library-wide suggestions.
             do {
-                let sampleLimit = min(max(documents.count * 4, 50), 160)
-                let sampleChunks = try await ragService.getSampleChunks(for: containerId, limit: sampleLimit)
+                let hasValidCache: Bool
+                if force {
+                    hasValidCache = false
+                } else {
+                    hasValidCache = await suggestedQuestionsService.hasValidCache(for: containerId, documentCount: documents.count)
+                }
+                
+                let sampleChunks: [DocumentChunk]
+                if hasValidCache {
+                    sampleChunks = []
+                } else {
+                    let sampleLimit = min(max(documents.count * 4, 50), 160)
+                    sampleChunks = try await ragService.getSampleChunks(for: containerId, limit: sampleLimit)
+                }
 
                 let questions = await suggestedQuestionsService.generateQuestions(
                     for: containerId,
@@ -1872,7 +1912,9 @@ struct ChatScreen: View {
             }
             .scrollDismissesKeyboard(.interactively)
             .onTapGesture {
+                #if canImport(UIKit)
                 UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+                #endif
             }
         } else {
             MessageListV2(
@@ -3083,8 +3125,8 @@ struct CompactChatHeader: View {
                     StatChip(icon: "square.grid.3x3.fill", value: "\(chunkCount)", color: .purple)
                 }
             }
+            .padding(.horizontal, 16)
         }
-        .padding(.horizontal, 16)
         .padding(.vertical, 10)
 .onAppear {
     deviceCapabilities = RAGService.checkDeviceCapabilities()
@@ -3095,20 +3137,42 @@ struct CompactChatHeader: View {
 
     private var libraryPickerStrip: some View {
         ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
-                ForEach(containerService.containers) { container in
-                    LibraryChip(
-                        container: container,
-                        isActive: containerService.activeContainerId == container.id,
-                        docCount: containerService.documentCount(for: container.id)
-                    ) {
-                        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                            containerService.setActive(container.id)
-                        }
+            if #available(iOS 26.0, *) {
+                GlassEffectContainer(spacing: 8) {
+                    HStack(spacing: 8) {
+                        libraryPillList
                     }
+                    .padding(.horizontal, 16)
+                }
+            } else {
+                HStack(spacing: 8) {
+                    libraryPillList
+                }
+                .padding(.horizontal, 16)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var libraryPillList: some View {
+        ForEach(containerService.containers) { container in
+            ContainerPill(
+                container: container,
+                isSelected: containerService.activeContainerId == container.id,
+                canDelete: false,
+                badgeText: documentCountText(for: container),
+                badgeStyle: .count
+            ) {
+                withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                    containerService.setActive(container.id)
                 }
             }
         }
+    }
+
+    private func documentCountText(for container: KnowledgeContainer) -> String? {
+        let count = containerService.documentCount(for: container.id)
+        return count > 0 ? "\(count)" : nil
     }
 }
 
@@ -3255,53 +3319,6 @@ private struct StatChip: View {
             Capsule()
                 .fill(color.opacity(0.1))
         )
-    }
-}
-
-/// Library chip for horizontal picker strip in chat header
-private struct LibraryChip: View {
-    let container: KnowledgeContainer
-    let isActive: Bool
-    let docCount: Int
-    let onTap: () -> Void
-
-    var body: some View {
-        Button(action: onTap) {
-            HStack(spacing: 6) {
-                Image(systemName: container.icon)
-                    .font(.system(size: 11, weight: .medium))
-
-                Text(container.name)
-                    .font(.system(size: 13, weight: .medium))
-                    .lineLimit(1)
-
-                // Show doc count badge for active container
-                if docCount > 0 {
-                    Text("\(docCount)")
-                        .font(.system(size: 10, weight: .bold, design: .rounded))
-                        .foregroundStyle(isActive ? .white.opacity(0.9) : .secondary)
-                        .padding(.horizontal, 5)
-                        .padding(.vertical, 2)
-                        .background(
-                            Capsule()
-                                .fill(isActive ? .white.opacity(0.25) : Color.secondary.opacity(0.15))
-                        )
-                }
-            }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
-            .background(
-                Capsule()
-                    .fill(isActive ? DSColors.accent : Color(.systemGray6))
-            )
-            .foregroundStyle(isActive ? .white : DSColors.primaryText)
-            .overlay(
-                Capsule()
-                    .strokeBorder(isActive ? Color.clear : Color.secondary.opacity(0.2), lineWidth: 1)
-            )
-            .shadow(color: isActive ? DSColors.accent.opacity(0.3) : .clear, radius: 4, x: 0, y: 2)
-        }
-        .buttonStyle(.plain)
     }
 }
 

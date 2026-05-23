@@ -85,7 +85,7 @@ struct EnhancedCodeBlock: View {
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
-            .background(Color(uiColor: .tertiarySystemBackground))
+            .background(DSColors.surfaceElevated)
 
             Divider()
 
@@ -103,11 +103,11 @@ struct EnhancedCodeBlock: View {
                     }
                     .padding(.horizontal, 8)
                     .padding(.vertical, 10)
-                    .background(Color(uiColor: .tertiarySystemBackground).opacity(0.5))
+                    .background(DSColors.surfaceElevated.opacity(0.5))
 
                     // Separator
                     Rectangle()
-                        .fill(Color(uiColor: .separator).opacity(0.3))
+                        .fill(DSColors.border.opacity(0.3))
                         .frame(width: 1)
 
                     // Code content
@@ -124,18 +124,21 @@ struct EnhancedCodeBlock: View {
                     .padding(.vertical, 10)
                 }
             }
-            .background(Color(uiColor: .secondarySystemBackground))
+            .background(DSColors.surface)
         }
         .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .stroke(Color(uiColor: .separator).opacity(0.3), lineWidth: 1)
+                .stroke(DSColors.border.opacity(0.3), lineWidth: 1)
         )
     }
 
     private func copyCode() {
         #if canImport(UIKit)
         UIPasteboard.general.string = code
+        #elseif canImport(AppKit)
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(code, forType: .string)
         #endif
 
         withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
@@ -276,6 +279,9 @@ struct CompactCodeBlock: View {
             Button {
                 #if canImport(UIKit)
                 UIPasteboard.general.string = code
+                #elseif canImport(AppKit)
+                NSPasteboard.general.clearContents()
+                NSPasteboard.general.setString(code, forType: .string)
                 #endif
                 withAnimation { copied = true }
                 DSHaptics.selection()
@@ -290,7 +296,7 @@ struct CompactCodeBlock: View {
             }
             .buttonStyle(.plain)
         }
-        .background(Color(uiColor: .secondarySystemBackground))
+        .background(DSColors.surface)
         .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
     }
 }

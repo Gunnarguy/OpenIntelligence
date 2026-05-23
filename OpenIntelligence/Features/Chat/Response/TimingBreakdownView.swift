@@ -63,7 +63,7 @@ struct TimingBreakdownView: View {
                 .padding(.vertical, 8)
                 .background(
                     RoundedRectangle(cornerRadius: 10, style: .continuous)
-                        .fill(Color(uiColor: .tertiarySystemBackground))
+                        .fill(DSColors.surfaceElevated)
                 )
             }
             .buttonStyle(.plain)
@@ -87,7 +87,7 @@ struct TimingBreakdownView: View {
                 }
                 .background(
                     RoundedRectangle(cornerRadius: 10, style: .continuous)
-                        .fill(Color(uiColor: .secondarySystemBackground))
+                        .fill(DSColors.surface)
                 )
                 .padding(.top, 4)
                 .transition(.opacity.combined(with: .move(edge: .top)))

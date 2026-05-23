@@ -222,7 +222,7 @@ private struct StreamingBubbleV2: View {
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 12)
-            .background(Color(uiColor: .secondarySystemBackground))
+            .background(DSColors.surface)
             .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
             .shadow(color: .black.opacity(0.04), radius: 2, x: 0, y: 1)
 
@@ -258,7 +258,7 @@ private struct TypingBubbleV2: View {
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 12)
-            .background(Color(uiColor: .secondarySystemBackground))
+            .background(DSColors.surface)
             .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
             .shadow(color: .black.opacity(0.04), radius: 2, x: 0, y: 1)
             .opacity(pulse ? 0.9 : 1.0)

@@ -45,6 +45,8 @@ struct SuggestedQuestionList: Sendable {
 
 actor SuggestedQuestionsService {
 
+    static let shared = SuggestedQuestionsService()
+
     // MARK: - Types
 
     /// Category of question for display diversity
@@ -123,14 +125,19 @@ actor SuggestedQuestionsService {
         if !forceRefresh,
            let cached = cachedQuestions[containerId],
            cached.documentCount == documents.count,
-           Date().timeIntervalSince(cached.generatedAt) < Self.cacheMaxAge,
-           !cached.questions.isEmpty {
+           Date().timeIntervalSince(cached.generatedAt) < Self.cacheMaxAge {
             Log.debug("[SuggestedQuestions] Returning \(cached.questions.count) cached questions for container")
             return Array(cached.questions.prefix(count))
         }
 
         guard !sampleChunks.isEmpty else {
             Log.debug("[SuggestedQuestions] No chunks available, returning empty")
+            // Cache the empty result to prevent repeated generation attempts on empty library
+            cachedQuestions[containerId] = CachedEntry(
+                questions: [],
+                documentCount: documents.count,
+                generatedAt: Date()
+            )
             return []
         }
 
@@ -139,28 +146,44 @@ actor SuggestedQuestionsService {
         let inputChunks = forceRefresh ? sampleChunks.shuffled() : sampleChunks
         let diverseChunks = selectDiverseChunks(from: inputChunks, documents: documents, targetCount: 6)
 
-        // Step 2: Build deterministic passage-grounded questions first.
-        // The LLM can add variety, but these are the reliability floor.
+        // Step 2: Build passage-grounded questions.
+        // If the LLM is available, generate highly aligned inference/conceptual questions directly.
+        // If not, or if it yields too few questions, fall back to deterministic pattern extraction.
         var questions: [SuggestedQuestion] = []
-        let contentQuestions = generateFromContent(chunks: diverseChunks, documents: documents)
 
         #if canImport(FoundationModels)
-        if #available(iOS 26.0, *), !contentQuestions.isEmpty {
-            let llmQuestions = await generateWithLLM(
-                baseQuestions: contentQuestions,
+        if #available(iOS 26.0, *), SystemLanguageModel.default.isAvailable {
+            let llmQuestions = await generateDirectlyWithLLM(
                 chunks: diverseChunks,
                 documents: documents,
                 avoidTexts: previousTexts
             )
-            questions = llmQuestions.isEmpty
-                ? contentQuestions
-                : dedupeSuggestedQuestionsPreservingOrder(llmQuestions)
+            if llmQuestions.count >= 2 {
+                questions = llmQuestions
+            }
         }
         #endif
 
-        // Step 3: Fall back to content-grounded extraction if LLM failed or unavailable
         if questions.isEmpty {
+            let contentQuestions = generateFromContent(chunks: diverseChunks, documents: documents)
+
+            #if canImport(FoundationModels)
+            if #available(iOS 26.0, *), SystemLanguageModel.default.isAvailable, !contentQuestions.isEmpty {
+                let polishedQuestions = await generateWithLLM(
+                    baseQuestions: contentQuestions,
+                    chunks: diverseChunks,
+                    documents: documents,
+                    avoidTexts: previousTexts
+                )
+                questions = polishedQuestions.isEmpty
+                    ? contentQuestions
+                    : dedupeSuggestedQuestionsPreservingOrder(polishedQuestions)
+            } else {
+                questions = contentQuestions
+            }
+            #else
             questions = contentQuestions
+            #endif
         }
 
         // Step 4: Keep only grounded, diverse questions. If the library only yields
@@ -193,6 +216,13 @@ actor SuggestedQuestionsService {
     /// Invalidate all caches
     func invalidateAllCaches() {
         cachedQuestions.removeAll()
+    }
+
+    /// Check if a valid, fresh cache exists for the container.
+    func hasValidCache(for containerId: UUID, documentCount: Int) -> Bool {
+        guard let cached = cachedQuestions[containerId] else { return false }
+        guard cached.documentCount == documentCount else { return false }
+        return Date().timeIntervalSince(cached.generatedAt) < Self.cacheMaxAge
     }
 
     // MARK: - Step 1: Diverse Chunk Selection
@@ -503,7 +533,8 @@ actor SuggestedQuestionsService {
         - Prefer direct grounded forms like "What is...", "Which...", "When...", "How much...", or "What should you do if..."
         - If the passage is a warning, prohibition, or conditional instruction, keep the question concrete and safety-grounded
         - Do NOT turn a warning or restriction into a speculative capability question like "Can you..." or "How long can you..." unless the passage explicitly states that allowed capability or duration
-        - Do NOT ask about the documents themselves
+        - Do NOT ask about the documents or passages themselves (e.g., do NOT say "according to the passage", "as mentioned in the text")
+        - Do NOT generate or include any structural or meta references (e.g., referencing rows, columns, cells, tables, page numbers, or "the document/passage")
         - Do NOT include square brackets, placeholders, bullets, numbering, or quotes
         - Return the SAME NUMBER of questions in the SAME ORDER as the candidates below
         \(avoidClause)
@@ -586,6 +617,112 @@ actor SuggestedQuestionsService {
         }
 
         return true
+    }
+
+    @available(iOS 26.0, *)
+    private func generateDirectlyWithLLM(
+        chunks: [DocumentChunk],
+        documents: [Document],
+        avoidTexts: [String] = []
+    ) async -> [SuggestedQuestion] {
+        guard SystemLanguageModel.default.isAvailable else { return [] }
+
+        let passages = buildGroundedPassages(from: chunks, documents: documents, limit: 5)
+        guard !passages.isEmpty else { return [] }
+
+        let candidateText = passages.enumerated().map { index, passage in
+            var headerParts = ["Document: \(passage.documentName)"]
+            if let section = passage.sectionName, !section.isEmpty {
+                headerParts.append("Section: \(section)")
+            }
+            return """
+            [\(index + 1)] \(headerParts.joined(separator: " | "))
+            Passage content:
+            \(passage.content)
+            """
+        }.joined(separator: "\n\n")
+
+        let avoidClause: String
+        if !avoidTexts.isEmpty {
+            let listed = avoidTexts.prefix(6).enumerated()
+                .map { "\($0.offset + 1). \($0.element)" }
+                .joined(separator: "\n")
+            avoidClause = "\n\nIMPORTANT: Do NOT repeat these previously shown questions — generate completely different ones:\n\(listed)\n"
+        } else {
+            avoidClause = ""
+        }
+
+        let prompt = """
+        You are generating starter question chips for a document Q&A app.
+        Generate natural, direct, and interesting questions that are grounded in and answerable by the following passages.
+
+        Each question should be a high-quality, inference-based or analytical inquiry about the key findings, methodologies, concepts, or details in the passages.
+
+        Rules:
+        - Questions must be direct, specific, and interesting (e.g. "How does the model handle [Concept]?" or "Why does [A] affect [B]?" or "What are the limitations of [Method]?").
+        - Avoid generic or textbook-style questions (e.g., do NOT start with "What role does..." or "What is the significance of...").
+        - Every question must be fully answerable by the passage content. Do not speculate or invent details.
+        - Keep each question under 15 words.
+        - Do NOT ask about the documents or passages themselves (e.g., do NOT say "According to document...", "as mentioned in the text").
+        - Do NOT generate or include any structural or meta references (e.g., referencing rows, columns, cells, tables, page numbers, or "the document/passage"). All questions must focus purely on concepts, facts, or domain content.
+        - Do NOT include square brackets, placeholders, bullets, numbering, or quotes.
+        \(avoidClause)
+        PASSAGES:
+        \(candidateText)
+
+        Return ONLY plain question strings through the schema. Do not number them. Do not add bullets or quotes.
+        """
+
+        do {
+            let session = LanguageModelSession()
+            let response = try await session.respond(to: prompt, generating: SuggestedQuestionList.self)
+
+            var generatedQuestions: [SuggestedQuestion] = []
+            for rawText in response.content.questions {
+                guard let questionText = sanitizeGeneratedQuestion(rawText) else { continue }
+
+                // Find the best grounded passage for this question
+                guard let groundedPassage = bestGroundingPassage(for: questionText, passages: passages),
+                      isUsableGeneratedQuestion(questionText, passages: [groundedPassage]),
+                      !isSelfAnsweringGeneratedQuestion(questionText),
+                      isAnswerableSuggestedQuestion(questionText, passage: groundedPassage)
+                else { continue }
+
+                // Infer category
+                let category: QuestionCategory = inferCategoryDirect(for: questionText)
+
+                generatedQuestions.append(SuggestedQuestion(
+                    id: UUID(),
+                    text: questionText,
+                    category: category,
+                    relevantDocuments: [groundedPassage.documentName],
+                    sourceSections: groundedPassage.sectionName.map { [$0] } ?? [],
+                    confidence: 0.85
+                ))
+            }
+
+            return dedupeSuggestedQuestionsPreservingOrder(generatedQuestions)
+        } catch {
+            Log.warning("[SuggestedQuestions] Direct LLM generation failed: \(error.localizedDescription)")
+            return []
+        }
+    }
+
+    private func inferCategoryDirect(for text: String) -> QuestionCategory {
+        let lower = text.lowercased()
+        if lower.contains("compare") || lower.contains("contrast") || lower.contains("versus") || lower.contains(" vs ") || lower.contains("different from") {
+            return .comparison
+        } else if lower.contains("summar") || lower.contains("overview") || lower.contains("outline") {
+            return .summarization
+        } else if lower.hasPrefix("how") || lower.contains("steps") || lower.contains("procedure") {
+            return .procedural
+        } else if lower.contains("why") || lower.contains("explain") || lower.contains("reason") || lower.contains("relation") || lower.contains("impact") || lower.contains("affect") {
+            return .analytical
+        } else if lower.contains("how many") || lower.contains("how much") || lower.contains("percent") || lower.contains("ratio") || lower.contains("rate") || lower.contains("cost") {
+            return .numerical
+        } else {
+            return .factRetrieval
+        }
     }
     #endif
 
@@ -676,6 +813,10 @@ actor SuggestedQuestionsService {
 
         if let findingsDraft = extractFindingsQuestion(from: passage) {
             drafts.append(findingsDraft)
+        }
+
+        for conceptualDraft in extractConceptualQuestion(from: passage) {
+            drafts.append(conceptualDraft)
         }
 
         if let visualDraft = extractVisualQuestion(from: passage) {
@@ -962,6 +1103,130 @@ actor SuggestedQuestionsService {
         )
     }
 
+    private func extractConceptualQuestion(from passage: GroundedPassage) -> [QuestionDraft] {
+        let terms = extractTechnicalTerms(from: passage.content, limit: 2)
+        var drafts: [QuestionDraft] = []
+        
+        for term in terms {
+            guard term.count >= 4 && term.count <= 40 else { continue }
+            
+            let isResearch = passage.chunk.metadata.documentCategory == .scientificPaper
+                || passage.content.lowercased().contains("study")
+                || passage.content.lowercased().contains("research")
+                
+            if isResearch {
+                drafts.append(QuestionDraft(
+                    text: "What did the study find about \(term)?",
+                    category: .analytical,
+                    confidence: 0.85
+                ))
+                drafts.append(QuestionDraft(
+                    text: "How is \(term) used in this research?",
+                    category: .factRetrieval,
+                    confidence: 0.80
+                ))
+                drafts.append(QuestionDraft(
+                    text: "What are the key findings regarding \(term)?",
+                    category: .analytical,
+                    confidence: 0.82
+                ))
+            } else {
+                drafts.append(QuestionDraft(
+                    text: "What is the function of \(term)?",
+                    category: .factRetrieval,
+                    confidence: 0.82
+                ))
+                drafts.append(QuestionDraft(
+                    text: "How does \(term) work?",
+                    category: .analytical,
+                    confidence: 0.78
+                ))
+                drafts.append(QuestionDraft(
+                    text: "What advantages does \(term) provide?",
+                    category: .comparison,
+                    confidence: 0.80
+                ))
+            }
+        }
+        return drafts
+    }
+
+    private func extractTechnicalTerms(from text: String, limit: Int = 3) -> [String] {
+        let sentences = text.components(separatedBy: CharacterSet(charactersIn: ".!?"))
+        var candidates: [String] = []
+        
+        let stopWords = Self.matchStopTokens
+            .union(Self.specSubjectStopTokens)
+            .union(Self.questionFocusStopTokens)
+            .union(["is", "are", "was", "were", "be", "been", "have", "has", "had", "do", "does", "did", "can", "could", "will", "would", "shall", "should", "may", "might", "must", "using", "use", "used", "via", "through", "by", "of", "in", "on", "at", "to", "for", "with", "about", "against", "between", "into", "through", "during", "before", "after", "above", "below", "from", "up", "down", "in", "out", "on", "off", "over", "under", "again", "further", "then", "once"])
+            
+        let isValidTechnicalTerm: (ArraySlice<String>) -> Bool = { combo in
+            guard combo.count >= 2 else { return false }
+            let firstWord = combo.first!
+            let lastWord = combo.last!
+            
+            let isContentWord: (String) -> Bool = { word in
+                let lower = word.lowercased()
+                return lower.count >= 3
+                    && !stopWords.contains(lower)
+                    && !Self.genericStopEntities.contains(lower)
+                    && !word.contains(where: \.isNumber)
+            }
+            
+            guard isContentWord(firstWord) && isContentWord(lastWord) else { return false }
+            
+            let allowedMiddleWords: Set<String> = ["of", "in", "for", "with", "and", "or", "to", "the", "a", "an"]
+            if combo.count > 2 {
+                let middleWords = combo.dropFirst().dropLast()
+                for word in middleWords {
+                    let lower = word.lowercased()
+                    if !isContentWord(word) && !allowedMiddleWords.contains(lower) {
+                        return false
+                    }
+                }
+            }
+            return true
+        }
+
+        for sentence in sentences {
+            let words = sentence
+                .replacingOccurrences(of: #"[^a-zA-Z\s-]"#, with: "", options: .regularExpression)
+                .split(separator: " ")
+                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .filter { !$0.isEmpty }
+                
+            guard words.count >= 2 else { continue }
+            
+            for size in [2, 3, 4] {
+                guard words.count >= size else { continue }
+                for i in 0...(words.count - size) {
+                    let combo = words[i..<(i + size)]
+                    if isValidTechnicalTerm(combo) {
+                        let phrase = combo.joined(separator: " ")
+                        candidates.append(phrase)
+                    }
+                }
+            }
+        }
+        
+        var counts: [String: Int] = [:]
+        for c in candidates {
+            let key = c.lowercased()
+            counts[key, default: 0] += 1
+        }
+        
+        let uniqueCandidates = Array(Set(candidates)).sorted { a, b in
+            let countA = counts[a.lowercased()] ?? 0
+            let countB = counts[b.lowercased()] ?? 0
+            if countA == countB {
+                return a.count > b.count
+            }
+            return countA > countB
+        }
+        
+        return Array(uniqueCandidates.prefix(limit))
+    }
+
     private func passageLooksDefinitional(_ text: String, topic: String) -> Bool {
         let lower = text.lowercased()
         let lowerTopic = topic.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
@@ -992,7 +1257,7 @@ actor SuggestedQuestionsService {
         }
 
         return QuestionDraft(
-            text: "What does the figure show about \(naturalQuestionTopic(topic))?",
+            text: "What details are shown for \(naturalQuestionTopic(topic))?",
             category: .factRetrieval,
             confidence: 0.8
         )
@@ -1144,7 +1409,8 @@ actor SuggestedQuestionsService {
             .map(String.init)
             .filter { word in
                 let lower = word.lowercased().trimmingCharacters(in: .punctuationCharacters)
-                return lower.count >= 2 && !Self.specSubjectStopTokens.contains(lower)
+                let hasLetters = lower.contains(where: \.isLetter)
+                return lower.count >= 2 && !Self.specSubjectStopTokens.contains(lower) && hasLetters
             }
 
         guard !words.isEmpty else { return nil }
@@ -1356,13 +1622,36 @@ actor SuggestedQuestionsService {
         return cleaned
     }
 
+    private func isGenericOrStructuralToken(_ token: String) -> Bool {
+        let lower = token.lowercased()
+        if lower.allSatisfy({ $0.isNumber || $0.isPunctuation }) {
+            return true
+        }
+        if lower.count <= 1 {
+            return true
+        }
+        let romanNumerals: Set<String> = ["i", "ii", "iii", "iv", "v", "vi", "vii", "viii", "ix", "x", "xi", "xii", "xiii", "xiv", "xv", "xvi", "xvii", "xviii", "xix", "xx"]
+        if romanNumerals.contains(lower) {
+            return true
+        }
+        let structuralTerms: Set<String> = [
+            "row", "rows", "column", "columns", "col", "cols", "table", "tables",
+            "page", "pages", "fig", "figs", "figure", "figures", "section", "sections",
+            "chapter", "chapters", "part", "parts", "line", "lines", "cell", "cells",
+            "item", "items", "appendix", "appendices", "document", "documents",
+            "paper", "papers", "report", "reports", "study", "studies", "research",
+            "author", "authors", "value", "values"
+        ]
+        if structuralTerms.contains(lower) {
+            return true
+        }
+        return Self.genericStopEntities.contains(lower) || Self.specSubjectStopTokens.contains(lower)
+    }
+
     private func isGenericQuestionTopic(_ topic: String) -> Bool {
         let tokens = meaningfulTokens(from: topic)
         guard !tokens.isEmpty else { return true }
-        if tokens.count == 1, let only = tokens.first {
-            return Self.genericStopEntities.contains(only) || Self.specSubjectStopTokens.contains(only)
-        }
-        return tokens.allSatisfy { Self.genericStopEntities.contains($0) || Self.specSubjectStopTokens.contains($0) }
+        return tokens.allSatisfy { isGenericOrStructuralToken($0) }
     }
 
     // MARK: - Step 4: Diversity Enforcement
@@ -1616,11 +1905,13 @@ actor SuggestedQuestionsService {
         case .summarize:
             let summarySupport = passage.chunk.metadata.abstractionLevel.isSummary
                 || passage.chunk.metadata.documentCategory == .scientificPaper
+                || grounding >= 4.0
             return summarySupport && grounding >= 3.0 && (bodyOverlap >= 1 || sectionOverlap >= 1)
         case .investigate, .findings:
             let researchSupport = passage.chunk.metadata.abstractionLevel.isSummary
                 || passage.chunk.metadata.documentCategory == .scientificPaper
                 || passage.chunk.metadata.hasCrossReferences
+                || grounding >= 4.0
             return researchSupport && grounding >= 3.0 && (bodyOverlap >= 1 || sectionOverlap >= 1)
         case .compute:
             return passage.chunk.metadata.hasNumericData
@@ -1673,9 +1964,71 @@ actor SuggestedQuestionsService {
         return 0
     }
 
+    private func isStructuralOrMetaQuestion(_ lower: String) -> Bool {
+        // Pattern 1: Ordinal or demonstrative/article/pronoun directly before a structural noun (singular or plural),
+        // e.g., "the table", "this passage", "which row", "first column", "each cell"
+        let modifierPattern = #"\b(?:this|the|an?|above|below|next|previous|first|second|third|fourth|fifth|sixth|seventh|eighth|ninth|tenth|particular|which|what|each|every|any|some|various)\s+(?:document|passage|table|figure|fig|chart|diagram|row|column|col|cell|page|paragraph|section|chapter|slide)s?\b"#
+        if lower.range(of: modifierPattern, options: .regularExpression) != nil {
+            return true
+        }
+
+        // Pattern 2: Structural nouns followed by numbers, letters, or word-form numbers,
+        // e.g., "table 3", "page B", "row one", "figure 4"
+        let numberPattern = #"\b(?:document|passage|table|figure|fig|chart|diagram|row|column|col|cell|page|paragraph|section|chapter|slide|line)s?\b\s*(?:\d+|[a-z]\b|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|ii+|iv|vi+|ix|xi+|xx)"#
+        if lower.range(of: numberPattern, options: .regularExpression) != nil {
+            return true
+        }
+
+        // Pattern 3: Prepositions or verbs referring to layout locations,
+        // e.g., "in the document", "from this table", "on page 5", "shown in columns", "referenced in section"
+        let prepositionPattern = #"\b(?:according\s+to|in|from|on|of|about|within|referenced\s+in|shown\s+in|listed\s+in|stated\s+in|mentioned\s+in|described\s+in|refer\s+to|read\s+in|see\s+in)\s+(?:the|this|these|our|your)?\s*(?:document|documents|passage|passages|table|tables|figure|figures|fig|figs|chart|charts|diagram|diagrams|row|rows|column|columns|col|cols|cell|cells|page|pages|paragraph|paragraphs|section|sections|chapter|chapters|slide|slides|text|source|sources)\b"#
+        if lower.range(of: prepositionPattern, options: .regularExpression) != nil {
+            return true
+        }
+
+        // Pattern 4: General check for explicit meta references to the document or passage containing the facts
+        let metaPhrases = [
+            "what does the document", "what do the documents", "in this document", "in these documents",
+            "the uploaded", "uploaded document", "uploaded documents", "from the passage", "from the passages",
+            "according to the text", "mentioned in the text", "stated in the text", "the text says", "in the text",
+            "what is in the column", "what is in the row", "what are the results of the second column",
+            "in the table", "in this table", "above table", "below table"
+        ]
+        if metaPhrases.contains(where: { lower.contains($0) }) {
+            return true
+        }
+
+        // Pattern 5: Standalone structural questions that directly ask about these items as structural entities,
+        // e.g. "What does the cell represent?" (referring to a table cell)
+        // If the word is "column", "row", "table", "passage", "document" and it is not part of a known non-structural compound:
+        let structuralNouns = ["row", "rows", "column", "columns", "col", "cols", "table", "tables", "passage", "passages", "document", "documents", "paragraph", "paragraphs", "page", "pages"]
+        for noun in structuralNouns {
+            let nounPattern = #"\b"# + noun + #"\b"#
+            if lower.range(of: nounPattern, options: .regularExpression) != nil {
+                // Check for allowed non-structural compound phrases containing these nouns
+                let allowedCompounds = [
+                    "periodic table", "water table", "round table", "dining table", "coffee table",
+                    "neural cell", "stem cell", "red blood cell", "white blood cell", "fuel cell",
+                    "cell biology", "cell division", "cell membrane", "cell wall", "solar cell",
+                    "rowing", "columnar", "rowed"
+                ]
+                if !allowedCompounds.contains(where: { lower.contains($0) }) {
+                    return true
+                }
+            }
+        }
+
+        return false
+    }
+
     private func shouldSurfaceSuggestedQuestion(_ question: SuggestedQuestion) -> Bool {
         let lower = question.text.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
         guard !isBoilerplateQuestionTemplate(lower) else { return false }
+
+        if isStructuralOrMetaQuestion(lower) {
+            return false
+        }
+
         let hasAcronymDefinitionFocus = lower.hasPrefix("what does ")
             && question.text.range(of: #"\b[A-Z0-9]{2,8}\b"#, options: .regularExpression) != nil
 
@@ -1684,7 +2037,13 @@ actor SuggestedQuestionsService {
             "easy to miss",
             "say to do next",
             "matter most",
-            "stand out"
+            "stand out",
+            "what does the document say",
+            "what do the documents say",
+            "uploaded document",
+            "uploaded documents",
+            "from the passage",
+            "from the passages"
         ]
         if bannedFragments.contains(where: { lower.contains($0) }) {
             return false
@@ -1698,7 +2057,8 @@ actor SuggestedQuestionsService {
         }
 
         let focusTokens = questionFocusTokens(from: question.text)
-        guard focusTokens.count >= 2 || hasAcronymDefinitionFocus else { return false }
+        let hasSpecificFocus = focusTokens.count == 1 && focusTokens.contains(where: isLikelySpecificSuggestionFocusToken)
+        guard focusTokens.count >= 2 || hasAcronymDefinitionFocus || hasSpecificFocus else { return false }
 
         let documentTokens = Set(question.relevantDocuments.flatMap { meaningfulTokens(from: $0) })
         let sectionTokens = Set(question.sourceSections.flatMap { meaningfulTokens(from: $0) })
@@ -1725,8 +2085,11 @@ actor SuggestedQuestionsService {
             return false
         }
 
-        if (question.category == .analytical || question.category == .summarization) && focusTokens.count < 3 {
-            return false
+        if (question.category == .analytical || question.category == .summarization) {
+            let hasSpecificFocusToken = focusTokens.contains(where: isLikelySpecificSuggestionFocusToken)
+            if focusTokens.count < (hasSpecificFocusToken ? 2 : 3) {
+                return false
+            }
         }
 
         if !sourceTokens.isEmpty,
@@ -1922,6 +2285,10 @@ actor SuggestedQuestionsService {
     ) -> Bool {
         let lower = question.lowercased()
         if isBoilerplateQuestionTemplate(lower) {
+            return false
+        }
+
+        if isStructuralOrMetaQuestion(lower) {
             return false
         }
         let bannedFragments = [
@@ -2207,19 +2574,22 @@ actor SuggestedQuestionsService {
 
     /// Generic nouns that NLTagger marks as "entities" but are useless for questions
     private static let genericStopEntities: Set<String> = [
-        "analysis", "data", "system", "method", "model", "approach", "result",
-        "study", "research", "process", "framework", "structure", "design",
-        "implementation", "performance", "evaluation", "table", "figure",
-        "section", "chapter", "page", "document", "paper", "report",
-        "specification", "specifications",
-        "author", "authors", "manuscript", "article", "journal", "publication",
+        "analysis", "analyses", "data", "system", "systems", "method", "methods", "model", "models",
+        "approach", "approaches", "result", "results", "study", "studies", "process", "processes",
+        "framework", "frameworks", "structure", "structures", "design", "designs",
+        "implementation", "implementations", "performance", "evaluation", "evaluations",
+        "table", "tables", "figure", "figures", "section", "sections", "chapter", "chapters",
+        "page", "pages", "document", "documents", "paper", "papers", "report", "reports",
+        "specification", "specifications", "author", "authors", "manuscript", "manuscripts",
+        "article", "articles", "journal", "journals", "publication", "publications",
         "keyword", "keywords", "copyright", "funding", "disclosure", "disclosures",
         "conflict", "conflicts", "interest", "interests", "acknowledgement", "acknowledgements",
         "supplement", "supplements", "supplementary",
-        "information", "content", "text", "type", "level", "value",
-        "group", "number", "part", "case", "example", "form", "area",
-        "point", "time", "work", "thing", "way", "issue", "problem",
-        "question", "answer", "item", "list", "set", "use", "end"
+        "information", "content", "text", "type", "level", "levels", "value", "values",
+        "group", "groups", "number", "numbers", "part", "parts", "case", "cases",
+        "example", "examples", "form", "forms", "area", "areas",
+        "point", "points", "time", "work", "thing", "things", "way", "ways", "issue", "issues", "problem", "problems",
+        "question", "questions", "answer", "answers", "item", "items", "list", "lists", "set", "sets", "use", "end"
     ]
 
     private static let matchStopTokens: Set<String> = [
@@ -2230,7 +2600,10 @@ actor SuggestedQuestionsService {
         "many", "long", "happens", "important", "actually", "main", "point",
         "points", "details", "explain", "tell", "analyze", "evaluate", "review",
         "discuss", "summarize", "author", "authors", "manuscript", "article",
-        "journal", "publication", "guidance"
+        "journal", "publication", "guidance",
+        "say", "says", "said", "mention", "mentions", "mentioned", "tell", "tells", "told",
+        "discuss", "discusses", "discussed", "show", "shows", "shown", "describe",
+        "describes", "described", "find", "finds", "found"
     ]
 
     private static let specSubjectStopTokens: Set<String> = [
@@ -2238,7 +2611,10 @@ actor SuggestedQuestionsService {
         "about", "page", "section", "table", "figure", "see", "refer", "when",
         "where", "which", "with", "without", "and", "or", "the", "for", "from",
         "value", "values", "specification", "specifications", "author", "authors",
-        "manuscript", "article", "journal", "publication"
+        "manuscript", "article", "journal", "publication",
+        "row", "column", "col", "cols", "rows", "line", "lines", "cell", "cells",
+        "item", "items", "no", "id", "idx", "index", "indices", "of", "in", "at", "on", "by", "to",
+        "first", "second", "third", "fourth", "fifth", "sixth", "seventh", "eighth", "ninth", "tenth", "next", "last", "previous"
     ]
 
     private static let proceduralTopicStopTokens: Set<String> = [
@@ -2271,10 +2647,11 @@ actor SuggestedQuestionsService {
     private static let questionFocusStopTokens: Set<String> = [
         "what", "when", "where", "which", "who", "how", "should", "would", "could",
         "apply", "compare", "warning", "warnings", "limit", "limits", "required",
-        "requirements", "minimum", "matter", "matters", "attention", "avoid", "first",
+        "requirements", "minimum", "matter", "matters", "avoid", "first",
         "important", "stand", "stands", "out", "there", "here", "anything", "need",
         "check", "using", "before", "after", "setup", "step", "steps", "next",
-        "operating", "requirement"
+        "operating", "requirement",
+        "second", "third", "fourth", "fifth", "sixth", "seventh", "eighth", "ninth", "tenth", "last", "previous"
     ]
 
     /// Extract number-in-context phrases like "360 DPI", "14.3 US gal", "$49.99/year"

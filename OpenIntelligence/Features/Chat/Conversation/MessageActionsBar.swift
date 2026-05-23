@@ -294,7 +294,7 @@ struct MessageMetadataPanel: View {
                 }
                 .background(
                     RoundedRectangle(cornerRadius: 10, style: .continuous)
-                        .fill(Color(uiColor: .secondarySystemBackground))
+                        .fill(DSColors.surface)
                 )
                 .transition(.opacity.combined(with: .move(edge: .top)))
             }

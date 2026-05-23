@@ -96,7 +96,7 @@ struct ContextUsageIndicator: View {
         .padding(10)
         .background(
             RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .fill(Color(uiColor: .tertiarySystemBackground))
+                .fill(DSColors.surfaceElevated)
         )
     }
     

@@ -631,7 +631,7 @@ private struct MarkdownBlockView: View {
             .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
             .overlay(
                 RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .stroke(Color(uiColor: .separator).opacity(0.2), lineWidth: 1)
+                    .stroke(DSColors.border.opacity(0.2), lineWidth: 1)
             )
         }
     }

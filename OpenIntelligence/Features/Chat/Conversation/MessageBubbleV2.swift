@@ -270,7 +270,7 @@ struct MessageBubbleV2: View {
                 endPoint: .bottomTrailing
             )
         } else {
-            Color(uiColor: .secondarySystemBackground)
+            DSColors.surface
         }
     }
 

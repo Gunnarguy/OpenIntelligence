@@ -1658,7 +1658,7 @@ struct UnifiedMetricsBar: View {
         }
         .frame(maxHeight: 450) // Slightly more room for new sections
         .padding(14)
-        .background(Color(uiColor: .secondarySystemBackground))
+        .background(DSColors.surface)
         .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         .padding(.top, 4)
     }
@@ -3391,7 +3391,7 @@ struct UnifiedMetricsBar: View {
             }
         }
         .padding(12)
-        .background(Color(uiColor: .tertiarySystemBackground))
+        .background(DSColors.surfaceElevated)
         .clipShape(RoundedRectangle(cornerRadius: 10))
     }
 
@@ -3558,7 +3558,7 @@ struct UnifiedMetricsBar: View {
         }
         .padding(.vertical, 4)
         .padding(.horizontal, 8)
-        .background(Color(uiColor: .tertiarySystemBackground))
+        .background(DSColors.surfaceElevated)
         .clipShape(RoundedRectangle(cornerRadius: 6))
     }
 
@@ -3847,7 +3847,7 @@ struct UnifiedMetricsBar: View {
             }
         }
         .padding(12)
-        .background(Color(uiColor: .tertiarySystemBackground))
+        .background(DSColors.surfaceElevated)
         .clipShape(RoundedRectangle(cornerRadius: 12))
     }
 
@@ -3951,7 +3951,7 @@ struct UnifiedMetricsBar: View {
             }
         }
         .padding(12)
-        .background(Color(uiColor: .tertiarySystemBackground))
+        .background(DSColors.surfaceElevated)
         .clipShape(RoundedRectangle(cornerRadius: 12))
     }
 
@@ -4163,7 +4163,7 @@ struct UnifiedMetricsBar: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(10)
-        .background(Color(uiColor: .tertiarySystemBackground))
+        .background(DSColors.surfaceElevated)
         .clipShape(RoundedRectangle(cornerRadius: 10))
     }
 
@@ -4224,7 +4224,7 @@ struct UnifiedMetricsBar: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(10)
-        .background(Color(uiColor: .tertiarySystemBackground))
+        .background(DSColors.surfaceElevated)
         .clipShape(RoundedRectangle(cornerRadius: 10))
     }
 
@@ -4249,7 +4249,7 @@ struct UnifiedMetricsBar: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(10)
-        .background(Color(uiColor: .tertiarySystemBackground))
+        .background(DSColors.surfaceElevated)
         .clipShape(RoundedRectangle(cornerRadius: 10))
     }
 
@@ -4311,7 +4311,7 @@ struct UnifiedMetricsBar: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(10)
-        .background(Color(uiColor: .tertiarySystemBackground))
+        .background(DSColors.surfaceElevated)
         .clipShape(RoundedRectangle(cornerRadius: 10))
     }
 

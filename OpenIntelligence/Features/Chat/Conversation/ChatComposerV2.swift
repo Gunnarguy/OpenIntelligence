@@ -5,7 +5,9 @@
 //  Modern composer with glass morphism, action buttons, and fluid animations
 //
 
+#if os(iOS)
 import PhotosUI
+#endif
 import SwiftUI
 
 struct ChatComposerV2: View {
@@ -32,7 +34,11 @@ struct ChatComposerV2: View {
     @State private var showCamera = false
 
     private var isCameraAvailable: Bool {
+        #if os(iOS)
         UIImagePickerController.isSourceTypeAvailable(.camera)
+        #else
+        false
+        #endif
     }
 
     private var canSend: Bool {
@@ -168,14 +174,24 @@ struct ChatComposerV2: View {
         handlePickedFiles(urls, type: .photo)
     }
 }
-.fullScreenCover(isPresented: $showCamera) {
-    CameraPicker { url in
-        if let url = url {
-            handlePickedFiles([url], type: .camera)
+        #if os(iOS)
+        .fullScreenCover(isPresented: $showCamera) {
+            CameraPicker { url in
+                if let url = url {
+                    handlePickedFiles([url], type: .camera)
+                }
+            }
+            .ignoresSafeArea()
         }
-    }
-    .ignoresSafeArea()
-}
+        #else
+        .sheet(isPresented: $showCamera) {
+            CameraPicker { url in
+                if let url = url {
+                    handlePickedFiles([url], type: .camera)
+                }
+            }
+        }
+        #endif
     }
 
     private var buttonBackground: some ShapeStyle {

@@ -5,7 +5,14 @@
 //  Unified attachment picker supporting documents, photos, and camera capture
 //
 
+#if os(iOS)
 import PhotosUI
+import UIKit
+#else
+import AppKit
+typealias UIImage = NSImage
+#endif
+
 import SwiftUI
 import UniformTypeIdentifiers
 
@@ -35,6 +42,7 @@ struct ChatAttachment: Identifiable, Sendable {
 
 // MARK: - Photo Picker
 
+#if os(iOS)
 struct PhotoPicker: UIViewControllerRepresentable {
     let onImagesPicked: ([URL]) -> Void
 
@@ -114,9 +122,31 @@ struct PhotoPicker: UIViewControllerRepresentable {
         }
     }
 }
+#else
+struct PhotoPicker: View {
+    let onImagesPicked: ([URL]) -> Void
+    @Environment(\.dismiss) var dismiss
+
+    var body: some View {
+        Color.clear
+            .onAppear {
+                let panel = NSOpenPanel()
+                panel.allowsMultipleSelection = true
+                panel.canChooseDirectories = false
+                panel.canChooseFiles = true
+                panel.allowedContentTypes = [.image]
+                if panel.runModal() == .OK {
+                    onImagesPicked(panel.urls)
+                }
+                dismiss()
+            }
+    }
+}
+#endif
 
 // MARK: - Camera Capture
 
+#if os(iOS)
 struct CameraPicker: UIViewControllerRepresentable {
     let onImageCaptured: (URL?) -> Void
 
@@ -177,6 +207,20 @@ struct CameraPicker: UIViewControllerRepresentable {
         }
     }
 }
+#else
+struct CameraPicker: View {
+    let onImageCaptured: (URL?) -> Void
+    @Environment(\.dismiss) var dismiss
+
+    var body: some View {
+        Color.clear
+            .onAppear {
+                onImageCaptured(nil)
+                dismiss()
+            }
+    }
+}
+#endif
 
 // MARK: - Attachment Preview Chip
 
@@ -187,6 +231,7 @@ struct AttachmentPreviewChip: View {
     var body: some View {
         HStack(spacing: 6) {
             // Thumbnail or icon
+            #if os(iOS)
             if let thumbnail = attachment.thumbnail {
                 Image(uiImage: thumbnail)
                     .resizable()
@@ -201,6 +246,22 @@ struct AttachmentPreviewChip: View {
                     .background(DSColors.accent.opacity(0.15))
                     .clipShape(RoundedRectangle(cornerRadius: 6))
             }
+            #else
+            if let thumbnail = attachment.thumbnail {
+                Image(nsImage: thumbnail)
+                    .resizable()
+                    .aspectRatio(contentMode: .fill)
+                    .frame(width: 28, height: 28)
+                    .clipShape(RoundedRectangle(cornerRadius: 6))
+            } else {
+                Image(systemName: attachment.type.icon)
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundStyle(DSColors.accent)
+                    .frame(width: 28, height: 28)
+                    .background(DSColors.accent.opacity(0.15))
+                    .clipShape(RoundedRectangle(cornerRadius: 6))
+            }
+            #endif
 
             // Filename
             Text(attachment.url.lastPathComponent)
@@ -270,6 +331,7 @@ struct AttachmentMenuButton: View {
 
 // MARK: - Extended Document Picker (includes images)
 
+#if os(iOS)
 struct ExtendedDocumentPicker: UIViewControllerRepresentable {
     let onDocumentsPicked: ([URL]) -> Void
 
@@ -373,9 +435,110 @@ struct ExtendedDocumentPicker: UIViewControllerRepresentable {
         }
     }
 }
+#else
+struct ExtendedDocumentPicker: View {
+    let onDocumentsPicked: ([URL]) -> Void
+    @Environment(\.dismiss) var dismiss
+
+    var body: some View {
+        Color.clear
+            .onAppear {
+                let fileManager = FileManager.default
+                let documentsPath = fileManager.urls(for: .documentDirectory, in: .userDomainMask)[0]
+                let attachmentsDir = documentsPath.appendingPathComponent("ChatAttachments", isDirectory: true)
+                try? fileManager.createDirectory(at: attachmentsDir, withIntermediateDirectories: true)
+
+                let panel = NSOpenPanel()
+                panel.allowsMultipleSelection = true
+                panel.canChooseDirectories = false
+                panel.canChooseFiles = true
+                panel.allowedContentTypes = [
+                    .pdf,
+                    .plainText,
+                    .text,
+                    UTType(filenameExtension: "md") ?? .plainText,
+                    .rtf,
+                    UTType(filenameExtension: "doc") ?? .data,
+                    UTType(filenameExtension: "docx") ?? .data,
+                    UTType(filenameExtension: "xls") ?? .data,
+                    UTType(filenameExtension: "xlsx") ?? .data,
+                    UTType(filenameExtension: "ppt") ?? .data,
+                    UTType(filenameExtension: "pptx") ?? .data,
+                    UTType(filenameExtension: "pages") ?? .data,
+                    UTType(filenameExtension: "numbers") ?? .data,
+                    UTType(filenameExtension: "key") ?? .data,
+                    .commaSeparatedText,
+                    .image,
+                    .jpeg,
+                    .png,
+                    .heic,
+                    .tiff,
+                    UTType(filenameExtension: "swift") ?? .sourceCode,
+                    UTType(filenameExtension: "py") ?? .sourceCode,
+                    UTType(filenameExtension: "js") ?? .sourceCode,
+                    UTType(filenameExtension: "ts") ?? .sourceCode,
+                    UTType(filenameExtension: "json") ?? .json,
+                    UTType(filenameExtension: "html") ?? .html,
+                    .json,
+                    .audio,
+                    .mp3,
+                    UTType(filenameExtension: "m4a") ?? .audio,
+                    .wav,
+                    .movie,
+                    .mpeg4Movie,
+                    .quickTimeMovie
+                ]
+                if panel.runModal() == .OK {
+                    var copiedURLs: [URL] = []
+                    for url in panel.urls {
+                        // Use unique filename to avoid conflicts
+                        let uniqueName = "\(UUID().uuidString)_\(url.lastPathComponent)"
+                        let destinationURL = attachmentsDir.appendingPathComponent(uniqueName)
+                        do {
+                            if fileManager.fileExists(atPath: destinationURL.path) {
+                                try fileManager.removeItem(at: destinationURL)
+                            }
+                            try fileManager.copyItem(at: url, to: destinationURL)
+                            copiedURLs.append(destinationURL)
+                            Log.debug("[ExtendedDocumentPicker] Copied: \(url.lastPathComponent)", category: .ingestion)
+                        } catch {
+                            Log.error("[ExtendedDocumentPicker] Copy failed: \(error)", category: .ingestion)
+                        }
+                    }
+                    onDocumentsPicked(copiedURLs)
+                }
+                dismiss()
+            }
+    }
+}
+#endif
 
 // MARK: - Thumbnail Generator
 
+#if os(macOS)
+@MainActor
+func generateThumbnail(for url: URL) -> NSImage? {
+    let ext = url.pathExtension.lowercased()
+
+    // For images, load and resize
+    if ["jpg", "jpeg", "png", "heic", "tiff", "gif"].contains(ext) {
+        if let data = try? Data(contentsOf: url),
+           let image = NSImage(data: data)
+        {
+            let size = NSSize(width: 60, height: 60)
+            let destImage = NSImage(size: size)
+            destImage.lockFocus()
+            NSGraphicsContext.current?.imageInterpolation = .high
+            NSColor.white.setFill()
+            NSRect(origin: .zero, size: size).fill()
+            image.draw(in: NSRect(origin: .zero, size: size), from: .zero, operation: .copy, fraction: 1.0)
+            destImage.unlockFocus()
+            return destImage
+        }
+    }
+    return nil
+}
+#else
 @MainActor
 func generateThumbnail(for url: URL) -> UIImage? {
     let ext = url.pathExtension.lowercased()
@@ -405,6 +568,7 @@ func generateThumbnail(for url: URL) -> UIImage? {
 
     return nil
 }
+#endif
 
 #Preview {
     AttachmentMenuButton(

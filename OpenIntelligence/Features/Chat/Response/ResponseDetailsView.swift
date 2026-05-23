@@ -50,6 +50,7 @@ struct ChatResponseDetailsView: View {
             .navigationTitle("Response Details")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                #if os(iOS)
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
                         dismiss()
@@ -59,6 +60,17 @@ struct ChatResponseDetailsView: View {
                             .foregroundStyle(.secondary.opacity(0.6))
                     }
                 }
+                #else
+                ToolbarItem(placement: .confirmationAction) {
+                    Button {
+                        dismiss()
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.system(size: 24))
+                            .foregroundStyle(.secondary.opacity(0.6))
+                    }
+                }
+                #endif
             }
         }
     }
