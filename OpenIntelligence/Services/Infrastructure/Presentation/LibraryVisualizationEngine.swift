@@ -605,13 +605,35 @@ final class LibraryVisualizationEngine: ObservableObject {
     private func generateTopicName(from keywords: [String]) -> String {
         guard !keywords.isEmpty else { return "General" }
 
-        // Common garbage words to skip (fragments, articles, etc.)
+        // Common garbage words to skip (fragments, articles, formatting/structural noise)
         let skipWords: Set<String> = [
+            // Pronouns / Articles / Conjunctions / Grammatical noise
             "the", "and", "for", "with", "this", "that", "from", "have", "are",
             "was", "were", "been", "being", "will", "would", "could", "should",
             "may", "might", "must", "can", "not", "but", "all", "any", "some",
             "its", "use", "using", "used", "also", "more", "most", "other",
             "new", "one", "two", "see", "set", "get", "make", "made",
+            "general", "content", "information", "data", "text", "document",
+            "our", "your", "their", "his", "her", "only", "many", "much",
+            "most", "few", "both", "each", "every", "same", "different",
+            "old", "high", "low", "great", "small", "large", "good", "bad",
+            "best", "worst", "true", "false", "yes", "no", "non", "without",
+            "into", "onto", "over", "under", "after", "before", "between",
+            "among", "through", "during", "while", "until",
+            
+            // Generic structural, formatting, and layout noise
+            "part", "parts", "list", "lists", "step", "steps", "page", "pages",
+            "section", "sections", "chapter", "chapters", "table", "tables",
+            "row", "rows", "column", "columns", "col", "cols", "line", "lines",
+            "cell", "cells", "item", "items", "detail", "details", "description",
+            "descriptions", "summary", "summaries", "overview", "introduction",
+            "conclusion", "conclusions", "appendix", "appendices", "figure",
+            "figures", "fig", "figs", "image", "images", "photo", "photos",
+            "graph", "graphs", "chart", "charts", "diagram", "diagrams",
+            "value", "values", "number", "numbers", "digit", "digits", "type",
+            "types", "form", "forms", "group", "groups", "user", "users",
+            "read", "write", "show", "find", "here", "there", "problem", "problems",
+            "issue", "issues", "solution", "solutions"
         ]
 
         // Filter to meaningful keywords (3+ chars, not garbage)
@@ -671,11 +693,15 @@ final class LibraryVisualizationEngine: ObservableObject {
         // Score each domain by keyword match count (most matches wins, no priority bias)
         let domainTerms: [(String, [String])] = [
             ("technical", ["api", "function", "code", "software", "algorithm", "database", "server",
-                          "programming", "developer", "git", "deploy", "kubernetes"]),
+                          "programming", "developer", "git", "deploy", "cloud", "kubernetes"]),
             ("legal", ["agreement", "contract", "liability", "hereby", "pursuant", "jurisdiction",
-                      "plaintiff", "defendant", "court", "attorney"]),
-            ("life sciences", ["study", "protocol", "cohort", "assay", "outcome", "literature",
-                        "sample", "specimen", "biomarker"]),
+                      "plaintiff", "defendant", "court", "law", "legal", "attorney"]),
+            ("medical", ["study", "protocol", "cohort", "assay", "sample", "specimen",
+                       "biology", "life science", "biomarker", "literature", "methods", "outcome"]),
+            ("financial", ["revenue", "profit", "investment", "portfolio", "stock", "market",
+                         "financial", "accounting", "budget", "expense", "asset"]),
+            ("academic", ["research", "hypothesis", "methodology", "findings", "abstract",
+                         "study", "thesis", "dissertation", "peer-reviewed", "journal"]),
         ]
 
         var bestDomain = "general"
@@ -700,43 +726,72 @@ final class LibraryVisualizationEngine: ObservableObject {
         switch domain {
         case "technical":
             patterns = [
-                (["api", "endpoint", "rest", "graphql"], "API Reference"),
-                (["authentication", "auth", "oauth", "token", "login"], "Authentication"),
-                (["database", "sql", "query", "schema"], "Database"),
-                (["deployment", "deploy", "ci/cd", "docker"], "Deployment"),
-                (["configuration", "config", "settings", "env"], "Configuration"),
-                (["testing", "test", "unit test", "integration"], "Testing"),
-                (["error", "exception", "debugging"], "Error Handling"),
-                (["security", "encryption", "ssl", "tls"], "Security"),
-                (["performance", "optimization", "cache"], "Performance"),
+                (["api", "endpoint", "rest", "graphql", "request", "response"], "API Reference"),
+                (["authentication", "auth", "oauth", "token", "login", "jwt"], "Authentication"),
+                (["database", "sql", "query", "schema", "table", "index"], "Database"),
+                (["deployment", "deploy", "ci/cd", "pipeline", "docker", "kubernetes"], "Deployment"),
+                (["configuration", "config", "settings", "environment", "env"], "Configuration"),
+                (["testing", "test", "unit test", "integration", "spec"], "Testing"),
+                (["error", "exception", "debugging", "troubleshoot", "log"], "Error Handling"),
+                (["security", "encryption", "ssl", "tls", "https"], "Security"),
+                (["performance", "optimization", "cache", "latency", "speed"], "Performance"),
+                (["architecture", "design", "pattern", "structure", "system"], "Architecture"),
             ]
 
         case "legal":
             patterns = [
-                (["liability", "indemnify", "damages"], "Liability & Indemnity"),
-                (["confidential", "nda", "non-disclosure"], "Confidentiality"),
-                (["termination", "cancel", "expiration"], "Termination"),
-                (["payment", "fee", "compensation"], "Payment Terms"),
-                (["intellectual property", "copyright", "trademark"], "Intellectual Property"),
-                (["dispute", "arbitration", "mediation"], "Dispute Resolution"),
+                (["liability", "indemnify", "indemnification", "damages"], "Liability & Indemnity"),
+                (["confidential", "nda", "non-disclosure", "proprietary"], "Confidentiality"),
+                (["termination", "cancel", "expiration", "end"], "Termination"),
+                (["payment", "fee", "compensation", "billing"], "Payment Terms"),
+                (["intellectual property", "ip", "copyright", "trademark", "patent"], "Intellectual Property"),
+                (["dispute", "arbitration", "mediation", "resolution"], "Dispute Resolution"),
+                (["warranty", "guarantee", "representation"], "Warranties"),
+                (["compliance", "regulation", "gdpr", "hipaa"], "Compliance"),
             ]
 
         case "medical":
             patterns = [
-                (["diagnosis", "symptom", "condition"], "Diagnosis"),
-                (["treatment", "therapy", "procedure"], "Treatment Options"),
-                (["medication", "drug", "prescription", "dosage"], "Medications"),
-                (["side effect", "adverse", "reaction"], "Side Effects"),
+                (["study", "protocol", "cohort", "trial"], "Study Design"),
+                (["assay", "sample", "specimen", "cell"], "Assay Notes"),
+                (["protein", "gene", "genome", "biomarker"], "Biomarkers"),
+                (["method", "methods", "procedure", "intervention"], "Methods"),
+                (["result", "finding", "outcome", "endpoint"], "Results"),
+                (["lab", "test", "measurement", "signal"], "Measurements"),
+                (["analysis", "statistics", "p-value", "confidence"], "Analysis"),
+                (["literature", "citation", "abstract", "paper"], "Literature"),
+            ]
+
+        case "financial":
+            patterns = [
+                (["revenue", "income", "earnings", "proceeds"], "Revenue Analysis"),
+                (["expense", "cost", "spending", "overhead"], "Expenses"),
+                (["investment", "portfolio", "return", "roi"], "Investments"),
+                (["budget", "forecast", "projection", "plan"], "Budget & Forecast"),
+                (["tax", "taxation", "deduction", "credit"], "Tax Information"),
+                (["risk", "assessment", "management", "exposure"], "Risk Management"),
+                (["compliance", "audit", "regulation", "sox"], "Compliance & Audit"),
+                (["cash flow", "liquidity", "working capital"], "Cash Flow"),
+            ]
+
+        case "academic":
+            patterns = [
+                (["abstract", "summary", "overview"], "Abstract"),
+                (["introduction", "background", "context"], "Introduction"),
+                (["methodology", "method", "approach", "design"], "Methodology"),
+                (["result", "finding", "data", "observation"], "Results"),
+                (["discussion", "analysis", "interpretation"], "Discussion"),
+                (["conclusion", "summary", "implication"], "Conclusions"),
+                (["reference", "citation", "bibliography", "source"], "References"),
+                (["literature", "review", "prior work", "related"], "Literature Review"),
             ]
 
         default:
             patterns = [
                 (["introduction", "overview", "about", "getting started"], "Introduction"),
-                (["installation", "setup", "install", "configure"], "Setup Guide"),
-                (["usage", "how to", "guide", "tutorial"], "Usage Guide"),
-                (["troubleshoot", "problem", "issue", "fix"], "Troubleshooting"),
                 (["faq", "question", "answer", "frequently"], "FAQ"),
-                (["contact", "support", "help"], "Support & Contact"),
+                (["glossary", "term", "definition", "vocabulary"], "Glossary"),
+                (["appendix", "reference", "additional", "supplementary"], "Appendix"),
             ]
         }
 
