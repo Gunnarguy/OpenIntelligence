@@ -1598,6 +1598,25 @@ struct ChunkingPreview: View {
         let colors: [Color] = [.blue, .purple, .indigo]
         return colors[index % colors.count].opacity(0.8)
     }
+
+    @ViewBuilder
+    var deleteLibrarySection: some View {
+        if containerService.containers.count > 1 {
+            Section(header: Text("Danger zone")) {
+                Button(role: .destructive) {
+                    showingDeleteConfirmation = true
+                } label: {
+                    HStack {
+                        Spacer()
+                        Label("Delete Library", systemImage: "trash")
+                            .foregroundColor(.red)
+                            .fontWeight(.semibold)
+                        Spacer()
+                    }
+                }
+            }
+        }
+    }
 }
 
 // MARK: - Date Extension for Relative Description

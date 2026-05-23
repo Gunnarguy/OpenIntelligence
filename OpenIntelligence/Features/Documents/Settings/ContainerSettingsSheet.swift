@@ -34,6 +34,7 @@ struct ContainerSettingsSheet: View {
     @State var showingDBChangeConfirmation = false
     @State var pendingDBChange: VectorDBKind?
     @State private var showingPlanSheet = false
+    @State private var showingDeleteConfirmation = false
 
     // Retrieval configuration
     @State var retrievalConfig: RetrievalConfig = .default
@@ -170,6 +171,7 @@ struct ContainerSettingsSheet: View {
                 // Vector database section hidden — always uses persistent JSON storage
                 // vectorDatabaseSection
                 libraryNerdStatsSection
+                deleteLibrarySection
             }
             .navigationTitle("Library Settings")
             .iOSNavigationBarInline()
@@ -304,6 +306,29 @@ struct ContainerSettingsSheet: View {
             .sheet(isPresented: $showingPlanSheet) {
                 PlanUpgradeSheet(entryPoint: .iCloudSync)
                     .environmentObject(entitlementStore)
+            }
+            .alert("Delete Library?", isPresented: $showingDeleteConfirmation) {
+                Button("Cancel", role: .cancel) {}
+                if activeContainer?.syncMode == .iCloudShared {
+                    Button("Delete from iCloud", role: .destructive) {
+                        confirmDeleteLibrary()
+                    }
+                } else {
+                    Button("Delete Locally", role: .destructive) {
+                        confirmDeleteLibrary()
+                    }
+                }
+            } message: {
+                if let lib = activeContainer {
+                    let docCount = ragService.documents.filter { $0.containerId == lib.id }.count
+                    if lib.syncMode == .iCloudShared {
+                        Text("This will permanently delete \"\(lib.name)\" from iCloud Sync and remove it from every device using that shared library, along with all \(docCount) document\(docCount == 1 ? "" : "s"). This cannot be undone.")
+                    } else {
+                        Text("This will permanently delete \"\(lib.name)\" only on this device, along with all \(docCount) document\(docCount == 1 ? "" : "s") inside it. This cannot be undone.")
+                    }
+                } else {
+                    Text("This will permanently delete this library and all documents inside it.")
+                }
             }
         }
     }
@@ -603,6 +628,55 @@ struct ContainerSettingsSheet: View {
             showingReembedConfirmation = true
         } else {
             dismiss()
+        }
+    }
+
+    @MainActor
+    private func confirmDeleteLibrary() {
+        guard let container = activeContainer else { return }
+        guard containerService.containers.count > 1 else { return }
+
+        DSHaptics.delete()
+        dismiss()
+
+        Task {
+            if container.syncMode == .iCloudShared {
+                do {
+                    try await workspaceSyncService.deleteSharedLibrary(container)
+                } catch {
+                    Log.error("[ContainerSettings] Failed to delete shared library from iCloud: \(error.localizedDescription)", category: .sync)
+                }
+            }
+
+            let localContainerIDsToDelete: Set<UUID> = [container.id]
+
+            for containerId in localContainerIDsToDelete {
+                await ragService.cancelAndPurgeIngestion(for: containerId)
+            }
+
+            let docsToRemove = await MainActor.run {
+                ragService.documents.filter { document in
+                    guard let containerId = document.containerId else { return false }
+                    return localContainerIDsToDelete.contains(containerId)
+                }
+            }
+
+            for doc in docsToRemove {
+                try? await ragService.removeDocument(doc)
+            }
+
+            await MainActor.run {
+                for containerId in localContainerIDsToDelete {
+                    containerService.deleteContainer(id: containerId)
+                    LibraryVisualizationEngine.shared.invalidateCache(for: containerId)
+                }
+                containerService.reloadFromDisk()
+                ragService.reloadWorkspaceData()
+            }
+
+            for containerId in localContainerIDsToDelete {
+                await EntityIndexService.shared.removeContainer(containerId)
+            }
         }
     }
 

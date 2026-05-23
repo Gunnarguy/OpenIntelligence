@@ -43,23 +43,24 @@ struct ContainerPickerStrip: View {
     var onSetLibraryStorage: ((KnowledgeContainer, LibrarySyncMode) -> Void)? = nil
 
     var body: some View {
-        let columns = [
-            GridItem(.adaptive(minimum: 120, maximum: .infinity), spacing: 8)
-        ]
         if #available(iOS 26.0, *) {
             GlassEffectContainer(spacing: 8) {
-                LazyVGrid(columns: columns, spacing: 8) {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        pillList
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 8)
+                }
+            }
+        } else {
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
                     pillList
                 }
                 .padding(.horizontal, 16)
                 .padding(.vertical, 8)
             }
-        } else {
-            LazyVGrid(columns: columns, spacing: 8) {
-                pillList
-            }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 8)
         }
     }
 
@@ -98,8 +99,7 @@ struct ContainerPickerStrip: View {
                     Text("New Library")
                         .font(.system(size: 13, weight: .medium))
                 }
-                .frame(maxWidth: .infinity)
-                .padding(.horizontal, 10)
+                .padding(.horizontal, 12)
                 .padding(.vertical, 6)
                 .background(
                     Capsule()
@@ -151,8 +151,7 @@ struct ContainerPill: View {
                         .clipShape(Capsule())
                 }
             }
-            .frame(maxWidth: .infinity)
-            .padding(.horizontal, 10)
+            .padding(.horizontal, 12)
             .padding(.vertical, 6)
             .background(
                 Capsule()
