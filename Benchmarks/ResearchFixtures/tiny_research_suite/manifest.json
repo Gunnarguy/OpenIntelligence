@@ -1,0 +1,447 @@
+{
+  "cases": [
+    {
+      "category": "exact_value",
+      "expected_answer_patterns": [
+        "(?i)14\\.3\\s+US\\s+gal"
+      ],
+      "expected_behavior": "answer",
+      "expected_source": {
+        "filename": "vehicle_specs.md",
+        "page": null
+      },
+      "id": "exact_fuel_capacity",
+      "input_files": [
+        "Benchmarks/ResearchFixtures/tiny_research_suite/fixtures/synthetic/exact/vehicle_specs.md"
+      ],
+      "license_note": "Generated locally by OpenIntelligence fixture script; no external dataset content.",
+      "quality_mode": "standard",
+      "query": "How many gallons of gasoline can the vehicle hold?",
+      "source_dataset": "synthetic_financebench_style"
+    },
+    {
+      "category": "exact_value",
+      "expected_answer_patterns": [
+        "(?i)\\$1,577\\s+million"
+      ],
+      "expected_behavior": "answer",
+      "expected_source": {
+        "filename": "finance_cash_flow.md",
+        "page": null
+      },
+      "id": "exact_capex",
+      "input_files": [
+        "Benchmarks/ResearchFixtures/tiny_research_suite/fixtures/synthetic/exact/finance_cash_flow.md"
+      ],
+      "license_note": "Generated locally by OpenIntelligence fixture script; no external dataset content.",
+      "quality_mode": "standard",
+      "query": "What was the FY2018 capital expenditure amount?",
+      "source_dataset": "synthetic_financebench_style"
+    },
+    {
+      "category": "exact_value",
+      "expected_answer_patterns": [
+        "(?i)1,240\\s+lb"
+      ],
+      "expected_behavior": "answer",
+      "expected_source": {
+        "filename": "equipment_table.md",
+        "page": null
+      },
+      "id": "exact_payload",
+      "input_files": [
+        "Benchmarks/ResearchFixtures/tiny_research_suite/fixtures/synthetic/exact/equipment_table.md"
+      ],
+      "license_note": "Generated locally by OpenIntelligence fixture script; no external dataset content.",
+      "quality_mode": "standard",
+      "query": "What is the maximum payload in the specification table?",
+      "source_dataset": "synthetic_financebench_style"
+    },
+    {
+      "category": "exact_value",
+      "expected_answer_patterns": [
+        "(?i)7,500\\s+miles"
+      ],
+      "expected_behavior": "answer",
+      "expected_source": {
+        "filename": "service_schedule.md",
+        "page": null
+      },
+      "id": "exact_service_interval",
+      "input_files": [
+        "Benchmarks/ResearchFixtures/tiny_research_suite/fixtures/synthetic/exact/service_schedule.md"
+      ],
+      "license_note": "Generated locally by OpenIntelligence fixture script; no external dataset content.",
+      "quality_mode": "standard",
+      "query": "What is the normal service interval?",
+      "source_dataset": "synthetic_financebench_style"
+    },
+    {
+      "category": "exact_value",
+      "expected_answer_patterns": [
+        "(?i)45\\s+C"
+      ],
+      "expected_behavior": "answer",
+      "expected_source": {
+        "filename": "battery_limits.md",
+        "page": null
+      },
+      "id": "exact_temperature_limit",
+      "input_files": [
+        "Benchmarks/ResearchFixtures/tiny_research_suite/fixtures/synthetic/exact/battery_limits.md"
+      ],
+      "license_note": "Generated locally by OpenIntelligence fixture script; no external dataset content.",
+      "quality_mode": "standard",
+      "query": "What is the maximum charging temperature limit?",
+      "source_dataset": "synthetic_financebench_style"
+    },
+    {
+      "category": "retrieval_only",
+      "expected_answer_patterns": [
+        "(?i)ALPHA\\-17"
+      ],
+      "expected_behavior": "answer",
+      "expected_source": {
+        "filename": "retrieval_alpha.md",
+        "page": null
+      },
+      "id": "retrieval_policy_alpha",
+      "input_files": [
+        "Benchmarks/ResearchFixtures/tiny_research_suite/fixtures/synthetic/retrieval/retrieval_alpha.md"
+      ],
+      "license_note": "Generated locally by OpenIntelligence fixture script; no external dataset content.",
+      "quality_mode": "standard",
+      "query": "Which document mentions the ALPHA-17 review control?",
+      "source_dataset": "synthetic_beir_style"
+    },
+    {
+      "category": "retrieval_only",
+      "expected_answer_patterns": [
+        "(?i)BETA\\s+trial\\s+cohort"
+      ],
+      "expected_behavior": "answer",
+      "expected_source": {
+        "filename": "retrieval_beta.md",
+        "page": null
+      },
+      "id": "retrieval_trial_beta",
+      "input_files": [
+        "Benchmarks/ResearchFixtures/tiny_research_suite/fixtures/synthetic/retrieval/retrieval_beta.md"
+      ],
+      "license_note": "Generated locally by OpenIntelligence fixture script; no external dataset content.",
+      "quality_mode": "standard",
+      "query": "Which fixture describes the BETA trial cohort?",
+      "source_dataset": "synthetic_beir_style"
+    },
+    {
+      "category": "retrieval_only",
+      "expected_answer_patterns": [
+        "(?i)GAMMA\\s+neutralization\\s+assay"
+      ],
+      "expected_behavior": "answer",
+      "expected_source": {
+        "filename": "retrieval_gamma.md",
+        "page": null
+      },
+      "id": "retrieval_covid_gamma",
+      "input_files": [
+        "Benchmarks/ResearchFixtures/tiny_research_suite/fixtures/synthetic/retrieval/retrieval_gamma.md"
+      ],
+      "license_note": "Generated locally by OpenIntelligence fixture script; no external dataset content.",
+      "quality_mode": "standard",
+      "query": "Find the source about the GAMMA neutralization assay.",
+      "source_dataset": "synthetic_beir_style"
+    },
+    {
+      "category": "retrieval_only",
+      "expected_answer_patterns": [
+        "(?i)DELTA\\s+citation\\s+screen"
+      ],
+      "expected_behavior": "answer",
+      "expected_source": {
+        "filename": "retrieval_delta.md",
+        "page": null
+      },
+      "id": "retrieval_scifact_delta",
+      "input_files": [
+        "Benchmarks/ResearchFixtures/tiny_research_suite/fixtures/synthetic/retrieval/retrieval_delta.md"
+      ],
+      "license_note": "Generated locally by OpenIntelligence fixture script; no external dataset content.",
+      "quality_mode": "standard",
+      "query": "Which file discusses the DELTA citation screen?",
+      "source_dataset": "synthetic_beir_style"
+    },
+    {
+      "category": "retrieval_only",
+      "expected_answer_patterns": [
+        "(?i)EPSILON\\s+nutrition\\s+endpoint"
+      ],
+      "expected_behavior": "answer",
+      "expected_source": {
+        "filename": "retrieval_epsilon.md",
+        "page": null
+      },
+      "id": "retrieval_nfcorpus_epsilon",
+      "input_files": [
+        "Benchmarks/ResearchFixtures/tiny_research_suite/fixtures/synthetic/retrieval/retrieval_epsilon.md"
+      ],
+      "license_note": "Generated locally by OpenIntelligence fixture script; no external dataset content.",
+      "quality_mode": "standard",
+      "query": "Find the EPSILON nutrition endpoint note.",
+      "source_dataset": "synthetic_beir_style"
+    },
+    {
+      "category": "multi_hop",
+      "expected_answer_patterns": [
+        "(?i)Owner\\-1A",
+        "(?i)Q1\\s+review\\s+gate"
+      ],
+      "expected_behavior": "answer",
+      "expected_source": {
+        "filename": "case_1_part_a.md",
+        "page": null
+      },
+      "id": "multi_hop_project_m1",
+      "input_files": [
+        "Benchmarks/ResearchFixtures/tiny_research_suite/fixtures/synthetic/multi_hop/case_1_part_a.md",
+        "Benchmarks/ResearchFixtures/tiny_research_suite/fixtures/synthetic/multi_hop/case_1_part_b.md"
+      ],
+      "license_note": "Generated locally by OpenIntelligence fixture script; no external dataset content.",
+      "quality_mode": "deep-think",
+      "query": "Who owns Project M1 and what is its reporting deadline?",
+      "source_dataset": "synthetic_multihop_rag_style"
+    },
+    {
+      "category": "multi_hop",
+      "expected_answer_patterns": [
+        "(?i)Owner\\-2A",
+        "(?i)Q2\\s+review\\s+gate"
+      ],
+      "expected_behavior": "answer",
+      "expected_source": {
+        "filename": "case_2_part_a.md",
+        "page": null
+      },
+      "id": "multi_hop_project_m2",
+      "input_files": [
+        "Benchmarks/ResearchFixtures/tiny_research_suite/fixtures/synthetic/multi_hop/case_2_part_a.md",
+        "Benchmarks/ResearchFixtures/tiny_research_suite/fixtures/synthetic/multi_hop/case_2_part_b.md"
+      ],
+      "license_note": "Generated locally by OpenIntelligence fixture script; no external dataset content.",
+      "quality_mode": "deep-think",
+      "query": "Who owns Project M2 and what is its reporting deadline?",
+      "source_dataset": "synthetic_multihop_rag_style"
+    },
+    {
+      "category": "multi_hop",
+      "expected_answer_patterns": [
+        "(?i)Owner\\-3A",
+        "(?i)Q3\\s+review\\s+gate"
+      ],
+      "expected_behavior": "answer",
+      "expected_source": {
+        "filename": "case_3_part_a.md",
+        "page": null
+      },
+      "id": "multi_hop_project_m3",
+      "input_files": [
+        "Benchmarks/ResearchFixtures/tiny_research_suite/fixtures/synthetic/multi_hop/case_3_part_a.md",
+        "Benchmarks/ResearchFixtures/tiny_research_suite/fixtures/synthetic/multi_hop/case_3_part_b.md"
+      ],
+      "license_note": "Generated locally by OpenIntelligence fixture script; no external dataset content.",
+      "quality_mode": "deep-think",
+      "query": "Who owns Project M3 and what is its reporting deadline?",
+      "source_dataset": "synthetic_multihop_rag_style"
+    },
+    {
+      "category": "multi_hop",
+      "expected_answer_patterns": [
+        "(?i)Owner\\-4A",
+        "(?i)Q4\\s+review\\s+gate"
+      ],
+      "expected_behavior": "answer",
+      "expected_source": {
+        "filename": "case_4_part_a.md",
+        "page": null
+      },
+      "id": "multi_hop_project_m4",
+      "input_files": [
+        "Benchmarks/ResearchFixtures/tiny_research_suite/fixtures/synthetic/multi_hop/case_4_part_a.md",
+        "Benchmarks/ResearchFixtures/tiny_research_suite/fixtures/synthetic/multi_hop/case_4_part_b.md"
+      ],
+      "license_note": "Generated locally by OpenIntelligence fixture script; no external dataset content.",
+      "quality_mode": "deep-think",
+      "query": "Who owns Project M4 and what is its reporting deadline?",
+      "source_dataset": "synthetic_multihop_rag_style"
+    },
+    {
+      "category": "multi_hop",
+      "expected_answer_patterns": [
+        "(?i)Owner\\-5A",
+        "(?i)Q4\\s+review\\s+gate"
+      ],
+      "expected_behavior": "answer",
+      "expected_source": {
+        "filename": "case_5_part_a.md",
+        "page": null
+      },
+      "id": "multi_hop_project_m5",
+      "input_files": [
+        "Benchmarks/ResearchFixtures/tiny_research_suite/fixtures/synthetic/multi_hop/case_5_part_a.md",
+        "Benchmarks/ResearchFixtures/tiny_research_suite/fixtures/synthetic/multi_hop/case_5_part_b.md"
+      ],
+      "license_note": "Generated locally by OpenIntelligence fixture script; no external dataset content.",
+      "quality_mode": "deep-think",
+      "query": "Who owns Project M5 and what is its reporting deadline?",
+      "source_dataset": "synthetic_multihop_rag_style"
+    },
+    {
+      "category": "lost_in_middle",
+      "expected_answer_patterns": [
+        "(?i)LITM\\-BEGINNING\\-42"
+      ],
+      "expected_behavior": "answer",
+      "expected_source": {
+        "filename": "answer_at_beginning.md",
+        "page": null
+      },
+      "id": "lost_in_middle_beginning",
+      "input_files": [
+        "Benchmarks/ResearchFixtures/tiny_research_suite/fixtures/synthetic/lost_in_middle/answer_at_beginning.md"
+      ],
+      "license_note": "Generated locally by OpenIntelligence fixture script; no external dataset content.",
+      "quality_mode": "maximum",
+      "query": "What is the required validation token?",
+      "source_dataset": "synthetic_lost_in_the_middle"
+    },
+    {
+      "category": "lost_in_middle",
+      "expected_answer_patterns": [
+        "(?i)LITM\\-MIDDLE\\-42"
+      ],
+      "expected_behavior": "answer",
+      "expected_source": {
+        "filename": "answer_at_middle.md",
+        "page": null
+      },
+      "id": "lost_in_middle_middle",
+      "input_files": [
+        "Benchmarks/ResearchFixtures/tiny_research_suite/fixtures/synthetic/lost_in_middle/answer_at_middle.md"
+      ],
+      "license_note": "Generated locally by OpenIntelligence fixture script; no external dataset content.",
+      "quality_mode": "maximum",
+      "query": "What is the required validation token?",
+      "source_dataset": "synthetic_lost_in_the_middle"
+    },
+    {
+      "category": "lost_in_middle",
+      "expected_answer_patterns": [
+        "(?i)LITM\\-END\\-42"
+      ],
+      "expected_behavior": "answer",
+      "expected_source": {
+        "filename": "answer_at_end.md",
+        "page": null
+      },
+      "id": "lost_in_middle_end",
+      "input_files": [
+        "Benchmarks/ResearchFixtures/tiny_research_suite/fixtures/synthetic/lost_in_middle/answer_at_end.md"
+      ],
+      "license_note": "Generated locally by OpenIntelligence fixture script; no external dataset content.",
+      "quality_mode": "maximum",
+      "query": "What is the required validation token?",
+      "source_dataset": "synthetic_lost_in_the_middle"
+    },
+    {
+      "category": "missing_evidence",
+      "expected_answer_patterns": [],
+      "expected_behavior": "abstain",
+      "expected_source": {
+        "filename": "missing_battery_policy.md",
+        "page": null
+      },
+      "id": "missing_unreleased_battery",
+      "input_files": [
+        "Benchmarks/ResearchFixtures/tiny_research_suite/fixtures/synthetic/missing/missing_battery_policy.md"
+      ],
+      "license_note": "Generated locally by OpenIntelligence fixture script; no external dataset content.",
+      "quality_mode": "standard",
+      "query": "What is the warranty coverage for the unreleased 2032 prototype battery pack?",
+      "source_dataset": "synthetic_negative_control"
+    },
+    {
+      "category": "missing_evidence",
+      "expected_answer_patterns": [],
+      "expected_behavior": "abstain",
+      "expected_source": {
+        "filename": "missing_price_policy.md",
+        "page": null
+      },
+      "id": "missing_confidential_price",
+      "input_files": [
+        "Benchmarks/ResearchFixtures/tiny_research_suite/fixtures/synthetic/missing/missing_price_policy.md"
+      ],
+      "license_note": "Generated locally by OpenIntelligence fixture script; no external dataset content.",
+      "quality_mode": "standard",
+      "query": "What is the confidential wholesale price for the unannounced Omega device?",
+      "source_dataset": "synthetic_negative_control"
+    }
+  ],
+  "defaults": {
+    "quality_mode": "standard",
+    "timeout_seconds": 420
+  },
+  "description": "Small adapted research fixture pack. This is not a full official benchmark reproduction.",
+  "fixture_sources": [
+    {
+      "license": "official HF dataset card currently lists CC BY-NC 4.0; G4KMU mirror lists Apache-2.0",
+      "name": "Vectara Open RAGBench",
+      "status": "manual local import or explicit small export",
+      "url": "https://huggingface.co/datasets/vectara/open_ragbench"
+    },
+    {
+      "license": "CC BY-NC 4.0",
+      "name": "FinanceBench",
+      "status": "small optional download supported",
+      "url": "https://huggingface.co/datasets/PatronusAI/financebench"
+    },
+    {
+      "license": "ODC-BY",
+      "name": "MultiHop-RAG",
+      "status": "manual local import supported",
+      "url": "https://github.com/yixuantt/MultiHop-RAG"
+    },
+    {
+      "license": "dataset-specific",
+      "name": "BEIR",
+      "status": "small nfcorpus/scifact download supported",
+      "url": "https://beir.ai/"
+    },
+    {
+      "license": "CC BY 4.0",
+      "name": "QASPER",
+      "status": "manual local import supported",
+      "url": "https://huggingface.co/datasets/allenai/qasper"
+    },
+    {
+      "license": "requires official portal terms",
+      "name": "DocVQA",
+      "status": "manual local import only",
+      "url": "https://www.docvqa.org/datasets/docvqa"
+    },
+    {
+      "license": "local generated fixtures",
+      "name": "Synthetic Lost-in-the-Middle",
+      "status": "generated locally by default",
+      "url": ""
+    },
+    {
+      "license": "MIT for wandb/RAGTruth-processed",
+      "name": "RAGTruth",
+      "status": "manual local import; later faithfulness scoring",
+      "url": "https://huggingface.co/datasets/wandb/RAGTruth-processed"
+    }
+  ],
+  "name": "tiny_research_suite",
+  "version": 1
+}
