@@ -147,6 +147,17 @@ START_HERE.md
 scripts/temp_generation_audit.swift
 AllianceWasherIngested
 .release/public_summary_base
+IngestionProcessReversedTextlol.txt
+MaciPadVersion.txt
+catch_10k.txt
+catch_lines.txt
+catch_lines2.txt
+do_10k.txt
+do_lines.txt
+zDeepThink.txt
+zDeepThink2.txt
+zStandard.txt
+zStandard2.txt
 
 # Research PDFs (reference only, not source)
 *.pdf
