@@ -1,19 +1,18 @@
-Changes since 3.5:
+Changes since 3.6:
 
-Version 3.6 adds optional iCloud reuse for the libraries you choose, without giving up the app's local-first default.
+Version 3.7 is a broader follow-up release that tightens almost every stage of the app: library management, import, retrieval, answer quality, chat ergonomics, and diagnostics.
 
-If you've been loading a large library on iPad and wishing that exact processed library could show up on iPhone or your other devices without starting over, this is the update aimed at that problem.
+If 3.6 made it easier to move your libraries across devices, 3.7 is the update aimed at making everything that happens after that feel sharper: importing harder files, attaching new material in chat, getting better-grounded answers, and having much clearer proof when the app answers confidently.
 
-Shoutout to Tim for asking for this.
+- Documents was tightened again with cleaner library pills, a less crowded header, smaller sync controls, and clearer organization/management surfaces.
+- Shared-workspace and background-ingestion plumbing are more robust, with safer queue cleanup, cleaner reconciliation, and better handling for long-running work.
+- Camera capture, OCR-heavy pages, and mixed digital/scanned documents import more reliably.
+- Clean digital text is preserved more faithfully, while noisy scans and image-heavy pages still get the heavier recovery path when they need it.
+- Retrieval is stronger across Standard, Deep Think, and Maximum, with better context packing, better use of surrounding document context, and less drift away from the source.
+- Suggested questions and follow-ups are more grounded in the active library and less repetitive across refreshes.
+- Chat handles direct attachments and captured content more smoothly, so it is easier to bring new material into the conversation flow.
+- Answer inspection is much richer now, with clearer source review, timing, retrieval-quality, and evidence-detail surfaces when you want to see how a response was built.
+- Technical answers and structured output render more cleanly, including stronger code block handling and clearer response detail views.
+- Diagnostics and device-aware performance behavior are more stable on larger libraries and longer-running work, with deeper inspection tools behind the scenes for validation and monitoring.
 
-- Every library can now be set to Local Only or iCloud Drive individually.
-- Local Only libraries stay fully on-device unless you explicitly change them.
-- Libraries you mark iCloud Drive can reuse imported files and processed state across your own Apple devices on the same iCloud account.
-- Shared-library refresh and review is clearer now, so additions or removals from another device are easier to understand before you pull them in or remove them here too.
-- Same-name shared libraries are much less likely to merge together unexpectedly.
-- iCloud library sync is now positioned as a paid workspace feature, and paid plan capacity is clearer: Pro supports up to 10 libraries and Lifetime supports up to 20.
-- If a long-running import is interrupted on one device, another device can pick up queued work for that iCloud library instead of forcing a full restart.
-- Plain text and other digital documents are preserved more faithfully during import, with safer handling for text, markdown, code, CSV, transcripts, and Office-style files.
-- This follow-up 3.6 build also smooths the Documents layout, improves import cancellation, and prevents old queued work from deleted libraries from coming back unexpectedly.
-
-This release is about making cross-device reuse practical without compromising the app's privacy-first, local-by-default model.
+This release is about making OpenIntelligence feel more complete from import to answer review: fewer weak spots between "I added a file" and "I trust this answer."

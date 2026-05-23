@@ -2,6 +2,19 @@
 
 This is the public version history for OpenIntelligence. It focuses on user-visible product changes and intentionally omits private engine tuning, thresholds, and internal implementation details.
 
+## 3.7 - May 2026
+
+- Tightened the Documents surface again with cleaner library pills, a less crowded header, smaller sync controls, and clearer library-management affordances
+- Strengthened shared-workspace and background-ingestion plumbing so queue cleanup, reconciliation, and long-running library work behave more predictably
+- Improved camera capture, OCR-heavy import reliability, and mixed digital/scanned page handling so harder documents are less fragile on the way in
+- Preserved clean digital text more conservatively while keeping the heavier recovery path for noisy scans, image-heavy pages, and visually complex inputs
+- Strengthened retrieval, context packing, parent-document use, and answer shaping so responses stay closer to the source passages they are built from
+- Improved suggested questions and follow-ups so they stay more tied to the active library, more grounded, and less generic across repeated refreshes
+- Smoothed out chat attachment and capture flows so new material can move into the question-answer loop more directly
+- Expanded answer review with clearer source inspection, timing, retrieval-quality, and evidence details when users want to understand how a response was formed
+- Improved rendering for technical and structured answers, including clearer code block presentation and better response-detail surfaces
+- Tightened diagnostics, monitoring, and device-aware performance behavior so larger libraries and longer-running sessions are more stable to work with
+
 ## 3.6 - May 2026
 
 - Shoutout to Tim for asking for this.

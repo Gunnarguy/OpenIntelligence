@@ -2,6 +2,29 @@
 
 Public release highlights for OpenIntelligence.
 
+## 3.7
+
+Changes since 3.6:
+
+Version 3.7 is a broader follow-up release that tightens almost every stage of the app: library management, import, retrieval, answer quality, chat ergonomics, and diagnostics.
+
+If 3.6 made it easier to move your libraries across devices, 3.7 is the update aimed at making everything that happens after that feel sharper: importing harder files, attaching new material in chat, getting better-grounded answers, and having much clearer proof when the app answers confidently.
+
+## Highlights
+
+- Documents was tightened again with cleaner library pills, a less crowded header, smaller sync controls, and clearer organization and management surfaces.
+- Shared-workspace and background-ingestion plumbing are more robust now, with safer queue cleanup, cleaner reconciliation, and better handling for long-running work.
+- Camera capture, OCR-heavy pages, and mixed digital/scanned documents are handled more reliably during import.
+- Clean digital text is preserved more faithfully, while noisy scans and visual pages still get the heavier recovery path when they need it.
+- Retrieval is stronger across Standard, Deep Think, and Maximum, with better context packing, better use of surrounding document context, and less tendency to drift away from the source.
+- Suggested questions and follow-ups are more library-aware, more grounded, and less generic across refreshes.
+- Chat works better with direct attachments and captured content, so it is easier to bring new material into the conversation flow.
+- Answer inspection is much richer now, with stronger source review, timing, retrieval-quality, and evidence details when you want to see how a response was formed.
+- Technical answers and structured output render more cleanly now, including stronger code block handling and clearer response detail views.
+- Diagnostics and device-aware performance behavior are more stable on larger libraries and longer-running work, with deeper inspection tools behind the scenes for validation and monitoring.
+
+This release is about making the app feel more complete from import to answer review: fewer weak spots between "I added a file" and "I trust this answer."
+
 ## 3.6
 
 Changes since 3.5:

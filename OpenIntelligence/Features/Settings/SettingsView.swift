@@ -356,9 +356,9 @@ Text(label)
                 .buttonStyle(.bordered)
 
                 Button {
-                    openURL(OpenIntelligenceLinks.appStoreURL)
+                    openURL(OpenIntelligenceLinks.writeReviewURL)
                 } label: {
-                    Label("App Store", systemImage: "apple.logo")
+                    Label("Write Review", systemImage: "star.bubble.fill")
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.bordered)

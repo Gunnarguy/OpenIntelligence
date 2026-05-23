@@ -1,15 +1,11 @@
 # OpenIntelligence
 
 <p align="center">
-   <img src=".github/assets/openintelligence-app-icon.png" alt="OpenIntelligence app icon for the Apple-native iPhone document intelligence app" width="132" height="132">
+   <img src=".github/assets/openintelligence-app-icon.png" alt="OpenIntelligence app icon" width="132" height="132">
 </p>
 
 <p align="center">
-   <strong>Your documents. Clear answers.</strong>
-</p>
-
-<p align="center">
-   Apple-native document intelligence for iOS, iPadOS, and macOS — built to ingest PDFs, scans, screenshots, notes, and other user-controlled files, retrieve the right evidence, and answer with citations, verification signals, and visible reasoning paths.
+   <strong>On-device document intelligence and RAG engine for iOS, iPadOS, and macOS.</strong>
 </p>
 
 <p align="center">
@@ -18,285 +14,40 @@
    <a href="Docs/ARCHITECTURE.md"><img alt="Read the OpenIntelligence architecture guide" src="https://img.shields.io/badge/Architecture-Read-111827?style=for-the-badge"></a>
 </p>
 
-<p align="center">
-   <a href="HOW_IT_WORKS.md">How it works</a> ·
-   <a href="Docs/RETRIEVAL_PIPELINE.md">Retrieval pipeline</a> ·
-   <a href="Benchmarks/README.md">Benchmarks</a> ·
-   <a href="WHATS_NEW.md">What's new</a>
-</p>
+OpenIntelligence is an on-device document query and retrieval-augmented generation (RAG) engine built natively for Apple platforms. It handles document ingestion, lexical and vector indexing, and grounded query orchestration using local Apple foundation models and on-device compute.
 
-<p align="center">
-   <img alt="Apple Platforms" src="https://img.shields.io/badge/Platforms-iOS%20%7C%20iPadOS%20%7C%20macOS-0A84FF?style=flat-square">
-   <img alt="SwiftUI native UI" src="https://img.shields.io/badge/SwiftUI-native%20UI-FA7343?style=flat-square">
-   <img alt="OCR for PDFs and scans" src="https://img.shields.io/badge/OCR-PDF%20%2B%20scans-30B0C7?style=flat-square">
-   <img alt="Privacy" src="https://img.shields.io/badge/Privacy-true%20offline-7C3AED?style=flat-square">
-   <img alt="SQLite FTS5 and vector storage" src="https://img.shields.io/badge/Storage-SQLite%20FTS5%20%2B%20vectors-111827?style=flat-square">
-</p>
+---
 
-I built OpenIntelligence because I got annoyed with standard chat wrappers hallucinating answers about my private documents. I wanted a real, native document intelligence layer for my iPhone, iPad, and Mac—something built from the ground up for Apple platforms, not a lazy web app. There had to be another way to get verifiable, cited answers without uploading my entire life to a random SaaS cloud.
+## System Architecture
 
-So, I built a Neural RAG engine in SwiftUI that actually runs offline. You throw messy, real-world PDFs, scans, and notes at it, and it pulls out exact answers with visible reasoning paths and explicit citations you can check yourself. It works in airplane mode, utilizing Apple Intelligence and local on-device models, keeping your files yours.
-
-This repository is intentionally code-first and engineering-first: the SwiftUI app, document ingestion services, retrieval stack, answer grounding logic, benchmark harness, local model resources, technical notes, research references, and inspection assets are all linked from this front page so people can evaluate the product and the implementation side by side.
-
-*Note: This is an engineering portfolio project and proof-of-concept showing how Apple Intelligence can enable powerful on-device document query systems. It is not an enterprise SDK, medical device, or VC-backed SaaS.*
-
-## Product Tour
-
-<p align="center"><em>Current UI from the App Store build. Click any screenshot to open the full-size image.</em></p>
-
-### 1) Bring in the documents you actually work with
-
-<p align="center">
-   <a href=".github/assets/screenshots/openintelligence-onboarding.png"><img src=".github/assets/screenshots/openintelligence-onboarding.png" alt="OpenIntelligence onboarding screen on iPhone showing support for PDFs, scans, images, code, notes, and transcripts" width="300"></a>
-</p>
-
-Import PDFs, Office docs, scans, images, code, notes, and transcripts into one document workflow instead of one generic chat box.
-
-### 2) Watch the system build the library
-
-<p align="center">
-   <a href=".github/assets/screenshots/openintelligence-ingestion-pipeline.png"><img src=".github/assets/screenshots/openintelligence-ingestion-pipeline.png" alt="OpenIntelligence ingestion pipeline on iPhone showing extraction, chunking, embeddings, and indexing" width="300"></a>
-</p>
-
-The pipeline stays visible while the app extracts content, runs OCR when needed, chunks documents, creates embeddings, and builds a searchable library.
-
-### 3) Ask a question and inspect the answer
-
-<p align="center">
-   <a href=".github/assets/screenshots/openintelligence-answer-inspection.png"><img src=".github/assets/screenshots/openintelligence-answer-inspection.png" alt="OpenIntelligence chat screen on iPhone showing inline citations, verified answer state, and actions for details and trace" width="320"></a>
-</p>
-
-Answers include inline citations like <code>[S1]</code>, <code>[S2]</code>, and <code>[S3]</code>, plus verification state and one-tap paths into details and trace views for deeper inspection.
-
-### 4) Keep everything organized inside focused libraries
-
-<p align="center">
-   <a href=".github/assets/screenshots/openintelligence-library.png"><img src=".github/assets/screenshots/openintelligence-library.png" alt="OpenIntelligence document library on iPhone showing scoped documents, chunk counts, and automatic intelligence tags" width="300"></a>
-</p>
-
-Documents stay grouped, tagged, and searchable inside focused libraries so the app answers from the material you actually mean.
-
-<p align="center"><a href="https://apps.apple.com/us/app/openintelligence/id6756559175">See the full App Store gallery</a></p>
-
-## What You Can Do With It
-
-- Ask questions over PDFs, scanned documents, screenshots, manuals, notes, and mixed document libraries.
-- Recover searchable text and structure from OCR-heavy or layout-heavy imports instead of treating every file like plain text.
-- Compare exact specs, procedures, and details across a scoped library without searching your entire file universe at once.
-- Review citations, evidence quality, confidence signals, and diagnostics instead of accepting a black-box answer.
-- Study a real SwiftUI + SQLite FTS5 + vector retrieval + RAG-style document intelligence app in public.
-
-## Why It Feels Different
-
-- **Built around your files:** I designed it to start from user-controlled documents and scoped libraries instead of one generic cloud corpus.
-- **Type-aware ingestion:** I built different paths because clean digital text, scans, screenshots, tables, and harder documents shouldn't all go through the same extraction process.
-- **Grounded answers:** The system is explicitly designed around citations, evidence review, confidence handling, and abstaining when evidence is weak.
-- **Library isolation:** Retrieval stays tied to the selected material so answers are easier to inspect, debug, and reason about.
-- **Apple-native product shape:** It's built as a native experience across Apple platforms with SwiftUI, local storage, diagnostics surfaces, and offline constraints in mind.
-
-## Start Here
-
-- [App Store](https://apps.apple.com/us/app/openintelligence/id6756559175): live public listing.
-- [What's New](WHATS_NEW.md) and [Changelog](CHANGELOG.md): public release notes and version-by-version history.
-- [How it works](HOW_IT_WORKS.md): public workflow overview from import to cited answers.
-- [Architecture](Docs/ARCHITECTURE.md): app structure, service boundaries, data flow, and package boundary.
-- [Retrieval pipeline](Docs/RETRIEVAL_PIPELINE.md): ingestion, chunking, retrieval, context packing, grounded answer generation, and diagnostics.
-- [RAG technical specifications](Docs/Engineering/RAG_TECHNICAL.md): deeper implementation notes for HyDE, parent retrieval, compression, verification, reranking, and retrieval policy.
-- [Hard limits and claim boundaries](Docs/Engineering/HARD_LIMITS.md): current token budgets, model constraints, and safe claim boundaries.
-- [Storage and pipeline trace](Docs/Engineering/STORAGE_AND_PIPELINE_TRACE.md): current storage reality, SQLite/vector traces, container isolation, and benchmark hooks.
-- [Research index](Docs/Research/README.md): supporting references for Apple Foundation Models, RAG, OCR, and local AI design choices.
-- [Benchmarks](Benchmarks/README.md): manifest format, local RAG validation runner, document studio, outputs, and fixture guidance.
-- [Demo guide](Docs/DEMO.md): suggested public demo flow and safe demo-document guidance.
-- [Limitations](Docs/LIMITATIONS.md): product, safety, technical, and demo limits.
-- [Roadmap](Docs/ROADMAP.md): near-term engineering direction.
-
-## FAQ
-
-### What is OpenIntelligence?
-
-OpenIntelligence is an experimental iOS/macOS document AI app built in SwiftUI for importing PDFs, scans, screenshots, notes, and other user-controlled files, then answering questions with citations over a scoped library.
-
-### Can OpenIntelligence answer questions over PDFs and scanned documents?
-
-Yes. The project is specifically aimed at PDF Q&A, OCR-heavy document question answering, and grounded retrieval over messy real-world files rather than only over clean plain text.
-
-### Does OpenIntelligence use OCR?
-
-Yes. OCR-aware extraction is a core part of the ingestion system for scans, images, and harder documents where a reliable native text layer is missing or weak.
-
-### Does OpenIntelligence work offline?
-
-OpenIntelligence does not run its own document-processing backend. Core ingestion, OCR, indexing, retrieval, and library handling are built around on-device execution and user-controlled files. Apple may route eligible model work through Private Cloud Compute when required by Apple's stack, but that is different from OpenIntelligence operating its own cloud service.
-
-### Is this a production SDK or enterprise product?
-
-No. OpenIntelligence is a proof-of-concept and portfolio project that shows a real product direction, a live App Store build, and the underlying engineering work, but it is not positioned here as a finished enterprise platform or commercial SDK.
-
-## Release History
-
-The README now keeps a quick version index so the shipped app history is visible here without jumping straight into the deeper public notes in [WHATS_NEW.md](WHATS_NEW.md) and [CHANGELOG.md](CHANGELOG.md).
-
-| Version | Release focus                                                                                                                                                                        |
-| ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| 3.6     | Per-library Local Only versus iCloud Drive storage, cross-device library review, safer shared-library reconciliation, and more conservative handling for clean digital text imports. |
-| 3.5     | Reliability cleanup for exact answers, harder PDFs, grounded starter prompts, and first-run product clarity.                                                                         |
-| 3.3     | Stronger import recovery, adaptive visual ingestion, searchable figures, and better exact table/spec lookups.                                                                        |
-| 3.2.5   | Corrective pass for direct source-backed fact answers, exact measurements, and stricter grounded starter questions.                                                                  |
-| 3.1     | Better OCR and table preservation, corrective retrieval on weak evidence, and stricter grounded answer handling.                                                                     |
-| 3.0     | Retrieval hardening for noisy PDFs and tables, stronger extractive handling, and clearer diagnostics around recovery behavior.                                                       |
-| 2.5     | Better suggested questions, stronger answer grounding and evidence review, and broader rendering and PDF-cleanup polish.                                                             |
-| 2.0.x   | Faster everyday document Q&A, sharper source review, and stability/polish follow-up work after launch.                                                                               |
-| 2.0.0   | Initial App Store release of the app with multi-format import, library organization, cited answers, and paid access tiers.                                                    |
-
-## What It Demonstrates
-
-- AI product engineering in a native Apple app.
-- Document workflows built around user-controlled files and scoped libraries.
-- Per-library Local Only versus iCloud Drive storage with cross-device review instead of one global cloud mode.
-- Document ingestion, OCR-oriented extraction, chunking, enrichment, and indexing.
-- Type-aware preparation that preserves clean digital text more conservatively while still escalating cleanup for noisy OCR and scanned material.
-- Retrieval-oriented answer generation with citations and evidence review.
-- Library/workspace isolation so questions stay scoped to the selected material.
-
-At a high level, the system works in two phases: import-time first, query-time second.
+The runtime operates in two decoupled phases: import-time document indexing and query-time retrieval and generation.
 
 ```mermaid
 flowchart TD
-  subgraph INGEST[Import-time]
-    A1[Import files into a library]
-    A2[Extract and normalize content]
-    A3[Chunk, enrich, and preserve structure]
-    A4[Build lexical and vector indexes]
-    A5[Indexed library ready]
+  subgraph INGEST[Import-Time Pipeline]
+    A1[Import files into library]
+    A2[Extract & normalize content]
+    A3[Chunk & enrich metadata]
+    A4[Build FTS & vector indexes]
+    A5[Library indexed]
     A1 --> A2 --> A3 --> A4 --> A5
   end
 
-  subgraph QUERY[Query-time]
-    B1[User asks a question]
-    B2[Analyze the query and choose a route]
-    B3[Retrieve and pack the best evidence]
-    B4[Answer with extractive, standard, or agentic path]
-    B5[Verify, score, and format the response]
-    B6[Show citations, warnings, and diagnostics]
+  subgraph QUERY[Query-Time Pipeline]
+    B1[User query]
+    B2[Analyze intent & route]
+    B3[Retrieve & pack context]
+    B4[Select answer path]
+    B5[Verify & score response]
+    B6[Render cited output]
     B1 --> B2 --> B3 --> B4 --> B5 --> B6
   end
 
   A5 --> B3
 ```
 
-Everything else in the codebase exists to make one of those two phases more reliable.
-
-### How To Read The Maps
-
-- Import-time and query-time are different phases. The import pipeline builds the searchable corpus first. The query pipeline runs later against that stored corpus.
-- These are routing maps, not universal sequences. Not every box runs on every query.
-- Rectangles are work that does happen. Decision diamonds mean the code chooses one route, not all routes.
-- Early-return branches mean the pipeline can stop there with an answer or abstention instead of continuing downstream.
-- Retry or fallback arrows mean the engine detected a weak result and is trying a narrower, broader, or safer recovery path.
-- Retrieval helpers are solving different failure modes, not decorating the pipeline. Query rewriting, HyDE, diversity control, parent expansion, graph recovery, and cross-reference follow-up each exist because retrieval can fail for different reasons.
-- Extractive and source-only paths are precision-protection paths, not "less advanced" answer paths.
-- Agentic mode is a separate orchestration path, not a later bonus step stacked on top of the standard path.
-- Verification changes the trust posture of the answer. It does not prove the answer is true.
-- Dense diagrams below are for technical fidelity. Use the overview and the talk track first, then use the dense maps to answer implementation questions.
-
-### How To Explain It Out Loud
-
-1. Import and scope.
-   Plain language: The app first turns raw user files into a scoped library so later questions are grounded in a known document set.
-   Engineering: Import runs through container selection, type-aware extraction, normalization, chunking, enrichment, and index writes before query-time starts.
-
-2. Prepare the material locally.
-   Plain language: Different file types need different cleanup paths, so the app does not treat a clean PDF, a scan, and an image the same way.
-   Engineering: The engine branches into digital parsing, structured extraction, OCR, layout-aware recovery, speech handling, or file-type-specific text extraction depending on document family and text quality.
-
-3. Preserve what matters for later retrieval.
-   Plain language: It keeps the parts that make later answers more trustworthy, like page boundaries, structure, tags, and metadata.
-   Engineering: It preserves page text, section paths, table or list structure, chunk metadata, entity signals, summaries, and container scoping for later retrieval and review.
-
-4. Build two kinds of local indexes.
-   Plain language: The app builds one index for exact words and another for semantic similarity because those fail in different ways.
-   Engineering: Normalized text lands in SQLite FTS5 and embeddings land in scoped vector storage so the query path can mix literal lookup, BM25-style lexical retrieval, and embedding search.
-
-5. Understand the question before searching.
-   Plain language: When a user asks something, the app decides what kind of question it is before it searches.
-   Engineering: Query-time resolves the active container, quality mode, embedding context, and routing plan, then may apply rewriting, expansion, HyDE, or literal lookup constraints before retrieval.
-
-6. Retrieve and assemble evidence.
-   Plain language: The system does not just grab the first matching chunk; it tries to assemble the strongest evidence pack it can fit.
-   Engineering: It runs hybrid or iterative retrieval, reranking, diversity control, parent expansion, corrective passes, compression, cross-reference recovery, and context packing under strict token budgets because different retrieval misses come from different causes.
-
-7. Choose the right answer lane.
-   Plain language: Not every question should go through the same answer engine.
-   Engineering: The pipeline can early-return through extractive summarization or direct extraction, continue through single-pass grounded generation, or hand off up front to agentic multi-session reasoning. The extractive paths are precision-protection paths, not a downgrade.
-
-8. Verify before presenting.
-   Plain language: A fluent answer is not enough; the app tries to decide whether it is grounded enough to show confidently.
-   Engineering: The standard path applies quality assessment, verification gates, confidence calibration, and optional source-only refinement before final rendering and citation review. This is a trust-control layer, not a proof-of-truth layer.
-
-9. Inspect and iterate.
-   Plain language: The pipeline is built to be inspectable, not mysterious.
-   Engineering: The app exposes audit snapshots, source trays, diagnostics screens, trace export, a validation harness, and benchmark scripts so retrieval or grounding failures stay debuggable. Diagnostics are part of the product story, not a bolt-on debug extra.
-
-### Two Ways To Talk About It
-
-If you need a short plain-language version: OpenIntelligence builds a local library from messy files, searches that library intelligently, chooses the safest answer path for the question, and shows its work.
-
-If you need the full-blown nerd version: OpenIntelligence is a library-scoped local RAG system with type-aware ingestion, dual lexical plus vector indexing, query planning and routing, multi-stage evidence shaping, multiple answer lanes including extractive and agentic paths, explicit verification and confidence calibration, and first-class audit surfaces.
-
-### Term Crosswalk
-
-| Term                     | Plain-language meaning                                                           | Why it exists                                                                           |
-| ------------------------ | -------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
-| HyDE                     | Generate a hypothetical answer-like document, then search with that embedding    | Helps when the user's wording does not match the document's wording                     |
-| MMR                      | Keep strong results while avoiding too many near-duplicates                      | Prevents the context window from filling with the same evidence over and over           |
-| Parent expansion         | Pull the larger surrounding document context around a promising chunk            | Helps when the best answer spans beyond the first matching chunk                        |
-| Cross-reference recovery | Follow "see section/page/table" style references                                 | Helps when the reranker finds the pointer but not the actual target content             |
-| Context packing          | Fit the strongest evidence into the final prompt budget                          | Apple token limits force evidence to compete for space                                  |
-| Extractive summary       | Build a summary by selecting from source text instead of generating from scratch | Reduces hallucination risk for summary-style questions                                  |
-| Direct extraction        | Return an exact value or source-grounded snippet before or after generation      | Protects exact-value and spec-table answers                                             |
-| Evidence-First mode      | Switch to a more cautious prompt when retrieval looks weak or mismatched         | Tries to stop fluent nonsense when evidence quality drops                               |
-| Verification gates       | Check the answer against the evidence before final display                       | Controls trust posture rather than guaranteeing correctness                             |
-| Source-only refinement   | Force the final answer to stay tightly locked to source-supported content        | Useful for extractive and high-risk precision questions                                 |
-| Agentic mode             | Use a separate multi-step orchestrator instead of one normal pass                | Helps harder questions that need reformulation, deeper retrieval, or verification loops |
-
-### Why It Is This Deep
-
-- Different source types fail differently, so ingestion cannot be one universal parser.
-- Exact lexical search and semantic retrieval both matter, so the app keeps both storage paths.
-- Retrieval misses are not one problem. The system has to defend against wording mismatch, duplicated evidence, missing surrounding context, unresolved cross-references, and evidence that gets lost during packing.
-- Apple’s public context budget is tight, so retrieval has to rerank, compress, and pack evidence aggressively.
-- Exact values, specs, and procedures need stricter handling than freeform synthesis.
-- Agentic mode exists because some questions fail in one pass for structural reasons, not because "more model" is always better.
-- The app is designed to expose uncertainty, not just produce fluent answers.
-- Diagnostics and audit surfaces matter because a polished answer can still be wrong for boring pipeline reasons.
-
-### Key Constraints
-
-- The public Apple Foundation Models path is budgeted around 4096 tokens total.
-- The current embedding path uses 384-dimensional vectors with a relatively small embedding input ceiling.
-- Chunking and context packing are tuned tightly because prompt overhead, retrieved evidence, and output tokens all compete for the same budget.
-- Library isolation is enforced through scoped storage and retrieval, not by searching every imported file at once.
-
-### Code-Verified Routing Notes
-
-These control-flow notes are verified against the current implementation in [RAGService.swift](OpenIntelligence/Services/RAG/Orchestration/RAGService.swift), [QueryExecutionPlannerService.swift](OpenIntelligence/Services/Query/Analysis/QueryExecutionPlannerService.swift), and [DocumentProcessor.swift](OpenIntelligence/Services/Document/Processing/DocumentProcessor.swift).
-
-- agentic mode is chosen before the standard retrieval pipeline starts, not after context packing
-- extractive summarization is an early return, not a sibling step that runs alongside LLM generation
-- direct high-precision extraction can return before LLM generation, and can also override a generated answer later
-- verification gates and calibrated confidence are part of the standard single-pass generation path, not a universal block that every answer path re-enters
-
-<details>
-<summary>Detailed engineering views</summary>
-
-Decision diamonds below mean the code chooses one branch. Dense on purpose: these are the code-level route maps, not the simplified overview above.
-
-#### Full-fidelity ingestion and indexing
-
-Plain-language read: this is the import-time machine that turns raw files into an indexed library.
-
-Engineering read: the code branches hard by document family and text quality, then converges on normalized text, chunking, enrichment, and dual indexing.
+### Ingestion & Indexing Pipeline
+The ingestion engine branches based on file type and text quality, extracting structured lists/tables and generating OCR layout flows where native text is missing.
 
 ```mermaid
 flowchart TD
@@ -326,11 +77,8 @@ flowchart TD
    R --> S
 ```
 
-#### Full-fidelity standard single-pass query path
-
-Plain-language read: this is the normal question-answer path when the planner does not escalate into agentic mode.
-
-Engineering read: the pipeline first decides how to search, then builds an evidence pack, then may early-return into extractive lanes, and only then goes through grounded generation, quality assessment, and verification.
+### Single-Pass Query Pipeline
+The standard query flow runs lexical and vector searches, applies parent-chunk expansion, packages context within on-device constraints, and runs output verification gates.
 
 ```mermaid
 flowchart TD
@@ -395,11 +143,8 @@ flowchart TD
    AT --> AU
 ```
 
-#### Full-fidelity agentic path
-
-Plain-language read: this is the deeper reasoning path for harder questions, where the system may reformulate, expand, verify, and keep going instead of answering in one pass.
-
-Engineering read: agentic mode uses its own orchestrator, multi-query retrieval, hard relevance checks, expansion and reformulation loops, speculative verification, reasoning chains, and a separate finalization path.
+### Agentic Orchestration Map
+Deeper reasoning queries route through a multi-step orchestration loop featuring self-critique, multi-query retrieval, and speculative validation.
 
 ```mermaid
 flowchart TD
@@ -442,189 +187,75 @@ flowchart TD
    AC --> AD
 ```
 
-Current code-path note: agentic responses build their own audit snapshot and response metadata inside [RAGService.swift](OpenIntelligence/Services/RAG/Orchestration/RAGService.swift) and can still apply direct extraction or source-only refinement before the final response, but they do not re-enter the standard Step 7 and Step 7.5 verification block.
+---
 
-#### Runtime service map
+## File Entry Points
 
-This is a two-phase map, not a single per-query execution chain. Import and extraction run when documents are added or reprocessed. Query analysis starts later, when a user asks something against the already-built indexes.
+| Module | Core Files | Responsibility |
+| --- | --- | --- |
+| **Ingestion** | [DocumentProcessor.swift](OpenIntelligence/Services/Document/Processing/DocumentProcessor.swift), [IntelligentDocumentProcessor.swift](OpenIntelligence/Services/Document/Processing/IntelligentDocumentProcessor.swift), [StructuredDocumentParser.swift](OpenIntelligence/Services/Document/Processing/StructuredDocumentParser.swift), [LayoutAwareExtractor.swift](OpenIntelligence/Services/Document/Processing/LayoutAwareExtractor.swift) | Document content extraction, OCR fallback, structure recovery. |
+| **Chunking** | [SemanticChunker.swift](OpenIntelligence/Services/Document/Chunking/SemanticChunker.swift), [ContentTaggingService.swift](OpenIntelligence/Services/Document/Chunking/ContentTaggingService.swift), [EntityIndexService.swift](OpenIntelligence/Services/Document/Analysis/EntityIndexService.swift) | Parsing raw text into chunks, entity resolution, metadata enrichment. |
+| **Indexing** | [EmbeddingService.swift](OpenIntelligence/Services/Embedding/EmbeddingService.swift), [SQLiteFullTextService.swift](OpenIntelligence/Services/Storage/SQLiteFullTextService.swift), [VectorStoreRouter.swift](OpenIntelligence/Services/VectorStore/VectorStoreRouter.swift), [BNNSVectorDatabase.swift](OpenIntelligence/Services/VectorStore/BNNSVectorDatabase.swift) | SQLite FTS5 lexical storage, BNNS-accelerated local vector indexing. |
+| **Query Planning** | [QueryProfileService.swift](OpenIntelligence/Services/Query/Analysis/QueryProfileService.swift), [QueryRewriterService.swift](OpenIntelligence/Services/Query/Rewriting/QueryRewriterService.swift), [HyDEService.swift](OpenIntelligence/Services/Query/Rewriting/HyDEService.swift) | Query profiling, intent classification, expansion, HyDE generation. |
+| **Retrieval** | [HybridSearchService.swift](OpenIntelligence/Services/RAG/Retrieval/HybridSearchService.swift), [IterativeRetrievalService.swift](OpenIntelligence/Services/RAG/Retrieval/IterativeRetrievalService.swift), [ParentDocumentService.swift](OpenIntelligence/Services/RAG/Retrieval/ParentDocumentService.swift), [ContextPackingService.swift](OpenIntelligence/Services/RAG/Retrieval/ContextPackingService.swift) | Hybrid merging, parent-chunk context reconstruction, token-budget packing. |
+| **Orchestration** | [ExtractiveQAService.swift](OpenIntelligence/Services/RAG/Extraction/ExtractiveQAService.swift), [LLMService.swift](OpenIntelligence/Services/LLM/LLMService.swift), [AgenticOrchestrator.swift](OpenIntelligence/Services/Agentic/AgenticOrchestrator.swift), [RAGService.swift](OpenIntelligence/Services/RAG/Orchestration/RAGService.swift) | Generation coordination, agentic pipelines, validation loops. |
+| **Diagnostics** | [ChatScreen.swift](OpenIntelligence/Features/Chat/Conversation/ChatScreen.swift), [RAGPipelineAuditView.swift](OpenIntelligence/Features/Diagnostics/Validation/RAGPipelineAuditView.swift), [DebugRAGValidationHarness.swift](OpenIntelligence/App/DebugRAGValidationHarness.swift), [run_rag_benchmarks.py](scripts/run_rag_benchmarks.py) | Telemetry overlays, audit logs, CLI evaluation harness. |
 
-Plain-language read: these services are organized by when they matter, not as one giant always-on runtime blob.
+---
 
-Engineering read: the ingestion stack materializes the indexed corpus first, then the query stack consumes that corpus later, and the diagnostics surfaces sit downstream of both.
+## Technical Constraints & Constants
 
-```mermaid
-flowchart TD
-   subgraph INGEST[Import-time pipeline]
-      A[Document import]
-      B[Import and extraction<br/>DocumentProcessor<br/>IntelligentDocumentProcessor<br/>StructuredDocumentParser<br/>LayoutAwareExtractor]
-      C[Chunking and enrichment<br/>SemanticChunker<br/>ContentTaggingService<br/>EntityIndexService<br/>DocumentSummaryService]
-      D[Indexing and storage<br/>EmbeddingService<br/>SQLiteFullTextService<br/>VectorStoreRouter<br/>BNNSVectorDatabase]
-      A --> B --> C --> D
-   end
+* **On-Device Context Limit**: 4,096 total token context window (includes system prompt, chat history, retrieval targets, and output buffer).
+* **Embedding Model Output**: 384-dimensional dense vectors calculated using local BNNS frameworks.
+* **Lexical Indexing**: SQLite FTS5 configured with adjusted BM25 column weights prioritizing section headings and entity tags.
+* **Confidence Gate Threshold**: Grounded RAG responses require a semantic evidence overlap index of `0.70` to verify output generation.
 
-   subgraph QUERY[Per-query pipeline]
-      Q[User query]
-      E[Query analysis and routing<br/>QueryProfileService<br/>QueryExecutionPlannerService<br/>QueryRewriterService<br/>HyDEService<br/>QueryRouterService]
-      F[Retrieval and packing<br/>HybridSearchService<br/>IterativeRetrievalService<br/>ParentDocumentService<br/>ContextPackingService]
-      G[Answer and safety<br/>ExtractiveQAService<br/>ExtractiveSummarizationService<br/>LLMService<br/>AgenticOrchestrator<br/>VerificationGateService<br/>SourceOnlyAnswerService<br/>ConfidenceCalibrationService<br/>RAGService]
-      Q --> E --> F --> G
-   end
+---
 
-   D -->|indexed corpus| E
-   G --> H[Review and diagnostics<br/>ChatScreen<br/>ResponseDetailsView<br/>RetrievalSourcesTray<br/>RAGPipelineAuditView<br/>RAGAccuracyView<br/>DebugRAGValidationHarness<br/>scripts/run_rag_benchmarks.py]
-```
+## Release History
 
-#### Full-fidelity recovery and inspection
+| Version | Focus |
+| ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **3.7** | Library layout refactoring, background ingestion queues, tab-switching lag elimination, and successful-answer review prompting.                                                      |
+| **3.6** | Container-isolated iCloud Drive sync, stable library identity reconciliation, and digital text preservation updates.                                                                |
+| **3.5** | Exact-value lookup improvements, empty state onboarding updates, and PDF/image processing consolidation.                                                                             |
+| **3.3** | Queue state recovery on interruption, adaptive visual PDF ingestion, and figure extraction.                                                                                         |
+| **3.2.5**| Precision database checks prior to standard generation, target table row anchoring.                                                                                                  |
+| **3.1** | Custom layout fallback for multi-column structures, verification loop tuning.                                                                                                        |
+| **3.0** | Initial native layout extraction and structured answer resolution implementation.                                                                                                    |
+| **2.0.0**| Initial Native iOS RAG application release with local vector/lexical index engines and container isolation.                                                                          |
 
-Plain-language read: this is what happens when the easy path fails or the evidence looks weak.
+---
 
-Engineering read: recovery spans ingestion fallback, retrieval broadening, evidence-pack retries, reliability mode, abstention, and downstream audit tooling.
+## Build & Verification
 
-```mermaid
-flowchart TD
-   A[Failure or weak-evidence condition] --> B{Where did the problem surface}
-   B -- Ingestion --> C[Escalate extraction<br/>OCR, layout-aware recovery<br/>structured parser fallback, page preservation]
-   B -- Retrieval --> D[Broaden retrieval<br/>literal lookup, wider search, corrective pass<br/>iterative or parent-context recovery]
-   B -- Generation --> E[Build smaller evidence pack<br/>retry on-device with lower token budget<br/>fallback to reliability mode]
-   B -- Verification --> F[Grounded abstention<br/>warning banner, lower confidence<br/>source-only refinement]
-   B -- Empty library --> G[Direct chat mode or no-documents abstention]
-   C --> H[Re-index normalized text and vectors]
-   D --> I[Repack evidence and rerun answer lane]
-   E --> I
-   F --> J[Finalize safe response]
-   G --> J
-   H --> I
-   I --> K{Recovered enough evidence}
-   K -- Yes --> L[Return answer with citations, confidence, warnings]
-   K -- No --> J
-   L --> M[Inspection surfaces<br/>citations tray, response details<br/>audit snapshot and pipeline trace]
-   J --> M
-   M --> N[Validation harness, benchmark manifests<br/>benchmark studio and trace export]
-```
+### Requirements
+* macOS with Xcode.
+* iOS 26.0+ SDK target support.
+* Simulator configured.
 
-</details>
+### Instructions
+1. **Clear macOS extended attributes to prevent codesign failure**:
+   ```bash
+   /usr/bin/xattr -cr /Users/gunnarhostetler/Documents/GitHub/OpenIntelligence-Public/OpenIntelligence
+   ```
+2. **Compile the simulator smoke target**:
+   ```bash
+   ./scripts/build_simulator_smoke.sh
+   ```
+3. **Execute local RAG pipeline validation harness**:
+   ```bash
+   python3 scripts/run_rag_benchmarks.py
+   ```
 
-<details>
-<summary>Primary runtime files</summary>
+---
 
-These are the main entry points, not every helper or experimental branch.
+## Limitations & Scope
 
-| Area                    | Start here                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      | What it owns                                                        |
-| ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
-| Import and extraction   | [DocumentProcessor.swift](OpenIntelligence/Services/Document/Processing/DocumentProcessor.swift), [IntelligentDocumentProcessor.swift](OpenIntelligence/Services/Document/Processing/IntelligentDocumentProcessor.swift), [StructuredDocumentParser.swift](OpenIntelligence/Services/Document/Processing/StructuredDocumentParser.swift), [LayoutAwareExtractor.swift](OpenIntelligence/Services/Document/Processing/LayoutAwareExtractor.swift)                                                                                                                                                                                                                                                                                                                                                | file ingestion, adaptive extraction, parsing, cleanup, preservation |
-| Chunking and enrichment | [SemanticChunker.swift](OpenIntelligence/Services/Document/Chunking/SemanticChunker.swift), [ContentTaggingService.swift](OpenIntelligence/Services/Document/Chunking/ContentTaggingService.swift), [EntityIndexService.swift](OpenIntelligence/Services/Document/Analysis/EntityIndexService.swift), [DocumentSummaryService.swift](OpenIntelligence/Services/Document/Analysis/DocumentSummaryService.swift)                                                                                                                                                                                                                                                                                                                                                                                  | chunk construction, metadata, entity signals, summaries             |
-| Indexing and storage    | [EmbeddingService.swift](OpenIntelligence/Services/Embedding/EmbeddingService.swift), [SQLiteFullTextService.swift](OpenIntelligence/Services/Storage/SQLiteFullTextService.swift), [VectorStoreRouter.swift](OpenIntelligence/Services/VectorStore/VectorStoreRouter.swift), [BNNSVectorDatabase.swift](OpenIntelligence/Services/VectorStore/BNNSVectorDatabase.swift)                                                                                                                                                                                                                                                                                                                                                                                                                        | embeddings, lexical index, vector index, scoped storage             |
-| Query analysis          | [QueryProfileService.swift](OpenIntelligence/Services/Query/Analysis/QueryProfileService.swift), [QueryRewriterService.swift](OpenIntelligence/Services/Query/Rewriting/QueryRewriterService.swift), [HyDEService.swift](OpenIntelligence/Services/Query/Rewriting/HyDEService.swift), [QueryRouterService.swift](OpenIntelligence/Services/Query/Routing/QueryRouterService.swift)                                                                                                                                                                                                                                                                                                                                                                                                             | intent detection, rewriting, expansion, routing                     |
-| Retrieval and packing   | [HybridSearchService.swift](OpenIntelligence/Services/RAG/Retrieval/HybridSearchService.swift), [IterativeRetrievalService.swift](OpenIntelligence/Services/RAG/Retrieval/IterativeRetrievalService.swift), [ParentDocumentService.swift](OpenIntelligence/Services/RAG/Retrieval/ParentDocumentService.swift), [ContextPackingService.swift](OpenIntelligence/Services/RAG/Retrieval/ContextPackingService.swift)                                                                                                                                                                                                                                                                                                                                                                              | hybrid search, fallback passes, parent expansion, context packing   |
-| Answer and safety       | [ExtractiveQAService.swift](OpenIntelligence/Services/RAG/Extraction/ExtractiveQAService.swift), [ExtractiveSummarizationService.swift](OpenIntelligence/Services/RAG/Extraction/ExtractiveSummarizationService.swift), [LLMService.swift](OpenIntelligence/Services/LLM/LLMService.swift), [AgenticOrchestrator.swift](OpenIntelligence/Services/Agentic/AgenticOrchestrator.swift), [VerificationGateService.swift](OpenIntelligence/Services/RAG/Safety/VerificationGateService.swift), [SourceOnlyAnswerService.swift](OpenIntelligence/Services/RAG/Safety/SourceOnlyAnswerService.swift), [ConfidenceCalibrationService.swift](OpenIntelligence/Services/RAG/Safety/ConfidenceCalibrationService.swift), [RAGService.swift](OpenIntelligence/Services/RAG/Orchestration/RAGService.swift) | answer lanes, verification, confidence, orchestration               |
-| Review and benchmarking | [ChatScreen.swift](OpenIntelligence/Features/Chat/Conversation/ChatScreen.swift), [ResponseDetailsView.swift](OpenIntelligence/Features/Chat/Response/ResponseDetailsView.swift), [RetrievalSourcesTray.swift](OpenIntelligence/Features/Chat/Response/RetrievalSourcesTray.swift), [RAGPipelineAuditView.swift](OpenIntelligence/Features/Diagnostics/Validation/RAGPipelineAuditView.swift), [RAGAccuracyView.swift](OpenIntelligence/Features/Diagnostics/Validation/RAGAccuracyView.swift), [DebugRAGValidationHarness.swift](OpenIntelligence/App/DebugRAGValidationHarness.swift), [scripts/run_rag_benchmarks.py](scripts/run_rag_benchmarks.py)                                                                                                                                         | source review, audit views, validation, benchmark loop              |
-
-</details>
-
-<details>
-<summary>Fallback and recovery paths</summary>
-
-- extraction can escalate from cleaner digital parsing into heavier OCR, layout-aware recovery, figure understanding, and page preservation when the source gets noisy
-- embeddings can fall back across providers, and a chunk can still survive through lexical retrieval even if vector quality drops
-- search can broaden from stricter matching into broader FTS fallback, corrective retrieval, iterative passes, and parent-context recovery
-- exact-value and summary intents can route away from freeform generation into extractive lanes
-- model and execution routing can fall back across runtime and capability constraints, including on-device behavior when broader execution paths are unavailable
-- verification can still reject the result and force warnings or abstention even after the model produced something fluent
-
-</details>
-
-See [Retrieval Pipeline](Docs/RETRIEVAL_PIPELINE.md), [RAG Technical Specifications](Docs/Engineering/RAG_TECHNICAL.md), [Storage and Pipeline Trace](Docs/Engineering/STORAGE_AND_PIPELINE_TRACE.md), [Apple Intelligence Models and Specs](Docs/Engineering/APPLE_MODELS.md), [Hard Limits and Claim Constraints](Docs/Engineering/HARD_LIMITS.md), and [Benchmarks](Benchmarks/README.md) for the deeper trace and the implementation limits that shape it.
-
-## Technical References
-
-- [Apple Document Intelligence Reference](Docs/Engineering/APPLE_DOCUMENT_INTELLIGENCE.md): Vision, VisionKit, Natural Language, PDFKit, Speech, and related Apple document APIs.
-- [Apple Intelligence Foundation Language Models Tech Report Notes](Docs/Engineering/APPLE_FM_TECH_REPORT_2025.md): model architecture and platform constraints relevant to the prototype.
-- [Apple Intelligence Models and Specs](Docs/Engineering/APPLE_MODELS.md): context-window, token-budget, `LanguageModelSession`, tool-calling, and guided-generation notes.
-- [Private Cloud Compute Reference](Docs/Engineering/PRIVATE_CLOUD_COMPUTE.md): PCC architecture notes and conservative wording for what it does and does not imply.
-
-## Research Notes And Supporting Assets
-
-- [Research index](Docs/Research/README.md): source map and repo mapping for the deeper research notes.
-- [Apple Intelligence and Foundation Models research](Docs/Research/APPLE_INTELLIGENCE_AND_FOUNDATION_MODELS.md)
-- [RAG and retrieval research](Docs/Research/RAG_AND_RETRIEVAL_2024_2026.md)
-- [CAG and context engineering research](Docs/Research/CAG_AND_CONTEXT_ENGINEERING_2024_2026.md)
-- [Core ML, Metal, and on-device AI research](Docs/Research/COREML_METAL_ON_DEVICE_AI.md)
-- [Document intelligence and OCR research](Docs/Research/DOCUMENT_INTELLIGENCE_AND_OCR.md)
-- [Public workflow overview](HOW_IT_WORKS.md)
-- [Test documents](Docs/TestDocuments/README.md)
-- [Benchmark fixtures](Benchmarks/Fixtures/README.md)
-- [Research fixtures](Benchmarks/ResearchFixtures/README.md)
-- [Pipeline xray](Xrays/pipeline-xray/index.html)
-- [What's New](WHATS_NEW.md), [Changelog](CHANGELOG.md), [Privacy](PRIVACY.md), and [Third Party Notices](THIRD_PARTY_NOTICES.md)
-
-## Benchmarks And Diagnostics
-
-The repo includes a local benchmark harness for testing RAG behavior against controlled manifests:
-
-- [`Benchmarks/rag_validation_sample.json`](Benchmarks/rag_validation_sample.json): sample manifest.
-- [`Benchmarks/studio.html`](Benchmarks/studio.html): lightweight ad hoc document studio.
-- [`scripts/run_rag_benchmarks.py`](scripts/run_rag_benchmarks.py): benchmark runner.
-- [`scripts/rag_benchmark_studio.py`](scripts/rag_benchmark_studio.py): local benchmark-studio helper.
-- [`scripts/prepare_rag_research_fixtures.py`](scripts/prepare_rag_research_fixtures.py): fixture preparation helper.
-- [`scripts/secret_scan.py`](scripts/secret_scan.py): lightweight local secret scan.
-
-The benchmark path exists to make retrieval failures inspectable: source mismatches, weak answers, abstention behavior, missing evidence, and context-packing issues should be visible rather than hidden behind a polished answer.
-
-## Setup
-
-Requirements:
-
-- macOS with Xcode installed.
-- iOS 26.0+ SDK/toolchain support.
-- Developer familiarity with Xcode, SwiftPM, and local simulator builds.
-
-Build the app target:
-
-```bash
-xcodebuild \
-  -project OpenIntelligence.xcodeproj \
-  -scheme OpenIntelligence \
-  -destination 'generic/platform=iOS Simulator' \
-  CODE_SIGNING_ALLOWED=NO \
-  build
-```
-
-Run the simulator smoke script:
-
-```bash
-./scripts/build_simulator_smoke.sh
-```
-
-Inspect the experimental package boundary:
-
-```bash
-swift package describe
-```
-
-Run the lightweight secret scan:
-
-```bash
-python3 scripts/secret_scan.py .
-```
-
-## Limits And Non-Goals
-
-OpenIntelligence is intentionally honest about what it is:
-
-- Experimental prototype.
-- Not validated for regulated workflows.
-- Not intended for clinical, legal, financial, or safety-critical decision-making.
-- Not guaranteed to produce complete or correct answers.
-- Some paths may depend on device-specific Apple Intelligence availability.
-- Packaging and setup may require developer familiarity.
-- The engine boundary is exploratory and should not be treated as a finished public SDK contract.
-
-See [Limitations](Docs/LIMITATIONS.md) for the full version.
-
-## Relationship To OpenClinic
-
-OpenClinic and OpenIntelligence are separate projects. OpenIntelligence is a general document intelligence prototype and is not a clinical tool. Any healthcare-adjacent examples should be treated as generic document workflows, not medical guidance or regulated functionality.
+* The system is a technical prototype and exploratory implementation of on-device RAG.
+* Core engine targets and schemas are subject to change.
+* Responses depend on local foundation model availability and on-device memory constraints.
 
 ## License
 
-See [`LICENSE`](LICENSE).
+See [LICENSE](LICENSE).

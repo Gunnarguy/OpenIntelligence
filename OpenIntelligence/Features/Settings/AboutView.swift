@@ -1,8 +1,10 @@
 import SwiftUI
 
 enum OpenIntelligenceLinks {
+    static let appStoreID = "6756559175"
     static let githubURL = URL(string: "https://github.com/Gunnarguy/OpenIntelligence")!
-    static let appStoreURL = URL(string: "https://apps.apple.com/us/app/openintelligence/id6756559175")!
+    static let appStoreURL = URL(string: "https://apps.apple.com/app/id\(appStoreID)")!
+    static let writeReviewURL = URL(string: "https://apps.apple.com/app/id\(appStoreID)?action=write-review")!
     static let feedbackEmailAddress = "gunnarguy@me.com"
 
     static func feedbackMailtoURL(source: String) -> URL {
@@ -176,8 +178,16 @@ struct AboutView: View {
                                 openURL(OpenIntelligenceLinks.githubURL)
                             }
                             externalLinkRow(
+                                title: "Write an App Store Review",
+                                subtitle: "Open the App Store review form directly when you want to leave feedback",
+                                icon: "star.bubble.fill",
+                                tint: .orange
+                            ) {
+                                openURL(OpenIntelligenceLinks.writeReviewURL)
+                            }
+                            externalLinkRow(
                                 title: "App Store Listing",
-                                subtitle: "Open the current App Store listing",
+                                subtitle: "Browse the public listing, screenshots, and release notes",
                                 icon: "apple.logo",
                                 tint: .blue
                             ) {

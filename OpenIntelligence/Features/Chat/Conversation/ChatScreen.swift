@@ -7,6 +7,7 @@
 
 import Combine
 import Foundation
+import StoreKit
 import SwiftUI
 import Translation
 
@@ -183,6 +184,7 @@ private final class ContinuedQueryCoordinator: ObservableObject {
 @MainActor
 struct ChatScreen: View {
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.requestReview) private var requestReview
     @EnvironmentObject private var onboardingStore: OnboardingStateStore
     @EnvironmentObject private var settings: SettingsStore
     @EnvironmentObject private var entitlementStore: EntitlementStore
@@ -273,6 +275,7 @@ struct ChatScreen: View {
     // Smart Reply follow-up suggestions (shown after AI response)
     @State private var followUpSuggestions: [SmartReply] = []
     @State private var followUpSuggestionsTask: Task<Void, Never>? = nil
+    @State private var reviewPromptTask: Task<Void, Never>? = nil
 
     // Speed history for sparkline graph
     @State private var speedHistory: [Double] = []
@@ -529,9 +532,16 @@ struct ChatScreen: View {
         }
         .onChange(of: scenePhase) { _, newPhase in
             continuedQueryCoordinator.handleScenePhaseChange(newPhase, isProcessing: isProcessing)
+            if newPhase != .active {
+                reviewPromptTask?.cancel()
+                reviewPromptTask = nil
+            }
         }
         // Recalculate counts when active container changes
         .task(id: ragService.containerService.activeContainerId) {
+            reviewPromptTask?.cancel()
+            reviewPromptTask = nil
+
             // Cancel any in-flight query from the previous library to prevent cross-container bleed
             continuedQueryCoordinator.cancelCurrentQuery()
             currentQuerySessionId = nil
@@ -1484,7 +1494,7 @@ struct ChatScreen: View {
                 } else {
                     hasValidCache = await suggestedQuestionsService.hasValidCache(for: containerId, documentCount: documents.count)
                 }
-                
+
                 let sampleChunks: [DocumentChunk]
                 if hasValidCache {
                     sampleChunks = []
@@ -2314,6 +2324,9 @@ struct ChatScreen: View {
         let query = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !query.isEmpty else { return }
 
+        reviewPromptTask?.cancel()
+        reviewPromptTask = nil
+
         // Haptic feedback for sending a message
         DSHaptics.messageSent()
 
@@ -2379,6 +2392,7 @@ struct ChatScreen: View {
         let capturedExecutionContext: ExecutionContext =
             baseExecutionContext == .automatic ? .preferCloud : baseExecutionContext
         let capturedAllowPCC = baseExecutionContext != .onDeviceOnly
+        let capturedQualityMode = effectiveQualityMode.canonical
         requestedExecutionContext = capturedExecutionContext
         let capturedUsedContainerId = usedContainerId
         let querySessionId = UUID()
@@ -2593,6 +2607,12 @@ struct ChatScreen: View {
                         // previous turn and making the conversation behave like single-turn only.
                         self.currentQuerySessionId = nil
                         self.currentQueryTask = nil
+
+                        self.scheduleReviewPromptIfEligible(
+                            response: response,
+                            renderedResponse: assistant.content,
+                            qualityMode: capturedQualityMode
+                        )
                     }
                 }
 
@@ -2697,6 +2717,49 @@ struct ChatScreen: View {
     private func sendSuggestedPrompt(_ prompt: String) {
         DSHaptics.selection()
         sendMessage(prompt)
+    }
+
+    private var canPresentScheduledReviewPrompt: Bool {
+        #if DEBUG
+        if didSeedScreenshotDemo {
+            return false
+        }
+        #endif
+
+        return scenePhase == .active
+            && !isProcessing
+            && currentQueryTask == nil
+            && activeCloudConsent == nil
+            && !showRetrievedDetails
+            && !showPlanSheet
+            && !showVisionCapture
+                && !writingToolsProcessing
+            && !showWritingToolsResult
+            && !showTranslation
+            && !showMaximumModeLimitDialog
+    }
+
+    private func scheduleReviewPromptIfEligible(
+        response: RAGResponse,
+        renderedResponse: String,
+        qualityMode: RAGQualityMode
+    ) {
+        guard AppReviewPromptTracker.registerSuccessfulAnswer(
+            qualityMode: qualityMode,
+            retrievedChunkCount: response.retrievedChunks.count,
+            responseLength: renderedResponse.count
+        ) else { return }
+
+        reviewPromptTask?.cancel()
+        reviewPromptTask = Task { @MainActor in
+            defer { reviewPromptTask = nil }
+
+            try? await Task.sleep(nanoseconds: AppReviewPromptPolicy.promptDelayNanoseconds)
+            guard !Task.isCancelled, canPresentScheduledReviewPrompt else { return }
+
+            AppReviewPromptTracker.markPromptAttempted()
+            requestReview()
+        }
     }
 
     private func presentMaximumModePaywall() {
@@ -3602,6 +3665,104 @@ struct ComposerStub: View {
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
         .background(DSColors.background)
+    }
+}
+
+private enum AppReviewPromptPolicy {
+    static let minimumSuccessfulAnswers = 3
+    static let minimumDistinctUsageDays = 2
+    static let minimumPromptCooldown: TimeInterval = 14 * 24 * 60 * 60
+    static let minimumMeaningfulResponseCharacters = 120
+    static let minimumRetrievedSources = 1
+    static let promptDelayNanoseconds: UInt64 = 4_000_000_000
+}
+
+private enum AppReviewPromptTracker {
+    private enum Keys {
+        static let successfulAnswerCount = "appReview.successfulAnswerCount"
+        static let distinctUsageDays = "appReview.distinctUsageDays"
+        static let hasCompletedHighEffortAnswer = "appReview.hasCompletedHighEffortAnswer"
+        static let lastPromptedVersion = "appReview.lastPromptedVersion"
+        static let lastPromptAttemptedAt = "appReview.lastPromptAttemptedAt"
+    }
+
+    private static let defaults = UserDefaults.standard
+    private static let calendar = Calendar.autoupdatingCurrent
+
+    static func registerSuccessfulAnswer(
+        qualityMode: RAGQualityMode,
+        retrievedChunkCount: Int,
+        responseLength: Int,
+        now: Date = Date()
+    ) -> Bool {
+        guard retrievedChunkCount >= AppReviewPromptPolicy.minimumRetrievedSources,
+              responseLength >= AppReviewPromptPolicy.minimumMeaningfulResponseCharacters
+        else {
+            return false
+        }
+
+        let currentVersion = currentAppVersion
+        guard !currentVersion.isEmpty else { return false }
+        guard defaults.string(forKey: Keys.lastPromptedVersion) != currentVersion else { return false }
+
+        if let lastPromptAttemptedAt = defaults.object(forKey: Keys.lastPromptAttemptedAt) as? Date,
+           now.timeIntervalSince(lastPromptAttemptedAt) < AppReviewPromptPolicy.minimumPromptCooldown {
+            return false
+        }
+
+        defaults.set(defaults.integer(forKey: Keys.successfulAnswerCount) + 1, forKey: Keys.successfulAnswerCount)
+
+        if qualityMode.qualifiesForReviewAcceleration {
+            defaults.set(true, forKey: Keys.hasCompletedHighEffortAnswer)
+        }
+
+        storeDistinctUsageDay(now)
+
+        let successfulAnswerCount = defaults.integer(forKey: Keys.successfulAnswerCount)
+        guard successfulAnswerCount >= AppReviewPromptPolicy.minimumSuccessfulAnswers else {
+            return false
+        }
+
+        let distinctUsageDayCount = (defaults.array(forKey: Keys.distinctUsageDays) as? [String] ?? []).count
+        let hasCompletedHighEffortAnswer = defaults.bool(forKey: Keys.hasCompletedHighEffortAnswer)
+
+        return distinctUsageDayCount >= AppReviewPromptPolicy.minimumDistinctUsageDays
+            || hasCompletedHighEffortAnswer
+    }
+
+    static func markPromptAttempted(now: Date = Date()) {
+        let currentVersion = currentAppVersion
+        guard !currentVersion.isEmpty else { return }
+
+        defaults.set(currentVersion, forKey: Keys.lastPromptedVersion)
+        defaults.set(now, forKey: Keys.lastPromptAttemptedAt)
+    }
+
+    private static func storeDistinctUsageDay(_ date: Date) {
+        let startOfDay = calendar.startOfDay(for: date)
+        let dayKey = String(Int(startOfDay.timeIntervalSince1970))
+        var storedDays = defaults.array(forKey: Keys.distinctUsageDays) as? [String] ?? []
+
+        if !storedDays.contains(dayKey) {
+            storedDays.append(dayKey)
+            storedDays = Array(storedDays.suffix(14))
+            defaults.set(storedDays, forKey: Keys.distinctUsageDays)
+        }
+    }
+
+    private static var currentAppVersion: String {
+        Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? ""
+    }
+}
+
+private extension RAGQualityMode {
+    var qualifiesForReviewAcceleration: Bool {
+        switch canonical {
+        case .deepThink, .maximum:
+            return true
+        default:
+            return false
+        }
     }
 }
 
