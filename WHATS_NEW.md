@@ -22,8 +22,12 @@ If 3.6 made it easier to move your libraries across devices, 3.7 is the update a
 - Answer inspection is much richer now, with stronger source review, timing, retrieval-quality, and evidence details when you want to see how a response was formed.
 - Technical answers and structured output render more cleanly now, including stronger code block handling and clearer response detail views.
 - Diagnostics and device-aware performance behavior are more stable on larger libraries and longer-running work, with deeper inspection tools behind the scenes for validation and monitoring.
-- Device-specific hardware telemetry HUD now maps the physical SoC and Taptic Engine coordinates for iPads (mini, Air, and Pro) and adapts dynamically to landscape and portrait interface rotations, while hiding motherboard overlay borders on macOS.
-- Xcode build configurations and asset assets are fully aligned with a universal AppIcon setup and code signing entitlements across iOS, iPadOS, and macOS.
+- Added native App Store rating and review prompting triggers after successful query tasks.
+- Resolved Mac Catalyst layout truncations, including the Sync Mode picker, action chips, and scrollable library selector pills.
+- Enabled full iCloud ubiquity container access and network permissions for Mac Catalyst by packaging universal sandbox entitlements.
+- Resolved Xcode build catalog warnings with a unified universal AppIcon configuration across iOS and macOS targets.
+- Redesigned the Silicon hardware telemetry HUD to dynamically rotate motherboard borders (SoC and Taptic outlines) to match device layout rotation, added iPad layout coordinates, and cleanly hid visual outlines on Mac targets.
+- Hardened suggested questions and 3D visualization keywords to aggressively filter out OCR junk, syntax noise, and generic templates.
 
 This release is about making the app feel more complete from import to answer review: fewer weak spots between "I added a file" and "I trust this answer."
 

@@ -14,6 +14,12 @@ This is the public version history for OpenIntelligence. It focuses on user-visi
 - Expanded answer review with clearer source inspection, timing, retrieval-quality, and evidence details when users want to understand how a response was formed
 - Improved rendering for technical and structured answers, including clearer code block presentation and better response-detail surfaces
 - Tightened diagnostics, monitoring, and device-aware performance behavior so larger libraries and longer-running sessions are more stable to work with
+- Added native App Store rating and review prompting triggers after successful query tasks
+- Resolved Mac Catalyst layout truncations, including the Sync Mode picker, action chips, and scrollable library selector pills
+- Enabled full iCloud ubiquity container access and network permissions for Mac Catalyst by packaging universal sandbox entitlements
+- Resolved Xcode build catalog warnings with a unified universal AppIcon configuration across iOS and macOS targets
+- Redesigned the Silicon hardware telemetry HUD to dynamically rotate motherboard borders (SoC and Taptic outlines) to match device layout rotation, added iPad layout coordinates, and cleanly hid visual outlines on Mac targets
+- Hardened suggested questions and 3D visualization keywords to aggressively filter out OCR junk, syntax noise, and generic templates
 
 ## 3.6 - May 2026
 
