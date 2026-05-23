@@ -13,7 +13,9 @@
 
 import Combine
 import Foundation
+#if canImport(UIKit)
 import UIKit
+#endif
 
 // MARK: - Pipeline Optimization Level
 
@@ -430,47 +432,46 @@ final class AdaptivePipelineOptimizer: ObservableObject {
 
     private static func captureCurrentState() -> DeviceRuntimeState {
         let thermal = ProcessInfo.processInfo.thermalState
-        let rawBattery = UIDevice.current.batteryLevel
-        let rawBatteryState = UIDevice.current.batteryState
-
-        // On Mac, the iOS battery API often returns garbage values (e.g., 0.02 when actually at 99%)
-        // We need to detect this and handle it gracefully
         let isMac = DeviceCapabilityService.shared.isMac || ProcessInfo.processInfo.isiOSAppOnMac
 
         let battery: Float
         let charging: Bool
 
+#if canImport(UIKit)
+        let rawBattery = UIDevice.current.batteryLevel
+        let rawBatteryState = UIDevice.current.batteryState
+
         if isMac {
-            // On Mac, the battery API is unreliable. The safest approach is to assume
-            // the device has adequate power (Mac users typically have good power situations)
-            // This prevents false "low battery" degradation of the pipeline
-            //
-            // We check for obviously garbage values:
-            // - batteryState == .unknown (API not working)
-            // - batteryLevel < 0 (no battery info)
-            // - batteryLevel suspiciously low (< 5%) with .unknown state
             let looksLikeGarbage = rawBatteryState == .unknown ||
                 rawBattery < 0 ||
                 (rawBattery < 0.05 && rawBatteryState != .unplugged)
 
             if looksLikeGarbage {
-                // Garbage values - assume full power
                 battery = 1.0
                 charging = true
             } else {
-                // Values look plausible - trust them (MacBook with working battery API)
                 battery = rawBattery
                 charging = rawBatteryState == .charging || rawBatteryState == .full
             }
         } else {
-            // Real iOS device: use actual values
             battery = rawBattery >= 0 ? rawBattery : 1.0
             charging = rawBatteryState == .charging || rawBatteryState == .full
         }
+#else
+        // macOS native: assume full/charging
+        battery = 1.0
+        charging = true
+        let _ = isMac
+#endif
 
         // Memory pressure detection
         let memoryPressure: DeviceRuntimeState.MemoryPressure
-        let availableMemory = os_proc_available_memory()
+        let availableMemory: UInt64
+        #if os(iOS)
+        availableMemory = UInt64(os_proc_available_memory())
+        #else
+        availableMemory = SystemStateMonitor.macAvailableMemory()
+        #endif
         let totalMemory = ProcessInfo.processInfo.physicalMemory
         let memoryRatio = Double(availableMemory) / Double(totalMemory)
 
@@ -492,7 +493,9 @@ final class AdaptivePipelineOptimizer: ObservableObject {
     }
 
     private func enableBatteryMonitoring() {
+#if canImport(UIKit)
         UIDevice.current.isBatteryMonitoringEnabled = true
+#endif
     }
 
     private func setupObservers() {
@@ -508,7 +511,8 @@ final class AdaptivePipelineOptimizer: ObservableObject {
             }
         }
 
-        // Battery level/state changes
+        // Battery level/state changes (iOS only)
+#if canImport(UIKit)
         batteryObserver = NotificationCenter.default.addObserver(
             forName: UIDevice.batteryLevelDidChangeNotification,
             object: nil,
@@ -519,8 +523,10 @@ final class AdaptivePipelineOptimizer: ObservableObject {
                 self.updateState()
             }
         }
+#endif
 
-        // Memory warnings
+        // Memory warnings (iOS only)
+#if canImport(UIKit)
         memoryObserver = NotificationCenter.default.addObserver(
             forName: UIApplication.didReceiveMemoryWarningNotification,
             object: nil,
@@ -531,6 +537,7 @@ final class AdaptivePipelineOptimizer: ObservableObject {
                 self.handleMemoryWarning()
             }
         }
+#endif
     }
 
     private func updateState() {

@@ -10,7 +10,9 @@
 
 import Combine
 import Foundation
+#if canImport(UIKit)
 import UIKit
+#endif
 import Darwin.Mach
 
 // MARK: - System State Snapshot
@@ -23,7 +25,11 @@ struct SystemStateSnapshot: Sendable, Equatable {
 
     // Battery
     let batteryLevel: Float // 0.0-1.0, -1 if unknown
+#if canImport(UIKit)
     let batteryState: UIDevice.BatteryState
+#else
+    let batteryState: MacBatteryState
+#endif
     let isCharging: Bool
     let isFullyCharged: Bool
 
@@ -279,8 +285,10 @@ final class SystemStateMonitor: ObservableObject {
     // MARK: - Initialization
 
     private init() {
-        // Enable battery monitoring
+        // Enable battery monitoring (iOS only)
+#if canImport(UIKit)
         UIDevice.current.isBatteryMonitoringEnabled = true
+#endif
 
         // Capture initial state
         currentState = Self.captureState()
@@ -355,7 +363,6 @@ final class SystemStateMonitor: ObservableObject {
 
     private static func captureState() -> SystemStateSnapshot {
         let processInfo = ProcessInfo.processInfo
-        let device = UIDevice.current
 
         // Thermal
         let thermal = processInfo.thermalState
@@ -371,6 +378,9 @@ final class SystemStateMonitor: ObservableObject {
 
         // Battery - Mac detection needed because iOS battery API often returns garbage on Mac
         let isMac = DeviceCapabilityService.shared.isMac || processInfo.isiOSAppOnMac
+
+#if canImport(UIKit)
+        let device = UIDevice.current
         let rawBatteryLevel = device.batteryLevel
         let rawBatteryState = device.batteryState
 
@@ -404,9 +414,22 @@ final class SystemStateMonitor: ObservableObject {
             isCharging = rawBatteryState == .charging || rawBatteryState == .full
             isFullyCharged = rawBatteryState == .full
         }
+#else
+        // macOS: assume plugged in / full
+        let batteryLevel: Float = 1.0
+        let batteryState: MacBatteryState = .full
+        let isCharging = true
+        let isFullyCharged = true
+        let _ = isMac // suppress unused warning
+#endif
 
         // Memory
-        let availableMemory = UInt64(os_proc_available_memory())
+        let availableMemory: UInt64
+        #if os(iOS)
+        availableMemory = UInt64(os_proc_available_memory())
+        #else
+        availableMemory = Self.macAvailableMemory()
+        #endif
         let totalMemory = processInfo.physicalMemory
         let memoryRatio = 1.0 - (Double(availableMemory) / Double(totalMemory))
 
@@ -428,7 +451,11 @@ final class SystemStateMonitor: ObservableObject {
         // System
         let uptime = processInfo.systemUptime
         let osVersion = "\(processInfo.operatingSystemVersionString)"
-        let deviceModel = device.model
+#if canImport(UIKit)
+        let deviceModel = UIDevice.current.model
+#else
+        let deviceModel = "Mac"
+#endif
 
         // Pipeline
         let optimizer = AdaptivePipelineOptimizer.shared
@@ -463,6 +490,23 @@ final class SystemStateMonitor: ObservableObject {
         )
     }
 
+    static func macAvailableMemory() -> UInt64 {
+        var stats = vm_statistics64()
+        var count = mach_msg_type_number_t(MemoryLayout<vm_statistics64>.size / MemoryLayout<integer_t>.size)
+        let result = withUnsafeMutablePointer(to: &stats) { ptr in
+            ptr.withMemoryRebound(to: integer_t.self, capacity: Int(count)) { intPtr in
+                host_statistics64(mach_host_self(), HOST_VM_INFO64, intPtr, &count)
+            }
+        }
+        if result == KERN_SUCCESS {
+            let pageSize = UInt64(vm_kernel_page_size)
+            let freePages = UInt64(stats.free_count)
+            let inactivePages = UInt64(stats.inactive_count)
+            return (freePages + inactivePages) * pageSize
+        }
+        return ProcessInfo.processInfo.physicalMemory / 2
+    }
+
     private func updateState() {
         let newState = Self.captureState()
         currentState = newState
@@ -491,7 +535,8 @@ final class SystemStateMonitor: ObservableObject {
             }
         }
 
-        // Battery level changes
+        // Battery level changes (iOS only)
+#if canImport(UIKit)
         batteryLevelObserver = NotificationCenter.default.addObserver(
             forName: UIDevice.batteryLevelDidChangeNotification,
             object: nil,
@@ -530,6 +575,8 @@ final class SystemStateMonitor: ObservableObject {
                 }
             }
         }
+#endif
+
 
         // Low power mode changes
         lowPowerObserver = NotificationCenter.default.addObserver(
@@ -548,6 +595,7 @@ final class SystemStateMonitor: ObservableObject {
         }
 
         // Memory warnings
+#if canImport(UIKit)
         memoryObserver = NotificationCenter.default.addObserver(
             forName: UIApplication.didReceiveMemoryWarningNotification,
             object: nil,
@@ -559,6 +607,7 @@ final class SystemStateMonitor: ObservableObject {
                 DSHaptics.warning()
             }
         }
+#endif
     }
 
     /// Haptic feedback based on thermal state
@@ -600,6 +649,7 @@ extension ProcessInfo.ThermalState: @retroactive CustomStringConvertible {
     }
 }
 
+#if canImport(UIKit)
 extension UIDevice.BatteryState: @retroactive CustomStringConvertible {
     public var description: String {
         switch self {
@@ -611,3 +661,17 @@ extension UIDevice.BatteryState: @retroactive CustomStringConvertible {
         }
     }
 }
+#else
+/// macOS battery state stub (no UIDevice available on macOS native target)
+enum MacBatteryState: Sendable, Equatable, CustomStringConvertible {
+    case unknown, unplugged, charging, full
+    public var description: String {
+        switch self {
+        case .unknown: return "Unknown"
+        case .unplugged: return "Unplugged"
+        case .charging: return "Charging"
+        case .full: return "Full"
+        }
+    }
+}
+#endif

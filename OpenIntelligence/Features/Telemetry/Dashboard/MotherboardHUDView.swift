@@ -16,7 +16,9 @@
 //
 
 import SwiftUI
+#if canImport(UIKit)
 import UIKit
+#endif
 import Combine
 
 // MARK: - Device Layout Configuration
@@ -68,9 +70,13 @@ enum DeviceComponentLayout {
 
     @MainActor
     private static func simulatorNativeScreenHeight() -> CGFloat {
+#if canImport(UIKit)
         let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
         let screen = (scenes.first { $0.activationState == .foregroundActive } ?? scenes.first)?.screen
         return screen?.nativeBounds.height ?? 0
+#else
+        return 0
+#endif
     }
 
     var displayName: String {
@@ -176,6 +182,7 @@ enum DeviceComponentLayout {
 // MARK: - Keyboard Height Observer
 
 /// Tracks keyboard height for floating indicator positioning
+#if canImport(UIKit)
 final class KeyboardHeightObserver: ObservableObject {
     @Published var keyboardHeight: CGFloat = 0
     @Published var isKeyboardVisible: Bool = false
@@ -215,6 +222,13 @@ final class KeyboardHeightObserver: ObservableObject {
         }
     }
 }
+#else
+/// macOS stub — keyboard height is always zero on macOS.
+final class KeyboardHeightObserver: ObservableObject {
+    @Published var keyboardHeight: CGFloat = 0
+    @Published var isKeyboardVisible: Bool = false
+}
+#endif
 
 // MARK: - Full-Screen X-Ray Overlay
 

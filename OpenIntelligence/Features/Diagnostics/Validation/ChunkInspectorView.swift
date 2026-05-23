@@ -96,7 +96,7 @@ struct ChunkInspectorView: View {
             .padding(.horizontal)
         }
         .padding(.vertical, 12)
-        .background(Color(.systemGroupedBackground))
+        .background(DSColors.systemGroupedBackground)
     }
 
     private func statPill(icon: String, value: String, label: String) -> some View {
@@ -107,7 +107,7 @@ struct ChunkInspectorView: View {
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 4)
-        .background(Color(.secondarySystemGroupedBackground))
+        .background(DSColors.secondarySystemGroupedBackground)
         .clipShape(Capsule())
     }
 
@@ -129,7 +129,7 @@ struct ChunkInspectorView: View {
                 }
             }
             .padding(12)
-            .background(Color(.secondarySystemGroupedBackground))
+            .background(DSColors.secondarySystemGroupedBackground)
             .clipShape(RoundedRectangle(cornerRadius: 10))
             .padding(.horizontal)
 
@@ -191,7 +191,7 @@ struct ChunkInspectorView: View {
                                 Text(doc.filename).font(.caption).lineLimit(1)
                             }
                             .padding(.horizontal, 10).padding(.vertical, 6)
-                            .background(selectedDocument?.id == doc.id ? Color.accentColor : Color(.secondarySystemGroupedBackground))
+                            .background(selectedDocument?.id == doc.id ? Color.accentColor : DSColors.secondarySystemGroupedBackground)
                             .foregroundStyle(selectedDocument?.id == doc.id ? .white : .primary)
                             .clipShape(Capsule())
                         }
@@ -386,7 +386,7 @@ struct ChunkRowView: View {
                         .foregroundStyle(.secondary)
                         .padding(.horizontal, 6)
                         .padding(.vertical, 2)
-                        .background(Color(.tertiarySystemGroupedBackground))
+                        .background(DSColors.tertiarySystemGroupedBackground)
                         .clipShape(Capsule())
                 }
                 Text("#\(chunk.chunkIndex)")
@@ -476,7 +476,12 @@ struct ChunkDetailSheet: View {
                 }
                 ToolbarItem(placement: .primaryAction) {
                     Button {
+                        #if canImport(UIKit)
                         UIPasteboard.general.string = chunk.content
+                        #elseif canImport(AppKit)
+                        NSPasteboard.general.clearContents()
+                        NSPasteboard.general.setString(chunk.content, forType: .string)
+                        #endif
                         DSHaptics.copy()
                     } label: {
                         Image(systemName: "doc.on.doc")
@@ -498,7 +503,7 @@ struct ChunkDetailSheet: View {
             }
         }
         .padding()
-        .background(Color(.secondarySystemGroupedBackground))
+        .background(DSColors.secondarySystemGroupedBackground)
         .clipShape(RoundedRectangle(cornerRadius: 12))
     }
 
@@ -521,11 +526,11 @@ struct ChunkDetailSheet: View {
                 .textSelection(.enabled)
                 .padding()
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .background(Color(.tertiarySystemGroupedBackground))
+                .background(DSColors.tertiarySystemGroupedBackground)
                 .clipShape(RoundedRectangle(cornerRadius: 8))
         }
         .padding()
-        .background(Color(.secondarySystemGroupedBackground))
+        .background(DSColors.secondarySystemGroupedBackground)
         .clipShape(RoundedRectangle(cornerRadius: 12))
     }
 
@@ -541,7 +546,7 @@ struct ChunkDetailSheet: View {
                 .clipShape(RoundedRectangle(cornerRadius: 8))
         }
         .padding()
-        .background(Color(.secondarySystemGroupedBackground))
+        .background(DSColors.secondarySystemGroupedBackground)
         .clipShape(RoundedRectangle(cornerRadius: 12))
     }
 
@@ -565,7 +570,7 @@ struct ChunkDetailSheet: View {
             }
         }
         .padding()
-        .background(Color(.secondarySystemGroupedBackground))
+        .background(DSColors.secondarySystemGroupedBackground)
         .clipShape(RoundedRectangle(cornerRadius: 12))
     }
 
@@ -585,7 +590,7 @@ struct ChunkDetailSheet: View {
             }
         }
         .padding()
-        .background(Color(.secondarySystemGroupedBackground))
+        .background(DSColors.secondarySystemGroupedBackground)
         .clipShape(RoundedRectangle(cornerRadius: 12))
     }
 
@@ -605,7 +610,7 @@ struct ChunkDetailSheet: View {
             }
         }
         .padding()
-        .background(Color(.secondarySystemGroupedBackground))
+        .background(DSColors.secondarySystemGroupedBackground)
         .clipShape(RoundedRectangle(cornerRadius: 12))
     }
 
@@ -622,7 +627,7 @@ struct ChunkDetailSheet: View {
             }
         }
         .padding()
-        .background(Color(.secondarySystemGroupedBackground))
+        .background(DSColors.secondarySystemGroupedBackground)
         .clipShape(RoundedRectangle(cornerRadius: 12))
     }
 }

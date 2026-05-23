@@ -7,7 +7,9 @@
 //
 
 import Foundation
+#if canImport(UIKit)
 import UIKit
+#endif
 import CoreML
 import Metal
 
@@ -269,6 +271,18 @@ final class DeviceCapabilityService: @unchecked Sendable {
         }
 
         if isMac || ProcessInfo.processInfo.isiOSAppOnMac {
+            if cachedTier == .unsupported {
+                return 2
+            }
+            if chipIsAtLeast("M5") || chipIsAtLeast("M4") {
+                return 8
+            }
+            if chipIsAtLeast("M3") {
+                return 6
+            }
+            if chipIsAtLeast("M2") || chipIsAtLeast("M1") {
+                return 4
+            }
             return 4
         }
 
@@ -287,6 +301,15 @@ final class DeviceCapabilityService: @unchecked Sendable {
     /// Brief cooldown that lets Metal/Vision finish outstanding work between OCR requests.
     var visionOperationCooldownSeconds: TimeInterval {
         if isMac || ProcessInfo.processInfo.isiOSAppOnMac {
+            if cachedTier == .unsupported {
+                return 0.006
+            }
+            if chipIsAtLeast("M5") || chipIsAtLeast("M4") {
+                return 0.001
+            }
+            if chipIsAtLeast("M3") {
+                return 0.002
+            }
             return 0.003
         }
 
@@ -481,7 +504,19 @@ final class DeviceCapabilityService: @unchecked Sendable {
 
         // Mac check - active cooling allows sustained throughput
         if isMac || ProcessInfo.processInfo.isiOSAppOnMac {
-            return 8  // Mac: 2x the 4 Vision ops, active cooling
+            if cachedTier == .unsupported {
+                return 4
+            }
+            if chipIsAtLeast("M5") || chipIsAtLeast("M4") {
+                return 16
+            }
+            if chipIsAtLeast("M3") {
+                return 12
+            }
+            if chipIsAtLeast("M2") || chipIsAtLeast("M1") {
+                return 8
+            }
+            return 8
         }
 
         // iOS devices: 2x VisionOCRThrottle limits for pipeline saturation
@@ -509,7 +544,19 @@ final class DeviceCapabilityService: @unchecked Sendable {
 
         // Mac check - active cooling allows sustained throughput
         if isMac || ProcessInfo.processInfo.isiOSAppOnMac {
-            return 8  // Mac: matches visionParsingConcurrency, active cooling
+            if cachedTier == .unsupported {
+                return 4
+            }
+            if chipIsAtLeast("M5") || chipIsAtLeast("M4") {
+                return 16
+            }
+            if chipIsAtLeast("M3") {
+                return 12
+            }
+            if chipIsAtLeast("M2") || chipIsAtLeast("M1") {
+                return 8
+            }
+            return 8
         }
 
         // iOS devices - 2x VisionOCRThrottle for pipeline saturation
@@ -540,7 +587,19 @@ final class DeviceCapabilityService: @unchecked Sendable {
         }
 
         if isMac || ProcessInfo.processInfo.isiOSAppOnMac {
-            return 6  // Mac: 16-96 GB RAM, active cooling, 6 × 206 MB = 1.2 GB
+            if cachedTier == .unsupported {
+                return 2
+            }
+            if chipIsAtLeast("M5") || chipIsAtLeast("M4") {
+                return 8
+            }
+            if chipIsAtLeast("M3") {
+                return 6
+            }
+            if chipIsAtLeast("M2") || chipIsAtLeast("M1") {
+                return 6
+            }
+            return 6
         }
         // CRANKED: Modern devices have plenty of RAM for concurrent page images.
         // Images are released immediately after Vision OCR completes per page.
@@ -567,7 +626,19 @@ final class DeviceCapabilityService: @unchecked Sendable {
 
         // Mac check - active cooling allows sustained GPU embedding throughput
         if isMac || ProcessInfo.processInfo.isiOSAppOnMac {
-            return 12  // Mac: Active cooling, separate GPU from ANE Vision ops
+            if cachedTier == .unsupported {
+                return 4
+            }
+            if chipIsAtLeast("M5") || chipIsAtLeast("M4") {
+                return 24
+            }
+            if chipIsAtLeast("M3") {
+                return 16
+            }
+            if chipIsAtLeast("M2") || chipIsAtLeast("M1") {
+                return 12
+            }
+            return 12
         }
 
         // CRANKED: Embeddings run on GPU during ingestion (freeing ANE for Vision).
@@ -661,7 +732,19 @@ final class DeviceCapabilityService: @unchecked Sendable {
 
         // Mac check - active cooling allows sustained GPU throughput
         if isMac || ProcessInfo.processInfo.isiOSAppOnMac {
-            return 6  // Mac: Active cooling, more GPU cores
+            if cachedTier == .unsupported {
+                return 2
+            }
+            if chipIsAtLeast("M5") || chipIsAtLeast("M4") {
+                return 12
+            }
+            if chipIsAtLeast("M3") {
+                return 8
+            }
+            if chipIsAtLeast("M2") || chipIsAtLeast("M1") {
+                return 6
+            }
+            return 6
         }
 
         let level = activeGPUAccelerationLevel
@@ -1260,7 +1343,12 @@ final class DeviceCapabilityService: @unchecked Sendable {
     }
 
     private func chipIsAtLeast(_ chipPrefix: String) -> Bool {
-        cachedChipName.hasPrefix(chipPrefix)
+        if cachedChipName.hasPrefix(chipPrefix) {
+            return true
+        }
+        // Handle simulated or sub-branded host chips (e.g., "Simulator on M3 Pro", "iPadAppOnMac:M3")
+        let words = cachedChipName.components(separatedBy: CharacterSet.alphanumerics.inverted)
+        return words.contains(chipPrefix)
     }
 
     private static func describeComputeUnits(_ units: MLComputeUnits) -> String {

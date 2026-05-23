@@ -198,13 +198,11 @@ enum DebugRAGValidationHarness {
             lines.append("(none)")
         } else {
             for chunk in response.retrievedChunks.prefix(12) {
-                let preview = chunk.chunk.content
-                    .replacingOccurrences(of: "\n", with: " ")
-                    .trimmingCharacters(in: .whitespacesAndNewlines)
-                let trimmedPreview = String(preview.prefix(220))
+                let preview = formatChunkPreview(for: chunk)
                 let page = chunk.pageNumber.map(String.init) ?? "-"
-                lines.append("- rank=\(chunk.rank) sim=\(String(format: "%.3f", chunk.similarityScore)) page=\(page) source=\(chunk.sourceDocument)")
-                lines.append("  \(trimmedPreview)")
+                let sourceDocument = chunk.sourceDocument.trimmingCharacters(in: .whitespacesAndNewlines)
+                lines.append("- rank=\(chunk.rank) sim=\(String(format: "%.3f", chunk.similarityScore)) page=\(page) source=\(sourceDocument.isEmpty ? "Unknown" : sourceDocument)")
+                lines.append("  \(preview)")
             }
         }
         lines.append("")
@@ -240,6 +238,20 @@ enum DebugRAGValidationHarness {
         }
 
         return lines.joined(separator: "\n")
+    }
+
+    private static func formatChunkPreview(for chunk: RetrievedChunk, limit: Int = 220) -> String {
+        let source = chunk.chunk.parentContent ?? chunk.chunk.content
+        let normalized = source
+            .components(separatedBy: .whitespacesAndNewlines)
+            .filter { !$0.isEmpty }
+            .joined(separator: " ")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+
+        guard !normalized.isEmpty else { return "(empty chunk)" }
+        guard normalized.count > limit else { return normalized }
+
+        return String(normalized.prefix(limit)).trimmingCharacters(in: .whitespacesAndNewlines) + "..."
     }
 
     private static func buildErrorReport(

@@ -136,11 +136,20 @@ struct AdaptiveVisualizationsView: View {
         .background(DSColors.background)
         .navigationTitle("Knowledge Atlas")
         .navigationBarTitleDisplayMode(.large)
+        #if os(iOS)
         .fullScreenCover(isPresented: $show3DFullscreen) {
             Fullscreen3DAtlasView()
                 .environmentObject(ragService)
                 .environmentObject(containerService)
         }
+        #else
+        .sheet(isPresented: $show3DFullscreen) {
+            Fullscreen3DAtlasView()
+                .environmentObject(ragService)
+                .environmentObject(containerService)
+                .frame(minWidth: 800, minHeight: 600)
+        }
+        #endif
         .sheet(isPresented: $showAllInsights) {
             NavigationStack {
                 List(engine.insights) { insight in

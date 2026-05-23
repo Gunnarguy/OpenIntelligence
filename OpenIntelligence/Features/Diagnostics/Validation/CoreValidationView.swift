@@ -506,7 +506,7 @@ struct EmbeddingStatusCard: View {
         .padding()
         .background(
             RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .fill(Color(.secondarySystemBackground).opacity(0.9))
+                .fill(DSColors.surface.opacity(0.9))
         )
     }
 }
@@ -547,7 +547,7 @@ struct EmbeddingTelemetryList: View {
         .padding()
         .background(
             RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .fill(Color(.secondarySystemBackground).opacity(0.9))
+                .fill(DSColors.surface.opacity(0.9))
         )
     }
 }

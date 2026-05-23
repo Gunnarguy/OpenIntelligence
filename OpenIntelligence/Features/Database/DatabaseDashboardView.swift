@@ -2221,7 +2221,7 @@ struct DocumentPreviewSheet: View {
                         }
                     }
                     .padding()
-                    .background(Color(.systemGray6))
+                    .background(DSColors.systemGray6)
                     .cornerRadius(12)
 
                     // Content preview
@@ -2242,7 +2242,12 @@ struct DocumentPreviewSheet: View {
                                 .controlSize(.small)
 
                                 Button {
+                                    #if canImport(UIKit)
                                     UIPasteboard.general.string = fullContent
+                                    #elseif canImport(AppKit)
+                                    NSPasteboard.general.clearContents()
+                                    NSPasteboard.general.setString(fullContent, forType: .string)
+                                    #endif
                                 } label: {
                                     Label("Copy", systemImage: "doc.on.doc")
                                         .font(.caption)
@@ -2281,7 +2286,7 @@ struct DocumentPreviewSheet: View {
                                 .textSelection(.enabled)
                                 .padding()
                                 .frame(maxWidth: .infinity, alignment: .leading)
-                                .background(Color(.systemBackground))
+                                .background(DSColors.background)
                                 .cornerRadius(8)
                                 .overlay(
                                     RoundedRectangle(cornerRadius: 8)
@@ -2290,7 +2295,7 @@ struct DocumentPreviewSheet: View {
                         }
                     }
                     .padding()
-                    .background(Color(.systemGray6))
+                    .background(DSColors.systemGray6)
                     .cornerRadius(12)
 
                     // Analysis — uses pre-computed stats (NOT computed in view body)
@@ -2323,7 +2328,7 @@ struct DocumentPreviewSheet: View {
                             }
                         }
                         .padding()
-                        .background(Color(.systemGray6))
+                        .background(DSColors.systemGray6)
                         .cornerRadius(12)
                     }
                 }
@@ -2332,11 +2337,19 @@ struct DocumentPreviewSheet: View {
             .navigationTitle(documentName)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                #if os(iOS)
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button("Done") {
                         dismiss()
                     }
                 }
+                #else
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") {
+                        dismiss()
+                    }
+                }
+                #endif
             }
         }
         .task {
@@ -2408,7 +2421,7 @@ private struct MetadataCard: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(8)
-        .background(Color(.systemBackground))
+        .background(DSColors.background)
         .cornerRadius(8)
     }
 }

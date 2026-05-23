@@ -551,7 +551,7 @@ Text(label)
                 VStack(alignment: .leading, spacing: 2) {
                     Text("iCloud Libraries")
                         .font(.headline)
-                    Text("Each library chooses Local Only or iCloud Drive")
+                    Text("Each library chooses Local Only or iCloud Sync")
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
@@ -580,6 +580,7 @@ Text(label)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .background(Color.orange.opacity(0.08))
                     .clipShape(RoundedRectangle(cornerRadius: 10))
+                    .fixedSize(horizontal: false, vertical: true)
             }
 
             if let bootstrapConflict = workspaceSyncService.pendingBootstrapConflict,
@@ -588,7 +589,7 @@ Text(label)
                         Text("Review iCloud library changes")
                         .font(.subheadline.weight(.semibold))
 
-                        Text("Only libraries marked iCloud Drive are involved here. This device currently has \(bootstrapConflict.localLibraryCount) libraries marked iCloud Drive / \(bootstrapConflict.localDocumentCount) documents, and iCloud already has \(bootstrapConflict.sharedLibraryCount) shared librar\(bootstrapConflict.sharedLibraryCount == 1 ? "y" : "ies") / \(bootstrapConflict.sharedDocumentCount) documents.")
+                        Text("Only libraries marked iCloud Sync are involved here. This device currently has \(bootstrapConflict.localLibraryCount) libraries marked iCloud Sync / \(bootstrapConflict.localDocumentCount) documents, and iCloud already has \(bootstrapConflict.sharedLibraryCount) shared librar\(bootstrapConflict.sharedLibraryCount == 1 ? "y" : "ies") / \(bootstrapConflict.sharedDocumentCount) documents.")
                         .font(.caption)
                         .foregroundColor(.secondary)
 
@@ -684,7 +685,7 @@ Text(label)
                     }
                     .buttonStyle(.borderedProminent)
 
-                    Text("Change Local Only or iCloud Drive per library, and refresh shared libraries, from the Documents screen.")
+                    Text("Change Local Only or iCloud Sync per library, and refresh shared libraries, from the Documents screen.")
                         .font(.caption2)
                         .foregroundColor(.secondary)
                 }
@@ -699,11 +700,13 @@ Text(label)
             Text(workspaceSyncService.statusMessage)
                 .font(.caption)
                 .foregroundColor(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
 
             if let sharedWorkspaceRefreshMessage {
                 Text(sharedWorkspaceRefreshMessage)
                     .font(.caption)
                     .foregroundColor(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
 
             if let rootDescription = workspaceSyncService.workspaceRootDescription, workspaceSyncService.isUsingSharedWorkspace {
@@ -711,12 +714,14 @@ Text(label)
                     .font(.caption2)
                     .foregroundColor(.secondary.opacity(0.8))
                     .textSelection(.enabled)
+                    .fixedSize(horizontal: false, vertical: true)
             }
 
             if let lastErrorMessage = workspaceSyncService.lastErrorMessage {
                 Text(lastErrorMessage)
                     .font(.caption)
                     .foregroundColor(.orange)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
         .padding()
@@ -748,7 +753,7 @@ Text(label)
 
     private var sharedWorkspaceModeLabel: String {
         if workspaceSyncService.isUsingSharedWorkspace {
-            return "iCloud Drive"
+            return "iCloud Sync"
         }
 
         if !hasConfiguredICloudLibraries {
@@ -796,10 +801,10 @@ Text(label)
         }
 
         if hasConfiguredICloudLibraries {
-            return "\(iCloudLibraryCount) iCloud • \(localOnlyLibraryCount) local. Libraries marked iCloud Drive use iCloud as the shared copy. Local Only libraries stay on just this device."
+            return "\(iCloudLibraryCount) iCloud • \(localOnlyLibraryCount) local. Libraries marked iCloud Sync use iCloud as the shared copy. Local Only libraries stay on just this device."
         }
 
-        return "All libraries are Local Only right now. Turn iCloud Drive on per library when you want it on another device."
+        return "All libraries are Local Only right now. Turn iCloud Sync on per library when you want it on another device."
     }
 
     @MainActor

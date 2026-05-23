@@ -50,6 +50,48 @@ public enum DSColors {
         #endif
     }
 
+    public static var systemGray6: Color {
+        #if canImport(UIKit)
+        return Color(UIColor.systemGray6)
+        #elseif canImport(AppKit)
+        return Color(NSColor.windowBackgroundColor)
+        #else
+        return Color(.sRGB, red: 0.92, green: 0.92, blue: 0.92, opacity: 1)
+        #endif
+    }
+
+    public static var systemGroupedBackground: Color {
+        #if canImport(UIKit)
+        return Color(UIColor.systemGroupedBackground)
+        #elseif canImport(AppKit)
+        return Color(NSColor.windowBackgroundColor)
+        #else
+        return Color(.sRGB, red: 0.95, green: 0.95, blue: 0.97, opacity: 1)
+        #endif
+    }
+
+    public static var secondarySystemGroupedBackground: Color {
+        #if canImport(UIKit)
+        return Color(UIColor.secondarySystemGroupedBackground)
+        #elseif canImport(AppKit)
+        return Color(NSColor.controlBackgroundColor)
+        #else
+        return Color(.sRGB, red: 1, green: 1, blue: 1, opacity: 1)
+        #endif
+    }
+
+    public static var tertiarySystemGroupedBackground: Color {
+        #if canImport(UIKit)
+        return Color(UIColor.tertiarySystemGroupedBackground)
+        #elseif canImport(AppKit)
+        return Color(NSColor.underPageBackgroundColor)
+        #else
+        return Color(.sRGB, red: 0.92, green: 0.92, blue: 0.95, opacity: 1)
+        #endif
+    }
+
+
+
     // Content
     public static var primaryText: Color {
         Color.primary
@@ -235,20 +277,45 @@ public struct GlassCardModifier: ViewModifier {
 /// View modifier for glass-style toolbar appearance
 public struct GlassToolbarModifier: ViewModifier {
     public func body(content: Content) -> some View {
+        #if os(iOS)
         content
             .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
             .toolbarBackground(.visible, for: .navigationBar)
+        #else
+        content
+        #endif
     }
 }
 
 /// View modifier for glass-style tab bar
 public struct GlassTabBarModifier: ViewModifier {
     public func body(content: Content) -> some View {
+        #if os(iOS)
         content
             .toolbarBackground(.ultraThinMaterial, for: .tabBar)
             .toolbarBackground(.visible, for: .tabBar)
+        #else
+        content
+        #endif
     }
 }
+
+#if os(macOS)
+public enum NavigationBarItem {
+    public enum TitleDisplayMode {
+        case inline
+        case large
+        case automatic
+    }
+}
+
+public extension View {
+    @inlinable
+    func navigationBarTitleDisplayMode(_ displayMode: NavigationBarItem.TitleDisplayMode) -> some View {
+        self
+    }
+}
+#endif
 
 public extension View {
     /// Apply Liquid Glass card styling
@@ -264,6 +331,30 @@ public extension View {
     /// Apply Liquid Glass tab bar styling
     func glassTabBar() -> some View {
         modifier(GlassTabBarModifier())
+    }
+
+    /// Apply Liquid Glass pill styling for iOS 26+
+    @ViewBuilder
+    func glassEffectHelper(isSelected: Bool = false, tintColor: Color = .accentColor) -> some View {
+        if #available(iOS 26.0, *) {
+            if isSelected {
+                self.glassEffect(.regular.tint(tintColor).interactive(), in: Capsule())
+            } else {
+                self.glassEffect(.regular.interactive(), in: Capsule())
+            }
+        } else {
+            self
+        }
+    }
+
+    /// Apply Liquid Glass circle shape effect for iOS 26+
+    @ViewBuilder
+    func glassCircleEffectHelper() -> some View {
+        if #available(iOS 26.0, *) {
+            self.glassEffect(.regular.interactive(), in: Circle())
+        } else {
+            self
+        }
     }
 }
 

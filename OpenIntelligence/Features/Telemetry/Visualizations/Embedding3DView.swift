@@ -39,6 +39,26 @@ struct PointAnnotationLabel: Identifiable, Equatable {
 import SceneKit
 import QuartzCore
 
+extension SCNVector3 {
+    init(xFloat: Float, yFloat: Float, zFloat: Float) {
+        #if os(macOS)
+        self.init(CGFloat(xFloat), CGFloat(yFloat), CGFloat(zFloat))
+        #else
+        self.init(xFloat, yFloat, zFloat)
+        #endif
+    }
+}
+
+extension SCNVector4 {
+    init(xFloat: Float, yFloat: Float, zFloat: Float, wFloat: Float) {
+        #if os(macOS)
+        self.init(CGFloat(xFloat), CGFloat(yFloat), CGFloat(zFloat), CGFloat(wFloat))
+        #else
+        self.init(xFloat, yFloat, zFloat, wFloat)
+        #endif
+    }
+}
+
 #if canImport(UIKit)
 typealias PlatformColor = UIColor
 typealias PlatformImage = UIImage
@@ -743,22 +763,25 @@ struct EmbeddingSpaceRenderer: View {
         var minZ = Float.greatestFiniteMagnitude, maxZ = -Float.greatestFiniteMagnitude
 
         for point in points {
-            sumX += point.x; sumY += point.y; sumZ += point.z
-            minX = min(minX, point.x); maxX = max(maxX, point.x)
-            minY = min(minY, point.y); maxY = max(maxY, point.y)
-            minZ = min(minZ, point.z); maxZ = max(maxZ, point.z)
+            let px = Float(point.x)
+            let py = Float(point.y)
+            let pz = Float(point.z)
+            sumX += px; sumY += py; sumZ += pz
+            minX = min(minX, px); maxX = max(maxX, px)
+            minY = min(minY, py); maxY = max(maxY, py)
+            minZ = min(minZ, pz); maxZ = max(maxZ, pz)
         }
 
         let count = Float(points.count)
-        let centroid = SCNVector3(sumX / count, sumY / count, sumZ / count)
+        let centroid = SCNVector3(xFloat: sumX / count, yFloat: sumY / count, zFloat: sumZ / count)
 
         // Compute distances from centroid
         var distances: [Float] = []
         distances.reserveCapacity(points.count)
         for point in points {
-            let dx = point.x - centroid.x
-            let dy = point.y - centroid.y
-            let dz = point.z - centroid.z
+            let dx = Float(point.x) - Float(centroid.x)
+            let dy = Float(point.y) - Float(centroid.y)
+            let dz = Float(point.z) - Float(centroid.z)
             distances.append(sqrt(dx * dx + dy * dy + dz * dz))
         }
 
@@ -807,9 +830,9 @@ struct EmbeddingSpaceRenderer: View {
         for i in 0..<points.count {
             let pt = points[i]
             let cell = SIMD3<Int32>(
-                Int32(floor(pt.x / gridCellSize)),
-                Int32(floor(pt.y / gridCellSize)),
-                Int32(floor(pt.z / gridCellSize))
+                Int32(floor(Float(pt.x) / gridCellSize)),
+                Int32(floor(Float(pt.y) / gridCellSize)),
+                Int32(floor(Float(pt.z) / gridCellSize))
             )
             grid[cell, default: []].append(i)
         }
@@ -819,9 +842,12 @@ struct EmbeddingSpaceRenderer: View {
 
         for i in sampleIndices {
             let pt = points[i]
-            let cellX = Int32(floor(pt.x / gridCellSize))
-            let cellY = Int32(floor(pt.y / gridCellSize))
-            let cellZ = Int32(floor(pt.z / gridCellSize))
+            let ptx = Float(pt.x)
+            let pty = Float(pt.y)
+            let ptz = Float(pt.z)
+            let cellX = Int32(floor(ptx / gridCellSize))
+            let cellY = Int32(floor(pty / gridCellSize))
+            let cellZ = Int32(floor(ptz / gridCellSize))
 
             var minDistSq: Float = .greatestFiniteMagnitude
 
@@ -833,9 +859,9 @@ struct EmbeddingSpaceRenderer: View {
                         if let indices = grid[neighborCell] {
                             for j in indices where i != j {
                                 let other = points[j]
-                                let diffX = pt.x - other.x
-                                let diffY = pt.y - other.y
-                                let diffZ = pt.z - other.z
+                                let diffX = ptx - Float(other.x)
+                                let diffY = pty - Float(other.y)
+                                let diffZ = ptz - Float(other.z)
                                 let distSq = diffX*diffX + diffY*diffY + diffZ*diffZ
                                 minDistSq = min(minDistSq, distSq)
                             }
@@ -848,9 +874,9 @@ struct EmbeddingSpaceRenderer: View {
             if minDistSq == .greatestFiniteMagnitude {
                 for j in 0..<points.count where i != j {
                     let other = points[j]
-                    let diffX = pt.x - other.x
-                    let diffY = pt.y - other.y
-                    let diffZ = pt.z - other.z
+                    let diffX = ptx - Float(other.x)
+                    let diffY = pty - Float(other.y)
+                    let diffZ = ptz - Float(other.z)
                     let distSq = diffX*diffX + diffY*diffY + diffZ*diffZ
                     minDistSq = min(minDistSq, distSq)
                 }
@@ -1395,10 +1421,10 @@ struct EmbeddingSpaceRenderer: View {
                 // Simple average for tiny clusters
                 var sumX: Float = 0, sumY: Float = 0, sumZ: Float = 0
                 for pt in clusterPoints {
-                    sumX += pt.x; sumY += pt.y; sumZ += pt.z
+                    sumX += Float(pt.x); sumY += Float(pt.y); sumZ += Float(pt.z)
                 }
                 let count = Float(clusterPoints.count)
-                centroid = SCNVector3(sumX / count, sumY / count, sumZ / count)
+                centroid = SCNVector3(xFloat: sumX / count, yFloat: sumY / count, zFloat: sumZ / count)
             } else if clusterPoints.count > 100 {
                 // OPTIMIZATION: For large clusters, use grid-based density approximation O(n) instead of O(n²)
                 let radius: Float = 0.3
@@ -1408,9 +1434,9 @@ struct EmbeddingSpaceRenderer: View {
                 var grid: [SIMD3<Int32>: [Int]] = [:]
                 for (i, pt) in clusterPoints.enumerated() {
                     let cell = SIMD3<Int32>(
-                        Int32(floor(pt.x / cellSize)),
-                        Int32(floor(pt.y / cellSize)),
-                        Int32(floor(pt.z / cellSize))
+                        Int32(floor(Float(pt.x) / cellSize)),
+                        Int32(floor(Float(pt.y) / cellSize)),
+                        Int32(floor(Float(pt.z) / cellSize))
                     )
                     grid[cell, default: []].append(i)
                 }
@@ -1418,9 +1444,12 @@ struct EmbeddingSpaceRenderer: View {
                 // Calculate density by checking only neighboring cells
                 var densities: [Float] = Array(repeating: 1, count: clusterPoints.count)
                 for (i, pt) in clusterPoints.enumerated() {
-                    let cellX = Int32(floor(pt.x / cellSize))
-                    let cellY = Int32(floor(pt.y / cellSize))
-                    let cellZ = Int32(floor(pt.z / cellSize))
+                    let ptx = Float(pt.x)
+                    let pty = Float(pt.y)
+                    let ptz = Float(pt.z)
+                    let cellX = Int32(floor(ptx / cellSize))
+                    let cellY = Int32(floor(pty / cellSize))
+                    let cellZ = Int32(floor(ptz / cellSize))
 
                     var neighborCount: Float = 0
                     // Check 27 neighboring cells (3x3x3)
@@ -1431,9 +1460,9 @@ struct EmbeddingSpaceRenderer: View {
                                 if let indices = grid[neighborCell] {
                                     for j in indices where j != i {
                                         let other = clusterPoints[j]
-                                        let diffX = pt.x - other.x
-                                        let diffY = pt.y - other.y
-                                        let diffZ = pt.z - other.z
+                                        let diffX = ptx - Float(other.x)
+                                        let diffY = pty - Float(other.y)
+                                        let diffZ = ptz - Float(other.z)
                                         let distSq = diffX*diffX + diffY*diffY + diffZ*diffZ
                                         if distSq < radius * radius {
                                             neighborCount += 1
@@ -1451,14 +1480,14 @@ struct EmbeddingSpaceRenderer: View {
                 var weightedX: Float = 0, weightedY: Float = 0, weightedZ: Float = 0
                 for (i, pt) in clusterPoints.enumerated() {
                     let w = densities[i]
-                    weightedX += pt.x * w
-                    weightedY += pt.y * w
-                    weightedZ += pt.z * w
+                    weightedX += Float(pt.x) * w
+                    weightedY += Float(pt.y) * w
+                    weightedZ += Float(pt.z) * w
                 }
                 centroid = SCNVector3(
-                    weightedX / totalWeight,
-                    weightedY / totalWeight,
-                    weightedZ / totalWeight
+                    xFloat: weightedX / totalWeight,
+                    yFloat: weightedY / totalWeight,
+                    zFloat: weightedZ / totalWeight
                 )
             } else {
                 // Density-weighted: points in denser regions get more weight
@@ -1470,11 +1499,14 @@ struct EmbeddingSpaceRenderer: View {
                 for i in 0..<clusterPoints.count {
                     var neighborCount: Float = 0
                     let pt = clusterPoints[i]
+                    let ptx = Float(pt.x)
+                    let pty = Float(pt.y)
+                    let ptz = Float(pt.z)
                     for j in 0..<clusterPoints.count where i != j {
                         let other = clusterPoints[j]
-                        let dx = pt.x - other.x
-                        let dy = pt.y - other.y
-                        let dz = pt.z - other.z
+                        let dx = ptx - Float(other.x)
+                        let dy = pty - Float(other.y)
+                        let dz = ptz - Float(other.z)
                         let distSq = dx*dx + dy*dy + dz*dz
                         if distSq < radiusSq {
                             neighborCount += 1
@@ -1488,14 +1520,14 @@ struct EmbeddingSpaceRenderer: View {
                 var weightedX: Float = 0, weightedY: Float = 0, weightedZ: Float = 0
                 for (i, pt) in clusterPoints.enumerated() {
                     let w = densities[i]
-                    weightedX += pt.x * w
-                    weightedY += pt.y * w
-                    weightedZ += pt.z * w
+                    weightedX += Float(pt.x) * w
+                    weightedY += Float(pt.y) * w
+                    weightedZ += Float(pt.z) * w
                 }
                 centroid = SCNVector3(
-                    weightedX / totalWeight,
-                    weightedY / totalWeight,
-                    weightedZ / totalWeight
+                    xFloat: weightedX / totalWeight,
+                    yFloat: weightedY / totalWeight,
+                    zFloat: weightedZ / totalWeight
                 )
             }
 
@@ -1580,10 +1612,10 @@ struct EmbeddingSpaceRenderer: View {
                 // Compute section centroid
                 var sx: Float = 0, sy: Float = 0, sz: Float = 0
                 for pt in sectionPts {
-                    sx += pt.x; sy += pt.y; sz += pt.z
+                    sx += Float(pt.x); sy += Float(pt.y); sz += Float(pt.z)
                 }
                 let n = Float(sectionPts.count)
-                let sectionCentroid = SCNVector3(sx / n, sy / n, sz / n)
+                let sectionCentroid = SCNVector3(xFloat: sx / n, yFloat: sy / n, zFloat: sz / n)
 
                 // Get unique keywords for this section
                 let uniqueKW = Array(Set(sectionKeywords[section] ?? [])).prefix(2)
@@ -1628,17 +1660,17 @@ struct EmbeddingSpaceRenderer: View {
                 // Compute centroid
                 var tx: Float = 0, ty: Float = 0, tz: Float = 0
                 for pt in termPoints {
-                    tx += pt.x; ty += pt.y; tz += pt.z
+                    tx += Float(pt.x); ty += Float(pt.y); tz += Float(pt.z)
                 }
                 let n = Float(termPoints.count)
-                let termCentroid = SCNVector3(tx / n, ty / n, tz / n)
+                let termCentroid = SCNVector3(xFloat: tx / n, yFloat: ty / n, zFloat: tz / n)
 
                 // Check spatial coherence
                 var totalDist: Float = 0
                 for pt in termPoints {
-                    let dx = pt.x - termCentroid.x
-                    let dy = pt.y - termCentroid.y
-                    let dz = pt.z - termCentroid.z
+                    let dx = Float(pt.x) - Float(termCentroid.x)
+                    let dy = Float(pt.y) - Float(termCentroid.y)
+                    let dz = Float(pt.z) - Float(termCentroid.z)
                     totalDist += sqrt(dx*dx + dy*dy + dz*dz)
                 }
                 let avgDist = totalDist / n
@@ -1673,16 +1705,16 @@ struct EmbeddingSpaceRenderer: View {
             for (keyword, kwPoints) in keywordPositions where kwPoints.count >= 4 {
                 var kx: Float = 0, ky: Float = 0, kz: Float = 0
                 for pt in kwPoints {
-                    kx += pt.x; ky += pt.y; kz += pt.z
+                    kx += Float(pt.x); ky += Float(pt.y); kz += Float(pt.z)
                 }
                 let n = Float(kwPoints.count)
-                let kwCentroid = SCNVector3(kx / n, ky / n, kz / n)
+                let kwCentroid = SCNVector3(xFloat: kx / n, yFloat: ky / n, zFloat: kz / n)
 
                 var totalDist: Float = 0
                 for pt in kwPoints {
-                    let dx = pt.x - kwCentroid.x
-                    let dy = pt.y - kwCentroid.y
-                    let dz = pt.z - kwCentroid.z
+                    let dx = Float(pt.x) - Float(kwCentroid.x)
+                    let dy = Float(pt.y) - Float(kwCentroid.y)
+                    let dz = Float(pt.z) - Float(kwCentroid.z)
                     totalDist += sqrt(dx*dx + dy*dy + dz*dz)
                 }
                 let avgDist = totalDist / n
@@ -3551,8 +3583,8 @@ struct SceneViewContainer: NSViewRepresentable {
                     guard let nodeName = labelNode.name, nodeName.hasPrefix("clusterLabel_") else { return }
 
                     let distance = simd_distance(
-                        simd_float3(cameraPos.x, cameraPos.y, cameraPos.z),
-                        simd_float3(labelNode.position.x, labelNode.position.y, labelNode.position.z)
+                        simd_float3(Float(cameraPos.x), Float(cameraPos.y), Float(cameraPos.z)),
+                        simd_float3(Float(labelNode.position.x), Float(labelNode.position.y), Float(labelNode.position.z))
                     )
 
                     // Smooth LOD transitions - labels always visible but scale with distance
@@ -4029,7 +4061,7 @@ private func addClusterLabels(_ annotations: [Embedding3DSceneView.AnnotationDat
     labelLayer.renderingOrder = 100
 
     // === PHASE 1: Calculate scene bounds and spread distance ===
-    let allPositions = annotations.map { simd_float3($0.position.x, $0.position.y, $0.position.z) }
+    let allPositions = annotations.map { simd_float3(Float($0.position.x), Float($0.position.y), Float($0.position.z)) }
     let centroid = allPositions.reduce(simd_float3.zero, +) / Float(allPositions.count)
     let maxDistFromCenter = allPositions.map { simd_length($0 - centroid) }.max() ?? 1.0
 
@@ -4047,7 +4079,7 @@ private func addClusterLabels(_ annotations: [Embedding3DSceneView.AnnotationDat
     let goldenAngle: Float = .pi * (3.0 - sqrt(5.0)) // ~137.5° - optimal distribution
 
     for (index, annotation) in sortedAnnotations.enumerated() {
-        let clusterPos = simd_float3(annotation.position.x, annotation.position.y, annotation.position.z)
+        let clusterPos = simd_float3(Float(annotation.position.x), Float(annotation.position.y), Float(annotation.position.z))
 
         // Calculate direction from scene centroid through cluster point (push labels outward)
         var outwardDir = simd_normalize(clusterPos - centroid)
@@ -4148,8 +4180,8 @@ private func addInterClusterLines(_ annotations: [Embedding3DSceneView.Annotatio
     var allDists: [Float] = []
     for i in 0..<annotations.count {
         for j in (i + 1)..<annotations.count {
-            let pi = simd_float3(annotations[i].position.x, annotations[i].position.y, annotations[i].position.z)
-            let pj = simd_float3(annotations[j].position.x, annotations[j].position.y, annotations[j].position.z)
+            let pi = simd_float3(Float(annotations[i].position.x), Float(annotations[i].position.y), Float(annotations[i].position.z))
+            let pj = simd_float3(Float(annotations[j].position.x), Float(annotations[j].position.y), Float(annotations[j].position.z))
             allDists.append(simd_distance(pi, pj))
         }
     }
@@ -4172,8 +4204,8 @@ private func addInterClusterLines(_ annotations: [Embedding3DSceneView.Annotatio
     var pairs: [(i: Int, j: Int, dist: Float)] = []
     for i in 0..<annotations.count {
         for j in (i + 1)..<annotations.count {
-            let pi = simd_float3(annotations[i].position.x, annotations[i].position.y, annotations[i].position.z)
-            let pj = simd_float3(annotations[j].position.x, annotations[j].position.y, annotations[j].position.z)
+            let pi = simd_float3(Float(annotations[i].position.x), Float(annotations[i].position.y), Float(annotations[i].position.z))
+            let pj = simd_float3(Float(annotations[j].position.x), Float(annotations[j].position.y), Float(annotations[j].position.z))
             let dist = simd_distance(pi, pj)
             if dist <= threshold && dist > 0.1 {
                 pairs.append((i, j, dist))
@@ -4187,8 +4219,8 @@ private func addInterClusterLines(_ annotations: [Embedding3DSceneView.Annotatio
 
         let a = annotations[pair.i]
         let b = annotations[pair.j]
-        let posA = simd_float3(a.position.x, a.position.y, a.position.z)
-        let posB = simd_float3(b.position.x, b.position.y, b.position.z)
+        let posA = simd_float3(Float(a.position.x), Float(a.position.y), Float(a.position.z))
+        let posB = simd_float3(Float(b.position.x), Float(b.position.y), Float(b.position.z))
 
         // Opacity inversely proportional to distance (closer = slightly more visible)
         let normalizedDist = pair.dist / max(threshold, 0.01)
@@ -4250,9 +4282,9 @@ private func makeArrowToCluster(
     let container = SCNNode()
 
     // Calculate direction and length
-    let dx = clusterPos.x - labelPos.x
-    let dy = clusterPos.y - labelPos.y
-    let dz = clusterPos.z - labelPos.z
+    let dx = Float(clusterPos.x) - Float(labelPos.x)
+    let dy = Float(clusterPos.y) - Float(labelPos.y)
+    let dz = Float(clusterPos.z) - Float(labelPos.z)
     let length = sqrt(dx * dx + dy * dy + dz * dz)
 
     guard length > 0.1 else { return container } // Skip if too short
@@ -4277,10 +4309,10 @@ private func makeArrowToCluster(
     let lineNode = SCNNode(geometry: line)
 
     // Position at midpoint
-    let midX = (labelPos.x + clusterPos.x) / 2
-    let midY = (labelPos.y + clusterPos.y) / 2
-    let midZ = (labelPos.z + clusterPos.z) / 2
-    lineNode.position = SCNVector3(midX, midY, midZ)
+    let midX = (Float(labelPos.x) + Float(clusterPos.x)) / 2
+    let midY = (Float(labelPos.y) + Float(clusterPos.y)) / 2
+    let midZ = (Float(labelPos.z) + Float(clusterPos.z)) / 2
+    lineNode.position = SCNVector3(xFloat: midX, yFloat: midY, zFloat: midZ)
 
     // Rotate to point from label to cluster
     // Default cylinder is along Y axis, we need to rotate it
@@ -4292,10 +4324,10 @@ private func makeArrowToCluster(
     if abs(dot) < 0.999 {
         let cross = simd_cross(up, direction)
         let angle = acos(dot)
-        lineNode.rotation = SCNVector4(cross.x, cross.y, cross.z, angle)
+        lineNode.rotation = SCNVector4(xFloat: cross.x, yFloat: cross.y, zFloat: cross.z, wFloat: angle)
     } else if dot < 0 {
         // Pointing down
-        lineNode.eulerAngles = SCNVector3(Float.pi, 0, 0)
+        lineNode.eulerAngles = SCNVector3(xFloat: Float.pi, yFloat: 0, zFloat: 0)
     }
 
     container.addChildNode(lineNode)
@@ -4317,18 +4349,18 @@ private func makeArrowToCluster(
 
         // Position near cluster (but not at it)
         let arrowTipDist = shortenAmount + Float(coneHeight) / 2
-        let tipX = clusterPos.x - direction.x * arrowTipDist
-        let tipY = clusterPos.y - direction.y * arrowTipDist
-        let tipZ = clusterPos.z - direction.z * arrowTipDist
-        coneNode.position = SCNVector3(tipX, tipY, tipZ)
+        let tipX = Float(clusterPos.x) - direction.x * arrowTipDist
+        let tipY = Float(clusterPos.y) - direction.y * arrowTipDist
+        let tipZ = Float(clusterPos.z) - direction.z * arrowTipDist
+        coneNode.position = SCNVector3(xFloat: tipX, yFloat: tipY, zFloat: tipZ)
 
         // Rotate cone to point at cluster
         if abs(dot) < 0.999 {
             let cross = simd_cross(up, direction)
             let angle = acos(dot)
-            coneNode.rotation = SCNVector4(cross.x, cross.y, cross.z, angle)
+            coneNode.rotation = SCNVector4(xFloat: cross.x, yFloat: cross.y, zFloat: cross.z, wFloat: angle)
         } else if dot < 0 {
-            coneNode.eulerAngles = SCNVector3(Float.pi, 0, 0)
+            coneNode.eulerAngles = SCNVector3(xFloat: Float.pi, yFloat: 0, zFloat: 0)
         }
 
         container.addChildNode(coneNode)
