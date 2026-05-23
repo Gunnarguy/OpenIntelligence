@@ -1,9 +1,10 @@
 Changes since 3.6:
 
-Version 3.7 is a broader follow-up release that tightens almost every stage of the app: library management, import, retrieval, answer quality, chat ergonomics, and diagnostics.
+Version 3.7/3.7.1 is a broader release that tightens almost every stage of the app: library management, import, retrieval, answer quality, chat ergonomics, and diagnostics.
 
-If 3.6 made it easier to move your libraries across devices, 3.7 is the update aimed at making everything that happens after that feel sharper: importing harder files, attaching new material in chat, getting better-grounded answers, and having much clearer proof when the app answers confidently.
-
+- Resolved a gesture conflict on iOS where long-pressing library pills in the horizontal scroll view failed to trigger the context menu, fully restoring library deletion on iPhones.
+- Fixed a synchronization issue in iCloud Sync where deleted libraries could be merged back and resurrected on other devices, and implemented deletion tombstones to automatically propagate deletions across all synced devices.
+- Added automated local cleanup of vector databases, Spotlight search indexes, and UI presentation caches when a synced library is deleted on another device.
 - Documents was tightened again with cleaner library pills, a less crowded header, smaller sync controls, and clearer organization/management surfaces.
 - Shared-workspace and background-ingestion plumbing are more robust, with safer queue cleanup, cleaner reconciliation, and better handling for long-running work.
 - Camera capture, OCR-heavy pages, and mixed digital/scanned documents import more reliably.

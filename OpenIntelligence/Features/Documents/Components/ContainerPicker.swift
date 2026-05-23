@@ -134,37 +134,39 @@ struct ContainerPill: View {
     }
 
     var body: some View {
-        Button(action: onSelect) {
-            HStack(spacing: 6) {
-                Image(systemName: container.icon)
-                    .font(.system(size: 11, weight: .medium))
-                Text(container.name)
-                    .font(.system(size: 13, weight: .medium))
-                    .lineLimit(1)
-                if let badgeText {
-                    Text(badgeText)
-                        .font(.system(size: 10, weight: .bold, design: .rounded))
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 3)
-                        .background(badgeStyle.background(isSelected: isSelected))
-                        .foregroundStyle(badgeStyle.foreground(isSelected: isSelected))
-                        .clipShape(Capsule())
-                }
+        HStack(spacing: 6) {
+            Image(systemName: container.icon)
+                .font(.system(size: 11, weight: .medium))
+            Text(container.name)
+                .font(.system(size: 13, weight: .medium))
+                .lineLimit(1)
+            if let badgeText {
+                Text(badgeText)
+                    .font(.system(size: 10, weight: .bold, design: .rounded))
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 3)
+                    .background(badgeStyle.background(isSelected: isSelected))
+                    .foregroundStyle(badgeStyle.foreground(isSelected: isSelected))
+                    .clipShape(Capsule())
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 6)
-            .background(
-                Capsule()
-                    .fill(isSelected ? containerColor : DSColors.surface)
-            )
-            .foregroundColor(isSelected ? .white : .primary)
-            .overlay(
-                Capsule()
-                    .strokeBorder(isSelected ? Color.clear : containerColor.opacity(0.3), lineWidth: 1)
-            )
-            .shadow(color: isSelected ? containerColor.opacity(0.3) : .clear, radius: 4, x: 0, y: 2)
         }
-        .buttonStyle(.plain)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 6)
+        .background(
+            Capsule()
+                .fill(isSelected ? containerColor : DSColors.surface)
+        )
+        .foregroundColor(isSelected ? .white : .primary)
+        .overlay(
+            Capsule()
+                .strokeBorder(isSelected ? Color.clear : containerColor.opacity(0.3), lineWidth: 1)
+        )
+        .shadow(color: isSelected ? containerColor.opacity(0.3) : .clear, radius: 4, x: 0, y: 2)
+        .contentShape(.contextMenuPreview, Capsule())
+        .contentShape(Capsule())
+        .onTapGesture {
+            onSelect()
+        }
         .glassEffectHelper(isSelected: isSelected, tintColor: containerColor)
         .contextMenu {
             Button {

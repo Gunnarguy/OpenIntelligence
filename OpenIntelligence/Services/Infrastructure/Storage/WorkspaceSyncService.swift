@@ -587,6 +587,16 @@ final class WorkspaceSyncService: ObservableObject {
             try? Self.coordinatedRemoveItem(at: sharedQueueURL)
         }
 
+        let deletedContainersURL = sharedRoot.appendingPathComponent("deleted_containers.json")
+        var deletedContainerIDs = (try? Self.readJSONIfPresent([String].self, from: deletedContainersURL)) ?? []
+        for targetId in targetContainerIDs {
+            let idStr = targetId.uuidString
+            if !deletedContainerIDs.contains(idStr) {
+                deletedContainerIDs.append(idStr)
+            }
+        }
+        try Self.writeJSON(deletedContainerIDs, to: deletedContainersURL)
+
         try cleanupSharedWorkspace(
             sharedRoot: sharedRoot,
             syncedContainerIDs: Set(remainingContainers.map(\.id)),
@@ -786,15 +796,23 @@ final class WorkspaceSyncService: ObservableObject {
         sharedInventory: WorkspaceInventory,
         strategy: SyncResolutionStrategy
     ) async throws {
+        let deletedContainersURL = sharedRoot.appendingPathComponent("deleted_containers.json")
+        let deletedContainerIDs = Set((try? Self.readJSONIfPresent([String].self, from: deletedContainersURL))?.compactMap { UUID(uuidString: $0) } ?? [])
+
         let allLocalContainers = sortedContainers(localInventory.containers)
         let localContainerById = Dictionary(uniqueKeysWithValues: allLocalContainers.map { ($0.id, $0) })
         var localOnlyContainers = sortedContainers(allLocalContainers.filter { $0.syncMode == .localOnly })
-        let localSyncedContainers = sortedContainers(allLocalContainers.filter { $0.syncMode == .iCloudShared })
+        let localSyncedContainers = sortedContainers(
+            allLocalContainers
+                .filter { $0.syncMode == .iCloudShared }
+                .filter { !deletedContainerIDs.contains($0.id) }
+        )
         let localOnlyContainerIDs = Set(localOnlyContainers.map(\.id))
         let sharedVisibleContainers = sortedContainers(
             sharedInventory.containers
                 .map(normalizeSharedContainer)
                 .filter { !localOnlyContainerIDs.contains($0.id) }
+                .filter { !deletedContainerIDs.contains($0.id) }
         )
 
         let mergeResult = mergeContainers(
@@ -924,6 +942,16 @@ final class WorkspaceSyncService: ObservableObject {
             syncedContainerIDs: finalSyncedContainerIDs,
             referencedRelativePaths: Set(finalSharedDocuments.compactMap(\.storageRelativePath))
         )
+
+        let removedContainerIDs = Set(localInventory.containers.map(\.id)).subtracting(finalLocalContainers.map(\.id))
+        for containerId in removedContainerIDs {
+            removeVectorStoreArtifacts(for: containerId, in: localRoot)
+            let prefixes = ["chat_history_", "transcript_", "conversation_memory_"]
+            for prefix in prefixes {
+                let localAuxURL = localRoot.appendingPathComponent("\(prefix)\(containerId.uuidString).json")
+                try? Self.coordinatedRemoveItem(at: localAuxURL)
+            }
+        }
     }
 
     private func unsupportedSyncContainerNames(

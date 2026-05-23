@@ -317,7 +317,18 @@ struct ContentView: View {
         let hasActiveIngestion = ragService.ingestionItems.contains { !$0.stage.isTerminal }
         guard !hasActiveIngestion else { return }
 
+        let oldContainers = containerService.containers
         containerService.reloadFromDisk()
+        let newContainers = containerService.containers
+        let removedContainerIDs = Set(oldContainers.map(\.id)).subtracting(newContainers.map(\.id))
+        for containerId in removedContainerIDs {
+            LibraryVisualizationEngine.shared.invalidateCache(for: containerId)
+            await ClusterLabelService.shared.invalidateCache(for: containerId)
+            await SuggestedQuestionsService.shared.invalidateCache(for: containerId)
+            SpotlightIndexService.shared.deindexAllDocuments(in: containerId)
+            SpotlightIndexService.shared.deindexContainer(id: containerId)
+        }
+
         ragService.reloadWorkspaceData()
     }
 
