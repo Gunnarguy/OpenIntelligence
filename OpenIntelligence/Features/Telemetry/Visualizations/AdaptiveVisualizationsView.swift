@@ -3148,53 +3148,160 @@ struct CompactAtlasSceneView: View {
     private func assignTopicsNLP(chunks: [DocumentChunk]) -> [UUID: String] {
         var assignments: [UUID: String] = [:]
 
-        // Build keyword sets for each topic from profile
-        var topicKeywords: [String: Set<String>] = [:]
-        for topic in profile.dominantTopics {
-            var keywords = Set<String>()
-            keywords.insert(topic.name.lowercased())
-            // Add common variations and related terms
-            keywords.formUnion(expandKeywords(topic.name))
-            topicKeywords[topic.name] = keywords
+        // Build keyword sets from the actual dominant-topic metadata the library analysis produced.
+        // Using only the display label was too weak and pushed unmatched chunks into unrelated fallbacks.
+        let topicKeywords: [(name: String, terms: Set<String>, phrases: Set<String>)] = profile.dominantTopics.map { topic in
+            var terms = expandKeywords(topic.name)
+            var phrases: Set<String> = []
+
+            let normalizedName = normalizeTopicTerm(topic.name)
+            if !normalizedName.isEmpty {
+                terms.insert(normalizedName)
+                terms.formUnion(tokens(from: normalizedName))
+                phrases.insert(normalizedName)
+            }
+
+            for keyword in topic.keywords {
+                let normalizedKeyword = normalizeTopicTerm(keyword)
+                guard !normalizedKeyword.isEmpty else { continue }
+                terms.insert(normalizedKeyword)
+                terms.formUnion(tokens(from: normalizedKeyword))
+                terms.formUnion(expandKeywords(normalizedKeyword))
+                phrases.insert(normalizedKeyword)
+            }
+
+            return (name: topic.name, terms: terms, phrases: phrases)
         }
 
         for chunk in chunks {
             let text = chunk.text.lowercased()
-            let words = extractSignificantWords(from: text)
+            let words = chunkTopicTerms(for: chunk, lowerText: text)
 
-            var bestTopic: String?
-            var bestScore = 0
+            var bestMatch: (name: String, score: Int)?
 
-            for (topicName, keywords) in topicKeywords {
-                let score = words.intersection(keywords).count
-                if score > bestScore {
-                    bestScore = score
-                    bestTopic = topicName
+            for topic in topicKeywords {
+                let termMatches = words.intersection(topic.terms).count
+                let phraseMatches = topic.phrases.reduce(into: 0) { partial, phrase in
+                    guard phrase.count >= 3, text.contains(phrase) else { return }
+                    partial += phrase.contains(" ") ? 3 : 2
+                }
+                let score = termMatches + phraseMatches
+
+                if score > (bestMatch?.score ?? 0) {
+                    bestMatch = (name: topic.name, score: score)
                 }
             }
 
-            if let topic = bestTopic, bestScore > 0 {
-                assignments[chunk.id] = topic
+            if let bestMatch, bestMatch.score > 0 {
+                assignments[chunk.id] = bestMatch.name
             } else {
-                // Fallback: infer from content patterns
-                assignments[chunk.id] = inferTopicFromContent(text: text)
+                assignments[chunk.id] = fallbackTopicLabel(for: chunk)
             }
         }
 
         return assignments
     }
 
+    private func normalizeTopicTerm(_ value: String) -> String {
+        value
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+            .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+    }
+
+    private func tokens(from value: String) -> Set<String> {
+        Set(
+            value
+                .components(separatedBy: CharacterSet.alphanumerics.inverted)
+                .map { $0.lowercased() }
+                .filter { $0.count >= 3 }
+        )
+    }
+
+    private func chunkTopicTerms(for chunk: DocumentChunk, lowerText: String) -> Set<String> {
+        var terms = extractSignificantWords(from: lowerText)
+
+        for keyword in chunk.metadata.keywords {
+            let normalizedKeyword = normalizeTopicTerm(keyword)
+            guard !normalizedKeyword.isEmpty else { continue }
+            terms.insert(normalizedKeyword)
+            terms.formUnion(tokens(from: normalizedKeyword))
+        }
+
+        if let sectionTitle = chunk.metadata.sectionTitle {
+            let normalizedSection = normalizeTopicTerm(sectionTitle)
+            if !normalizedSection.isEmpty {
+                terms.insert(normalizedSection)
+                terms.formUnion(tokens(from: normalizedSection))
+            }
+        }
+
+        return terms
+    }
+
+    private func fallbackTopicLabel(for chunk: DocumentChunk) -> String {
+        if let sectionTitle = chunk.metadata.sectionTitle?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !sectionTitle.isEmpty {
+            let normalizedSection = normalizeTopicTerm(sectionTitle)
+            if !normalizedSection.isEmpty, !isGenericAtlasFallbackLabel(normalizedSection) {
+                return String(sectionTitle.prefix(40))
+            }
+        }
+
+        for keyword in chunk.metadata.keywords {
+            let normalizedKeyword = normalizeTopicTerm(keyword)
+            guard !normalizedKeyword.isEmpty, !isGenericAtlasFallbackLabel(normalizedKeyword) else { continue }
+            return displayTopicLabel(normalizedKeyword)
+        }
+
+        return "General"
+    }
+
+    private func isGenericAtlasFallbackLabel(_ normalizedLabel: String) -> Bool {
+        let genericTerms: Set<String> = [
+            "general", "document", "documents", "content", "contents", "section", "sections",
+            "page", "pages", "chapter", "chapters", "overview", "introduction", "summary",
+            "appendix", "appendices", "notes", "details", "information"
+        ]
+
+        let normalizedTokens = tokens(from: normalizedLabel)
+        guard !normalizedTokens.isEmpty else { return true }
+        return normalizedTokens.allSatisfy { genericTerms.contains($0) }
+    }
+
+    private func displayTopicLabel(_ normalizedLabel: String) -> String {
+        let acronyms: Set<String> = ["api", "sdk", "sql", "pdf", "ocr", "ui", "ux", "rag", "llm", "json", "xml", "csv", "faq"]
+
+        return normalizedLabel
+            .split(separator: " ")
+            .map { token in
+                let word = String(token)
+                if acronyms.contains(word) {
+                    return word.uppercased()
+                }
+                return word.prefix(1).uppercased() + word.dropFirst()
+            }
+            .joined(separator: " ")
+    }
+
     private func expandKeywords(_ topic: String) -> Set<String> {
-        let base = topic.lowercased()
+        let base = normalizeTopicTerm(topic)
         var expanded = Set<String>()
+
+        guard !base.isEmpty else { return expanded }
+
+        let baseTokens = tokens(from: base)
 
         // Add the base term
         expanded.insert(base)
+        expanded.formUnion(baseTokens)
 
         // Add common suffixes/variations
         let suffixes = ["s", "ing", "ed", "er", "tion", "ment", "ness", "ity", "ies"]
-        for suffix in suffixes {
-            expanded.insert(base + suffix)
+        for token in baseTokens where token.count >= 4 {
+            for suffix in suffixes {
+                expanded.insert(token + suffix)
+            }
         }
 
         // Domain-specific expansions
@@ -3211,13 +3318,17 @@ struct CompactAtlasSceneView: View {
             "view": ["component", "screen", "page", "layout", "template", "render", "display"],
         ]
 
-        if let related = domainMappings[base] {
-            expanded.formUnion(related)
+        for token in baseTokens {
+            if let related = domainMappings[token] {
+                expanded.formUnion(related.map(normalizeTopicTerm))
+            }
         }
 
-        // Check if base matches any domain
-        for (_, related) in domainMappings where related.contains(base) {
-            expanded.formUnion(related)
+        // Check if any token matches a related-domain term.
+        for token in baseTokens {
+            for (_, related) in domainMappings where related.contains(token) {
+                expanded.formUnion(related.map(normalizeTopicTerm))
+            }
         }
 
         return expanded

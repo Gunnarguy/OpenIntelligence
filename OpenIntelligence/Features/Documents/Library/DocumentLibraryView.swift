@@ -1031,10 +1031,14 @@ struct DocumentLibraryView: View {
     }
 
     private var libraryChromeView: some View {
-        libraryContentView
+        ZStack(alignment: .bottomTrailing) {
+            libraryContentView
+            ingestionQueueOverlay
+        }
             .navigationTitle("Documents")
             #if os(iOS)
             .navigationBarTitleDisplayMode(.large)
+            .ignoresSafeArea(.keyboard, edges: .bottom)
             #endif
             .onAppear {
                 Task { @MainActor in
@@ -1046,15 +1050,25 @@ struct DocumentLibraryView: View {
                     await handleObservedSharedWorkspaceChange()
                 }
             }
-            .overlay(alignment: .bottomTrailing) {
-                IngestionQueueOverlay(
-                    items: ragService.ingestionItems,
-                    onCancelItem: { ragService.cancelIngestionItem($0) },
-                    onCancelAll: { ragService.cancelAllIngestion() }
-                )
-                .padding(.trailing, 16)
-                .padding(.bottom, 16)
-            }
+    }
+
+    private var ingestionQueueOverlay: some View {
+        IngestionQueueOverlay(
+            items: ragService.ingestionItems,
+            onCancelItem: { ragService.cancelIngestionItem($0) },
+            onCancelAll: { ragService.cancelAllIngestion() }
+        )
+        .padding(.horizontal, 16)
+        .padding(.bottom, ingestionQueueBottomPadding)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
+    }
+
+    private var ingestionQueueBottomPadding: CGFloat {
+#if os(iOS)
+        72
+#else
+        16
+#endif
     }
 
     private var libraryContentView: some View {

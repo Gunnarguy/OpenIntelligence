@@ -437,13 +437,9 @@ actor ClusterLabelService {
     private func generateGeneralLabel(keywords: [String], content: String) -> String {
         let patterns: [(terms: [String], label: String)] = [
             (["introduction", "overview", "about", "getting started"], "Introduction"),
-            (["installation", "setup", "install", "configure"], "Setup Guide"),
-            (["usage", "how to", "guide", "tutorial"], "Usage Guide"),
-            (["troubleshoot", "problem", "issue", "fix", "solution"], "Troubleshooting"),
             (["faq", "question", "answer", "frequently"], "FAQ"),
-            (["contact", "support", "help", "assistance"], "Support & Contact"),
-            (["appendix", "reference", "additional", "supplementary"], "Appendix"),
             (["glossary", "term", "definition", "vocabulary"], "Glossary"),
+            (["appendix", "reference", "additional", "supplementary"], "Appendix"),
         ]
 
         return matchPatternLabel(patterns: patterns, keywords: keywords, content: content)
@@ -482,11 +478,31 @@ actor ClusterLabelService {
         let meaningfulKeywords = keywords.filter { keyword in
             let word = keyword.lowercased()
             let skipWords: Set<String> = [
+                // Pronouns / Articles / Conjunctions / Grammatical noise
                 "the", "and", "for", "with", "this", "that", "from", "have", "are",
                 "was", "were", "been", "will", "would", "could", "should", "can",
                 "its", "use", "see", "set", "get", "one", "two", "also", "more",
-                "page", "section", "chapter", "figure", "table", "note", "item",
-                "general", "content", "information", "data", "text", "document"
+                "general", "content", "information", "data", "text", "document",
+                "our", "your", "their", "his", "her", "only", "other", "some",
+                "many", "much", "most", "few", "all", "any", "both", "each", "every",
+                "same", "different", "new", "old", "high", "low", "great", "small",
+                "large", "good", "bad", "best", "worst", "true", "false", "yes", "no",
+                "not", "non", "without", "into", "onto", "over", "under", "after",
+                "before", "between", "among", "through", "during", "while", "until",
+                
+                // Generic structural, formatting, and layout noise
+                "part", "parts", "list", "lists", "step", "steps", "page", "pages",
+                "section", "sections", "chapter", "chapters", "table", "tables",
+                "row", "rows", "column", "columns", "col", "cols", "line", "lines",
+                "cell", "cells", "item", "items", "detail", "details", "description",
+                "descriptions", "summary", "summaries", "overview", "introduction",
+                "conclusion", "conclusions", "appendix", "appendices", "figure",
+                "figures", "fig", "figs", "image", "images", "photo", "photos",
+                "graph", "graphs", "chart", "charts", "diagram", "diagrams",
+                "value", "values", "number", "numbers", "digit", "digits", "type",
+                "types", "form", "forms", "group", "groups", "user", "users",
+                "read", "write", "show", "find", "here", "there", "problem", "problems",
+                "issue", "issues", "solution", "solutions"
             ]
             return word.count >= 3 &&
                    !skipWords.contains(word) &&
