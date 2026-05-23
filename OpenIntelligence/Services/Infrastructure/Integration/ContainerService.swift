@@ -153,7 +153,7 @@ final class ContainerService: ObservableObject {
     ) {
         guard let idx = containers.firstIndex(where: { $0.id == containerId }) else { return }
         let current = containers[idx]
-        
+
         var hasChanges = false
         if let d = totalDocuments, d != current.totalDocuments {
             hasChanges = true
@@ -174,15 +174,15 @@ final class ContainerService: ObservableObject {
                 }
             }
         }
-        
+
         guard hasChanges else { return }
-        
+
         var c = current
         if let d = totalDocuments { c.totalDocuments = d }
         if let t = totalChunks { c.totalChunks = t }
         if let s = dbSizeBytes { c.dbSizeBytes = s }
         if let li = lastIndexedAt { c.lastIndexedAt = li }
-        
+
         containers[idx] = c
         Self.saveContainers(containers)
     }
