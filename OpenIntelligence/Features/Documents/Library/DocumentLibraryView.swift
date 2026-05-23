@@ -274,6 +274,7 @@ struct DocumentLibraryView: View {
                     }
                     .pickerStyle(.segmented)
                     .frame(width: 140)
+                    .labelsHidden()
                     .disabled(isRefreshingSharedWorkspace)
                 }
 
@@ -1499,6 +1500,7 @@ private struct DocumentActionChip: View {
                 Text(title)
                     .font(.system(size: 12, weight: .semibold))
                     .lineLimit(1)
+                    .minimumScaleFactor(0.6)
             }
             .frame(maxWidth: .infinity)
             .foregroundStyle(isEnabled ? tint : .secondary)
