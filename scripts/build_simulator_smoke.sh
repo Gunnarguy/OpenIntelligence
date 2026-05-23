@@ -18,7 +18,16 @@ xcodebuild \
   -scheme "$SCHEME" \
   -destination "$DESTINATION" \
   -derivedDataPath "$DERIVED_DATA_PATH" \
+  -skipPackagePluginValidation \
+  CODE_SIGNING_ALLOWED=NO \
+  CODE_SIGNING_REQUIRED=NO \
   build | tee "$BUILD_LOG"
+
+echo "Stripping extended attributes (detritus) from the built app bundle..."
+/usr/bin/xattr -rc "$DERIVED_DATA_PATH/Build/Products/Debug-iphonesimulator/OpenIntelligence.app"
+
+echo "Ad-hoc codesigning the built app bundle..."
+/usr/bin/codesign --force --sign - --timestamp=none --deep "$DERIVED_DATA_PATH/Build/Products/Debug-iphonesimulator/OpenIntelligence.app"
 
 echo "Simulator smoke build succeeded"
 echo "Build log: $BUILD_LOG"

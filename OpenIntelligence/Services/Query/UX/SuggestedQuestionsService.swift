@@ -1581,6 +1581,128 @@ actor SuggestedQuestionsService {
         return isGenericQuestionTopic(topic)
     }
 
+    private func isJunkString(_ text: String) -> Bool {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return true }
+
+        // Rule 1: Check for raw math/code/layout symbols that should not appear in clean questions.
+        // We allow '+' if it's explicitly part of "c++" or "C++" (case-insensitive).
+        let lower = trimmed.lowercased()
+        let hasPlus = lower.contains("+")
+        let isCpp = lower.contains("c++")
+        if hasPlus && !isCpp {
+            return true
+        }
+
+        // Banned layout, math, and code characters
+        let bannedChars = Set<Character>([
+            "=", "<", ">", "|", "_", "~", "^", "*", "\\", "•", "▪", "●", "♦", "★", "▲", "▼", "¶", "§", "©", "®", "™"
+        ])
+        if trimmed.contains(where: { bannedChars.contains($0) }) {
+            return true
+        }
+
+        // Rule 2: Check for consecutive duplicate punctuation noise
+        let noisePatterns = [
+            #"\.\."#,       // double dot
+            #"::"#,         // double colon
+            #"--"#,         // double dash
+            #",,"#,         // double comma
+            #"\?\?"#,       // double question mark
+            #"!!"#,         // double exclamation
+            #"//"#,         // double slash
+            #"&&"#,         // double ampersand
+            #"%%"#          // double percent
+        ]
+        for pattern in noisePatterns {
+            if trimmed.range(of: pattern, options: .regularExpression) != nil {
+                return true
+            }
+        }
+
+        // Rule 3: Split into individual tokens and check for OCR gibberish, range patterns, and formatting junk.
+        let delimiters = CharacterSet(charactersIn: " \t\r\n,;:!?()[]{}<>\"'`“”‘’")
+        let tokens = trimmed.components(separatedBy: delimiters)
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+
+        // Allowed abbreviations with periods inside
+        let allowedDotAbbreviations: Set<String> = [
+            "e.g.", "i.e.", "u.s.", "a.m.", "p.m.", "vs.", "approx.", "co.", "inc.", "corp.", "ltd.", "dr.", "mr.", "ms.",
+            "dept.", "est.", "fig.", "figs.", "sec.", "min.", "hr.", "hrs.", "vol.", "vols.", "ed.", "eds.",
+            "ph.d.", "ph.d", "u.s.a.", "u.s.a", "u.k.", "u.k", "b.s.", "b.s", "m.s.", "m.s", "b.a.", "b.a", "m.d.", "m.d", "d.c.", "d.c"
+        ]
+
+        for token in tokens {
+            let tokenLower = token.lowercased()
+
+            // A: Period in the middle of token
+            if token.contains(".") {
+                let inner = tokenLower.trimmingCharacters(in: CharacterSet(charactersIn: "."))
+                if !inner.isEmpty {
+                    // Check if it's a decimal number (e.g., 3.14, .05, 123.45)
+                    let decimalPattern = #"^\d*\.?\d+$"#
+                    let isDecimal = inner.range(of: decimalPattern, options: .regularExpression) != nil
+                    
+                    // Check if it contains only digits and dots (e.g. version numbers 5.10.1)
+                    let isVersion = inner.allSatisfy { $0.isNumber || $0 == "." }
+                    
+                    // Check if it is an allowed abbreviation
+                    let isAllowedAbbr = allowedDotAbbreviations.contains(tokenLower) 
+                        || allowedDotAbbreviations.contains(tokenLower + ".")
+
+                    if !isDecimal && !isVersion && !isAllowedAbbr {
+                        return true
+                    }
+                }
+            }
+
+            // B: Mixed letter-digit tokens without dots
+            let hasLetters = token.contains { $0.isLetter }
+            let hasDigits = token.contains { $0.isNumber }
+            if hasLetters && hasDigits {
+                let validMixedPattern = #"^(?:\d+(?:st|nd|rd|th|x|g|k|m|s|h|hz|db|v|w|a|%|px|em|pt|in|cm|mm|oz|lb|kg|ml|l|sec|min|deg|c|f)|[iamv]\d+)$"#
+                let isValidMixed = tokenLower.range(of: validMixedPattern, options: .regularExpression) != nil
+
+                if !isValidMixed {
+                    var transitions = 0
+                    var lastIsLetter: Bool? = nil
+                    for char in token {
+                        let isLetter = char.isLetter
+                        if let last = lastIsLetter, last != isLetter {
+                            transitions += 1
+                        }
+                        lastIsLetter = isLetter
+                    }
+                    if token.count > 5 || transitions > 1 {
+                        return true
+                    }
+                }
+            }
+
+            // C: CamelCase or weird casing (excluding standard brands)
+            let brandExceptions: Set<String> = [
+                "iphone", "ipad", "macos", "latex", "github", "openintelligence", "ios", "xcode", "youtube", "powerpoint",
+                "javascript", "typescript", "swiftui", "coredata", "combineswift"
+            ]
+            if token.count >= 3 && !brandExceptions.contains(tokenLower) {
+                var hasMixedCase = false
+                let chars = Array(token)
+                for i in 0..<(chars.count - 1) {
+                    if chars[i].isLowercase && chars[i+1].isUppercase {
+                        hasMixedCase = true
+                        break
+                    }
+                }
+                if hasMixedCase {
+                    return true
+                }
+            }
+        }
+
+        return false
+    }
+
     private func concreteTopic(from text: String?) -> String? {
         guard let text else { return nil }
         let cleaned = text
@@ -1588,6 +1710,7 @@ actor SuggestedQuestionsService {
             .trimmingCharacters(in: .whitespacesAndNewlines.union(.punctuationCharacters))
         guard cleaned.count >= 4,
               cleaned.count <= 80,
+              !isJunkString(cleaned),
               !isGenericSectionTitle(cleaned),
               !isGenericQuestionTopic(cleaned),
               !containsFrontMatterSignal(cleaned)
@@ -1608,6 +1731,7 @@ actor SuggestedQuestionsService {
             .trimmingCharacters(in: .whitespacesAndNewlines.union(.punctuationCharacters))
         guard cleaned.count >= 4,
               cleaned.count <= 80,
+              !isJunkString(cleaned),
               !isGenericSectionTitle(cleaned),
               !isGenericQuestionTopic(cleaned),
               !containsFrontMatterSignal(cleaned)
@@ -2289,6 +2413,10 @@ actor SuggestedQuestionsService {
         }
 
         if isStructuralOrMetaQuestion(lower) {
+            return false
+        }
+
+        if isJunkString(question) {
             return false
         }
         let bannedFragments = [
