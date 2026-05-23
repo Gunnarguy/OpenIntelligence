@@ -3230,6 +3230,7 @@ struct CompactChatHeader: View {
                     containerService.setActive(container.id)
                 }
             }
+            .fixedSize(horizontal: true, vertical: false)
         }
     }
 
