@@ -254,6 +254,10 @@ class DocumentProcessor {
             return strategy != .directText
         }
 
+        if analysis.isMixedModeScanned {
+            return true
+        }
+
         guard strategy != .directText else { return false }
 
         return analysis.tablePresence > 0.08
@@ -514,6 +518,7 @@ class DocumentProcessor {
     /// - SQLiteFullTextService (FTS5) when containerId is provided (10-100X faster search)
     /// - FullTextStorageService (file-based) as fallback when containerId is nil
     func processDocument(at url: URL, chunkOverride: ChunkingOverride? = nil, containerId: UUID? = nil) async throws -> (Document, [ProcessedChunk]) {
+        try Task.checkCancellation()
         // Reset ALL per-document state to prevent vocabulary/entity leaks between documents
         lastDetectedEntities = []
         currentDocumentCustomWords = OCRConfiguration.universalCustomWords
@@ -535,6 +540,7 @@ class DocumentProcessor {
 
         // Determine document type
         let documentType = detectDocumentType(url: url)
+        try Task.checkCancellation()
 
         // ═══════════════════════════════════════════════════════════════
         // STREAMING PATH: Large XML files (>50 MB)
@@ -640,6 +646,7 @@ class DocumentProcessor {
         // Extract text based on document type
         progressHandler?("reading file")
         await Task.yield() // Yield to UI without blocking (was 0.5s sleep)
+        try Task.checkCancellation()
 
         let extractedText: String
         let pageInfo: PageInfo
@@ -676,6 +683,8 @@ class DocumentProcessor {
                 Log.info("[DocumentProcessor] Inferred non-PDF structure: \(tableCount) tables, \(listCount) lists extracted", category: .ingestion)
             }
         }
+
+        try Task.checkCancellation()
 
         pagesProcessed = pageInfo.totalPages
         ocrPagesCount = pageInfo.ocrPagesUsed > 0 ? pageInfo.ocrPagesUsed : nil
@@ -745,6 +754,7 @@ class DocumentProcessor {
         let storedCharCount = storedText.count
 
         if let containerId = containerId {
+            try Task.checkCancellation()
             // Primary path: SQLite FTS5 with container isolation (v1.1.0+)
             await SQLiteFullTextService.shared.store(text: storedText, for: documentId, containerId: containerId)
             Log.debug("[DocumentProcessor] Stored normalized text (\(storedCharCount) chars) to FTS5 for exact query support", category: .ingestion)
@@ -754,10 +764,12 @@ class DocumentProcessor {
                 let pageEntries = pageTextsFromSentinel.enumerated().map { (index, content) in
                     (pageNumber: index + 1, content: content)
                 }
+                try Task.checkCancellation()
                 await SQLiteFullTextService.shared.storePages(pages: pageEntries, for: documentId, containerId: containerId)
                 Log.info("[DocumentProcessor] Stored \(pageEntries.count) individual pages to FTS5 for page-level context", category: .ingestion)
             }
         } else {
+            try Task.checkCancellation()
             // Fallback path: File-based storage (legacy, no container context)
             await FullTextStorageService.shared.store(text: storedText, for: documentId)
             Log.debug("[DocumentProcessor] Stored normalized text (\(storedCharCount) chars) to file storage (legacy path)", category: .ingestion)
@@ -777,6 +789,7 @@ class DocumentProcessor {
         // Chunk the text using semantic chunker
         emitProgress(stage: "chunking", detail: "✂️ Semantic chunking text...", page: nil, totalPages: nil)
         await Task.yield() // Yield to UI without blocking (was 0.3s sleep)
+        try Task.checkCancellation()
         let chunkingStartTime = Date()
 
         // Create semantic chunker configuration
@@ -3382,7 +3395,9 @@ class DocumentProcessor {
                     // Pre-compute text presence and quality checks
                     let hasText = pageString != nil && !pageString!.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
                     // When text layer is garbled (font substitution cipher), NEVER trust PDFKit text
-                    let textQualityOK = !documentTextLayerGarbled && hasText && isTextQualityAcceptable(pageString!)
+                    // If the page is mixed-mode scanned, also do not trust the incomplete native text layer
+                    let isMixedMode = complexity?.isMixedModeScanned ?? false
+                    let textQualityOK = !documentTextLayerGarbled && !isMixedMode && hasText && isTextQualityAcceptable(pageString!)
 
                     traceIngestionDecision(
                         pageNumber: pageNumber,
@@ -3411,6 +3426,17 @@ class DocumentProcessor {
                     let pageData = batchPageData[batchOffset]
 
                     group.addTask {
+                        if Task.isCancelled {
+                            return PageExtractionResult(
+                                pageIndex: pageIndex,
+                                text: "",
+                                usedOCR: false,
+                                usedSpatial: false,
+                                ocrCharCount: 0,
+                                noTextLayer: false
+                            )
+                        }
+
                         let pageStartTime = Date()
                         let pageNumber = pageIndex + 1
 
@@ -3601,10 +3627,16 @@ class DocumentProcessor {
 
                 var collected: [PageExtractionResult] = []
                 for await result in group {
+                    if Task.isCancelled {
+                        group.cancelAll()
+                        break
+                    }
                     collected.append(result)
                 }
                 return collected
             }
+
+            try Task.checkCancellation()
 
             results.append(contentsOf: batchResults)
             // MEMORY-SAFE: batchPageData goes out of scope here, releasing CIImages
@@ -4185,6 +4217,19 @@ class DocumentProcessor {
                     let capturedComplexity = pageComplexity[pageIndex + 1]
 
                     group.addTask {
+                        if Task.isCancelled {
+                            return PageParseResult(
+                                pageIndex: pageIndex,
+                                elements: [],
+                                pageText: "",
+                                hasStructure: false,
+                                usedOCR: false,
+                                tablesFound: 0,
+                                listsFound: 0,
+                                headersFound: 0
+                            )
+                        }
+
                         let pageNumber = pageIndex + 1
                         let bestAvailableText = (renderData.layoutText ?? renderData.plainText)?
                             .trimmingCharacters(in: .whitespacesAndNewlines)
@@ -4250,10 +4295,13 @@ class DocumentProcessor {
                             // Use effectiveContent which automatically falls back to raw text if quality is low
                             let elementsToUse = structuredContent.effectiveContent
 
+                            let isMixedMode = capturedComplexity?.isMixedModeScanned ?? false
+                            let pageUsesHybridOverride = isHybridMode && !isMixedMode
+
                             // HYBRID MODE: Use layout-aware text for paragraphs (correct column order)
                             // Keep Vision's tables, lists, titles (structural elements)
                             let layoutText = renderData.layoutText
-                            let trustedPageTextForTitles = (bestAvailableText ?? layoutText ?? structuredContent.rawText)
+                            let trustedPageTextForTitles = (isMixedMode ? structuredContent.rawText : (bestAvailableText ?? layoutText ?? structuredContent.rawText))
                                 .trimmingCharacters(in: .whitespacesAndNewlines)
                             let pageHasStructuredTables = elementsToUse.contains { structuredElement in
                                 structuredElement.elementType == "table"
@@ -4279,7 +4327,7 @@ class DocumentProcessor {
 
                                 // In hybrid mode: replace Vision paragraphs with layout-aware text
                                 // This fixes multi-column reading order issues
-                                if isHybridMode && element.elementType == "paragraph" && !pageHasStructuredTables {
+                                if pageUsesHybridOverride && element.elementType == "paragraph" && !pageHasStructuredTables {
                                     if !usedLayoutForParagraph, let layout = layoutText, !layout.isEmpty {
                                         // Use layout-aware text instead of Vision's paragraph
                                         elements.append(StructuredElementWrapper(
@@ -4347,7 +4395,7 @@ class DocumentProcessor {
                             }
 
                             // If hybrid mode but no paragraphs were in structured content, add layout text
-                            if isHybridMode && !pageHasStructuredTables && !usedLayoutForParagraph,
+                            if pageUsesHybridOverride && !pageHasStructuredTables && !usedLayoutForParagraph,
                                let layout = layoutText, !layout.isEmpty {
                                 elements.append(StructuredElementWrapper(
                                     text: layout.trimmingCharacters(in: .whitespacesAndNewlines),
@@ -4378,7 +4426,7 @@ class DocumentProcessor {
                                 )
                             }
 
-                            let recoveredPageText = (bestAvailableText ?? structuredContent.rawText)
+                            let recoveredPageText = (isMixedMode ? structuredContent.rawText : (bestAvailableText ?? structuredContent.rawText))
                                 .trimmingCharacters(in: .whitespacesAndNewlines)
                             let recoveredParallelKeyValueElements = self.preferredElementsWithRecoveredParallelKeyValueTable(
                                 existingElements: elements,
@@ -4399,7 +4447,7 @@ class DocumentProcessor {
                             }
 
                             if pageTablesCount == 0 && pageListsCount == 0 {
-                                let inferenceSourceText = (layoutText ?? structuredContent.rawText)
+                                let inferenceSourceText = (isMixedMode ? structuredContent.rawText : (layoutText ?? structuredContent.rawText))
                                     .trimmingCharacters(in: .whitespacesAndNewlines)
                                 let inferredElements = self.inferredStructuredElementsForPDFPageText(
                                     inferenceSourceText,
@@ -4435,7 +4483,7 @@ class DocumentProcessor {
                                 ))
                             }
 
-                            let rescueSourceText = (bestAvailableText ?? structuredContent.rawText)
+                            let rescueSourceText = (isMixedMode ? structuredContent.rawText : (bestAvailableText ?? structuredContent.rawText))
                                 .trimmingCharacters(in: .whitespacesAndNewlines)
 
                             if self.shouldAttemptRegionCropRescue(
@@ -4497,7 +4545,7 @@ class DocumentProcessor {
                                     }
                                 }
                                 pageTextOutput = textParts.joined(separator: "\n\n")
-                            } else if isHybridMode, let layout = layoutText, !layout.isEmpty {
+                            } else if pageUsesHybridOverride, let layout = layoutText, !layout.isEmpty {
                                 pageTextOutput = layout
                             } else if let rescueResult = await IntelligentDocumentProcessor.shared.rescuePageRegions(
                                 from: pageImage,
@@ -4699,10 +4747,16 @@ class DocumentProcessor {
 
                 var collected: [PageParseResult] = []
                 for await result in group {
+                    if Task.isCancelled {
+                        group.cancelAll()
+                        break
+                    }
                     collected.append(result)
                 }
                 return collected
             }
+
+            try Task.checkCancellation()
 
             // Aggregate metrics from this sub-batch and emit live progress
             var batchTables = 0, batchLists = 0, batchHeaders = 0, batchOCR = 0

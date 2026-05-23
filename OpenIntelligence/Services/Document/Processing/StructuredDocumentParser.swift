@@ -1582,10 +1582,22 @@ actor StructuredDocumentParser {
         // Long body text reversals are too risky to auto-fix
         guard text.count >= 3 && text.count <= 120 else { return text }
 
-        // Split into words, check if ANY are recognizable English
-        let words = text.lowercased()
+        let alphaWords: [String] = text.lowercased()
             .components(separatedBy: CharacterSet.alphanumerics.inverted)
-            .filter { $0.count >= 2 }
+            .filter { word in
+                word.count >= 2 && word.allSatisfy { $0.isLetter }
+            }
+
+        // Skip abbreviation-like or symbol-heavy fragments such as table codes and
+        // statistical cells. These often produce false positives like "as" or "at"
+        // when reversed, even though the source text is not a reversed phrase.
+        let totalAlphaChars = alphaWords.reduce(0) { $0 + $1.count }
+        let alphaCharRatio = Double(totalAlphaChars) / Double(max(1, text.count))
+        let hasLongAlphaWord = alphaWords.contains { $0.count >= 3 }
+        guard !alphaWords.isEmpty, hasLongAlphaWord, alphaCharRatio >= 0.45 else { return text }
+
+        // Split into alphabetic words only, then check if ANY are recognizable English
+        let words = alphaWords
 
         guard words.count >= 1 else { return text }
 
@@ -1605,21 +1617,31 @@ actor StructuredDocumentParser {
 
         let wordReversedWords = wordReversed.lowercased()
             .components(separatedBy: CharacterSet.alphanumerics.inverted)
-            .filter { $0.count >= 2 }
+            .filter { word in
+                word.count >= 2 && word.allSatisfy { $0.isLetter }
+            }
         let wordReversedRecognized = wordReversedWords.filter { Self.commonWords.contains($0) }.count
+        let wordReversedLongRecognized = wordReversedWords.filter { $0.count >= 3 && Self.commonWords.contains($0) }.count
         let wordReversedRate = Double(wordReversedRecognized) / Double(max(1, wordReversedWords.count))
 
         // Also try full string reversal — "tnorf weiv" → "view front"
         let fullReversed = String(text.reversed())
         let fullReversedWords = fullReversed.lowercased()
             .components(separatedBy: CharacterSet.alphanumerics.inverted)
-            .filter { $0.count >= 2 }
+            .filter { word in
+                word.count >= 2 && word.allSatisfy { $0.isLetter }
+            }
         let fullReversedRecognized = fullReversedWords.filter { Self.commonWords.contains($0) }.count
+        let fullReversedLongRecognized = fullReversedWords.filter { $0.count >= 3 && Self.commonWords.contains($0) }.count
         let fullReversedRate = Double(fullReversedRecognized) / Double(max(1, fullReversedWords.count))
 
         // Pick the best interpretation (must be significantly better than forward)
         let bestRate = max(wordReversedRate, fullReversedRate)
-        if bestRate > forwardRate && bestRate >= 0.25 {
+        let bestRecognizedCount = max(wordReversedRecognized, fullReversedRecognized)
+        let bestLongRecognizedCount = max(wordReversedLongRecognized, fullReversedLongRecognized)
+        if bestRate > forwardRate
+            && bestRate >= 0.25
+            && (bestLongRecognizedCount > 0 || bestRecognizedCount >= 2) {
             let bestText = wordReversedRate >= fullReversedRate ? wordReversed : fullReversed
             Log.debug("[StructuredDocumentParser] Fixed reversed text: '\(text.prefix(40))' → '\(bestText.prefix(40))'", category: .ingestion)
             return bestText

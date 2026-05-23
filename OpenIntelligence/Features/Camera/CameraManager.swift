@@ -8,6 +8,7 @@
 //  for live camera preview with AR overlays.
 //
 
+#if os(iOS)
 import AVFoundation
 import Combine
 import CoreImage
@@ -1220,3 +1221,4 @@ enum CameraError: LocalizedError {
         }
     }
 }
+#endif

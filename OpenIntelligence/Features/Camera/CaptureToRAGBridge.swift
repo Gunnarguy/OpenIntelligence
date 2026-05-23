@@ -8,6 +8,7 @@
 //  Converts captured text/images into documents for ingestion.
 //
 
+#if os(iOS)
 import Foundation
 import UIKit
 
@@ -402,3 +403,5 @@ actor LiveAnalysisService {
 // MARK: - Vision Helpers
 
 @preconcurrency import Vision
+#endif
+

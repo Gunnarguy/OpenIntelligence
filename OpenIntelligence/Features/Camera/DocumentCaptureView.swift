@@ -6,6 +6,7 @@
 //  Philosophy: Simple UI, intelligent analysis behind the scenes.
 //
 
+#if os(iOS)
 import AVFoundation
 import Combine
 import SwiftUI
@@ -1033,3 +1034,4 @@ private struct CaptureFlowLayout: Layout {
         containerService: ContainerService()
     )
 }
+#endif

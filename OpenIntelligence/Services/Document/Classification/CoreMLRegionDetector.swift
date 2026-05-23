@@ -134,6 +134,7 @@ actor CoreMLRegionDetector {
     private var detrModel: VNCoreMLModel?
     private var detrBackingModel: MLModel?
     private var isModelLoaded = false
+    private var isModelMissing = false
 
     /// COCO class labels mapped to document region types
     /// DETR is trained on COCO, so we map relevant object classes
@@ -162,9 +163,11 @@ actor CoreMLRegionDetector {
     /// Load DETR model on demand
     func loadModel() async throws {
         guard !isModelLoaded else { return }
+        guard !isModelMissing else { throw DetectorError.modelNotFound }
 
         // Check for DETR semantic segmentation model
         guard let modelURL = OpenIntelligenceResourceBundle.url(forResource: "DETRResnet50SemanticSegmentationF16", withExtension: "mlmodelc") else {
+            isModelMissing = true
             Log.info("[CoreMLRegionDetector] DETR model not bundled, using Vision framework fallback", category: .initialization)
             throw DetectorError.modelNotFound
         }

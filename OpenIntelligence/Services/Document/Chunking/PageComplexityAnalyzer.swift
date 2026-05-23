@@ -134,6 +134,7 @@ struct PageComplexityAnalysis: Sendable {
     // PDF-Specific
     let embeddedObjectCount: Int        // XObjects, embedded streams
     let annotationComplexity: Double    // Links, highlights, comments
+    let isMixedModeScanned: Bool
 
     // Timing
     let analysisTimeMs: Double
@@ -222,6 +223,7 @@ final class PageComplexityAnalyzer: @unchecked Sendable {
         var listPatternStrength = 0.0
         var headerPatternStrength = 0.0
         var codeBlockPresence = 0.0
+        var nativeWordCount = 0
 
         if hasNativeTextLayer, let text = pageString {
             // Estimate text coverage
@@ -243,6 +245,10 @@ final class PageComplexityAnalyzer: @unchecked Sendable {
             listPatternStrength = patterns.listStrength
             headerPatternStrength = patterns.headerStrength
             codeBlockPresence = patterns.codeBlockStrength
+
+            // Count words
+            let words = text.split(whereSeparator: { !$0.isLetter && !$0.isNumber })
+            nativeWordCount = words.count
         }
 
         // ═══════════════════════════════════════════════════════════════════
@@ -280,10 +286,12 @@ final class PageComplexityAnalyzer: @unchecked Sendable {
         let hasStrongVisualSignal = imagePresence > 0.2 || chartPresence > 0.2
         let hasSuspiciousTable = tablePresence > 0.3
         let hasNoText = !hasNativeTextLayer
-        let hasLowTextCoverage = textCoverage < 0.2  // Very low, suggests images
+        let hasLowTextCoverage = textCoverage < 0.40  // Under 40% text coverage is mixed-mode candidate
 
         // Only run Vision if there's a STRONG reason - it's expensive!
         let needsVisionAnalysis = hasStrongVisualSignal || hasSuspiciousTable || hasNoText || hasLowTextCoverage
+
+        var visualTextRegionsCount = 0
 
         if needsVisionAnalysis, let image = pageImage ?? renderPageForAnalysis(page) {
             let visionResults = await analyzeWithVision(image)
@@ -293,6 +301,16 @@ final class PageComplexityAnalyzer: @unchecked Sendable {
             tablePresence = max(tablePresence, visionResults.tableConfidence)
             chartPresence = max(chartPresence, visionResults.chartConfidence)
             figurePresence = max(figurePresence, visionResults.figureConfidence)
+            visualTextRegionsCount = visionResults.visualTextRegionsCount
+        }
+
+        // Calculate if a page is a mixed-mode scanned page (digital header + scanned body)
+        var isMixedModeScanned = false
+        if hasNativeTextLayer && visualTextRegionsCount > 5 {
+            let ratio = Double(nativeWordCount) / Double(visualTextRegionsCount)
+            if ratio < 2.0 {
+                isMixedModeScanned = true
+            }
         }
 
         // ═══════════════════════════════════════════════════════════════════
@@ -311,7 +329,8 @@ final class PageComplexityAnalyzer: @unchecked Sendable {
             layoutComplexity: layoutComplexity,
             whitespaceRatio: whitespaceRatio,
             numericDensity: numericDensity,
-            embeddedObjectCount: embeddedObjectCount
+            embeddedObjectCount: embeddedObjectCount,
+            isMixedModeScanned: isMixedModeScanned
         )
 
         let analysisTime = Date().timeIntervalSince(startTime) * 1000
@@ -337,6 +356,7 @@ final class PageComplexityAnalyzer: @unchecked Sendable {
             codeBlockPresence: codeBlockPresence,
             embeddedObjectCount: embeddedObjectCount,
             annotationComplexity: annotationComplexity,
+            isMixedModeScanned: isMixedModeScanned,
             analysisTimeMs: analysisTime
         )
     }
@@ -846,6 +866,8 @@ final class PageComplexityAnalyzer: @unchecked Sendable {
         let tableConfidence: Double
         let chartConfidence: Double
         let figureConfidence: Double
+        let visualTextRegionsCount: Int
+        let visualTextArea: Double
     }
 
     /// Use Vision framework for fast visual element detection
@@ -854,12 +876,21 @@ final class PageComplexityAnalyzer: @unchecked Sendable {
         var tableConfidence = 0.0
         var chartConfidence = 0.0
         var figureConfidence = 0.0
+        var visualTextRegionsCount = 0
+        var visualTextArea = 0.0
 
         // Convert CIImage to CGImage for Vision using the active foreground/background-safe context.
         let cgImage = Self.activeImageRenderContext().createCGImage(image, from: image.extent)
 
         guard let cgImg = cgImage else {
-            return VisionAnalysisResults(imageConfidence: 0, tableConfidence: 0, chartConfidence: 0, figureConfidence: 0)
+            return VisionAnalysisResults(
+                imageConfidence: 0,
+                tableConfidence: 0,
+                chartConfidence: 0,
+                figureConfidence: 0,
+                visualTextRegionsCount: 0,
+                visualTextArea: 0.0
+            )
         }
 
         // ═══════════════════════════════════════════════════════════════════
@@ -912,6 +943,7 @@ final class PageComplexityAnalyzer: @unchecked Sendable {
         // TEXT BOUNDING BOX ANALYSIS
         // ═══════════════════════════════════════════════════════════════════
         let textRegions = await detectTextRegions(cgImg)
+        visualTextRegionsCount = textRegions.count
 
         // Analyze text region distribution
         if textRegions.count > 0 {
@@ -920,6 +952,7 @@ final class PageComplexityAnalyzer: @unchecked Sendable {
             for region in textRegions {
                 totalTextArea += region.width * region.height
             }
+            visualTextArea = Double(totalTextArea)
             let textAreaRatio = totalTextArea / 1.0  // Normalized coordinates
 
             // Low text coverage with rectangles = figures/charts
@@ -940,7 +973,9 @@ final class PageComplexityAnalyzer: @unchecked Sendable {
             imageConfidence: imageConfidence,
             tableConfidence: tableConfidence,
             chartConfidence: chartConfidence,
-            figureConfidence: figureConfidence
+            figureConfidence: figureConfidence,
+            visualTextRegionsCount: visualTextRegionsCount,
+            visualTextArea: visualTextArea
         )
     }
 
@@ -1048,8 +1083,16 @@ final class PageComplexityAnalyzer: @unchecked Sendable {
         layoutComplexity: Double,
         whitespaceRatio: Double,
         numericDensity: Double,
-        embeddedObjectCount: Int
+        embeddedObjectCount: Int,
+        isMixedModeScanned: Bool
     ) -> PageComplexity {
+
+        // ═══════════════════════════════════════════════════════════════════
+        // RULE 0.5: Mixed-mode scanned page (digital header + scanned body)
+        // ═══════════════════════════════════════════════════════════════════
+        if isMixedModeScanned {
+            return .scanned
+        }
 
         // ═══════════════════════════════════════════════════════════════════
         // RULE 1: No native text = must be scanned

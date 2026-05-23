@@ -8,6 +8,7 @@
 //  document, text, and table detection with one-tap RAG ingestion.
 //
 
+#if os(iOS)
 import AVFoundation
 import SwiftUI
 import Vision
@@ -1592,3 +1593,5 @@ struct MetricPill: View {
         containerService: ContainerService()
     )
 }
+#endif
+

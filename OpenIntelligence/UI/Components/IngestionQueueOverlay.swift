@@ -62,7 +62,7 @@ struct IngestionQueueOverlay: View {
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @State private var isMinimized = false
     @State private var isDismissed = false
-    @State private var gpuLevel: Double = DeviceCapabilityService.shared.gpuAccelerationLevel
+    @AppStorage("gpuAccelerationLevel") private var gpuLevel: Double = 0.5
 
     private var sortedItems: [IngestionItem] {
         items.sorted { lhs, rhs in
@@ -249,11 +249,11 @@ struct IngestionQueueOverlay: View {
     // Mode label based on GPU level
     private var processingModeLabel: String {
         if gpuLevel > 0.7 {
-            return "Turbo"
+            return "Performance"
         } else if gpuLevel >= 0.3 {
             return "Balanced"
         } else {
-            return "Eco"
+            return "Efficiency"
         }
     }
 
@@ -315,7 +315,7 @@ struct IngestionQueueOverlay: View {
                         HStack(spacing: 4) {
                             Image(systemName: processingModeIcon)
                                 .font(.system(size: 9, weight: .semibold))
-                            Text(processingModeLabel)
+                            Text("Upload \(processingModeLabel)")
                             Text("\(currentConcurrency)x")
                                 .fontWeight(.bold)
                         }
@@ -350,7 +350,6 @@ struct IngestionQueueOverlay: View {
                         } else {
                             gpuLevel = 0.5
                         }
-                        DeviceCapabilityService.shared.gpuAccelerationLevel = gpuLevel
                     }
                 } label: {
                     Image(systemName: gpuBoostActive ? "bolt.fill" : "bolt")
@@ -361,7 +360,7 @@ struct IngestionQueueOverlay: View {
                         .clipShape(Circle())
                 }
                 .buttonStyle(.plain)
-                .help(gpuBoostActive ? "Turbo Mode - Tap to cycle" : "Tap to cycle GPU modes")
+                .help(gpuBoostActive ? "Performance mode - tap to cycle upload speed" : "Tap to cycle upload speed")
             }
 
             if hasCancelableItems {
