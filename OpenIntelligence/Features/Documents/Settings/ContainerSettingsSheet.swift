@@ -34,7 +34,7 @@ struct ContainerSettingsSheet: View {
     @State var showingDBChangeConfirmation = false
     @State var pendingDBChange: VectorDBKind?
     @State private var showingPlanSheet = false
-    @State private var showingDeleteConfirmation = false
+    @State var showingDeleteConfirmation = false
 
     // Retrieval configuration
     @State var retrievalConfig: RetrievalConfig = .default
