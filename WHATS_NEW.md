@@ -22,6 +22,8 @@ If 3.6 made it easier to move your libraries across devices, 3.7 is the update a
 - Answer inspection is much richer now, with stronger source review, timing, retrieval-quality, and evidence details when you want to see how a response was formed.
 - Technical answers and structured output render more cleanly now, including stronger code block handling and clearer response detail views.
 - Diagnostics and device-aware performance behavior are more stable on larger libraries and longer-running work, with deeper inspection tools behind the scenes for validation and monitoring.
+- Device-specific hardware telemetry HUD now maps the physical SoC and Taptic Engine coordinates for iPads (mini, Air, and Pro) and adapts dynamically to landscape and portrait interface rotations, while hiding motherboard overlay borders on macOS.
+- Xcode build configurations and asset assets are fully aligned with a universal AppIcon setup and code signing entitlements across iOS, iPadOS, and macOS.
 
 This release is about making the app feel more complete from import to answer review: fewer weak spots between "I added a file" and "I trust this answer."
 

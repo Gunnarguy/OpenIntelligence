@@ -36,6 +36,9 @@ enum DeviceComponentLayout {
     case iPhone16ProMax
     case iPhone17Pro
     case iPhone17ProMax
+    case iPadMini
+    case iPadAir
+    case iPadPro
     case unknown
 
     /// Detect the current device via utsname()
@@ -59,10 +62,40 @@ enum DeviceComponentLayout {
         case "iPhone18,1", "iPhone18,3": return .iPhone17Pro
         case "iPhone18,2", "iPhone18,4": return .iPhone17ProMax
         default:
+            if identifier.hasPrefix("iPad") {
+                let numbers = identifier.replacingOccurrences(of: "iPad", with: "")
+                    .split(separator: ",")
+                    .compactMap { Int($0) }
+                if let major = numbers.first {
+                    if major == 13 { return .iPadPro } // iPad Pro M1
+                    if major == 14 {
+                        let minor = numbers.count > 1 ? numbers[1] : 0
+                        if minor <= 2 { return .iPadMini } // iPad mini 6
+                        if minor >= 3 && minor <= 6 { return .iPadPro } // iPad Pro M2
+                        if minor >= 8 { return .iPadAir } // iPad Air M2
+                    }
+                    if major == 15 { return .iPadAir } // iPad Air M3
+                    if major == 16 {
+                        let minor = numbers.count > 1 ? numbers[1] : 0
+                        if minor <= 2 { return .iPadMini } // iPad mini 7 (A17 Pro)
+                        return .iPadPro // iPad Pro M4
+                    }
+                    if major >= 17 { return .iPadPro }
+                }
+                return .iPadPro
+            }
+
             #if targetEnvironment(simulator)
-            let screenHeight = simulatorNativeScreenHeight()
-            if screenHeight >= 2796 { return .iPhone16ProMax }
-            else if screenHeight >= 2556 { return .iPhone16Pro }
+            let simModel = ProcessInfo.processInfo.environment["SIMULATOR_MODEL_IDENTIFIER"] ?? ""
+            if simModel.hasPrefix("iPhone") {
+                let screenHeight = simulatorNativeScreenHeight()
+                if screenHeight >= 2796 { return .iPhone16ProMax }
+                else if screenHeight >= 2556 { return .iPhone16Pro }
+            } else if simModel.hasPrefix("iPad") {
+                if simModel.contains("mini") { return .iPadMini }
+                if simModel.contains("Air") { return .iPadAir }
+                return .iPadPro
+            }
             #endif
             return .unknown
         }
@@ -89,6 +122,9 @@ enum DeviceComponentLayout {
         case .iPhone16ProMax: return "iPhone 16 Pro Max"
         case .iPhone17Pro: return "iPhone 17 Pro"
         case .iPhone17ProMax: return "iPhone 17 Pro Max"
+        case .iPadMini: return "iPad mini"
+        case .iPadAir: return "iPad Air"
+        case .iPadPro: return "iPad Pro"
         case .unknown: return "Unknown Device"
         }
     }
@@ -99,6 +135,9 @@ enum DeviceComponentLayout {
         case .iPhone16, .iPhone16Plus: return "A18"
         case .iPhone16Pro, .iPhone16ProMax: return "A18 Pro"
         case .iPhone17Pro, .iPhone17ProMax: return "A19 Pro"
+        case .iPadMini: return "A17 Pro"
+        case .iPadAir: return "Apple M2"
+        case .iPadPro: return "Apple M4"
         case .unknown: return "Apple Silicon"
         }
     }
@@ -137,6 +176,15 @@ enum DeviceComponentLayout {
             // SoC moved to CENTER of device
             return CGRect(x: 0.32, y: 0.26, width: 0.20, height: 0.12)
 
+        case .iPadMini:
+            return CGRect(x: 0.12, y: 0.35, width: 0.16, height: 0.12)
+
+        case .iPadAir:
+            return CGRect(x: 0.40, y: 0.44, width: 0.20, height: 0.12)
+
+        case .iPadPro:
+            return CGRect(x: 0.42, y: 0.44, width: 0.16, height: 0.12)
+
         case .unknown:
             // Default to iPhone 16 Pro Max position
             return CGRect(x: 0.08, y: 0.32, width: 0.24, height: 0.10)
@@ -171,6 +219,9 @@ enum DeviceComponentLayout {
             // Vision AI: "TAPTIC ENGINE" at x:62.8%, y:90.7% - MOVED TO RIGHT!
             // Rectangle [6]: x:61.0%, y:88.5%, w:26.6%, h:4.7%
             return CGRect(x: 0.58, y: 0.87, width: 0.28, height: 0.06)
+
+        case .iPadMini, .iPadAir, .iPadPro:
+            return CGRect(x: 0.38, y: 0.92, width: 0.24, height: 0.04)
 
         case .unknown:
             // Default to left-side position
@@ -272,12 +323,58 @@ struct HardwareXRayOverlay: View {
         return components
     }
 
+    #if canImport(UIKit)
+    private var currentOrientation: UIInterfaceOrientation {
+        guard let scene = UIApplication.shared.connectedScenes.first(where: { $0.activationState == .foregroundActive }) as? UIWindowScene ?? UIApplication.shared.connectedScenes.first as? UIWindowScene else {
+            return .portrait
+        }
+        return scene.interfaceOrientation
+    }
+    #endif
+
+    private func orientRect(_ rect: CGRect) -> CGRect {
+        #if canImport(UIKit)
+        let orientation = currentOrientation
+        switch orientation {
+        case .landscapeLeft:
+            return CGRect(
+                x: rect.minY,
+                y: 1 - rect.minX - rect.width,
+                width: rect.height,
+                height: rect.width
+            )
+        case .landscapeRight:
+            return CGRect(
+                x: 1 - rect.minY - rect.height,
+                y: rect.minX,
+                width: rect.height,
+                height: rect.width
+            )
+        case .portraitUpsideDown:
+            return CGRect(
+                x: 1 - rect.minX - rect.width,
+                y: 1 - rect.minY - rect.height,
+                width: rect.width,
+                height: rect.height
+            )
+        default:
+            return rect
+        }
+        #else
+        return rect
+        #endif
+    }
+
     var body: some View {
         GeometryReader { geometry in
             let screenWidth = geometry.size.width
             let screenHeight = geometry.size.height
-            let socFrame = rectToScreen(layout.socRect, width: screenWidth, height: screenHeight)
-            let tapticFrame = rectToScreen(layout.tapticRect, width: screenWidth, height: screenHeight)
+            
+            let orientedSoc = orientRect(layout.socRect)
+            let orientedTaptic = orientRect(layout.tapticRect)
+            
+            let socFrame = rectToScreen(orientedSoc, width: screenWidth, height: screenHeight)
+            let tapticFrame = rectToScreen(orientedTaptic, width: screenWidth, height: screenHeight)
 
             let showVisualBorders: Bool = {
                 #if targetEnvironment(macCatalyst)
@@ -286,13 +383,7 @@ struct HardwareXRayOverlay: View {
                 if ProcessInfo.processInfo.isiOSAppOnMac {
                     return false
                 }
-                #if canImport(UIKit)
-                let isPad = UIDevice.current.userInterfaceIdiom == .pad
-                let isLandscape = screenWidth > screenHeight
-                return !isPad && !isLandscape
-                #else
-                return false
-                #endif
+                return true
                 #endif
             }()
 
