@@ -295,7 +295,7 @@ enum IngestionContext: String, Codable, Sendable {
     var allowsSelfTuningScheduling: Bool {
         switch self {
         case .userInitiated:
-            return true
+            return false
         case .autoRebuild, .onboarding:
             return false
         }
@@ -358,7 +358,11 @@ class RAGService: ObservableObject {
 
     /// Recompute the intelligence snapshot for a container on demand.
     @discardableResult
-    func refreshIntelligence(for containerId: UUID? = nil, force: Bool = false) -> Task<Void, Never> {
+    func refreshIntelligence(
+        for containerId: UUID? = nil,
+        force: Bool = false,
+        allowSelfTuningScheduling: Bool = false
+    ) -> Task<Void, Never> {
         Task(priority: .utility) { [weak self] in
             guard let self else { return }
             // Invalidate vocabulary cache when refreshing intelligence (documents may have changed)
@@ -366,7 +370,11 @@ class RAGService: ObservableObject {
                 let targetId = containerId ?? self.containerService.activeContainerId
                 self.corpusVocabularyCache.removeValue(forKey: targetId)
             }
-            await self.generateIntelligenceSnapshot(for: containerId, force: force)
+            await self.generateIntelligenceSnapshot(
+                for: containerId,
+                force: force,
+                allowSelfTuningScheduling: allowSelfTuningScheduling
+            )
         }
     }
 
@@ -413,7 +421,11 @@ class RAGService: ObservableObject {
         return audit
     }
 
-    private func generateIntelligenceSnapshot(for containerId: UUID?, force: Bool) async {
+    private func generateIntelligenceSnapshot(
+        for containerId: UUID?,
+        force: Bool,
+        allowSelfTuningScheduling: Bool
+    ) async {
         let resolvedId: UUID? = await MainActor.run {
             containerId ?? self.containerService.activeContainerId
         }
@@ -437,11 +449,32 @@ class RAGService: ObservableObject {
             self.containerIntelligence[targetId] = report
         }
 
-        await handleSelfTuning(
-            for: targetId,
-            report: report,
-            triggerAllowsScheduling: force
-        )
+        guard let container = await MainActor.run(
+            resultType: KnowledgeContainer?.self,
+            body: {
+                self.containerService.containers.first { $0.id == targetId }
+            }
+        ) else { return }
+        guard container.autoAdaptDimension else { return }
+
+        let (updated, reasons) = resolveAutoAdjustments(for: container, report: report)
+        guard !reasons.isEmpty else { return }
+
+        if !allowSelfTuningScheduling {
+            Log.info(
+                "[SelfTuning] Skipping automatic rebuild/config change during standard ingestion for container \(targetId). Explicit rebuild required for: \(reasons.joined(separator: " | "))",
+                category: .ingestion
+            )
+            return
+        }
+
+        if updated != container {
+            await MainActor.run {
+                self.containerService.updateContainer(updated)
+            }
+        }
+
+        scheduleSelfTuningRebuild(for: targetId, reasons: reasons)
     }
 
     @MainActor
@@ -725,15 +758,23 @@ class RAGService: ObservableObject {
     private func savePersistedIngestionQueueState() {
         let url = AppSupportPaths.ingestionQueueURL()
         let activeItems = ingestionItems.filter { !$0.stage.isTerminal }
+        let recentTerminalItems = ingestionItems.filter { item in
+            guard item.stage.isTerminal else { return false }
+            if let finishedAt = item.finishedAt {
+                return Date().timeIntervalSince(finishedAt) < 900 // 15 minutes
+            }
+            return true
+        }
+        let itemsToPersist = activeItems + recentTerminalItems
 
-        guard !activeItems.isEmpty else {
+        guard !itemsToPersist.isEmpty else {
             try? WorkspaceSyncService.coordinatedRemoveItem(at: url)
             return
         }
 
         let state = PersistedIngestionQueueState(
-            items: activeItems,
-            contexts: activeItems.map { PersistedIngestionContext(id: $0.id, context: ingestionContexts[$0.id] ?? .userInitiated) },
+            items: itemsToPersist,
+            contexts: itemsToPersist.map { PersistedIngestionContext(id: $0.id, context: ingestionContexts[$0.id] ?? .userInitiated) },
             updatedAt: Date()
         )
 
@@ -749,6 +790,14 @@ class RAGService: ObservableObject {
 
     @MainActor
     private func restorePersistedIngestionQueueIfNeeded() {
+        // Don't let a workspace reload overwrite an in-flight runtime queue.
+        // During shared-workspace sync churn, reloadWorkspaceData() can fire while the
+        // current device is actively importing. Restoring the persisted snapshot in
+        // that moment incorrectly demotes same-device leased items back to
+        // "Queued for pickup", even though the live task is still running.
+        let hasActiveRuntimeIngestion = ingestionTask != nil || ingestionItems.contains { !$0.stage.isTerminal }
+        guard !hasActiveRuntimeIngestion else { return }
+
         let url = AppSupportPaths.ingestionQueueURL()
         guard let data = try? WorkspaceSyncService.coordinatedReadData(from: url) else { return }
 
@@ -763,6 +812,8 @@ class RAGService: ObservableObject {
             let defaultContainerId = containerService.containers.first?.id
 
             for item in state.items {
+                guard !item.stage.isTerminal else { continue }
+
                 if let containerId = item.containerId, !validContainerIds.contains(containerId) {
                     Log.warning("[RAGService] Skipping persisted ingestion item for deleted library: \(item.url.lastPathComponent)", category: .ingestion)
                     continue
@@ -770,6 +821,19 @@ class RAGService: ObservableObject {
 
                 if item.containerId == nil, defaultContainerId == nil {
                     Log.warning("[RAGService] Skipping persisted ingestion item because no default library exists: \(item.url.lastPathComponent)", category: .ingestion)
+                    continue
+                }
+
+                if let resolvedContainerId = item.containerId ?? defaultContainerId,
+                   existingImportedDocument(
+                       in: resolvedContainerId,
+                       storageRelativePath: item.storageRelativePath,
+                       fileHash: item.documentHash
+                   ) != nil {
+                    Log.info(
+                        "[RAGService] Dropping persisted ingestion item for already imported document: \(item.url.lastPathComponent)",
+                        category: .ingestion
+                    )
                     continue
                 }
 
@@ -1998,6 +2062,55 @@ class RAGService: ObservableObject {
         EvidenceScoringPolicyService.specPatternCount(in: content)
     }
 
+    // MARK: - Interrogative and Query Fallback Helpers
+
+    private func isInterrogativeChunk(_ chunk: DocumentChunk, query: String) -> Bool {
+        if query.lowercased().contains("question") || query.lowercased().contains("example") {
+            return false
+        }
+        let content = chunk.content.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !content.isEmpty else { return false }
+
+        let lines = content.components(separatedBy: .newlines)
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty }
+
+        guard !lines.isEmpty else { return false }
+
+        var questionCount = 0
+        for line in lines {
+            let clean = line.replacingOccurrences(of: #"^[-*+•\d.]+\s+"#, with: "", options: .regularExpression)
+            if clean.hasSuffix("?") {
+                questionCount += 1
+            }
+        }
+
+        let ratio = Double(questionCount) / Double(lines.count)
+        if ratio >= 0.50 && lines.count > 1 {
+            return true
+        }
+
+        return false
+    }
+
+    private func cleanQueryForKeywordSearch(_ query: String) -> String {
+        let stopwords: Set<String> = [
+            "what", "whats", "which", "how", "much", "many", "does", "this", "that", "the",
+            "a", "an", "is", "are", "was", "were", "do", "did", "can", "will", "i", "we", "you",
+            "should", "would", "could", "for", "with", "from", "into", "have", "has", "me", "my",
+            "been", "be", "it", "its", "of", "in", "on", "at", "to", "and", "or", "not", "no",
+            "about", "tell", "explain", "describe", "show", "find", "get", "give", "list", "where",
+            "when", "why", "there", "here", "also", "just", "some", "any", "all", "each", "every",
+            "than", "then", "so", "if", "but", "up", "out", "by", "re", "please", "can you", "tell me"
+        ]
+
+        let words = query.lowercased()
+            .components(separatedBy: .alphanumerics.inverted)
+            .filter { $0.count >= 2 && !stopwords.contains($0) }
+
+        return words.joined(separator: " ")
+    }
+
     // MARK: - Section Metadata Boost
 
     /// Boost retrieval scores for chunks whose sectionTitle/sectionPath match query keywords.
@@ -3050,6 +3163,7 @@ class RAGService: ObservableObject {
 
     @MainActor
     private func applyLoadedDocuments(_ loadedDocuments: [Document]) {
+        guard documents != loadedDocuments else { return }
         documents = loadedDocuments
         totalChunksStored = loadedDocuments.reduce(0) { $0 + $1.totalChunks }
         syncAllContainerStats()
@@ -3087,18 +3201,74 @@ class RAGService: ObservableObject {
         }
     }
 
-    private func saveDocumentsToDisk() {
-        Task {
-            do {
-                let encoder = JSONEncoder()
-                encoder.outputFormatting = .prettyPrinted
-                let data = try encoder.encode(documents)
-                try WorkspaceSyncService.coordinatedWriteData(data, to: documentsStorageURL)
-                Log.debug(" [RAGService] Saved \(documents.count) documents metadata")
-            } catch {
-                Log.error("[RAGService] Failed to save documents metadata: \(error.localizedDescription)")
-            }
+    private func saveDocumentsToDisk() async {
+        let snapshot = await MainActor.run { self.documents }
+
+        do {
+            let encoder = JSONEncoder()
+            encoder.outputFormatting = .prettyPrinted
+            let data = try encoder.encode(snapshot)
+            try WorkspaceSyncService.coordinatedWriteData(data, to: documentsStorageURL)
+            Log.debug(" [RAGService] Saved \(snapshot.count) documents metadata")
+        } catch {
+            Log.error("[RAGService] Failed to save documents metadata: \(error.localizedDescription)")
         }
+    }
+
+    @MainActor
+    private func existingImportedDocument(
+        in containerId: UUID,
+        storageRelativePath: String?,
+        fileHash: String?
+    ) -> Document? {
+        let containerDocuments = documentsForContainer(containerId)
+
+        if let fileHash,
+           let matchingHash = containerDocuments.first(where: { $0.fileHash == fileHash }) {
+            return matchingHash
+        }
+
+        if let storageRelativePath,
+           let matchingPath = containerDocuments.first(where: { $0.storageRelativePath == storageRelativePath }) {
+            return matchingPath
+        }
+
+        return nil
+    }
+
+    @MainActor
+    private func setDocumentHashForIngestionItem(id: UUID?, documentHash: String?) {
+        guard let id,
+              let documentHash,
+              let index = ingestionItems.firstIndex(where: { $0.id == id }) else {
+            return
+        }
+
+        guard ingestionItems[index].documentHash != documentHash else { return }
+        ingestionItems[index].documentHash = documentHash
+        savePersistedIngestionQueueState()
+    }
+
+    private func computeDocumentHash(for url: URL) throws -> String {
+        let fileHandle = try FileHandle(forReadingFrom: url)
+        defer {
+            try? fileHandle.close()
+        }
+
+        var hasher = SHA256()
+        let chunkSize = 1024 * 1024
+
+        while autoreleasepool(invoking: {
+            let nextChunk = try? fileHandle.read(upToCount: chunkSize)
+            guard let nextChunk, !nextChunk.isEmpty else {
+                return false
+            }
+
+            hasher.update(data: nextChunk)
+            return true
+        }) {}
+
+        return hexString(from: hasher.finalize())
     }
 
     // MARK: - Vector DB Access
@@ -4270,6 +4440,53 @@ class RAGService: ObservableObject {
         let managedURL = try prepareManagedDocumentURL(from: url)
         try await WorkspaceSyncService.ensureItemAvailableLocally(at: managedURL)
         let filename = managedURL.lastPathComponent
+        let managedRelativePath = AppSupportPaths.relativePath(for: managedURL)
+        let activeContainerId = await MainActor.run { self.containerService.activeContainerId }
+
+        let documentHash: String?
+        do {
+            documentHash = try computeDocumentHash(for: managedURL)
+        } catch {
+            Log.warning("[RAGService] Failed to compute document hash for \(filename): \(error.localizedDescription)", category: .ingestion)
+            documentHash = nil
+        }
+
+        await MainActor.run {
+            self.setDocumentHashForIngestionItem(id: trackingId, documentHash: documentHash)
+        }
+
+        if let existingDocument = await MainActor.run(resultType: Document?.self, body: {
+            self.existingImportedDocument(
+                in: activeContainerId,
+                storageRelativePath: managedRelativePath,
+                fileHash: documentHash
+            )
+        }) {
+            Log.info(
+                "[RAGService] Skipping already imported document '\(filename)' (existing id: \(existingDocument.id.uuidString))",
+                category: .ingestion
+            )
+
+            await MainActor.run {
+                if let trackingId {
+                    self.updateIngestionItem(
+                        id: trackingId,
+                        filename: filename,
+                        stage: .complete,
+                        detail: "Already imported",
+                        progress: 1.0
+                    )
+                }
+
+                if manageProcessingState { self.isProcessing = false }
+                if manageProcessingState, trackingId == nil {
+                    self.processingStatus = ""
+                }
+                self.lastError = nil
+                self.kickPendingReembedIfNeeded()
+            }
+            return
+        }
 
         // Onboarding sample docs bypass quota — they're educational material
         // that ships with the app, not user-generated content
@@ -4313,7 +4530,6 @@ class RAGService: ObservableObject {
             )
             throw quotaError
         }
-        let activeContainerId = await MainActor.run { self.containerService.activeContainerId }
         let preExistingDocumentsInContainerCount = await MainActor.run {
             self.documentsForContainer(activeContainerId).count
         }
@@ -4435,6 +4651,7 @@ class RAGService: ObservableObject {
                 chunkOverride: chunkOverride,
                 containerId: activeContainerId  // FTS5 storage with container isolation
             )
+            try Task.checkCancellation()
             let extractionTime = Date().timeIntervalSince(extractionStartTime)
             let totalChars = processedChunks.reduce(0) { $0 + $1.metadata.characterCount }
             let totalWords = processedChunks.reduce(0) { $0 + $1.metadata.wordCount }
@@ -4463,6 +4680,7 @@ class RAGService: ObservableObject {
             // Build domain vocabulary from extracted text for improved entity recognition
             let combinedText = processedChunks.map { $0.text }.joined(separator: " ")
             await GazetteerService.shared.extractAndAddTerms(from: combinedText, source: filename)
+            try Task.checkCancellation()
 
             // Index document in Spotlight for system-wide search
             let spotlightEnabled = await MainActor.run { self.settingsStore?.enableSpotlightIndexing ?? true }
@@ -4478,6 +4696,7 @@ class RAGService: ObservableObject {
                     chunkCount: processedChunks.count
                 )
             }
+            try Task.checkCancellation()
 
             await MainActor.run {
                 updateIngestionItem(
@@ -4742,6 +4961,8 @@ class RAGService: ObservableObject {
                 }
             }
 
+            try Task.checkCancellation()
+
             // Step 2: Generate embeddings with progress updates
             // Implements Anthropic's Contextual Retrieval: prepend document context to chunks
             // BEFORE embedding, so the embedding captures document-level semantics.
@@ -4863,6 +5084,7 @@ class RAGService: ObservableObject {
                     }
                 }
             )
+            try Task.checkCancellation()
 
             let embeddingTime = Date().timeIntervalSince(embeddingStartTime)
 
@@ -4959,6 +5181,7 @@ class RAGService: ObservableObject {
             )
 
             // Step 4: Store chunks in vector database (per active container)
+            try Task.checkCancellation()
             let db = await dbForActiveContainer()
             try await db.storeBatch(chunks: documentChunks)
             // Invalidate visualization cache for this container after data change
@@ -5200,7 +5423,7 @@ class RAGService: ObservableObject {
                     filename: document.filename,
                     fileURL: document.fileURL,
                     storageRelativePath: document.storageRelativePath,
-                    fileHash: document.fileHash,
+                    fileHash: documentHash ?? document.fileHash,
                     contentType: document.contentType,
                     addedAt: document.addedAt,
                     totalChunks: document.totalChunks,
@@ -5216,7 +5439,7 @@ class RAGService: ObservableObject {
                 filename: updatedDocument.filename,
                 fileURL: updatedDocument.fileURL,
                 storageRelativePath: updatedDocument.storageRelativePath,
-                fileHash: updatedDocument.fileHash,
+                fileHash: documentHash ?? updatedDocument.fileHash,
                 contentType: updatedDocument.contentType,
                 addedAt: updatedDocument.addedAt,
                 totalChunks: updatedDocument.totalChunks,
@@ -5274,7 +5497,7 @@ class RAGService: ObservableObject {
             )
 
             // Save documents metadata to disk
-            saveDocumentsToDisk()
+            await saveDocumentsToDisk()
 
             // Brief yield for UI to catch up before marking complete
             await Task.yield()
@@ -5302,7 +5525,11 @@ class RAGService: ObservableObject {
                 self.autoTuneRetrievalConfigIfNeeded()
             }
 
-            refreshIntelligence(for: activeContainerId, force: true)
+            refreshIntelligence(
+                for: activeContainerId,
+                force: true,
+                allowSelfTuningScheduling: context.allowsSelfTuningScheduling
+            )
 
             if context.allowsSelfTuningScheduling, !pendingSelfTuneReasons.isEmpty {
                 scheduleSelfTuningRebuild(for: activeContainerId, reasons: pendingSelfTuneReasons)
@@ -5519,7 +5746,7 @@ class RAGService: ObservableObject {
             syncContainerStats(for: targetContainerId)
         }
 
-        saveDocumentsToDisk()
+        await saveDocumentsToDisk()
 
         Log.info(" Removed document: \(document.filename)")
 
@@ -5557,7 +5784,7 @@ class RAGService: ObservableObject {
             syncContainerStats(for: activeId)
         }
 
-        saveDocumentsToDisk()
+        await saveDocumentsToDisk()
 
         Log.info(" Cleared all documents from knowledge base")
 
@@ -5727,6 +5954,11 @@ class RAGService: ObservableObject {
                 self.isProcessing = true
             }
         }
+
+        await MainActor.run {
+            self.clearIntelligence(for: targetContainerId)
+        }
+        self.refreshIntelligence(for: targetContainerId, force: false)
 
         await MainActor.run {
             progressHandler?(ReembedProgress(
@@ -7112,6 +7344,28 @@ class RAGService: ObservableObject {
             if hasDocuments {
                 // ENHANCED RAG pipeline with LLM query understanding + iterative retrieval
 
+                // ── Semantic Query Cache ─────────────────────────────────────────────────────
+                // Check the persistent SQLite semantic query cache before any LLM/embedding work.
+                // Exact hit: bypass Steps 1, 1.5, 2, and 3 entirely.
+                var cachedQueryEmbedding: [Float]? = nil
+                var retrievedChunks: [RetrievedChunk] = []
+                var exactCacheHit = false
+                var similarityCacheHit = false
+
+                let normalizedQueryText = SQLiteFullTextService.normalizeQuery(question)
+                if let cached = await SQLiteFullTextService.shared.getCachedQuery(
+                    normalizedQuery: normalizedQueryText,
+                    containerId: selectedId
+                ) {
+                    cachedQueryEmbedding = cached.embedding
+                    retrievedChunks = cached.results
+                    exactCacheHit = true
+                    Log.info("[RAGService] ✅ Exact cache hit for query: '\(normalizedQueryText)'", category: .pipeline)
+                    emitThinkingEvent(.retrieval, title: "Exact Cache Hit",
+                        detail: "Bypassed rewriting, embedding, and database search")
+                }
+                // ────────────────────────────────────────────────────────────────────────────
+
                 // Step 0: Build or retrieve cached Corpus Vocabulary (for context-aware understanding)
                 Log.section("Step 0: Corpus Analysis", level: .info, category: .pipeline)
                 HardwareTelemetryState.shared.reportRAGPipeline(stage: "Corpus Analysis")
@@ -7177,11 +7431,12 @@ class RAGService: ObservableObject {
                 // and can be force-enabled via settings toggle. See Step 3 below.
 
                 // Step 1: LLM-Powered Query Understanding (if enabled)
+                // CACHE: Skip if exact cache hit
                 var effectiveQuery = translatedInitialQuery.text
                 var queryWasRewritten = false
                 var rewriteTime: TimeInterval = 0
 
-                if useQueryRewriting {
+                if !exactCacheHit && useQueryRewriting {
                     Log.section("Step 1: Query Understanding", level: .info, category: .pipeline)
                     HardwareTelemetryState.shared.reportRAGPipeline(stage: "Query Understanding")
                     let rewriteStartTime = Date()
@@ -7295,7 +7550,7 @@ class RAGService: ObservableObject {
                 var expandedQueries: [String] = []
                 var expansionTime: TimeInterval = 0
 
-                if qualityModeUsesQueryExpansion {
+                if !exactCacheHit && qualityModeUsesQueryExpansion {
                     Log.section("Step 1.5: Query Expansion", level: .info, category: .pipeline)
                     let expansionStartTime = Date()
 
@@ -7471,6 +7726,7 @@ class RAGService: ObservableObject {
                 // DISABLED for extractive/lookup intents where specific values matter
                 let useHyDE = hydeEnabledForMode && !hydeDisabledForIntent && HyDEService.shouldUseHyDE(for: effectiveQuery)
                 var hydeText: String?
+                var hydeEmbeddingText: String?
 
                 if hydeDisabledForIntent && hydeEnabledForMode {
                     // HyDE was enabled but skipped due to extractive intent
@@ -7484,8 +7740,12 @@ class RAGService: ObservableObject {
                 if useHyDE {
                     let hydeService = HyDEService()
                     do {
-                        let hydeResult = try await hydeService.generateHyDEQuery(for: effectiveQuery)
+                        let hydeResult = try await hydeService.generateHyDEQuery(
+                            for: effectiveQuery,
+                            containerId: selectedId
+                        )
                         hydeText = hydeResult.hypotheticalDocument
+                        hydeEmbeddingText = hydeResult.combinedForEmbedding
                         auditUsedHyDE = true
                         Log.info("[HyDE] Generated hypothetical doc: \"\(hydeText?.prefix(80) ?? "")...\"", category: .retrieval)
                         emitThinkingEvent(
@@ -7500,10 +7760,18 @@ class RAGService: ObservableObject {
                 }
 
                 // Use HyDE text if available, otherwise use the rewritten query
-                let textToEmbed = hydeText ?? effectiveQuery
+                let textToEmbed = hydeEmbeddingText ?? effectiveQuery
 
-                let queryEmbedding = try await queryEmbeddingService.generateEmbedding(for: textToEmbed)
-                let embeddingTime = Date().timeIntervalSince(embeddingStartTime)
+                // Step 2 (embedding) is skipped on exact cache hit; we reuse the cached vector.
+                let queryEmbedding: [Float]
+                var embeddingTime: TimeInterval = 0
+                if exactCacheHit, let cachedEmb = cachedQueryEmbedding {
+                    queryEmbedding = cachedEmb
+                    Log.info("[RAGService] ✅ Reusing cached \(queryEmbedding.count)-dim embedding (exact cache hit)", category: .embedding)
+                } else {
+                    // ─ Fresh embedding generation ─────────────────────────────────────────
+                    queryEmbedding = try await queryEmbeddingService.generateEmbedding(for: textToEmbed)
+                    embeddingTime = Date().timeIntervalSince(embeddingStartTime)
 
                 let embeddingMagnitude = sqrt(queryEmbedding.map { $0 * $0 }.reduce(0, +))
                 let hydeStatus = hydeText != nil ? " [HyDE]" : ""
@@ -7552,31 +7820,27 @@ class RAGService: ObservableObject {
                     )
                 }
 
+                    // Similarity cache lookup — bypass Step 3 if a near-identical query was cached
+                    if let simCached = await SQLiteFullTextService.shared.getCachedQueryBySimilarity(
+                        embedding: queryEmbedding,
+                        containerId: selectedId,
+                        threshold: 0.95
+                    ) {
+                        retrievedChunks = simCached
+                        similarityCacheHit = true
+                        Log.info("[RAGService] ✅ Similarity cache hit (≥ 0.95 cosine) for query: '\(question)'", category: .pipeline)
+                        emitThinkingEvent(.retrieval, title: "Similarity Cache Hit",
+                            detail: "Bypassed database search via embedding similarity")
+                    }
+                } // end of fresh-embedding else branch
+
                 // Step 3: Hybrid Search (vector + BM25 keyword search with RRF fusion)
+                // CACHE: Entire Step 3 is bypassed on exact or similarity cache hit.
                 // With optional iterative retrieval for multi-pass refinement
-                HardwareTelemetryState.shared.reportRAGPipeline(stage: "Hybrid Search")
-                // UPGRADED: Auto-enable iterative retrieval for multi-hop intents
-                // (compare, investigate, findings) even if user hasn't toggled the setting.
-                // The infrastructure is fully built — this just activates it where it matters.
-                let userEnabledIterative = settingsStore?.enableIterativeRetrieval ?? false
-                let iterativeAllowedForIntent = !answerIntentIsExtractive
-                let useIterative = iterativeAllowedForIntent && (userEnabledIterative || (answerIntent.benefitsFromMultiHop && qualityModeUsesIterativeRetrieval))
-                let iterativeConfig = IterativeRetrievalConfig.default
-
-                if !iterativeAllowedForIntent && userEnabledIterative {
-                    Log.info("[RAGService] Iterative retrieval bypassed for extractive intent '\(answerIntent.rawValue)'", category: .retrieval)
-                    emitThinkingEvent(
-                        .iterative,
-                        title: "Iterative retrieval skipped",
-                        detail: "Extractive intent — prefer direct grounded lookup"
-                    )
-                }
-
                 let retrievalStartTime = Date()
-                var retrievedChunks: [RetrievedChunk]
                 var iterativeMetadata: (iterations: Int, confidence: Float, queries: Int)?
 
-                // Classify query intent for adaptive weight tuning (used in both paths)
+                // Shared retrieval configuration is reused by both live search and recovery paths.
                 let queryIntent = effectiveQueryProfile.searchIntent
                 let adjustedWeights = effectiveQueryProfile.adjustedHybridWeights(from: retrievalConfig)
                 let adjustedVectorWeight = adjustedWeights.vectorWeight
@@ -7609,11 +7873,10 @@ class RAGService: ObservableObject {
                     )
                 }
 
-                // Filter cached chunks by abstraction level if we have summaries AND routing is enabled
+                // Filter cached chunks by abstraction level if we have summaries AND routing is enabled.
                 var filteredCachedChunks: [DocumentChunk]? = cachedAllChunks
                 if queryRoutingEnabled, let allChunks = cachedAllChunks {
                     if hasSummaryChunks && (contextualDefinitionLookup || (queryClassification.queryType == .overview && queryClassification.confidence >= 0.5)) {
-                        // For overview queries, prioritize summary chunks
                         filteredCachedChunks = allChunks.filter { searchLevels.contains($0.metadata.abstractionLevel) }
                         if contextualDefinitionLookup {
                             Log.info(
@@ -7638,6 +7901,25 @@ class RAGService: ObservableObject {
                             )
                         }
                     }
+                }
+
+                if !exactCacheHit && !similarityCacheHit {
+                HardwareTelemetryState.shared.reportRAGPipeline(stage: "Hybrid Search")
+                // UPGRADED: Auto-enable iterative retrieval for multi-hop intents
+                // (compare, investigate, findings) even if user hasn't toggled the setting.
+                // The infrastructure is fully built — this just activates it where it matters.
+                let userEnabledIterative = settingsStore?.enableIterativeRetrieval ?? false
+                let iterativeAllowedForIntent = !answerIntentIsExtractive
+                let useIterative = iterativeAllowedForIntent && (userEnabledIterative || (answerIntent.benefitsFromMultiHop && qualityModeUsesIterativeRetrieval))
+                let iterativeConfig = IterativeRetrievalConfig.default
+
+                if !iterativeAllowedForIntent && userEnabledIterative {
+                    Log.info("[RAGService] Iterative retrieval bypassed for extractive intent '\(answerIntent.rawValue)'", category: .retrieval)
+                    emitThinkingEvent(
+                        .iterative,
+                        title: "Iterative retrieval skipped",
+                        detail: "Extractive intent — prefer direct grounded lookup"
+                    )
                 }
 
                 if useIterative {
@@ -7801,6 +8083,21 @@ class RAGService: ObservableObject {
                         Log.debug("[MultiVector] Supplementary vector search skipped for extractive intent '\(answerIntent.rawValue)'", category: .retrieval)
                     }
                 }
+                }
+                // end if !exactCacheHit && !similarityCacheHit (Step 3)
+
+                // ─ Write to Semantic Cache ─────────────────────────────────────────────────────
+                // Only persist when we actually ran the live search (not on cache hits)
+                if !exactCacheHit && !similarityCacheHit && !retrievedChunks.isEmpty {
+                    await SQLiteFullTextService.shared.cacheQuery(
+                        normalizedQuery: normalizedQueryText,
+                        containerId: selectedId,
+                        embedding: queryEmbedding,
+                        results: retrievedChunks
+                    )
+                    Log.debug("[RAGService] Wrote \(retrievedChunks.count) chunks to semantic cache for query: '\(normalizedQueryText)'", category: .pipeline)
+                }
+                // ────────────────────────────────────────────────────────────────────────────
 
                 // Measure retrieval time before any MainActor work
                 var retrievalTime = Date().timeIntervalSince(retrievalStartTime)
@@ -7885,6 +8182,26 @@ class RAGService: ObservableObject {
                         pageNumber: pageNum
                     )
                 }
+                // Demote purely interrogative chunks if the query isn't asking about questions/examples
+                var demotedCount = 0
+                for i in 0..<chunksWithSources.count {
+                    if isInterrogativeChunk(chunksWithSources[i].chunk, query: question) {
+                        let originalScore = chunksWithSources[i].similarityScore
+                        chunksWithSources[i] = RetrievedChunk(
+                            chunk: chunksWithSources[i].chunk,
+                            similarityScore: originalScore * 0.1, // Demote severely
+                            rank: chunksWithSources[i].rank,
+                            sourceDocument: chunksWithSources[i].sourceDocument,
+                            pageNumber: chunksWithSources[i].pageNumber
+                        )
+                        demotedCount += 1
+                    }
+                }
+                if demotedCount > 0 {
+                    chunksWithSources.sort { $0.similarityScore > $1.similarityScore }
+                    Log.info("[RAG] Demoted \(demotedCount) interrogative FAQ chunks to prevent context poisoning.", category: .retrieval)
+                }
+
                 auditCandidatesCount = chunksWithSources.count
                 recoveryRetrievedChunks = chunksWithSources
 
@@ -8133,6 +8450,85 @@ class RAGService: ObservableObject {
                         "[RAG] Contextual definition ranking applied: preferring summary/prose evidence over structured comparison fragments",
                         category: .retrieval
                     )
+                }
+
+                // Keyword search fallback retry if top similarity is low (Standard Mode)
+                var queryRetryDone = false
+                let preRetryTopSim = rerankedChunks.first?.similarityScore ?? 0
+                if preRetryTopSim < 0.45 && !queryRetryDone {
+                    queryRetryDone = true
+                    let cleanQuery = cleanQueryForKeywordSearch(question)
+                    if !cleanQuery.isEmpty && cleanQuery != question.lowercased() {
+                        Log.info("[RAG] Top similarity \(preRetryTopSim) < 0.45. Retrying search with keywords: \"\(cleanQuery)\"", category: .retrieval)
+                        emitThinkingEvent(
+                            .queryRewrite,
+                            title: "Keyword search retry",
+                            detail: "Retrying with: \(cleanQuery)"
+                        )
+                        do {
+                            let cleanEmbedding = try await queryEmbeddingService.generateEmbedding(for: cleanQuery)
+                            let retryHybrid = HybridSearchService(
+                                vectorDatabase: vdb,
+                                vectorWeight: 0.3, // favor keyword matching for recovery
+                                keywordWeight: 0.7
+                            )
+                            let retryResults = try await retryHybrid.search(
+                                query: cleanQuery,
+                                originalQuery: cleanQuery,
+                                embedding: cleanEmbedding,
+                                topK: effectiveTopK * 2,
+                                cachedChunks: filteredCachedChunks,
+                                containerId: selectedId
+                            )
+
+                            // Map with sources
+                            let retryChunksWithSources: [RetrievedChunk] = retryResults.map { retrieved in
+                                let docName = docsSnapshot.first(where: { $0.id == retrieved.chunk.documentId })?.filename ?? "Unknown"
+                                let pageNum = retrieved.chunk.metadata.pageNumber
+                                return RetrievedChunk(
+                                    chunk: retrieved.chunk,
+                                    similarityScore: retrieved.similarityScore,
+                                    rank: retrieved.rank,
+                                    sourceDocument: docName,
+                                    pageNumber: pageNum
+                                )
+                            }
+
+                            // Demote any interrogative chunks in the retry candidates as well
+                            var cleanedRetryChunks = retryChunksWithSources
+                            for i in 0..<cleanedRetryChunks.count {
+                                if isInterrogativeChunk(cleanedRetryChunks[i].chunk, query: question) {
+                                    let originalScore = cleanedRetryChunks[i].similarityScore
+                                    cleanedRetryChunks[i] = RetrievedChunk(
+                                        chunk: cleanedRetryChunks[i].chunk,
+                                        similarityScore: originalScore * 0.1,
+                                        rank: cleanedRetryChunks[i].rank,
+                                        sourceDocument: cleanedRetryChunks[i].sourceDocument,
+                                        pageNumber: cleanedRetryChunks[i].pageNumber
+                                    )
+                                }
+                            }
+
+                            // Merge retry results with existing reranked chunks
+                            let mergedChunks = mergeUniqueChunks(rerankedChunks, cleanedRetryChunks)
+
+                            // Rerank again!
+                            if qualityModeUsesReRanking && !mergedChunks.isEmpty {
+                                rerankedChunks = await engine.rerank(
+                                    chunks: mergedChunks,
+                                    query: cleanQuery,
+                                    topK: effectiveTopK * 3
+                                )
+                            } else {
+                                rerankedChunks = mergedChunks.sorted { $0.similarityScore > $1.similarityScore }
+                                rerankedChunks = Array(rerankedChunks.prefix(effectiveTopK * 3))
+                            }
+
+                            Log.info("[RAG] Keyword retry completed, new top similarity: \(rerankedChunks.first?.similarityScore ?? 0)", category: .retrieval)
+                        } catch {
+                            Log.warning("[RAG] Keyword search retry failed: \(error.localizedDescription)", category: .retrieval)
+                        }
+                    }
                 }
 
                 if rerankedChunks.isEmpty {
@@ -8638,7 +9034,7 @@ class RAGService: ObservableObject {
                 }()
 
                 // ═══════════════════════════════════════════════════════════════════════════════
-                // 🔥 GOD MODE: Intelligent Document-Level Context for Research/Findings Queries
+                // Summary-detail hybrid context for research/findings queries
                 // ═══════════════════════════════════════════════════════════════════════════════
                 // When user asks "What did X find?", we need BOTH:
                 // 1. Document summary (L1) for high-level context
@@ -8710,7 +9106,7 @@ class RAGService: ObservableObject {
                         }
 
                         // ═══════════════════════════════════════════════════════════════════
-                        // 🔥 GOD MODE ENHANCEMENT: Author-Name Cross-Reference Boost
+                        // Author-name cross-reference boost
                         // If query contains a name, boost chunks from matching document
                         // ═══════════════════════════════════════════════════════════════════
                         let queryWords = question.split(separator: " ").map { String($0).lowercased() }
@@ -8742,7 +9138,7 @@ class RAGService: ObservableObject {
                             }.count
 
                             if boostedCount > 0 {
-                                Log.debug("[GOD MODE] Author boost: \(boostedCount) chunks from '\(potentialAuthorNames.joined(separator: ", "))' documents", category: .retrieval)
+                                Log.debug("[Findings Context] Author boost: \(boostedCount) chunks from '\(potentialAuthorNames.joined(separator: ", "))' documents", category: .retrieval)
                             }
                         }
 
@@ -8751,32 +9147,32 @@ class RAGService: ObservableObject {
 
                         // Merge: Summaries FIRST (high-level roadmap), then detail chunks
                         contextCandidates = selectedSummaries + topDetailChunks
-                        contextStrategy = "god_mode_hybrid"
+                        contextStrategy = "summary_detail_hybrid"
 
                         let totalChars = summaryCharsUsed + topDetailChunks.reduce(0) { $0 + $1.chunk.content.count }
                         Log.info(
-                            "🔥 [GOD MODE] Hybrid context: \(selectedSummaries.count) summaries (\(summaryCharsUsed) chars) + " +
+                            "[Hybrid Context] \(selectedSummaries.count) summaries (\(summaryCharsUsed) chars) + " +
                             "\(topDetailChunks.count) detail chunks → \(totalChars) total chars",
                             category: .retrieval
                         )
                         emitThinkingEvent(
                             .context,
-                            title: "GOD MODE: Hybrid Context",
+                            title: "Hybrid Context",
                             detail: "\(selectedSummaries.count) summaries + \(topDetailChunks.count) details = comprehensive coverage"
                         )
 
                         if Log.pipelineTraceEnabled {
-                            Log.debug("[GOD MODE] Summary budget: \(summaryBudgetChars) chars, used: \(summaryCharsUsed)", category: .retrieval)
-                            Log.debug("[GOD MODE] Detail budget: \(remainingBudgetChars) chars, chunks: \(topDetailChunks.count)", category: .retrieval)
-                            Log.debug("[GOD MODE] Avg detail chunk: \(avgDetailChunkChars) chars", category: .retrieval)
+                            Log.debug("[Hybrid Context] Summary budget: \(summaryBudgetChars) chars, used: \(summaryCharsUsed)", category: .retrieval)
+                            Log.debug("[Hybrid Context] Detail budget: \(remainingBudgetChars) chars, chunks: \(topDetailChunks.count)", category: .retrieval)
+                            Log.debug("[Hybrid Context] Avg detail chunk: \(avgDetailChunkChars) chars", category: .retrieval)
                         }
                     } else if !summaryChunks.isEmpty {
-                        Log.debug("[GOD MODE] Summary chunks already in candidates - no injection needed", category: .retrieval)
+                        Log.debug("[Hybrid Context] Summary chunks already in candidates - no injection needed", category: .retrieval)
                     } else {
-                        Log.info("[GOD MODE] No summary chunks available - using detail-only retrieval", category: .retrieval)
+                        Log.info("[Hybrid Context] No summary chunks available - using detail-only retrieval", category: .retrieval)
                         emitThinkingEvent(
                             .context,
-                            title: "GOD MODE: No summaries",
+                            title: "Detail-Only Context",
                             detail: "Re-ingest documents to enable summary-enhanced retrieval"
                         )
                     }
@@ -9247,7 +9643,8 @@ class RAGService: ObservableObject {
                         allChunks: chunkLookup,
                         tokenBudget: graphTokenBudget,
                         neighborDistance: answerIntent.benefitsFromMultiHop ? 1 : 0,
-                        graphHopDistance: answerIntent.benefitsFromMultiHop ? 1 : 0
+                        graphHopDistance: answerIntent.benefitsFromMultiHop ? 1 : 0,
+                        query: question
                     )
 
                     let graphPackingTime = Date().timeIntervalSince(graphPackingStart)
@@ -9259,11 +9656,16 @@ class RAGService: ObservableObject {
                         for (index, chunk) in packedContext.chunks.enumerated() {
                             // Find original score if this was a core chunk, else assign lower score
                             let originalScore = contextCandidates.first { $0.chunk.id == chunk.id }?.similarityScore ?? 0.3
+                                let resolvedSourceDocument = contextCandidates.first { $0.chunk.id == chunk.id }?.sourceDocument
+                                let sourceDocument = {
+                                    let existing = resolvedSourceDocument?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+                                    return existing.isEmpty ? getDocumentName(for: chunk.documentId) : existing
+                                }()
                             packedCandidates.append(RetrievedChunk(
                                 chunk: chunk,
                                 similarityScore: originalScore,
                                 rank: index,
-                                sourceDocument: contextCandidates.first { $0.chunk.id == chunk.id }?.sourceDocument ?? "",
+                                    sourceDocument: sourceDocument,
                                 pageNumber: chunk.metadata.pageNumber
                             ))
                         }
@@ -11553,9 +11955,9 @@ class RAGService: ObservableObject {
             let errorMessage = error.localizedDescription
 
             // NEW: Catch false-positive language detection errors
-            let isLanguageError = errorMessage.contains("Apple Intelligence couldn't process this query")
-                || errorMessage.contains("Unsupported language")
-                || errorMessage.contains("context window") // Catch overflow here too
+            let isLanguageError = errorMessage.contains("Apple Intelligence couldn't process this query") ||
+                errorMessage.contains("Unsupported language") ||
+                errorMessage.contains("context window") // Catch overflow here too
 
             // Trigger Reliability Mode if enabled OR if we hit a language/context error
             if reliabilityModeEnabled || isLanguageError {
@@ -12363,12 +12765,12 @@ class RAGService: ObservableObject {
         let formatHint: String = switch answerIntent {
         case .procedure:
             "Answer with direct outcome first. Use numbered steps only if complete explicit steps exist in excerpts."
-        case .lookup, .tableLookup:
+        case .lookup, .tableLookup, .compute:
             "Answer with the specific value first, then 1-2 short support sentences. Keep under 120 words."
         case .compare:
-            "Answer in concise compare format with only grounded differences."
-        default:
-            "Answer in concise paragraphs with no placeholder bullets or numbering artifacts. Keep under 180 words."
+            "Answer in concise compare format with only grounded differences, but keep the material distinctions and caveats from the source."
+        case .summarize, .investigate, .findings:
+            "Repair the answer in clear paragraphs. Preserve the important sections, supporting details, and grounded caveats. Do not collapse it into a brief summary unless the original text was mostly repetitive."
         }
 
         let citationHint = requiresCitations
@@ -12384,6 +12786,7 @@ class RAGService: ObservableObject {
         - Fix these output issues: \(issueHint)
         - Remove repetition, placeholder numbering, and malformed fragments.
         - Do not add new facts.
+        - Preserve material details and answer scope when they are already grounded; repair formatting instead of rewriting to the shortest possible summary.
         - \(formatHint)
         - \(citationHint)
         - Write in detailed prose with complete sentences. Use ### section headers and **bold** sparingly for key terms only.
@@ -12534,9 +12937,33 @@ class RAGService: ObservableObject {
     private func isResponseIntegrityImproved(original: String, candidate: String) -> Bool {
         let originalIssues = responseIntegrityIssues(original)
         let candidateIssues = responseIntegrityIssues(candidate)
+        let originalIssueSet = Set(originalIssues)
+        let repetitionHeavyOriginal = !originalIssueSet.isDisjoint(with: [
+            "dominant_repetition",
+            "low_entropy",
+            "low_lexical_diversity"
+        ])
 
         guard !candidate.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return false }
         guard candidate.count >= min(40, max(10, original.count / 6)) else { return false }
+
+        if !repetitionHeavyOriginal,
+           original.count >= 500,
+           candidate.count * 100 < original.count * 45
+        {
+            Log.debug("[IntegrityCheck] Rejecting lossy repair candidate (chars: \(candidate.count)/\(original.count))", category: .llm)
+            return false
+        }
+
+        let originalWords = original.split(whereSeparator: { $0.isWhitespace || $0.isNewline }).count
+        let candidateWords = candidate.split(whereSeparator: { $0.isWhitespace || $0.isNewline }).count
+        if !repetitionHeavyOriginal,
+           originalWords >= 100,
+           candidateWords * 100 < originalWords * 40
+        {
+            Log.debug("[IntegrityCheck] Rejecting lossy repair candidate (words: \(candidateWords)/\(originalWords))", category: .llm)
+            return false
+        }
 
         // Clear win: fewer issues
         if candidateIssues.count < originalIssues.count {
@@ -12584,9 +13011,6 @@ class RAGService: ObservableObject {
         _llmService = primary
         activeModelName = primary.modelName
         _fallbackServices = fallbacks
-        #if os(macOS)
-            configureMLXObserver(for: primary)
-        #endif
         Log.info(
             "✓ Updated model: \(primary.modelName) with \(fallbacks.count) fallback(s)",
             category: .initialization
@@ -13815,6 +14239,10 @@ class RAGService: ObservableObject {
         candidate: String,
         answerType: StructuredAnswer.AnswerType
     ) -> Bool {
+        if containsQuestionLikeDisplayLine(candidate) && !containsQuestionLikeDisplayLine(fallback) {
+            return true
+        }
+
         let candidateIssues = responseIntegrityIssues(candidate)
         let fallbackIssues = responseIntegrityIssues(fallback)
 
@@ -13856,6 +14284,46 @@ class RAGService: ObservableObject {
         default:
             return false
         }
+    }
+
+    private func containsQuestionLikeDisplayLine(_ text: String) -> Bool {
+        let lines = text.components(separatedBy: .newlines)
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+
+        for line in lines {
+            let stripped = line
+                .replacingOccurrences(of: #"\[S\d+\]"#, with: "", options: .regularExpression)
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+
+            guard !stripped.isEmpty else { continue }
+            let unwrapped = unwrapQuotedQuestionText(stripped)
+            if unwrapped.hasSuffix("?") {
+                return true
+            }
+        }
+
+        return false
+    }
+
+    private func unwrapQuotedQuestionText(_ text: String) -> String {
+        var trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        let quotePairs: [(Character, Character)] = [
+            ("\"", "\""),
+            ("'", "'"),
+            ("\u{201C}", "\u{201D}"),
+            ("\u{2018}", "\u{2019}")
+        ]
+
+        for (open, close) in quotePairs {
+            if trimmed.first == open, trimmed.last == close, trimmed.count >= 2 {
+                trimmed.removeFirst()
+                trimmed.removeLast()
+                return trimmed.trimmingCharacters(in: .whitespacesAndNewlines)
+            }
+        }
+
+        return trimmed
     }
 
     private func shouldPreserveStructuredExactDisplay(
@@ -14738,10 +15206,32 @@ class RAGService: ObservableObject {
 
 // MARK: - Device Capability Detection
 
+@MainActor private var cachedDeviceCapabilities: DeviceCapabilities?
+@MainActor private var isLifecycleObserverRegistered = false
+
 extension RAGService {
     /// Comprehensive device capability detection for Apple Intelligence ecosystem
     @MainActor
     static func checkDeviceCapabilities() -> DeviceCapabilities {
+        if !isLifecycleObserverRegistered {
+            isLifecycleObserverRegistered = true
+            #if canImport(UIKit)
+            NotificationCenter.default.addObserver(
+                forName: UIApplication.willEnterForegroundNotification,
+                object: nil,
+                queue: .main
+            ) { _ in
+                Task { @MainActor in
+                    cachedDeviceCapabilities = nil
+                }
+            }
+            #endif
+        }
+
+        if let cached = cachedDeviceCapabilities {
+            return cached
+        }
+
         var capabilities = DeviceCapabilities()
 
         // Get iOS version
@@ -14813,6 +15303,7 @@ extension RAGService {
                             hasAppleIntelligence: capabilities.supportsAppleIntelligence,
                             hasEmbeddings: capabilities.supportsEmbeddings
                         )
+                        cachedDeviceCapabilities = capabilities
                         return capabilities
                     }
 
@@ -14929,6 +15420,7 @@ extension RAGService {
 
         // Note: canRunRAG is a computed property based on supportsEmbeddings
 
+        cachedDeviceCapabilities = capabilities
         return capabilities
     }
 
@@ -15436,6 +15928,26 @@ extension RAGService: RAGToolHandler {
             cachedChunks: effectiveChunks, // Use RAPTOR-lite filtered chunks
             containerId: embeddingContext.containerId // Enable SQLite FTS5 acceleration
         )
+
+        // Demote purely interrogative chunks to prevent retrieval poisoning
+        var demotedCount = 0
+        for i in 0..<retrievedChunks.count {
+            if isInterrogativeChunk(retrievedChunks[i].chunk, query: query) {
+                let originalScore = retrievedChunks[i].similarityScore
+                retrievedChunks[i] = RetrievedChunk(
+                    chunk: retrievedChunks[i].chunk,
+                    similarityScore: originalScore * 0.1, // Demote severely
+                    rank: retrievedChunks[i].rank,
+                    sourceDocument: retrievedChunks[i].sourceDocument,
+                    pageNumber: retrievedChunks[i].pageNumber
+                )
+                demotedCount += 1
+            }
+        }
+        if demotedCount > 0 {
+            retrievedChunks.sort { $0.similarityScore > $1.similarityScore }
+            Log.info("[FullRetrieval] Demoted \(demotedCount) purely interrogative/FAQ chunks.", category: .retrieval)
+        }
 
         await onDetailedEvent?(.rrf, "RRF fusion", "\(retrievedChunks.count) candidates from hybrid search")
 

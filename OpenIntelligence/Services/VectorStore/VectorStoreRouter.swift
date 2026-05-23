@@ -15,7 +15,9 @@
 //
 
 import Foundation
+#if canImport(UIKit)
 import UIKit
+#endif
 import Accelerate
 
 /// Routes vector database access per container with type and dimension awareness.
@@ -40,6 +42,7 @@ final class VectorStoreRouter {
 
     /// Listens for memory warnings and evicts non-active container caches
     private func setupMemoryWarningObserver() {
+        #if canImport(UIKit)
         memoryWarningObserver = NotificationCenter.default.addObserver(
             forName: UIApplication.didReceiveMemoryWarningNotification,
             object: nil,
@@ -51,6 +54,7 @@ final class VectorStoreRouter {
                 strongSelf.handleMemoryPressure()
             }
         }
+        #endif
     }
 
     /// Evict non-active container stores to free memory

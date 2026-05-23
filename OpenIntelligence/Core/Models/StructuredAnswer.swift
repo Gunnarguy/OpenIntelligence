@@ -58,7 +58,7 @@ nonisolated struct StructuredAnswer: Codable, Sendable {
         case investigate
         case compute
         case refused
-        case findings  // GOD MODE: Research/author discovery queries
+        case findings  // Research/author discovery queries
     }
 
     /// Individual claim with evidence citation
@@ -477,6 +477,7 @@ extension StructuredAnswer {
                     isExtracted: claim.isExtracted
                 )
             }
+            .filter { !isQuestionLikeClaim($0.claim) }
 
             if claims.isEmpty {
                 return [StructuredRAGClaim(
@@ -564,8 +565,10 @@ extension StructuredAnswer {
             return cleanClaimText(line.replacingOccurrences(of: #"^([-•]\s+|\d+[\.)]\s+)"#, with: "", options: .regularExpression))
         }
 
-        if bulletClaims.count >= 2 {
-            return uniqueClaims(bulletClaims).prefix(6).map { $0 }
+        let filteredBulletClaims = uniqueClaims(bulletClaims).filter { !isQuestionLikeClaim($0) }
+
+        if filteredBulletClaims.count >= 2 {
+            return filteredBulletClaims.prefix(6).map { $0 }
         }
 
         let tokenizer = NLTokenizer(unit: .sentence)
@@ -579,7 +582,7 @@ extension StructuredAnswer {
             return true
         }
 
-        let extracted = uniqueClaims(sentences)
+        let extracted = uniqueClaims(sentences).filter { !isQuestionLikeClaim($0) }
         if !extracted.isEmpty {
             return Array(extracted.prefix(6))
         }
@@ -842,6 +845,7 @@ extension StructuredAnswer {
                 verdict: claim.verificationVerdict
             )
         }
+        .filter { !isQuestionLikeClaim($0.claim) }
 
         let sanitizedAnswer = renderAnswer(
             from: renderableClaims,
@@ -849,11 +853,16 @@ extension StructuredAnswer {
             fallback: structuredAnswer.answer,
             includeInlineCitations: includeInlineCitations
         )
+        let resolvedAnswer = shouldPreferFallbackRenderedAnswer(
+            rendered: sanitizedAnswer,
+            fallback: structuredAnswer.answer,
+            answerIntent: answerIntent
+        ) ? structuredAnswer.answer : sanitizedAnswer
 
         return StructuredAnswer(
             refuse: false,
             answerType: structuredAnswer.answerType,
-            answer: sanitizedAnswer,
+            answer: resolvedAnswer,
             claims: acceptedClaims,
             evidence: filteredEvidence,
             missing: structuredAnswer.missing,
@@ -970,6 +979,128 @@ extension StructuredAnswer {
             citations: mergedCitations,
             includeInlineCitations: includeInlineCitations
         )
+    }
+
+    nonisolated private static func shouldPreferFallbackRenderedAnswer(
+        rendered: String,
+        fallback: String,
+        answerIntent: AnswerIntent
+    ) -> Bool {
+        let renderedTrimmed = rendered.trimmingCharacters(in: .whitespacesAndNewlines)
+        let fallbackTrimmed = fallback.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        guard !renderedTrimmed.isEmpty else { return true }
+        guard !fallbackTrimmed.isEmpty else { return false }
+
+        let renderedHasQuestion = containsQuestionLikeRenderedLine(renderedTrimmed)
+        let fallbackHasQuestion = containsQuestionLikeRenderedLine(fallbackTrimmed)
+        let fallbackHasMimicry = isSystemMimicry(fallbackTrimmed)
+
+        // If fallback contains question-like elements or system mimicry, NEVER prefer it.
+        if fallbackHasQuestion || fallbackHasMimicry {
+            return false
+        }
+
+        if renderedHasQuestion && !fallbackHasQuestion {
+            return true
+        }
+
+        let renderedLower = renderedTrimmed.lowercased()
+        let fallbackLower = fallbackTrimmed.lowercased()
+        if renderedLower.hasPrefix("the documents suggest")
+            && !fallbackLower.hasPrefix("the documents suggest")
+        {
+            let renderedWords = wordCount(in: renderedTrimmed)
+            let fallbackWords = wordCount(in: fallbackTrimmed)
+            if fallbackWords >= renderedWords + 12 || renderedHasQuestion {
+                return true
+            }
+        }
+
+        if answerIntent.isExtractiveFirst,
+           renderedHasQuestion,
+           wordCount(in: fallbackTrimmed) >= wordCount(in: renderedTrimmed)
+        {
+            return true
+        }
+
+        return false
+    }
+
+    nonisolated private static func containsQuestionLikeRenderedLine(_ text: String) -> Bool {
+        let lines = text.components(separatedBy: .newlines)
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+
+        return lines.contains { isQuestionLikeClaim($0) }
+    }
+
+    nonisolated private static func isQuestionLikeClaim(_ text: String) -> Bool {
+        let stripped = text
+            .replacingOccurrences(of: #"\[S\d+\]"#, with: "", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+
+        guard !stripped.isEmpty else { return false }
+
+        let unwrapped = unwrappedQuotedText(stripped)
+        let lower = unwrapped.lowercased()
+        if lower.hasPrefix("question:") || lower.hasPrefix("q:") {
+            return true
+        }
+
+        return unwrapped.hasSuffix("?")
+    }
+
+    nonisolated private static func isSystemMimicry(_ text: String) -> Bool {
+        let lower = text.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
+
+        let mimicryPatterns = [
+            "instruction:",
+            "system prompt:",
+            "system instruction:",
+            "you are an ai",
+            "as an ai",
+            "please answer the following",
+            "the user wants to know",
+            "retrieve relevant chunks",
+            "embed the query",
+            "based on the provided context, answer",
+            "fact bank",
+            "evidence_id",
+            "confidence:",
+            "refuse:",
+            "answer the question",
+            "retrieve documents",
+            "use the following context",
+            "provide evidence"
+        ]
+
+        for pattern in mimicryPatterns {
+            if lower.contains(pattern) {
+                return true
+            }
+        }
+        return false
+    }
+
+    nonisolated private static func unwrappedQuotedText(_ text: String) -> String {
+        var trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        let quotePairs: [(Character, Character)] = [
+            ("\"", "\""),
+            ("'", "'"),
+            ("\u{201C}", "\u{201D}"),
+            ("\u{2018}", "\u{2019}")
+        ]
+
+        for (open, close) in quotePairs {
+            if trimmed.first == open, trimmed.last == close, trimmed.count >= 2 {
+                trimmed.removeFirst()
+                trimmed.removeLast()
+                return trimmed.trimmingCharacters(in: .whitespacesAndNewlines)
+            }
+        }
+
+        return trimmed
     }
 
     nonisolated private static func mergedCitationLabels(

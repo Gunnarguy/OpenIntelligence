@@ -309,6 +309,11 @@ actor BNNSVectorDatabase: VectorDatabase {
         // 3. Norms binary
         let normData = embeddingNorms.withUnsafeBytes { Data($0) }
         try normData.write(to: bin.norms, options: .atomic)
+
+        if url.path.hasPrefix(OpenIntelligenceRuntimePaths.applicationSupportRoot().path),
+           !WorkspaceSyncService.isSyncWriteInProgress {
+            NotificationCenter.default.post(name: .localWorkspaceDidChange, object: nil)
+        }
     }
 
     // MARK: - Silicon-Native Vector Math
@@ -633,6 +638,11 @@ actor BNNSVectorDatabase: VectorDatabase {
             try? fm.removeItem(at: bin.meta)
             try? fm.removeItem(at: bin.vectors)
             try? fm.removeItem(at: bin.norms)
+
+            if url.path.hasPrefix(OpenIntelligenceRuntimePaths.applicationSupportRoot().path),
+               !WorkspaceSyncService.isSyncWriteInProgress {
+                NotificationCenter.default.post(name: .localWorkspaceDidChange, object: nil)
+            }
         }
     }
 

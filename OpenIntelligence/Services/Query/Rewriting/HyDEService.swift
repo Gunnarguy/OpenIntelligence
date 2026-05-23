@@ -11,6 +11,7 @@
 //
 
 import Foundation
+import NaturalLanguage
 
 #if canImport(FoundationModels)
     import FoundationModels
@@ -107,13 +108,69 @@ final class HyDEService: @unchecked Sendable {
         #endif
     }
 
+    /// Ground hypothetical text against database vocabulary index, pruning out words with zero index presence
+    func groundHyDEText(_ text: String, containerId: UUID) async -> String {
+        let tokenizer = NLTokenizer(unit: .word)
+        tokenizer.string = text
+
+        var tokens: [(range: Range<String.Index>, text: String)] = []
+        var wordsToQuery: [String] = []
+
+        tokenizer.enumerateTokens(in: text.startIndex..<text.endIndex) { range, _ in
+            let wordText = String(text[range])
+            tokens.append((range, wordText))
+            wordsToQuery.append(wordText)
+            return true
+        }
+
+        guard !wordsToQuery.isEmpty else { return text }
+
+        let presence = await SQLiteFullTextService.shared.checkVocabularyPresence(
+            words: wordsToQuery,
+            containerId: containerId
+        )
+
+        var result = ""
+        var lastIndex = text.startIndex
+
+        for token in tokens {
+            let isPresent = presence[token.text] ?? true
+
+            if token.range.lowerBound > lastIndex {
+                result += text[lastIndex..<token.range.lowerBound]
+            }
+
+            if isPresent {
+                result += token.text
+            }
+
+            lastIndex = token.range.upperBound
+        }
+
+        if lastIndex < text.endIndex {
+            result += text[lastIndex..<text.endIndex]
+        }
+
+        return result.replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
     /// Generate hypothetical document and return both it and the original query
     /// This allows the retrieval system to search using both
     func generateHyDEQuery(
         for query: String,
+        containerId: UUID? = nil,
         config: Config = .default
     ) async throws -> HyDEResult {
         let hypotheticalDoc = try await generateHypotheticalDocument(for: query, config: config)
+
+        let groundedDoc: String
+        if let containerId = containerId {
+            groundedDoc = await groundHyDEText(hypotheticalDoc, containerId: containerId)
+            Log.info("[HyDE] Grounded hypothetical doc (original: \(hypotheticalDoc.count) chars, grounded: \(groundedDoc.count) chars)", category: .retrieval)
+        } else {
+            groundedDoc = hypotheticalDoc
+        }
 
         // UNIVERSAL FIX: Blend original query + hypothetical document for embedding.
         // Previously used ONLY the hypothetical doc, which meant a hallucinated hypothetical
@@ -122,11 +179,11 @@ final class HyDEService: @unchecked Sendable {
         // Now: concatenate both so the embedding captures BOTH the query intent vocabulary
         // AND the hypothetical answer vocabulary. MiniLM handles this well since the combined
         // text is still well under 510 tokens.
-        let blendedText = "\(query)\n\(hypotheticalDoc)"
+        let blendedText = "\(query)\n\(groundedDoc)"
 
         return HyDEResult(
             originalQuery: query,
-            hypotheticalDocument: hypotheticalDoc,
+            hypotheticalDocument: groundedDoc,
             // Blended: query vocabulary (intent) + hypothetical vocabulary (answer domain)
             combinedForEmbedding: blendedText
         )

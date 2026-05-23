@@ -85,7 +85,7 @@ enum AnswerIntent: String, Sendable, CaseIterable {
 
     /// Research findings / author discovery - requires document-level context
     /// Example: "What did Orfitelli find?" → needs summary + key sections
-    /// GOD MODE: Auto-injects document summary for comprehensive context
+    /// Auto-injects document summary for comprehensive context
     case findings
 
     /// Maps to QueryIntent for hybrid search weight adjustment
@@ -126,7 +126,7 @@ enum AnswerIntent: String, Sendable, CaseIterable {
     }
 
     /// Whether this intent should auto-inject document summary (L1) chunks
-    /// GOD MODE: Ensures document-level context is always available
+    /// Ensures document-level context is always available
     /// NOTE: Overridden to false for enumeration queries in RAGService —
     ///        the summary steals chunk slots from detail chunks that contain the actual list.
     nonisolated var requiresDocumentSummary: Bool {
@@ -310,7 +310,7 @@ final class QueryEnhancementService {
     /// Determines the answering strategy: extractive vs abstractive, single vs multi-hop.
     ///
     /// Intent hierarchy:
-    /// 0. **findings**: Author/research discovery (what did X find/discover/show) - GOD MODE
+    /// 0. **findings**: Author/research discovery (what did X find/discover/show)
     /// 1. **lookup**: Direct fact extraction (what, which, when + specific entity)
     /// 2. **table_lookup**: Table-specific queries (specs, comparisons in tables)
     /// 3. **procedure**: Step-by-step instructions (how to, steps, procedure)
@@ -327,7 +327,7 @@ final class QueryEnhancementService {
             return .lookup
         }
 
-        // Priority 0: FINDINGS (GOD MODE) - author/research discovery queries
+        // Priority 0: FINDINGS - author/research discovery queries
         // These need document-level context, not just detail chunks
         let findingsPatterns: [String] = [
             "what did .* find", "what did .* discover", "what did .* show",
@@ -345,7 +345,7 @@ final class QueryEnhancementService {
         ]
         for pattern in findingsPatterns {
             if let _ = lower.range(of: pattern, options: .regularExpression) {
-                Log.debug("[QueryEnhancement] 🔥 GOD MODE: Detected findings/author query pattern: '\(pattern)'", category: .retrieval)
+                Log.debug("[QueryEnhancement] Findings query pattern detected: '\(pattern)'", category: .retrieval)
                 return .findings
             }
         }
@@ -353,7 +353,7 @@ final class QueryEnhancementService {
         if lower.hasPrefix("who "),
            ["research", "study", "paper", "article", "experiment", "trial"].contains(where: { lower.contains($0) }),
            ["designed", "conducted", "authored", "wrote", "performed", "carried out"].contains(where: { lower.contains($0) }) {
-            Log.debug("[QueryEnhancement] 🔥 GOD MODE: Research authorship query detected", category: .retrieval)
+            Log.debug("[QueryEnhancement] Research authorship query detected", category: .retrieval)
             return .findings
         }
 
@@ -374,7 +374,7 @@ final class QueryEnhancementService {
         if hasCapitalizedWord && hasAuthorIndicator {
             for pattern in simpleFindingsPatterns {
                 if lower.contains(pattern) {
-                    Log.debug("[QueryEnhancement] 🔥 GOD MODE: Author + finding pattern detected", category: .retrieval)
+                    Log.debug("[QueryEnhancement] Author + finding pattern detected", category: .retrieval)
                     return .findings
                 }
             }

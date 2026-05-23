@@ -613,63 +613,16 @@ final class AgenticOrchestrator: Sendable {
             // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
             let isDeepThinkMode = config.maxSteps >= 8 && !config.isUnlimited
             if isDeepThinkMode {
-                Log.info("[Agentic] Deep Think: Running Self-RAG 2.0 verification", category: .llm)
-
-                let verification = await verifySelfRAG(
+                return try await runVerificationLoop(
                     query: query,
-                    answer: chainResult.finalAnswer,
-                    sourceChunks: allRetrievedChunks,
-                    ragService: ragService
-                )
-
-                // Emit verification step
-                let verifyStep = ThinkingStep(
-                    id: UUID(),
-                    type: .verifying,
-                    input: "Self-RAG verification",
-                    output: verification.summary,
-                    tokensUsed: 0,
-                    duration: 0.1,
-                    timestamp: Date(),
-                    confidence: verification.calibratedConfidence
-                )
-                steps.append(verifyStep)
-                await onStep?(verifyStep)
-
-                // Apply calibrated confidence (not heuristic session-based)
-                let calibratedConfidence = verification.calibratedConfidence
-
-                // If verification suggests retry and we haven't already recursed
-                if verification.action == "retry" && !answerIndicatesRetrievalMiss(chainResult.finalAnswer) {
-                    Log.info("[Agentic] Self-RAG: Verification suggests retry (relevance issue)", category: .llm)
-                    // Try recursive research as backup
-                    let recursiveResult = try await executeRecursiveResearch(
-                        query: query,
-                        maxIterations: 3,
-                        onStep: onStep
-                    )
-                    if !answerIndicatesRetrievalMiss(recursiveResult.finalAnswer) {
-                        steps.append(contentsOf: recursiveResult.steps)
-                        return AgenticResult(
-                            finalAnswer: recursiveResult.finalAnswer,
-                            steps: steps,
-                            totalTokens: totalTokens + recursiveResult.totalTokens,
-                            totalDuration: Date().timeIntervalSince(startTime),
-                            confidence: max(calibratedConfidence, recursiveResult.confidence),
-                            sourcesUsed: recursiveResult.sourcesUsed,
-                            retrievedChunks: recursiveResult.retrievedChunks
-                        )
-                    }
-                }
-
-                return AgenticResult(
-                    finalAnswer: chainResult.finalAnswer,
-                    steps: steps,
-                    totalTokens: totalTokens,
-                    totalDuration: Date().timeIntervalSince(startTime),
-                    confidence: calibratedConfidence,
-                    sourcesUsed: allRetrievedChunks.count,
-                    retrievedChunks: allRetrievedChunks
+                    initialAnswer: chainResult.finalAnswer,
+                    initialSteps: steps,
+                    initialTokens: totalTokens,
+                    initialConfidence: chainResult.confidence,
+                    initialSources: allRetrievedChunks,
+                    ragService: ragService,
+                    startTime: startTime,
+                    onStep: onStep
                 )
             }
 
@@ -748,34 +701,16 @@ final class AgenticOrchestrator: Sendable {
             // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
             let isDeepThinkMode = config.maxSteps >= 8 && !config.isUnlimited
             if isDeepThinkMode {
-                let verification = await verifySelfRAG(
+                return try await runVerificationLoop(
                     query: query,
-                    answer: chainResult.finalAnswer,
-                    sourceChunks: allRetrievedChunks,
-                    ragService: ragService
-                )
-
-                let verifyStep = ThinkingStep(
-                    id: UUID(),
-                    type: .verifying,
-                    input: "Self-RAG verification",
-                    output: verification.summary,
-                    tokensUsed: 0,
-                    duration: 0.1,
-                    timestamp: Date(),
-                    confidence: verification.calibratedConfidence
-                )
-                steps.append(verifyStep)
-                await onStep?(verifyStep)
-
-                return AgenticResult(
-                    finalAnswer: chainResult.finalAnswer,
-                    steps: steps,
-                    totalTokens: totalTokens,
-                    totalDuration: Date().timeIntervalSince(startTime),
-                    confidence: verification.calibratedConfidence,
-                    sourcesUsed: allRetrievedChunks.count,
-                    retrievedChunks: allRetrievedChunks
+                    initialAnswer: chainResult.finalAnswer,
+                    initialSteps: steps,
+                    initialTokens: totalTokens,
+                    initialConfidence: chainResult.confidence,
+                    initialSources: allRetrievedChunks,
+                    ragService: ragService,
+                    startTime: startTime,
+                    onStep: onStep
                 )
             }
 
@@ -2992,6 +2927,121 @@ final class AgenticOrchestrator: Sendable {
         let summary: String
         /// Suggested action: "accept", "retry", "escalate"
         let action: String
+    }
+
+    private func semanticDelta(_ text1: String, _ text2: String) -> Double {
+        let words1 = Set(text1.lowercased().components(separatedBy: .alphanumerics.inverted).filter { $0.count > 2 })
+        let words2 = Set(text2.lowercased().components(separatedBy: .alphanumerics.inverted).filter { $0.count > 2 })
+        
+        guard !words1.isEmpty || !words2.isEmpty else { return 0.0 }
+        
+        let intersection = words1.intersection(words2).count
+        let union = words1.union(words2).count
+        
+        let jaccardSimilarity = Double(intersection) / Double(union)
+        return 1.0 - jaccardSimilarity
+    }
+
+    private func runVerificationLoop(
+        query: String,
+        initialAnswer: String,
+        initialSteps: [ThinkingStep],
+        initialTokens: Int,
+        initialConfidence: Float,
+        initialSources: [RetrievedChunk],
+        ragService: RAGService,
+        startTime: Date,
+        onStep: ((ThinkingStep) async -> Void)?
+    ) async throws -> AgenticResult {
+        var currentAnswer = initialAnswer
+        var currentSteps = initialSteps
+        var currentTokens = initialTokens
+        var currentConfidence = initialConfidence
+        var currentSources = initialSources
+        
+        var strikeCount = 0
+        let maxStrikes = 3
+        
+        while strikeCount < maxStrikes {
+            let verification = await verifySelfRAG(
+                query: query,
+                answer: currentAnswer,
+                sourceChunks: currentSources,
+                ragService: ragService
+            )
+            
+            let verifyStep = ThinkingStep(
+                id: UUID(),
+                type: .verifying,
+                input: "Self-RAG verification",
+                output: verification.summary,
+                tokensUsed: 0,
+                duration: 0.1,
+                timestamp: Date(),
+                confidence: verification.calibratedConfidence
+            )
+            currentSteps.append(verifyStep)
+            await onStep?(verifyStep)
+            
+            currentConfidence = verification.calibratedConfidence
+            
+            if verification.action == "retry" && !answerIndicatesRetrievalMiss(currentAnswer) {
+                strikeCount += 1
+                Log.info("[Agentic] Self-RAG: Verification suggests retry (Strike \(strikeCount)/\(maxStrikes))", category: .llm)
+                
+                if strikeCount >= maxStrikes {
+                    Log.warning("[Agentic] Self-RAG: Max verification strikes reached. Refusing further retries.", category: .llm)
+                    break
+                }
+                
+                // Try recursive research as backup
+                let recursiveResult = try await executeRecursiveResearch(
+                    query: query,
+                    maxIterations: 3,
+                    onStep: onStep
+                )
+                
+                let newAnswer = recursiveResult.finalAnswer
+                
+                // Check semantic delta
+                let delta = semanticDelta(newAnswer, currentAnswer)
+                Log.debug("[Agentic] Semantic delta between verification attempts: \(String(format: "%.4f", delta))", category: .llm)
+                
+                if delta < 0.10 {
+                    Log.warning("[Agentic] Self-RAG: Semantic delta too low (\(String(format: "%.4f", delta)) < 0.10). Refusing further retries.", category: .llm)
+                    currentSteps.append(contentsOf: recursiveResult.steps)
+                    currentTokens += recursiveResult.totalTokens
+                    currentAnswer = newAnswer
+                    break
+                }
+                
+                if !answerIndicatesRetrievalMiss(newAnswer) {
+                    currentSteps.append(contentsOf: recursiveResult.steps)
+                    currentTokens += recursiveResult.totalTokens
+                    currentAnswer = newAnswer
+                    // Update sources/chunks
+                    for chunk in recursiveResult.retrievedChunks {
+                        if !currentSources.contains(where: { $0.chunk.id == chunk.chunk.id }) {
+                            currentSources.append(chunk)
+                        }
+                    }
+                } else {
+                    break
+                }
+            } else {
+                break
+            }
+        }
+        
+        return AgenticResult(
+            finalAnswer: currentAnswer,
+            steps: currentSteps,
+            totalTokens: currentTokens,
+            totalDuration: Date().timeIntervalSince(startTime),
+            confidence: currentConfidence,
+            sourcesUsed: currentSources.count,
+            retrievedChunks: currentSources
+        )
     }
 
     /// Full Self-RAG verification: answer relevance + citation grounding + confidence calibration
@@ -5609,23 +5659,28 @@ extension AgenticOrchestrator {
         // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
         // STEP 1: Cluster documents by source
         // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-        let documentClusters = clusterChunksByDocument(
+        let rawDocumentClusters = clusterChunksByDocument(
             chunks: allChunks,
             maxClusters: config.maxClusters,
             minDocsPerCluster: config.minDocsPerCluster
         )
 
-        Log.info("[MultiChain] Created \(documentClusters.count) document clusters from \(allChunks.count) chunks", category: .llm)
+        // Clamp to a hard limit of 8 clusters
+        let documentClusters = Array(rawDocumentClusters.prefix(8))
 
-        // Calculate total sessions for accurate progress tracking
-        let totalExpectedSessions = documentClusters.count * config.sessionsPerCluster
+        // Clamp total sessions to 30 max, adjusting sessions per cluster if necessary
+        let maxAllowedSessions = 30
+        let sessionsPerCluster = max(1, min(config.sessionsPerCluster, maxAllowedSessions / max(1, documentClusters.count)))
+        let totalExpectedSessions = documentClusters.count * sessionsPerCluster
+
+        Log.info("[MultiChain] Created \(documentClusters.count) document clusters from \(allChunks.count) chunks (clamped to 8 clusters, \(sessionsPerCluster) sessions/cluster, max 30 total)", category: .llm)
 
         // Emit planning step with initial confidence
         let planStep = ThinkingStep(
             id: UUID(),
             type: .planning,
             input: "Multi-chain strategy",
-            output: "Analyzing \(documentClusters.count) clusters × \(config.sessionsPerCluster) sessions = \(totalExpectedSessions) total reasoning sessions",
+            output: "Analyzing \(documentClusters.count) clusters × \(sessionsPerCluster) sessions = \(totalExpectedSessions) total reasoning sessions",
             tokensUsed: 0,
             duration: 0.1,
             timestamp: Date(),
@@ -5658,7 +5713,7 @@ extension AgenticOrchestrator {
                                 clusterName: cluster.name,
                                 chunks: cluster.chunks,
                                 clusterIndex: globalIdx,
-                                sessionsPerCluster: config.sessionsPerCluster,
+                                sessionsPerCluster: sessionsPerCluster,
                                 onStep: { step in
                                     // Increment session counter and recalculate confidence
                                     let currentSession = completedSessions.withLock { count -> Int in

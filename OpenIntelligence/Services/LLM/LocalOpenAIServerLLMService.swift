@@ -327,7 +327,7 @@ import Foundation
 
 // MARK: - Thin Presets for Popular Local Backends
 
-#if os(macOS)
+#if false
 
     /// MLX preset using LocalOpenAIServerLLMService under the hood
     final class MLXPresetLLMService: LLMService {

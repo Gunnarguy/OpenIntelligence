@@ -220,7 +220,9 @@ class EmbeddingService {
 
             // If no progress handler, use the fast batch method
             guard let progressHandler = progressHandler else {
+                try Task.checkCancellation()
                 let rawEmbeddings = try await provider.embedBatch(texts: texts)
+                try Task.checkCancellation()
                 let embeddings = rawEmbeddings.map { adjustDimension($0) }
                 let totalTime = Date().timeIntervalSince(startTime)
                 let avgTime = texts.isEmpty ? 0 : totalTime / Double(texts.count)
@@ -234,10 +236,12 @@ class EmbeddingService {
             allEmbeddings.reserveCapacity(texts.count)
 
             for batchStart in stride(from: 0, to: texts.count, by: batchSize) {
+                try Task.checkCancellation()
                 let batchEnd = min(batchStart + batchSize, texts.count)
                 let batch = Array(texts[batchStart..<batchEnd])
 
                 let rawBatch = try await provider.embedBatch(texts: batch)
+                try Task.checkCancellation()
                 let adjusted = rawBatch.map { adjustDimension($0) }
                 allEmbeddings.append(contentsOf: adjusted)
 

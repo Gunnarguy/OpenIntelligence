@@ -85,7 +85,8 @@ actor ContextPackingService {
         allChunks: [UUID: DocumentChunk],
         tokenBudget: Int? = nil,
         neighborDistance: Int = 1,
-        graphHopDistance: Int = 1
+        graphHopDistance: Int = 1,
+        query: String? = nil
     ) async -> PackedContext {
         let budget = tokenBudget ?? defaultTokenBudget
 
@@ -153,11 +154,42 @@ actor ContextPackingService {
             parentChunks: parentChunks,
             neighborChunks: neighborChunks,
             refChunks: refChunks,
-            tokenBudget: budget
+            tokenBudget: budget,
+            query: query
         )
     }
 
     // MARK: - Budget-Aware Assembly
+
+    /// Checks if a chunk consists purely/largely of questions to avoid retrieval poisoning.
+    private func isInterrogativeChunk(_ chunk: DocumentChunk, query: String?) -> Bool {
+        if let query = query, query.lowercased().contains("question") || query.lowercased().contains("example") {
+            return false
+        }
+        let content = chunk.content.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !content.isEmpty else { return false }
+        
+        let lines = content.components(separatedBy: .newlines)
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty }
+            
+        guard !lines.isEmpty else { return false }
+        
+        var questionCount = 0
+        for line in lines {
+            let clean = line.replacingOccurrences(of: #"^[-*+•\d.]+\s+"#, with: "", options: .regularExpression)
+            if clean.hasSuffix("?") {
+                questionCount += 1
+            }
+        }
+        
+        let ratio = Double(questionCount) / Double(lines.count)
+        if ratio >= 0.50 && lines.count > 1 {
+            return true
+        }
+        
+        return false
+    }
 
     /// Assemble chunks with priority-based token budget enforcement
     private func assembleWithBudget(
@@ -165,7 +197,8 @@ actor ContextPackingService {
         parentChunks: [DocumentChunk],
         neighborChunks: [DocumentChunk],
         refChunks: [DocumentChunk],
-        tokenBudget: Int
+        tokenBudget: Int,
+        query: String? = nil
     ) -> PackedContext {
         var result: [DocumentChunk] = []
         var usedTokens = 0
@@ -176,6 +209,10 @@ actor ContextPackingService {
 
         // Phase 1: Add core chunks (highest priority)
         for chunk in coreChunks {
+            if isInterrogativeChunk(chunk, query: query) {
+                trimmedIds.append(chunk.id)
+                continue
+            }
             let tokens = estimateTokens(chunk)
             if usedTokens + tokens <= tokenBudget {
                 result.append(chunk)
@@ -187,6 +224,10 @@ actor ContextPackingService {
 
         // Phase 2: Add parent chunks (section context)
         for chunk in parentChunks {
+            if isInterrogativeChunk(chunk, query: query) {
+                trimmedIds.append(chunk.id)
+                continue
+            }
             let tokens = estimateTokens(chunk)
             if usedTokens + tokens <= tokenBudget {
                 result.append(chunk)
@@ -198,6 +239,10 @@ actor ContextPackingService {
 
         // Phase 3: Add neighbor chunks (local context)
         for chunk in neighborChunks {
+            if isInterrogativeChunk(chunk, query: query) {
+                trimmedIds.append(chunk.id)
+                continue
+            }
             let tokens = estimateTokens(chunk)
             if usedTokens + tokens <= tokenBudget {
                 result.append(chunk)
@@ -209,6 +254,10 @@ actor ContextPackingService {
 
         // Phase 4: Add referenced chunks (cross-ref context)
         for chunk in refChunks {
+            if isInterrogativeChunk(chunk, query: query) {
+                trimmedIds.append(chunk.id)
+                continue
+            }
             let tokens = estimateTokens(chunk)
             if usedTokens + tokens <= tokenBudget {
                 result.append(chunk)
@@ -290,7 +339,8 @@ actor ContextPackingService {
         retrievedChunks: [DocumentChunk],
         graphEdges: [UUID: ChunkGraphEdges],
         allChunks: [UUID: DocumentChunk],
-        tokenBudget: Int? = nil
+        tokenBudget: Int? = nil,
+        query: String? = nil
     ) async -> PackedContext {
         // For procedures, include more neighbors (±2) for step continuity
         return await pack(
@@ -299,7 +349,8 @@ actor ContextPackingService {
             allChunks: allChunks,
             tokenBudget: tokenBudget,
             neighborDistance: 2,  // More context for procedures
-            graphHopDistance: 0   // No cross-ref hops for procedures
+            graphHopDistance: 0,   // No cross-ref hops for procedures
+            query: query
         )
     }
 
@@ -308,7 +359,8 @@ actor ContextPackingService {
         retrievedChunks: [DocumentChunk],
         graphEdges: [UUID: ChunkGraphEdges],
         allChunks: [UUID: DocumentChunk],
-        tokenBudget: Int? = nil
+        tokenBudget: Int? = nil,
+        query: String? = nil
     ) async -> PackedContext {
         // For comparisons, follow more cross-references
         return await pack(
@@ -317,7 +369,8 @@ actor ContextPackingService {
             allChunks: allChunks,
             tokenBudget: tokenBudget,
             neighborDistance: 1,
-            graphHopDistance: 2   // Follow more refs for comparison context
+            graphHopDistance: 2,   // Follow more refs for comparison context
+            query: query
         )
     }
 
@@ -326,7 +379,8 @@ actor ContextPackingService {
         retrievedChunks: [DocumentChunk],
         graphEdges: [UUID: ChunkGraphEdges],
         allChunks: [UUID: DocumentChunk],
-        tokenBudget: Int? = nil
+        tokenBudget: Int? = nil,
+        query: String? = nil
     ) async -> PackedContext {
         // For summarization, prioritize section parents for high-level context
         let budget = tokenBudget ?? defaultTokenBudget
@@ -338,6 +392,9 @@ actor ContextPackingService {
 
         // First pass: Add section heading parents only
         for chunk in retrievedChunks {
+            if isInterrogativeChunk(chunk, query: query) {
+                continue
+            }
             let parents = await graphIndex.parentChain(
                 for: chunk.id,
                 graphEdges: graphEdges,
@@ -346,6 +403,9 @@ actor ContextPackingService {
 
             // Add topmost parent first (most general)
             for parent in parents.reversed() {
+                if isInterrogativeChunk(parent, query: query) {
+                    continue
+                }
                 if !seenIds.contains(parent.id) {
                     let tokens = estimateTokens(parent)
                     if usedTokens + tokens <= budget / 2 {  // Reserve half for core
@@ -359,6 +419,9 @@ actor ContextPackingService {
 
         // Second pass: Add core chunks
         for chunk in retrievedChunks {
+            if isInterrogativeChunk(chunk, query: query) {
+                continue
+            }
             if !seenIds.contains(chunk.id) {
                 let tokens = estimateTokens(chunk)
                 if usedTokens + tokens <= budget {
@@ -393,7 +456,8 @@ extension ContextPackingService {
         retrievedChunks: [DocumentChunk],
         graphEdges: [UUID: ChunkGraphEdges],
         allChunks: [UUID: DocumentChunk],
-        tokenBudget: Int? = nil
+        tokenBudget: Int? = nil,
+        query: String? = nil
     ) async -> PackedContext {
         switch intent {
         case .procedure:
@@ -401,28 +465,32 @@ extension ContextPackingService {
                 retrievedChunks: retrievedChunks,
                 graphEdges: graphEdges,
                 allChunks: allChunks,
-                tokenBudget: tokenBudget
+                tokenBudget: tokenBudget,
+                query: query
             )
         case .compare:
             return await packForComparison(
                 retrievedChunks: retrievedChunks,
                 graphEdges: graphEdges,
                 allChunks: allChunks,
-                tokenBudget: tokenBudget
+                tokenBudget: tokenBudget,
+                query: query
             )
         case .summarize:
             return await packForSummarization(
                 retrievedChunks: retrievedChunks,
                 graphEdges: graphEdges,
                 allChunks: allChunks,
-                tokenBudget: tokenBudget
+                tokenBudget: tokenBudget,
+                query: query
             )
         default:
             return await pack(
                 retrievedChunks: retrievedChunks,
                 graphEdges: graphEdges,
                 allChunks: allChunks,
-                tokenBudget: tokenBudget
+                tokenBudget: tokenBudget,
+                query: query
             )
         }
     }

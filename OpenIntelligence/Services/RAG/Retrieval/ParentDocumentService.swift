@@ -101,6 +101,52 @@ final class ParentDocumentService {
     ///   - allChunks: All chunks in the database (for finding siblings)
     ///   - query: Original query (for logging)
     /// - Returns: ExpansionResult containing expanded chunks with siblings
+    private func jaccardSimilarity(_ a: String, _ b: String) -> Double {
+        let tokenizer = { (text: String) -> Set<String> in
+            let words = text.lowercased()
+                .components(separatedBy: CharacterSet.alphanumerics.inverted)
+                .filter { !$0.isEmpty }
+            return Set(words)
+        }
+        
+        let setA = tokenizer(a)
+        let setB = tokenizer(b)
+        
+        guard !setA.isEmpty && !setB.isEmpty else { return 0.0 }
+        
+        let intersection = setA.intersection(setB)
+        let union = setA.union(setB)
+        
+        return Double(intersection.count) / Double(union.count)
+    }
+
+    private func checkJaccardRedundancy(_ content: String, against existing: [RetrievedChunk], insertions: [(index: Int, chunk: RetrievedChunk)], threshold: Double = 0.8) -> Bool {
+        for chunk in existing {
+            if jaccardSimilarity(content, chunk.chunk.content) >= threshold {
+                return true
+            }
+        }
+        for insertion in insertions {
+            if jaccardSimilarity(content, insertion.chunk.chunk.content) >= threshold {
+                return true
+            }
+        }
+        return false
+    }
+
+    /// Expand retrieved chunks to include sibling context from the same section/page.
+    ///
+    /// CRITICAL: All original matched chunks are ALWAYS preserved.
+    /// Sibling expansion is ADDITIVE — it can never cause matched chunks to be dropped.
+    /// Previous behavior: token budget could cut off after 2 chunks, silently dropping
+    /// 18 out of 20 MMR-selected diverse chunks. This caused catastrophic data loss
+    /// (e.g., 20 diverse oil-related chunks → 2 chunks about oil pressure warning only).
+    ///
+    /// - Parameters:
+    ///   - retrievedChunks: The chunks returned from hybrid search/reranking
+    ///   - allChunks: All chunks in the database (for finding siblings)
+    ///   - query: Original query (for logging)
+    /// - Returns: ExpansionResult containing expanded chunks with siblings
     func expandWithSiblings(
         retrievedChunks: [RetrievedChunk],
         allChunks: [DocumentChunk],
@@ -152,6 +198,10 @@ final class ParentDocumentService {
             for sibling in siblings.before.reversed() {
                 guard currentTokens + estimateTokens(sibling.content) <= config.maxExpandedTokens else { break }
                 if !includedChunkIds.contains(sibling.id) {
+                    if checkJaccardRedundancy(sibling.content, against: expandedChunks, insertions: siblingInsertions) {
+                        Log.debug("[ParentDocumentService] Sibling chunk \(sibling.id) is redundant (>80% Jaccard) - skipping", category: .retrieval)
+                        continue
+                    }
                     let siblingRetrieved = RetrievedChunk(
                         chunk: sibling,
                         similarityScore: retrieved.similarityScore * 0.8,
@@ -169,6 +219,10 @@ final class ParentDocumentService {
             for sibling in siblings.after {
                 guard currentTokens + estimateTokens(sibling.content) <= config.maxExpandedTokens else { break }
                 if !includedChunkIds.contains(sibling.id) {
+                    if checkJaccardRedundancy(sibling.content, against: expandedChunks, insertions: siblingInsertions) {
+                        Log.debug("[ParentDocumentService] Sibling chunk \(sibling.id) is redundant (>80% Jaccard) - skipping", category: .retrieval)
+                        continue
+                    }
                     let siblingRetrieved = RetrievedChunk(
                         chunk: sibling,
                         similarityScore: retrieved.similarityScore * 0.8,
@@ -189,6 +243,28 @@ final class ParentDocumentService {
             let insertAt = min(insertion.index, expandedChunks.count)
             expandedChunks.insert(insertion.chunk, at: insertAt)
         }
+
+        // PHASE 3: Final Jaccard deduplication to ensure no two sibling chunks are redundant (>80% similarity).
+        // Original retriever-matched chunks are NEVER dropped.
+        var finalChunks: [RetrievedChunk] = []
+        let originalIds = Set(retrievedChunks.map { $0.chunk.id })
+
+        for retrieved in expandedChunks {
+            if originalIds.contains(retrieved.chunk.id) {
+                finalChunks.append(retrieved)
+            } else {
+                let redundant = finalChunks.contains { existing in
+                    jaccardSimilarity(retrieved.chunk.content, existing.chunk.content) >= 0.8
+                }
+                if !redundant {
+                    finalChunks.append(retrieved)
+                } else {
+                    addedSiblings -= 1
+                }
+            }
+        }
+        expandedChunks = finalChunks
+        currentTokens = expandedChunks.reduce(0) { $0 + estimateTokens($1.chunk.content) }
 
         let duration = Date().timeIntervalSince(startTime)
         Log.info(

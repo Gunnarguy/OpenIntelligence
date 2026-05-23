@@ -306,6 +306,7 @@ final class CoreMLSentenceEmbeddingProvider: EmbeddingProvider {
             } else if hiddenState.dataType == .float16 {
                 // OPTIMIZED Float16 path: typed pointer + vDSP conversion
                 // Model on A18 Pro GPU always outputs Float16
+                #if arch(arm64)
                 hiddenState.withUnsafeBufferPointer(ofType: Float16.self) { ptr in
                     var rowFloat32 = [Float](repeating: 0, count: embedDim)
                     for i in 0..<seqLen where attentionMask[i] == 1 {
@@ -318,6 +319,17 @@ final class CoreMLSentenceEmbeddingProvider: EmbeddingProvider {
                         vDSP_vadd(summed, 1, &rowFloat32, 1, &summed, 1, vDSP_Length(embedDim))
                     }
                 }
+                #else
+                // Fallback to NSNumber subscript path for x86_64 compatibility
+                for i in 0..<seqLen where attentionMask[i] == 1 {
+                    tokenCount += 1
+                    var rowFloat32 = [Float](repeating: 0, count: embedDim)
+                    for j in 0..<embedDim {
+                        rowFloat32[j] = hiddenState[[0, NSNumber(value: i), NSNumber(value: j)]].floatValue
+                    }
+                    vDSP_vadd(summed, 1, &rowFloat32, 1, &summed, 1, vDSP_Length(embedDim))
+                }
+                #endif
             } else {
                 // Unknown type — safe NSNumber subscript fallback
                 for i in 0..<seqLen where attentionMask[i] == 1 {

@@ -110,7 +110,11 @@ enum RAGQualityMode: String, Identifiable, Sendable {
 
     /// Whether to use LLM-powered query rewriting
     var usesQueryRewriting: Bool {
-        true // Always use for better understanding
+        switch canonical {
+        case .standard: return false // Disabled by default to prevent LLM rewriting from hallucinating/poisoning literal queries
+        case .deepThink, .maximum: return true
+        default: return false
+        }
     }
 
     /// Whether to use iterative retrieval (retrieve → assess → refine → retrieve more)
@@ -183,7 +187,11 @@ enum RAGQualityMode: String, Identifiable, Sendable {
     /// Whether to use HyDE (Hypothetical Document Embeddings) for vocabulary bridging
     /// HyDE generates a hypothetical answer first, then embeds it for search
     var usesHyDE: Bool {
-        true // All modes benefit from HyDE
+        switch canonical {
+        case .standard: return false // Disabled by default to prevent hypothetical hallucinations from poisoning exact lookup/spec matches
+        case .deepThink, .maximum: return true
+        default: return false
+        }
     }
 
     /// Whether to use AI re-ranking after hybrid retrieval
@@ -227,7 +235,11 @@ enum RAGQualityMode: String, Identifiable, Sendable {
     /// Whether to use corpus-aware query expansion
     /// Expands query with synonyms and domain terms from corpus vocabulary
     var usesQueryExpansion: Bool {
-        true // All modes benefit from expansion
+        switch canonical {
+        case .standard: return false // Keep queries literal and focused in standard mode
+        case .deepThink, .maximum: return true
+        default: return false
+        }
     }
 
     /// Maximum number of query expansion variants to generate
@@ -264,10 +276,10 @@ enum RAGQualityMode: String, Identifiable, Sendable {
     /// Whether to use contextual compression to extract relevant content
     var usesContextualCompression: Bool {
         switch canonical {
-        case .standard: return true   // Compress for efficiency
+        case .standard: return false  // Disabled in standard to prevent losing critical detailed sentences
         case .deepThink: return true  // Compress for focus
         case .maximum: return false   // Keep full context in Maximum mode
-        default: return true
+        default: return false
         }
     }
 

@@ -419,7 +419,7 @@ struct ChunkMetadata: Codable, Sendable {
 }
 
 /// Represents a source document in the RAG knowledge base
-struct Document: Identifiable, Codable {
+struct Document: Identifiable, Codable, Equatable {
     let id: UUID
     let filename: String
     private let legacyFileURL: URL?
@@ -524,7 +524,7 @@ struct Document: Identifiable, Codable {
 }
 
 /// Detailed processing information for a document
-struct ProcessingMetadata: Codable {
+struct ProcessingMetadata: Codable, Equatable {
     let fileSizeMB: Double
     let totalCharacters: Int
     let totalWords: Int
@@ -554,7 +554,7 @@ struct ProcessingMetadata: Codable {
     var documentCategory: DocumentSemanticCategory? = nil
 }
 
-struct ChunkStatistics: Codable {
+struct ChunkStatistics: Codable, Equatable {
     let averageChars: Int
     let minChars: Int
     let maxChars: Int

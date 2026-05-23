@@ -347,8 +347,10 @@ actor RAGEngine {
 
             // TOC/Boilerplate Detection Penalty
             // Table-of-contents chunks have many section numbers but little actual content
-            let tocPenalty = computeTOCPenalty(content: r.chunk.content)
-            score -= tocPenalty
+                let contentForPenalty = r.chunk.parentContent ?? r.chunk.content
+                let tocPenalty = computeTOCPenalty(content: contentForPenalty)
+                let questionBankPenalty = computeQuestionBankPenalty(content: contentForPenalty, query: query)
+                score -= tocPenalty + questionBankPenalty
 
             scored.append((r, score, keywordBoost, proximityBoost, metadataBoost))
         }
@@ -1174,6 +1176,100 @@ actor RAGEngine {
         return min(penalty, 0.50)  // Cap penalty at 0.50
     }
 
+    /// Demote chunks that mainly list example questions rather than answering the current one.
+    private func computeQuestionBankPenalty(content: String, query: String) -> Float {
+        let normalizedContent = content.lowercased()
+        let normalizedQuery = query
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+
+        guard !normalizedContent.isEmpty,
+              !normalizedQuery.isEmpty,
+              !querySeeksExampleQuestions(normalizedQuery)
+        else {
+            return 0
+        }
+
+        var penalty: Float = 0
+        let markerPhrases = [
+            "questions like",
+            "what kinds of questions",
+            "what kind of questions",
+            "example questions",
+            "strongest on questions",
+            "strongest with questions",
+            "good at answering questions"
+        ]
+
+        let markerHits = markerPhrases.reduce(into: 0) { count, phrase in
+            if normalizedContent.contains(phrase) {
+                count += 1
+            }
+        }
+
+        if markerHits >= 2 {
+            penalty += 0.18
+        } else if markerHits == 1 {
+            penalty += 0.10
+        }
+
+        if normalizedQuery.count >= 18, normalizedContent.contains(normalizedQuery) {
+            penalty += markerHits > 0 ? 0.18 : 0.08
+        }
+
+        let exampleQuestionLineCount = countExampleQuestionLines(in: content)
+        if exampleQuestionLineCount >= 3 {
+            penalty += 0.14
+        } else if exampleQuestionLineCount >= 2 {
+            penalty += 0.08
+        }
+
+        let questionMarkCount = content.filter { $0 == "?" }.count
+        if questionMarkCount >= 4 {
+            penalty += 0.08
+        } else if questionMarkCount >= 2, markerHits > 0 {
+            penalty += 0.04
+        }
+
+        return min(penalty, 0.40)
+    }
+
+    private func querySeeksExampleQuestions(_ normalizedQuery: String) -> Bool {
+        let phrases = [
+            "example questions",
+            "what kinds of questions",
+            "what kind of questions",
+            "what questions",
+            "good at answering",
+            "good at",
+            "can i ask",
+            "should i ask"
+        ]
+
+        if phrases.contains(where: { normalizedQuery.contains($0) }) {
+            return normalizedQuery.contains("question") || normalizedQuery.contains("ask")
+        }
+
+        return false
+    }
+
+    private func countExampleQuestionLines(in content: String) -> Int {
+        content
+            .components(separatedBy: .newlines)
+            .reduce(into: 0) { count, line in
+                let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !trimmed.isEmpty else { return }
+
+                let isBullet = trimmed.hasPrefix("-") || trimmed.hasPrefix("•") || trimmed.hasPrefix("*")
+                let containsQuestion = trimmed.contains("?")
+                let containsQuote = trimmed.contains("\"") || trimmed.contains("“") || trimmed.contains("”")
+
+                if isBullet && containsQuestion && containsQuote {
+                    count += 1
+                }
+            }
+    }
+
     // MARK: - Core ML Cross Encoder Re-Ranking
 
     #if canImport(CoreML)
@@ -1360,15 +1456,18 @@ actor RAGEngine {
                 let rawBottom = scoredChunks.last?.score ?? 0
                 Log.debug("[RAGEngine] AI Re-ranking: raw \(String(format: "%.2f", rawBottom))→\(String(format: "%.2f", rawTop)), normalized \(String(format: "%.2f", bottom.score))→\(String(format: "%.2f", top.score))", category: .retrieval)
                 // Log top chunk preview for debugging retrieval quality
-                let preview = String(top.chunk.chunk.content.prefix(150)).replacingOccurrences(of: "\n", with: " ")
+                let previewSource = top.chunk.chunk.parentContent ?? top.chunk.chunk.content
+                let preview = String(previewSource.prefix(150)).replacingOccurrences(of: "\n", with: " ")
                 Log.debug("[RAGEngine] Top chunk preview: \(preview)...", category: .retrieval)
             }
 
             // Apply TOC/boilerplate penalty after cross-encoder scoring
             // This demotes table-of-contents chunks that match keywords but lack actual content
             let penalizedScored = normalizedScored.map { item -> (chunk: RetrievedChunk, score: Float) in
-                let tocPenalty = computeTOCPenalty(content: item.chunk.chunk.content)
-                let adjustedScore = max(0.01, item.score - tocPenalty)
+                let contentForPenalty = item.chunk.chunk.parentContent ?? item.chunk.chunk.content
+                let tocPenalty = computeTOCPenalty(content: contentForPenalty)
+                let questionBankPenalty = computeQuestionBankPenalty(content: contentForPenalty, query: query)
+                let adjustedScore = max(0.01, item.score - tocPenalty - questionBankPenalty)
                 return (item.chunk, adjustedScore)
             }.sorted { $0.score > $1.score }
 
