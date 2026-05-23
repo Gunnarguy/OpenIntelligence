@@ -167,8 +167,11 @@ final class ContainerService: ObservableObject {
         if let li = lastIndexedAt {
             if current.lastIndexedAt == nil {
                 hasChanges = true
-            } else if let currentLi = current.lastIndexedAt, abs(li.timeIntervalSince(currentLi)) > 0.001 {
-                hasChanges = true
+            } else if let currentLi = current.lastIndexedAt {
+                let indexedAtDelta: TimeInterval = li.timeIntervalSince(currentLi)
+                if indexedAtDelta.magnitude > 0.001 {
+                    hasChanges = true
+                }
             }
         }
         
