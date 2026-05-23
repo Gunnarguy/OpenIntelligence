@@ -279,10 +279,27 @@ struct HardwareXRayOverlay: View {
             let socFrame = rectToScreen(layout.socRect, width: screenWidth, height: screenHeight)
             let tapticFrame = rectToScreen(layout.tapticRect, width: screenWidth, height: screenHeight)
 
+            let showVisualBorders: Bool = {
+                #if targetEnvironment(macCatalyst)
+                return false
+                #else
+                if ProcessInfo.processInfo.isiOSAppOnMac {
+                    return false
+                }
+                #if canImport(UIKit)
+                let isPad = UIDevice.current.userInterfaceIdiom == .pad
+                let isLandscape = screenWidth > screenHeight
+                return !isPad && !isLandscape
+                #else
+                return false
+                #endif
+                #endif
+            }()
+
             ZStack {
                 // Show SoC border when any compute component is active
                 // DESIGN: Ultra-subtle background presence - not distracting
-                if totalIntensity > 0.01 {
+                if showVisualBorders && totalIntensity > 0.01 {
                     GlowingSoCBorder(
                         frame: socFrame,
                         color: dominantColor,
@@ -298,7 +315,7 @@ struct HardwareXRayOverlay: View {
 
                 // Show Taptic Engine border when haptics fire (if enabled)
                 // Shows at the physical Taptic Engine location
-                if settings.hudShowTaptic && telemetry.hapticIntensity > 0.01 {
+                if showVisualBorders && settings.hudShowTaptic && telemetry.hapticIntensity > 0.01 {
                     GlowingTapticBorder(
                         frame: tapticFrame,
                         intensity: telemetry.hapticIntensity,
@@ -322,7 +339,7 @@ struct HardwareXRayOverlay: View {
                 .position(x: 45, y: geometry.safeAreaInsets.top + 85)
 
                 // Device info (for debugging only)
-                if showDeviceInfo {
+                if showDeviceInfo && showVisualBorders {
                     Text("\(layout.displayName)")
                         .font(.system(size: 9, weight: .medium, design: .monospaced))
                         .foregroundColor(.gray.opacity(0.3))
