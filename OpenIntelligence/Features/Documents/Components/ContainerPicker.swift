@@ -172,7 +172,6 @@ struct ContainerPill: View {
                 .strokeBorder(isSelected ? Color.clear : containerColor.opacity(0.3), lineWidth: 1)
         )
         .shadow(color: isSelected ? containerColor.opacity(0.3) : .clear, radius: 4, x: 0, y: 2)
-        .contentShape(.contextMenuPreview, Capsule())
         .contentShape(Capsule())
         .onTapGesture {
             onSelect()
