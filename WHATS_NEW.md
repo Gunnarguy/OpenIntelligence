@@ -11,6 +11,7 @@ Version 3.7.1 (incorporating 3.7 updates) is a broader release that tightens alm
 ## Highlights
 
 - Resolved a gesture conflict on iOS where long-pressing library pills in the horizontal scroll view failed to trigger the context menu, fully restoring library deletion on iPhones.
+- Preserved library names more cleanly in the Documents pill strip so file counts no longer squeeze them into ambiguous truncation.
 - Fixed a synchronization issue in iCloud Sync where deleted libraries could be merged back and resurrected on other devices, and implemented deletion tombstones to automatically propagate deletions across all synced devices.
 - Added automated local cleanup of vector databases, Spotlight search indexes, and UI presentation caches when a synced library is deleted on another device.
 - Documents was tightened again with cleaner library pills, a less crowded header, smaller sync controls, and clearer organization and management surfaces.
