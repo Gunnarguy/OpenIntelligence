@@ -43,18 +43,16 @@ struct ContainerPickerStrip: View {
     var onSetLibraryStorage: ((KnowledgeContainer, LibrarySyncMode) -> Void)? = nil
 
     var body: some View {
-        if #available(iOS 26.0, *) {
-            GlassEffectContainer(spacing: 8) {
-                ScrollView(.horizontal, showsIndicators: false) {
+        ScrollView(.horizontal, showsIndicators: false) {
+            if #available(iOS 26.0, *) {
+                GlassEffectContainer(spacing: 8) {
                     HStack(spacing: 8) {
                         pillList
                     }
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 8)
                 }
-            }
-        } else {
-            ScrollView(.horizontal, showsIndicators: false) {
+                .padding(.horizontal, 16)
+                .padding(.vertical, 8)
+            } else {
                 HStack(spacing: 8) {
                     pillList
                 }
@@ -127,10 +125,15 @@ struct ContainerPill: View {
     let onSelect: () -> Void
     var onSetLibraryStorage: ((LibrarySyncMode) -> Void)? = nil
     var onDelete: (() -> Void)?
+    @State private var showingActionDialog = false
 
     /// The container's custom color, or accent color as fallback
     private var containerColor: Color {
         Color(hex: container.colorHex) ?? .accentColor
+    }
+
+    private var hasLibraryActions: Bool {
+        canDelete || onSetLibraryStorage != nil
     }
 
     var body: some View {
@@ -167,7 +170,51 @@ struct ContainerPill: View {
         .onTapGesture {
             onSelect()
         }
-        .glassEffectHelper(isSelected: isSelected, tintColor: containerColor)
+        .onLongPressGesture(minimumDuration: 0.45) {
+            guard hasLibraryActions else { return }
+            showingActionDialog = true
+        }
+        .glassEffectHelper(isSelected: isSelected, tintColor: containerColor, interactive: !hasLibraryActions)
+        .confirmationDialog("Library Actions", isPresented: $showingActionDialog, titleVisibility: .visible) {
+            Button {
+                onSelect()
+            } label: {
+                Label("Select Library", systemImage: "checkmark.circle")
+            }
+
+            if let onSetLibraryStorage {
+                Button {
+                    onSetLibraryStorage(.localOnly)
+                } label: {
+                    Label(
+                        container.syncMode == .localOnly ? "Local Only (Current)" : "Make Local Only",
+                        systemImage: container.syncMode == .localOnly ? "checkmark.circle.fill" : "lock.fill"
+                    )
+                }
+
+                Button {
+                    onSetLibraryStorage(.iCloudShared)
+                } label: {
+                    Label(
+                        container.syncMode == .iCloudShared ? "iCloud Sync (Current)" : "Make iCloud Sync",
+                        systemImage: container.syncMode == .iCloudShared ? "checkmark.circle.fill" : "icloud.fill"
+                    )
+                }
+            }
+
+            if canDelete {
+                Button(role: .destructive) {
+                    onDelete?()
+                } label: {
+                    Label("Delete Library", systemImage: "trash")
+                }
+            }
+
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text(container.name)
+        }
+#if targetEnvironment(macCatalyst)
         .contextMenu {
             Button {
                 onSelect()
@@ -207,6 +254,7 @@ struct ContainerPill: View {
                 }
             }
         }
+#endif
     }
 }
 

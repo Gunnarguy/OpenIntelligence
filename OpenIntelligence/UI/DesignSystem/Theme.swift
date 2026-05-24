@@ -335,12 +335,20 @@ public extension View {
 
     /// Apply Liquid Glass pill styling for iOS 26+
     @ViewBuilder
-    func glassEffectHelper(isSelected: Bool = false, tintColor: Color = .accentColor) -> some View {
+    func glassEffectHelper(isSelected: Bool = false, tintColor: Color = .accentColor, interactive: Bool = true) -> some View {
         if #available(iOS 26.0, *) {
             if isSelected {
-                self.glassEffect(.regular.tint(tintColor).interactive(), in: Capsule())
+                if interactive {
+                    self.glassEffect(.regular.tint(tintColor).interactive(), in: Capsule())
+                } else {
+                    self.glassEffect(.regular.tint(tintColor), in: Capsule())
+                }
             } else {
-                self.glassEffect(.regular.interactive(), in: Capsule())
+                if interactive {
+                    self.glassEffect(.regular.interactive(), in: Capsule())
+                } else {
+                    self.glassEffect(.regular, in: Capsule())
+                }
             }
         } else {
             self
