@@ -85,6 +85,7 @@ struct ContainerPickerStrip: View {
                     }
                 }
             )
+            .fixedSize(horizontal: true, vertical: false)
         }
 
         if allowsCreation {
@@ -106,6 +107,7 @@ struct ContainerPickerStrip: View {
                 .foregroundColor(.secondary)
             }
             .buttonStyle(.plain)
+            .fixedSize(horizontal: true, vertical: false)
             .glassEffectHelper(isSelected: false, tintColor: .secondary)
         }
     }
@@ -143,14 +145,19 @@ struct ContainerPill: View {
             Text(container.name)
                 .font(.system(size: 13, weight: .medium))
                 .lineLimit(1)
+                .truncationMode(.middle)
+                .minimumScaleFactor(0.9)
+                .layoutPriority(1)
             if let badgeText {
                 Text(badgeText)
                     .font(.system(size: 10, weight: .bold, design: .rounded))
+                    .monospacedDigit()
                     .padding(.horizontal, 6)
                     .padding(.vertical, 3)
                     .background(badgeStyle.background(isSelected: isSelected))
                     .foregroundStyle(badgeStyle.foreground(isSelected: isSelected))
                     .clipShape(Capsule())
+                    .fixedSize(horizontal: true, vertical: false)
             }
         }
         .padding(.horizontal, 12)
