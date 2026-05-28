@@ -83,6 +83,7 @@ struct SettingsView: View {
 
                     // More
                     appearanceCard
+                    supportCard
                     developerCard
                     aboutCard
                 }
@@ -2301,6 +2302,149 @@ Text("RAG audit, diagnostics, advanced tuning")
     .clipShape(RoundedRectangle(cornerRadius: 16))
         }
 .buttonStyle(.plain)
+    }
+
+    // MARK: - Support Card
+
+    @ViewBuilder
+    private var supportCard: some View {
+        VStack(spacing: 0) {
+            // Header
+            HStack(spacing: 10) {
+                ZStack {
+                    Circle()
+                        .fill(Color.orange.opacity(0.15))
+                        .frame(width: 32, height: 32)
+                    Image(systemName: "heart.fill")
+                        .font(.system(size: 14))
+                        .foregroundColor(.orange)
+                }
+
+                Text("Support & Feedback")
+                    .font(.headline)
+
+                Spacer()
+            }
+            .padding(.horizontal)
+            .padding(.top)
+            .padding(.bottom, 8)
+
+            Divider()
+                .padding(.horizontal)
+
+            // Rate App Row
+            Button {
+                openURL(OpenIntelligenceLinks.writeReviewURL)
+            } label: {
+                HStack(spacing: 12) {
+                    Image(systemName: "star.fill")
+                        .foregroundColor(.orange)
+                        .font(.system(size: 16))
+                        .frame(width: 24, alignment: .center)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Rate on the App Store")
+                            .font(.subheadline.weight(.medium))
+                            .foregroundStyle(DSColors.primaryText)
+                        Text("Love OpenIntelligence? Rate us 5 stars!")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                    Spacer()
+                    Image(systemName: "arrow.up.forward")
+                        .font(.caption.weight(.semibold))
+                        .foregroundColor(.secondary)
+                }
+                .padding(.horizontal)
+                .padding(.vertical, 12)
+            }
+            .buttonStyle(.plain)
+
+            Divider()
+                .padding(.horizontal)
+
+            // Feedback Row
+            Button {
+                openURL(OpenIntelligenceLinks.feedbackMailtoURL(source: "Settings Screen"))
+            } label: {
+                HStack(spacing: 12) {
+                    Image(systemName: "envelope.fill")
+                        .foregroundColor(.accentColor)
+                        .font(.system(size: 16))
+                        .frame(width: 24, alignment: .center)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Send Feedback")
+                            .font(.subheadline.weight(.medium))
+                            .foregroundStyle(DSColors.primaryText)
+                        Text("Tell us how to improve your experience")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                    Spacer()
+                    Image(systemName: "arrow.up.forward")
+                        .font(.caption.weight(.semibold))
+                        .foregroundColor(.secondary)
+                }
+                .padding(.horizontal)
+                .padding(.vertical, 12)
+            }
+            .buttonStyle(.plain)
+
+            Divider()
+                .padding(.horizontal)
+
+            // Share App Row
+            Button {
+                shareApp()
+            } label: {
+                HStack(spacing: 12) {
+                    Image(systemName: "square.and.arrow.up")
+                        .foregroundColor(.purple)
+                        .font(.system(size: 16))
+                        .frame(width: 24, alignment: .center)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Share with Friends")
+                            .font(.subheadline.weight(.medium))
+                            .foregroundStyle(DSColors.primaryText)
+                        Text("Recommend OpenIntelligence to others")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                    Spacer()
+                    Image(systemName: "arrow.up.forward")
+                        .font(.caption.weight(.semibold))
+                        .foregroundColor(.secondary)
+                }
+                .padding(.horizontal)
+                .padding(.vertical, 12)
+            }
+            .buttonStyle(.plain)
+        }
+        .background(DSColors.surface)
+        .clipShape(RoundedRectangle(cornerRadius: 16))
+    }
+
+    private func shareApp() {
+        #if canImport(UIKit)
+        let items: [Any] = [
+            "I'm using OpenIntelligence for private, on-device AI and RAG search. Check it out on the App Store!",
+            OpenIntelligenceLinks.appStoreURL
+        ]
+        let activityVC = UIActivityViewController(activityItems: items, applicationActivities: nil)
+        
+        // Setup popover for iPad support
+        if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+           let rootVC = windowScene.windows.first?.rootViewController {
+            
+            // For iPad compatibility
+            if let popover = activityVC.popoverPresentationController {
+                popover.sourceView = rootVC.view
+                popover.sourceRect = CGRect(x: rootVC.view.bounds.midX, y: rootVC.view.bounds.midY, width: 0, height: 0)
+                popover.permittedArrowDirections = []
+            }
+            
+            rootVC.present(activityVC, animated: true)
+        }
+        #endif
     }
 
     // MARK: - About Card

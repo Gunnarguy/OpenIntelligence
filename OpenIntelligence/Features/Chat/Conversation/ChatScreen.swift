@@ -185,6 +185,7 @@ private final class ContinuedQueryCoordinator: ObservableObject {
 struct ChatScreen: View {
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.requestReview) private var requestReview
+    @Environment(\.openURL) private var openURL
     @EnvironmentObject private var onboardingStore: OnboardingStateStore
     @EnvironmentObject private var settings: SettingsStore
     @EnvironmentObject private var entitlementStore: EntitlementStore
@@ -276,6 +277,8 @@ struct ChatScreen: View {
     @State private var followUpSuggestions: [SmartReply] = []
     @State private var followUpSuggestionsTask: Task<Void, Never>? = nil
     @State private var reviewPromptTask: Task<Void, Never>? = nil
+    @State private var showFriendlyReviewPrompt = false
+    @State private var showFeedbackEmailPrompt = false
 
     // Speed history for sparkline graph
     @State private var speedHistory: [Double] = []
@@ -738,6 +741,34 @@ struct ChatScreen: View {
             Button("Cancel", role: .cancel) {}
         } message: {
             Text(maximumModeLimitDialogMessage)
+        }
+        .alert(
+            "Enjoying OpenIntelligence?",
+            isPresented: $showFriendlyReviewPrompt
+        ) {
+            Button("I love it! ❤️") {
+                requestReview()
+            }
+            Button("Write a Review ✍️") {
+                openURL(OpenIntelligenceLinks.writeReviewURL)
+            }
+            Button("Needs improvement 💬") {
+                openURL(OpenIntelligenceLinks.feedbackMailtoURL(source: "In-App Feedback Prompt"))
+            }
+            Button("Maybe later", role: .cancel) {}
+        } message: {
+            Text("We are fully on-device and private. A quick rating or review helps us grow and keep building!")
+        }
+        .alert(
+            "Help Us Improve",
+            isPresented: $showFeedbackEmailPrompt
+        ) {
+            Button("Send Feedback 💬") {
+                openURL(OpenIntelligenceLinks.feedbackMailtoURL(source: "In-App Negative Feedback"))
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("We're sorry that answer wasn't helpful. Please send us your feedback so we can improve OpenIntelligence!")
         }
 .onAppear {
     continuedQueryCoordinator.expirationHandler = { [weak ragService] in
@@ -1938,17 +1969,19 @@ struct ChatScreen: View {
                     #if canImport(FoundationModels)
                     if #available(iOS 26.0, *) {
                         ragService.submitPositiveFeedback()
-                        DSHaptics.success()
                     }
                     #endif
+                    DSHaptics.success()
+                    triggerThumbsUpReviewPrompt()
                 },
                 onThumbsDown: {
                     #if canImport(FoundationModels)
                     if #available(iOS 26.0, *) {
                         ragService.submitNegativeFeedback()
-                        DSHaptics.warning()
                     }
                     #endif
+                    DSHaptics.warning()
+                    showFeedbackEmailPrompt = true
                 },
                 onTranslate: { text in
                     translationText = text
@@ -2737,6 +2770,7 @@ struct ChatScreen: View {
             && !showWritingToolsResult
             && !showTranslation
             && !showMaximumModeLimitDialog
+            && !showFriendlyReviewPrompt
     }
 
     private func scheduleReviewPromptIfEligible(
@@ -2758,8 +2792,24 @@ struct ChatScreen: View {
             guard !Task.isCancelled, canPresentScheduledReviewPrompt else { return }
 
             AppReviewPromptTracker.markPromptAttempted()
-            requestReview()
+            showFriendlyReviewPrompt = true
         }
+    }
+
+    private func triggerThumbsUpReviewPrompt() {
+        let currentVersion = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? ""
+        guard !currentVersion.isEmpty else { return }
+        
+        let lastPrompted = UserDefaults.standard.string(forKey: "appReview.lastPromptedVersion")
+        if lastPrompted == currentVersion { return }
+        
+        if let lastPromptAttemptedAt = UserDefaults.standard.object(forKey: "appReview.lastPromptAttemptedAt") as? Date,
+           Date().timeIntervalSince(lastPromptAttemptedAt) < AppReviewPromptPolicy.minimumPromptCooldown {
+            return
+        }
+        
+        AppReviewPromptTracker.markPromptAttempted()
+        showFriendlyReviewPrompt = true
     }
 
     private func presentMaximumModePaywall() {
