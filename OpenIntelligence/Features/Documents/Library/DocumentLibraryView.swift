@@ -156,23 +156,22 @@ struct DocumentLibraryView: View {
     }
 
     private var emptyStateView: some View {
-        VStack(spacing: 0) {
-            // Fixed header section
-            VStack(spacing: 12) {
+        ScrollView {
+            VStack(spacing: 16) {
                 documentHeader
-            }
 
-            // Expandable content section
-            EmptyDocumentsView(
-                isImportingSamples: isImportingSamples,
-                hasImportedSamples: onboardingStore.hasImportedSamples,
-                isAtDocumentLimit: isAtDocumentLimit,
-                documentLimit: documentLimit,
-                statusMessage: sampleImportStatusMessage,
-                onImportSamples: importSampleWorkspace,
-                onPickFiles: presentDocumentPickerOrUpgrade
-            )
-            .padding(.horizontal)
+                EmptyDocumentsView(
+                    isImportingSamples: isImportingSamples,
+                    hasImportedSamples: onboardingStore.hasImportedSamples,
+                    isAtDocumentLimit: isAtDocumentLimit,
+                    documentLimit: documentLimit,
+                    statusMessage: sampleImportStatusMessage,
+                    onImportSamples: importSampleWorkspace,
+                    onPickFiles: presentDocumentPickerOrUpgrade
+                )
+                .padding(.horizontal)
+            }
+            .padding(.bottom, 24)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }

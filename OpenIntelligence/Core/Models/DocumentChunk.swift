@@ -419,7 +419,7 @@ struct ChunkMetadata: Codable, Sendable {
 }
 
 /// Represents a source document in the RAG knowledge base
-struct Document: Identifiable, Codable, Equatable {
+struct Document: Identifiable, Codable, Equatable, Sendable {
     let id: UUID
     let filename: String
     private let legacyFileURL: URL?
@@ -435,7 +435,7 @@ struct Document: Identifiable, Codable, Equatable {
     /// Contains topics, actions, emotions, and objects extracted from document content
     let contentTags: [String]?
 
-    var fileURL: URL {
+    nonisolated var fileURL: URL {
         if let storageRelativePath {
             return AppSupportPaths.documentURL(forRelativePath: storageRelativePath)
         }
@@ -461,7 +461,7 @@ struct Document: Identifiable, Codable, Equatable {
         case contentTags
     }
 
-    init(
+    nonisolated init(
         id: UUID = UUID(),
         filename: String,
         fileURL: URL,
@@ -489,7 +489,7 @@ struct Document: Identifiable, Codable, Equatable {
         self.contentTags = contentTags
     }
 
-    init(from decoder: Decoder) throws {
+    nonisolated init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         id = try container.decode(UUID.self, forKey: .id)
         filename = try container.decode(String.self, forKey: .filename)
@@ -507,7 +507,7 @@ struct Document: Identifiable, Codable, Equatable {
         contentTags = try container.decodeIfPresent([String].self, forKey: .contentTags)
     }
 
-    func encode(to encoder: Encoder) throws {
+    nonisolated func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         try container.encode(id, forKey: .id)
         try container.encode(filename, forKey: .filename)
@@ -524,7 +524,7 @@ struct Document: Identifiable, Codable, Equatable {
 }
 
 /// Detailed processing information for a document
-struct ProcessingMetadata: Codable, Equatable {
+struct ProcessingMetadata: Codable, Equatable, Sendable {
     let fileSizeMB: Double
     let totalCharacters: Int
     let totalWords: Int
@@ -554,13 +554,13 @@ struct ProcessingMetadata: Codable, Equatable {
     var documentCategory: DocumentSemanticCategory? = nil
 }
 
-struct ChunkStatistics: Codable, Equatable {
+struct ChunkStatistics: Codable, Equatable, Sendable {
     let averageChars: Int
     let minChars: Int
     let maxChars: Int
 }
 
-enum DocumentType: String, Codable {
+enum DocumentType: String, Codable, Sendable {
     case pdf
     case text
     case markdown

@@ -88,7 +88,7 @@ platform :ios do
         export_method: "app-store",
         output_directory: build_output_directory,
         output_name: output_name,
-        xcargs: "-allowProvisioningUpdates"
+        xcargs: "-allowProvisioningUpdates -skipPackagePluginValidation"
       )
     end
 
@@ -106,6 +106,7 @@ platform :ios do
     version = options[:version] || "3.7.1"
     build_number = options[:build] || "39"
     reject_if_possible = options.key?(:reject_if_possible) ? options[:reject_if_possible] : true
+    submit_for_review = options.key?(:submit_for_review) ? options[:submit_for_review] : true
 
     deliver(
       api_key: asc_api_key,
@@ -116,7 +117,7 @@ platform :ios do
       skip_binary_upload: true,
       skip_screenshots: true,
       metadata_path: fastlane_path("metadata"),
-      submit_for_review: true,
+      submit_for_review: submit_for_review,
       automatic_release: false,
       reject_if_possible: reject_if_possible,
       precheck_include_in_app_purchases: false,

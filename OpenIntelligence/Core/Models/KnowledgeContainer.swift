@@ -430,6 +430,15 @@ struct ChunkingDirective: Codable, Equatable, Sendable {
         self.rationale = rationale
         self.updatedAt = updatedAt
     }
+
+    nonisolated static func == (lhs: ChunkingDirective, rhs: ChunkingDirective) -> Bool {
+        lhs.source == rhs.source &&
+        lhs.strategy == rhs.strategy &&
+        lhs.targetWordWindow == rhs.targetWordWindow &&
+        lhs.overlapWords == rhs.overlapWords &&
+        lhs.rationale == rhs.rationale &&
+        lhs.updatedAt == rhs.updatedAt
+    }
 }
 
 // MARK: - App Support Paths

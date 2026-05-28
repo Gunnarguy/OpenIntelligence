@@ -5,8 +5,143 @@ extension Notification.Name {
     nonisolated static let localWorkspaceDidChange = Notification.Name("openIntelligence.workspaceSync.localWorkspaceDidChange")
 }
 
+extension FileManager: @retroactive @unchecked Sendable {}
+extension UserDefaults: @retroactive @unchecked Sendable {}
+
+enum SyncBootstrapChoice: Sendable {
+    case mergeLibraries
+    case useICloudWorkspace
+}
+
+enum BootstrapBehavior: Sendable {
+    case promptUser
+    case autoMergeLibraries
+}
+
+enum SyncResolutionStrategy: Sendable, Equatable {
+    case mergeLibraries
+    case useICloudWorkspace
+    case importExistingICloudLibraries
+
+    nonisolated static func == (lhs: SyncResolutionStrategy, rhs: SyncResolutionStrategy) -> Bool {
+        switch (lhs, rhs) {
+        case (.mergeLibraries, .mergeLibraries): return true
+        case (.useICloudWorkspace, .useICloudWorkspace): return true
+        case (.importExistingICloudLibraries, .importExistingICloudLibraries): return true
+        default: return false
+        }
+    }
+}
+
+struct SyncPendingBootstrapConflict: Sendable {
+    let localLibraryCount: Int
+    let localDocumentCount: Int
+    let sharedLibraryCount: Int
+    let sharedDocumentCount: Int
+    let mergedLibraryCount: Int
+    let mergedDocumentCount: Int
+    let localOnlyLibraryIDs: [UUID]
+    let localOnlyLibraryNames: [String]
+    let sharedOnlyLibraryNames: [String]
+}
+
+struct WorkspaceInventory {
+    let containers: [KnowledgeContainer]
+    let documents: [Document]
+}
+
+struct ContainerMergeResult {
+    let containers: [KnowledgeContainer]
+    let sourceToCanonical: [UUID: UUID]
+    let canonicalToSources: [UUID: [UUID]]
+}
+
+struct DocumentMergeResult {
+    let documents: [Document]
+    let sourceToCanonical: [UUID: UUID]
+}
+
+struct PendingBootstrapPlan {
+    let localRoot: URL
+    let sharedRoot: URL
+    let localInventory: WorkspaceInventory
+    let sharedInventory: WorkspaceInventory
+}
+
+struct SourcedDocument {
+    let document: Document
+    let sourceRoot: URL
+}
+
+struct PersistedIngestionContextRecord: Codable, Sendable {
+    let id: UUID
+    let context: IngestionContext
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case context
+    }
+
+    nonisolated init(id: UUID, context: IngestionContext) {
+        self.id = id
+        self.context = context
+    }
+
+    nonisolated init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.id = try container.decode(UUID.self, forKey: .id)
+        self.context = try container.decode(IngestionContext.self, forKey: .context)
+    }
+
+    nonisolated func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(id, forKey: .id)
+        try container.encode(context, forKey: .context)
+    }
+}
+
+struct PersistedIngestionQueueStateRecord: Codable, Sendable {
+    let items: [IngestionItem]
+    let contexts: [PersistedIngestionContextRecord]
+    let updatedAt: Date
+
+    enum CodingKeys: String, CodingKey {
+        case items
+        case contexts
+        case updatedAt
+    }
+
+    nonisolated init(items: [IngestionItem], contexts: [PersistedIngestionContextRecord], updatedAt: Date) {
+        self.items = items
+        self.contexts = contexts
+        self.updatedAt = updatedAt
+    }
+
+    nonisolated init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.items = try container.decode([IngestionItem].self, forKey: .items)
+        self.contexts = try container.decode([PersistedIngestionContextRecord].self, forKey: .contexts)
+        self.updatedAt = try container.decode(Date.self, forKey: .updatedAt)
+    }
+
+    nonisolated func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(items, forKey: .items)
+        try container.encode(contexts, forKey: .contexts)
+        try container.encode(updatedAt, forKey: .updatedAt)
+    }
+}
+
+enum QueueFilterMode {
+    case including(Set<UUID>)
+    case excluding(Set<UUID>)
+}
+
 @MainActor
 final class WorkspaceSyncService: ObservableObject {
+    typealias BootstrapChoice = SyncBootstrapChoice
+    typealias PendingBootstrapConflict = SyncPendingBootstrapConflict
+
     nonisolated static let syncEnabledDefaultsKey = "enableSharedWorkspaceSync"
     nonisolated static let deviceIdentifierDefaultsKey = "openIntelligence.workspaceSync.deviceID"
     nonisolated static let lastSyncAttemptDefaultsKey = "openIntelligence.workspaceSync.lastAttemptAt"
@@ -29,87 +164,20 @@ final class WorkspaceSyncService: ObservableObject {
         }
     }
 
-    private static let workspaceFolderName = "OpenIntelligenceWorkspace"
-    private static let importedDocumentsFolderName = "ImportedDocuments"
-    private static let criticalMetadataFileNames: Set<String> = [
+    nonisolated private static let workspaceFolderName = "OpenIntelligenceWorkspace"
+    nonisolated private static let importedDocumentsFolderName = "ImportedDocuments"
+    nonisolated private static let criticalMetadataFileNames: Set<String> = [
         "containers.json",
         "documents_metadata.json",
         "ingestion_queue.json"
     ]
-    private static let localOnlyEntryNames: Set<String> = [
+    nonisolated private static let localOnlyEntryNames: Set<String> = [
         "FTS5",
         "LocalCache",
         "continued_ingestion_status.json",
         "continued_query_state.json",
         "continued_query_status.json"
     ]
-
-    enum BootstrapChoice: Sendable {
-        case mergeLibraries
-        case useICloudWorkspace
-    }
-
-    private enum BootstrapBehavior: Sendable {
-        case promptUser
-        case autoMergeLibraries
-    }
-
-    private enum SyncResolutionStrategy: Sendable {
-        case mergeLibraries
-        case useICloudWorkspace
-        case importExistingICloudLibraries
-    }
-
-    struct PendingBootstrapConflict: Sendable {
-        let localLibraryCount: Int
-        let localDocumentCount: Int
-        let sharedLibraryCount: Int
-        let sharedDocumentCount: Int
-        let mergedLibraryCount: Int
-        let mergedDocumentCount: Int
-        let localOnlyLibraryIDs: [UUID]
-        let localOnlyLibraryNames: [String]
-        let sharedOnlyLibraryNames: [String]
-    }
-
-    private struct WorkspaceInventory {
-        let containers: [KnowledgeContainer]
-        let documents: [Document]
-    }
-
-    private struct ContainerMergeResult {
-        let containers: [KnowledgeContainer]
-        let sourceToCanonical: [UUID: UUID]
-        let canonicalToSources: [UUID: [UUID]]
-    }
-
-    private struct DocumentMergeResult {
-        let documents: [Document]
-        let sourceToCanonical: [UUID: UUID]
-    }
-
-    private struct PendingBootstrapPlan {
-        let localRoot: URL
-        let sharedRoot: URL
-        let localInventory: WorkspaceInventory
-        let sharedInventory: WorkspaceInventory
-    }
-
-    private struct SourcedDocument {
-        let document: Document
-        let sourceRoot: URL
-    }
-
-    private struct PersistedIngestionContextRecord: Codable, Sendable {
-        let id: UUID
-        let context: IngestionContext
-    }
-
-    private struct PersistedIngestionQueueStateRecord: Codable, Sendable {
-        let items: [IngestionItem]
-        let contexts: [PersistedIngestionContextRecord]
-        let updatedAt: Date
-    }
 
     @Published private(set) var isUsingSharedWorkspace = false
     @Published private(set) var statusMessage = "All libraries are local only."
@@ -121,8 +189,8 @@ final class WorkspaceSyncService: ObservableObject {
     @Published private(set) var pendingBootstrapConflict: PendingBootstrapConflict?
     @Published private(set) var unsupportedSyncContainerNames: [String] = []
 
-    private let defaults: UserDefaults
-    private let fileManager: FileManager
+    nonisolated private let defaults: UserDefaults
+    nonisolated private let fileManager: FileManager
     private var ubiquityIdentityObserver: NSObjectProtocol?
     private var metadataQuery: NSMetadataQuery?
     private var metadataQueryObservers: [NSObjectProtocol] = []
@@ -342,7 +410,7 @@ final class WorkspaceSyncService: ObservableObject {
 
                 case .autoMergeLibraries:
                     clearPendingBootstrapState()
-                    try resolveSharedMetadataConflictsIfNeeded(in: sharedWorkspaceRoot)
+                    try await resolveSharedMetadataConflictsIfNeeded(in: sharedWorkspaceRoot)
                     try await synchronizeConfiguredLibraries(
                         localRoot: localWorkspaceRoot,
                         sharedRoot: sharedWorkspaceRoot,
@@ -357,7 +425,7 @@ final class WorkspaceSyncService: ObservableObject {
             }
 
             clearPendingBootstrapState()
-            try resolveSharedMetadataConflictsIfNeeded(in: sharedWorkspaceRoot)
+            try await resolveSharedMetadataConflictsIfNeeded(in: sharedWorkspaceRoot)
             try await synchronizeConfiguredLibraries(
                 localRoot: localWorkspaceRoot,
                 sharedRoot: sharedWorkspaceRoot,
@@ -387,10 +455,10 @@ final class WorkspaceSyncService: ObservableObject {
         }
 
         do {
-            try createRecoverySnapshot(at: pendingBootstrapPlan.localRoot, label: "local")
-            try createRecoverySnapshot(at: pendingBootstrapPlan.sharedRoot, label: "icloud")
+            try await createRecoverySnapshot(at: pendingBootstrapPlan.localRoot, label: "local")
+            try await createRecoverySnapshot(at: pendingBootstrapPlan.sharedRoot, label: "icloud")
             await prepareWorkspaceDownloads(root: pendingBootstrapPlan.sharedRoot)
-            try resolveSharedMetadataConflictsIfNeeded(in: pendingBootstrapPlan.sharedRoot)
+            try await resolveSharedMetadataConflictsIfNeeded(in: pendingBootstrapPlan.sharedRoot)
 
             let localInventory = try workspaceInventory(at: pendingBootstrapPlan.localRoot)
             let sharedInventory = try workspaceInventory(at: pendingBootstrapPlan.sharedRoot)
@@ -458,7 +526,7 @@ final class WorkspaceSyncService: ObservableObject {
             let sharedWorkspaceRoot = sharedWorkspaceRootURL(for: containerURL)
             try ensureDirectory(sharedWorkspaceRoot)
             await prepareWorkspaceDownloads(root: sharedWorkspaceRoot)
-            try resolveSharedMetadataConflictsIfNeeded(in: sharedWorkspaceRoot)
+            try await resolveSharedMetadataConflictsIfNeeded(in: sharedWorkspaceRoot)
 
             let sharedInventory = try workspaceInventory(at: sharedWorkspaceRoot)
             guard !sharedInventory.containers.isEmpty else {
@@ -537,7 +605,7 @@ final class WorkspaceSyncService: ObservableObject {
 
         try ensureDirectory(sharedRoot)
         await prepareWorkspaceDownloads(root: sharedRoot)
-        try resolveSharedMetadataConflictsIfNeeded(in: sharedRoot)
+        try await resolveSharedMetadataConflictsIfNeeded(in: sharedRoot)
 
         let sharedInventory = try workspaceInventory(at: sharedRoot)
         let targetContainerIDs = matchingSharedContainerIDs(for: container, in: sharedInventory.containers)
@@ -597,7 +665,7 @@ final class WorkspaceSyncService: ObservableObject {
         }
         try Self.writeJSON(deletedContainerIDs, to: deletedContainersURL)
 
-        try cleanupSharedWorkspace(
+        try await cleanupSharedWorkspace(
             sharedRoot: sharedRoot,
             syncedContainerIDs: Set(remainingContainers.map(\.id)),
             referencedRelativePaths: Set(remainingDocuments.compactMap(\.storageRelativePath))
@@ -697,11 +765,11 @@ final class WorkspaceSyncService: ObservableObject {
         defaults.set(inventorySignature(for: sharedInventory), forKey: Self.lastResolvedBootstrapSharedSignatureDefaultsKey)
     }
 
-    private func resolvedBootstrapLocalSignature() -> Int? {
+    nonisolated private func resolvedBootstrapLocalSignature() -> Int? {
         defaults.object(forKey: Self.lastResolvedBootstrapLocalSignatureDefaultsKey) as? Int
     }
 
-    private func resolvedBootstrapSharedSignature() -> Int? {
+    nonisolated private func resolvedBootstrapSharedSignature() -> Int? {
         defaults.object(forKey: Self.lastResolvedBootstrapSharedSignatureDefaultsKey) as? Int
     }
 
@@ -761,7 +829,7 @@ final class WorkspaceSyncService: ObservableObject {
         return WorkspaceInventory(containers: syncedContainers, documents: syncedDocuments)
     }
 
-    private func sortedContainers(_ containers: [KnowledgeContainer]) -> [KnowledgeContainer] {
+    nonisolated private func sortedContainers(_ containers: [KnowledgeContainer]) -> [KnowledgeContainer] {
         containers.sorted { lhs, rhs in
             if lhs.createdAt != rhs.createdAt {
                 return lhs.createdAt < rhs.createdAt
@@ -770,7 +838,7 @@ final class WorkspaceSyncService: ObservableObject {
         }
     }
 
-    private func sortedDocuments(_ documents: [Document]) -> [Document] {
+    nonisolated private func sortedDocuments(_ documents: [Document]) -> [Document] {
         documents.sorted { lhs, rhs in
             if lhs.addedAt != rhs.addedAt {
                 return lhs.addedAt < rhs.addedAt
@@ -779,17 +847,17 @@ final class WorkspaceSyncService: ObservableObject {
         }
     }
 
-    private func resolvedContainerID(for document: Document, defaultContainerId: UUID?) -> UUID? {
+    nonisolated private func resolvedContainerID(for document: Document, defaultContainerId: UUID?) -> UUID? {
         document.containerId ?? defaultContainerId
     }
 
-    private func normalizeSharedContainer(_ container: KnowledgeContainer) -> KnowledgeContainer {
+    nonisolated private func normalizeSharedContainer(_ container: KnowledgeContainer) -> KnowledgeContainer {
         var normalized = container
         normalized.syncMode = .iCloudShared
         return normalized
     }
 
-    private func synchronizeConfiguredLibraries(
+    nonisolated private func synchronizeConfiguredLibraries(
         localRoot: URL,
         sharedRoot: URL,
         localInventory: WorkspaceInventory,
@@ -893,9 +961,9 @@ final class WorkspaceSyncService: ObservableObject {
             documentSources.filter { $0.sourceRoot.standardizedFileURL == sharedRoot.standardizedFileURL }
         )
 
-        let sharedDocumentMergeResult = try mergeDocumentsWithAliases(documentSources, into: sharedRoot)
+        let sharedDocumentMergeResult = try await mergeDocumentsWithAliases(documentSources, into: sharedRoot)
         let finalSharedDocuments = sharedDocumentMergeResult.documents
-        let finalLocalSyncedDocuments = try mergeDocuments(documentSources, into: localRoot)
+        let finalLocalSyncedDocuments = try await mergeDocuments(documentSources, into: localRoot)
         let finalLocalContainers = sortedContainers(localOnlyContainers + finalSyncedContainers)
         let finalLocalDocuments = deduplicatedDocuments(localOnlyDocuments + finalLocalSyncedDocuments)
 
@@ -937,7 +1005,7 @@ final class WorkspaceSyncService: ObservableObject {
             strategy: strategy
         )
 
-        try cleanupSharedWorkspace(
+        try await cleanupSharedWorkspace(
             sharedRoot: sharedRoot,
             syncedContainerIDs: finalSyncedContainerIDs,
             referencedRelativePaths: Set(finalSharedDocuments.compactMap(\.storageRelativePath))
@@ -954,7 +1022,7 @@ final class WorkspaceSyncService: ObservableObject {
         }
     }
 
-    private func unsupportedSyncContainerNames(
+    nonisolated private func unsupportedSyncContainerNames(
         localInventory: WorkspaceInventory,
         sharedInventory: WorkspaceInventory
     ) -> [String] {
@@ -968,7 +1036,7 @@ final class WorkspaceSyncService: ObservableObject {
         .sorted()
     }
 
-    private func pendingBootstrapPlan(
+    nonisolated private func pendingBootstrapPlan(
         localRoot: URL,
         sharedRoot: URL,
         localInventory: WorkspaceInventory,
@@ -982,10 +1050,7 @@ final class WorkspaceSyncService: ObservableObject {
         let localSignature = inventorySignature(for: localInventory)
         let sharedSignature = inventorySignature(for: sharedInventory)
 
-        let mergeResult = mergeContainers(
-            shared: sharedInventory.containers,
-            local: localInventory.containers
-        )
+        let mergeResult = mergeContainers(shared: sharedInventory.containers, local: localInventory.containers)
         let localContainerIDs = Set(localInventory.containers.map { mergeResult.sourceToCanonical[$0.id] ?? $0.id })
         let sharedContainerIDs = Set(sharedInventory.containers.map { mergeResult.sourceToCanonical[$0.id] ?? $0.id })
         let localDocumentKeys = Set(
@@ -1014,7 +1079,7 @@ final class WorkspaceSyncService: ObservableObject {
         )
     }
 
-    private func makePendingBootstrapConflict(from plan: PendingBootstrapPlan) -> PendingBootstrapConflict {
+    nonisolated private func makePendingBootstrapConflict(from plan: PendingBootstrapPlan) -> PendingBootstrapConflict {
         let mergeResult = mergeContainers(
             shared: plan.sharedInventory.containers,
             local: plan.localInventory.containers
@@ -1058,11 +1123,11 @@ final class WorkspaceSyncService: ObservableObject {
         )
     }
 
-    private func syncDocumentIdentity(for document: Document) -> String {
+    nonisolated private func syncDocumentIdentity(for document: Document) -> String {
         documentDuplicateKey(for: document) ?? "id:\(document.id.uuidString)"
     }
 
-    private func inventorySignature(for inventory: WorkspaceInventory) -> Int {
+    nonisolated private func inventorySignature(for inventory: WorkspaceInventory) -> Int {
         var hasher = Hasher()
         hasher.combine(inventory.containers.count)
         hasher.combine(inventory.documents.count)
@@ -1082,7 +1147,7 @@ final class WorkspaceSyncService: ObservableObject {
         return hasher.finalize()
     }
 
-    private func createRecoverySnapshot(at root: URL, label: String) throws {
+    nonisolated private func createRecoverySnapshot(at root: URL, label: String) async throws {
         guard fileManager.fileExists(atPath: root.path) else { return }
 
         let snapshotRoot = OpenIntelligenceRuntimePaths.localCacheDirectory()
@@ -1110,15 +1175,15 @@ final class WorkspaceSyncService: ObservableObject {
             }
 
             let destination = snapshotDirectory.appendingPathComponent(name, isDirectory: item.hasDirectoryPath)
-            try copyItem(at: item, to: destination)
+            try await copyItem(at: item, to: destination)
         }
     }
 
-    private func migrateCanonicalWorkspaceIfNeeded(from localRoot: URL, to sharedRoot: URL) async throws {
+    nonisolated private func migrateCanonicalWorkspaceIfNeeded(from localRoot: URL, to sharedRoot: URL) async throws {
         guard fileManager.fileExists(atPath: localRoot.path) else { return }
 
         let mergedContainers = try mergeContainersIfNeeded(from: localRoot, to: sharedRoot)
-        let mergedDocuments = try mergeDocumentMetadataIfNeeded(from: localRoot, to: sharedRoot)
+        let mergedDocuments = try await mergeDocumentMetadataIfNeeded(from: localRoot, to: sharedRoot)
         try mergeIngestionQueueIfNeeded(from: localRoot, to: sharedRoot)
 
         let localContents = try fileManager.contentsOfDirectory(
@@ -1138,7 +1203,7 @@ final class WorkspaceSyncService: ObservableObject {
                 continue
             }
 
-            try copyItem(at: entry, to: destination)
+            try await copyItem(at: entry, to: destination)
         }
 
         try await mergeVectorStoresIfNeeded(
@@ -1149,7 +1214,7 @@ final class WorkspaceSyncService: ObservableObject {
         )
     }
 
-    private func mergeContainersIfNeeded(from localRoot: URL, to sharedRoot: URL) throws -> [KnowledgeContainer] {
+    nonisolated private func mergeContainersIfNeeded(from localRoot: URL, to sharedRoot: URL) throws -> [KnowledgeContainer] {
         let localURL = localRoot.appendingPathComponent("containers.json")
         let sharedURL = sharedRoot.appendingPathComponent("containers.json")
         let localContainers = try Self.readJSONIfPresent([KnowledgeContainer].self, from: localURL) ?? []
@@ -1162,7 +1227,7 @@ final class WorkspaceSyncService: ObservableObject {
         return mergedContainers
     }
 
-    private func mergeDocumentMetadataIfNeeded(from localRoot: URL, to sharedRoot: URL) throws -> [Document] {
+    nonisolated private func mergeDocumentMetadataIfNeeded(from localRoot: URL, to sharedRoot: URL) async throws -> [Document] {
         let localDocumentsURL = localRoot.appendingPathComponent("documents_metadata.json")
         let sharedDocumentsURL = sharedRoot.appendingPathComponent("documents_metadata.json")
         let localDocuments = try Self.readJSONIfPresent([Document].self, from: localDocumentsURL) ?? []
@@ -1170,7 +1235,7 @@ final class WorkspaceSyncService: ObservableObject {
 
         guard !localDocuments.isEmpty || !sharedDocuments.isEmpty else { return [] }
 
-        let mergedDocuments = try mergeDocuments(
+        let mergedDocuments = try await mergeDocuments(
             sharedDocuments.map { SourcedDocument(document: $0, sourceRoot: sharedRoot) }
                 + localDocuments.map { SourcedDocument(document: $0, sourceRoot: localRoot) },
             into: sharedRoot
@@ -1180,7 +1245,7 @@ final class WorkspaceSyncService: ObservableObject {
         return mergedDocuments
     }
 
-    private func mergeIngestionQueueIfNeeded(from localRoot: URL, to sharedRoot: URL) throws {
+    nonisolated private func mergeIngestionQueueIfNeeded(from localRoot: URL, to sharedRoot: URL) throws {
         let localQueueURL = localRoot.appendingPathComponent("ingestion_queue.json")
         let sharedQueueURL = sharedRoot.appendingPathComponent("ingestion_queue.json")
         let localQueue = try Self.readJSONIfPresent(PersistedIngestionQueueStateRecord.self, from: localQueueURL)
@@ -1197,7 +1262,7 @@ final class WorkspaceSyncService: ObservableObject {
         try Self.writeJSON(mergedQueue, to: sharedQueueURL)
     }
 
-    private func mergeContainers(shared: [KnowledgeContainer], local: [KnowledgeContainer]) -> ContainerMergeResult {
+    nonisolated private func mergeContainers(shared: [KnowledgeContainer], local: [KnowledgeContainer]) -> ContainerMergeResult {
         var orderedCanonicalIDs: [UUID] = []
         var canonicalById: [UUID: KnowledgeContainer] = [:]
         var mergeKeyToCanonicalID: [String: UUID] = [:]
@@ -1248,7 +1313,7 @@ final class WorkspaceSyncService: ObservableObject {
         )
     }
 
-    private func mergeContainer(primary: KnowledgeContainer, secondary: KnowledgeContainer) -> KnowledgeContainer {
+    nonisolated private func mergeContainer(primary: KnowledgeContainer, secondary: KnowledgeContainer) -> KnowledgeContainer {
         var merged = primary
         if secondary.syncMode == .iCloudShared {
             merged.syncMode = .iCloudShared
@@ -1273,11 +1338,11 @@ final class WorkspaceSyncService: ObservableObject {
         return merged
     }
 
-    private func mergeDocuments(_ sourcedDocuments: [SourcedDocument], into sharedRoot: URL) throws -> [Document] {
-        try mergeDocumentsWithAliases(sourcedDocuments, into: sharedRoot).documents
+    nonisolated private func mergeDocuments(_ sourcedDocuments: [SourcedDocument], into sharedRoot: URL) async throws -> [Document] {
+        try await mergeDocumentsWithAliases(sourcedDocuments, into: sharedRoot).documents
     }
 
-    private func mergeDocumentsWithAliases(_ sourcedDocuments: [SourcedDocument], into sharedRoot: URL) throws -> DocumentMergeResult {
+    nonisolated private func mergeDocumentsWithAliases(_ sourcedDocuments: [SourcedDocument], into sharedRoot: URL) async throws -> DocumentMergeResult {
         var orderedIds: [UUID] = []
         var byId: [UUID: Document] = [:]
         var duplicateKeyToId: [String: UUID] = [:]
@@ -1294,7 +1359,7 @@ final class WorkspaceSyncService: ObservableObject {
                 existingDocument = nil
             }
 
-            let materialized = try materializeDocument(
+            let materialized = try await materializeDocument(
                 sourcedDocument.document,
                 from: sourcedDocument.sourceRoot,
                 into: sharedRoot,
@@ -1332,7 +1397,7 @@ final class WorkspaceSyncService: ObservableObject {
         return DocumentMergeResult(documents: mergedDocuments, sourceToCanonical: sourceToCanonical)
     }
 
-    private func mergeVectorStoresIfNeeded(
+    nonisolated private func mergeVectorStoresIfNeeded(
         from localRoot: URL,
         to sharedRoot: URL,
         containers: [KnowledgeContainer],
@@ -1374,7 +1439,7 @@ final class WorkspaceSyncService: ObservableObject {
         }
     }
 
-    private func loadVectorChunks(from storageURL: URL, dimension: Int) async throws -> [DocumentChunk] {
+    nonisolated private func loadVectorChunks(from storageURL: URL, dimension: Int) async throws -> [DocumentChunk] {
         let database = BNNSVectorDatabase(dimension: dimension, storageURL: storageURL)
         let storedChunks = try await database.allChunks()
         let embeddings = await database.getEmbeddings(forIndices: Array(storedChunks.indices))
@@ -1393,7 +1458,7 @@ final class WorkspaceSyncService: ObservableObject {
         }
     }
 
-    private func mergeVectorChunks(
+    nonisolated private func mergeVectorChunks(
         shared: [DocumentChunk],
         local: [DocumentChunk],
         allowedDocumentIds: Set<UUID>
@@ -1430,11 +1495,11 @@ final class WorkspaceSyncService: ObservableObject {
         }
     }
 
-    private func vectorChunkDuplicateKey(for chunk: DocumentChunk) -> String {
+    nonisolated private func vectorChunkDuplicateKey(for chunk: DocumentChunk) -> String {
         "\(chunk.documentId.uuidString)|\(chunk.metadata.chunkIndex)|\(chunk.content)"
     }
 
-    private func applyingDocumentAliases(to chunks: [DocumentChunk], aliases: [UUID: UUID]) -> [DocumentChunk] {
+    nonisolated private func applyingDocumentAliases(to chunks: [DocumentChunk], aliases: [UUID: UUID]) -> [DocumentChunk] {
         chunks.map { chunk in
             guard let canonicalDocumentId = aliases[chunk.documentId], canonicalDocumentId != chunk.documentId else {
                 return chunk
@@ -1452,12 +1517,12 @@ final class WorkspaceSyncService: ObservableObject {
         }
     }
 
-    private func materializeDocument(
+    nonisolated private func materializeDocument(
         _ document: Document,
         from sourceRoot: URL,
         into sharedRoot: URL,
         reusing existingDocument: Document?
-    ) throws -> Document {
+    ) async throws -> Document {
         let sourceURL = resolvedDocumentSourceURL(for: document, sourceRoot: sourceRoot)
 
         let destinationURL: URL
@@ -1474,7 +1539,7 @@ final class WorkspaceSyncService: ObservableObject {
         if let sourceURL,
            sourceURL.standardizedFileURL != destinationURL.standardizedFileURL,
            !fileManager.fileExists(atPath: destinationURL.path) {
-            try copyItem(at: sourceURL, to: destinationURL)
+            try await copyItem(at: sourceURL, to: destinationURL)
         }
 
         return Document(
@@ -1492,7 +1557,7 @@ final class WorkspaceSyncService: ObservableObject {
         )
     }
 
-    private func resolvedDocumentSourceURL(for document: Document, sourceRoot: URL) -> URL? {
+    nonisolated private func resolvedDocumentSourceURL(for document: Document, sourceRoot: URL) -> URL? {
         if let relativePath = document.storageRelativePath {
             let rootRelativeURL = sourceRoot.appendingPathComponent(relativePath)
             if fileManager.fileExists(atPath: rootRelativeURL.path) {
@@ -1508,7 +1573,7 @@ final class WorkspaceSyncService: ObservableObject {
         return nil
     }
 
-    private func mergeDocument(primary: Document, secondary: Document) -> Document {
+    nonisolated private func mergeDocument(primary: Document, secondary: Document) -> Document {
         let primaryScore = documentQualityScore(primary)
         let secondaryScore = documentQualityScore(secondary)
         let preferred = secondaryScore > primaryScore ? secondary : primary
@@ -1529,7 +1594,7 @@ final class WorkspaceSyncService: ObservableObject {
         )
     }
 
-    private func documentQualityScore(_ document: Document) -> Int {
+    nonisolated private func documentQualityScore(_ document: Document) -> Int {
         var score = document.totalChunks * 100
         if document.processingMetadata != nil { score += 40 }
         if document.storageRelativePath != nil { score += 20 }
@@ -1538,12 +1603,12 @@ final class WorkspaceSyncService: ObservableObject {
         return score
     }
 
-    private func mergeContentTags(_ lhs: [String]?, _ rhs: [String]?) -> [String]? {
+    nonisolated private func mergeContentTags(_ lhs: [String]?, _ rhs: [String]?) -> [String]? {
         let merged = Array(Set((lhs ?? []) + (rhs ?? []))).sorted()
         return merged.isEmpty ? nil : merged
     }
 
-    private func documentDuplicateKey(for document: Document) -> String? {
+    nonisolated private func documentDuplicateKey(for document: Document) -> String? {
         if let fileHash = document.fileHash {
             return "hash:\(document.containerId?.uuidString ?? "global"):\(fileHash)"
         }
@@ -1555,7 +1620,7 @@ final class WorkspaceSyncService: ObservableObject {
         return nil
     }
 
-    private func mergeIngestionQueue(
+    nonisolated private func mergeIngestionQueue(
         shared: PersistedIngestionQueueStateRecord?,
         local: PersistedIngestionQueueStateRecord?
     ) -> PersistedIngestionQueueStateRecord {
@@ -1604,7 +1669,7 @@ final class WorkspaceSyncService: ObservableObject {
         )
     }
 
-    private func synchronizeIngestionQueue(
+    nonisolated private func synchronizeIngestionQueue(
         localRoot: URL,
         sharedRoot: URL,
         syncedContainerIDs: Set<UUID>,
@@ -1650,12 +1715,8 @@ final class WorkspaceSyncService: ObservableObject {
         }
     }
 
-    private enum QueueFilterMode {
-        case including(Set<UUID>)
-        case excluding(Set<UUID>)
-    }
 
-    private func filterIngestionQueue(
+    nonisolated private func filterIngestionQueue(
         _ state: PersistedIngestionQueueStateRecord?,
         mode: QueueFilterMode
     ) -> PersistedIngestionQueueStateRecord? {
@@ -1687,7 +1748,7 @@ final class WorkspaceSyncService: ObservableObject {
         return PersistedIngestionQueueStateRecord(items: filteredItems, contexts: filteredContexts, updatedAt: state.updatedAt)
     }
 
-    private func filterIngestionQueueExcludingContainers(
+    nonisolated private func filterIngestionQueueExcludingContainers(
         _ state: PersistedIngestionQueueStateRecord?,
         containerIDs: Set<UUID>,
         defaultContainerId: UUID?
@@ -1710,7 +1771,7 @@ final class WorkspaceSyncService: ObservableObject {
         return PersistedIngestionQueueStateRecord(items: filteredItems, contexts: filteredContexts, updatedAt: state.updatedAt)
     }
 
-    private func synchronizeContainerArtifacts(
+    nonisolated private func synchronizeContainerArtifacts(
         localRoot: URL,
         sharedRoot: URL,
         syncedContainers: [KnowledgeContainer],
@@ -1736,7 +1797,7 @@ final class WorkspaceSyncService: ObservableObject {
                 strategy: strategy
             )
 
-            try synchronizeAuxiliaryFile(
+            try await synchronizeAuxiliaryFile(
                 filePrefix: "chat_history_",
                 canonicalContainerID: container.id,
                 sourceContainerIDs: sourceContainerIDs,
@@ -1744,7 +1805,7 @@ final class WorkspaceSyncService: ObservableObject {
                 sharedRoot: sharedRoot,
                 strategy: strategy
             )
-            try synchronizeAuxiliaryFile(
+            try await synchronizeAuxiliaryFile(
                 filePrefix: "transcript_",
                 canonicalContainerID: container.id,
                 sourceContainerIDs: sourceContainerIDs,
@@ -1752,7 +1813,7 @@ final class WorkspaceSyncService: ObservableObject {
                 sharedRoot: sharedRoot,
                 strategy: strategy
             )
-            try synchronizeAuxiliaryFile(
+            try await synchronizeAuxiliaryFile(
                 filePrefix: "conversation_memory_",
                 canonicalContainerID: container.id,
                 sourceContainerIDs: sourceContainerIDs,
@@ -1763,7 +1824,7 @@ final class WorkspaceSyncService: ObservableObject {
         }
     }
 
-    private func synchronizeVectorStore(
+    nonisolated private func synchronizeVectorStore(
         for container: KnowledgeContainer,
         localRoot: URL,
         sharedRoot: URL,
@@ -1835,7 +1896,7 @@ final class WorkspaceSyncService: ObservableObject {
         }
     }
 
-    private func persistVectorChunks(_ chunks: [DocumentChunk], dimension: Int, to url: URL) async throws {
+    nonisolated private func persistVectorChunks(_ chunks: [DocumentChunk], dimension: Int, to url: URL) async throws {
         let database = BNNSVectorDatabase(dimension: dimension, storageURL: url)
         try await database.clear()
         if !chunks.isEmpty {
@@ -1844,14 +1905,14 @@ final class WorkspaceSyncService: ObservableObject {
         }
     }
 
-    private func synchronizeAuxiliaryFile(
+    nonisolated private func synchronizeAuxiliaryFile(
         filePrefix: String,
         canonicalContainerID: UUID,
         sourceContainerIDs: Set<UUID>,
         localRoot: URL,
         sharedRoot: URL,
         strategy: SyncResolutionStrategy
-    ) throws {
+    ) async throws {
         let localURL = localRoot.appendingPathComponent("\(filePrefix)\(canonicalContainerID.uuidString).json")
         let sharedURL = sharedRoot.appendingPathComponent("\(filePrefix)\(canonicalContainerID.uuidString).json")
 
@@ -1888,10 +1949,10 @@ final class WorkspaceSyncService: ObservableObject {
         }
 
         if preferredSource.standardizedFileURL != localURL.standardizedFileURL {
-            try copyItem(at: preferredSource, to: localURL)
+            try await copyItem(at: preferredSource, to: localURL)
         }
         if preferredSource.standardizedFileURL != sharedURL.standardizedFileURL {
-            try copyItem(at: preferredSource, to: sharedURL)
+            try await copyItem(at: preferredSource, to: sharedURL)
         }
 
         for sourceContainerID in sourceContainerIDs where sourceContainerID != canonicalContainerID {
@@ -1900,20 +1961,20 @@ final class WorkspaceSyncService: ObservableObject {
         }
     }
 
-    private func vectorStoreBaseURL(for containerId: UUID, in root: URL) -> URL {
+    nonisolated private func vectorStoreBaseURL(for containerId: UUID, in root: URL) -> URL {
         root.appendingPathComponent("vector_database_\(containerId.uuidString).json")
     }
 
-    private func vectorStoreArtifactURLs(for containerId: UUID, in root: URL) -> [URL] {
+    nonisolated private func vectorStoreArtifactURLs(for containerId: UUID, in root: URL) -> [URL] {
         BNNSVectorDatabase.binaryFileURLs(from: vectorStoreBaseURL(for: containerId, in: root))
     }
 
-    private func vectorStoreExists(for containerId: UUID, in root: URL) -> Bool {
+    nonisolated private func vectorStoreExists(for containerId: UUID, in root: URL) -> Bool {
         vectorStoreArtifactURLs(for: containerId, in: root)
             .contains { fileManager.fileExists(atPath: $0.path) }
     }
 
-    private func removeVectorStoreArtifacts(for containerId: UUID, in root: URL) {
+    nonisolated private func removeVectorStoreArtifacts(for containerId: UUID, in root: URL) {
         for url in vectorStoreArtifactURLs(for: containerId, in: root) {
             try? Self.coordinatedRemoveItem(at: url)
         }
@@ -1955,7 +2016,7 @@ final class WorkspaceSyncService: ObservableObject {
         return (mergeResult.containers, repairedDocuments)
     }
 
-    private func deduplicatedDocuments(_ documents: [Document]) -> [Document] {
+    nonisolated private func deduplicatedDocuments(_ documents: [Document]) -> [Document] {
         var orderedIDs: [UUID] = []
         var documentsByID: [UUID: Document] = [:]
         var duplicateKeyToID: [String: UUID] = [:]
@@ -1991,11 +2052,11 @@ final class WorkspaceSyncService: ObservableObject {
         return sortedDocuments(orderedIDs.compactMap { documentsByID[$0] })
     }
 
-    private func applyingContainerAliases(to documents: [Document], aliases: [UUID: UUID]) -> [Document] {
+    nonisolated private func applyingContainerAliases(to documents: [Document], aliases: [UUID: UUID]) -> [Document] {
         documents.map { applyingContainerAliases(to: $0, aliases: aliases) }
     }
 
-    private func applyingContainerAliases(to document: Document, aliases: [UUID: UUID]) -> Document {
+    nonisolated private func applyingContainerAliases(to document: Document, aliases: [UUID: UUID]) -> Document {
         guard let containerId = document.containerId,
               let canonicalID = aliases[containerId],
               canonicalID != containerId
@@ -2018,7 +2079,7 @@ final class WorkspaceSyncService: ObservableObject {
         )
     }
 
-    private func applyingContainerAliases(
+    nonisolated private func applyingContainerAliases(
         to state: PersistedIngestionQueueStateRecord?,
         aliases: [UUID: UUID]
     ) -> PersistedIngestionQueueStateRecord? {
@@ -2038,7 +2099,7 @@ final class WorkspaceSyncService: ObservableObject {
         return merged.items.isEmpty ? nil : merged
     }
 
-    private func applyingContainerAliases(to item: IngestionItem, aliases: [UUID: UUID]) -> IngestionItem {
+    nonisolated private func applyingContainerAliases(to item: IngestionItem, aliases: [UUID: UUID]) -> IngestionItem {
         guard let containerId = item.containerId,
               let canonicalID = aliases[containerId],
               canonicalID != containerId
@@ -2065,7 +2126,7 @@ final class WorkspaceSyncService: ObservableObject {
         )
     }
 
-    private func matchingSharedContainerIDs(for targetContainer: KnowledgeContainer, in containers: [KnowledgeContainer]) -> Set<UUID> {
+    nonisolated private func matchingSharedContainerIDs(for targetContainer: KnowledgeContainer, in containers: [KnowledgeContainer]) -> Set<UUID> {
         let normalizedTargetContainer = normalizeSharedContainer(targetContainer)
 
         return Set(containers.compactMap { container in
@@ -2079,7 +2140,7 @@ final class WorkspaceSyncService: ObservableObject {
         })
     }
 
-    private func containerMergeKey(for container: KnowledgeContainer) -> String? {
+    nonisolated private func containerMergeKey(for container: KnowledgeContainer) -> String? {
         guard container.syncMode == .iCloudShared else { return nil }
 
         // Shared-library identity must be stable and library-specific.
@@ -2088,12 +2149,12 @@ final class WorkspaceSyncService: ObservableObject {
         return container.id.uuidString.lowercased()
     }
 
-    private func uniqueContainerIDs(_ ids: [UUID]) -> [UUID] {
+    nonisolated private func uniqueContainerIDs(_ ids: [UUID]) -> [UUID] {
         var seen: Set<UUID> = []
         return ids.filter { seen.insert($0).inserted }
     }
 
-    private func jsonEncodedValuesMatch<T: Encodable>(_ lhs: T, _ rhs: T) -> Bool {
+    nonisolated private func jsonEncodedValuesMatch<T: Encodable>(_ lhs: T, _ rhs: T) -> Bool {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
 
@@ -2106,12 +2167,13 @@ final class WorkspaceSyncService: ObservableObject {
         return lhsData == rhsData
     }
 
-    private func modificationDate(for url: URL) -> Date {
+    nonisolated private func modificationDate(for url: URL) -> Date {
         (try? url.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? .distantPast
     }
 
-    private func ensureItemsAvailableLocally(_ urls: [URL], timeout: TimeInterval = 20) async {
+    nonisolated private func ensureItemsAvailableLocally(_ urls: [URL], timeout: TimeInterval = 20) async {
         var seenPaths: Set<String> = []
+        var urlsToDownload: [URL] = []
 
         for url in urls {
             let standardizedURL = url.standardizedFileURL
@@ -2120,22 +2182,32 @@ final class WorkspaceSyncService: ObservableObject {
             guard fileManager.isUbiquitousItem(at: standardizedURL) else { continue }
 
             try? fileManager.startDownloadingUbiquitousItem(at: standardizedURL)
-            try? await Self.ensureItemAvailableLocally(at: standardizedURL, timeout: timeout)
+            urlsToDownload.append(standardizedURL)
+        }
+
+        guard !urlsToDownload.isEmpty else { return }
+
+        await withTaskGroup(of: Void.self) { group in
+            for url in urlsToDownload {
+                group.addTask {
+                    try? await Self.ensureItemAvailableLocally(at: url, timeout: timeout)
+                }
+            }
         }
     }
 
-    private func ensureSourcedDocumentsAvailableLocally(_ sourcedDocuments: [SourcedDocument]) async {
+    nonisolated private func ensureSourcedDocumentsAvailableLocally(_ sourcedDocuments: [SourcedDocument]) async {
         let urls = sourcedDocuments.compactMap { sourcedDocument in
             resolvedDocumentSourceURL(for: sourcedDocument.document, sourceRoot: sourcedDocument.sourceRoot)
         }
         await ensureItemsAvailableLocally(urls)
     }
 
-    private func cleanupSharedWorkspace(
+    nonisolated private func cleanupSharedWorkspace(
         sharedRoot: URL,
         syncedContainerIDs: Set<UUID>,
         referencedRelativePaths: Set<String>
-    ) throws {
+    ) async throws {
         let contents = try fileManager.contentsOfDirectory(
             at: sharedRoot,
             includingPropertiesForKeys: [.isDirectoryKey],
@@ -2146,7 +2218,7 @@ final class WorkspaceSyncService: ObservableObject {
             let name = item.lastPathComponent
 
             if name == Self.importedDocumentsFolderName {
-                try cleanupSharedImportedDocuments(at: item, referencedRelativePaths: referencedRelativePaths, sharedRoot: sharedRoot)
+                try await cleanupSharedImportedDocuments(at: item, referencedRelativePaths: referencedRelativePaths, sharedRoot: sharedRoot)
                 continue
             }
 
@@ -2156,11 +2228,11 @@ final class WorkspaceSyncService: ObservableObject {
         }
     }
 
-    private func cleanupSharedImportedDocuments(
+    nonisolated private func cleanupSharedImportedDocuments(
         at importedDocumentsDirectory: URL,
         referencedRelativePaths: Set<String>,
         sharedRoot: URL
-    ) throws {
+    ) async throws {
         guard fileManager.fileExists(atPath: importedDocumentsDirectory.path) else { return }
 
         let contents = try fileManager.contentsOfDirectory(
@@ -2176,7 +2248,7 @@ final class WorkspaceSyncService: ObservableObject {
         }
     }
 
-    private func containerIdFromArtifactName(_ name: String) -> UUID? {
+    nonisolated private func containerIdFromArtifactName(_ name: String) -> UUID? {
         if name.hasPrefix("vector_database_") {
             let suffixes = ["_meta.json", "_vectors.bin", "_norms.bin", ".json"]
             let remainder = String(name.dropFirst("vector_database_".count))
@@ -2201,7 +2273,7 @@ final class WorkspaceSyncService: ObservableObject {
         return nil
     }
 
-    private func ingestionDuplicateKey(for item: IngestionItem) -> String {
+    nonisolated private func ingestionDuplicateKey(for item: IngestionItem) -> String {
         let containerKey = item.containerId?.uuidString ?? "local"
 
         if let documentHash = item.documentHash {
@@ -2215,7 +2287,7 @@ final class WorkspaceSyncService: ObservableObject {
         return "id:\(containerKey):\(item.id.uuidString)"
     }
 
-    private func preferredIngestionItem(primary: IngestionItem, secondary: IngestionItem, now: Date) -> IngestionItem {
+    nonisolated private func preferredIngestionItem(primary: IngestionItem, secondary: IngestionItem, now: Date) -> IngestionItem {
         let primaryIsTerminal = primary.stage.isTerminal
         let secondaryIsTerminal = secondary.stage.isTerminal
 
@@ -2242,7 +2314,7 @@ final class WorkspaceSyncService: ObservableObject {
         return secondaryPriority > primaryPriority ? secondary : primary
     }
 
-    private func preferredIngestionItemMaterialized(primaryId: UUID, preferred: IngestionItem) -> IngestionItem {
+    nonisolated private func preferredIngestionItemMaterialized(primaryId: UUID, preferred: IngestionItem) -> IngestionItem {
         IngestionItem(
             id: primaryId,
             url: preferred.url,
@@ -2262,7 +2334,7 @@ final class WorkspaceSyncService: ObservableObject {
         )
     }
 
-    private func ingestionPriority(_ item: IngestionItem, now: Date) -> (Int, Int, Int, Int) {
+    nonisolated private func ingestionPriority(_ item: IngestionItem, now: Date) -> (Int, Int, Int, Int) {
         let activeLeaseScore = item.hasActiveLease(at: now) ? 1 : 0
         let stageScore: Int = {
             switch item.stage {
@@ -2287,7 +2359,7 @@ final class WorkspaceSyncService: ObservableObject {
         return (activeLeaseScore, stageScore, progressScore, heartbeatScore)
     }
 
-    private func enforceLibraryLimit(for containers: [KnowledgeContainer]) throws {
+    nonisolated private func enforceLibraryLimit(for containers: [KnowledgeContainer]) throws {
         let limit = EntitlementStore.currentLibraryLimit(defaults: defaults)
         guard containers.count <= limit else {
             let tier = EntitlementStore.currentEffectiveTier(defaults: defaults)
@@ -2295,14 +2367,14 @@ final class WorkspaceSyncService: ObservableObject {
         }
     }
 
-    private func resolveSharedMetadataConflictsIfNeeded(in sharedRoot: URL) throws {
+    nonisolated private func resolveSharedMetadataConflictsIfNeeded(in sharedRoot: URL) async throws {
         for fileName in Self.criticalMetadataFileNames {
             let fileURL = sharedRoot.appendingPathComponent(fileName)
-            try resolveConflictsIfNeeded(at: fileURL, sharedRoot: sharedRoot)
+            try await resolveConflictsIfNeeded(at: fileURL, sharedRoot: sharedRoot)
         }
     }
 
-    private func resolveConflictsIfNeeded(at url: URL, sharedRoot: URL) throws {
+    nonisolated private func resolveConflictsIfNeeded(at url: URL, sharedRoot: URL) async throws {
         guard fileManager.fileExists(atPath: url.path) else { return }
         guard let conflictVersions = NSFileVersion.unresolvedConflictVersionsOfItem(at: url), !conflictVersions.isEmpty else {
             return
@@ -2336,7 +2408,7 @@ final class WorkspaceSyncService: ObservableObject {
                     sourced.append(contentsOf: decoded.map { SourcedDocument(document: $0, sourceRoot: sharedRoot) })
                 }
             }
-            let merged = try mergeDocuments(sourced, into: sharedRoot)
+            let merged = try await mergeDocuments(sourced, into: sharedRoot)
             try Self.writeJSON(merged, to: url)
 
         case "ingestion_queue.json":
@@ -2364,7 +2436,7 @@ final class WorkspaceSyncService: ObservableObject {
         }
     }
 
-    private func prepareWorkspaceDownloads(root: URL) async {
+    nonisolated private func prepareWorkspaceDownloads(root: URL) async {
         let enumerator = fileManager.enumerator(
             at: root,
             includingPropertiesForKeys: [
@@ -2385,12 +2457,16 @@ final class WorkspaceSyncService: ObservableObject {
             }
         }
 
-        for criticalURL in criticalURLs {
-            try? await Self.ensureItemAvailableLocally(at: criticalURL, timeout: 5)
+        await withTaskGroup(of: Void.self) { group in
+            for criticalURL in criticalURLs {
+                group.addTask {
+                    try? await Self.ensureItemAvailableLocally(at: criticalURL, timeout: 5)
+                }
+            }
         }
     }
 
-    private func prepareWorkspaceDownloads(from metadataItems: [NSMetadataItem]) async {
+    nonisolated private func prepareWorkspaceDownloads(from metadataItems: [NSMetadataItem]) async {
         var criticalURLs: [URL] = []
 
         for item in metadataItems {
@@ -2404,8 +2480,12 @@ final class WorkspaceSyncService: ObservableObject {
             }
         }
 
-        for criticalURL in criticalURLs {
-            try? await Self.ensureItemAvailableLocally(at: criticalURL, timeout: 5)
+        await withTaskGroup(of: Void.self) { group in
+            for criticalURL in criticalURLs {
+                group.addTask {
+                    try? await Self.ensureItemAvailableLocally(at: criticalURL, timeout: 5)
+                }
+            }
         }
     }
 
@@ -2540,7 +2620,7 @@ final class WorkspaceSyncService: ObservableObject {
         return hasher.finalize()
     }
 
-    private func copyItem(at source: URL, to destination: URL) throws {
+    nonisolated private func copyItem(at source: URL, to destination: URL) async throws {
         try ensureDirectory(destination.deletingLastPathComponent())
         if source.hasDirectoryPath {
             try fileManager.copyItem(at: source, to: destination)
@@ -2550,11 +2630,11 @@ final class WorkspaceSyncService: ObservableObject {
         try Self.coordinatedCopyItem(at: source, to: destination)
     }
 
-    private func ensureDirectory(_ url: URL) throws {
+    nonisolated private func ensureDirectory(_ url: URL) throws {
         try fileManager.createDirectory(at: url, withIntermediateDirectories: true)
     }
 
-    private func nextAvailableImportedDocumentURL(in sharedRoot: URL, preferredFileName: String) -> URL {
+    nonisolated private func nextAvailableImportedDocumentURL(in sharedRoot: URL, preferredFileName: String) -> URL {
         let importedDocumentsDirectory = sharedRoot.appendingPathComponent(Self.importedDocumentsFolderName, isDirectory: true)
         try? ensureDirectory(importedDocumentsDirectory)
 
@@ -2576,7 +2656,7 @@ final class WorkspaceSyncService: ObservableObject {
         return candidateURL
     }
 
-    private func relativePath(from root: URL, to fileURL: URL) -> String? {
+    nonisolated private func relativePath(from root: URL, to fileURL: URL) -> String? {
         let rootPath = root.standardizedFileURL.path
         let filePath = fileURL.standardizedFileURL.path
         let rootPrefix = rootPath.hasSuffix("/") ? rootPath : rootPath + "/"

@@ -10,6 +10,18 @@ struct CloudConsentPromptView: View {
         record.promptCharacterCount == 0 && record.contextChunkCount == 0
     }
 
+    #if os(iOS)
+    @Environment(\.verticalSizeClass) private var verticalSizeClass
+    #endif
+
+    private var isCompactHeight: Bool {
+        #if os(iOS)
+        return verticalSizeClass == .compact
+        #else
+        return false
+        #endif
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             // Drag indicator
@@ -17,27 +29,61 @@ struct CloudConsentPromptView: View {
                 .fill(Color.secondary.opacity(0.3))
                 .frame(width: 36, height: 5)
                 .padding(.top, 8)
-                .padding(.bottom, 20)
+                .padding(.bottom, 12)
 
-            VStack(spacing: DSSpacing.lg) {
-                // Icon and Title
-                headerSection
-                    .padding(.top, 8)  // Extra padding to prevent cloud icon clipping
+            if isCompactHeight {
+                ScrollView(.vertical, showsIndicators: false) {
+                    VStack(spacing: DSSpacing.lg) {
+                        // Icon and Title
+                        headerSection
+                            .padding(.top, 4)
 
-                // Simple explanation
-                explanationSection
+                        // Simple explanation
+                        explanationSection
 
-                // Expandable details (collapsed by default)
-                if showDetails {
-                    detailsSection
-                        .transition(.opacity.combined(with: .move(edge: .top)))
+                        // Expandable details (collapsed by default)
+                        if showDetails {
+                            detailsSection
+                                .transition(.opacity.combined(with: .move(edge: .top)))
+                        }
+
+                        Divider()
+                            .padding(.top, 8)
+
+                        // Inline action buttons
+                        buttonsSection
+                    }
+                    .padding(.horizontal, DSSpacing.lg)
+                    .padding(.bottom, DSSpacing.lg)
+                }
+            } else {
+                ScrollView(.vertical, showsIndicators: false) {
+                    VStack(spacing: DSSpacing.lg) {
+                        // Icon and Title
+                        headerSection
+                            .padding(.top, 4)  // Extra padding to prevent cloud icon clipping
+
+                        // Simple explanation
+                        explanationSection
+
+                        // Expandable details (collapsed by default)
+                        if showDetails {
+                            detailsSection
+                                .transition(.opacity.combined(with: .move(edge: .top)))
+                        }
+                    }
+                    .padding(.horizontal, DSSpacing.lg)
                 }
 
-                // Action buttons
+                Divider()
+                    .padding(.top, 8)
+
+                // Sticky action buttons at the bottom
                 buttonsSection
+                    .padding(.horizontal, DSSpacing.lg)
+                    .padding(.top, DSSpacing.md)
+                    .padding(.bottom, DSSpacing.lg)
             }
-            .padding(.horizontal, DSSpacing.lg)
-            .padding(.bottom, DSSpacing.xl)
         }
         .background(
             RoundedRectangle(cornerRadius: 24, style: .continuous)
@@ -143,6 +189,8 @@ struct CloudConsentPromptView: View {
                     Image(systemName: "checkmark.circle.fill")
                     Text("Always Allow")
                         .fontWeight(.semibold)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
                 }
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 14)
@@ -160,6 +208,8 @@ struct CloudConsentPromptView: View {
                     } label: {
                         Text("Just Once")
                             .font(.subheadline.weight(.medium))
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.8)
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 10)
                     }
@@ -173,6 +223,8 @@ struct CloudConsentPromptView: View {
                 } label: {
                     Text(isPrewarm ? "Not Now" : "Deny")
                         .font(.subheadline.weight(.medium))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 10)
                 }

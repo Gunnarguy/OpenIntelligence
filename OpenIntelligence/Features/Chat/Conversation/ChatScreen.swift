@@ -716,7 +716,7 @@ struct ChatScreen: View {
             }
             .interactiveDismissDisabled(true)
 #if os(iOS)
-            .presentationDetents([.height(420)])
+            .presentationDetents([.height(580), .large])
             .presentationDragIndicator(.hidden)
             .presentationCornerRadius(24)
             .presentationBackground(.ultraThinMaterial)

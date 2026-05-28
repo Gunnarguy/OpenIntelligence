@@ -10,6 +10,7 @@ struct PlanUpgradeSheet: View {
 
     @EnvironmentObject private var entitlementStore: EntitlementStore
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.openURL) private var openURL
     @State private var purchasingProduct: BillingProduct?
     @State private var alertMessage: String?
     @State private var isRefreshingProducts: Bool = false
@@ -414,14 +415,15 @@ private extension PlanUpgradeSheet {
     }
 
     var complianceFooter: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text("Subscriptions renew automatically until cancelled. Payments are charged to your Apple ID account.")
-                .font(.caption)
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Subscriptions automatically renew at the price and duration selected above unless cancelled at least 24 hours before the end of the current period. Payments are charged to your App Store account. You can manage your subscriptions and turn off auto-renewal in your App Store Account Settings after purchase.")
+                .font(.caption2)
                 .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
             HStack(spacing: 16) {
-                Button("Terms of Use") { showingTerms = true }
+                Link("Terms of Use (EULA)", destination: URL(string: "https://www.apple.com/legal/internet-services/itunes/dev/stdeula/")!)
                     .font(.caption.weight(.semibold))
-                Button("Privacy Policy") { showingPrivacy = true }
+                Link("Privacy Policy", destination: URL(string: "https://gunzino.me/openintelligence/privacy")!)
                     .font(.caption.weight(.semibold))
             }
         }
@@ -607,8 +609,10 @@ private extension PlanUpgradeSheet {
                 }
 
                 try await AppStore.showManageSubscriptions(in: windowScene)
-#elseif os(macOS)
-                alertMessage = "To manage subscriptions on Mac, open the App Store app and go to Account Settings → Subscriptions."
+#elseif os(macOS) || targetEnvironment(macCatalyst)
+                if let url = URL(string: "https://apps.apple.com/account/subscriptions") {
+                    openURL(url)
+                }
 #else
                 alertMessage = "Subscription management is unavailable on this platform."
 #endif
@@ -671,6 +675,13 @@ private struct PlanTierCard: View {
                 .minimumScaleFactor(0.7)
                 .lineLimit(1)
                 .dynamicTypeSize(...DynamicTypeSize.accessibility2)
+
+            if option.product.kind == .subscription {
+                Text(option.product == .proMonthly ? "1-Month Auto-Renewing Subscription" : "1-Year Auto-Renewing Subscription")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .padding(.top, -8)
+            }
 
             VStack(alignment: .leading, spacing: 6) {
                 ForEach(option.features, id: \.self) { feature in

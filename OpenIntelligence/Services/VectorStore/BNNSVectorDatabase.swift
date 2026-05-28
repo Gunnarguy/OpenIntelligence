@@ -127,7 +127,7 @@ actor BNNSVectorDatabase: VectorDatabase {
     }
 
     /// File URLs for cleanup (used by VectorStoreRouter)
-    static func binaryFileURLs(from legacyURL: URL) -> [URL] {
+    nonisolated static func binaryFileURLs(from legacyURL: URL) -> [URL] {
         let dir = legacyURL.deletingLastPathComponent()
         let base = legacyURL.deletingPathExtension().lastPathComponent
         return [

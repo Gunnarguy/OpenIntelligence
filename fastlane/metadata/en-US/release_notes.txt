@@ -1,7 +1,11 @@
 Changes since 3.6:
 
-Version 3.7/3.7.1 is a broader release that tightens almost every stage of the app: library management, import, retrieval, answer quality, chat ergonomics, and diagnostics.
+Version 3.7.5:
+- Hardened iCloud synchronization concurrency by offloading all synchronous database merging, file copying, and conflict resolutions off the Main Actor (UI Thread) to completely eliminate UI freezes and watchdog crashes.
+- Accelerated multi-device data transfers using parallel Swift TaskGroups to download iCloud ubiquitous files concurrently rather than sequentially.
+- Hardened download error recovery, ensuring isolated iCloud file download failures or timeouts do not stall or fail the entire library synchronization.
 
+Version 3.7/3.7.1:
 - Resolved a gesture conflict on iOS where long-pressing library pills in the horizontal scroll view failed to trigger the context menu, fully restoring library deletion on iPhones.
 - Preserved full library identity in the Documents pill strip more reliably by preventing the document-count badge from collapsing names into ambiguous truncation.
 - Fixed a synchronization issue in iCloud Sync where deleted libraries could be merged back and resurrected on other devices, and implemented deletion tombstones to automatically propagate deletions across all synced devices.

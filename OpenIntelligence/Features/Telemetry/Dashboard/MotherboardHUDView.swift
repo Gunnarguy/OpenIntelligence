@@ -328,7 +328,7 @@ struct HardwareXRayOverlay: View {
         guard let scene = UIApplication.shared.connectedScenes.first(where: { $0.activationState == .foregroundActive }) as? UIWindowScene ?? UIApplication.shared.connectedScenes.first as? UIWindowScene else {
             return .portrait
         }
-        return scene.interfaceOrientation
+        return scene.effectiveGeometry.interfaceOrientation
     }
     #endif
 

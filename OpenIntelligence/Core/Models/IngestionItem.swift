@@ -88,13 +88,15 @@ enum IngestionStage: String, CaseIterable, Codable, Sendable {
         return (Self.pipelineStageWeights[self] ?? 0) / Self.pipelineTotalWeight
     }
 
-    var isTerminal: Bool {
+    nonisolated var isTerminal: Bool {
         self == .complete || self == .cancelled || self == .failed
     }
 }
 
 /// Rich pipeline metrics for real-time transparency
 struct PipelineMetrics: Codable, Sendable, Equatable {
+    nonisolated init() {}
+
     // Document stats
     var fileSizeMB: Double = 0
     var totalCharacters: Int = 0
@@ -188,7 +190,7 @@ struct IngestionItem: Identifiable, Codable, Sendable, Equatable {
     var errorMessage: String?
     var metrics: PipelineMetrics = .init()
 
-    var url: URL {
+    nonisolated var url: URL {
         if let storageRelativePath {
             return AppSupportPaths.documentURL(forRelativePath: storageRelativePath)
         }
@@ -218,7 +220,7 @@ struct IngestionItem: Identifiable, Codable, Sendable, Equatable {
         case metrics
     }
 
-    init(
+    nonisolated init(
         id: UUID = UUID(),
         url: URL,
         storageRelativePath: String? = nil,
@@ -254,7 +256,7 @@ struct IngestionItem: Identifiable, Codable, Sendable, Equatable {
         self.metrics = metrics
     }
 
-    init(from decoder: Decoder) throws {
+    nonisolated init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         id = try container.decode(UUID.self, forKey: .id)
         let decodedLegacyURL = try container.decodeIfPresent(URL.self, forKey: .url)
@@ -276,7 +278,7 @@ struct IngestionItem: Identifiable, Codable, Sendable, Equatable {
         metrics = try container.decodeIfPresent(PipelineMetrics.self, forKey: .metrics) ?? .init()
     }
 
-    func encode(to encoder: Encoder) throws {
+    nonisolated func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         try container.encode(id, forKey: .id)
         try container.encodeIfPresent(legacyURL, forKey: .url)
@@ -295,11 +297,11 @@ struct IngestionItem: Identifiable, Codable, Sendable, Equatable {
         try container.encode(metrics, forKey: .metrics)
     }
 
-    var filename: String {
+    nonisolated var filename: String {
         url.lastPathComponent
     }
 
-    func hasActiveLease(at date: Date = Date()) -> Bool {
+    nonisolated func hasActiveLease(at date: Date = Date()) -> Bool {
         guard let leaseOwnerDeviceId, !leaseOwnerDeviceId.isEmpty,
               let leaseExpiresAt else {
             return false
@@ -307,7 +309,7 @@ struct IngestionItem: Identifiable, Codable, Sendable, Equatable {
         return leaseExpiresAt > date
     }
 
-    func isLeased(to deviceId: String, at date: Date = Date()) -> Bool {
+    nonisolated func isLeased(to deviceId: String, at date: Date = Date()) -> Bool {
         hasActiveLease(at: date) && leaseOwnerDeviceId == deviceId
     }
 
