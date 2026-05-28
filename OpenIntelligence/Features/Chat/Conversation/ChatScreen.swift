@@ -757,10 +757,10 @@ struct ChatScreen: View {
             }
             Button("Maybe later", role: .cancel) {}
         } message: {
-            Text("We are fully on-device and private. A quick rating or review helps us grow and keep building!")
+            Text("OpenIntelligence is fully on-device and private. A quick rating or review helps the app grow and keeps me building!")
         }
         .alert(
-            "Help Us Improve",
+            "Help Me Improve",
             isPresented: $showFeedbackEmailPrompt
         ) {
             Button("Send Feedback 💬") {
@@ -768,7 +768,7 @@ struct ChatScreen: View {
             }
             Button("Cancel", role: .cancel) {}
         } message: {
-            Text("We're sorry that answer wasn't helpful. Please send us your feedback so we can improve OpenIntelligence!")
+            Text("I'm sorry that answer wasn't helpful. Please send me your feedback so I can improve OpenIntelligence!")
         }
 .onAppear {
     continuedQueryCoordinator.expirationHandler = { [weak ragService] in
