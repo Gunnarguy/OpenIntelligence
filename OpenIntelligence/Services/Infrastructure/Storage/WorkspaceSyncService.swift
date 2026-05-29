@@ -1430,7 +1430,9 @@ final class WorkspaceSyncService: ObservableObject {
                 allowedDocumentIds: canonicalDocumentIds
             )
 
-            let mergedDatabase = BNNSVectorDatabase(dimension: container.embeddingDim, storageURL: sharedVectorURL)
+            let mergedDatabase = await MainActor.run {
+                BNNSVectorDatabase(dimension: container.embeddingDim, storageURL: sharedVectorURL)
+            }
             try await mergedDatabase.clear()
             if !mergedChunks.isEmpty {
                 try await mergedDatabase.storeBatch(chunks: mergedChunks)
@@ -1440,7 +1442,9 @@ final class WorkspaceSyncService: ObservableObject {
     }
 
     nonisolated private func loadVectorChunks(from storageURL: URL, dimension: Int) async throws -> [DocumentChunk] {
-        let database = BNNSVectorDatabase(dimension: dimension, storageURL: storageURL)
+        let database = await MainActor.run {
+            BNNSVectorDatabase(dimension: dimension, storageURL: storageURL)
+        }
         let storedChunks = try await database.allChunks()
         let embeddings = await database.getEmbeddings(forIndices: Array(storedChunks.indices))
 
@@ -1897,7 +1901,9 @@ final class WorkspaceSyncService: ObservableObject {
     }
 
     nonisolated private func persistVectorChunks(_ chunks: [DocumentChunk], dimension: Int, to url: URL) async throws {
-        let database = BNNSVectorDatabase(dimension: dimension, storageURL: url)
+        let database = await MainActor.run {
+            BNNSVectorDatabase(dimension: dimension, storageURL: url)
+        }
         try await database.clear()
         if !chunks.isEmpty {
             try await database.storeBatch(chunks: chunks)
