@@ -5,7 +5,7 @@
 </p>
 
 <p align="center">
-   <strong>On-device document intelligence and RAG engine for iOS, iPadOS, and macOS.</strong>
+   <strong>Local-first document intelligence for iPhone and iPad, with a reusable engine boundary and Mac evaluation paths in the repo.</strong>
 </p>
 
 <p align="center">
@@ -14,7 +14,7 @@
    <a href="Docs/ARCHITECTURE.md"><img alt="Read the OpenIntelligence architecture guide" src="https://img.shields.io/badge/Architecture-Read-111827?style=for-the-badge"></a>
 </p>
 
-OpenIntelligence is an on-device document query and retrieval-augmented generation (RAG) engine built natively for Apple platforms. It handles document ingestion, lexical and vector indexing, and grounded query orchestration using local Apple foundation models and on-device compute.
+OpenIntelligence is a local-first document query and retrieval-augmented generation (RAG) product built natively for Apple platforms. It handles document ingestion, lexical and vector indexing, and grounded query orchestration using Apple platform capabilities, with the public shipping app on iPhone and iPad and broader engine evaluation paths inside the repo.
 
 ---
 
@@ -191,15 +191,15 @@ flowchart TD
 
 ## File Entry Points
 
-| Module | Core Files | Responsibility |
-| --- | --- | --- |
-| **Ingestion** | [DocumentProcessor.swift](OpenIntelligence/Services/Document/Processing/DocumentProcessor.swift), [IntelligentDocumentProcessor.swift](OpenIntelligence/Services/Document/Processing/IntelligentDocumentProcessor.swift), [StructuredDocumentParser.swift](OpenIntelligence/Services/Document/Processing/StructuredDocumentParser.swift), [LayoutAwareExtractor.swift](OpenIntelligence/Services/Document/Processing/LayoutAwareExtractor.swift) | Document content extraction, OCR fallback, structure recovery. |
-| **Chunking** | [SemanticChunker.swift](OpenIntelligence/Services/Document/Chunking/SemanticChunker.swift), [ContentTaggingService.swift](OpenIntelligence/Services/Document/Chunking/ContentTaggingService.swift), [EntityIndexService.swift](OpenIntelligence/Services/Document/Analysis/EntityIndexService.swift) | Parsing raw text into chunks, entity resolution, metadata enrichment. |
-| **Indexing** | [EmbeddingService.swift](OpenIntelligence/Services/Embedding/EmbeddingService.swift), [SQLiteFullTextService.swift](OpenIntelligence/Services/Storage/SQLiteFullTextService.swift), [VectorStoreRouter.swift](OpenIntelligence/Services/VectorStore/VectorStoreRouter.swift), [BNNSVectorDatabase.swift](OpenIntelligence/Services/VectorStore/BNNSVectorDatabase.swift) | SQLite FTS5 lexical storage, BNNS-accelerated local vector indexing. |
-| **Query Planning** | [QueryProfileService.swift](OpenIntelligence/Services/Query/Analysis/QueryProfileService.swift), [QueryRewriterService.swift](OpenIntelligence/Services/Query/Rewriting/QueryRewriterService.swift), [HyDEService.swift](OpenIntelligence/Services/Query/Rewriting/HyDEService.swift) | Query profiling, intent classification, expansion, HyDE generation. |
-| **Retrieval** | [HybridSearchService.swift](OpenIntelligence/Services/RAG/Retrieval/HybridSearchService.swift), [IterativeRetrievalService.swift](OpenIntelligence/Services/RAG/Retrieval/IterativeRetrievalService.swift), [ParentDocumentService.swift](OpenIntelligence/Services/RAG/Retrieval/ParentDocumentService.swift), [ContextPackingService.swift](OpenIntelligence/Services/RAG/Retrieval/ContextPackingService.swift) | Hybrid merging, parent-chunk context reconstruction, token-budget packing. |
-| **Orchestration** | [ExtractiveQAService.swift](OpenIntelligence/Services/RAG/Extraction/ExtractiveQAService.swift), [LLMService.swift](OpenIntelligence/Services/LLM/LLMService.swift), [AgenticOrchestrator.swift](OpenIntelligence/Services/Agentic/AgenticOrchestrator.swift), [RAGService.swift](OpenIntelligence/Services/RAG/Orchestration/RAGService.swift) | Generation coordination, agentic pipelines, validation loops. |
-| **Diagnostics** | [ChatScreen.swift](OpenIntelligence/Features/Chat/Conversation/ChatScreen.swift), [RAGPipelineAuditView.swift](OpenIntelligence/Features/Diagnostics/Validation/RAGPipelineAuditView.swift), [DebugRAGValidationHarness.swift](OpenIntelligence/App/DebugRAGValidationHarness.swift), [run_rag_benchmarks.py](scripts/run_rag_benchmarks.py) | Telemetry overlays, audit logs, CLI evaluation harness. |
+| Module             | Core Files                                                                                                                                                                                                                                                                                                                                                                                                                                       | Responsibility                                                             |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------- |
+| **Ingestion**      | [DocumentProcessor.swift](OpenIntelligence/Services/Document/Processing/DocumentProcessor.swift), [IntelligentDocumentProcessor.swift](OpenIntelligence/Services/Document/Processing/IntelligentDocumentProcessor.swift), [StructuredDocumentParser.swift](OpenIntelligence/Services/Document/Processing/StructuredDocumentParser.swift), [LayoutAwareExtractor.swift](OpenIntelligence/Services/Document/Processing/LayoutAwareExtractor.swift) | Document content extraction, OCR fallback, structure recovery.             |
+| **Chunking**       | [SemanticChunker.swift](OpenIntelligence/Services/Document/Chunking/SemanticChunker.swift), [ContentTaggingService.swift](OpenIntelligence/Services/Document/Chunking/ContentTaggingService.swift), [EntityIndexService.swift](OpenIntelligence/Services/Document/Analysis/EntityIndexService.swift)                                                                                                                                             | Parsing raw text into chunks, entity resolution, metadata enrichment.      |
+| **Indexing**       | [EmbeddingService.swift](OpenIntelligence/Services/Embedding/EmbeddingService.swift), [SQLiteFullTextService.swift](OpenIntelligence/Services/Storage/SQLiteFullTextService.swift), [VectorStoreRouter.swift](OpenIntelligence/Services/VectorStore/VectorStoreRouter.swift), [BNNSVectorDatabase.swift](OpenIntelligence/Services/VectorStore/BNNSVectorDatabase.swift)                                                                         | SQLite FTS5 lexical storage, BNNS-accelerated local vector indexing.       |
+| **Query Planning** | [QueryProfileService.swift](OpenIntelligence/Services/Query/Analysis/QueryProfileService.swift), [QueryRewriterService.swift](OpenIntelligence/Services/Query/Rewriting/QueryRewriterService.swift), [HyDEService.swift](OpenIntelligence/Services/Query/Rewriting/HyDEService.swift)                                                                                                                                                            | Query profiling, intent classification, expansion, HyDE generation.        |
+| **Retrieval**      | [HybridSearchService.swift](OpenIntelligence/Services/RAG/Retrieval/HybridSearchService.swift), [IterativeRetrievalService.swift](OpenIntelligence/Services/RAG/Retrieval/IterativeRetrievalService.swift), [ParentDocumentService.swift](OpenIntelligence/Services/RAG/Retrieval/ParentDocumentService.swift), [ContextPackingService.swift](OpenIntelligence/Services/RAG/Retrieval/ContextPackingService.swift)                               | Hybrid merging, parent-chunk context reconstruction, token-budget packing. |
+| **Orchestration**  | [ExtractiveQAService.swift](OpenIntelligence/Services/RAG/Extraction/ExtractiveQAService.swift), [LLMService.swift](OpenIntelligence/Services/LLM/LLMService.swift), [AgenticOrchestrator.swift](OpenIntelligence/Services/Agentic/AgenticOrchestrator.swift), [RAGService.swift](OpenIntelligence/Services/RAG/Orchestration/RAGService.swift)                                                                                                  | Generation coordination, agentic pipelines, validation loops.              |
+| **Diagnostics**    | [ChatScreen.swift](OpenIntelligence/Features/Chat/Conversation/ChatScreen.swift), [RAGPipelineAuditView.swift](OpenIntelligence/Features/Diagnostics/Validation/RAGPipelineAuditView.swift), [DebugRAGValidationHarness.swift](OpenIntelligence/App/DebugRAGValidationHarness.swift), [run_rag_benchmarks.py](scripts/run_rag_benchmarks.py)                                                                                                     | Telemetry overlays, audit logs, CLI evaluation harness.                    |
 
 ---
 
@@ -214,16 +214,16 @@ flowchart TD
 
 ## Release History
 
-| Version | Focus |
-| ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **3.7** | Library layout refactoring, background ingestion queues, tab-switching lag elimination, and successful-answer review prompting.                                                      |
-| **3.6** | Container-isolated iCloud Drive sync, stable library identity reconciliation, and digital text preservation updates.                                                                |
-| **3.5** | Exact-value lookup improvements, empty state onboarding updates, and PDF/image processing consolidation.                                                                             |
-| **3.3** | Queue state recovery on interruption, adaptive visual PDF ingestion, and figure extraction.                                                                                         |
-| **3.2.5**| Precision database checks prior to standard generation, target table row anchoring.                                                                                                  |
-| **3.1** | Custom layout fallback for multi-column structures, verification loop tuning.                                                                                                        |
-| **3.0** | Initial native layout extraction and structured answer resolution implementation.                                                                                                    |
-| **2.0.0**| Initial Native iOS RAG application release with local vector/lexical index engines and container isolation.                                                                          |
+| Version   | Focus                                                                                                                           |
+| --------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| **3.7**   | Library layout refactoring, background ingestion queues, tab-switching lag elimination, and successful-answer review prompting. |
+| **3.6**   | Container-isolated iCloud Drive sync, stable library identity reconciliation, and digital text preservation updates.            |
+| **3.5**   | Exact-value lookup improvements, empty state onboarding updates, and PDF/image processing consolidation.                        |
+| **3.3**   | Queue state recovery on interruption, adaptive visual PDF ingestion, and figure extraction.                                     |
+| **3.2.5** | Precision database checks prior to standard generation, target table row anchoring.                                             |
+| **3.1**   | Custom layout fallback for multi-column structures, verification loop tuning.                                                   |
+| **3.0**   | Initial native layout extraction and structured answer resolution implementation.                                               |
+| **2.0.0** | Initial Native iOS RAG application release with local vector/lexical index engines and container isolation.                     |
 
 ---
 

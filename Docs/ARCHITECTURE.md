@@ -1,8 +1,8 @@
 # Architecture
 
-OpenIntelligence is an Apple-native document intelligence prototype built around a SwiftUI app shell and a retrieval-oriented document engine.
+OpenIntelligence is an Apple-native document intelligence product built around a SwiftUI app shell and a retrieval-oriented document engine.
 
-The app is intentionally organized as a prototype, not as a polished commercial framework. The codebase keeps the engineering substance visible: document ingestion, chunking, indexing, retrieval, grounded answer generation, citation handling, confidence surfaces, and diagnostics.
+The codebase keeps the engineering substance visible: document ingestion, chunking, indexing, retrieval, grounded answer generation, citation handling, confidence surfaces, and diagnostics. The public product story is local-first, with Apple-managed cloud capacity only where the platform explicitly provides it.
 
 ## Major Areas
 
