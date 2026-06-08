@@ -113,415 +113,7 @@ enum LLMStreamingContext {
 }
 
 // MARK: - Tool Protocol Implementations for Function Calling
-// TOKEN BUDGET: Apple FM has 4096 token context limit (~10K chars).
-// Each tool output should be ≤1500 chars to leave room for prompt + response.
-// All tools MUST truncate results to respect this budget.
-
-#if canImport(FoundationModels)
-    import FoundationModels
-
-    /// Tool for searching user's document library
-    @available(iOS 26.0, *)
-    struct SearchDocumentsTool: Tool {
-        let name = "search_documents"
-        let description =
-            "Search the user's document library for relevant information based on a query. Returns the most relevant text chunks with citations."
-
-        weak var ragService: RAGService?
-
-        @Generable
-        struct Arguments {
-            @Guide(
-                description:
-                "The search query to find relevant document chunks. Be specific and use keywords from the user's question."
-            )
-            var query: String
-            @Guide(
-                description:
-                "Maximum number of chunks to retrieve. Use 2–4 for brief summaries, 8–12 for deep dives.",
-                .range(1 ... 20)
-            )
-            var topK: Int?
-            @Guide(
-                description:
-                "Minimum semantic similarity threshold. Use 0.35 by default; increase to filter noise.",
-                .range(0.0 ... 1.0)
-            )
-            var minSimilarity: Float?
-        }
-
-        func call(arguments: Arguments) async throws -> String {
-            guard let ragService = ragService else {
-                return "Error: Document search service unavailable"
-            }
-            await ToolCallCounter.shared.increment()
-            return try await ragService.searchDocuments(
-                query: arguments.query,
-                topK: arguments.topK,
-                minSimilarity: arguments.minSimilarity
-            )
-        }
-    }
-
-    /// Tool for listing all available documents
-    @available(iOS 26.0, *)
-    struct ListDocumentsTool: Tool {
-        let name = "list_documents"
-        let description =
-            "List all documents in the user's library. Returns document names, types, page counts, and dates added."
-
-        weak var ragService: RAGService?
-
-        @Generable
-        struct Arguments {
-            // No arguments needed for listing
-        }
-
-        func call(arguments _: Arguments) async throws -> String {
-            guard let ragService = ragService else {
-                return "Error: Document service unavailable"
-            }
-            await ToolCallCounter.shared.increment()
-            return try await ragService.listDocuments()
-        }
-    }
-
-    /// Tool for getting summary of a specific document
-    @available(iOS 26.0, *)
-    struct GetDocumentSummaryTool: Tool {
-        let name = "get_document_summary"
-        let description =
-            "Get detailed information about a specific document including metadata, content summary, and statistics."
-
-        weak var ragService: RAGService?
-
-        @Generable
-        struct Arguments {
-            @Guide(
-                description:
-                "The exact name of the document to get details about. Use list_documents first to see available names."
-            )
-            var documentName: String
-        }
-
-        func call(arguments: Arguments) async throws -> String {
-            guard let ragService = ragService else {
-                return "Error: Document service unavailable"
-            }
-            await ToolCallCounter.shared.increment()
-            return try await ragService.getDocumentSummary(documentName: arguments.documentName)
-        }
-    }
-
-    // MARK: - Exact Search Tools (Full-Text, Not Semantic)
-
-    /// Tool for counting exact pattern occurrences across ALL documents
-    /// Uses FullTextStorageService for precise counting (not semantic search)
-    @available(iOS 26.0, *)
-    struct CountPatternTool: Tool {
-        let name = "count_pattern"
-        let description = """
-            Count EXACT occurrences of a text pattern across ALL documents in the library.
-            Returns per-document counts and total. Use for questions like "how many times is X mentioned?"
-            This searches the complete original text, not chunked embeddings.
-            """
-
-        weak var ragService: RAGService?
-
-        @Generable
-        struct Arguments {
-            @Guide(
-                description: """
-                    The exact text pattern to count. Case-insensitive.
-                    For multi-word phrases, include the full phrase.
-                    Examples: "SAE 0W-20", "transmission fluid", "warning light"
-                    """
-            )
-            var pattern: String
-        }
-
-        func call(arguments: Arguments) async throws -> String {
-            guard let ragService = ragService else {
-                return "Error: Document service unavailable"
-            }
-            await ToolCallCounter.shared.increment()
-            return try await ragService.countPatternInCorpus(pattern: arguments.pattern)
-        }
-    }
-
-    /// Tool for searching exact text patterns with surrounding context
-    /// Uses FullTextStorageService for precise matching (not semantic search)
-    @available(iOS 26.0, *)
-    struct SearchExactPatternTool: Tool {
-        let name = "search_exact_pattern"
-        let description = """
-            Search for EXACT text matches across ALL documents and return context.
-            Unlike semantic search, this finds precise string matches.
-            Use when you need to find specific terms, codes, model numbers, or exact phrases.
-            """
-
-        weak var ragService: RAGService?
-
-        @Generable
-        struct Arguments {
-            @Guide(
-                description: """
-                    The exact text pattern to search for. Case-insensitive.
-                    Will return surrounding context for each match.
-                    Examples: "serial number", "model specification", "error code 404"
-                    """
-            )
-            var pattern: String
-        }
-
-        func call(arguments: Arguments) async throws -> String {
-            guard let ragService = ragService else {
-                return "Error: Document service unavailable"
-            }
-            await ToolCallCounter.shared.increment()
-            return try await ragService.searchExactPattern(pattern: arguments.pattern)
-        }
-    }
-
-    // MARK: - Analysis Tools
-
-    /// Tool for getting corpus-wide statistics and analysis
-    @available(iOS 26.0, *)
-    struct GetCorpusStatsTool: Tool {
-        let name = "get_corpus_stats"
-        let description = """
-            Get statistics about the entire document library including:
-            - Total documents and pages
-            - Document types breakdown
-            - Total word/character counts
-            - Average document size
-            Use for questions about the library itself.
-            """
-
-        weak var ragService: RAGService?
-
-        @Generable
-        struct Arguments {
-            // No arguments needed for corpus stats
-        }
-
-        func call(arguments _: Arguments) async throws -> String {
-            guard let ragService = ragService else {
-                return "Error: Document service unavailable"
-            }
-            await ToolCallCounter.shared.increment()
-            return try await ragService.getCorpusStats()
-        }
-    }
-
-    /// Tool for finding documents related to a topic
-    @available(iOS 26.0, *)
-    struct FindRelatedDocumentsTool: Tool {
-        let name = "find_related_documents"
-        let description = """
-            Find documents that are semantically related to a topic or query.
-            Returns document names ranked by relevance, not individual chunks.
-            Use when you need to identify WHICH documents cover a topic.
-            """
-
-        weak var ragService: RAGService?
-
-        @Generable
-        struct Arguments {
-            @Guide(
-                description: "Topic or query to find related documents for"
-            )
-            var topic: String
-            @Guide(
-                description: "Maximum number of documents to return",
-                .range(1 ... 20)
-            )
-            var maxResults: Int?
-        }
-
-        func call(arguments: Arguments) async throws -> String {
-            guard let ragService = ragService else {
-                return "Error: Document service unavailable"
-            }
-            await ToolCallCounter.shared.increment()
-            return try await ragService.findRelatedDocuments(
-                topic: arguments.topic,
-                maxResults: arguments.maxResults ?? 5
-            )
-        }
-    }
-
-    /// Tool for comparing content across multiple documents
-    @available(iOS 26.0, *)
-    struct CompareDocumentsTool: Tool {
-        let name = "compare_documents"
-        let description = """
-            Compare how multiple documents discuss the same topic.
-            Useful for finding differences, contradictions, or complementary information.
-            """
-
-        weak var ragService: RAGService?
-
-        @Generable
-        struct Arguments {
-            @Guide(
-                description: "Topic to compare across documents"
-            )
-            var topic: String
-            @Guide(
-                description: "Names of specific documents to compare (optional, uses all if empty)"
-            )
-            var documentNames: [String]?
-        }
-
-        func call(arguments: Arguments) async throws -> String {
-            guard let ragService = ragService else {
-                return "Error: Document service unavailable"
-            }
-            await ToolCallCounter.shared.increment()
-            return try await ragService.compareDocumentsOnTopic(
-                topic: arguments.topic,
-                documentNames: arguments.documentNames
-            )
-        }
-    }
-
-    // MARK: - Consolidated Engine-Native Tool Surface
-
-    /// Core retrieval tool for semantic, exact, and related-document evidence access.
-    @available(iOS 26.0, *)
-    struct RetrieveCorpusEvidenceTool: Tool {
-        let name = "retrieve_corpus_evidence"
-        let description = """
-            Retrieve grounded evidence from the user's library.
-            Modes:
-            - semantic: retrieve relevant passages for a question
-            - exact: find exact text matches with context
-            - count_exact: count exact text occurrences across the corpus
-            - related_documents: find which documents are most related to a topic
-            """
-
-        weak var ragService: RAGService?
-
-        @Generable
-        struct Arguments {
-            @Guide(description: "Question, topic, or literal pattern to search for")
-            var query: String
-
-            @Guide(description: "Mode: semantic, exact, count_exact, or related_documents")
-            var mode: String
-
-            @Guide(description: "Maximum number of results to return", .range(1 ... 20))
-            var maxResults: Int?
-
-            @Guide(description: "Minimum semantic similarity threshold for semantic mode", .range(0.0 ... 1.0))
-            var minSimilarity: Float?
-        }
-
-        func call(arguments: Arguments) async throws -> String {
-            guard let ragService else {
-                return "Error: Retrieval service unavailable"
-            }
-            await ToolCallCounter.shared.increment()
-
-            switch arguments.mode.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
-            case "exact":
-                return try await ragService.searchExactPattern(pattern: arguments.query)
-            case "count_exact":
-                return try await ragService.countPatternInCorpus(pattern: arguments.query)
-            case "related_documents":
-                return try await ragService.findRelatedDocuments(
-                    topic: arguments.query,
-                    maxResults: arguments.maxResults ?? 5
-                )
-            default:
-                return try await ragService.searchDocuments(
-                    query: arguments.query,
-                    topK: arguments.maxResults,
-                    minSimilarity: arguments.minSimilarity
-                )
-            }
-        }
-    }
-
-    /// Inspect a specific document for summary and metadata.
-    @available(iOS 26.0, *)
-    struct InspectDocumentTool: Tool {
-        let name = "inspect_document"
-        let description = "Inspect a specific document by name and return its summary, metadata, and content overview."
-
-        weak var ragService: RAGService?
-
-        @Generable
-        struct Arguments {
-            @Guide(description: "Exact document name to inspect")
-            var documentName: String
-        }
-
-        func call(arguments: Arguments) async throws -> String {
-            guard let ragService else {
-                return "Error: Document service unavailable"
-            }
-            await ToolCallCounter.shared.increment()
-            return try await ragService.getDocumentSummary(documentName: arguments.documentName)
-        }
-    }
-
-    /// Compare how documents discuss a topic.
-    @available(iOS 26.0, *)
-    struct CompareTopicAcrossDocumentsTool: Tool {
-        let name = "compare_topic_across_documents"
-        let description = "Compare how multiple documents discuss the same topic to find differences, overlap, and supporting evidence."
-
-        weak var ragService: RAGService?
-
-        @Generable
-        struct Arguments {
-            @Guide(description: "Topic to compare across documents")
-            var topic: String
-
-            @Guide(description: "Optional specific document names to compare")
-            var documentNames: [String]?
-        }
-
-        func call(arguments: Arguments) async throws -> String {
-            guard let ragService else {
-                return "Error: Comparison service unavailable"
-            }
-            await ToolCallCounter.shared.increment()
-            return try await ragService.compareDocumentsOnTopic(
-                topic: arguments.topic,
-                documentNames: arguments.documentNames
-            )
-        }
-    }
-
-    /// High-level library overview tool for corpus-wide inspection.
-    @available(iOS 26.0, *)
-    struct GetLibraryOverviewTool: Tool {
-        let name = "get_library_overview"
-        let description = "Return a compact overview of the current library, including corpus stats and available documents."
-
-        weak var ragService: RAGService?
-
-        @Generable
-        struct Arguments {
-            // No arguments needed
-        }
-
-        func call(arguments _: Arguments) async throws -> String {
-            guard let ragService else {
-                return "Error: Library service unavailable"
-            }
-            await ToolCallCounter.shared.increment()
-
-            let stats = try await ragService.getCorpusStats()
-            let documents = try await ragService.listDocuments()
-            return stats + "\n\nDOCUMENTS:\n" + documents
-        }
-    }
-
-#endif
+// Moved to FoundationModelToolRegistry.swift
 
 /// Response from an LLM generation request
 struct LLMResponse {
@@ -576,60 +168,14 @@ struct LLMResponse {
         /// Set via `restoreFromTranscript(_:)` and consumed by `ensureSession()`.
         private var pendingTranscript: Transcript?
 
-        private static let structuredCitationRegex = try? NSRegularExpression(
-            pattern: #"S(\d+)"#,
-            options: [.caseInsensitive]
-        )
-
         /// Tool handler for agentic RAG function calling
         var toolHandler: RAGToolHandler?
 
         /// Guards against concurrent warmup calls that cause "Session in Canceled state" warnings
         private var isWarmingUp = false
 
-        // MARK: - Language Detection Fix
-
-        /// Sanitize text to prevent false language detection by Apple Foundation Models.
-        ///
-        /// Apple's language detector can misidentify English text as Polish or other languages
-        /// when certain character patterns are present (especially Polish diacritics like ł, ą, ę, ó, etc.
-        /// or sequences that resemble them). This function normalizes such characters.
         private func sanitizeForLanguageDetection(_ text: String) -> String {
-            // Common problematic characters that trigger false Polish detection:
-            // - URLs with encoded characters
-            // - Special Unicode characters
-            // - Technical symbols that resemble diacritics
-            var sanitized = text
-
-            // Replace Polish-like diacritics with ASCII equivalents
-            let replacements: [(String, String)] = [
-                ("ł", "l"), ("Ł", "L"),
-                ("ą", "a"), ("Ą", "A"),
-                ("ę", "e"), ("Ę", "E"),
-                ("ó", "o"), ("Ó", "O"),
-                ("ś", "s"), ("Ś", "S"),
-                ("ź", "z"), ("Ź", "Z"),
-                ("ż", "z"), ("Ż", "Z"),
-                ("ć", "c"), ("Ć", "C"),
-                ("ń", "n"), ("Ń", "N"),
-                // Other problematic diacritics
-                ("ü", "u"), ("ö", "o"), ("ä", "a"),
-                ("è", "e"), ("é", "e"), ("ê", "e"),
-                ("à", "a"), ("á", "a"), ("â", "a"),
-                ("ì", "i"), ("í", "i"), ("î", "i"),
-                ("ù", "u"), ("ú", "u"), ("û", "u"),
-                ("ñ", "n"), ("ç", "c"),
-            ]
-
-            for (original, replacement) in replacements {
-                sanitized = sanitized.replacingOccurrences(of: original, with: replacement)
-            }
-
-            // Normalize certain problematic Unicode sequences
-            // These can confuse language detection
-            sanitized = sanitized.precomposedStringWithCanonicalMapping
-
-            return sanitized
+            return FoundationModelPromptCompiler.sanitizeForLanguageDetection(text)
         }
 
         func resetSession(clearTools: Bool = false) {
@@ -766,8 +312,7 @@ struct LLMResponse {
         /// Uses empirically validated 1.4 chars/token for Apple FM (observed across real prompts).
         /// Previous 2.5 ratio underestimated by ~44%, causing context overflow retries.
         static func estimateTokens(for text: String) -> Int {
-            let charsPerToken = 1.4
-            return max(1, Int(ceil(Double(text.count) / charsPerToken)))
+            return FoundationModelTokenBudget.estimateTokens(for: text, isAppleFMOnDevice: true)
         }
 
         // MARK: - Transcript Access (iOS 26+)
@@ -786,11 +331,6 @@ struct LLMResponse {
         /// This property reflects the actual state of the FoundationModels session,
         /// providing real-time feedback for UI indicators. The session is Observable,
         /// so this value updates automatically during generation.
-        ///
-        /// Use this for:
-        /// - Showing live "typing" indicators
-        /// - Disabling input during generation
-        /// - Accurate progress animations
         var isResponding: Bool {
             guard Thread.isMainThread, let session = session else { return false }
             return session.isResponding
@@ -827,50 +367,12 @@ struct LLMResponse {
         /// Uses conservative 1.4 chars/token ratio (empirically validated for Apple FM).
         var estimatedTranscriptTokens: Int {
             guard Thread.isMainThread, let transcript = transcript else { return 0 }
-
-            var totalChars = 0
-            for entry in transcript {
-                switch entry {
-                case let .instructions(inst):
-                    totalChars += String(describing: inst).count
-                case let .prompt(prompt):
-                    totalChars += String(describing: prompt).count
-                case let .response(resp):
-                    totalChars += String(describing: resp).count
-                case let .toolCalls(calls):
-                    // Tool calls are typically compact JSON
-                    totalChars += calls.count * 100 // ~100 chars per tool call average
-                case let .toolOutput(output):
-                    totalChars += String(describing: output).count
-                @unknown default:
-                    totalChars += 50 // Conservative estimate for unknown types
-                }
-            }
-
-            // Use conservative 1.4 chars/token for Apple FM
-            return max(0, Int(ceil(Double(totalChars) / 1.4)))
+            return FoundationModelTranscriptStore.estimateTranscriptTokens(transcript)
         }
 
         /// Estimate tokens for a pending transcript (before session creation)
         static func estimateTranscriptTokens(_ transcript: Transcript) -> Int {
-            var totalChars = 0
-            for entry in transcript {
-                switch entry {
-                case let .instructions(inst):
-                    totalChars += String(describing: inst).count
-                case let .prompt(prompt):
-                    totalChars += String(describing: prompt).count
-                case let .response(resp):
-                    totalChars += String(describing: resp).count
-                case let .toolCalls(calls):
-                    totalChars += calls.count * 100
-                case let .toolOutput(output):
-                    totalChars += String(describing: output).count
-                @unknown default:
-                    totalChars += 50
-                }
-            }
-            return max(0, Int(ceil(Double(totalChars) / 1.4)))
+            return FoundationModelTranscriptStore.estimateTranscriptTokens(transcript)
         }
 
         // MARK: - Feedback API (iOS 26+)
@@ -913,19 +415,11 @@ struct LLMResponse {
         }
 
         init() {
-            // SAFETY: We no longer access SystemLanguageModel.default in init
-            // Instead, we defer it until the model property is accessed
-            // This allows the service to be created on any thread
             Log.debug("AppleFoundationLLMService initialized (model will be loaded on first use)", category: .llm)
         }
 
         /// Start model warm-up (call this after init from an async context)
         func startWarmup() {
-            // ✅ GAP #5 FIXED: Model Warm-up
-            // Preload model in background to eliminate first-query latency
-            // First real user query will be INSTANT (no 5-second wait)
-
-            // Guard against concurrent warmups that cause "Session in Canceled state" warnings
             guard !isWarmingUp else {
                 Log.debug("[Warm-up] Already warming up, skipping duplicate request", category: .llm)
                 return
@@ -940,7 +434,6 @@ struct LLMResponse {
         }
 
         /// Preload the Foundation Model to eliminate first-query latency
-        /// Uses official prewarm() API instead of throwaway prompts (saves tokens)
         @MainActor
         private func warmUpModel() async {
             Log.debug("[Warm-up] Starting Foundation Model preload...", category: .llm)
@@ -955,8 +448,7 @@ struct LLMResponse {
                     return
                 }
 
-                // ✅ Use official prewarm() API - no wasted tokens!
-                // Optionally cache a common prompt prefix for RAG queries
+                // Use official prewarm() API - no wasted tokens!
                 let ragPromptPrefix = Prompt("Based on the following document content, please answer:")
                 session.prewarm(promptPrefix: ragPromptPrefix)
 
@@ -977,113 +469,20 @@ struct LLMResponse {
                 throw LLMError.modelUnavailable
             }
 
-            // Check availability with detailed diagnostics BEFORE creating session
-            switch model.availability {
-            case .available:
-                Log.debug("Foundation Models available - creating session...", category: .llm)
+            let result = try FoundationModelSessionFactory.createSession(
+                model: model,
+                toolHandler: toolHandler,
+                systemPrompt: systemPrompt,
+                disableTools: disableTools,
+                pendingTranscript: pendingTranscript
+            )
 
-                // Initialize function calling tools for agentic RAG
-                // These tools enable the model to decide when to search documents vs answer directly
-                // UNLESS disableTools is set (for reasoning chain sessions)
-                var tools: [any Tool] = []
-
-                if !disableTools, let ragService = toolHandler as? RAGService {
-                    // Create a smaller engine-native tool surface per Apple guidance.
-                    var retrieveTool = RetrieveCorpusEvidenceTool()
-                    retrieveTool.ragService = ragService
-                    tools.append(retrieveTool)
-
-                    var inspectTool = InspectDocumentTool()
-                    inspectTool.ragService = ragService
-                    tools.append(inspectTool)
-
-                    var compareTool = CompareTopicAcrossDocumentsTool()
-                    compareTool.ragService = ragService
-                    tools.append(compareTool)
-
-                    var overviewTool = GetLibraryOverviewTool()
-                    overviewTool.ragService = ragService
-                    tools.append(overviewTool)
-
-                    Log.debug("Initialized \(tools.count) engine-native tools for agentic RAG", category: .llm)
-                } else if disableTools {
-                    Log.debug("Tools disabled for this session (pure reasoning mode)", category: .llm)
-                }
-
-                // Session instructions — context-aware to avoid wasting tokens on tool guidance
-                // when tools aren't attached. Every word counts at ~1.4 chars/token.
-                let defaultInstructions: String
-                if disableTools {
-                    // Pure context/reasoning mode — no tool instructions needed
-                    defaultInstructions = """
-                    You are OpenIntelligence, a helpful assistant. Answer from the provided document context. Be thorough, cite sources, and copy values exactly.
-                    """
-                } else {
-                    // Agentic mode — tools attached, need usage guidance
-                    defaultInstructions = """
-                    You are OpenIntelligence, a helpful assistant.
-                    When document context is provided, answer directly from it — do NOT call tools.
-                    Only use tools when NO context is provided:
-                    - retrieve_corpus_evidence: retrieve semantic evidence, exact matches, exact counts, or related documents
-                    - inspect_document: inspect one document by name
-                    - compare_topic_across_documents: compare evidence across documents
-                    - get_library_overview: inspect the library and available documents
-                    Cite sources and copy values exactly.
-                    """
-                }
-
-                let instructionsText = systemPrompt ?? defaultInstructions
-                currentSystemPrompt = systemPrompt
-
-                // Check if we have a pending transcript to restore
-                // CRITICAL: Don't restore transcript if tools are disabled - the transcript
-                // may contain tool references that would cause warnings/errors
-                if let savedTranscript = pendingTranscript, !disableTools {
-                    // Create session with transcript for conversation continuity
-                    // The transcript contains previous prompts, responses, and tool calls
-                    // Note: Instructions come from the transcript, not passed separately
-                    session = LanguageModelSession(
-                        model: model,
-                        tools: tools,
-                        transcript: savedTranscript
-                    )
-
-                    // Prewarm to reduce latency on next query
-                    session?.prewarm()
-
-                    pendingTranscript = nil // Consumed
-                    Log.info(
-                        "Apple Foundation Model session restored from transcript (\(savedTranscript.count) entries)",
-                        category: .llm
-                    )
-                } else {
-                    // Fresh session - either no transcript or tools disabled (pure reasoning mode)
-                    if disableTools && pendingTranscript != nil {
-                        Log.debug("Discarding transcript for tools-disabled session (pure reasoning)", category: .llm)
-                        pendingTranscript = nil
-                    }
-                    session = LanguageModelSession(
-                        model: model,
-                        tools: tools,
-                        instructions: Instructions(instructionsText)
-                    )
-                    Log.info("Apple Foundation Model session initialized\(disableTools ? " (pure reasoning)" : " (Agentic RAG)")", category: .llm)
-                }
-
-            case let .unavailable(reason):
-                let reasonStr: String
-                switch reason {
-                case .deviceNotEligible:
-                    reasonStr = "Device not eligible (requires A17 Pro+ or M-series)"
-                case .appleIntelligenceNotEnabled:
-                    reasonStr = "Apple Intelligence not enabled"
-                case .modelNotReady:
-                    reasonStr = "Model downloading or initializing"
-                @unknown default:
-                    reasonStr = "Unknown reason"
-                }
-                Log.warning("Foundation Models unavailable: \(reasonStr)", category: .llm)
-                throw LLMError.modelUnavailable
+            session = result.session
+            currentSystemPrompt = result.currentSystemPrompt
+            if result.pendingTranscriptConsumed {
+                pendingTranscript = nil
+            } else if disableTools && pendingTranscript != nil {
+                pendingTranscript = nil
             }
         }
 
@@ -1091,75 +490,32 @@ struct LLMResponse {
         func generate(prompt: String, context: String?, config: InferenceConfig) async throws
             -> LLMResponse
         {
-            // MARK: Locale Validation (iOS 26+)
-            // Verify the current locale is supported before generation to provide
-            // a clear error rather than garbled output from unsupported languages
+            // Verify the current locale is supported before generation
             if !supportsCurrentLocale {
                 let currentLocale = Locale.current.identifier
                 Log.warning("Current locale '\(currentLocale)' not supported by Apple Intelligence — generation may produce degraded output", category: .llm)
             }
 
-            // Force statelessness: RAGService manages history manually and constructs a full prompt
-            // including previous conversation. Reusing the session would duplicate history.
+            // Force statelessness
             session = nil
 
-            // Check if system prompt changed (redundant now but keeps logic clean)
+            // Check if system prompt changed
             if let newPrompt = config.systemPrompt, newPrompt != currentSystemPrompt {
                 Log.info("System prompt changed, recreating session", category: .llm)
                 session = nil
             }
 
-            // AUTO-TRIM TRANSCRIPT: Context gets priority, transcript gets whatever's left.
-            // Estimate how many tokens the actual content (context + prompt + overhead) will use,
-            // then trim the transcript from oldest entries to fit within the 4096 window.
-            // This ensures document context is NEVER starved by conversation history.
+            // AUTO-TRIM TRANSCRIPT
             if let transcript = pendingTranscript, !transcript.isEmpty {
-                let contextChars = context?.count ?? 0
-                let promptChars = prompt.count
-                let systemChars = (config.systemPrompt ?? "").count
-                // Conservative: instructions + system + prompt + context + output reserve
-                let contentTokens = Int(ceil(Double(contextChars + promptChars + systemChars + 200) / 1.4))
-                let outputReserve = max(150, min(config.maxTokens, 300))
-                let toolSchemaTokens = config.disableTools ? 0 : 1000
-                let budgetForContent = contentTokens + outputReserve + toolSchemaTokens
-
-                let maxTranscriptTokens = max(0, 4096 - budgetForContent)
-                let currentTranscriptTokens = Self.estimateTranscriptTokens(transcript)
-
-                if currentTranscriptTokens > maxTranscriptTokens {
-                    // Trim oldest entries, keeping instructions (first entry) + most recent
-                    let allEntries = Array(transcript)
-                    let firstEntry = allEntries.first  // Usually instructions — always keep
-
-                    // Binary-search-style trim: keep removing oldest non-instruction entries
-                    var keepCount = allEntries.count
-                    while keepCount > 1 {
-                        let candidateEntries: [Transcript.Entry]
-                        if let first = firstEntry {
-                            candidateEntries = [first] + Array(allEntries.suffix(keepCount - 1))
-                        } else {
-                            candidateEntries = Array(allEntries.suffix(keepCount))
-                        }
-                        let candidateTranscript = Transcript(entries: candidateEntries)
-                        let tokens = Self.estimateTranscriptTokens(candidateTranscript)
-                        if tokens <= maxTranscriptTokens {
-                            let dropped = allEntries.count - candidateEntries.count
-                            Log.info("[FM] Auto-trimmed transcript: \(currentTranscriptTokens)→\(tokens) tokens (dropped \(dropped) oldest entries, preserving \(contentTokens) tokens for context)", category: .llm)
-                            pendingTranscript = candidateTranscript
-                            break
-                        }
-                        keepCount -= 1
-                    }
-
-                    // If even 1 entry is too large, drop transcript entirely
-                    if keepCount <= 1 {
-                        Log.warning("[FM] Transcript (\(currentTranscriptTokens) tokens) too large even after trimming, dropping to preserve context (\(contentTokens) tokens)", category: .llm)
-                        pendingTranscript = nil
-                    }
-                }
+                pendingTranscript = FoundationModelTranscriptStore.trimTranscript(
+                    transcript,
+                    context: context,
+                    prompt: prompt,
+                    config: config
+                )
             }
 
-            // Ensure session is created (now guaranteed to be on main thread via @MainActor)
+            // Ensure session is created
             try ensureSession(systemPrompt: config.systemPrompt, disableTools: config.disableTools)
 
             guard let session = session else {
@@ -1179,71 +535,14 @@ struct LLMResponse {
             )
 
             // Construct augmented prompt with RAG context
-            // Apply language sanitization to prevent false Polish detection
-            let sanitizedPrompt = sanitizeForLanguageDetection(prompt)
-            let sanitizedContext = context.map { sanitizeForLanguageDetection($0) }
+            let fullPrompt = FoundationModelPromptCompiler.compilePrompt(
+                prompt: prompt,
+                context: context,
+                systemPrompt: config.systemPrompt,
+                disableTools: config.disableTools
+            )
 
-            let fullPrompt: String
-            if let context = sanitizedContext, !context.isEmpty {
-                Log.debug("RAG mode: context=\(context.count) chars, prompt=\(sanitizedPrompt.prefix(50))...", category: .llm)
-
-                // Estimate if we're approaching context window limit (4096 tokens, ~1.4 chars/token for Apple FM)
-                let totalInputLength = context.count + sanitizedPrompt.count + 200 // Buffer for instructions
-                let charsPerToken = 1.4
-                let estimatedInputTokens = max(
-                    1,
-                    Int(ceil(Double(totalInputLength) / charsPerToken))
-                )
-
-                if estimatedInputTokens > 3500 {
-                    Log.warning("[FM] Input approaching context limit: ~\(estimatedInputTokens) tokens", category: .llm)
-                }
-
-                if config.systemPrompt != nil {
-                    // System instructions already set — formatting is handled by systemPrompt.
-                    // BUDGET-CONSCIOUS: No duplicate formatting instructions. Save ~80 tokens.
-                    fullPrompt = """
-                    CONTEXT:
-                    \(context)
-
-                    QUESTION: \(sanitizedPrompt)
-
-                    Answer using EXACT values from the context. Merge overlapping excerpts — NEVER repeat the same sentence frame.
-                    """
-                } else {
-                    // No system prompt — embed minimal instructions in prompt.
-                    fullPrompt = """
-                    Answer from the excerpts below. Be thorough. Copy values VERBATIM.
-                    Cite sources [Document Name, p.X].
-                    Merge overlapping excerpts — NEVER repeat the same sentence frame.
-
-                    EXCERPTS:
-                    \(context)
-
-                    QUESTION: \(sanitizedPrompt)
-                    """
-                }
-            } else {
-                Log.debug("General chat mode: prompt=\(sanitizedPrompt.prefix(50))...", category: .llm)
-
-                // Handle short queries that may confuse language detection
-                // Per Apple's documentation, the language detector needs sufficient text
-                let wordCount = sanitizedPrompt.split(separator: " ").count
-
-                if wordCount <= 2 {
-                    // Very short queries (1-2 words) - add explicit English context
-                    fullPrompt =
-                        "Please explain the following topic clearly and concisely: \(sanitizedPrompt)"
-                } else if wordCount <= 5, !sanitizedPrompt.contains(" the "), !sanitizedPrompt.contains(" is ") {
-                    // Short queries without clear English markers
-                    fullPrompt =
-                        "Answer the following clearly and concisely: \(sanitizedPrompt)"
-                } else {
-                    fullPrompt = sanitizedPrompt
-                }
-            }
-
-            // Estimate token count for routing decisions (1.4 chars/token, empirically validated)
+            // Estimate token count for routing decisions
             let promptLength = fullPrompt.count
             let estimatedTokens = max(1, Int(ceil(Double(promptLength) / 1.4)))
             Log.debug("Generation: ~\(estimatedTokens) tokens, exec=\(config.executionContext)", category: .llm)
@@ -1254,17 +553,12 @@ struct LLMResponse {
             var firstTokenTime: TimeInterval?
             var actualExecutionLocation = "Unknown"
 
-            // ✅ Full GenerationOptions with SamplingMode support
-            // iOS 26 supports: temperature, sampling (topK/topP), maximumResponseTokens
             let samplingMode: GenerationOptions.SamplingMode?
             if config.topK > 0, config.topK < 100 {
-                // Top-K sampling: consider K highest probability tokens
                 samplingMode = .random(top: config.topK)
             } else if config.topP < 1.0, config.topP > 0.0 {
-                // Nucleus/Top-P sampling: consider tokens until cumulative probability
                 samplingMode = .random(probabilityThreshold: Double(config.topP))
             } else {
-                // Default: let system decide
                 samplingMode = nil
             }
 
@@ -1290,11 +584,9 @@ struct LLMResponse {
                     if firstTokenTime == nil {
                         firstTokenTime = Date().timeIntervalSince(startTime)
 
-                        // Haptic: first token arrived — the "brain lit up" moment
+                        // Haptic: first token arrived
                         await MainActor.run { DSHaptics.generationStarted() }
 
-                        // Detect actual execution location from first token latency
-                        // On-device: ~0.1-0.5s, PCC: ~2-4s (includes network roundtrip)
                         if let ttft = firstTokenTime {
                             if ttft < 1.0 {
                                 actualExecutionLocation = "📱 On-Device"
@@ -1304,27 +596,15 @@ struct LLMResponse {
                                 Log.info("[FM] Private Cloud Compute (TTFT: \(String(format: "%.2f", ttft))s)", category: .llm)
                             }
 
-                            // NOTE: We CANNOT force PCC. Apple's modelmanagerd daemon
-                            // makes routing decisions based on context size, complexity,
-                            // thermals, battery, and user's PCC consent settings.
-                            // If the system chose on-device, trust it. If context overflows
-                            // (>4096 tokens), Apple's framework will throw the error.
                             if config.executionContext == .cloudOnly,
                                actualExecutionLocation.contains("On-Device")
                             {
-                                // Just log - don't abort. Let the system work.
                                 Log.info(
                                     "[FM] System selected on-device despite cloud preference - context may fit in 4096 tokens",
                                     category: .llm
                                 )
                             }
 
-                            // Log when system routes to PCC despite our preference for on-device
-                            // NOTE: We cannot actually force on-device execution - Apple's system
-                            // automatically routes to PCC when context is too large. The only way
-                            // to avoid PCC is to trim context to fit within 4096 tokens.
-                            // If the user has PCC disabled in iOS Settings, this will fail at
-                            // the system level, not here.
                             if config.executionContext == .onDeviceOnly || !config.allowPrivateCloudCompute,
                                actualExecutionLocation.contains("Private Cloud Compute")
                             {
@@ -1339,9 +619,6 @@ struct LLMResponse {
                                         "note": "Context exceeds on-device capacity - PCC required",
                                     ]
                                 )
-                                // DON'T abort - let the system work. If PCC is truly unavailable
-                                // (user disabled in Settings), Apple's framework will handle it.
-                                // We've already trimmed context as much as possible.
                             }
                         }
                     }
@@ -1351,8 +628,6 @@ struct LLMResponse {
                     responseText = snapshot.content
                     let newChars = responseText.count - previousLength
 
-                    // Token counting based on Apple FM's ~1.4 chars/token ratio
-                    // (word count underestimates by ~23% for English, more for technical text)
                     let currentTokenEstimate = max(1, Int(ceil(Double(responseText.count) / 1.4)))
                     let newTokens = currentTokenEstimate - tokenCount
 
@@ -1366,7 +641,7 @@ struct LLMResponse {
                         LLMStreamingContext.emit(text: chunk, isFinal: false)
                     }
 
-                    // Subtle haptic tick every 8 snapshots — "feel the thinking"
+                    // Subtle haptic tick
                     if snapshotCount % 8 == 0 {
                         await MainActor.run { DSHaptics.generationTick() }
                     }
@@ -1375,70 +650,20 @@ struct LLMResponse {
                 // Stop Neural Engine activity on error
                 HardwareTelemetryReporter.sustain(.llmInference, active: false)
 
-                // ✅ Handle iOS 26 FoundationModels-specific errors (exhaustive)
-                switch error {
-                case let .exceededContextWindowSize(context):
-                    Log.warning("[FM] Context window exceeded (4096 tokens): \(context)", category: .llm)
-                    TelemetryCenter.emit(
-                        .system,
-                        severity: .warning,
-                        title: "Context window exceeded",
-                        metadata: ["estimatedTokens": "\(estimatedTokens)"]
-                    )
-                    // Rethrow to allow RAGService to handle retry with reduced context
-                    throw error
-                case let .guardrailViolation(context):
-                    Log.warning("[FM] Guardrail violation - content filtered: \(context)", category: .llm)
-                    guardrailViolation = true
-                    TelemetryCenter.emit(
-                        .system,
-                        severity: .warning,
-                        title: "Guardrail violation",
-                        metadata: [:]
-                    )
-                case let .unsupportedLanguageOrLocale(context):
-                    Log.warning("[FM] Unsupported language/locale: \(context)", category: .llm)
-                    unsupportedLanguage = true
-                case let .rateLimited(context):
-                    Log.warning("[FM] Rate limited: \(context)", category: .llm)
-                    throw LLMError.rateLimited(
-                        "Apple Intelligence is temporarily rate-limited. Please wait a moment and try again."
-                    )
-                case let .refusal(refusal, context):
-                    Log.warning("[FM] Model refused request: \(refusal) - \(context)", category: .llm)
-                    throw LLMError.generationFailed(
-                        "Apple Intelligence declined this request. Try rephrasing your question."
-                    )
-                case let .assetsUnavailable(context):
-                    Log.error("[FM] Model assets unavailable: \(context)", category: .llm)
-                    throw LLMError.generationFailed(
-                        "Apple Intelligence models are not currently available. Ensure Apple Intelligence is enabled in Settings."
-                    )
-                case let .decodingFailure(context):
-                    Log.error("[FM] Decoding failure: \(context)", category: .llm)
-                    throw LLMError.generationFailed(
-                        "Failed to decode model response. This is an internal error—please try again."
-                    )
-                case let .concurrentRequests(context):
-                    Log.warning("[FM] Concurrent requests blocked: \(context)", category: .llm)
-                    throw LLMError.concurrentRequests(
-                        "A request is already in progress. Please wait for it to complete."
-                    )
-                case let .unsupportedGuide(context):
-                    Log.error("[FM] Unsupported generation guide: \(context)", category: .llm)
-                    throw LLMError.generationFailed(
-                        "An internal tool configuration error occurred. Please report this bug."
-                    )
-                @unknown default:
-                    Log.error("[FM] Unknown generation error: \(error)", category: .llm)
-                    throw error
+                let mapped = FoundationModelErrorMapper.mapError(error, isStructured: false, estimatedTokens: estimatedTokens)
+                switch mapped {
+                case let .throwError(mappedError):
+                    throw mappedError
+                case let .setFlags(violation, unsupported):
+                    guardrailViolation = violation
+                    unsupportedLanguage = unsupported
                 }
             }
 
             // Stop Neural Engine activity indicator
             HardwareTelemetryReporter.sustain(.llmInference, active: false)
 
-            // Haptic: generation complete — satisfying finish tap
+            // Haptic: generation complete
             await MainActor.run { DSHaptics.generationComplete() }
 
             // Handle generation errors with user-friendly messages
@@ -1450,8 +675,6 @@ struct LLMResponse {
             }
 
             if unsupportedLanguage {
-                // For short queries, this might be a false positive from language detection
-                // Suggest rephrasing rather than claiming the language is unsupported
                 let supportedList = supportedLanguages.prefix(5).map { $0.languageCode?.identifier ?? "?" }.joined(separator: ", ")
                 throw LLMError.generationFailed(
                     "Apple Intelligence couldn't process this query. " +
@@ -1463,8 +686,6 @@ struct LLMResponse {
             Log.debug("[FM] Stream complete: \(snapshotCount) snapshots, \(responseText.count) chars", category: .llm)
 
             let totalTime = Date().timeIntervalSince(startTime)
-
-            // Final token count is accurate word count (updated after continuation if needed)
             var finalTokenCount = responseText.split(separator: " ").count
 
             Log.info("[FM] Generation complete: \(finalTokenCount) words in \(String(format: "%.2f", totalTime))s (\(actualExecutionLocation))", category: .llm)
@@ -1489,8 +710,7 @@ struct LLMResponse {
                 duration: totalTime
             )
 
-            // Response continuation: detect if response was cut off and continue if needed
-            // Skip continuation if config explicitly disables it (e.g., for summarization)
+            // Response continuation
             let needsContinuation = !config.skipContinuation && responseNeedsContinuation(responseText)
             if needsContinuation {
                 Log.info("[FM] Response appears incomplete - attempting continuation", category: .llm)
@@ -1506,14 +726,12 @@ struct LLMResponse {
                 }
             }
 
-            // Post-processing: normalize FM formatting quirks, then dedup
+            // Post-processing
             responseText = convertInlineBulletsToProseFlow(responseText)
             responseText = deduplicateResponse(responseText)
             responseText = stripExcessiveBolding(responseText)
 
             LLMStreamingContext.emit(text: "", isFinal: true)
-
-            // Update token count after potential continuation
             finalTokenCount = responseText.split(separator: " ").count
 
             let toolCalls = await ToolCallCounter.shared.takeAndReset()
@@ -1535,10 +753,6 @@ struct LLMResponse {
             sourceCount: Int,
             mode: StructuredRAGMode = .direct
         ) async throws -> LLMResponse {
-            guard sourceCount > 0 else {
-                throw LLMError.generationFailed("Structured generation requires source excerpts")
-            }
-
             if !supportsCurrentLocale {
                 let currentLocale = Locale.current.identifier
                 Log.warning("Current locale '\(currentLocale)' not supported by Apple Intelligence — structured generation may degrade", category: .llm)
@@ -1553,206 +767,20 @@ struct LLMResponse {
             structuredConfig.disableTools = true
             try ensureSession(systemPrompt: structuredConfig.systemPrompt, disableTools: true)
 
-            guard let session else {
+            guard let session = session else {
                 throw LLMError.modelUnavailable
             }
 
-            let startTime = Date()
-            let sanitizedPrompt = sanitizeForLanguageDetection(prompt)
-            let sanitizedContext = sanitizeForLanguageDetection(context)
-            let fullPrompt: String = {
-                switch mode {
-                case .reasoned:
-                    return """
-                    CONTEXT:
-                    \(sanitizedContext)
-
-                    QUESTION: \(sanitizedPrompt)
-
-                    Return grounded fields only.
-                    - `reasoning`: concise grounded reasoning based only on the excerpts
-                    - `answer`: direct answer from the excerpts
-                    - `confidence`: 0-100 based only on excerpt support
-                    - `citations`: source ids like [S1], [S2]
-                    - `claims`: atomic answer claims with supporting source ids per claim
-                    - `matchedTerms`: exact query terms supported by the excerpts
-                    """
-                case .direct:
-                    return """
-                    CONTEXT:
-                    \(sanitizedContext)
-
-                    QUESTION: \(sanitizedPrompt)
-
-                    Return grounded fields only.
-                    - `answer`: direct answer from the excerpts with no extra reasoning text
-                    - `confidence`: 0-100 based only on excerpt support
-                    - `citations`: source ids like [S1], [S2]
-                    - `claims`: atomic answer claims with supporting source ids per claim
-                    - `matchedTerms`: exact query terms supported by the excerpts
-                    """
-                }
-            }()
-
-            func respondStructured<GeneratedType: Generable>(
-                to prompt: String,
-                generating type: GeneratedType.Type
-            ) async throws -> LanguageModelSession.Response<GeneratedType> {
-                do {
-                    return try await session.respond(to: prompt, generating: type)
-                } catch let error as LanguageModelSession.GenerationError {
-                    switch error {
-                    case let .exceededContextWindowSize(context):
-                        Log.warning("[FM] Structured context window exceeded: \(context)", category: .llm)
-                        throw error
-                    case let .guardrailViolation(context):
-                        Log.warning("[FM] Structured guardrail violation: \(context)", category: .llm)
-                        throw LLMError.generationFailed("Structured answer was filtered by Apple Intelligence guardrails.")
-                    case let .unsupportedLanguageOrLocale(context):
-                        Log.warning("[FM] Structured unsupported language/locale: \(context)", category: .llm)
-                        throw LLMError.generationFailed("Apple Intelligence does not support the current language/locale for structured generation.")
-                    case let .rateLimited(context):
-                        Log.warning("[FM] Structured generation rate limited: \(context)", category: .llm)
-                        throw LLMError.rateLimited("Apple Intelligence is temporarily rate-limited. Please wait a moment and try again.")
-                    case let .refusal(refusal, context):
-                        Log.warning("[FM] Structured generation refusal: \(refusal) - \(context)", category: .llm)
-                        throw LLMError.generationFailed("Apple Intelligence declined the structured answer request.")
-                    case let .assetsUnavailable(context):
-                        Log.error("[FM] Structured generation assets unavailable: \(context)", category: .llm)
-                        throw LLMError.generationFailed("Apple Intelligence models are not currently available.")
-                    case let .decodingFailure(context):
-                        Log.error("[FM] Structured generation decoding failure: \(context)", category: .llm)
-                        throw LLMError.generationFailed("Failed to decode the structured response.")
-                    case let .concurrentRequests(context):
-                        Log.warning("[FM] Structured concurrent request blocked: \(context)", category: .llm)
-                        throw LLMError.concurrentRequests("A request is already in progress. Please wait for it to complete.")
-                    case let .unsupportedGuide(context):
-                        Log.error("[FM] Structured unsupported guide: \(context)", category: .llm)
-                        throw LLMError.generationFailed("Unsupported structured generation guide.")
-                    @unknown default:
-                        Log.error("[FM] Structured generation error: \(error)", category: .llm)
-                        throw error
-                    }
-                }
-            }
-
-            let normalizedCitations: [String]
-            let reasoningText: String
-            let answerText: String
-            let matchedTerms: [String]
-            let structuredClaims: [StructuredRAGClaim]
-            let confidence: Int
-
-            switch mode {
-            case .reasoned:
-                let response = try await respondStructured(to: fullPrompt, generating: RAGAnswer.self)
-                normalizedCitations = normalizeStructuredCitations(response.content.citations, maxSourceCount: sourceCount)
-                reasoningText = response.content.reasoning.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines)
-                answerText = response.content.answer.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines)
-                matchedTerms = response.content.matchedTerms
-                    .map { $0.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines) }
-                    .filter { !$0.isEmpty }
-                structuredClaims = response.content.claims.compactMap { claim -> StructuredRAGClaim? in
-                    let claimText = claim.claim.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines)
-                    guard !claimText.isEmpty else { return nil }
-                    return StructuredRAGClaim(
-                        claim: claimText,
-                        citations: normalizeStructuredCitations(claim.citations, maxSourceCount: sourceCount),
-                        isExtracted: claim.isExtracted
-                    )
-                }
-                confidence = response.content.confidence
-            case .direct:
-                let response = try await respondStructured(to: fullPrompt, generating: DirectRAGAnswer.self)
-                normalizedCitations = normalizeStructuredCitations(response.content.citations, maxSourceCount: sourceCount)
-                reasoningText = ""
-                answerText = response.content.answer.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines)
-                matchedTerms = response.content.matchedTerms
-                    .map { $0.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines) }
-                    .filter { !$0.isEmpty }
-                structuredClaims = response.content.claims.compactMap { claim -> StructuredRAGClaim? in
-                    let claimText = claim.claim.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines)
-                    guard !claimText.isEmpty else { return nil }
-                    return StructuredRAGClaim(
-                        claim: claimText,
-                        citations: normalizeStructuredCitations(claim.citations, maxSourceCount: sourceCount),
-                        isExtracted: claim.isExtracted
-                    )
-                }
-                confidence = response.content.confidence
-            }
-
-            guard !answerText.isEmpty else {
-                throw LLMError.generationFailed("Structured answer was empty")
-            }
-
-            let effectiveClaims: [StructuredRAGClaim]
-            if structuredClaims.isEmpty {
-                effectiveClaims = [StructuredRAGClaim(
-                    claim: answerText,
-                    citations: normalizedCitations,
-                    isExtracted: false
-                )]
-            } else {
-                effectiveClaims = Array(structuredClaims.prefix(6))
-            }
-
-            let citationFooter: String
-            if normalizedCitations.isEmpty || answerText.contains("[S") {
-                citationFooter = ""
-            } else {
-                citationFooter = "\n\nSources: " + normalizedCitations.joined(separator: " ")
-            }
-
-            let finalText = answerText + citationFooter
-            if !finalText.isEmpty {
-                LLMStreamingContext.emit(text: finalText, isFinal: false)
-            }
-            LLMStreamingContext.emit(text: "", isFinal: true)
-
-            let totalTime = Date().timeIntervalSince(startTime)
-            let estimatedTokens = max(1, Int(ceil(Double(finalText.count) / 1.4)))
-
-            return LLMResponse(
-                text: finalText,
-                tokensGenerated: estimatedTokens,
-                timeToFirstToken: nil,
-                totalTime: totalTime,
-                modelName: "\(modelName) (Structured)",
-                toolCallsMade: 0,
-                structuredRAGGeneration: StructuredRAGGeneration(
-                    reasoning: reasoningText.isEmpty ? nil : reasoningText,
-                    answer: answerText,
-                    confidence: confidence,
-                    citations: normalizedCitations,
-                    matchedTerms: matchedTerms,
-                    claims: effectiveClaims
-                )
+            return try await FoundationModelStructuredGenerator.generateStructuredRAGAnswer(
+                session: session,
+                modelName: modelName,
+                prompt: prompt,
+                context: context,
+                config: config,
+                sourceCount: sourceCount,
+                mode: mode
             )
         }
-
-        private func normalizeStructuredCitations(_ citations: [String], maxSourceCount: Int) -> [String] {
-            guard maxSourceCount > 0 else { return [] }
-            var seen: Set<Int> = []
-            var normalized: [String] = []
-
-            for citation in citations {
-                guard let regex = Self.structuredCitationRegex else { continue }
-                let nsRange = NSRange(citation.startIndex..<citation.endIndex, in: citation)
-                for match in regex.matches(in: citation, options: [], range: nsRange) {
-                    guard let range = Range(match.range(at: 1), in: citation),
-                          let index = Int(citation[range]),
-                          (1...maxSourceCount).contains(index),
-                          !seen.contains(index)
-                    else { continue }
-                    seen.insert(index)
-                    normalized.append("[S\(index)]")
-                }
-            }
-
-            return normalized
-        }
-
         /// Detects if a response was cut off mid-sentence or mid-thought
         private func responseNeedsContinuation(_ text: String) -> Bool {
             let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)

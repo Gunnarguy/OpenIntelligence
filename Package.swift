@@ -50,6 +50,7 @@ let package = Package(
                 "Core",
                 "SDK",
                 "Services/Agentic",
+                "Services/AIPlatform",
                 "Services/Document",
                 "Services/Embedding",
                 "Services/Infrastructure/Compute",

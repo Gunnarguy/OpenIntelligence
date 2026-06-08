@@ -54,10 +54,7 @@ actor ContextPackingService {
     /// Graph index for traversal
     private let graphIndex: GraphIndexService
 
-    /// Estimated tokens per character.
-    /// MUST match RAGService ratio: Apple FM empirically uses ~1.4 chars/token.
-    /// Previous value (0.3) underestimated by 2.4x, causing context overpacking.
-    private let tokensPerChar: Double = 0.71
+    private let tokensPerChar: Double = FoundationModelTokenBudget.tokensPerChar
 
     /// Default token budget (can be overridden per call)
     private let defaultTokenBudget: Int = 3200
@@ -282,7 +279,7 @@ actor ContextPackingService {
 
     /// Estimate tokens for a chunk
     private func estimateTokens(_ chunk: DocumentChunk) -> Int {
-        Int(Double(chunk.content.count) * tokensPerChar)
+        FoundationModelTokenBudget.estimateTokensForCharCount(chunk.content.count)
     }
 
     /// Apply Lost-in-Middle reordering (Liu et al., 2023).

@@ -9474,7 +9474,7 @@ class RAGService: ObservableObject {
                     //   4096 window - ~1500 overhead/prompt - ~50 question - 300 output = ~2246 tokens
                     let estQuestionTokens = max(20, question.count / 4)
                     let estimatedAvailableTokens = 4096 - 1500 - estQuestionTokens - 300
-                    let estimatedCharsAvailable = Int(Double(estimatedAvailableTokens) * 1.4 * 0.88)
+                    let estimatedCharsAvailable = Int(Double(estimatedAvailableTokens) * FoundationModelTokenBudget.onDeviceCharsPerToken * 0.88)
                     var totalChars = 0
                     var estimatedFit = 0
                     for candidate in contextCandidates {
@@ -9902,12 +9902,10 @@ class RAGService: ObservableObject {
                     Log.info("[RAG] Auto-disabled tools: context pre-assembled (\(contextCandidates.count) chunks). Reclaimed ~1000 tokens for context.", category: .pipeline)
                 }
 
-                // Apple FM tokenizer ratio: empirically ~1.4 chars/token (observed 3056 estimated → 5994 actual)
-                // This is conservative — compound safety removed; single 12% haircut applied at end
-                let conservativeCharsPerToken: Double = isAppleFMOnDevice ? 1.4 : 2.5
+                let conservativeCharsPerToken: Double = FoundationModelTokenBudget.conservativeCharsPerToken(isAppleFMOnDevice: isAppleFMOnDevice)
 
                 func estimateTokensConservative(chars: Int) -> Int {
-                    max(1, Int(ceil(Double(chars) / conservativeCharsPerToken)))
+                    FoundationModelTokenBudget.estimateTokens(charsCount: chars, isAppleFMOnDevice: isAppleFMOnDevice)
                 }
 
                 // CRITICAL: Apple FM (both on-device AND PCC) has a hard 4096 token limit.
@@ -13200,7 +13198,7 @@ class RAGService: ObservableObject {
                        !context.isEmpty,
                        !sourceChunks.isEmpty {
                         let systemChars = (config.systemPrompt ?? "").count
-                        let estimatedInputTokens = Int(ceil(Double(context.count + prompt.count + systemChars + 180) / 1.4))
+                        let estimatedInputTokens = FoundationModelTokenBudget.estimateTokens(charsCount: context.count + prompt.count + systemChars + 180, isAppleFMOnDevice: true)
                         let structuredSchemaTokens = structuredRAGMode == .reasoned ? 220 : 160
                         let structuredOutputReserve = min(max(config.maxTokens, 180), 360)
                         let withinStructuredBudget = estimatedInputTokens + structuredSchemaTokens + structuredOutputReserve <= 3600
