@@ -66,7 +66,19 @@ struct AnalyzeImageIntent: AppIntent {
             let config = InferenceConfig(maxTokens: 300, temperature: 0.7)
 
             do {
-                let response = try await ragService.query(question, topK: 3, config: config)
+                let metadata = VisualEvidenceMetadata(
+                    timestamp: Date(),
+                    ocrWordCount: extractedText.components(separatedBy: .whitespacesAndNewlines).filter { !$0.isEmpty }.count,
+                    barcodeCount: 0,
+                    detectedObjects: [],
+                    boundingBoxes: nil
+                )
+                let response = try await ragService.query(
+                    question,
+                    topK: 3,
+                    config: config,
+                    externalEvidence: [.imageOCR(extractedText, metadata)]
+                )
                 let answer = response.generatedResponse
 
                 return .result(
@@ -191,8 +203,19 @@ struct VisualSearchIntent: AppIntent {
         let config = InferenceConfig(maxTokens: 300, temperature: 0.7)
 
         do {
-            let searchQuery = "Based on this text: \(String(extractedText.prefix(200)))"
-            let response = try await ragService.query(searchQuery, topK: 5, config: config)
+            let metadata = VisualEvidenceMetadata(
+                timestamp: Date(),
+                ocrWordCount: extractedText.components(separatedBy: .whitespacesAndNewlines).filter { !$0.isEmpty }.count,
+                barcodeCount: 0,
+                detectedObjects: [],
+                boundingBoxes: nil
+            )
+            let response = try await ragService.query(
+                "Find content relevant to the photo",
+                topK: 5,
+                config: config,
+                externalEvidence: [.imageOCR(extractedText, metadata)]
+            )
 
             return .result(
                 dialog: IntentDialog(stringLiteral: String(response.generatedResponse.prefix(400))),

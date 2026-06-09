@@ -17,112 +17,141 @@ struct EmptyDocumentsView: View {
     let onPickFiles: () -> Void
 
     var body: some View {
-        VStack(spacing: 24) {
-                // Hero icon with gradient
+        VStack(spacing: 20) {
+                // Hero icon with liquid gradient
                 ZStack {
                     Circle()
                         .fill(
                             LinearGradient(
                                 colors: [
-                                    Color.accentColor.opacity(0.1),
-                                    Color.accentColor.opacity(0.05)
+                                    Color.accentColor.opacity(0.12),
+                                    Color.accentColor.opacity(0.04)
                                 ],
                                 startPoint: .topLeading,
                                 endPoint: .bottomTrailing
                             )
                         )
-                        .frame(width: 120, height: 120)
+                        .frame(width: 100, height: 100)
+                        .glassCircleEffectHelper()
 
-                    Image(systemName: "doc.text.magnifyingglass")
-                        .font(.system(size: 50))
+                    Image(systemName: "doc.viewfinder.fill")
+                        .font(.system(size: 44, weight: .bold))
                         .foregroundStyle(
                             LinearGradient(
-                                colors: [Color.accentColor, Color.accentColor.opacity(0.7)],
+                                colors: [Color.accentColor, Color.accentColor.opacity(0.6)],
                                 startPoint: .topLeading,
                                 endPoint: .bottomTrailing
                             )
                         )
+                        .shadow(color: Color.accentColor.opacity(0.2), radius: 8, x: 0, y: 3)
                 }
-                .padding(.top, 12)
+                .padding(.top, 16)
 
-                VStack(spacing: 8) {
+                VStack(spacing: 6) {
                     Text("No Documents Yet")
-                        .font(.title2)
-                        .fontWeight(.bold)
+                        .font(.system(size: 18, weight: .bold))
+                        .foregroundColor(.primary)
 
                     Text("Start with files that keep their structure")
-                        .font(.subheadline)
+                        .font(.system(size: 13, weight: .medium))
                         .foregroundColor(.secondary)
                         .multilineTextAlignment(.center)
+                        .padding(.horizontal, 24)
                 }
 
                 if isAtDocumentLimit {
-                    Text("You've reached the free workspace limit of \(documentLimit) documents. Remove a document or upgrade to keep importing content.")
-                        .font(.footnote)
-                        .multilineTextAlignment(.center)
-                        .foregroundStyle(.secondary)
-                        .padding(.horizontal)
+                    HStack(spacing: 6) {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                        Text("Limit of \(documentLimit) documents reached.")
+                    }
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundColor(.orange)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 6)
+                    .background(Color.orange.opacity(0.1))
+                    .cornerRadius(8)
                 }
 
-                VStack(spacing: 12) {
-                    Button(action: onPickFiles) {
+                VStack(spacing: 10) {
+                    Button(action: {
+                        DSHaptics.medium()
+                        onPickFiles()
+                    }) {
                         Label("Add Your Documents", systemImage: "tray.and.arrow.down")
+                            .font(.system(size: 14, weight: .bold))
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 4)
                     }
                     .buttonStyle(.borderedProminent)
+                    .cornerRadius(12)
 
-                    Button(action: onImportSamples) {
+                    Button(action: {
+                        DSHaptics.light()
+                        onImportSamples()
+                    }) {
                         HStack {
                             if isImportingSamples {
                                 ProgressView()
-                                    .scaleEffect(0.8)
+                                    .scaleEffect(0.7)
+                                    .padding(.trailing, 2)
                             }
-                            Text(hasImportedSamples ? "Re-import Sample Workspace" : "Import Sample Workspace")
+                            Text(hasImportedSamples ? "Re-import Samples" : "Import Sample Workspace")
+                                .font(.system(size: 13, weight: .semibold))
                         }
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 3)
                     }
                     .buttonStyle(.bordered)
+                    .tint(.secondary)
                     .disabled(isImportingSamples)
 
                     if let statusMessage, !statusMessage.isEmpty {
                         Text(statusMessage)
-                            .font(.footnote)
-                            .foregroundStyle(.secondary)
-                    } else if isAtDocumentLimit {
-                        Text("Upgrade to unlock more slots or clear a few documents to try the curated workspace.")
-                            .font(.footnote)
-                            .multilineTextAlignment(.center)
-                            .foregroundStyle(.secondary)
-                    } else {
-                        Text("PDFs, DOCX/XLSX/PPTX, TXT/MD, CSV, images, and transcriptable media import cleanly. Legacy Office, iWork, XML, code-heavy exports, and dense scientific tables often need cleanup or conversion first.")
-                            .font(.footnote)
-                            .multilineTextAlignment(.center)
+                            .font(.system(size: 10, weight: .medium))
                             .foregroundStyle(.secondary)
                     }
                 }
+                .padding(.horizontal, 2)
 
                 // Features
                 VStack(alignment: .leading, spacing: 12) {
                     DocumentFeatureRow(
-                        icon: "doc.fill",
+                        icon: "doc.on.doc.fill",
                         title: "Multiple Formats",
-                        description: "PDF, Office XML, text, images, and transcripts"
+                        description: "PDF, Office, text, images, and transcripts"
                     )
 
                     DocumentFeatureRow(
-                        icon: "bolt.fill",
-                        title: "Fast Processing",
-                        description: "Adaptive OCR, chunking, and local indexing"
+                        icon: "bolt.ring.closed",
+                        title: "Fast Local Processing",
+                        description: "Neural Engine chunking and local indexing"
                     )
 
                     DocumentFeatureRow(
-                        icon: "exclamationmark.triangle.fill",
-                        title: "Format Caveats",
-                        description: "Legacy formats and unusual exports often need cleanup first"
+                        icon: "lock.shield.fill",
+                        title: "Private & Secure",
+                        description: "Content never leaves your device for processing"
                     )
                 }
-                .padding(.horizontal, 32)
+                .padding(16)
+                .background(
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .fill(.ultraThinMaterial)
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .strokeBorder(Color.primary.opacity(0.06), lineWidth: 1)
+                )
+                .padding(.horizontal, 4)
+                
+                Text("PDFs, DOCX/XLSX/PPTX, TXT/MD, CSV, images, and transcripts import cleanly. Legacy formats and dense scientific tables may need conversion first.")
+                    .font(.system(size: 9, weight: .medium))
+                    .multilineTextAlignment(.center)
+                    .foregroundStyle(.secondary.opacity(0.7))
+                    .padding(.horizontal, 24)
             }
             .frame(maxWidth: .infinity)
-            .padding(.bottom, 24)
+            .padding(.bottom, 16)
     }
 }
 
@@ -133,19 +162,26 @@ struct DocumentFeatureRow: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            Image(systemName: icon)
-                .font(.title3)
-                .foregroundColor(.accentColor)
-                .frame(width: 32)
+            ZStack {
+                Circle()
+                    .fill(Color.accentColor.opacity(0.1))
+                    .frame(width: 36, height: 36)
+                
+                Image(systemName: icon)
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundColor(.accentColor)
+            }
+            .glassCircleEffectHelper()
 
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: 1) {
                 Text(title)
-                    .font(.subheadline)
-                    .fontWeight(.semibold)
+                    .font(.system(size: 13, weight: .bold))
+                    .foregroundColor(.primary)
 
                 Text(description)
-                    .font(.caption)
+                    .font(.system(size: 10, weight: .medium))
                     .foregroundColor(.secondary)
+                    .lineLimit(2)
             }
         }
     }

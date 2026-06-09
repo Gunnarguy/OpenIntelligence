@@ -36,12 +36,20 @@ struct CalibrationParameters: Codable, Sendable {
     /// Bias term (subtracted)
     let delta: Float
 
+    /// Platt scaling parameter A (slope coefficient)
+    let plattA: Float
+
+    /// Platt scaling parameter B (intercept/bias)
+    let plattB: Float
+
     /// Default parameters (empirically tuned)
     static let `default` = CalibrationParameters(
         alpha: 2.0,    // Strong weight on top score
         beta: 1.5,     // Medium weight on margin
         gamma: 0.5,    // Moderate boost for more evidence
-        delta: 1.2     // Bias to avoid overconfidence
+        delta: 1.2,    // Bias to avoid overconfidence
+        plattA: -2.5,  // Slope
+        plattB: 1.25   // Intercept
     )
 
     /// Conservative parameters (lower confidence)
@@ -49,7 +57,9 @@ struct CalibrationParameters: Codable, Sendable {
         alpha: 1.5,
         beta: 1.0,
         gamma: 0.3,
-        delta: 1.5
+        delta: 1.5,
+        plattA: -3.0,
+        plattB: 1.5
     )
 
     /// Aggressive parameters (higher confidence)
@@ -57,7 +67,9 @@ struct CalibrationParameters: Codable, Sendable {
         alpha: 2.5,
         beta: 2.0,
         gamma: 0.7,
-        delta: 0.8
+        delta: 0.8,
+        plattA: -2.0,
+        plattB: 1.0
     )
 }
 
@@ -159,7 +171,10 @@ final class ConfidenceCalibrationService: Sendable {
                     params.delta
 
         // Apply sigmoid
-        let probability = sigmoid(logit)
+        let rawProbability = sigmoid(logit)
+        
+        // Apply Platt Scaling Calibration: P(y=1|x) = 1 / (1 + exp(A*x + B))
+        let probability = plattScale(rawProbability)
 
         // Determine confidence level
         let level = confidenceLevel(from: probability)
@@ -248,6 +263,12 @@ final class ConfidenceCalibrationService: Sendable {
     /// Sigmoid function
     private func sigmoid(_ x: Float) -> Float {
         1 / (1 + exp(-x))
+    }
+
+    /// Platt scaling sigmoid calibration: P(y=1|x) = 1 / (1 + exp(A*x + B))
+    private func plattScale(_ x: Float) -> Float {
+        let exponent = params.plattA * x + params.plattB
+        return 1.0 / (1.0 + exp(exponent))
     }
 
     /// Map probability to confidence level

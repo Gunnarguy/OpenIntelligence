@@ -300,14 +300,43 @@ struct RAGAppShortcutsProvider: AppShortcutsProvider {
         )
 
         AppShortcut(
-            intent: GetEmbeddingProviderIntent(),
+            intent: AskDocumentIntent(),
             phrases: [
-                "What embedding model is \(.applicationName) using",
-                "Show embedding provider in \(.applicationName)",
-                "Check accuracy mode in \(.applicationName)",
+                "Ask \(.applicationName) about \(\.$document)",
+                "Query \(\.$document) in \(.applicationName)"
             ],
-            shortTitle: "Check Embedding",
-            systemImageName: "brain.head.profile"
+            shortTitle: "Ask About Document",
+            systemImageName: "doc.text.fill"
+        )
+
+        AppShortcut(
+            intent: SummarizeDocumentIntent(),
+            phrases: [
+                "Summarize \(\.$document) in \(.applicationName)",
+                "Show summary of \(\.$document) in \(.applicationName)"
+            ],
+            shortTitle: "Summarize Document",
+            systemImageName: "text.justify.left"
+        )
+
+        AppShortcut(
+            intent: CompareDocumentsIntent(),
+            phrases: [
+                "Compare documents in \(.applicationName)",
+                "Show comparison of documents in \(.applicationName)"
+            ],
+            shortTitle: "Compare Documents",
+            systemImageName: "arrow.2.squarepath"
+        )
+
+        AppShortcut(
+            intent: SearchLibraryIntent(),
+            phrases: [
+                "Search \(\.$library) in \(.applicationName)",
+                "Query \(\.$library) in \(.applicationName)"
+            ],
+            shortTitle: "Search Library",
+            systemImageName: "magnifyingglass.circle.fill"
         )
 
         if #available(iOS 26.0, *) {
@@ -577,5 +606,188 @@ struct ErrorSnippetView: View {
                 .multilineTextAlignment(.center)
         }
         .padding()
+    }
+}
+
+// MARK: - Entity-Native App Intents
+
+@available(iOS 16.0, *)
+struct AskDocumentIntent: AppIntent {
+    static var title: LocalizedStringResource = "Ask About a Document"
+    static var description: IntentDescription = .init(
+        "Ask a question about a specific document",
+        categoryName: "Documents"
+    )
+
+    static var openAppWhenRun: Bool = false
+
+    @Parameter(title: "Document")
+    var document: OIDocumentEntity
+
+    @Parameter(title: "Question")
+    var question: String
+
+    static var parameterSummary: some ParameterSummary {
+        Summary("Ask \(\.$document) about \(\.$question)")
+    }
+
+    func perform() async throws -> some IntentResult & ProvidesDialog & ShowsSnippetView {
+        let ragService = await MainActor.run { RAGService() }
+        do {
+            let config = InferenceConfig(maxTokens: 300, temperature: 0.7)
+            let prompt = "Using ONLY the document '\(document.filename)', answer: \(question)"
+            let response = try await ragService.query(prompt, config: config)
+            let spokenResponse = response.generatedResponse
+            
+            return .result(
+                dialog: IntentDialog(stringLiteral: spokenResponse),
+                view: RAGResponseSnippetView(
+                    question: question,
+                    answer: response.generatedResponse,
+                    chunkCount: response.retrievedChunks.count,
+                    documentCount: 1
+                )
+            )
+        } catch {
+            return .result(
+                dialog: IntentDialog(stringLiteral: "Failed to query the document: \(error.localizedDescription)"),
+                view: ErrorSnippetView(message: error.localizedDescription)
+            )
+        }
+    }
+}
+
+@available(iOS 16.0, *)
+struct SummarizeDocumentIntent: AppIntent {
+    static var title: LocalizedStringResource = "Summarize Document"
+    static var description: IntentDescription = .init(
+        "Generate a summary for a specific document",
+        categoryName: "Documents"
+    )
+
+    static var openAppWhenRun: Bool = false
+
+    @Parameter(title: "Document")
+    var document: OIDocumentEntity
+
+    static var parameterSummary: some ParameterSummary {
+        Summary("Summarize \(\.$document)")
+    }
+
+    func perform() async throws -> some IntentResult & ProvidesDialog & ShowsSnippetView {
+        let ragService = await MainActor.run { RAGService() }
+        do {
+            let config = InferenceConfig(maxTokens: 400, temperature: 0.5)
+            let prompt = "Provide a concise summary of the main points and key information in the document '\(document.filename)'."
+            let response = try await ragService.query(prompt, config: config)
+            let spokenResponse = "Here is a summary of \(document.filename): \(response.generatedResponse)"
+            
+            return .result(
+                dialog: IntentDialog(stringLiteral: spokenResponse),
+                view: RAGResponseSnippetView(
+                    question: "Summarize \(document.filename)",
+                    answer: response.generatedResponse,
+                    chunkCount: response.retrievedChunks.count,
+                    documentCount: 1
+                )
+            )
+        } catch {
+            return .result(
+                dialog: IntentDialog(stringLiteral: "Failed to summarize the document: \(error.localizedDescription)"),
+                view: ErrorSnippetView(message: error.localizedDescription)
+            )
+        }
+    }
+}
+
+@available(iOS 16.0, *)
+struct CompareDocumentsIntent: AppIntent {
+    static var title: LocalizedStringResource = "Compare Documents"
+    static var description: IntentDescription = .init(
+        "Compare two documents on a specific topic",
+        categoryName: "Documents"
+    )
+
+    static var openAppWhenRun: Bool = false
+
+    @Parameter(title: "First Document")
+    var document1: OIDocumentEntity
+
+    @Parameter(title: "Second Document")
+    var document2: OIDocumentEntity
+
+    @Parameter(title: "Topic")
+    var topic: String
+
+    static var parameterSummary: some ParameterSummary {
+        Summary("Compare \(\.$document1) and \(\.$document2) on \(\.$topic)")
+    }
+
+    func perform() async throws -> some IntentResult & ProvidesDialog & ShowsSnippetView {
+        let ragService = await MainActor.run { RAGService() }
+        do {
+            let config = InferenceConfig(maxTokens: 400, temperature: 0.6)
+            let prompt = "Compare what is stated in '\(document1.filename)' versus what is stated in '\(document2.filename)' on the topic: \(topic)."
+            let response = try await ragService.query(prompt, config: config)
+            
+            return .result(
+                dialog: IntentDialog(stringLiteral: response.generatedResponse),
+                view: RAGResponseSnippetView(
+                    question: "Comparison of \(document1.filename) and \(document2.filename) on \(topic)",
+                    answer: response.generatedResponse,
+                    chunkCount: response.retrievedChunks.count,
+                    documentCount: 2
+                )
+            )
+        } catch {
+            return .result(
+                dialog: IntentDialog(stringLiteral: "Failed to compare the documents: \(error.localizedDescription)"),
+                view: ErrorSnippetView(message: error.localizedDescription)
+            )
+        }
+    }
+}
+
+@available(iOS 16.0, *)
+struct SearchLibraryIntent: AppIntent {
+    static var title: LocalizedStringResource = "Search Library"
+    static var description: IntentDescription = .init(
+        "Search within a specific document library",
+        categoryName: "Documents"
+    )
+
+    static var openAppWhenRun: Bool = false
+
+    @Parameter(title: "Library")
+    var library: OILibraryEntity
+
+    @Parameter(title: "Query")
+    var query: String
+
+    static var parameterSummary: some ParameterSummary {
+        Summary("Search \(\.$library) for \(\.$query)")
+    }
+
+    func perform() async throws -> some IntentResult & ProvidesDialog & ShowsSnippetView {
+        let ragService = await MainActor.run { RAGService() }
+        do {
+            let config = InferenceConfig(maxTokens: 300, temperature: 0.7)
+            let response = try await ragService.query(query, config: config, containerId: library.id)
+            
+            return .result(
+                dialog: IntentDialog(stringLiteral: response.generatedResponse),
+                view: RAGResponseSnippetView(
+                    question: query,
+                    answer: response.generatedResponse,
+                    chunkCount: response.retrievedChunks.count,
+                    documentCount: library.totalDocuments
+                )
+            )
+        } catch {
+            return .result(
+                dialog: IntentDialog(stringLiteral: "Failed to search the library: \(error.localizedDescription)"),
+                view: ErrorSnippetView(message: error.localizedDescription)
+            )
+        }
     }
 }

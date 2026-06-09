@@ -1,5 +1,5 @@
 #if os(iOS) && canImport(ActivityKit) && !targetEnvironment(macCatalyst)
-import ActivityKit
+@preconcurrency import ActivityKit
 import Foundation
 
 @available(iOS 17.0, *)
@@ -53,19 +53,17 @@ final class IngestionLiveActivityService {
         if let currentActivity {
             let sessionID = currentActivity.attributes.sessionID
             activityOperationTask?.cancel()
-            activityOperationTask = Task { [weak self] in
+            activityOperationTask = Task { @MainActor [weak self] in
                 guard !Task.isCancelled else { return }
-                await currentActivity.update(content)
+                guard let activity = self?.currentActivity else { return }
+                await activity.update(content)
                 guard !Task.isCancelled else { return }
 
-                await MainActor.run { [weak self] in
-                    guard let self else { return }
-                    if self.currentActivity?.attributes.sessionID == sessionID {
-                        self.lastContentState = contentState
-                        self.lastUpdateAt = Date()
-                    }
-                    self.activityOperationTask = nil
+                if self?.currentActivity?.attributes.sessionID == sessionID {
+                    self?.lastContentState = contentState
+                    self?.lastUpdateAt = Date()
                 }
+                self?.activityOperationTask = nil
             }
         } else {
             guard activityOperationTask == nil else { return }
@@ -99,7 +97,7 @@ final class IngestionLiveActivityService {
         lastContentState = nil
         lastUpdateAt = .distantPast
 
-        activityOperationTask = Task { [weak self] in
+        activityOperationTask = Task { @MainActor [weak self] in
             if let finalState {
                 await currentActivity.end(
                     ActivityContent(state: finalState, staleDate: nil),
@@ -109,9 +107,7 @@ final class IngestionLiveActivityService {
                 await currentActivity.end(nil, dismissalPolicy: .immediate)
             }
 
-            await MainActor.run { [weak self] in
-                self?.activityOperationTask = nil
-            }
+            self?.activityOperationTask = nil
         }
     }
 

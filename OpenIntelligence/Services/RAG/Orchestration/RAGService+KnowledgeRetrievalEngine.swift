@@ -7,6 +7,7 @@ extension RAGService: KnowledgeRetrievalEngine {
             topK: request.topK,
             config: request.config,
             containerId: request.containerId,
+            externalEvidence: request.externalEvidence,
             streamHandler: nil
         )
     }

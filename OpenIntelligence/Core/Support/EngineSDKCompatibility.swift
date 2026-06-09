@@ -49,6 +49,27 @@ final class SpotlightIndexService {
     func deindexDocument(id _: UUID) {}
 
     func deindexAllDocuments(in _: UUID) {}
+
+    func indexChunk(
+        id: UUID,
+        documentId: UUID,
+        documentName: String,
+        containerId: UUID,
+        containerName: String,
+        content: String,
+        pageNumber: Int?,
+        sectionTitle: String?,
+        chunkIndex: Int,
+        keywords: [String]?
+    ) {}
+
+    func indexDocumentChunks(
+        documentId: UUID,
+        documentName: String,
+        chunks: [DocumentChunk],
+        containerId: UUID,
+        containerName: String
+    ) {}
 }
 
 final class EntitlementStore {
@@ -72,6 +93,14 @@ final class EntitlementStore {
 
     func consumeMaximumModeUseIfNeeded() -> MaximumModeExecutionDecision {
         .allowedUnlimited
+    }
+
+    static func currentEffectiveTier(defaults: UserDefaults = .standard) -> WorkspaceTier {
+        return .free
+    }
+
+    static func currentLibraryLimit(defaults: UserDefaults = .standard) -> Int {
+        return 1
     }
 }
 
@@ -116,4 +145,57 @@ final class TranscriptPersistenceService {
 }
 #endif
 
+#endif
+import Foundation
+
+#if canImport(FoundationModels)
+import FoundationModels
+
+// Mocking the new WWDC26 API so it compiles.
+@available(iOS 26.0, macOS 16.0, *)
+public struct PrivateCloudComputeLanguageModel {
+    public init() {}
+    public var isAvailable: Bool { true }
+    public var contextSize: Int { 32768 }
+    
+    public struct QuotaUsage {
+        public enum Status: String {
+            case belowLimit
+            case approachingLimit
+            case limitReached
+            public var description: String { rawValue }
+        }
+        public var status: Status { .belowLimit }
+        public var isLimitReached: Bool { false }
+        public var limitIncreaseSuggestion: Bool { true }
+    }
+    public var quotaUsage: QuotaUsage { QuotaUsage() }
+}
+
+@available(iOS 26.0, macOS 16.0, *)
+public struct ContextOptions {
+    public enum ReasoningLevel: String {
+        case none
+        case light
+        case moderate
+        case deep
+    }
+    public var reasoningLevel: ReasoningLevel
+    public init(reasoningLevel: ReasoningLevel) {
+        self.reasoningLevel = reasoningLevel
+    }
+}
+
+@available(iOS 26.0, macOS 16.0, *)
+extension LanguageModelSession {
+    public convenience init(model: PrivateCloudComputeLanguageModel, tools: [any Tool] = [], instructions: Instructions) {
+        self.init(model: SystemLanguageModel.default, tools: tools, instructions: instructions)
+    }
+    public convenience init(model: PrivateCloudComputeLanguageModel, tools: [any Tool] = [], transcript: Transcript) {
+        self.init(model: SystemLanguageModel.default, tools: tools, transcript: transcript)
+    }
+    public func streamResponse(to prompt: String, options: GenerationOptions, contextOptions: ContextOptions?) -> LanguageModelSession.ResponseStream<String> {
+        return self.streamResponse(to: prompt, options: options)
+    }
+}
 #endif

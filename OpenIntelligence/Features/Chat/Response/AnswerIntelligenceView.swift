@@ -268,6 +268,12 @@ struct AnswerIntelligenceView: View {
 
     private var overviewSection: some View {
         VStack(alignment: .leading, spacing: DSSpacing.md) {
+            // Source Fidelity Status Card
+            SourceFidelityStatus(
+                fidelityScore: Float(intelligence.overallConfidence),
+                shouldAbstain: !intelligence.allGatesPassed && intelligence.gatesPassed == 0
+            )
+
             // Confidence bar
             VStack(alignment: .leading, spacing: DSSpacing.xs) {
                 HStack {

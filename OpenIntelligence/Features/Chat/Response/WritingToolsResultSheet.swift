@@ -85,39 +85,39 @@ struct WritingToolsResultSheet: View {
                     Divider()
 
                     // Action buttons
-                    HStack(spacing: 12) {
+                    HStack(spacing: 8) {
                         Button {
                             onCopy()
                         } label: {
                             Label("Copy", systemImage: "doc.on.doc")
-                                .font(.subheadline.weight(.medium))
+                                .font(.system(size: 13, weight: .medium))
                                 .frame(maxWidth: .infinity)
-                                .padding(.vertical, 10)
+                                .padding(.vertical, 8)
                                 .background(.ultraThinMaterial)
-                                .clipShape(RoundedRectangle(cornerRadius: 10))
+                                .clipShape(RoundedRectangle(cornerRadius: 8))
                         }
                         .buttonStyle(.plain)
 
                         ShareLink(item: result) {
                             Label("Share", systemImage: "square.and.arrow.up")
-                                .font(.subheadline.weight(.medium))
+                                .font(.system(size: 13, weight: .medium))
                                 .frame(maxWidth: .infinity)
-                                .padding(.vertical, 10)
+                                .padding(.vertical, 8)
                                 .background(.ultraThinMaterial)
-                                .clipShape(RoundedRectangle(cornerRadius: 10))
+                                .clipShape(RoundedRectangle(cornerRadius: 8))
                         }
                         .buttonStyle(.plain)
 
                         Button {
                             onInsertAsReply()
                         } label: {
-                            Label("Insert in Chat", systemImage: "text.insert")
-                                .font(.subheadline.weight(.medium))
+                            Label("Insert", systemImage: "text.insert")
+                                .font(.system(size: 13, weight: .medium))
                                 .frame(maxWidth: .infinity)
-                                .padding(.vertical, 10)
+                                .padding(.vertical, 8)
                                 .foregroundStyle(.white)
                                 .background(colorForTitle)
-                                .clipShape(RoundedRectangle(cornerRadius: 10))
+                                .clipShape(RoundedRectangle(cornerRadius: 8))
                         }
                         .buttonStyle(.plain)
                     }

@@ -134,33 +134,33 @@ public enum DSColors {
 // MARK: - Typography
 
 public enum DSTypography {
-    public static var title: Font { .title3.weight(.semibold) }
-    public static var body: Font { .body }
-    public static var caption: Font { .caption }
-    public static var meta: Font { .caption2 }
-    public static var chip: Font { .caption2.weight(.semibold) }
-    public static var code: Font { .system(.footnote, design: .monospaced) }
+    public static var title: Font { .headline }
+    public static var body: Font { .system(size: 14) }
+    public static var caption: Font { .system(size: 11) }
+    public static var meta: Font { .system(size: 10) }
+    public static var chip: Font { .system(size: 10, weight: .semibold) }
+    public static var code: Font { .system(size: 12, design: .monospaced) }
 }
 
 // MARK: - Spacing
 
 public enum DSSpacing {
-    public static let xxs: CGFloat = 4
-    public static let xs: CGFloat = 8
-    public static let sm: CGFloat = 12
-    public static let md: CGFloat = 16
-    public static let lg: CGFloat = 24
-    public static let xl: CGFloat = 32
+    public static let xxs: CGFloat = 2
+    public static let xs: CGFloat = 6
+    public static let sm: CGFloat = 10
+    public static let md: CGFloat = 14
+    public static let lg: CGFloat = 20
+    public static let xl: CGFloat = 28
 }
 
 // MARK: - Corners
 
 public enum DSCorners {
-    public static let chip: CGFloat = 8
-    public static let control: CGFloat = 12
-    public static let card: CGFloat = 16
-    public static let bubble: CGFloat = 20
-    public static let sheet: CGFloat = 24
+    public static let chip: CGFloat = 6
+    public static let control: CGFloat = 10
+    public static let card: CGFloat = 12
+    public static let bubble: CGFloat = 16
+    public static let sheet: CGFloat = 20
 }
 
 // MARK: - Shadows / Elevation

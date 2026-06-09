@@ -9,18 +9,58 @@ import SwiftUI
 
 /// Compact model status indicator for the app header
 struct ModelStatusIndicator: View {
-    @EnvironmentObject private var settings: SettingsStore
-    let deviceCapabilities: DeviceCapabilities
+    @EnvironmentObject private var modelResolution: ModelResolutionService
+    @State private var showDetails = false
 
     var body: some View {
-        HStack(spacing: 8) {
-            statusDot
-            modelLabel
+        Button {
+            showDetails = true
+            DSHaptics.soft()
+        } label: {
+            HStack(spacing: 8) {
+                statusDot
+                modelLabel
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 6)
+            .background(backgroundColor)
+            .clipShape(Capsule())
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 6)
-        .background(backgroundColor)
-        .clipShape(Capsule())
+        .buttonStyle(.plain)
+        .popover(isPresented: $showDetails) {
+            VStack(alignment: .leading, spacing: 12) {
+                Text("Model Resolution Details")
+                    .font(.headline)
+                
+                DetailRow(label: "Reason", value: modelResolution.currentState.resolutionReason.displayText)
+                DetailRow(label: "Path", value: modelResolution.currentState.executionPath.displayName)
+                DetailRow(label: "Model", value: modelResolution.currentState.activeModelName)
+                
+                Divider()
+                
+                Text("Transparency is key. This model was selected based on your device capabilities and active routing policy.")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+            .padding()
+            .frame(width: 280)
+        }
+    }
+
+    private struct DetailRow: View {
+        let label: String
+        let value: String
+        
+        var body: some View {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(label)
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .textCase(.uppercase)
+                Text(value)
+                    .font(.subheadline.weight(.medium))
+            }
+        }
     }
 
     @ViewBuilder
@@ -32,17 +72,23 @@ struct ModelStatusIndicator: View {
 
     @ViewBuilder
     private var modelLabel: some View {
-        Text(settings.selectedModel.displayName)
-            .font(.caption.weight(.medium))
-            .foregroundColor(.primary)
+        HStack(spacing: 4) {
+            Text(modelResolution.currentState.executionPath.emoji)
+                .font(.caption)
+            Text(modelResolution.currentState.activeModelName)
+                .font(.caption.weight(.medium))
+                .foregroundColor(.primary)
+        }
     }
 
     private var statusColor: Color {
-        switch settings.selectedModel {
-        case .appleIntelligence:
-            return deviceCapabilities.supportsFoundationModels ? .green : .orange
-        case .onDeviceAnalysis:
+        switch modelResolution.currentState.status {
+        case .ready:
             return .green
+        case .loading:
+            return .blue
+        case .unavailable:
+            return .red
         }
     }
 
@@ -180,10 +226,14 @@ struct QuickModelPickerSheet: View {
 }
 
 #Preview {
-    VStack(spacing: 20) {
-        ModelStatusIndicator(deviceCapabilities: DeviceCapabilities())
+    let rag = RAGService()
+    let settings = SettingsStore(ragService: rag)
+    let resolution = ModelResolutionService(ragService: rag, settingsStore: settings)
+    return VStack(spacing: 20) {
+        ModelStatusIndicator()
         ModelQuickSelector(deviceCapabilities: DeviceCapabilities())
     }
     .padding()
-    .environmentObject(SettingsStore(ragService: RAGService()))
+    .environmentObject(settings)
+    .environmentObject(resolution)
 }

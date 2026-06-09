@@ -7,17 +7,20 @@ struct RetrievalRequest {
     let topK: Int
     let config: InferenceConfig?
     let containerId: UUID?
+    let externalEvidence: [EvidenceSource]?
 
     init(
         question: String,
         topK: Int = 3,
         config: InferenceConfig? = nil,
-        containerId: UUID? = nil
+        containerId: UUID? = nil,
+        externalEvidence: [EvidenceSource]? = nil
     ) {
         self.question = question
         self.topK = topK
         self.config = config
         self.containerId = containerId
+        self.externalEvidence = externalEvidence
     }
 }
 

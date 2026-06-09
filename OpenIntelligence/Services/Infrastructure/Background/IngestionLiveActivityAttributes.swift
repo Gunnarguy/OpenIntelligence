@@ -50,12 +50,12 @@ enum OpenIntelligenceDeepLink {
     static let scheme = "openintelligence"
     static let documentsURL = URL(string: "openintelligence://documents")!
     static let ingestionQueueURL = URL(string: "openintelligence://documents/ingestion")!
-    static let queryChatURL = URL(string: "openintelligence://chat/query")!
+    static let queryChatURL = URL(string: "openintelligence://chat//query")!
 }
 
 #if os(iOS) && canImport(ActivityKit) && !targetEnvironment(macCatalyst)
 @available(iOS 17.0, *)
-struct IngestionLiveActivityAttributes: ActivityAttributes {
+nonisolated struct IngestionLiveActivityAttributes: ActivityAttributes, Sendable {
     struct ContentState: Codable, Hashable, Sendable {
         let progress: Double
         let processedCount: Int
@@ -76,7 +76,7 @@ struct IngestionLiveActivityAttributes: ActivityAttributes {
 }
 
 @available(iOS 17.0, *)
-struct QueryLiveActivityAttributes: ActivityAttributes {
+nonisolated struct QueryLiveActivityAttributes: ActivityAttributes, Sendable {
     struct ContentState: Codable, Hashable, Sendable {
         let progress: Double
         let title: String

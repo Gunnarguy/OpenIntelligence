@@ -155,6 +155,7 @@ struct UnifiedMetricsBar: View {
     var liveReasoningTitle: String = ""
     var liveReasoningDetail: String = ""
     var liveReasoningKind: ThinkingEvent.Kind? = nil
+    var thinkingEvents: [ThinkingEvent] = []
 
     // Callbacks
     var onTapDetails: (() -> Void)?
@@ -2272,6 +2273,8 @@ struct UnifiedMetricsBar: View {
                     techniquePill(icon: "tag.fill", text: "\(graphEntitiesExtracted) entities", color: .teal)
                 }
             }
+
+            ThinkingStreamView(events: thinkingEvents)
         }
         .padding(12)
         .background(Color.purple.opacity(0.06))
@@ -2347,6 +2350,8 @@ struct UnifiedMetricsBar: View {
                     techniquePill(icon: "point.3.connected.trianglepath.dotted", text: "Graph", color: .indigo)
                 }
             }
+
+            ThinkingStreamView(events: thinkingEvents)
         }
         .padding(12)
         .background(
@@ -4445,7 +4450,8 @@ private struct MiniSparkline: View {
         coveredDocuments: 6,
         toolCallCount: 2,
         modelName: "Apple Intelligence",
-        requestedExecutionContext: .preferCloud
+        requestedExecutionContext: .preferCloud,
+        thinkingEvents: []
     )
     .padding()
 }
@@ -4471,7 +4477,8 @@ private struct MiniSparkline: View {
         coveredDocuments: 18,
         toolCallCount: 0,
         modelName: "Apple Intelligence",
-        requestedExecutionContext: .preferCloud
+        requestedExecutionContext: .preferCloud,
+        thinkingEvents: []
     )
     .padding()
 }
@@ -4497,7 +4504,8 @@ private struct MiniSparkline: View {
         coveredDocuments: 0,
         toolCallCount: 0,
         modelName: nil,
-        requestedExecutionContext: .automatic
+        requestedExecutionContext: .automatic,
+        thinkingEvents: []
     )
     .padding()
 }

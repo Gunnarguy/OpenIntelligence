@@ -137,7 +137,8 @@ final class IterativeRetrievalService: @unchecked Sendable {
         vectorDatabase: VectorDatabase,
         config: IterativeRetrievalConfig = .default,
         topK: Int = 10,
-        cachedChunks: [DocumentChunk]? = nil
+        cachedChunks: [DocumentChunk]? = nil,
+        isOverviewQuery: Bool = false
     ) async throws -> IterativeRetrievalResult {
         let startTime = Date()
         var allChunks: [RetrievedChunk] = []
@@ -164,7 +165,8 @@ final class IterativeRetrievalService: @unchecked Sendable {
                 originalQuery: lexicalQuery,
                 embedding: embedding,
                 topK: topK,
-                cachedChunks: cachedChunks
+                cachedChunks: cachedChunks,
+                isOverviewQuery: isOverviewQuery
             )
 
             // Add new chunks (deduplicated)

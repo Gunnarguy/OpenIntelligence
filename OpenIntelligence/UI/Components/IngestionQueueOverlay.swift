@@ -31,6 +31,207 @@ private func shortProviderDisplay(_ provider: String) -> String {
     }
 }
 
+// MARK: - Console Log View
+
+struct IngestionConsoleView: View {
+    let events: [IngestionEvent]
+    let isTerminal: Bool
+    
+    @State private var isExpanded = true
+    @State private var isFullHeight = false
+    @State private var hasAutoExpanded = false
+
+    var body: some View {
+        VStack(spacing: 0) {
+            // Header to expand/collapse
+            Button(action: {
+                withAnimation(.spring(response: 0.25, dampingFraction: 0.8)) {
+                    isExpanded.toggle()
+                }
+            }) {
+                HStack {
+                    Text("Processing Log")
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundStyle(DSColors.secondaryText)
+                    Spacer()
+                    Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
+                        .font(.system(size: 8, weight: .semibold))
+                        .foregroundStyle(DSColors.secondaryText.opacity(0.5))
+                }
+                .padding(.horizontal, 6)
+                .padding(.vertical, 4)
+                .background(Color.black.opacity(0.1))
+                .clipShape(RoundedRectangle(cornerRadius: 4))
+            }
+            .buttonStyle(.plain)
+
+            if isExpanded {
+                VStack(spacing: 0) {
+                    ScrollViewReader { proxy in
+                        ScrollView(.vertical, showsIndicators: true) {
+                            VStack(alignment: .leading, spacing: 0) {
+                                ForEach(events) { event in
+                                    IngestionConsoleLogRow(event: event, isLatest: event == events.last && !isTerminal)
+                                        .id(event.id)
+                                }
+                            }
+                        }
+                        .frame(maxHeight: isFullHeight ? 250 : 120)
+                        .onChange(of: events.count) { _, _ in
+                            if let latest = events.last {
+                                withAnimation(.easeOut(duration: 0.15)) {
+                                    proxy.scrollTo(latest.id, anchor: .bottom)
+                                }
+                            }
+                        }
+                    }
+                    
+                    if events.count > 6 {
+                        Button(action: {
+                            withAnimation(.spring(response: 0.25, dampingFraction: 0.8)) {
+                                isFullHeight.toggle()
+                            }
+                        }) {
+                            Text(isFullHeight ? "Compact" : "Full Log (\(events.count))")
+                                .font(.system(size: 8, weight: .medium, design: .monospaced))
+                                .foregroundStyle(DSColors.accent.opacity(0.7))
+                                .padding(.vertical, 4)
+                                .frame(maxWidth: .infinity)
+                                .background(Color.white.opacity(0.03))
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .padding(.vertical, 4)
+                .padding(.horizontal, 4)
+                .background(
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .fill(Color.black.opacity(0.6))
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .stroke(Color.white.opacity(0.1), lineWidth: 0.5)
+                )
+                .padding(.top, 4)
+                .transition(.asymmetric(
+                    insertion: .push(from: .top).combined(with: .opacity),
+                    removal: .opacity
+                ))
+            }
+        }
+        .onChange(of: events.count) { _, newCount in
+            if newCount >= 1 && !hasAutoExpanded {
+                withAnimation(.spring(response: 0.3, dampingFraction: 0.85)) {
+                    isExpanded = true
+                    hasAutoExpanded = true
+                }
+            }
+        }
+        .onChange(of: events.isEmpty) { _, isEmpty in
+            if isEmpty {
+                hasAutoExpanded = false
+            }
+        }
+        .onChange(of: isTerminal) { _, terminal in
+            if terminal && isExpanded {
+                withAnimation(.spring(response: 0.3, dampingFraction: 0.85)) {
+                    isExpanded = false
+                }
+            }
+        }
+    }
+}
+
+struct IngestionConsoleLogRow: View {
+    let event: IngestionEvent
+    let isLatest: Bool
+    
+    private var timestamp: String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "mm:ss"
+        return formatter.string(from: event.timestamp)
+    }
+    
+    private var stageColor: Color {
+        switch event.stage {
+        case .queued: return .gray
+        case .loading: return .blue
+        case .transcribing: return .purple
+        case .extracting: return .orange
+        case .chunking: return .green
+        case .analyzing: return .teal
+        case .adapting: return .yellow
+        case .reindexing: return .pink
+        case .embedding: return .indigo
+        case .indexing: return .mint
+        case .storing: return .cyan
+        case .complete: return .green
+        case .cancelled: return .orange
+        case .failed: return .red
+        }
+    }
+    
+    private var shortStageLabel: String {
+        switch event.stage {
+        case .transcribing: return "AUDIO"
+        case .extracting: return "EXTRACT"
+        case .chunking: return "CHUNK"
+        case .analyzing: return "ANALYZE"
+        case .adapting: return "ADAPT"
+        case .reindexing: return "REINDEX"
+        case .embedding: return "EMBED"
+        case .indexing: return "INDEX"
+        case .storing: return "STORE"
+        case .queued: return "QUEUE"
+        case .loading: return "LOAD"
+        case .complete: return "DONE"
+        case .cancelled: return "CANCEL"
+        case .failed: return "FAIL"
+        }
+    }
+    
+    var body: some View {
+        HStack(alignment: .center, spacing: 4) {
+            Text(timestamp)
+                .font(.system(size: 8, weight: .medium, design: .monospaced))
+                .foregroundStyle(Color.gray.opacity(0.6))
+                .frame(width: 32, alignment: .leading)
+                
+            Text(shortStageLabel)
+                .font(.system(size: 7, weight: .bold, design: .monospaced))
+                .foregroundStyle(stageColor)
+                .frame(width: 44, alignment: .leading)
+                
+            HStack(spacing: 2) {
+                Text(event.title)
+                    .font(.system(size: 8, weight: .medium, design: .monospaced))
+                    .foregroundStyle(isLatest ? Color.white : Color.white.opacity(0.8))
+                    .lineLimit(1)
+                
+                if let detail = event.detail, !detail.isEmpty {
+                    Text("→")
+                        .font(.system(size: 6))
+                        .foregroundStyle(Color.gray.opacity(0.4))
+                    Text(detail)
+                        .font(.system(size: 8, weight: .regular, design: .monospaced))
+                        .foregroundStyle(stageColor.opacity(0.85))
+                        .lineLimit(1)
+                }
+            }
+            Spacer(minLength: 0)
+            
+            if isLatest {
+                Circle()
+                    .fill(stageColor)
+                    .frame(width: 4, height: 4)
+            }
+        }
+        .padding(.vertical, 2)
+        .padding(.horizontal, 4)
+        .background(isLatest ? stageColor.opacity(0.1) : Color.clear)
+    }
+}
+
 /// Shorthand for chunking strategies. Uses SWE-standard abbreviations.
 private func shortChunkStrategy(_ strategy: String) -> String {
     switch strategy.lowercased() {
@@ -52,6 +253,32 @@ private func shortChunkStrategy(_ strategy: String) -> String {
         // Capitalize first word, truncate if long
         let word = strategy.split(separator: "_").first.map(String.init) ?? strategy
         return word.count > 7 ? String(word.prefix(6)) + "…" : word.capitalized
+    }
+}
+
+// MARK: - Aggregated Metrics
+
+private struct AggregatedMetrics {
+    var totalFiles: Int = 0
+    var totalChunks: Int = 0
+    var totalVectors: Int = 0
+    var totalWords: Int = 0
+    var totalCharacters: Int = 0
+    var totalPages: Int = 0
+    var totalOCRPages: Int = 0
+    var totalFileSizeMB: Double = 0
+    var totalTimeMs: Int = 0
+    var chunkWordSamples: [Int] = []
+    var embeddingDimension: Int = 0
+    var embeddingProvider: String = ""
+
+    var avgChunkWords: Int {
+        guard !chunkWordSamples.isEmpty else { return 0 }
+        return chunkWordSamples.reduce(0, +) / chunkWordSamples.count
+    }
+
+    var hasData: Bool {
+        totalChunks > 0 || totalVectors > 0 || totalWords > 0
     }
 }
 
@@ -173,7 +400,7 @@ struct IngestionQueueOverlay: View {
         }
 
         return AnyView(
-            VStack(alignment: .leading, spacing: isMinimized ? 0 : 12) {
+            VStack(alignment: .leading, spacing: isMinimized ? 0 : 16) {
                 headerView
 
                 if !isMinimized {
@@ -186,45 +413,40 @@ struct IngestionQueueOverlay: View {
                         )
                     }
 
-                    VStack(spacing: 10) {
-                        ForEach(visibleItems) { item in
-                            IngestionQueueRow(
-                                item: item,
-                                onCancel: item.stage.isTerminal ? nil : { onCancelItem?(item.id) }
-                            )
+                    ScrollView(.vertical, showsIndicators: true) {
+                        VStack(spacing: 12) {
+                            ForEach(visibleItems) { item in
+                                IngestionQueueRow(
+                                    item: item,
+                                    onCancel: item.stage.isTerminal ? nil : { onCancelItem?(item.id) }
+                                )
+                            }
                         }
+                        .padding(.trailing, 4)
                     }
+                    .frame(maxHeight: 400)
 
                     if hiddenCount > 0 {
-                        Text("+\(hiddenCount) more in queue")
-                            .font(.caption)
-                            .foregroundStyle(DSColors.secondaryText)
+                        HStack {
+                            Spacer()
+                            Text("+\(hiddenCount) more files in queue")
+                                .font(.system(size: 11, weight: .medium))
+                                .foregroundStyle(DSColors.secondaryText)
+                            Spacer()
+                        }
                     }
                 }
             }
             .padding(14)
             .frame(maxWidth: isMinimized ? min(overlayMaxWidth, 260) : overlayMaxWidth, alignment: .leading)
-            .background(
-                ZStack {
-                    RoundedRectangle(cornerRadius: 18, style: .continuous)
-                        .fill(.ultraThinMaterial)
-
-                    RoundedRectangle(cornerRadius: 18, style: .continuous)
-                        .fill(
-                            LinearGradient(
-                                colors: [overlayTint, Color.clear],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            )
-                        )
-                }
-            )
-            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .background(.ultraThinMaterial)
+            .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
             .overlay(
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .strokeBorder(overlayAccentColor.opacity(0.16), lineWidth: 1)
+                RoundedRectangle(cornerRadius: 20, style: .continuous)
+                    .strokeBorder(overlayAccentColor.opacity(0.12), lineWidth: 1)
             )
-            .shadow(color: .black.opacity(0.10), radius: 18, x: 0, y: 10)
+            .shadow(color: .black.opacity(0.12), radius: 24, x: 0, y: 12)
+            .glassEffectHelper(isSelected: false, interactive: false)
             .transition(.move(edge: .bottom).combined(with: .opacity))
             .animation(.spring(response: 0.3, dampingFraction: 0.85), value: items.count)
             .animation(.spring(response: 0.25), value: isMinimized)
@@ -278,63 +500,32 @@ struct IngestionQueueOverlay: View {
     }
 
     private var headerView: some View {
-        ViewThatFits(in: .horizontal) {
-            HStack(alignment: .top, spacing: 12) {
-                headerSummary
-                Spacer(minLength: 10)
-                headerControls
-            }
-
-            VStack(alignment: .leading, spacing: 10) {
-                headerSummary
-                headerControls
-                    .frame(maxWidth: .infinity, alignment: .trailing)
-            }
-        }
-    }
-
-    private var headerSummary: some View {
-        HStack(alignment: .top, spacing: 10) {
+        HStack(alignment: .center, spacing: 12) {
+            // Activity Icon
             ZStack {
                 Circle()
-                    .fill(overlayAccentColor.opacity(activeCount > 0 ? 0.16 : 0.10))
-
+                    .fill(overlayAccentColor.opacity(0.12))
                 Image(systemName: headerIcon)
                     .foregroundStyle(overlayAccentColor)
-                    .font(.system(size: 13, weight: .semibold))
+                    .font(.system(size: 13, weight: .bold))
             }
-            .frame(width: 28, height: 28)
+            .frame(width: 32, height: 32)
 
-            VStack(alignment: .leading, spacing: 4) {
-                HStack(spacing: 6) {
-                    Text(headerTitle)
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundStyle(DSColors.primaryText)
-
-                    if activeCount > 0 {
-                        HStack(spacing: 4) {
-                            Image(systemName: processingModeIcon)
-                                .font(.system(size: 9, weight: .semibold))
-                            Text("Upload \(processingModeLabel)")
-                            Text("\(currentConcurrency)x")
-                                .fontWeight(.bold)
-                        }
-                        .font(.caption2)
-                        .foregroundStyle(processingModeColor)
-                        .padding(.horizontal, 7)
-                        .padding(.vertical, 3)
-                        .background(processingModeColor.opacity(0.12))
-                        .clipShape(Capsule())
-                    }
-                }
-
+            VStack(alignment: .leading, spacing: 1) {
+                Text(headerTitle)
+                    .font(.system(size: 14, weight: .bold))
+                    .foregroundStyle(DSColors.primaryText)
+                
                 if !isMinimized {
                     Text(statusLine)
-                        .font(.caption)
+                        .font(.system(size: 11, weight: .medium))
                         .foregroundStyle(DSColors.secondaryText)
-                        .lineLimit(2)
                 }
             }
+
+            Spacer()
+
+            headerControls
         }
     }
 
@@ -342,6 +533,7 @@ struct IngestionQueueOverlay: View {
         HStack(spacing: 8) {
             if activeCount > 0 {
                 Button {
+                    DSHaptics.tick()
                     withAnimation(.spring(response: 0.3)) {
                         if gpuLevel > 0.7 {
                             gpuLevel = 0.1
@@ -352,55 +544,49 @@ struct IngestionQueueOverlay: View {
                         }
                     }
                 } label: {
-                    Image(systemName: gpuBoostActive ? "bolt.fill" : "bolt")
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(processingModeColor)
-                        .frame(width: 28, height: 28)
-                        .background(processingModeColor.opacity(gpuBoostActive ? 0.18 : 0.10))
-                        .clipShape(Circle())
+                    HStack(spacing: 4) {
+                        Image(systemName: processingModeIcon)
+                        if !isMinimized {
+                            Text(processingModeLabel)
+                                .font(.system(size: 10, weight: .bold))
+                        }
+                    }
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 6)
+                    .background(processingModeColor.opacity(gpuBoostActive ? 0.18 : 0.10))
+                    .foregroundStyle(processingModeColor)
+                    .clipShape(Capsule())
                 }
                 .buttonStyle(.plain)
-                .help(gpuBoostActive ? "Performance mode - tap to cycle upload speed" : "Tap to cycle upload speed")
             }
 
-            if hasCancelableItems {
+            HStack(spacing: 4) {
                 Button {
-                    onCancelAll?()
+                    DSHaptics.light()
+                    withAnimation { isMinimized.toggle() }
                 } label: {
-                    Image(systemName: "stop.fill")
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle(Color.red)
+                    Image(systemName: isMinimized ? "chevron.up" : "chevron.down")
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundStyle(DSColors.secondaryText)
                         .frame(width: 28, height: 28)
-                        .background(Color.red.opacity(0.10))
+                        .background(DSColors.secondaryText.opacity(0.08))
                         .clipShape(Circle())
                 }
                 .buttonStyle(.plain)
-                .help("Cancel all uploads")
-            }
 
-            Button {
-                withAnimation { isMinimized.toggle() }
-            } label: {
-                Image(systemName: isMinimized ? "chevron.up" : "chevron.down")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(DSColors.secondaryText)
-                    .frame(width: 28, height: 28)
-                    .background(DSColors.secondaryText.opacity(0.08))
-                    .clipShape(Circle())
+                Button {
+                    DSHaptics.medium()
+                    withAnimation { isDismissed = true }
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 10, weight: .heavy))
+                        .foregroundStyle(DSColors.secondaryText)
+                        .frame(width: 28, height: 28)
+                        .background(DSColors.secondaryText.opacity(0.12))
+                        .clipShape(Circle())
+                }
+                .buttonStyle(.plain)
             }
-            .buttonStyle(.plain)
-
-            Button {
-                withAnimation { isDismissed = true }
-            } label: {
-                Image(systemName: "xmark")
-                    .font(.system(size: 10, weight: .bold))
-                    .foregroundStyle(DSColors.secondaryText)
-                    .frame(width: 24, height: 24)
-                    .background(DSColors.secondaryText.opacity(0.1))
-                    .clipShape(Circle())
-            }
-            .buttonStyle(.plain)
         }
     }
 
@@ -450,261 +636,155 @@ private struct IngestionQueueRow: View {
     @State private var showDetails = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack(spacing: 8) {
-                Image(systemName: stageIcon)
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(stageColor)
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 12) {
+                // Leading Icon
+                ZStack {
+                    Circle()
+                        .fill(stageColor.opacity(0.12))
+                    Image(systemName: stageIcon)
+                        .font(.system(size: 11, weight: .bold))
+                        .foregroundStyle(stageColor)
+                }
+                .frame(width: 28, height: 28)
 
-                Text(item.filename)
-                    .font(.system(size: 13, weight: .medium))
-                    .lineLimit(1)
-                    .truncationMode(.middle)
-                    .foregroundStyle(DSColors.primaryText)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(item.filename)
+                        .font(.system(size: 13, weight: .semibold))
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                        .foregroundStyle(DSColors.primaryText)
+
+                    HStack(spacing: 4) {
+                        Text(item.stage.displayName)
+                            .font(.system(size: 10, weight: .medium))
+                            .foregroundStyle(stageColor)
+
+                        if !item.detail.isEmpty {
+                            Text("•")
+                                .font(.system(size: 8))
+                                .foregroundStyle(DSColors.secondaryText)
+                            Text(item.detail)
+                                .font(.system(size: 10))
+                                .foregroundStyle(DSColors.secondaryText)
+                                .lineLimit(1)
+                        }
+                    }
+                }
 
                 Spacer()
 
                 if let onCancel, !item.stage.isTerminal {
-                    Button(action: onCancel) {
+                    Button(action: {
+                        DSHaptics.soft()
+                        onCancel()
+                    }) {
                         Image(systemName: "xmark.circle.fill")
-                            .font(.system(size: 14, weight: .semibold))
-                            .foregroundStyle(Color.red.opacity(0.9))
+                            .font(.system(size: 16))
+                            .foregroundStyle(Color.secondary.opacity(0.4))
                     }
                     .buttonStyle(.plain)
+                } else if item.stage == .complete {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.system(size: 16))
+                        .foregroundStyle(.green)
                 }
-
-                Text(item.stage.displayName)
-                    .font(.caption2)
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 3)
-                    .background(stageColor.opacity(0.12))
-                    .foregroundStyle(stageColor)
-                    .clipShape(Capsule())
-            }
-
-            IngestionPipelineSteps(item: item)
-
-            if !item.detail.isEmpty {
-                Text(item.detail)
-                    .font(.caption)
-                    .foregroundStyle(DSColors.secondaryText)
             }
 
             if let progress = item.progress, !item.stage.isTerminal {
-                ProgressView(value: progress)
-                    .tint(DSColors.accent)
+                CustomProgressBar(value: progress, color: stageColor)
+                    .frame(height: 4)
             }
 
-            // Show live metrics when processing
-            if !item.stage.isTerminal, hasMetrics {
-                liveMetricsView
+            if !item.events.isEmpty {
+                IngestionConsoleView(events: item.events, isTerminal: item.stage.isTerminal)
+                    .padding(.top, 2)
             }
 
-            // Expandable details for completed/in-progress items
+            // Show live metrics when processing in a clean, consolidated line
             if hasMetrics {
-                Button {
-                    withAnimation(.spring(response: 0.3)) {
-                        showDetails.toggle()
+                HStack(spacing: 8) {
+                    compactMetricsRow
+                    
+                    Spacer()
+                    
+                    Button {
+                        DSHaptics.selection()
+                        withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                            showDetails.toggle()
+                        }
+                    } label: {
+                        Image(systemName: showDetails ? "info.circle.fill" : "info.circle")
+                            .font(.system(size: 12))
+                            .foregroundStyle(showDetails ? DSColors.accent : DSColors.secondaryText)
                     }
-                } label: {
-                    HStack(spacing: 4) {
-                        Image(systemName: showDetails ? "chevron.up" : "chevron.down")
-                            .font(.system(size: 9, weight: .semibold))
-                        Text(showDetails ? "Hide Pipeline Details" : "Show Pipeline Details")
-                            .font(.caption2)
-                    }
-                    .foregroundStyle(DSColors.accent)
+                    .buttonStyle(.plain)
                 }
-                .buttonStyle(.plain)
+                .padding(.top, 2)
+            }
 
-                if showDetails {
-                    pipelineDetailsView
-                        .transition(.opacity.combined(with: .move(edge: .top)))
-                }
+            if showDetails && hasMetrics {
+                pipelineDetailsView
+                    .transition(.move(edge: .top).combined(with: .opacity))
             }
 
             if let errorMessage = item.errorMessage, item.stage == .failed {
                 Text(errorMessage)
-                    .font(.caption2)
+                    .font(.system(size: 10))
                     .foregroundStyle(Color.red)
-                    .lineLimit(2)
+                    .padding(8)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Color.red.opacity(0.08))
+                    .cornerRadius(6)
             }
         }
-        .padding(10)
+        .padding(12)
         .background(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(
-                    LinearGradient(
-                        colors: [stageColor.opacity(0.10), DSColors.surface.opacity(0.92)],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
-                )
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(DSColors.surface.opacity(0.4))
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
                 .stroke(stageColor.opacity(0.12), lineWidth: 1)
         )
-        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
 
-    private var hasMetrics: Bool {
-        // Show metrics if we have any counts OR if Vision parsing is active (live updates during extraction)
-        item.metrics.chunkCount > 0 ||
-        item.metrics.totalWords > 0 ||
-        item.metrics.embeddingsGenerated > 0 ||
-        item.metrics.tablesExtracted > 0 ||
-        item.metrics.listsExtracted > 0 ||
-        item.metrics.titlesDetected > 0 ||
-        item.metrics.usedStructuredParsing ||
-        item.metrics.pageCount > 0
-    }
-
-    @ViewBuilder
-    private var liveMetricsView: some View {
+    private var compactMetricsRow: some View {
         let m = item.metrics
-        VStack(alignment: .leading, spacing: 6) {
-            // Row 0: Structured parsing status (Vision iOS 26+) - shows LIVE during extraction
-            if m.usedStructuredParsing || m.tablesExtracted > 0 || m.listsExtracted > 0 || m.titlesDetected > 0 {
-                HStack(spacing: 6) {
-                    // Vision badge with optional page count
-                    HStack(spacing: 3) {
-                        Image(systemName: "eye.fill")
-                            .font(.system(size: 7))
-                        Text("Vision")
-                            .font(.system(size: 8, weight: .semibold))
-                        if m.pageCount > 0 && item.stage == .extracting {
-                            Text("•")
-                                .font(.system(size: 6))
-                            Text("\(m.pageCount) pg")
-                                .font(.system(size: 8))
-                        }
-                    }
+        return HStack(spacing: 6) {
+            if m.chunkCount > 0 {
+                metricLabel(icon: "square.split.2x2", value: "\(m.chunkCount)")
+            }
+            if m.embeddingsGenerated > 0 {
+                metricLabel(icon: "brain.head.profile", value: "\(m.embeddingsGenerated)")
+            }
+            if m.fileSizeMB > 0 {
+                metricLabel(icon: "doc", value: String(format: "%.1fMB", m.fileSizeMB))
+            }
+            if m.usedStructuredParsing {
+                Image(systemName: "eye.fill")
+                    .font(.system(size: 8))
                     .foregroundStyle(.green)
-                    .padding(.horizontal, 5)
-                    .padding(.vertical, 2)
-                    .background(Color.green.opacity(0.15))
-                    .clipShape(Capsule())
-
-                    if m.tablesExtracted > 0 {
-                        metricPill(icon: "tablecells", value: "\(m.tablesExtracted)", label: "tbl")
-                    }
-                    if m.listsExtracted > 0 {
-                        metricPill(icon: "list.bullet", value: "\(m.listsExtracted)", label: "lst")
-                    }
-                    if m.titlesDetected > 0 {
-                        metricPill(icon: "textformat.size.larger", value: "\(m.titlesDetected)", label: "hdr")
-                    }
-                }
-            }
-
-            // Row 1: Core counts
-            HStack(spacing: 8) {
-                if m.chunkCount > 0 {
-                    metricPill(icon: "square.split.2x2", value: "\(m.chunkCount)", label: "chk")
-                }
-                if m.avgChunkWords > 0 {
-                    metricPill(icon: "textformat.size", value: "\(m.avgChunkWords)", label: "avg")
-                }
-                if m.embeddingsGenerated > 0 {
-                    metricPill(icon: "brain.head.profile", value: "\(m.embeddingsGenerated)", label: "vec")
-                }
-                if m.embeddingDimension > 0 {
-                    metricPill(icon: "cpu", value: "\(m.embeddingDimension)D", label: nil)
-                }
-            }
-
-            // Row 2: Semantic boundaries (the nerdy stuff)
-            if m.sectionsDetected > 0 || m.topicBoundaries > 0 || m.embeddingBoundaries > 0 {
-                HStack(spacing: 8) {
-                    if m.sectionsDetected > 0 {
-                        metricPill(icon: "list.bullet.indent", value: "\(m.sectionsDetected)", label: "sec")
-                    }
-                    if m.topicBoundaries > 0 {
-                        metricPill(icon: "arrow.triangle.branch", value: "\(m.topicBoundaries)", label: "topic")
-                    }
-                    if m.embeddingBoundaries > 0 {
-                        metricPill(icon: "waveform.path.ecg", value: "\(m.embeddingBoundaries)", label: "∇sim")
-                    }
-                }
-            }
-
-            // Row 3: Entity extraction
-            if m.entitiesExtracted > 0 {
-                HStack(spacing: 8) {
-                    metricPill(icon: "tag", value: "\(m.entitiesExtracted)", label: "ent")
-                    if !m.topEntities.isEmpty {
-                        Text(m.topEntities.prefix(3).joined(separator: ", "))
-                            .font(.system(size: 9))
-                            .foregroundStyle(DSColors.secondaryText)
-                            .lineLimit(1)
-                    }
-                }
-            }
-
-            // Row 4: Document content profile
-            if !m.documentDomain.isEmpty || m.hasCode || m.hasMath || !m.contentCategories.isEmpty {
-                HStack(spacing: 6) {
-                    if !m.documentDomain.isEmpty {
-                        domainChip(m.documentDomain)
-                    }
-                    if m.hasCode {
-                        contentBadge(icon: "chevron.left.forwardslash.chevron.right", text: "Code", color: .orange)
-                    }
-                    if m.hasMath {
-                        contentBadge(icon: "function", text: "Math", color: .pink)
-                    }
-                    if !m.documentLanguage.isEmpty && m.documentLanguage != "English" {
-                        metricPill(icon: "globe", value: m.documentLanguage, label: nil)
-                    }
-                }
-            }
-
-            // Row 5: Content categories (top topics detected)
-            if !m.contentCategories.isEmpty {
-                HStack(spacing: 4) {
-                    ForEach(m.contentCategories.prefix(4), id: \.self) { category in
-                        Text(category)
-                            .font(.system(size: 8, weight: .medium))
-                            .padding(.horizontal, 5)
-                            .padding(.vertical, 2)
-                            .background(DSColors.accent.opacity(0.12))
-                            .foregroundStyle(DSColors.accent)
-                            .clipShape(Capsule())
-                    }
-                }
             }
         }
-        .font(.system(size: 10))
     }
 
     @ViewBuilder
-    private func codeBadgeMini(_ text: String) -> some View {
-        Text(text)
-            .font(.system(size: 8, weight: .bold, design: .monospaced))
-            .padding(.horizontal, 4)
-            .padding(.vertical, 2)
-            .background(Color.orange.opacity(0.2))
-            .foregroundStyle(.orange)
-            .clipShape(RoundedRectangle(cornerRadius: 3))
-    }
-
-    @ViewBuilder
-    private func metricPill(icon: String, value: String, label: String?) -> some View {
+    private func metricLabel(icon: String, value: String) -> some View {
         HStack(spacing: 3) {
             Image(systemName: icon)
                 .font(.system(size: 8))
             Text(value)
-                .fontWeight(.medium)
-            if let label {
-                Text(label)
-                    .foregroundStyle(DSColors.secondaryText)
-            }
+                .font(.system(size: 9, weight: .bold, design: .monospaced))
         }
-        .padding(.horizontal, 6)
-        .padding(.vertical, 3)
-        .background(DSColors.surface)
-        .clipShape(Capsule())
+        .foregroundStyle(DSColors.secondaryText)
+    }
+
+    private var hasMetrics: Bool {
+        // Simplified metrics check
+        item.metrics.chunkCount > 0 || 
+        item.metrics.embeddingsGenerated > 0 ||
+        item.metrics.fileSizeMB > 0
     }
 
     @ViewBuilder
@@ -1107,35 +1187,46 @@ private struct IngestionQueueRow: View {
 
     @ViewBuilder
     private func detailSection(title: String, icon: String, @ViewBuilder content: () -> some View) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack(spacing: 4) {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 6) {
                 Image(systemName: icon)
-                    .font(.system(size: 9))
+                    .font(.system(size: 10))
                     .foregroundStyle(DSColors.accent)
-                Text(title.uppercased())
-                    .font(.system(size: 9, weight: .bold, design: .rounded))
-                    .foregroundStyle(DSColors.secondaryText)
+                Text(title)
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundStyle(DSColors.primaryText)
+                
+                Spacer()
+                
+                Rectangle()
+                    .fill(DSColors.separator)
+                    .frame(height: 1)
             }
             content()
         }
+        .padding(10)
+        .background(DSColors.surface.opacity(0.4))
+        .cornerRadius(10)
     }
 
     @ViewBuilder
     private func statBox(value: String, unit: String, label: String) -> some View {
-        VStack(spacing: 1) {
-            HStack(spacing: 1) {
+        VStack(alignment: .leading, spacing: 1) {
+            Text(label)
+                .font(.system(size: 8, weight: .medium))
+                .foregroundStyle(DSColors.secondaryText)
+            HStack(alignment: .firstTextBaseline, spacing: 1) {
                 Text(value)
-                    .font(.system(size: 11, weight: .bold, design: .monospaced))
+                    .font(.system(size: 13, weight: .bold, design: .monospaced))
+                    .foregroundStyle(DSColors.primaryText)
                 if !unit.isEmpty {
                     Text(unit)
-                        .font(.system(size: 8, weight: .medium))
+                        .font(.system(size: 9, weight: .semibold))
                         .foregroundStyle(DSColors.secondaryText)
                 }
             }
-            Text(label)
-                .font(.system(size: 8))
-                .foregroundStyle(DSColors.secondaryText)
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     @ViewBuilder
@@ -1304,62 +1395,29 @@ private struct IngestionQueueRow: View {
     }
 }
 
-private struct IngestionPipelineSteps: View {
-    let item: IngestionItem
-
-    private let steps = IngestionStage.pipelineStages
-
+private struct CustomProgressBar: View {
+    let value: Double
+    let color: Color
+    
     var body: some View {
-        let activeIndex = item.stage == .complete
-            ? steps.count - 1
-            : (item.stage.pipelineIndex ?? -1)
-
-        return HStack(spacing: 3) {
-            ForEach(steps.indices, id: \.self) { index in
-                Capsule()
-                    .fill(stepColor(for: index, activeIndex: activeIndex))
-.frame(height: 3)
+        GeometryReader { geo in
+            ZStack(alignment: .leading) {
+                RoundedRectangle(cornerRadius: 2)
+                    .fill(color.opacity(0.1))
+                
+                RoundedRectangle(cornerRadius: 2)
+                    .fill(
+                        LinearGradient(
+                            colors: [color, color.opacity(0.7)],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
+                    )
+                    .frame(width: geo.size.width * CGFloat(value))
             }
         }
     }
-
-    private func stepColor(for index: Int, activeIndex: Int) -> Color {
-        if item.stage == .failed { return .red.opacity(0.7) }
-        if item.stage == .cancelled { return .orange.opacity(0.7) }
-        if activeIndex == -1 { return Color.gray.opacity(0.2) }
-        if index < activeIndex { return Color.green.opacity(0.8) }
-        if index == activeIndex { return DSColors.accent }
-        return Color.gray.opacity(0.2)
-    }
 }
-
-// MARK: - Aggregated Metrics
-
-private struct AggregatedMetrics {
-    var totalFiles: Int = 0
-    var totalChunks: Int = 0
-    var totalVectors: Int = 0
-    var totalWords: Int = 0
-    var totalCharacters: Int = 0
-    var totalPages: Int = 0
-    var totalOCRPages: Int = 0
-    var totalFileSizeMB: Double = 0
-    var totalTimeMs: Int = 0
-    var chunkWordSamples: [Int] = []
-    var embeddingDimension: Int = 0
-    var embeddingProvider: String = ""
-
-    var avgChunkWords: Int {
-        guard !chunkWordSamples.isEmpty else { return 0 }
-        return chunkWordSamples.reduce(0, +) / chunkWordSamples.count
-    }
-
-    var hasData: Bool {
-        totalChunks > 0 || totalVectors > 0 || totalWords > 0
-    }
-}
-
-// MARK: - Totals Summary Card
 
 private struct TotalsSummaryCard: View {
     let metrics: AggregatedMetrics
@@ -1371,126 +1429,54 @@ private struct TotalsSummaryCard: View {
             // Section header
             HStack(spacing: 6) {
                 Image(systemName: "chart.bar.fill")
-                    .font(.system(size: 11, weight: .semibold))
+                    .font(.system(size: 10, weight: .bold))
                     .foregroundStyle(DSColors.accent)
                 Text("BATCH TOTALS")
-                    .font(.system(size: 10, weight: .bold, design: .rounded))
+                    .font(.system(size: 9, weight: .bold, design: .rounded))
                     .foregroundStyle(DSColors.secondaryText)
                 Spacer()
                 if metrics.totalFileSizeMB > 0 {
                     Text(String(format: "%.1f MB", metrics.totalFileSizeMB))
-                        .font(.system(size: 10, weight: .medium))
+                        .font(.system(size: 9, weight: .semibold, design: .monospaced))
                         .foregroundStyle(DSColors.secondaryText)
                 }
             }
 
-            // Primary stats row
-            HStack(spacing: 0) {
-                totalStatCell(
-                    icon: "doc.fill",
-                    value: "\(completedCount)/\(totalCount)",
-                    label: "Files",
-                    color: .blue
-                )
-                Divider().frame(height: 32)
-                totalStatCell(
-                    icon: "square.split.2x2.fill",
-                    value: formatNumber(metrics.totalChunks),
-                    label: "Chunks",
-                    color: .purple
-                )
-                Divider().frame(height: 32)
-                totalStatCell(
-                    icon: "brain.head.profile.fill",
-                    value: formatNumber(metrics.totalVectors),
-                    label: "Vectors",
-                    color: .green
-                )
-                Divider().frame(height: 32)
-                totalStatCell(
-                    icon: "textformat",
-                    value: formatNumber(metrics.totalWords),
-                    label: "Words",
-                    color: .orange
-                )
-            }
-            .padding(.vertical, 6)
-            .background(
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .fill(DSColors.surface.opacity(0.6))
-            )
-
-            // Secondary stats row
+            // Primary stats row - more integrated and less "heavy"
             HStack(spacing: 12) {
-                if metrics.avgChunkWords > 0 {
-                    miniStat(icon: "textformat.size", value: "\(metrics.avgChunkWords)w", label: "Avg")
-                }
-                if metrics.totalPages > 0 {
-                    miniStat(icon: "doc.text", value: "\(metrics.totalPages)", label: "Pgs")
-                }
-                if metrics.embeddingDimension > 0 {
-                    miniStat(
-                        icon: "cpu",
-                        value: "\(metrics.embeddingDimension)D",
-                        label: metrics.embeddingProvider.isEmpty ? "" : shortProviderDisplay(metrics.embeddingProvider)
-                    )
-                }
-                if metrics.totalTimeMs > 0 {
-                    miniStat(icon: "clock", value: formatTime(metrics.totalTimeMs), label: "")
-                }
+                totalStatItem(icon: "doc.fill", value: "\(completedCount)/\(totalCount)", color: .blue)
+                totalStatItem(icon: "square.split.2x2.fill", value: formatNumber(metrics.totalChunks), color: .purple)
+                totalStatItem(icon: "brain.head.profile.fill", value: formatNumber(metrics.totalVectors), color: .green)
+                totalStatItem(icon: "textformat", value: formatNumber(metrics.totalWords), color: .orange)
             }
-            .font(.system(size: 10))
+            .padding(10)
+            .background(DSColors.surface.opacity(0.3))
+            .cornerRadius(12)
         }
-        .padding(10)
+        .padding(12)
         .background(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(
-                    LinearGradient(
-                        colors: [DSColors.accent.opacity(0.08), DSColors.surface.opacity(0.5)],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
-                )
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .fill(DSColors.accent.opacity(0.04))
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .strokeBorder(DSColors.accent.opacity(0.15), lineWidth: 1)
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .strokeBorder(DSColors.accent.opacity(0.1), lineWidth: 1)
         )
     }
 
     @ViewBuilder
-    private func totalStatCell(icon: String, value: String, label: String, color: Color) -> some View {
-        VStack(spacing: 3) {
+    private func totalStatItem(icon: String, value: String, color: Color) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
             HStack(spacing: 4) {
                 Image(systemName: icon)
-                    .font(.system(size: 10))
+                    .font(.system(size: 8))
                     .foregroundStyle(color)
                 Text(value)
-                    .font(.system(size: 14, weight: .bold, design: .rounded))
+                    .font(.system(size: 12, weight: .bold, design: .monospaced))
                     .foregroundStyle(DSColors.primaryText)
             }
-            Text(label)
-                .font(.system(size: 9, weight: .medium))
-                .foregroundStyle(DSColors.secondaryText)
         }
-        .frame(maxWidth: .infinity)
-    }
-
-    @ViewBuilder
-    private func miniStat(icon: String, value: String, label: String) -> some View {
-        HStack(spacing: 4) {
-            Image(systemName: icon)
-                .font(.system(size: 8))
-                .foregroundStyle(DSColors.accent)
-            Text(value)
-                .fontWeight(.medium)
-            Text(label)
-                .foregroundStyle(DSColors.secondaryText)
-        }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 4)
-        .background(DSColors.surface.opacity(0.8))
-        .clipShape(Capsule())
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private func formatNumber(_ n: Int) -> String {
@@ -1498,16 +1484,19 @@ private struct TotalsSummaryCard: View {
         if n >= 1000 { return String(format: "%.1fK", Double(n) / 1000) }
         return "\(n)"
     }
+}
 
-    private func formatTime(_ ms: Int) -> String {
-        if ms >= 60000 {
-            return String(format: "%.1fm", Double(ms) / 60000)
-        }
-        if ms >= 1000 {
-            return String(format: "%.1fs", Double(ms) / 1000)
-        }
-        return "\(ms)ms"
+private func formatNumber(_ n: Int) -> String {
+    if n >= 1_000_000 { return String(format: "%.1fM", Double(n) / 1_000_000) }
+    if n >= 1000 { return String(format: "%.1fK", Double(n) / 1000) }
+    return "\(n)"
+}
+
+private func formatMs(_ ms: Int) -> String {
+    if ms >= 1000 {
+        return String(format: "%.1fs", Double(ms) / 1000)
     }
+    return "\(ms)ms"
 }
 
 #Preview {

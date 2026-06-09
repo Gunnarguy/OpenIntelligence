@@ -98,6 +98,27 @@ struct ResponseMetadata: Codable, Sendable {
     /// Each string is one step: ["🔍 Analyzing: found X...", "🧠 Patterns: theme is Y...", etc.]
     let reasoningTrace: [String]?
 
+    /// The specific execution route taken for this response
+    let executionRoute: ExecutionRoute?
+
+    /// Token budget allocation for this response
+    let tokenBudget: TokenBudget?
+
+    struct ExecutionRoute: Codable, Sendable, Equatable {
+        let path: String // "On-Device", "Private Cloud Compute", etc.
+        let reason: String // Why this path was chosen
+        let policyApplied: String? // Name of the routing policy
+        let emoji: String
+    }
+
+    struct TokenBudget: Codable, Sendable, Equatable {
+        let totalLimit: Int
+        let systemPrompt: Int
+        let retrievedContext: Int
+        let generation: Int
+        let remaining: Int
+    }
+
     nonisolated init(timeToFirstToken: TimeInterval? = nil,
          totalGenerationTime: TimeInterval,
          tokensGenerated: Int,
@@ -111,7 +132,9 @@ struct ResponseMetadata: Codable, Sendable {
          usedAgenticMode: Bool = false,
          qualityModeName: String? = nil,
          originalQuery: String? = nil,
-         reasoningTrace: [String]? = nil)
+         reasoningTrace: [String]? = nil,
+         executionRoute: ExecutionRoute? = nil,
+         tokenBudget: TokenBudget? = nil)
     {
         self.timeToFirstToken = timeToFirstToken
         self.totalGenerationTime = totalGenerationTime
@@ -127,6 +150,8 @@ struct ResponseMetadata: Codable, Sendable {
         self.qualityModeName = qualityModeName
         self.originalQuery = originalQuery
         self.reasoningTrace = reasoningTrace
+        self.executionRoute = executionRoute
+        self.tokenBudget = tokenBudget
     }
 
     // MARK: - Computed Properties
@@ -165,7 +190,9 @@ struct ResponseMetadata: Codable, Sendable {
             usedAgenticMode: usedAgenticMode,
             qualityModeName: qualityModeName,
             originalQuery: originalQuery,
-            reasoningTrace: resolvedTrace
+            reasoningTrace: resolvedTrace,
+            executionRoute: executionRoute,
+            tokenBudget: tokenBudget
         )
     }
 
@@ -193,7 +220,10 @@ struct ResponseMetadata: Codable, Sendable {
             usedAgenticMode: usedAgenticMode,
             qualityModeName: qualityModeName,
             originalQuery: originalQuery,
-            reasoningTrace: compactedTrace?.isEmpty == true ? nil : compactedTrace
+            reasoningTrace: compactedTrace?.isEmpty == true ? nil : compactedTrace,
+            executionRoute: executionRoute,
+            tokenBudget: tokenBudget
         )
     }
 }
+

@@ -197,6 +197,101 @@ final class SpotlightIndexService {
         }
     }
 
+    // MARK: - Chunk Indexing
+
+    /// Index a specific document chunk or section for fine-grained Spotlight search
+    func indexChunk(
+        id: UUID,
+        documentId: UUID,
+        documentName: String,
+        containerId: UUID,
+        containerName: String,
+        content: String,
+        pageNumber: Int?,
+        sectionTitle: String?,
+        chunkIndex: Int,
+        keywords: [String]?
+    ) {
+        let attributeSet = CSSearchableItemAttributeSet(contentType: .text)
+        attributeSet.title = "\(documentName) — Page \(pageNumber ?? 1) [Chunk \(chunkIndex)]"
+        attributeSet.contentDescription = String(content.prefix(300))
+        attributeSet.containerTitle = containerName
+        attributeSet.containerDisplayName = "OpenIntelligence"
+
+        var keys = ["chunk", "section", "excerpt", documentName.lowercased()]
+        if let sectionTitle = sectionTitle {
+            keys.append(sectionTitle.lowercased())
+            attributeSet.headline = sectionTitle
+        }
+        if let keywords = keywords {
+            keys.append(contentsOf: keywords)
+        }
+        attributeSet.keywords = keys
+
+        if let page = pageNumber {
+            attributeSet.pageCount = page as NSNumber
+        }
+
+        let item = CSSearchableItem(
+            uniqueIdentifier: "chunk-\(id.uuidString)",
+            domainIdentifier: "\(domainIdentifier).\(containerId.uuidString).\(documentId.uuidString)",
+            attributeSet: attributeSet
+        )
+        // Chunks expire after 30 days
+        item.expirationDate = Date().addingTimeInterval(30 * 24 * 60 * 60)
+
+        searchableIndex.indexSearchableItems([item]) { error in
+            if let error = error {
+                Log.error("[Spotlight] Failed to index chunk \(id.uuidString): \(error.localizedDescription)", category: .ingestion)
+            }
+        }
+    }
+
+    /// Index all chunks of a document in a background task
+    func indexDocumentChunks(
+        documentId: UUID,
+        documentName: String,
+        chunks: [DocumentChunk],
+        containerId: UUID,
+        containerName: String
+    ) {
+        let items = chunks.enumerated().map { index, chunk -> CSSearchableItem in
+            let attributeSet = CSSearchableItemAttributeSet(contentType: .text)
+            attributeSet.title = "\(documentName) — Page \(chunk.metadata.pageNumber ?? 1) [Chunk \(chunk.metadata.chunkIndex)]"
+            attributeSet.contentDescription = String(chunk.content.prefix(300))
+            attributeSet.containerTitle = containerName
+            attributeSet.containerDisplayName = "OpenIntelligence"
+
+            var keys = ["chunk", "section", "excerpt", documentName.lowercased()]
+            if let section = chunk.metadata.sectionTitle {
+                keys.append(section.lowercased())
+                attributeSet.headline = section
+            }
+            keys.append(contentsOf: chunk.metadata.keywords)
+            attributeSet.keywords = keys
+
+            if let page = chunk.metadata.pageNumber {
+                attributeSet.pageCount = page as NSNumber
+            }
+
+            let item = CSSearchableItem(
+                uniqueIdentifier: "chunk-\(chunk.id.uuidString)",
+                domainIdentifier: "\(domainIdentifier).\(containerId.uuidString).\(documentId.uuidString)",
+                attributeSet: attributeSet
+            )
+            item.expirationDate = Date().addingTimeInterval(30 * 24 * 60 * 60)
+            return item
+        }
+
+        searchableIndex.indexSearchableItems(items) { error in
+            if let error = error {
+                Log.error("[Spotlight] Failed to index \(items.count) chunks: \(error.localizedDescription)", category: .ingestion)
+            } else {
+                Log.debug("[Spotlight] Indexed \(items.count) chunks of document '\(documentName)'", category: .ingestion)
+            }
+        }
+    }
+
     // MARK: - Search Continuation
 
     /// Handle a Spotlight search continuation — user tapped a result in Spotlight

@@ -195,12 +195,12 @@ class HybridSearchService {
     ///   - topK: Number of top results to return
     ///   - cachedChunks: Optional pre-fetched chunks to avoid re-loading allChunks() for lexical recall
     ///   - containerId: Optional container ID to enable FTS5-accelerated BM25 scoring
-    func search(query: String, originalQuery: String? = nil, embedding: [Float], topK: Int, cachedChunks: [DocumentChunk]? = nil, containerId: UUID? = nil) async throws -> [RetrievedChunk] {
+    func search(query: String, originalQuery: String? = nil, embedding: [Float], topK: Int, cachedChunks: [DocumentChunk]? = nil, containerId: UUID? = nil, isOverviewQuery: Bool = false) async throws -> [RetrievedChunk] {
         let boostQuery = originalQuery ?? query
         // Auto-select FTS5 path if containerId provided and FTS5 data available
         if let cid = containerId, await isFTS5Available(containerId: cid) {
             Log.debug("[Hybrid] Using FTS5-accelerated BM25 for container \(cid)", category: .pipeline)
-            return try await searchWithFTS5(query: query, originalQuery: boostQuery, embedding: embedding, topK: topK, containerId: cid, cachedChunks: cachedChunks)
+            return try await searchWithFTS5(query: query, originalQuery: boostQuery, embedding: embedding, topK: topK, containerId: cid, cachedChunks: cachedChunks, isOverviewQuery: isOverviewQuery)
         }
 
         Log.debug("Hybrid search starting (vector: \(vectorWeight), keyword: \(keywordWeight))", category: .pipeline)
@@ -210,17 +210,19 @@ class HybridSearchService {
         let vectorCandidateMultiplier = topK > 50 ? 2 : 3  // Less aggressive multiplier for large topK
         let vectorResults = try await vectorDatabase.search(embedding: embedding, topK: topK * vectorCandidateMultiplier)
 
-        var candidatePool = vectorResults
+        let vectorResultsFiltered = isOverviewQuery ? RAPTORSummaryRouter.filterSummaryRetrievedChunks(vectorResults) : vectorResults
+        var candidatePool = vectorResultsFiltered
 
-        if shouldRunLexicalRecall(query: query, vectorCount: vectorResults.count, topK: topK) {
+        if shouldRunLexicalRecall(query: query, vectorCount: vectorResultsFiltered.count, topK: topK) {
             // UNIVERSAL: Always runs, but candidate pool scales with vector confidence.
             // Healthy vector = smaller pool (fast). Weak vector = full pool (thorough).
-            let maxRecall = lexicalRecallLimit(query: query, vectorCount: vectorResults.count, topK: topK)
+            let maxRecall = lexicalRecallLimit(query: query, vectorCount: vectorResultsFiltered.count, topK: topK)
             let lexicalCandidates = try await lexicalRecallCandidates(
                 query: query,
                 embedding: embedding,
                 maxCandidates: maxRecall,
-                cachedChunks: cachedChunks
+                cachedChunks: cachedChunks,
+                isOverviewQuery: isOverviewQuery
             )
             if !lexicalCandidates.isEmpty {
                 let existing = Set(candidatePool.map { $0.chunk.id })
@@ -569,7 +571,8 @@ class HybridSearchService {
         query: String,
         embedding: [Float],
         maxCandidates: Int,
-        cachedChunks: [DocumentChunk]? = nil
+        cachedChunks: [DocumentChunk]? = nil,
+        isOverviewQuery: Bool = false
     ) async throws -> [RetrievedChunk] {
         let queryTerms = tokenize(query).filter { $0.count > 2 }
         guard !queryTerms.isEmpty, maxCandidates > 0 else { return [] }
@@ -582,10 +585,11 @@ class HybridSearchService {
         // Use cached chunks if provided, otherwise fetch (avoids repeated allChunks calls)
         let allChunks: [DocumentChunk]
         if let cached = cachedChunks {
-            allChunks = cached
+            allChunks = isOverviewQuery ? RAPTORSummaryRouter.filterSummaryChunks(cached) : cached
             Log.debug("Lexical recall using cached chunks (\(cached.count))", category: .pipeline)
         } else {
-            allChunks = try await vectorDatabase.allChunks()
+            let fetched = try await vectorDatabase.allChunks()
+            allChunks = isOverviewQuery ? RAPTORSummaryRouter.filterSummaryChunks(fetched) : fetched
         }
         guard !allChunks.isEmpty else { return [] }
 
@@ -855,7 +859,8 @@ class HybridSearchService {
         embedding: [Float],
         topK: Int,
         containerId: UUID,
-        cachedChunks: [DocumentChunk]? = nil
+        cachedChunks: [DocumentChunk]? = nil,
+        isOverviewQuery: Bool = false
     ) async throws -> [RetrievedChunk] {
         Log.debug("[Hybrid] True parallel hybrid search starting (vector + FTS5)", category: .pipeline)
 
@@ -885,6 +890,7 @@ class HybridSearchService {
             : []
 
         let vectorResults = try await vectorTask
+        let vectorResultsFiltered = isOverviewQuery ? RAPTORSummaryRouter.filterSummaryRetrievedChunks(vectorResults) : vectorResults
         var fts5ChunkResults = await fts5Task
         let structuredRowResults = await structuredRowTask
 
@@ -913,8 +919,8 @@ class HybridSearchService {
             // Build lookup for chunks already found by vector search
             let vectorChunkLookup: [String: RetrievedChunk] = {
                 var dict = [String: RetrievedChunk]()
-                dict.reserveCapacity(vectorResults.count)
-                for r in vectorResults {
+                dict.reserveCapacity(vectorResultsFiltered.count)
+                for r in vectorResultsFiltered {
                     let key = "\(r.chunk.documentId.uuidString)_\(r.chunk.metadata.chunkIndex)"
                     dict[key] = r
                 }
@@ -927,9 +933,10 @@ class HybridSearchService {
                 // Some FTS5 results aren't in vector results — need the full chunk data
                 let allChunks: [DocumentChunk]
                 if let cachedChunks {
-                    allChunks = cachedChunks
+                    allChunks = isOverviewQuery ? RAPTORSummaryRouter.filterSummaryChunks(cachedChunks) : cachedChunks
                 } else {
-                    allChunks = try await vectorDatabase.allChunks()
+                    let fetched = try await vectorDatabase.allChunks()
+                    allChunks = isOverviewQuery ? RAPTORSummaryRouter.filterSummaryChunks(fetched) : fetched
                 }
                 var dict = [String: DocumentChunk]()
                 dict.reserveCapacity(allChunks.count)

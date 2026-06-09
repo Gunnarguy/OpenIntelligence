@@ -564,6 +564,71 @@ final class WorkspaceSyncService: ObservableObject {
         }
     }
 
+    func deleteDocumentFromICloud(_ document: Document) async throws {
+        guard isSyncEnabled else { return }
+
+        Self.isSyncWriteInProgress = true
+        defer {
+            Self.isSyncWriteInProgress = false
+        }
+
+        recordSyncAttempt()
+
+        guard fileManager.ubiquityIdentityToken != nil else {
+            throw NSError(
+                domain: "WorkspaceSyncService",
+                code: 1,
+                userInfo: [NSLocalizedDescriptionKey: "iCloud Sync is unavailable on this device. The document was not deleted from iCloud."]
+            )
+        }
+
+        guard let containerURL = await Self.resolveUbiquityContainerURL() else {
+            throw NSError(
+                domain: "WorkspaceSyncService",
+                code: 2,
+                userInfo: [NSLocalizedDescriptionKey: "Could not reach the iCloud workspace. The document was not deleted from iCloud."]
+            )
+        }
+
+        let sharedRoot = sharedWorkspaceRootURL(for: containerURL)
+
+        let shouldResumeObservation = isUsingSharedWorkspace
+        if shouldResumeObservation {
+            stopObservingSharedWorkspace()
+        }
+
+        defer {
+            if shouldResumeObservation {
+                startObservingSharedWorkspace(at: sharedRoot)
+            }
+        }
+
+        try ensureDirectory(sharedRoot)
+        await prepareWorkspaceDownloads(root: sharedRoot)
+        try await resolveSharedMetadataConflictsIfNeeded(in: sharedRoot)
+
+        let sharedDocumentsURL = sharedRoot.appendingPathComponent("documents_metadata.json")
+        var sharedDocuments = try Self.readJSONIfPresent([Document].self, from: sharedDocumentsURL) ?? []
+        
+        let initialCount = sharedDocuments.count
+        sharedDocuments.removeAll { $0.id == document.id }
+        
+        if sharedDocuments.count < initialCount {
+            try Self.writeJSON(sharedDocuments, to: sharedDocumentsURL)
+            
+            // Also cleanup physical file if it exists in the shared ImportedDocuments folder
+            if let relativePath = document.storageRelativePath {
+                let sharedFileURL = sharedRoot.appendingPathComponent(relativePath)
+                if fileManager.fileExists(atPath: sharedFileURL.path) {
+                    try? Self.coordinatedRemoveItem(at: sharedFileURL)
+                }
+            }
+            
+            Log.info("[WorkspaceSyncService] Deleted document from iCloud: \(document.filename)")
+            recordSuccessfulSync()
+        }
+    }
+
     func deleteSharedLibrary(_ container: KnowledgeContainer) async throws {
         guard container.syncMode == .iCloudShared else { return }
 

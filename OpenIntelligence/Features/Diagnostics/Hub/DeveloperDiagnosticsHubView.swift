@@ -40,6 +40,49 @@ struct DeveloperDiagnosticsHubView: View {
                 Text("Pipeline Trace shows chunk flow through RAG stages. Force Reasoning uses multi-session even when not needed.")
             }
 
+            // Private Cloud Compute Diagnostics
+            Section {
+                #if canImport(FoundationModels)
+                if #available(iOS 26.0, macOS 16.0, *) {
+                    let pccModel = PrivateCloudComputeLanguageModel()
+                    LabeledContent("PCC Availability", value: pccModel.isAvailable ? "Available" : "Unavailable")
+                    if pccModel.isAvailable {
+                        LabeledContent("Context Size", value: "32,768 tokens")
+                        LabeledContent("Quota Status", value: pccModel.quotaUsage.status.description)
+                        LabeledContent("Limit Reached", value: pccModel.quotaUsage.isLimitReached ? "Yes" : "No")
+                        LabeledContent("iCloud+ Suggested", value: pccModel.quotaUsage.limitIncreaseSuggestion ? "Yes" : "No")
+                        
+                        let policyRoute = FoundationModelRoutePolicy.determineRoute(
+                            queryType: .maximum,
+                            estimatedContextTokens: 1000,
+                            config: InferenceConfig(
+                                maxTokens: 0,
+                                temperature: 0.7,
+                                topP: 0.0,
+                                topK: 0,
+                                systemPrompt: nil,
+                                contextLength: 32768,
+                                executionContext: .automatic,
+                                allowPrivateCloudCompute: true,
+                                disableTools: false
+                            )
+                        )
+                        
+                        switch policyRoute {
+                        case .privateCloudCompute(let reasoning):
+                            LabeledContent("Maximum Reasoning", value: String(describing: reasoning).capitalized)
+                        default:
+                            LabeledContent("Maximum Reasoning", value: "N/A")
+                        }
+                    }
+                } else {
+                    Text("Requires iOS 26+")
+                }
+                #endif
+            } header: {
+                Text("Private Cloud Compute")
+            }
+
             // Console Logging
             Section {
                 Picker("Log Level", selection: $loggingLevelRaw) {

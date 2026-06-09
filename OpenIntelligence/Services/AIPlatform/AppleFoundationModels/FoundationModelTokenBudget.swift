@@ -19,40 +19,52 @@ public struct FoundationModelTokenBudget: Sendable {
     // MARK: - Constants
     
     /// Default token budget for context packing
-    public static let defaultTokenBudget = 3200
+    public nonisolated static let defaultTokenBudget = 3200
     
     /// Default context length window for standard model session
-    public static let baseContextLength = 4096
+    public nonisolated static let baseContextLength = 4096
+    
+    /// Returns the context window size (tokens) based on execution mode/location.
+    public nonisolated static func contextSize(isAppleFMOnDevice: Bool) -> Int {
+        return isAppleFMOnDevice ? 8192 : 32768
+    }
+    
+    /// Returns the dynamic token budget leaving a safety buffer.
+    public nonisolated static func tokenBudget(isAppleFMOnDevice: Bool) -> Int {
+        let size = contextSize(isAppleFMOnDevice: isAppleFMOnDevice)
+        let safetyBuffer = isAppleFMOnDevice ? 800 : 2048
+        return max(1000, size - safetyBuffer)
+    }
     
     /// Empirically validated on-device Apple FM ratio: ~1.4 chars/token
-    public static let onDeviceCharsPerToken = 1.4
+    public nonisolated static let onDeviceCharsPerToken = 1.4
     
     /// Cloud fallback model ratio: ~2.5 chars/token
-    public static let cloudFallbackCharsPerToken = 2.5
+    public nonisolated static let cloudFallbackCharsPerToken = 2.5
     
     /// Estimated tokens per character for packing calculations (~0.71 tokens/char)
-    public static let tokensPerChar = 0.71
+    public nonisolated static let tokensPerChar = 0.71
     
     // MARK: - Calculations
     
     /// Get the conservative characters-per-token ratio based on execution location.
-    public static func conservativeCharsPerToken(isAppleFMOnDevice: Bool) -> Double {
+    public nonisolated static func conservativeCharsPerToken(isAppleFMOnDevice: Bool) -> Double {
         return isAppleFMOnDevice ? onDeviceCharsPerToken : cloudFallbackCharsPerToken
     }
     
     /// Estimate token count conservatively for a given character count.
-    public static func estimateTokens(charsCount: Int, isAppleFMOnDevice: Bool) -> Int {
+    public nonisolated static func estimateTokens(charsCount: Int, isAppleFMOnDevice: Bool) -> Int {
         let ratio = conservativeCharsPerToken(isAppleFMOnDevice: isAppleFMOnDevice)
         return max(1, Int(ceil(Double(charsCount) / ratio)))
     }
     
     /// Estimate token count conservatively for a given string.
-    public static func estimateTokens(for text: String, isAppleFMOnDevice: Bool) -> Int {
+    public nonisolated static func estimateTokens(for text: String, isAppleFMOnDevice: Bool) -> Int {
         return estimateTokens(charsCount: text.count, isAppleFMOnDevice: isAppleFMOnDevice)
     }
     
     /// ContextPacking-oriented character to token estimation (approx. 0.71 tokens/char).
-    public static func estimateTokensForCharCount(_ charsCount: Int) -> Int {
+    public nonisolated static func estimateTokensForCharCount(_ charsCount: Int) -> Int {
         return Int(ceil(Double(charsCount) * tokensPerChar))
     }
     
@@ -61,7 +73,7 @@ public struct FoundationModelTokenBudget: Sendable {
     #if canImport(FoundationModels)
     /// Estimate token count of a Transcript entry list for Apple Foundation Models.
     @available(iOS 26.0, macOS 16.0, *)
-    public static func estimateTranscriptTokens(_ transcript: Transcript) -> Int {
+    public nonisolated static func estimateTranscriptTokens(_ transcript: Transcript) -> Int {
         var totalChars = 0
         for entry in transcript {
             switch entry {
@@ -76,6 +88,10 @@ public struct FoundationModelTokenBudget: Sendable {
                 totalChars += calls.count * 100
             case let .toolOutput(output):
                 totalChars += String(describing: output).count
+            #if os(iOS)
+            case let .reasoning(reasoning):
+                totalChars += String(describing: reasoning).count
+            #endif
             @unknown default:
                 totalChars += 50 // Conservative estimate for unknown types
             }

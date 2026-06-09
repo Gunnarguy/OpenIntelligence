@@ -83,13 +83,28 @@ struct MessageBubbleV2: View {
                 VStack(alignment: .leading, spacing: 0) {
                     if !isUser, message.isHidden {
                         hiddenMessageView
+                    } else if let structuredAnswer = message.structuredAnswer, !isUser {
+                        GroundedAnswerView(
+                            answer: structuredAnswer,
+                            retrievedChunks: message.retrievedChunks ?? [],
+                            modeName: message.metadata?.qualityModeName
+                        )
                     } else {
                         // Message content
                         MarkdownText(
                             message.content,
-                            font: .system(size: 15, weight: .regular),
+                            font: .system(size: 14, weight: .regular),
                             foregroundColor: isUser ? .white : DSColors.primaryText
                         )
+
+                        // Visual Evidence (if any)
+                        if let visualEvidence = message.visualEvidence {
+                            VisualEvidenceCard(
+                                metadata: visualEvidence.metadata,
+                                ocrText: visualEvidence.ocrText
+                            )
+                            .padding(.vertical, 8)
+                        }
 
                         // Reasoning trace (expandable "show your work" section)
                         if !displayedReasoningTrace.isEmpty {
@@ -109,7 +124,18 @@ struct MessageBubbleV2: View {
                                 HStack(spacing: 6) {
                                     Image(systemName: showReasoningTrace ? "chevron.down" : "chevron.right")
                                         .font(.system(size: 10, weight: .medium))
-                                    Text("💭 Reasoning Process")
+                                    
+                                    let modeIcon: String = {
+                                        let mode = message.metadata?.qualityModeName?.lowercased() ?? ""
+                                        if mode.contains("max") { return "flame.fill" }
+                                        if mode.contains("deep") { return "brain.head.profile" }
+                                        return "sparkles"
+                                    }()
+                                    
+                                    Image(systemName: modeIcon)
+                                        .font(.system(size: 10))
+                                    
+                                    Text("Reasoning Process")
                                         .font(.system(size: 13, weight: .medium))
                                     Text("(\(displayedReasoningTrace.count) steps)")
                                         .font(.system(size: 11))
@@ -123,7 +149,11 @@ struct MessageBubbleV2: View {
                             if showReasoningTrace {
                                 VStack(alignment: .leading, spacing: 10) {
                                     ForEach(Array(displayedReasoningTrace.enumerated()), id: \.offset) { idx, step in
-                                        ReasoningStepView(step: step, index: idx)
+                                        ReasoningStepView(
+                                            step: step,
+                                            index: idx,
+                                            modeName: message.metadata?.qualityModeName
+                                        )
                                     }
                                 }
                                 .padding(.top, 8)
@@ -205,6 +235,11 @@ struct MessageBubbleV2: View {
                         // Verification gate inline badge
                         if let decision = meta.gatingDecision {
                             VerificationBadge(gatingDecision: decision)
+                        }
+
+                        // Tool call count badge
+                        if let toolCalls = meta.toolCallsMade, toolCalls > 0 {
+                            MicroToolCallBadge(count: toolCalls)
                         }
                     }
                 }
@@ -401,31 +436,47 @@ private struct BubbleShape: Shape {
 private struct ReasoningStepView: View {
     let step: String
     let index: Int
+    let modeName: String?
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            // Parse the step format: "🔍 Analyzing Evidence: content..."
-            let parts = step.components(separatedBy: ": ")
-            let label = parts.first ?? "Step \(index + 1)"
-            let content = parts.count > 1 ? parts.dropFirst().joined(separator: ": ") : step
+        HStack(alignment: .top, spacing: 10) {
+            VStack(spacing: 0) {
+                Circle()
+                    .fill(stepColor.opacity(0.2))
+                    .frame(width: 8, height: 8)
+                
+                Rectangle()
+                    .fill(stepColor.opacity(0.1))
+                    .frame(width: 2)
+            }
+            .padding(.top, 4)
 
-            Text(label)
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundStyle(stepColor)
+            VStack(alignment: .leading, spacing: 4) {
+                let parts = step.components(separatedBy: ": ")
+                let label = parts.first ?? "Step \(index + 1)"
+                let content = parts.count > 1 ? parts.dropFirst().joined(separator: ": ") : step
 
-            Text(content)
-                .font(.system(size: 13))
-                .foregroundStyle(DSColors.secondaryText)
-                .lineLimit(nil)
-                .fixedSize(horizontal: false, vertical: true)
+                Text(label)
+                    .font(.system(size: 11, weight: .bold))
+                    .foregroundStyle(stepColor)
+                    .textCase(.uppercase)
+
+                Text(content)
+                    .font(.system(size: 13))
+                    .foregroundStyle(DSColors.primaryText.opacity(0.8))
+                    .lineLimit(nil)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .padding(.bottom, 8)
         }
-        .padding(10)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(DSColors.surface.opacity(0.5))
-        .cornerRadius(8)
     }
 
     private var stepColor: Color {
+        if let mode = modeName?.lowercased() {
+            if mode.contains("max") { return .orange }
+            if mode.contains("deep") { return .purple }
+        }
+        
         switch index {
         case 0: return .blue      // Analyzing
         case 1: return .purple    // Patterns

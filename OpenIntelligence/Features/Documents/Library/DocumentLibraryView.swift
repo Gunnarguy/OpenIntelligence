@@ -30,6 +30,7 @@ struct DocumentLibraryView: View {
     // New library naming
     @State private var showingNewLibraryPrompt = false
     @State private var showingNewLibraryStorageChoice = false
+    @State private var shouldShowStorageChoiceAfterDismissal = false
     @State private var newLibraryName = ""
     @State private var pendingNewLibraryName = ""
 
@@ -213,6 +214,24 @@ struct DocumentLibraryView: View {
                 .padding(.horizontal)
 
             documentActionStrip
+                .alert(activeLibrary?.syncMode == .iCloudShared ? "Remove Local Documents?" : "Clear Library?", isPresented: $showingClearAllConfirmation) {
+                    Button("Cancel", role: .cancel) {}
+                    Button(activeLibrary?.syncMode == .iCloudShared ? "Remove Local Copies" : "Clear All", role: .destructive) {
+                        Task {
+                            try? await ragService.clearAllDocuments()
+                        }
+                    }
+                } message: {
+                    if let activeLibrary {
+                        if activeLibrary.syncMode == .iCloudShared {
+                            Text("This removes the documents currently stored on this device for \"\(activeLibrary.name)\". If those documents still exist in iCloud Sync, Sync Now can bring them back.")
+                        } else {
+                            Text("This permanently deletes every document in \"\(activeLibrary.name)\" on this device. This cannot be undone.")
+                        }
+                    } else {
+                        Text("This will remove all documents in the current library.")
+                    }
+                }
 
             ContainerPickerStrip(
                 containerService: containerService,
@@ -221,6 +240,57 @@ struct DocumentLibraryView: View {
                 onDeleteLibrary: handleDeleteLibrary,
                 onSetLibraryStorage: handleSetLibrarySyncMode
             )
+            .alert("New Library", isPresented: $showingNewLibraryPrompt) {
+                TextField("Library name", text: $newLibraryName)
+                Button("Cancel", role: .cancel) {
+                    newLibraryName = ""
+                    pendingNewLibraryName = ""
+                }
+                Button("Create") {
+                    pendingNewLibraryName = newLibraryName.trimmingCharacters(in: .whitespacesAndNewlines)
+                    shouldShowStorageChoiceAfterDismissal = true
+                }
+            } message: {
+                Text("Enter a name for your new library")
+            }
+            .confirmationDialog("Choose Library Storage", isPresented: $showingNewLibraryStorageChoice, titleVisibility: .visible) {
+                Button("Local Only") {
+                    createNewLibrary(syncMode: .localOnly)
+                }
+                Button("iCloud Sync") {
+                    createNewLibrary(syncMode: .iCloudShared)
+                }
+                Button("Cancel", role: .cancel) {
+                    pendingNewLibraryName = ""
+                }
+            } message: {
+                Text("Local Only keeps the library only on this device. iCloud Sync makes iCloud the shared copy for that library across your devices.")
+            }
+            .alert("Delete Library?", isPresented: $showingDeleteConfirmation) {
+                Button("Cancel", role: .cancel) {
+                    libraryToDelete = nil
+                }
+                if libraryToDelete?.syncMode == .iCloudShared {
+                    Button("Delete from iCloud", role: .destructive) {
+                        confirmDeleteLibrary()
+                    }
+                } else {
+                    Button("Delete Locally", role: .destructive) {
+                        confirmDeleteLibrary()
+                    }
+                }
+            } message: {
+                if let lib = libraryToDelete {
+                    let docCount = ragService.documents.filter { $0.containerId == lib.id }.count
+                    if lib.syncMode == .iCloudShared {
+                        Text("This will permanently delete \"\(lib.name)\" from iCloud Sync and remove it from every device using that shared library, along with all \(docCount) document\(docCount == 1 ? "" : "s"). This cannot be undone.")
+                    } else {
+                        Text("This will permanently delete \"\(lib.name)\" only on this device, along with all \(docCount) document\(docCount == 1 ? "" : "s") inside it. This cannot be undone.")
+                    }
+                } else {
+                    Text("This will permanently delete this library and all documents inside it.")
+                }
+            }
 
             sharedWorkspaceBanner
                 .padding(.horizontal)
@@ -253,17 +323,18 @@ struct DocumentLibraryView: View {
 
     private var documentSectionHeader: some View {
         HStack(alignment: .center, spacing: 12) {
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: 1) {
                 Text("Documents")
-                    .font(.headline.weight(.semibold))
+                    .font(.system(size: 18, weight: .bold))
+                    .foregroundStyle(DSColors.primaryText)
 
                 Text(documentSectionSubtitle)
-                    .font(.caption)
+                    .font(.system(size: 10, weight: .medium))
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
             }
 
-            Spacer(minLength: 12)
+            Spacer(minLength: 8)
 
             HStack(spacing: 8) {
                 if activeLibrary != nil {
@@ -272,29 +343,31 @@ struct DocumentLibraryView: View {
                         Text("iCloud").tag(LibrarySyncMode.iCloudShared)
                     }
                     .pickerStyle(.segmented)
-                    .frame(width: 140)
+                    .frame(width: 120)
                     .labelsHidden()
                     .disabled(isRefreshingSharedWorkspace)
                 }
 
                 if hasConfiguredICloudLibraries {
                     Button {
+                        DSHaptics.light()
                         refreshSharedWorkspaceNow()
                     } label: {
                         if isRefreshingSharedWorkspace {
                             ProgressView()
                                 .progressViewStyle(.circular)
                                 .scaleEffect(0.8)
-                                .frame(width: 28, height: 28)
+                                .frame(width: 32, height: 32)
                         } else {
                             Image(systemName: "arrow.clockwise")
-                                .font(.system(size: 13, weight: .bold))
+                                .font(.system(size: 14, weight: .bold))
                                 .foregroundColor(.accentColor)
-                                .frame(width: 28, height: 28)
+                                .frame(width: 32, height: 32)
                                 .background(
                                     Circle()
-                                        .fill(Color.accentColor.opacity(0.1))
+                                        .fill(Color.accentColor.opacity(0.08))
                                 )
+                                .glassCircleEffectHelper()
                         }
                     }
                     .buttonStyle(.plain)
@@ -315,55 +388,63 @@ struct DocumentLibraryView: View {
     }
 
     private var documentActionStrip: some View {
-        LazyVGrid(columns: [GridItem(.adaptive(minimum: 140, maximum: .infinity), spacing: 8)], spacing: 8) {
-            DocumentActionChip(
-                title: "Add Document",
-                systemImage: "plus"
-            ) {
-                presentDocumentPickerOrUpgrade()
-            }
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 12) {
+                DocumentActionChip(
+                    title: "Add Document",
+                    systemImage: "plus.circle.fill"
+                ) {
+                    DSHaptics.light()
+                    presentDocumentPickerOrUpgrade()
+                }
 
-            DocumentActionChip(
-                title: "Cached Docs",
-                systemImage: "doc.on.doc"
-            ) {
-                showCachedDocs = true
-            }
+                DocumentActionChip(
+                    title: "Semantic Search",
+                    systemImage: "sparkle.magnifyingglass",
+                    isEnabled: !ragService.documents.isEmpty
+                ) {
+                    DSHaptics.selection()
+                    showingSemanticSearch = true
+                }
 
-            DocumentActionChip(
-                title: "Manage Library",
-                systemImage: "gearshape"
-            ) {
-                showingContainerSettings = true
-            }
+                DocumentActionChip(
+                    title: "Cached Docs",
+                    systemImage: "doc.on.doc.fill"
+                ) {
+                    DSHaptics.light()
+                    showCachedDocs = true
+                }
 
-            DocumentActionChip(
-                title: "Semantic Search",
-                systemImage: "text.magnifyingglass",
-                isEnabled: !ragService.documents.isEmpty
-            ) {
-                showingSemanticSearch = true
-            }
+                DocumentActionChip(
+                    title: "Manage Library",
+                    systemImage: "slider.horizontal.3"
+                ) {
+                    DSHaptics.light()
+                    showingContainerSettings = true
+                }
 
-            DocumentActionChip(
-                title: "Visualize",
-                systemImage: "cube.transparent",
-                isEnabled: !filteredDocuments.isEmpty && onViewVisualizations != nil
-            ) {
-                onViewVisualizations?()
-            }
+                DocumentActionChip(
+                    title: "Visualize",
+                    systemImage: "cube.transparent",
+                    isEnabled: !filteredDocuments.isEmpty && onViewVisualizations != nil
+                ) {
+                    DSHaptics.selection()
+                    onViewVisualizations?()
+                }
 
-            DocumentActionChip(
-                title: activeLibrary?.syncMode == .iCloudShared ? "Remove Local Copies" : "Clear All",
-                systemImage: "trash",
-                tint: .red,
-                isEnabled: !ragService.documents.isEmpty
-            ) {
-                showingClearAllConfirmation = true
+                DocumentActionChip(
+                    title: activeLibrary?.syncMode == .iCloudShared ? "Remove Local Copies" : "Clear All",
+                    systemImage: "trash",
+                    tint: .red,
+                    isEnabled: !ragService.documents.isEmpty
+                ) {
+                    DSHaptics.medium()
+                    showingClearAllConfirmation = true
+                }
             }
+            .padding(.horizontal, 16)
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 2)
+        .padding(.vertical, 8)
     }
 
     @ViewBuilder
@@ -516,12 +597,12 @@ struct DocumentLibraryView: View {
         } else if shouldShowCompactSharedWorkspaceBanner {
             VStack(alignment: .leading, spacing: 8) {
                 HStack(spacing: 10) {
-                    Image(systemName: workspaceSyncService.isUsingSharedWorkspace ? "icloud.fill" : "icloud")
+                    Image(systemName: compactSharedWorkspaceBannerIcon)
                         .font(.subheadline)
-                        .foregroundStyle(workspaceSyncService.isUsingSharedWorkspace ? .green : .accentColor)
+                        .foregroundStyle(compactSharedWorkspaceBannerIconColor)
 
                     VStack(alignment: .leading, spacing: 2) {
-                        Text("iCloud Libraries")
+                        Text(compactSharedWorkspaceBannerTitle)
                             .font(.subheadline.weight(.semibold))
                         Text(compactSharedWorkspaceSummary)
                             .font(.caption)
@@ -531,12 +612,12 @@ struct DocumentLibraryView: View {
 
                     Spacer()
 
-                    Text(sharedWorkspaceModeLabel)
+                    Text(compactSharedWorkspaceModeLabel)
                         .font(.caption.weight(.semibold))
                         .padding(.horizontal, 10)
                         .padding(.vertical, 4)
-                        .background(sharedWorkspaceModeColor.opacity(0.15))
-                        .foregroundStyle(sharedWorkspaceModeColor)
+                        .background(compactSharedWorkspaceModeColor.opacity(0.15))
+                        .foregroundStyle(compactSharedWorkspaceModeColor)
                         .clipShape(Capsule())
                 }
 
@@ -554,7 +635,7 @@ struct DocumentLibraryView: View {
             )
             .overlay(
                 RoundedRectangle(cornerRadius: 14)
-                    .stroke((workspaceSyncService.isUsingSharedWorkspace ? Color.green : Color.accentColor).opacity(0.16), lineWidth: 1)
+                    .stroke(compactSharedWorkspaceBannerIconColor.opacity(0.16), lineWidth: 1)
             )
         }
     }
@@ -565,6 +646,42 @@ struct DocumentLibraryView: View {
             || workspaceSyncService.syncCompatibilityMessage != nil
             || workspaceSyncService.lastErrorMessage != nil
             || sharedWorkspaceRefreshMessage != nil
+    }
+
+    private var isDisplayingLocalTransitionMessage: Bool {
+        sharedWorkspaceRefreshMessage?.contains("is now Local Only") == true
+    }
+
+    private var compactSharedWorkspaceBannerTitle: String {
+        isDisplayingLocalTransitionMessage ? "Library Storage" : "iCloud Libraries"
+    }
+
+    private var compactSharedWorkspaceBannerIcon: String {
+        if isDisplayingLocalTransitionMessage {
+            return "folder.fill"
+        }
+        return workspaceSyncService.isUsingSharedWorkspace ? "icloud.fill" : "icloud"
+    }
+
+    private var compactSharedWorkspaceBannerIconColor: Color {
+        if isDisplayingLocalTransitionMessage {
+            return .accentColor
+        }
+        return workspaceSyncService.isUsingSharedWorkspace ? .green : .accentColor
+    }
+
+    private var compactSharedWorkspaceModeLabel: String {
+        if isDisplayingLocalTransitionMessage {
+            return "Local Only"
+        }
+        return sharedWorkspaceModeLabel
+    }
+
+    private var compactSharedWorkspaceModeColor: Color {
+        if isDisplayingLocalTransitionMessage {
+            return .secondary
+        }
+        return sharedWorkspaceModeColor
     }
 
     private var compactSharedWorkspaceSummary: String {
@@ -882,75 +999,6 @@ struct DocumentLibraryView: View {
                     Text(error)
                 }
             }
-            .alert("New Library", isPresented: $showingNewLibraryPrompt) {
-                TextField("Library name", text: $newLibraryName)
-                Button("Cancel", role: .cancel) {
-                    newLibraryName = ""
-                    pendingNewLibraryName = ""
-                }
-                Button("Create") {
-                    pendingNewLibraryName = newLibraryName.trimmingCharacters(in: .whitespacesAndNewlines)
-                    showingNewLibraryStorageChoice = true
-                }
-            } message: {
-                Text("Enter a name for your new library")
-            }
-            .confirmationDialog("Choose Library Storage", isPresented: $showingNewLibraryStorageChoice, titleVisibility: .visible) {
-                Button("Local Only") {
-                    createNewLibrary(syncMode: .localOnly)
-                }
-                Button("iCloud Sync") {
-                    createNewLibrary(syncMode: .iCloudShared)
-                }
-                Button("Cancel", role: .cancel) {
-                    pendingNewLibraryName = ""
-                }
-            } message: {
-                Text("Local Only keeps the library only on this device. iCloud Sync makes iCloud the shared copy for that library across your devices.")
-            }
-            .alert("Delete Library?", isPresented: $showingDeleteConfirmation) {
-                Button("Cancel", role: .cancel) {
-                    libraryToDelete = nil
-                }
-                if libraryToDelete?.syncMode == .iCloudShared {
-                    Button("Delete from iCloud", role: .destructive) {
-                        confirmDeleteLibrary()
-                    }
-                } else {
-                    Button("Delete Locally", role: .destructive) {
-                        confirmDeleteLibrary()
-                    }
-                }
-            } message: {
-                if let lib = libraryToDelete {
-                    let docCount = ragService.documents.filter { $0.containerId == lib.id }.count
-                    if lib.syncMode == .iCloudShared {
-                        Text("This will permanently delete \"\(lib.name)\" from iCloud Sync and remove it from every device using that shared library, along with all \(docCount) document\(docCount == 1 ? "" : "s"). This cannot be undone.")
-                    } else {
-                        Text("This will permanently delete \"\(lib.name)\" only on this device, along with all \(docCount) document\(docCount == 1 ? "" : "s") inside it. This cannot be undone.")
-                    }
-                } else {
-                    Text("This will permanently delete this library and all documents inside it.")
-                }
-            }
-            .alert(activeLibrary?.syncMode == .iCloudShared ? "Remove Local Documents?" : "Clear Library?", isPresented: $showingClearAllConfirmation) {
-                Button("Cancel", role: .cancel) {}
-                Button(activeLibrary?.syncMode == .iCloudShared ? "Remove Local Copies" : "Clear All", role: .destructive) {
-                    Task {
-                        try? await ragService.clearAllDocuments()
-                    }
-                }
-            } message: {
-                if let activeLibrary {
-                    if activeLibrary.syncMode == .iCloudShared {
-                        Text("This removes the documents currently stored on this device for \"\(activeLibrary.name)\". If those documents still exist in iCloud Sync, Sync Now can bring them back.")
-                    } else {
-                        Text("This permanently deletes every document in \"\(activeLibrary.name)\" on this device. This cannot be undone.")
-                    }
-                } else {
-                    Text("This will remove all documents in the current library.")
-                }
-            }
             .alert("Review Import", isPresented: $showingImportReview) {
                 Button("Cancel", role: .cancel) {
                     discardPendingImportFiles()
@@ -1048,6 +1096,16 @@ struct DocumentLibraryView: View {
             .onChange(of: workspaceSyncService.observedWorkspaceChangeCount) {
                 Task { @MainActor in
                     await handleObservedSharedWorkspaceChange()
+                }
+            }
+            .onChange(of: showingNewLibraryPrompt) { _, isShowing in
+                if !isShowing && shouldShowStorageChoiceAfterDismissal {
+                    shouldShowStorageChoiceAfterDismissal = false
+                    // Chains are often missed if triggered too fast during alert dismissal
+                    Task { @MainActor in
+                        try? await Task.sleep(nanoseconds: 50_000_000) // 50ms delay
+                        showingNewLibraryStorageChoice = true
+                    }
                 }
             }
     }
@@ -1227,6 +1285,7 @@ struct DocumentLibraryView: View {
         // Suggest a default name but let user customize
         newLibraryName = "Library \(currentCount + 1)"
         pendingNewLibraryName = ""
+        shouldShowStorageChoiceAfterDismissal = false
         showingNewLibraryPrompt = true
     }
 
@@ -1483,42 +1542,39 @@ struct DocumentLibraryView: View {
     }
 }
 
-private struct DocumentActionChip: View {
-    let title: String
-    let systemImage: String
-    var tint: Color = .accentColor
-    var isEnabled: Bool = true
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            HStack(spacing: 8) {
-                Image(systemName: systemImage)
-                    .font(.system(size: 11, weight: .semibold))
-
-                Text(title)
-                    .font(.system(size: 12, weight: .semibold))
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.6)
+    private struct DocumentActionChip: View {
+        let title: String
+        let systemImage: String
+        var tint: Color = .accentColor
+        var isEnabled: Bool = true
+        let action: () -> Void
+    
+        var body: some View {
+            Button(action: action) {
+                HStack(spacing: 6) {
+                    Image(systemName: systemImage)
+                        .font(.system(size: 11, weight: .bold))
+    
+                    Text(title)
+                        .font(.system(size: 11, weight: .bold))
+                        .lineLimit(1)
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .background(.ultraThinMaterial)
+                .foregroundStyle(isEnabled ? tint : .secondary)
+                .clipShape(Capsule())
+                .overlay(
+                    Capsule()
+                        .strokeBorder(isEnabled ? tint.opacity(0.15) : Color.secondary.opacity(0.1), lineWidth: 1)
+                )
+                .glassEffectHelper(isSelected: false, interactive: isEnabled)
             }
-            .frame(maxWidth: .infinity)
-            .foregroundStyle(isEnabled ? tint : .secondary)
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
-            .background(
-                Capsule()
-                    .fill((isEnabled ? tint : Color.secondary).opacity(0.1))
-                    .overlay(
-                        Capsule()
-                            .stroke((isEnabled ? tint : Color.secondary).opacity(0.18), lineWidth: 1)
-                    )
-            )
+            .buttonStyle(.plain)
+            .disabled(!isEnabled)
+            .opacity(isEnabled ? 1 : 0.6)
         }
-        .buttonStyle(.plain)
-        .disabled(!isEnabled)
-        .opacity(isEnabled ? 1 : 0.7)
     }
-}
 
 private struct DocumentUtilityChipLabel: View {
     let title: String

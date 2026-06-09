@@ -32,6 +32,23 @@ struct ChatResponseDetailsView: View {
                     // 1. Verification Hero
                     verificationHero
 
+                    // Source Fidelity Status Card
+                    SourceFidelityStatus(
+                        level: fidelityLevel,
+                        score: averageFidelityScore > 0 ? averageFidelityScore : nil
+                    )
+                    .padding(.horizontal, DSSpacing.md)
+
+                    // Execution Route Trace
+                    if let route = metadata.executionRoute {
+                        routeTraceSection(route)
+                    }
+
+                    // Token Budget Allocation
+                    if let budget = metadata.tokenBudget {
+                        tokenBudgetSection(budget)
+                    }
+
                     // 2. How this answer was made
                     answerSummaryCard
 
@@ -74,6 +91,153 @@ struct ChatResponseDetailsView: View {
             }
         }
     }
+
+    private func routeTraceSection(_ route: ResponseMetadata.ExecutionRoute) -> some View {
+        VStack(alignment: .leading, spacing: DSSpacing.md) {
+            Label("Execution Route", systemImage: "point.topleft.down.to.point.bottomright.curvepath")
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(.secondary)
+
+            HStack(spacing: DSSpacing.sm) {
+                Text(route.emoji)
+                    .font(.title2)
+                
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(route.path)
+                        .font(.system(size: 15, weight: .bold))
+                        .foregroundStyle(DSColors.primaryText)
+                    
+                    if let policy = route.policyApplied {
+                        Text("Policy: \(policy)")
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundStyle(DSColors.accent)
+                    }
+                }
+                
+                Spacer()
+                
+                Image(systemName: "checkmark.circle.fill")
+                    .foregroundStyle(.green)
+            }
+            .padding(DSSpacing.sm)
+            .background(DSColors.accent.opacity(0.05))
+            .clipShape(RoundedRectangle(cornerRadius: 8))
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Decision Logic")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(.tertiary)
+                    .textCase(.uppercase)
+                
+                Text(route.reason)
+                    .font(.system(size: 13))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(nil)
+            }
+        }
+        .padding(DSSpacing.md)
+        .background(
+            RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous)
+                .fill(DSColors.surface)
+        )
+        .padding(.horizontal, DSSpacing.md)
+    }
+
+    private func tokenBudgetSection(_ budget: ResponseMetadata.TokenBudget) -> some View {
+        VStack(alignment: .leading, spacing: DSSpacing.md) {
+            Label("Token Capacity Allocation", systemImage: "gauge.medium")
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(.secondary)
+
+            VStack(spacing: 8) {
+                // Allocation bar
+                GeometryReader { geo in
+                    HStack(spacing: 2) {
+                        tokenBarSegment(width: geo.size.width * CGFloat(Double(budget.systemPrompt) / Double(budget.totalLimit)), color: .blue, label: "System")
+                        tokenBarSegment(width: geo.size.width * CGFloat(Double(budget.retrievedContext) / Double(budget.totalLimit)), color: .purple, label: "Context")
+                        tokenBarSegment(width: geo.size.width * CGFloat(Double(budget.generation) / Double(budget.totalLimit)), color: .green, label: "Gen")
+                        tokenBarSegment(width: geo.size.width * CGFloat(Double(budget.remaining) / Double(budget.totalLimit)), color: Color.secondary.opacity(0.1), label: "Free")
+                    }
+                }
+                .frame(height: 24)
+                .clipShape(RoundedRectangle(cornerRadius: 6))
+
+                HStack {
+                    Text("0")
+                    Spacer()
+                    Text("\(budget.totalLimit) tokens")
+                        .font(.system(size: 11, weight: .bold, design: .rounded))
+                    Spacer()
+                    Text("Max")
+                }
+                .font(.system(size: 10))
+                .foregroundStyle(.tertiary)
+            }
+
+            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: DSSpacing.sm) {
+                tokenBudgetStat(label: "System", value: budget.systemPrompt, color: .blue)
+                tokenBudgetStat(label: "Context", value: budget.retrievedContext, color: .purple)
+                tokenBudgetStat(label: "Generation", value: budget.generation, color: .green)
+                tokenBudgetStat(label: "Available", value: budget.remaining, color: .secondary)
+            }
+        }
+        .padding(DSSpacing.md)
+        .background(
+            RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous)
+                .fill(DSColors.surface)
+        )
+        .padding(.horizontal, DSSpacing.md)
+    }
+
+    private func tokenBarSegment(width: CGFloat, color: Color, label: String) -> some View {
+        Rectangle()
+            .fill(color)
+            .frame(width: max(width, 0))
+            .overlay(
+                Text(label)
+                    .font(.system(size: 8, weight: .bold))
+                    .foregroundStyle(.white)
+                    .opacity(width > 30 ? 1 : 0)
+            )
+    }
+
+    private func tokenBudgetStat(label: String, value: Int, color: Color) -> some View {
+        HStack(spacing: 8) {
+            RoundedRectangle(cornerRadius: 3)
+                .fill(color)
+                .frame(width: 4, height: 24)
+            
+            VStack(alignment: .leading, spacing: 0) {
+                Text(label)
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(.tertiary)
+                Text("\(value)")
+                    .font(.system(size: 14, weight: .bold, design: .rounded))
+                    .foregroundStyle(DSColors.primaryText)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var averageFidelityScore: Float {
+        guard !retrievedChunks.isEmpty else { return 0 }
+        return retrievedChunks.map(\.similarityScore).reduce(0, +) / Float(retrievedChunks.count)
+    }
+
+    private var fidelityLevel: SourceFidelityStatus.FidelityLevel {
+        guard let decision = metadata.gatingDecision else {
+            return .sourceLocked
+        }
+        let lower = decision.lowercased()
+        if lower.contains("failed") || lower.contains("missing_citations") || lower.contains("abstain") {
+            return .insufficientEvidence
+        }
+        if lower.contains("low_confidence") || lower.contains("fallback") {
+            return .partiallySupported
+        }
+        return .sourceLocked
+    }
+
 
     // MARK: - Verification Hero
 

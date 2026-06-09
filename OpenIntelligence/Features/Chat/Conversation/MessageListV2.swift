@@ -9,8 +9,10 @@ import SwiftUI
 
 struct MessageListV2: View {
     @Binding var messages: [ChatMessage]
+    @Binding var thinkingEvents: [ThinkingEvent]
     let streamingText: String
     let isStreaming: Bool
+    let qualityMode: RAGQualityMode
     let generationStart: Date?
     var onRegenerate: ((ChatMessage) -> Void)?
 
@@ -30,8 +32,10 @@ struct MessageListV2: View {
 
     init(
         messages: Binding<[ChatMessage]>,
+        thinkingEvents: Binding<[ThinkingEvent]>,
         streamingText: String,
         isStreaming: Bool,
+        qualityMode: RAGQualityMode,
         generationStart: Date? = nil,
         onRegenerate: ((ChatMessage) -> Void)? = nil,
         onGoDeeper: (() -> Void)? = nil,
@@ -41,8 +45,10 @@ struct MessageListV2: View {
         onIllustrate: ((String) -> Void)? = nil
     ) {
         _messages = messages
+        _thinkingEvents = thinkingEvents
         self.streamingText = streamingText
         self.isStreaming = isStreaming
+        self.qualityMode = qualityMode
         self.generationStart = generationStart
         self.onRegenerate = onRegenerate
         self.onGoDeeper = onGoDeeper
@@ -83,12 +89,18 @@ struct MessageListV2: View {
                             // Streaming message with live metrics (or placeholder while waiting on first token)
                             if isStreaming {
                                 if streamingText.isEmpty {
-                                    TypingBubbleV2()
-                                        .id("streaming")
+                                    TypingBubbleV2(
+                                        events: thinkingEvents,
+                                        mode: qualityMode
+                                    )
+                                    .id("streaming")
                                         .transition(.opacity)
                                 } else {
                                     StreamingBubbleV2(
-                                        text: streamingText
+                                        text: streamingText,
+                                        events: thinkingEvents,
+                                        mode: qualityMode,
+                                        startTime: generationStart
                                     )
                                     .id("streaming")
                                         .transition(.opacity)
@@ -124,6 +136,10 @@ struct MessageListV2: View {
                             scrollToBottom(proxy: proxy, animated: false)
                         }
                     }
+                }
+                .onChange(of: thinkingEvents.count) { _, _ in
+                    guard isPinnedToBottom, streamingText.isEmpty else { return }
+                    scrollToBottom(proxy: proxy, animated: true)
                 }
                 .onPreferenceChange(BottomAnchorYPreferenceKey.self) { bottomMinY in
                     // In the scroll view's coordinate space, the visible region is roughly 0...outerGeo.size.height.
@@ -194,9 +210,16 @@ private struct EmptyStateV2: View {
 
 private struct StreamingBubbleV2: View {
     let text: String
+    let events: [ThinkingEvent]
+    let mode: RAGQualityMode
+    let startTime: Date?
 
     @State private var cursorVisible = true
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+
+    private var latestEvent: ThinkingEvent? {
+        events.last
+    }
 
     private var spacerMinLength: CGFloat {
         horizontalSizeClass == .compact ? 24 : 60
@@ -205,6 +228,43 @@ private struct StreamingBubbleV2: View {
     var body: some View {
         HStack(alignment: .bottom, spacing: 0) {
             VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    // Latest thinking event if any (e.g. tool call during generation)
+                    if let latest = latestEvent, latest.kind != .generation {
+                        HStack(spacing: 8) {
+                            Image(systemName: latest.kind.systemIconName)
+                                .font(.system(size: 10, weight: .bold))
+                                .foregroundStyle(DSColors.accent)
+                            
+                            Text(latest.title)
+                                .font(.system(size: 11, weight: .semibold))
+                                .foregroundStyle(DSColors.secondaryText)
+                        }
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(DSColors.accent.opacity(0.08))
+                        .cornerRadius(6)
+                        .transition(.move(edge: .top).combined(with: .opacity))
+                    }
+                    
+                    Spacer()
+                    
+                    if let start = startTime {
+                        TimelineView(.periodic(from: .now, by: 0.1)) { context in
+                            let elapsed = context.date.timeIntervalSince(start)
+                            Text(String(format: "%.1fs", elapsed))
+                                .font(.system(size: 10, weight: .bold, design: .monospaced))
+                                .foregroundStyle(DSColors.secondaryText.opacity(0.5))
+                        }
+                    }
+                }
+
+                // Inline thinking console for agentic modes
+                if !events.isEmpty {
+                    ThinkingStreamView(events: events)
+                        .padding(.vertical, 4)
+                }
+
                 // Message content with cursor
                 HStack(alignment: .bottom, spacing: 2) {
                     MarkdownText(
@@ -239,8 +299,39 @@ private struct StreamingBubbleV2: View {
 // MARK: - Typing Placeholder
 
 private struct TypingBubbleV2: View {
+    let events: [ThinkingEvent]
+    let mode: RAGQualityMode
+    
     @State private var pulse = false
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+
+    private var latestEvent: ThinkingEvent? {
+        events.last
+    }
+
+    private var modeColor: Color {
+        switch mode.canonical {
+        case .standard: return .blue
+        case .deepThink: return .purple
+        case .maximum: return .orange
+        default: return DSColors.accent
+        }
+    }
+
+    private var progress: Double {
+        guard let latest = latestEvent else { return 0.05 }
+        switch latest.kind {
+        case .planning: return 0.1
+        case .embedding: return 0.2
+        case .queryRewrite: return 0.3
+        case .retrieval, .vectorSearch, .bm25: return 0.5
+        case .rerank, .rrf, .mmr: return 0.7
+        case .gating, .grounding, .verification: return 0.85
+        case .context: return 0.9
+        case .generation: return 0.95
+        default: return 0.5
+        }
+    }
 
     private var spacerMinLength: CGFloat {
         horizontalSizeClass == .compact ? 24 : 60
@@ -248,25 +339,73 @@ private struct TypingBubbleV2: View {
 
     var body: some View {
         HStack(alignment: .bottom, spacing: 0) {
-            HStack(spacing: 10) {
-                ProgressView()
-                    .progressViewStyle(.circular)
-                    .scaleEffect(0.85)
-                Text("Generating...")
-                    .font(.system(size: 14, weight: .medium))
-                    .foregroundStyle(DSColors.primaryText)
+            VStack(alignment: .leading, spacing: 12) {
+                // Header: Stage + Progress
+                HStack(spacing: 10) {
+                    ZStack {
+                        Circle()
+                            .stroke(modeColor.opacity(0.1), lineWidth: 1.5)
+                        
+                        Circle()
+                            .trim(from: 0, to: progress)
+                            .stroke(modeColor, style: StrokeStyle(lineWidth: 1.5, lineCap: .round))
+                            .rotationEffect(.degrees(-90))
+                        
+                        if let latest = latestEvent {
+                            Image(systemName: latest.kind.systemIconName)
+                                .font(.system(size: 8, weight: .bold))
+                                .foregroundStyle(modeColor)
+                                .transition(.scale.combined(with: .opacity))
+                                .id("icon-\(latest.id)")
+                        } else {
+                            ProgressView()
+                                .progressViewStyle(.circular)
+                                .scaleEffect(0.5)
+                        }
+                    }
+                    .frame(width: 18, height: 18)
+
+                    VStack(alignment: .leading, spacing: 0) {
+                        Text(latestEvent?.title ?? "Initializing \(mode.displayName)...")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundStyle(DSColors.primaryText)
+                        
+                        Text(mode.displayName.uppercased())
+                            .font(.system(size: 7, weight: .bold))
+                            .foregroundStyle(modeColor.opacity(0.8))
+                            .tracking(0.5)
+                    }
+                }
+                
+                // Live Pipeline Activity (The "Streaming Console" energy)
+                if !events.isEmpty {
+                    ThinkingStreamView(events: events)
+                }
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 12)
-            .background(DSColors.surface)
+            .background(
+                ZStack {
+                    DSColors.surface
+                    
+                    GeometryReader { geo in
+                        LinearGradient(
+                            colors: [.clear, modeColor.opacity(0.05), .clear],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
+                        .offset(x: pulse ? geo.size.width : -geo.size.width)
+                    }
+                }
+            )
             .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
             .shadow(color: .black.opacity(0.04), radius: 2, x: 0, y: 1)
-            .opacity(pulse ? 0.9 : 1.0)
+            .animation(.spring(response: 0.3, dampingFraction: 0.7), value: events.count)
 
             Spacer(minLength: spacerMinLength)
         }
         .onAppear {
-            withAnimation(.easeInOut(duration: 0.8).repeatForever(autoreverses: true)) {
+            withAnimation(.linear(duration: 1.5).repeatForever(autoreverses: false)) {
                 pulse.toggle()
             }
         }
@@ -301,8 +440,10 @@ private struct BottomAnchorGeometry: View {
     ]
     return MessageListV2(
         messages: .constant(messages),
+        thinkingEvents: .constant([]),
         streamingText: "This is a streaming response that shows live metrics while generating...",
         isStreaming: true,
+        qualityMode: .standard,
         generationStart: Date().addingTimeInterval(-2)
     )
     .background(DSColors.background)

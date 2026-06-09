@@ -93,6 +93,23 @@ enum IngestionStage: String, CaseIterable, Codable, Sendable {
     }
 }
 
+/// Granular event representing a discrete step in the ingestion pipeline
+struct IngestionEvent: Identifiable, Codable, Sendable, Equatable {
+    let id: UUID
+    let timestamp: Date
+    let stage: IngestionStage
+    let title: String
+    let detail: String?
+
+    init(id: UUID = UUID(), timestamp: Date = Date(), stage: IngestionStage, title: String, detail: String? = nil) {
+        self.id = id
+        self.timestamp = timestamp
+        self.stage = stage
+        self.title = title
+        self.detail = detail
+    }
+}
+
 /// Rich pipeline metrics for real-time transparency
 struct PipelineMetrics: Codable, Sendable, Equatable {
     nonisolated init() {}
@@ -189,6 +206,7 @@ struct IngestionItem: Identifiable, Codable, Sendable, Equatable {
     var finishedAt: Date?
     var errorMessage: String?
     var metrics: PipelineMetrics = .init()
+    var events: [IngestionEvent] = []
 
     nonisolated var url: URL {
         if let storageRelativePath {
@@ -218,6 +236,7 @@ struct IngestionItem: Identifiable, Codable, Sendable, Equatable {
         case finishedAt
         case errorMessage
         case metrics
+        case events
     }
 
     nonisolated init(
@@ -235,7 +254,8 @@ struct IngestionItem: Identifiable, Codable, Sendable, Equatable {
         startedAt: Date? = nil,
         finishedAt: Date? = nil,
         errorMessage: String? = nil,
-        metrics: PipelineMetrics = PipelineMetrics()
+        metrics: PipelineMetrics = PipelineMetrics(),
+        events: [IngestionEvent] = []
     ) {
         let resolvedRelativePath = storageRelativePath ?? AppSupportPaths.relativePath(for: url)
 
@@ -254,6 +274,7 @@ struct IngestionItem: Identifiable, Codable, Sendable, Equatable {
         self.finishedAt = finishedAt
         self.errorMessage = errorMessage
         self.metrics = metrics
+        self.events = events
     }
 
     nonisolated init(from decoder: Decoder) throws {
@@ -276,6 +297,7 @@ struct IngestionItem: Identifiable, Codable, Sendable, Equatable {
         finishedAt = try container.decodeIfPresent(Date.self, forKey: .finishedAt)
         errorMessage = try container.decodeIfPresent(String.self, forKey: .errorMessage)
         metrics = try container.decodeIfPresent(PipelineMetrics.self, forKey: .metrics) ?? .init()
+        events = try container.decodeIfPresent([IngestionEvent].self, forKey: .events) ?? []
     }
 
     nonisolated func encode(to encoder: Encoder) throws {
@@ -295,6 +317,7 @@ struct IngestionItem: Identifiable, Codable, Sendable, Equatable {
         try container.encodeIfPresent(finishedAt, forKey: .finishedAt)
         try container.encodeIfPresent(errorMessage, forKey: .errorMessage)
         try container.encode(metrics, forKey: .metrics)
+        try container.encode(events, forKey: .events)
     }
 
     nonisolated var filename: String {

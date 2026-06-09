@@ -60,8 +60,8 @@ struct SettingsView: View {
                     heroCard
                     modelSelectionCard
 
-                    // Privacy & Execution (combined)
-                    privacyExecutionCard
+                    // Private Cloud Compute & Execution
+                    privateCloudComputeCard
 
                     // Shared Workspace Sync
                     sharedWorkspaceCard
@@ -448,25 +448,25 @@ Text(label)
         .clipShape(Capsule())
     }
 
-    // MARK: - Privacy & Execution Card (Combined)
+    // MARK: - Private Cloud Compute Card
 
     @ViewBuilder
-    private var privacyExecutionCard: some View {
+    private var privateCloudComputeCard: some View {
         VStack(alignment: .leading, spacing: 16) {
             HStack {
-                Image(systemName: "lock.shield.fill")
+                Image(systemName: "cloud.fill")
                     .font(.title3)
                     .foregroundStyle(
                         LinearGradient(
-                            colors: [.green, .blue],
+                            colors: [.blue, .purple],
                             startPoint: .topLeading,
                             endPoint: .bottomTrailing
                         )
                     )
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Privacy & Execution")
+                    Text("Private Cloud Compute")
                         .font(.headline)
-                    Text("Primarily on-device processing")
+                    Text("Expanded 32K context window")
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
@@ -475,72 +475,79 @@ Text(label)
                 // Status indicator
                 HStack(spacing: 4) {
                     Circle()
-.fill(Color.green)
+                        .fill(deviceCapabilities.supportsPrivateCloudCompute ? Color.green : Color.orange)
                         .frame(width: 8, height: 8)
-                    Text("On-Device")
+                    Text(deviceCapabilities.supportsPrivateCloudCompute ? "Available" : "Unavailable")
                         .font(.caption2.weight(.medium))
-.foregroundColor(.green)
+                        .foregroundColor(deviceCapabilities.supportsPrivateCloudCompute ? .green : .orange)
                 }
             }
 
-            // On-Device Execution Explanation
-            VStack(alignment: .leading, spacing: 8) {
-                HStack(spacing: 8) {
-                    Image(systemName: "iphone.gen3")
-                        .font(.caption)
-                        .foregroundColor(.accentColor)
-                    Text("On-Device First Execution")
+            VStack(alignment: .leading, spacing: 12) {
+                HStack {
+                    Text("PCC Usage")
                         .font(.subheadline.weight(.medium))
+                    Spacer()
+                    Picker("PCC Usage", selection: $settings.pccSetting) {
+                        ForEach(PCCSettings.allCases, id: \.self) { setting in
+                            Text(setting.rawValue).tag(setting)
+                        }
+                    }
+                    .pickerStyle(.menu)
+                    .disabled(!deviceCapabilities.supportsPrivateCloudCompute)
                 }
-
-                Text("All AI inference runs on your device using Apple's ~3B Foundation Model via the Neural Engine, GPU, and CPU. Apple's FoundationModels framework may automatically route to Private Cloud Compute if context exceeds on-device capacity, but that routing is handled by Apple — OpenIntelligence does not run its own servers.")
+                
+                Text("Apple's Private Cloud Compute (PCC) allows OpenIntelligence to process complex queries with a massive 32,768 token context window, significantly improving multi-document analysis and Deep Think capabilities. OpenIntelligence does not operate its own servers.")
                     .font(.caption)
                     .foregroundColor(.secondary)
-
-                // On-device benefits
-                VStack(alignment: .leading, spacing: 6) {
-                    pccBenefitRow(icon: "checkmark.shield.fill", text: "Works fully offline — no OpenIntelligence backend", color: .green)
-                    pccBenefitRow(icon: "eye.slash.fill", text: "No data sent to OpenIntelligence or any developer-operated service", color: .green)
-                    pccBenefitRow(icon: "bolt.fill", text: "Low latency — primarily on-device inference", color: .blue)
-                    pccBenefitRow(icon: "cpu", text: "Neural Engine + GPU + CPU (Apple Silicon)", color: .purple)
-                    pccBenefitRow(icon: "icloud.and.arrow.up", text: "Apple may route to PCC for complex queries (encrypted, zero retention)", color: .secondary)
-                }
-                .padding(.leading, 4)
-                .padding(.top, 4)
             }
             .padding(10)
             .background(Color.accentColor.opacity(0.06))
             .clipShape(RoundedRectangle(cornerRadius: 10))
 
-            Divider()
-
-            // Private Cloud Compute context
-            VStack(alignment: .leading, spacing: 10) {
-                HStack(spacing: 8) {
-                    Image(systemName: "cloud.fill")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                    Text("About Private Cloud Compute")
-                        .font(.subheadline.weight(.medium))
-                }
-
-                Text("Apple's Private Cloud Compute (PCC) is Apple's secure cloud extension for Apple Intelligence. When you allow it and a request benefits from additional capacity, Apple may route eligible processing there. OpenIntelligence does not operate its own servers.")
-                    .font(.caption)
-.foregroundColor(.secondary)
-
-                // PCC info (what it is and when Apple may use it)
-                VStack(alignment: .leading, spacing: 6) {
-                    pccBenefitRow(icon: "lock.shield.fill", text: "PCC: Apple-operated, end-to-end encrypted, zero retention", color: .secondary)
-                    pccBenefitRow(icon: "doc.viewfinder", text: "Cryptographically verifiable by security researchers", color: .secondary)
-                    pccBenefitRow(icon: "info.circle", text: "Used only for eligible requests when Apple Intelligence and your consent allow it", color: .accentColor)
+            #if canImport(FoundationModels)
+            if #available(iOS 26.0, macOS 16.0, *) {
+                Divider()
+                
+                // PCC Quota Status
+                VStack(alignment: .leading, spacing: 10) {
+                    HStack(spacing: 8) {
+                        Image(systemName: "chart.bar.fill")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        Text("PCC Quota Status")
+                            .font(.subheadline.weight(.medium))
+                    }
+                    
+                    let pccModel = PrivateCloudComputeLanguageModel()
+                    if pccModel.isAvailable {
+                        HStack {
+                            Text("Status:")
+                                .font(.caption)
+                            Spacer()
+                            Text(pccModel.quotaUsage.isLimitReached ? "Limit Reached" : "Below Limit")
+                                .font(.caption.weight(.semibold))
+                                .foregroundColor(pccModel.quotaUsage.isLimitReached ? .red : .green)
+                        }
+                        if pccModel.quotaUsage.limitIncreaseSuggestion {
+                            Text("iCloud+ upgrade suggested for higher daily limits.")
+                                .font(.caption2)
+                                .foregroundColor(.orange)
+                        }
+                    } else {
+                        Text("PCC is currently unavailable on this device.")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
                 }
                 .padding(.leading, 4)
-                    .padding(.top, 4)
+                .padding(.top, 4)
             }
+            #endif
         }
-.padding()
-    .background(DSColors.surface)
-    .clipShape(RoundedRectangle(cornerRadius: 16))
+        .padding()
+        .background(DSColors.surface)
+        .clipShape(RoundedRectangle(cornerRadius: 16))
     }
 
     @ViewBuilder
@@ -1917,6 +1924,7 @@ Text(deviceService.chipName)
             settings.enableBackgroundMaintenance,
             settings.enableWritingTools,
             settings.enableSpeechAnalysis,
+            settings.enableTranslation,
         ].filter { $0 }.count
     }
 
@@ -1948,12 +1956,12 @@ Text(deviceService.chipName)
                 Text("Apple Intelligence")
                     .font(.headline)
                 Spacer()
-                Text("\(activeAIFeatureCount)/6")
+                Text("\(activeAIFeatureCount)/7")
                     .font(.caption.weight(.semibold).monospacedDigit())
                     .foregroundColor(.white)
                     .padding(.horizontal, 8)
                     .padding(.vertical, 3)
-                    .background(activeAIFeatureCount == 6 ? Color.green : Color.orange)
+                    .background(activeAIFeatureCount == 7 ? Color.green : Color.orange)
                     .clipShape(Capsule())
             }
             .padding()
@@ -2008,6 +2016,14 @@ Text(deviceService.chipName)
                     title: "Speech Analysis",
                     subtitle: "Audio transcription & voice input",
                     isOn: $settings.enableSpeechAnalysis
+                )
+
+                aiFeatureToggleRow(
+                    icon: "character.book.closed.fill",
+                    color: .purple,
+                    title: "Translation",
+                    subtitle: "Multilingual document analysis",
+                    isOn: $settings.enableTranslation
                 )
 
                 Divider().padding(.horizontal)

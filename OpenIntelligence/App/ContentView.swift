@@ -15,6 +15,7 @@ struct ContentView: View {
     @StateObject private var containerService: ContainerService
     @StateObject private var ragService: RAGService
     @StateObject private var settingsStore: SettingsStore
+    @StateObject private var modelResolutionService: ModelResolutionService
     @StateObject private var onboardingStore: OnboardingStateStore
     @StateObject private var entitlementStore: EntitlementStore
     @State private var selectedTab: Tab = .chat
@@ -39,7 +40,9 @@ struct ContentView: View {
         _workspaceSyncService = StateObject(wrappedValue: workspaceSyncSvc)
         _containerService = StateObject(wrappedValue: containerSvc)
         _ragService = StateObject(wrappedValue: ragSvc)
-        _settingsStore = StateObject(wrappedValue: SettingsStore(ragService: ragSvc))
+        let settingsStoreObj = SettingsStore(ragService: ragSvc)
+        _settingsStore = StateObject(wrappedValue: settingsStoreObj)
+        _modelResolutionService = StateObject(wrappedValue: ModelResolutionService(ragService: ragSvc, settingsStore: settingsStoreObj))
         if screenshotMode.isEnabled {
             let suite = "OpenIntelligence.Screenshots"
             let defaults = UserDefaults(suiteName: suite) ?? .standard
@@ -132,6 +135,7 @@ struct ContentView: View {
         // Previously we only injected it on the Settings tab, which caused a runtime crash when
         // Documents tried to create a new library (it reads settings.useHighAccuracyEmbeddings).
         .environmentObject(settingsStore)
+        .environmentObject(modelResolutionService)
         // Proactively refresh StoreKit products once the root view appears.
         // In production this fetches App Store Connect products; in DEBUG/simulator,
         // this will emit a single warning if no StoreKit configuration is present.

@@ -72,6 +72,8 @@ struct InferenceConfig {
     var temperature: Float = 0.7
     var topP: Float = 0.9
     var topK: Int = 40
+    var qualityMode: RAGQualityMode = .standard
+
 
     // MARK: - Legacy Parameters
 
@@ -134,32 +136,25 @@ struct InferenceConfig {
     }
 }
 
+/// Settings for Private Cloud Compute usage
+enum PCCSettings: String, CaseIterable, Sendable, Codable {
+    case never = "Never use"
+    case ask = "Ask when needed"
+    case allow = "Allow for Deep Think and Maximum"
+}
+
 /// Defines where Apple Foundation Models should execute
-///
-/// **Context Window Sizes:**
-/// - On-device: 4,096 tokens (~10K chars) - fast but limited
-/// - Private Cloud Compute (PCC): ~65,536 tokens (~160K chars) - larger context, requires internet + consent
-///
-/// The system automatically routes to PCC when:
-/// - Context exceeds on-device capacity
-/// - Complex reasoning is required
-/// - User has granted PCC consent
 enum ExecutionContext: CaseIterable, Sendable {
-    /// Let system decide (on-device → PCC fallback). Default and recommended.
-    /// Uses on-device when possible (fast), automatically escalates to PCC for complex queries.
+    /// Let system decide based on policy.
     case automatic
 
-    /// Force on-device only. Limited to 4,096 tokens.
-    /// Use when offline or privacy is paramount. Will fail if context too large.
+    /// Force on-device only.
     case onDeviceOnly
 
-    /// Prefer Private Cloud Compute for 65K context window.
-    /// Falls back to on-device if PCC unavailable (network issues, consent denied).
-    /// **RECOMMENDED for RAG queries with large document context.**
+    /// Prefer Private Cloud Compute.
     case preferCloud
 
-    /// Force PCC only. Requires network. Will fail if PCC unavailable.
-    /// Use sparingly - preferCloud is usually better as it allows fallback.
+    /// Force Private Cloud Compute.
     case cloudOnly
 
     var description: String {
@@ -190,6 +185,18 @@ enum ExecutionContext: CaseIterable, Sendable {
 
     /// Maximum context window tokens for this execution mode
     var maxContextTokens: Int {
+        #if canImport(FoundationModels)
+        if #available(iOS 26.0, macOS 16.0, *) {
+            switch self {
+            case .cloudOnly, .preferCloud:
+                return FoundationModelTokenBudget.contextSize(isAppleFMOnDevice: false)
+            case .onDeviceOnly:
+                return FoundationModelTokenBudget.contextSize(isAppleFMOnDevice: true)
+            case .automatic:
+                return FoundationModelTokenBudget.contextSize(isAppleFMOnDevice: false)
+            }
+        }
+        #endif
         switch self {
         case .cloudOnly, .preferCloud:
             return 4096 // Per-session limit applies to PCC too (TN3193)

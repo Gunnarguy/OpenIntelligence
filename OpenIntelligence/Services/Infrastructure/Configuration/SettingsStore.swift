@@ -43,6 +43,7 @@ final class SettingsStore: ObservableObject {
         // Reviewer & consent
         static let reviewerModeEnabled = "reviewerModeEnabled"
         static let applePCCConsent = "cloudConsent.applePCC"
+        static let pccSetting = "pcc.setting"
 
         // Developer tuning
         static let developerRAGTuning = "developer.ragAdvancedTuning"
@@ -133,6 +134,7 @@ final class SettingsStore: ObservableObject {
     @Published var reviewerModeEnabled: Bool
     /// Saved consent preference for Apple PCC transmissions.
     @Published var applePCCConsent: CloudConsentState
+    @Published var pccSetting: PCCSettings
 
     /// Developer-only: allow advanced RAG tuning controls.
     @Published var developerRAGTuningEnabled: Bool
@@ -410,6 +412,10 @@ final class SettingsStore: ObservableObject {
         let appleConsentRaw = defaults.string(forKey: Keys.applePCCConsent)
         let parsedConsent = CloudConsentState(rawValue: appleConsentRaw ?? "") ?? .notDetermined
         applePCCConsent = parsedConsent
+        
+        let pccSettingRaw = defaults.string(forKey: Keys.pccSetting)
+        pccSetting = PCCSettings(rawValue: pccSettingRaw ?? "") ?? .ask
+        
         // Clean up stale "notDetermined" strings that were incorrectly persisted
         // Only allowed/denied should be persisted; notDetermined means no decision yet
         if appleConsentRaw == "notDetermined" {
@@ -533,6 +539,7 @@ final class SettingsStore: ObservableObject {
             $secondFallback.map { _ in () }.eraseToAnyPublisher(),
             $reviewerModeEnabled.map { _ in () }.eraseToAnyPublisher(),
             $applePCCConsent.map { _ in () }.eraseToAnyPublisher(),
+            $pccSetting.map { _ in () }.eraseToAnyPublisher(),
             $reliabilityModeEnabled.map { _ in () }.eraseToAnyPublisher(),
             $defaultEmbeddingProvider.map { _ in () }.eraseToAnyPublisher(),
             $useHighAccuracyEmbeddings.map { _ in () }.eraseToAnyPublisher(),
@@ -656,6 +663,7 @@ final class SettingsStore: ObservableObject {
         if applePCCConsent != .notDetermined {
             defaults.set(applePCCConsent.rawValue, forKey: Keys.applePCCConsent)
         }
+        defaults.set(pccSetting.rawValue, forKey: Keys.pccSetting)
         defaults.set(hasUserPrimaryOverride, forKey: Keys.primaryModelUserOverride)
         defaults.set(developerRAGTuningEnabled, forKey: Keys.developerRAGTuning)
 

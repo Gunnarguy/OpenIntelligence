@@ -325,6 +325,7 @@ class RAGService: ObservableObject {
     private weak var entitlementStore: EntitlementStore?
     private var cancellables = Set<AnyCancellable>()
     @MainActor private weak var settingsStore: SettingsStore?
+    @MainActor private var queryRuntimeCoordinator: QueryRuntimeCoordinator?
     @MainActor private var pendingConsentContinuation: CheckedContinuation<CloudConsentDecision, Never>?
     @MainActor private var transientConsentGrants: Set<CloudProvider> = []
     @MainActor private var pccSuppressedUntil: Date?
@@ -1255,7 +1256,8 @@ class RAGService: ObservableObject {
         }
         loadDocumentsFromDisk()
 
-        Task { @MainActor in
+        Task { @MainActor [weak self] in
+            guard let self else { return }
             IngestionRuntimeBridge.shared.configureContinuedIngestion(
                 run: { [weak self] in
                     guard let self else { return false }
@@ -1293,7 +1295,8 @@ class RAGService: ObservableObject {
 
         // MEMORY FIX: Evict caches on memory pressure to prevent OOM jetsam kills
         #if canImport(UIKit)
-        Task { @MainActor in
+        Task { @MainActor [weak self] in
+            guard let self else { return }
             self.memoryWarningObserver = NotificationCenter.default.addObserver(
                 forName: UIApplication.didReceiveMemoryWarningNotification,
                 object: nil,
@@ -1391,6 +1394,7 @@ class RAGService: ObservableObject {
     @MainActor
     func registerSettingsStore(_ store: SettingsStore) {
         settingsStore = store
+        queryRuntimeCoordinator = QueryRuntimeCoordinator(settingsStore: store)
         // Defer sync so SwiftUI finishes its current view update before we publish changes.
         Task { @MainActor [weak self] in
             guard let self else { return }
@@ -4215,6 +4219,19 @@ class RAGService: ObservableObject {
         item.stage = stage
         item.detail = detail
         item.progress = progress
+
+        let event = IngestionEvent(
+            stage: stage,
+            title: stage.displayName,
+            detail: detail
+        )
+
+        if let lastEvent = item.events.last, lastEvent.stage == stage && lastEvent.detail == detail {
+            // Prevent duplicate events for pure progress updates
+        } else {
+            item.events.append(event)
+        }
+
         if item.startedAt == nil, stage != .queued {
             item.startedAt = Date()
         }
@@ -5186,6 +5203,21 @@ class RAGService: ObservableObject {
             try await db.storeBatch(chunks: documentChunks)
             // Invalidate visualization cache for this container after data change
             ProjectionCache.shared.invalidate(forContainer: activeContainerId)
+            
+            // Step 4.0.0: Index individual document chunks in Spotlight for fine-grained search
+            let chunkSpotlightEnabled = await MainActor.run { self.settingsStore?.enableSpotlightIndexing ?? true }
+            if chunkSpotlightEnabled {
+                let cid = activeContainerId
+                let containerName = await MainActor.run { self.containerService.containers.first(where: { $0.id == cid })?.name ?? "Library" }
+                SpotlightIndexService.shared.indexDocumentChunks(
+                    documentId: document.id,
+                    documentName: document.filename,
+                    chunks: documentChunks,
+                    containerId: activeContainerId,
+                    containerName: containerName
+                )
+            }
+
             TelemetryCenter.emit(
                 .storage,
                 title: "Chunks stored",
@@ -5736,6 +5768,12 @@ class RAGService: ObservableObject {
 
         // Remove entity index entries to prevent ghost entities from deleted documents
         await EntityIndexService.shared.removeDocument(document.id)
+
+        // Delete physical file if it's in our internal storage
+        let fileURL = document.fileURL
+        if fileURL.path.contains("ImportedDocuments") {
+            try? FileManager.default.removeItem(at: fileURL)
+        }
 
         // Invalidate visualization cache for the document's library after removal
         ProjectionCache.shared.invalidate(forContainer: targetContainerId)
@@ -6453,7 +6491,8 @@ class RAGService: ObservableObject {
         question: String,
         containerId: UUID,
         config: InferenceConfig?,
-        qualityMode: RAGQualityMode
+        qualityMode: RAGQualityMode,
+        runtimeContext: QueryRuntimeContext
     ) async throws -> RAGResponse {
         let selectedContainer = await MainActor.run {
             self.containerService.containers.first { $0.id == containerId }
@@ -6538,8 +6577,9 @@ class RAGService: ObservableObject {
         let orchestrator = AgenticOrchestrator(ragService: self, config: optimizedConfig, qualityMode: qualityMode)
 
         // Wrap execution in a tracked task so it can be cancelled by subsequent queries
-        let agenticTask = Task<RAGResponse, Error> {
+        let agenticTask = Task<RAGResponse, Error> { [weak self] in
             try Task.checkCancellation()
+            guard let self else { throw CancellationError() }
 
             let result = try await orchestrator.execute(
                 query: question,
@@ -6603,19 +6643,27 @@ class RAGService: ObservableObject {
                             let sessionInfo = step.input // e.g., "Session 5/25"
                             let confidence = step.confidence ?? 0
                             let saturation = step.tokensUsed > 300 ? "deep" : "scanning"
+                            
+                            let metricsString = "\(Int(confidence * 100))% confident • \(step.tokensUsed) tokens • \(saturation)"
+                            let cleanOutput = step.output.replacingOccurrences(of: "\n", with: " ")
+                            let detail = cleanOutput.isEmpty ? metricsString : "\(cleanOutput) • \(metricsString)"
+                            
                             self?.emitThinkingEvent(
                                 step.type.thinkingKind,
                                 title: sessionInfo,
-                                detail: "\(Int(confidence * 100))% confident • \(step.tokensUsed) tokens • \(saturation)"
+                                detail: detail
                             )
                         } else {
                             // Regular reasoning step - use standard format
-                            let detail: String
+                            let metricsString: String
                             if let confidence = step.confidence {
-                                detail = "Confidence: \(Int(confidence * 100))% • Tokens: \(step.tokensUsed)"
+                                metricsString = "Confidence: \(Int(confidence * 100))% • Tokens: \(step.tokensUsed)"
                             } else {
-                                detail = "Tokens: \(step.tokensUsed), Duration: \(String(format: "%.1f", step.duration))s"
+                                metricsString = "Tokens: \(step.tokensUsed), Duration: \(String(format: "%.1f", step.duration))s"
                             }
+                            
+                            let cleanOutput = step.output.replacingOccurrences(of: "\n", with: " ")
+                            let detail = cleanOutput.isEmpty ? metricsString : "\(cleanOutput) • \(metricsString)"
 
                             self?.emitThinkingEvent(
                                 step.type.thinkingKind,
@@ -6826,7 +6874,15 @@ class RAGService: ObservableObject {
                     usedAgenticMode: true, // Agentic (deep) mode was used
                     qualityModeName: isUnlimitedMode ? "Maximum" : "Deep Think",
                     originalQuery: question,
-                    reasoningTrace: reasoningTrace // Now includes the thinking steps!
+                    reasoningTrace: reasoningTrace, // Now includes the thinking steps!
+                    executionRoute: runtimeContext.executionRoute,
+                    tokenBudget: ResponseMetadata.TokenBudget(
+                        totalLimit: runtimeContext.tokenBudget.totalLimit,
+                        systemPrompt: runtimeContext.tokenBudget.systemPrompt,
+                        retrievedContext: 0, // Agentic context varies per step
+                        generation: result.totalTokens,
+                        remaining: runtimeContext.tokenBudget.totalLimit - runtimeContext.tokenBudget.systemPrompt - result.totalTokens
+                    )
                 ),
                 confidenceScore: agenticConfidence,
                 qualityWarnings: agenticWarnings,
@@ -6911,6 +6967,7 @@ class RAGService: ObservableObject {
         config: InferenceConfig? = nil,
         containerId: UUID? = nil,
         qualityModeOverride: RAGQualityMode? = nil,
+        externalEvidence: [EvidenceSource]? = nil,
         streamHandler: LLMStreamHandler? = nil
     ) async throws -> RAGResponse {
         resetThinkingTimeline()
@@ -6920,7 +6977,8 @@ class RAGService: ObservableObject {
                 topK: topK,
                 config: config,
                 containerId: containerId,
-                qualityModeOverride: qualityModeOverride
+                qualityModeOverride: qualityModeOverride,
+                externalEvidence: externalEvidence
             )
         }
     }
@@ -6931,6 +6989,7 @@ class RAGService: ObservableObject {
         config: InferenceConfig? = nil,
         containerId: UUID? = nil,
         qualityModeOverride: RAGQualityMode? = nil,
+        externalEvidence: [EvidenceSource]? = nil,
         streamHandler: LLMStreamHandler? = nil
     ) async throws -> (response: RAGResponse, auditSnapshot: RAGAuditSnapshot?) {
         let response = try await query(
@@ -6939,6 +6998,7 @@ class RAGService: ObservableObject {
             config: config,
             containerId: containerId,
             qualityModeOverride: qualityModeOverride,
+            externalEvidence: externalEvidence,
             streamHandler: streamHandler
         )
         return (response, lastAuditSnapshot)
@@ -6949,7 +7009,8 @@ class RAGService: ObservableObject {
         topK: Int,
         config: InferenceConfig?,
         containerId: UUID?,
-        qualityModeOverride: RAGQualityMode?
+        qualityModeOverride: RAGQualityMode?,
+        externalEvidence: [EvidenceSource]? = nil
     ) async throws -> RAGResponse {
         // Mark query start in trace file for pipeline debugging
         Log.traceQueryStart(question)
@@ -6967,113 +7028,62 @@ class RAGService: ObservableObject {
             HardwareTelemetryState.shared.reportRAGPipeline(stage: "Query Processing")
         }
 
-        var inferenceConfig = config ?? InferenceConfig()
-        let networkAvailable = NetworkMonitor.shared.isConnected
-        let reliabilityModeEnabled = await MainActor.run {
-            self.settingsStore?.reliabilityModeEnabled ?? true
-        }
-        if reliabilityModeEnabled {
-            Log.info("[RAG] Reliability-first fallbacks enabled", category: .pipeline)
-        }
+        // ── QueryRuntimeCoordinator: Resolve all query-scoped configuration ──────
+        // Delegates mode resolution, PCC eligibility, adaptive config, query profiling,
+        // and agentic routing decisions to the dedicated coordinator.
         let isAppleFMService = _llmService is AppleFoundationLLMService
         let pccSuppressed = await MainActor.run { self.isPCCSuppressed() }
         let initialCloudConsentState: CloudConsentState = await MainActor.run {
             cloudConsent[.applePCC] ?? .notDetermined
         }
-
-        let initialCloudConsentAllowed = initialCloudConsentState == .allowed
-        let cloudEligible =
-            isAppleFMService
-                && networkAvailable
-                && inferenceConfig.allowPrivateCloudCompute
-                && inferenceConfig.executionContext != .onDeviceOnly
-                && !pccSuppressed
-        let initialWantsCloudContext = cloudEligible && initialCloudConsentAllowed
-
-        // EXECUTION CONTEXT SELECTION:
-        // Prefer PCC when available, otherwise fall back to on-device.
-        #if targetEnvironment(simulator)
-            if isAppleFMService {
-                inferenceConfig.executionContext = .onDeviceOnly
-                inferenceConfig.allowPrivateCloudCompute = false
-                Log.info("[RAG] Simulator → onDeviceOnly (PCC unavailable)", category: .pipeline)
-            }
-        #else
-            if isAppleFMService {
-                if !networkAvailable {
-                    inferenceConfig.executionContext = .onDeviceOnly
-                    inferenceConfig.allowPrivateCloudCompute = false
-                    Log.info("[RAG] Offline → onDeviceOnly (4096 tokens)", category: .pipeline)
-                } else if pccSuppressed {
-                    inferenceConfig.executionContext = .onDeviceOnly
-                    inferenceConfig.allowPrivateCloudCompute = false
-                    Log.info("[RAG] PCC suppressed → onDeviceOnly (context cooldown)", category: .pipeline)
-                } else if !inferenceConfig.allowPrivateCloudCompute {
-                    inferenceConfig.executionContext = .onDeviceOnly
-                    Log.info("[RAG] PCC disabled → onDeviceOnly", category: .pipeline)
-                } else {
-                    if inferenceConfig.executionContext == .automatic {
-                        inferenceConfig.executionContext = .preferCloud
-                        Log.info("[RAG] Network available → preferCloud (PCC capable)", category: .pipeline)
-                    } else if inferenceConfig.executionContext == .cloudOnly, !initialCloudConsentAllowed {
-                        inferenceConfig.executionContext = .preferCloud
-                        Log.info("[RAG] PCC consent pending → preferCloud (allow fallback)", category: .pipeline)
-                    }
-                }
-            }
-        #endif
-
-        // Check user's quality mode setting to determine pipeline behavior
-        // If user selected "deepThink" (Deep Think), use agentic orchestrator
-        // Otherwise, use single-pass retrieval based on quality mode parameters
-        let qualityMode = await MainActor.run {
-            qualityModeOverride ?? self.settingsStore?.ragQualityMode ?? .standard
-        }
-
-        let initialQueryProfile = await QueryProfileService.shared.buildProfile(
-            for: question,
-            routingEnabled: false
-        )
-
-        let initialQueryPlan = await QueryExecutionPlannerService.shared.buildPlan(
-            for: question,
-            profile: initialQueryProfile,
-            requestedQualityMode: qualityMode,
-            allowToolCalling: qualityMode.usesAgenticOrchestrator
-        )
-
-        // Also check for manual override via forceAgenticOnNextQuery
         let forceAgentic = await MainActor.run {
             let forced = self.forceAgenticOnNextQuery
             self.forceAgenticOnNextQuery = false // Reset after checking
             return forced
         }
 
-        let plannerEscalatedToAgentic = qualityMode.canonical == .standard && initialQueryPlan.shouldAutoEscalateToAgentic
-        let useAgentic = forceAgentic || qualityMode.usesAgenticOrchestrator || plannerEscalatedToAgentic
+        // Lazily create coordinator if not yet initialized (e.g., settingsStore not yet registered)
+        let coordinator = await MainActor.run {
+            if self.queryRuntimeCoordinator == nil {
+                self.queryRuntimeCoordinator = QueryRuntimeCoordinator(settingsStore: self.settingsStore)
+            }
+            return self.queryRuntimeCoordinator!
+        }
 
+        let runtimeContext = await coordinator.resolveContext(
+            question: question,
+            qualityModeOverride: qualityModeOverride,
+            isAppleFMService: isAppleFMService,
+            isPCCSuppressed: pccSuppressed,
+            cloudConsent: initialCloudConsentState,
+            forceAgentic: forceAgentic,
+            inferenceConfig: config ?? InferenceConfig()
+        )
+
+        // Unpack coordinator results into local variables for the pipeline
+        // (preserves existing variable names used downstream)
+        var inferenceConfig = runtimeContext.inferenceConfig
+        let networkAvailable = runtimeContext.networkAvailable
+        let reliabilityModeEnabled = runtimeContext.reliabilityModeEnabled
+        if reliabilityModeEnabled {
+            Log.info("[RAG] Reliability-first fallbacks enabled", category: .pipeline)
+        }
+        let initialWantsCloudContext = runtimeContext.initialWantsCloudContext
+        let qualityMode = runtimeContext.qualityMode
+        let initialQueryProfile = runtimeContext.queryProfile
+        let initialQueryPlan = runtimeContext.queryPlan
+        let useAgentic = runtimeContext.isAgentic
+        let raptorSummariesEnabled = runtimeContext.raptorSummariesEnabled
+        let raptorRoutingEnabled = runtimeContext.raptorRoutingEnabled
+        let adaptiveConfig = runtimeContext.adaptiveConfig
         // Track query context for potential "Go Deeper" re-query
         await MainActor.run {
             self.lastQueryUsedAgentic = useAgentic
             self.lastQueryText = question
         }
 
-        if forceAgentic {
-            Log.info("[Pipeline] Query FORCED to agentic mode by user request", category: .pipeline)
-        } else if plannerEscalatedToAgentic {
-            Log.info("[Pipeline] Planner escalated Standard query to agentic execution: \(initialQueryPlan.reasoning)", category: .pipeline)
-        } else if qualityMode.isUnlimitedMode {
-            Log.info("[Pipeline] Using Maximum mode (user selected)", category: .pipeline)
-        } else if useAgentic {
-            Log.info("[Pipeline] Using Deep Think mode (user selected)", category: .pipeline)
-        } else {
-            Log.info("[Pipeline] Using Standard mode", category: .pipeline)
-        }
-
         // Pipeline Trace: Emit header with mode and RAPTOR-lite status
-        let raptorSummariesEnabled = await MainActor.run { settingsStore?.enableDocumentSummaries ?? true }
-        let raptorRoutingEnabled = await MainActor.run { settingsStore?.enableQueryRouting ?? true }
-        let modeDisplayName = qualityMode.displayName
+        let modeDisplayName = runtimeContext.qualityModeDisplayName
         Log.pipelineHeader(
             mode: modeDisplayName,
             raptorSummaries: raptorSummariesEnabled,
@@ -7085,15 +7095,6 @@ class RAGService: ObservableObject {
             title: "Execution plan: \(initialQueryPlan.executionMode.displayName)",
             detail: initialQueryPlan.reasoning
         )
-
-        // Get adaptive pipeline config based on current device state (thermal, battery, memory)
-        // This dynamically adjusts feature usage to prevent thermal throttling and save battery
-        let queryComplexity = initialQueryProfile.adaptiveComplexity
-        let adaptiveConfig = AdaptivePipelineOptimizer.shared.configForQuery(complexity: queryComplexity)
-        let adaptiveOptLevel = AdaptivePipelineOptimizer.shared.currentOptimizationLevel
-        if adaptiveOptLevel != .full {
-            Log.info("[Adaptive] Pipeline adjusted to \(adaptiveOptLevel.rawValue) mode", category: .pipeline)
-        }
 
         // Resolve embedding context first (needed for both agentic and standard paths)
         let embeddingContext = await resolveEmbeddingContext(preferredContainerId: containerId)
@@ -7110,7 +7111,8 @@ class RAGService: ObservableObject {
                 question: question,
                 containerId: selectedId,
                 config: config,
-                qualityMode: qualityMode
+                qualityMode: qualityMode,
+                runtimeContext: runtimeContext
             )
         }
 
@@ -7959,7 +7961,8 @@ class RAGService: ObservableObject {
                         vectorDatabase: vdb,
                         config: iterativeConfig,
                         topK: effectiveTopK,
-                        cachedChunks: filteredCachedChunks
+                        cachedChunks: filteredCachedChunks,
+                        isOverviewQuery: answerIntent == .summarize
                     )
 
                     retrievedChunks = iterativeResult.allChunks
@@ -8026,7 +8029,8 @@ class RAGService: ObservableObject {
                         embedding: queryEmbedding,
                         topK: effectiveTopK * 3,
                         cachedChunks: filteredCachedChunks,
-                        containerId: selectedId
+                        containerId: selectedId,
+                        isOverviewQuery: answerIntent == .summarize
                     )
 
                     // UNIVERSAL FIX 9: Multi-vector supplementary retrieval.
@@ -8111,6 +8115,118 @@ class RAGService: ObservableObject {
                     )
                 }
 
+                // Inject external evidence (like vision OCR or barcodes) as virtual retrieved chunks
+                if let externalEvidence = externalEvidence {
+                    for evidence in externalEvidence {
+                        switch evidence {
+                        case .imageOCR(let ocrText, let metadata):
+                            let virtualDocId = UUID()
+                            let virtualChunk = DocumentChunk(
+                                id: UUID(),
+                                documentId: virtualDocId,
+                                content: ocrText,
+                                parentContent: nil,
+                                contextualPrefix: nil,
+                                embedding: [],
+                                metadata: ChunkMetadata(
+                                    chunkIndex: 0,
+                                    startPosition: 0,
+                                    endPosition: ocrText.count,
+                                    pageNumber: nil,
+                                    sectionTitle: "Visual OCR Evidence",
+                                    keywords: metadata.detectedObjects,
+                                    semanticDensity: 1.0,
+                                    hasNumericData: false,
+                                    hasListStructure: false,
+                                    wordCount: metadata.ocrWordCount,
+                                    characterCount: ocrText.count,
+                                    createdAt: metadata.timestamp,
+                                    structureType: "paragraph",
+                                    siblingGroupId: nil,
+                                    siblingCount: nil,
+                                    entities: [],
+                                    abbreviations: [:],
+                                    abstractionLevel: .detail,
+                                    sectionPath: nil,
+                                    bboxArray: nil,
+                                    documentCategory: .general,
+                                    chunkType: .prose,
+                                    tableTitle: nil,
+                                    imageContentType: nil,
+                                    imageCaption: nil,
+                                    imageDescription: nil,
+                                    imageExtractedText: ocrText,
+                                    imageClassifications: metadata.detectedObjects,
+                                    hasCrossReferences: false,
+                                    resolvedReferences: []
+                                )
+                            )
+                            let virtualRetrieved = RetrievedChunk(
+                                chunk: virtualChunk,
+                                similarityScore: 1.0,
+                                rank: 0,
+                                sourceDocument: "Camera Capture/Image OCR",
+                                pageNumber: nil
+                            )
+                            retrievedChunks.insert(virtualRetrieved, at: 0)
+                            
+                        case .barcode(let payload):
+                            let virtualDocId = UUID()
+                            let ocrText = "Barcode scanned payload: \(payload)"
+                            let virtualChunk = DocumentChunk(
+                                id: UUID(),
+                                documentId: virtualDocId,
+                                content: ocrText,
+                                parentContent: nil,
+                                contextualPrefix: nil,
+                                embedding: [],
+                                metadata: ChunkMetadata(
+                                    chunkIndex: 0,
+                                    startPosition: 0,
+                                    endPosition: ocrText.count,
+                                    pageNumber: nil,
+                                    sectionTitle: "Barcode Scanner",
+                                    keywords: ["barcode"],
+                                    semanticDensity: 1.0,
+                                    hasNumericData: true,
+                                    hasListStructure: false,
+                                    wordCount: 3,
+                                    characterCount: ocrText.count,
+                                    createdAt: Date(),
+                                    structureType: "paragraph",
+                                    siblingGroupId: nil,
+                                    siblingCount: nil,
+                                    entities: [],
+                                    abbreviations: [:],
+                                    abstractionLevel: .detail,
+                                    sectionPath: nil,
+                                    bboxArray: nil,
+                                    documentCategory: .general,
+                                    chunkType: .prose,
+                                    tableTitle: nil,
+                                    imageContentType: nil,
+                                    imageCaption: nil,
+                                    imageDescription: nil,
+                                    imageExtractedText: nil,
+                                    imageClassifications: nil,
+                                    hasCrossReferences: false,
+                                    resolvedReferences: []
+                                )
+                            )
+                            let virtualRetrieved = RetrievedChunk(
+                                chunk: virtualChunk,
+                                similarityScore: 1.0,
+                                rank: 0,
+                                sourceDocument: "Barcode Scanner",
+                                pageNumber: nil
+                            )
+                            retrievedChunks.insert(virtualRetrieved, at: 0)
+                        default:
+                            break
+                        }
+                    }
+                }
+
                 // Edge case: No relevant chunks found
                 if retrievedChunks.isEmpty {
                     Log.warning(
@@ -8172,7 +8288,7 @@ class RAGService: ObservableObject {
                 var chunksWithSources: [RetrievedChunk] = retrievedChunks.map { retrieved in
                     let docName =
                         docsSnapshot.first(where: { $0.id == retrieved.chunk.documentId })?.filename
-                            ?? "Unknown"
+                            ?? (retrieved.sourceDocument.isEmpty ? "Unknown" : retrieved.sourceDocument)
                     let pageNum = retrieved.chunk.metadata.pageNumber
                     return RetrievedChunk(
                         chunk: retrieved.chunk,
@@ -9607,11 +9723,83 @@ class RAGService: ObservableObject {
                     }
                 }
 
+                // Resolve cloud consent and transient grant before context packing so we can use the correct token budget.
+                var cloudConsentState: CloudConsentState = await MainActor.run {
+                    cloudConsent[.applePCC] ?? .notDetermined
+                }
+                var cloudConsentAllowed = cloudConsentState == .allowed
+
+                var hasTransientGrant: Bool = await MainActor.run {
+                    transientConsentGrants.contains(.applePCC)
+                }
+
+                if isAppleFMOnDevice,
+                   cloudConsentState == .denied,
+                   inferenceConfig.executionContext != .onDeviceOnly
+                {
+                    inferenceConfig.executionContext = .onDeviceOnly
+                    inferenceConfig.allowPrivateCloudCompute = false
+                    Log.info("[RAG] PCC consent denied → onDeviceOnly", category: .pipeline)
+                }
+
+                if isAppleFMOnDevice,
+                   networkAvailable,
+                   inferenceConfig.allowPrivateCloudCompute,
+                   inferenceConfig.executionContext != .onDeviceOnly,
+                   !pccSuppressed,
+                   cloudConsentState != .denied,
+                   !cloudConsentAllowed,
+                   !hasTransientGrant
+                {
+                    do {
+                        try await ensureCloudConsentIfNeeded(
+                            service: llmService,
+                            prompt: question,
+                            context: nil,
+                            sourceChunks: contextCandidates.map { $0.chunk },
+                            allowPrivateCloudCompute: inferenceConfig.allowPrivateCloudCompute
+                        )
+                        cloudConsentState = await MainActor.run {
+                            cloudConsent[.applePCC] ?? .notDetermined
+                        }
+                        cloudConsentAllowed = cloudConsentState == .allowed
+                        hasTransientGrant = await MainActor.run {
+                            transientConsentGrants.contains(.applePCC)
+                        }
+                    } catch {
+                        if case let RAGServiceError.cloudConsentDenied(provider) = error {
+                            cloudConsentState = .denied
+                            cloudConsentAllowed = false
+                            hasTransientGrant = false
+                            inferenceConfig.executionContext = .onDeviceOnly
+                            inferenceConfig.allowPrivateCloudCompute = false
+                            Log.info(
+                                "[RAG] Cloud consent denied (\(provider.shortName)) → onDeviceOnly",
+                                category: .pipeline
+                            )
+                        } else {
+                            throw error
+                        }
+                    }
+                }
+
+                #if targetEnvironment(simulator)
+                    let pccEligible = false
+                #else
+                    let pccEligible = isAppleFMOnDevice
+                        && networkAvailable
+                        && inferenceConfig.allowPrivateCloudCompute
+                        && inferenceConfig.executionContext != .onDeviceOnly
+                        && !pccSuppressed
+                #endif
+                let allowLargeContext = pccEligible && (cloudConsentAllowed || hasTransientGrant)
+
                 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
                 // Step 4.9: Graph-Based Context Packing (AppleRAG §5)
                 // pack(R + parents(R) + neighbors(R,±1) + graphHops(R,1))
                 // Expands retrieved chunks with graph context for richer LLM input
                 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
 
                 // Universal pipeline trace: log chunk content before graph packing
                 if Log.pipelineTraceEnabled {
@@ -9633,8 +9821,8 @@ class RAGService: ObservableObject {
                     // Extract core chunks from candidates
                     let coreChunks = contextCandidates.map { $0.chunk }
 
-                    // Calculate token budget based on model context (conservative for Apple FM)
-                    let graphTokenBudget = isAppleFMOnDevice ? 3000 : 6000
+                    // Calculate token budget dynamically based on model context size
+                    let graphTokenBudget = allowLargeContext ? 24000 : (isAppleFMOnDevice ? 6000 : 6000)
 
                     // Pack with graph context
                     let packedContext = await contextPackingService.pack(
@@ -9816,115 +10004,37 @@ class RAGService: ObservableObject {
                 // Note: rawContext assembly is handled via engine.assembleContext with size limits
                 HardwareTelemetryState.shared.reportRAGPipeline(stage: "Context Assembly")
 
-                // Smart context assembly: Use as many chunks as fit within the model's context window.
-                // Apple Intelligence on-device context is 4,096 tokens (TN3193). PCC behavior may vary.
-                var cloudConsentState: CloudConsentState = await MainActor.run {
-                    cloudConsent[.applePCC] ?? .notDetermined
-                }
-                var cloudConsentAllowed = cloudConsentState == .allowed
-
-                var hasTransientGrant: Bool = await MainActor.run {
-                    transientConsentGrants.contains(.applePCC)
-                }
-
-                if isAppleFMOnDevice,
-                   cloudConsentState == .denied,
-                   inferenceConfig.executionContext != .onDeviceOnly
-                {
-                    inferenceConfig.executionContext = .onDeviceOnly
-                    inferenceConfig.allowPrivateCloudCompute = false
-                    Log.info("[RAG] PCC consent denied → onDeviceOnly", category: .pipeline)
-                }
-
-                if isAppleFMOnDevice,
-                   networkAvailable,
-                   inferenceConfig.allowPrivateCloudCompute,
-                   inferenceConfig.executionContext != .onDeviceOnly,
-                   !pccSuppressed,
-                   cloudConsentState != .denied,
-                   !cloudConsentAllowed,
-                   !hasTransientGrant
-                {
-                    do {
-                        try await ensureCloudConsentIfNeeded(
-                            service: llmService,
-                            prompt: question,
-                            context: nil,
-                            sourceChunks: contextCandidates.map { $0.chunk },
-                            allowPrivateCloudCompute: inferenceConfig.allowPrivateCloudCompute
-                        )
-                        cloudConsentState = await MainActor.run {
-                            cloudConsent[.applePCC] ?? .notDetermined
-                        }
-                        cloudConsentAllowed = cloudConsentState == .allowed
-                        hasTransientGrant = await MainActor.run {
-                            transientConsentGrants.contains(.applePCC)
-                        }
-                    } catch {
-                        if case let RAGServiceError.cloudConsentDenied(provider) = error {
-                            cloudConsentState = .denied
-                            cloudConsentAllowed = false
-                            hasTransientGrant = false
-                            inferenceConfig.executionContext = .onDeviceOnly
-                            inferenceConfig.allowPrivateCloudCompute = false
-                            Log.info(
-                                "[RAG] Cloud consent denied (\(provider.shortName)) → onDeviceOnly",
-                                category: .pipeline
-                            )
-                        } else {
-                            throw error
-                        }
-                    }
-                }
-
-                // Use PCC (65K) on real device with network, otherwise on-device (4096)
-                // Simulator ALWAYS uses on-device since PCC isn't available
-                #if targetEnvironment(simulator)
-                    let pccEligible = false
-                #else
-                    let pccEligible = isAppleFMOnDevice
-                        && networkAvailable
-                        && inferenceConfig.allowPrivateCloudCompute
-                        && inferenceConfig.executionContext != .onDeviceOnly
-                        && !pccSuppressed
-                #endif
-                let allowLargeContext = pccEligible && (cloudConsentAllowed || hasTransientGrant)
                 let applyTrivialCaps = isTrivial && !allowLargeContext
 
                 // CRITICAL OPTIMIZATION: Disable tools when the RAG pipeline has already
                 // retrieved and assembled context. Tool schemas eat ~1000 tokens (24% of
-                // the 4096 window). When context is pre-assembled, the LLM prompt already
-                // says "don't use tools" — so we're burning 1000 tokens on dead weight.
-                // Reclaiming these tokens means MORE document context = BETTER answers.
-                // Tools are only needed for agentic/conversational mode (no pre-assembled context).
+                // the window). When context is pre-assembled, the LLM prompt already
+                // says "don't use tools" — so we're burning tokens on dead weight.
                 if !inferenceConfig.disableTools && contextCandidates.count > 0 {
                     inferenceConfig.disableTools = true
                     Log.info("[RAG] Auto-disabled tools: context pre-assembled (\(contextCandidates.count) chunks). Reclaimed ~1000 tokens for context.", category: .pipeline)
                 }
 
-                let conservativeCharsPerToken: Double = FoundationModelTokenBudget.conservativeCharsPerToken(isAppleFMOnDevice: isAppleFMOnDevice)
+                let conservativeCharsPerToken: Double = FoundationModelTokenBudget.conservativeCharsPerToken(isAppleFMOnDevice: !allowLargeContext)
 
                 func estimateTokensConservative(chars: Int) -> Int {
-                    FoundationModelTokenBudget.estimateTokens(charsCount: chars, isAppleFMOnDevice: isAppleFMOnDevice)
+                    FoundationModelTokenBudget.estimateTokens(charsCount: chars, isAppleFMOnDevice: !allowLargeContext)
                 }
 
-                // CRITICAL: Apple FM (both on-device AND PCC) has a hard 4096 token limit.
-                // PCC fails with "Context length of 4096 was exceeded" when input exceeds 4096 tokens.
+                // Apple FM context size is dynamic based on on-device/PCC
                 let baseWindowTokens: Int = {
                     if llmService is AppleFoundationLLMService {
-                        return 4096
+                        return FoundationModelTokenBudget.contextSize(isAppleFMOnDevice: !allowLargeContext)
                     }
                     return inferenceConfig.contextLength ?? 4096
                 }()
 
                 // Only reserve tool schema tokens when tools are actually attached.
-                // With auto-disable above, this is 0 for all RAG pipeline queries,
-                // reclaiming ~1000 tokens (24% of window) for document context.
                 let toolSchemaTokens: Int = {
                     if inferenceConfig.disableTools {
                         return 0  // No tools → no schema overhead
                     }
-                    return isAppleFMOnDevice ? 1000 : 800
+                    return isAppleFMOnDevice ? (allowLargeContext ? 800 : 1000) : 800
                 }()
 
                 let systemPromptTokens = estimateTokensConservative(chars: (inferenceConfig.systemPrompt ?? "").count)
@@ -9932,11 +10042,6 @@ class RAGService: ObservableObject {
                 let questionTokens = estimateTokensConservative(chars: question.count)
 
                 // Transcript tokens NO LONGER deducted from context budget.
-                // Context gets FULL priority — document chunks are the most important input.
-                // Instead, LLMService.generate() auto-trims the transcript to fit whatever
-                // space remains after context + prompt + overhead. This means:
-                //   - Short conversations: full transcript preserved
-                //   - Long conversations: oldest turns trimmed, context never starved
                 // This eliminates the failure mode where transcript > window → 0 context.
                 let rawTranscriptTokens: Int
                 if let appleFMService = llmService as? AppleFoundationLLMService {
@@ -9951,31 +10056,36 @@ class RAGService: ObservableObject {
                 // Reserve room for output
                 let reservedOutputTokens = max(150, min(inferenceConfig.maxTokens, 300))
 
-                // OPTIMIZED: Single 12% safety margin replaces compound (15% × factor + 400 flat).
-                // Previous: rawAvailable × 0.85 - 400 → effective ~28% waste
-                // Now:      rawAvailable × 0.88       → 12% safety, reclaims ~650 tokens
+                // OPTIMIZED: Single safety margin based on execution location.
                 let rawAvailableTokens = baseWindowTokens - promptOverheadTokens - questionTokens - reservedOutputTokens
-                let globalSafetyFactor: Double = isAppleFMOnDevice ? 0.88 : 0.90
+                let globalSafetyFactor: Double = allowLargeContext ? 0.92 : (isAppleFMOnDevice ? 0.88 : 0.90)
                 let availableForContextTokens = max(
                     0,
                     Int(Double(rawAvailableTokens) * globalSafetyFactor)
                 )
                 let cappedContextTokens = applyTrivialCaps
-                    ? min(availableForContextTokens, 2600)
+                    ? min(availableForContextTokens, allowLargeContext ? 20000 : 2600)
                     : availableForContextTokens
-                // Char limits: with 1.4 chars/token and 15% safety, we can use more context
-                // Target: ~2800 tokens * 1.4 = ~3900 chars (non-trivial)
-                // Trivial cap: ~1800 tokens * 1.4 = ~2500 chars
-                let maxContextCharsCap = isAppleFMOnDevice
-                    ? (applyTrivialCaps ? 2500 : 5500):
-                        applyTrivialCaps ? 6000 : 10000
+
+                let maxContextCharsCap: Int = {
+                    if llmService is AppleFoundationLLMService {
+                        if allowLargeContext {
+                            return applyTrivialCaps ? 6000 : 45000
+                        } else {
+                            return applyTrivialCaps ? 2500 : 10000
+                        }
+                    } else {
+                        return applyTrivialCaps ? 6000 : 10000
+                    }
+                }()
+
                 let maxContextChars = min(
                     max(800, Int(Double(cappedContextTokens) * conservativeCharsPerToken)),
                     maxContextCharsCap
                 )
 
-                // Use compact mode for Apple FM to maximize content in limited space
-                let useCompactMode = isAppleFMOnDevice
+                // Use compact mode for Apple FM to maximize content in limited space, unless we have PCC's large context window.
+                let useCompactMode = isAppleFMOnDevice && !allowLargeContext
 
                 #if targetEnvironment(simulator)
                     Log.info("[RAG] Simulator mode: using on-device context budget (4096 tokens, \(maxContextChars) chars)", category: .pipeline)
@@ -11705,7 +11815,15 @@ class RAGService: ObservableObject {
                         usedAgenticMode: false, // Single-pass mode
                         qualityModeName: qualityMode.displayName,
                         originalQuery: question, // For "Go Deeper" re-query
-                        reasoningTrace: reasoningTraceForMetadata // Chained session insights
+                        reasoningTrace: reasoningTraceForMetadata, // Chained session insights
+                        executionRoute: runtimeContext.executionRoute,
+                        tokenBudget: ResponseMetadata.TokenBudget(
+                            totalLimit: runtimeContext.tokenBudget.totalLimit,
+                            systemPrompt: runtimeContext.tokenBudget.systemPrompt,
+                            retrievedContext: FoundationModelTokenBudget.estimateTokens(for: generationContext, isAppleFMOnDevice: runtimeContext.inferenceConfig.executionContext == .onDeviceOnly),
+                            generation: llmResponse.tokensGenerated,
+                            remaining: runtimeContext.tokenBudget.totalLimit - runtimeContext.tokenBudget.systemPrompt - FoundationModelTokenBudget.estimateTokens(for: generationContext, isAppleFMOnDevice: runtimeContext.inferenceConfig.executionContext == .onDeviceOnly) - llmResponse.tokensGenerated
+                        )
                     )
 
                     let displayResponseText = resolvedDisplayResponse(

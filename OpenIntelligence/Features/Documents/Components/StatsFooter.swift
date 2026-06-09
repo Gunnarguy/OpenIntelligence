@@ -13,20 +13,28 @@ struct StatsFooter: View {
     var autoIntelligenceEnabled: Bool = true
 
     var body: some View {
-        VStack(spacing: 8) {
+        VStack(spacing: 12) {
             HStack(spacing: 16) {
-                Label("\(totalDocuments) Documents", systemImage: "doc.on.doc")
-                Divider()
-                    .frame(height: 12)
-                Label("\(totalChunks) Chunks", systemImage: "cube.box")
+                HStack(spacing: 4) {
+                    Image(systemName: "doc.on.doc.fill")
+                    Text("\(totalDocuments) Documents")
+                }
+                
+                Text("•")
+                    .foregroundColor(.secondary.opacity(0.3))
+                
+                HStack(spacing: 4) {
+                    Image(systemName: "cube.box.fill")
+                    Text("\(totalChunks) Chunks")
+                }
             }
-            .font(.caption)
-            .foregroundColor(.secondary)
+            .font(.system(size: 11, weight: .semibold))
+            .foregroundColor(.secondary.opacity(0.8))
 
             // Auto Intelligence status indicator
             AutoIntelligenceBadge(isEnabled: autoIntelligenceEnabled)
         }
-        .padding(.vertical, 20)
+        .padding(.vertical, 24)
         .frame(maxWidth: .infinity)
         .listRowBackground(Color.clear)
     }
@@ -39,20 +47,24 @@ struct AutoIntelligenceBadge: View {
     var body: some View {
         HStack(spacing: 6) {
             Image(systemName: isEnabled ? "wand.and.stars" : "slider.horizontal.3")
-                .font(.caption2)
-            Text(isEnabled ? "Auto Intelligence" : "Manual Mode")
-                .font(.caption2.weight(.medium))
+                .font(.system(size: 10, weight: .bold))
+            Text(isEnabled ? "Auto Intelligence Active" : "Manual Pipeline Mode")
+                .font(.system(size: 10, weight: .bold, design: .rounded))
         }
         .foregroundColor(isEnabled ? .white : .secondary)
-        .padding(.horizontal, 10)
-        .padding(.vertical, 4)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 6)
         .background(
-            Capsule()
-                .fill(isEnabled
-                    ? LinearGradient(colors: [.purple, .blue], startPoint: .leading, endPoint: .trailing)
-                    : LinearGradient(colors: [Color.secondary.opacity(0.2)], startPoint: .leading, endPoint: .trailing)
-                )
+            ZStack {
+                if isEnabled {
+                    LinearGradient(colors: [.purple, .blue], startPoint: .leading, endPoint: .trailing)
+                } else {
+                    Color.secondary.opacity(0.12)
+                }
+            }
         )
+        .clipShape(Capsule())
+        .shadow(color: isEnabled ? .purple.opacity(0.3) : .clear, radius: 8, x: 0, y: 4)
     }
 }
 

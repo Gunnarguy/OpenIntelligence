@@ -305,8 +305,17 @@ struct LLMResponse {
             return model.supportedLanguages
         }
 
-        /// Context window size for on-device model (4096 tokens per TN3193)
-        static let contextWindowSize: Int = 4096
+        /// Context window size for on-device model
+        static var onDeviceContextWindowSize: Int {
+            guard Thread.isMainThread else { return 4096 }
+            return SystemLanguageModel.default.contextSize
+        }
+        
+        /// Context window size for Private Cloud Compute model
+        static var pccContextWindowSize: Int {
+            guard Thread.isMainThread else { return 32768 }
+            return PrivateCloudComputeLanguageModel().contextSize
+        }
 
         /// Approximate token count for a string.
         /// Uses empirically validated 1.4 chars/token for Apple FM (observed across real prompts).
@@ -353,6 +362,10 @@ struct LLMResponse {
                     description += "[\(index + 1)] ToolCalls: \(calls.count) call(s)\n"
                 case let .toolOutput(output):
                     description += "[\(index + 1)] ToolOutput: \(String(describing: output).prefix(80))...\n"
+                #if os(iOS)
+                case let .reasoning(reasoning):
+                    description += "[\(index + 1)] Reasoning: \(String(describing: reasoning).prefix(80))...\n"
+                #endif
                 @unknown default:
                     description += "[\(index + 1)] Unknown entry type\n"
                 }
@@ -441,7 +454,7 @@ struct LLMResponse {
 
             do {
                 // Create session (this loads the model into memory)
-                try ensureSession()
+                _ = try ensureSession(route: .automatic)
 
                 guard let session = session else {
                     Log.warning("[Warm-up] Session unavailable", category: .llm)
@@ -462,28 +475,31 @@ struct LLMResponse {
         }
 
         // Lazy session creation - only when actually generating
-        private func ensureSession(systemPrompt: String? = nil, disableTools: Bool = false) throws {
-            guard session == nil else { return }
-
+        private func ensureSession(route: AppleFoundationModelRoute, systemPrompt: String? = nil, disableTools: Bool = false) throws -> AppleFoundationModelRoute {
             guard Thread.isMainThread else {
                 throw LLMError.modelUnavailable
             }
 
-            let result = try FoundationModelSessionFactory.createSession(
-                model: model,
-                toolHandler: toolHandler,
-                systemPrompt: systemPrompt,
-                disableTools: disableTools,
-                pendingTranscript: pendingTranscript
-            )
+            if session == nil {
+                let result = try FoundationModelSessionFactory.createSession(
+                    route: route,
+                    toolHandler: toolHandler,
+                    systemPrompt: systemPrompt,
+                    disableTools: disableTools,
+                    pendingTranscript: pendingTranscript
+                )
 
-            session = result.session
-            currentSystemPrompt = result.currentSystemPrompt
-            if result.pendingTranscriptConsumed {
-                pendingTranscript = nil
-            } else if disableTools && pendingTranscript != nil {
-                pendingTranscript = nil
+                session = result.session
+                currentSystemPrompt = result.currentSystemPrompt
+                if result.pendingTranscriptConsumed {
+                    pendingTranscript = nil
+                } else if disableTools && pendingTranscript != nil {
+                    pendingTranscript = nil
+                }
+                
+                return result.actualRoute
             }
+            return route
         }
 
         @MainActor
@@ -515,8 +531,36 @@ struct LLMResponse {
                 )
             }
 
-            // Ensure session is created
-            try ensureSession(systemPrompt: config.systemPrompt, disableTools: config.disableTools)
+            // Construct augmented prompt with RAG context
+            let fullPrompt = FoundationModelPromptCompiler.compilePrompt(
+                prompt: prompt,
+                context: context,
+                systemPrompt: config.systemPrompt,
+                disableTools: config.disableTools
+            )
+
+            // Estimate token count for routing decisions
+            _ = fullPrompt.count
+            let estimatedTokens = FoundationModelTokenBudget.estimateTokens(for: fullPrompt, isAppleFMOnDevice: !config.allowPrivateCloudCompute)
+            Log.debug("Generation: ~\(estimatedTokens) tokens, exec=\(config.executionContext)", category: .llm)
+
+            // Route policy
+            let queryType: FoundationModelRoutePolicy.QueryType
+            switch config.qualityMode.canonical {
+            case .standard: queryType = .standard
+            case .deepThink: queryType = .deepThink
+            case .maximum: queryType = .maximum
+            default: queryType = .standard
+            }
+
+            let targetRoute = FoundationModelRoutePolicy.determineRoute(
+                queryType: queryType,
+                estimatedContextTokens: estimatedTokens,
+                config: config
+            )
+
+            // Ensure session is created with correct route
+            let actualRoute = try ensureSession(route: targetRoute, systemPrompt: config.systemPrompt, disableTools: config.disableTools)
 
             guard let session = session else {
                 throw LLMError.modelUnavailable
@@ -531,27 +575,36 @@ struct LLMResponse {
                     "maxTokens": "\(config.maxTokens)",
                     "pccAllowed": "\(config.allowPrivateCloudCompute)",
                     "execPref": "\(config.executionContext)",
+                    "route": "\(actualRoute)"
                 ]
             )
-
-            // Construct augmented prompt with RAG context
-            let fullPrompt = FoundationModelPromptCompiler.compilePrompt(
-                prompt: prompt,
-                context: context,
-                systemPrompt: config.systemPrompt,
-                disableTools: config.disableTools
-            )
-
-            // Estimate token count for routing decisions
-            let promptLength = fullPrompt.count
-            let estimatedTokens = max(1, Int(ceil(Double(promptLength) / 1.4)))
-            Log.debug("Generation: ~\(estimatedTokens) tokens, exec=\(config.executionContext)", category: .llm)
 
             // Generate response using streaming API with execution context
             var responseText = ""
             var tokenCount = 0
             var firstTokenTime: TimeInterval?
-            var actualExecutionLocation = "Unknown"
+            
+            var actualExecutionLocation: String
+            var contextOptions: ContextOptions?
+            
+            switch actualRoute {
+            case .onDevice:
+                actualExecutionLocation = "📱 On-Device"
+            case .privateCloudCompute(let reasoning):
+                actualExecutionLocation = "☁️ Private Cloud Compute"
+                if reasoning != .none {
+                    let level: ContextOptions.ReasoningLevel
+                    switch reasoning {
+                    case .deep: level = .deep
+                    case .moderate: level = .moderate
+                    case .light: level = .light
+                    case .none: level = .none
+                    }
+                    contextOptions = ContextOptions(reasoningLevel: level)
+                }
+            case .automatic:
+                actualExecutionLocation = "Unknown"
+            }
 
             let samplingMode: GenerationOptions.SamplingMode?
             if config.topK > 0, config.topK < 100 {
@@ -562,13 +615,21 @@ struct LLMResponse {
                 samplingMode = nil
             }
 
+            #if os(iOS)
+            let options = GenerationOptions(
+                samplingMode: samplingMode,
+                temperature: Double(config.temperature),
+                maximumResponseTokens: config.maxTokens > 0 ? config.maxTokens : nil
+            )
+            #else
             let options = GenerationOptions(
                 sampling: samplingMode,
                 temperature: Double(config.temperature),
                 maximumResponseTokens: config.maxTokens > 0 ? config.maxTokens : nil
             )
+            #endif
 
-            let responseStream = session.streamResponse(to: fullPrompt, options: options)
+            let responseStream = session.streamResponse(to: fullPrompt, options: options, contextOptions: contextOptions)
 
             var snapshotCount = 0
             var guardrailViolation = false
@@ -588,38 +649,7 @@ struct LLMResponse {
                         await MainActor.run { DSHaptics.generationStarted() }
 
                         if let ttft = firstTokenTime {
-                            if ttft < 1.0 {
-                                actualExecutionLocation = "📱 On-Device"
-                                Log.info("[FM] On-Device execution (TTFT: \(String(format: "%.2f", ttft))s)", category: .llm)
-                            } else {
-                                actualExecutionLocation = "☁️ Private Cloud Compute"
-                                Log.info("[FM] Private Cloud Compute (TTFT: \(String(format: "%.2f", ttft))s)", category: .llm)
-                            }
-
-                            if config.executionContext == .cloudOnly,
-                               actualExecutionLocation.contains("On-Device")
-                            {
-                                Log.info(
-                                    "[FM] System selected on-device despite cloud preference - context may fit in 4096 tokens",
-                                    category: .llm
-                                )
-                            }
-
-                            if config.executionContext == .onDeviceOnly || !config.allowPrivateCloudCompute,
-                               actualExecutionLocation.contains("Private Cloud Compute")
-                            {
-                                Log.warning("[FM] PCC routed despite on-device preference - context may be too large for 4096 limit", category: .llm)
-                                TelemetryCenter.emit(
-                                    .system,
-                                    severity: .info,
-                                    title: "System routed to PCC",
-                                    metadata: [
-                                        "ttft": String(format: "%.2f", ttft),
-                                        "execDetected": actualExecutionLocation,
-                                        "note": "Context exceeds on-device capacity - PCC required",
-                                    ]
-                                )
-                            }
+                            Log.info("[FM] First token in \(String(format: "%.2f", ttft))s (\(actualExecutionLocation))", category: .llm)
                         }
                     }
 
@@ -690,11 +720,14 @@ struct LLMResponse {
 
             Log.info("[FM] Generation complete: \(finalTokenCount) words in \(String(format: "%.2f", totalTime))s (\(actualExecutionLocation))", category: .llm)
 
-            // Determine actual model name based on execution location
+            // Determine actual model name based on explicitly selected route
             let executionBasedModelName: String
-            if let ttft = firstTokenTime {
-                executionBasedModelName = ttft < 1.0 ? "Apple Foundation Model (On-Device)" : "Apple Foundation Model (Private Cloud Compute)"
-            } else {
+            switch actualRoute {
+            case .onDevice:
+                executionBasedModelName = "Apple Foundation Model (On-Device)"
+            case .privateCloudCompute:
+                executionBasedModelName = "Apple Foundation Model (Private Cloud Compute)"
+            case .automatic:
                 executionBasedModelName = modelName
             }
 
@@ -765,7 +798,22 @@ struct LLMResponse {
 
             var structuredConfig = config
             structuredConfig.disableTools = true
-            try ensureSession(systemPrompt: structuredConfig.systemPrompt, disableTools: true)
+            
+            let estimatedTokens = FoundationModelTokenBudget.estimateTokens(for: prompt + context, isAppleFMOnDevice: !config.allowPrivateCloudCompute)
+            let queryType: FoundationModelRoutePolicy.QueryType
+            switch config.qualityMode.canonical {
+            case .standard: queryType = .standard
+            case .deepThink: queryType = .deepThink
+            case .maximum: queryType = .maximum
+            default: queryType = .standard
+            }
+            let targetRoute = FoundationModelRoutePolicy.determineRoute(
+                queryType: queryType,
+                estimatedContextTokens: estimatedTokens,
+                config: config
+            )
+            
+            _ = try ensureSession(route: targetRoute, systemPrompt: structuredConfig.systemPrompt, disableTools: true)
 
             guard let session = session else {
                 throw LLMError.modelUnavailable

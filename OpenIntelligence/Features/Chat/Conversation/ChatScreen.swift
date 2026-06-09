@@ -399,6 +399,7 @@ struct ChatScreen: View {
             liveReasoningTitle: liveReasoningEvent?.title ?? "",
             liveReasoningDetail: liveReasoningEvent?.detail ?? "",
             liveReasoningKind: liveReasoningEvent?.kind,
+            thinkingEvents: thinkingEvents,
             onTapDetails: !metricsData.isStreaming ? { showRetrievedDetails = true } : nil
         )
     }
@@ -479,6 +480,7 @@ struct ChatScreen: View {
             liveReasoningTitle: liveReasoningEvent?.title ?? "",
             liveReasoningDetail: liveReasoningEvent?.detail ?? "",
             liveReasoningKind: liveReasoningEvent?.kind,
+            thinkingEvents: thinkingEvents,
             onTapDetails: nil
         )
     }
@@ -771,6 +773,7 @@ struct ChatScreen: View {
             Text("I'm sorry that answer wasn't helpful. Please send me your feedback so I can improve OpenIntelligence!")
         }
 .onAppear {
+    let ragService = self.ragService
     continuedQueryCoordinator.expirationHandler = { [weak ragService] in
         ragService?.cancelActiveGeneration(resetSession: true)
         Task { @MainActor in
@@ -1915,13 +1918,6 @@ struct ChatScreen: View {
             chatContentArea
             followUpSuggestionsBar
 
-            if !thinkingEvents.isEmpty {
-                ThinkingStreamView(events: thinkingEvents)
-                    .padding(.horizontal, DSSpacing.md)
-                    .padding(.bottom, DSSpacing.xs)
-                    .transition(.move(edge: .top).combined(with: .opacity))
-            }
-
             Divider().opacity(0.5)
 
             ChatComposerV2(
@@ -1960,8 +1956,10 @@ struct ChatScreen: View {
         } else {
             MessageListV2(
                 messages: $messages,
+                thinkingEvents: $thinkingEvents,
                 streamingText: streamingText,
                 isStreaming: isProcessing,
+                qualityMode: effectiveQualityMode,
                 generationStart: generationStart,
                 onRegenerate: { message in regenerateResponse(for: message) },
                 onGoDeeper: { goDeeper() },
@@ -3228,7 +3226,7 @@ struct CompactChatHeader: View {
                 }
 
                 // Model indicator (compact)
-                ModelStatusIndicator(deviceCapabilities: deviceCapabilities)
+                ModelStatusIndicator()
 
                 Spacer()
 
@@ -3519,7 +3517,7 @@ private struct FirstQueryPromptView: View {
     }
 
     private var headerText: String {
-        hasDocuments ? "Ask something real" : "Get started"
+        hasDocuments ? "What would you like to know?" : "Get started"
     }
 
     private var supportingText: String {
@@ -3564,29 +3562,43 @@ private struct FirstQueryPromptView: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: DSSpacing.md) {
-            HStack(spacing: DSSpacing.sm) {
+        VStack(alignment: .leading, spacing: DSSpacing.lg) {
+            HStack(alignment: .top, spacing: DSSpacing.md) {
                 Image(systemName: "sparkles")
-                    .imageScale(.large)
-                    .foregroundStyle(DSColors.accent)
-                VStack(alignment: .leading, spacing: 2) {
+                    .font(.system(size: 28, weight: .semibold))
+                    .foregroundStyle(
+                        LinearGradient(
+                            colors: [DSColors.accent, DSColors.accent.opacity(0.7)],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                    .shadow(color: DSColors.accent.opacity(0.3), radius: 8)
+                
+                VStack(alignment: .leading, spacing: 4) {
                     Text(headerText)
                         .font(DSTypography.title)
+                        .foregroundStyle(DSColors.primaryText)
+                    
                     Text(supportingText)
                         .font(DSTypography.body)
                         .foregroundStyle(DSColors.secondaryText)
                         .fixedSize(horizontal: false, vertical: true)
                 }
+                
                 Spacer()
-                // Refresh button — allow retry even when the current grounded set is empty.
+                
                 if hasDocuments {
                     Button {
                         DSHaptics.selection()
                         onRefresh()
                     } label: {
                         Image(systemName: "arrow.trianglehead.2.clockwise")
-                            .font(.system(size: 16, weight: .medium))
+                            .font(.system(size: 16, weight: .bold))
                             .foregroundStyle(DSColors.accent)
+                            .padding(8)
+                            .background(DSColors.accent.opacity(0.1))
+                            .clipShape(Circle())
                             .rotationEffect(.degrees(isRefreshing ? 360 : 0))
                             .animation(
                                 isRefreshing
@@ -3602,22 +3614,27 @@ private struct FirstQueryPromptView: View {
             }
 
             if !prompts.isEmpty {
-                VStack(alignment: .leading, spacing: DSSpacing.sm) {
+                VStack(alignment: .leading, spacing: DSSpacing.md) {
                     ForEach(prompts, id: \.self) { prompt in
                         Button {
                             onPromptSelected(prompt)
                         } label: {
-                            HStack(spacing: DSSpacing.sm) {
-                                // Category icon badge
+                            HStack(spacing: DSSpacing.md) {
                                 if let category = categories[prompt] {
                                     Image(systemName: category.icon)
-                                        .font(.system(size: 12, weight: .medium))
-                                        .foregroundStyle(DSColors.accent.opacity(0.7))
-                                        .frame(width: 20, height: 20)
+                                        .font(.system(size: 14, weight: .semibold))
+                                        .foregroundStyle(.white)
+                                        .frame(width: 32, height: 32)
+                                        .background(
+                                            Circle()
+                                                .fill(DSColors.accent.gradient)
+                                        )
                                 }
-                                VStack(alignment: .leading, spacing: 4) {
+                                
+                                VStack(alignment: .leading, spacing: 2) {
                                     Text(prompt)
-                                        .font(DSTypography.body)
+                                        .font(DSTypography.body.weight(.medium))
+                                        .foregroundStyle(DSColors.primaryText)
                                         .multilineTextAlignment(.leading)
                                         .fixedSize(horizontal: false, vertical: true)
 
@@ -3628,33 +3645,46 @@ private struct FirstQueryPromptView: View {
                                             .lineLimit(1)
                                     }
                                 }
+                                
                                 Spacer(minLength: DSSpacing.sm)
+                                
                                 Image(systemName: "arrow.up.circle.fill")
+                                    .font(.title3)
                                     .foregroundStyle(DSColors.accent)
+                                    .symbolRenderingMode(.hierarchical)
                             }
-                            .padding(.vertical, DSSpacing.xs)
+                            .padding(DSSpacing.md)
+                            .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
-                        .padding(.horizontal, DSSpacing.md)
-                        .padding(.vertical, DSSpacing.sm)
-                        .background(
-                            RoundedRectangle(cornerRadius: DSCorners.sheet, style: .continuous)
-                                .fill(DSColors.surface)
-                                .shadow(color: .black.opacity(0.05), radius: 6, x: 0, y: 3)
-                        )
+                        .background {
+                            if #available(iOS 26.0, *) {
+                                Color.clear
+                                    .glassEffect(.regular.interactive(), in: RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
+                            } else {
+                                RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous)
+                                    .fill(DSColors.surface)
+                                    .shadow(color: .black.opacity(0.03), radius: 4, y: 2)
+                            }
+                        }
                     }
                 }
             }
         }
         .padding(DSSpacing.lg)
-        .background(
+        .background {
+            if #available(iOS 26.0, *) {
+                Color.clear
+                    .glassEffect(.regular, in: RoundedRectangle(cornerRadius: DSCorners.sheet, style: .continuous))
+            } else {
+                RoundedRectangle(cornerRadius: DSCorners.sheet, style: .continuous)
+                    .fill(DSColors.surfaceElevated)
+            }
+        }
+        .overlay {
             RoundedRectangle(cornerRadius: DSCorners.sheet, style: .continuous)
-                .fill(DSColors.surfaceElevated)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: DSCorners.sheet, style: .continuous)
-                .strokeBorder(DSColors.accent.opacity(0.15), lineWidth: 1)
-        )
+                .strokeBorder(DSColors.accent.opacity(0.1), lineWidth: 1)
+        }
     }
 }
 

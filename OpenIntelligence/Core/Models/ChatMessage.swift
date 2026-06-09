@@ -19,6 +19,7 @@ struct ChatMessage: Identifiable, Codable, Sendable {
     var retrievedChunks: [RetrievedChunk]?
     var structuredAnswer: StructuredAnswer?
     var containerId: UUID? = nil
+    var visualEvidence: VisualEvidenceSource? = nil
 
     /// Original user prompt that produced this assistant turn.
     /// Stored in-memory only for trace export robustness when metadata omits it.
@@ -48,6 +49,7 @@ struct ChatMessage: Identifiable, Codable, Sendable {
         retrievedChunks: [RetrievedChunk]? = nil,
         structuredAnswer: StructuredAnswer? = nil,
         containerId: UUID? = nil,
+        visualEvidence: VisualEvidenceSource? = nil,
         traceQuery: String? = nil,
         thinkingEvents: [ThinkingEvent]? = nil,
         pipelineTrace: [String]? = nil,
@@ -64,6 +66,7 @@ struct ChatMessage: Identifiable, Codable, Sendable {
         self.retrievedChunks = retrievedChunks
         self.structuredAnswer = structuredAnswer
         self.containerId = containerId
+        self.visualEvidence = visualEvidence
         self.traceQuery = traceQuery
         self.thinkingEvents = thinkingEvents
         self.pipelineTrace = pipelineTrace
@@ -115,6 +118,7 @@ struct ChatMessage: Identifiable, Codable, Sendable {
             retrievedChunks: sanitizedRetrievedChunks(),
             structuredAnswer: structuredAnswer,
             containerId: containerId,
+            visualEvidence: visualEvidence,
             isHidden: isHidden,
             userReportedAt: userReportedAt,
             userReportReason: userReportReason,
