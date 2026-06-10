@@ -1,0 +1,288 @@
+════════════════════════════════════════════════════════════════════════
+  OPENINTELLIGENCE PIPELINE TRACE
+  Generated: 2026-06-10T20:18:38Z
+  Message ID: 180CB4B8-2D23-40CE-BD57-1EDF0399D1F0
+  Container: 49232FD7-955C-4681-8F67-BFA76FA8B1EA
+════════════════════════════════════════════════════════════════════════
+
+▶ QUERY
+────────────────────────────────────────────────────────────────────────
+Was there any slight increase in MHPG with mood elevation?
+
+▶ RESPONSE (23 chars)
+────────────────────────────────────────────────────────────────────────
+The response was empty.
+
+▶ METADATA
+────────────────────────────────────────────────────────────────────────
+  Model:            Apple Foundation Model (Agentic)
+  Quality Mode:     Deep Think
+  Agentic:          YES
+  Retrieval Config: Agentic
+  Retrieval Time:   0ms
+  Total Gen Time:   170.4s
+  TTFT:             10649ms
+  Tokens Generated: 3220
+  Tokens/sec:       18.9
+  Tool Calls:       2
+
+▶ THINKING EVENTS (54 events)
+────────────────────────────────────────────────────────────────────────
+  +000000ms [Planning] Planning │ Searching with 1 query variations
+  +000034ms [Retrieval] Multi-query search │ Searching 1 query variations
+  +000062ms [Retrieval] Query 1/1 │ "MHPG mood elevation slight increase..."
+  +000166ms [Planning] Query analysis │ Analyzing: "MHPG mood elevation slight increase..."
+  +000208ms [Embedding] Encoding query │ 384-dim neural embedding
+  +000268ms [Vector Search] Vector ready │ Query encoded for semantic search
+  +000412ms [Query Rewrite] Query expansion │ Intent: balanced → Vector 50% / Keyword 50%
+  +000441ms [Query Rewrite] Synonym expansion │ +3 terms added
+  +000463ms [Retrieval] Hybrid search │ Vector + BM25 on 64 chunks
+  +000559ms [RRF Fusion] RRF fusion │ 30 candidates from hybrid search
+  +000585ms [Re-ranking] AI re-ranking │ Scoring 30 chunks with neural model
+  +001267ms [Re-ranking] Re-ranking complete │ Top scores: 78%, 29%, 27%
+  +001306ms [MMR Diversity] MMR diversification │ Optimizing for coverage (λ=0.60)
+  +001347ms [MMR Diversity] Diversity optimized │ 15 chunks after MMR
+  +001402ms [Parent Doc Expansion] Parent doc retrieval │ Expanding with ±3 sibling chunks
+  +001405ms [Parent Doc Expansion] Context expanded │ 15 → 31 chunks with siblings
+  +001430ms [Position Reorder] Lost-in-Middle reorder │ Best evidence at start/end of context
+  +001479ms [Retrieval] Retrieval complete │ 31 chunks ready for synthesis
+  +001495ms [Retrieval] Query 1 done │ 31 chunks retrieved
+  +001517ms [RRF Fusion] Fusing results │ RRF across 1 result sets
+  +001539ms [Retrieval] Multi-query search with 1 variations │
+Queries: MHPG mood elevation slight increase
+
+Found 20 unique chunks after RRF fusion
+
+  +001546ms [Re-ranking] Confidence │ Excellent (>50% match) (90%)
+Semantic match: ✓ High confidence match
+  +014133ms [Retrieval] Session 1: Initial Analysis │ According to the provided documents, there was indeed a slight increase in 5-methyl-3-methypyridinium oxide (MHPG) excretion in the context of mood elevation. The study conducted by Lin-Wei Chuang, Farouk Karoum, and Mark J. Perlow [S1] reported that in monkeys, a slight increase in urine MHPG was observed alongside elevated mood following amphetamine administration. This increase in MHPG excretion was significant enough to continue growing for at least six days. The document also notes that amphetamine significantly increased MHPG excretion, which aligns with findings from Fawcett, Maas & Dekirmenjian, 1972, and Maas, 1978, which indicated a tendency toward increased MHPG excretion. Additionally, the study by Besson [S2] highlighted the relevance of the increase in MHPG in terms of increased release and reduced amine uptake, referencing earlier work by Bunney & Aghajanian, 1977. This increase in MHPG excretion was observed in emotionally depressed humans, and it was associated with increased excretion of phenylethylamine (PEA) and other amines. The findings underscore the connection between amphetamine-induced changes in amine metabolism and mood elevation. • 39% confident • 168 tokens • scanning
+  +021269ms [Re-ranking] Session 2: Pattern Recognition │ According to document [S1], a slight increase in MHPG excretion was observed in monkeys following amphetamine administration, which coincided with elevated mood. Additionally, document [S2] reports that amphetamine significantly increased MHPG, with the increase continuing to grow for at least six days. • 45% confident • 42 tokens • scanning
+  +028517ms [Re-ranking] Session 3: Deepening Understanding │ The additional documents confirm that there was indeed a slight increase in MHPG excretion in the context of mood elevation. Document [S1] notes that a slight increase in urine MHPG was observed in monkeys following amphetamine administration, which coincided with elevated mood. Furthermore, document [S2] reports that amphetamine significantly increased MHPG, and this increase continued to grow for at least six days. These findings reinforce the observation that amphetamine use is associated with a gradual rise in MHPG levels alongside mood enhancement in monkeys. • 45% confident • 84 tokens • scanning
+  +040351ms [Re-ranking] Session 4: Deepening Understanding │ Document [S4] reveals that amphetamine increased the excretion of 3,4-dihydroxyphenylglycol (MHPG) on the day of drug administration and that this increase persisted for a duration of at least six days. This finding supports the notion that amphetamine induced a sustained elevation in MHPG excretion, which may correlate with mood elevation. The document further contextualizes this by noting that amphetamine also increased the excretion of phenylethylamine (PEA) and decreased the excretion of its major metabolite, implying that the behavioral effects of amphetamine, including mood changes, may involve the release of PEA. The persistence of elevated MHPG excretion over an extended period suggests that the biochemical changes associated with mood elevation were not transient and may have had lasting physiological consequences. • 50% confident • 119 tokens • scanning
+  +051775ms [Generation] Session 5: Final Synthesis │ Synthesizing final answer... • 58% confident • 135 tokens • scanning
+  +061243ms [Re-ranking] Session 6: Deepening Understanding │ The additional documents confirm that amphetamine induced a notable elevation in the excretion of 3,4-dihydroxyphenylglycol (MHPG) on the day of drug administration, with this increase continuing for a minimum of six days [S1]. This sustained rise in MHPG excretion is contextualized within the broader behavioral and pharmacological effects of amphetamine, which are linked to heightened mood states. The findings are further supported by a study that explicitly notes an acute increase in MHPG excretion in monkeys, particularly when behavioral changes consistent with elevated mood were observed [S2]. Together, these sources reinforce the observation that amphetamine-induced mood elevation is associated with a measurable rise in MHPG excretion, extending beyond a single session to at least six consecutive days of elevated metabolic activity. • 60% confident • 121 tokens • scanning
+  +073712ms [Re-ranking] Session 7: Deepening Understanding │ The additional documents confirm that amphetamine induced a notable elevation in the excretion of 3,4-dihydroxyphenylglycol (MHPG) on the day of drug administration, with this increase persisting for a minimum of six days [S3]. This sustained rise in MHPG excretion is contextualized within the broader behavioral and pharmacological effects of amphetamine, which are linked to elevated mood states. The findings are further supported by the observation that amphetamine increased the excretion of PEA and decreased that of its major metabolite, though this information pertains to phenethylamine rather than MHPG [S3]. The document also notes that amphetamine increased the excretion of 3,4-dihydroxyphenylacetic acid (DOPAC), though this is unrelated to the direct elevation of MHPG. These observations reinforce the connection between amphetamine-induced biochemical changes and mood elevation, particularly through the sustained elevation of MHPG excretion [S3]. • 61% confident • 133 tokens • scanning
+  +086784ms [Re-ranking] Session 8: Deepening Understanding │ The additional documents confirm that amphetamine induced a notable elevation in the excretion of 3,4-dihydroxyphenylglycol (MHPG) on the day of drug administration, with this increase persisting for a minimum of six days [S1]. These findings are contextualized within the broader behavioral and pharmacological effects of amphetamine, which are linked to heightened mood states [S1]. Furthermore, the excretion of the dopamine metabolite, 3,4-dihydroxyphenylacetic acid (DOPAC), was also affected, as amphetamine increased its excretion [S1]. The prolonged elevation in MHPG excretion is supported by a study that examined the acute effect of amphetamine on the urinary excretion of biogenic amines and metabolites in monkeys, emphasizing the sustained rise in MHPG excretion [S3]. Collectively, these documents reinforce the observation that amphetamine-induced mood elevation is associated with a sustained increase in MHPG excretion. • 62% confident • 129 tokens • scanning
+  +093787ms [Re-ranking]  Confidence │ 34% | Action: retry
+  +093793ms [Retrieval] Searching │ Query: "Was there any slight increase in MHPG wi..."
+  +093975ms [Planning] Query analysis │ Analyzing: "Was there any slight increase in MHPG with mood el..."
+  +094058ms [Embedding] Encoding query │ 384-dim neural embedding
+  +094134ms [Vector Search] Vector ready │ Query encoded for semantic search
+  +094178ms [Query Rewrite] Query expansion │ Intent: balanced → Vector 50% / Keyword 50%
+  +094218ms [Query Rewrite] Synonym expansion │ +5 terms added
+  +094251ms [Retrieval] Hybrid search │ Vector + BM25 on 64 chunks
+  +094345ms [RRF Fusion] RRF fusion │ 40 candidates from hybrid search
+  +094377ms [Re-ranking] AI re-ranking │ Scoring 40 chunks with neural model
+  +094520ms [Re-ranking] Re-ranking complete │ Top scores: 78%, 29%, 23%
+  +094523ms [MMR Diversity] MMR diversification │ Optimizing for coverage (λ=0.60)
+  +094561ms [MMR Diversity] Diversity optimized │ 20 chunks after MMR
+  +094604ms [Context Assembly] Quality filter │ Kept 6/20 (≥12% threshold)
+  +094638ms [Parent Doc Expansion] Parent doc retrieval │ Expanding with ±3 sibling chunks
+  +094662ms [Parent Doc Expansion] Context expanded │ 6 → 18 chunks with siblings
+  +094685ms [Position Reorder] Lost-in-Middle reorder │ Best evidence at start/end of context
+  +094735ms [Retrieval] Retrieval complete │ 18 chunks ready for synthesis
+  +094753ms [Retrieval] 🔍 Searching documents │ Found 18 relevant chunks (re-ranked by relevance):  [1] From A STUDY ON THE ACUTE EFFECT OF AMPHETAMINE ON THE URINARY EXCRETION OF BIOGENIC AMINES AND METABOLITES IN MONKEYS.pdf (Page 5) (Relevance: 66.3%): peripheral and central dopaminergic neuronal firing rates (Bunney, Walters, Roth & Aghajanian, 1973; Bunney & Aghajanian, 1977), and in terms of increased release and reduced amine uptake (Besson, Cheramy, Feltz & Glowinski, 1971;Ross,1978);the reduction in p-tyramine excretion is probably associated with a reduction in p-hydroxylation of PEA to p-tyramine as a result of the metabolism of amphetamine. Amphetamine is primarymetabolizedby hydroxylation (Axelrod, 1954; Goldstein & Anagnoste, 1965; Williams, 1967); a phenomenon which maycompetitively inhibit p-hydroxylation ofPEAto p-tyramine. Increased PEA excretion following the administration of either PEA or pargyline to man is accompanied by a concomitant increase in p. tyramine excretion (Karoum, Potkin, Murphy & Wyatt, 1978) presumably via the p.hydroxylation of PEA. The failure of p.tyramine excretion to parallel the increase in PEA excretion after amphetamine may therefore correspond to a reduction in PEA p.hydroxylation pathway t [...]  [2] From A STUDY ON THE ACUTE EFFECT OF AMPHETAMINE ON THE URINARY EXCRETION OF BIOGENIC AMINES AND METABOLITES IN MONKEYS.pdf (Page 5) (Relevance: 66.3%): Increased PEA excretion following the administration of either PEA or pargyline to man is accompanied by a concomitant increase in p. tyramine excretion (Karoum, Potkin, Murphy & Wyatt, 1978) presumably via the p.hydroxylation of PEA. The failure of p.tyramine excretion to parallel the increase in PEA excretion after amphetamine may therefore correspond to a reduction in PEA p.hydroxylation pathway to p.tyramine (Silkaitis & Mosnaim, 1976; Mosnaim &Wolf, 1978). The increase in MHPG observed after amphetamine is interesting because of its bearing on MHPGexcretion in emotionally depressed humans. Depressed patients who responded to amphetamine  14765381, 1981, 3, Downloaded from https://bpspubs.onlinelibrary.wiley.com/doi/10.1111/j.1476-5381.1981.tb10466.x, Wiley Online Library on [20/07/2024]. See the Terms and Conditions (https://onlinelibrary.wiley.com/terms-and-conditions) on Wiley Online Library for rules of use; OA articles are governed by the applicable Creative Commons License  5 [...]  [3] From A STUDY ON THE ACUTE EFFECT OF AMPHETAMINE ON THE URINARY EXCRETION OF BIOGENIC AMINES AND METABOLITES IN MONKEYS.pdf (Page 6) (Relevance: 66.3%): 576 LIN-WHEI CHUANG, FAROUK KAROUM & MARKJ. PERLOW with elevation of moodwere reported to show either no change or a slight increase in their urine MHPG, while patients whofailed to respond, showedmarked decrement in urine MHPG(Fawcett, Maas&Dekirmenjian, 1972; Maas, 1978). As shown in Table 4, amphetamine significantly increased MHPG; an increase which continued to grow for at least six days. This tendency towards increased MHPG excretion was also observed by Angrist, Shopsin & Gershon, 1972, in three amphetamine abusers. In conclusion, from the various changes in the excretion of biogenic amines and their metabolites References ACETO, M.D., HARRIS, L.S., LESHER, G.Y., PEARL, J. & BROWN, T.G., Jr. (1967). Pharmacologic studies with 7-benzyl-l-ethyl-l, 4-dihydro-4-oxol, 8-naphthyldrine- 3-carboxylic acid. J. Pharmac. exp. Ther., 158, 286-293. ANGRIST, B., SHOPSrN, B. & GERSHON, S. (1972). Metabolites of monoamines in urine and cerebrospinal fluid after large dose amphetamine administra [...]  [4] From A STUDY ON THE ACUTE EFFECT OF AMPHETAMINE ON THE URINARY EXCRETION OF BIOGENIC AMINES AND METABOLITES IN MONKEYS.pdf (Page 6) (Relevance: 24.2%): The biotransformation and physiological disposition of d-amphetamine, d-p-hydroxyamphetamine and 1-amphetamine. J. Pharmac. exp. Ther., 110,315-326. BESSON, M., CHERAMY, A., FELTZ, P. & GLOWINSKI, J. (1971). Dopamine: spontaneous and drug-induced release from the cudate nucleus in the cat. Brain Res., 32, 407-424. BORISON, R.L., MOSNAIM, A.D. & SABELLI, H.C. (1975). Brain 2-phenylethylamine as a major mediator for the central action of amphetamine and methylphenidate. Life Sci., 17, 1331-1334. BUNNEY, B.S. & AGHAJANIAN, G.K. (1976). d- Amphetamine-induced inhibition of central daopaminergic neurons: mediation by striatonigral feedback pathway. Science, 192, 391-393. BUNNEY, B.S., WALTERS, J.R., ROTH, R.H. & AGHAJA- NIAN, G.K. (1973). Dopainergic neurons: effect of antipsychotic drugs and amphetamine onsingle cell activity. J. Pharmac. exp. Ther., 185,560-571. CURTIUS, H. ch-, VOLLMIN, J.A. & BAERLOCHER, K. (19/2). The use of deuterated phenylalanine for the elucidation of phenylalanine [...]  [5] From A STUDY ON THE ACUTE EFFECT OF AMPHETAMINE ON THE URINARY EXCRETION OF BIOGENIC AMINES AND METABOLITES IN MONKEYS.pdf (Page 5) (Relevance: 19.3%): If this is correct, the panoply of  AMPHETAMINE AND BIOGENIC AMINES 575 metabolite changes seen here in response to amphetamine should, at least in part, be reproduced by PEA. In a recent publication (Tinklenberg, Gillin, Murphy, Staub & Wyatt, 1979), PEA behavioural effects in the rhesus monkey were reported to be blocked by pretreatment witha-methyl-p-tyrosine; a blockade similar to that observed with amphetamine (Aceto, Harris, Lesher, Pearl &Brown, 1967; Sulser, Owens,Norvich&Dingell, 1968). Anotherpossibility which may lead to increased PEA excretion by amphetamine, is related to a-demethylation of amphetamine to PEA; as will be shown elsewhere this latter conversion is biologically impossible. The reduction in the excretion of p-tyramine, p. hydroxymandelic acid, DOPACand PAAcannot be attributed to inhibition of monoamine oxidase because the excretion of other deaminated metabolites was either not changed (p-hydroxyphenylacetic acid, HVAand VMA)or increased (MHPG) (Table 3,4). Th [...]  [6] From A STUDY ON THE ACUTE EFFECT OF AMPHETAMINE ON THE URINARY EXCRETION OF BIOGENIC AMINES AND METABOLITES IN MONKEYS.pdf (Page 1) (Relevance: 17.7%): (1981), 74, 571-577 A STUDY ON THE ACUTE EFFECT OF AMPHETAMINE ON THE URINARY EXCRETION OF BIOGENIC AMINES AND METABOLITES IN MONKEYS LIN-WHEI CHUANG, FAROUK KAROUM & MARK J. PERLOW Mental Health, Saint Elizabeths Hospital, Washington, D.C. 20032, U.S.A. Adult Psychiatry Branch, Division of Special Mental Health Research, Intramural Research Program, National Institute of phenylethylamine (PEA), p-tyramine, their metabolites, catecholamine metabolites and p- 1 The effects of an acute dose (3 mg/kg) of amphetamine on the urinary excretion of hydroxymandelic acid, a major metabolite of p-octopamine were evaluated in the monkey. Am- 2 Amphetamine was slowly eliminated from the body, being found in the urine at least six days phetamine excretion was also measured. after administration. phenylacetic acid (PAA). This pattern of changes is similar to that previously found in the urine of 3 Amphetamine increased the excretion of PEA and decreased that of its major metabolite, 4 The excretion o [...]  [7] From A STUDY ON THE ACUTE EFFECT OF AMPHETAMINE ON THE URINARY EXCRETION OF BIOGENIC AMINES AND METABOLITES IN MONKEYS.pdf (Page 1) (Relevance: 17.7%): hydroxyphenylglycol (MHPG) was increased on the day of drug administration and persisted for at markedly reduced, that of vanilmandelic acid (VMA) remained unchanged while 3-methoxy-4- least a further six days. A similar extended effect on the excretion of p-hydroxymandelic acid (it was reduced) was also observed. 5 The excretion of p-tyramine but not its metabolite, p-hydroxyphenylacetic acid, was decreased 6 From the results obtained, it was concluded that amphetamine effects on behaviour cannot by amphetamine during treatment and returned to normal levels six days later. involved. exclusively be attributed to its influence on catecholamines and that other biogenic amines may be 7 Since PEA elicits many behavioural changes similar to those seen with amphetamine, and since behavioural responses through the release of PEA. amphetamine increases PEA excretion, we suggest that amphetamine may exert some of its Introduction behavioural abnormalities have been used by some In the experimen [...]  [8] From A STUDY ON THE ACUTE EFFECT OF AMPHETAMINE ON THE URINARY EXCRETION OF BIOGENIC AMINES AND METABOLITES IN MONKEYS.pdf (Page 1) (Relevance: 17.7%): 5 The excretion of p-tyramine but not its metabolite, p-hydroxyphenylacetic acid, was decreased 6 From the results obtained, it was concluded that amphetamine effects on behaviour cannot by amphetamine during treatment and returned to normal levels six days later. involved. exclusively be attributed to its influence on catecholamines and that other biogenic amines may be 7 Since PEA elicits many behavioural changes similar to those seen with amphetamine, and since behavioural responses through the release of PEA. amphetamine increases PEA excretion, we suggest that amphetamine may exert some of its Introduction behavioural abnormalities have been used by some In the experimental animal, amphetamine-induced (Woodrow, Reifman & Wyatt, 1978). Studies emworkers as a model of psychotic behaviour in man ploying this model have suggested that schizophrenia psychotogen such as phenylethylamine (PEA) may be induced by an endogenous amphetamine-like (Fischer, Spatz, Heller & Reggiani, 1972). Fur [...]  [9] From A STUDY ON THE ACUTE EFFECT OF AMPHETAMINE ON THE URINARY EXCRETION OF BIOGENIC AMINES AND METABOLITES IN MONKEYS.pdf (Page 1) (Relevance: 12.4%): -ME o itO IEigolN ba ISoiN  [10] From A STUDY ON THE ACUTE EFFECT OF AMPHETAMINE ON THE URINARY EXCRETION OF BIOGENIC AMINES AND METABOLITES IN MONKEYS.pdf (Page 6) (Relevance: 78.0%): https://bpspubs.onlinelibrary.wiley.com/doi/10.1111/j.1476-5381.1981.tb10466.x, Wiley Online Library on [20/07/2024]. See the Terms and Conditions (https://onlinelibrary.wiley.com/terms-and-conditions) on Wiley Online Library for rules of use; OA articles are governed by the applicable Creative Commons License  576 LIN-WHEI CHUANG, FAROUK KAROUM & MARKJ. PERLOW with elevation of moodwere reported to show either no change or a slight increase in their urine MHPG, while patients whofailed to respond, showedmarked decrement in urine MHPG(Fawcett, Maas&Dekirmenjian, 1972; Maas, 1978). As shown in Table 4, amphetamine significantly increased MHPG; an increase which continued to grow for at least six days. This tendency towards increased MHPG excretion was also observed by Angrist, Shopsin & Gershon, 1972, in three amphetamine abusers. In conclusion, from the various changes in the excretion of biogenic amines and their metabolites References ACETO, M.D., HARRIS, L.S., LESHER, G.Y., PEARL, J [...]   • Tokens: 1308, Duration: 1.0s
+  +109717ms [Re-ranking] 🧠 Analyzing results │ Tokens: 0, Duration: 14.9s
+  +122673ms [Re-ranking] 🧠 Analyzing results │ Tokens: 0, Duration: 13.0s
+  +136396ms [Re-ranking] 🧠 Analyzing results │ Tokens: 0, Duration: 13.7s
+  +154685ms [Generation] ✨ Synthesizing answer │ Tokens: 0, Duration: 18.3s
+  +154685ms [Generation] Synthesis complete │ 16 reasoning steps, confidence: 34%
+
+▶ REASONING TRACE (13 sessions)
+────────────────────────────────────────────────────────────────────────
+  Session 1: 🔍 Analyzing Evidence: Confidence: Excellent (>50% match) (90%)
+Semantic match: ✓ High confidence match
+  Session 2: 🧠 Finding Patterns: According to the provided documents, there was indeed a slight increase in 5-methyl-3-methypyridinium oxide (MHPG) excretion in the context of mood elevation. The study conducted by Lin-Wei Chuang, Farouk Karoum, and Mark J. Perlow [S1] reported that in monkeys, a slight increase in urine MHPG was observed alongside elevated mood following amphetamine administration. This increase in MHPG excretion was significant enough to continue growing for at least six days. The document also notes that amphetamine significantly increased MHPG excretion, which aligns with findings from Fawcett, Maas & Dekirmenjian, 1972, and Maas, 1978, which indicated a tendency toward increased MHPG excretion.
+Additionally, the study by Besson [S2] highlighted the relevance of the increase in MHPG in terms of increased release and reduced amine uptake, referencing earlier work by Bunney & Aghajanian, 1977. This increase in MHPG excretion was observed in emotionally depressed humans, and it was associated with increased excretion of phenylethylamine (PEA) and other amines. The findings underscore the connection between amphetamine-induced changes in amine metabolism and mood elevation.
+  Session 3: 💡 Refining: According to document [S1], a slight increase in MHPG excretion was observed in monkeys following amphetamine administration, which coincided with elevated mood. Additionally, document [S2] reports that amphetamine significantly increased MHPG, with the increase continuing to grow for at least six days.
+  Session 4: ✨ Synthesis: The additional documents confirm that there was indeed a slight increase in MHPG excretion in the context of mood elevation. Document [S1] notes that a slight increase in urine MHPG was observed in monkeys following amphetamine administration, which coincided with elevated mood. Furthermore, document [S2] reports that amphetamine significantly increased MHPG, and this increase continued to grow for at least six days. These findings reinforce the observation that amphetamine use is associated with a gradual rise in MHPG levels alongside mood enhancement in monkeys.
+  Session 5: Session 5: Document [S4] reveals that amphetamine increased the excretion of 3,4-dihydroxyphenylglycol (MHPG) on the day of drug administration and that this increase persisted for a duration of at least six days. This finding supports the notion that amphetamine induced a sustained elevation in MHPG excretion, which may correlate with mood elevation. The document further contextualizes this by noting that amphetamine also increased the excretion of phenylethylamine (PEA) and decreased the excretion of its major metabolite, implying that the behavioral effects of amphetamine, including mood changes, may involve the release of PEA. The persistence of elevated MHPG excretion over an extended period suggests that the biochemical changes associated with mood elevation were not transient and may have had lasting physiological consequences.
+  Session 6: Session 6: Document [S2] details a study on the acute effect of amphetamine on the urinary excretion of biogenic amines and metabolites in monkeys, which includes a section titled "HVAand VMA)or increased (MHPG) (Table 3,4)." This document specifies that amphetamine led to an increase in MHPG excretion, particularly in the context of elevated mood. The findings are supported by references to Bunney & Aghajanian, 1977, and Besson, which suggest that increased MHPG excretion may correlate with behavioral changes associated with mood elevation. The document further contextualizes this by noting that amphetamine not only increased MHPG excretion but also increased the excretion of phenylethylamine (PEA), a compound that elicits behavioral changes similar to amphetamine, including mood-related effects. These observations reinforce the idea that amphetamine induces a sustained elevation in MHPG excretion, which may be linked to mood elevation.
+  Session 7: Session 7: The additional documents confirm that amphetamine induced a notable elevation in the excretion of 3,4-dihydroxyphenylglycol (MHPG) on the day of drug administration, with this increase continuing for a minimum of six days [S1]. This sustained rise in MHPG excretion is contextualized within the broader behavioral and pharmacological effects of amphetamine, which are linked to heightened mood states. The findings are further supported by a study that explicitly notes an acute increase in MHPG excretion in monkeys, particularly when behavioral changes consistent with elevated mood were observed [S2]. Together, these sources reinforce the observation that amphetamine-induced mood elevation is associated with a measurable rise in MHPG excretion, extending beyond a single session to at least six consecutive days of elevated metabolic activity.
+  Session 8: Session 8: The additional documents confirm that amphetamine induced a notable elevation in the excretion of 3,4-dihydroxyphenylglycol (MHPG) on the day of drug administration, with this increase persisting for a minimum of six days [S3]. This sustained rise in MHPG excretion is contextualized within the broader behavioral and pharmacological effects of amphetamine, which are linked to elevated mood states. The findings are further supported by the observation that amphetamine increased the excretion of PEA and decreased that of its major metabolite, though this information pertains to phenethylamine rather than MHPG [S3]. The document also notes that amphetamine increased the excretion of 3,4-dihydroxyphenylacetic acid (DOPAC), though this is unrelated to the direct elevation of MHPG. These observations reinforce the connection between amphetamine-induced biochemical changes and mood elevation, particularly through the sustained elevation of MHPG excretion [S3].
+  Session 9: Session 9: The additional documents confirm that amphetamine induced a notable elevation in the excretion of 3,4-dihydroxyphenylglycol (MHPG) on the day of drug administration, with this increase persisting for a minimum of six days [S1]. These findings are contextualized within the broader behavioral and pharmacological effects of amphetamine, which are linked to heightened mood states [S1]. Furthermore, the excretion of the dopamine metabolite, 3,4-dihydroxyphenylacetic acid (DOPAC), was also affected, as amphetamine increased its excretion [S1]. The prolonged elevation in MHPG excretion is supported by a study that examined the acute effect of amphetamine on the urinary excretion of biogenic amines and metabolites in monkeys, emphasizing the sustained rise in MHPG excretion [S3]. Collectively, these documents reinforce the observation that amphetamine-induced mood elevation is associated with a sustained increase in MHPG excretion.
+  Session 10: Session 10: Relevance: 10% | Confidence: 34% | Action: retry
+  Session 11: Session 11:
+  Session 12: Session 12:
+  Session 13: Session 13:
+
+▶ RETRIEVED CHUNKS (20 chunks)
+────────────────────────────────────────────────────────────────────────
+
+  ── Chunk 1 ──
+  Source:     A STUDY ON THE ACUTE EFFECT OF AMPHETAMINE ON THE URINARY EXCRETION OF BIOGENIC AMINES AND METABOLITES IN MONKEYS.pdf
+  Rank:       1
+  Similarity: 0.6630
+  Page:       5
+  Structure:  paragraph
+  Content:    n is probably associated with a reduction in p-hydroxylation of PEA to p-tyramine as a result of the metabolism of amphetamine. Amphetamine is primarymetabolizedby hydroxylation (Axelrod, 1954; Goldstein & Anagnoste, 1965; Williams, 1967); a phenomenon which maycompetitively inhibit p-hydroxylation ...
+
+  ── Chunk 2 ──
+  Source:     A STUDY ON THE ACUTE EFFECT OF AMPHETAMINE ON THE URINARY EXCRETION OF BIOGENIC AMINES AND METABOLITES IN MONKEYS.pdf
+  Rank:       2
+  Similarity: 0.6630
+  Page:       5
+  Structure:  paragraph
+  Content:    parallel the increase in PEA excretion after amphetamine may therefore correspond to a reduction in PEA p.hydroxylation pathway to p.tyramine (Silkaitis & Mosnaim, 1976; Mosnaim &Wolf, 1978). The increase in MHPG observed after amphetamine is interesting because of its bearing on MHPGexcretion in em...
+
+  ── Chunk 3 ──
+  Source:     A STUDY ON THE ACUTE EFFECT OF AMPHETAMINE ON THE URINARY EXCRETION OF BIOGENIC AMINES AND METABOLITES IN MONKEYS.pdf
+  Rank:       3
+  Similarity: 0.7800
+  Page:       6
+  Section:    576 LIN-WHEI CHUANG, FAROUK KAROUM & MARKJ. PERLOW
+  Structure:  paragraph
+  Content:    576 LIN-WHEI CHUANG, FAROUK KAROUM & MARKJ. PERLOW with elevation of moodwere reported to show either no change or a slight increase in their urine MHPG, while patients whofailed to respond, showedmarked decrement in urine MHPG(Fawcett, Maas&Dekirmenjian, 1972; Maas, 1978). As shown in Table 4, amph...
+
+  ── Chunk 4 ──
+  Source:     A STUDY ON THE ACUTE EFFECT OF AMPHETAMINE ON THE URINARY EXCRETION OF BIOGENIC AMINES AND METABOLITES IN MONKEYS.pdf
+  Rank:       4
+  Similarity: 0.6630
+  Page:       6
+  Section:    576 LIN-WHEI CHUANG, FAROUK KAROUM & MARKJ. PERLOW
+  Path:       576 LIN-WHEI CHUANG, FAROUK KAROUM & MARKJ. PERLOW
+  Structure:  paragraph
+  Content:    [Part 2] Dopamine: spontaneous and drug-induced release from the cudate nucleus in the cat.  Brain Res. , 32,. 407-424. BORISON, R. L. , MOSNAIM, A. D.  & SABELLI, H. C.  (1975). Brain 2-phenylethylamine as a major mediator for the. central action of amphetamine and methylphenidate. Life Sci. , 17, ...
+
+  ── Chunk 5 ──
+  Source:     A STUDY ON THE ACUTE EFFECT OF AMPHETAMINE ON THE URINARY EXCRETION OF BIOGENIC AMINES AND METABOLITES IN MONKEYS.pdf
+  Rank:       5
+  Similarity: 0.6630
+  Page:       5
+  Structure:  paragraph
+  Content:    re of p.tyramine excretion to parallel the increase in PEA excretion after amphetamine may therefore correspond to a reduction in PEA p.hydroxylation pathway to p.tyramine (Silkaitis & Mosnaim, 1976; Mosnaim &Wolf, 1978). The increase in MHPG observed after amphetamine is interesting because of its ...
+
+  ── Chunk 6 ──
+  Source:     A STUDY ON THE ACUTE EFFECT OF AMPHETAMINE ON THE URINARY EXCRETION OF BIOGENIC AMINES AND METABOLITES IN MONKEYS.pdf
+  Rank:       6
+  Similarity: 0.6630
+  Page:       6
+  Section:    576 LIN-WHEI CHUANG, FAROUK KAROUM & MARKJ. PERLOW
+  Path:       576 LIN-WHEI CHUANG, FAROUK KAROUM & MARKJ. PERLOW
+  Structure:  paragraph
+  Content:    [Part 1] As shown in Table 4,. amphetamine significantly increased MHPG; an increase which continued to grow for at least six days. This tendency towards increased MHPG excretion. was also observed by Angrist, Shopsin & Gershon,. 1972, in three amphetamine abusers. In conclusion, from the various ch...
+
+  ── Chunk 7 ──
+  Source:     A STUDY ON THE ACUTE EFFECT OF AMPHETAMINE ON THE URINARY EXCRETION OF BIOGENIC AMINES AND METABOLITES IN MONKEYS.pdf
+  Rank:       7
+  Similarity: 0.6630
+  Page:       6
+  Section:    References
+  Path:       References
+  Structure:  paragraph
+  Content:    [Part 1] rom the cudate nucleus in the cat.  Brain Res. , 32,. 407-424. BORISON, R. L. , MOSNAIM, A. D.  & SABELLI, H. C.  (1975). Brain 2-phenylethylamine as a major mediator for the. central action of amphetamine and methylphenidate. Life Sci. , 17, 1331-1334. BUNNEY, B. S.  & AGHAJANIAN, G. K.  (...
+
+  ── Chunk 8 ──
+  Source:     A STUDY ON THE ACUTE EFFECT OF AMPHETAMINE ON THE URINARY EXCRETION OF BIOGENIC AMINES AND METABOLITES IN MONKEYS.pdf
+  Rank:       8
+  Similarity: 0.2491
+  Page:       6
+  Section:    References
+  Path:       References
+  Structure:  paragraph
+  Content:    [Part 2] 16,227-233. ELLISON, G. , EISON, M. S. , HUBERMAN, H. S.  & DANIEL,. F.  (1978).  Long-term changes in dopaminergic innervation of caudate nucleus after continuous amphetamine. administration.  Science, 201,276-278. FAWCE1T, J. , MAAS, J. W.  & DEKIRMENJIAN, H.  (1972). Depression and MHPG:...
+
+  ── Chunk 9 ──
+  Source:     A STUDY ON THE ACUTE EFFECT OF AMPHETAMINE ON THE URINARY EXCRETION OF BIOGENIC AMINES AND METABOLITES IN MONKEYS.pdf
+  Rank:       9
+  Similarity: 0.2280
+  Page:       5
+  Structure:  paragraph
+  Content:    [Part 2] Cheramy, Feltz & Glowinski, 1971;Ross,1978);the. reduction in p-tyramine excretion is probably associated with a reduction in p-hydroxylation of PEA. to p-tyramine as a result of the metabolism of amphetamine.  Amphetamine is primarymetabolizedby. hydroxylation (Axelrod, 1954; Goldstein & A...
+
+  ── Chunk 10 ──
+  Source:     A STUDY ON THE ACUTE EFFECT OF AMPHETAMINE ON THE URINARY EXCRETION OF BIOGENIC AMINES AND METABOLITES IN MONKEYS.pdf
+  Rank:       10
+  Similarity: 0.2081
+  Page:       1
+  Section:    LIN-WHEI CHUANG, FAROUK KAROUM & MARK J. PERLOW
+  Path:       METABOLITES IN MONKEYS > LIN-WHEI CHUANG, FAROUK KAROUM & MARK J. PERLOW
+  Structure:  paragraph
+  Content:    sychiatry Branch, Division of Special Mental Health Research, Intramural Research Program, National Institute of phenylethylamine (PEA), p-tyramine, their metabolites, catecholamine metabolites and p- 1 The effects of an acute dose (3 mg/kg) of amphetamine on the urinary excretion of hydroxymandelic...
+
+  ── Chunk 11 ──
+  Source:     A STUDY ON THE ACUTE EFFECT OF AMPHETAMINE ON THE URINARY EXCRETION OF BIOGENIC AMINES AND METABOLITES IN MONKEYS.pdf
+  Rank:       11
+  Similarity: 0.2081
+  Page:       1
+  Structure:  paragraph
+  Content:    e excretion of p-tyramine but not its metabolite, p-hydroxyphenylacetic acid, was decreased 6 From the results obtained, it was concluded that amphetamine effects on behaviour cannot by amphetamine during treatment and returned to normal levels six days later. involved. exclusively be attributed to ...
+
+  ── Chunk 12 ──
+  Source:     A STUDY ON THE ACUTE EFFECT OF AMPHETAMINE ON THE URINARY EXCRETION OF BIOGENIC AMINES AND METABOLITES IN MONKEYS.pdf
+  Rank:       12
+  Similarity: 0.2081
+  Page:       1
+  Structure:  paragraph
+  Content:    [Part 2] & Stoff, 1978; Potkin, Karoum, Chuang, Cannonkin, Cannon, Buchsbaum, Murphy, Karoum, Gillin. Spoor, Philips & Wyatt, 1979) and that PAA conschizophrenics (Sandler, Ruthven, Goodwin, King,. centration is elevated in the cerebrospinal fluids of. Pettit, Reynolds, Tyrer, Weller & Hirsch, 1978)...
+
+  ── Chunk 13 ──
+  Source:     A STUDY ON THE ACUTE EFFECT OF AMPHETAMINE ON THE URINARY EXCRETION OF BIOGENIC AMINES AND METABOLITES IN MONKEYS.pdf
+  Rank:       13
+  Similarity: 0.1791
+  Page:       5
+  Structure:  paragraph
+  Content:    [Part 1] effects in the rhesus monkey were reported to be. blocked by pretreatment witha-methyl-p-tyrosine; a. blockade similar to that observed with amphetamine. (Aceto, Harris, Lesher, Pearl &Brown, 1967; Sulser,. Owens,Norvich&Dingell, 1968).  Anotherpossibility which may lead to increased PEA ex...
+
+  ── Chunk 14 ──
+  Source:     A STUDY ON THE ACUTE EFFECT OF AMPHETAMINE ON THE URINARY EXCRETION OF BIOGENIC AMINES AND METABOLITES IN MONKEYS.pdf
+  Rank:       14
+  Similarity: 0.1744
+  Page:       1
+  Structure:  list
+  Content:    -ME o itO IEigolN ba ISoiN
+
+  ── Chunk 15 ──
+  Source:     A STUDY ON THE ACUTE EFFECT OF AMPHETAMINE ON THE URINARY EXCRETION OF BIOGENIC AMINES AND METABOLITES IN MONKEYS.pdf
+  Rank:       15
+  Similarity: 0.2448
+  Page:       1
+  Section:    4 The excretion of the dopamine metabolite, 3,4-dihydroxphenylacetic acid (DOPAC) was
+  Path:       4 The excretion of the dopamine metabolite, 3,4-dihydroxphenylacetic acid (DOPAC) was
+  Structure:  paragraph
+  Content:    3,4-dihydroxphenylacetic acid (DOPAC) was chronic schizophrenics. hydroxyphenylglycol (MHPG) was increased on the day of drug administration and persisted for at markedly reduced, that of vanilmandelic acid (VMA) remained unchanged while 3-methoxy-4- least a further six days. A similar extended effe...
+
+  ── Chunk 16 ──
+  Source:     A STUDY ON THE ACUTE EFFECT OF AMPHETAMINE ON THE URINARY EXCRETION OF BIOGENIC AMINES AND METABOLITES IN MONKEYS.pdf
+  Rank:       16
+  Similarity: 0.2081
+  Page:       1
+  Structure:  paragraph
+  Content:    Br. J. Pharmac. (1981), 74, 571-577 A STUDY ON THE ACUTE EFFECT OF AMPHETAMINE ON THE URINARY EXCRETION OF BIOGENIC AMINES AND METABOLITES IN MONKEYS LIN-WHEI CHUANG, FAROUK KAROUM & MARK J. PERLOW Mental Health, Saint Elizabeths Hospital, Washington, D.C. 20032, U.S.A. Adult Psychiatry Branch, Divi...
+
+  ── Chunk 17 ──
+  Source:     A STUDY ON THE ACUTE EFFECT OF AMPHETAMINE ON THE URINARY EXCRETION OF BIOGENIC AMINES AND METABOLITES IN MONKEYS.pdf
+  Rank:       17
+  Similarity: 0.2081
+  Page:       1
+  Structure:  paragraph
+  Content:    elic acid, a major metabolite of p-octopamine were evaluated in the monkey. Am- 2 Amphetamine was slowly eliminated from the body, being found in the urine at least six days phetamine excretion was also measured. after administration. phenylacetic acid (PAA). This pattern of changes is similar to th...
+
+  ── Chunk 18 ──
+  Source:     A STUDY ON THE ACUTE EFFECT OF AMPHETAMINE ON THE URINARY EXCRETION OF BIOGENIC AMINES AND METABOLITES IN MONKEYS.pdf
+  Rank:       18
+  Similarity: 0.2081
+  Page:       1
+  Structure:  paragraph
+  Content:    [Part 1] exclusively be attributed to its influence on catecholamines and that other biogenic amines may be. 7 Since PEA elicits many behavioural changes similar to those seen with amphetamine, and since. behavioural responses through the release of PEA. amphetamine increases PEA excretion, we sugge...
+
+  ── Chunk 19 ──
+  Source:     A STUDY ON THE ACUTE EFFECT OF AMPHETAMINE ON THE URINARY EXCRETION OF BIOGENIC AMINES AND METABOLITES IN MONKEYS.pdf
+  Rank:       19
+  Similarity: 0.2052
+  Section:    Document Summary
+  Content:    -90 іті ПТ (еГе жіть & гобоя : Ге  TABLE: Table HEADERS: Column 1 | Column 2 | Column 3 ROW 1: Compound | m/e of the non-deuterated compound | Structure and m/e of the deuterated isomer ROW 2: Phenylethylamine (PEA) | | [*H4]-PEA, 107 ROW 3: Phenylacetic acid (PAA) | | ["H›]-PAA, 275 ROW 4: p-Tyrami...
+
+  ── Chunk 20 ──
+  Source:     A STUDY ON THE ACUTE EFFECT OF AMPHETAMINE ON THE URINARY EXCRETION OF BIOGENIC AMINES AND METABOLITES IN MONKEYS.pdf
+  Rank:       20
+  Similarity: 0.1084
+  Page:       1
+  Section:    Introduction
+  Path:       Introduction
+  Structure:  paragraph
+  Content:    y metabolism of PEA and other biogenic of short-term administration of amphetamine on the amines, we undertook the present study of the effects urinary excretion of a number of important biogenic © Macmillan Publishers Ltd 1981  S72 LIN-WHEI CHUANG, FAROUK KAROUM & MARK J. PERLOW PEA, p-tyramine, p-...
+
+════════════════════════════════════════════════════════════════════════
+  END OF TRACE
+════════════════════════════════════════════════════════════════════════
