@@ -2,6 +2,15 @@
 
 This is the public version history for OpenIntelligence. It focuses on user-visible product changes and intentionally omits private engine tuning, thresholds, and internal implementation details.
 
+## 4.0 - June 2026
+
+- Migrated Language Model Sessions to native iOS 26+ FoundationModels APIs
+- Implemented dynamic routing policy supporting On-Device default (4K tokens) and secure Private Cloud Compute enclaves (32K tokens) fallback
+- Added premium "Under the Hood" details popover UI showing real-time active model routing and token budget stats
+- Integrated Core AI local silicon execution engine and model registry
+- Created continuous integration Evaluations suite for dataset validation against target Recall@5 and Citation Precision quality gates
+- Designed native glass card UI effects using modern iOS 26+ glass modifiers
+
 ## 3.7 - May 2026
 
 - Tightened the Documents surface again with cleaner library pills, a less crowded header, smaller sync controls, and clearer library-management affordances

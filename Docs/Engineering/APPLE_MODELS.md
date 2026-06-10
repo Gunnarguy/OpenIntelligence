@@ -7,16 +7,14 @@
 
 ---
 
-## April 2026 Repo Grounding
+## June 2026 Repo Grounding
 
-Current source code agrees with Apple's public context limit:
+Current source code reflects Apple's modern iOS 26+ / WWDC26 context limits and models:
 
-- `LLMService.swift` sets `contextWindowSize = 4096`.
-- `RAGService.swift` retries smaller prompts when context overflows and disables tools when retrieved context is already assembled.
-- `OpenIntelligenceEngine.swift` exposes Apple Intelligence availability states and maps query requests into `InferenceConfig`.
+- `LLMService.swift` manages dynamic model routes via `SystemLanguageModel.default` and `PrivateCloudComputeLanguageModel()`.
+- `ModelResolutionService.swift` monitors the query execution pathway in real-time, resolving whether On-Device or PCC is actively serving queries.
+- `RAGService.swift` delegates context size bounds based on the active model's routing window (4K for On-Device vs. 32K for PCC).
 - `AppleFMEmbeddingProvider.swift` is not an active embedding provider. Current embeddings come from Core ML/Natural Language paths.
-
-Do not market a 65K-token OpenIntelligence context path. Apple's 2025 tech report describes server-model training and PCC architecture, but the public Foundation Models framework path used by this app must be budgeted as 4096 tokens unless a future Apple API and physical-device test prove otherwise.
 
 Related docs:
 
@@ -44,20 +42,14 @@ Related docs:
 
 ## Context Window Limit
 
-### The Hard Truth: 4096 Tokens
+### On-Device vs. Private Cloud Compute (PCC)
 
-> **"Apple's on-device foundation model has a context window of 4096 tokens per language model session."**
-> — TN3193
+Apple's Foundation Models framework under iOS 26+ defines two distinct execution paths:
 
-This is a **hard limit** for the Foundation Models framework. The 4096 limit applies to:
+*   **On-Device (`SystemLanguageModel.default`)**: Features a **4,096-token** context window limit. Ideal for standard queries and fast offline processing.
+*   **Private Cloud Compute (`PrivateCloudComputeLanguageModel`)**: Exposes a **32,768-token** context window. Queries are dynamically routed to PCC secure server enclaves for deep reasoning or when the context/chat history overflows the on-device 4K ceiling.
 
-- On-device execution (the ONLY execution path available to third-party apps)
-
-> **Note**: The PCC server model was trained on up to 65K token sequences, but third-party developers have **NO access** to PCC. The Foundation Models framework exposes ONLY the ~3B on-device model. See [APPLE_FM_TECH_REPORT_2025.md](./APPLE_FM_TECH_REPORT_2025.md) and [PRIVATE_CLOUD_COMPUTE.md](./PRIVATE_CLOUD_COMPUTE.md) for details.
-
-### What Counts Toward the Limit
-
-Everything in a session contributes to the 4096 token budget:
+Everything in a session contributes to the token budget:
 
 | Component                                    | Token Impact |
 | -------------------------------------------- | ------------ |

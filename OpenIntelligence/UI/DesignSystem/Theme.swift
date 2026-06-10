@@ -364,6 +364,29 @@ public extension View {
             self
         }
     }
+
+    /// Apply Liquid Glass card shape effect for iOS 26+
+    @ViewBuilder
+    func glassCardEffectHelper(cornerRadius: CGFloat = 20, isSelected: Bool = false, tintColor: Color = .accentColor, interactive: Bool = true) -> some View {
+        if #available(iOS 26.0, *) {
+            let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+            if isSelected {
+                if interactive {
+                    self.glassEffect(.regular.tint(tintColor).interactive(), in: shape)
+                } else {
+                    self.glassEffect(.regular.tint(tintColor), in: shape)
+                }
+            } else {
+                if interactive {
+                    self.glassEffect(.regular.interactive(), in: shape)
+                } else {
+                    self.glassEffect(.regular, in: shape)
+                }
+            }
+        } else {
+            self
+        }
+    }
 }
 
 // MARK: - Haptics (safe, no-op on macOS)

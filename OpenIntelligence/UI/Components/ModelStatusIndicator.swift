@@ -11,6 +11,7 @@ import SwiftUI
 struct ModelStatusIndicator: View {
     @EnvironmentObject private var modelResolution: ModelResolutionService
     @State private var showDetails = false
+    @State private var pulseScale: CGFloat = 1.0
 
     var body: some View {
         Button {
@@ -28,22 +29,68 @@ struct ModelStatusIndicator: View {
         }
         .buttonStyle(.plain)
         .popover(isPresented: $showDetails) {
-            VStack(alignment: .leading, spacing: 12) {
-                Text("Model Resolution Details")
-                    .font(.headline)
+            VStack(alignment: .leading, spacing: 16) {
+                HStack(spacing: 8) {
+                    Image(systemName: "apple.intelligence")
+                        .font(.title3)
+                        .symbolRenderingMode(.multicolor)
+                    Text("Apple Intelligence")
+                        .font(.headline)
+                    Spacer()
+                    if modelResolution.isProcessing {
+                        ProgressView()
+                            .scaleEffect(0.8)
+                    }
+                }
                 
-                DetailRow(label: "Reason", value: modelResolution.currentState.resolutionReason.displayText)
-                DetailRow(label: "Path", value: modelResolution.currentState.executionPath.displayName)
-                DetailRow(label: "Model", value: modelResolution.currentState.activeModelName)
+                VStack(alignment: .leading, spacing: 10) {
+                    DetailRow(label: "Model Selected", value: modelResolution.currentState.selectedType.displayName)
+                    
+                    DetailRow(label: "Routing Policy", value: modelResolution.currentState.executionPath.displayName)
+                    
+                    if modelResolution.isProcessing {
+                        DetailRow(label: "Active Path", value: "\(modelResolution.currentState.executionPath.emoji) \(modelResolution.currentState.executionPath.displayName) (Active)")
+                    } else if let lastPath = modelResolution.lastExecutionPath {
+                        DetailRow(label: "Last Query Path", value: "\(lastPath.emoji) \(lastPath.displayName)")
+                    }
+                    
+                    DetailRow(label: "Resolved Model", value: modelResolution.currentState.activeModelName)
+                }
                 
                 Divider()
                 
+                // Under the hood info
+                VStack(alignment: .leading, spacing: 8) {
+                    Label {
+                        Text("Under the Hood: Hybrid Routing")
+                            .font(.caption.weight(.bold))
+                            .foregroundColor(.primary)
+                    } icon: {
+                        Image(systemName: "cpu")
+                            .foregroundColor(.blue)
+                    }
+                    
+                    Text("OpenIntelligence dynamically routes queries between your local device and Private Cloud Compute (PCC) based on query complexity, quality mode, and document context size:")
+                        .font(.system(size: 10))
+                        .foregroundColor(.secondary)
+                        .lineLimit(nil)
+                        .fixedSize(horizontal: false, vertical: true)
+                    
+                    VStack(alignment: .leading, spacing: 6) {
+                        BulletPoint(text: "On-Device (Standard): Processes everyday queries locally. Highly private and offline capable, with a context limit of 4K tokens.")
+                        BulletPoint(text: "Private Cloud Compute (PCC): Automatically routes complex reasoning (Deep Think/Maximum modes) or large documents (up to 32K tokens) to secure, stateless cloud enclaves that cryptographically guarantee privacy.")
+                    }
+                }
+                .padding(10)
+                .background(Color.primary.opacity(0.04))
+                .cornerRadius(8)
+                
                 Text("Transparency is key. This model was selected based on your device capabilities and active routing policy.")
-                    .font(.caption)
+                    .font(.system(size: 9))
                     .foregroundColor(.secondary)
             }
-            .padding()
-            .frame(width: 280)
+            .padding(16)
+            .frame(width: 320)
         }
     }
 
@@ -63,11 +110,34 @@ struct ModelStatusIndicator: View {
         }
     }
 
+    private struct BulletPoint: View {
+        let text: String
+        
+        var body: some View {
+            HStack(alignment: .top, spacing: 4) {
+                Text("•")
+                    .font(.system(size: 10))
+                    .foregroundColor(.secondary)
+                Text(text)
+                    .font(.system(size: 10))
+                    .foregroundColor(.secondary)
+                    .lineLimit(nil)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+
     @ViewBuilder
     private var statusDot: some View {
         Circle()
             .fill(statusColor)
             .frame(width: 6, height: 6)
+            .scaleEffect(modelResolution.isProcessing ? pulseScale : 1.0)
+            .onAppear {
+                withAnimation(Animation.easeInOut(duration: 1.0).repeatForever(autoreverses: true)) {
+                    pulseScale = 1.4
+                }
+            }
     }
 
     @ViewBuilder
@@ -82,6 +152,16 @@ struct ModelStatusIndicator: View {
     }
 
     private var statusColor: Color {
+        if modelResolution.isProcessing {
+            switch modelResolution.currentState.executionPath {
+            case .onDevice:
+                return .green
+            case .privateCloudCompute:
+                return .blue
+            default:
+                return .purple
+            }
+        }
         switch modelResolution.currentState.status {
         case .ready:
             return .green
@@ -93,7 +173,7 @@ struct ModelStatusIndicator: View {
     }
 
     private var backgroundColor: Color {
-        statusColor.opacity(0.15)
+        statusColor.opacity(modelResolution.isProcessing ? 0.25 : 0.15)
     }
 }
 

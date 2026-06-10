@@ -362,12 +362,12 @@ struct IngestionQueueOverlay: View {
         let screenWidth = (connectedScenes.first { $0.activationState == .foregroundActive } ?? connectedScenes.first)?
             .screen
             .bounds
-            .width ?? 380
+            .width ?? 460
         let horizontalInset: CGFloat = horizontalSizeClass == .compact ? 32 : 56
-        let widthCap: CGFloat = horizontalSizeClass == .compact ? 340 : 380
+        let widthCap: CGFloat = horizontalSizeClass == .compact ? 380 : 460
         return min(widthCap, max(260, screenWidth - horizontalInset))
 #else
-        return 380
+        return 460
 #endif
     }
 
@@ -446,7 +446,7 @@ struct IngestionQueueOverlay: View {
                     .strokeBorder(overlayAccentColor.opacity(0.12), lineWidth: 1)
             )
             .shadow(color: .black.opacity(0.12), radius: 24, x: 0, y: 12)
-            .glassEffectHelper(isSelected: false, interactive: false)
+            .glassCardEffectHelper(cornerRadius: 20, isSelected: false, interactive: false)
             .transition(.move(edge: .bottom).combined(with: .opacity))
             .animation(.spring(response: 0.3, dampingFraction: 0.85), value: items.count)
             .animation(.spring(response: 0.25), value: isMinimized)
@@ -549,8 +549,10 @@ struct IngestionQueueOverlay: View {
                         if !isMinimized {
                             Text(processingModeLabel)
                                 .font(.system(size: 10, weight: .bold))
+                                .lineLimit(1)
                         }
                     }
+                    .fixedSize(horizontal: true, vertical: false)
                     .padding(.horizontal, 8)
                     .padding(.vertical, 6)
                     .background(processingModeColor.opacity(gpuBoostActive ? 0.18 : 0.10))
@@ -558,6 +560,7 @@ struct IngestionQueueOverlay: View {
                     .clipShape(Capsule())
                 }
                 .buttonStyle(.plain)
+                .layoutPriority(1)
             }
 
             HStack(spacing: 4) {

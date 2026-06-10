@@ -15,15 +15,15 @@ Use them to stop overclaiming. Do not use UI copy, debug strings, or legacy comm
 
 | Constraint                     | Value                                    | Why it matters                                                                     |
 | ------------------------------ | ---------------------------------------- | ---------------------------------------------------------------------------------- |
-| Context window                 | **4096 tokens**                          | instructions, tools, prompt, retrieved context, and response all share this budget |
-| Model size                     | about **3B parameters**                  | useful, but not a large-server-model class system                                  |
-| Public PCC/server-model access | **No direct public app API**             | do not claim app-controlled access to Apple's server model                         |
-| Server-model training context  | about **65K** in Apple research material | not a verified third-party app context window and not marketable as an app feature |
+| On-Device Context window       | **4096 tokens**                          | default local path using `SystemLanguageModel.default`                             |
+| PCC Context window             | **32,768 tokens**                        | dynamic path using `PrivateCloudComputeLanguageModel` for reasoning-heavy queries  |
+| Model size                     | about **3B parameters** (local)          | useful, but not a large-server-model class system                                  |
+| Public PCC/server-model access | **Native iOS 26+ API**                   | app integrates directly with `PrivateCloudComputeLanguageModel`                    |
 | Recommended tool count         | **3-5 tools**                            | tool schemas eat context budget                                                    |
 
 Important current implementation note:
 
-- `ExecutionContext` options exist in code, but the documented public session budget still needs to be treated as 4096 tokens.
+- Local-first defaults are restricted to 4,096 tokens. Standard queries that overflow this ceiling, or queries executed under Deep Think / Maximum modes, are dynamically escalated to Private Cloud Compute (PCC) via `PrivateCloudComputeLanguageModel` with up to 32K tokens support.
 
 ### Embedding Constraints
 
@@ -69,7 +69,8 @@ Important current implementation note:
 - local-first indexing and retrieval on Apple devices
 - full-text plus vector retrieval
 - source review and verification-oriented answer flow
-- Apple-native generation path where available
+- Apple-native generation path (On-Device and PCC) where available
+- Dynamic secure routing to Private Cloud Compute (32K context) for reasoning-heavy queries
 
 ### Claim only with caveats
 
@@ -80,8 +81,6 @@ Important current implementation note:
 
 ### Do not claim from current repo state
 
-- 65K public Foundation Models context
-- direct PCC server-model access
 - Apple Foundation Models embeddings
 - full GraphRAG
 - guaranteed correctness

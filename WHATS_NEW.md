@@ -2,6 +2,20 @@
 
 Public release highlights for OpenIntelligence.
 
+## 4.0
+
+Changes since 3.7.1:
+
+Version 4.0 introduces the WWDC26 Apple Intelligence modernization suite, featuring dynamic model routing, Core AI frameworks, a first-class RAG Evaluations suite, and a beautiful Liquid Glass UI design.
+
+### Highlights
+
+- **Dynamic On-Device vs. Private Cloud Compute Routing**: Queries are automatically routed based on complexity, quality mode, and token size. Standard queries run locally using the 4K-token on-device model (`SystemLanguageModel.default`), while complex reasoning or context-heavy queries dynamically escalate to secure Private Cloud Compute (`PrivateCloudComputeLanguageModel`) utilizing a 32K-token context window.
+- **Under the Hood UI Dashboard**: A premium details popover card dynamically visualizes active model routing, token budget usage (4K vs 32K), resolved execution pathways (On-Device/PCC), and last query telemetry with interactive pulsing status indicators.
+- **Core AI Integration**: Replaced legacy latency guessing heuristics with a direct, custom local Core AI silicon execution engine and model registry.
+- **RAG Evaluations Suite**: Built a comprehensive continuous integration evaluation suite (`RAGEvalRunner`) that loads JSONL test datasets, computes precision/recall, and outputs rich Markdown reports. Exposes an Apple Evaluations Bridge for native compatibility with Apple's `fm CLI` testing suite.
+- **Liquid Glass UI**: Styled components using modern native glass effect modifiers (`glassCardEffectHelper`) for a premium, wowed-at-first-glance user experience.
+
 ## 3.7.1
 
 Changes since 3.6:

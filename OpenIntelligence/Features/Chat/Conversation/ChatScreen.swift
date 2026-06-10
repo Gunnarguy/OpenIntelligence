@@ -796,6 +796,17 @@ struct ChatScreen: View {
 .onDisappear {
     isAppeared = false
 }
+.onReceive(NotificationCenter.default.publisher(for: Notification.Name("ActiveModelRouteResolved"))) { notification in
+    guard let pathString = notification.userInfo?["executionPath"] as? String else { return }
+    switch pathString {
+    case "onDevice":
+        self.execution = .onDevice
+    case "privateCloudCompute":
+        self.execution = .privateCloudCompute
+    default:
+        break
+    }
+}
 // MARK: - NSUserActivity / Handoff
 .userActivity("com.openintelligence.chat") { activity in
     activity.title = "Chat with Documents"
@@ -2394,9 +2405,14 @@ struct ChatScreen: View {
         // Reset and start processing
         isProcessing = true
         stage = .embedding
-        // For Apple Intelligence, assume on-device initially (the common case)
-        // We'll update to .privateCloudCompute if TTFT indicates PCC was used
-        execution = settings.selectedModel == .appleIntelligence ? .onDevice : .unknown
+        // Initialize execution location based on selected model
+        if settings.selectedModel == .appleIntelligence {
+            execution = .onDevice
+        } else if settings.selectedModel == .onDeviceAnalysis {
+            execution = .onDevice
+        } else {
+            execution = .unknown
+        }
         ttft = nil
 
         // Capture values for async task (query may be clarified asynchronously)
@@ -2563,19 +2579,12 @@ struct ChatScreen: View {
                     // Sources tray will show this - no separate toast needed
                 }
 
-                // Update execution badge based on TTFT heuristic
-                // Only upgrade to PCC if TTFT indicates cloud latency (>1s)
                 if let first = response.metadata.timeToFirstToken {
                     await MainActor.run {
                         guard self.currentQuerySessionId == querySessionId,
                               self.ragService.containerService.activeContainerId == capturedUsedContainerId
                         else { return }
                         self.ttft = first
-                        // If TTFT > 1 second, it likely went through PCC
-                        if first >= 1.0 {
-                            self.execution = .privateCloudCompute
-                        }
-                        // TTFT shown in StatusPill - no toast needed
                     }
                 }
 

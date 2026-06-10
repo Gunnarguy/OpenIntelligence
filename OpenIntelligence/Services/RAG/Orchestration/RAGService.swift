@@ -1313,6 +1313,20 @@ class RAGService: ObservableObject {
             }
         }
         #endif
+
+        // Observe active model route changes to update activeModelName in real-time
+        NotificationCenter.default.addObserver(
+            forName: NSNotification.Name("ActiveModelRouteResolved"),
+            object: nil,
+            queue: .main
+        ) { [weak self] notification in
+            guard let self else { return }
+            if let modelName = notification.userInfo?["modelName"] as? String {
+                Task { @MainActor in
+                    self.activeModelName = modelName
+                }
+            }
+        }
     }
 
     // MARK: - Container Change Observer
@@ -1593,7 +1607,7 @@ class RAGService: ObservableObject {
         // Create a minimal consent record to trigger the popup
         let prewarmRecord = CloudTransmissionRecord(
             provider: .applePCC,
-            modelName: "Apple Foundation Model (On-Device)",
+            modelName: "Apple Intel (On-Device)",
             promptPreview: "[Consent prewarm - no actual data transmitted]",
             promptCharacterCount: 0,
             contextChunkCount: 0,
@@ -4641,11 +4655,19 @@ class RAGService: ObservableObject {
         documentProcessor.richProgressHandler = { [weak self] progress in
             Task { @MainActor in
                 let stage: IngestionStage = progress.stage == "transcribing" ? .transcribing : .extracting
+                var progressFraction: Double? = nil
+                if let current = progress.currentPage, let total = progress.totalPages, total > 0 {
+                    let base = stage.pipelineBaseFraction ?? 0.0
+                    let weight = stage.pipelineWeightFraction ?? 0.0
+                    let stageProgress = Double(current) / Double(total)
+                    progressFraction = base + (stageProgress * weight)
+                }
                 self?.updateIngestionItem(
                     id: trackingId,
                     filename: filename,
                     stage: stage,
-                    detail: progress.detail
+                    detail: progress.detail,
+                    progress: progressFraction
                 ) { metrics in
                     // Update live metrics from extraction progress
                     metrics.usedStructuredParsing = progress.usingVision

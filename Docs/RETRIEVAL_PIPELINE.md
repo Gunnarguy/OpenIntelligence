@@ -4,16 +4,17 @@ The retrieval pipeline is the core engineering idea in OpenIntelligence: answers
 
 ## Pipeline Stages
 
-1. Import: files enter through Apple platform document workflows.
-2. Extraction: text, layout, metadata, and media-derived text are extracted where supported.
-3. Chunking: documents are split into retrievable units with metadata.
-4. Indexing: chunks are written into local search and vector retrieval paths.
-5. Query analysis: incoming questions are classified, scoped, and prepared for retrieval.
-6. Retrieval: candidate chunks are selected from the active library or workspace.
-7. Reranking and packing: evidence is scored, deduplicated, and packed into context.
-8. Generation: the answer path uses retrieved evidence as the working context.
-9. Verification: unsupported claims can be flagged, removed, or converted into an abstention.
-10. Presentation: answers are shown with citations, quality indicators, and review affordances.
+1. **Import**: Files enter through Apple platform document workflows.
+2. **Extraction**: Text, layout, metadata, and media-derived text are extracted where supported.
+3. **Chunking**: Documents are split into retrievable units with metadata.
+4. **Indexing**: Chunks are written into local search (SQLite FTS5) and vector retrieval (BNNSVectorDatabase) paths.
+5. **Query Analysis & Planning**: Incoming questions are classified, scoped, and prepared for retrieval.
+6. **Retrieval**: Candidate chunks are selected from the active library or workspace.
+7. **Reranking and Packing**: Evidence is scored using local TinyBERT cross-encoders, deduplicated (MMR), expanded with parent sibling context, and compressed to fit context budgets.
+8. **Dynamic Model Routing & Generation**: The answer path resolves the optimal execution route (On-Device up to 4K tokens, or secure Private Cloud Compute up to 32K tokens) and generates responses using native `LanguageModelSession` API.
+9. **Fidelity Verification**: Generated responses are audited through **Verification Gates A–I** (anti-hallucination, completeness, domain isolation) to detect ungrounded claims.
+10. **Presentation**: Answers are shown with liquid glass UI indicators, citations, quality gauges, and review affordances.
+11. **Continuous Evaluation**: Pipeline stages are run against JSONL benchmarks and verified against quality gates (e.g. Recall@5 $\ge 0.85$, Citation Precision $\ge 0.90$) using the native Evaluations harness.
 
 ## Grounding Model
 

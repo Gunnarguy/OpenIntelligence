@@ -49,28 +49,28 @@ PCC node
 
 ## What This Means for OpenIntelligence
 
-OpenIntelligence uses Apple's public Foundation Models framework where available. That framework exposes the system language model and APIs such as `LanguageModelSession`, `Tool`, and `@Generable`.
+OpenIntelligence leverages Apple's public Foundation Models framework. The app supports dynamic route selection policies, routing standard/offline queries to `SystemLanguageModel.default` and reasoning-heavy or context-overflow queries to `PrivateCloudComputeLanguageModel`.
 
 The safe implementation assumptions are:
 
-1. Public FoundationModels sessions are budgeted at 4096 tokens.
-2. The app cannot promise direct access to Apple's server model or server context window.
-3. The app should not claim an OpenIntelligence-owned cloud fallback.
+1. Local On-Device sessions are budgeted at 4,096 tokens.
+2. Private Cloud Compute (PCC) sessions are budgeted at 32,768 tokens, dynamically used in Deep Think and Maximum quality modes or when local context boundaries are exceeded.
+3. The app does not own the PCC servers, but leverages Apple's OS-level PCC execution API.
 4. Simulator behavior is not production behavior; Apple Intelligence availability needs physical-device validation.
 5. Core privacy copy should focus on local document parsing, local indexes, and Apple-native generation where supported.
 
 ## What Not To Say
 
-- "OpenIntelligence uses Apple's PCC server model."
-- "OpenIntelligence gets 65K FoundationModels context through PCC."
+- "OpenIntelligence operates its own Private Cloud Compute servers."
+- "OpenIntelligence gets a 65K local context window."
 - "PCC makes the app compliant with regulated workflow requirements."
-- "The app can escalate any failed on-device answer to Apple cloud."
+- "The app can override Apple's cloud routing safety rules."
 
 ## What To Say
 
-- "OpenIntelligence is designed around Apple's public Foundation Models framework and a 4096-token session budget."
+- "OpenIntelligence dynamically routes queries between on-device models (4K token context) and Apple's secure Private Cloud Compute (32K token context) depending on the selected quality mode and context size."
 - "The app keeps core document ingestion, indexing, retrieval, and storage local."
-- "PCC is Apple's privacy architecture for Apple Intelligence cloud compute, not an OpenIntelligence-operated backend."
+- "PCC is Apple's native privacy-safe cloud architecture, accessed via official OS APIs."
 
 ## Adapter Note
 

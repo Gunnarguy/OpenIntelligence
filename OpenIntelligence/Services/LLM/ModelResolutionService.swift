@@ -26,11 +26,18 @@ final class ModelResolutionService: ObservableObject {
     /// History of resolution changes for debugging/transparency
     @Published private(set) var resolutionHistory: [ResolutionEvent] = []
 
+    /// Whether the model pipeline is currently processing/generating
+    @Published var isProcessing: Bool = false
+
+    /// The execution path used by the last completed query
+    @Published private(set) var lastExecutionPath: ModelResolutionState.ExecutionPath?
+
     // MARK: - Dependencies
 
     private weak var ragService: RAGService?
     private weak var settingsStore: SettingsStore?
     private var cancellables = Set<AnyCancellable>()
+    private var resolvedExecutionPath: ModelResolutionState.ExecutionPath?
 
     // MARK: - Resolution Event
 
@@ -71,6 +78,7 @@ final class ModelResolutionService: ObservableObject {
             settingsStore.$selectedModel
                 .receive(on: RunLoop.main)
                 .sink { [weak self] _ in
+                    self?.resolvedExecutionPath = nil
                     self?.resolveCurrentModel()
                 }
                 .store(in: &cancellables)
@@ -79,6 +87,7 @@ final class ModelResolutionService: ObservableObject {
             settingsStore.$executionContext
                 .receive(on: RunLoop.main)
                 .sink { [weak self] _ in
+                    self?.resolvedExecutionPath = nil
                     self?.resolveCurrentModel()
                 }
                 .store(in: &cancellables)
@@ -105,6 +114,22 @@ final class ModelResolutionService: ObservableObject {
                     self?.resolveCurrentModel()
                 }
                 .store(in: &cancellables)
+
+            // Observe RAGService processing state to reset resolved execution path when idle
+            ragService.$isProcessing
+                .receive(on: RunLoop.main)
+                .sink { [weak self] isProcessing in
+                    guard let self = self else { return }
+                    self.isProcessing = isProcessing
+                    if !isProcessing {
+                        if let activePath = self.resolvedExecutionPath {
+                            self.lastExecutionPath = activePath
+                        }
+                        self.resolvedExecutionPath = nil
+                        self.resolveCurrentModel()
+                    }
+                }
+                .store(in: &cancellables)
         }
 
         // Listen for auto-selection notifications
@@ -112,6 +137,14 @@ final class ModelResolutionService: ObservableObject {
             .receive(on: RunLoop.main)
             .sink { [weak self] notification in
                 self?.handleAutoSelection(notification)
+            }
+            .store(in: &cancellables)
+
+        // Listen for active route resolution notifications
+        NotificationCenter.default.publisher(for: Notification.Name("ActiveModelRouteResolved"))
+            .receive(on: RunLoop.main)
+            .sink { [weak self] notification in
+                self?.handleActiveRouteResolved(notification)
             }
             .store(in: &cancellables)
     }
@@ -136,7 +169,10 @@ final class ModelResolutionService: ObservableObject {
         )
 
         // Determine execution path
-        let executionPath = determineExecutionPath(for: selectedType, settings: settingsStore)
+        var executionPath = determineExecutionPath(for: selectedType, settings: settingsStore)
+        if let resolvedPath = resolvedExecutionPath {
+            executionPath = resolvedPath
+        }
 
         // Get local model info if applicable (nil since local GGUF/CoreML are deprecated)
         let localInfo = extractLocalModelInfo(for: selectedType)
@@ -310,6 +346,19 @@ final class ModelResolutionService: ObservableObject {
             try? await Task.sleep(nanoseconds: 100_000_000) // 0.1s delay for state to settle
             resolveCurrentModel()
         }
+    }
+
+    private func handleActiveRouteResolved(_ notification: Notification) {
+        guard let pathString = notification.userInfo?["executionPath"] as? String else { return }
+        switch pathString {
+        case "onDevice":
+            resolvedExecutionPath = .onDevice
+        case "privateCloudCompute":
+            resolvedExecutionPath = .privateCloudCompute
+        default:
+            break
+        }
+        resolveCurrentModel()
     }
 }
 

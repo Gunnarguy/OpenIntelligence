@@ -410,15 +410,25 @@ final class SettingsStore: ObservableObject {
             defaults.set(false, forKey: Keys.reviewerModeEnabled)
         #endif
         let appleConsentRaw = defaults.string(forKey: Keys.applePCCConsent)
-        let parsedConsent = CloudConsentState(rawValue: appleConsentRaw ?? "") ?? .notDetermined
-        applePCCConsent = parsedConsent
-        
         let pccSettingRaw = defaults.string(forKey: Keys.pccSetting)
-        pccSetting = PCCSettings(rawValue: pccSettingRaw ?? "") ?? .ask
+        let loadedPccSetting = PCCSettings(rawValue: pccSettingRaw ?? "") ?? .ask
+        pccSetting = loadedPccSetting
+        
+        switch loadedPccSetting {
+        case .never:
+            applePCCConsent = .denied
+            executionContext = .onDeviceOnly
+        case .ask:
+            applePCCConsent = .notDetermined
+            executionContext = .automatic
+        case .allow:
+            applePCCConsent = .allowed
+            executionContext = .automatic
+        }
         
         // Clean up stale "notDetermined" strings that were incorrectly persisted
         // Only allowed/denied should be persisted; notDetermined means no decision yet
-        if appleConsentRaw == "notDetermined" {
+        if loadedPccSetting == .ask || appleConsentRaw == "notDetermined" {
             defaults.removeObject(forKey: Keys.applePCCConsent)
         }
         hasUserPrimaryOverride =
@@ -576,6 +586,73 @@ final class SettingsStore: ObservableObject {
             .dropFirst()
             .sink { [weak self] _ in
                 self?.sanitizeModelSelectionForPlatform()
+            }
+            .store(in: &cancellables)
+
+        $pccSetting
+            .dropFirst()
+            .removeDuplicates()
+            .sink { [weak self] newSetting in
+                guard let self else { return }
+                switch newSetting {
+                case .never:
+                    if self.applePCCConsent != .denied {
+                        self.applePCCConsent = .denied
+                    }
+                    if self.executionContext != .onDeviceOnly {
+                        self.executionContext = .onDeviceOnly
+                    }
+                case .ask:
+                    if self.applePCCConsent != .notDetermined {
+                        self.applePCCConsent = .notDetermined
+                    }
+                    if self.executionContext != .automatic {
+                        self.executionContext = .automatic
+                    }
+                case .allow:
+                    if self.applePCCConsent != .allowed {
+                        self.applePCCConsent = .allowed
+                    }
+                    if self.executionContext != .automatic {
+                        self.executionContext = .automatic
+                    }
+                }
+            }
+            .store(in: &cancellables)
+
+        $applePCCConsent
+            .dropFirst()
+            .removeDuplicates()
+            .sink { [weak self] newConsent in
+                guard let self else { return }
+                switch newConsent {
+                case .denied:
+                    if self.pccSetting != .never {
+                        self.pccSetting = .never
+                    }
+                    if self.executionContext != .onDeviceOnly {
+                        self.executionContext = .onDeviceOnly
+                    }
+                case .notDetermined:
+                    if self.pccSetting != .ask {
+                        self.pccSetting = .ask
+                    }
+                    if self.executionContext != .automatic {
+                        self.executionContext = .automatic
+                    }
+                case .allowed:
+                    if self.pccSetting != .allow {
+                        self.pccSetting = .allow
+                    }
+                    if self.executionContext != .automatic {
+                        self.executionContext = .automatic
+                    }
+                }
+                
+                // Propagate to RAGService to keep runtime in sync
+                if self.ragService.cloudConsent[.applePCC] != newConsent {
+                    self.ragService.setCloudConsentState(newConsent, for: .applePCC, propagateToSettings: false)
+                }
             }
             .store(in: &cancellables)
 
