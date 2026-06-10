@@ -30,6 +30,15 @@ struct MessageListV2: View {
 
     @State private var scrollProxy: ScrollViewProxy?
 
+    private var streamingBubbleIdentity: String {
+        let phase = streamingText.isEmpty ? "typing" : "text"
+        if streamingText.isEmpty {
+            let latestEventID = thinkingEvents.last?.id.uuidString ?? "empty"
+            return "streaming-\(phase)-\(latestEventID)"
+        }
+        return "streaming-\(phase)"
+    }
+
     init(
         messages: Binding<[ChatMessage]>,
         thinkingEvents: Binding<[ThinkingEvent]>,
@@ -93,16 +102,13 @@ struct MessageListV2: View {
                                         events: thinkingEvents,
                                         mode: qualityMode
                                     )
-                                    .id("streaming")
+                                    .id(streamingBubbleIdentity)
                                         .transition(.opacity)
                                 } else {
                                     StreamingBubbleV2(
-                                        text: streamingText,
-                                        events: thinkingEvents,
-                                        mode: qualityMode,
-                                        startTime: generationStart
+                                        text: streamingText
                                     )
-                                    .id("streaming")
+                                    .id(streamingBubbleIdentity)
                                         .transition(.opacity)
                                 }
                             }
@@ -210,16 +216,9 @@ private struct EmptyStateV2: View {
 
 private struct StreamingBubbleV2: View {
     let text: String
-    let events: [ThinkingEvent]
-    let mode: RAGQualityMode
-    let startTime: Date?
 
     @State private var cursorVisible = true
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
-
-    private var latestEvent: ThinkingEvent? {
-        events.last
-    }
 
     private var spacerMinLength: CGFloat {
         horizontalSizeClass == .compact ? 24 : 60
@@ -228,43 +227,6 @@ private struct StreamingBubbleV2: View {
     var body: some View {
         HStack(alignment: .bottom, spacing: 0) {
             VStack(alignment: .leading, spacing: 8) {
-                HStack {
-                    // Latest thinking event if any (e.g. tool call during generation)
-                    if let latest = latestEvent, latest.kind != .generation {
-                        HStack(spacing: 8) {
-                            Image(systemName: latest.kind.systemIconName)
-                                .font(.system(size: 10, weight: .bold))
-                                .foregroundStyle(DSColors.accent)
-                            
-                            Text(latest.title)
-                                .font(.system(size: 11, weight: .semibold))
-                                .foregroundStyle(DSColors.secondaryText)
-                        }
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
-                        .background(DSColors.accent.opacity(0.08))
-                        .cornerRadius(6)
-                        .transition(.move(edge: .top).combined(with: .opacity))
-                    }
-                    
-                    Spacer()
-                    
-                    if let start = startTime {
-                        TimelineView(.periodic(from: .now, by: 0.1)) { context in
-                            let elapsed = context.date.timeIntervalSince(start)
-                            Text(String(format: "%.1fs", elapsed))
-                                .font(.system(size: 10, weight: .bold, design: .monospaced))
-                                .foregroundStyle(DSColors.secondaryText.opacity(0.5))
-                        }
-                    }
-                }
-
-                // Inline thinking console for agentic modes
-                if !events.isEmpty {
-                    ThinkingStreamView(events: events)
-                        .padding(.vertical, 4)
-                }
-
                 // Message content with cursor
                 HStack(alignment: .bottom, spacing: 2) {
                     MarkdownText(
@@ -301,7 +263,7 @@ private struct StreamingBubbleV2: View {
 private struct TypingBubbleV2: View {
     let events: [ThinkingEvent]
     let mode: RAGQualityMode
-    
+
     @State private var pulse = false
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
@@ -345,12 +307,12 @@ private struct TypingBubbleV2: View {
                     ZStack {
                         Circle()
                             .stroke(modeColor.opacity(0.1), lineWidth: 1.5)
-                        
+
                         Circle()
                             .trim(from: 0, to: progress)
                             .stroke(modeColor, style: StrokeStyle(lineWidth: 1.5, lineCap: .round))
                             .rotationEffect(.degrees(-90))
-                        
+
                         if let latest = latestEvent {
                             Image(systemName: latest.kind.systemIconName)
                                 .font(.system(size: 8, weight: .bold))
@@ -369,17 +331,17 @@ private struct TypingBubbleV2: View {
                         Text(latestEvent?.title ?? "Initializing \(mode.displayName)...")
                             .font(.system(size: 12, weight: .semibold))
                             .foregroundStyle(DSColors.primaryText)
-                        
+
                         Text(mode.displayName.uppercased())
                             .font(.system(size: 7, weight: .bold))
                             .foregroundStyle(modeColor.opacity(0.8))
                             .tracking(0.5)
                     }
                 }
-                
+
                 // Live Pipeline Activity (The "Streaming Console" energy)
                 if !events.isEmpty {
-                    ThinkingStreamView(events: events)
+                    LivePipelinePreview(events: events, tint: modeColor)
                 }
             }
             .padding(.horizontal, 16)
@@ -387,7 +349,7 @@ private struct TypingBubbleV2: View {
             .background(
                 ZStack {
                     DSColors.surface
-                    
+
                     GeometryReader { geo in
                         LinearGradient(
                             colors: [.clear, modeColor.opacity(0.05), .clear],
@@ -409,6 +371,57 @@ private struct TypingBubbleV2: View {
                 pulse.toggle()
             }
         }
+    }
+}
+
+private struct LivePipelinePreview: View {
+    let events: [ThinkingEvent]
+    let tint: Color
+
+    private var recentEvents: [ThinkingEvent] {
+        Array(events.suffix(5))
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            ForEach(Array(recentEvents.enumerated()), id: \.element.id) { index, event in
+                let isLatest = index == recentEvents.count - 1
+
+                HStack(alignment: .top, spacing: 8) {
+                    Text(event.kind.displayName.uppercased())
+                        .font(.system(size: 8, weight: .bold, design: .monospaced))
+                        .foregroundStyle(isLatest ? tint : tint.opacity(0.75))
+                        .frame(width: 58, alignment: .leading)
+
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text(event.title)
+                            .font(.system(size: 11, weight: isLatest ? .semibold : .medium))
+                            .foregroundStyle(DSColors.primaryText)
+                            .lineLimit(1)
+
+                        if let detail = event.detail, !detail.isEmpty {
+                            Text(detail)
+                                .font(.system(size: 10, weight: .regular, design: .monospaced))
+                                .foregroundStyle(DSColors.secondaryText)
+                                .lineLimit(1)
+                        }
+                    }
+
+                    Spacer(minLength: 0)
+                }
+                .opacity(isLatest ? 1 : 0.78)
+            }
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+        .background(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .fill(tint.opacity(0.08))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .stroke(tint.opacity(0.18), lineWidth: 1)
+        )
     }
 }
 

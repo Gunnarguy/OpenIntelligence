@@ -1,0 +1,268 @@
+════════════════════════════════════════════════════════════════════════
+  OPENINTELLIGENCE PIPELINE TRACE
+  Generated: 2026-06-10T03:19:30Z
+  Message ID: 3A5C4959-BC47-4BEB-9738-2C11B2442F47
+  Container: 7FD08CB0-489F-4731-953D-6DD4A5498677
+════════════════════════════════════════════════════════════════════════
+
+▶ QUERY
+────────────────────────────────────────────────────────────────────────
+When does processing stay on-device, and when does Apple Private Cloud Compute step in?
+
+▶ RESPONSE (3004 chars)
+────────────────────────────────────────────────────────────────────────
+Apple’s processing strategy for OpenIntelligence is fundamentally rooted in local execution and a commitment to privacy, with the **Private Cloud Compute (PCC)** system activated under conditions that necessitate greater computational intensity. The app maintains on-device processing for core document workflows that involve essential activities such as parsing, optical character recognition (**OCR**), indexing, semantic retrieval, and everyday question-answering tasks [S1]. This local-first approach is driven by the system’s reliance on Apple’s native AI stack, local execution capabilities, and hardware infrastructure, which collectively enable straightforward retrieval and grounded responses without the need for third-party cloud services [S1]. The core document pipeline is inherently local, ensuring that routine document processing is handled directly on the device [S3].
+
+### On-Device Processing
+
+Processing remains on-device for tasks that prioritize immediate local handling and privacy-conscious operation. These include:
+- Parsing
+- **OCR**
+- Indexing
+- Semantic retrieval
+- Everyday question-answering tasks
+
+The system prioritizes these fundamental activities because they are well-suited to the device’s native processing power and are essential for basic document processing [S1]. By keeping these operations local, Apple ensures that users receive immediate, secure, and efficient responses to common inquiries [S1]. This architecture reflects a deliberate choice to avoid third-party intermediaries, relying instead on the device’s own capabilities to manage everyday cognitive tasks [S1].
+
+### When PCC Activates
+
+Apple’s **Private Cloud Compute (PCC)** is invoked when the platform encounters tasks that require more demanding reasoning, particularly those involving complex synthesis and multi-step logical processing [S2]. While the app prefers local execution for routine tasks, the on-device processing is insufficient for intricate, resource-intensive computational demands [S1]. In such cases, the system routes requests to a private, high-capability fallback within Apple’s infrastructure, using PCC as a **privacy-preserving server-side compute path** [S1]. This activation is not arbitrary; it is triggered when the system identifies that the computational capacity required exceeds what the local device can sustain, enabling the use of a secure, third-party-free alternative [S3].
+
+The integration of PCC is part of a broader strategy to balance local efficiency with advanced, secure processing. By relying on Apple’s private cloud for specialized, high-capacity inference needs, the system avoids dependency on developer-operated clouds and instead leverages a tiered approach that prioritizes local handling of common tasks while reserving sophisticated computation for complex operations [S2]. This architecture underscores the goal of maintaining privacy and performance by managing resource-intensive tasks through a controlled, internal compute network [S4].
+
+▶ METADATA
+────────────────────────────────────────────────────────────────────────
+  Model:            Apple Foundation Model (Agentic)
+  Quality Mode:     Deep Think
+  Agentic:          YES
+  Retrieval Config: Agentic
+  Retrieval Time:   0ms
+  Total Gen Time:   166.9s
+  TTFT:             15174ms
+  Tokens Generated: 4030
+  Tokens/sec:       24.1
+  Tool Calls:       1
+
+▶ THINKING EVENTS (32 events)
+────────────────────────────────────────────────────────────────────────
+  +000000ms [Planning] Planning │ Searching with 1 query variations
+  +000024ms [Retrieval] Multi-query search │ Searching 1 query variations
+  +000054ms [Retrieval] Query 1/1 │ "Apple Private Cloud Compute processing t..."
+  +000146ms [Planning] Query analysis │ Analyzing: "Apple Private Cloud Compute processing timing..."
+  +000197ms [Embedding] Encoding query │ 384-dim neural embedding
+  +000232ms [Vector Search] Vector ready │ Query encoded for semantic search
+  +000397ms [Query Rewrite] Query expansion │ Intent: balanced → Vector 50% / Keyword 50%
+  +000425ms [Query Rewrite] Synonym expansion │ +3 terms added
+  +000449ms [Retrieval] Hybrid search │ Vector + BM25 on 34 chunks
+  +000548ms [RRF Fusion] RRF fusion │ 30 candidates from hybrid search
+  +000574ms [Re-ranking] AI re-ranking │ Scoring 30 chunks with neural model
+  +001305ms [Re-ranking] Re-ranking complete │ Top scores: 84%, 84%, 83%
+  +001334ms [MMR Diversity] MMR diversification │ Optimizing for coverage (λ=0.60)
+  +001384ms [MMR Diversity] Diversity optimized │ 15 chunks after MMR
+  +001400ms [Parent Doc Expansion] Parent doc retrieval │ Expanding with ±3 sibling chunks
+  +001401ms [Parent Doc Expansion] Context expanded │ 15 → 23 chunks with siblings
+  +001424ms [Position Reorder] Lost-in-Middle reorder │ Best evidence at start/end of context
+  +001489ms [Retrieval] Retrieval complete │ 23 chunks ready for synthesis
+  +001502ms [Retrieval] Query 1 done │ 23 chunks retrieved
+  +001518ms [RRF Fusion] Fusing results │ RRF across 1 result sets
+  +001536ms [Retrieval] Multi-query search with 1 variations │
+Queries: Apple Private Cloud Compute processing timing
+
+Found 20 unique chunks after RRF fusion
+
+  +001569ms [Re-ranking] Confidence │ Excellent (>50% match) (90%)
+Semantic match: ✓ High confidence match
+  +020237ms [Retrieval] Session 1: Initial Analysis │ Apple’s processing strategy for OpenIntelligence is centered on local execution and privacy, with Private Cloud Compute (PCC) activated only under specific conditions that demand greater computational resources. The app remains on-device for core document workflows, including parsing, optical character recognition (OCR), indexing, semantic retrieval, and many everyday question-answering tasks [S2]. These fundamental document processing activities are prioritized because the system is built around Apple’s native AI stack, local execution, and hardware capabilities rather than relying on third-party cloud services [S1]. This local-first approach ensures that straightforward retrieval and grounded answers are processed locally [S1]. PCC is invoked when the task requires more demanding reasoning, particularly complex synthesis and multi-step reasoning [S2]. The system uses PCC as a privacy-preserving alternative to third-party cloud providers, especially when the platform routes requests to a private, high-capability fallback through Apple infrastructure [S1]. This means that while the product prefers local execution for routine tasks, the on-device processing is not sufficient for more intricate, multi-step reasoning, prompting the use of PCC [S1]. The app’s architecture is designed to avoid developer-operated clouds, relying instead on Apple’s private cloud to handle higher-capacity inference needs [S4]. The distinction between on-device processing and PCC usage is further clarified by the fact that the core document pipeline is inherently local [S3]. Tasks that are not the best fit for on-device processing—such as those requiring advanced multi-step reasoning—are directed to PCC, which operates as a privacy-preserving server-side compute path [S3]. This integration reflects the broader goal of prioritizing local handling of common tasks while reserving advanced, secure processing for specialized, resource-intensive operations [S2]. • 32% confident • 260 tokens • scanning
+  +028122ms [Re-ranking] Session 2: Pattern Recognition │ Processing remains on-device for core document workflows, including optical character recognition (OCR), indexing, semantic retrieval, and many everyday question-answering tasks [S1]. Apple Private Cloud Compute (PCC) activates when the platform routes requests to its private cloud infrastructure for more demanding multi-step reasoning [S2]. PCC serves as the privacy-preserving server-side compute path for requests requiring greater remote inference capacity [S1]. • 38% confident • 59 tokens • scanning
+  +051200ms [Re-ranking] Session 3: Deepening Understanding │ The additional documents clarify that Apple’s processing architecture prioritizes local execution for straightforward retrieval and grounded responses, while directing more complex computational demands to Apple’s private cloud infrastructure. The system employs a tiered approach where on-device processing remains active for tasks that benefit from immediate local handling, whereas the activation of Private Cloud Compute (PCC) becomes necessary when the platform identifies requests requiring greater computational capacity beyond what local resources can sustain. This distinction is rooted in Apple’s commitment to privacy and local execution, with the private cloud serving as a high-capacity fallback designed for multi-step reasoning scenarios. According to the documentation, the app maintains local processing for "straightforward retrieval and many grounded answers," which are classified as tasks where on-device processing is optimal [S3]. These operations are supported by Apple’s native AI stack and platform frameworks, ensuring that the system remains responsive to immediate user needs without relying on external infrastructure [S2]. The on-device capabilities extend to document-specific workflows such as OCR, indexing, and semantic retrieval, reinforcing the system’s local-first design [S1]. When the platform determines that a request exceeds the capabilities of local processing, it activates PCC—described as Apple’s privacy-preserving server-side compute path—to handle more demanding multi-step reasoning [S3]. This activation occurs specifically when the platform routes requests to its private cloud infrastructure to leverage enhanced inference capacity [S2]. The documents emphasize that PCC is not the central identity of the app but rather a strategic component of Apple’s privacy-focused architecture, used only in situations where remote processing offers superior performance or security advantages [S1]. • 39% confident • 256 tokens • scanning
+  +067632ms [Re-ranking] Session 4: Deepening Understanding │ The additional documents clarify that Apple’s processing architecture prioritizes local execution for tasks that benefit from immediate local handling while reserving the private cloud infrastructure for scenarios requiring heightened computational capacity. According to [S1], Private Cloud Compute (PCC) activates specifically when the platform routes requests to its private cloud infrastructure for more demanding multi-step reasoning, positioning it as the higher-capacity path for requests that demand greater remote inference capabilities. This activation occurs in situations where on-device processing is not the optimal fit, underscoring a deliberate separation between straightforward information retrieval and complex cognitive operations. The documents further emphasize that the core document pipeline remains local, with OCR and visual recovery tasks continuing to operate on-device, as stated in [S1]. However, the system does not rely on PCC as the identity of the app, but rather as a supplementary, privacy-preserving server-side compute option. This distinction is reinforced in [S1], which notes that the product still prefers local execution for straightforward retrieval and many grounded answers, while reserving the private cloud path for tasks that involve more intricate, multi-step reasoning. The tiered approach ensures that the app maintains control over sensitive document processing while escalating computational intensity to the private cloud when necessary. • 50% confident • 200 tokens • scanning
+  +081769ms [Generation] Session 5: Final Synthesis │ Synthesizing final answer... • 52% confident • 181 tokens • scanning
+  +094831ms [Re-ranking] Session 6: Deepening Understanding │ The additional documents clarify that Apple Private Cloud Compute (PCC) activates in response to requests routed through the platform’s infrastructure, functioning as a privacy-preserving cloud pathway rather than a third-party service. These documents specify that PCC is not used for core document question answering, which instead relies on local storage, local indexing, and visible evidence inspection. The processing strategy continues to prioritize local execution for tasks that benefit from immediate local handling, including core parsing, OCR, chunking, retrieval, and indexing, which all run on the device. According to [S1], core processing such as document parsing, OCR, chunking, retrieval, and indexing are executed locally on the device, regardless of file format or content type, including MP3, M4A, WAV, AIFF, MP4, MOV, Markdown, plain text, CSV, RTF, source code, and technical notes. This local execution is supported by a document pipeline that structures content into searchable sections and retrieves evidence directly from the user’s library before generating responses. The documents do not indicate any specific thresholds, file sizes, or numerical limits that trigger PCC activation, but they emphasize that the private cloud infrastructure is reserved for scenarios requiring heightened computational capacity. • 59% confident • 188 tokens • scanning
+  +110493ms [Re-ranking] Session 7: Deepening Understanding │ The additional documents clarify that Apple’s processing strategy for OpenIntelligence incorporates a structured document pipeline that prioritizes local execution while reserving higher-resource processing for specialized scenarios. Core parsing, OCR, chunking, retrieval, and indexing operations remain confined to the device, ensuring privacy and efficiency [S1]. This local processing framework is applied broadly across document types, including audio files through transcription workflows, structured formats like Markdown and plain text, and technical documents such as source code and technical notes [S1]. The system avoids processing entire documents into monolithic prompts, instead using a document pipeline that integrates grounded retrieval and inspectable evidence [S1]. The documents do not specify a definitive timeline or threshold for when Apple Private Cloud Compute (PCC) activates. However, they indicate that PCC functions as a privacy-preserving pathway activated in response to requests routed through the platform’s infrastructure, rather than functioning as a third-party service [S2]. The additional materials emphasize that PCC is not used for core document question answering, which instead relies on local storage, local indexing, and local retrieval capabilities [S2]. While the prior findings noted that PCC is activated under conditions demanding greater computational resources, the current documents do not provide specific conditions, durations, or operational contexts that trigger PCC engagement. This suggests that PCC activation may occur in response to sustained or complex query patterns that exceed the capacity of local processing, though the exact parameters remain unspecified in the available documentation [S2]. • 63% confident • 236 tokens • scanning
+  +125430ms [Re-ranking] Session 8: Deepening Understanding │ The additional documents clarify that Apple’s processing strategy for OpenIntelligence incorporates a structured document pipeline that prioritizes local execution while reserving higher-resource processing for specialized scenarios. According to [S1], core parsing, OCR, chunking, retrieval, and indexing operations remain confined to the device, ensuring privacy and efficiency. This reinforces the earlier understanding that processing stays on-device for fundamental document processing tasks. The documents do not specify exact timing or thresholds for when processing shifts to Apple Private Cloud Compute (PCC), but they emphasize that PCC is not used for core document question answering, which instead relies on local storage, local indexing, and visible evidence inspection. The additional documents do not provide explicit details about when PCC activates or deactivates. However, [S1] introduces the concept of Deep Think as a higher-effort reasoning mode for broader synthesis, comparison, and more involved document reasoning, indicating that PCC may be engaged in cases requiring extensive computational effort beyond standard processing. While the documents do not assign specific conditions or durations, they imply that PCC functions as a privacy-preserving cloud pathway activated in response to requests routed through the platform’s infrastructure, rather than a third-party service. The absence of numeric details or explicit triggers in the additional documents suggests that PCC activation is context-dependent and tied to the complexity or resource demands of a specific task, rather than a fixed schedule. • 65% confident • 224 tokens • scanning
+  +151865ms [Re-ranking]  Citations │ 2/4 verified | Confidence: 71% | Action: accept
+  +151865ms [Generation] Synthesis complete │ 11 reasoning steps, confidence: 71%
+
+▶ REASONING TRACE (9 sessions)
+────────────────────────────────────────────────────────────────────────
+  Session 1: 🔍 Analyzing Evidence: Confidence: Excellent (>50% match) (90%)
+Semantic match: ✓ High confidence match
+  Session 2: 🧠 Finding Patterns: Apple’s processing strategy for OpenIntelligence is centered on local execution and privacy, with Private Cloud Compute (PCC) activated only under specific conditions that demand greater computational resources. The app remains on-device for core document workflows, including parsing, optical character recognition (OCR), indexing, semantic retrieval, and many everyday question-answering tasks [S2]. These fundamental document processing activities are prioritized because the system is built around Apple’s native AI stack, local execution, and hardware capabilities rather than relying on third-party cloud services [S1]. This local-first approach ensures that straightforward retrieval and grounded answers are processed locally [S1].
+PCC is invoked when the task requires more demanding reasoning, particularly complex synthesis and multi-step reasoning [S2]. The system uses PCC as a privacy-preserving alternative to third-party cloud providers, especially when the platform routes requests to a private, high-capability fallback through Apple infrastructure [S1]. This means that while the product prefers local execution for routine tasks, the on-device processing is not sufficient for more intricate, multi-step reasoning, prompting the use of PCC [S1]. The app’s architecture is designed to avoid developer-operated clouds, relying instead on Apple’s private cloud to handle higher-capacity inference needs [S4].
+The distinction between on-device processing and PCC usage is further clarified by the fact that the core document pipeline is inherently local [S3]. Tasks that are not the best fit for on-device processing—such as those requiring advanced multi-step reasoning—are directed to PCC, which operates as a privacy-preserving server-side compute path [S3]. This integration reflects the broader goal of prioritizing local handling of common tasks while reserving advanced, secure processing for specialized, resource-intensive operations [S2].
+  Session 3: 💡 Refining: Processing remains on-device for core document workflows, including optical character recognition (OCR), indexing, semantic retrieval, and many everyday question-answering tasks [S1]. Apple Private Cloud Compute (PCC) activates when the platform routes requests to its private cloud infrastructure for more demanding multi-step reasoning [S2]. PCC serves as the privacy-preserving server-side compute path for requests requiring greater remote inference capacity [S1].
+  Session 4: ✨ Synthesis: The additional documents clarify that Apple’s processing architecture prioritizes local execution for straightforward retrieval and grounded responses, while directing more complex computational demands to Apple’s private cloud infrastructure. The system employs a tiered approach where on-device processing remains active for tasks that benefit from immediate local handling, whereas the activation of Private Cloud Compute (PCC) becomes necessary when the platform identifies requests requiring greater computational capacity beyond what local resources can sustain. This distinction is rooted in Apple’s commitment to privacy and local execution, with the private cloud serving as a high-capacity fallback designed for multi-step reasoning scenarios.
+According to the documentation, the app maintains local processing for "straightforward retrieval and many grounded answers," which are classified as tasks where on-device processing is optimal [S3]. These operations are supported by Apple’s native AI stack and platform frameworks, ensuring that the system remains responsive to immediate user needs without relying on external infrastructure [S2]. The on-device capabilities extend to document-specific workflows such as OCR, indexing, and semantic retrieval, reinforcing the system’s local-first design [S1]. When the platform determines that a request exceeds the capabilities of local processing, it activates PCC—described as Apple’s privacy-preserving server-side compute path—to handle more demanding multi-step reasoning [S3]. This activation occurs specifically when the platform routes requests to its private cloud infrastructure to leverage enhanced inference capacity [S2]. The documents emphasize that PCC is not the central identity of the app but rather a strategic component of Apple’s privacy-focused architecture, used only in situations where remote processing offers superior performance or security advantages [S1].
+  Session 5: Session 5: The additional documents clarify that Apple’s processing architecture prioritizes local execution for tasks that benefit from immediate local handling while reserving the private cloud infrastructure for scenarios requiring heightened computational capacity. According to [S1], Private Cloud Compute (PCC) activates specifically when the platform routes requests to its private cloud infrastructure for more demanding multi-step reasoning, positioning it as the higher-capacity path for requests that demand greater remote inference capabilities. This activation occurs in situations where on-device processing is not the optimal fit, underscoring a deliberate separation between straightforward information retrieval and complex cognitive operations.
+The documents further emphasize that the core document pipeline remains local, with OCR and visual recovery tasks continuing to operate on-device, as stated in [S1]. However, the system does not rely on PCC as the identity of the app, but rather as a supplementary, privacy-preserving server-side compute option. This distinction is reinforced in [S1], which notes that the product still prefers local execution for straightforward retrieval and many grounded answers, while reserving the private cloud path for tasks that involve more intricate, multi-step reasoning. The tiered approach ensures that the app maintains control over sensitive document processing while escalating computational intensity to the private cloud when necessary.
+  Session 6: Session 6: The additional documents clarify that Apple Private Cloud Compute (PCC) activates in response to requests routed through the platform’s infrastructure, functioning as a privacy-preserving cloud pathway rather than a third-party service. These documents emphasize that PCC is not used for core document question answering, which instead relies on local storage, local indexing, and local retrieval capabilities [S1]. The system maintains a tiered approach where on-device processing remains active for tasks that benefit from immediate local handling, while the private cloud infrastructure is reserved for scenarios demanding heightened computational capacity [S3].
+
+The documents do not specify exact timing or numerical thresholds for when PCC activates, but they indicate that the activation is tied to the platform’s routing logic rather than user-driven decisions. This suggests that PCC engages automatically when the system identifies that a request requires processing beyond the capabilities of local resources, functioning as a fallback mechanism for complex computational tasks [S1]. The absence of documented thresholds or conditions means that the activation of PCC is governed by the platform’s architecture and the nature of the computational demands placed upon the system.
+  Session 7: Session 7: The additional documents clarify that Apple Private Cloud Compute (PCC) activates in response to requests routed through the platform’s infrastructure, functioning as a privacy-preserving cloud pathway rather than a third-party service. These documents specify that PCC is not used for core document question answering, which instead relies on local storage, local indexing, and visible evidence inspection. The processing strategy continues to prioritize local execution for tasks that benefit from immediate local handling, including core parsing, OCR, chunking, retrieval, and indexing, which all run on the device.
+According to [S1], core processing such as document parsing, OCR, chunking, retrieval, and indexing are executed locally on the device, regardless of file format or content type, including MP3, M4A, WAV, AIFF, MP4, MOV, Markdown, plain text, CSV, RTF, source code, and technical notes. This local execution is supported by a document pipeline that structures content into searchable sections and retrieves evidence directly from the user’s library before generating responses. The documents do not indicate any specific thresholds, file sizes, or numerical limits that trigger PCC activation, but they emphasize that the private cloud infrastructure is reserved for scenarios requiring heightened computational capacity.
+  Session 8: Session 8: The additional documents clarify that Apple’s processing strategy for OpenIntelligence incorporates a structured document pipeline that prioritizes local execution while reserving higher-resource processing for specialized scenarios. Core parsing, OCR, chunking, retrieval, and indexing operations remain confined to the device, ensuring privacy and efficiency [S1]. This local processing framework is applied broadly across document types, including audio files through transcription workflows, structured formats like Markdown and plain text, and technical documents such as source code and technical notes [S1]. The system avoids processing entire documents into monolithic prompts, instead using a document pipeline that integrates grounded retrieval and inspectable evidence [S1].
+The documents do not specify a definitive timeline or threshold for when Apple Private Cloud Compute (PCC) activates. However, they indicate that PCC functions as a privacy-preserving pathway activated in response to requests routed through the platform’s infrastructure, rather than functioning as a third-party service [S2]. The additional materials emphasize that PCC is not used for core document question answering, which instead relies on local storage, local indexing, and local retrieval capabilities [S2]. While the prior findings noted that PCC is activated under conditions demanding greater computational resources, the current documents do not provide specific conditions, durations, or operational contexts that trigger PCC engagement. This suggests that PCC activation may occur in response to sustained or complex query patterns that exceed the capacity of local processing, though the exact parameters remain unspecified in the available documentation [S2].
+  Session 9: Session 9: The additional documents clarify that Apple’s processing strategy for OpenIntelligence incorporates a structured document pipeline that prioritizes local execution while reserving higher-resource processing for specialized scenarios. According to [S1], core parsing, OCR, chunking, retrieval, and indexing operations remain confined to the device, ensuring privacy and efficiency. This reinforces the earlier understanding that processing stays on-device for fundamental document processing tasks. The documents do not specify exact timing or thresholds for when processing shifts to Apple Private Cloud Compute (PCC), but they emphasize that PCC is not used for core document question answering, which instead relies on local storage, local indexing, and visible evidence inspection.
+The additional documents do not provide explicit details about when PCC activates or deactivates. However, [S1] introduces the concept of Deep Think as a higher-effort reasoning mode for broader synthesis, comparison, and more involved document reasoning, indicating that PCC may be engaged in cases requiring extensive computational effort beyond standard processing. While the documents do not assign specific conditions or durations, they imply that PCC functions as a privacy-preserving cloud pathway activated in response to requests routed through the platform’s infrastructure, rather than a third-party service. The absence of numeric details or explicit triggers in the additional documents suggests that PCC activation is context-dependent and tied to the complexity or resource demands of a specific task, rather than a fixed schedule.
+
+▶ RETRIEVED CHUNKS (20 chunks)
+────────────────────────────────────────────────────────────────────────
+
+  ── Chunk 1 ──
+  Source:     Apple-Intelligence-&-Private-Cloud-Compute.md
+  Rank:       1
+  Similarity: 0.8307
+  Section:    Document Summary
+  Content:    OpenIntelligence leverages Apple's native AI stack, prioritizing privacy, local execution, and Apple hardware. The app processes documents locally, handling tasks like parsing, OCR, indexing, and semantic retrieval. For demanding reasoning, Apple's Private Cloud Compute (PCC) is used as a privacy-pr...
+
+  ── Chunk 2 ──
+  Source:     Apple-Intelligence-&-Private-Cloud-Compute.md
+  Rank:       2
+  Similarity: 0.8400
+  Section:    When can PCC enter the picture?
+  Path:       Apple Intelligence & Private Cloud Compute > When can PCC enter the picture?
+  Content:    ks where on-device processing is not the best fit.  The product still prefers local execution first.  If someone asks, "When does a question stay on-device versus use Private Cloud Compute?", the answer is:  - straightforward retrieval and many grounded answers stay local, - while more demanding rea...
+
+  ── Chunk 3 ──
+  Source:     Apple-Intelligence-&-Private-Cloud-Compute.md
+  Rank:       3
+  Similarity: 0.7140
+  Section:    What role does Apple Intelligence play in OpenIntelligence?
+  Path:       Apple Intelligence & Private Cloud Compute > What role does Apple Intelligence play in OpenIntelligence?
+  Content:    her than a third-party hosted AI dependency.  ---  ## When does the app stay on-device?  For the main document workflow, the app is local-first.  Core tasks that stay on-device include:  - document parsing - OCR and visual recovery - chunking - indexing - semantic retrieval - keyword retrieval - evi...
+
+  ── Chunk 4 ──
+  Source:     Apple-Intelligence-&-Private-Cloud-Compute.md
+  Rank:       4
+  Similarity: 0.7140
+  Section:    When can PCC enter the picture?
+  Path:       Apple Intelligence & Private Cloud Compute > When can PCC enter the picture?
+  Content:    - straightforward retrieval and many grounded answers stay local, - while more demanding reasoning uses Apple's private cloud path when the platform routes it there.  ---  ## Why this is different from a normal cloud AI product  OpenIntelligence is not built around sending your library to a develope...
+
+  ── Chunk 5 ──
+  Source:     Apple-Intelligence-&-Private-Cloud-Compute.md
+  Rank:       5
+  Similarity: 0.7140
+  Section:    Privacy summary
+  Path:       2. Apple-native model access, > Privacy summary
+  Content:    perated cloud is required for core document question answering. - The app is designed around local storage, local indexing, and local retrieval. - PCC, when used, is Apple's privacy-preserving cloud path rather than an ordinary app vendor backend.  The product goal is simple: your documents should f...
+
+  ── Chunk 6 ──
+  Source:     Apple-Intelligence-&-Private-Cloud-Compute.md
+  Rank:       6
+  Similarity: 0.7140
+  Section:    Apple Intelligence & Private Cloud Compute
+  Content:    # Apple Intelligence & Private Cloud Compute  ## What role does Apple Intelligence play in OpenIntelligence?  OpenIntelligence is built around Apple's native AI stack. The app uses Apple platform frameworks for parsing, OCR, indexing, retrieval, and language-model workflows.  This matters because th...
+
+  ── Chunk 7 ──
+  Source:     Apple-Intelligence-&-Private-Cloud-Compute.md
+  Rank:       7
+  Similarity: 0.7140
+  Section:    When does the app stay on-device?
+  Path:       Apple Intelligence & Private Cloud Compute > When does the app stay on-device?
+  Content:    rt answer is simple: the core document pipeline stays local.  ---  ## What is Private Cloud Compute?  Private Cloud Compute, or PCC, is Apple's privacy-preserving server-side compute path for requests that benefit from more remote inference capacity.  In OpenIntelligence, PCC is not the identity of ...
+
+  ── Chunk 8 ──
+  Source:     Apple-Intelligence-&-Private-Cloud-Compute.md
+  Rank:       8
+  Similarity: 0.7140
+  Section:    Why this is different from a normal cloud AI product
+  Path:       Apple Intelligence & Private Cloud Compute > Why this is different from a normal cloud AI product
+  Content:    t around sending your library to a developer-run AI backend.  Its design priorities are:  1. local document handling, 2. Apple-native model access, 3. cited retrieval over your own files, 4. and private higher-capability fallback through Apple infrastructure instead of a generic third-party API.  Th...
+
+  ── Chunk 9 ──
+  Source:     Apple-Intelligence-&-Private-Cloud-Compute.md
+  Rank:       9
+  Similarity: 0.7120
+  Section:    Privacy summary
+  Path:       2. Apple-native model access, > Privacy summary
+  Content:    core document question answering. - The app is designed around local storage, local indexing, and local retrieval. - PCC, when used, is Apple's privacy-preserving cloud path rather than an ordinary app vendor backend.  The product goal is simple: your documents should feel like your library, not lik...
+
+  ── Chunk 10 ──
+  Source:     OpenIntelligence-Pricing.md
+  Rank:       10
+  Similarity: 0.3638
+  Section:    Document Summary
+  Content:    OpenIntelligence is a local-first document intelligence app designed for Apple platforms, combining grounded retrieval, visible evidence, and private local workflows. Unlike generic cloud chat tools, it processes documents on your device, ensuring privacy and control over data. Key features include:...
+
+  ── Chunk 11 ──
+  Source:     OpenIntelligence-Pricing.md
+  Rank:       11
+  Similarity: 0.3092
+  Section:    What makes OpenIntelligence different?
+  Path:       OpenIntelligence Product Guide > What makes OpenIntelligence different?
+  Content:    ** Core parsing, OCR, chunking, retrieval, and indexing run on your device. 4. **It is built for Apple platforms.** The app is designed around Apple Intelligence, Apple frameworks, and private local workflows instead of third-party AI APIs.  The short version: OpenIntelligence combines grounded retr...
+
+  ── Chunk 12 ──
+  Source:     OpenIntelligence-Pricing.md
+  Rank:       12
+  Similarity: 0.3092
+  Section:    OpenIntelligence Product Guide
+  Content:    # OpenIntelligence Product Guide  ## What makes OpenIntelligence different?  OpenIntelligence is a local-first document intelligence app, not a generic cloud chat tool.  It stands apart in four important ways:  1. **It answers from your library.** The app retrieves relevant passages from your files ...
+
+  ── Chunk 13 ──
+  Source:     OpenIntelligence-Pricing.md
+  Rank:       13
+  Similarity: 0.3092
+  Section:    What makes OpenIntelligence different?
+  Path:       OpenIntelligence Product Guide > What makes OpenIntelligence different?
+  Content:    kflows instead of third-party AI APIs.  The short version: OpenIntelligence combines grounded retrieval, visible evidence, local processing, and Apple-native AI in one document workflow.  ---  ## What files can OpenIntelligence accept?  ### Strongest import formats  OpenIntelligence is strongest wit...
+
+  ── Chunk 14 ──
+  Source:     OpenIntelligence-Pricing.md
+  Rank:       14
+  Similarity: 0.1416
+  Section:    Formats that usually need cleanup first
+  Path:       OpenIntelligence Product Guide > - JPEG, PNG, HEIC, TIFF, GIF
+  Content:    ### Formats that usually need cleanup first  These formats still import, but they often lose structure or need conversion first:  - legacy Office files - Apple iWork exports - dense scanned tables - unusual structured exports - visually complex scientific PDFs  If a file is messy, exporting it to PD...
+
+  ── Chunk 15 ──
+  Source:     RAG-Technical-Architecture.md
+  Rank:       15
+  Similarity: 0.1069
+  Section:    Why this is better than pasting whole documents
+  Path:       RAG Technical Architecture > Why this is better than pasting whole documents
+  Content:    ocuments that are much larger than the model context window, - it stays faster on-device, - it preserves citations and evidence review, - and it reduces hallucination compared with generic chat workflows.  The app's value is not that it has an unusually large model. The value is that it makes a smal...
+
+  ── Chunk 16 ──
+  Source:     RAG-Technical-Architecture.md
+  Rank:       16
+  Similarity: 0.1069
+  Path:       RAG Technical Architecture > Quality modes
+  Content:    ms for concise, source-backed answers and should be the default for most lookups.  ### Deep Think  Deep Think is the higher-effort reasoning mode for broader synthesis, comparison, and more involved document reasoning.  ### Maximum  Maximum is the highest-effort mode. It is for cases where you want ...
+
+  ── Chunk 17 ──
+  Source:     RAG-Technical-Architecture.md
+  Rank:       17
+  Similarity: 0.1066
+  Section:    5. Re-rank and diversify
+  Path:       RAG Technical Architecture > How OpenIntelligence works around the limit > 5. Re-rank and diversify
+  Content:    ries to keep the evidence set varied but relevant.  ### 6. Pack the context window carefully  Only the strongest passages make it into the final prompt. The app uses a compact evidence pack instead of raw full-document stuffing.  ### 7. Generate a grounded answer  The answer is generated from retrie...
+
+  ── Chunk 18 ──
+  Source:     RAG-Technical-Architecture.md
+  Rank:       18
+  Similarity: 0.0927
+  Section:    3. Embed
+  Path:       RAG Technical Architecture > How OpenIntelligence works around the limit > 3. Embed
+  Content:    e found even when the wording changes.  ### 4. Search two ways  OpenIntelligence combines:  - **semantic retrieval** for meaning - **keyword retrieval** for exact terms and phrases  This hybrid approach is more reliable than using only embeddings or only keywords.  ### 5. Re-rank and diversify  The ...
+
+  ── Chunk 19 ──
+  Source:     RAG-Technical-Architecture.md
+  Rank:       19
+  Similarity: 0.1257
+  Section:    What makes the architecture trustworthy?
+  Path:       RAG Technical Architecture > Quality modes > Maximum
+  Content:    ## What makes the architecture trustworthy?  OpenIntelligence is designed to keep the retrieval layer visible:  - answers cite sources, - retrieved evidence is inspectable, - exact-value questions stay concise, - and the app abstains when the evidence is weak.  That combination of grounded retrieval...
+
+  ── Chunk 20 ──
+  Source:     RAG-Technical-Architecture.md
+  Rank:       20
+  Similarity: 0.1069
+  Section:    Why this is better than pasting whole documents
+  Path:       RAG Technical Architecture > Why this is better than pasting whole documents
+  Content:    ination compared with generic chat workflows.  The app's value is not that it has an unusually large model. The value is that it makes a smaller local model useful over larger document collections.  ---  ## Quality modes  ### Standard  Standard is the fast grounded mode. It aims for concise, source-...
+
+════════════════════════════════════════════════════════════════════════
+  END OF TRACE
+════════════════════════════════════════════════════════════════════════

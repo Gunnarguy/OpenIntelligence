@@ -380,16 +380,38 @@ final class QueryEnhancementService {
             }
         }
 
-        // Priority 1: Compute (requires numerical aggregation)
-        let computePatterns: [String] = [
-            "total", "sum", "add up", "calculate", "compute", "how much total",
-            "combined", "altogether", "in total"
+        // Priority 1: Paired conditional/contrast queries
+        // "When does X happen, and when does Y happen?" is not a single-value lookup.
+        // These questions compare conditions or thresholds across two states and need
+        // fuller synthesis, not compact fact rendering.
+        let pairedContrastPatterns: [String] = [
+            #"when does .+ and when does .+"#,
+            #"when is .+ and when is .+"#,
+            #"what stays .+ and what .+ step in"#,
         ]
-        for pattern in computePatterns {
-            if lower.contains(pattern) { return .compute }
+        for pattern in pairedContrastPatterns {
+            if lower.range(of: pattern, options: .regularExpression) != nil {
+                Log.debug("[QueryEnhancement] Paired timing/contrast query → compare", category: .retrieval)
+                return .compare
+            }
         }
 
-        // Priority 2: Compare (explicit comparison request)
+        // Priority 2: Compute (requires numerical aggregation)
+        // Do not route noun phrases like "Private Cloud Compute" into arithmetic mode.
+        let computeFalsePositivePhrases = [
+            "private cloud compute"
+        ]
+        let computePatterns: [String] = [
+            "total", "sum", "add up", "calculate", "compute the", "how much total",
+            "combined", "altogether", "in total"
+        ]
+        if !computeFalsePositivePhrases.contains(where: { lower.contains($0) }) {
+            for pattern in computePatterns {
+                if lower.contains(pattern) { return .compute }
+            }
+        }
+
+        // Priority 3: Compare (explicit comparison request)
         let comparePatterns: [String] = [
             " vs ", "versus", "compare", "comparison", "difference between",
             "differences between", "differ from", "better than", "worse than",
@@ -399,7 +421,7 @@ final class QueryEnhancementService {
             if lower.contains(pattern) { return .compare }
         }
 
-        // Priority 3: Procedure (step-by-step instructions)
+        // Priority 4: Procedure (step-by-step instructions)
         let procedurePatterns: [String] = [
             "how to", "how do i", "how can i", "steps to", "procedure for",
             "steps for", "what are the steps for", "instructions for", "guide to", "process for", "way to",
@@ -410,7 +432,7 @@ final class QueryEnhancementService {
             if lower.contains(pattern) { return .procedure }
         }
 
-        // Priority 4: Summarize (overview/summary requests)
+        // Priority 5: Summarize (overview/summary requests)
         let summarizePatterns: [String] = [
             "summarize", "summary", "overview", "brief", "outline",
             "main points", "key points", "highlights", "recap", "tldr"

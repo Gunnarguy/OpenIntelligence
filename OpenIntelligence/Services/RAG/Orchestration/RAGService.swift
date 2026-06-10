@@ -5203,7 +5203,7 @@ class RAGService: ObservableObject {
             try await db.storeBatch(chunks: documentChunks)
             // Invalidate visualization cache for this container after data change
             ProjectionCache.shared.invalidate(forContainer: activeContainerId)
-            
+
             // Step 4.0.0: Index individual document chunks in Spotlight for fine-grained search
             let chunkSpotlightEnabled = await MainActor.run { self.settingsStore?.enableSpotlightIndexing ?? true }
             if chunkSpotlightEnabled {
@@ -6611,10 +6611,10 @@ class RAGService: ObservableObject {
                             self?.deepThinkLiveConfidence = confidence
                         }
 
-                        // Check if this is a detailed sub-step (0 tokens = pipeline internals)
+                        // Check if this is a detailed sub-step (pipeline internals)
                         // Detailed steps from makeDetailedEventForwarder use format: "KIND|Title: Detail"
                         // This preserves the original ThinkingEvent.Kind (e.g., .vectorSearch, .bm25, .mmr)
-                        if step.tokensUsed == 0 && step.output.contains("|") {
+                        if step.output.contains("|") {
                             // Parse the encoded format: "kindRawValue|Title: Detail"
                             guard let pipeIndex = step.output.firstIndex(of: "|") else { return }
                             let kindRaw = String(step.output[..<pipeIndex])
@@ -6643,11 +6643,11 @@ class RAGService: ObservableObject {
                             let sessionInfo = step.input // e.g., "Session 5/25"
                             let confidence = step.confidence ?? 0
                             let saturation = step.tokensUsed > 300 ? "deep" : "scanning"
-                            
+
                             let metricsString = "\(Int(confidence * 100))% confident • \(step.tokensUsed) tokens • \(saturation)"
                             let cleanOutput = step.output.replacingOccurrences(of: "\n", with: " ")
                             let detail = cleanOutput.isEmpty ? metricsString : "\(cleanOutput) • \(metricsString)"
-                            
+
                             self?.emitThinkingEvent(
                                 step.type.thinkingKind,
                                 title: sessionInfo,
@@ -6661,7 +6661,7 @@ class RAGService: ObservableObject {
                             } else {
                                 metricsString = "Tokens: \(step.tokensUsed), Duration: \(String(format: "%.1f", step.duration))s"
                             }
-                            
+
                             let cleanOutput = step.output.replacingOccurrences(of: "\n", with: " ")
                             let detail = cleanOutput.isEmpty ? metricsString : "\(cleanOutput) • \(metricsString)"
 
@@ -8169,7 +8169,7 @@ class RAGService: ObservableObject {
                                 pageNumber: nil
                             )
                             retrievedChunks.insert(virtualRetrieved, at: 0)
-                            
+
                         case .barcode(let payload):
                             let virtualDocId = UUID()
                             let ocrText = "Barcode scanned payload: \(payload)"

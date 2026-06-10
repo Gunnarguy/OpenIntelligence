@@ -270,17 +270,8 @@ final class AgenticOrchestrator: Sendable {
         // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
         // STEP 0: Announce reasoning strategy (visible "hmm" moment)
         // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-        let planningStep = ThinkingStep(
-            id: UUID(),
-            type: .planning,
-            input: query,
-            output: "Analyzing query to determine best search strategy...",
-            tokensUsed: 0,
-            duration: 0.1,
-            timestamp: Date()
-        )
-        steps.append(planningStep)
-        await onStep?(planningStep)
+        // Removed redundant planning step that was breaking ThinkingStreamView.
+        // executeFullRetrievalPipeline already emits .planning as the first pipeline event.
 
         // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
         // STEP 1: Multi-Query Retrieval (universal semantic coverage)
@@ -289,25 +280,15 @@ final class AgenticOrchestrator: Sendable {
         // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
         Log.info("[Agentic] Step 1: Multi-query retrieval for universal coverage", category: .llm)
 
+        // Create detailed event forwarder for verbose ThinkingView events
+        let detailedForwarder = makeDetailedEventForwarder(onStep: onStep)
+
         // Generate diverse search queries using LLM
         let searchQueries = try await generateSearchQueries(originalQuery: query, ragService: ragService)
 
-        // Show query generation step to user
-        let queryGenStep = ThinkingStep(
-            id: UUID(),
-            type: .planning,
-            input: query,
-            output: "Searching with \(searchQueries.count) query variations:\n• \(searchQueries.joined(separator: "\n• "))",
-            tokensUsed: 50,
-            duration: 0.2,
-            timestamp: Date()
-        )
-        steps.append(queryGenStep)
+        // Announce planning phase via detailed forwarder (console spirit)
+        await detailedForwarder?(.planning, "Planning", "Searching with \(searchQueries.count) query variations")
         logStepTokens("Query Generation", 50)
-        await onStep?(queryGenStep)
-
-        // Create detailed event forwarder for verbose ThinkingView events
-        let detailedForwarder = makeDetailedEventForwarder(onStep: onStep)
 
         // Execute multi-query search with RRF fusion
         let (multiQueryStep, initialChunks) = try await executeMultiQuerySearch(
@@ -2932,12 +2913,12 @@ final class AgenticOrchestrator: Sendable {
     private func semanticDelta(_ text1: String, _ text2: String) -> Double {
         let words1 = Set(text1.lowercased().components(separatedBy: .alphanumerics.inverted).filter { $0.count > 2 })
         let words2 = Set(text2.lowercased().components(separatedBy: .alphanumerics.inverted).filter { $0.count > 2 })
-        
+
         guard !words1.isEmpty || !words2.isEmpty else { return 0.0 }
-        
+
         let intersection = words1.intersection(words2).count
         let union = words1.union(words2).count
-        
+
         let jaccardSimilarity = Double(intersection) / Double(union)
         return 1.0 - jaccardSimilarity
     }
@@ -2958,10 +2939,10 @@ final class AgenticOrchestrator: Sendable {
         var currentTokens = initialTokens
         var currentConfidence = initialConfidence
         var currentSources = initialSources
-        
+
         var strikeCount = 0
         let maxStrikes = 3
-        
+
         while strikeCount < maxStrikes {
             let verification = await verifySelfRAG(
                 query: query,
@@ -2969,7 +2950,7 @@ final class AgenticOrchestrator: Sendable {
                 sourceChunks: currentSources,
                 ragService: ragService
             )
-            
+
             let verifyStep = ThinkingStep(
                 id: UUID(),
                 type: .verifying,
@@ -2982,31 +2963,31 @@ final class AgenticOrchestrator: Sendable {
             )
             currentSteps.append(verifyStep)
             await onStep?(verifyStep)
-            
+
             currentConfidence = verification.calibratedConfidence
-            
+
             if verification.action == "retry" && !answerIndicatesRetrievalMiss(currentAnswer) {
                 strikeCount += 1
                 Log.info("[Agentic] Self-RAG: Verification suggests retry (Strike \(strikeCount)/\(maxStrikes))", category: .llm)
-                
+
                 if strikeCount >= maxStrikes {
                     Log.warning("[Agentic] Self-RAG: Max verification strikes reached. Refusing further retries.", category: .llm)
                     break
                 }
-                
+
                 // Try recursive research as backup
                 let recursiveResult = try await executeRecursiveResearch(
                     query: query,
                     maxIterations: 3,
                     onStep: onStep
                 )
-                
+
                 let newAnswer = recursiveResult.finalAnswer
-                
+
                 // Check semantic delta
                 let delta = semanticDelta(newAnswer, currentAnswer)
                 Log.debug("[Agentic] Semantic delta between verification attempts: \(String(format: "%.4f", delta))", category: .llm)
-                
+
                 if delta < 0.10 {
                     Log.warning("[Agentic] Self-RAG: Semantic delta too low (\(String(format: "%.4f", delta)) < 0.10). Refusing further retries.", category: .llm)
                     currentSteps.append(contentsOf: recursiveResult.steps)
@@ -3014,7 +2995,7 @@ final class AgenticOrchestrator: Sendable {
                     currentAnswer = newAnswer
                     break
                 }
-                
+
                 if !answerIndicatesRetrievalMiss(newAnswer) {
                     currentSteps.append(contentsOf: recursiveResult.steps)
                     currentTokens += recursiveResult.totalTokens
@@ -3032,7 +3013,7 @@ final class AgenticOrchestrator: Sendable {
                 break
             }
         }
-        
+
         return AgenticResult(
             finalAnswer: currentAnswer,
             steps: currentSteps,
@@ -5031,20 +5012,6 @@ extension AgenticOrchestrator {
 
         Log.info("[Unlimited] Starting TRUE unlimited reasoning: target=\(Int(targetConfidence * 100))%, max=\(maxSessions) sessions, chunks=\(sortedChunks.count)", category: .llm)
 
-        // Emit initial planning step
-        let planStep = ThinkingStep(
-            id: UUID(),
-            type: .planning,
-            input: "Unlimited reasoning strategy",
-            output: "Analyzing \(sortedChunks.count) sources until \(Int(targetConfidence * 100))% confident",
-            tokensUsed: 0,
-            duration: 0.1,
-            timestamp: Date(),
-            confidence: confidence
-        )
-        steps.append(planStep)
-        await onStep?(planStep)
-
         // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
         // THE UNLIMITED LOOP - runs until confidence OR exhaustion
         // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -5674,19 +5641,6 @@ extension AgenticOrchestrator {
         let totalExpectedSessions = documentClusters.count * sessionsPerCluster
 
         Log.info("[MultiChain] Created \(documentClusters.count) document clusters from \(allChunks.count) chunks (clamped to 8 clusters, \(sessionsPerCluster) sessions/cluster, max 30 total)", category: .llm)
-
-        // Emit planning step with initial confidence
-        let planStep = ThinkingStep(
-            id: UUID(),
-            type: .planning,
-            input: "Multi-chain strategy",
-            output: "Analyzing \(documentClusters.count) clusters × \(sessionsPerCluster) sessions = \(totalExpectedSessions) total reasoning sessions",
-            tokensUsed: 0,
-            duration: 0.1,
-            timestamp: Date(),
-            confidence: 0.05
-        )
-        await onStep?(planStep)
 
         // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
         // STEP 2: Run parallel reasoning chains per cluster

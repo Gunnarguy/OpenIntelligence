@@ -1755,19 +1755,7 @@ struct ChatScreen: View {
             }
 
             do {
-                // Create inline stream handler for this re-query
-                // Note: Can't use [weak self] because ChatScreen is a struct
-                let goDeeperStreamHandler: LLMStreamHandler = { event in
-                    Task { @MainActor in
-                        if event.isFinal {
-                            self.flushStreamingBufferToVisibleText()
-                        } else {
-                            self.enqueueStreamingText(event.text)
-                        }
-                    }
-                }
-
-                if let response = try await capturedService.reQueryWithAgenticMode(streamHandler: goDeeperStreamHandler) {
+                if let response = try await capturedService.reQueryWithAgenticMode(streamHandler: nil) {
                     await MainActor.run {
                         guard self.currentQuerySessionId == querySessionId else { return }
                         let containerId = capturedService.containerService.activeContainerId
@@ -2517,6 +2505,22 @@ struct ChatScreen: View {
                     allowPrivateCloudCompute: capturedAllowPCC
                 )
 
+                let queryStreamHandler: LLMStreamHandler?
+                if capturedQualityMode == .standard {
+                    queryStreamHandler = { event in
+                        await MainActor.run {
+                            if event.isFinal {
+                                self.flushStreamingBufferToVisibleText()
+                            } else {
+                                self.continuedQueryCoordinator.markFirstToken()
+                                self.enqueueStreamingText(event.text)
+                            }
+                        }
+                    }
+                } else {
+                    queryStreamHandler = nil
+                }
+
                 // Check for cancellation before generation
                 try Task.checkCancellation()
 
@@ -2539,16 +2543,7 @@ struct ChatScreen: View {
                     topK: capturedTopK,
                     config: config,
                     containerId: capturedUsedContainerId,
-                    streamHandler: { event in
-                        await MainActor.run {
-                            if event.isFinal {
-                                self.flushStreamingBufferToVisibleText()
-                            } else {
-                                self.continuedQueryCoordinator.markFirstToken()
-                                self.enqueueStreamingText(event.text)
-                            }
-                        }
-                    }
+                    streamHandler: queryStreamHandler
                 )
 
                 await MainActor.run {
@@ -2797,15 +2792,15 @@ struct ChatScreen: View {
     private func triggerThumbsUpReviewPrompt() {
         let currentVersion = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? ""
         guard !currentVersion.isEmpty else { return }
-        
+
         let lastPrompted = UserDefaults.standard.string(forKey: "appReview.lastPromptedVersion")
         if lastPrompted == currentVersion { return }
-        
+
         if let lastPromptAttemptedAt = UserDefaults.standard.object(forKey: "appReview.lastPromptAttemptedAt") as? Date,
            Date().timeIntervalSince(lastPromptAttemptedAt) < AppReviewPromptPolicy.minimumPromptCooldown {
             return
         }
-        
+
         AppReviewPromptTracker.markPromptAttempted()
         showFriendlyReviewPrompt = true
     }
@@ -3574,20 +3569,20 @@ private struct FirstQueryPromptView: View {
                         )
                     )
                     .shadow(color: DSColors.accent.opacity(0.3), radius: 8)
-                
+
                 VStack(alignment: .leading, spacing: 4) {
                     Text(headerText)
                         .font(DSTypography.title)
                         .foregroundStyle(DSColors.primaryText)
-                    
+
                     Text(supportingText)
                         .font(DSTypography.body)
                         .foregroundStyle(DSColors.secondaryText)
                         .fixedSize(horizontal: false, vertical: true)
                 }
-                
+
                 Spacer()
-                
+
                 if hasDocuments {
                     Button {
                         DSHaptics.selection()
@@ -3630,7 +3625,7 @@ private struct FirstQueryPromptView: View {
                                                 .fill(DSColors.accent.gradient)
                                         )
                                 }
-                                
+
                                 VStack(alignment: .leading, spacing: 2) {
                                     Text(prompt)
                                         .font(DSTypography.body.weight(.medium))
@@ -3645,9 +3640,9 @@ private struct FirstQueryPromptView: View {
                                             .lineLimit(1)
                                     }
                                 }
-                                
+
                                 Spacer(minLength: DSSpacing.sm)
-                                
+
                                 Image(systemName: "arrow.up.circle.fill")
                                     .font(.title3)
                                     .foregroundStyle(DSColors.accent)

@@ -1005,13 +1005,24 @@ extension StructuredAnswer {
             return true
         }
 
+        let renderedWords = wordCount(in: renderedTrimmed)
+        let fallbackWords = wordCount(in: fallbackTrimmed)
+
+        // Preserve the richer fallback when verification rendering collapses a
+        // substantive answer into a tiny bullet-fragment summary.
+        if fallbackWords >= 40,
+            renderedWords <= 18,
+            fallbackWords >= renderedWords + 18,
+            fallbackTrimmed.count >= max(220, renderedTrimmed.count * 3)
+        {
+            return true
+        }
+
         let renderedLower = renderedTrimmed.lowercased()
         let fallbackLower = fallbackTrimmed.lowercased()
         if renderedLower.hasPrefix("the documents suggest")
             && !fallbackLower.hasPrefix("the documents suggest")
         {
-            let renderedWords = wordCount(in: renderedTrimmed)
-            let fallbackWords = wordCount(in: fallbackTrimmed)
             if fallbackWords >= renderedWords + 12 || renderedHasQuestion {
                 return true
             }
