@@ -569,9 +569,9 @@ struct LLMResponse {
             let executionBasedModelName: String
             switch actualRoute {
             case .onDevice:
-                executionBasedModelName = "Apple Intel (On-Device)"
+                executionBasedModelName = "Apple Intelligence (On-Device)"
             case .privateCloudCompute:
-                executionBasedModelName = "Apple Intel (PCC)"
+                executionBasedModelName = "Apple Intelligence (PCC)"
             case .automatic:
                 executionBasedModelName = modelName
             }
@@ -833,9 +833,9 @@ struct LLMResponse {
             let executionBasedModelName: String
             switch actualRoute {
             case .onDevice:
-                executionBasedModelName = "Apple Intel (On-Device)"
+                executionBasedModelName = "Apple Intelligence (On-Device)"
             case .privateCloudCompute:
-                executionBasedModelName = "Apple Intel (PCC)"
+                executionBasedModelName = "Apple Intelligence (PCC)"
             case .automatic:
                 executionBasedModelName = modelName
             }
@@ -1705,7 +1705,7 @@ class AppleFoundationLLMServiceUnavailable: LLMService {
     var toolHandler: RAGToolHandler?
 
     var isAvailable: Bool { false }
-    var modelName: String { "Apple Intel (Unavailable)" }
+    var modelName: String { "Apple Intelligence (Unavailable)" }
 
     init() {
         Log.warning("AppleFoundationLLMServiceUnavailable stub initialized - Apple Intelligence is required", category: .llm)

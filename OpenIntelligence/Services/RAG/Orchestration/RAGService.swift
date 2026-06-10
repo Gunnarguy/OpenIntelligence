@@ -1607,7 +1607,7 @@ class RAGService: ObservableObject {
         // Create a minimal consent record to trigger the popup
         let prewarmRecord = CloudTransmissionRecord(
             provider: .applePCC,
-            modelName: "Apple Intel (On-Device)",
+            modelName: "Apple Intelligence (On-Device)",
             promptPreview: "[Consent prewarm - no actual data transmitted]",
             promptCharacterCount: 0,
             contextChunkCount: 0,

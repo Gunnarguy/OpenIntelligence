@@ -18,14 +18,14 @@ struct ModelStatusIndicator: View {
             showDetails = true
             DSHaptics.soft()
         } label: {
-            HStack(spacing: 6) {
+            HStack(spacing: 10) {
                 statusDot
                 modelLabel
             }
-            .padding(.horizontal, 8)
-            .padding(.vertical, 4)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 6)
             .background(backgroundColor)
-            .clipShape(Capsule())
+            .clipShape(RoundedRectangle(cornerRadius: 8))
         }
         .buttonStyle(.plain)
         .popover(isPresented: $showDetails) {
@@ -131,7 +131,7 @@ struct ModelStatusIndicator: View {
     private var statusDot: some View {
         Circle()
             .fill(statusColor)
-            .frame(width: 6, height: 6)
+            .frame(width: 8, height: 8)
             .scaleEffect(modelResolution.isProcessing ? pulseScale : 1.0)
             .onAppear {
                 withAnimation(Animation.easeInOut(duration: 1.0).repeatForever(autoreverses: true)) {
@@ -142,13 +142,29 @@ struct ModelStatusIndicator: View {
 
     @ViewBuilder
     private var modelLabel: some View {
-        HStack(spacing: 4) {
-            Text(modelResolution.currentState.executionPath.emoji)
-                .font(.system(size: 10))
-            Text(modelResolution.currentState.activeModelName)
-                .font(.system(size: 10, weight: .semibold))
+        VStack(alignment: .leading, spacing: 2) {
+            Text(cleanModelName(modelResolution.currentState.activeModelName))
+                .font(.system(size: 10, weight: .bold))
                 .foregroundColor(.primary)
+            
+            HStack(spacing: 3) {
+                Text(modelResolution.currentState.executionPath.emoji)
+                    .font(.system(size: 8.5))
+                Text(modelResolution.currentState.executionPath.displayName)
+                    .font(.system(size: 8.5, weight: .semibold))
+                    .foregroundColor(.secondary)
+            }
         }
+    }
+
+    private func cleanModelName(_ name: String) -> String {
+        if name.contains("Apple Intel") || name.contains("Apple Intelligence") {
+            return "Apple Intelligence"
+        }
+        if name.contains("On-Device Analysis") {
+            return "On-Device Analysis"
+        }
+        return name
     }
 
     private var statusColor: Color {
