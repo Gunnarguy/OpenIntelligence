@@ -572,7 +572,8 @@ final class AgenticOrchestrator: Sendable {
                 )
 
                 // If recursive research found a better answer, use it
-                if !answerIndicatesRetrievalMiss(recursiveResult.finalAnswer) {
+                let cleanRecursiveAnswer = recursiveResult.finalAnswer.trimmingCharacters(in: .whitespacesAndNewlines)
+                if !cleanRecursiveAnswer.isEmpty && !answerIndicatesRetrievalMiss(recursiveResult.finalAnswer) {
                     Log.info("[Agentic] Recursive research found answer after \(recursiveResult.steps.count) steps", category: .llm)
                     steps.append(contentsOf: recursiveResult.steps)
                     return AgenticResult(
@@ -2983,6 +2984,16 @@ final class AgenticOrchestrator: Sendable {
                 )
 
                 let newAnswer = recursiveResult.finalAnswer
+
+                // Check if the retry returned an empty response
+                let cleanNewAnswer = newAnswer.trimmingCharacters(in: .whitespacesAndNewlines)
+                if cleanNewAnswer.isEmpty {
+                    Log.warning("[Agentic] Self-RAG: Retry returned an empty answer. Keeping the previous non-empty answer.", category: .llm)
+                    currentSteps.append(contentsOf: recursiveResult.steps)
+                    currentTokens += recursiveResult.totalTokens
+                    // Do NOT update currentAnswer to empty. Leave currentAnswer as it was.
+                    break
+                }
 
                 // Check semantic delta
                 let delta = semanticDelta(newAnswer, currentAnswer)
