@@ -1,4 +1,13 @@
-Changes since 3.6:
+Changes since 3.7.5:
+
+Version 4.0:
+- Dynamic Model Routing (On-Device & PCC): Automatically routes queries based on complexity and context size. Standard queries execute locally using the 4K-token on-device model, while complex logic scales to Private Cloud Compute (PCC) enclaves supporting a 32K-token context window.
+- Under the Hood Telemetry Dashboard: Added an interactive details popover detailing active model routing, token budgets, execution path telemetry, and pulsing status indicators.
+- Core AI Engine Integration: Integrates a direct, custom local Core AI silicon execution engine and model registry.
+- Native Liquid Glass UI: Re-engineered key view components with premium native glasscard modifiers for an immersive visual experience.
+- RAG Evaluations Suite: Built-in dataset validation against target Recall@5 and Citation Precision quality gates, exposing an Apple Evaluations Bridge for native CLI testing compatibility.
+- Agentic Retry Safeguard: Hardened agentic RAG reasoning cycles to preserve non-empty drafts and protect against rate-limit empty responses.
+- Brand Realignment: Realigned all branding assets, HUD panels, and logs to standardized "Apple Intelligence" styling.
 
 Version 3.7.5:
 - Hardened iCloud synchronization concurrency by offloading all synchronous database merging, file copying, and conflict resolutions off the Main Actor (UI Thread) to completely eliminate UI freezes and watchdog crashes.

@@ -10,6 +10,7 @@ This is the public version history for OpenIntelligence. It focuses on user-visi
 - Integrated Core AI local silicon execution engine and model registry
 - Created continuous integration Evaluations suite for dataset validation against target Recall@5 and Citation Precision quality gates
 - Designed native glass card UI effects using modern iOS 26+ glass modifiers
+- Hardened Agentic RAG reasoning loops with retry safeguards to prevent rate-limited empty responses from overwriting valid answer drafts
 
 ## 3.7 - May 2026
 

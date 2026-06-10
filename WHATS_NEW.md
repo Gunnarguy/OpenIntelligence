@@ -15,6 +15,7 @@ Version 4.0 introduces the WWDC26 Apple Intelligence modernization suite, featur
 - **Core AI Integration**: Replaced legacy latency guessing heuristics with a direct, custom local Core AI silicon execution engine and model registry.
 - **RAG Evaluations Suite**: Built a comprehensive continuous integration evaluation suite (`RAGEvalRunner`) that loads JSONL test datasets, computes precision/recall, and outputs rich Markdown reports. Exposes an Apple Evaluations Bridge for native compatibility with Apple's `fm CLI` testing suite.
 - **Liquid Glass UI**: Styled components using modern native glass effect modifiers (`glassCardEffectHelper`) for a premium, wowed-at-first-glance user experience.
+- **Agentic RAG Retry Safeguard**: Hardened agentic RAG reasoning loops with retry safeguards to preserve valid non-empty drafts and protect against rate-limited empty responses.
 
 ## 3.7.1
 
