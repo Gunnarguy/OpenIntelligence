@@ -213,6 +213,7 @@ struct ChatScreen: View {
     @State private var embeddingElapsedFinal: TimeInterval? = nil
     @State private var searchingElapsedFinal: TimeInterval? = nil
     @State private var generatingElapsedFinal: TimeInterval? = nil
+    @State private var isStreamFinished: Bool = false
     // Live clock tick to drive elapsed UI — only connected during processing to save battery
     @State private var nowTick: Date = Date()
     @State private var processingClock = Timer.publish(every: 0.2, on: .main, in: .common)
@@ -861,6 +862,7 @@ struct ChatScreen: View {
 
     private var streamingElapsedTime: TimeInterval {
         guard let start = generationStart else { return 0 }
+        if let final = generatingElapsedFinal { return final }
         return max(0, nowTick.timeIntervalSince(start))
     }
 
@@ -2510,7 +2512,12 @@ struct ChatScreen: View {
                     queryStreamHandler = { event in
                         await MainActor.run {
                             if event.isFinal {
-                                self.flushStreamingBufferToVisibleText()
+                                // Freeze the timer immediately when the LLM finishes
+                                if let genStart = self.generationStart {
+                                    self.generatingElapsedFinal = Date().timeIntervalSince(genStart)
+                                }
+                                self.isStreamFinished = true
+                                // DO NOT flush - let the pump finish naturally for a smooth end
                             } else {
                                 self.continuedQueryCoordinator.markFirstToken()
                                 self.enqueueStreamingText(event.text)
@@ -2596,6 +2603,13 @@ struct ChatScreen: View {
                         let detail = event.detail.map { " │ \($0)" } ?? ""
                         return "\(time) [\(event.kind.displayName)] \(event.title)\(detail)"
                     }
+                }
+
+                // Wait for streaming pump to finish so the transition is smooth and avoids bursty text jumps
+                while true {
+                    let done = await MainActor.run { self.streamingBuffer.isEmpty && self.streamingPumpTask == nil }
+                    if done { break }
+                    try? await Task.sleep(nanoseconds: 20_000_000)
                 }
 
                 await MainActor.run {
@@ -2848,6 +2862,7 @@ struct ChatScreen: View {
         streamingBuffer.removeAll(keepingCapacity: true)
         streamingText = ""
         hasReceivedStreamToken = false
+        isStreamFinished = false
     }
 
     private func cancelInFlightQueryWork(resetLLMSession: Bool = true) {
@@ -2899,8 +2914,8 @@ struct ChatScreen: View {
                 adaptiveChunkSize = max(80, chunkSize)
                 adaptiveCadence = 60_000_000
             } else {
-                adaptiveChunkSize = chunkSize
-                adaptiveCadence = cadence
+                adaptiveChunkSize = isStreamFinished ? max(100, chunkSize) : chunkSize
+                adaptiveCadence = isStreamFinished ? 20_000_000 : cadence
             }
 
             let takeCount = min(adaptiveChunkSize, streamingBuffer.count)
@@ -3212,7 +3227,7 @@ struct CompactChatHeader: View {
             // Top row: Library picker strip (scrollable)
             libraryPickerStrip
 
-            // Bottom row: Quality mode picker + Model status + Stats
+            // Bottom row: Model status + Quality mode picker + Stats
             HStack(spacing: 10) {
                 // Always show quality mode picker - Deep Think is useful for all users
                 QualityModeQuickPicker(selectedMode: $settings.ragQualityMode, onMaximumModeBlocked: onMaximumModeBlocked) { _, _ in

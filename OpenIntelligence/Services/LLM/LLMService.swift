@@ -258,7 +258,7 @@ struct LLMResponse {
         }
 
         var modelName: String {
-            return "Apple Foundation Model (On-Device)"
+            return "Apple Intelligence"
         }
 
         /// Get specific reason why Foundation Models are unavailable (if applicable)
@@ -566,6 +566,26 @@ struct LLMResponse {
                 throw LLMError.modelUnavailable
             }
 
+            let executionBasedModelName: String
+            switch actualRoute {
+            case .onDevice:
+                executionBasedModelName = "Apple Intel (On-Device)"
+            case .privateCloudCompute:
+                executionBasedModelName = "Apple Intel (PCC)"
+            case .automatic:
+                executionBasedModelName = modelName
+            }
+
+            // Post notification for route resolution in real-time
+            NotificationCenter.default.post(
+                name: NSNotification.Name("ActiveModelRouteResolved"),
+                object: nil,
+                userInfo: [
+                    "modelName": executionBasedModelName,
+                    "executionPath": actualRoute == .onDevice ? "onDevice" : "privateCloudCompute"
+                ]
+            )
+
             let startTime = Date()
             TelemetryCenter.emit(
                 .generation,
@@ -720,16 +740,7 @@ struct LLMResponse {
 
             Log.info("[FM] Generation complete: \(finalTokenCount) words in \(String(format: "%.2f", totalTime))s (\(actualExecutionLocation))", category: .llm)
 
-            // Determine actual model name based on explicitly selected route
-            let executionBasedModelName: String
-            switch actualRoute {
-            case .onDevice:
-                executionBasedModelName = "Apple Foundation Model (On-Device)"
-            case .privateCloudCompute:
-                executionBasedModelName = "Apple Foundation Model (Private Cloud Compute)"
-            case .automatic:
-                executionBasedModelName = modelName
-            }
+            // Using executionBasedModelName resolved at the start of generation
 
             TelemetryCenter.emit(
                 .generation,
@@ -813,15 +824,35 @@ struct LLMResponse {
                 config: config
             )
             
-            _ = try ensureSession(route: targetRoute, systemPrompt: structuredConfig.systemPrompt, disableTools: true)
+            let actualRoute = try ensureSession(route: targetRoute, systemPrompt: structuredConfig.systemPrompt, disableTools: true)
 
             guard let session = session else {
                 throw LLMError.modelUnavailable
             }
 
+            let executionBasedModelName: String
+            switch actualRoute {
+            case .onDevice:
+                executionBasedModelName = "Apple Intel (On-Device)"
+            case .privateCloudCompute:
+                executionBasedModelName = "Apple Intel (PCC)"
+            case .automatic:
+                executionBasedModelName = modelName
+            }
+
+            // Post notification for route resolution in real-time
+            NotificationCenter.default.post(
+                name: NSNotification.Name("ActiveModelRouteResolved"),
+                object: nil,
+                userInfo: [
+                    "modelName": executionBasedModelName,
+                    "executionPath": actualRoute == .onDevice ? "onDevice" : "privateCloudCompute"
+                ]
+            )
+
             return try await FoundationModelStructuredGenerator.generateStructuredRAGAnswer(
                 session: session,
-                modelName: modelName,
+                modelName: executionBasedModelName,
                 prompt: prompt,
                 context: context,
                 config: config,
@@ -1674,7 +1705,7 @@ class AppleFoundationLLMServiceUnavailable: LLMService {
     var toolHandler: RAGToolHandler?
 
     var isAvailable: Bool { false }
-    var modelName: String { "Apple Intelligence (Unavailable)" }
+    var modelName: String { "Apple Intel (Unavailable)" }
 
     init() {
         Log.warning("AppleFoundationLLMServiceUnavailable stub initialized - Apple Intelligence is required", category: .llm)

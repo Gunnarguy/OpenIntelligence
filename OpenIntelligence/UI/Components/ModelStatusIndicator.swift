@@ -17,12 +17,12 @@ struct ModelStatusIndicator: View {
             showDetails = true
             DSHaptics.soft()
         } label: {
-            HStack(spacing: 8) {
+            HStack(spacing: 6) {
                 statusDot
                 modelLabel
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 6)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
             .background(backgroundColor)
             .clipShape(Capsule())
         }
@@ -67,16 +67,16 @@ struct ModelStatusIndicator: View {
     private var statusDot: some View {
         Circle()
             .fill(statusColor)
-            .frame(width: 8, height: 8)
+            .frame(width: 6, height: 6)
     }
 
     @ViewBuilder
     private var modelLabel: some View {
         HStack(spacing: 4) {
             Text(modelResolution.currentState.executionPath.emoji)
-                .font(.caption)
+                .font(.system(size: 10))
             Text(modelResolution.currentState.activeModelName)
-                .font(.caption.weight(.medium))
+                .font(.system(size: 10, weight: .semibold))
                 .foregroundColor(.primary)
         }
     }
