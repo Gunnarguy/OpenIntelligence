@@ -1091,7 +1091,8 @@ final class AgenticOrchestrator: Sendable {
             prompt: query,
             context: truncatedResults,
             systemPrompt: systemPrompt,
-            maxTokens: 800 // Conservative to stay within 4096 total
+            maxTokens: 800, // Conservative to stay within 4096 total
+            disableTools: true
         )
 
         return ThinkingStep(
@@ -1154,7 +1155,8 @@ final class AgenticOrchestrator: Sendable {
             prompt: query,
             context: contextBuilder,
             systemPrompt: systemPrompt,
-            maxTokens: 800 // Conservative to stay within 4096 total
+            maxTokens: 800, // Conservative to stay within 4096 total
+            disableTools: true
         )
 
         return ThinkingStep(
@@ -1223,7 +1225,8 @@ final class AgenticOrchestrator: Sendable {
             prompt: query,
             context: truncatedResults,
             systemPrompt: systemPrompt,
-            maxTokens: 800
+            maxTokens: 800,
+            disableTools: true
         )
 
         return ThinkingStep(
@@ -2208,7 +2211,8 @@ final class AgenticOrchestrator: Sendable {
             prompt: query,
             context: "Research Steps:\n\(truncatedContext)",
             systemPrompt: systemPrompt,
-            maxTokens: 800
+            maxTokens: 800,
+            disableTools: true
         )
 
         return ThinkingStep(
@@ -2510,7 +2514,8 @@ final class AgenticOrchestrator: Sendable {
             prompt: prompt,
             context: "",
             systemPrompt: "You are a research assistant deciding whether to search or answer.",
-            maxTokens: 600
+            maxTokens: 600,
+            disableTools: true
         )
 
         let duration = Date().timeIntervalSince(startTime)
@@ -2563,7 +2568,8 @@ final class AgenticOrchestrator: Sendable {
             prompt: query,
             context: contextToUse,
             systemPrompt: systemPrompt,
-            maxTokens: 800
+            maxTokens: 800,
+            disableTools: true
         )
 
         return ThinkingStep(
@@ -4407,7 +4413,8 @@ extension AgenticOrchestrator {
                     prompt: exhaustivePrompt,
                     context: "",
                     systemPrompt: exhaustiveSystemPrompt,
-                    maxTokens: synthesisMaxTokens
+                    maxTokens: synthesisMaxTokens,
+                    disableTools: true
                 )
                 // Clean up the synthesis output
                 finalAnswer = cleanupFinalAnswer(synthesisResponse.text)
@@ -4477,7 +4484,8 @@ extension AgenticOrchestrator {
                         prompt: synthesisPrompt,
                         context: "",
                         systemPrompt: synthesisSystemPrompt,
-                        maxTokens: 1500
+                        maxTokens: 1500,
+                        disableTools: true
                     )
                     finalAnswer = cleanupFinalAnswer(synthesisResponse.text)
                     totalTokens += synthesisResponse.tokensGenerated
@@ -6090,7 +6098,8 @@ extension AgenticOrchestrator {
                 prompt: prompt,
                 context: "",
                 systemPrompt: systemPrompt,
-                maxTokens: isLast ? 1500 : 1000
+                maxTokens: isLast ? 1500 : 1000,
+                disableTools: true
             )
 
             // Each session REPLACES the previous answer (refinement, not concatenation)

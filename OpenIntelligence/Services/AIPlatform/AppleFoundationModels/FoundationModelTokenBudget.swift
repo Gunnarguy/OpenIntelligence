@@ -88,10 +88,6 @@ public struct FoundationModelTokenBudget: Sendable {
                 totalChars += calls.count * 100
             case let .toolOutput(output):
                 totalChars += String(describing: output).count
-            #if os(iOS)
-            case let .reasoning(reasoning):
-                totalChars += String(describing: reasoning).count
-            #endif
             @unknown default:
                 totalChars += 50 // Conservative estimate for unknown types
             }

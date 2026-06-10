@@ -131,7 +131,7 @@ platform :ios do
     build_number = options[:build] || "46"
 
     upload_release_metadata(version: version)
-    upload_release_build(version: version, build: build_number)
+    upload_release_build(version: version, build: build_number, skip_build: options[:skip_build])
     submit_release(version: version, build: build_number, reject_if_possible: options[:reject_if_possible])
   end
 end
