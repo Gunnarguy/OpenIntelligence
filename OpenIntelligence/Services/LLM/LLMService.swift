@@ -362,8 +362,6 @@ struct LLMResponse {
                     description += "[\(index + 1)] ToolCalls: \(calls.count) call(s)\n"
                 case let .toolOutput(output):
                     description += "[\(index + 1)] ToolOutput: \(String(describing: output).prefix(80))...\n"
-                case let .reasoning(reasoning):
-                    description += "[\(index + 1)] Reasoning: \(String(describing: reasoning).prefix(80))...\n"
                 @unknown default:
                     description += "[\(index + 1)] Unknown entry type\n"
                 }
@@ -634,7 +632,7 @@ struct LLMResponse {
             }
 
             let options = GenerationOptions(
-                samplingMode: samplingMode,
+                sampling: samplingMode,
                 temperature: Double(config.temperature),
                 maximumResponseTokens: config.maxTokens > 0 ? config.maxTokens : nil
             )
