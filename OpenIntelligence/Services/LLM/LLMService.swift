@@ -369,6 +369,10 @@ struct LLMResponse {
                     description += "[\(index + 1)] ToolCalls: \(calls.count) call(s)\n"
                 case let .toolOutput(output):
                     description += "[\(index + 1)] ToolOutput: \(String(describing: output).prefix(80))...\n"
+                #if compiler(>=6.4)
+                case let .reasoning(reasoning):
+                    description += "[\(index + 1)] Reasoning: \(String(describing: reasoning).prefix(80))...\n"
+                #endif
                 @unknown default:
                     description += "[\(index + 1)] Unknown entry type\n"
                 }
@@ -638,11 +642,19 @@ struct LLMResponse {
                 samplingMode = nil
             }
 
+            #if compiler(>=6.4)
+            let options = GenerationOptions(
+                samplingMode: samplingMode,
+                temperature: Double(config.temperature),
+                maximumResponseTokens: config.maxTokens > 0 ? config.maxTokens : nil
+            )
+            #else
             let options = GenerationOptions(
                 sampling: samplingMode,
                 temperature: Double(config.temperature),
                 maximumResponseTokens: config.maxTokens > 0 ? config.maxTokens : nil
             )
+            #endif
 
             let responseStream = session.streamResponse(to: fullPrompt, options: options, contextOptions: contextOptions)
 
