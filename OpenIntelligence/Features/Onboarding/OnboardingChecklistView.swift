@@ -54,6 +54,7 @@ struct OnboardingChecklistView: View {
     @State private var pulsePhase = 0.0
     @State private var processingStartTime: Date? = nil
     @State private var smoothTimeMs = 0
+    @State private var localIngestionItems: [IngestionItem] = []
 
     // Streaming log
     @State private var logEntries: [PipelineLogEntry] = []
@@ -102,6 +103,9 @@ struct OnboardingChecklistView: View {
         }
         .onAppear { animateEntrance() }
         .onChange(of: ragService.ingestionItems) { _, newItems in
+            if !newItems.isEmpty {
+                localIngestionItems = newItems
+            }
             diffAndEmitLogEntries(newItems)
         }
         .onReceive(timerPublisher) { _ in
@@ -302,7 +306,7 @@ struct OnboardingChecklistView: View {
             }
 
             // Active documents — simple text lines
-            if !ragService.ingestionItems.isEmpty {
+            if !localIngestionItems.isEmpty {
                 activeDocsTicker
                     .padding(.horizontal, 20)
                     .padding(.top, 10)
@@ -339,7 +343,7 @@ struct OnboardingChecklistView: View {
     // MARK: - Live Metrics Dashboard
 
     private var liveMetricsDashboard: some View {
-        let items = ragService.ingestionItems
+        let items = localIngestionItems
         let words = items.reduce(0) { $0 + $1.metrics.totalWords }
         let chunks = items.reduce(0) { $0 + $1.metrics.chunkCount }
         let vectors = items.reduce(0) { $0 + $1.metrics.embeddingsGenerated }
@@ -445,7 +449,7 @@ struct OnboardingChecklistView: View {
 
     private var activeDocsTicker: some View {
         VStack(alignment: .leading, spacing: 3) {
-            ForEach(ragService.ingestionItems) { item in
+            ForEach(localIngestionItems) { item in
                 HStack(spacing: 6) {
                     if item.stage == .complete {
                         Image(systemName: "checkmark.circle.fill")
@@ -554,7 +558,7 @@ struct OnboardingChecklistView: View {
                 Text("Your documents are ready")
                     .font(.title3.bold()).foregroundStyle(.white)
 
-                let items = ragService.ingestionItems
+                let items = localIngestionItems
                 let totalChunks = items.reduce(0) { $0 + $1.metrics.chunkCount }
                 let totalWords = items.reduce(0) { $0 + $1.metrics.totalWords }
                 if totalChunks > 0 {
@@ -731,8 +735,8 @@ struct OnboardingChecklistView: View {
     // MARK: - Stage Explainer
 
     private var stageExplainer: String {
-        if !ragService.ingestionItems.isEmpty {
-            let active = ragService.ingestionItems.filter { !$0.stage.isTerminal }
+        if !localIngestionItems.isEmpty {
+            let active = localIngestionItems.filter { !$0.stage.isTerminal }
             if let first = active.first {
                 return "Currently \(first.stage.displayName.lowercased()) '\(first.filename)'..."
             }
@@ -769,7 +773,7 @@ struct OnboardingChecklistView: View {
     }
 
     private var currentPipelinePhase: PipelinePhase {
-        let items = ragService.ingestionItems
+        let items = localIngestionItems
         guard !items.isEmpty else { return .none }
         for item in items where !item.stage.isTerminal {
             switch item.stage {
@@ -784,7 +788,7 @@ struct OnboardingChecklistView: View {
     }
 
     private func isPipelinePhaseComplete(_ phase: PipelinePhase) -> Bool {
-        let items = ragService.ingestionItems
+        let items = localIngestionItems
         guard !items.isEmpty else { return false }
         if items.allSatisfy({ $0.stage.isTerminal }) { return true }
         return currentPipelinePhase > phase
@@ -819,7 +823,10 @@ struct OnboardingChecklistView: View {
                 }
 
                 DSHaptics.success()
-                withAnimation(.easeInOut(duration: 0.5)) { processingComplete = true }
+                withAnimation(.easeInOut(duration: 0.5)) {
+                    processingComplete = true
+                    isProcessing = false
+                }
                 if let startTime = processingStartTime {
                     smoothTimeMs = Int(Date().timeIntervalSince(startTime) * 1000)
                 }

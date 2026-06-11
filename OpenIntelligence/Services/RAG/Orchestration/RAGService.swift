@@ -4505,8 +4505,43 @@ class RAGService: ObservableObject {
                         filename: filename,
                         stage: .complete,
                         detail: "Already imported",
-                        progress: 1.0
-                    )
+                        progress: 1.0,
+                        errorMessage: nil
+                    ) { metrics in
+                        if let meta = existingDocument.processingMetadata {
+                            metrics.fileSizeMB = meta.fileSizeMB
+                            metrics.totalCharacters = meta.totalCharacters
+                            metrics.totalWords = meta.totalWords
+                            metrics.pageCount = meta.pagesProcessed ?? 0
+                            metrics.ocrPagesCount = meta.ocrPagesCount ?? 0
+                            metrics.usedStructuredParsing = meta.usedStructuredParsing
+                            metrics.structuredParsingQuality = meta.structuredParsingQuality
+                            metrics.tablesExtracted = meta.tablesExtracted
+                            metrics.tableRowsTotal = meta.tableRowsTotal
+                            metrics.tableColumnsMax = meta.tableColumnsMax
+                            metrics.listsExtracted = meta.listsExtracted
+                            metrics.listItemsTotal = meta.listItemsTotal
+                            metrics.titlesDetected = meta.titlesDetected
+                            metrics.figureReferences = meta.figureReferences
+                            metrics.visionEntitiesDetected = meta.visionEntitiesDetected
+                            metrics.sectionPathDepth = meta.sectionPathDepth
+                            metrics.structuredParsingTimeMs = Int(meta.structuredParsingTimeSeconds * 1000)
+                            metrics.atomicTableChunks = meta.atomicTableChunks
+                            metrics.atomicListChunks = meta.atomicListChunks
+                            
+                            metrics.chunkCount = existingDocument.totalChunks
+                            metrics.embeddingsGenerated = existingDocument.totalChunks
+                            
+                            metrics.extractionTimeMs = Int(meta.extractionTimeSeconds * 1000)
+                            metrics.chunkingTimeMs = Int(meta.chunkingTimeSeconds * 1000)
+                            metrics.embeddingTimeMs = Int(meta.embeddingTimeSeconds * 1000)
+                            metrics.totalTimeMs = Int(meta.totalProcessingTimeSeconds * 1000)
+                            metrics.documentDomain = meta.documentCategory?.rawValue ?? ""
+                        } else {
+                            metrics.chunkCount = existingDocument.totalChunks
+                            metrics.embeddingsGenerated = existingDocument.totalChunks
+                        }
+                    }
                 }
 
                 if manageProcessingState { self.isProcessing = false }
