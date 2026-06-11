@@ -6567,6 +6567,13 @@ class RAGService: ObservableObject {
             ? "Unlimited reasoning until 98% confident (up to \(optimizedConfig.maxSteps) steps)"
             : "Starting multi-step reasoning (\(deviceService.tier.displayName) mode, up to \(optimizedConfig.maxSteps) steps)"
 
+        // Always start agentic work from a clean FM session.
+        // Reusing transcript state across Go Deeper or repeated Deep Think queries
+        // is what causes the visible freezes in chat.
+        await MainActor.run {
+            self.cancelActiveGeneration(resetSession: true)
+        }
+
         emitThinkingEvent(
             .planning,
             title: modeTitle,
@@ -6574,13 +6581,6 @@ class RAGService: ObservableObject {
         )
 
         let startTime = Date()
-
-        // Always start agentic work from a clean FM session.
-        // Reusing transcript state across Go Deeper or repeated Deep Think queries
-        // is what causes the visible freezes in chat.
-        await MainActor.run {
-            self.cancelActiveGeneration(resetSession: true)
-        }
 
         do {
             if let precisionResponse = try await executeAgenticPrecisionLookupIfAvailable(
