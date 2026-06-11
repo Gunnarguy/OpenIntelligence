@@ -57,7 +57,7 @@ extension ThinkingEvent.Kind {
             return .searching
         case .rerank, .rrf, .mmr:
             return .analyzing
-        case .gating, .grounding, .selfRag, .factBank, .verification, .confidence:
+        case .gating, .grounding, .selfRag, .factBank, .verification, .confidence, .reasoning:
             return .analyzing
         case .context, .compression, .lostInMiddle, .graphPack:
             return .expanding

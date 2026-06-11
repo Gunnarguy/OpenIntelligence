@@ -311,6 +311,7 @@ private struct ConsoleLogRow: View {
         case .intentRoute: return "INTENT"
         case .confidence: return "CONFID"
         case .imagePlayground: return "IMAGIN"
+        case .reasoning: return "THINK"
         }
     }
 }

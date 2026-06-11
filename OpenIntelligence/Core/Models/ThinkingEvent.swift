@@ -32,6 +32,7 @@ struct ThinkingEvent: Identifiable, Sendable, Equatable {
         case agentic        // Agentic orchestration step
         case toolCall       // Function/tool invocation
         case factBank       // FactBank update (Maximum mode)
+        case reasoning      // Model-side thinking (e.g. O1/O3 reasoning blocks)
 
         // AppleRAG Advanced Features
         case verification   // Verification gates (anti-hallucination)
@@ -71,6 +72,7 @@ struct ThinkingEvent: Identifiable, Sendable, Equatable {
             case .agentic: return "brain"
             case .toolCall: return "function"
             case .factBank: return "tray.full"
+            case .reasoning: return "lightbulb.mind"
             // AppleRAG features
             case .verification: return "checkmark.shield.fill"
             case .graphPack: return "point.3.connected.trianglepath.dotted"
@@ -108,6 +110,7 @@ struct ThinkingEvent: Identifiable, Sendable, Equatable {
             case .agentic: return "Agentic Step"
             case .toolCall: return "Tool Call"
             case .factBank: return "FactBank"
+            case .reasoning: return "Model Reasoning"
             // AppleRAG features
             case .verification: return "Verification Gates"
             case .graphPack: return "Graph Context"
@@ -131,6 +134,7 @@ struct ThinkingEvent: Identifiable, Sendable, Equatable {
             case .fallback, .iterative: return "pink"
             case .warning: return "red"
             case .toolCall, .factBank: return "indigo"
+            case .reasoning: return "purple"
             // AppleRAG features
             case .verification: return "mint"
             case .graphPack: return "purple"

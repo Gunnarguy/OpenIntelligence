@@ -13010,14 +13010,17 @@ class RAGService: ObservableObject {
         let maxWords: Int
         switch answerIntent {
         case .lookup, .tableLookup:
-            maxSentences = 3
-            maxWords = 120
+            maxSentences = 5
+            maxWords = 200
         case .procedure:
-            maxSentences = 6
-            maxWords = 220
+            maxSentences = 12
+            maxWords = 600
+        case .summarize, .investigate, .findings:
+            maxSentences = 20
+            maxWords = 1200
         default:
-            maxSentences = 6
-            maxWords = 220
+            maxSentences = 15
+            maxWords = 800
         }
 
         var chosen: [String] = []
@@ -13313,7 +13316,12 @@ class RAGService: ObservableObject {
 
             let streamCapture = StreamCapture()
 
-            let capturingHandler: LLMStreamHandler = { event in
+            let capturingHandler: LLMStreamHandler = { [weak self] event in
+                if let reasoning = event.reasoning, !reasoning.isEmpty {
+                    Task { @MainActor [weak self] in
+                        self?.emitThinkingEvent(.reasoning, title: "Model Reasoning", detail: reasoning)
+                    }
+                }
                 await streamCapture.record(event, since: attemptStart)
                 if let upstreamHandler {
                     await upstreamHandler(event)

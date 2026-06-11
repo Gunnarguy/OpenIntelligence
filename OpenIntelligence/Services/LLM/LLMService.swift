@@ -76,7 +76,14 @@ protocol RAGToolHandler {
 
 struct LLMStreamEvent: Sendable {
     let text: String
+    let reasoning: String?
     let isFinal: Bool
+
+    init(text: String, reasoning: String? = nil, isFinal: Bool) {
+        self.text = text
+        self.reasoning = reasoning
+        self.isFinal = isFinal
+    }
 }
 
 typealias LLMStreamHandler = @Sendable (LLMStreamEvent) async -> Void
@@ -104,10 +111,10 @@ enum StructuredRAGMode: Sendable, Equatable {
 enum LLMStreamingContext {
     @TaskLocal static var handler: LLMStreamHandler?
 
-    static func emit(text: String, isFinal: Bool) {
+    static func emit(text: String, reasoning: String? = nil, isFinal: Bool) {
         guard let handler = handler else { return }
         Task {
-            await handler(LLMStreamEvent(text: text, isFinal: isFinal))
+            await handler(LLMStreamEvent(text: text, reasoning: reasoning, isFinal: isFinal))
         }
     }
 }
@@ -661,22 +668,31 @@ struct LLMResponse {
                         }
                     }
 
-                    // Update response text from snapshot
-                    let previousLength = responseText.count
-                    responseText = snapshot.content
-                    let newChars = responseText.count - previousLength
-
-                    let currentTokenEstimate = max(1, Int(ceil(Double(responseText.count) / 1.4)))
-                    let newTokens = currentTokenEstimate - tokenCount
-
-                    if newTokens > 0 {
-                        tokenCount = currentTokenEstimate
+                    // Detect phase from transcript
+                    if let lastEntry = session.transcript.last {
+                        switch lastEntry {
+                        case .response:
+                            // Update response text from snapshot
+                            let previousLength = responseText.count
+                            responseText = snapshot.content
+                            let newChars = responseText.count - previousLength
+                            
+                            if newChars > 0 {
+                                let chunk = String(responseText.suffix(newChars))
+                                LLMStreamingContext.emit(text: chunk, isFinal: false)
+                            }
+                            
+                        default:
+                            // For other entry types, we don't stream to the chat bubble yet
+                            break
+                        }
                     }
 
-                    // Emit new content to streaming context
-                    if newChars > 0 {
-                        let chunk = String(responseText.suffix(newChars))
-                        LLMStreamingContext.emit(text: chunk, isFinal: false)
+                    // Update token metrics (approximate based on total generated so far)
+                    let currentTokenEstimate = max(1, Int(ceil(Double(snapshot.content.count) / 1.4)))
+                    let newTokens = currentTokenEstimate - tokenCount
+                    if newTokens > 0 {
+                        tokenCount = currentTokenEstimate
                     }
 
                     // Subtle haptic tick

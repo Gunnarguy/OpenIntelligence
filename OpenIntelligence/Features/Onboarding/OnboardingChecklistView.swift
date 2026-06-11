@@ -50,6 +50,7 @@ struct OnboardingChecklistView: View {
     @State private var processingStatus = "Preparing sample workspace..."
     @State private var processingComplete = false
     @State private var processingFailed = false
+    @State private var pulsePhase = 0.0
 
     // Streaming log
     @State private var logEntries: [PipelineLogEntry] = []
@@ -359,6 +360,7 @@ struct OnboardingChecklistView: View {
                 Image(systemName: icon)
                     .font(.system(size: 8))
                     .foregroundStyle(color)
+                    .symbolEffect(.pulse, options: .repeating, value: isProcessing && !processingComplete)
                 Text(value)
                     .font(.system(size: 14, weight: .bold, design: .monospaced))
                     .foregroundStyle(.white)
@@ -389,21 +391,33 @@ struct OnboardingChecklistView: View {
     private func pipelineCapsule(_ label: String, icon: String, phase: PipelinePhase) -> some View {
         let isActive = currentPipelinePhase == phase
         let isComplete = isPipelinePhaseComplete(phase)
+        let pulse = isActive && !reduceMotion
+        
         HStack(spacing: 3) {
             Image(systemName: isComplete ? "checkmark" : icon)
                 .font(.system(size: 7, weight: .bold))
+                .symbolEffect(.bounce, value: isComplete)
             Text(label)
                 .font(.system(size: 9, weight: isActive ? .bold : .medium))
         }
         .foregroundStyle(isComplete ? .white : (isActive ? .white : .white.opacity(0.4)))
         .padding(.horizontal, 8)
         .padding(.vertical, 5)
-        .background(
-            Capsule().fill(
-                isComplete ? Color.green.opacity(0.5) :
-                    (isActive ? Color.accentColor.opacity(0.5) : Color.white.opacity(0.06))
-            )
-        )
+        .background {
+            ZStack {
+                Capsule().fill(
+                    isComplete ? Color.green.opacity(0.5) :
+                        (isActive ? Color.accentColor.opacity(0.5) : Color.white.opacity(0.06))
+                )
+                
+                if pulse {
+                    Capsule()
+                        .stroke(Color.accentColor.opacity(0.5), lineWidth: 1)
+                        .scaleEffect(1.0 + CGFloat(sin(pulsePhase)) * 0.1)
+                        .opacity(0.5 - sin(pulsePhase) * 0.5)
+                }
+            }
+        }
         .animation(.easeInOut(duration: 0.3), value: isActive)
         .animation(.easeInOut(duration: 0.3), value: isComplete)
     }
@@ -692,6 +706,13 @@ struct OnboardingChecklistView: View {
     // MARK: - Stage Explainer
 
     private var stageExplainer: String {
+        if !ragService.ingestionItems.isEmpty {
+            let active = ragService.ingestionItems.filter { !$0.stage.isTerminal }
+            if let first = active.first {
+                return "Currently \(first.stage.displayName.lowercased()) '\(first.filename)'..."
+            }
+        }
+        
         switch currentPipelinePhase {
         case .extract: return "Reading every word from your documents..."
         case .chunk: return "Breaking content into searchable pieces..."
@@ -750,7 +771,16 @@ struct OnboardingChecklistView: View {
         guard !hasSentImportRequest else { return }
         hasSentImportRequest = true
         processingFailed = false
-        withAnimation(.easeInOut(duration: 0.3)) { isProcessing = true }
+        withAnimation(.easeInOut(duration: 0.3)) { 
+            isProcessing = true
+            logEntries.append(PipelineLogEntry(icon: "bolt.fill", color: .yellow, text: "Initializing RAG pipeline..."))
+            logEntries.append(PipelineLogEntry(icon: "doc.fill", color: .blue, text: "Scanning 3 curated sample documents..."))
+            logEntries.append(PipelineLogEntry(icon: "cpu", color: .purple, text: "Waking Neural Engine..."))
+        }
+        
+        withAnimation(.linear(duration: 2.0).repeatForever(autoreverses: false)) {
+            pulsePhase = .pi * 2
+        }
 
         Task { @MainActor in
             do {

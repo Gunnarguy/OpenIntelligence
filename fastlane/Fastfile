@@ -116,6 +116,7 @@ platform :ios do
       force: true,
       skip_binary_upload: true,
       skip_screenshots: true,
+      skip_metadata: true,
       metadata_path: fastlane_path("metadata"),
       submit_for_review: submit_for_review,
       automatic_release: false,
