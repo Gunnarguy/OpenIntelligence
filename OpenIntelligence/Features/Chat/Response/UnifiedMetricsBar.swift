@@ -2200,6 +2200,8 @@ struct UnifiedMetricsBar: View {
                     }
                 }
             }
+
+            ThinkingStreamView(events: thinkingEvents)
         }
         .padding(12)
         .background(Color.blue.opacity(0.06))

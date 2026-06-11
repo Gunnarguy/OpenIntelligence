@@ -16,7 +16,7 @@ final class SampleDocumentManager {
 
     private let samples: [SampleDocumentDescriptor] = [
         SampleDocumentDescriptor(
-            filename: "OpenIntelligence Pricing",
+            filename: "OpenIntelligence Product Guide",
             extension: "md",
             body: #"""
 # OpenIntelligence Product Guide

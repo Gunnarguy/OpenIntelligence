@@ -340,7 +340,7 @@ private struct TypingBubbleV2: View {
                 }
 
                 // Live Pipeline Activity (The "Streaming Console" energy)
-                if !events.isEmpty && mode.canonical != .standard {
+                if !events.isEmpty {
                     LivePipelinePreview(events: events, tint: modeColor)
                 }
             }

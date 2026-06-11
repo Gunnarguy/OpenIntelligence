@@ -1,4 +1,5 @@
 import SwiftUI
+import Combine
 
 // MARK: - Display Helpers
 
@@ -51,10 +52,14 @@ struct OnboardingChecklistView: View {
     @State private var processingComplete = false
     @State private var processingFailed = false
     @State private var pulsePhase = 0.0
+    @State private var processingStartTime: Date? = nil
+    @State private var smoothTimeMs = 0
 
     // Streaming log
     @State private var logEntries: [PipelineLogEntry] = []
     @State private var lastSnapshotPerItem: [UUID: MetricsSnapshot] = [:]
+
+    private let timerPublisher = Timer.publish(every: 0.05, on: .main, in: .common).autoconnect()
 
     var body: some View {
         ZStack {
@@ -98,6 +103,13 @@ struct OnboardingChecklistView: View {
         .onAppear { animateEntrance() }
         .onChange(of: ragService.ingestionItems) { _, newItems in
             diffAndEmitLogEntries(newItems)
+        }
+        .onReceive(timerPublisher) { _ in
+            guard isProcessing && !processingComplete && !processingFailed else { return }
+            if let startTime = processingStartTime {
+                let elapsed = Date().timeIntervalSince(startTime)
+                smoothTimeMs = Int(elapsed * 1000)
+            }
         }
         .accessibilityElement(children: .contain)
     }
@@ -331,7 +343,7 @@ struct OnboardingChecklistView: View {
         let words = items.reduce(0) { $0 + $1.metrics.totalWords }
         let chunks = items.reduce(0) { $0 + $1.metrics.chunkCount }
         let vectors = items.reduce(0) { $0 + $1.metrics.embeddingsGenerated }
-        let timeMs = items.reduce(0) { $0 + $1.metrics.totalTimeMs }
+        let timeMs = (isProcessing || processingComplete || processingFailed) ? smoothTimeMs : items.reduce(0) { $0 + $1.metrics.totalTimeMs }
 
         return HStack(spacing: 0) {
             dashCounter(value: fmtNumber(words), label: "Words", icon: "textformat", color: .orange)
@@ -397,6 +409,7 @@ struct OnboardingChecklistView: View {
             Image(systemName: isComplete ? "checkmark" : icon)
                 .font(.system(size: 7, weight: .bold))
                 .symbolEffect(.bounce, value: isComplete)
+                .symbolEffect(.pulse, options: .repeating, isActive: isActive && !isComplete)
             Text(label)
                 .font(.system(size: 9, weight: isActive ? .bold : .medium))
         }
@@ -434,10 +447,22 @@ struct OnboardingChecklistView: View {
         VStack(alignment: .leading, spacing: 3) {
             ForEach(ragService.ingestionItems) { item in
                 HStack(spacing: 6) {
-                    Image(systemName: item.stage == .complete ? "checkmark.circle.fill" : (item.stage == .failed ? "xmark.circle.fill" : "circle.fill"))
-                        .font(.system(size: 7))
-                        .foregroundStyle(item.stage == .complete ? .green : (item.stage == .failed ? .red : .accentColor))
-                        .frame(width: 10)
+                    if item.stage == .complete {
+                        Image(systemName: "checkmark.circle.fill")
+                            .font(.system(size: 8))
+                            .foregroundStyle(.green)
+                            .frame(width: 12)
+                    } else if item.stage == .failed {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.system(size: 8))
+                            .foregroundStyle(.red)
+                            .frame(width: 12)
+                    } else {
+                        ProgressView()
+                            .scaleEffect(0.5)
+                            .frame(width: 12, height: 12)
+                            .tint(.accentColor)
+                    }
                     Text(item.filename)
                         .font(.system(size: 11, weight: .medium))
                         .foregroundStyle(.white.opacity(item.stage.isTerminal ? 0.5 : 0.9))
@@ -684,22 +709,22 @@ struct OnboardingChecklistView: View {
     private func logEntryForStageChange(item: IngestionItem) -> PipelineLogEntry? {
         let fn = item.filename
         switch item.stage {
-        case .queued: return PipelineLogEntry(icon: "clock", color: .white.opacity(0.5), text: "[\(fn)] Queued")
-        case .loading: return PipelineLogEntry(icon: "arrow.down.circle", color: .white.opacity(0.6), text: "[\(fn)] Loading file...")
-        case .transcribing: return PipelineLogEntry(icon: "waveform", color: .orange, text: "[\(fn)] Transcribing audio...")
-        case .extracting: return PipelineLogEntry(icon: "doc.text.magnifyingglass", color: .blue, text: "[\(fn)] Extracting text...")
-        case .chunking: return PipelineLogEntry(icon: "rectangle.split.3x1", color: .purple, text: "[\(fn)] Semantic chunking...")
-        case .analyzing: return PipelineLogEntry(icon: "brain", color: .indigo, text: "[\(fn)] Corpus intelligence analysis...")
-        case .adapting: return PipelineLogEntry(icon: "gearshape.2", color: .yellow, text: "[\(fn)] Adapting config...")
-        case .reindexing: return PipelineLogEntry(icon: "arrow.triangle.2.circlepath", color: .orange, text: "[\(fn)] Re-indexing with adapted config...")
-        case .embedding: return PipelineLogEntry(icon: "point.3.connected.trianglepath.dotted", color: .green, text: "[\(fn)] Generating embeddings...")
-        case .indexing: return PipelineLogEntry(icon: "magnifyingglass", color: .teal, text: "[\(fn)] BM25 + HNSW indexing...")
-        case .storing: return PipelineLogEntry(icon: "externaldrive", color: .gray, text: "[\(fn)] Persisting to vector store...")
+        case .queued: return PipelineLogEntry(icon: "clock", color: .white.opacity(0.5), text: "[\(fn)] Queued in pipeline")
+        case .loading: return PipelineLogEntry(icon: "arrow.down.circle", color: .white.opacity(0.6), text: "[\(fn)] Allocating secure local memory buffer...")
+        case .transcribing: return PipelineLogEntry(icon: "waveform", color: .orange, text: "[\(fn)] Transcribing audio via Whisper...")
+        case .extracting: return PipelineLogEntry(icon: "doc.text.magnifyingglass", color: .blue, text: "[\(fn)] Parsing layout & extracting raw text...")
+        case .chunking: return PipelineLogEntry(icon: "rectangle.split.3x1", color: .purple, text: "[\(fn)] Running semantic sentence chunking...")
+        case .analyzing: return PipelineLogEntry(icon: "brain", color: .indigo, text: "[\(fn)] Running layout intelligence & category routing...")
+        case .adapting: return PipelineLogEntry(icon: "gearshape.2", color: .yellow, text: "[\(fn)] Optimizing index hyperparameters...")
+        case .reindexing: return PipelineLogEntry(icon: "arrow.triangle.2.circlepath", color: .orange, text: "[\(fn)] Rebuilding layout graph...")
+        case .embedding: return PipelineLogEntry(icon: "point.3.connected.trianglepath.dotted", color: .green, text: "[\(fn)] Vectorizing chunks via Neural Engine...")
+        case .indexing: return PipelineLogEntry(icon: "magnifyingglass", color: .teal, text: "[\(fn)] Generating BM25 dictionary + HNSW vectors...")
+        case .storing: return PipelineLogEntry(icon: "externaldrive", color: .gray, text: "[\(fn)] Serializing index to secure local container...")
         case .complete: return nil
         case .cancelled: return PipelineLogEntry(icon: "slash.circle.fill", color: .orange, text: "[\(fn)] Cancelled")
         case .failed:
             let err = item.errorMessage ?? "Unknown error"
-            return PipelineLogEntry(icon: "xmark.circle.fill", color: .red, text: "[\(fn)] Failed: \(err)")
+            return PipelineLogEntry(icon: "xmark.circle.fill", color: .red, text: "[\(fn)] Ingestion failed: \(err)")
         }
     }
 
@@ -771,11 +796,14 @@ struct OnboardingChecklistView: View {
         guard !hasSentImportRequest else { return }
         hasSentImportRequest = true
         processingFailed = false
+        processingStartTime = Date()
+        smoothTimeMs = 0
         withAnimation(.easeInOut(duration: 0.3)) { 
             isProcessing = true
-            logEntries.append(PipelineLogEntry(icon: "bolt.fill", color: .yellow, text: "Initializing RAG pipeline..."))
-            logEntries.append(PipelineLogEntry(icon: "doc.fill", color: .blue, text: "Scanning 3 curated sample documents..."))
-            logEntries.append(PipelineLogEntry(icon: "cpu", color: .purple, text: "Waking Neural Engine..."))
+            logEntries.append(PipelineLogEntry(icon: "lock.shield", color: .cyan, text: "Locking local workspace container enclaves..."))
+            logEntries.append(PipelineLogEntry(icon: "cpu.fill", color: .purple, text: "Waking Neural Engine & GPU cores..."))
+            logEntries.append(PipelineLogEntry(icon: "square.stack.3d.up.fill", color: .blue, text: "Pre-warming CoreML sentence embedding model (384D)..."))
+            logEntries.append(PipelineLogEntry(icon: "doc.fill", color: .orange, text: "Scanning sample documents directory..."))
         }
         
         withAnimation(.linear(duration: 2.0).repeatForever(autoreverses: false)) {
@@ -792,6 +820,9 @@ struct OnboardingChecklistView: View {
 
                 DSHaptics.success()
                 withAnimation(.easeInOut(duration: 0.5)) { processingComplete = true }
+                if let startTime = processingStartTime {
+                    smoothTimeMs = Int(Date().timeIntervalSince(startTime) * 1000)
+                }
                 ragService.resetLLMSession()
 
             } catch {
@@ -803,6 +834,9 @@ struct OnboardingChecklistView: View {
                     processingFailed = true
                 }
                 hasSentImportRequest = false
+                if let startTime = processingStartTime {
+                    smoothTimeMs = Int(Date().timeIntervalSince(startTime) * 1000)
+                }
             }
         }
     }
