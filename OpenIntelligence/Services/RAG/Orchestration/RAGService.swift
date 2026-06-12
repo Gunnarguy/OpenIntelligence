@@ -35,6 +35,23 @@ extension Array {
     }
 }
 
+extension UUID {
+    static func deterministic(from string: String) -> UUID {
+        guard let data = string.data(using: .utf8) else {
+            return UUID()
+        }
+        let hash = Insecure.MD5.hash(data: data)
+        let bytes = Array(hash)
+        guard bytes.count >= 16 else {
+            return UUID()
+        }
+        return UUID(uuid: (bytes[0], bytes[1], bytes[2], bytes[3],
+                           bytes[4], bytes[5], bytes[6], bytes[7],
+                           bytes[8], bytes[9], bytes[10], bytes[11],
+                           bytes[12], bytes[13], bytes[14], bytes[15]))
+    }
+}
+
 struct RetrievalLogEntry: Identifiable, Sendable {
     let id = UUID()
     let timestamp: Date
@@ -334,7 +351,19 @@ class RAGService: ObservableObject {
     @MainActor private var ingestionContexts: [UUID: IngestionContext] = [:]
     @MainActor private var requestedIngestionCancellationIds: Set<UUID> = []
     @MainActor private var liveActivityTrackedIngestionIds: Set<UUID> = []
-    @MainActor private var lastLocalIndexSyncFingerprint: String?
+    @MainActor private var lastLocalIndexSyncFingerprint: String? {
+        get {
+            UserDefaults.standard.string(forKey: "lastLocalIndexSyncFingerprint")
+        }
+        set {
+            if let newValue {
+                UserDefaults.standard.set(newValue, forKey: "lastLocalIndexSyncFingerprint")
+            } else {
+                UserDefaults.standard.removeObject(forKey: "lastLocalIndexSyncFingerprint")
+            }
+            UserDefaults.standard.synchronize()
+        }
+    }
 
     /// Helper to get document name by ID
     @MainActor
@@ -4102,7 +4131,8 @@ class RAGService: ObservableObject {
 
     @MainActor
     func discardPausedIngestionQueue() {
-        let pausedIds = Set(ingestionItems.filter { $0.stage == .paused }.map(\.id))
+        let pausedItems = ingestionItems.filter { $0.stage == .paused }
+        let pausedIds = Set(pausedItems.map(\.id))
         guard !pausedIds.isEmpty else { return }
 
         ingestionItems.removeAll { pausedIds.contains($0.id) }
@@ -4111,6 +4141,34 @@ class RAGService: ObservableObject {
         requestedIngestionCancellationIds.subtract(pausedIds)
 
         Log.info("[RAGService] User discarded \(pausedIds.count) interrupted ingestion item(s)", category: .ingestion)
+
+        // Nuke any document records or files corresponding to these discarded items
+        for item in pausedItems {
+            let resolvedContainerId = item.containerId ?? self.containerService.containers.first?.id ?? self.containerService.activeContainerId
+            
+            // 1. Delete physical file if it's in our internal storage
+            let fileURL = item.url
+            if fileURL.path.contains("ImportedDocuments") {
+                try? FileManager.default.removeItem(at: fileURL)
+            }
+            
+            // 2. Remove document record from the catalog if it exists
+            if let existingDoc = existingImportedDocument(
+                in: resolvedContainerId,
+                storageRelativePath: item.storageRelativePath,
+                fileHash: item.documentHash
+            ) {
+                Task {
+                    do {
+                        try await removeDocument(existingDoc)
+                        Log.info("[RAGService] Completely nuked document '\(existingDoc.filename)' corresponding to discarded ingestion item", category: .ingestion)
+                    } catch {
+                        Log.error("[RAGService] Failed to remove document '\(existingDoc.filename)' during discard: \(error)", category: .ingestion)
+                    }
+                }
+            }
+        }
+
         savePersistedIngestionQueueState()
         syncIngestionLiveActivity()
     }
@@ -4765,14 +4823,29 @@ class RAGService: ObservableObject {
         // Set up RICH progress handler for live metrics during extraction
         documentProcessor.richProgressHandler = { [weak self] progress in
             Task { @MainActor in
-                let stage: IngestionStage = progress.stage == "transcribing" ? .transcribing : .extracting
-                var progressFraction: Double? = nil
-                if let current = progress.currentPage, let total = progress.totalPages, total > 0 {
-                    let base = stage.pipelineBaseFraction ?? 0.0
-                    let weight = stage.pipelineWeightFraction ?? 0.0
-                    let stageProgress = Double(current) / Double(total)
-                    progressFraction = base + (stageProgress * weight)
+                let stage: IngestionStage
+                switch progress.stage {
+                case "transcribing":
+                    stage = .transcribing
+                case "chunking":
+                    stage = .chunking
+                case "analyzing":
+                    stage = .analyzing
+                default:
+                    stage = .extracting
                 }
+
+                var progressFraction: Double? = nil
+                if let base = stage.pipelineBaseFraction {
+                    let weight = stage.pipelineWeightFraction ?? 0.0
+                    if let current = progress.currentPage, let total = progress.totalPages, total > 0 {
+                        let stageProgress = Double(current) / Double(total)
+                        progressFraction = base + (stageProgress * weight)
+                    } else {
+                        progressFraction = base
+                    }
+                }
+
                 self?.updateIngestionItem(
                     id: trackingId,
                     filename: filename,
@@ -5245,7 +5318,7 @@ class RAGService: ObservableObject {
                     filename: filename,
                     stage: .indexing,
                     detail: "Building vector + BM25 indexes...",
-                    progress: 1.0
+                    progress: 0.94
                 ) { metrics in
                     metrics.embeddingTimeMs = Int(embeddingTime * 1000)
                     metrics.embeddingsGenerated = embeddings.count
@@ -5269,7 +5342,8 @@ class RAGService: ObservableObject {
                     id: trackingId,
                     filename: filename,
                     stage: .storing,
-                    detail: "Persisting \(processedChunks.count) chunks to vector database..."
+                    detail: "Persisting \(processedChunks.count) chunks to vector database...",
+                    progress: 0.94
                 )
             }
 
@@ -5334,12 +5408,22 @@ class RAGService: ObservableObject {
             try Task.checkCancellation()
             let db = await dbForActiveContainer()
             try await db.storeBatch(chunks: documentChunks)
+            try await db.persist()
             // Invalidate visualization cache for this container after data change
             ProjectionCache.shared.invalidate(forContainer: activeContainerId)
 
             // Step 4.0.0: Index individual document chunks in Spotlight for fine-grained search
             let chunkSpotlightEnabled = await MainActor.run { self.settingsStore?.enableSpotlightIndexing ?? true }
             if chunkSpotlightEnabled {
+                await MainActor.run {
+                    updateIngestionItem(
+                        id: trackingId,
+                        filename: filename,
+                        stage: .indexing,
+                        detail: "Indexing Spotlight search...",
+                        progress: 0.95
+                    )
+                }
                 let cid = activeContainerId
                 let containerName = await MainActor.run { self.containerService.containers.first(where: { $0.id == cid })?.name ?? "Library" }
                 SpotlightIndexService.shared.indexDocumentChunks(
@@ -5363,6 +5447,15 @@ class RAGService: ObservableObject {
             // Step 4.0.1: Store chunks in chunk-level FTS5 for section-aware BM25 search
             // This enables chunk-level BM25 scoring with section heading boosts:
             // "oil" matching in sectionTitle="Engine Oil" gets 10x the score of body text
+            await MainActor.run {
+                updateIngestionItem(
+                    id: trackingId,
+                    filename: filename,
+                    stage: .indexing,
+                    detail: "Indexing text search...",
+                    progress: 0.96
+                )
+            }
             let fts5ChunkData: [(chunkIndex: Int, pageNumber: Int?, sectionTitle: String?,
                                  sectionPath: String?, structureType: String?, chunkType: String?,
                                  tableTitle: String?, content: String,
@@ -5402,6 +5495,15 @@ class RAGService: ObservableObject {
 
             // Step 4.1: Learn vocabulary from chunks for per-container domain adaptation
             // Extracts domain terms, spec codes, and technical phrases to improve future retrieval
+            await MainActor.run {
+                updateIngestionItem(
+                    id: trackingId,
+                    filename: filename,
+                    stage: .analyzing,
+                    detail: "Learning vocabulary...",
+                    progress: 0.97
+                )
+            }
             for chunk in documentChunks {
                 await ContainerVocabularyService.shared.learnFromChunk(
                     chunk.content,
@@ -5446,7 +5548,7 @@ class RAGService: ObservableObject {
                         filename: filename,
                         stage: .storing,
                         detail: "Optimizing overview...",
-                        progress: 0.96
+                        progress: 0.98
                     )
                 }
 
@@ -5501,7 +5603,7 @@ class RAGService: ObservableObject {
                     filename: filename,
                     stage: .storing,
                     detail: "Generating tags...",
-                    progress: 0.98
+                    progress: 0.99
                 )
             }
 
@@ -5666,6 +5768,22 @@ class RAGService: ObservableObject {
             // Save documents metadata to disk
             await saveDocumentsToDisk()
 
+            // Generate suggested questions for the document
+            await MainActor.run {
+                updateIngestionItem(
+                    id: trackingId,
+                    filename: filename,
+                    stage: .storing,
+                    detail: "Generating suggested questions...",
+                    progress: 0.99
+                )
+            }
+            await SuggestedQuestionsService.shared.generateQuestionsForIngestedDocument(
+                updatedDocument,
+                chunks: documentChunks,
+                in: activeContainerId
+            )
+
             // Brief yield for UI to catch up before marking complete
             await Task.yield()
 
@@ -5776,8 +5894,10 @@ class RAGService: ObservableObject {
             .sorted { $0.id.uuidString < $1.id.uuidString }
             .map { document in
                 let containerComponent = document.containerId?.uuidString ?? "none"
-                let pathComponent = document.storageRelativePath ?? document.fileURL.path
-                return "\(document.id.uuidString)|\(containerComponent)|\(document.totalChunks)|\(pathComponent)"
+                let pathComponent = document.storageRelativePath ?? document.filename
+                let hashComponent = document.fileHash ?? "nohash"
+                let addedAtComponent = String(format: "%.0f", document.addedAt.timeIntervalSince1970)
+                return "\(document.id.uuidString)|\(containerComponent)|\(document.totalChunks)|\(pathComponent)|\(hashComponent)|\(addedAtComponent)"
             }
             .joined(separator: ";")
     }
@@ -5811,7 +5931,7 @@ class RAGService: ObservableObject {
                         Task { [weak self] in
                             guard let self else { return }
                             do {
-                                try await self.reembedDocuments(in: containerId)
+                                try await self.reembedDocuments(in: containerId, reason: "Self-healing: empty vector store")
                                 Log.info("[RAGService] Self-healing rebuild completed successfully for container \(containerId)", category: .ingestion)
                             } catch {
                                 Log.error("[RAGService] Self-healing rebuild failed for container \(containerId): \(error.localizedDescription)", category: .ingestion)
@@ -5827,6 +5947,15 @@ class RAGService: ObservableObject {
                 await SQLiteFullTextService.shared.deleteChunksForContainer(containerId: container.id)
 
                 let chunksByDocument = Dictionary(grouping: allChunks, by: \.documentId)
+
+                // Clean up orphaned vector database chunks for documents no longer in the metadata catalog
+                let containerDocIDs = Set(containerDocuments.map(\.id))
+                for docID in chunksByDocument.keys {
+                    if !containerDocIDs.contains(docID) {
+                        Log.info("[RAGService] Wiping orphaned vector database chunks for document \(docID) in container \(container.id)", category: .ingestion)
+                        try? await database.deleteChunks(forDocument: docID)
+                    }
+                }
 
                 for document in containerDocuments {
                     guard let unsortedChunks = chunksByDocument[document.id], !unsortedChunks.isEmpty else {
@@ -5910,8 +6039,32 @@ class RAGService: ObservableObject {
         return "[\(baseName)]"
     }
 
+    private func registerDeletedDocuments(_ docs: [Document]) {
+        let deletedDocsURL = AppSupportPaths.baseDir().appendingPathComponent("deleted_documents.json")
+        let fm = FileManager.default
+        var deletedDocIDs: [String] = []
+        if fm.fileExists(atPath: deletedDocsURL.path),
+           let data = try? Data(contentsOf: deletedDocsURL) {
+            deletedDocIDs = (try? JSONDecoder().decode([String].self, from: data)) ?? []
+        }
+        var changed = false
+        for doc in docs {
+            let idStr = doc.id.uuidString
+            if !deletedDocIDs.contains(idStr) {
+                deletedDocIDs.append(idStr)
+                changed = true
+            }
+        }
+        if changed {
+            if let data = try? JSONEncoder().encode(deletedDocIDs) {
+                try? data.write(to: deletedDocsURL, options: .atomic)
+            }
+        }
+    }
+
     /// Remove a document from the knowledge base
     func removeDocument(_ document: Document, keepPhysicalFile: Bool = false) async throws {
+        registerDeletedDocuments([document])
         let targetContainerId = await MainActor.run {
             document.containerId ?? self.containerService.containers.first?.id ?? self.containerService.activeContainerId
         }
@@ -5939,6 +6092,9 @@ class RAGService: ObservableObject {
 
         // Invalidate visualization cache for the document's library after removal
         ProjectionCache.shared.invalidate(forContainer: targetContainerId)
+
+        // Remove from suggested questions bank
+        await SuggestedQuestionsService.shared.removeQuestions(for: document.id, in: targetContainerId)
 
         await MainActor.run {
             documents.removeAll { $0.id == document.id }
@@ -5971,12 +6127,16 @@ class RAGService: ObservableObject {
         let docsToDelete = await MainActor.run {
             self.documents.filter { $0.containerId == activeId }
         }
+        registerDeletedDocuments(docsToDelete)
         for doc in docsToDelete {
             await FullTextStorageService.shared.delete(for: doc.id)
         }
 
         // Remove all documents in this container from Spotlight
         SpotlightIndexService.shared.deindexContainer(id: activeId)
+
+        // Clear suggested questions bank
+        await SuggestedQuestionsService.shared.clearQuestionBank(for: activeId)
 
         await MainActor.run {
             documents.removeAll { $0.containerId == activeId }
@@ -5994,6 +6154,7 @@ class RAGService: ObservableObject {
     /// Rebuild embeddings for every document in the specified container
     func reembedDocuments(
         in containerId: UUID? = nil,
+        reason: String? = nil,
         progressHandler: (@MainActor (ReembedProgress) -> Void)? = nil
     ) async throws {
         let targetContainerId: UUID
@@ -6034,11 +6195,15 @@ class RAGService: ObservableObject {
             }
         }
 
-        // Get the reason for rebuild (from container's pending directive or generic)
-        let rebuildReason = await MainActor.run {
-            containerService.activeContainer?.chunkingDirective.map {
-                "\($0.strategy.capitalized) strategy, \($0.targetWordWindow)w window"
-            } ?? "Configuration changed"
+        let rebuildReason: String
+        if let reason {
+            rebuildReason = reason
+        } else {
+            rebuildReason = await MainActor.run {
+                containerService.activeContainer?.chunkingDirective.map {
+                    "\($0.strategy.capitalized) strategy, \($0.targetWordWindow)w window"
+                } ?? "Configuration changed"
+            }
         }
 
         TelemetryCenter.emit(
@@ -6085,73 +6250,269 @@ class RAGService: ObservableObject {
             }
         }
 
+        let container = await MainActor.run {
+            self.containerService.containers.first { $0.id == targetContainerId }
+        }
+        let providerId = container?.embeddingProviderId ?? "coreml_sentence_embedding"
+        let initialDimension = container?.embeddingDim ?? 384
+        
+        let containerEmbeddingService = EmbeddingService.forProvider(
+            id: providerId,
+            targetDimension: initialDimension
+        )
+
         for (index, document) in documentsToRebuild.enumerated() {
             if Task.isCancelled { break }
 
             let trackingId = rebuildItems[index].id
 
-            // Guard: Skip documents whose source files no longer exist (e.g. temp sample files)
-            guard FileManager.default.fileExists(atPath: document.fileURL.path) else {
-                Log.warning(
-                    "[RAGService] Skipping rebuild for '\(document.filename)' - source file no longer exists at \(document.fileURL.path)"
+            let targetWindow = container?.chunkingDirective?.targetWordWindow ?? ChunkingDefaults.targetWindow
+            let targetOverlap = container?.chunkingDirective?.overlapWords ?? ChunkingDefaults.overlap
+            let targetStrategy = container?.chunkingDirective?.strategy ?? "balanced"
+
+            var chunkingConfigHasNotChanged = false
+            if let docMetadata = document.processingMetadata,
+               let docWindow = docMetadata.targetWordWindow,
+               let docOverlap = docMetadata.overlapWords {
+                chunkingConfigHasNotChanged = (docWindow == targetWindow &&
+                                               docOverlap == targetOverlap &&
+                                               docMetadata.chunkingStrategy == targetStrategy)
+            } else if rebuildReason.contains("Self-healing") || rebuildReason.contains("empty vector store") {
+                chunkingConfigHasNotChanged = true
+            }
+
+            // Try to get existing chunks from vector database first
+            let db = await dbFor(targetContainerId)
+            var chunksToReembed = try await db.allChunks().filter { $0.documentId == document.id }
+
+            // If empty in vector DB, try to retrieve from FTS5
+            if chunksToReembed.isEmpty {
+                let ftsChunks = await SQLiteFullTextService.shared.retrieveChunks(for: document.id)
+                if !ftsChunks.isEmpty {
+                    chunksToReembed = ftsChunks.map { ftsChunk in
+                        let pathComponents = ftsChunk.sectionPath?.components(separatedBy: " > ")
+                        let metadata = ChunkMetadata(
+                            chunkIndex: ftsChunk.chunkIndex,
+                            startPosition: 0,
+                            endPosition: ftsChunk.content.count,
+                            pageNumber: ftsChunk.pageNumber,
+                            sectionTitle: ftsChunk.sectionTitle,
+                            keywords: [],
+                            semanticDensity: 0.5,
+                            hasNumericData: ftsChunk.content.rangeOfCharacter(from: .decimalDigits) != nil,
+                            hasListStructure: ftsChunk.content.contains("\n•") || ftsChunk.content.contains("\n-"),
+                            wordCount: ftsChunk.content.split(separator: " ").count,
+                            characterCount: ftsChunk.content.count,
+                            structureType: ftsChunk.structureType,
+                            sectionPath: pathComponents
+                        )
+                        return DocumentChunk(
+                            id: UUID.deterministic(from: "\(document.id.uuidString)_\(ftsChunk.chunkIndex)"),
+                            documentId: document.id,
+                            content: ftsChunk.content,
+                            parentContent: nil,
+                            contextualPrefix: nil,
+                            embedding: [],
+                            metadata: metadata
+                        )
+                    }
+                }
+            }
+
+            let canOptimize = chunkingConfigHasNotChanged && !chunksToReembed.isEmpty
+
+            if canOptimize {
+                Log.info("[Reembed] Running optimized re-embedding path for '\(document.filename)' (\(chunksToReembed.count) chunks)...", category: .ingestion)
+                
+                await MainActor.run {
+                    self.processingStatus = "Re-embedding \(document.filename) (optimized) (\(index + 1)/\(documentsToRebuild.count))"
+                    self.isProcessing = true
+                    progressHandler?(ReembedProgress(
+                        completed: index,
+                        total: documentsToRebuild.count,
+                        currentFilename: document.filename
+                    ))
+
+                    updateIngestionItem(
+                        id: trackingId,
+                        filename: document.filename,
+                        stage: .embedding,
+                        detail: "Re-embedding \(chunksToReembed.count) chunks (optimized)...",
+                        progress: 0.0
+                    ) { metrics in
+                        metrics.isRebuild = true
+                        metrics.rebuildReason = rebuildReason
+                        metrics.embeddingDimension = initialDimension
+                        metrics.embeddingProvider = Self.shortProviderName(for: providerId)
+                    }
+                }
+
+                // 1. Build contextual prefixes and prep texts to embed
+                let docContext = buildContextualPrefix(filename: document.filename)
+                var textsToEmbed: [String] = []
+                var updatedChunks: [DocumentChunk] = []
+                let maxTokens = containerEmbeddingService.maxSafeTokens
+                
+                let translatedChunkTexts = await translatedTextsForEmbedding(
+                    chunksToReembed.map(\.content),
+                    container: container
                 )
+
+                for (idx, chunk) in chunksToReembed.enumerated() {
+                    let sectionContext: String
+                    if let path = Self.trustedSectionDisplayPath(chunk.metadata.sectionPath), !path.isEmpty {
+                        sectionContext = " [\(path.joined(separator: " > "))]"
+                    } else if let title = Self.trustedSectionDisplayLabel(chunk.metadata.sectionTitle) {
+                        sectionContext = " [\(title)]"
+                    } else {
+                        sectionContext = ""
+                    }
+                    let contextualPrefix = docContext + sectionContext + " "
+                    var textForEmbedding = contextualPrefix + translatedChunkTexts[idx]
+                    
+                    let tokenCount = containerEmbeddingService.countTokens(textForEmbedding)
+                    if tokenCount > maxTokens {
+                        var low = 0
+                        var high = textForEmbedding.count
+                        while low < high {
+                            let mid = (low + high + 1) / 2
+                            let truncated = String(textForEmbedding.prefix(mid))
+                            if containerEmbeddingService.countTokens(truncated) <= maxTokens {
+                                low = mid
+                            } else {
+                                high = mid - 1
+                            }
+                        }
+                        textForEmbedding = String(textForEmbedding.prefix(low))
+                    }
+                    
+                    textsToEmbed.append(textForEmbedding)
+                    
+                    let updatedChunk = DocumentChunk(
+                        id: chunk.id,
+                        documentId: chunk.documentId,
+                        content: chunk.content,
+                        parentContent: chunk.parentContent,
+                        contextualPrefix: contextualPrefix,
+                        embedding: [],
+                        metadata: chunk.metadata
+                    )
+                    updatedChunks.append(updatedChunk)
+                }
+
+                // 2. Generate embeddings
+                let trackingIdForProgress = trackingId
+                let filenameForProgress = document.filename
+                let embeddings = try await containerEmbeddingService.generateEmbeddings(
+                    for: textsToEmbed,
+                    progressHandler: { [weak self] (completed: Int, total: Int) in
+                        Task { @MainActor in
+                            let progress = Double(completed) / Double(max(1, total))
+                            self?.updateIngestionItem(
+                                id: trackingIdForProgress,
+                                filename: filenameForProgress,
+                                stage: .embedding,
+                                detail: "Embedding \(completed)/\(total) chunks...",
+                                progress: progress
+                            ) { metrics in
+                                metrics.embeddingsGenerated = completed
+                                metrics.embeddingBatchProgress = progress
+                            }
+                        }
+                    }
+                )
+
+                let finalChunks = zip(updatedChunks, embeddings).map { chunk, embedding in
+                    DocumentChunk(
+                        id: chunk.id,
+                        documentId: chunk.documentId,
+                        content: chunk.content,
+                        parentContent: chunk.parentContent,
+                        contextualPrefix: chunk.contextualPrefix,
+                        embedding: embedding,
+                        metadata: chunk.metadata
+                    )
+                }
+
+                // 3. Delete old chunks from vector DB, store new chunks, and persist
+                try await db.deleteChunks(forDocument: document.id)
+                try await db.storeBatch(chunks: finalChunks)
+                try await db.persist()
+
                 await MainActor.run {
                     updateIngestionItem(
                         id: trackingId,
                         filename: document.filename,
                         stage: .complete,
-                        detail: "Skipped (source file missing)",
+                        detail: "Re-embedded (optimized)",
                         progress: 1.0
                     )
+                    self.isProcessing = true
                 }
-                continue
-            }
-
-            await MainActor.run {
-                self.processingStatus = "Rebuilding \(document.filename) (\(index + 1)/\(documentsToRebuild.count))"
-                self.isProcessing = true
-                progressHandler?(ReembedProgress(
-                    completed: index,
-                    total: documentsToRebuild.count,
-                    currentFilename: document.filename
-                ))
-
-                // Mark as reindexing in the queue
-                updateIngestionItem(
-                    id: trackingId,
-                    filename: document.filename,
-                    stage: .reindexing,
-                    detail: "Removing old index..."
-                ) { metrics in
-                    metrics.isRebuild = true
-                    metrics.rebuildReason = rebuildReason
+            } else {
+                // Guard: Skip documents whose source files no longer exist (e.g. temp sample files)
+                guard FileManager.default.fileExists(atPath: document.fileURL.path) else {
+                    Log.warning(
+                        "[RAGService] Skipping rebuild for '\(document.filename)' - source file no longer exists at \(document.fileURL.path)"
+                    )
+                    await MainActor.run {
+                        updateIngestionItem(
+                            id: trackingId,
+                            filename: document.filename,
+                            stage: .complete,
+                            detail: "Skipped (source file missing)",
+                            progress: 1.0
+                        )
+                    }
+                    continue
                 }
-            }
 
-            try await removeDocument(document, keepPhysicalFile: true)
+                await MainActor.run {
+                    self.processingStatus = "Rebuilding \(document.filename) (\(index + 1)/\(documentsToRebuild.count))"
+                    self.isProcessing = true
+                    progressHandler?(ReembedProgress(
+                        completed: index,
+                        total: documentsToRebuild.count,
+                        currentFilename: document.filename
+                    ))
 
-            await MainActor.run {
-                updateIngestionItem(
-                    id: trackingId,
-                    filename: document.filename,
-                    stage: .reindexing,
-                    detail: "Re-processing with new config..."
-                )
-            }
+                    // Mark as reindexing in the queue
+                    updateIngestionItem(
+                        id: trackingId,
+                        filename: document.filename,
+                        stage: .reindexing,
+                        detail: "Removing old index..."
+                    ) { metrics in
+                        metrics.isRebuild = true
+                        metrics.rebuildReason = rebuildReason
+                    }
+                }
 
-            // Re-add with autoRebuild context (prevents recursive self-tuning)
-            try await addDocument(at: document.fileURL, context: .autoRebuild)
+                try await removeDocument(document, keepPhysicalFile: true)
 
-            await MainActor.run {
-                updateIngestionItem(
-                    id: trackingId,
-                    filename: document.filename,
-                    stage: .complete,
-                    detail: "Rebuilt",
-                    progress: 1.0
-                )
-                // Keep overlay visible between documents
-                self.isProcessing = true
+                await MainActor.run {
+                    updateIngestionItem(
+                        id: trackingId,
+                        filename: document.filename,
+                        stage: .reindexing,
+                        detail: "Re-processing with new config..."
+                    )
+                }
+
+                // Re-add with autoRebuild context (prevents recursive self-tuning)
+                try await addDocument(at: document.fileURL, context: .autoRebuild)
+
+                await MainActor.run {
+                    updateIngestionItem(
+                        id: trackingId,
+                        filename: document.filename,
+                        stage: .complete,
+                        detail: "Rebuilt",
+                        progress: 1.0
+                    )
+                    // Keep overlay visible between documents
+                    self.isProcessing = true
+                }
             }
         }
 
@@ -14508,157 +14869,13 @@ class RAGService: ObservableObject {
         guard !candidate.isEmpty else { return fallbackText }
         guard !fallbackText.isEmpty else { return candidate }
 
-        if let structuredAnswer,
-           shouldPreferFallbackDisplay(
-                fallback: fallbackText,
-                candidate: candidate,
-                answerType: structuredAnswer.answerType
-           ) {
-            return fallbackText
+        // If the verification gates failed and the system refused to answer, return the refusal candidate.
+        if let structuredAnswer, structuredAnswer.refuse {
+            return candidate
         }
 
-        return candidate
-    }
-
-    private func shouldPreferFallbackDisplay(
-        fallback: String,
-        candidate: String,
-        answerType: StructuredAnswer.AnswerType
-    ) -> Bool {
-        if containsQuestionLikeDisplayLine(candidate) && !containsQuestionLikeDisplayLine(fallback) {
-            return true
-        }
-
-        let candidateIssues = responseIntegrityIssues(candidate)
-        let fallbackIssues = responseIntegrityIssues(fallback)
-
-        if !candidateIssues.isEmpty && fallbackIssues.isEmpty {
-            return true
-        }
-
-        if looksFragmentaryDisplayText(candidate) && !looksFragmentaryDisplayText(fallback) {
-            return true
-        }
-
-        if shouldPreserveStructuredExactDisplay(candidate: candidate, answerType: answerType) {
-            return false
-        }
-
-        switch answerType {
-        case .lookup, .tableLookup, .compute:
-            let fallbackWords = fallback.split(whereSeparator: { $0.isWhitespace || $0.isNewline }).count
-            let candidateWords = candidate.split(whereSeparator: { $0.isWhitespace || $0.isNewline }).count
-            let fallbackCitations = citationCount(in: fallback)
-            let candidateCitations = citationCount(in: candidate)
-            let fallbackLooksList = fallback.contains("\n• ") || fallback.contains("\n1. ")
-            let candidateLooksList = candidate.contains("\n• ") || candidate.contains("\n1. ")
-            let fallbackLooksCompact = fallbackWords > 0 && fallbackWords <= 90
-
-            if fallbackLooksCompact {
-                if candidateLooksList && !fallbackLooksList {
-                    return true
-                }
-                if candidateCitations > max(2, fallbackCitations + 1) {
-                    return true
-                }
-                if candidateWords > 120 && candidateWords > fallbackWords + 40 {
-                    return true
-                }
-            }
-
-            return false
-        default:
-            return false
-        }
-    }
-
-    private func containsQuestionLikeDisplayLine(_ text: String) -> Bool {
-        let lines = text.components(separatedBy: .newlines)
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty }
-
-        for line in lines {
-            let stripped = line
-                .replacingOccurrences(of: #"\[S\d+\]"#, with: "", options: .regularExpression)
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-
-            guard !stripped.isEmpty else { continue }
-            let unwrapped = unwrapQuotedQuestionText(stripped)
-            if unwrapped.hasSuffix("?") {
-                return true
-            }
-        }
-
-        return false
-    }
-
-    private func unwrapQuotedQuestionText(_ text: String) -> String {
-        var trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        let quotePairs: [(Character, Character)] = [
-            ("\"", "\""),
-            ("'", "'"),
-            ("\u{201C}", "\u{201D}"),
-            ("\u{2018}", "\u{2019}")
-        ]
-
-        for (open, close) in quotePairs {
-            if trimmed.first == open, trimmed.last == close, trimmed.count >= 2 {
-                trimmed.removeFirst()
-                trimmed.removeLast()
-                return trimmed.trimmingCharacters(in: .whitespacesAndNewlines)
-            }
-        }
-
-        return trimmed
-    }
-
-    private func shouldPreserveStructuredExactDisplay(
-        candidate: String,
-        answerType: StructuredAnswer.AnswerType
-    ) -> Bool {
-        switch answerType {
-        case .lookup, .tableLookup, .compute:
-            break
-        default:
-            return false
-        }
-
-        let candidateWords = candidate.split(whereSeparator: { $0.isWhitespace || $0.isNewline }).count
-        let lower = candidate.lowercased()
-        let hasQuotedValue = candidate.contains("'") || candidate.contains("\"")
-        let hasLabelValue = candidate.contains(":") && candidateWords <= 60
-        let hasCitation = citationCount(in: candidate) > 0
-        let hasSpecificationCue = lower.range(
-            of: #"\b(?:sae|api|ilsac|dot-4|gl-5|sp4|[0o]w-20|5w-30|75w/85|full open|user height setting|auto open|level\s*[123])\b"#,
-            options: [.regularExpression, .caseInsensitive]
-        ) != nil
-
-        return hasQuantitativeAnswerSignal(candidate)
-            || (hasCitation && (hasQuotedValue || hasLabelValue || hasSpecificationCue))
-    }
-
-    private func looksFragmentaryDisplayText(_ text: String) -> Bool {
-        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return false }
-
-        let nonEmptyLines = trimmed.components(separatedBy: .newlines)
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty }
-        let incompleteMarkers: Set<String> = ["and", "or", "but", "the", "a", "an", "to", "of", "in", "for", "with"]
-        let lastWord = String(trimmed.split(separator: " ").last ?? "").lowercased()
-        let endsCleanly = Self.hasResponseTerminalBoundary(trimmed)
-
-        if !endsCleanly && incompleteMarkers.contains(lastWord) {
-            return true
-        }
-
-        let fragmentLines = nonEmptyLines.filter { line in
-            let wordCount = line.split(whereSeparator: { $0.isWhitespace || $0.isNewline }).count
-            let looksListLine = line.range(of: #"^(?:[-•*]|\d+[.)])\s+"#, options: .regularExpression) != nil
-            return !looksListLine && wordCount >= 3 && wordCount <= 8 && !Self.hasResponseTerminalBoundary(line)
-        }
-
-        return nonEmptyLines.count >= 2 && fragmentLines.count * 2 >= nonEmptyLines.count
+        // Otherwise, always prefer the fallback (raw LLM generated response) to preserve the streaming structure/layout
+        return fallbackText
     }
 
     private nonisolated func trimIncompleteResponseTail(_ text: String) -> String {

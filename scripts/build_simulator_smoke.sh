@@ -23,11 +23,15 @@ xcodebuild \
   CODE_SIGNING_REQUIRED=NO \
   build | tee "$BUILD_LOG"
 
-echo "Stripping extended attributes (detritus) from the built app bundle..."
-/usr/bin/xattr -rc "$DERIVED_DATA_PATH/Build/Products/Debug-iphonesimulator/OpenIntelligence.app"
-
-echo "Ad-hoc codesigning the built app bundle..."
-/usr/bin/codesign --force --sign - --timestamp=none --deep "$DERIVED_DATA_PATH/Build/Products/Debug-iphonesimulator/OpenIntelligence.app"
+echo "Stripping extended attributes and codesigning in /tmp to bypass iCloud/FileProvider file locking detritus..."
+TMP_APP_PATH="/tmp/OpenIntelligence_build_smoke.app"
+rm -rf "$TMP_APP_PATH"
+cp -R "$DERIVED_DATA_PATH/Build/Products/Debug-iphonesimulator/OpenIntelligence.app" "$TMP_APP_PATH"
+/usr/bin/xattr -cr "$TMP_APP_PATH"
+/usr/bin/codesign --force --sign - --timestamp=none --deep "$TMP_APP_PATH"
+rm -rf "$DERIVED_DATA_PATH/Build/Products/Debug-iphonesimulator/OpenIntelligence.app"
+cp -R "$TMP_APP_PATH" "$DERIVED_DATA_PATH/Build/Products/Debug-iphonesimulator/OpenIntelligence.app"
+rm -rf "$TMP_APP_PATH"
 
 echo "Simulator smoke build succeeded"
 echo "Build log: $BUILD_LOG"

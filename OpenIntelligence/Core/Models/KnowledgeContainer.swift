@@ -485,6 +485,10 @@ enum AppSupportPaths {
         baseDir().appendingPathComponent("chat_history_\(containerId.uuidString).json")
     }
 
+    nonisolated static func suggestedQuestionsURL(containerId: UUID) -> URL {
+        baseDir().appendingPathComponent("suggested_questions_\(containerId.uuidString).json")
+    }
+
     nonisolated static func ingestionQueueURL() -> URL {
         baseDir().appendingPathComponent("ingestion_queue.json")
     }

@@ -176,8 +176,11 @@ actor BNNSVectorDatabase: VectorDatabase {
                     }
 
                     guard mapped.count == expectedBytes else {
-                        Log.error("[BNNS] Vector file size mismatch: \(mapped.count) vs expected \(expectedBytes)", category: .vectorDB)
+                        Log.error("[BNNS] Vector file size mismatch: \(mapped.count) vs expected \(expectedBytes). Clearing corrupted files.", category: .vectorDB)
                         resetLoadedState()
+                        try? fm.removeItem(at: bin.meta)
+                        try? fm.removeItem(at: bin.vectors)
+                        try? fm.removeItem(at: bin.norms)
                         return
                     }
                 }
@@ -290,16 +293,20 @@ actor BNNSVectorDatabase: VectorDatabase {
         let metaData = try JSONEncoder().encode(chunks)
         try metaData.write(to: bin.meta, options: .atomic)
 
-        // 2. Append pending embeddings to vectors file and re-mmap
+        // 2. Write vectors atomically if there is pending data to prevent mmap corruption
         if !pendingEmbeddings.isEmpty {
-            let fm = FileManager.default
-            if !fm.fileExists(atPath: bin.vectors.path) {
-                fm.createFile(atPath: bin.vectors.path, contents: nil)
+            var allVectorsData = Data()
+            allVectorsData.reserveCapacity(chunks.count * dimension * MemoryLayout<Float>.size)
+            
+            if let mapped = mappedVectors {
+                allVectorsData.append(mapped)
             }
-            let handle = try FileHandle(forWritingTo: bin.vectors)
-            handle.seekToEndOfFile()
-            pendingEmbeddings.withUnsafeBytes { handle.write(Data($0)) }
-            try handle.close()
+            
+            pendingEmbeddings.withUnsafeBytes { rawBuf in
+                allVectorsData.append(Data(rawBuf))
+            }
+            
+            try allVectorsData.write(to: bin.vectors, options: .atomic)
 
             pendingEmbeddings.removeAll(keepingCapacity: false)
             self.mappedVectors = try Data(contentsOf: bin.vectors, options: .alwaysMapped)
@@ -444,6 +451,17 @@ actor BNNSVectorDatabase: VectorDatabase {
         try saveToDisk()
         isDirty = false
         Log.debug("[BNNS] Persisted \(chunks.count) chunks (\(persistedChunkCount) mmap'd)", category: .vectorDB)
+    }
+
+    /// Reload the database from disk (if applicable).
+    func reload() async throws {
+        await awaitLoad()
+        if let url = storageURL {
+            loadTask = Task {
+                self.loadFromDisk(url: url)
+            }
+            await awaitLoad()
+        }
     }
 
     func search(embedding: [Float], topK: Int) async throws -> [RetrievedChunk] {

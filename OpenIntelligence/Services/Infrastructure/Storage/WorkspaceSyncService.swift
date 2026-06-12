@@ -932,6 +932,18 @@ final class WorkspaceSyncService: ObservableObject {
         let deletedContainersURL = sharedRoot.appendingPathComponent("deleted_containers.json")
         let deletedContainerIDs = Set((try? Self.readJSONIfPresent([String].self, from: deletedContainersURL))?.compactMap { UUID(uuidString: $0) } ?? [])
 
+        let localDeletedDocsURL = localRoot.appendingPathComponent("deleted_documents.json")
+        let sharedDeletedDocsURL = sharedRoot.appendingPathComponent("deleted_documents.json")
+        let localDeletedDocIDs = Set((try? Self.readJSONIfPresent([String].self, from: localDeletedDocsURL)) ?? [])
+        let sharedDeletedDocIDs = Set((try? Self.readJSONIfPresent([String].self, from: sharedDeletedDocsURL)) ?? [])
+        let consolidatedDeletedDocIDs = localDeletedDocIDs.union(sharedDeletedDocIDs)
+
+        if !consolidatedDeletedDocIDs.isEmpty {
+            let sortedDeletedDocIDs = Array(consolidatedDeletedDocIDs).sorted()
+            try? Self.writeJSON(sortedDeletedDocIDs, to: localDeletedDocsURL)
+            try? Self.writeJSON(sortedDeletedDocIDs, to: sharedDeletedDocsURL)
+        }
+
         let allLocalContainers = sortedContainers(localInventory.containers)
         let localContainerById = Dictionary(uniqueKeysWithValues: allLocalContainers.map { ($0.id, $0) })
         var localOnlyContainers = sortedContainers(allLocalContainers.filter { $0.syncMode == .localOnly })
@@ -984,6 +996,9 @@ final class WorkspaceSyncService: ObservableObject {
         let sharedDefaultContainerId = sharedVisibleContainers.first?.id
 
         let localSyncedDocuments = localInventory.documents.compactMap { document -> Document? in
+            if consolidatedDeletedDocIDs.contains(document.id.uuidString) {
+                return nil
+            }
             guard let rawContainerId = resolvedContainerID(for: document, defaultContainerId: localDefaultContainerId) else {
                 return nil
             }
@@ -998,6 +1013,9 @@ final class WorkspaceSyncService: ObservableObject {
         }
 
         let localOnlyDocuments = localInventory.documents.compactMap { document -> Document? in
+            if consolidatedDeletedDocIDs.contains(document.id.uuidString) {
+                return nil
+            }
             guard let rawContainerId = resolvedContainerID(for: document, defaultContainerId: localDefaultContainerId) else {
                 return document
             }
@@ -1008,6 +1026,9 @@ final class WorkspaceSyncService: ObservableObject {
         }
 
         let effectiveSharedDocuments = sharedInventory.documents.compactMap { document -> Document? in
+            if consolidatedDeletedDocIDs.contains(document.id.uuidString) {
+                return nil
+            }
             guard let rawContainerId = resolvedContainerID(for: document, defaultContainerId: sharedDefaultContainerId) else {
                 return nil
             }
@@ -1075,6 +1096,42 @@ final class WorkspaceSyncService: ObservableObject {
             syncedContainerIDs: finalSyncedContainerIDs,
             referencedRelativePaths: Set(finalSharedDocuments.compactMap(\.storageRelativePath))
         )
+
+        // Local physical file cleanup:
+        // Any file in `localRoot/ImportedDocuments` that is not referenced in finalLocalDocuments (and not in finalLocalQueue) should be deleted.
+        let localImportedDocsDir = localRoot.appendingPathComponent("ImportedDocuments", isDirectory: true)
+        if fileManager.fileExists(atPath: localImportedDocsDir.path) {
+            let localContents = (try? fileManager.contentsOfDirectory(
+                at: localImportedDocsDir,
+                includingPropertiesForKeys: nil,
+                options: [.skipsHiddenFiles]
+            )) ?? []
+            
+            var referencedLocalPaths = Set<String>()
+            for doc in finalLocalDocuments {
+                if let rel = doc.storageRelativePath {
+                    referencedLocalPaths.insert(rel)
+                }
+            }
+            
+            let localQueueURL = localRoot.appendingPathComponent("ingestion_queue.json")
+            if let localQueue = try? Self.readJSONIfPresent(PersistedIngestionQueueStateRecord.self, from: localQueueURL) {
+                for item in localQueue.items {
+                    if let rel = item.storageRelativePath {
+                        referencedLocalPaths.insert(rel)
+                    }
+                }
+            }
+            
+            for fileURL in localContents {
+                if let relativePath = relativePath(from: localRoot, to: fileURL) {
+                    if !referencedLocalPaths.contains(relativePath) {
+                        try? Self.coordinatedRemoveItem(at: fileURL)
+                        Log.info("[WorkspaceSyncService] Deleted local orphaned document file: \(fileURL.lastPathComponent)")
+                    }
+                }
+            }
+        }
 
         let removedContainerIDs = Set(localInventory.containers.map(\.id)).subtracting(finalLocalContainers.map(\.id))
         for containerId in removedContainerIDs {

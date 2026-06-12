@@ -552,6 +552,9 @@ struct ProcessingMetadata: Codable, Equatable, Sendable {
     var atomicTableChunks: Int = 0
     var atomicListChunks: Int = 0
     var documentCategory: DocumentSemanticCategory? = nil
+    var targetWordWindow: Int? = nil
+    var overlapWords: Int? = nil
+    var chunkingStrategy: String? = nil
 }
 
 struct ChunkStatistics: Codable, Equatable, Sendable {

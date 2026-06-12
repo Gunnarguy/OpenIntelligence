@@ -49,6 +49,9 @@ protocol VectorDatabase {
     /// The default implementation is a no-op for in-memory databases.
     func persist() async throws
 
+    /// Reload the database from disk (if applicable).
+    func reload() async throws
+
     /// Retrieve raw embedding vectors for chunks by their integer index in the store.
     /// Used internally by getEmbeddings(forChunkIDs:) when the implementation knows indices.
     func getEmbeddings(forIndices indices: [Int]) async -> [[Float]]
@@ -62,6 +65,7 @@ protocol VectorDatabase {
 // Default implementations for optional protocol methods
 extension VectorDatabase {
     func persist() async throws { /* no-op */ }
+    func reload() async throws { /* no-op */ }
     func getEmbeddings(forIndices indices: [Int]) async -> [[Float]] {
         return indices.map { _ in [Float]() }
     }

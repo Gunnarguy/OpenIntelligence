@@ -978,6 +978,9 @@ class DocumentProcessor {
             metadata.sectionPathDepth = maxSectionDepth
             metadata.atomicTableChunks = atomicTableChunkCount
             metadata.atomicListChunks = atomicListChunkCount
+            metadata.targetWordWindow = activeWindow
+            metadata.overlapWords = activeOverlap
+            metadata.chunkingStrategy = chunkOverride?.strategy ?? "balanced"
             metadata.documentCategory = documentCategory
 
             let tableDataSet = structuredElements.compactMap(\ .tableData)

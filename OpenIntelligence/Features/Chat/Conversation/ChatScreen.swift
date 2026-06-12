@@ -796,6 +796,10 @@ struct ChatScreen: View {
     seedScreenshotDemoIfNeeded()
     entitlementStore.refreshTransientState()
     isAppeared = true
+    if needsSuggestedQuestionsRefresh || dynamicSuggestedQuestions.isEmpty {
+        needsSuggestedQuestionsRefresh = false
+        refreshDynamicQuestions()
+    }
 }
 .onDisappear {
     isAppeared = false
@@ -1602,7 +1606,7 @@ struct ChatScreen: View {
                     for: containerId,
                     documents: documents,
                     sampleChunks: sampleChunks,
-                    count: 4,
+                    count: 10,
                     forceRefresh: force
                 )
 

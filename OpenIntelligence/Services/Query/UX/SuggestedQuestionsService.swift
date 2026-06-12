@@ -38,7 +38,7 @@ import FoundationModels
 @available(iOS 26.0, *)
 @Generable
 struct SuggestedQuestionList: Sendable {
-    @Guide(description: "Short, natural questions someone would actually ask after reading these documents. Each question targets a specific fact, number, name, or procedure from the text. Questions sound casual and direct — like texting a coworker, not writing an exam. Never start with 'What role does' or 'What is the significance of'.")
+    @Guide(description: "Short, natural, grammatically complete questions someone would actually ask after reading these documents. Each question targets a specific fact, concept, or procedure from the text. Sound casual and direct — like texting a coworker. Every question must be a complete, coherent sentence. Never end with fragments like 'that many?' or list unjoined names like 'Piaget Vygotsky?'.")
     var questions: [String]
 }
 #endif
@@ -50,7 +50,7 @@ actor SuggestedQuestionsService {
     // MARK: - Types
 
     /// Category of question for display diversity
-    enum QuestionCategory: String, CaseIterable, Sendable {
+    enum QuestionCategory: String, CaseIterable, Sendable, Codable {
         case factRetrieval = "fact"
         case comparison = "compare"
         case summarization = "summarize"
@@ -72,13 +72,35 @@ actor SuggestedQuestionsService {
     }
 
     /// A generated question with metadata
-    struct SuggestedQuestion: Identifiable, Sendable {
+    struct SuggestedQuestion: Identifiable, Sendable, Codable {
         let id: UUID
         let text: String
         let category: QuestionCategory
         let relevantDocuments: [String]
+        let relevantDocumentIds: [UUID]?
         let sourceSections: [String]
         let confidence: Double
+        let isLLMGenerated: Bool
+
+        init(
+            id: UUID = UUID(),
+            text: String,
+            category: QuestionCategory,
+            relevantDocuments: [String],
+            relevantDocumentIds: [UUID]? = nil,
+            sourceSections: [String],
+            confidence: Double,
+            isLLMGenerated: Bool
+        ) {
+            self.id = id
+            self.text = text
+            self.category = category
+            self.relevantDocuments = relevantDocuments
+            self.relevantDocumentIds = relevantDocumentIds
+            self.sourceSections = sourceSections
+            self.confidence = confidence
+            self.isLLMGenerated = isLLMGenerated
+        }
     }
 
     // MARK: - Properties
@@ -95,19 +117,321 @@ actor SuggestedQuestionsService {
     /// Maximum cache age before regeneration (5 minutes)
     private static let cacheMaxAge: TimeInterval = 300
 
+    /// Known filenames for the curated sample workspace (matches SampleDocumentManager).
+    private static let sampleDocumentFilenames: Set<String> = [
+        "OpenIntelligence-Product-Guide.md",
+        "RAG-Technical-Architecture.md",
+        "Apple-Intelligence-&-Private-Cloud-Compute.md"
+    ]
+
+    /// Gold-standard questions for the sample workspace.
+    /// Hand-crafted to be directly answerable from the actual sample document text.
+    /// These bypass all LLM generation and heuristic filtering.
+    private static let sampleWorkspaceQuestions: [SuggestedQuestion] = [
+        // Product Guide
+        SuggestedQuestion(
+            id: UUID(),
+            text: "What file formats does OpenIntelligence support?",
+            category: .factRetrieval,
+            relevantDocuments: ["OpenIntelligence Product Guide"],
+            sourceSections: ["What files can OpenIntelligence accept?"],
+            confidence: 0.97,
+            isLLMGenerated: false
+        ),
+        SuggestedQuestion(
+            id: UUID(),
+            text: "How does the app keep answers grounded in your documents?",
+            category: .procedural,
+            relevantDocuments: ["OpenIntelligence Product Guide"],
+            sourceSections: ["How answers stay grounded"],
+            confidence: 0.96,
+            isLLMGenerated: false
+        ),
+        SuggestedQuestion(
+            id: UUID(),
+            text: "What's included in the Free plan versus Pro?",
+            category: .comparison,
+            relevantDocuments: ["OpenIntelligence Product Guide"],
+            sourceSections: ["Plans"],
+            confidence: 0.95,
+            isLLMGenerated: false
+        ),
+        // RAG Technical Architecture
+        SuggestedQuestion(
+            id: UUID(),
+            text: "How does dynamic model routing work?",
+            category: .procedural,
+            relevantDocuments: ["RAG Technical Architecture"],
+            sourceSections: ["How does dynamic model routing work?"],
+            confidence: 0.97,
+            isLLMGenerated: false
+        ),
+        SuggestedQuestion(
+            id: UUID(),
+            text: "What are the three quality modes?",
+            category: .factRetrieval,
+            relevantDocuments: ["RAG Technical Architecture"],
+            sourceSections: ["Quality Modes"],
+            confidence: 0.96,
+            isLLMGenerated: false
+        ),
+        SuggestedQuestion(
+            id: UUID(),
+            text: "What steps does the RAG pipeline follow?",
+            category: .procedural,
+            relevantDocuments: ["RAG Technical Architecture"],
+            sourceSections: ["The RAG Pipeline"],
+            confidence: 0.96,
+            isLLMGenerated: false
+        ),
+        // Apple Intelligence & PCC
+        SuggestedQuestion(
+            id: UUID(),
+            text: "When does Private Cloud Compute activate?",
+            category: .factRetrieval,
+            relevantDocuments: ["Apple Intelligence & Private Cloud Compute"],
+            sourceSections: ["When does PCC activate?"],
+            confidence: 0.97,
+            isLLMGenerated: false
+        ),
+        SuggestedQuestion(
+            id: UUID(),
+            text: "What privacy guarantees does PCC provide?",
+            category: .factRetrieval,
+            relevantDocuments: ["Apple Intelligence & Private Cloud Compute"],
+            sourceSections: ["What is Private Cloud Compute?"],
+            confidence: 0.96,
+            isLLMGenerated: false
+        ),
+    ]
+
+    /// Detect whether the library consists only of the curated sample documents.
+    private func isSampleWorkspace(documents: [Document]) -> Bool {
+        guard documents.count == Self.sampleDocumentFilenames.count else { return false }
+        let filenames = Set(documents.map { $0.filename })
+        return filenames == Self.sampleDocumentFilenames
+    }
+
+    // MARK: - Persistent Suggested Questions Bank
+
+    /// Load the persisted question bank for a container from disk.
+    func loadQuestionBank(for containerId: UUID) -> [SuggestedQuestion] {
+        let url = AppSupportPaths.suggestedQuestionsURL(containerId: containerId)
+        guard FileManager.default.fileExists(atPath: url.path) else {
+            return []
+        }
+        do {
+            let data = try Data(contentsOf: url)
+            let decoder = JSONDecoder()
+            let bank = try decoder.decode([SuggestedQuestion].self, from: data)
+            return bank
+        } catch {
+            Log.error("[SuggestedQuestions] Failed to load question bank for \(containerId.uuidString): \(error.localizedDescription)")
+            return []
+        }
+    }
+
+    /// Save the question bank for a container to disk.
+    func saveQuestionBank(_ bank: [SuggestedQuestion], for containerId: UUID) {
+        let url = AppSupportPaths.suggestedQuestionsURL(containerId: containerId)
+        do {
+            let encoder = JSONEncoder()
+            let data = try encoder.encode(bank)
+            try data.write(to: url, options: .atomic)
+            Log.info("[SuggestedQuestions] Saved \(bank.count) questions to bank for \(containerId.uuidString)")
+        } catch {
+            Log.error("[SuggestedQuestions] Failed to save question bank for \(containerId.uuidString): \(error.localizedDescription)")
+        }
+    }
+
+    /// Remove questions associated with a document from the container's bank.
+    func removeQuestions(for documentId: UUID, in containerId: UUID) {
+        var bank = loadQuestionBank(for: containerId)
+        bank.removeAll { question in
+            question.relevantDocumentIds?.contains(documentId) == true
+        }
+        saveQuestionBank(bank, for: containerId)
+        invalidateCache(for: containerId)
+    }
+
+    /// Clear all questions for a container (called when container is cleared)
+    func clearQuestionBank(for containerId: UUID) {
+        let url = AppSupportPaths.suggestedQuestionsURL(containerId: containerId)
+        try? FileManager.default.removeItem(at: url)
+        invalidateCache(for: containerId)
+    }
+
+    /// Generate suggested questions for a newly ingested document during the ingestion process.
+    func generateQuestionsForIngestedDocument(
+        _ document: Document,
+        chunks: [DocumentChunk],
+        in containerId: UUID
+    ) async {
+        let isSample = Self.sampleDocumentFilenames.contains(document.filename)
+        if isSample {
+            Log.info("[SuggestedQuestions] Skipping question generation for sample document '\(document.filename)' during ingestion.")
+            return
+        }
+
+        Log.info("[SuggestedQuestions] Generating questions for '\(document.filename)' during ingestion...")
+        let questions = await generateQuestionsForDocumentOnly(document, chunks: chunks)
+        Log.info("[SuggestedQuestions] Generated \(questions.count) questions for '\(document.filename)'. Merging into bank...")
+        mergeIntoPersistedBank(newQuestions: questions, for: containerId)
+    }
+
+    #if canImport(FoundationModels)
+    @MainActor
+    private var isSystemLLMAvailable: Bool {
+        if #available(iOS 26.0, *) {
+            return SystemLanguageModel.default.isAvailable
+        }
+        return false
+    }
+    #else
+    @MainActor
+    private var isSystemLLMAvailable: Bool {
+        return false
+    }
+    #endif
+
+    private func generateQuestionsForDocumentOnly(
+        _ document: Document,
+        chunks: [DocumentChunk]
+    ) async -> [SuggestedQuestion] {
+        let diverseChunks = selectDiverseChunks(from: chunks, documents: [document], targetCount: 12)
+        guard !diverseChunks.isEmpty else { return [] }
+
+        var questions: [SuggestedQuestion] = []
+
+        #if canImport(FoundationModels)
+        if #available(iOS 26.0, *), await isSystemLLMAvailable {
+            let llmQuestions = await generateDirectlyWithLLM(
+                chunks: diverseChunks,
+                documents: [document],
+                avoidTexts: []
+            )
+            if llmQuestions.count >= 2 {
+                questions = llmQuestions
+            }
+        }
+        #endif
+
+        if questions.isEmpty {
+            let contentQuestions = generateFromContent(chunks: diverseChunks, documents: [document], avoidTexts: [])
+            #if canImport(FoundationModels)
+            if #available(iOS 26.0, *), await isSystemLLMAvailable, !contentQuestions.isEmpty {
+                let polishedQuestions = await generateWithLLM(
+                    baseQuestions: contentQuestions,
+                    chunks: diverseChunks,
+                    documents: [document],
+                    avoidTexts: []
+                )
+                questions = polishedQuestions.isEmpty ? contentQuestions : polishedQuestions
+            } else {
+                questions = contentQuestions
+            }
+            #else
+            questions = contentQuestions
+            #endif
+        }
+
+        let mapped = questions.map { q in
+            SuggestedQuestion(
+                id: q.id,
+                text: q.text,
+                category: q.category,
+                relevantDocuments: q.relevantDocuments,
+                relevantDocumentIds: [document.id],
+                sourceSections: q.sourceSections,
+                confidence: q.confidence,
+                isLLMGenerated: q.isLLMGenerated
+            )
+        }
+
+        return mapped.filter { shouldSurfaceSuggestedQuestion($0) }
+    }
+
+    private func mergeIntoPersistedBank(newQuestions: [SuggestedQuestion], for containerId: UUID) {
+        var bank = loadQuestionBank(for: containerId)
+        bank.append(contentsOf: newQuestions)
+        bank = dedupeSuggestedQuestionsPreservingOrder(bank)
+        bank = pruneNearDuplicateQuestions(bank)
+        bank = enforceBankDiversity(bank, maxCount: 25)
+        saveQuestionBank(bank, for: containerId)
+        invalidateCache(for: containerId)
+    }
+
+    private func enforceBankDiversity(_ questions: [SuggestedQuestion], maxCount: Int) -> [SuggestedQuestion] {
+        guard questions.count > maxCount else { return questions }
+        
+        var byDoc: [String: [SuggestedQuestion]] = [:]
+        for q in questions {
+            let docKey = q.relevantDocuments.first ?? "unknown"
+            byDoc[docKey, default: []].append(q)
+        }
+        
+        for key in byDoc.keys {
+            byDoc[key]?.sort { a, b in
+                if a.isLLMGenerated != b.isLLMGenerated {
+                    return a.isLLMGenerated
+                }
+                return a.confidence > b.confidence
+            }
+        }
+        
+        var selected: [SuggestedQuestion] = []
+        let docKeys = Array(byDoc.keys).sorted()
+        
+        var round = 0
+        while selected.count < maxCount {
+            var addedThisRound = false
+            for key in docKeys {
+                guard selected.count < maxCount else { break }
+                guard let docQs = byDoc[key], round < docQs.count else { continue }
+                selected.append(docQs[round])
+                addedThisRound = true
+            }
+            round += 1
+            if !addedThisRound { break }
+        }
+        
+        return selected
+    }
+
+    private func generateInitialBank(
+        for containerId: UUID,
+        documents: [Document],
+        sampleChunks: [DocumentChunk]
+    ) async -> [SuggestedQuestion] {
+        Log.info("[SuggestedQuestions] Bank is empty, generating initial set on-demand...")
+        var generated: [SuggestedQuestion] = []
+        for doc in documents {
+            let docChunks = sampleChunks.filter { $0.documentId == doc.id }
+            if !docChunks.isEmpty {
+                let docQs = await generateQuestionsForDocumentOnly(doc, chunks: docChunks)
+                generated.append(contentsOf: docQs)
+            }
+        }
+        let deduped = dedupeSuggestedQuestionsPreservingOrder(generated)
+        let pruned = pruneNearDuplicateQuestions(deduped)
+        let bank = enforceBankDiversity(pruned, maxCount: 25)
+        saveQuestionBank(bank, for: containerId)
+        return bank
+    }
+
     // MARK: - Public API
 
     /// Generate suggested questions for a specific library container.
     ///
-    /// Questions are generated directly from chunk content first.
-    /// Apple FM may polish grounded drafts, but it does not invent new topics.
+    /// Questions are retrieved from the persisted library question bank.
+    /// Shuffled/shuffled subsets are returned to keep the chips fresh.
     ///
     /// - Parameters:
     ///   - containerId: Active container UUID
     ///   - documents: Documents in the container
     ///   - sampleChunks: Representative chunks (up to 50)
     ///   - count: Number of questions to return
-    ///   - forceRefresh: Bypass cache and generate fresh questions (e.g. user tapped refresh)
+    ///   - forceRefresh: Shuffle and pick different questions from the bank
     func generateQuestions(
         for containerId: UUID,
         documents: [Document],
@@ -118,10 +442,35 @@ actor SuggestedQuestionsService {
 
         let existingCached = cachedQuestions[containerId]
 
-        // Collect previously-shown questions so refresh can avoid repeats
-        let previousTexts: [String] = forceRefresh
-            ? (existingCached?.questions.map { $0.text } ?? [])
-            : []
+        // Fast path: sample workspace gets curated gold-standard questions.
+        // These are hand-crafted to be directly answerable and skip all generation.
+        if isSampleWorkspace(documents: documents) {
+            if forceRefresh {
+                // On refresh, shuffle and pick a different subset
+                let shuffled = Self.sampleWorkspaceQuestions.shuffled()
+                let selected = Array(shuffled.prefix(count))
+                cachedQuestions[containerId] = CachedEntry(
+                    questions: selected,
+                    documentCount: documents.count,
+                    generatedAt: Date()
+                )
+                Log.info("[SuggestedQuestions] Returning \(selected.count) curated sample workspace questions (refreshed)")
+                return selected
+            }
+            if let cached = existingCached,
+               cached.documentCount == documents.count,
+               Date().timeIntervalSince(cached.generatedAt) < Self.cacheMaxAge {
+                return Array(cached.questions.prefix(count))
+            }
+            let selected = Array(Self.sampleWorkspaceQuestions.prefix(count))
+            cachedQuestions[containerId] = CachedEntry(
+                questions: selected,
+                documentCount: documents.count,
+                generatedAt: Date()
+            )
+            Log.info("[SuggestedQuestions] Returning \(selected.count) curated sample workspace questions")
+            return selected
+        }
 
         // Check cache — but only if not forcing refresh, doc count unchanged, and cache fresh
         if !forceRefresh,
@@ -132,104 +481,97 @@ actor SuggestedQuestionsService {
             return Array(cached.questions.prefix(count))
         }
 
-        guard !sampleChunks.isEmpty else {
-            Log.debug("[SuggestedQuestions] No chunks available, returning empty")
-            if let cached = existingCached, !cached.questions.isEmpty, cached.documentCount == documents.count {
-                Log.debug("[SuggestedQuestions] Returning \(cached.questions.count) cached questions as fallback")
-                return Array(cached.questions.prefix(count))
-            }
-            // Cache the empty result to prevent repeated generation attempts on empty library
-            cachedQuestions[containerId] = CachedEntry(
-                questions: [],
-                documentCount: documents.count,
-                generatedAt: Date()
-            )
+        // Load the bank from disk
+        var bank = loadQuestionBank(for: containerId)
+
+        // Fallback: if bank is empty but we have documents, generate the initial bank on-demand
+        if bank.isEmpty && !documents.isEmpty && !sampleChunks.isEmpty {
+            bank = await generateInitialBank(for: containerId, documents: documents, sampleChunks: sampleChunks)
+        }
+
+        // Filter out questions for documents that no longer exist
+        let docNames = Set(documents.map { displayDocumentName($0.filename) })
+        bank = bank.filter { q in
+            guard let primaryDoc = q.relevantDocuments.first else { return false }
+            return docNames.contains(primaryDoc)
+        }
+
+        guard !bank.isEmpty else {
+            Log.debug("[SuggestedQuestions] No questions in bank, returning empty")
             return []
         }
 
-        // Step 1: Select diverse representative chunks
-        // On refresh, shuffle the input to get different chunks for variety
-        let inputChunks = forceRefresh ? sampleChunks.shuffled() : sampleChunks
-        let diverseChunks = selectDiverseChunks(from: inputChunks, documents: documents, targetCount: 6)
+        // Select a shuffled subset prioritizing fresh ones (not currently shown in cache)
+        let previousTexts = Set(existingCached?.questions.map { $0.text } ?? [])
+        let freshQuestions = bank.filter { !previousTexts.contains($0.text) }
+        
+        let pool = freshQuestions.isEmpty ? bank : freshQuestions
+        let selected = selectDiverseSubset(pool, count: count)
 
-        // Step 2: Build passage-grounded questions.
-        // If the LLM is available, generate highly aligned inference/conceptual questions directly.
-        // If not, or if it yields too few questions, fall back to deterministic pattern extraction.
-        var questions: [SuggestedQuestion] = []
-
-        #if canImport(FoundationModels)
-        if #available(iOS 26.0, *), SystemLanguageModel.default.isAvailable {
-            let llmQuestions = await generateDirectlyWithLLM(
-                chunks: diverseChunks,
-                documents: documents,
-                avoidTexts: previousTexts
-            )
-            if llmQuestions.count >= 2 {
-                questions = llmQuestions
-            }
-        }
-        #endif
-
-        if questions.isEmpty {
-            let contentQuestions = generateFromContent(chunks: diverseChunks, documents: documents, avoidTexts: previousTexts)
-
-            #if canImport(FoundationModels)
-            if #available(iOS 26.0, *), SystemLanguageModel.default.isAvailable, !contentQuestions.isEmpty {
-                let polishedQuestions = await generateWithLLM(
-                    baseQuestions: contentQuestions,
-                    chunks: diverseChunks,
-                    documents: documents,
-                    avoidTexts: previousTexts
-                )
-                questions = polishedQuestions.isEmpty
-                    ? contentQuestions
-                    : dedupeSuggestedQuestionsPreservingOrder(polishedQuestions)
-            } else {
-                questions = contentQuestions
-            }
-            #else
-            questions = contentQuestions
-            #endif
-        }
-
-        // Step 4: Keep only grounded, diverse questions. If the library only yields
-        // one or two strong prompts, surface one or two strong prompts.
-        let targetCount = max(count, 6)
-        let deduped = enforceDiversity(
-            dedupeSuggestedQuestionsPreservingOrder(questions),
-            count: targetCount
-        )
-        var finalQuestions = pruneNearDuplicateQuestions(deduped)
-            .filter { shouldSurfaceSuggestedQuestion($0) }
-
-        if finalQuestions.count < count && !sampleChunks.isEmpty {
-            Log.info("[SuggestedQuestions] Standard generation yielded \(finalQuestions.count) questions (target: \(count)). Running fallback generator.")
-            let fallbacks = generateFallbackQuestions(documents: documents, chunks: sampleChunks, count: targetCount, avoidTexts: previousTexts)
-            finalQuestions.append(contentsOf: fallbacks)
-            finalQuestions = dedupeSuggestedQuestionsPreservingOrder(finalQuestions)
-            
-            if finalQuestions.count < count {
-                Log.info("[SuggestedQuestions] Still below target count \(count). Running fallback generator without avoidTexts.")
-                let repeatedFallbacks = generateFallbackQuestions(documents: documents, chunks: sampleChunks, count: targetCount, avoidTexts: [])
-                finalQuestions.append(contentsOf: repeatedFallbacks)
-                finalQuestions = dedupeSuggestedQuestionsPreservingOrder(finalQuestions)
-            }
-        }
-
-        if finalQuestions.isEmpty, let cached = existingCached, !cached.questions.isEmpty, cached.documentCount == documents.count {
-            Log.info("[SuggestedQuestions] Generation yielded 0 questions, preserving \(cached.questions.count) previously cached questions.")
-            return Array(cached.questions.prefix(count))
-        }
-
-        // Cache
         cachedQuestions[containerId] = CachedEntry(
-            questions: finalQuestions,
+            questions: selected,
             documentCount: documents.count,
             generatedAt: Date()
         )
-        Log.info("[SuggestedQuestions] Generated \(finalQuestions.count) questions for container (refresh: \(forceRefresh))")
 
-        return Array(finalQuestions.prefix(count))
+        Log.info("[SuggestedQuestions] Returning \(selected.count) questions from bank (refresh: \(forceRefresh))")
+        return selected
+    }
+
+    private func selectDiverseSubset(_ questions: [SuggestedQuestion], count: Int) -> [SuggestedQuestion] {
+        guard questions.count > count else { return questions }
+        
+        let pool = questions.shuffled()
+        var selected: [SuggestedQuestion] = []
+        
+        var selectedDocuments = Set<String>()
+        var selectedCategories = Set<QuestionCategory>()
+        var selectedStartWords = Set<String>()
+        
+        func startWord(of text: String) -> String {
+            let words = text.lowercased()
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .components(separatedBy: .whitespacesAndNewlines)
+            return words.first?.trimmingCharacters(in: .punctuationCharacters) ?? ""
+        }
+        
+        // Pass 1: Strict diversity — only add if the document, category, and start word are all unique.
+        for q in pool {
+            guard selected.count < count else { break }
+            let doc = q.relevantDocuments.first ?? ""
+            let cat = q.category
+            let sw = startWord(of: q.text)
+            
+            if !selectedDocuments.contains(doc) && !selectedCategories.contains(cat) && !selectedStartWords.contains(sw) {
+                selected.append(q)
+                selectedDocuments.insert(doc)
+                selectedCategories.insert(cat)
+                selectedStartWords.insert(sw)
+            }
+        }
+        
+        // Pass 2: Relaxed document/category uniqueness — allow repeating documents/categories if needed, but keep start words unique.
+        for q in pool {
+            guard selected.count < count else { break }
+            guard !selected.contains(where: { $0.id == q.id }) else { continue }
+            let sw = startWord(of: q.text)
+            
+            if !selectedStartWords.contains(sw) {
+                selected.append(q)
+                selectedDocuments.insert(q.relevantDocuments.first ?? "")
+                selectedCategories.insert(q.category)
+                selectedStartWords.insert(sw)
+            }
+        }
+        
+        // Pass 3: Fill up the remaining slots with whatever is left.
+        for q in pool {
+            guard selected.count < count else { break }
+            guard !selected.contains(where: { $0.id == q.id }) else { continue }
+            selected.append(q)
+        }
+        
+        return selected
     }
 
     /// Invalidate cache when documents change (ingest, delete, container switch)
@@ -298,6 +640,7 @@ actor SuggestedQuestionsService {
         }
 
         var selected: [DocumentChunk] = []
+        var selectedIds = Set<UUID>()
         var usedSections: Set<String> = []
 
         // Prioritize richer documents, but still keep cross-document coverage.
@@ -313,10 +656,10 @@ actor SuggestedQuestionsService {
             }
         }
 
-        // Round-robin: take best chunk from each doc, then second-best, etc.
+        // Pass 1: Round-robin with strict section uniqueness de-duplication
         var round = 0
-        while selected.count < targetCount {
-            var addedThisRound = false
+        let maxDocChunks = prioritizedDocIds.map { byDocument[$0]?.count ?? 0 }.max() ?? 0
+        while selected.count < targetCount && round < maxDocChunks {
             for docId in prioritizedDocIds {
                 guard selected.count < targetCount else { break }
                 guard let docChunks = byDocument[docId], round < docChunks.count else { continue }
@@ -332,11 +675,31 @@ actor SuggestedQuestionsService {
                 }
 
                 selected.append(candidate)
+                selectedIds.insert(candidate.id)
                 usedSections.insert(sectionKey)
-                addedThisRound = true
             }
             round += 1
-            if !addedThisRound { break }
+        }
+
+        // Pass 2: If we still need more chunks, relax the section uniqueness check
+        if selected.count < targetCount {
+            round = 0
+            while selected.count < targetCount && round < maxDocChunks {
+                var addedThisRound = false
+                for docId in prioritizedDocIds {
+                    guard selected.count < targetCount else { break }
+                    guard let docChunks = byDocument[docId], round < docChunks.count else { continue }
+
+                    let candidate = docChunks[round]
+                    if !selectedIds.contains(candidate.id) {
+                        selected.append(candidate)
+                        selectedIds.insert(candidate.id)
+                        addedThisRound = true
+                    }
+                }
+                round += 1
+                if !addedThisRound { break }
+            }
         }
 
         return selected
@@ -365,6 +728,10 @@ actor SuggestedQuestionsService {
         // Has a section title (contextualized within document structure)
         if chunk.metadata.sectionTitle != nil || chunk.metadata.sectionPath?.isEmpty == false {
             score += 1.0
+        }
+
+        if let section = primarySectionLabel(for: chunk), isHighValueSectionTitle(section) {
+            score += 3.5
         }
 
         if cleanedMetadataValue(chunk.metadata.tableTitle) != nil {
@@ -459,6 +826,142 @@ actor SuggestedQuestionsService {
         return signals >= 5
     }
 
+    private func isValidConceptualTopic(_ topic: String) -> Bool {
+        let trimmed = topic.trimmingCharacters(in: .whitespacesAndNewlines)
+        let words = trimmed.components(separatedBy: .whitespacesAndNewlines).filter { !$0.isEmpty }
+        
+        // 1. Length constraint: 1 to 3 words
+        guard words.count >= 1 && words.count <= 3 else {
+            return false
+        }
+        
+        // 2. Reject if the entire topic is uppercase (e.g. OCR noise or acronyms of length > 6)
+        if trimmed == trimmed.uppercased() && trimmed.count > 6 {
+            return false
+        }
+        
+        // 3. Filter out words that contain punctuation/junk or numbers
+        for word in words {
+            let clean = word.trimmingCharacters(in: .punctuationCharacters)
+            guard !clean.isEmpty else { return false }
+            if clean.contains(where: { !$0.isLetter && $0 != "-" }) {
+                return false
+            }
+        }
+        
+        // 4. Case-insensitive illegal words (pronouns, determiners, conjunctions, hanging prepositions, verbs, adverbs, citation terms, etc.)
+        let illegalWords: Set<String> = [
+            "that", "which", "who", "whom", "whose", "because", "although", "though", "since", "while", "if", "unless",
+            "and", "or", "but", "so", "yet", "for", "nor",
+            "many", "few", "several", "some", "any", "each", "every", "all", "both", "either", "neither", "no", "none",
+            "my", "your", "his", "her", "its", "our", "their", "this", "these", "those", "what", "when", "where", "which", "who", "whose",
+            "it", "they", "them", "he", "she", "him", "her", "us", "we", "you", "i", "me",
+            "along", "about", "above", "across", "after", "against", "among", "around", "at", "before", "behind", "below",
+            "beneath", "beside", "between", "beyond", "by", "down", "during", "except", "for", "from", "in", "inside", "into",
+            "like", "near", "of", "off", "on", "onto", "out", "outside", "over", "past", "since", "through", "throughout", "to",
+            "toward", "under", "underneath", "until", "up", "upon", "with", "within", "without", "via", "versus", "vs",
+            "uncovered", "progressing", "running", "shows", "proved", "proves", "found", "finds", "demonstrated", "observed",
+            "use", "using", "used", "study", "studies", "research", "paper", "article", "document", "documents", "evidence", "scholars",
+            // Adverbs and meta words
+            "simply", "merely", "only", "just", "actually", "really", "basically", "clearly", "obviously", "typically", "generally", "commonly",
+            "usually", "frequently", "rarely", "seldom", "always", "never", "currently", "recently", "finally", "initially", "primarily",
+            "principally", "mainly", "mostly", "partially", "partly", "fully", "completely", "totally", "entirely", "relatively", "comparatively",
+            "specifically", "particularly", "especially", "virtually", "practically", "almost", "nearly", "approximately", "about", "slightly",
+            "somewhat", "highly", "extremely", "deeply", "strongly", "greatly", "significantly", "substantially", "garbage", "rubbish", "trash",
+            "header", "footer", "content", "untitled", "draft", "version", "anonymous", "et al", "et al.", "ibid", "op cit", "loc cit",
+            // Citation words to filter PDF layout noise
+            "press", "university", "journal", "proceedings", "conference", "editor", "edition", "publish", "publisher", "isbn", "issn", "vol",
+            "volume", "page", "pages", "pp", "abstract", "introduction", "conclusions", "references", "bibliography", "oxford", "cambridge",
+            "springer", "wiley", "elsevier", "ieee", "acm", "mit", "routledge", "pearson", "macmillan", "harper", "academic", "publishing",
+            "books", "book", "translation", "first", "second", "third", "fourth", "fifth", "sixth", "seventh", "eighth", "ninth", "tenth", "cited",
+            // Generic adjectives/determiners
+            "different", "similar", "same", "various", "multiple", "several", "other", "another", "such"
+        ]
+        
+        for word in words {
+            let lower = word.lowercased().trimmingCharacters(in: .punctuationCharacters)
+            if illegalWords.contains(lower) {
+                return false
+            }
+        }
+        
+        // Check first/last word illegal words
+        if let first = words.first?.lowercased().trimmingCharacters(in: .punctuationCharacters), illegalWords.contains(first) {
+            return false
+        }
+        if let last = words.last?.lowercased().trimmingCharacters(in: .punctuationCharacters), illegalWords.contains(last) {
+            return false
+        }
+        
+        // 5. Suffix check for common adverbs (ending in "ly")
+        let adverbWhitelist: Set<String> = [
+            "family", "assembly", "supply", "early", "daily", "orderly", "friendly", "lonely", "silly", "holy", 
+            "likely", "unlikely", "bimonthly", "monthly", "weekly", "yearly", "monopoly", "ally", "belly", "jelly", 
+            "rely", "comply", "imply", "multiply", "fly", "reply", "apply"
+        ]
+        for word in words {
+            let lower = word.lowercased().trimmingCharacters(in: .punctuationCharacters)
+            if lower.hasSuffix("ly") && !adverbWhitelist.contains(lower) {
+                return false
+            }
+        }
+        
+        // 6. Part-of-speech tagging with NLTagger to reject verbs, pronouns, prepositions, conjunctions, adverbs
+        let tagger = NLTagger(tagSchemes: [.lexicalClass, .nameType])
+        tagger.string = trimmed
+        
+        var hasVerb = false
+        var hasPronounOrConjunctionOrPrepositionOrAdverb = false
+        var hasPersonalName = false
+        var lastWordTag: NLTag? = nil
+        
+        tagger.enumerateTags(in: trimmed.startIndex..<trimmed.endIndex, unit: .word, scheme: .lexicalClass, options: [.omitWhitespace, .omitPunctuation]) { tag, _ in
+            if let tag = tag {
+                if tag == .verb {
+                    hasVerb = true
+                }
+                if tag == .pronoun || tag == .conjunction || tag == .preposition || tag == .adverb {
+                    hasPronounOrConjunctionOrPrepositionOrAdverb = true
+                }
+                lastWordTag = tag
+            }
+            return true
+        }
+        
+        tagger.enumerateTags(in: trimmed.startIndex..<trimmed.endIndex, unit: .word, scheme: .nameType, options: [.omitWhitespace, .omitPunctuation]) { tag, _ in
+            if let tag = tag {
+                if tag == .personalName || tag == .placeName || tag == .organizationName {
+                    hasPersonalName = true
+                }
+            }
+            return true
+        }
+        
+        if hasVerb || hasPronounOrConjunctionOrPrepositionOrAdverb || hasPersonalName {
+            return false
+        }
+        
+        // Reject if the last word is an adjective, adverb, or other non-noun tag
+        if let lastTag = lastWordTag {
+            let invalidLastTags: Set<NLTag> = [.adjective, .adverb, .verb, .pronoun, .conjunction, .preposition, .determiner, .particle, .interjection]
+            if invalidLastTags.contains(lastTag) {
+                return false
+            }
+        }
+        
+        let academicNamesBlacklist: Set<String> = [
+            "piaget", "vygotsky", "chomsky", "freud", "skinner", "maslow", "kohlberg", "erikson", "pavlov", "bandura", "rogers", "jung", "watson"
+        ]
+        for word in words {
+            let lower = word.lowercased().trimmingCharacters(in: .punctuationCharacters)
+            if academicNamesBlacklist.contains(lower) {
+                return false
+            }
+        }
+        
+        return true
+    }
+
     private func documentRichnessScore(_ chunks: [DocumentChunk]) -> Double {
         guard !chunks.isEmpty else { return 0 }
 
@@ -483,15 +986,10 @@ actor SuggestedQuestionsService {
             return 0
         }
 
-        if let section = primarySectionLabel(for: chunk), isGenericSectionTitle(section) {
-            if chunk.metadata.documentCategory == .scientificPaper {
-                let normalized = section.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
-                if ["abstract", "summary", "conclusion"].contains(normalized) {
-                    return -1.5
-                }
+        if let section = primarySectionLabel(for: chunk) {
+            if isAdministrativeSectionTitle(section) {
+                return -10.0
             }
-
-            return -5.0
         }
 
         let lower = groundedPassageContent(for: chunk).lowercased()
@@ -573,13 +1071,13 @@ actor SuggestedQuestionsService {
         avoidTexts: [String] = []
     ) async -> [SuggestedQuestion] {
 
-        guard SystemLanguageModel.default.isAvailable else {
+        guard await isSystemLLMAvailable else {
             Log.debug("[SuggestedQuestions] Apple FM not available, falling back to content extraction")
             return []
         }
         guard !baseQuestions.isEmpty else { return [] }
 
-        let passages = buildGroundedPassages(from: chunks, documents: documents, limit: 5)
+        let passages = buildGroundedPassages(from: chunks, documents: documents, limit: 8)
         guard !passages.isEmpty else { return [] }
 
         let rewriteTargets = baseQuestions.enumerated().compactMap { index, question -> (Int, SuggestedQuestion, GroundedPassage)? in
@@ -589,7 +1087,7 @@ actor SuggestedQuestionsService {
             }
             return (index, question, groundedPassage)
         }
-        let limitedTargets = Array(rewriteTargets.prefix(6))
+        let limitedTargets = Array(rewriteTargets.prefix(8))
         guard limitedTargets.count >= 2 else { return [] }
 
         let candidateText = limitedTargets.enumerated().map { index, target in
@@ -626,8 +1124,11 @@ actor SuggestedQuestionsService {
         Rules:
         - Keep the SAME meaning, target fact, action, number, entity, and scope as the candidate
         - Do NOT invent a new topic, device, quantity, duration, condition, or capability
+        - Vary the phrasing and grammatical structures across the list. Do not start all rewritten questions with the same words (e.g. mix 'What is...', 'How...', 'Why...', 'Which...', 'Does...').
         - Every rewritten question must still be answerable mostly from that one passage with little or no inference
         - Keep each question under 12 words when possible
+        - Every question must be a complete, grammatically correct sentence. Never output trailing fragments or cut-off phrases (e.g., do NOT end with "that many?" or "Piaget Vygotsky?").
+        - If naming multiple researchers or entities, connect them properly (e.g. "Piaget and Vygotsky" instead of "Piaget Vygotsky").
         - Prefer direct grounded forms like "What is...", "Which...", "When...", "How much...", or "What should you do if..."
         - If the passage is a warning, prohibition, or conditional instruction, keep the question concrete and safety-grounded
         - Do NOT turn a warning or restriction into a speculative capability question like "Can you..." or "How long can you..." unless the passage explicitly states that allowed capability or duration
@@ -643,7 +1144,7 @@ actor SuggestedQuestionsService {
         """
 
         do {
-            let responseContent = try await withTimeout(seconds: 5.0) {
+            let responseContent = try await withTimeout(seconds: 10.0) {
                 let session = LanguageModelSession()
                 // @Generable: typed [String] array — eliminates numbered-line regex parsing.
                 // Constrained sampling enforces the declared schema at the token level.
@@ -663,9 +1164,8 @@ actor SuggestedQuestionsService {
                 let groundedPassage = target.2
 
                 guard isFaithfulQuestionRewrite(original: original.text, rewritten: rewrittenText, passage: groundedPassage),
-                      isUsableGeneratedQuestion(rewrittenText, passages: [groundedPassage]),
-                      !isSelfAnsweringGeneratedQuestion(rewrittenText),
-                      isAnswerableSuggestedQuestion(rewrittenText, passage: groundedPassage)
+                      isUsableLLMGeneratedQuestion(rewrittenText, passage: groundedPassage),
+                      !isSelfAnsweringGeneratedQuestion(rewrittenText)
                 else {
                     mergedQuestions[questionIndex] = original
                     continue
@@ -677,7 +1177,8 @@ actor SuggestedQuestionsService {
                     category: original.category,
                     relevantDocuments: original.relevantDocuments,
                     sourceSections: original.sourceSections,
-                    confidence: max(original.confidence, groundedConfidence(for: rewrittenText, passage: groundedPassage))
+                    confidence: max(original.confidence, groundedConfidence(for: rewrittenText, passage: groundedPassage)),
+                    isLLMGenerated: true
                 )
             }
 
@@ -726,22 +1227,12 @@ actor SuggestedQuestionsService {
         documents: [Document],
         avoidTexts: [String] = []
     ) async -> [SuggestedQuestion] {
-        guard SystemLanguageModel.default.isAvailable else { return [] }
+        guard await isSystemLLMAvailable else { return [] }
 
-        let passages = buildGroundedPassages(from: chunks, documents: documents, limit: 5)
+        let passages = buildGroundedPassages(from: chunks, documents: documents, limit: 12)
         guard !passages.isEmpty else { return [] }
 
-        let candidateText = passages.enumerated().map { index, passage in
-            var headerParts = ["Document: \(passage.documentName)"]
-            if let section = passage.sectionName, !section.isEmpty {
-                headerParts.append("Section: \(section)")
-            }
-            return """
-            [\(index + 1)] \(headerParts.joined(separator: " | "))
-            Passage content:
-            \(passage.content)
-            """
-        }.joined(separator: "\n\n")
+        Log.info("[SuggestedQuestions] generateDirectlyWithLLM called with \(passages.count) passages")
 
         let avoidClause: String
         if !avoidTexts.isEmpty {
@@ -753,63 +1244,177 @@ actor SuggestedQuestionsService {
             avoidClause = ""
         }
 
-        let prompt = """
-        You are generating starter question chips for a document Q&A app.
-        Generate natural, direct, and interesting questions that are grounded in and answerable by the following passages.
+        var allGeneratedQuestions: [SuggestedQuestion] = []
+        let batchSize = 4
 
-        Each question should be a high-quality, inference-based or analytical inquiry about the key findings, methodologies, concepts, or details in the passages.
+        var index = 0
+        while index < passages.count {
+            let batch = Array(passages[index..<min(index + batchSize, passages.count)])
+            let batchStartIndex = index
+            index += batchSize
 
-        Rules:
-        - Questions must be direct, specific, and interesting (e.g. "How does the model handle [Concept]?" or "Why does [A] affect [B]?" or "What are the limitations of [Method]?").
-        - Avoid generic or textbook-style questions (e.g., do NOT start with "What role does..." or "What is the significance of...").
-        - Every question must be fully answerable by the passage content. Do not speculate or invent details.
-        - Keep each question under 15 words.
-        - Do NOT ask about the documents or passages themselves (e.g., do NOT say "According to document...", "as mentioned in the text").
-        - Do NOT generate or include any structural or meta references (e.g., referencing rows, columns, cells, tables, page numbers, or "the document/passage"). All questions must focus purely on concepts, facts, or domain content.
-        - Do NOT include square brackets, placeholders, bullets, numbering, or quotes.
-        \(avoidClause)
-        PASSAGES:
-        \(candidateText)
+            let candidateText = batch.enumerated().map { subIndex, passage in
+                var headerParts = ["Passage \(subIndex + 1)"]
+                if let section = passage.sectionName, !section.isEmpty {
+                    headerParts.append("Section: \(section)")
+                }
+                return """
+                [\(subIndex + 1)] \(headerParts.joined(separator: " | "))
+                Context:
+                \(passage.content)
+                """
+            }.joined(separator: "\n\n")
 
-        Return ONLY plain question strings through the schema. Do not number them. Do not add bullets or quotes.
-        """
+            let prompt = """
+            You are generating suggested starter question chips for a document Q&A application.
+            The user has uploaded documents, and we want to show starter questions that explore the key concepts, methodologies, findings, and discussions in the text.
 
-        do {
-            let responseContent = try await withTimeout(seconds: 5.0) {
-                let session = LanguageModelSession()
-                let response = try await session.respond(to: prompt, generating: SuggestedQuestionList.self)
-                return response.content
+            For each numbered passage below, generate exactly ONE short, natural, and highly insightful question that:
+            - Is directly answerable by the text in that passage.
+            - Focuses on the core concepts, methodologies, claims, or outcomes (avoid trivial details, page numbers, or formatting).
+            - Sounds natural, conversational, and direct — like a person asking about the subject matter (e.g., "What is the primary methodology used to...", "What limitations did the study find in...", "What is the main outcome of...").
+            - Varies the question words and grammatical structures across the list (mix "How", "Why", "What", "Which", "Does", etc. across the items).
+            - Is highly distinct from the other questions in the list.
+
+            Rules:
+            - Do NOT mention the word "passage", "document", "text", "author", "study", or "table" in the questions (e.g., do NOT ask "According to the passage, what is..."). Keep them entirely about the subject matter.
+            - Each question must be a complete, grammatically correct sentence under 15 words.
+            - Do not include brackets, quotes, numbering, or bullets.
+            \(avoidClause)
+            PASSAGES:
+            \(candidateText)
+
+            Return exactly ONE question per passage through the schema, in the same order as the passages.
+            """
+
+            do {
+                let responseContent = try await withTimeout(seconds: 12.0) {
+                    let session = LanguageModelSession()
+                    let response = try await session.respond(to: prompt, generating: SuggestedQuestionList.self)
+                    return response.content
+                }
+
+                Log.info("[SuggestedQuestions] Batch starting at \(batchStartIndex) generated \(responseContent.questions.count) raw questions: \(responseContent.questions)")
+
+                var batchGains = 0
+                for (subIndex, rawText) in responseContent.questions.enumerated() {
+                    guard let questionText = sanitizeGeneratedQuestion(rawText) else { continue }
+                    guard subIndex < batch.count else { break }
+
+                    let passage = batch[subIndex]
+
+                    guard isUsableLLMGeneratedQuestion(questionText, passage: passage),
+                          !isSelfAnsweringGeneratedQuestion(questionText)
+                    else { continue }
+
+                    let category: QuestionCategory = inferCategoryDirect(for: questionText)
+
+                    allGeneratedQuestions.append(SuggestedQuestion(
+                        id: UUID(),
+                        text: questionText,
+                        category: category,
+                        relevantDocuments: [passage.documentName],
+                        sourceSections: passage.sectionName.map { [$0] } ?? [],
+                        confidence: 0.90,
+                        isLLMGenerated: true
+                    ))
+                    batchGains += 1
+                }
+                Log.info("[SuggestedQuestions] Batch starting at \(batchStartIndex) kept \(batchGains) questions after filtering")
+            } catch {
+                Log.warning("[SuggestedQuestions] Direct LLM generation failed for batch starting at \(batchStartIndex): \(error.localizedDescription)")
             }
-
-            var generatedQuestions: [SuggestedQuestion] = []
-            for rawText in responseContent.questions {
-                guard let questionText = sanitizeGeneratedQuestion(rawText) else { continue }
-
-                // Find the best grounded passage for this question
-                guard let groundedPassage = bestGroundingPassage(for: questionText, passages: passages),
-                      isUsableGeneratedQuestion(questionText, passages: [groundedPassage]),
-                      !isSelfAnsweringGeneratedQuestion(questionText),
-                      isAnswerableSuggestedQuestion(questionText, passage: groundedPassage)
-                else { continue }
-
-                // Infer category
-                let category: QuestionCategory = inferCategoryDirect(for: questionText)
-
-                generatedQuestions.append(SuggestedQuestion(
-                    id: UUID(),
-                    text: questionText,
-                    category: category,
-                    relevantDocuments: [groundedPassage.documentName],
-                    sourceSections: groundedPassage.sectionName.map { [$0] } ?? [],
-                    confidence: 0.85
-                ))
-            }
-
-            return dedupeSuggestedQuestionsPreservingOrder(generatedQuestions)
-        } catch {
-            Log.warning("[SuggestedQuestions] Direct LLM generation failed: \(error.localizedDescription)")
-            return []
         }
+
+        return dedupeSuggestedQuestionsPreservingOrder(allGeneratedQuestions)
+    }
+
+    /// Extract concrete answer spans from a passage — the "answer-first" step.
+    /// These are specific facts, numbers, named things, and key phrases that
+    /// make good answers to questions a user would actually ask.
+    private func extractAnswerSpans(from passage: GroundedPassage) -> [String] {
+        var spans: [String] = []
+        let content = passage.content
+
+        // 1. Numbers with context (e.g., "50+ file formats", "4K tokens", "32K tokens")
+        let numberPatterns = [
+            #"\b\d[\d,]*\.?\d*\+?\s*(?:file formats?|formats?|documents?|libraries|tokens?|hours?|minutes?|categories|steps?|modes?|ways?|properties|features?)\b"#,
+            #"\b\d+K\s*(?:tokens?|context|window)\b"#,
+        ]
+        for pattern in numberPatterns {
+            if let regex = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]) {
+                let nsContent = content as NSString
+                let matches = regex.matches(in: content, range: NSRange(location: 0, length: nsContent.length))
+                for match in matches.prefix(2) {
+                    let span = nsContent.substring(with: match.range).trimmingCharacters(in: .whitespacesAndNewlines)
+                    if span.count >= 3, span.count <= 40 {
+                        spans.append(span)
+                    }
+                }
+            }
+        }
+
+        // 2. Named things in bold (Markdown **bold** often marks key terms)
+        let boldPattern = #"\*\*([^*]{3,50})\*\*"#
+        if let regex = try? NSRegularExpression(pattern: boldPattern) {
+            let nsContent = content as NSString
+            let matches = regex.matches(in: content, range: NSRange(location: 0, length: nsContent.length))
+            for match in matches.prefix(3) {
+                if match.numberOfRanges >= 2 {
+                    let span = nsContent.substring(with: match.range(at: 1))
+                        .trimmingCharacters(in: .whitespacesAndNewlines)
+                    if span.count >= 3, span.count <= 50, !spans.contains(span) {
+                        spans.append(span)
+                    }
+                }
+            }
+        }
+
+        // 3. Enumerated list items (e.g., "1. Parse  2. Chunk  3. Embed")
+        let listPattern = #"(?:^|\n)\s*(?:\d+\.|\-|\*)\s+\*?\*?(.{5,60}?)(?:\*?\*?\s*(?:\n|$))"#
+        if let regex = try? NSRegularExpression(pattern: listPattern, options: [.anchorsMatchLines]) {
+            let nsContent = content as NSString
+            let matches = regex.matches(in: content, range: NSRange(location: 0, length: nsContent.length))
+            if matches.count >= 3 {
+                // Multiple list items → the list itself is a good answer span
+                let items = matches.prefix(6).compactMap { match -> String? in
+                    guard match.numberOfRanges >= 2 else { return nil }
+                    return nsContent.substring(with: match.range(at: 1))
+                        .trimmingCharacters(in: .whitespacesAndNewlines)
+                        .replacingOccurrences(of: "**", with: "")
+                }
+                if !items.isEmpty {
+                    let listSummary = items.joined(separator: ", ")
+                    if listSummary.count <= 120, !spans.contains(listSummary) {
+                        spans.append(listSummary)
+                    }
+                }
+            }
+        }
+
+        // 4. Section title as a topic (if it's specific enough)
+        if let section = passage.sectionName,
+           section.count >= 5,
+           section.count <= 50 {
+            let sectionLower = section.lowercased()
+            let genericTitles: Set<String> = [
+                "introduction", "overview", "summary", "conclusion", "background",
+                "discussion", "results", "methods", "references", "notes"
+            ]
+            if !genericTitles.contains(sectionLower) {
+                spans.append(section)
+            }
+        }
+
+        // 5. Abbreviations/acronyms with expansions from chunk metadata
+        for (abbr, expansion) in passage.chunk.metadata.abbreviations.prefix(2) {
+            let cleaned = "\(abbr) (\(expansion))"
+            if cleaned.count <= 50, !spans.contains(cleaned) {
+                spans.append(cleaned)
+            }
+        }
+
+        return spans
     }
 
     private func inferCategoryDirect(for text: String) -> QuestionCategory {
@@ -863,7 +1468,8 @@ actor SuggestedQuestionsService {
                     category: draft.category,
                     relevantDocuments: [passage.documentName],
                     sourceSections: passage.sectionName.map { [$0] } ?? [],
-                    confidence: draft.confidence
+                    confidence: draft.confidence,
+                    isLLMGenerated: false
                 ))
             }
         }
@@ -950,77 +1556,119 @@ actor SuggestedQuestionsService {
                 fallbacks.append(q)
             }
         }
-        
-        // 1. Generate questions based on document names
-        for doc in documents.prefix(3) {
-            let docName = displayDocumentName(doc.filename)
-            
-            let isResearch = doc.filename.lowercased().contains("study") 
-                || doc.filename.lowercased().contains("paper") 
-                || doc.filename.lowercased().contains("trial")
-                
-            if isResearch {
+
+        // Build grounded passages so fallbacks target real content, not vague templates
+        let passages = buildGroundedPassages(from: chunks, documents: documents, limit: 10)
+
+        // 1. Generate questions from section titles — these are the best fallback
+        //    because section headings literally describe what the content covers
+        for passage in passages {
+            guard let section = passage.sectionName else { continue }
+            let cleanSection = section.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard cleanSection.count >= 4, cleanSection.count <= 60 else { continue }
+
+            // If the section title is already a question, use it directly
+            if cleanSection.hasSuffix("?") {
                 addFallback(SuggestedQuestion(
                     id: UUID(),
-                    text: "What did this study find?",
-                    category: .factRetrieval,
-                    relevantDocuments: [docName],
-                    sourceSections: [],
-                    confidence: 0.7
-                ))
-                addFallback(SuggestedQuestion(
-                    id: UUID(),
-                    text: "Summarize the methodology of this research.",
-                    category: .summarization,
-                    relevantDocuments: [docName],
-                    sourceSections: [],
-                    confidence: 0.7
+                    text: cleanSection,
+                    category: inferCategoryFromSectionTitle(cleanSection),
+                    relevantDocuments: [passage.documentName],
+                    sourceSections: [cleanSection],
+                    confidence: 0.80,
+                    isLLMGenerated: false
                 ))
             } else {
-                addFallback(SuggestedQuestion(
-                    id: UUID(),
-                    text: "Summarize the key points in this document.",
-                    category: .summarization,
-                    relevantDocuments: [docName],
-                    sourceSections: [],
-                    confidence: 0.7
-                ))
-                addFallback(SuggestedQuestion(
-                    id: UUID(),
-                    text: "What is the main purpose of this document?",
-                    category: .factRetrieval,
-                    relevantDocuments: [docName],
-                    sourceSections: [],
-                    confidence: 0.7
-                ))
+                // Turn the section title into a targeted question
+                let question = sectionTitleToQuestion(cleanSection, documentName: passage.documentName)
+                if let question, question.count >= 10 {
+                    addFallback(SuggestedQuestion(
+                        id: UUID(),
+                        text: question,
+                        category: inferCategoryFromSectionTitle(cleanSection),
+                        relevantDocuments: [passage.documentName],
+                        sourceSections: [cleanSection],
+                        confidence: 0.75,
+                        isLLMGenerated: false
+                    ))
+                }
             }
         }
-        
-        // 2. Generate questions based on technical terms/phrases from chunks
-        let passages = buildGroundedPassages(from: chunks, documents: documents, limit: 10)
+
+        // 2. Generate questions from extracted technical terms (no doc name in question text)
         var terms: [String] = []
         for passage in passages {
             terms.append(contentsOf: extractTechnicalTerms(from: passage.content, limit: 2))
         }
-        let uniqueTerms = Array(Set(terms)).filter { $0.count >= 4 && $0.count <= 30 }
-        
+        let uniqueTerms = Array(Set(terms)).filter { $0.count >= 4 && $0.count <= 30 && isValidConceptualTopic($0) }
+
         for term in uniqueTerms.prefix(4) {
             if let passage = passages.first(where: { $0.content.contains(term) }) {
                 addFallback(SuggestedQuestion(
                     id: UUID(),
-                    text: "What does this document explain about \(term)?",
+                    text: "What is \(term)?",
                     category: .factRetrieval,
                     relevantDocuments: [passage.documentName],
                     sourceSections: passage.sectionName.map { [$0] } ?? [],
-                    confidence: 0.65
+                    confidence: 0.65,
+                    isLLMGenerated: false
                 ))
             }
         }
-        
+
         // Deduplicate and return
         let deduped = dedupeSuggestedQuestionsPreservingOrder(fallbacks)
         return Array(deduped.prefix(count))
     }
+
+    /// Convert a section title into a natural question.
+    /// Returns nil if the title is too generic to make a good question.
+    private func sectionTitleToQuestion(_ title: String, documentName: String) -> String? {
+        let lower = title.lowercased()
+
+        // Skip generic section titles that would produce vague questions
+        let genericTitles: Set<String> = [
+            "introduction", "overview", "summary", "conclusion", "background",
+            "discussion", "results", "methods", "methodology", "references",
+            "appendix", "acknowledgments", "abstract", "table of contents",
+            "getting started", "notes", "about"
+        ]
+        if genericTitles.contains(lower) { return nil }
+
+        // "Plans" → "What plans are available?"
+        // "Quality Modes" → "What are the quality modes?"
+        // "The RAG Pipeline" → "How does the RAG pipeline work?"
+        // "Privacy summary" → "What does the privacy summary cover?"
+
+        if lower.hasPrefix("how") || lower.hasPrefix("what") || lower.hasPrefix("when") || lower.hasPrefix("why") {
+            // Already question-shaped, just add a question mark
+            return title + "?"
+        }
+
+        // Check if it describes a process or system
+        let processWords = ["pipeline", "process", "workflow", "routing", "search", "verification"]
+        if processWords.contains(where: { lower.contains($0) }) {
+            return "How does \(title.lowercased()) work?"
+        }
+
+        // Default: "What are the [title]?"
+        return "What are the \(title.lowercased())?"
+    }
+
+    private func inferCategoryFromSectionTitle(_ title: String) -> QuestionCategory {
+        let lower = title.lowercased()
+        if lower.contains("how") || lower.contains("step") || lower.contains("pipeline") || lower.contains("process") {
+            return .procedural
+        }
+        if lower.contains("compare") || lower.contains("versus") || lower.contains("vs") || lower.contains("difference") {
+            return .comparison
+        }
+        if lower.contains("why") {
+            return .analytical
+        }
+        return .factRetrieval
+    }
+
 
     private func deterministicQuestionDrafts(for passage: GroundedPassage) -> [QuestionDraft] {
         var drafts: [QuestionDraft] = []
@@ -1365,45 +2013,100 @@ actor SuggestedQuestionsService {
         let terms = extractTechnicalTerms(from: passage.content, limit: 2)
         var drafts: [QuestionDraft] = []
         
+        let sentences = passage.content.components(separatedBy: CharacterSet(charactersIn: ".!?"))
+        
         for term in terms {
             guard term.count >= 4 && term.count <= 40 else { continue }
+            guard isValidConceptualTopic(term) else { continue }
+            
+            // Find the sentence containing this term to extract context
+            let matchingSentence = sentences.first { sentence in
+                sentence.lowercased().contains(term.lowercased())
+            }?.lowercased() ?? ""
             
             let isResearch = passage.chunk.metadata.documentCategory == .scientificPaper
                 || passage.content.lowercased().contains("study")
                 || passage.content.lowercased().contains("research")
                 
             if isResearch {
-                drafts.append(QuestionDraft(
-                    text: "What does the study say about \(term)?",
-                    category: .factRetrieval,
-                    confidence: 0.85
-                ))
-                drafts.append(QuestionDraft(
-                    text: "How does \(term) impact the findings?",
-                    category: .analytical,
-                    confidence: 0.80
-                ))
-                drafts.append(QuestionDraft(
-                    text: "What are the key insights regarding \(term)?",
-                    category: .analytical,
-                    confidence: 0.82
-                ))
+                if matchingSentence.contains("limit") || matchingSentence.contains("caveat") || matchingSentence.contains("weakness") {
+                    drafts.append(QuestionDraft(
+                        text: "What limitations are mentioned regarding \(term)?",
+                        category: .analytical,
+                        confidence: 0.85
+                    ))
+                } else if matchingSentence.contains("find") || matchingSentence.contains("show") || matchingSentence.contains("observe") || matchingSentence.contains("result") {
+                    drafts.append(QuestionDraft(
+                        text: "What did the study observe regarding \(term)?",
+                        category: .factRetrieval,
+                        confidence: 0.85
+                    ))
+                } else {
+                    drafts.append(QuestionDraft(
+                        text: "What does the study say about \(term)?",
+                        category: .factRetrieval,
+                        confidence: 0.82
+                    ))
+                    drafts.append(QuestionDraft(
+                        text: "How does \(term) impact the findings?",
+                        category: .analytical,
+                        confidence: 0.80
+                    ))
+                }
             } else {
-                drafts.append(QuestionDraft(
-                    text: "What is the role of \(term)?",
-                    category: .factRetrieval,
-                    confidence: 0.82
-                ))
-                drafts.append(QuestionDraft(
-                    text: "How does \(term) function?",
-                    category: .analytical,
-                    confidence: 0.78
-                ))
-                drafts.append(QuestionDraft(
-                    text: "Why is \(term) important?",
-                    category: .analytical,
-                    confidence: 0.80
-                ))
+                if matchingSentence.contains("prevent") || matchingSentence.contains("avoid") || matchingSentence.contains("protect") {
+                    drafts.append(QuestionDraft(
+                        text: "How does \(term) help prevent problems?",
+                        category: .analytical,
+                        confidence: 0.84
+                    ))
+                } else if matchingSentence.contains("improve") || matchingSentence.contains("enhance") || matchingSentence.contains("increase") || matchingSentence.contains("boost") {
+                    drafts.append(QuestionDraft(
+                        text: "How does \(term) improve results?",
+                        category: .analytical,
+                        confidence: 0.84
+                    ))
+                } else if matchingSentence.contains("reduce") || matchingSentence.contains("decrease") || matchingSentence.contains("minimize") {
+                    drafts.append(QuestionDraft(
+                        text: "How does \(term) help reduce negative effects?",
+                        category: .analytical,
+                        confidence: 0.84
+                    ))
+                } else if matchingSentence.contains("allow") || matchingSentence.contains("enable") || matchingSentence.contains("support") || matchingSentence.contains("permit") {
+                    drafts.append(QuestionDraft(
+                        text: "What does \(term) allow you to do?",
+                        category: .factRetrieval,
+                        confidence: 0.84
+                    ))
+                } else if matchingSentence.contains("cause") || matchingSentence.contains("lead") || matchingSentence.contains("trigger") || matchingSentence.contains("result") {
+                    drafts.append(QuestionDraft(
+                        text: "What does \(term) lead to?",
+                        category: .analytical,
+                        confidence: 0.84
+                    ))
+                } else if matchingSentence.contains("require") || matchingSentence.contains("need") || matchingSentence.contains("depend") {
+                    drafts.append(QuestionDraft(
+                        text: "What do you need for \(term)?",
+                        category: .factRetrieval,
+                        confidence: 0.84
+                    ))
+                } else {
+                    drafts.append(QuestionDraft(
+                        text: "What is the role of \(term)?",
+                        category: .factRetrieval,
+                        confidence: 0.82
+                    ))
+                    drafts.append(QuestionDraft(
+                        text: "How does \(term) function?",
+                        category: .analytical,
+                        confidence: 0.78
+                    ))
+                    drafts.append(QuestionDraft(
+                        text: "Why is \(term) important?",
+                        category: .analytical,
+                        confidence: 0.80
+                    ))
+                }
             }
         }
         return drafts
@@ -1472,7 +2175,9 @@ actor SuggestedQuestionsService {
                     let combo = words[i..<(i + size)]
                     if isValidTechnicalTerm(combo) {
                         let phrase = combo.joined(separator: " ")
-                        candidates.append(phrase)
+                        if isValidConceptualTopic(phrase) {
+                            candidates.append(phrase)
+                        }
                     }
                 }
             }
@@ -1557,15 +2262,67 @@ actor SuggestedQuestionsService {
 
     private func proceduralQuestionText(for topic: String) -> String {
         let normalizedTopic = naturalQuestionTopic(topic)
-        let firstToken = normalizedTopic
-            .split(separator: " ")
-            .first?
-            .lowercased() ?? ""
-
-        if firstToken.hasSuffix("ing") || Self.proceduralActionStarters.contains(firstToken) {
+        let words = normalizedTopic.split(separator: " ").map(String.init)
+        guard let firstWord = words.first else {
+            return "How do you handle \(normalizedTopic)?"
+        }
+        
+        let lowerFirst = firstWord.lowercased()
+        
+        // Map common gerunds to base form for cleaner phrasing
+        let gerundMap = [
+            "installing": "install",
+            "replacing": "replace",
+            "connecting": "connect",
+            "disconnecting": "disconnect",
+            "cleaning": "clean",
+            "inspecting": "inspect",
+            "operating": "operate",
+            "baking": "bake",
+            "cooking": "cook",
+            "running": "run",
+            "using": "use",
+            "configuring": "configure",
+            "preparing": "prepare",
+            "testing": "test",
+            "updating": "update",
+            "restoring": "restore",
+            "creating": "create",
+            "building": "build",
+            "loading": "load",
+            "saving": "save",
+            "rebuilding": "rebuild",
+            "syncing": "sync",
+            "managing": "manage",
+            "handling": "handle",
+            "removing": "remove",
+            "deleting": "delete",
+            "adding": "add",
+            "inserting": "insert",
+            "starting": "start",
+            "stopping": "stop",
+            "verifying": "verify",
+            "checking": "check",
+            "adjusting": "adjust",
+            "assembling": "assemble",
+            "disassembling": "disassemble",
+            "mounting": "mount",
+            "unmounting": "unmount"
+        ]
+        
+        if let baseVerb = gerundMap[lowerFirst] {
+            let remaining = words.dropFirst().joined(separator: " ")
+            return remaining.isEmpty ? "How do you \(baseVerb)?" : "How do you \(baseVerb) \(remaining)?"
+        }
+        
+        if Self.proceduralActionStarters.contains(lowerFirst) {
             return "How do you \(normalizedTopic)?"
         }
-
+        
+        if lowerFirst.hasSuffix("ing") {
+            return "How do you handle \(normalizedTopic)?"
+        }
+        
         return "How do you handle \(normalizedTopic)?"
     }
 
@@ -1736,6 +2493,7 @@ actor SuggestedQuestionsService {
         for candidate in candidates {
             guard let candidate else { continue }
             guard let topic = concreteTopic(from: candidate), !isWeakQuestionTopic(topic) else { continue }
+            guard isValidConceptualTopic(topic) else { continue }
             let tokens = meaningfulTokens(from: topic)
             guard !tokens.isEmpty else { continue }
 
@@ -1772,6 +2530,7 @@ actor SuggestedQuestionsService {
 
         for candidate in candidates {
             guard let topic = concreteTopic(from: candidate), !isWeakQuestionTopic(topic) else { continue }
+            guard isValidConceptualTopic(topic) else { continue }
             let tokens = meaningfulTokens(from: topic)
             guard !tokens.isEmpty, tokens.count <= 5 else { continue }
             return topic
@@ -1802,11 +2561,15 @@ actor SuggestedQuestionsService {
             .trimmingCharacters(in: .whitespacesAndNewlines.union(.punctuationCharacters))
 
         if let topic = casePreservingTopic(from: stripped), !isWeakQuestionTopic(topic) {
-            return topic
+            if isValidConceptualTopic(topic) {
+                return topic
+            }
         }
 
         if let fallback = casePreservingTopic(from: documentName), !isWeakQuestionTopic(fallback) {
-            return fallback
+            if isValidConceptualTopic(fallback) {
+                return fallback
+            }
         }
 
         return nil
@@ -2453,6 +3216,10 @@ actor SuggestedQuestionsService {
             return false
         }
 
+        if question.isLLMGenerated {
+            return true
+        }
+
         let focusTokens = questionFocusTokens(from: question.text)
         let hasSpecificFocus = focusTokens.count == 1 && focusTokens.contains(where: isLikelySpecificSuggestionFocusToken)
         guard focusTokens.count >= 2 || hasAcronymDefinitionFocus || hasSpecificFocus else { return false }
@@ -2644,19 +3411,16 @@ actor SuggestedQuestionsService {
             {
                 return true
             }
-        }
 
-        guard lhs.category == rhs.category else { return false }
-        guard sameDocument else { return false }
+            let overlap = lhsTokens.intersection(rhsTokens).count
+            let smallerCount = min(lhsTokens.count, rhsTokens.count)
+            if smallerCount >= 2, Double(overlap) / Double(smallerCount) >= 0.70 {
+                return true
+            }
 
-        let overlap = lhsTokens.intersection(rhsTokens).count
-        let smallerCount = min(lhsTokens.count, rhsTokens.count)
-        if smallerCount >= 2, Double(overlap) / Double(smallerCount) >= 0.75 {
-            return true
-        }
-
-        if let lhsSection, let rhsSection, !lhsSection.isEmpty, lhsSection == rhsSection, overlap >= 2 {
-            return true
+            if let lhsSection, let rhsSection, !lhsSection.isEmpty, lhsSection == rhsSection, overlap >= 2 {
+                return true
+            }
         }
 
         return false
@@ -2674,6 +3438,72 @@ actor SuggestedQuestionsService {
             meaningfulTokens(from: question)
                 .filter { !Self.questionFocusStopTokens.contains($0) }
         )
+    }
+
+    private func isUsableLLMGeneratedQuestion(
+        _ question: String,
+        passage: GroundedPassage
+    ) -> Bool {
+        let lower = question.lowercased()
+        if isBoilerplateQuestionTemplate(lower) {
+            return false
+        }
+
+        if isStructuralOrMetaQuestion(lower) {
+            return false
+        }
+
+        if isJunkString(question) {
+            return false
+        }
+
+        let bannedFragments = [
+            "[", "]", "{", "}", "<", ">",
+            "thing from passage",
+            "specific thing from passage",
+            "condition from passage",
+            "specific detail from the passage",
+            "specific detail",
+            "what does the document say",
+            "what do the documents say",
+            "uploaded document",
+            "uploaded documents",
+            "from the passages below",
+            "from the passage",
+            "style guide",
+            "real person casually asking",
+            "what's important about",
+            "what is important about",
+            "why is ",
+            " important here",
+            "actually do",
+            "main point",
+            "key points",
+            "key details",
+            "can you explain",
+            "tell me about",
+            "what are the key",
+        ]
+
+        if bannedFragments.contains(where: { lower.contains($0) }) {
+            return false
+        }
+
+        if violatesPassageQuestionGuardrails(question, passage: passage) {
+            return false
+        }
+
+        // Looser grounding check for LLM questions: at least 1 overlap token
+        // from the document name, section path, or body to ensure the question is grounded
+        // in this specific chunk rather than a pure hallucination.
+        let tokens = meaningfulTokens(from: lower)
+        guard !tokens.isEmpty else { return false }
+
+        let overlapCount = tokens.intersection(passage.bodyTokens).count
+            + tokens.intersection(passage.sectionTokens).count
+            + tokens.intersection(passage.documentTokens).count
+
+        return overlapCount >= 1
     }
 
     private func isUsableGeneratedQuestion(
@@ -2954,18 +3784,31 @@ actor SuggestedQuestionsService {
 
     // MARK: - Content Extraction Helpers
 
-    /// Generic section titles that produce bad questions
-    private func isGenericSectionTitle(_ title: String) -> Bool {
-        let generic: Set<String> = [
-            "introduction", "conclusion", "summary", "overview", "abstract",
+    private func isHighValueSectionTitle(_ title: String) -> Bool {
+        let highValue: Set<String> = [
+            "abstract", "conclusion", "summary", "overview", "discussion",
+            "results", "key findings", "methodology", "methods", "introduction",
+            "executive summary", "key takeaways", "takeaways", "implications"
+        ]
+        let normalized = title.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
+        return highValue.contains(normalized) || highValue.contains(where: { normalized.contains($0) })
+    }
+
+    private func isAdministrativeSectionTitle(_ title: String) -> Bool {
+        let admin: Set<String> = [
             "references", "bibliography", "appendix", "index", "table of contents",
             "acknowledgements", "disclaimer", "copyright", "notes", "glossary",
             "contents", "preface", "foreword", "about", "author manuscript",
             "keywords", "conflict of interest", "conflicts of interest",
             "competing interests", "author contributions", "funding", "ethics statement"
         ]
-        let normalized = title.lowercased().trimmingCharacters(in: .whitespaces)
-        return generic.contains(normalized) || containsFrontMatterSignal(normalized)
+        let normalized = title.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
+        return admin.contains(normalized) || containsFrontMatterSignal(normalized)
+    }
+
+    /// Generic section titles that produce bad questions
+    private func isGenericSectionTitle(_ title: String) -> Bool {
+        return isAdministrativeSectionTitle(title)
     }
 
     private func containsFrontMatterSignal(_ text: String) -> Bool {

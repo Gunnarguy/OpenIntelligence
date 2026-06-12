@@ -407,63 +407,64 @@ struct IngestionQueueOverlay: View {
     var body: some View {
         let visibleItems = Array(sortedItems.prefix(5))
         let hiddenCount = max(0, items.count - visibleItems.count)
+        let isVisible = !items.isEmpty && !isDismissed
 
-        return Group {
-            if !items.isEmpty && !isDismissed {
-                VStack(alignment: .leading, spacing: isMinimized ? 0 : 16) {
-                    headerView
+        return VStack(alignment: .leading, spacing: isMinimized ? 0 : 16) {
+            headerView
 
-                    if !isMinimized {
-                        if hasPausedItems {
-                            resumeDecisionPanel
-                        }
+            if !isMinimized {
+                if hasPausedItems {
+                    resumeDecisionPanel
+                }
 
-                        // Totals summary card (only show when we have metrics data)
-                        if totalMetrics.hasData {
-                            TotalsSummaryCard(
-                                metrics: totalMetrics,
-                                completedCount: completedCount,
-                                totalCount: items.count
+                // Totals summary card (only show when we have metrics data)
+                if totalMetrics.hasData {
+                    TotalsSummaryCard(
+                        metrics: totalMetrics,
+                        completedCount: completedCount,
+                        totalCount: items.count
+                    )
+                }
+
+                ScrollView(.vertical, showsIndicators: true) {
+                    VStack(spacing: 12) {
+                        ForEach(visibleItems) { item in
+                            IngestionQueueRow(
+                                item: item,
+                                onCancel: item.stage.isTerminal ? nil : { onCancelItem?(item.id) }
                             )
                         }
+                    }
+                    .padding(.trailing, 4)
+                }
+                .frame(maxHeight: 400)
 
-                        ScrollView(.vertical, showsIndicators: true) {
-                            VStack(spacing: 12) {
-                                ForEach(visibleItems) { item in
-                                    IngestionQueueRow(
-                                        item: item,
-                                        onCancel: item.stage.isTerminal ? nil : { onCancelItem?(item.id) }
-                                    )
-                                }
-                            }
-                            .padding(.trailing, 4)
-                        }
-                        .frame(maxHeight: 400)
-
-                        if hiddenCount > 0 {
-                            HStack {
-                                Spacer()
-                                Text("+\(hiddenCount) more files in queue")
-                                    .font(.system(size: 11, weight: .medium))
-                                    .foregroundStyle(DSColors.secondaryText)
-                                Spacer()
-                            }
-                        }
+                if hiddenCount > 0 {
+                    HStack {
+                        Spacer()
+                        Text("+\(hiddenCount) more files in queue")
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundStyle(DSColors.secondaryText)
+                        Spacer()
                     }
                 }
-                .padding(14)
-                .frame(maxWidth: isMinimized ? min(overlayMaxWidth, 260) : overlayMaxWidth, alignment: .leading)
-                .background(.ultraThinMaterial)
-                .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 20, style: .continuous)
-                        .strokeBorder(overlayAccentColor.opacity(0.12), lineWidth: 1)
-                )
-                .shadow(color: .black.opacity(0.12), radius: 24, x: 0, y: 12)
-                .glassCardEffectHelper(cornerRadius: 20, isSelected: false, interactive: false)
-                .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }
+        .padding(14)
+        .frame(maxWidth: isMinimized ? min(overlayMaxWidth, 260) : overlayMaxWidth, alignment: .leading)
+        .background(.ultraThinMaterial)
+        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .strokeBorder(overlayAccentColor.opacity(0.12), lineWidth: 1)
+        )
+        .shadow(color: .black.opacity(0.12), radius: 24, x: 0, y: 12)
+        .glassCardEffectHelper(cornerRadius: 20, isSelected: false, interactive: false)
+        .opacity(isVisible ? 1.0 : 0.0)
+        .scaleEffect(isVisible ? 1.0 : 0.95)
+        .offset(y: isVisible ? 0 : 40)
+        .allowsHitTesting(isVisible)
+        .animation(.spring(response: 0.35, dampingFraction: 0.82), value: isVisible)
         .animation(.spring(response: 0.3, dampingFraction: 0.85), value: items.count)
         .animation(.spring(response: 0.25), value: isMinimized)
         .onChange(of: items.isEmpty) { _, isEmpty in
@@ -792,6 +793,33 @@ private struct IngestionQueueRow: View {
                                 .font(.system(size: 10))
                                 .foregroundStyle(DSColors.secondaryText)
                                 .lineLimit(1)
+                        }
+
+                        if let startedAt = item.startedAt, !item.stage.isTerminal {
+                            Text("•")
+                                .font(.system(size: 8))
+                                .foregroundStyle(DSColors.secondaryText)
+                            Text(timerInterval: startedAt...Date.distantFuture, countsDown: false)
+                                .font(.system(size: 10, design: .monospaced))
+                                .foregroundStyle(DSColors.secondaryText)
+                        }
+
+                        if item.stage == .complete {
+                            let durationSec: Double = {
+                                if let startedAt = item.startedAt, let finishedAt = item.finishedAt {
+                                    return finishedAt.timeIntervalSince(startedAt)
+                                } else {
+                                    return Double(item.metrics.totalTimeMs) / 1000.0
+                                }
+                            }()
+                            if durationSec > 0 {
+                                Text("•")
+                                    .font(.system(size: 8))
+                                    .foregroundStyle(DSColors.secondaryText)
+                                Text(String(format: "%.1fs", durationSec))
+                                    .font(.system(size: 10, design: .monospaced))
+                                    .foregroundStyle(.green)
+                            }
                         }
                     }
                 }

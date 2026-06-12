@@ -61,6 +61,15 @@ actor SQLiteFullTextService {
         }
     }
 
+    struct SQLiteChunk: Sendable {
+        let chunkIndex: Int
+        let pageNumber: Int?
+        let sectionTitle: String?
+        let sectionPath: String?
+        let structureType: String?
+        let content: String
+    }
+
     // MARK: - Singleton
 
     static let shared = SQLiteFullTextService()
@@ -890,6 +899,67 @@ actor SQLiteFullTextService {
         commitTransaction()
         checkpoint()
         Log.info("[SQLiteFTS5] Stored \(chunks.count) chunks for document \(documentId)", category: .vectorDB)
+    }
+
+    /// Retrieve all chunks for a specific document
+    func retrieveChunks(for documentId: UUID) async -> [SQLiteChunk] {
+        ensureInitialized()
+        guard let db = database else { return [] }
+
+        let sql = """
+            SELECT chunk_index, page_number, section_title, section_path, structure_type, content 
+            FROM chunks 
+            WHERE document_id = ? 
+            ORDER BY chunk_index
+        """
+        var statement: OpaquePointer?
+
+        guard sqlite3_prepare_v2(db, sql, -1, &statement, nil) == SQLITE_OK else {
+            let error = String(cString: sqlite3_errmsg(db))
+            Log.error("[SQLiteFTS5] retrieveChunks prepare failed: \(error)", category: .vectorDB)
+            return []
+        }
+        defer { sqlite3_finalize(statement) }
+
+        sqlite3_bind_text(statement, 1, documentId.uuidString, -1, SQLITE_TRANSIENT)
+
+        var chunks: [SQLiteChunk] = []
+        while sqlite3_step(statement) == SQLITE_ROW {
+            let chunkIndex = Int(sqlite3_column_int(statement, 0))
+            let pageNumber: Int? = sqlite3_column_type(statement, 1) != SQLITE_NULL
+                ? Int(sqlite3_column_int(statement, 1)) : nil
+            
+            let sectionTitle: String? = {
+                guard let ptr = sqlite3_column_text(statement, 2) else { return nil }
+                let str = String(cString: ptr)
+                return str.isEmpty ? nil : str
+            }()
+            
+            let sectionPath: String? = {
+                guard let ptr = sqlite3_column_text(statement, 3) else { return nil }
+                let str = String(cString: ptr)
+                return str.isEmpty ? nil : str
+            }()
+            
+            let structureType: String? = {
+                guard let ptr = sqlite3_column_text(statement, 4) else { return nil }
+                let str = String(cString: ptr)
+                return str.isEmpty ? nil : str
+            }()
+            
+            guard let contentPtr = sqlite3_column_text(statement, 5) else { continue }
+            let content = String(cString: contentPtr)
+            
+            chunks.append(SQLiteChunk(
+                chunkIndex: chunkIndex,
+                pageNumber: pageNumber,
+                sectionTitle: sectionTitle,
+                sectionPath: sectionPath,
+                structureType: structureType,
+                content: content
+            ))
+        }
+        return chunks
     }
 
     /// Delete all chunks for a document

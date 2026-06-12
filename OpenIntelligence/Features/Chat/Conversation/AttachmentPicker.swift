@@ -380,6 +380,30 @@ struct ExtendedDocumentPicker: UIViewControllerRepresentable {
         ])
         picker.delegate = context.coordinator
         picker.allowsMultipleSelection = true
+        
+        if let bookmarkData = UserDefaults.standard.data(forKey: "openIntelligence.lastPickedFileBookmark") {
+            var isStale = false
+            do {
+                let resolvedURL = try URL(resolvingBookmarkData: bookmarkData, options: [], relativeTo: nil, bookmarkDataIsStale: &isStale)
+                if resolvedURL.startAccessingSecurityScopedResource() {
+                    context.coordinator.activeDirectoryURL = resolvedURL
+                }
+                picker.directoryURL = resolvedURL.deletingLastPathComponent()
+            } catch {
+                if let savedPath = UserDefaults.standard.string(forKey: "openIntelligence.lastPickedDirectoryPath") {
+                    picker.directoryURL = URL(fileURLWithPath: savedPath, isDirectory: true)
+                } else if let savedURLString = UserDefaults.standard.string(forKey: "openIntelligence.lastPickedDirectoryURL"),
+                          let savedURL = URL(string: savedURLString) {
+                    picker.directoryURL = savedURL
+                }
+            }
+        } else if let savedPath = UserDefaults.standard.string(forKey: "openIntelligence.lastPickedDirectoryPath") {
+            picker.directoryURL = URL(fileURLWithPath: savedPath, isDirectory: true)
+        } else if let savedURLString = UserDefaults.standard.string(forKey: "openIntelligence.lastPickedDirectoryURL"),
+                  let savedURL = URL(string: savedURLString) {
+            picker.directoryURL = savedURL
+        }
+        
         return picker
     }
 
@@ -392,11 +416,36 @@ struct ExtendedDocumentPicker: UIViewControllerRepresentable {
     class Coordinator: NSObject, UIDocumentPickerDelegate {
         let parent: ExtendedDocumentPicker
 
+        var activeDirectoryURL: URL?
+
+        deinit {
+            activeDirectoryURL?.stopAccessingSecurityScopedResource()
+        }
+
         init(_ parent: ExtendedDocumentPicker) {
             self.parent = parent
         }
 
         func documentPicker(_: UIDocumentPickerViewController, didPickDocumentsAt urls: [URL]) {
+            activeDirectoryURL?.stopAccessingSecurityScopedResource()
+            activeDirectoryURL = nil
+
+            if let firstURL = urls.first {
+                let parentURL = firstURL.deletingLastPathComponent()
+                UserDefaults.standard.set(parentURL.path, forKey: "openIntelligence.lastPickedDirectoryPath")
+                UserDefaults.standard.set(parentURL.absoluteString, forKey: "openIntelligence.lastPickedDirectoryURL")
+                
+                do {
+                    let accessing = firstURL.startAccessingSecurityScopedResource()
+                    defer { if accessing { firstURL.stopAccessingSecurityScopedResource() } }
+                    
+                    let bookmarkData = try firstURL.bookmarkData(options: [], includingResourceValuesForKeys: nil, relativeTo: nil)
+                    UserDefaults.standard.set(bookmarkData, forKey: "openIntelligence.lastPickedFileBookmark")
+                } catch {
+                    Log.error("[ExtendedDocumentPicker] Failed to create file security-scoped bookmark: \(error)", category: .ingestion)
+                }
+            }
+
             let fileManager = FileManager.default
             let documentsPath = fileManager.urls(for: .documentDirectory, in: .userDomainMask)[0]
             let attachmentsDir = documentsPath.appendingPathComponent("ChatAttachments", isDirectory: true)
@@ -431,7 +480,8 @@ struct ExtendedDocumentPicker: UIViewControllerRepresentable {
         }
 
         func documentPickerWasCancelled(_: UIDocumentPickerViewController) {
-            // No action needed
+            activeDirectoryURL?.stopAccessingSecurityScopedResource()
+            activeDirectoryURL = nil
         }
     }
 }

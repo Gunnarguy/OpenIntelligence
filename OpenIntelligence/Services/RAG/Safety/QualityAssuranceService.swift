@@ -227,110 +227,114 @@ actor QualityAssuranceService {
     ]
 
     /// Built-in QA test cases aligned with SampleDocumentManager's curated sample workspace.
+    /// Every expected answer below is directly extractable from the sample document text.
     private let builtInQATests: [QATestCase] = [
+        // --- Product Guide ---
         QATestCase(
-            id: "sample_document_limit",
-            query: "How many documents does the starter workspace allow in the sample guide?",
+            id: "free_plan_documents",
+            query: "How many documents does the Free plan allow?",
             expectedAnswer: "5 documents",
-            expectedDocumentIds: ["openintelligencesampleguide"],
+            expectedDocumentIds: ["openintelligenceproductguide"],
             answerType: .factoid,
             difficulty: .easy
         ),
         QATestCase(
-            id: "sample_library_limit",
-            query: "How many libraries does the expanded workspace allow in the sample guide?",
-            expectedAnswer: "10 libraries",
-            expectedDocumentIds: ["openintelligencesampleguide"],
+            id: "pro_plan_libraries",
+            query: "How many libraries does the Pro plan include?",
+            expectedAnswer: "Up to 10 libraries",
+            expectedDocumentIds: ["openintelligenceproductguide"],
             answerType: .factoid,
             difficulty: .easy
         ),
         QATestCase(
-            id: "rag_rrf_method",
-            query: "What method combines vector and BM25 rankings in the RAG Technical Architecture sample?",
-            expectedAnswer: "Reciprocal Rank Fusion",
-            expectedDocumentIds: ["ragtechnicalarchitecture"],
+            id: "lifetime_plan_documents",
+            query: "How many documents does the Lifetime plan allow?",
+            expectedAnswer: "Unlimited documents",
+            expectedDocumentIds: ["openintelligenceproductguide"],
             answerType: .factoid,
             difficulty: .easy
         ),
         QATestCase(
-            id: "rag_gate_count",
-            query: "How many verification gates does the architecture document describe?",
-            expectedAnswer: "Seven gates",
-            expectedDocumentIds: ["ragtechnicalarchitecture"],
+            id: "supported_file_formats",
+            query: "How many file formats does OpenIntelligence support?",
+            expectedAnswer: "50+ file formats across five categories",
+            expectedDocumentIds: ["openintelligenceproductguide"],
             answerType: .factoid,
-            difficulty: .medium
+            difficulty: .easy
         ),
         QATestCase(
-            id: "apple_context_window",
-            query: "What is the Apple on-device Foundation Model context window in the sample workspace?",
-            expectedAnswer: "4,096 tokens",
-            expectedDocumentIds: ["appleintelligenceprivatecloudcompute"],
-            answerType: .factoid,
-            difficulty: .medium
-        ),
-        QATestCase(
-            id: "apple_model_size",
-            query: "About how many parameters does Apple's on-device model have according to the sample workspace?",
-            expectedAnswer: "~3 billion",
-            expectedDocumentIds: ["appleintelligenceprivatecloudcompute"],
-            answerType: .factoid,
-            difficulty: .medium
-        ),
-        QATestCase(
-            id: "sample_transform_list",
-            query: "Which AI Hub transforms are shown in the sample workspace?",
-            expectedAnswer: "Key Facts, Step-by-Step, Plain English, What's Missing?, Illustrate",
-            expectedDocumentIds: ["openintelligencesampleguide"],
+            id: "product_differentiation",
+            query: "What four things make OpenIntelligence different from other AI tools?",
+            expectedAnswer: "Grounded retrieval, visible evidence, intelligent routing, and Apple-native AI",
+            expectedDocumentIds: ["openintelligenceproductguide"],
             answerType: .list,
             difficulty: .easy
         ),
         QATestCase(
-            id: "sample_offline_yes_no",
-            query: "Can you query your documents without an internet connection?",
-            expectedAnswer: "Yes, query your documents without internet connection",
-            expectedDocumentIds: ["openintelligencesampleguide"],
+            id: "grounding_pipeline_steps",
+            query: "What steps does the document pipeline follow to keep answers grounded?",
+            expectedAnswer: "Parse the file, chunk the content, index the chunks, retrieve the best evidence, generate an answer from that evidence, show source context",
+            expectedDocumentIds: ["openintelligenceproductguide"],
+            answerType: .list,
+            difficulty: .medium
+        ),
+        // --- RAG Technical Architecture ---
+        QATestCase(
+            id: "ondevice_token_window",
+            query: "What is the on-device token window size?",
+            expectedAnswer: "4K tokens",
+            expectedDocumentIds: ["ragtechnicalarchitecture"],
+            answerType: .factoid,
+            difficulty: .easy
+        ),
+        QATestCase(
+            id: "pcc_token_window",
+            query: "What is the Private Cloud Compute context window?",
+            expectedAnswer: "32K tokens",
+            expectedDocumentIds: ["ragtechnicalarchitecture"],
+            answerType: .factoid,
+            difficulty: .easy
+        ),
+        QATestCase(
+            id: "quality_modes_list",
+            query: "What are the three quality modes?",
+            expectedAnswer: "Standard, Deep Think, and Maximum",
+            expectedDocumentIds: ["ragtechnicalarchitecture"],
+            answerType: .list,
+            difficulty: .easy
+        ),
+        QATestCase(
+            id: "hybrid_search_components",
+            query: "What two retrieval methods does hybrid search combine?",
+            expectedAnswer: "Semantic retrieval through vector similarity and BM25 keyword retrieval",
+            expectedDocumentIds: ["ragtechnicalarchitecture"],
+            answerType: .list,
+            difficulty: .medium
+        ),
+        // --- Apple Intelligence & Private Cloud Compute ---
+        QATestCase(
+            id: "pcc_data_retention",
+            query: "Does Private Cloud Compute retain user data after inference?",
+            expectedAnswer: "No, PCC has no data retention after inference completes",
+            expectedDocumentIds: ["appleintelligenceprivatecloudcompute"],
             answerType: .yesNo,
             difficulty: .easy
         ),
         QATestCase(
-            id: "apple_quantization_extract",
-            query: "What quantization does Apple's on-device model use?",
-            expectedAnswer: "Mixed INT4/INT8",
-            expectedDocumentIds: ["appleintelligenceprivatecloudcompute"],
-            answerType: .extractive,
-            difficulty: .easy
-        ),
-        QATestCase(
-            id: "sample_libraries_comparison",
-            query: "Compare the starter and expanded workspace examples on library limits.",
-            expectedAnswer: "Starter allows 1 library and expanded allows 10 libraries",
-            expectedDocumentIds: ["openintelligencesampleguide"],
-            answerType: .abstractive,
-            difficulty: .medium
-        ),
-        QATestCase(
-            id: "pcc_request_steps",
-            query: "What steps does Private Cloud Compute follow to process a request?",
-            expectedAnswer: "Encryption, routing to a verified PCC node, isolated processing, encrypted response, and purge",
+            id: "pcc_activation_triggers",
+            query: "When does the app route to Private Cloud Compute?",
+            expectedAnswer: "Complex multi-step reasoning across multiple files, synthesis that exceeds the 4K on-device token budget, Deep Think or Maximum quality modes with heavy context",
             expectedDocumentIds: ["appleintelligenceprivatecloudcompute"],
             answerType: .list,
             difficulty: .medium
         ),
         QATestCase(
-            id: "rag_hallucination_reduction",
-            query: "Why does RAG reduce hallucinations in OpenIntelligence?",
-            expectedAnswer: "It retrieves relevant passages from your documents and grounds the model response in them instead of relying only on training data",
-            expectedDocumentIds: ["ragtechnicalarchitecture"],
-            answerType: .abstractive,
-            difficulty: .medium
-        ),
-        QATestCase(
-            id: "context_budget_multihop",
-            query: "Why does OpenIntelligence cap context around 5,500 characters?",
-            expectedAnswer: "Because the Apple Foundation Model has a 4,096-token context window and the pipeline must leave room for instructions and output",
-            expectedDocumentIds: ["ragtechnicalarchitecture", "appleintelligenceprivatecloudcompute"],
-            answerType: .abstractive,
-            difficulty: .hard
+            id: "privacy_no_developer_cloud",
+            query: "Does OpenIntelligence send documents to a developer-operated backend?",
+            expectedAnswer: "No, OpenIntelligence does not send documents to a developer-operated backend",
+            expectedDocumentIds: ["appleintelligenceprivatecloudcompute"],
+            answerType: .yesNo,
+            difficulty: .easy
         ),
     ]
 
