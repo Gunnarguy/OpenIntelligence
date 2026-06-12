@@ -643,13 +643,14 @@ actor SuggestedQuestionsService {
         """
 
         do {
-            let response = try await withTimeout(seconds: 5.0) {
+            let responseContent = try await withTimeout(seconds: 5.0) {
                 let session = LanguageModelSession()
                 // @Generable: typed [String] array — eliminates numbered-line regex parsing.
                 // Constrained sampling enforces the declared schema at the token level.
-                return try await session.respond(to: prompt, generating: SuggestedQuestionList.self)
+                let response = try await session.respond(to: prompt, generating: SuggestedQuestionList.self)
+                return response.content
             }
-            let rewrittenTexts = response.content.questions.compactMap { sanitizeGeneratedQuestion($0) }
+            let rewrittenTexts = responseContent.questions.compactMap { sanitizeGeneratedQuestion($0) }
             guard rewrittenTexts.count == limitedTargets.count else {
                 Log.warning("[SuggestedQuestions] LLM rewrite count mismatch (\(rewrittenTexts.count) vs \(limitedTargets.count))")
                 return []
@@ -774,13 +775,14 @@ actor SuggestedQuestionsService {
         """
 
         do {
-            let response = try await withTimeout(seconds: 5.0) {
+            let responseContent = try await withTimeout(seconds: 5.0) {
                 let session = LanguageModelSession()
-                return try await session.respond(to: prompt, generating: SuggestedQuestionList.self)
+                let response = try await session.respond(to: prompt, generating: SuggestedQuestionList.self)
+                return response.content
             }
 
             var generatedQuestions: [SuggestedQuestion] = []
-            for rawText in response.content.questions {
+            for rawText in responseContent.questions {
                 guard let questionText = sanitizeGeneratedQuestion(rawText) else { continue }
 
                 // Find the best grounded passage for this question
