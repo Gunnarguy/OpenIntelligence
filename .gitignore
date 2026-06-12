@@ -158,6 +158,10 @@ zDeepThink.txt
 zDeepThink2.txt
 zStandard.txt
 zStandard2.txt
+DeepThinkConsole.txt
+DeepThinkTrace.txt
+Stuck.txt
+test_extension.swift
 
 # Research PDFs (reference only, not source)
 *.pdf

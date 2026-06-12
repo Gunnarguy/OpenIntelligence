@@ -1,5 +1,13 @@
 Changes since 3.7.5:
 
+Version 4.1:
+- Core AI Sentence Embedding Provider: Added CoreAISentenceEmbeddingProvider for high-speed, local silicon-accelerated vector calculations on Apple device hardware.
+- Real-Time Thinking Telemetry: Added ThinkingStreamView inside the UnifiedMetricsBar to show live reasoning and model processing states.
+- Enhanced Suggested Questions: Upgraded SuggestedQuestions with a two-pass section-diversity selector and strict POS-tagging grammar filters to generate high-quality follow-ups.
+- Folder Picker Persistence: Implemented security-scoped file bookmark directory mapping, resolving iCloud Drive and File Provider path sandboxing constraints.
+- Atomic Database & Purging: Hardened RAG pipeline with atomic vector database writes and cascading file/index deletion of discarded uploads to prevent data corruption.
+- Thread-Safe Safety Routing: Thread-safe MainActor routing for LLM availability checks.
+
 Version 4.0:
 - Dynamic Model Routing (On-Device & PCC): Automatically routes queries based on complexity and context size. Standard queries execute locally using the 4K-token on-device model, while complex logic scales to Private Cloud Compute (PCC) enclaves supporting a 32K-token context window.
 - Under the Hood Telemetry Dashboard: Added an interactive details popover detailing active model routing, token budgets, execution path telemetry, and pulsing status indicators.

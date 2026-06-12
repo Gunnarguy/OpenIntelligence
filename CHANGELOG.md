@@ -2,6 +2,16 @@
 
 This is the public version history for OpenIntelligence. It focuses on user-visible product changes and intentionally omits private engine tuning, thresholds, and internal implementation details.
 
+## 4.1 - June 2026
+
+- Added CoreAISentenceEmbeddingProvider for high-speed, local silicon-accelerated vector calculations on Apple hardware
+- Integrated UnifiedMetricsBar and ThinkingStreamView for live LLM reasoning/thinking telemetry
+- Implemented security-scoped file bookmark directory persistence for Document Picker, resolving iCloud Drive and File Provider path sandboxing constraints
+- Fixed incomplete/interrupted ingestion items by adding cascading deletion (database, files, and indexes) upon cancel or discard
+- Hardened BNNSVectorDatabase against file corruption using thread-safe atomic disk writes and unified database reloads
+- Enhanced Suggested Questions with a two-pass diversity selector and strict grammar/POS tagging filters
+- Enforced main-actor safety for system LLM availability checks
+
 ## 4.0 - June 2026
 
 - Migrated Language Model Sessions to native iOS 26+ FoundationModels APIs
