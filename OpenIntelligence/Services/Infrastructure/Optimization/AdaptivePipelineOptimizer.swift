@@ -59,11 +59,7 @@ struct DeviceRuntimeState: Sendable {
             return .minimal
         }
 
-        // Serious thermal = efficient mode (prevent throttling)
-        if thermalState == .serious {
-            return .efficient
-        }
-
+        // Serious thermal = no longer throttles (keeps full performance unless critical)
         // Memory pressure = reduce features to prevent OOM
         if memoryPressure == .critical {
             return .efficient

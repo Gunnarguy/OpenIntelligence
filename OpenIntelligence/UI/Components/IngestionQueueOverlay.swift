@@ -155,6 +155,7 @@ struct IngestionConsoleLogRow: View {
     private var stageColor: Color {
         switch event.stage {
         case .queued: return .gray
+        case .paused: return .orange
         case .loading: return .blue
         case .transcribing: return .purple
         case .extracting: return .orange
@@ -183,6 +184,7 @@ struct IngestionConsoleLogRow: View {
         case .indexing: return "INDEX"
         case .storing: return "STORE"
         case .queued: return "QUEUE"
+        case .paused: return "PAUSE"
         case .loading: return "LOAD"
         case .complete: return "DONE"
         case .cancelled: return "CANCEL"
@@ -286,6 +288,8 @@ struct IngestionQueueOverlay: View {
     let items: [IngestionItem]
     var onCancelItem: ((UUID) -> Void)? = nil
     var onCancelAll: (() -> Void)? = nil
+    var onContinuePaused: (() -> Void)? = nil
+    var onDiscardPaused: (() -> Void)? = nil
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @State private var isMinimized = false
     @State private var isDismissed = false
@@ -299,6 +303,7 @@ struct IngestionQueueOverlay: View {
 
     private func sortOrder(for item: IngestionItem) -> Int {
         switch item.stage {
+        case .paused: return 0
         case .queued: return 1
         case .loading, .transcribing, .extracting, .chunking, .analyzing, .embedding, .storing,
              .adapting, .reindexing, .indexing: return 0
@@ -324,6 +329,14 @@ struct IngestionQueueOverlay: View {
 
     private var hasCancelableItems: Bool {
         items.contains { !$0.stage.isTerminal }
+    }
+
+    private var pausedItems: [IngestionItem] {
+        items.filter { $0.stage == .paused }
+    }
+
+    private var hasPausedItems: Bool {
+        !pausedItems.isEmpty
     }
 
     // MARK: - Aggregated Totals
@@ -372,6 +385,9 @@ struct IngestionQueueOverlay: View {
     }
 
     private var overlayAccentColor: Color {
+        if hasPausedItems {
+            return .orange
+        }
         if activeCount == 0 {
             if failedCount > 0 {
                 return .red
@@ -389,74 +405,79 @@ struct IngestionQueueOverlay: View {
     }
 
     var body: some View {
-        guard !items.isEmpty, !isDismissed else { return AnyView(EmptyView()) }
-
         let visibleItems = Array(sortedItems.prefix(5))
         let hiddenCount = max(0, items.count - visibleItems.count)
 
-        // Reset dismissed state when items clear (so next batch shows)
-        if items.isEmpty, isDismissed {
-            // Will reset on next appear
-        }
+        return Group {
+            if !items.isEmpty && !isDismissed {
+                VStack(alignment: .leading, spacing: isMinimized ? 0 : 16) {
+                    headerView
 
-        return AnyView(
-            VStack(alignment: .leading, spacing: isMinimized ? 0 : 16) {
-                headerView
+                    if !isMinimized {
+                        if hasPausedItems {
+                            resumeDecisionPanel
+                        }
 
-                if !isMinimized {
-                    // Totals summary card (only show when we have metrics data)
-                    if totalMetrics.hasData {
-                        TotalsSummaryCard(
-                            metrics: totalMetrics,
-                            completedCount: completedCount,
-                            totalCount: items.count
-                        )
-                    }
+                        // Totals summary card (only show when we have metrics data)
+                        if totalMetrics.hasData {
+                            TotalsSummaryCard(
+                                metrics: totalMetrics,
+                                completedCount: completedCount,
+                                totalCount: items.count
+                            )
+                        }
 
-                    ScrollView(.vertical, showsIndicators: true) {
-                        VStack(spacing: 12) {
-                            ForEach(visibleItems) { item in
-                                IngestionQueueRow(
-                                    item: item,
-                                    onCancel: item.stage.isTerminal ? nil : { onCancelItem?(item.id) }
-                                )
+                        ScrollView(.vertical, showsIndicators: true) {
+                            VStack(spacing: 12) {
+                                ForEach(visibleItems) { item in
+                                    IngestionQueueRow(
+                                        item: item,
+                                        onCancel: item.stage.isTerminal ? nil : { onCancelItem?(item.id) }
+                                    )
+                                }
+                            }
+                            .padding(.trailing, 4)
+                        }
+                        .frame(maxHeight: 400)
+
+                        if hiddenCount > 0 {
+                            HStack {
+                                Spacer()
+                                Text("+\(hiddenCount) more files in queue")
+                                    .font(.system(size: 11, weight: .medium))
+                                    .foregroundStyle(DSColors.secondaryText)
+                                Spacer()
                             }
                         }
-                        .padding(.trailing, 4)
-                    }
-                    .frame(maxHeight: 400)
-
-                    if hiddenCount > 0 {
-                        HStack {
-                            Spacer()
-                            Text("+\(hiddenCount) more files in queue")
-                                .font(.system(size: 11, weight: .medium))
-                                .foregroundStyle(DSColors.secondaryText)
-                            Spacer()
-                        }
                     }
                 }
+                .padding(14)
+                .frame(maxWidth: isMinimized ? min(overlayMaxWidth, 260) : overlayMaxWidth, alignment: .leading)
+                .background(.ultraThinMaterial)
+                .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 20, style: .continuous)
+                        .strokeBorder(overlayAccentColor.opacity(0.12), lineWidth: 1)
+                )
+                .shadow(color: .black.opacity(0.12), radius: 24, x: 0, y: 12)
+                .glassCardEffectHelper(cornerRadius: 20, isSelected: false, interactive: false)
+                .transition(.move(edge: .bottom).combined(with: .opacity))
             }
-            .padding(14)
-            .frame(maxWidth: isMinimized ? min(overlayMaxWidth, 260) : overlayMaxWidth, alignment: .leading)
-            .background(.ultraThinMaterial)
-            .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: 20, style: .continuous)
-                    .strokeBorder(overlayAccentColor.opacity(0.12), lineWidth: 1)
-            )
-            .shadow(color: .black.opacity(0.12), radius: 24, x: 0, y: 12)
-            .glassCardEffectHelper(cornerRadius: 20, isSelected: false, interactive: false)
-            .transition(.move(edge: .bottom).combined(with: .opacity))
-            .animation(.spring(response: 0.3, dampingFraction: 0.85), value: items.count)
-            .animation(.spring(response: 0.25), value: isMinimized)
-            .onChange(of: items.isEmpty) { _, isEmpty in
-                if isEmpty {
-                    isDismissed = false
-                    isMinimized = false
-                }
+        }
+        .animation(.spring(response: 0.3, dampingFraction: 0.85), value: items.count)
+        .animation(.spring(response: 0.25), value: isMinimized)
+        .onChange(of: items.isEmpty) { _, isEmpty in
+            if isEmpty {
+                isDismissed = false
+                isMinimized = false
             }
-        )
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("com.openintelligence.showIngestionQueue"))) { _ in
+            withAnimation(.spring(response: 0.35, dampingFraction: 0.82)) {
+                isDismissed = false
+                isMinimized = false
+            }
+        }
     }
 
     // GPU boost level for display (uses @State for reactivity)
@@ -531,7 +552,7 @@ struct IngestionQueueOverlay: View {
 
     private var headerControls: some View {
         HStack(spacing: 8) {
-            if activeCount > 0 {
+            if activeCount > 0 && !hasPausedItems {
                 Button {
                     DSHaptics.tick()
                     withAnimation(.spring(response: 0.3)) {
@@ -564,36 +585,128 @@ struct IngestionQueueOverlay: View {
             }
 
             HStack(spacing: 4) {
-                Button {
-                    DSHaptics.light()
-                    withAnimation { isMinimized.toggle() }
-                } label: {
-                    Image(systemName: isMinimized ? "chevron.up" : "chevron.down")
-                        .font(.system(size: 10, weight: .bold))
+                if hasPausedItems {
+                    Button {
+                        DSHaptics.tick()
+                        onContinuePaused?()
+                    } label: {
+                        Image(systemName: "play.fill")
+                            .font(.system(size: 10, weight: .bold))
+                            .foregroundStyle(.white)
+                            .frame(width: 28, height: 28)
+                            .background(Color.green.opacity(0.85))
+                            .clipShape(Circle())
+                    }
+                    .buttonStyle(.plain)
+
+                    Button {
+                        DSHaptics.medium()
+                        onDiscardPaused?()
+                    } label: {
+                        Image(systemName: "trash.fill")
+                            .font(.system(size: 10, weight: .bold))
+                            .foregroundStyle(.white)
+                            .frame(width: 28, height: 28)
+                            .background(Color.red.opacity(0.80))
+                            .clipShape(Circle())
+                    }
+                    .buttonStyle(.plain)
+                } else {
+                    Button {
+                        DSHaptics.light()
+                        withAnimation { isMinimized.toggle() }
+                    } label: {
+                        Image(systemName: isMinimized ? "chevron.up" : "chevron.down")
+                            .font(.system(size: 10, weight: .bold))
+                            .foregroundStyle(DSColors.secondaryText)
+                            .frame(width: 28, height: 28)
+                            .background(DSColors.secondaryText.opacity(0.08))
+                            .clipShape(Circle())
+                    }
+                    .buttonStyle(.plain)
+
+                    Button {
+                        DSHaptics.medium()
+                        withAnimation { isDismissed = true }
+                    } label: {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 10, weight: .heavy))
+                            .foregroundStyle(DSColors.secondaryText)
+                            .frame(width: 28, height: 28)
+                            .background(DSColors.secondaryText.opacity(0.12))
+                            .clipShape(Circle())
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
+    }
+
+    private var resumeDecisionPanel: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .top, spacing: 10) {
+                Image(systemName: "pause.circle.fill")
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundStyle(.orange)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(pausedItems.count == 1 ? "Interrupted upload paused" : "\(pausedItems.count) interrupted uploads paused")
+                        .font(.system(size: 13, weight: .bold))
+                        .foregroundStyle(DSColors.primaryText)
+                        .lineLimit(2)
+
+                    Text("Continue processing or discard the saved queue.")
+                        .font(.system(size: 11, weight: .medium))
                         .foregroundStyle(DSColors.secondaryText)
-                        .frame(width: 28, height: 28)
-                        .background(DSColors.secondaryText.opacity(0.08))
-                        .clipShape(Circle())
+                        .lineLimit(2)
+                }
+            }
+
+            HStack(spacing: 8) {
+                Button {
+                    DSHaptics.tick()
+                    onContinuePaused?()
+                } label: {
+                    Label("Continue", systemImage: "play.fill")
+                        .font(.system(size: 12, weight: .bold))
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 9)
+                        .background(Color.green.opacity(0.18))
+                        .foregroundStyle(.green)
+                        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
                 }
                 .buttonStyle(.plain)
 
                 Button {
                     DSHaptics.medium()
-                    withAnimation { isDismissed = true }
+                    onDiscardPaused?()
                 } label: {
-                    Image(systemName: "xmark")
-                        .font(.system(size: 10, weight: .heavy))
-                        .foregroundStyle(DSColors.secondaryText)
-                        .frame(width: 28, height: 28)
-                        .background(DSColors.secondaryText.opacity(0.12))
-                        .clipShape(Circle())
+                    Label("Discard", systemImage: "trash.fill")
+                        .font(.system(size: 12, weight: .bold))
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 9)
+                        .background(Color.red.opacity(0.14))
+                        .foregroundStyle(.red)
+                        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
                 }
                 .buttonStyle(.plain)
             }
         }
+        .padding(12)
+        .background(Color.orange.opacity(0.10))
+        .overlay(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .stroke(Color.orange.opacity(0.20), lineWidth: 1)
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
 
     private var statusLine: String {
+        if hasPausedItems {
+            let count = pausedItems.count
+            return count == 1 ? "1 upload waiting for a decision" : "\(count) uploads waiting for a decision"
+        }
+
         let total = items.count
         let completed = completedCount
         var segments = ["\(completed)/\(total) complete"]
@@ -607,6 +720,10 @@ struct IngestionQueueOverlay: View {
     }
 
     private var headerTitle: String {
+        if hasPausedItems {
+            return "Resume interrupted upload?"
+        }
+
         if activeCount > 0 {
             return "Processing uploads"
         }
@@ -620,6 +737,10 @@ struct IngestionQueueOverlay: View {
     }
 
     private var headerIcon: String {
+        if hasPausedItems {
+            return "pause.circle.fill"
+        }
+
         if activeCount > 0 {
             return "tray.and.arrow.down.fill"
         }
@@ -1371,6 +1492,7 @@ private struct IngestionQueueRow: View {
     private var stageIcon: String {
         switch item.stage {
         case .queued: return "clock"
+        case .paused: return "pause.circle.fill"
         case .loading: return "arrow.down.circle"
         case .transcribing: return "waveform"
         case .extracting: return "doc.text.magnifyingglass"
@@ -1392,6 +1514,7 @@ private struct IngestionQueueRow: View {
         case .failed: return .red
         case .complete: return .green
         case .cancelled: return .orange
+        case .paused: return .orange
         case .queued: return .gray
         default: return DSColors.accent
         }

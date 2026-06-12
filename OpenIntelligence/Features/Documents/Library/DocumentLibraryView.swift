@@ -1114,7 +1114,9 @@ struct DocumentLibraryView: View {
         IngestionQueueOverlay(
             items: ragService.ingestionItems,
             onCancelItem: { ragService.cancelIngestionItem($0) },
-            onCancelAll: { ragService.cancelAllIngestion() }
+            onCancelAll: { ragService.cancelAllIngestion() },
+            onContinuePaused: { ragService.continuePausedIngestionQueue() },
+            onDiscardPaused: { ragService.discardPausedIngestionQueue() }
         )
         .padding(.horizontal, 16)
         .padding(.bottom, ingestionQueueBottomPadding)

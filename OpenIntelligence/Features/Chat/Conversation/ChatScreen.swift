@@ -204,6 +204,7 @@ struct ChatScreen: View {
     @State private var streamingPumpTask: Task<Void, Never>? = nil
     @State private var currentQueryTask: Task<Void, Never>? = nil // Track current query for cancellation
     @State private var currentQuerySessionId: UUID? = nil
+    @State private var queryStart: Date? = nil
     @State private var hasReceivedStreamToken: Bool = false
     @State private var generationStart: Date? = nil
     // Per-stage timing
@@ -412,6 +413,7 @@ struct ChatScreen: View {
         let minimalVectorWt = Double(auditSnapshot?.retrievalConfig.vectorWeight ?? 0.6)
         let minimalLexicalWt = Double(auditSnapshot?.retrievalConfig.lexicalWeight ?? 0.4)
         let liveReasoningEvent = thinkingEvents.last
+        let liveTokens = liveOutputTokensForMetrics
 
         UnifiedMetricsBar(
             stage: stage,
@@ -419,12 +421,12 @@ struct ChatScreen: View {
             isProcessing: isProcessing,
             qualityMode: effectiveQualityMode,
             isLLMActivelyGenerating: ragService.isLLMResponding,
-            contextTokens: auditSnapshot?.isRecursiveRAG == true ? (auditSnapshot?.totalTokensAcrossCalls ?? actualContextTokensUsed) : actualContextTokensUsed,
+            contextTokens: auditSnapshot?.isRecursiveRAG == true ? max(liveTokens, auditSnapshot?.totalTokensAcrossCalls ?? 0) : actualContextTokensUsed,
             maxContextTokens: maxContextTokensForUI,
-            tokensGenerated: 0,
-            tokensPerSecond: 0,
-            characterCount: 0,
-            elapsedTime: 0,
+            tokensGenerated: liveTokens,
+            tokensPerSecond: liveTokensPerSecondForMetrics,
+            characterCount: streamingText.count,
+            elapsedTime: liveProcessingElapsedTime,
             speedHistory: [],
             ttft: ttft,
             sourceCount: currentRetrievedChunks.count,
@@ -497,7 +499,9 @@ struct ChatScreen: View {
             IngestionQueueOverlay(
                 items: ragService.ingestionItems,
                 onCancelItem: { ragService.cancelIngestionItem($0) },
-                onCancelAll: { ragService.cancelAllIngestion() }
+                onCancelAll: { ragService.cancelAllIngestion() },
+                onContinuePaused: { ragService.continuePausedIngestionQueue() },
+                onDiscardPaused: { ragService.discardPausedIngestionQueue() }
             )
                 .padding(.horizontal, 16)
                 .padding(.bottom, 88)
@@ -881,6 +885,48 @@ struct ChatScreen: View {
         let elapsed = streamingElapsedTime
         guard elapsed > 0.1 else { return 0 }
         return Double(streamingTokensApprox) / elapsed
+    }
+
+    /// Live elapsed time for the unified bar while a query is in any active stage.
+    /// Standard streaming switches to `streamingElapsedTime` once output begins; this
+    /// keeps retrieval and non-streaming Deep Think / Maximum runs visibly alive too.
+    private var liveProcessingElapsedTime: TimeInterval {
+        let _ = nowTick
+        if stage == .generating, generationStart != nil {
+            return streamingElapsedTime
+        }
+
+        guard isProcessing else {
+            return generatingElapsedFinal ?? 0
+        }
+
+        guard let start = queryStart ?? embeddingStart ?? searchingStart ?? generationStart else {
+            return 0
+        }
+
+        return max(0, nowTick.timeIntervalSince(start))
+    }
+
+    private var liveOutputTokensForMetrics: Int {
+        if streamingTokensApprox > 0 {
+            return streamingTokensApprox
+        }
+
+        if ragService.deepThinkLiveTokens > 0 {
+            return ragService.deepThinkLiveTokens
+        }
+
+        if let totalTokens = ragService.lastAuditSnapshot?.totalTokensAcrossCalls, totalTokens > 0 {
+            return totalTokens
+        }
+
+        return 0
+    }
+
+    private var liveTokensPerSecondForMetrics: Double {
+        let elapsed = liveProcessingElapsedTime
+        guard elapsed > 0.1 else { return 0 }
+        return Double(liveOutputTokensForMetrics) / elapsed
     }
 
     /// Infer model name from settings when metadata isn't available yet
@@ -1514,6 +1560,9 @@ struct ChatScreen: View {
             isRefreshingSuggestions = true
         }
         suggestedQuestionsTask = Task {
+            defer {
+                isRefreshingSuggestions = false
+            }
             let containerId = ragService.containerService.activeContainerId
 
             // Get documents for the active container
@@ -1528,7 +1577,6 @@ struct ChatScreen: View {
                 dynamicSuggestedQuestions = []
                 dynamicQuestionCategories = [:]
                 dynamicQuestionDetails = [:]
-                isRefreshingSuggestions = false
                 return
             }
 
@@ -1581,7 +1629,6 @@ struct ChatScreen: View {
                 dynamicQuestionCategories = [:]
                 dynamicQuestionDetails = [:]
             }
-            isRefreshingSuggestions = false
         }
     }
 
@@ -1618,6 +1665,7 @@ struct ChatScreen: View {
         execution = .unknown
         ttft = nil
         generationStart = nil
+        queryStart = nil
         embeddingStart = nil
         searchingStart = nil
         generatingStartTS = nil
@@ -1650,6 +1698,7 @@ struct ChatScreen: View {
         messages.removeAll()
         stage = .idle
         generationStart = nil
+        queryStart = nil
         embeddingStart = nil
         searchingStart = nil
         generatingStartTS = nil
@@ -1764,7 +1813,10 @@ struct ChatScreen: View {
                 self.isProcessing = true
                 self.stage = .searching
                 self.resetStreamingState()
-                self.generationStart = Date()
+                let start = Date()
+                self.queryStart = start
+                self.nowTick = start
+                self.generationStart = start
             }
 
             do {
@@ -1787,6 +1839,9 @@ struct ChatScreen: View {
                         self.currentRetrievedChunks = response.retrievedChunks
                         self.currentMetadata = response.metadata
                         self.currentStructuredAnswer = response.structuredAnswer
+                        if let start = self.queryStart {
+                            self.generatingElapsedFinal = Date().timeIntervalSince(start)
+                        }
                         self.resetStreamingState()
                         self.stage = .idle
 
@@ -1855,41 +1910,6 @@ struct ChatScreen: View {
 
     // MARK: - Main Content Area
 
-    private var localExecutionStatus: (icon: String, text: String, color: Color)? {
-        if !networkMonitor.isConnected {
-            return ("wifi.slash", "Offline · No network connection", .green)
-        }
-
-        switch execution {
-        case .onDevice:
-            return ("iphone", "On-device · No network required", .green)
-        case .mlxLocal:
-            return ("desktopcomputer", "Local model · No network required", .indigo)
-        case .unknown, .privateCloudCompute:
-            return nil
-        }
-    }
-
-    @ViewBuilder
-    private var localExecutionBanner: some View {
-        if let status = localExecutionStatus {
-            HStack(spacing: 8) {
-                Image(systemName: status.icon)
-                    .font(.caption.weight(.semibold))
-                Text(status.text)
-                    .font(.caption.weight(.medium))
-                Spacer(minLength: 0)
-            }
-            .foregroundColor(status.color)
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
-            .background(status.color.opacity(0.08))
-            .clipShape(RoundedRectangle(cornerRadius: 12))
-            .padding(.horizontal, 12)
-            .padding(.bottom, 6)
-        }
-    }
-
     @ViewBuilder private var mainContentArea: some View {
         VStack(spacing: 0) {
             CompactChatHeader(
@@ -1900,8 +1920,6 @@ struct ChatScreen: View {
                 messageContainerOverride: $messageContainerOverride,
                 onMaximumModeBlocked: presentMaximumModePaywall
             )
-
-            localExecutionBanner
 
             if let metricsData = consolidatedMetricsData {
                 primaryMetricsBar(metricsData: metricsData)
@@ -2405,6 +2423,9 @@ struct ChatScreen: View {
         // Reset and start processing
         isProcessing = true
         stage = .embedding
+        let processingStart = Date()
+        queryStart = processingStart
+        nowTick = processingStart
         // Initialize execution location based on selected model
         if settings.selectedModel == .appleIntelligence {
             execution = .onDevice
@@ -2879,6 +2900,7 @@ struct ChatScreen: View {
         currentQuerySessionId = nil
         currentQueryTask?.cancel()
         currentQueryTask = nil
+        queryStart = nil
         ragService.cancelActiveGeneration(resetSession: resetLLMSession)
     }
 

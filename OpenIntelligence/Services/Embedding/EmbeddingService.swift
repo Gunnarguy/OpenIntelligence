@@ -142,8 +142,7 @@ class EmbeddingService {
 
         Log.warning("[EmbeddingService] Provider '\(id)' unavailable. Attempting fallback.", category: .embedding)
 
-        // 1. Try CoreML Sentence Embedding (Preferred)
-        // Only try if we haven't already tried it (i.e., if id wasn't "coreml_sentence_embedding")
+        // 1. Try CoreML Sentence Embedding (Preferred CoreML)
         if id != "coreml_sentence_embedding" {
             let coreMLService = EmbeddingService(
                 provider: CoreMLSentenceEmbeddingProvider(),

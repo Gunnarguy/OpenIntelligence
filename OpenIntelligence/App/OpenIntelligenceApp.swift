@@ -60,6 +60,12 @@ struct OpenIntelligenceApp: App {
         IngestionRuntimeBridge.shared.completeUserInitiatedIngestionHandler = { success in
             BackgroundTaskService.shared.completeUserInitiatedIngestion(success: success)
         }
+        IngestionRuntimeBridge.shared.beginForegroundFallbackIngestionHandler = { reason in
+            BackgroundTaskService.shared.beginForegroundFallbackIngestionExtensionIfNeeded(reason: reason)
+        }
+        IngestionRuntimeBridge.shared.endForegroundFallbackIngestionHandler = {
+            BackgroundTaskService.shared.endForegroundFallbackIngestionExtension()
+        }
 #if canImport(ActivityKit) && !targetEnvironment(macCatalyst)
         if #available(iOS 17.0, *) {
             IngestionRuntimeBridge.shared.restoreLiveActivityHandler = {

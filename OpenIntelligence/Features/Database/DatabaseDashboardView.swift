@@ -1484,19 +1484,19 @@ struct DatabaseDashboardView: View {
         await Task.yield()
 
         // Step 4: Begin the actual rebuild
-        addLog("⚡ Executing FTS5 rebuild command...", type: .step)
-        addLog("  INSERT INTO documents(documents) VALUES('rebuild')", type: .info)
+        addLog("⚡ Rebuilding database from canonical state...", type: .step)
+        addLog("  Reading documents from shared workspace and importing all chunks...", type: .info)
         await Task.yield()
 
         let startTime = CFAbsoluteTimeGetCurrent()
-        let result = await service.rebuildIndex()
+        let success = await ragService.rebuildDatabase()
         let elapsed = (CFAbsoluteTimeGetCurrent() - startTime) * 1000
 
-        if result.success {
-            addLog("✅ Rebuild command completed successfully", type: .success)
+        if success {
+            addLog("✅ Canonical rebuild completed successfully", type: .success)
             addLog("  Elapsed: \(String(format: "%.2f", elapsed))ms", type: .info)
         } else {
-            addLog("❌ Rebuild command failed", type: .error)
+            addLog("❌ Canonical rebuild failed", type: .error)
         }
         await Task.yield()
 
@@ -1519,12 +1519,12 @@ struct DatabaseDashboardView: View {
 
         // Step 7: Final summary
         addLog("", type: .info)
-        if result.success {
-            addLog("🎉 Index rebuild completed successfully!", type: .success)
+        if success {
+            addLog("🎉 Database rebuild completed successfully!", type: .success)
             addLog("  Total time: \(String(format: "%.2f", elapsed))ms", type: .info)
-            lastOptimizeResult = "Index rebuilt in \(String(format: "%.1f", elapsed))ms"
+            lastOptimizeResult = "Database rebuilt in \(String(format: "%.1f", elapsed))ms"
         } else {
-            addLog("⚠️ Index rebuild encountered issues", type: .error)
+            addLog("⚠️ Database rebuild encountered issues", type: .error)
         }
 
         isRebuildingIndex = false

@@ -2,6 +2,7 @@ import Foundation
 
 enum IngestionStage: String, CaseIterable, Codable, Sendable {
     case queued
+    case paused
     case loading
     case transcribing // Audio/video transcription via Speech.framework
     case extracting
@@ -49,6 +50,7 @@ enum IngestionStage: String, CaseIterable, Codable, Sendable {
     var displayName: String {
         switch self {
         case .queued: return "Queued"
+        case .paused: return "Paused"
         case .loading: return "Loading"
         case .transcribing: return "Transcribing"
         case .extracting: return "Extracting"

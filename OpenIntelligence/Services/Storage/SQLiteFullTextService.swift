@@ -97,6 +97,57 @@ actor SQLiteFullTextService {
         }
     }
 
+    /// Shutdown and close the SQLite database cleanly, executing a WAL checkpoint first.
+    func shutdown() {
+        guard isInitialized, let db = database else { return }
+        
+        Log.info("[SQLiteFTS5] Shutting down FTS5 database connection...", category: .vectorDB)
+        
+        // Execute a WAL checkpoint
+        let checkpointSQL = "PRAGMA wal_checkpoint(TRUNCATE)"
+        var statement: OpaquePointer?
+        if sqlite3_prepare_v2(db, checkpointSQL, -1, &statement, nil) == SQLITE_OK {
+            sqlite3_step(statement)
+            sqlite3_finalize(statement)
+        }
+        
+        sqlite3_close(db)
+        database = nil
+        isInitialized = false
+        Log.info("[SQLiteFTS5] FTS5 database shutdown completed cleanly.", category: .vectorDB)
+    }
+
+    private func checkpoint() {
+        guard let db = database else { return }
+        let checkpointSQL = "PRAGMA wal_checkpoint(PASSIVE)"
+        var statement: OpaquePointer?
+        if sqlite3_prepare_v2(db, checkpointSQL, -1, &statement, nil) == SQLITE_OK {
+            sqlite3_step(statement)
+            sqlite3_finalize(statement)
+        }
+    }
+
+    private func beginTransaction() {
+        guard let db = database else { return }
+        if sqlite3_get_autocommit(db) != 0 {
+            execute(sql: "BEGIN TRANSACTION")
+        }
+    }
+
+    private func commitTransaction() {
+        guard let db = database else { return }
+        if sqlite3_get_autocommit(db) == 0 {
+            execute(sql: "COMMIT")
+        }
+    }
+
+    private func rollbackTransaction() {
+        guard let db = database else { return }
+        if sqlite3_get_autocommit(db) == 0 {
+            execute(sql: "ROLLBACK")
+        }
+    }
+
     /// Ensure database is initialized before any operation
     /// Called automatically by all public methods
     private func ensureInitialized() {
@@ -362,6 +413,7 @@ actor SQLiteFullTextService {
             sqlite3_finalize(metaStmt)
         }
 
+        checkpoint()
         Log.debug("[SQLiteFTS5] Stored document \(documentId) (\(text.count) chars, \(wordCount) words)", category: .vectorDB)
     }
 
@@ -389,14 +441,14 @@ actor SQLiteFullTextService {
         }
 
         // Insert each page as a separate row in a transaction
-        execute(sql: "BEGIN TRANSACTION")
+        beginTransaction()
 
         let insertSQL = "INSERT INTO document_pages (page_id, document_id, container_id, page_number, content) VALUES (?, ?, ?, ?, ?)"
         var statement: OpaquePointer?
 
         guard sqlite3_prepare_v2(db, insertSQL, -1, &statement, nil) == SQLITE_OK else {
             Log.error("[SQLiteFTS5] Failed to prepare page insert statement", category: .vectorDB)
-            execute(sql: "ROLLBACK")
+            rollbackTransaction()
             return
         }
 
@@ -427,7 +479,8 @@ actor SQLiteFullTextService {
         }
 
         sqlite3_finalize(statement)
-        execute(sql: "COMMIT")
+        commitTransaction()
+        checkpoint()
 
         Log.info("[SQLiteFTS5] Stored \(storedCount) pages for document \(documentId)", category: .vectorDB)
     }
@@ -602,6 +655,7 @@ actor SQLiteFullTextService {
             sqlite3_finalize(contentStmt)
         }
 
+        checkpoint()
         Log.debug("[SQLiteFTS5] Deleted document \(documentId)", category: .vectorDB)
     }
 
@@ -665,6 +719,7 @@ actor SQLiteFullTextService {
             sqlite3_finalize(contentDelStmt)
         }
 
+        checkpoint()
         Log.info("[SQLiteFTS5] Deleted \(documentIds.count) documents for container \(containerId)", category: .vectorDB)
     }
 
@@ -758,6 +813,7 @@ actor SQLiteFullTextService {
                 using: db
             )
         }
+        checkpoint()
     }
 
     /// Store all chunks for a document in a single transaction (fast batch insert)
@@ -782,7 +838,7 @@ actor SQLiteFullTextService {
         """
 
         // Wrap in transaction for speed (100x faster than individual inserts)
-        execute(sql: "BEGIN TRANSACTION")
+        beginTransaction()
 
         for chunk in chunks {
             var statement: OpaquePointer?
@@ -831,7 +887,8 @@ actor SQLiteFullTextService {
             }
         }
 
-        execute(sql: "COMMIT")
+        commitTransaction()
+        checkpoint()
         Log.info("[SQLiteFTS5] Stored \(chunks.count) chunks for document \(documentId)", category: .vectorDB)
     }
 
@@ -850,6 +907,7 @@ actor SQLiteFullTextService {
         }
 
         deleteStructuredMetadata(documentId: documentId, using: db)
+        checkpoint()
     }
 
     /// Delete all chunks for a container
@@ -867,6 +925,7 @@ actor SQLiteFullTextService {
         }
 
         deleteStructuredMetadata(containerId: containerId, using: db)
+        checkpoint()
     }
 
     private func persistStructuredChunkMetadata(
@@ -3170,6 +3229,7 @@ actor SQLiteFullTextService {
                 let error = String(cString: sqlite3_errmsg(db))
                 Log.error("[SQLiteFTS5] Failed to insert query cache: \(error)", category: .vectorDB)
             } else {
+                checkpoint()
                 Log.debug("[SQLiteFTS5] Cached query successfully: '\(normalizedQuery)'", category: .vectorDB)
             }
         } catch {

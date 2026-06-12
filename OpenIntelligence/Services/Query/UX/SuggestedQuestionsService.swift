@@ -116,14 +116,16 @@ actor SuggestedQuestionsService {
         forceRefresh: Bool = false
     ) async -> [SuggestedQuestion] {
 
+        let existingCached = cachedQuestions[containerId]
+
         // Collect previously-shown questions so refresh can avoid repeats
         let previousTexts: [String] = forceRefresh
-            ? (cachedQuestions[containerId]?.questions.map { $0.text } ?? [])
+            ? (existingCached?.questions.map { $0.text } ?? [])
             : []
 
         // Check cache — but only if not forcing refresh, doc count unchanged, and cache fresh
         if !forceRefresh,
-           let cached = cachedQuestions[containerId],
+           let cached = existingCached,
            cached.documentCount == documents.count,
            Date().timeIntervalSince(cached.generatedAt) < Self.cacheMaxAge {
             Log.debug("[SuggestedQuestions] Returning \(cached.questions.count) cached questions for container")
@@ -132,6 +134,10 @@ actor SuggestedQuestionsService {
 
         guard !sampleChunks.isEmpty else {
             Log.debug("[SuggestedQuestions] No chunks available, returning empty")
+            if let cached = existingCached, !cached.questions.isEmpty, cached.documentCount == documents.count {
+                Log.debug("[SuggestedQuestions] Returning \(cached.questions.count) cached questions as fallback")
+                return Array(cached.questions.prefix(count))
+            }
             // Cache the empty result to prevent repeated generation attempts on empty library
             cachedQuestions[containerId] = CachedEntry(
                 questions: [],
@@ -165,7 +171,7 @@ actor SuggestedQuestionsService {
         #endif
 
         if questions.isEmpty {
-            let contentQuestions = generateFromContent(chunks: diverseChunks, documents: documents)
+            let contentQuestions = generateFromContent(chunks: diverseChunks, documents: documents, avoidTexts: previousTexts)
 
             #if canImport(FoundationModels)
             if #available(iOS 26.0, *), SystemLanguageModel.default.isAvailable, !contentQuestions.isEmpty {
@@ -193,8 +199,27 @@ actor SuggestedQuestionsService {
             dedupeSuggestedQuestionsPreservingOrder(questions),
             count: targetCount
         )
-        let finalQuestions = pruneNearDuplicateQuestions(deduped)
+        var finalQuestions = pruneNearDuplicateQuestions(deduped)
             .filter { shouldSurfaceSuggestedQuestion($0) }
+
+        if finalQuestions.count < count && !sampleChunks.isEmpty {
+            Log.info("[SuggestedQuestions] Standard generation yielded \(finalQuestions.count) questions (target: \(count)). Running fallback generator.")
+            let fallbacks = generateFallbackQuestions(documents: documents, chunks: sampleChunks, count: targetCount, avoidTexts: previousTexts)
+            finalQuestions.append(contentsOf: fallbacks)
+            finalQuestions = dedupeSuggestedQuestionsPreservingOrder(finalQuestions)
+            
+            if finalQuestions.count < count {
+                Log.info("[SuggestedQuestions] Still below target count \(count). Running fallback generator without avoidTexts.")
+                let repeatedFallbacks = generateFallbackQuestions(documents: documents, chunks: sampleChunks, count: targetCount, avoidTexts: [])
+                finalQuestions.append(contentsOf: repeatedFallbacks)
+                finalQuestions = dedupeSuggestedQuestionsPreservingOrder(finalQuestions)
+            }
+        }
+
+        if finalQuestions.isEmpty, let cached = existingCached, !cached.questions.isEmpty, cached.documentCount == documents.count {
+            Log.info("[SuggestedQuestions] Generation yielded 0 questions, preserving \(cached.questions.count) previously cached questions.")
+            return Array(cached.questions.prefix(count))
+        }
 
         // Cache
         cachedQuestions[containerId] = CachedEntry(
@@ -222,7 +247,37 @@ actor SuggestedQuestionsService {
     func hasValidCache(for containerId: UUID, documentCount: Int) -> Bool {
         guard let cached = cachedQuestions[containerId] else { return false }
         guard cached.documentCount == documentCount else { return false }
+        if cached.questions.isEmpty && documentCount > 0 {
+            return false
+        }
         return Date().timeIntervalSince(cached.generatedAt) < Self.cacheMaxAge
+    }
+
+    private enum TimeoutError: Error {
+        case timedOut
+    }
+
+    private func withTimeout<T: Sendable>(
+        seconds: TimeInterval,
+        operation: @escaping @Sendable () async throws -> T
+    ) async throws -> T {
+        try await withThrowingTaskGroup(of: T.self) { group in
+            group.addTask {
+                try await operation()
+            }
+            group.addTask {
+                try await Task.sleep(nanoseconds: UInt64(seconds * 1_000_000_000))
+                throw TimeoutError.timedOut
+            }
+            
+            let result = try await group.next()
+            group.cancelAll()
+            if let result {
+                return result
+            } else {
+                throw TimeoutError.timedOut
+            }
+        }
     }
 
     // MARK: - Step 1: Diverse Chunk Selection
@@ -358,7 +413,50 @@ actor SuggestedQuestionsService {
         // produce junk prompts from copyright or author-manuscript text.
         score += frontMatterAdjustment(for: chunk)
 
+        if isBibliographyChunk(chunk) {
+            score -= 30.0
+        }
+
         return score
+    }
+
+    private func isBibliographyChunk(_ chunk: DocumentChunk) -> Bool {
+        let content = chunk.content.lowercased()
+        
+        if let section = chunk.metadata.sectionTitle?.lowercased() {
+            let bibTitles: Set<String> = ["references", "bibliography", "works cited", "literature cited", "reference"]
+            if bibTitles.contains(section) || section.contains("bibliography") || section.contains("references") {
+                return true
+            }
+        }
+        
+        if let path = chunk.metadata.sectionPath {
+            for element in path {
+                let elLower = element.lowercased()
+                if elLower.contains("references") || elLower.contains("bibliography") || elLower.contains("works cited") {
+                    return true
+                }
+            }
+        }
+        
+        var signals = 0
+        if content.contains("et al.") { signals += 2 }
+        if content.contains("university press") || content.contains("press.") { signals += 2 }
+        if content.contains("doi:") { signals += 2 }
+        if content.contains("pp.") || content.contains("pages ") { signals += 1 }
+        if content.contains("vol.") || content.contains("volume ") { signals += 1 }
+        if content.contains("isbn") || content.contains("issn") { signals += 3 }
+        
+        let yearPattern = #"\b(?:19|20)\d{2}\b"#
+        if let regex = try? NSRegularExpression(pattern: yearPattern) {
+            let nsString = content as NSString
+            let matches = regex.matches(in: content, range: NSRange(location: 0, length: nsString.length))
+            if matches.count >= 3 {
+                signals += matches.count
+            }
+        }
+        
+        return signals >= 5
     }
 
     private func documentRichnessScore(_ chunks: [DocumentChunk]) -> Double {
@@ -545,10 +643,12 @@ actor SuggestedQuestionsService {
         """
 
         do {
-            let session = LanguageModelSession()
-            // @Generable: typed [String] array — eliminates numbered-line regex parsing.
-            // Constrained sampling enforces the declared schema at the token level.
-            let response = try await session.respond(to: prompt, generating: SuggestedQuestionList.self)
+            let response = try await withTimeout(seconds: 5.0) {
+                let session = LanguageModelSession()
+                // @Generable: typed [String] array — eliminates numbered-line regex parsing.
+                // Constrained sampling enforces the declared schema at the token level.
+                return try await session.respond(to: prompt, generating: SuggestedQuestionList.self)
+            }
             let rewrittenTexts = response.content.questions.compactMap { sanitizeGeneratedQuestion($0) }
             guard rewrittenTexts.count == limitedTargets.count else {
                 Log.warning("[SuggestedQuestions] LLM rewrite count mismatch (\(rewrittenTexts.count) vs \(limitedTargets.count))")
@@ -674,8 +774,10 @@ actor SuggestedQuestionsService {
         """
 
         do {
-            let session = LanguageModelSession()
-            let response = try await session.respond(to: prompt, generating: SuggestedQuestionList.self)
+            let response = try await withTimeout(seconds: 5.0) {
+                let session = LanguageModelSession()
+                return try await session.respond(to: prompt, generating: SuggestedQuestionList.self)
+            }
 
             var generatedQuestions: [SuggestedQuestion] = []
             for rawText in response.content.questions {
@@ -732,19 +834,24 @@ actor SuggestedQuestionsService {
     /// Extracts key phrases and specific details — NOT single-word entities.
     private func generateFromContent(
         chunks: [DocumentChunk],
-        documents: [Document]
+        documents: [Document],
+        avoidTexts: [String] = []
     ) -> [SuggestedQuestion] {
 
         var questions: [SuggestedQuestion] = []
         let passages = buildGroundedPassages(from: chunks, documents: documents, limit: chunks.count)
+        
+        let avoidNormalized = Set(avoidTexts.map { normalizedQuestionKey($0) })
 
         for passage in passages {
             for draft in deterministicQuestionDrafts(for: passage) {
                 let questionText = draft.text.hasSuffix("?") ? draft.text : draft.text + "?"
-                guard isUsableGeneratedQuestion(questionText, passages: [passage]),
-                      !isSelfAnsweringGeneratedQuestion(questionText),
-                      isAnswerableSuggestedQuestion(questionText, passage: passage)
-                else {
+                let normText = normalizedQuestionKey(questionText)
+                if avoidNormalized.contains(normText) {
+                    continue
+                }
+
+                guard isUsableDeterministicDraft(questionText, passage: passage) else {
                     continue
                 }
 
@@ -759,9 +866,158 @@ actor SuggestedQuestionsService {
             }
         }
 
-        // If we cannot make source-grounded suggestions, return nothing.
-        // The UI should stay honest rather than invent document-shaped prompts.
         return dedupeSuggestedQuestionsPreservingOrder(questions)
+    }
+
+    private func isUsableDeterministicDraft(
+        _ question: String,
+        passage: GroundedPassage
+    ) -> Bool {
+        let lower = question.lowercased()
+        if isBoilerplateQuestionTemplate(lower) {
+            return false
+        }
+        if isStructuralOrMetaQuestion(lower) {
+            return false
+        }
+        if isJunkString(question) {
+            return false
+        }
+        let bannedFragments = [
+            "[", "]", "{", "}", "<", ">",
+            "thing from passage",
+            "specific thing from passage",
+            "condition from passage",
+            "specific detail from the passage",
+            "specific detail",
+            "what does the document say",
+            "what do the documents say",
+            "uploaded document",
+            "uploaded documents",
+            "from the passages below",
+            "from the passage",
+            "style guide",
+            "real person casually asking",
+            "what's important about",
+            "what is important about",
+            "why is ",
+            " important here",
+            "actually do",
+            "main point",
+            "key points",
+            "key details",
+            "can you explain",
+            "tell me about",
+            "what are the key"
+        ]
+        if bannedFragments.contains(where: { lower.contains($0) }) {
+            return false
+        }
+
+        if violatesPassageQuestionGuardrails(question, passage: passage) {
+            return false
+        }
+
+        if isSelfAnsweringGeneratedQuestion(question) {
+            return false
+        }
+
+        // Ensure at least one token from the question overlaps with the passage body or section/document title
+        let tokens = meaningfulTokens(from: lower)
+        guard !tokens.isEmpty else { return false }
+
+        let groundingToks = passage.documentTokens.union(passage.sectionTokens)
+        let overlapCount = tokens.intersection(passage.bodyTokens).count
+            + tokens.intersection(groundingToks).count
+        
+        return overlapCount >= 1
+    }
+
+    private func generateFallbackQuestions(
+        documents: [Document],
+        chunks: [DocumentChunk],
+        count: Int,
+        avoidTexts: [String] = []
+    ) -> [SuggestedQuestion] {
+        var fallbacks: [SuggestedQuestion] = []
+        let avoidNormalized = Set(avoidTexts.map { normalizedQuestionKey($0) })
+
+        let addFallback: (SuggestedQuestion) -> Void = { q in
+            let norm = self.normalizedQuestionKey(q.text)
+            if !avoidNormalized.contains(norm) {
+                fallbacks.append(q)
+            }
+        }
+        
+        // 1. Generate questions based on document names
+        for doc in documents.prefix(3) {
+            let docName = displayDocumentName(doc.filename)
+            
+            let isResearch = doc.filename.lowercased().contains("study") 
+                || doc.filename.lowercased().contains("paper") 
+                || doc.filename.lowercased().contains("trial")
+                
+            if isResearch {
+                addFallback(SuggestedQuestion(
+                    id: UUID(),
+                    text: "What did this study find?",
+                    category: .factRetrieval,
+                    relevantDocuments: [docName],
+                    sourceSections: [],
+                    confidence: 0.7
+                ))
+                addFallback(SuggestedQuestion(
+                    id: UUID(),
+                    text: "Summarize the methodology of this research.",
+                    category: .summarization,
+                    relevantDocuments: [docName],
+                    sourceSections: [],
+                    confidence: 0.7
+                ))
+            } else {
+                addFallback(SuggestedQuestion(
+                    id: UUID(),
+                    text: "Summarize the key points in this document.",
+                    category: .summarization,
+                    relevantDocuments: [docName],
+                    sourceSections: [],
+                    confidence: 0.7
+                ))
+                addFallback(SuggestedQuestion(
+                    id: UUID(),
+                    text: "What is the main purpose of this document?",
+                    category: .factRetrieval,
+                    relevantDocuments: [docName],
+                    sourceSections: [],
+                    confidence: 0.7
+                ))
+            }
+        }
+        
+        // 2. Generate questions based on technical terms/phrases from chunks
+        let passages = buildGroundedPassages(from: chunks, documents: documents, limit: 10)
+        var terms: [String] = []
+        for passage in passages {
+            terms.append(contentsOf: extractTechnicalTerms(from: passage.content, limit: 2))
+        }
+        let uniqueTerms = Array(Set(terms)).filter { $0.count >= 4 && $0.count <= 30 }
+        
+        for term in uniqueTerms.prefix(4) {
+            if let passage = passages.first(where: { $0.content.contains(term) }) {
+                addFallback(SuggestedQuestion(
+                    id: UUID(),
+                    text: "What does this document explain about \(term)?",
+                    category: .factRetrieval,
+                    relevantDocuments: [passage.documentName],
+                    sourceSections: passage.sectionName.map { [$0] } ?? [],
+                    confidence: 0.65
+                ))
+            }
+        }
+        
+        // Deduplicate and return
+        let deduped = dedupeSuggestedQuestionsPreservingOrder(fallbacks)
+        return Array(deduped.prefix(count))
     }
 
     private func deterministicQuestionDrafts(for passage: GroundedPassage) -> [QuestionDraft] {
@@ -1116,34 +1372,34 @@ actor SuggestedQuestionsService {
                 
             if isResearch {
                 drafts.append(QuestionDraft(
-                    text: "What did the study find about \(term)?",
-                    category: .analytical,
+                    text: "What does the study say about \(term)?",
+                    category: .factRetrieval,
                     confidence: 0.85
                 ))
                 drafts.append(QuestionDraft(
-                    text: "How is \(term) used in this research?",
-                    category: .factRetrieval,
+                    text: "How does \(term) impact the findings?",
+                    category: .analytical,
                     confidence: 0.80
                 ))
                 drafts.append(QuestionDraft(
-                    text: "What are the key findings regarding \(term)?",
+                    text: "What are the key insights regarding \(term)?",
                     category: .analytical,
                     confidence: 0.82
                 ))
             } else {
                 drafts.append(QuestionDraft(
-                    text: "What is the function of \(term)?",
+                    text: "What is the role of \(term)?",
                     category: .factRetrieval,
                     confidence: 0.82
                 ))
                 drafts.append(QuestionDraft(
-                    text: "How does \(term) work?",
+                    text: "How does \(term) function?",
                     category: .analytical,
                     confidence: 0.78
                 ))
                 drafts.append(QuestionDraft(
-                    text: "What advantages does \(term) provide?",
-                    category: .comparison,
+                    text: "Why is \(term) important?",
+                    category: .analytical,
                     confidence: 0.80
                 ))
             }
@@ -1155,9 +1411,20 @@ actor SuggestedQuestionsService {
         let sentences = text.components(separatedBy: CharacterSet(charactersIn: ".!?"))
         var candidates: [String] = []
         
+        let citationStopWords: Set<String> = [
+            "press", "university", "journal", "proceedings", "conference", "editor", "edition", 
+            "publish", "publisher", "isbn", "issn", "vol", "volume", "page", "pages", "pp", 
+            "abstract", "introduction", "conclusions", "references", "bibliography", "oxford", 
+            "cambridge", "springer", "wiley", "elsevier", "ieee", "acm", "mit", "routledge", 
+            "pearson", "macmillan", "harper", "academic", "publishing", "books", "book", "translation",
+            "first", "second", "third", "fourth", "fifth", "sixth", "seventh", "eighth", "ninth", "tenth",
+            "study", "studies", "research", "paper", "article", "thesis", "dissertation", "manuscript",
+            "figure", "table", "section", "chapter", "appendix", "author", "authors", "cited"
+        ]
         let stopWords = Self.matchStopTokens
             .union(Self.specSubjectStopTokens)
             .union(Self.questionFocusStopTokens)
+            .union(citationStopWords)
             .union(["is", "are", "was", "were", "be", "been", "have", "has", "had", "do", "does", "did", "can", "could", "will", "would", "shall", "should", "may", "might", "must", "using", "use", "used", "via", "through", "by", "of", "in", "on", "at", "to", "for", "with", "about", "against", "between", "into", "through", "during", "before", "after", "above", "below", "from", "up", "down", "in", "out", "on", "off", "over", "under", "again", "further", "then", "once"])
             
         let isValidTechnicalTerm: (ArraySlice<String>) -> Bool = { combo in
@@ -1764,7 +2031,11 @@ actor SuggestedQuestionsService {
             "chapter", "chapters", "part", "parts", "line", "lines", "cell", "cells",
             "item", "items", "appendix", "appendices", "document", "documents",
             "paper", "papers", "report", "reports", "study", "studies", "research",
-            "author", "authors", "value", "values"
+            "author", "authors", "value", "values",
+            "source", "sources", "type", "types", "level", "levels", "limit", "limits",
+            "setting", "settings", "rate", "rates", "grade", "grades", "class", "classes",
+            "status", "range", "ranges", "date", "dates", "time", "times", "parameter",
+            "parameters", "id", "no", "code", "codes", "data"
         ]
         if structuralTerms.contains(lower) {
             return true

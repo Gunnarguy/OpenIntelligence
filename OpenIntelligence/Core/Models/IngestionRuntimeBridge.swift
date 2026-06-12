@@ -12,6 +12,7 @@ final class IngestionRuntimeBridge {
     typealias UpdateProgressHandler = (_ title: String, _ subtitle: String, _ fraction: Double) -> Void
     typealias CompleteUserInitiatedIngestionHandler = (_ success: Bool) -> Void
     typealias LiveActivityItemsHandler = (_ items: [IngestionItem], _ containerName: String?) -> Void
+    typealias IngestionFallbackHandler = (_ reason: String) -> Void
     typealias VoidHandler = () -> Void
 
     static let shared = IngestionRuntimeBridge()
@@ -20,6 +21,8 @@ final class IngestionRuntimeBridge {
     var beginUserInitiatedIngestionHandler: BeginUserInitiatedIngestionHandler?
     var updateContinuedIngestionProgressHandler: UpdateProgressHandler?
     var completeUserInitiatedIngestionHandler: CompleteUserInitiatedIngestionHandler?
+    var beginForegroundFallbackIngestionHandler: IngestionFallbackHandler?
+    var endForegroundFallbackIngestionHandler: VoidHandler?
     var restoreLiveActivityHandler: VoidHandler?
     var syncLiveActivityHandler: LiveActivityItemsHandler?
     var finishLiveActivityHandler: LiveActivityItemsHandler?
@@ -29,6 +32,7 @@ final class IngestionRuntimeBridge {
 
     func configureContinuedIngestion(
         run: @escaping ContinuedIngestionRun,
+        defaultValue: Bool = false, // unused, keep matching signature if any
         expiration: @escaping ContinuedIngestionExpiration
     ) {
         configureContinuedIngestionHandler?(run, expiration)
@@ -44,6 +48,14 @@ final class IngestionRuntimeBridge {
 
     func completeUserInitiatedIngestion(success: Bool) {
         completeUserInitiatedIngestionHandler?(success)
+    }
+
+    func beginForegroundFallbackIngestion(reason: String) {
+        beginForegroundFallbackIngestionHandler?(reason)
+    }
+
+    func endForegroundFallbackIngestion() {
+        endForegroundFallbackIngestionHandler?()
     }
 
     func restoreLiveActivityIfNeeded() {

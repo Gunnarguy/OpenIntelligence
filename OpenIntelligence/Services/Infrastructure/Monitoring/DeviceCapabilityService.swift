@@ -244,12 +244,10 @@ final class DeviceCapabilityService: @unchecked Sendable {
         case .iPhone:
             switch cachedTier {
             case .unsupported:
-                return 0.5
+                return 0.6
             case .baseline:
-                return 0.8
-            case .enhanced:
-                return cachedMemoryGB >= 8 ? 0.9 : 0.8
-            case .advanced, .ultraAdvanced:
+                return 0.9
+            case .enhanced, .advanced, .ultraAdvanced:
                 return 1.0
             }
         case .mac:

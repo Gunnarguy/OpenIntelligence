@@ -751,8 +751,8 @@ class RAGService: ObservableObject {
     }
 
     @MainActor
-    func restoreIngestionQueueIfNeeded() {
-        restorePersistedIngestionQueueIfNeeded()
+    func restoreIngestionQueueIfNeeded() async {
+        await restorePersistedIngestionQueueIfNeeded()
     }
 
     @MainActor
@@ -764,15 +764,10 @@ class RAGService: ObservableObject {
             if let finishedAt = item.finishedAt {
                 return Date().timeIntervalSince(finishedAt) < 900 // 15 minutes
             }
-            return true
+            return false
         }
+
         let itemsToPersist = activeItems + recentTerminalItems
-
-        guard !itemsToPersist.isEmpty else {
-            try? WorkspaceSyncService.coordinatedRemoveItem(at: url)
-            return
-        }
-
         let state = PersistedIngestionQueueState(
             items: itemsToPersist,
             contexts: itemsToPersist.map { PersistedIngestionContext(id: $0.id, context: ingestionContexts[$0.id] ?? .userInitiated) },
@@ -790,7 +785,7 @@ class RAGService: ObservableObject {
     }
 
     @MainActor
-    private func restorePersistedIngestionQueueIfNeeded() {
+    private func restorePersistedIngestionQueueIfNeeded() async {
         // Don't let a workspace reload overwrite an in-flight runtime queue.
         // During shared-workspace sync churn, reloadWorkspaceData() can fire while the
         // current device is actively importing. Restoring the persisted snapshot in
@@ -826,16 +821,28 @@ class RAGService: ObservableObject {
                 }
 
                 if let resolvedContainerId = item.containerId ?? defaultContainerId,
-                   existingImportedDocument(
+                   let container = containerService.containers.first(where: { $0.id == resolvedContainerId }),
+                   let existingDoc = existingImportedDocument(
                        in: resolvedContainerId,
                        storageRelativePath: item.storageRelativePath,
                        fileHash: item.documentHash
-                   ) != nil {
-                    Log.info(
-                        "[RAGService] Dropping persisted ingestion item for already imported document: \(item.url.lastPathComponent)",
-                        category: .ingestion
-                    )
-                    continue
+                   ) {
+                    let database = self.vectorRouter.db(for: container)
+                    let allChunks = (try? await database.allChunks()) ?? []
+                    let documentChunks = allChunks.filter { $0.documentId == existingDoc.id }
+
+                    if !documentChunks.isEmpty {
+                        Log.info(
+                            "[RAGService] Dropping persisted ingestion item for already imported document: \(item.url.lastPathComponent)",
+                            category: .ingestion
+                        )
+                        continue
+                    } else {
+                        Log.warning(
+                            "[RAGService] Retaining interrupted ingestion item for '\(item.url.lastPathComponent)' because its vector database chunks are missing.",
+                            category: .ingestion
+                        )
+                    }
                 }
 
                 if item.url.isFileURL {
@@ -850,8 +857,8 @@ class RAGService: ObservableObject {
                 var resumedItem = item
 
                 if item.isLeased(to: currentDeviceID, at: now) || !item.hasActiveLease(at: now) {
-                    resumedItem.stage = .queued
-                    resumedItem.detail = item.stage == .queued ? "Queued" : "Queued for pickup"
+                    resumedItem.stage = .paused
+                    resumedItem.detail = "Paused after app restart"
                     resumedItem.progress = nil
                     resumedItem.startedAt = nil
                     resumedItem.finishedAt = nil
@@ -882,11 +889,20 @@ class RAGService: ObservableObject {
 
             ingestionItems = restoredItems
             ingestionContexts = restoredContexts
-            Log.info("[RAGService] Restored \(restoredItems.count) queued ingestion item(s) after interruption", category: .ingestion)
+            Log.info("[RAGService] Restored \(restoredItems.count) queued ingestion item(s) after interruption; waiting for resume decision", category: .ingestion)
             savePersistedIngestionQueueState()
-            syncIngestionLiveActivity()
-            resumeUserInitiatedIngestionBackgroundSupportIfNeeded(restoredItems: restoredItems)
-            startIngestionTaskIfNeeded()
+            if restoredItems.contains(where: { $0.stage == .paused }) {
+                IngestionRuntimeBridge.shared.endLiveActivity()
+                NotificationCenter.default.post(name: NSNotification.Name("com.openintelligence.showIngestionQueue"), object: nil)
+                
+                // Retransmit after a delay to ensure view is mounted and listening
+                Task { @MainActor in
+                    try? await Task.sleep(for: .seconds(1))
+                    NotificationCenter.default.post(name: NSNotification.Name("com.openintelligence.showIngestionQueue"), object: nil)
+                }
+            } else {
+                syncIngestionLiveActivity()
+            }
         } catch {
             Log.error("[RAGService] Failed to restore persisted ingestion queue: \(error.localizedDescription)", category: .ingestion)
             try? WorkspaceSyncService.coordinatedRemoveItem(at: url)
@@ -1268,7 +1284,7 @@ class RAGService: ObservableObject {
                 }
             )
             IngestionRuntimeBridge.shared.restoreLiveActivityIfNeeded()
-            self.restorePersistedIngestionQueueIfNeeded()
+            await self.restorePersistedIngestionQueueIfNeeded()
         }
 
         // Connect document summary service to self for LLM access
@@ -1414,6 +1430,12 @@ class RAGService: ObservableObject {
             guard let self else { return }
             self.applyInitialCloudConsent(from: store)
         }
+    }
+
+    /// Rebuild search indexes from the canonical list of documents.
+    @MainActor
+    func rebuildDatabase() async -> Bool {
+        return await rebuildLocalSearchIndexesFromCanonicalState(documents: self.documents)
     }
 
     /// Rebuild the active LLM service and fallback chain from the current SettingsStore.
@@ -3200,7 +3222,9 @@ class RAGService: ObservableObject {
         if !FileManager.default.fileExists(atPath: AppSupportPaths.ingestionQueueURL().path), ingestionTask == nil {
             clearRuntimeIngestionQueueState()
         }
-        restorePersistedIngestionQueueIfNeeded()
+        Task {
+            await restorePersistedIngestionQueueIfNeeded()
+        }
 
         let fingerprint = localIndexSyncFingerprint(for: loadedDocuments)
         guard fingerprint != lastLocalIndexSyncFingerprint else {
@@ -3220,7 +3244,11 @@ class RAGService: ObservableObject {
     }
 
     private func saveDocumentsToDisk() async {
-        let snapshot = await MainActor.run { self.documents }
+        let snapshot = await MainActor.run {
+            let fp = self.localIndexSyncFingerprint(for: self.documents)
+            self.lastLocalIndexSyncFingerprint = fp
+            return self.documents
+        }
 
         do {
             let encoder = JSONEncoder()
@@ -3976,6 +4004,11 @@ class RAGService: ObservableObject {
 
     @MainActor
     func runPendingIngestionQueue() async -> Bool {
+        guard !ingestionItems.contains(where: { $0.stage == .paused }) else {
+            Log.info("[RAGService] Pending ingestion queue is paused after restart; waiting for user decision", category: .ingestion)
+            return false
+        }
+
         let ids = ingestionItems
             .filter { !$0.stage.isTerminal }
             .map(\.id)
@@ -3992,7 +4025,7 @@ class RAGService: ObservableObject {
         let item = ingestionItems[index]
         guard !item.stage.isTerminal else { return }
 
-        if item.stage == .queued {
+        if item.stage == .queued || item.stage == .paused {
             updateIngestionItem(
                 id: id,
                 filename: item.filename,
@@ -4016,7 +4049,7 @@ class RAGService: ObservableObject {
 
         guard !activeIds.isEmpty else { return }
 
-        for item in ingestionItems where item.stage == .queued {
+        for item in ingestionItems where item.stage == .queued || item.stage == .paused {
             updateIngestionItem(
                 id: item.id,
                 filename: item.filename,
@@ -4026,7 +4059,7 @@ class RAGService: ObservableObject {
         }
 
         let activeNonQueuedIds = ingestionItems
-            .filter { !$0.stage.isTerminal && $0.stage != .queued }
+            .filter { !$0.stage.isTerminal && $0.stage != .queued && $0.stage != .paused }
             .map(\ .id)
 
         if activeNonQueuedIds.isEmpty {
@@ -4040,13 +4073,56 @@ class RAGService: ObservableObject {
     }
 
     @MainActor
+    func continuePausedIngestionQueue() {
+        let pausedIndices = ingestionItems.indices.filter { ingestionItems[$0].stage == .paused }
+        guard !pausedIndices.isEmpty else {
+            startIngestionTaskIfNeeded()
+            return
+        }
+
+        for index in pausedIndices {
+            var item = ingestionItems[index]
+            item.stage = .queued
+            item.detail = "Queued"
+            item.progress = nil
+            item.startedAt = nil
+            item.finishedAt = nil
+            item.errorMessage = nil
+            item.clearLease()
+            item.events.append(IngestionEvent(stage: .queued, title: "Queued", detail: "Resumed after app restart"))
+            ingestionItems[index] = item
+        }
+
+        Log.info("[RAGService] User resumed \(pausedIndices.count) interrupted ingestion item(s)", category: .ingestion)
+        savePersistedIngestionQueueState()
+        resumeUserInitiatedIngestionBackgroundSupportIfNeeded(restoredItems: ingestionItems.filter { !$0.stage.isTerminal })
+        syncIngestionLiveActivity()
+        startIngestionTaskIfNeeded()
+    }
+
+    @MainActor
+    func discardPausedIngestionQueue() {
+        let pausedIds = Set(ingestionItems.filter { $0.stage == .paused }.map(\.id))
+        guard !pausedIds.isEmpty else { return }
+
+        ingestionItems.removeAll { pausedIds.contains($0.id) }
+        ingestionContexts = ingestionContexts.filter { id, _ in !pausedIds.contains(id) }
+        liveActivityTrackedIngestionIds.subtract(pausedIds)
+        requestedIngestionCancellationIds.subtract(pausedIds)
+
+        Log.info("[RAGService] User discarded \(pausedIds.count) interrupted ingestion item(s)", category: .ingestion)
+        savePersistedIngestionQueueState()
+        syncIngestionLiveActivity()
+    }
+
+    @MainActor
     func cancelAndPurgeIngestion(for containerId: UUID) async {
         let matchingItems = ingestionItems.filter { $0.containerId == containerId }
         guard !matchingItems.isEmpty else { return }
 
         let immediateRemovalIds = Set(
             matchingItems
-                .filter { $0.stage == .queued || $0.stage.isTerminal }
+                .filter { $0.stage == .queued || $0.stage == .paused || $0.stage.isTerminal }
                 .map(\ .id)
         )
 
@@ -4246,7 +4322,7 @@ class RAGService: ObservableObject {
             item.events.append(event)
         }
 
-        if item.startedAt == nil, stage != .queued {
+        if item.startedAt == nil, stage != .queued && stage != .paused {
             item.startedAt = Date()
         }
         if stage.isTerminal {
@@ -4255,7 +4331,7 @@ class RAGService: ObservableObject {
                 item.metrics.totalTimeMs = Int(Date().timeIntervalSince(startedAt) * 1000)
             }
             item.clearLease()
-        } else if stage == .queued {
+        } else if stage == .queued || stage == .paused {
             item.clearLease()
         } else {
             item.claimLease(ownerDeviceId: currentDeviceID, duration: Self.ingestionLeaseDuration)
@@ -4323,7 +4399,7 @@ class RAGService: ObservableObject {
             break
         case .failed:
             DSHaptics.warning() // Something went wrong
-        case .reindexing, .queued:
+        case .reindexing, .queued, .paused:
             break // No haptic for these
         }
     }
@@ -5369,7 +5445,8 @@ class RAGService: ObservableObject {
                         id: trackingId,
                         filename: filename,
                         stage: .storing,
-                        detail: "Generating summary..."
+                        detail: "Optimizing overview...",
+                        progress: 0.96
                     )
                 }
 
@@ -5423,7 +5500,8 @@ class RAGService: ObservableObject {
                     id: trackingId,
                     filename: filename,
                     stage: .storing,
-                    detail: "Generating tags..."
+                    detail: "Generating tags...",
+                    progress: 0.98
                 )
             }
 
@@ -5713,9 +5791,6 @@ class RAGService: ObservableObject {
 
         do {
             for container in containers {
-                await SQLiteFullTextService.shared.deleteContainer(containerId: container.id)
-                await SQLiteFullTextService.shared.deleteChunksForContainer(containerId: container.id)
-
                 let containerDocuments = documents.filter { document in
                     (document.containerId ?? defaultContainerId) == container.id
                 }
@@ -5723,7 +5798,35 @@ class RAGService: ObservableObject {
 
                 let database = await MainActor.run { self.vectorRouter.db(for: container) }
                 let allChunks = try await database.allChunks()
-                let chunksByDocument = Dictionary(grouping: allChunks, by: \ .documentId)
+
+                // Safety guard: If we have documents but the vector database returns 0 chunks,
+                // do not wipe the existing FTS5 search index, as it would destroy the index.
+                guard !allChunks.isEmpty else {
+                    Log.warning("[RAGService] Safety guard triggered: vector store is empty but container \(container.id) has \(containerDocuments.count) documents. Skipping FTS5 rebuild.", category: .ingestion)
+                    
+                    let containerId = container.id
+                    let alreadyProcessing = await MainActor.run { self.isProcessing }
+                    if !alreadyProcessing {
+                        Log.info("[RAGService] Triggering background self-healing rebuild for container \(containerId)...", category: .ingestion)
+                        Task { [weak self] in
+                            guard let self else { return }
+                            do {
+                                try await self.reembedDocuments(in: containerId)
+                                Log.info("[RAGService] Self-healing rebuild completed successfully for container \(containerId)", category: .ingestion)
+                            } catch {
+                                Log.error("[RAGService] Self-healing rebuild failed for container \(containerId): \(error.localizedDescription)", category: .ingestion)
+                            }
+                        }
+                    } else {
+                        Log.info("[RAGService] Skipping self-healing rebuild because another ingestion/rebuild is already in progress.", category: .ingestion)
+                    }
+                    continue
+                }
+
+                await SQLiteFullTextService.shared.deleteContainer(containerId: container.id)
+                await SQLiteFullTextService.shared.deleteChunksForContainer(containerId: container.id)
+
+                let chunksByDocument = Dictionary(grouping: allChunks, by: \.documentId)
 
                 for document in containerDocuments {
                     guard let unsortedChunks = chunksByDocument[document.id], !unsortedChunks.isEmpty else {
@@ -5808,7 +5911,7 @@ class RAGService: ObservableObject {
     }
 
     /// Remove a document from the knowledge base
-    func removeDocument(_ document: Document) async throws {
+    func removeDocument(_ document: Document, keepPhysicalFile: Bool = false) async throws {
         let targetContainerId = await MainActor.run {
             document.containerId ?? self.containerService.containers.first?.id ?? self.containerService.activeContainerId
         }
@@ -5827,9 +5930,11 @@ class RAGService: ObservableObject {
         await EntityIndexService.shared.removeDocument(document.id)
 
         // Delete physical file if it's in our internal storage
-        let fileURL = document.fileURL
-        if fileURL.path.contains("ImportedDocuments") {
-            try? FileManager.default.removeItem(at: fileURL)
+        if !keepPhysicalFile {
+            let fileURL = document.fileURL
+            if fileURL.path.contains("ImportedDocuments") {
+                try? FileManager.default.removeItem(at: fileURL)
+            }
         }
 
         // Invalidate visualization cache for the document's library after removal
@@ -6023,7 +6128,7 @@ class RAGService: ObservableObject {
                 }
             }
 
-            try await removeDocument(document)
+            try await removeDocument(document, keepPhysicalFile: true)
 
             await MainActor.run {
                 updateIngestionItem(

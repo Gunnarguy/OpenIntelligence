@@ -2409,20 +2409,21 @@ final class WorkspaceSyncService: ObservableObject {
         let activeLeaseScore = item.hasActiveLease(at: now) ? 1 : 0
         let stageScore: Int = {
             switch item.stage {
-            case .queued: return 0
-            case .loading: return 1
-            case .transcribing: return 2
-            case .extracting: return 3
-            case .chunking: return 4
-            case .analyzing: return 5
-            case .adapting: return 6
-            case .reindexing: return 7
-            case .embedding: return 8
-            case .indexing: return 9
-            case .storing: return 10
-            case .complete: return 11
-            case .cancelled: return 12
-            case .failed: return 13
+            case .paused: return 0
+            case .queued: return 1
+            case .loading: return 2
+            case .transcribing: return 3
+            case .extracting: return 4
+            case .chunking: return 5
+            case .analyzing: return 6
+            case .adapting: return 7
+            case .reindexing: return 8
+            case .embedding: return 9
+            case .indexing: return 10
+            case .storing: return 11
+            case .complete: return 12
+            case .cancelled: return 13
+            case .failed: return 14
             }
         }()
         let heartbeatScore = Int(item.lastLeaseHeartbeatAt?.timeIntervalSince1970 ?? 0)

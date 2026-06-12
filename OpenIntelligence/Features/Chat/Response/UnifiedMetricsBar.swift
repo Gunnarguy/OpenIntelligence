@@ -197,6 +197,31 @@ struct UnifiedMetricsBar: View {
         return .red
     }
 
+    private var isReasoningQualityMode: Bool {
+        isRecursiveRAG || isMaximumMode
+    }
+
+    private var liveTokenMetricColor: Color {
+        isReasoningQualityMode ? qualityModeColor : speedColor
+    }
+
+    private var tokenCounterColor: Color {
+        if isReasoningQualityMode {
+            return qualityModeColor
+        }
+        return tokensGenerated > 0 ? .green : .secondary
+    }
+
+    private var tokenCounterIcon: String {
+        if isMaximumMode {
+            return "flame.fill"
+        }
+        if isRecursiveRAG {
+            return "brain.head.profile"
+        }
+        return "text.bubble.fill"
+    }
+
     private var wantsCloud: Bool {
         requestedExecutionContext == .preferCloud || requestedExecutionContext == .cloudOnly
     }
@@ -270,7 +295,7 @@ struct UnifiedMetricsBar: View {
                 Spacer(minLength: 0)
 
                 // 5. GENERATION STATS - Speed + output
-                if tokensGenerated > 0 || (isProcessing && stage == .generating) {
+                if tokensGenerated > 0 || isProcessing {
                     premiumGenerationBadge
                 }
 
@@ -771,24 +796,24 @@ struct UnifiedMetricsBar: View {
                     .font(.system(size: 6, weight: .medium))
                     .opacity(0.7)
             }
-            .foregroundStyle(speedColor)
+            .foregroundStyle(liveTokenMetricColor)
             .lineLimit(1)
             .fixedSize()
 
             // Divider + Output tokens
-            if tokensGenerated > 0 {
+            if tokensGenerated > 0 || isProcessing {
                 Rectangle()
                     .fill(.secondary.opacity(0.3))
                     .frame(width: 1, height: 10)
 
                 // Output token count
                 HStack(spacing: 1) {
-                    Image(systemName: "text.bubble.fill")
+                    Image(systemName: tokenCounterIcon)
                         .font(.system(size: 7, weight: .semibold))
                     Text(formatTokenCount(tokensGenerated))
                         .font(.system(size: 8, weight: .bold, design: .monospaced))
                 }
-                .foregroundStyle(.green)
+                .foregroundStyle(tokenCounterColor)
                 .lineLimit(1)
                 .fixedSize()
             }
@@ -814,10 +839,10 @@ struct UnifiedMetricsBar: View {
         .padding(.vertical, 3)
         .background(
             Capsule()
-                .fill(.green.opacity(0.08))
+                .fill(liveTokenMetricColor.opacity(0.08))
                 .overlay(
                     Capsule()
-                        .stroke(speedColor.opacity(0.2), lineWidth: 0.5)
+                        .stroke(liveTokenMetricColor.opacity(0.2), lineWidth: 0.5)
                 )
         )
     }

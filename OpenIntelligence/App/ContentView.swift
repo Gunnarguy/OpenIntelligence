@@ -184,7 +184,8 @@ struct ContentView: View {
                 await refreshSharedWorkspaceIfNeeded(forceReload: true)
             }
         }
-        .onChange(of: selectedTab) { _, _ in
+        .onChange(of: selectedTab) { oldTab, newTab in
+            Log.warning("[TabBar] Selected tab changed from \(oldTab) to \(newTab)", category: .ui)
             DSHaptics.tabChanged()
         }
         .onReceive(settingsStore.$hasUserPrimaryOverride) { hasOverride in
@@ -275,6 +276,16 @@ struct ContentView: View {
                 Log.debug("[App] Scene entered background - saved transcript", category: .initialization)
             }
 
+            // Begin ingestion handoff if processing
+            if ragService.isProcessing {
+                IngestionRuntimeBridge.shared.beginForegroundFallbackIngestion(reason: "Active Ingestion Handoff")
+            }
+
+            // Checkpoint and close database connection before app suspension
+            Task {
+                await SQLiteFullTextService.shared.shutdown()
+            }
+
             // Schedule background tasks if enabled
             if settingsStore.enableBackgroundMaintenance {
                 BackgroundTaskService.shared.scheduleIndexMaintenance()
@@ -338,12 +349,25 @@ struct ContentView: View {
 
     @MainActor
     private func handleOpenURL(_ url: URL) {
-        guard url.scheme == OpenIntelligenceDeepLink.scheme else { return }
+        Log.warning("[DeepLink] Received deep link URL: \(url.absoluteString)", category: .ui)
+        Log.warning("[DeepLink] scheme: \(url.scheme ?? "nil"), host: \(url.host ?? "nil"), path: \(url.path)", category: .ui)
+        guard url.scheme == OpenIntelligenceDeepLink.scheme else {
+            Log.warning("[DeepLink] URL scheme '\(url.scheme ?? "nil")' does not match expected '\(OpenIntelligenceDeepLink.scheme)'", category: .ui)
+            return
+        }
 
         if url.host == "documents" {
+            Log.warning("[DeepLink] Routing to documents tab. Current tab was: \(selectedTab)", category: .ui)
             selectedTab = .documents
+            if url.path == "/ingestion" {
+                Log.warning("[DeepLink] Path matches '/ingestion'. Posting showIngestionQueue notification", category: .ui)
+                NotificationCenter.default.post(name: NSNotification.Name("com.openintelligence.showIngestionQueue"), object: nil)
+            }
         } else if url.host == "chat" {
+            Log.warning("[DeepLink] Routing to chat tab. Current tab was: \(selectedTab)", category: .ui)
             selectedTab = .chat
+        } else {
+            Log.warning("[DeepLink] Host '\(url.host ?? "nil")' did not match any routing rules", category: .ui)
         }
     }
 }

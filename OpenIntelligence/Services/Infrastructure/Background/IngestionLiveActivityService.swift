@@ -357,6 +357,8 @@ final class IngestionLiveActivityService {
 
     private func sortOrder(for stage: IngestionStage) -> Int {
         switch stage {
+        case .paused:
+            return 0
         case .queued:
             return 1
         case .complete, .failed:

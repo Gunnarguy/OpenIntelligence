@@ -11,15 +11,39 @@
 import Foundation
 import NaturalLanguage
 
+#if canImport(FoundationModels)
+    import FoundationModels
+#endif
+
 // NOTE: ChunkAbstractionLevel is defined in DocumentChunk.swift and shared across the codebase
 
 // MARK: - Document Summary Service
+
+private enum DocumentSummaryError: LocalizedError {
+    case emptyResponse
+    case timedOut(seconds: UInt64)
+
+    var errorDescription: String? {
+        switch self {
+        case .emptyResponse:
+            return "Summary generation returned an empty response."
+        case let .timedOut(seconds):
+            return "Summary generation timed out after \(seconds)s."
+        }
+    }
+}
 
 /// Service for generating document-level summaries using Apple Intelligence.
 /// Part of RAPTOR-lite implementation for efficient overview queries.
 actor DocumentSummaryService {
 
     // MARK: - Configuration
+
+    nonisolated private static let summaryGenerationTimeoutSeconds: UInt64 = 12
+
+    nonisolated private static let summaryInstructions = """
+    You generate short document overview summaries for search indexing. Be concise, factual, and avoid commentary.
+    """
 
     struct SummaryConfig: Sendable {
         /// Target word count for summaries
@@ -244,6 +268,18 @@ actor DocumentSummaryService {
         Summary (\(safeTargetWords) words max):
         """
 
+        #if canImport(FoundationModels)
+            if #available(iOS 26.0, *), SystemLanguageModel.default.isAvailable {
+                do {
+                    let responseText = try await generateSummaryWithFoundationModels(prompt: prompt)
+                    return enforceWordLimit(responseText, maxWords: 150)
+                } catch {
+                    Log.warning("[DocumentSummary] Apple FM summary timed out/failed for '\(documentName)': \(error), using extractive fallback", category: .pipeline)
+                    return extractiveFallback(from: representativeText)
+                }
+            }
+        #endif
+
         do {
             // Use the LLM service directly for summary generation
             // Access llmService and build config on MainActor since RAGService is @MainActor isolated
@@ -270,26 +306,52 @@ actor DocumentSummaryService {
                 config: inferenceConfig
             )
 
-            // CRITICAL: Enforce hard word limit for embedding safety
-            // Embedding limit is 510 tokens. With prefix overhead (~30 tokens),
-            // we need ~480 tokens max. At ~1.5 tokens/word, that's ~320 words max.
-            // But technical text can be 2+ tokens/word, so cap at 150 words to be safe.
-            let maxWords = 150
-            let words = response.text.split(separator: " ")
-            let truncatedText: String
-            if words.count > maxWords {
-                Log.warning("[DocumentSummary] Truncating \(words.count)-word summary to \(maxWords) words", category: .pipeline)
-                truncatedText = words.prefix(maxWords).joined(separator: " ") + "..."
-            } else {
-                truncatedText = response.text
-            }
-
-            return truncatedText.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines)
+            return enforceWordLimit(response.text, maxWords: 150)
 
         } catch {
             Log.error("[DocumentSummary] LLM summary failed: \(error), using extractive fallback", category: .pipeline)
             return extractiveFallback(from: representativeText)
         }
+    }
+
+    #if canImport(FoundationModels)
+        @available(iOS 26.0, *)
+        private func generateSummaryWithFoundationModels(prompt: String) async throws -> String {
+            try Task.checkCancellation()
+
+            let session = LanguageModelSession(instructions: Instructions(Self.summaryInstructions))
+
+            return try await withThrowingTaskGroup(of: String.self) { group in
+                group.addTask {
+                    let response = try await session.respond(to: prompt)
+                    let text = response.content.trimmingCharacters(in: .whitespacesAndNewlines)
+                    guard !text.isEmpty else {
+                        throw DocumentSummaryError.emptyResponse
+                    }
+                    return text
+                }
+
+                group.addTask {
+                    try await Task.sleep(nanoseconds: Self.summaryGenerationTimeoutSeconds * 1_000_000_000)
+                    throw DocumentSummaryError.timedOut(seconds: Self.summaryGenerationTimeoutSeconds)
+                }
+
+                guard let result = try await group.next() else {
+                    throw DocumentSummaryError.emptyResponse
+                }
+                group.cancelAll()
+                return result
+            }
+        }
+    #endif
+
+    private func enforceWordLimit(_ text: String, maxWords: Int) -> String {
+        let trimmed = text.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines)
+        let words = trimmed.split(separator: " ")
+        guard words.count > maxWords else { return trimmed }
+
+        Log.warning("[DocumentSummary] Truncating \(words.count)-word summary to \(maxWords) words", category: .pipeline)
+        return words.prefix(maxWords).joined(separator: " ") + "..."
     }
 
     /// Extractive fallback when LLM is unavailable

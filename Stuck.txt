@@ -1,0 +1,392 @@
+ℹ️  StoreKit test harness disabled (StoreKitTest framework linking not available in this build)
+ℹ️  [DocumentProcessor] Loaded BertTokenizer for accurate chunk validation
+ℹ️  [CoreMLSentenceEmbeddingProvider] Loaded EmbeddingModel.mlmodelc - compute: GPU+CPU (forced GPU mode)
+ℹ️  [CoreMLSentenceEmbeddingProvider] Loaded tokenizer
+ℹ️  🔧 Initializing with user's selected model: apple_intelligence
+🔍 AppleFoundationLLMService initialized (model will be loaded on first use)
+ℹ️  ✓ Using Apple Foundation Models (on-device + PCC)
+🔍 🔥 Preloading model in background for instant first query
+ℹ️   Foundation Models available on device
+ℹ️  🔗 Tool handler connected for agentic RAG
+ℹ️  🔍 Requesting 4 products from StoreKit: pro_monthly, pro_annual, lifetime_cohort, doc_pack_addon
+ℹ️  🧾 StoreKit diagnostics: environment=device, bundleId=Gunndamental.OpenIntelligence, appVersion=4.0, buildNumber=51, receiptPresent=unknown, receiptSandboxHint=unknown
+ℹ️  Model resolved: Apple Intelligence (User Selected)
+🔍 [Warm-up] Starting Foundation Model preload...
+🔍 Initialized 4 engine-native tools for agentic RAG
+ℹ️  [Warm-up] Foundation Model preloaded in 0.12s (using prewarm API)
+ℹ️  [RAGService] Loaded 3 documents (29 chunks)
+ℹ️  [RAGService] Restored 1 queued ingestion item(s) after interruption
+ℹ️  [MetalBufferPool] 📦 Cache configured: 32MB, 4 buffers/bucket
+ℹ️  [GPUComputeService] ✓ SIMD4 cosine similarity pipeline ready (4x faster)
+ℹ️  [GPUComputeService] ✓ SIMD4 normalize pipeline ready
+ℹ️  [GPUComputeService] ✓ Threadgroup cosine similarity pipeline ready (fastest)
+ℹ️  [GPUComputeService] ✓ Metal 4 residency set initialized (capacity: 64)
+ℹ️  [GPUComputeService] 🚀 Metal GPU initialized: Apple A18 Pro GPU
+ℹ️  [GPUComputeService] 📦 Buffer pool ready (0MB cache)
+ℹ️  [GPUComputeService] ✓ Batch cosine similarity pipeline ready
+ℹ️  🚀 GPU Compute: Apple A18 Pro GPU ready for vector operations
+ℹ️  🚀 GPU Image Processing: Metal context ready for OCR
+ℹ️  📦 StoreKit returned 4 products
+ℹ️    ✅ Loaded: doc_pack_addon - Document Pack ($2.99)
+ℹ️    ✅ Loaded: lifetime_cohort - Lifetime Cohort ($59.99)
+ℹ️    ✅ Loaded: pro_annual - Pro Annual ($49.99)
+ℹ️    ✅ Loaded: pro_monthly - Pro Monthly ($5.99)
+🔍 [SuggestedQuestions] Cache invalidated for container D2A41C1D
+ℹ️  [Consent Prewarm] Checking key 'cloudConsent.applePCC' = 'allowed'
+ℹ️  [Consent Prewarm] PCC consent already determined (persisted): allowed
+🔍 [SuggestedQuestions] Cache invalidated for container D2A41C1D
+ℹ️  [CoreMLSentenceEmbeddingProvider] ⚡ Ingestion mode ON → GPU+CPU (ingestion: ANE free for Vision)
+ℹ️  [RAGService] ⚡ Ingestion mode: GPU embeddings + ANE Vision OCR
+ℹ️  🌍 StoreKit environment: Xcode, storefront: USA
+ℹ️  [BILLING] Products refreshed – {bundleId=Gunndamental.OpenIntelligence, environment=device, expected=4, loaded=4, loadedIDs=doc_pack_addon,lifetime_cohort,pro_annual,pro_monthly, missingIDs=, receiptPresent=unknown, receiptSandboxHint=unknown}
+ℹ️  ✅ Reconciled entitlement: lifetime_cohort
+ℹ️  Entitlement reconciliation complete — activeTier: lifetime, effectiveTier: lifetime, legacy: historicalPaidPurchase, docs: 9223372036854775807, libs: 20
+ℹ️  [BNNS] Loaded 32 chunks (mmap'd 0MB vectors, 0 bytes heap)
+ℹ️  [CoreMLSentenceEmbeddingProvider] Loaded EmbeddingModel.mlmodelc - compute: GPU+CPU (forced GPU mode)
+ℹ️  [CoreMLSentenceEmbeddingProvider] Loaded tokenizer
+ℹ️  [EmbeddingService] Using provider 'coreml_sentence_embedding' (available: true)
+📝 [HardwareTelemetry] Haptic pulse: soft
+ℹ️  [DocumentProcessor] Processing Garbage_In_Garbage_Out_Having_Useful_Data_Is_Every.pdf (0.13 MB)
+🔍 [DocumentProcessor] Document type: pdf
+CoreGraphics PDF has logged an error. Set environment variable "CG_PDF_VERBOSE" to learn more.
+ℹ️  [SelfTuning] Skipping automatic rebuild/config change during standard ingestion for container D2A41C1D-54EA-46A4-A8A1-D898078A4B99. Explicit rebuild required for: Window 350→300
+📝 [HardwareTelemetry] Haptic pulse: soft
+🔍 [DocumentProcessor] Adaptive preprocessing: using 'standard' strategy (quality=0.7, scanned=false)
+ℹ️  [DocumentProcessor] 🚀 GPU acceleration enabled via Metal: Apple A18 Pro GPU
+🔍 [DocumentProcessor] Rendered PDF page at 2520×3600px (360 DPI) [GPU-accelerated]
+ℹ️  [DocumentProcessor] [iOS26] Text layer Jaccard = 1.000 (OCR: 282 words, PDFKit: 282 words, shared: 282)
+🔍 [DocumentProcessor] [iOS26] ✓ Text layer validated (Jaccard=1.000)
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=99%, entropy=4.3, lang=en) Sample: "Downloaded by [Harvard College] at 18:48 27 November 2011↵Measurement, 9: 222–226, 2011↵Copyright © ..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=99%, entropy=4.3, lang=en) Sample: "Downloaded by [Harvard College] at 18:48 27 November 2011↵COMMENTARIES 223↵are not useful in the cla..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=97%, entropy=4.3, lang=en) Sample: "224 COMMENTARIES↵Word Definition↵Letter↵Identification↵Rhyme↵Recognition↵Reading↵Recognition↵Downloa..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=98%, entropy=4.2, lang=en) Sample: "COMMENTARIES 225↵WORD DEFINITION↵READING↵RECOGNITION↵RHYME↵RECOGNITION↵LETTER↵IDENTIFICATION↵Downloa..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=99%, entropy=4.4, lang=en) Sample: "Downloaded by [Harvard College] at 18:48 27 November 2011↵226 COMMENTARIES↵the one put forward by Co..."
+ℹ️  [DocumentProcessor] � LAYOUT-AWARE HYBRID MODE enabled (digital PDF with good text)
+ℹ️  [DocumentProcessor] 📐 Multi-column layouts will be detected and read in proper order
+ℹ️  [DocumentProcessor] Starting structured parsing for 5 pages (iOS 26+)
+ℹ️  [DocumentProcessor] 🚀 Hybrid (Layout + Structure) extraction with 12 concurrent pages (tier: enhanced)
+ℹ️  [BNNS] Loaded 32 chunks (mmap'd 0MB vectors, 0 bytes heap)
+📝 [HardwareTelemetry] Pulse Image Processing @ 90%
+ℹ️  [PageComplexityAnalyzer] Batch analysis complete:
+  Total pages: 5 | Analysis time: 161.3ms (32.27ms/page)
+  • direct: 1 pages (20%)
+  • basicOCR: 2 pages (40%)
+  • enhancedOCR: 2 pages (40%)
+  → Estimated OCR skip rate: 20% (1 of 5 pages)
+ℹ️  [DocumentProcessor] Complexity pre-scan: 224ms for 5 pages
+ℹ️  [DocumentProcessor] 🚀 ADAPTIVE: 1 pages skip Vision OCR, 4 need layout detection
+ℹ️  [DocumentProcessor] Memory-safe Vision rendering: max 4 page images alive at once (~824 MB)
+ℹ️  [DocumentProcessor] Page 1: fine text risk 0% → rendering at 432 DPI
+🔍 [DocumentProcessor] Adaptive preprocessing: using 'standard' strategy (quality=0.7, scanned=false)
+🔍 [DocumentProcessor] Rendered PDF page at 3024×4320px (432 DPI) [GPU-accelerated]
+🔍 [DocumentProcessor] Adaptive preprocessing: using 'minimal' strategy (quality=1.0, scanned=false)
+🔍 [DocumentProcessor] Spatial extraction detected 3 columns
+🔍 [DocumentProcessor] Page 2: Using PDFKit spatial extraction (skipped Vision)
+ℹ️  [DocumentProcessor] Page 3: fine text risk 0% → rendering at 432 DPI
+🔍 [DocumentProcessor] Adaptive preprocessing: using 'standard' strategy (quality=0.7, scanned=false)
+🔍 [DocumentProcessor] Rendered PDF page at 3024×4320px (432 DPI) [GPU-accelerated]
+🔍 [DocumentProcessor] Adaptive preprocessing: using 'minimal' strategy (quality=1.0, scanned=false)
+ℹ️  [DocumentProcessor] Page 4: fine text risk 0% → rendering at 432 DPI
+🔍 [DocumentProcessor] Adaptive preprocessing: using 'standard' strategy (quality=0.7, scanned=false)
+🔍 [DocumentProcessor] Rendered PDF page at 3024×4320px (432 DPI) [GPU-accelerated]
+🔍 [DocumentProcessor] Adaptive preprocessing: using 'minimal' strategy (quality=1.0, scanned=false)
+ℹ️  [BNNS] Loaded 32 chunks (mmap'd 0MB vectors, 0 bytes heap)
+📝 [HardwareTelemetry] Pulse Image Processing @ 90%
+📝 [HardwareTelemetry] Pulse Image Processing @ 90%
+📝 [HardwareTelemetry] Pulse Image Processing @ 90%
+ℹ️  [LayoutAwareExtractor] 🔍 Analyzing page 1 layout (image: 3024×4320)
+ℹ️  [LayoutAwareExtractor] 🔍 Analyzing page 3 layout (image: 3024×4320)
+📝 [HardwareTelemetry] Pulse ReRanking @ 70%
+ℹ️  [LayoutAwareExtractor] 🔍 Analyzing page 4 layout (image: 3024×4320)
+📝 [HardwareTelemetry] Pulse ReRanking @ 70%
+🔍 [BNNS] Batch buffered 32 chunks (persist deferred)
+🔍 [BNNS] Persisted 32 chunks (32 mmap'd)
+📝 [HardwareTelemetry] Pulse ReRanking @ 70%
+ℹ️  [BNNS] Loaded 32 chunks (mmap'd 0MB vectors, 0 bytes heap)
+🔍 [BNNS] Batch buffered 32 chunks (persist deferred)
+🔍 [BNNS] Persisted 32 chunks (32 mmap'd)
+🔍 [LayoutAwareExtractor] Page 1: Vision returned 36 text blocks
+🔍 [LayoutAwareExtractor] Block 0: X=0.00-0.02, text='Downloaded by [Harvard College'
+🔍 [LayoutAwareExtractor] Block 1: X=0.12-0.30, text='Measurement, 9: 222-226, 2011'
+🔍 [LayoutAwareExtractor] Block 2: X=0.12-0.36, text='Copyright © Taylor & Francis G'
+🔍 [LayoutAwareExtractor] Block 3: X=0.12-0.35, text='ISSN: 1536-6367 print / 1536-6'
+🔍 [LayoutAwareExtractor] Block 4: X=0.12-0.33, text='DOI: 10.1080/15366367.2011.632'
+🔍 [LayoutAwareExtractor] Found 2 column left-edge peaks at X: ["0.10", "0.14"]
+ℹ️  [LayoutAwareExtractor] Page 1: 3 columns detected, 36 blocks, 0 tables
+🔍 [LayoutAwareExtractor] Page 3: Vision returned 32 text blocks
+🔍 [LayoutAwareExtractor] Block 0: X=0.00-0.03, text='Downloaded by [Harvard College'
+🔍 [LayoutAwareExtractor] Block 1: X=0.11-0.15, text='224'
+🔍 [LayoutAwareExtractor] Block 2: X=0.19-0.32, text='COMMENTARIES'
+🔍 [LayoutAwareExtractor] Block 3: X=0.44-0.55, text='Word Definition'
+🔍 [LayoutAwareExtractor] Block 4: X=0.38-0.42, text='Letter'
+🔍 [LayoutAwareExtractor] Found 6 column left-edge peaks at X: ["0.10", "0.34", "0.36", "0.44", "0.46", "0.52"]
+ℹ️  [LayoutAwareExtractor] ✅ Detected 2-column layout
+ℹ️  [LayoutAwareExtractor] Page 3: 2 columns detected, 32 blocks, 0 tables
+🔍 [LayoutAwareExtractor] Page 4: Vision returned 39 text blocks
+🔍 [LayoutAwareExtractor] Block 0: X=0.68-0.81, text='COMMENTARIES'
+🔍 [LayoutAwareExtractor] Block 1: X=0.84-0.88, text='225'
+🔍 [LayoutAwareExtractor] Block 2: X=0.43-0.57, text='WORD DEFINITION'
+🔍 [LayoutAwareExtractor] Block 3: X=0.37-0.44, text='READING'
+🔍 [LayoutAwareExtractor] Block 4: X=0.35-0.46, text='RECOGNITION'
+🔍 [LayoutAwareExtractor] Found 2 column left-edge peaks at X: ["0.10", "0.12"]
+ℹ️  [LayoutAwareExtractor] Page 4: 3 columns detected, 39 blocks, 0 tables
+📝 [HardwareTelemetry] Pulse LLM Inference @ 80%
+ℹ️  [BNNS] Loaded 32 chunks (mmap'd 0MB vectors, 0 bytes heap)
+ℹ️  [StructuredDocumentParser] Page 4: using full-resolution structure parsing for maximum fidelity
+📝 [HardwareTelemetry] Pulse LLM Inference @ 80%
+ℹ️  [StructuredDocumentParser] Page 3: using full-resolution structure parsing for maximum fidelity
+📝 [HardwareTelemetry] Pulse LLM Inference @ 80%
+ℹ️  [BNNS] Loaded 32 chunks (mmap'd 0MB vectors, 0 bytes heap)
+ℹ️  [BNNS] Loaded 32 chunks (mmap'd 0MB vectors, 0 bytes heap)
+🔍 [BNNS] Batch buffered 32 chunks (persist deferred)
+🔍 [BNNS] Persisted 32 chunks (32 mmap'd)
+ℹ️  [BNNS] Loaded 32 chunks (mmap'd 0MB vectors, 0 bytes heap)
+🔍 [BNNS] Batch buffered 32 chunks (persist deferred)
+🔍 [BNNS] Persisted 32 chunks (32 mmap'd)
+ℹ️  [StructuredDocumentParser] Page 1: using full-resolution structure parsing for maximum fidelity
+🔍 [StructuredDocumentParser] Found title: •(OOS Is to duoyA) yewntsq bosilsebi as grols...
+ℹ️  [StructuredDocumentParser] Quality too low (5%), trying RecognizeTextRequest fallback
+🔍 [StructuredDocumentParser] Found title: noitinited broW...
+🔍 [StructuredDocumentParser] Deconfused Cyrillic→Latin: '0 0moо 80:8 6 [0e0 vH] bobowo' → '0 0moo 80:8 6 [0e0 vH] bobowo'
+🔍 [StructuredDocumentParser] Found title: St&C lutorU gniv&H :JO ogsdı6D AI og&drd... (low quality)
+🔍 [StructuredDocumentParser] Deconfused Cyrillic→Latin: 'AbF ,90 Я bboT .J
+ONI TRAO' → 'AbF ,90 R bboT .J
+ONI TRAO'
+🔍 [StructuredDocumentParser] Deconfused Cyrillic→Latin: 'An погіЯ W N›' → 'An пoгіR W N›'
+🔍 [StructuredDocumentParser] Fixed reversed text: 'ono boda sh o iosm ta nt ed ton o igil n' → 'ono adob hs o msoi at tn de not o ligi i'
+ℹ️  [StructuredDocumentParser] Parsed page 3: 9 elements (0 tables, 0 lists) quality=84% in 2.03s
+ℹ️  [StructuredDocumentParser] Parsed page 1: 16 elements (0 tables, 0 lists) quality=58% in 1.87s
+🔍 [DocumentProcessor] Dropping structured title that does not match trusted page text on page 3
+ℹ️  [CoreMLRegionDetector] DETR model not bundled, using Vision framework fallback
+🔍 [TableData] Building textRepresentation: 5 rows, 2 cols, headerRow=false
+ℹ️  [DocumentProcessor] Page 3: rebuilt parallel key/value table from page text to replace malformed row-column pairing
+🔍 [StructuredDocumentParser] RecognizeTextRequest fallback captured 88 chars
+ℹ️  [StructuredDocumentParser] RecognizeTextRequest captured 11 words (better than structured parsing)
+ℹ️  [StructuredDocumentParser] Parsed page 4: 2 elements (0 tables, 0 lists) quality=100% in 2.90s
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=3.7, lang=en) Sample: "•(OOS Is to duoyA) yewntsq bosilsebi as grols..."
+🔍 [DocumentProcessor] Dropping structured title that does not match trusted page text on page 4
+ℹ️  [DocumentProcessor] Page 5: fine text risk 0% → rendering at 432 DPI
+🔍 [DocumentProcessor] Adaptive preprocessing: using 'standard' strategy (quality=0.7, scanned=false)
+🔍 [DocumentProcessor] Rendered PDF page at 3024×4320px (432 DPI) [GPU-accelerated]
+🔍 [DocumentProcessor] Adaptive preprocessing: using 'minimal' strategy (quality=1.0, scanned=false)
+📝 [HardwareTelemetry] Pulse Image Processing @ 90%
+ℹ️  [LayoutAwareExtractor] 🔍 Analyzing page 5 layout (image: 3024×4320)
+📝 [HardwareTelemetry] Pulse ReRanking @ 70%
+🔍 [LayoutAwareExtractor] Page 5: Vision returned 42 text blocks
+🔍 [LayoutAwareExtractor] Block 0: X=0.00-0.02, text='Downloaded by [Harvard College'
+🔍 [LayoutAwareExtractor] Block 1: X=0.12-0.15, text='226'
+🔍 [LayoutAwareExtractor] Block 2: X=0.19-0.32, text='COMMENTARIES'
+🔍 [LayoutAwareExtractor] Block 3: X=0.12-0.88, text='the one put forward by Coburn '
+🔍 [LayoutAwareExtractor] Block 4: X=0.12-0.88, text='dynamic assessments and the da'
+🔍 [LayoutAwareExtractor] Found 3 column left-edge peaks at X: ["0.10", "0.12", "0.14"]
+ℹ️  [LayoutAwareExtractor] Page 5: 3 columns detected, 42 blocks, 0 tables
+📝 [HardwareTelemetry] Pulse LLM Inference @ 80%
+ℹ️  [StructuredDocumentParser] Page 5: using full-resolution structure parsing for maximum fidelity
+🔍 [StructuredDocumentParser] Found title: instoqmi tom ont ai voied ow tanw robiano ltiilqxe... (low quality)
+🔍 [StructuredDocumentParser] Deconfused Cyrillic→Latin: '.дОГ-0Гд.81.rgolontoqorbr29 bro tromqotv' → '.dOГ-0Гd.81.rgolontoqorbr29 bro tromqotv'
+🔍 [StructuredDocumentParser] Deconfused Cyrillic→Latin: '292799 :AM ogbirdms) (А) ліог loior b go' → '292799 :AM ogbirdms) (A) ліoг loior b go'
+🔍 [StructuredDocumentParser] Deconfused Cyrillic→Latin: 'AOA-ГГЕ, EI , rgolorr29 IotromqołovoC bo' → 'AOA-ГГE, EI , rgolorr29 IotromqołovoC bo'
+🔍 [StructuredDocumentParser] Deconfused Cyrillic→Latin: 'vrooNt t29T , (2bH) sjed .I.1 8 ,yvoliM ' → 'vrooNt t29T , (2bH) sjed .I.1 8 ,yvoliM '
+🔍 [StructuredDocumentParser] Deconfused Cyrillic→Latin: 'a-8₽ (2)0д, gidzbo91 lonoitoba stcb ło e' → 'a-8₽ (2)0d, gidzbo91 lonoitoba stcb ło e'
+🔍 [StructuredDocumentParser] Deconfused Cyrillic→Latin: 'MI oluM U nI Лоо nigsi9-оэп А omqolveb s' → 'MI oluM U nI Лoo nigsi9-oэп A omqolveb s'
+🔍 [StructuredDocumentParser] Deconfused Cyrillic→Latin: '10ł noitsico nomA :AV sinbasxelA og Isti' → '10ł noitsico nomA :AV sinbasxelA og Isti'
+🔍 [StructuredDocumentParser] Deconfused Cyrillic→Latin: 'wel лотиоо trovo bo ogr griloboM :zizvlo' → 'wel лoтuoo trovo bo ogr griloboM :zizvlo'
+🔍 [StructuredDocumentParser] Deconfused Cyrillic→Latin: 'to lorwol gnibseı ło гоггэоq Isoigolonod' → 'to lorwol gnibseı ło гoггэoq Isoigolonod'
+🔍 [StructuredDocumentParser] Deconfused Cyrillic→Latin: '.д85-TS zitilidozi nimo]' → '.d85-TS zitilidozi nimo]'
+🔍 [StructuredDocumentParser] Deconfused Cyrillic→Latin: 'E¿-E,80‚woivel Ivoigolorby29 dworg ogsug' → 'E¿-E,80‚woivel Ivoigolorby29 dworg ogsug'
+ℹ️  [StructuredDocumentParser] Parsed page 5: 27 elements (0 tables, 0 lists) quality=73% in 0.90s
+🔍 [TableData] Building textRepresentation: 3 rows, 2 cols, headerRow=false
+🔍 [TableData] Generated 3 key-value pairs
+🔍 [TableData] Building textRepresentation: 6 rows, 2 cols, headerRow=false
+🔍 [TableData] Building textRepresentation: 2 rows, 2 cols, headerRow=false
+ℹ️  [DocumentProcessor] Page 5: recovered 3 table(s) from layout/OCR fallback text
+ℹ️  [DocumentProcessor] Structured parsing complete: 2/5 pages with tables/lists, 14 elements extracted
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=99%, entropy=4.3, lang=en) Sample: "Downloaded by [Harvard College] at 18:48 27 November 2011↵Measurement, 9: 222–226, 2011↵Copyright © ..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=99%, entropy=4.3, lang=en) Sample: "Downloaded by [Harvard College] at 18:48 27 November 2011↵COMMENTARIES 223↵are not useful in the cla..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=97%, entropy=4.3, lang=en) Sample: "224 COMMENTARIES↵Word Definition↵Letter↵Identification↵Rhyme↵Recognition↵Reading↵Recognition↵Downloa..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=98%, entropy=4.2, lang=en) Sample: "COMMENTARIES 225↵WORD DEFINITION↵READING↵RECOGNITION↵RHYME↵RECOGNITION↵LETTER↵IDENTIFICATION↵Downloa..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=99%, entropy=4.4, lang=en) Sample: "Downloaded by [Harvard College] at 18:48 27 November 2011↵226 COMMENTARIES↵the one put forward by Co..."
+🔍 [DocumentProcessor] No embedded images found in PDF
+ℹ️  [DocumentProcessor] Structured parsing: 4 tables, 0 lists extracted
+🔍 [DocumentProcessor] Extracted 18636 chars (2587 words) in 9.29s
+ℹ️  [DocumentProcessor] Text normalization: cleaned 34 chars (18636→18602)
+ℹ️  [SQLiteFTS5] Database initialized at /var/mobile/Containers/Data/Application/6DA509AF-7471-48E7-B130-FD2E80596E08/Library/Application Support/OpenIntelligence/LocalCache/FTS5/fulltext.sqlite
+ℹ️  [SQLiteFTS5] Chunk-level FTS5 table initialized
+ℹ️  [SQLiteFTS5] Page-level FTS5 table initialized
+🔍 [SQLiteFTS5] Deleted document 20CA5352-EFD5-44EA-8F4F-87F6A9BA4A48
+🔍 [SQLiteFTS5] Stored document 20CA5352-EFD5-44EA-8F4F-87F6A9BA4A48 (18605 chars, 2862 words)
+🔍 [DocumentProcessor] Stored normalized text (18605 chars) to FTS5 for exact query support
+ℹ️  [SQLiteFTS5] Stored 5 pages for document 20CA5352-EFD5-44EA-8F4F-87F6A9BA4A48
+ℹ️  [DocumentProcessor] Stored 5 individual pages to FTS5 for page-level context
+ℹ️  [DocumentProcessor] Document category: scientific_paper
+🔍 [DocumentProcessor] Using pdf chunking: target=240w, overlap=45w
+🔍 [SemanticChunker] Starting advanced chunking
+🔍 [SemanticChunker] Target: 240w, Min: 80w, Max: 310w
+🔍 [SemanticChunker] Overlap: 45w
+🔍 [SemanticChunker] Detected 20 sections
+🔍 [SemanticChunker] Detected 1 linguistic topic boundaries
+📝 [SemanticChunker] Processing chunk 1
+📝 [SemanticChunker] Chunk 1: 272 words
+📝 [SemanticChunker] Processing chunk 2
+📝 [SemanticChunker] Snapping to section: Psychology Press
+📝 [SemanticChunker] Chunk 2: 160 words
+📝 [SemanticChunker] Processing chunk 3
+📝 [SemanticChunker] Chunk 3: 262 words
+📝 [SemanticChunker] Processing chunk 4
+📝 [SemanticChunker] Chunk 4: 257 words
+📝 [SemanticChunker] Processing chunk 5
+📝 [SemanticChunker] Snapping to section: 224 COMMENTARIES
+📝 [SemanticChunker] Chunk 5: 272 words
+📝 [SemanticChunker] Processing chunk 6
+📝 [SemanticChunker] Snapping to section: Word Definition
+📝 [SemanticChunker] Chunk 6: 145 words
+📝 [SemanticChunker] Processing chunk 7
+📝 [SemanticChunker] Chunk 7: 79 words
+📝 [SemanticChunker] Processing chunk 8
+📝 [SemanticChunker] Chunk 8: 78 words
+📝 [SemanticChunker] Processing chunk 9
+📝 [SemanticChunker] Chunk 9: 70 words
+🔍 [SemanticChunker] Created 9 semantically-aware chunks
+🔍 [SemanticChunker] Avg words/chunk: 177
+🔍 [SemanticChunker] Avg semantic density: 0.64
+🔍 [SemanticChunker] Chunks with sections: 8
+🔍 [SemanticChunker] Chunks with numeric data: 8
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=3.9, lang=en) Sample: "Harvard Graduate School of Education..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=3.9, lang=en) Sample: "Harvard Graduate School of Education..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=3.9, lang=en) Sample: "Harvard Graduate School of Education..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=3.9, lang=en) Sample: "Harvard Graduate School of Education..."
+🔍 [DocumentProcessor] Created companion table chunks for page 3, section: none
+🔍 [SemanticChunker] Starting advanced chunking
+🔍 [SemanticChunker] Target: 240w, Min: 80w, Max: 310w
+🔍 [SemanticChunker] Overlap: 45w
+🔍 [SemanticChunker] Detected 8 sections
+🔍 [SemanticChunker] Detected 0 linguistic topic boundaries
+📝 [SemanticChunker] Processing chunk 1
+📝 [SemanticChunker] Snapping to section: FINAL THOUGHTS
+📝 [SemanticChunker] Chunk 1: 162 words
+📝 [SemanticChunker] Processing chunk 2
+📝 [SemanticChunker] Snapping to section: COMMENTARIES
+📝 [SemanticChunker] Chunk 2: 246 words
+📝 [SemanticChunker] Processing chunk 3
+📝 [SemanticChunker] Chunk 3: 126 words
+📝 [SemanticChunker] Processing chunk 4
+📝 [SemanticChunker] Chunk 4: 59 words
+📝 [SemanticChunker] Processing chunk 5
+📝 [SemanticChunker] Chunk 5: 56 words
+🔍 [SemanticChunker] Created 5 semantically-aware chunks
+🔍 [SemanticChunker] Avg words/chunk: 129
+🔍 [SemanticChunker] Avg semantic density: 0.72
+🔍 [SemanticChunker] Chunks with sections: 4
+🔍 [SemanticChunker] Chunks with numeric data: 5
+🔍 [DocumentProcessor] Created companion table chunks for page 5, section: none
+🔍 [SemanticChunker] Starting advanced chunking
+🔍 [SemanticChunker] Target: 240w, Min: 80w, Max: 310w
+🔍 [SemanticChunker] Overlap: 45w
+🔍 [SemanticChunker] Detected 1 sections
+🔍 [SemanticChunker] Detected 0 linguistic topic boundaries
+📝 [SemanticChunker] Processing chunk 1
+📝 [SemanticChunker] Snapping to section: REFERENCES
+📝 [SemanticChunker] Chunk 1: 92 words
+📝 [SemanticChunker] Processing chunk 2
+📝 [SemanticChunker] Chunk 2: 178 words
+📝 [SemanticChunker] Processing chunk 3
+📝 [SemanticChunker] Chunk 3: 49 words
+📝 [SemanticChunker] Processing chunk 4
+📝 [SemanticChunker] Chunk 4: 47 words
+🔍 [SemanticChunker] Created 4 semantically-aware chunks
+🔍 [SemanticChunker] Avg words/chunk: 91
+🔍 [SemanticChunker] Avg semantic density: 0.77
+🔍 [SemanticChunker] Chunks with sections: 2
+🔍 [SemanticChunker] Chunks with numeric data: 4
+🔍 [DocumentProcessor] Created companion table chunks for page 5, section: none
+🔍 [SemanticChunker] Starting advanced chunking
+🔍 [SemanticChunker] Target: 240w, Min: 80w, Max: 310w
+🔍 [SemanticChunker] Overlap: 45w
+⚠️  [SemanticChunker] Text too small (52 words); creating single chunk
+🔍 [DocumentProcessor] Created companion table chunks for page 5, section: none
+🔍 [SemanticChunker] Starting advanced chunking
+🔍 [SemanticChunker] Target: 240w, Min: 80w, Max: 310w
+🔍 [SemanticChunker] Overlap: 45w
+⚠️  [SemanticChunker] Text too small (16 words); creating single chunk
+ℹ️  [DocumentProcessor] Structure-aware chunking: 8 tables, 0 lists, 20 paragraphs
+ℹ️  [DocumentProcessor] Created 28 structure-aware chunks
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=3.9, lang=en) Sample: "Harvard Graduate School of Education..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=3.9, lang=en) Sample: "Harvard Graduate School of Education..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=3.9, lang=en) Sample: "Harvard Graduate School of Education..."
+🔍 [DocumentProcessor] ✓ PASS: Text quality OK (printable=100%, entropy=3.9, lang=en) Sample: "Harvard Graduate School of Education..."
+⚠️  [DocumentProcessor] ⚠️ SPLIT OVERSIZED CHUNK: 436t/235w → 2 sub-chunks (section: none, type: table)
+ℹ️  [DocumentProcessor] Token limit enforcement: split 1 oversized chunks → 28 → 29 total
+🔍 [DocumentProcessor] Token limit enforcement complete: 28→29 chunks, split=1, maxTokens=354/430
+🔍 [DocumentProcessor] ✅ Content coverage: 93.9% words, 130% chars (includes overlap)
+🔍 [DocumentProcessor] Created 29 semantic chunks in 0.413s
+🔍    📑 Semantic features:
+🔍       - Sections detected: 14/29
+🔍       - Keywords extracted: 29/29
+🔍       - Numeric data: 28/29
+🔍       - List structures: 18/29
+🔍       - Avg semantic density: 0.731
+🔍    📊 Chunk stats: avg=828, min=118, max=1797 chars
+🔍    ✅ Total processing: 10.02s
+ℹ️  [DocumentProcessor] Structured parsing stats: 4 tables, 0 lists, 0 titles, 0 entities detected
+📝 [HardwareTelemetry] Pulse Text Chunking @ 75%
+📝 [HardwareTelemetry] Pulse Query Processing @ 60%
+🔍 [Gazetteer] Added 45 terms with label 'Person' from Garbage_In_Garbage_Out_Having_Useful_Data_Is_Every.pdf
+🔍 [Gazetteer] Added 22 terms with label 'Organization' from Garbage_In_Garbage_Out_Having_Useful_Data_Is_Every.pdf
+🔍 [Gazetteer] Added 8 terms with label 'Place' from Garbage_In_Garbage_Out_Having_Useful_Data_Is_Every.pdf
+🔍 [Gazetteer] Added 62 terms with label 'Technical' from Garbage_In_Garbage_Out_Having_Useful_Data_Is_Every.pdf
+ℹ️  [Gazetteer] Loaded 68 terms from disk
+🔍 [Gazetteer] Saved 68 terms to disk
+🔍 [Gazetteer] Saved 68 terms to disk
+🔍 [Gazetteer] Saved 68 terms to disk
+🔍 [Gazetteer] Saved 68 terms to disk
+📝 [HardwareTelemetry] Pulse Text Chunking @ 50%
+📝 [HardwareTelemetry] Pulse Query Processing @ 50%
+📝 [HardwareTelemetry] Pulse Text Chunking @ 50%
+📝 [HardwareTelemetry] Pulse Query Processing @ 50%
+📝 [HardwareTelemetry] Pulse Text Chunking @ 50%
+📝 [HardwareTelemetry] Pulse Query Processing @ 50%
+📝 [HardwareTelemetry] Pulse Text Chunking @ 50%
+📝 [HardwareTelemetry] Pulse Query Processing @ 50%
+📝 [HardwareTelemetry] Haptic pulse: tick
+ℹ️  [Contextual] Document prefix: '[Garbage In Garbage Out Having Useful Data Is Every]'
+🔍 [Spotlight] Indexed document 'Garbage_In_Garbage_Out_Having_Useful_Data_Is_Every.pdf' in container 'Library 2'
+🔍 Generating embeddings for 29 chunks
+📝 [HardwareTelemetry] Haptic pulse: processing
+📝 [HardwareTelemetry] Sustain START Embedding
+📝 [HardwareTelemetry] Pulse Embedding @ 100%
+ℹ️  Embedded 29 chunks in 0.70s (avg: 24ms)
+📝 [HardwareTelemetry] Sustain STOP Embedding
+📝 [HardwareTelemetry] Haptic pulse: tick
+📝 [HardwareTelemetry] Haptic pulse: soft
+🔍 [BNNS] Batch buffered 29 chunks (persist deferred)
+ℹ️  [SQLiteFTS5] Stored 29 chunks for document 20CA5352-EFD5-44EA-8F4F-87F6A9BA4A48
+ℹ️  [RAGService] Stored 29 chunks in FTS5 chunk index
+🔍 [ContainerVocabularyService] Loaded 3 container vocabularies
+🔍 [Spotlight] Indexed 29 chunks of document 'Garbage_In_Garbage_Out_Having_Useful_Data_Is_Every.pdf'
+ℹ️  [DocumentSummary] Generating summary for 'Garbage_In_Garbage_Out_Having_Useful_Data_Is_Every.pdf' (29 chunks)
+ℹ️  [BNNS] Loaded 32 chunks (mmap'd 0MB vectors, 0 bytes heap)
+ℹ️  [BNNS] Loaded 32 chunks (mmap'd 0MB vectors, 0 bytes heap)
+ℹ️  [BNNS] Loaded 32 chunks (mmap'd 0MB vectors, 0 bytes heap)
+🔍 [BNNS] Batch buffered 32 chunks (persist deferred)
+🔍 [BNNS] Persisted 32 chunks (32 mmap'd)
+ℹ️  [BNNS] Loaded 32 chunks (mmap'd 0MB vectors, 0 bytes heap)
+🔍 [BNNS] Batch buffered 32 chunks (persist deferred)
+🔍 [BNNS] Persisted 32 chunks (32 mmap'd)
+⚠️  [DocumentSummary] Apple FM summary timed out/failed for 'Garbage_In_Garbage_Out_Having_Useful_Data_Is_Every.pdf': timedOut(seconds: 12), using extractive fallback
+📝 [HardwareTelemetry] Pulse Embedding @ 80%
+📝 [HardwareTelemetry] Pulse Embedding @ 70%
+ℹ️  [DocumentSummary] Generated 150-word summary
+🔍 [BNNS] Batch buffered 1 chunks (persist deferred)
+ℹ️  [RAGService] RAPTOR-lite: Generated L1 summary for 'Garbage_In_Garbage_Out_Having_Useful_Data_Is_Every.pdf'
+🔍 [BNNS] Persisted 30 chunks (30 mmap'd)
+ℹ️  [ContentTagging] Content tagging model available
+📝 [HardwareTelemetry] Sustain START LLM Inference
+ℹ️  [BNNS] Loaded 32 chunks (mmap'd 0MB vectors, 0 bytes heap)
+ℹ️  [BNNS] Loaded 32 chunks (mmap'd 0MB vectors, 0 bytes heap)
+ℹ️  [BNNS] Loaded 32 chunks (mmap'd 0MB vectors, 0 bytes heap)
+🔍 [BNNS] Batch buffered 32 chunks (persist deferred)
+🔍 [BNNS] Persisted 32 chunks (32 mmap'd)
+ℹ️  [BNNS] Loaded 32 chunks (mmap'd 0MB vectors, 0 bytes heap)
+🔍 [BNNS] Batch buffered 32 chunks (persist deferred)
+🔍 [BNNS] Persisted 32 chunks (32 mmap'd)
+ℹ️  [BNNS] Loaded 30 chunks (mmap'd 0MB vectors, 0 bytes heap)

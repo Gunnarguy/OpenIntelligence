@@ -33,6 +33,7 @@ struct IngestionLiveActivityWidget: Widget {
             .contentMargins(.all, 16, for: .expanded)
             .contentMargins(.trailing, 10, for: .expanded)
             .keylineTint(keylineTint(for: context.state.processingMode))
+            .widgetURL(OpenIntelligenceDeepLink.ingestionQueueURL)
         }
         .supplementalActivityFamilies([.small, .medium])
     }
@@ -213,7 +214,8 @@ private struct IngestionLiveActivityLockScreenView: View {
                     .foregroundStyle(.orange)
             }
         }
-        .padding(.vertical, isActivityFullscreen ? 8 : 0)
+        .padding(.horizontal, 16)
+        .padding(.vertical, isActivityFullscreen ? 12 : 8)
     }
 
     private var horizontalHeader: some View {

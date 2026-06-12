@@ -158,7 +158,10 @@ final class VectorStoreRouter {
 
     /// Clear all cached stores.
     func clearAll() {
-        stores.removeAll()
+        // Keep in-memory databases to prevent volatile data loss during tab switches/sync checks
+        stores = stores.filter { id, db in
+            describeKind(db) == VectorDBKind.inMemory.rawValue
+        }
     }
 
     /// Check if a store is already cached for a container.

@@ -215,10 +215,9 @@ struct DocumentImportStatusIntent: AppIntent {
         Log.info("[Siri] Document Import Status intent invoked", category: .ingestion)
 
         let ragService = await MainActor.run {
-            let service = RAGService()
-            service.restoreIngestionQueueIfNeeded()
-            return service
+            RAGService()
         }
+        await ragService.restoreIngestionQueueIfNeeded()
 
         let snapshot = await MainActor.run { () -> DocumentImportStatusSnapshot? in
             let pendingItems = ragService.ingestionItems.filter { !$0.stage.isTerminal }

@@ -714,6 +714,7 @@ struct OnboardingChecklistView: View {
         let fn = item.filename
         switch item.stage {
         case .queued: return PipelineLogEntry(icon: "clock", color: .white.opacity(0.5), text: "[\(fn)] Queued in pipeline")
+        case .paused: return PipelineLogEntry(icon: "pause.circle", color: .orange, text: "[\(fn)] Paused after app restart")
         case .loading: return PipelineLogEntry(icon: "arrow.down.circle", color: .white.opacity(0.6), text: "[\(fn)] Allocating secure local memory buffer...")
         case .transcribing: return PipelineLogEntry(icon: "waveform", color: .orange, text: "[\(fn)] Transcribing audio via Whisper...")
         case .extracting: return PipelineLogEntry(icon: "doc.text.magnifyingglass", color: .blue, text: "[\(fn)] Parsing layout & extracting raw text...")
@@ -777,7 +778,7 @@ struct OnboardingChecklistView: View {
         guard !items.isEmpty else { return .none }
         for item in items where !item.stage.isTerminal {
             switch item.stage {
-            case .queued, .loading, .transcribing, .extracting: return .extract
+            case .queued, .paused, .loading, .transcribing, .extracting: return .extract
             case .chunking, .analyzing, .adapting, .reindexing: return .chunk
             case .embedding: return .embed
             case .indexing, .storing: return .index
