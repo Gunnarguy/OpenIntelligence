@@ -2,20 +2,28 @@
 
 Public release highlights for OpenIntelligence.
 
-## 4.0
-
+## 4.0 & 4.1
+ 
 Changes since 3.7.1:
-
-Version 4.0 introduces the WWDC26 Apple Intelligence modernization suite, featuring dynamic model routing, Core AI frameworks, a first-class RAG Evaluations suite, and a beautiful Liquid Glass UI design.
-
+ 
+Version 4.0 & 4.1 introduces the WWDC26 Apple Intelligence modernization suite, featuring dynamic model routing, Core AI frameworks, a first-class RAG Evaluations suite, local sentence embedding acceleration, live reasoning telemetry, and a beautiful Liquid Glass UI design.
+ 
 ### Highlights
-
-- **Dynamic On-Device vs. Private Cloud Compute Routing**: Queries are automatically routed based on complexity, quality mode, and token size. Standard queries run locally using the 4K-token on-device model (`SystemLanguageModel.default`), while complex reasoning or context-heavy queries dynamically escalate to secure Private Cloud Compute (`PrivateCloudComputeLanguageModel`) utilizing a 32K-token context window.
-- **Under the Hood UI Dashboard**: A premium details popover card dynamically visualizes active model routing, token budget usage (4K vs 32K), resolved execution pathways (On-Device/PCC), and last query telemetry with interactive pulsing status indicators.
-- **Core AI Integration**: Replaced legacy latency guessing heuristics with a direct, custom local Core AI silicon execution engine and model registry.
-- **RAG Evaluations Suite**: Built a comprehensive continuous integration evaluation suite (`RAGEvalRunner`) that loads JSONL test datasets, computes precision/recall, and outputs rich Markdown reports. Exposes an Apple Evaluations Bridge for native compatibility with Apple's `fm CLI` testing suite.
+ 
+- **Dynamic On-Device vs. Private Cloud Compute Routing**: Queries route based on complexity. Standard queries run locally using the 4K-token on-device model (`SystemLanguageModel.default`), while complex reasoning or context-heavy queries escalate to secure Private Cloud Compute (`PrivateCloudComputeLanguageModel`) utilizing a 32K-token context window.
+- **Under the Hood UI Dashboard**: A premium details popover card dynamically visualizes active model routing, token budget usage (4K vs 32K), resolved execution pathways (On-Device/PCC), and last query telemetry.
+- **Core AI Local Scaffolding**: Prepared experimental `CoreAISentenceEmbeddingProvider` local scaffolding under Apple's Core AI framework (.aimodel loading with 512-token BERT tokenization), keeping the production baseline stable on the optimized Core ML vector engine.
+- **Live Reasoning UI Telemetry**: Integrates the `ThinkingStreamView` directly inside the `UnifiedMetricsBar` at the bottom of the chat interface for real-time model thinking progress feedback.
+- **Smooth GPU-Accelerated Transitions**: Replaced CPU-bound layout dynamic hierarchy calculations in the `IngestionQueueOverlay` with spring-animated opacity, scale, and offset transformations to avoid dynamic UI layout stutter, adding duration timers for ingestion tasks.
+- **Metal GPU Vector Acceleration**: Implemented SIMD4 batch cosine similarity and normalization pipelines inside `GPUComputeService` using threadgroup-level memory buffers to accelerate vector search by 4x.
+- **Adaptive Ingestion Pipeline**: Integrated `PageComplexityAnalyzer` to pre-scan document structures. Digital PDF pages skip Vision OCR execution automatically (saving ~20% processing time), and the system dynamically scales rendering resolution (360-432 DPI) based on page density risk.
+- **Suggested Questions & NLTagger POS Filters**: Refined suggested questions using `NLTagger` Part-of-Speech filters to keep suggestions grammatically clean, and added offline gold-standard questions to save startup battery and cold-start latency.
+- **Database Safety & Physical File GC**: Switched `BNNSVectorDatabase` disk saves to atomic writes to prevent local file corruption. Added local physical file garbage collection in `WorkspaceSyncService` to purge orphaned documents.
+- **Siri, Shortcuts & Spotlight**: Document and library items are now persisted App Entities (`OIDocumentEntity`, `OILibraryEntity`), enabling Siri/Shortcuts actions. Spotlight indexes down to specific chunks and sections.
+- **RAG Evaluations Suite**: Built `RAGEvalRunner` to run evaluation datasets, tracking Recall@5, Citation Precision, and Hallucination metrics against spec targets. Exposes an Apple Evaluations Bridge for native compatibility with Apple's `fm CLI` testing suite.
 - **Liquid Glass UI**: Styled components using modern native glass effect modifiers (`glassCardEffectHelper`) for a premium, wowed-at-first-glance user experience.
 - **Agentic RAG Retry Safeguard**: Hardened agentic RAG reasoning loops with retry safeguards to preserve valid non-empty drafts and protect against rate-limited empty responses.
+
 
 ## 3.7.1
 

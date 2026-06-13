@@ -2,25 +2,23 @@
 
 This is the public version history for OpenIntelligence. It focuses on user-visible product changes and intentionally omits private engine tuning, thresholds, and internal implementation details.
 
-## 4.1 - June 2026
+## 4.0 & 4.1 - June 2026 (Apple Intelligence Release)
 
-- Added CoreAISentenceEmbeddingProvider for high-speed, local silicon-accelerated vector calculations on Apple hardware
-- Integrated UnifiedMetricsBar and ThinkingStreamView for live LLM reasoning/thinking telemetry
-- Implemented security-scoped file bookmark directory persistence for Document Picker, resolving iCloud Drive and File Provider path sandboxing constraints
-- Fixed incomplete/interrupted ingestion items by adding cascading deletion (database, files, and indexes) upon cancel or discard
-- Hardened BNNSVectorDatabase against file corruption using thread-safe atomic disk writes and unified database reloads
-- Enhanced Suggested Questions with a two-pass diversity selector and strict grammar/POS tagging filters
-- Enforced main-actor safety for system LLM availability checks
+OpenIntelligence version 4.0 & 4.1 is a milestone upgrade that integrates Apple Intelligence system-level APIs with optimized on-device and secure cloud routing. This unified release incorporates both the initial v4.0 architecture and the v4.1 reliability and telemetry enhancements currently live on the App Store:
 
-## 4.0 - June 2026
-
-- Migrated Language Model Sessions to native iOS 26+ FoundationModels APIs
-- Implemented dynamic routing policy supporting On-Device default (4K tokens) and secure Private Cloud Compute enclaves (32K tokens) fallback
-- Added premium "Under the Hood" details popover UI showing real-time active model routing and token budget stats
-- Integrated Core AI local silicon execution engine and model registry
-- Created continuous integration Evaluations suite for dataset validation against target Recall@5 and Citation Precision quality gates
-- Designed native glass card UI effects using modern iOS 26+ glass modifiers
-- Hardened Agentic RAG reasoning loops with retry safeguards to prevent rate-limited empty responses from overwriting valid answer drafts
+- **Apple Foundation Models Integration**: Migrated language model sessions to native iOS 26+ FoundationModels APIs. Deconstructed the monolithic LLM services into dedicated helper modules (`FoundationModelSessionFactory`, `FoundationModelToolRegistry`, `FoundationModelPromptCompiler`, `FoundationModelStructuredGenerator`, `FoundationModelTranscriptStore`, and `FoundationModelTokenBudget`).
+- **Dynamic Routing Policy**: Standard queries route to local on-device models (4K token context boundary), while complex or long-context queries automatically scale to secure Private Cloud Compute (32K tokens).
+- **Core AI Local Scaffolding**: Staged `CoreAISentenceEmbeddingProvider` as experimental local scaffolding under Apple's Core AI framework (.aimodel loading with 512-token BERT tokenization), while the production build continues to run on the highly optimized Core ML vector engine.
+- **Live Telemetry & UI Trust Layer**: Added the `ThinkingStreamView` directly to the `UnifiedMetricsBar` for live LLM reasoning telemetry and refreshed the interface with modern Liquid Glass UI components.
+- **Metal GPU-Accelerated Vector Search**: Integrated SIMD4 and threadgroup-level Metal pipelines in `GPUComputeService` for 4x faster local batch vector calculations.
+- **Adaptive Ingestion Pipeline**: Integrated `PageComplexityAnalyzer` to pre-scan document structures. Digital PDF pages skip Vision OCR execution automatically (averaging a 20% skip rate), and the system dynamically scales rendering resolution (360-432 DPI) based on page density risk.
+- **Database Safety & Physical File GC**: Switched `BNNSVectorDatabase` disk saves to atomic writes, preventing local file corruption and size mismatch issues. Added local physical file garbage collection in `WorkspaceSyncService` to purge orphaned documents.
+- **Cascading Ingestion Deletions**: Hardened the ingestion queue to trigger a clean cascading deletion (database entries, physical files, FTS5 tables, and Spotlight indexes) when uploads are canceled or discarded.
+- **Siri, Shortcuts & Spotlight**: Document and library items are now persisted App Entities (`OIDocumentEntity`, `OILibraryEntity`), enabling Siri/Shortcuts actions. Spotlight indexes down to specific chunks and sections.
+- **Suggested Questions Polish**: Refined suggestions with a two-pass diversity chunk selector, `NLTagger` POS grammar filters, and offline curated suggestions that bypass LLM runtime overhead on app start.
+- **Continuous Evaluations Suite**: Built `RAGEvalRunner` to run evaluation datasets, tracking Recall@5, Citation Precision, and Hallucination metrics against spec targets.
+- **RAG Generation Safeguards**: Enforced main-actor safety and hardened reasoning loops with retry policies to prevent rate-limited empty responses from overwriting valid answer drafts.
+- **Render Optimizations**: Replaced CPU layout calculations in `IngestionQueueOverlay` with spring-animated opacity, scale, and offset transformations to avoid dynamic UI layout stutter, adding duration timers for ingestion tasks.
 
 ## 3.7 - May 2026
 

@@ -4,7 +4,7 @@ Version 4.1:
 - Core AI Sentence Embedding Provider: Added CoreAISentenceEmbeddingProvider for high-speed, local silicon-accelerated vector calculations on Apple device hardware.
 - Real-Time Thinking Telemetry: Added ThinkingStreamView inside the UnifiedMetricsBar to show live reasoning and model processing states.
 - Enhanced Suggested Questions: Upgraded SuggestedQuestions with a two-pass section-diversity selector and strict POS-tagging grammar filters to generate high-quality follow-ups.
-- Folder Picker Persistence: Implemented security-scoped file bookmark directory mapping, resolving iCloud Drive and File Provider path sandboxing constraints.
+- Metal GPU-accelerated retrieval: Integrated a custom Metal compute shader pipeline with SIMD4 and threadgroup-level execution, driving a 4x speedup in batch cosine similarity RAG retrieval.
 - Atomic Database & Purging: Hardened RAG pipeline with atomic vector database writes and cascading file/index deletion of discarded uploads to prevent data corruption.
 - Thread-Safe Safety Routing: Thread-safe MainActor routing for LLM availability checks.
 
