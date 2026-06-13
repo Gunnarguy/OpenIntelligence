@@ -46,4 +46,8 @@ jobs:
             -configuration Debug \
             -skipPackagePluginValidation \
             CODE_SIGNING_ALLOWED=NO \
-            CODE_SIGNING_REQUIRED=NO
+            CODE_SIGNING_REQUIRED=NO > build.log 2>&1
+
+      - name: Print build log on failure
+        if: failure()
+        run: tail -n 200 build.log
