@@ -6,9 +6,6 @@ on:
   pull_request:
     branches: ["main"]
 
-permissions:
-  contents: write
-
 jobs:
   build:
     name: Build
@@ -18,8 +15,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Cache SwiftPM
         uses: actions/cache@v4
@@ -57,16 +52,4 @@ jobs:
             -configuration Debug \
             -skipPackagePluginValidation \
             CODE_SIGNING_ALLOWED=NO \
-            CODE_SIGNING_REQUIRED=NO > build.log 2>&1
-
-      - name: Print build log and push to debug branch on failure
-        if: failure()
-        run: |
-          tail -n 200 build.log
-          git config --global user.name "Actions Bot"
-          git config --global user.email "bot@github.com"
-          git checkout -b debug-build-log || git checkout debug-build-log
-          cp build.log build_debug.txt
-          git add build_debug.txt
-          git commit -m "debug: build log on failure"
-          git push -f origin debug-build-log
+            CODE_SIGNING_REQUIRED=NO
