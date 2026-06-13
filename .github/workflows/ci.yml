@@ -34,7 +34,8 @@ jobs:
         run: |
           xcodebuild -resolvePackageDependencies \
             -project OpenIntelligence.xcodeproj \
-            -scheme OpenIntelligence
+            -scheme OpenIntelligence \
+            -skipPackagePluginValidation
 
       - name: Build App
         run: |
@@ -43,4 +44,6 @@ jobs:
             -scheme OpenIntelligence \
             -destination 'generic/platform=iOS Simulator' \
             -configuration Debug \
-            CODE_SIGNING_ALLOWED=NO
+            -skipPackagePluginValidation \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO

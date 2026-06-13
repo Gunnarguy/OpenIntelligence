@@ -30,7 +30,9 @@ jobs:
             -scheme OpenIntelligence \
             -destination 'generic/platform=iOS Simulator' \
             -configuration Release \
-            CODE_SIGNING_ALLOWED=NO
+            -skipPackagePluginValidation \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v1
