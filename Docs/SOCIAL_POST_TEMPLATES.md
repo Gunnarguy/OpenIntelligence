@@ -10,17 +10,17 @@ Project Link: https://github.com/Gunnarguy/OpenIntelligence
 
 I build OpenIntelligence: a free, open-source iPhone app that lets you search and ask questions about your documents (PDFs, manuals, notes) and get answers with verified, clickable links to the exact source page. Everything runs privately on your device.
 
-When Apple announced their new Apple Intelligence integrations at WWDC26, I knew I had to rebuild my app to support them. Today I'm releasing v4.0 & v4.1—a complete rewrite (14,000+ lines of Swift changed) that connects the app's document search directly to iOS features like system search (Spotlight) and Siri voice commands.
+When Apple announced their new Apple Intelligence integrations at WWDC26, I knew I had to rebuild my app to support them. Today I'm releasing v4.0 & v4.1—a complete rewrite (14,000+ lines of Swift changed) that leverages these new APIs to connect the app with Siri, system search, and secure cloud enclaves.
 
-Here is the Before vs. After of how these WWDC26 features make finding facts in your documents better:
+Here is the Before vs. After of what has changed in this update:
 
-*   **Home Screen Search (WWDC26 Spotlight integration)**:
+*   **Home Screen Search (Spotlight)**:
     *   *Before*: You could only find files by typing their exact name.
-    *   *After*: Your iPhone now indexes the actual text passages inside your files. You can search for specific facts directly from your iPhone's main home screen search bar (Spotlight), without even opening the app.
-*   **Voice Control (WWDC26 Siri App Entities)**:
+    *   *After*: Spotlight now indexes the actual text passages inside your files. You can search for specific facts directly from your iPhone's main home screen search bar, without even opening the app.
+*   **Voice Control (Siri)**:
     *   *Before*: Siri could only open the app.
     *   *After*: Siri understands what files you have. You can ask Siri to "summarize this folder of files" or "compare these two documents" using voice commands.
-*   **Local Privacy + Secure Cloud (WWDC26 Private Cloud Compute)**:
+*   **Local Privacy + Secure Cloud (Private Cloud Compute)**:
     *   *Before*: You had to choose between slow private searches on your phone or sending your data to servers where you don't control it.
     *   *After*: Standard questions are answered entirely on your device. For huge files or complex tasks, the app securely routes them to Apple's Private Cloud Compute servers where they are processed privately and immediately deleted. Your files stay 100% private.
 *   **Finding Answers (GPU Speed)**:
@@ -44,7 +44,7 @@ I build OpenIntelligence, a free and open-source iOS application that lets you s
 
 WWDC26 completely changed the game for on-device AI. The moment Apple announced their new system-wide integration APIs, I set out to rewrite the app's entire document Q&A pipeline (162 files, 14,000+ lines of Swift changed) to support them.
 
-Instead of keeping the app isolated from the rest of the device, I integrated it directly with native iOS search and Siri voice control using the new WWDC26 APIs.
+I rebuilt the pipeline to leverage the new Apple Intelligence APIs (Spotlight, Siri App Entities, and Private Cloud Compute) announced at WWDC26.
 
 Here is the "Before vs. After" of the architecture:
 
@@ -77,12 +77,12 @@ https://github.com/Gunnarguy/OpenIntelligence
 
 1/ I build OpenIntelligence: a free, open-source iOS app that lets you ask questions about your documents (PDFs, manuals, notes) and get answers with verified, clickable links to the exact source.
 
-When Apple announced the new Apple Intelligence system integrations at WWDC26, I decided to completely rewrite the app (162 files, 14,000+ lines changed) to integrate its features directly with Siri and Spotlight search.
+When Apple announced the new Apple Intelligence system integrations at WWDC26, I decided to completely rewrite the app (162 files, 14,000+ lines changed) to leverage these new platform APIs.
 
-Here is the Before vs. After of how WWDC26 integrations transformed the app: 👇
+Here is the Before vs. After of what has changed: 👇
 
 2/ **Searching from the Home Screen (Spotlight Integration)**
-*   *Before*: You could only find files by their names in iOS Spotlight search.
+*   *Before*: You could only find files by typing their names in iOS search.
 *   *After*: Spotlight indexes actual passages, letting you find specific answers without even opening the app.
 
 3/ **Voice Control with Siri (App Entities)**
@@ -105,7 +105,7 @@ Here is the Before vs. After of how WWDC26 integrations transformed the app: �
 *   *Before*: Reading files visually (OCR) on every page, which led to scanning errors.
 *   *After*: The app checks if a page is digital first (preserving 100% text accuracy) and only scans if it's a photo or handwritten note.
 
-8/ Privacy-first, open-source, and faster. Rebuilt from the ground up to integrate with the new WWDC26 Apple Intelligence capabilities. Check out the code here:
+8/ Privacy-first, open-source, and faster. Rebuilt from the ground up to support the new WWDC26 Apple Intelligence capabilities. Check out the code here:
 https://github.com/Gunnarguy/OpenIntelligence
 
 #AppleIntelligence #SwiftUI #OpenSource #iOSDev #MetalGPU #PrivacyFirst #WWDC26
@@ -116,7 +116,7 @@ https://github.com/Gunnarguy/OpenIntelligence
 
 Most AI document readers are simple wrappers. But the new Apple Intelligence APIs announced at WWDC26 allow for something much better.
 
-For OpenIntelligence v4.0 & v4.1, I rebuilt the app to integrate its features directly with native iOS search and Siri voice control using the new WWDC26 platform features:
+For OpenIntelligence v4.0 & v4.1, I rebuilt the app to support the new WWDC26 platform features:
 
 *   **Spotlight (Home Screen Search)**: Search inside your documents directly from the iPhone home screen search bar.
 *   **Siri**: Ask Siri to compare files or summarize folders with voice commands.
