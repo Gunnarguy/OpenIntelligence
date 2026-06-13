@@ -10,7 +10,63 @@ I designed the codebase to expose the entire RAG pipeline: document ingestion, c
 
 ---
 
-## 1. Major Subsystems
+## 1. System Architecture Map
+
+```mermaid
+graph TD
+    subgraph UI [Presentation Layer - SwiftUI App]
+        ContentView[ContentView]
+        ChatScreen[ChatScreen]
+        LibraryView[DocumentLibraryView]
+        SettingsView[SettingsStore & HUD]
+    end
+
+    subgraph OS [System Integrations & Extensions]
+        Spotlight[Core Spotlight Indexing]
+        AppIntents[App Intents / Siri / Shortcuts]
+        LiveActivities[Live Activities widget extension]
+    end
+
+    subgraph CoreEngine [Core Engine - Static Library]
+        DocProcessor[DocumentProcessor]
+        RAGService[RAGService / RAGEngine]
+        ModelRouting[ModelResolutionService / RoutePolicy]
+    end
+
+    subgraph ModelRuntime [Inference & Model Runtime]
+        FoundationModels[LanguageModelSession / SystemFoundationModel]
+        CoreML[CoreMLSentenceEmbeddingProvider / TinyBERT Reranker]
+        CoreAI[CoreAI Scaffolding #if false]
+    end
+
+    subgraph Storage [Local Storage Layer]
+        SQLite[SQLite FTS5 - Lexical Index]
+        VectorDB[BNNS Vector Database - Dense Index]
+        DiskStorage[ImportedDocuments File Directory]
+    end
+
+    %% Flow lines
+    ContentView --> ChatScreen
+    ContentView --> LibraryView
+    ChatScreen --> RAGService
+    LibraryView --> DocProcessor
+    AppIntents --> RAGService
+    LiveActivities --> DocProcessor
+    DocProcessor --> CoreML
+    DocProcessor --> SQLite
+    DocProcessor --> VectorDB
+    RAGService --> ModelRouting
+    ModelRouting --> FoundationModels
+    ModelRouting --> CoreML
+    RAGService --> SQLite
+    RAGService --> VectorDB
+    SQLite --> Storage
+    VectorDB --> Storage
+```
+
+---
+
+## 2. Major Subsystems
 
 - **`OpenIntelligence/App`**: Application entry points and top-level composition.
 - **`OpenIntelligence/Features`**: User-facing document, chat, settings, diagnostics, telemetry, camera, onboarding, and billing surfaces.
@@ -26,7 +82,7 @@ I designed the codebase to expose the entire RAG pipeline: document ingestion, c
 
 ---
 
-## 2. Ingestion & Indexing Pipeline
+## 3. Ingestion & Indexing Pipeline
 
 1. **Parse**: Files enter through document workflows. Content is parsed using type-specific extractors. For PDFs, the system uses [LayoutAwareExtractor](file:///Users/gunnarhostetler/Documents/GitHub/OpenIntelligence-Public/OpenIntelligence/Services/Document/Processing/LayoutAwareExtractor.swift) or Vision OCR when a native text layer is missing.
 2. **Semantic Chunking**: [SemanticChunker](file:///Users/gunnarhostetler/Documents/GitHub/OpenIntelligence-Public/OpenIntelligence/Services/Document/Chunking/SemanticChunker.swift) splits text into retrievable units (typically $\le 310$ words) while identifying document structures like sections, lists, and tables.
@@ -37,7 +93,7 @@ I designed the codebase to expose the entire RAG pipeline: document ingestion, c
 
 ---
 
-## 3. Query-to-Response Pipeline
+## 4. Query-to-Response Pipeline
 
 ### Phase 1: Query Routing & Understanding
 * **Query Expansion & Intent Classification**: Resolves pronouns, extracts entities via `NLTagger` NER, expands queries using Synonyms, and classifies user intent (lookup, procedure, compare, or summarize).
@@ -58,7 +114,7 @@ I designed the codebase to expose the entire RAG pipeline: document ingestion, c
 
 ---
 
-## 4. Continuous Evaluation and Quality Gates
+## 5. Continuous Evaluation and Quality Gates
 
 To prevent regressions, the RAG pipeline is validated against test datasets using the `Evaluation` framework.
 * **Test Suites**: Run JSONL test files containing ground-truth chunks and expected answers.
@@ -66,7 +122,7 @@ To prevent regressions, the RAG pipeline is validated against test datasets usin
 
 ---
 
-## 5. Design Goals
+## 6. Design Goals
 
 - Keep user files under user-controlled workflows.
 - Keep library or workspace boundaries visible in retrieval.

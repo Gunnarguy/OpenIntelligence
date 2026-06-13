@@ -11,7 +11,31 @@ The retrieval pipeline is the core engineering idea in OpenIntelligence: answers
 
 ---
 
-## 2. Pipeline Stages
+## 2. RAG Retrieval Flow
+
+```mermaid
+flowchart TD
+    UserQuery[User Query Input] --> QueryPlan[Query Analysis: NER & Expansion]
+    QueryPlan --> EmbeddingGen[Generate Query Vector - Core ML]
+    EmbeddingGen --> HybridSearch[Hybrid Search: FTS5 Lexical + Vector Similarity]
+    HybridSearch --> RRF[Reciprocal Rank Fusion - RRF]
+    RRF --> Cutoff{Adaptive Ceiling Cutoff}
+    Cutoff --> Rerank[Core ML TinyBERT Reranker / Heuristic Fallback]
+    Rerank --> ContextExpand[Context Sibling Expansion - ParentDocumentService]
+    ContextExpand --> LostInMiddle[Reorder Context - Lost-In-Middle]
+    LostInMiddle --> ModelRoute{Model Routing Policy}
+    ModelRoute -- On-Device <4K --> LocalLLM[SystemLanguageModel.default]
+    ModelRoute -- PCC >4K / DeepThink --> PCCLLM[PrivateCloudCompute - Mocked Local Run]
+    LocalLLM --> Verification[Verification Gates A-I - Negation & Word-Overlap]
+    PCCLLM --> Verification
+    Verification --> Decision{Critical Gates Pass?}
+    Decision -- Yes --> GroundedAnswer[Render Grounded Answer with Citations]
+    Decision -- No --> AbstainRefusal[Abstention Refusal Message]
+```
+
+---
+
+## 3. Pipeline Stages
 
 1. **Import**: Files enter through Apple platform document workflows.
 2. **Extraction**: Text, layout, and metadata are extracted.
@@ -27,10 +51,10 @@ The retrieval pipeline is the core engineering idea in OpenIntelligence: answers
 
 ---
 
-## 3. Library Isolation
+## 4. Library Isolation
 Library and workspace boundaries are critical because retrieval quality depends on scope. I designed the app so that a query is answered strictly against the user-selected document container rather than all files indiscriminately, preventing cross-container leakage.
 
 ---
 
-## 4. Diagnostics & Telemetry
+## 5. Diagnostics & Telemetry
 I included diagnostic and telemetry surfaces for inspecting chunks, retrieval quality, answer details, and pipeline behavior. These are engineering tools for iteration and must not be interpreted as validation for regulated or safety-critical workflows.
