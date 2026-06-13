@@ -26,9 +26,15 @@ jobs:
           restore-keys: ${{ runner.os }}-spm-
 
       - name: Select Xcode
-        uses: maxim-lobanov/setup-xcode@v1
-        with:
-          xcode-version: 'latest-stable'
+        run: |
+          echo "=== Installed Xcodes ==="
+          ls -d /Applications/Xcode*.app 2>/dev/null || echo "None found"
+          XCODE_PATH=$(ls -d /Applications/Xcode*.app 2>/dev/null | sort -V | tail -1)
+          if [ -n "$XCODE_PATH" ]; then
+            echo "Selecting: $XCODE_PATH"
+            sudo xcode-select -s "$XCODE_PATH/Contents/Developer"
+          fi
+          echo "Using: $(xcodebuild -version | head -1)"
 
       - name: Resolve Dependencies
         run: |
