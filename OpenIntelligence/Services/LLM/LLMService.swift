@@ -314,8 +314,7 @@ struct LLMResponse {
 
         /// Context window size for on-device model
         static var onDeviceContextWindowSize: Int {
-            guard Thread.isMainThread else { return 4096 }
-            return SystemLanguageModel.default.contextSize
+            return 4096
         }
         
         /// Context window size for Private Cloud Compute model

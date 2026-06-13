@@ -26,7 +26,7 @@ struct FoundationModelRoutePolicy {
         config: InferenceConfig
     ) -> AppleFoundationModelRoute {
         let pccAllowed = config.allowPrivateCloudCompute
-        let onDeviceLimit = SystemLanguageModel.default.contextSize
+        let onDeviceLimit = 4096
         
         switch queryType {
         case .exactLookup:
