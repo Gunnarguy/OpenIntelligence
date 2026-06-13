@@ -1,29 +1,29 @@
-# Roadmap
+# Docs/ROADMAP.md — OpenIntelligence v4.1
 
-This roadmap describes technical directions for the prototype. It is not a product commitment.
+> **Documentation status:** Verified for OpenIntelligence v4.1 on 2026-06-13.
+> **Source of truth:** Codebase audit in `Docs/AUDIT/`.
+> **Scope:** Describes future technical directions for the prototype. It is not a product commitment.
 
-## Near Term
+---
 
-- Keep the public repository focused on the cleaned app and document intelligence engine.
-- Improve build reliability for the app target and experimental package boundary.
-- Keep README and docs aligned with proof-of-concept positioning.
-- Add more generic demo documents that show retrieval, citations, and abstention behavior.
-- Expand diagnostics around chunk quality, retrieval quality, and answer grounding.
+## 1. Near Term
 
-## Retrieval And Answer Quality
+- **Clean up File Inventory:** Resolve the mismatch in `file_inventory_4.1.csv` by categorizing remaining files and documenting evidence notes.
+- **Dynamic Candidate Cutoff Fix:** Modify the candidate pool formula in [RAGEngine.swift](file:///Users/gunnarhostetler/Documents/GitHub/OpenIntelligence-Public/OpenIntelligence/Services/RAG/Orchestration/RAGEngine.swift) to dynamically scale chunk pool sizes for small libraries rather than hardcoding a floor of 100 chunks.
+- **Negation and Contradiction Sweeps:** Explore upgrading negation checks to include numeric fact comparisons and direct citation checks.
 
-- Improve chunking for mixed-format documents.
-- Improve library scoping and source filtering.
-- Make citation and evidence-review behavior easier to inspect.
-- Continue tightening unsupported-claim handling and abstention behavior.
+---
 
-## Apple-Native Experience
+## 2. Retrieval & Answer Quality
 
-- Continue refining SwiftUI document, chat, settings, and diagnostics surfaces.
-- Explore platform-native import, extraction, and background-processing workflows.
-- Keep local-first behavior and user-controlled files central to the UX.
+- **OCR Post-processing:** Improve Vision OCR layout-aware text normalization and error correction.
+- **Sibling Chunk Expansion:** Tune parent-chunk expansion ranges to optimize context packing.
+- **MMR Diversity Tuning:** Experiment with different diversity thresholds ($\lambda$) to evaluate retrieval recall versus answer precision.
 
-## Packaging
+---
 
-- Maintain `Package.swift` as an experimental source package boundary.
-- Avoid describing the package as a finished SDK until the API surface, setup path, tests, and compatibility story are mature enough to support that claim.
+## 3. Platform Integration (Future Work)
+
+- **Core AI Integration:** Replace the local `CoreMLSentenceEmbeddingProvider` with the native system-level Core AI frameworks once the SDK becomes stable on iOS/macOS.
+- **Private Cloud Compute (PCC):** Transition from local SLM simulation to real Private Cloud Compute secure enclave execution.
+- **Siri & AppIntents:** Explore native system integration for Siri shortcuts and Spotlight indexing using AppEntities.

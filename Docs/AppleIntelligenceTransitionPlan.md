@@ -1,3 +1,5 @@
+> **Documentation status:** Historical reference. This document may describe earlier implementation plans or deprecated architecture. Do not use as the source of truth for OpenIntelligence v4.1.
+
 # Apple Intelligence & Foundation Models Transition Plan (WWDC26 Master Blueprint)
 
 This document provides a comprehensive technical blueprint, performance roadmap, and system integration backlog for modernizing the **OpenIntelligence** pipeline using the newly released **Foundation Models** framework and related OS-level Apple Intelligence APIs introduced in WWDC26.

@@ -1,3 +1,5 @@
+> **Documentation status:** Historical reference. This document may describe earlier implementation plans or deprecated architecture. Do not use as the source of truth for OpenIntelligence v4.1.
+
 # Apple Document Intelligence Reference
 
 > **Comprehensive reference for Apple's document processing, OCR, NLP, and ML frameworks.**

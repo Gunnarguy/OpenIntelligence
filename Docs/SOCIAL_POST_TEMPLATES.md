@@ -1,3 +1,5 @@
+> **Documentation status:** Historical reference. This document may describe earlier implementation plans or deprecated architecture. Do not use as the source of truth for OpenIntelligence v4.1.
+
 # Social Media Post Templates: OpenIntelligence v4.0 & v4.1
 
 Announce the combined v4.0 & v4.1 Apple Silicon release across X, Threads, and LinkedIn. 

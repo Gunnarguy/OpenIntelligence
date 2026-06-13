@@ -1,3 +1,5 @@
+> **Documentation status:** Historical reference. This document may describe earlier implementation plans or deprecated architecture. Do not use as the source of truth for OpenIntelligence v4.1.
+
 # OpenIntelligence v4.0 & v4.1 Technical Changelog (Apple Intelligence & Reliability Release)
 
 Changes covered: commit `1702aef7dae510bafe7e28ffa7a53683aff61bc1` through `fc076b637d1766ebefeb819dd997ef5133d955a0`.

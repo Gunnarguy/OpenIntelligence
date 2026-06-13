@@ -1,3 +1,7 @@
+> **Documentation status:** Verified for OpenIntelligence v4.1 on 2026-06-13.
+> **Source of truth:** Codebase audit in `Docs/AUDIT/`.
+> **Scope:** Describes shipped behavior unless explicitly labeled experimental, developer-only, or scaffolded.
+
 # Storage and Pipeline Trace
 
 **Updated**: April 25, 2026

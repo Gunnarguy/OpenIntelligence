@@ -1,3 +1,7 @@
+> **Documentation status:** Verified for OpenIntelligence v4.1 on 2026-06-13.
+> **Source of truth:** Codebase audit in `Docs/AUDIT/`.
+> **Scope:** Describes shipped behavior unless explicitly labeled experimental, developer-only, or scaffolded.
+
 # AI Agent Map: OpenIntelligence Orchestration Architecture
 
 This document maps the entry points, call graphs, framework dependencies, and service boundaries of the `OpenIntelligence` RAG runtime, specifically analyzing the mega-orchestrator `RAGService.swift` as of WWDC26 modernization plans.

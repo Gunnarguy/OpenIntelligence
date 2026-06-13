@@ -1,3 +1,5 @@
+> **Documentation status:** Historical reference. This document may describe earlier implementation plans or deprecated architecture. Do not use as the source of truth for OpenIntelligence v4.1.
+
 # Apple Intelligence Models & Specs
 
 > **Scope**: Token limits, context rules, and integration constraints for iOS 26+ Foundation Models.

@@ -1,3 +1,5 @@
+> **Documentation status:** Historical reference. This document may describe earlier implementation plans or deprecated architecture. Do not use as the source of truth for OpenIntelligence v4.1.
+
 # OpenIntelligence v4.0 & v4.1 User-Facing Changelog (Apple Intelligence & Reliability Release)
 
 OpenIntelligence version 4.0 & v4.1 is a major Apple Intelligence modernization and refinement pass currently live on the App Store. The release touches every major component of the user experience—from the local-first execution model to transparent citation details, visual evidence cards, and Siri/Shortcuts system integration.

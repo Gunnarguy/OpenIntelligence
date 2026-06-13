@@ -1,3 +1,5 @@
+> **Documentation status:** Historical reference. This document may describe earlier implementation plans or deprecated architecture. Do not use as the source of truth for OpenIntelligence v4.1.
+
 # Private Cloud Compute (PCC) Security Architecture Reference
 
 > **Primary source**: [Apple Security: Private Cloud Compute](https://security.apple.com/blog/private-cloud-compute/)

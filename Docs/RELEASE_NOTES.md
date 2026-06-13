@@ -1,3 +1,5 @@
+> **Documentation status:** Historical reference. This document may describe earlier implementation plans or deprecated architecture. Do not use as the source of truth for OpenIntelligence v4.1.
+
 # OpenIntelligence v4.0 & v4.1 Release Notes (WWDC26 Apple Intelligence Update)
 
 OpenIntelligence version 4.0 & v4.1 is a milestone release that modernizes the application into an **Apple Intelligence-native evidence system**, incorporating the latest OS-level APIs and capabilities introduced at WWDC26. 

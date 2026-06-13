@@ -1,3 +1,7 @@
+> **Documentation status:** Verified for OpenIntelligence v4.1 on 2026-06-13.
+> **Source of truth:** Codebase audit in `Docs/AUDIT/`.
+> **Scope:** Describes shipped behavior unless explicitly labeled experimental, developer-only, or scaffolded.
+
 # OpenIntelligence RAG Pipeline Evaluations
 
 This document describes the formal evaluations framework implemented in OpenIntelligence. This framework is designed to validate the RAG pipeline's behavior, latency, and quality against the target quality gates defined in [WWDC26.md](file:///Users/gunnarhostetler/Documents/GitHub/OpenIntelligence-Public/WWDC26.md).

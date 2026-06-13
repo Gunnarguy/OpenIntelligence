@@ -1,3 +1,5 @@
+> **Documentation status:** Historical reference. This document may describe earlier implementation plans or deprecated architecture. Do not use as the source of truth for OpenIntelligence v4.1.
+
 # Apple Intelligence Foundation Language Models — Tech Report 2025
 
 > **Source**: [arXiv:2507.13575v3](https://arxiv.org/abs/2507.13575) (August 2025)

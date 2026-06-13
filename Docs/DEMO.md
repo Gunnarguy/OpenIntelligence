@@ -1,3 +1,5 @@
+> **Documentation status:** Historical reference. This document may describe earlier implementation plans or deprecated architecture. Do not use as the source of truth for OpenIntelligence v4.1.
+
 # Demo
 
 Use the demo to show the prototype's engineering behavior, not to imply a finished commercial product.
