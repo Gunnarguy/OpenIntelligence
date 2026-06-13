@@ -26,11 +26,9 @@ jobs:
           restore-keys: ${{ runner.os }}-spm-
 
       - name: Select Xcode
-        run: |
-          if [ -d /Applications/Xcode_26.2.app ]; then
-            sudo xcode-select -s /Applications/Xcode_26.2.app/Contents/Developer
-          fi
-          xcodebuild -version
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: 'latest-stable'
 
       - name: Resolve Dependencies
         run: |
