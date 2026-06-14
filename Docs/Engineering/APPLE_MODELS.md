@@ -2,21 +2,31 @@
 
 # Apple Intelligence Models & Specs
 
-> **Scope**: Token limits, context rules, and integration constraints for iOS 26+ Foundation Models.
-> **Source**: Official Apple Developer Documentation (iOS 26.0+)
-> **Last Updated**: April 24, 2026
+> **Scope**: Token limits, context rules, and integration constraints for iOS 26/27+ Foundation Models.
+> **Source**: Official Apple Developer Documentation (iOS 26.0+ / iOS 27.0+ Beta)
+> **Last Updated**: June 14, 2026
 > **Tech Note**: [TN3193: Managing the on-device foundation model's context window](https://developer.apple.com/documentation/Technotes/tn3193-managing-the-on-device-foundation-model-s-context-window)
 
 ---
 
 ## June 2026 Repo Grounding
 
-Current source code reflects Apple's modern iOS 26+ / WWDC26 context limits and models:
+Current source code reflects Apple's modern platform context limits and models across both WWDC25 (iOS 26) and WWDC26 (iOS 27):
 
 - `LLMService.swift` manages dynamic model routes via `SystemLanguageModel.default` and `PrivateCloudComputeLanguageModel()`.
 - `ModelResolutionService.swift` monitors the query execution pathway in real-time, resolving whether On-Device or PCC is actively serving queries.
 - `RAGService.swift` delegates context size bounds based on the active model's routing window (4K for On-Device vs. 32K for PCC).
 - `AppleFMEmbeddingProvider.swift` is not an active embedding provider. Current embeddings come from Core ML/Natural Language paths.
+
+### API Differences: WWDC25 (iOS 26.x) vs. WWDC26 (iOS 27.0 Beta)
+
+| Platform Area | WWDC25 / iOS 26.x (Tahoe) | WWDC26 / iOS 27.0+ (Beta) | Code Level Implementation |
+| :--- | :--- | :--- | :--- |
+| **Local Embeddings** | Powered by **Core ML** (`CoreMLSentenceEmbeddingProvider`) using `.mlpackage` structures. | Powered by **Core AI** (`CoreAISentenceEmbeddingProvider`) using Silicon-native `.aimodel` structures. | Implemented via `#if canImport(CoreAI)` and `@available(iOS 27.0, *)` guards (currently disabled in v4.1 via `#if false`). |
+| **Generation Options** | `GenerationOptions` initializer uses the `sampling` parameter. | `GenerationOptions` initializer renames parameter to `samplingMode`. | Gated in `LLMService.swift` under `#if compiler(>=6.4)`. |
+| **Transcript Entries** | Supports `.instructions`, `.prompt`, `.response`, `.toolCalls`, and `.toolOutput`. | Adds `.reasoning(reasoning)` case to stream intermediate thinking steps. | Gated in `FoundationModelTokenBudget.swift` under `#if compiler(>=6.4)`. |
+| **Session Profiles** | Rebuilds `LanguageModelSession` instances upon instruction or tool updates. | Unlocks **Dynamic Profiles** to hot-swap tools/instructions inside an active session. | Staged in `FoundationModelDynamicProfileRegistry.swift` with availability guards. |
+| **App Intents** | Classic Intents passing local settings state. | **Entity-Native App Intents** (`AppEntity`, `EntityQuery`) exposing Shortcuts AppEnums. | Staged in `OIDocumentEntity.swift` and `OILibraryEntity.swift`. |
 
 Related docs:
 
