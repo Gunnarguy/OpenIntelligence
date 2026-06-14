@@ -884,6 +884,9 @@ class RAGService: ObservableObject {
                 }
 
                 var resumedItem = item
+                if resumedItem.events.count > 100 {
+                    resumedItem.events.removeFirst(resumedItem.events.count - 100)
+                }
 
                 if item.isLeased(to: currentDeviceID, at: now) || !item.hasActiveLease(at: now) {
                     resumedItem.stage = .paused
@@ -4378,6 +4381,10 @@ class RAGService: ObservableObject {
             // Prevent duplicate events for pure progress updates
         } else {
             item.events.append(event)
+            // Limit event history to prevent OOM / unbounded UI rendering for massive documents
+            if item.events.count > 100 {
+                item.events.removeFirst(item.events.count - 100)
+            }
         }
 
         if item.startedAt == nil, stage != .queued && stage != .paused {

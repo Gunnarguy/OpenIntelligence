@@ -69,7 +69,7 @@ struct IngestionConsoleView: View {
                 VStack(spacing: 0) {
                     ScrollViewReader { proxy in
                         ScrollView(.vertical, showsIndicators: true) {
-                            VStack(alignment: .leading, spacing: 0) {
+                            LazyVStack(alignment: .leading, spacing: 0) {
                                 ForEach(events) { event in
                                     IngestionConsoleLogRow(event: event, isLatest: event == events.last && !isTerminal)
                                         .id(event.id)
@@ -142,14 +142,18 @@ struct IngestionConsoleView: View {
     }
 }
 
+private let consoleEventTimeFormatter: DateFormatter = {
+    let formatter = DateFormatter()
+    formatter.dateFormat = "mm:ss"
+    return formatter
+}()
+
 struct IngestionConsoleLogRow: View {
     let event: IngestionEvent
     let isLatest: Bool
     
     private var timestamp: String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "mm:ss"
-        return formatter.string(from: event.timestamp)
+        return consoleEventTimeFormatter.string(from: event.timestamp)
     }
     
     private var stageColor: Color {

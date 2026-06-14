@@ -9,7 +9,7 @@
 /* Begin PBXBuildFile section */
 		B016E7B72F0F5F5F00AABA0C /* Tokenizers in Frameworks */ = {isa = PBXBuildFile; productRef = B016E7B62F0F5F5F00AABA0C /* Tokenizers */; };
 		E0A100022F0F5F5F00AABA0C /* Tokenizers in Frameworks */ = {isa = PBXBuildFile; productRef = B016E7B62F0F5F5F00AABA0C /* Tokenizers */; };
-		F0A100012F1A000100AA1001 /* OpenIntelligenceLiveActivities.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = F0A100022F1A000100AA1001 /* OpenIntelligenceLiveActivities.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		F0A100012F1A000100AA1001 /* OpenIntelligenceLiveActivities.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = F0A100022F1A000100AA1001 /* OpenIntelligenceLiveActivities.appex */; platformFilter = ios; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		F0A100032F1A000100AA1001 /* OpenIntelligence/Services/Infrastructure/Background/IngestionLiveActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0A100042F1A000100AA1001 /* OpenIntelligence/Services/Infrastructure/Background/IngestionLiveActivityAttributes.swift */; };
 		F0A100242F1A000100AA1001 /* IngestionLiveActivityWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0A100202F1A000100AA1001 /* IngestionLiveActivityWidget.swift */; };
 		F0A100252F1A000100AA1001 /* OpenIntelligenceLiveActivitiesBundle.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0A100212F1A000100AA1001 /* OpenIntelligenceLiveActivitiesBundle.swift */; };
@@ -511,6 +511,7 @@
 /* Begin PBXTargetDependency section */
 		F0A100152F1A000100AA1001 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
+			platformFilter = ios;
 			target = F0A100102F1A000100AA1001 /* OpenIntelligenceLiveActivities */;
 			targetProxy = F0A100142F1A000100AA1001 /* PBXContainerItemProxy */;
 		};
@@ -644,7 +645,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = OpenIntelligence/OpenIntelligence.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 52;
+				CURRENT_PROJECT_VERSION = 53;
 				DERIVE_MACCATALYST_PRODUCT_BUNDLE_IDENTIFIER = NO;
 				DEVELOPMENT_TEAM = Z3E334EXZD;
 				ENABLE_APP_SANDBOX = YES;
@@ -704,7 +705,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = OpenIntelligence/OpenIntelligence.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 52;
+				CURRENT_PROJECT_VERSION = 53;
 				DEVELOPMENT_TEAM = Z3E334EXZD;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
@@ -761,7 +762,7 @@
 				BUILD_LIBRARY_FOR_DISTRIBUTION = YES;
 				CODE_SIGN_IDENTITY = "";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 52;
+				CURRENT_PROJECT_VERSION = 53;
 				DEFINES_MODULE = YES;
 				DEVELOPMENT_TEAM = Z3E334EXZD;
 				ENABLE_MODULE_VERIFIER = YES;
@@ -801,7 +802,7 @@
 				BUILD_LIBRARY_FOR_DISTRIBUTION = YES;
 				CODE_SIGN_IDENTITY = "";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 52;
+				CURRENT_PROJECT_VERSION = 53;
 				DEFINES_MODULE = YES;
 				DEVELOPMENT_TEAM = Z3E334EXZD;
 				ENABLE_MODULE_VERIFIER = YES;
@@ -839,7 +840,7 @@
 			buildSettings = {
 				APPLICATION_EXTENSION_API_ONLY = YES;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 52;
+				CURRENT_PROJECT_VERSION = 53;
 				DEVELOPMENT_TEAM = Z3E334EXZD;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = OpenIntelligenceLiveActivities/Info.plist;
@@ -870,7 +871,7 @@
 			buildSettings = {
 				APPLICATION_EXTENSION_API_ONLY = YES;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 52;
+				CURRENT_PROJECT_VERSION = 53;
 				DEVELOPMENT_TEAM = Z3E334EXZD;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = OpenIntelligenceLiveActivities/Info.plist;

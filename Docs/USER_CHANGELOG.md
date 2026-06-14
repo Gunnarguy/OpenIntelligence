@@ -57,6 +57,7 @@ WWDC26 shifted the platform architecture by pushing core AI capabilities into sy
 ### 4. UI Telemetry & Render Optimizations
 *   **Thinking Stream**: The `ThinkingStreamView` shows live feedback during reasoning phases so you are never left wondering if the app is frozen.
 *   **GPU-Driven Overlay**: Ingestion overlay animations utilize hardware-accelerated opacity and scale transitions, preventing frames from dropping during heavy background indexing.
+*   **Massive Document Stability**: Resolved a critical bug where opening the app after ingesting massive documents (e.g., HOA docs) caused an instant crash or UI freeze. Ingestion logs are now lazily loaded and capped to prevent unbounded memory allocation and excessive view generation on launch.
 
 ### 5. Suggested Questions & Grammar Safeguards
 *   **Diverse Suggestions**: The query planner isolates unique sections of your documents to guarantee follow-up questions cover a variety of topics.
