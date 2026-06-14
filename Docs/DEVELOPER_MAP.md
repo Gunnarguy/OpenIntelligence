@@ -1,4 +1,4 @@
-# Master Developer Map & Directory — OpenIntelligence v4.1
+ # Master Developer Map & Directory — OpenIntelligence v4.1
 
 > **Documentation status:** Verified for OpenIntelligence v4.1 on 2026-06-13.
 > **Scope:** Master portal and quick-reference index linking all system architecture, pipeline, and codebase audit documents.
@@ -13,7 +13,6 @@ If you need to answer a specific question, locate a limit, or verify a system st
 
 | What are you looking for? | Document Link | Description / Focus |
 | :--- | :--- | :--- |
-| **How do I reply to Vik's LinkedIn comment?** | [13_VIK_COMMENT_TECHNICAL_ALIGNMENT_4.1.md](file:///Users/gunnarhostetler/Documents/GitHub/OpenIntelligence-Public/Docs/AUDIT/13_VIK_COMMENT_TECHNICAL_ALIGNMENT_4.1.md) | High-fidelity, safe technical replies tailored for public LinkedIn discussions. |
 | **What happens when a user asks a question?** | [16_OWNER_EXPLAINER_RAG_RELIABILITY_AND_RERANKING_4.1.md](file:///Users/gunnarhostetler/Documents/GitHub/OpenIntelligence-Public/Docs/AUDIT/16_OWNER_EXPLAINER_RAG_RELIABILITY_AND_RERANKING_4.1.md) | Plain-English explanation of vector similarity, RRF, reranking, and safety gates. |
 | **How does the app decide to refuse/abstain?** | [14_RAG_RELIABILITY_DEEP_DIVE_4.1.md](file:///Users/gunnarhostetler/Documents/GitHub/OpenIntelligence-Public/Docs/AUDIT/14_RAG_RELIABILITY_DEEP_DIVE_4.1.md) | Code symbol traces for `shouldAbstain`, numeric sanity (Gate C), and semantic grounding (Gate E). |
 | **How does the Core ML reranker fallback work?** | [15_RERANKING_AND_CROSS_ENCODER_REALITY_4.1.md](file:///Users/gunnarhostetler/Documents/GitHub/OpenIntelligence-Public/Docs/AUDIT/15_RERANKING_AND_CROSS_ENCODER_REALITY_4.1.md) | Deep dive into the TinyBERT model, tokenizers, candidate ceiling math, and fallback heuristics. |
