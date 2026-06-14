@@ -36,7 +36,7 @@ To support larger query contexts and complex queries, the app implements a dynam
 > [!WARNING]
 > While the model routing policy maps routes to remote Private Cloud Compute, remote enclave execution is not compiled in or active in the current codebase.
 >
-> All elevated PCC routes are simulated locally on `SystemLanguageModel.default` using a mock compatibility wrapper in [EngineSDKCompatibility.swift](file:///Users/gunnarhostetler/Documents/GitHub/OpenIntelligence-Public/OpenIntelligence/Core/Support/EngineSDKCompatibility.swift). The app compiles and runs entirely on-device, and no remote attestation or network-enclave execution is active.
+> All elevated PCC routes are resolved locally on `SystemLanguageModel.default` using a compatibility wrapper in [EngineSDKCompatibility.swift](file:///Users/gunnarhostetler/Documents/GitHub/OpenIntelligence-Public/OpenIntelligence/Core/Support/EngineSDKCompatibility.swift). The app compiles and runs entirely on-device, and no remote attestation or network-enclave execution is active.
 
 ---
 

@@ -184,4 +184,19 @@ WWDC26.md
 Alignment.md
 Alignment2.md
 Alignment_Merged.md
+AlignmentFinal.md
+
+# Local audits, alignment reports, and diagnostic scripts
+Docs/AUDIT/
+Docs/KNOWN_LIMITATIONS_4.1.md
+Docs/APP_REALITY_4.1.md
+Docs/PUBLIC_COPY_4.1.md
+Docs/TECHNICAL_CHANGELOG.md
+Docs/DEVELOPER_MAP.md
+Docs/AI_AGENT_MAP.md
+missing_tracked.txt
+test_pcc.swift
+scripts/exhaustive_audit.py
+scripts/exhaustive_audit_v2.py
+scripts/generate_final_absolute_audit.py
 

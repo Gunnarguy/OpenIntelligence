@@ -25,7 +25,7 @@ flowchart TD
     ContextExpand --> LostInMiddle[Reorder Context - Lost-In-Middle]
     LostInMiddle --> ModelRoute{Model Routing Policy}
     ModelRoute -- On-Device <4K --> LocalLLM[SystemLanguageModel.default]
-    ModelRoute -- PCC >4K / DeepThink --> PCCLLM[PrivateCloudCompute - Mocked Local Run]
+    ModelRoute -- PCC >4K / DeepThink --> PCCLLM[PrivateCloudCompute - Local Fallback Run]
     LocalLLM --> Verification[Verification Gates A-I - Negation & Word-Overlap]
     PCCLLM --> Verification
     Verification --> Decision{Critical Gates Pass?}

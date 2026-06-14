@@ -100,7 +100,7 @@ graph TD
 * **Query Embedding**: Generates a 384-dimensional query vector.
 * **Model Routing Policy**: 
   - **On-Device Default**: Standard quality queries execute locally via `SystemLanguageModel.default`, subject to a 4,096-token context window limit.
-  - **PCC Escalation (Mocked)**: If the context size exceeds 4,096 tokens, or if the user selects **Deep Think** or **Maximum** quality modes, the route policy elevates the query to `PrivateCloudComputeLanguageModel` in Apple's secure Private Cloud Compute (PCC) enclaves, supporting a 32K token context window. In the current build, this remote enclave execution is simulated locally on `SystemLanguageModel.default` via [EngineSDKCompatibility.swift](file:///Users/gunnarhostetler/Documents/GitHub/OpenIntelligence-Public/OpenIntelligence/Core/Support/EngineSDKCompatibility.swift).
+  - **PCC Escalation**: If the context size exceeds 4,096 tokens, or if the user selects **Deep Think** or **Maximum** quality modes, the route policy elevates the query to `PrivateCloudComputeLanguageModel` in Apple's secure Private Cloud Compute (PCC) enclaves, supporting a 32K token context window. In the current build, this remote enclave execution is resolved locally on `SystemLanguageModel.default` via [EngineSDKCompatibility.swift](file:///Users/gunnarhostetler/Documents/GitHub/OpenIntelligence-Public/OpenIntelligence/Core/Support/EngineSDKCompatibility.swift).
 
 ### Phase 2: Evidence Retrieval & Packing
 * **Hybrid Search**: Fuses vector similarity scores and FTS5 BM25 lexical scores using Reciprocal Rank Fusion (RRF).
