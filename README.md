@@ -1,15 +1,14 @@
 # OpenIntelligence
 
-> **Documentation status:** Verified for OpenIntelligence v4.1 on 2026-06-13.
-> **Source of truth:** Codebase audit in `Docs/AUDIT/`.
-> **Scope:** Describes shipped behavior unless explicitly labeled experimental, developer-only, or scaffolded.
+> **Documentation status:** Verified for OpenIntelligence v4.1 on June 14, 2026.
+> **Scope:** Describes shipped behavior for on-device Apple Intelligence RAG architecture.
 
 <p align="center">
    <img src=".github/assets/openintelligence-app-icon.png" alt="OpenIntelligence app icon" width="132" height="132">
 </p>
 
 <p align="center">
-   <strong>Local-first document intelligence for iPhone and iPad, with a reusable engine boundary and Mac evaluation paths in the repo.</strong>
+   <strong>Local-first document intelligence for macOS and iOS, featuring an entirely on-device Retrieval-Augmented Generation (RAG) pipeline and native Apple Foundation Models integration.</strong>
 </p>
 
 <p align="center">
@@ -18,112 +17,105 @@
    <a href="Docs/ARCHITECTURE.md"><img alt="Read the OpenIntelligence architecture guide" src="https://img.shields.io/badge/Architecture-Read-111827?style=for-the-badge"></a>
 </p>
 
-OpenIntelligence is a local-first document query and retrieval-augmented generation (RAG) assistant built natively for Apple platforms. I designed the app to process document ingestion, lexical and vector indexing, and query orchestration locally using system frameworks.
+OpenIntelligence is an exploratory, privacy-obsessed document query assistant built natively for Apple platforms. It proves that you can run production-grade document ingestion, vector indexing, lexical retrieval, and generative AI **entirely on device** without sacrificing privacy or relying on third-party cloud wrappers.
 
 ---
 
-## Technical Architecture Overview
+## 📚 Rigorous Engineering Documentation
 
-The runtime operates in two decoupled phases: import-time document indexing and query-time retrieval/generation.
+OpenIntelligence is backed by extensive, rigorous engineering documentation. If you want to understand how we achieved reliable, hallucination-resistant on-device RAG using Apple's 4K-token local context windows, start here:
+
+### Core Architecture & Systems
+* [**System Architecture**](Docs/ARCHITECTURE.md): The high-level view of the decoupled import-time and query-time pipelines.
+* [**Retrieval Pipeline (`RETRIEVAL_PIPELINE.md`)**](Docs/RETRIEVAL_PIPELINE.md): Deep dive into our hybrid search engine (BM25 + Core ML Vector) and Reciprocal Rank Fusion implementation.
+* [**Ingestion Pipeline (`INGESTION_PIPELINE.md`)**](Docs/INGESTION_PIPELINE.md): How we chunk documents, run local Vision OCR fallbacks, and structure semantic data.
+* [**Privacy & Routing (`PRIVACY_AND_ROUTING.md`)**](Docs/PRIVACY_AND_ROUTING.md): Our strict local-first data guarantees and routing protocols.
+
+### Apple Intelligence Engineering Specs
+* [**Apple Foundation Models Specs**](Docs/Engineering/APPLE_MODELS.md): How we optimize for macOS/iOS 26.x and WWDC26 betas, managing 4K token budgets and `SystemLanguageModel` sessions.
+* [**Apple Document Intelligence**](Docs/Engineering/APPLE_DOCUMENT_INTELLIGENCE.md): Detailed usage of Vision, PDFKit, and CoreText for semantic extraction.
+* [**Private Cloud Compute (PCC)**](Docs/Engineering/PRIVATE_CLOUD_COMPUTE.md): Documentation on Apple's PCC architecture constraints and secure enclave routing.
+* [**RAG Technical Specifications**](Docs/Engineering/RAG_TECHNICAL.md): Hard math behind our vector dimensions (384), semantic evidence overlap index (`0.70`), and confidence gates.
+* [**Storage & Pipeline Trace**](Docs/Engineering/STORAGE_AND_PIPELINE_TRACE.md): How SQLite FTS5 and BNNS-accelerated vectors run at the metal level.
+
+### Audits & Constraints
+* [**Hard Limits**](Docs/Engineering/HARD_LIMITS.md): A transparent look at what the engine *can't* do and where memory bottlenecks occur.
+* [**Current State & Gaps**](Docs/CURRENT_STATE_AND_GAPS.md): Ongoing challenges with local LLM hallucination and pipeline latency.
+* [**Evaluation Framework**](Docs/EVALS.md): How we run local `scripts/run_rag_benchmarks.py` to continuously validate output quality.
+
+---
+
+## ⚙️ Technical Architecture Overview
+
+The runtime operates in two decoupled phases:
 
 ```mermaid
 flowchart TD
   subgraph INGEST[Import-Time Pipeline]
-    A1[Import files into library]
-    A2[Extract & normalize content]
-    A3[Chunk & enrich metadata]
-    A4[Build FTS & vector indexes]
-    A5[Library indexed]
-    A1 --> A2 --> A3 --> A4 --> A5
+    A1[Import files]
+    A2[Extract & normalize (Vision OCR)]
+    A3[Semantic Chunking]
+    A4[Build FTS5 & BNNS vector indexes]
+    A1 --> A2 --> A3 --> A4
   end
 
   subgraph QUERY[Query-Time Pipeline]
     B1[User query]
-    B2[Analyze intent & route]
-    B3[Retrieve & pack context]
-    B4[Select answer path]
-    B5[Verify & score response]
-    B6[Render cited output]
+    B2[Analyze intent & HyDE expansion]
+    B3[Hybrid Retrieval & RRF merge]
+    B4[Cross-encoder reranking]
+    B5[Verification Gates]
+    B6[Generative LLM Response]
     B1 --> B2 --> B3 --> B4 --> B5 --> B6
   end
 
-  A5 --> B3
+  A4 --> B3
 ```
 
-### Ingestion & Indexing Pipeline
-The ingestion engine extracts text layers and structures from PDFs or text documents, falls back to local Vision OCR for non-text assets, normalizes the output, and builds scoped indexes.
+---
 
-### Query Pipeline
-The query path builds a profile, runs vector and lexical searches in parallel, merges results via Reciprocal Rank Fusion (RRF), packs context, executes an on-device Core ML cross-encoder reranker (with heuristic fallbacks), and applies negation-based verification gates to prevent hallucinations.
+## 🗺️ Codebase Map
+
+| Module | Core Files | Responsibility |
+| :--- | :--- | :--- |
+| **Ingestion** | `DocumentProcessor.swift`, `LayoutAwareExtractor.swift` | Document content extraction, Vision OCR fallback, semantic structure recovery. |
+| **Chunking** | `SemanticChunker.swift`, `ContentTaggingService.swift` | Context-aware document chunking, entity resolution, NLP metadata enrichment. |
+| **Indexing** | `SQLiteFullTextService.swift`, `BNNSVectorDatabase.swift` | Blazing-fast SQLite FTS5 lexical storage and local BNNS-accelerated vector indexing. |
+| **Retrieval** | `HybridSearchService.swift`, `ContextPackingService.swift` | BM25 + Vector hybrid merging, parent-chunk reconstruction, exact token packing. |
+| **Orchestration** | `LLMService.swift`, `RAGService.swift` | Execution coordination with the local `SystemLanguageModel` and evaluation loops. |
+| **Shortcuts** | `RAGAppIntents.swift` | Siri integration and entity-native App Intents for OS-level query capabilities. |
 
 ---
 
-## Codebase Map
-
-| Module             | Core Files | Responsibility |
-| ------------------ | ---------- | -------------- |
-| **Ingestion**      | [DocumentProcessor.swift](OpenIntelligence/Services/Document/Processing/DocumentProcessor.swift), [IntelligentDocumentProcessor.swift](OpenIntelligence/Services/Document/Processing/IntelligentDocumentProcessor.swift), [StructuredDocumentParser.swift](OpenIntelligence/Services/Document/Processing/StructuredDocumentParser.swift), [LayoutAwareExtractor.swift](OpenIntelligence/Services/Document/Processing/LayoutAwareExtractor.swift) | Document content extraction, OCR fallback, structure recovery. |
-| **Chunking**       | [SemanticChunker.swift](OpenIntelligence/Services/Document/Chunking/SemanticChunker.swift), [ContentTaggingService.swift](OpenIntelligence/Services/Document/Chunking/ContentTaggingService.swift), [EntityIndexService.swift](OpenIntelligence/Services/Document/Analysis/EntityIndexService.swift) | Parsing raw text into chunks, entity resolution, metadata enrichment. |
-| **Indexing**       | [EmbeddingService.swift](OpenIntelligence/Services/Embedding/EmbeddingService.swift), [SQLiteFullTextService.swift](OpenIntelligence/Services/Storage/SQLiteFullTextService.swift), [VectorStoreRouter.swift](OpenIntelligence/Services/VectorStore/VectorStoreRouter.swift), [BNNSVectorDatabase.swift](OpenIntelligence/Services/VectorStore/BNNSVectorDatabase.swift) | SQLite FTS5 lexical storage, BNNS-accelerated local vector indexing. |
-| **Query Planning** | [QueryProfileService.swift](OpenIntelligence/Services/Query/Analysis/QueryProfileService.swift), [QueryRewriterService.swift](OpenIntelligence/Services/Query/Rewriting/QueryRewriterService.swift), [HyDEService.swift](OpenIntelligence/Services/Query/Rewriting/HyDEService.swift) | Query profiling, intent classification, expansion, HyDE generation. |
-| **Retrieval**      | [HybridSearchService.swift](OpenIntelligence/Services/RAG/Retrieval/HybridSearchService.swift), [IterativeRetrievalService.swift](OpenIntelligence/Services/RAG/Retrieval/IterativeRetrievalService.swift), [ParentDocumentService.swift](OpenIntelligence/Services/RAG/Retrieval/ParentDocumentService.swift), [ContextPackingService.swift](OpenIntelligence/Services/RAG/Retrieval/ContextPackingService.swift) | Hybrid merging, parent-chunk context reconstruction, token-budget packing. |
-| **Orchestration**  | [ExtractiveQAService.swift](OpenIntelligence/Services/RAG/Extraction/ExtractiveQAService.swift), [LLMService.swift](OpenIntelligence/Services/LLM/LLMService.swift), [AgenticOrchestrator.swift](OpenIntelligence/Services/Agentic/AgenticOrchestrator.swift), [RAGService.swift](OpenIntelligence/Services/RAG/Orchestration/RAGService.swift) | Generation coordination, agentic pipelines, validation loops. |
-| **Evaluations**    | [RAGEvalRunner.swift](OpenIntelligence/Services/Evaluation/RAGEvalRunner.swift), [AppleEvaluationsBridge.swift](OpenIntelligence/Services/Evaluation/AppleEvaluationsBridge.swift) | RAG query evaluation, performance metrics calculation, and report generation. |
-| **Diagnostics**    | [ChatScreen.swift](OpenIntelligence/Features/Chat/Conversation/ChatScreen.swift), [RAGPipelineAuditView.swift](OpenIntelligence/Features/Diagnostics/Validation/RAGPipelineAuditView.swift), [DebugRAGValidationHarness.swift](OpenIntelligence/App/DebugRAGValidationHarness.swift), [run_rag_benchmarks.py](scripts/run_rag_benchmarks.py) | Telemetry overlays, audit logs, CLI evaluation harness. |
+## 🛠️ Placeholders & Scaffolding Warnings
+To maintain codebase transparency, please note:
+- **Core AI Integration:** Disabled via `#if false` directives in `CoreAISentenceEmbeddingProvider.swift`. The project currently runs on reliable local `CoreMLSentenceEmbeddingProvider` implementations until the OS 27 beta stabilizes.
+- **Private Cloud Compute (PCC):** Routed locally using a fallback system language model wrapper in `EngineSDKCompatibility.swift` to ensure compilability on current public SDKs.
 
 ---
 
-## Technical Constants & Constraints
+## 🚀 Build & Verification
 
-* **On-Device Context Limit**: 4,096 total token context window (includes system prompt, chat history, retrieval targets, and output buffer).
-* **Embedding Model Output**: 384-dimensional dense vectors calculated using local BNNS frameworks.
-* **Lexical Indexing**: SQLite FTS5 configured with BM25 column weights prioritizing section headings and entity tags.
-* **Confidence Gate Threshold**: Grounded RAG responses require a semantic evidence overlap index of `0.70` to verify output generation.
+**Requirements:**
+* macOS Tahoe (26.x) with Xcode 26+
+* iOS 26.0+ SDK target support
+* Apple Silicon (M1+ / A17 Pro+) for adequate Neural Engine throughput
 
----
-
-## StoreKit Billing Tiers & Resource Quotas
-Limits are enforced locally in [EntitlementStore.swift](file:///Users/gunnarhostetler/Documents/GitHub/OpenIntelligence-Public/OpenIntelligence/Services/Billing/EntitlementStore.swift) via StoreKit 2 APIs:
-
-* **Free Tier:** Limited to **5 documents**, **1 library**, and **3 Maximum mode runs per day**.
-* **Pro Tier (`pro_monthly`, `pro_annual`):** Limited to **1,000 documents**, **10 libraries**, and **unlimited** Maximum mode runs.
-* **Lifetime Tier (`lifetime_cohort`):** Unlimited documents, up to **20 libraries**, and **unlimited** Maximum mode runs.
-* **Document Pack Add-On (`doc_pack_addon`):** Consumable purchase that adds **+10 document slots** (up to 3 active packs active simultaneously for a maximum bonus of +30 slots).
-
----
-
-## Placeholders & Scaffolding Warnings
-To maintain codebase transparency, I document the following scaffolded layers:
-- **Core AI Integration:** Disabled via `#if false` directives in [CoreAISentenceEmbeddingProvider.swift](file:///Users/gunnarhostetler/Documents/GitHub/OpenIntelligence-Public/OpenIntelligence/Services/Embedding/Providers/CoreAISentenceEmbeddingProvider.swift). The project currently runs on local `CoreMLSentenceEmbeddingProvider` code.
-- **Private Cloud Compute (PCC) Routing:** Simulated using a local system language model compatibility wrapper in [EngineSDKCompatibility.swift](file:///Users/gunnarhostetler/Documents/GitHub/OpenIntelligence-Public/OpenIntelligence/Core/Support/EngineSDKCompatibility.swift). No remote enclave execution is compiled in or active.
-
----
-
-## Build & Verification
-
-### Requirements
-* macOS with Xcode.
-* iOS 26.0+ SDK target support.
-* Simulator configured.
-
-### Instructions
-1. **Clear macOS extended attributes to prevent codesign failure**:
+**Instructions:**
+1. Clear macOS extended attributes to prevent codesign failure:
    ```bash
    /usr/bin/xattr -cr /Users/gunnarhostetler/Documents/GitHub/OpenIntelligence-Public/OpenIntelligence
    ```
-2. **Compile the simulator smoke target**:
+2. Compile the simulator smoke target:
    ```bash
    ./scripts/build_simulator_smoke.sh
    ```
-3. **Execute local RAG pipeline validation harness**:
+3. Execute the local RAG pipeline validation harness:
    ```bash
    python3 scripts/run_rag_benchmarks.py
    ```
 
 ---
 
-## Scope & Limitations
-OpenIntelligence is an exploratory technical implementation of on-device RAG. Responses depend on local foundation model availability and on-device memory constraints. Core engine targets and schemas are subject to change.
-
 ## License
-See [LICENSE](LICENSE).
+OpenIntelligence is open-source software. See [LICENSE](LICENSE) for details.

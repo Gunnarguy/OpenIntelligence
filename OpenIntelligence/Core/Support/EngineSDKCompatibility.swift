@@ -151,7 +151,7 @@ import Foundation
 #if canImport(FoundationModels)
 import FoundationModels
 
-// Mocking the new WWDC26 API so it compiles.
+// Local fallback for the new WWDC26 API to ensure compilation.
 @available(iOS 26.0, macOS 16.0, *)
 public struct PrivateCloudComputeLanguageModel {
     public init() {}

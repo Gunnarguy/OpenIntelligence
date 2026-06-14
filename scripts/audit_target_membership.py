@@ -48,8 +48,8 @@ def main():
         f.write(f"- **OpenIntelligenceLiveActivities (Extension Target):** {len(target_map['OpenIntelligenceLiveActivities'])} files\n")
         f.write(f"- **No target (Scripts, Docs, Tests, Benchmarks):** {len(target_map['None (Development/Scripts/Docs)'])} files (excluding raw benchmark run logs)\n\n")
         
-        f.write("## 2. Dynamic Target Membership Mechanics (Xcode 16)\n")
-        f.write("The project utilizes Xcode 16's **FileSystemSynchronizedGroups** (Folder Sync) feature:\n")
+        f.write("## 2. Dynamic Target Membership Mechanics (Xcode 26)\n")
+        f.write("The project utilizes Xcode 26's **FileSystemSynchronizedGroups** (Folder Sync) feature:\n")
         f.write("1. **OpenIntelligence App target** maps to the `OpenIntelligence/` directory on disk, automatically compiling all source files inside it.\n")
         f.write("2. **OpenIntelligenceEngine framework target** maps to specific synchronized groups (e.g. `Core`, `SDK`, `Services/...`, `Resources`).\n")
         f.write("3. **Exclusions** are maintained via `PBXFileSystemSynchronizedBuildFileExceptionSet` blocks in the project file, ensuring app-specific views, local LLM servers, or testing resources do not spill into the SDK target.\n\n")

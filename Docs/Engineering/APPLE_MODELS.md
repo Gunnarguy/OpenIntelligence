@@ -2,8 +2,8 @@
 
 # Apple Intelligence Models & Specs
 
-> **Scope**: Token limits, context rules, and integration constraints for iOS 26/27+ Foundation Models.
-> **Source**: Official Apple Developer Documentation (iOS 26.0+ / iOS 27.0+ Beta)
+> **Scope**: Token limits, context rules, and integration constraints for macOS 26/27+ and iOS 26/27+ Foundation Models.
+> **Source**: Official Apple Developer Documentation (macOS 26.0+ / iOS 26.0+ and macOS 27.0+ / iOS 27.0+ Beta)
 > **Last Updated**: June 14, 2026
 > **Tech Note**: [TN3193: Managing the on-device foundation model's context window](https://developer.apple.com/documentation/Technotes/tn3193-managing-the-on-device-foundation-model-s-context-window)
 
@@ -11,7 +11,7 @@
 
 ## June 2026 Repo Grounding
 
-Current source code reflects Apple's modern platform context limits and models across both WWDC25 (iOS 26) and WWDC26 (iOS 27):
+Current source code reflects Apple's modern platform context limits and models across both WWDC25 (macOS 26 / iOS 26) and WWDC26 (macOS 27 / iOS 27):
 
 - `LLMService.swift` manages dynamic model routes via `SystemLanguageModel.default` and `PrivateCloudComputeLanguageModel()`.
 - `ModelResolutionService.swift` monitors the query execution pathway in real-time, resolving whether On-Device or PCC is actively serving queries.
@@ -20,9 +20,9 @@ Current source code reflects Apple's modern platform context limits and models a
 
 ### API Differences: WWDC25 (iOS 26.x) vs. WWDC26 (iOS 27.0 Beta)
 
-| Platform Area | WWDC25 / iOS 26.x (Tahoe) | WWDC26 / iOS 27.0+ (Beta) | Code Level Implementation |
+| Platform Area | WWDC25 / macOS 26.x (Tahoe) / iOS 26.x | WWDC26 / macOS 27.0+ (Beta) / iOS 27.0+ (Beta) | Code Level Implementation |
 | :--- | :--- | :--- | :--- |
-| **Local Embeddings** | Powered by **Core ML** (`CoreMLSentenceEmbeddingProvider`) using `.mlpackage` structures. | Powered by **Core AI** (`CoreAISentenceEmbeddingProvider`) using Silicon-native `.aimodel` structures. | Implemented via `#if canImport(CoreAI)` and `@available(iOS 27.0, *)` guards (currently disabled in v4.1 via `#if false`). |
+| **Local Embeddings** | Powered by **Core ML** (`CoreMLSentenceEmbeddingProvider`) using `.mlpackage` structures. | Powered by **Core AI** (`CoreAISentenceEmbeddingProvider`) using Silicon-native `.aimodel` structures. | Implemented via `#if canImport(CoreAI)` and `@available(iOS 27.0, macOS 27.0, *)` guards (currently disabled in v4.1 via `#if false`). |
 | **Generation Options** | `GenerationOptions` initializer uses the `sampling` parameter. | `GenerationOptions` initializer renames parameter to `samplingMode`. | Gated in `LLMService.swift` under `#if compiler(>=6.4)`. |
 | **Transcript Entries** | Supports `.instructions`, `.prompt`, `.response`, `.toolCalls`, and `.toolOutput`. | Adds `.reasoning(reasoning)` case to stream intermediate thinking steps. | Gated in `FoundationModelTokenBudget.swift` under `#if compiler(>=6.4)`. |
 | **Session Profiles** | Rebuilds `LanguageModelSession` instances upon instruction or tool updates. | Unlocks **Dynamic Profiles** to hot-swap tools/instructions inside an active session. | Staged in `FoundationModelDynamicProfileRegistry.swift` with availability guards. |
@@ -56,7 +56,7 @@ Related docs:
 
 ### On-Device vs. Private Cloud Compute (PCC)
 
-Apple's Foundation Models framework under iOS 26+ defines two distinct execution paths:
+Apple's Foundation Models framework under macOS 26+ and iOS 26+ defines two distinct execution paths:
 
 *   **On-Device (`SystemLanguageModel.default`)**: Features a **4,096-token** context window limit. Ideal for standard queries and fast offline processing.
 *   **Private Cloud Compute (`PrivateCloudComputeLanguageModel`)**: Exposes a **32,768-token** context window. Queries are dynamically routed to PCC secure server enclaves for deep reasoning or when the context/chat history overflows the on-device 4K ceiling.
