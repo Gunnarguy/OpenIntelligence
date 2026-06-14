@@ -1,4 +1,4 @@
-# Post-Vik Alignment Validation Report - OpenIntelligence v4.1
+# Alignment Validation Report - OpenIntelligence v4.1
 
 This document registers the build and documentation validation checks performed after updating the RAG reliability and reranking audit materials.
 
