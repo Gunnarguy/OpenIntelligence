@@ -1,8 +1,4 @@
-# Vik Comment Technical Alignment Matrix - OpenIntelligence v4.1
-
-This document evaluates the technical accuracy of the following public comment:
-
-> “The abstention path + contradiction sweeps are the parts most RAG demos skip, so good to see them first-class here. Running cross-encoder reranking on-device is the interesting constraint!”
+# Technical Alignment Matrix - OpenIntelligence v4.1
 
 ---
 
