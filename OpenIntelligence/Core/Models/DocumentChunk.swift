@@ -197,6 +197,9 @@ struct ChunkMetadata: Codable, Sendable {
     /// High-level image type for figure-derived chunks.
     let imageContentType: String?
 
+    /// Unique identifier linking to an extracted image on disk
+    let mediaReferenceId: String?
+
     /// Nearby caption associated with a figure-derived chunk.
     let imageCaption: String?
 
@@ -246,6 +249,7 @@ struct ChunkMetadata: Codable, Sendable {
         chunkType: ChunkSemanticType? = nil,
         tableTitle: String? = nil,
         imageContentType: String? = nil,
+        mediaReferenceId: String? = nil,
         imageCaption: String? = nil,
         imageDescription: String? = nil,
         imageExtractedText: String? = nil,
@@ -277,6 +281,7 @@ struct ChunkMetadata: Codable, Sendable {
         self.chunkType = chunkType
         self.tableTitle = tableTitle
         self.imageContentType = imageContentType
+        self.mediaReferenceId = mediaReferenceId
         self.imageCaption = imageCaption
         self.imageDescription = imageDescription
         self.imageExtractedText = imageExtractedText
@@ -310,6 +315,7 @@ struct ChunkMetadata: Codable, Sendable {
         case chunkType
         case tableTitle
         case imageContentType
+        case mediaReferenceId
         case imageCaption
         case imageDescription
         case imageExtractedText
@@ -356,6 +362,7 @@ struct ChunkMetadata: Codable, Sendable {
         chunkType = try container.decodeIfPresent(ChunkSemanticType.self, forKey: .chunkType)
         tableTitle = try container.decodeIfPresent(String.self, forKey: .tableTitle)
         imageContentType = try container.decodeIfPresent(String.self, forKey: .imageContentType)
+        mediaReferenceId = try container.decodeIfPresent(String.self, forKey: .mediaReferenceId)
         imageCaption = try container.decodeIfPresent(String.self, forKey: .imageCaption)
         imageDescription = try container.decodeIfPresent(String.self, forKey: .imageDescription)
         imageExtractedText = try container.decodeIfPresent(String.self, forKey: .imageExtractedText)
@@ -407,6 +414,7 @@ struct ChunkMetadata: Codable, Sendable {
         try container.encodeIfPresent(chunkType, forKey: .chunkType)
         try container.encodeIfPresent(tableTitle, forKey: .tableTitle)
         try container.encodeIfPresent(imageContentType, forKey: .imageContentType)
+        try container.encodeIfPresent(mediaReferenceId, forKey: .mediaReferenceId)
         try container.encodeIfPresent(imageCaption, forKey: .imageCaption)
         try container.encodeIfPresent(imageDescription, forKey: .imageDescription)
         try container.encodeIfPresent(imageExtractedText, forKey: .imageExtractedText)
