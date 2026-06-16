@@ -11,6 +11,7 @@ struct GroundedAnswerView: View {
     let modeName: String?
     
     @State private var expandedClaimIndex: Int? = nil
+    @State private var selectedCitationChunk: RetrievedChunk? = nil
     
     private var modeColor: Color {
         let mode = modeName?.lowercased() ?? ""
@@ -21,12 +22,46 @@ struct GroundedAnswerView: View {
     
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            // Main answer text
+            // Main answer text with interactive citations
+            let linkedAnswer = answer.answer.replacingOccurrences(
+                of: "\\[(\\d+)\\]",
+                with: "[[$$1]](citation://$$1)",
+                options: .regularExpression
+            )
+            
             MarkdownText(
-                answer.answer,
+                linkedAnswer,
                 font: .system(size: 14, weight: .regular),
                 foregroundColor: DSColors.primaryText
             )
+            .environment(\.openURL, OpenURLAction { url in
+                if url.scheme == "citation", let host = url.host, let idx = Int(host) {
+                    let arrayIdx = idx - 1
+                    if arrayIdx >= 0 && arrayIdx < retrievedChunks.count {
+                        selectedCitationChunk = retrievedChunks[arrayIdx]
+                        return .handled
+                    }
+                }
+                return .systemAction
+            })
+            .sheet(item: Binding(
+                get: { selectedCitationChunk.map { IdentifiableChunk(chunk: $0) } },
+                set: { selectedCitationChunk = $0?.chunk }
+            )) { identifiableChunk in
+                NavigationView {
+                    DocumentDetailsView(
+                        document: Document(
+                            id: identifiableChunk.chunk.chunk.documentId,
+                            filename: identifiableChunk.chunk.sourceDocument,
+                            fileURL: URL(fileURLWithPath: identifiableChunk.chunk.sourceDocument),
+                            contentType: .unknown
+                        ),
+                        embeddingProviderId: nil,
+                        highlightedChunk: identifiableChunk.chunk
+                    )
+                }
+            }
+
             
             if !answer.claims.isEmpty {
                 VStack(alignment: .leading, spacing: 6) {
@@ -275,4 +310,9 @@ private struct ClaimCard: View {
         case nil: return "VERIFYING"
         }
     }
+}
+
+private struct IdentifiableChunk: Identifiable {
+    let chunk: RetrievedChunk
+    var id: UUID { chunk.chunk.id }
 }

@@ -10,6 +10,12 @@ struct ThinkingStreamView: View {
     @State private var hasAutoExpanded = false
     @AppStorage("thinkingViewAutoCollapse") private var autoCollapse = true
 
+    enum ViewMode {
+        case console
+        case visualGates
+    }
+    @State private var viewMode: ViewMode = .visualGates
+
     private var latestEvent: ThinkingEvent? {
         events.last
     }
@@ -28,13 +34,30 @@ struct ThinkingStreamView: View {
             }
             .buttonStyle(.plain)
 
-            // Expanded: Full console log of all events
+            // Expanded: Full console log of all events or visual gates
             if isExpanded {
-                consoleLogView
-                    .transition(.asymmetric(
-                        insertion: .push(from: .top).combined(with: .opacity),
-                        removal: .opacity
-                    ))
+                VStack(spacing: 8) {
+                    // Mode Picker
+                    Picker("View Mode", selection: $viewMode) {
+                        Text("Gates").tag(ViewMode.visualGates)
+                        Text("Console").tag(ViewMode.console)
+                    }
+                    .pickerStyle(.segmented)
+                    .padding(.horizontal, 10)
+                    .padding(.top, 8)
+                    
+                    if viewMode == .visualGates {
+                        VerificationGatesOverlayView(events: events)
+                            .padding(.horizontal, 10)
+                            .padding(.bottom, 8)
+                    } else {
+                        consoleLogView
+                    }
+                }
+                .transition(.asymmetric(
+                    insertion: .push(from: .top).combined(with: .opacity),
+                    removal: .opacity
+                ))
             }
         }
         .animation(.spring(response: 0.3, dampingFraction: 0.85), value: isExpanded)
