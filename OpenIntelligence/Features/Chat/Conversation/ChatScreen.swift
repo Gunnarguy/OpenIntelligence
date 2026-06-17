@@ -271,6 +271,7 @@ struct ChatScreen: View {
     @State private var isRefreshingSuggestions = false
     private let suggestedQuestionsService = SuggestedQuestionsService.shared
     @State private var lastProcessedContainerId: UUID? = nil
+    @State private var lastLoadedChatContainerId: UUID? = nil
     @State private var lastProcessedDocuments: [Document]? = nil
     @State private var isAppeared = false
     @State private var needsSuggestedQuestionsRefresh = false
@@ -570,13 +571,16 @@ struct ChatScreen: View {
             if didSeedScreenshotDemo { return }
             #endif
             let activeId = ragService.containerService.activeContainerId
-            let isSameContainer = (lastProcessedContainerId == activeId)
+            let isSameChatContainer = (lastLoadedChatContainerId == activeId)
+            let isSameDocsContainer = (lastProcessedContainerId == activeId)
 
-            if !isSameContainer {
+            if !isSameChatContainer {
                 messages = await ragService.preloadChatHistory(for: activeId)
                 guard !Task.isCancelled,
                     ragService.containerService.activeContainerId == activeId
                 else { return }
+                
+                lastLoadedChatContainerId = activeId
                 await recalcActiveCounts()
 
                 // Clear stale per-conversation state from previous library
@@ -584,7 +588,9 @@ struct ChatScreen: View {
                 followUpSuggestions = []
                 thinkingEvents = []
                 speedHistory = []
-
+            }
+            
+            if !isSameDocsContainer {
                 // Immediately clear old suggested questions so stale pills never flash
                 dynamicSuggestedQuestions = []
                 dynamicQuestionCategories = [:]

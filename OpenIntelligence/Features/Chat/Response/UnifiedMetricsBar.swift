@@ -2226,7 +2226,7 @@ struct UnifiedMetricsBar: View {
                 }
             }
 
-            ThinkingStreamView(events: thinkingEvents)
+            ThinkingStreamView(events: thinkingEvents, qualityMode: qualityMode)
         }
         .padding(12)
         .background(Color.blue.opacity(0.06))
@@ -2301,7 +2301,7 @@ struct UnifiedMetricsBar: View {
                 }
             }
 
-            ThinkingStreamView(events: thinkingEvents)
+            ThinkingStreamView(events: thinkingEvents, qualityMode: qualityMode)
         }
         .padding(12)
         .background(Color.purple.opacity(0.06))
@@ -2378,7 +2378,7 @@ struct UnifiedMetricsBar: View {
                 }
             }
 
-            ThinkingStreamView(events: thinkingEvents)
+            ThinkingStreamView(events: thinkingEvents, qualityMode: qualityMode)
         }
         .padding(12)
         .background(

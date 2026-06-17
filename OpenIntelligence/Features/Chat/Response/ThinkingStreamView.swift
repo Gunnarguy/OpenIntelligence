@@ -4,6 +4,7 @@ import SwiftUI
 /// No abstractions - just the literal log of operations as they happen.
 struct ThinkingStreamView: View {
     let events: [ThinkingEvent]
+    var qualityMode: RAGQualityMode? = nil
 
     @State private var isExpanded = true  // Default expanded to show the action
     @State private var isFullHeight = false  // Secondary expand for full history view
@@ -47,7 +48,7 @@ struct ThinkingStreamView: View {
                     .padding(.top, 8)
                     
                     if viewMode == .visualGates {
-                        VerificationGatesOverlayView(events: events)
+                        VerificationGatesOverlayView(events: events, qualityMode: qualityMode)
                             .padding(.horizontal, 10)
                             .padding(.bottom, 8)
                     } else {

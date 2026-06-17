@@ -5,6 +5,7 @@ import SwiftUI
 /// (e.g. fails a gate), that specific gate flashes red to prove active rejection of bad context.
 struct VerificationGatesOverlayView: View {
     let events: [ThinkingEvent]
+    var qualityMode: RAGQualityMode? = nil
 
     // The 7 Gates defined for the visualization
     enum GateStatus: Equatable {
@@ -22,35 +23,71 @@ struct VerificationGatesOverlayView: View {
         var status: GateStatus = .pending
     }
 
-    @State private var gates: [VerificationGate] = [
-        VerificationGate(id: 1, title: "Intent Formulation", kind: .intentRoute, secondaryKind: .planning),
-        VerificationGate(id: 2, title: "Scope Validation", kind: .retrieval, secondaryKind: nil),
-        VerificationGate(id: 3, title: "Density Threshold", kind: .vectorSearch, secondaryKind: .bm25),
-        VerificationGate(id: 4, title: "RRF Confidence", kind: .rrf, secondaryKind: nil),
-        VerificationGate(id: 5, title: "Compression Yield", kind: .compression, secondaryKind: nil),
-        VerificationGate(id: 6, title: "Semantic Grounding", kind: .grounding, secondaryKind: .verification),
-        VerificationGate(id: 7, title: "Agentic Policy", kind: .agentic, secondaryKind: .gating)
-    ]
+    @State private var gates: [VerificationGate] = []
+
+    private func initialGates() -> [VerificationGate] {
+        let mode = qualityMode?.canonical ?? .standard
+        switch mode {
+        case .standard:
+            return [
+                VerificationGate(id: 1, title: "Intent Formulation", kind: .intentRoute, secondaryKind: .planning),
+                VerificationGate(id: 2, title: "Scope Validation", kind: .retrieval, secondaryKind: nil),
+                VerificationGate(id: 3, title: "RRF Confidence", kind: .rrf, secondaryKind: nil),
+                VerificationGate(id: 4, title: "Semantic Grounding", kind: .grounding, secondaryKind: .verification)
+            ]
+        case .deepThink:
+            return [
+                VerificationGate(id: 1, title: "Intent Formulation", kind: .intentRoute, secondaryKind: .planning),
+                VerificationGate(id: 2, title: "HyDE Generation", kind: .hyde, secondaryKind: .queryRewrite),
+                VerificationGate(id: 3, title: "Vector & BM25", kind: .vectorSearch, secondaryKind: .bm25),
+                VerificationGate(id: 4, title: "RRF Fusion", kind: .rrf, secondaryKind: nil),
+                VerificationGate(id: 5, title: "MMR Diversity", kind: .mmr, secondaryKind: nil),
+                VerificationGate(id: 6, title: "Compression", kind: .compression, secondaryKind: nil),
+                VerificationGate(id: 7, title: "Semantic Grounding", kind: .grounding, secondaryKind: .verification),
+                VerificationGate(id: 8, title: "Agentic Loop", kind: .iterative, secondaryKind: .agentic)
+            ]
+        case .maximum:
+            return [
+                VerificationGate(id: 1, title: "Intent Formulation", kind: .intentRoute, secondaryKind: .planning),
+                VerificationGate(id: 2, title: "HyDE & Expansion", kind: .hyde, secondaryKind: .queryRewrite),
+                VerificationGate(id: 3, title: "Broad Retrieval", kind: .vectorSearch, secondaryKind: .bm25),
+                VerificationGate(id: 4, title: "RRF Fusion", kind: .rrf, secondaryKind: nil),
+                VerificationGate(id: 5, title: "MMR & Re-rank", kind: .mmr, secondaryKind: .rerank),
+                VerificationGate(id: 6, title: "Semantic Grounding", kind: .grounding, secondaryKind: .verification),
+                VerificationGate(id: 7, title: "Maximum Confidence", kind: .gating, secondaryKind: .confidence),
+                VerificationGate(id: 8, title: "Agentic Policy", kind: .agentic, secondaryKind: .iterative)
+            ]
+        default:
+            return [
+                VerificationGate(id: 1, title: "Intent Formulation", kind: .intentRoute, secondaryKind: .planning),
+                VerificationGate(id: 2, title: "Scope Validation", kind: .retrieval, secondaryKind: nil),
+                VerificationGate(id: 3, title: "RRF Confidence", kind: .rrf, secondaryKind: nil),
+                VerificationGate(id: 4, title: "Semantic Grounding", kind: .grounding, secondaryKind: .verification)
+            ]
+        }
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
                 Image(systemName: "shield.checkerboard")
-                    .foregroundColor(DSColors.accent)
+                    .foregroundStyle(DSColors.accent)
+                    .symbolEffect(.pulse, options: .repeating)
                 Text("Verification Pipeline")
                     .font(.system(size: 11, weight: .bold, design: .monospaced))
-                    .foregroundColor(DSColors.primaryText)
+                    .foregroundStyle(DSColors.primaryText)
                 
                 Spacer()
                 
-                if let failureGate = gates.first(where: { if case .failed = $0.status { return true }; return false }) {
+                if gates.contains(where: { if case .failed = $0.status { return true }; return false }) {
                     Text("ABSTAINED")
                         .font(.system(size: 9, weight: .black, design: .monospaced))
-                        .foregroundColor(.red)
+                        .foregroundStyle(.white)
                         .padding(.horizontal, 6)
                         .padding(.vertical, 2)
-                        .background(Color.red.opacity(0.15))
+                        .background(Color.red.gradient)
                         .cornerRadius(4)
+                        .transition(.blurReplace)
                 }
             }
             .padding(.bottom, 4)
@@ -60,7 +97,8 @@ struct VerificationGatesOverlayView: View {
             }
         }
         .padding(12)
-        .background(DSColors.surface.opacity(0.9))
+        .background(DSColors.surface.opacity(0.6))
+        .background(.ultraThinMaterial)
         .cornerRadius(12)
         .overlay(
             RoundedRectangle(cornerRadius: 12)
@@ -69,7 +107,14 @@ struct VerificationGatesOverlayView: View {
         .onChange(of: events.count) { _, _ in
             updateGateStatuses()
         }
+        .onChange(of: qualityMode) { _, _ in
+            self.gates = initialGates()
+            updateGateStatuses()
+        }
         .onAppear {
+            if gates.isEmpty {
+                self.gates = initialGates()
+            }
             updateGateStatuses()
         }
     }
@@ -132,42 +177,55 @@ struct GateRowView: View {
             
             Text("Gate \(gate.id): \(gate.title)")
                 .font(.system(size: 10, weight: .medium, design: .monospaced))
-                .foregroundColor(textColor)
+                .foregroundStyle(textColor)
             
             Spacer()
             
             if case .failed(let reason) = gate.status {
                 Text(reason)
                     .font(.system(size: 8, weight: .regular, design: .monospaced))
-                    .foregroundColor(.red.opacity(0.8))
+                    .foregroundStyle(.red.opacity(0.8))
                     .lineLimit(1)
+                    .transition(.blurReplace)
             }
         }
+        .sensoryFeedback(trigger: gate.status) { oldValue, newValue in
+            if newValue == .passed && oldValue != .passed {
+                return .success
+            } else if isFailed(newValue) && !isFailed(oldValue) {
+                return .error
+            }
+            return nil
+        }
+    }
+    
+    private func isFailed(_ status: VerificationGatesOverlayView.GateStatus) -> Bool {
+        if case .failed = status { return true }
+        return false
     }
     
     @ViewBuilder
     private var statusIcon: some View {
         switch gate.status {
         case .pending:
-            Circle()
-                .stroke(DSColors.secondaryText.opacity(0.3), lineWidth: 1)
+            Image(systemName: "circle.dotted")
+                .font(.system(size: 12))
+                .foregroundStyle(DSColors.secondaryText.opacity(0.3))
         case .processing:
-            Circle()
-                .fill(DSColors.accent)
-                .overlay(
-                    Circle()
-                        .stroke(DSColors.accent, lineWidth: 2)
-                        .scaleEffect(1.5)
-                        .opacity(0.3)
-                )
+            Image(systemName: "arrow.triangle.2.circlepath")
+                .font(.system(size: 12))
+                .foregroundStyle(DSColors.accent)
+                .symbolEffect(.rotate, options: .repeating)
         case .passed:
             Image(systemName: "checkmark.circle.fill")
-                .foregroundColor(.green)
                 .font(.system(size: 12))
+                .foregroundStyle(.green)
+                .symbolEffect(.bounce, value: gate.status == .passed)
         case .failed:
             Image(systemName: "xmark.circle.fill")
-                .foregroundColor(.red)
                 .font(.system(size: 12))
+                .foregroundStyle(.red)
+                .symbolEffect(.pulse, value: isFailed(gate.status))
         }
     }
     
@@ -190,7 +248,7 @@ struct GateRowView: View {
         ThinkingEvent(kind: .warning, title: "Insufficient RRF Confidence")
     ]
     
-    return VerificationGatesOverlayView(events: events)
+    return VerificationGatesOverlayView(events: events, qualityMode: .deepThink)
         .padding()
         .background(Color.black)
 }

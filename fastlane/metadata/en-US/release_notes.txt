@@ -1,5 +1,10 @@
 Changes since 3.7.5:
 
+Version 4.2:
+- Modernized UI for macOS/iOS: Completely rebuilt the live telemetry HUD with ultra-thin materials, interactive haptics, and smooth symbol animations.
+- Dynamic Verification Gates: The visual HUD for RAG telemetry now adapts its pipeline dynamically based on your active Quality Mode.
+- Fixed Chat History Persistence: Resolved an issue that sometimes skipped loading your previous chat history during a cold boot.
+
 Version 4.1:
 - Core AI Sentence Embedding Provider: Added CoreAISentenceEmbeddingProvider for high-speed, local silicon-accelerated vector calculations on Apple device hardware.
 - Real-Time Thinking Telemetry: Added ThinkingStreamView inside the UnifiedMetricsBar to show live reasoning and model processing states.

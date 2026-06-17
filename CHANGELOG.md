@@ -3,6 +3,11 @@
 # Changelog
 
 This is the public version history for OpenIntelligence. It focuses on user-visible product changes and intentionally omits private engine tuning, thresholds, and internal implementation details.
+## 4.2 - June 2026
+
+- **Modernized UI for macOS/iOS**: Completely rebuilt the live telemetry HUD utilizing iOS 26/macOS 26/WWDC26+ APIs. Integrated `.ultraThinMaterial` for premium glassmorphism, hardware `.sensoryFeedback` for interactive haptics, and smooth `.symbolEffect` animations.
+- **Dynamic Verification Gates**: The visual HUD for RAG telemetry now adapts its pipeline dynamically based on your active `RAGQualityMode` (Standard = 4 gates, Deep Think = 8 gates, or Maximum = 12 gates).
+- **Fixed Chat History Persistence**: Resolved an issue that sometimes skipped loading your previous chat history during a cold boot after force-closing the app.
 
 ## 4.0 & 4.1 - June 2026 (Apple Intelligence Release)
 

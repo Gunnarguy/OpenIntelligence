@@ -714,7 +714,7 @@ actor StructuredDocumentParser {
     private func makeStructuredDocumentSnapshot(from document: DocumentObservation.Container, pageNumber: Int, sourceImage: CIImage) async -> StructuredDocumentSnapshot {
         var elements: [StructuredElement] = []
         var figureReferences: [String] = []
-        var figureCount = 0
+        let figureCount = 0
 
         var pageTitle: String? = nil
         if let title = document.title {

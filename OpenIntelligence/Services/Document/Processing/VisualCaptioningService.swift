@@ -41,7 +41,7 @@ actor VisualCaptioningService {
             
             // For OS 27, we use the multimodal session capabilities
             let instructions = Instructions("You are an expert data analyst. Describe the following chart, graph, or diagram in extreme detail. Include all axes, legends, numbers, and key takeaways. Do not include introductory text, just the raw semantic description.")
-            let session = LanguageModelSession(model: model, instructions: instructions)
+            _ = LanguageModelSession(model: model, instructions: instructions)
             
             // Construct the multi-modal message (Mocking OS 27 syntax based on typical VLM patterns)
             // Assuming FoundationModels in OS 27 supports attachments or multimodal components
