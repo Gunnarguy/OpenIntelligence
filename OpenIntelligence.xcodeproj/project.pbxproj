@@ -244,17 +244,6 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
-		F0A1000A2F1A000100AA1001 /* OpenIntelligenceLiveActivities */ = {
-			isa = PBXGroup;
-			children = (
-				F0A100202F1A000100AA1001 /* IngestionLiveActivityWidget.swift */,
-				F0A100212F1A000100AA1001 /* OpenIntelligenceLiveActivitiesBundle.swift */,
-				F0A100222F1A000100AA1001 /* OpenIntelligenceActivityIcon.png */,
-				F0A100232F1A000100AA1001 /* Info.plist */,
-			);
-			path = OpenIntelligenceLiveActivities;
-			sourceTree = "<group>";
-		};
 		B015094A2FA3A465008E428B /* Recovered References */ = {
 			isa = PBXGroup;
 			children = (
@@ -276,6 +265,7 @@
 				E0A100272F0F5F5F00AABA0C /* OpenIntelligence/Services/RAG */,
 				E0A100282F0F5F5F00AABA0C /* OpenIntelligence/Services/Storage */,
 				E0A100292F0F5F5F00AABA0C /* OpenIntelligence/Services/VectorStore */,
+				F0A100042F1A000100AA1001 /* OpenIntelligence/Services/Infrastructure/Background/IngestionLiveActivityAttributes.swift */,
 			);
 			name = "Recovered References";
 			sourceTree = "<group>";
@@ -315,6 +305,17 @@
 				DDFD1600670D479C7075E2C2 /* Foundation.framework */,
 			);
 			name = iOS;
+			sourceTree = "<group>";
+		};
+		F0A1000A2F1A000100AA1001 /* OpenIntelligenceLiveActivities */ = {
+			isa = PBXGroup;
+			children = (
+				F0A100202F1A000100AA1001 /* IngestionLiveActivityWidget.swift */,
+				F0A100212F1A000100AA1001 /* OpenIntelligenceLiveActivitiesBundle.swift */,
+				F0A100222F1A000100AA1001 /* OpenIntelligenceActivityIcon.png */,
+				F0A100232F1A000100AA1001 /* Info.plist */,
+			);
+			path = OpenIntelligenceLiveActivities;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -360,7 +361,6 @@
 			fileSystemSynchronizedGroups = (
 				E0A100152F0F5F5F00AABA0C /* OpenIntelligence/Core */,
 				E0A100162F0F5F5F00AABA0C /* OpenIntelligence/SDK */,
-				E0A1002B2F0F5F5F00AABA0C /* OpenIntelligence/Services/AIPlatform */,
 				E0A100172F0F5F5F00AABA0C /* OpenIntelligence/Services/Agentic */,
 				E0A100182F0F5F5F00AABA0C /* OpenIntelligence/Services/Document */,
 				E0A100192F0F5F5F00AABA0C /* OpenIntelligence/Services/Embedding */,
@@ -375,6 +375,7 @@
 				E0A100282F0F5F5F00AABA0C /* OpenIntelligence/Services/Storage */,
 				E0A100292F0F5F5F00AABA0C /* OpenIntelligence/Services/VectorStore */,
 				E0A1002A2F0F5F5F00AABA0C /* OpenIntelligence/Services/Infrastructure/Storage */,
+				E0A1002B2F0F5F5F00AABA0C /* OpenIntelligence/Services/AIPlatform */,
 				F0A100082F1A000100AA1001 /* OpenIntelligence/Resources */,
 			);
 			name = OpenIntelligenceEngine;
@@ -483,13 +484,6 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		E0A100112F0F5F5F00AABA0C /* Sources */ = {
-			isa = PBXSourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		E0A100112F1A000100AA1001 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -645,7 +639,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = OpenIntelligence/OpenIntelligence.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 55;
+				CURRENT_PROJECT_VERSION = 56;
 				DERIVE_MACCATALYST_PRODUCT_BUNDLE_IDENTIFIER = NO;
 				DEVELOPMENT_TEAM = Z3E334EXZD;
 				ENABLE_APP_SANDBOX = YES;
@@ -662,13 +656,19 @@
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Record voice queries or dictate text for hands-free document search.";
 				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Select images from your library to extract text and add to your knowledge base.";
 				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Transcribe audio and video files you import to add their content to your knowledge base.";
+				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
+				INFOPLIST_KEY_NSSupportsLiveActivitiesFrequentUpdates = YES;
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents[sdk=iphonesimulator*]" = YES;
 				INFOPLIST_KEY_UIBackgroundModes = "fetch processing";
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				"INFOPLIST_KEY_UILaunchScreen_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UILaunchScreen_Generation[sdk=iphonesimulator*]" = YES;
+				INFOPLIST_KEY_UIStatusBarStyle = UIStatusBarStyleDefault;
 				"INFOPLIST_KEY_UIStatusBarStyle[sdk=iphoneos*]" = UIStatusBarStyleDefault;
 				"INFOPLIST_KEY_UIStatusBarStyle[sdk=iphonesimulator*]" = UIStatusBarStyleDefault;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
@@ -705,7 +705,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = OpenIntelligence/OpenIntelligence.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 55;
+				CURRENT_PROJECT_VERSION = 56;
 				DEVELOPMENT_TEAM = Z3E334EXZD;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
@@ -713,19 +713,26 @@
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = OpenIntelligence;
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
 				INFOPLIST_KEY_NSCameraUsageDescription = "Take photos of documents or whiteboards for OCR and semantic search.";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Record voice queries or dictate text for hands-free document search.";
 				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Select images from your library to extract text and add to your knowledge base.";
 				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Transcribe audio and video files you import to add their content to your knowledge base.";
+				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
+				INFOPLIST_KEY_NSSupportsLiveActivitiesFrequentUpdates = YES;
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents[sdk=iphonesimulator*]" = YES;
 				INFOPLIST_KEY_UIBackgroundModes = "fetch processing";
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				"INFOPLIST_KEY_UILaunchScreen_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UILaunchScreen_Generation[sdk=iphonesimulator*]" = YES;
+				INFOPLIST_KEY_UIStatusBarStyle = UIStatusBarStyleDefault;
 				"INFOPLIST_KEY_UIStatusBarStyle[sdk=iphoneos*]" = UIStatusBarStyleDefault;
 				"INFOPLIST_KEY_UIStatusBarStyle[sdk=iphonesimulator*]" = UIStatusBarStyleDefault;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
@@ -762,7 +769,7 @@
 				BUILD_LIBRARY_FOR_DISTRIBUTION = YES;
 				CODE_SIGN_IDENTITY = "";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 55;
+				CURRENT_PROJECT_VERSION = 56;
 				DEFINES_MODULE = YES;
 				DEVELOPMENT_TEAM = Z3E334EXZD;
 				ENABLE_MODULE_VERIFIER = YES;
@@ -802,7 +809,7 @@
 				BUILD_LIBRARY_FOR_DISTRIBUTION = YES;
 				CODE_SIGN_IDENTITY = "";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 55;
+				CURRENT_PROJECT_VERSION = 56;
 				DEFINES_MODULE = YES;
 				DEVELOPMENT_TEAM = Z3E334EXZD;
 				ENABLE_MODULE_VERIFIER = YES;
@@ -840,7 +847,7 @@
 			buildSettings = {
 				APPLICATION_EXTENSION_API_ONLY = YES;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 55;
+				CURRENT_PROJECT_VERSION = 56;
 				DEVELOPMENT_TEAM = Z3E334EXZD;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = OpenIntelligenceLiveActivities/Info.plist;
@@ -871,7 +878,7 @@
 			buildSettings = {
 				APPLICATION_EXTENSION_API_ONLY = YES;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 55;
+				CURRENT_PROJECT_VERSION = 56;
 				DEVELOPMENT_TEAM = Z3E334EXZD;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = OpenIntelligenceLiveActivities/Info.plist;
