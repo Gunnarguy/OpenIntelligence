@@ -377,7 +377,7 @@ struct ExtendedDocumentPicker: UIViewControllerRepresentable {
             .movie,
             .mpeg4Movie,
             .quickTimeMovie,
-        ])
+        ], asCopy: true)
         picker.delegate = context.coordinator
         picker.allowsMultipleSelection = true
         return picker
@@ -406,11 +406,7 @@ struct ExtendedDocumentPicker: UIViewControllerRepresentable {
             var copiedURLs: [URL] = []
 
             for url in urls {
-                guard url.startAccessingSecurityScopedResource() else {
-                    Log.error("[ExtendedDocumentPicker] Failed to access: \(url.lastPathComponent)", category: .ingestion)
-                    continue
-                }
-                defer { url.stopAccessingSecurityScopedResource() }
+                // The URL is already a copy in the app's temp directory because of `asCopy: true`.
 
                 // Use unique filename to avoid conflicts
                 let uniqueName = "\(UUID().uuidString)_\(url.lastPathComponent)"

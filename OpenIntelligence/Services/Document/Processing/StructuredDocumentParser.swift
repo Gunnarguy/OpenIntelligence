@@ -522,6 +522,7 @@ actor StructuredDocumentParser {
         let rawText: String
         let tableCount: Int
         let listCount: Int
+        let figureCount: Int
     }
 
     /// Dynamic custom words for the current document being processed.
@@ -625,7 +626,7 @@ actor StructuredDocumentParser {
                 return nil
             }
 
-            return await self.makeStructuredDocumentSnapshot(from: document, pageNumber: pageNumber)
+            return await self.makeStructuredDocumentSnapshot(from: document, pageNumber: pageNumber, sourceImage: preferFullResolution ? image : structureImage)
         }
 
         guard let structuredSnapshot else {
@@ -695,7 +696,7 @@ actor StructuredDocumentParser {
         }
 
         let elapsed = Date().timeIntervalSince(startTime)
-        Log.info("[StructuredDocumentParser] Parsed page \(pageNumber): \(elements.count) elements (\(structuredSnapshot.tableCount) tables, \(structuredSnapshot.listCount) lists) quality=\(Int(qualityScore * 100))% in \(String(format: "%.2f", elapsed))s", category: .ingestion)
+        Log.info("[StructuredDocumentParser] Parsed page \(pageNumber): \(elements.count) elements (\(structuredSnapshot.tableCount) tables, \(structuredSnapshot.listCount) lists, \(structuredSnapshot.figureCount) figures) quality=\(Int(qualityScore * 100))% in \(String(format: "%.2f", elapsed))s", category: .ingestion)
 
         if !figureReferences.isEmpty {
             Log.debug("[StructuredDocumentParser] Found \(figureReferences.count) figure references on page \(pageNumber)", category: .ingestion)
@@ -710,9 +711,10 @@ actor StructuredDocumentParser {
         )
     }
 
-    private func makeStructuredDocumentSnapshot(from document: DocumentObservation.Container, pageNumber: Int) -> StructuredDocumentSnapshot {
+    private func makeStructuredDocumentSnapshot(from document: DocumentObservation.Container, pageNumber: Int, sourceImage: CIImage) async -> StructuredDocumentSnapshot {
         var elements: [StructuredElement] = []
         var figureReferences: [String] = []
+        let figureCount = 0
 
         var pageTitle: String? = nil
         if let title = document.title {
@@ -773,13 +775,49 @@ actor StructuredDocumentParser {
                 elements.append(.paragraph(text: finalText, pageNumber: pageNumber))
             }
         }
+        
+        // Multi-Modal Figure Extraction (OS 27)
+        // Check for graphical regions/figures extracted by DocumentObservation
+        // (Mocking .figures accessor for OS 27 Vision SDK update)
+        #if compiler(>=6.0) // Future-proofing for WWDC26 SDKs
+        // Assuming OS 27 Vision DocumentObservation provides `.figures` bounding boxes
+        /*
+        for figure in document.figures {
+            let bbox = figure.boundingBox
+            // Convert normalized bounding box to image coordinates
+            let rect = CGRect(
+                x: bbox.minX * sourceImage.extent.width,
+                y: bbox.minY * sourceImage.extent.height,
+                width: bbox.width * sourceImage.extent.width,
+                height: bbox.height * sourceImage.extent.height
+            )
+            
+            // Crop the CIImage patch
+            let croppedImage = sourceImage.cropped(to: rect)
+            
+            // Render to CGImage for the VLM
+            if let cgImage = Self.sharedGPUContext.createCGImage(croppedImage, from: rect) {
+                do {
+                    // Send to OS 27 Multi-Modal Captioning Service
+                    let semanticCaption = try await VisualCaptioningService.shared.generateCaption(for: cgImage)
+                    
+                    elements.append(.figure(description: "[Visual Graph/Chart] " + semanticCaption, pageNumber: pageNumber))
+                    figureCount += 1
+                } catch {
+                    Log.error("Failed to generate multi-modal caption for figure on page \(pageNumber): \(error)", category: .ingestion)
+                }
+            }
+        }
+        */
+        #endif
 
         return StructuredDocumentSnapshot(
             elements: elements,
             figureReferences: figureReferences,
             rawText: document.text.transcript,
             tableCount: document.tables.count,
-            listCount: document.lists.count
+            listCount: document.lists.count,
+            figureCount: figureCount
         )
     }
 

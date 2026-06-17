@@ -195,9 +195,10 @@ Docs/TECHNICAL_CHANGELOG.md
 Docs/DEVELOPER_MAP.md
 Docs/AI_AGENT_MAP.md
 missing_tracked.txt
+mcp-diag.js
+delete_fm.py
 test_pcc.swift
 scripts/exhaustive_audit.py
 scripts/exhaustive_audit_v2.py
 scripts/generate_final_absolute_audit.py
 scripts/remove_pcc_mock.py
-

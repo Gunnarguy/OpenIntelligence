@@ -64,7 +64,7 @@ struct DocumentPicker: UIViewControllerRepresentable {
             .movie,
             .mpeg4Movie,
             .quickTimeMovie,
-        ])
+        ], asCopy: true)
         picker.delegate = context.coordinator
         picker.allowsMultipleSelection = true  // Enable multiple file selection
         return picker
@@ -90,14 +90,7 @@ struct DocumentPicker: UIViewControllerRepresentable {
 
             var copiedURLs: [URL] = []
             for url in urls {
-                // Start accessing a security-scoped resource
-                guard url.startAccessingSecurityScopedResource() else {
-                    Log.warning("❌ Failed to access security-scoped resource: \(url.lastPathComponent)", category: .ingestion)
-                    continue
-                }
-
-                defer { url.stopAccessingSecurityScopedResource() }
-
+                // The URL is already a copy in the app's temp directory because of `asCopy: true`.
                 // Copy into the app-managed workspace so the same source file can sync across devices.
                 let fileManager = FileManager.default
                 let destinationURL = AppSupportPaths.nextAvailableImportedDocumentURL(preferredFileName: url.lastPathComponent)

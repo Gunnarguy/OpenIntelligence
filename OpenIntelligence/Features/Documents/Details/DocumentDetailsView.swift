@@ -10,6 +10,13 @@ import SwiftUI
 struct DocumentDetailsView: View {
     let document: Document
     let embeddingProviderId: String?
+    let highlightedChunk: RetrievedChunk?
+    
+    init(document: Document, embeddingProviderId: String?, highlightedChunk: RetrievedChunk? = nil) {
+        self.document = document
+        self.embeddingProviderId = embeddingProviderId
+        self.highlightedChunk = highlightedChunk
+    }
 
     /// Human-readable name for the embedding provider
     private var embeddingProviderDisplayName: String {
@@ -52,6 +59,10 @@ struct DocumentDetailsView: View {
         ScrollView {
             LazyVStack(spacing: 18, pinnedViews: []) {
                 documentHeaderCard
+
+                if let chunk = highlightedChunk {
+                    highlightedChunkCard(chunk)
+                }
 
                 // Content tags card (iOS 26+ feature)
                 if let tags = document.contentTags, !tags.isEmpty {
@@ -138,6 +149,38 @@ struct DocumentDetailsView: View {
                             color: .orange
                         )
                     }
+                }
+            }
+        }
+    }
+
+    // MARK: - Highlighted Chunk Card
+
+    @ViewBuilder
+    private func highlightedChunkCard(_ chunk: RetrievedChunk) -> some View {
+        DocumentDetailCardView(icon: "text.quote", title: "Cited Excerpt", caption: "Source of the generated answer") {
+            VStack(alignment: .leading, spacing: 8) {
+                Text(chunk.chunk.content)
+                    .font(.system(size: 14))
+                    .foregroundStyle(DSColors.primaryText)
+                    .padding(12)
+                    .background(Color.accentColor.opacity(0.1))
+                    .cornerRadius(8)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 8)
+                            .stroke(Color.accentColor.opacity(0.3), lineWidth: 1)
+                    )
+                
+                HStack {
+                    Spacer()
+                    if let page = chunk.pageNumber {
+                        Text("Page \(page)")
+                            .font(.system(size: 11))
+                            .foregroundStyle(.secondary)
+                    }
+                    Text("Relevance Score: \(Int(chunk.similarityScore * 100))%")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(.secondary)
                 }
             }
         }
