@@ -525,7 +525,7 @@ struct ChatScreen: View {
         //     )
         // }
 .navigationTitle("Chat")
-        .imagePlaygroundSupport()
+        // .imagePlaygroundSupport()
         #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
         #endif
