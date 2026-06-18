@@ -14,7 +14,7 @@ import Tokenizers
 import CoreAI
 #endif
 
-@available(iOS 26.0, *)
+@available(iOS 27.0, *)
 final class CoreAISentenceEmbeddingProvider: EmbeddingProvider {
     // MARK: - Properties
 

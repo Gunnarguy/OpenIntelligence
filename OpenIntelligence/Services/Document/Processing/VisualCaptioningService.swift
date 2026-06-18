@@ -29,7 +29,7 @@ actor VisualCaptioningService {
         Log.info("[VisualCaptioningService] 🖼️ Generating semantic caption for image patch (\(image.width)x\(image.height))", category: .ingestion)
 
         #if canImport(FoundationModels)
-        if #available(iOS 26.0, macOS 26.0, *) {
+        if #available(iOS 27.0, macOS 27.0, *) {
             // OS 27 Multi-Modal FoundationModels implementation
             
             // Check availability of SystemLanguageModel

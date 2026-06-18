@@ -86,6 +86,7 @@ private struct ContinuedIngestionStatusSnapshot: Codable, Sendable {
 }
 
 private struct ContinuedIngestionRequestContext: Sendable {
+    let requestIdentifier: String
     let title: String
     let subtitle: String
     let policy: ContinuedIngestionPolicySnapshot
@@ -117,6 +118,7 @@ private struct ContinuedQueryStatusSnapshot: Codable, Sendable {
 }
 
 private struct ContinuedQueryRequestContext: Sendable {
+    let requestIdentifier: String
     let title: String
     let subtitle: String
     let policy: ContinuedIngestionPolicySnapshot
@@ -131,8 +133,10 @@ final class BackgroundTaskService: Sendable {
     static let indexMaintenanceIdentifier = "com.openintelligence.index-maintenance"
     static let spotlightReindexIdentifier = "com.openintelligence.spotlight-reindex"
     static let appRefreshIdentifier = "com.openintelligence.app-refresh"
-    static let continuedIngestionIdentifier = "com.openintelligence.document-ingestion"
-    static let continuedQueryIdentifier = "com.openintelligence.rag-query"
+    static let continuedIngestionIdentifier = "com.openintelligence.document-ingestion.*"
+    static let continuedQueryIdentifier = "com.openintelligence.rag-query.*"
+    private static let continuedIngestionIdentifierPrefix = "com.openintelligence.document-ingestion"
+    private static let continuedQueryIdentifierPrefix = "com.openintelligence.rag-query"
 
     @MainActor private var continuedIngestionRunner: (@MainActor () async -> Bool)?
     @MainActor private var continuedIngestionExpirationHandler: (@MainActor () -> Void)?
@@ -165,6 +169,14 @@ final class BackgroundTaskService: Sendable {
 #endif
 
     private init() {}
+
+    private static func continuedIngestionRequestIdentifier() -> String {
+        "\(continuedIngestionIdentifierPrefix).\(UUID().uuidString)"
+    }
+
+    private static func continuedQueryRequestIdentifier() -> String {
+        "\(continuedQueryIdentifierPrefix).\(UUID().uuidString)"
+    }
 
     // MARK: - Task Scheduling
 
@@ -242,7 +254,9 @@ final class BackgroundTaskService: Sendable {
         let displayTitle = tunedTitle(base: title)
         let displaySubtitle = tunedSubtitle(base: subtitle)
         let policy = continuedProcessingPolicy()
+        let requestIdentifier = Self.continuedIngestionRequestIdentifier()
         activeContinuedIngestionRequestContext = ContinuedIngestionRequestContext(
+            requestIdentifier: requestIdentifier,
             title: displayTitle,
             subtitle: displaySubtitle,
             policy: policy,
@@ -250,7 +264,7 @@ final class BackgroundTaskService: Sendable {
         )
 
         let request = BGContinuedProcessingTaskRequest(
-            identifier: Self.continuedIngestionIdentifier,
+            identifier: requestIdentifier,
             title: displayTitle,
             subtitle: displaySubtitle
         )
@@ -324,7 +338,9 @@ final class BackgroundTaskService: Sendable {
         let displayTitle = tunedTitle(base: title)
         let displaySubtitle = tunedSubtitle(base: subtitle)
         let policy = continuedProcessingPolicy()
+        let requestIdentifier = Self.continuedQueryRequestIdentifier()
         activeContinuedQueryRequestContext = ContinuedQueryRequestContext(
+            requestIdentifier: requestIdentifier,
             title: displayTitle,
             subtitle: displaySubtitle,
             policy: policy,
@@ -332,7 +348,7 @@ final class BackgroundTaskService: Sendable {
         )
 
         let request = BGContinuedProcessingTaskRequest(
-            identifier: Self.continuedQueryIdentifier,
+            identifier: requestIdentifier,
             title: displayTitle,
             subtitle: displaySubtitle
         )
@@ -753,8 +769,10 @@ final class BackgroundTaskService: Sendable {
             activeContinuedIngestionWorker = nil
             continuedIngestionRequestSubmitted = false
             clearIngestionExecutionProfile()
-            BGTaskScheduler.shared.cancel(taskRequestWithIdentifier: Self.continuedIngestionIdentifier)
             let context = activeContinuedIngestionRequestContext
+            if let requestIdentifier = context?.requestIdentifier {
+                BGTaskScheduler.shared.cancel(taskRequestWithIdentifier: requestIdentifier)
+            }
             recordContinuedIngestionStatus(
                 phase: success ? .completed : .failed,
                 title: context?.title,
@@ -793,8 +811,10 @@ final class BackgroundTaskService: Sendable {
             activeContinuedQueryWorker?.cancel()
             activeContinuedQueryWorker = nil
             continuedQueryRequestSubmitted = false
-            BGTaskScheduler.shared.cancel(taskRequestWithIdentifier: Self.continuedQueryIdentifier)
             let context = activeContinuedQueryRequestContext
+            if let requestIdentifier = context?.requestIdentifier {
+                BGTaskScheduler.shared.cancel(taskRequestWithIdentifier: requestIdentifier)
+            }
             recordContinuedQueryStatus(
                 phase: success ? .completed : .failed,
                 title: context?.title,
@@ -1340,8 +1360,8 @@ final class BackgroundTaskService: Sendable {
     static let indexMaintenanceIdentifier = "com.openintelligence.index-maintenance"
     static let spotlightReindexIdentifier = "com.openintelligence.spotlight-reindex"
     static let appRefreshIdentifier = "com.openintelligence.app-refresh"
-    static let continuedIngestionIdentifier = "com.openintelligence.document-ingestion"
-    static let continuedQueryIdentifier = "com.openintelligence.rag-query"
+    static let continuedIngestionIdentifier = "com.openintelligence.document-ingestion.*"
+    static let continuedQueryIdentifier = "com.openintelligence.rag-query.*"
 
     private init() {}
 
