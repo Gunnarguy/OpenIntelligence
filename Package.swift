@@ -90,7 +90,7 @@ let package = Package(
         .testTarget(
             name: "OpenIntelligenceEngineTests",
             dependencies: ["OpenIntelligenceEngine"],
-            path: "OpenIntelligence/Tests",
+            path: "Tests",
             sources: ["."]
         )
     ],
