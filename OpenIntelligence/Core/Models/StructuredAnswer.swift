@@ -626,8 +626,9 @@ extension StructuredAnswer {
             return retrievedChunks[index]
         }
 
+        var seenIds = Set<UUID>()
         return resolved.reduce(into: [RetrievedChunk]()) { partial, chunk in
-            if !partial.contains(where: { $0.chunk.id == chunk.chunk.id }) {
+            if seenIds.insert(chunk.chunk.id).inserted {
                 partial.append(chunk)
             }
         }
