@@ -264,7 +264,7 @@ struct CoreValidationView: View {
                     documentProcessor: DocumentProcessor(),
                     embeddingService: makeEmbeddingService(),
                     vectorDatabase: InMemoryVectorDatabase(dimension: vectorDimension),
-                    llmService: OnDeviceAnalysisService()
+                    llmService: ScreenshotMockLLMService()
                 )
                 do {
                     let resp = try await testService.query("hi", topK: 5, config: .precise)
@@ -281,7 +281,7 @@ struct CoreValidationView: View {
                     documentProcessor: DocumentProcessor(),
                     embeddingService: makeEmbeddingService(),
                     vectorDatabase: InMemoryVectorDatabase(dimension: vectorDimension),
-                    llmService: OnDeviceAnalysisService()
+                    llmService: ScreenshotMockLLMService()
                 )
                 do {
                     let resp = try await testService.query("Briefly explain what a RAG pipeline does.", topK: 3, config: .precise)
@@ -299,7 +299,7 @@ struct CoreValidationView: View {
                     documentProcessor: DocumentProcessor(),
                     embeddingService: makeEmbeddingService(),
                     vectorDatabase: vectorDB,
-                    llmService: OnDeviceAnalysisService()
+                    llmService: ScreenshotMockLLMService()
                 )
 
                 let longText = String(repeating: "Lorem ipsum dolor sit amet, consectetur adipiscing elit. ", count: 40) // > 600 chars

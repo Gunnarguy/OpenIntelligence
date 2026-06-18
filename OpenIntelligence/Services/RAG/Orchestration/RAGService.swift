@@ -1201,7 +1201,6 @@ class RAGService: ObservableObject {
         // Priority order for LLM selection:
         // 1. Custom service provided by caller
         // 2. User-selected model from Settings
-        // 3. On-Device Analysis (extractive QA, always available)
 
         if let service = llmService {
             // User provided custom service (e.g., from Settings)
@@ -1225,13 +1224,6 @@ class RAGService: ObservableObject {
                 entitlementStore: entitlementStore
             )
             var fallbackServices = Self.buildFallbackChain(excluding: selectedModelRaw)
-
-            // If the user's primary model is available, avoid surprising runtime fallbacks to
-            // On-Device Analysis. We still keep it as an initialization-time escape hatch when
-            // Apple Intelligence is unavailable on the device.
-            if primaryService != nil {
-                fallbackServices.removeAll { $0 is OnDeviceAnalysisService }
-            }
 
             let resolvedService: LLMService
             if let primaryService {
