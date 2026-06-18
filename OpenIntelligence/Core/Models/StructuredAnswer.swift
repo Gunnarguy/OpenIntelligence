@@ -708,16 +708,18 @@ extension StructuredAnswer {
     }
 
     nonisolated private static func appendUnique(_ chunks: [RetrievedChunk], to selectedEvidence: inout [RetrievedChunk]) {
-        for chunk in chunks where !selectedEvidence.contains(where: { $0.chunk.id == chunk.chunk.id }) {
-            selectedEvidence.append(chunk)
+        var seenIds = Set(selectedEvidence.map { $0.chunk.id })
+        for chunk in chunks {
+            if seenIds.insert(chunk.chunk.id).inserted {
+                selectedEvidence.append(chunk)
+            }
         }
     }
 
     nonisolated private static func addEvidenceEntries(from preferredChunks: [RetrievedChunk], fallback: [RetrievedChunk], to builder: Builder) {
-        let evidencePool = (preferredChunks + fallback).reduce(into: [RetrievedChunk]()) { partial, chunk in
-            if !partial.contains(where: { $0.chunk.id == chunk.chunk.id }) {
-                partial.append(chunk)
-            }
+        var seenIds = Set<UUID>()
+        let evidencePool = (preferredChunks + fallback).filter { chunk in
+            seenIds.insert(chunk.chunk.id).inserted
         }
 
         for chunk in evidencePool.prefix(12) {
