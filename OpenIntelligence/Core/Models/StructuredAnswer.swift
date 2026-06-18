@@ -412,7 +412,9 @@ extension StructuredAnswer {
                 verificationDetails: verification?.details
             )
 
-            for chunk in supportingChunks where !selectedEvidence.contains(where: { $0.chunk.id == chunk.chunk.id }) {
+            var seenEvidenceIds = Set(selectedEvidence.map { $0.chunk.id })
+            for chunk in supportingChunks where !seenEvidenceIds.contains(chunk.chunk.id) {
+                seenEvidenceIds.insert(chunk.chunk.id)
                 selectedEvidence.append(chunk)
             }
         }
@@ -421,8 +423,9 @@ extension StructuredAnswer {
             selectedEvidence = Array(retrievedChunks.prefix(3))
         }
 
+        var seenPoolIds1 = Set<UUID>()
         let evidencePool = (selectedEvidence + retrievedChunks).reduce(into: [RetrievedChunk]()) { partial, chunk in
-            if !partial.contains(where: { $0.chunk.id == chunk.chunk.id }) {
+            if seenPoolIds1.insert(chunk.chunk.id).inserted {
                 partial.append(chunk)
             }
         }
@@ -626,8 +629,9 @@ extension StructuredAnswer {
             return retrievedChunks[index]
         }
 
+        var seenResolvedIds = Set<UUID>()
         return resolved.reduce(into: [RetrievedChunk]()) { partial, chunk in
-            if !partial.contains(where: { $0.chunk.id == chunk.chunk.id }) {
+            if seenResolvedIds.insert(chunk.chunk.id).inserted {
                 partial.append(chunk)
             }
         }
@@ -708,14 +712,17 @@ extension StructuredAnswer {
     }
 
     nonisolated private static func appendUnique(_ chunks: [RetrievedChunk], to selectedEvidence: inout [RetrievedChunk]) {
-        for chunk in chunks where !selectedEvidence.contains(where: { $0.chunk.id == chunk.chunk.id }) {
+        var seenEvidenceIds2 = Set(selectedEvidence.map { $0.chunk.id })
+        for chunk in chunks where !seenEvidenceIds2.contains(chunk.chunk.id) {
+            seenEvidenceIds2.insert(chunk.chunk.id)
             selectedEvidence.append(chunk)
         }
     }
 
     nonisolated private static func addEvidenceEntries(from preferredChunks: [RetrievedChunk], fallback: [RetrievedChunk], to builder: Builder) {
+        var seenPoolIds2 = Set<UUID>()
         let evidencePool = (preferredChunks + fallback).reduce(into: [RetrievedChunk]()) { partial, chunk in
-            if !partial.contains(where: { $0.chunk.id == chunk.chunk.id }) {
+            if seenPoolIds2.insert(chunk.chunk.id).inserted {
                 partial.append(chunk)
             }
         }
