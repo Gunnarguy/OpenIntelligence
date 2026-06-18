@@ -1,12 +1,10 @@
 import Combine
-import Foundation
+@preconcurrency import Foundation
 
 extension Notification.Name {
     nonisolated static let localWorkspaceDidChange = Notification.Name("openIntelligence.workspaceSync.localWorkspaceDidChange")
 }
 
-extension FileManager: @retroactive @unchecked Sendable {}
-extension UserDefaults: @retroactive @unchecked Sendable {}
 
 enum SyncBootstrapChoice: Sendable {
     case mergeLibraries
@@ -189,8 +187,8 @@ final class WorkspaceSyncService: ObservableObject {
     @Published private(set) var pendingBootstrapConflict: PendingBootstrapConflict?
     @Published private(set) var unsupportedSyncContainerNames: [String] = []
 
-    nonisolated private let defaults: UserDefaults
-    nonisolated private let fileManager: FileManager
+    nonisolated(unsafe) private let defaults: UserDefaults
+    nonisolated(unsafe) private let fileManager: FileManager
     private var ubiquityIdentityObserver: NSObjectProtocol?
     private var metadataQuery: NSMetadataQuery?
     private var metadataQueryObservers: [NSObjectProtocol] = []

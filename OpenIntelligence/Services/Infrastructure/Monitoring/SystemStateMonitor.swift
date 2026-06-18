@@ -637,30 +637,11 @@ final class SystemStateMonitor: ObservableObject {
 
 // MARK: - Extensions
 
-extension ProcessInfo.ThermalState: @retroactive CustomStringConvertible {
-    public var description: String {
-        switch self {
-        case .nominal: return "Nominal"
-        case .fair: return "Fair"
-        case .serious: return "Serious"
-        case .critical: return "Critical"
-        @unknown default: return "Unknown"
-        }
-    }
-}
+// Thermal state and battery state string helpers removed to prevent dyld crashes.
+// If string representations are needed, use helper functions rather than retroactive conformances.
 
 #if canImport(UIKit)
-extension UIDevice.BatteryState: @retroactive CustomStringConvertible {
-    public var description: String {
-        switch self {
-        case .unknown: return "Unknown"
-        case .unplugged: return "Unplugged"
-        case .charging: return "Charging"
-        case .full: return "Full"
-        @unknown default: return "Unknown"
-        }
-    }
-}
+
 #else
 /// macOS battery state stub (no UIDevice available on macOS native target)
 enum MacBatteryState: Sendable, Equatable, CustomStringConvertible {

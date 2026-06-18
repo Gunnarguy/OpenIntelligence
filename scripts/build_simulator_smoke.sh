@@ -28,7 +28,10 @@ TMP_APP_PATH="/tmp/OpenIntelligence_build_smoke.app"
 rm -rf "$TMP_APP_PATH"
 cp -R "$DERIVED_DATA_PATH/Build/Products/Debug-iphonesimulator/OpenIntelligence.app" "$TMP_APP_PATH"
 /usr/bin/xattr -cr "$TMP_APP_PATH"
-/usr/bin/codesign --force --sign - --timestamp=none --deep "$TMP_APP_PATH"
+if [ -d "$TMP_APP_PATH/PlugIns/OpenIntelligenceLiveActivities.appex" ]; then
+    /usr/bin/codesign --force --sign - --timestamp=none "$TMP_APP_PATH/PlugIns/OpenIntelligenceLiveActivities.appex"
+fi
+/usr/bin/codesign --force --sign - --timestamp=none "$TMP_APP_PATH"
 rm -rf "$DERIVED_DATA_PATH/Build/Products/Debug-iphonesimulator/OpenIntelligence.app"
 cp -R "$TMP_APP_PATH" "$DERIVED_DATA_PATH/Build/Products/Debug-iphonesimulator/OpenIntelligence.app"
 rm -rf "$TMP_APP_PATH"

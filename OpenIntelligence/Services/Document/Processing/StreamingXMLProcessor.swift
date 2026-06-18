@@ -21,7 +21,7 @@ import Foundation
 
 /// Streaming XML processor that never loads the full file into memory.
 /// Produces pre-chunked text blocks suitable for direct semantic chunking.
-final class StreamingXMLProcessor: NSObject, XMLParserDelegate, @unchecked Sendable {
+final class StreamingXMLProcessor: NSObject, XMLParserDelegate {
 
     // MARK: - Configuration
 

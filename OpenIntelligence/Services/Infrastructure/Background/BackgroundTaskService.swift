@@ -996,7 +996,7 @@ final class BackgroundTaskService: Sendable {
             backgroundGPUSupported: backgroundGPUSupported,
             backgroundGPURequested: backgroundGPURequested,
             lowPowerModeEnabled: systemState.isLowPowerModeEnabled,
-            thermalState: systemState.thermalState.description,
+            thermalState: systemState.thermalStateName,
             memoryPressure: systemState.memoryPressure.rawValue,
             isCharging: systemState.isCharging,
             batteryPercent: systemState.batteryPercent,
