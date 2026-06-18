@@ -945,7 +945,7 @@ final class WorkspaceSyncService: ObservableObject {
         }
 
         let allLocalContainers = sortedContainers(localInventory.containers)
-        let localContainerById = Dictionary(uniqueKeysWithValues: allLocalContainers.map { ($0.id, $0) })
+        let localContainerById = Dictionary(allLocalContainers.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
         var localOnlyContainers = sortedContainers(allLocalContainers.filter { $0.syncMode == .localOnly })
         let localSyncedContainers = sortedContainers(
             allLocalContainers
@@ -964,7 +964,7 @@ final class WorkspaceSyncService: ObservableObject {
             shared: sharedVisibleContainers,
             local: localSyncedContainers.map(normalizeSharedContainer)
         )
-        let canonicalContainerById = Dictionary(uniqueKeysWithValues: mergeResult.containers.map { ($0.id, $0) })
+        let canonicalContainerById = Dictionary(mergeResult.containers.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
         let sharedCanonicalContainerIDs = Set(sharedVisibleContainers.map { mergeResult.sourceToCanonical[$0.id] ?? $0.id })
 
         let finalSyncedContainers: [KnowledgeContainer]
@@ -1758,7 +1758,7 @@ final class WorkspaceSyncService: ObservableObject {
 
         func ingest(_ state: PersistedIngestionQueueStateRecord?) {
             guard let state else { return }
-            let stateContextMap = Dictionary(uniqueKeysWithValues: state.contexts.map { ($0.id, $0.context) })
+            let stateContextMap = Dictionary(state.contexts.map { ($0.id, $0.context) }, uniquingKeysWith: { first, _ in first })
 
             for item in state.items {
                 if item.stage.isTerminal {
