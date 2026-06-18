@@ -4,7 +4,8 @@ import PackageDescription
 let package = Package(
     name: "OpenIntelligenceEngine",
     platforms: [
-        .iOS("26.0")
+        .iOS("26.0"),
+        .macOS("15.0")
     ],
     products: [
         .library(
@@ -86,6 +87,11 @@ let package = Package(
                     "-enable-experimental-feature", "DebugDescriptionMacro"
                 ])
             ]
+        ),
+        .testTarget(
+            name: "OpenIntelligenceEngineTests",
+            dependencies: ["OpenIntelligenceEngine"],
+            path: "OpenIntelligenceTests"
         )
     ],
     swiftLanguageModes: [
