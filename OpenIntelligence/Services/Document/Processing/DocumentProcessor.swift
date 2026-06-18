@@ -1429,7 +1429,7 @@ class DocumentProcessor {
         return min(1.0, max(0.0, score))
     }
 
-    private nonisolated func tableCellReadabilityScore(_ text: String) -> Double {
+    internal nonisolated func tableCellReadabilityScore(_ text: String) -> Double {
         let trimmed = OCRConfiguration.normalizeExtractedText(text).trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return 0 }
 
