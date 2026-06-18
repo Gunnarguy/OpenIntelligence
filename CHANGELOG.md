@@ -8,11 +8,6 @@ This is the public version history for OpenIntelligence. It focuses on user-visi
 - **Modernized UI for macOS/iOS**: Completely rebuilt the live telemetry HUD utilizing iOS 26/macOS 26/WWDC26+ APIs. Integrated `.ultraThinMaterial` for premium glassmorphism, hardware `.sensoryFeedback` for interactive haptics, and smooth `.symbolEffect` animations.
 - **Dynamic Verification Gates**: The visual HUD for RAG telemetry now adapts its pipeline dynamically based on your active `RAGQualityMode` (Standard = 4 gates, Deep Think = 8 gates, or Maximum = 12 gates).
 - **Fixed Chat History Persistence**: Resolved an issue that sometimes skipped loading your previous chat history during a cold boot after force-closing the app.
-- **Granular Hardware Telemetry**: The Execution Badge now dynamically fetches and displays exact onboard RAM allocations alongside TOPS processing power.
-- **Accuracy in Retrieval Metrics**: Corrected UI labels to differentiate between semantic Database Matching (Vector Similarity) and active LLM reasoning thresholds (Total Confidence).
-- **Agentic Tool Visibility**: The telemetry HUD now surfaces implicit, hidden engine calls (such as Vector Search Engine lookups) during standard modes that do not trigger recursive tool event streams.
-- **Clean Sub-second Telemetry**: Fixed a visual bug presenting Time-To-First-Token in raw oversized milliseconds (e.g., 12000ms), standardizing values to an elegant `< 1.2s` formatted duration.
-- **Native Resizable Telemetry Drawer**: Completely rebuilt the expanded metrics panel to behave like a fluid, native iOS bottom sheet. Users can now physically pull the handle down to manually resize the metrics view seamlessly during live telemetry inspection or recording.
 
 ## 4.0 & 4.1 - June 2026 (Apple Intelligence Release)
 

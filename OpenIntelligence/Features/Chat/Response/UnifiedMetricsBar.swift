@@ -163,12 +163,6 @@ struct UnifiedMetricsBar: View {
     // State
     @State private var showExpandedDetails = false
     @State private var pulsePhase: CGFloat = 0
-    
-    // Smooth Drag State
-    @State private var autoHeight: CGFloat = 0
-    @State private var baseHeight: CGFloat = 0
-    @State private var dragOffset: CGFloat = 0
-    @State private var isDragging: Bool = false
 
     // System state (live monitoring)
     @ObservedObject private var systemMonitor = SystemStateMonitor.shared
@@ -1192,9 +1186,6 @@ struct UnifiedMetricsBar: View {
                 Text("\(device.chipName)")
                     .font(.system(size: 9, weight: .medium))
                     .opacity(0.8)
-                Text("\(Int(device.memoryGB))GB")
-                    .font(.system(size: 8, weight: .semibold, design: .monospaced))
-                    .opacity(0.7)
                 // Show Neural Engine TOPS for visual confirmation
                 Text("\(device.npuTops)T")
                     .font(.system(size: 8, weight: .medium, design: .monospaced))
@@ -1206,13 +1197,11 @@ struct UnifiedMetricsBar: View {
                 Text("•")
                     .font(.system(size: 5))
                     .opacity(0.5)
-                Text(formatDuration(t))
+                Text(String(format: "%.0fms", t * 1000))
                     .font(.system(size: 9, weight: .medium, design: .monospaced))
             }
         }
         .foregroundStyle(executionBadgeColor)
-        .lineLimit(1)
-        .minimumScaleFactor(0.7)
         .padding(.horizontal, 6)
         .padding(.vertical, 4)
         .background(executionBadgeColor.opacity(0.12))
@@ -1652,15 +1641,14 @@ struct UnifiedMetricsBar: View {
 // MARK: - Expanded Panel (Streamlined for This Query)
 
     private var expandedDetailsPanel: some View {
-        VStack(spacing: 0) {
-            ScrollView(.vertical, showsIndicators: false) {
-                VStack(alignment: .leading, spacing: 14) {
-                    // Section 1: Library Context (what knowledge base)
-                    if !containerName.isEmpty {
-                        libraryContextSection
-                    }
+        ScrollView(.vertical, showsIndicators: false) {
+            VStack(alignment: .leading, spacing: 14) {
+                // Section 1: Library Context (what knowledge base)
+                if !containerName.isEmpty {
+                    libraryContextSection
+                }
 
-                    // Section 2: Query Understanding (how we interpreted the question)
+                // Section 2: Query Understanding (how we interpreted the question)
                 if !originalQuery.isEmpty || stage == .embedding || stage == .searching {
                     queryUnderstandingSection
                 }
@@ -1689,68 +1677,12 @@ struct UnifiedMetricsBar: View {
                 }
 
                 // Section 8: Agentic Tools (only if tools were used - this IS dynamic per query)
-                if !isProcessing {
+                if toolCallCount > 0 && !isProcessing {
                     agenticToolsSection
                 }
-                }
             }
-            
-            // Native Resizable Drawer Handle
-            HStack {
-                Spacer()
-                Capsule()
-                    .fill(Color.secondary.opacity(0.3))
-                    .frame(width: 40, height: 5)
-                Spacer()
-            }
-            .frame(height: 21)
-            .contentShape(Rectangle())
-            .gesture(
-                DragGesture(coordinateSpace: .global)
-                    .onChanged { val in
-                        if !isDragging {
-                            isDragging = true
-                            // Capture the exact height instantly only if we haven't already
-                            if baseHeight == 0 {
-                                baseHeight = autoHeight
-                            }
-                        }
-                        dragOffset = val.translation.height
-                    }
-                    .onEnded { val in
-                        baseHeight = max(150, baseHeight + val.translation.height)
-                        dragOffset = 0
-                        isDragging = false
-                    }
-            )
         }
-        .background(
-            GeometryReader { geo in
-                Color.clear
-                    .onChange(of: geo.size.height) { _, newHeight in
-                        // Constantly track intrinsic height when not being manually forced
-                        if baseHeight == 0 {
-                            autoHeight = newHeight
-                        }
-                    }
-                    .onAppear {
-                        if baseHeight == 0 {
-                            autoHeight = geo.size.height
-                        }
-                    }
-            }
-        )
-        .frame(height: baseHeight > 0 ? max(150, baseHeight + dragOffset) : nil)
-        // Auto-reset manual height when system finishes processing so it can auto-size the new tools section
-        .onChange(of: isProcessing) {
-            baseHeight = 0
-            isDragging = false
-        }
-        #if os(iOS)
-        .frame(maxHeight: 1000) // Massive expansion limit for demos without triggering UIScreen deprecation warnings
-        #else
-        .frame(maxHeight: 650)
-        #endif
+        .frame(maxHeight: 450) // Slightly more room for new sections
         .padding(14)
         .background(DSColors.surface)
         .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
@@ -2477,7 +2409,7 @@ struct UnifiedMetricsBar: View {
                 Image(systemName: "checkmark.seal.fill")
                     .font(.system(size: 12, weight: .semibold))
                     .foregroundStyle(.green)
-                Text("Confidence & Quality")
+                Text("Retrieval Quality")
                     .font(.system(size: 12, weight: .semibold))
                     .foregroundStyle(.secondary)
             }
@@ -2701,14 +2633,9 @@ struct UnifiedMetricsBar: View {
                                 .foregroundStyle(.primary)
                                 .fixedSize(horizontal: false, vertical: true)
                         }
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("\(Int(topMatchScore * 100))% vector similarity")
-                                .font(.system(size: 11, weight: .bold))
-                                .foregroundStyle(matchScoreColor(topMatchScore))
-                            Text("Database match vs. LLM confidence")
-                                .font(.system(size: 9))
-                                .foregroundStyle(.secondary)
-                        }
+                        Text("\(Int(topMatchScore * 100))% relevance score")
+                            .font(.system(size: 11))
+                            .foregroundStyle(matchScoreColor(topMatchScore))
                     }
 
                     Spacer()
@@ -2745,7 +2672,7 @@ struct UnifiedMetricsBar: View {
                                 .foregroundStyle(.secondary)
                         }
                         if let avg = averageSourceScore {
-                            Text("\(Int(avg * 100))% avg vector distance")
+                            Text("\(Int(avg * 100))% average relevance")
                                 .font(.system(size: 11))
                                 .foregroundStyle(sourceQualityColor)
                         }
@@ -3117,7 +3044,7 @@ struct UnifiedMetricsBar: View {
                             HStack(spacing: 4) {
                                 Image(systemName: "clock.fill")
                                     .font(.system(size: 10))
-                                Text("First token in \(formatDuration(t))")
+                                Text("First token in \(String(format: "%.0fms", t * 1000))")
                                     .font(.system(size: 11, weight: .medium))
                             }
                             .foregroundStyle(t < 0.5 ? .green : (t < 1.5 ? .blue : .orange))
@@ -3164,7 +3091,7 @@ struct UnifiedMetricsBar: View {
                             HStack(spacing: 4) {
                                 Image(systemName: "clock.fill")
                                     .font(.system(size: 10))
-                                Text("First token in \(formatDuration(t))")
+                                Text("First token in \(String(format: "%.0fms", t * 1000))")
                                     .font(.system(size: 11, weight: .medium))
                             }
                             .foregroundStyle(t < 0.5 ? .green : (t < 1.5 ? .blue : .orange))
@@ -3224,58 +3151,10 @@ struct UnifiedMetricsBar: View {
                     .foregroundStyle(.purple)
             }
 
-            let toolEvents = thinkingEvents.filter { $0.kind == .toolCall || $0.kind == .agentic }
-            if !toolEvents.isEmpty {
-                VStack(alignment: .leading, spacing: 4) {
-                    ForEach(toolEvents) { event in
-                        HStack(alignment: .top, spacing: 6) {
-                            Image(systemName: "circle.fill")
-                                .font(.system(size: 4))
-                                .foregroundStyle(.purple.opacity(0.6))
-                                .padding(.top, 4)
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(event.title)
-                                    .font(.system(size: 11, weight: .medium))
-                                    .foregroundStyle(.primary)
-                                if let detail = event.detail {
-                                    Text(detail)
-                                        .font(.system(size: 10))
-                                        .foregroundStyle(.secondary)
-                                        .lineLimit(1)
-                                        .minimumScaleFactor(0.7)
-                                }
-                            }
-                        }
-                    }
-                }
-                .padding(.top, 4)
-            } else if toolCallCount > 0 {
-                VStack(alignment: .leading, spacing: 4) {
-                    HStack(alignment: .top, spacing: 6) {
-                        Image(systemName: "circle.fill")
-                            .font(.system(size: 4))
-                            .foregroundStyle(.purple.opacity(0.6))
-                            .padding(.top, 4)
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("Vector Search Engine")
-                                .font(.system(size: 11, weight: .medium))
-                                .foregroundStyle(.primary)
-                            Text("The AI autonomously searched your documents and retrieved additional context.")
-                                .font(.system(size: 10))
-                                .foregroundStyle(.secondary)
-                                .lineLimit(1)
-                                .minimumScaleFactor(0.7)
-                        }
-                    }
-                }
-                .padding(.top, 4)
-            } else {
-                Text("No additional tools were required to answer this query.")
-                    .font(.system(size: 11))
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.7)
-            }
+            Text("The AI autonomously searched your documents and retrieved additional context to answer this query.")
+                .font(.system(size: 11))
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
         }
         .padding(12)
         .background(Color.purple.opacity(0.08))
@@ -4660,9 +4539,3 @@ private struct MiniSparkline: View {
 #endif
 
 // FlowLayout is defined in DocumentDetailsView.swift - reusing it from Shared scope
-struct PanelHeightPreferenceKey: PreferenceKey {
-    static var defaultValue: CGFloat = 0
-    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
-        value = nextValue()
-    }
-}
