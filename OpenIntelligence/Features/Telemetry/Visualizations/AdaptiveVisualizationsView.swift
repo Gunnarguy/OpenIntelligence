@@ -3138,11 +3138,6 @@ struct CompactAtlasSceneView: View {
         return result
     }
 
-    // MARK: - DEPRECATED: Old Fibonacci sphere distribution (removed - made everything look like a ball!)
-
-    // Keeping commented for reference:
-    // private func spreadPointsOnSphere(_ coords: [SIMD3<Float>]) -> [SCNVector3]
-
     // MARK: - Enhanced NLP Topic Assignment
 
     private func assignTopicsNLP(chunks: [DocumentChunk]) -> [UUID: String] {
