@@ -297,6 +297,11 @@ class SemanticChunker {
         Log.debug("[SemanticChunker] Target: \(config.targetSize)w, Min: \(config.minSize)w, Max: \(config.maxSize)w", category: .ingestion)
         Log.debug("[SemanticChunker] Overlap: \(config.overlap)w", category: .ingestion)
 
+        // Handle completely empty text early
+        if text.isEmpty {
+            return []
+        }
+
         // Safety check: if text is too small, just return one chunk
         let wordCount = tokenWordCount(text)
         if wordCount < config.minSize {
@@ -566,6 +571,11 @@ class SemanticChunker {
         pageNumbers: [Int: Range<String.Index>]? = nil,
         documentCategory: DocumentSemanticCategory? = nil
     ) async -> [EnhancedChunk] {
+        // Handle completely empty text early
+        if text.isEmpty {
+            return []
+        }
+
         Log.debug("[SemanticChunker] Starting async chunking with embedding boundaries", category: .ingestion)
 
         // Detect embedding-based boundaries if service available
