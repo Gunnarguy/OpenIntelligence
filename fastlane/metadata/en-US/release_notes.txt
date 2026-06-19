@@ -1,5 +1,3 @@
-Changes since 3.7.5:
-
 Version 4.2:
 - Modernized UI for macOS/iOS: Completely rebuilt the live telemetry HUD with ultra-thin materials, interactive haptics, and smooth symbol animations.
 - Dynamic Verification Gates: The visual HUD for RAG telemetry now adapts its pipeline dynamically based on your active Quality Mode.
@@ -9,21 +7,3 @@ Version 4.2:
 - Agentic Tool Visibility: The telemetry HUD now surfaces implicit, hidden engine calls (such as Vector Search Engine lookups) during standard modes that do not trigger recursive tool event streams.
 - Clean Sub-second Telemetry: Fixed a visual bug presenting Time-To-First-Token in raw oversized milliseconds (e.g., 12000ms), standardizing values to an elegant `under 1.2s` formatted duration.
 - Native Resizable Telemetry Drawer: Completely rebuilt the expanded metrics panel to behave like a fluid, native iOS bottom sheet. Users can now physically pull the handle down to manually resize the metrics view seamlessly during live telemetry inspection or recording.
-
-
-Version 4.1:
-- Core AI Sentence Embedding Provider: Added CoreAISentenceEmbeddingProvider for high-speed, local silicon-accelerated vector calculations on Apple device hardware.
-- Real-Time Thinking Telemetry: Added ThinkingStreamView inside the UnifiedMetricsBar to show live reasoning and model processing states.
-- Enhanced Suggested Questions: Upgraded SuggestedQuestions with a two-pass section-diversity selector and strict POS-tagging grammar filters to generate high-quality follow-ups.
-- Metal GPU-accelerated retrieval: Integrated a custom Metal compute shader pipeline with SIMD4 and threadgroup-level execution, driving a 4x speedup in batch cosine similarity RAG retrieval.
-- Atomic Database & Purging: Hardened RAG pipeline with atomic vector database writes and cascading file/index deletion of discarded uploads to prevent data corruption.
-- Thread-Safe Safety Routing: Thread-safe MainActor routing for LLM availability checks.
-
-Version 4.0:
-- Dynamic Model Routing (On-Device & PCC): Automatically routes queries based on complexity and context size. Standard queries execute locally using the 4K-token on-device model, while complex logic scales to Private Cloud Compute (PCC) enclaves supporting a 32K-token context window.
-- Under the Hood Telemetry Dashboard: Added an interactive details popover detailing active model routing, token budgets, execution path telemetry, and pulsing status indicators.
-- Core AI Engine Integration: Integrates a direct, custom local Core AI silicon execution engine and model registry.
-- Native Liquid Glass UI: Re-engineered key view components with premium native glasscard modifiers for an immersive visual experience.
-- RAG Evaluations Suite: Built-in dataset validation against target Recall@5 and Citation Precision quality gates, exposing an Apple Evaluations Bridge for native CLI testing compatibility.
-- Agentic Retry Safeguard: Hardened agentic RAG reasoning cycles to preserve non-empty drafts and protect against rate-limit empty responses.
-- Brand Realignment: Realigned all branding assets, HUD panels, and logs to standardized "Apple Intelligence" styling.
