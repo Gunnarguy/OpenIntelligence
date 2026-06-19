@@ -103,6 +103,7 @@ buildServer.json
 *.env
 .env.local
 .env.*.local
+.env*
 
 # Xcode previews and canvas caches
 *.preview-thumbnails
