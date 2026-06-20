@@ -177,3 +177,6 @@ The older ad-hoc benchmark script was replaced with a comprehensive, first-class
 
 *   **Universal AppIcon**: Integrated a unified universal AppIcon configuration across iOS and macOS targets, resolving catalog build warnings.
 *   **SDK Compatibility**: Added compatibility wrappers for iOS 26+ SDK symbols, keeping compile-time behaviors protected while supporting modern APIs.
+
+## Model Override Selector
+- Added a new UI element to force manual selection of Apple Foundation Models (3B Core, 20B Advanced, or Private Cloud Compute), overriding the automatic hybrid routing.

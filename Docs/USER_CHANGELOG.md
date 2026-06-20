@@ -117,3 +117,5 @@ WWDC26 shifted the platform architecture by pushing core AI capabilities into sy
 #### 11. Liquid Glass and Visual Polish
 *   **Universal AppIcon**: Added a unified universal AppIcon configuration across iOS and macOS targets, resolving catalog build warnings.
 *   **Visual density**: Standardized margins (14pt) and tighter corner radii for message bubbles (16pt) and cards (12pt) to create a denser, more cohesive Liquid Glass UI.
+
+- **Model Preference Selector:** You can now tap the Apple Intelligence pill in the chat view to manually force your queries to run on the 3B Core model, 20B Advanced model, or Private Cloud Compute, bypassing the automatic routing.
