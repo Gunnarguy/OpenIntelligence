@@ -1,6 +1,6 @@
 # OpenIntelligence
 
-> **Documentation status:** Verified for OpenIntelligence v4.1 on June 14, 2026.
+> **Documentation status:** Verified for OpenIntelligence v4.3 on June 20, 2026.
 > **Scope:** Describes shipped behavior for on-device Apple Intelligence RAG architecture.
 
 <p align="center">
