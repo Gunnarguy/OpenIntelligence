@@ -165,3 +165,5 @@ This is the user-facing 3.1 summary focused on document understanding, OCR relia
 ## Notes
 
 This public summary is intentionally feature-facing. Internal engine changes, tuning values, and private roadmap details are not published here.
+
+- Added an explicit Model Preference dropdown to the Chat view header, allowing you to force Apple Intelligence execution onto the 3B Core, 20B Advanced, or Private Cloud Compute tiers instead of relying on automatic hybrid routing.

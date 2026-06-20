@@ -2461,6 +2461,7 @@ struct ChatScreen: View {
             baseExecutionContext == .automatic ? .preferCloud : baseExecutionContext
         let capturedAllowPCC = baseExecutionContext != .onDeviceOnly
         let capturedQualityMode = effectiveQualityMode.canonical
+        let capturedFmPreference = settings.fmPreference
         requestedExecutionContext = capturedExecutionContext
         let capturedUsedContainerId = usedContainerId
         let querySessionId = UUID()
@@ -2551,7 +2552,8 @@ struct ChatScreen: View {
                     presencePenalty: Float(capturedPresencePenalty),
                     repetitionPenalty: Float(capturedRepetitionPenalty),
                     executionContext: capturedExecutionContext,
-                    allowPrivateCloudCompute: capturedAllowPCC
+                    allowPrivateCloudCompute: capturedAllowPCC,
+                    fmPreference: capturedFmPreference
                 )
 
                 let queryStreamHandler: LLMStreamHandler?

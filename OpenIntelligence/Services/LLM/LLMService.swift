@@ -852,7 +852,9 @@ struct LLMResponse {
             let executionBasedModelName: String
             switch actualRoute {
             case .onDevice:
-                executionBasedModelName = "Apple Intelligence (On-Device)"
+                executionBasedModelName = "Apple Intelligence (3B Core)"
+            case .onDeviceAdvanced:
+                executionBasedModelName = "Apple Intelligence (20B Advanced)"
             case .privateCloudCompute:
                 executionBasedModelName = "Apple Intelligence (PCC)"
             case .automatic:

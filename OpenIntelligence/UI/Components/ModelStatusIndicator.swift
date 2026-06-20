@@ -10,13 +10,16 @@ import SwiftUI
 /// Compact model status indicator for the app header
 struct ModelStatusIndicator: View {
     @EnvironmentObject private var modelResolution: ModelResolutionService
-    @State private var showDetails = false
+    @EnvironmentObject private var settings: SettingsStore
     @State private var pulseScale: CGFloat = 1.0
 
     var body: some View {
-        Button {
-            showDetails = true
-            DSHaptics.soft()
+        Menu {
+            Picker("Model Preference", selection: $settings.fmPreference) {
+                ForEach(FoundationModelPreference.allCases) { preference in
+                    Text(preference.displayName).tag(preference)
+                }
+            }
         } label: {
             HStack(spacing: 10) {
                 statusDot
@@ -28,70 +31,6 @@ struct ModelStatusIndicator: View {
             .clipShape(RoundedRectangle(cornerRadius: 8))
         }
         .buttonStyle(.plain)
-        .popover(isPresented: $showDetails) {
-            VStack(alignment: .leading, spacing: 16) {
-                HStack(spacing: 8) {
-                    Image(systemName: "apple.intelligence")
-                        .font(.title3)
-                        .symbolRenderingMode(.multicolor)
-                    Text("Apple Intelligence")
-                        .font(.headline)
-                    Spacer()
-                    if modelResolution.isProcessing {
-                        ProgressView()
-                            .scaleEffect(0.8)
-                    }
-                }
-                
-                VStack(alignment: .leading, spacing: 10) {
-                    DetailRow(label: "Model Selected", value: modelResolution.currentState.selectedType.displayName)
-                    
-                    DetailRow(label: "Routing Policy", value: modelResolution.currentState.executionPath.displayName)
-                    
-                    if modelResolution.isProcessing {
-                        DetailRow(label: "Active Path", value: "\(modelResolution.currentState.executionPath.emoji) \(modelResolution.currentState.executionPath.displayName) (Active)")
-                    } else if let lastPath = modelResolution.lastExecutionPath {
-                        DetailRow(label: "Last Query Path", value: "\(lastPath.emoji) \(lastPath.displayName)")
-                    }
-                    
-                    DetailRow(label: "Resolved Model", value: modelResolution.currentState.activeModelName)
-                }
-                
-                Divider()
-                
-                // Under the hood info
-                VStack(alignment: .leading, spacing: 8) {
-                    Label {
-                        Text("Under the Hood: Hybrid Routing")
-                            .font(.caption.weight(.bold))
-                            .foregroundColor(.primary)
-                    } icon: {
-                        Image(systemName: "cpu")
-                            .foregroundColor(.blue)
-                    }
-                    
-                    Text("OpenIntelligence dynamically routes queries between your local device and Private Cloud Compute (PCC) based on query complexity, quality mode, and document context size:")
-                        .font(.system(size: 10))
-                        .foregroundColor(.secondary)
-                        .lineLimit(nil)
-                        .fixedSize(horizontal: false, vertical: true)
-                    
-                    VStack(alignment: .leading, spacing: 6) {
-                        BulletPoint(text: "On-Device (Standard): Processes everyday queries locally. Highly private and offline capable, with a context limit of 4K tokens.")
-                        BulletPoint(text: "Private Cloud Compute (PCC): Automatically routes complex reasoning (Deep Think/Maximum modes) or large documents (up to 32K tokens) to secure, stateless cloud enclaves that cryptographically guarantee privacy.")
-                    }
-                }
-                .padding(10)
-                .background(Color.primary.opacity(0.04))
-                .cornerRadius(8)
-                
-                Text("Transparency is key. This model was selected based on your device capabilities and active routing policy.")
-                    .font(.system(size: 9))
-                    .foregroundColor(.secondary)
-            }
-            .padding(16)
-            .frame(width: 320)
-        }
     }
 
     private struct DetailRow: View {
@@ -158,6 +97,10 @@ struct ModelStatusIndicator: View {
     }
 
     private func cleanModelName(_ name: String) -> String {
+        if settings.fmPreference != .automatic {
+            return settings.fmPreference.displayName
+        }
+
         if name.contains("Apple Intel") || name.contains("Apple Intelligence") {
             return "Apple Intelligence"
         }

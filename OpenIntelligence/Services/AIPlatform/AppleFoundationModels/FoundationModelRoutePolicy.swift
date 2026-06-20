@@ -25,6 +25,19 @@ struct FoundationModelRoutePolicy {
         estimatedContextTokens: Int,
         config: InferenceConfig
     ) -> AppleFoundationModelRoute {
+        
+        // 1. Check for manual user override
+        switch config.fmPreference {
+        case .core3B:
+            return .onDevice
+        case .advanced20B:
+            return .onDeviceAdvanced
+        case .privateCloudCompute:
+            return .privateCloudCompute(reasoning: queryType == .standard ? .none : .deep)
+        case .automatic:
+            break // Fall through to dynamic hybrid routing
+        }
+        
         let pccAllowed = config.allowPrivateCloudCompute
         let onDeviceLimit = 4096
         

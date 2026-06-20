@@ -73,6 +73,7 @@ struct InferenceConfig {
     var topP: Float = 0.9
     var topK: Int = 40
     var qualityMode: RAGQualityMode = .standard
+    var fmPreference: FoundationModelPreference = .automatic
 
 
     // MARK: - Legacy Parameters
@@ -144,6 +145,24 @@ enum PCCSettings: String, CaseIterable, Sendable, Codable {
 }
 
 /// Defines where Apple Foundation Models should execute
+enum FoundationModelPreference: String, CaseIterable, Identifiable, Sendable {
+    case automatic = "Automatic"
+    case core3B = "3B Core"
+    case advanced20B = "20B Advanced"
+    case privateCloudCompute = "Private Cloud Compute"
+    
+    var id: String { rawValue }
+    
+    var displayName: String {
+        switch self {
+        case .automatic: return "Automatic (Hybrid)"
+        case .core3B: return "📱 On-Device (3B Core)"
+        case .advanced20B: return "📱 On-Device (20B Advanced)"
+        case .privateCloudCompute: return "☁️ Private Cloud Compute"
+        }
+    }
+}
+
 enum ExecutionContext: CaseIterable, Sendable {
     /// Let system decide based on policy.
     case automatic

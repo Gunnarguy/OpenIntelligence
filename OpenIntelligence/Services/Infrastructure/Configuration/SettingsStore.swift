@@ -39,6 +39,7 @@ final class SettingsStore: ObservableObject {
         static let firstFB = "firstFallbackModel" // LLMModelType.rawValue
         static let secondFB = "secondFallbackModel" // LLMModelType.rawValue
         static let primaryModelUserOverride = "primaryModelUserOverride"
+        static let fmPreference = "foundationModelPreference" // FoundationModelPreference.rawValue
 
         // Reviewer & consent
         static let reviewerModeEnabled = "reviewerModeEnabled"
@@ -100,6 +101,9 @@ final class SettingsStore: ObservableObject {
 
     /// Active execution strategy describing how queries are routed.
     @Published var executionContext: ExecutionContext
+
+    /// User-forced preference for Apple Foundation Model routing.
+    @Published var fmPreference: FoundationModelPreference
 
     /// Temperature applied to generative models.
     @Published var temperature: Double
@@ -375,6 +379,13 @@ final class SettingsStore: ObservableObject {
         let execRaw = defaults.string(forKey: Keys.execContext) ?? "automatic"
         executionContext = ExecutionContext.from(raw: execRaw)
 
+        if let fmPrefRaw = defaults.string(forKey: Keys.fmPreference),
+           let pref = FoundationModelPreference(rawValue: fmPrefRaw) {
+            fmPreference = pref
+        } else {
+            fmPreference = .automatic
+        }
+
         temperature = (defaults.object(forKey: Keys.temperature) as? Double) ?? 0.7
         maxTokens = (defaults.object(forKey: Keys.maxTokens) as? Int) ?? 2048
         contextLength = (defaults.object(forKey: Keys.contextLength) as? Int) ?? 4096
@@ -573,6 +584,7 @@ final class SettingsStore: ObservableObject {
             $enableSpeechAnalysis.map { _ in () }.eraseToAnyPublisher(),
             $smartReplyCount.map { _ in () }.eraseToAnyPublisher(),
             $enableSharedWorkspaceSync.map { _ in () }.eraseToAnyPublisher(),
+            $fmPreference.map { _ in () }.eraseToAnyPublisher(),
         ]
         Publishers.MergeMany(publishers)
             .sink { [weak self] in
@@ -718,6 +730,7 @@ final class SettingsStore: ObservableObject {
     private func persistAll() {
         defaults.set(selectedModel.rawValue, forKey: Keys.selectedModel)
         defaults.set(executionContext.rawString, forKey: Keys.execContext)
+        defaults.set(fmPreference.rawValue, forKey: Keys.fmPreference)
 
         defaults.set(temperature, forKey: Keys.temperature)
         defaults.set(maxTokens, forKey: Keys.maxTokens)

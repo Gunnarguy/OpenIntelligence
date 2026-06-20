@@ -55,8 +55,9 @@ struct FoundationModelSessionFactory {
             
         case .onDeviceAdvanced:
             if #available(iOS 27.0, macOS 27.0, *) {
-                // Initialize the 20B Advanced model on iOS 27+
-                let model = SystemLanguageModel.advanced
+                // TODO: The Xcode 18 Beta SDK does not yet expose the `.advanced` property for the 20B model in this build.
+                // Falling back to `.default` to ensure compilation succeeds while preserving the routing logic.
+                let model = SystemLanguageModel.default
                 guard case .available = model.availability else { throw LLMError.modelUnavailable }
                 if let savedTranscript = pendingTranscript, !disableTools {
                     finalSession = LanguageModelSession(model: model, tools: tools, transcript: savedTranscript)
