@@ -289,7 +289,7 @@ class HybridSearchService {
     /// Any keyword that matches >30% of candidate chunks has zero discriminative value
     /// (it's a corpus-common word for THIS document, regardless of domain) and gets
     /// zero boost. Works for any domain, any document, forever — no hardcoded lists.
-    private func applyKeywordMatchBoost(query: String, results: [RetrievedChunk]) -> [RetrievedChunk] {
+    func applyKeywordMatchBoost(query: String, results: [RetrievedChunk]) -> [RetrievedChunk] {
         let queryKeywords = extractImportantKeywords(from: query)
         guard !queryKeywords.isEmpty, !results.isEmpty else { return results }
 

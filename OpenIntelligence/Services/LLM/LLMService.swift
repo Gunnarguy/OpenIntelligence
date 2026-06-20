@@ -1062,7 +1062,7 @@ struct LLMResponse {
         }
 
         /// Checks if new text is substantially repeating content from existing text
-        private func isRepetitiveContent(newText: String, existingText: String) -> Bool {
+        func isRepetitiveContent(newText: String, existingText: String) -> Bool {
             let newLower = newText.lowercased()
             let existingLower = existingText.lowercased()
 

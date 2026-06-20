@@ -1515,7 +1515,7 @@ class SemanticChunker {
     ///
     /// - Parameter text: The chunk text to extract entities from
     /// - Returns: Array of unique entity strings (deduplicated, sorted by first occurrence)
-    private func extractEntities(_ text: String) -> [String] {
+    func extractEntities(_ text: String) -> [String] {
         var entities: [String] = []
         var seen = Set<String>()
 
