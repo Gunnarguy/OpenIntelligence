@@ -160,3 +160,4 @@ Detailed internal algorithm changes and research-oriented engine updates are tra
 - [Orchestration] Added FoundationModelPreference override to allow manual selection of 3B Core, 20B Advanced, or Private Cloud Compute tiers in ChatScreen.
 - [Orchestration] Fixed InferenceConfig argument order in ChatScreen to resolve compilation failure.
 - [Orchestration] Dynamically hide 20B Advanced preference from UI on older OS versions.
+- [Orchestration] Resolved duplicated text rendering in manual model selector pill.

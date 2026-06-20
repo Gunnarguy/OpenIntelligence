@@ -98,7 +98,7 @@ struct ModelStatusIndicator: View {
 
     private func cleanModelName(_ name: String) -> String {
         if settings.fmPreference != .automatic {
-            return settings.fmPreference.displayName
+            return "Apple Intelligence (User Selected)"
         }
 
         if name.contains("Apple Intel") || name.contains("Apple Intelligence") {
