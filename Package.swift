@@ -23,6 +23,7 @@ let package = Package(
             ],
             path: "OpenIntelligence",
             exclude: [
+                "Services/LLM/Tests",
                 "App",
                 "Features",
                 "OpenIntelligence.entitlements",
@@ -86,6 +87,11 @@ let package = Package(
                     "-enable-experimental-feature", "DebugDescriptionMacro"
                 ])
             ]
+        ),
+        .testTarget(
+            name: "OpenIntelligenceEngineTests",
+            dependencies: ["OpenIntelligenceEngine"],
+            path: "OpenIntelligence/Services/LLM/Tests"
         )
     ],
     swiftLanguageModes: [
