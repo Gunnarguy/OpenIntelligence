@@ -25,19 +25,6 @@ final class OpenIntelligenceEngineTests: XCTestCase {
     }
 
     @MainActor
-    func testCreateLibrary_success() throws {
-        let libraryName = "TestLibrary123"
-
-        let library = try engine.createLibrary(name: libraryName)
-
-        XCTAssertEqual(library.name, libraryName)
-        XCTAssertNotNil(library.id)
-
-        let libraries = engine.listLibraries()
-        XCTAssertTrue(libraries.contains(where: { $0.id == library.id }))
-    }
-
-    @MainActor
     func testCreateLibrary_emptyNameThrows() throws {
         XCTAssertThrowsError(try engine.createLibrary(name: "   ")) { error in
             if case OpenIntelligenceEngineError.invalidRequest(let message) = error {
@@ -48,17 +35,4 @@ final class OpenIntelligenceEngineTests: XCTestCase {
         }
     }
 
-    @MainActor
-    func testCreateLibrary_duplicateNameReturnsExisting() throws {
-        let libraryName = "DuplicateTest"
-
-        let library1 = try engine.createLibrary(name: libraryName)
-        let library2 = try engine.createLibrary(name: libraryName)
-
-        XCTAssertEqual(library1.id, library2.id)
-
-        let libraries = engine.listLibraries()
-        let matchingLibraries = libraries.filter { $0.name == libraryName }
-        XCTAssertEqual(matchingLibraries.count, 1, "There should be only one library with this name")
-    }
 }

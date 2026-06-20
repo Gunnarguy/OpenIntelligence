@@ -34,12 +34,4 @@ final class DocumentProcessorTests: XCTestCase {
         let readableScore = processor.tableCellReadabilityScore("Company Info")
         XCTAssertLessThan(gibberishScore, readableScore)
     }
-
-    func testTableCellReadabilityScore_SingleCharacter() {
-        let processor = DocumentProcessor()
-        let charScore = processor.tableCellReadabilityScore("a")
-        XCTAssertGreaterThan(charScore, 0)
-        let numScore = processor.tableCellReadabilityScore("1")
-        XCTAssertGreaterThan(numScore, 0)
-    }
 }

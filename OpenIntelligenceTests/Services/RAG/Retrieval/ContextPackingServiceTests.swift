@@ -164,7 +164,7 @@ final class ContextPackingServiceTests: XCTestCase {
         let chunk2 = createDummyChunk(id: UUID(), documentId: docId, content: "Procedure step 2", index: 2)
 
         let retrievedChunks = [chunk1, chunk2]
-        let allChunks = [chunk1.id: chunk1, chunk2.id: chunk2]
+        let allChunks: [UUID: DocumentChunk] = [chunk1.id: chunk1, chunk2.id: chunk2]
 
         let packedContext = await packingService.pack(
             for: .procedure,
