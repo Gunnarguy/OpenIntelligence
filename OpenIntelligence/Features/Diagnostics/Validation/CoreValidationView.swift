@@ -291,6 +291,37 @@ struct CoreValidationView: View {
                 }
             }
 
+
+            // Test 9: Engine - Library Clearance
+            await runTest(name: "Engine - Library Clearance") {
+                let engine = OIEngine()
+                let libName = "TempClearanceLib_\(UUID().uuidString)"
+                do {
+                    let library = try engine.createLibrary(name: libName)
+
+                    let tempDir = FileManager.default.temporaryDirectory
+                    let dummyFile = tempDir.appendingPathComponent("dummy_ingest_\(UUID().uuidString).txt")
+                    try "Test document content for clearance test".write(to: dummyFile, atomically: true, encoding: .utf8)
+                    defer { try? FileManager.default.removeItem(at: dummyFile) }
+
+                    let req = OIIngestRequest(urls: [dummyFile])
+                    _ = try await engine.ingest(req, into: library.id)
+
+                    let docsBefore = try engine.listDocuments(in: library.id)
+                    let hasDocs = !docsBefore.isEmpty
+
+                    try await engine.clearLibrary(id: library.id)
+
+                    let docsAfter = try engine.listDocuments(in: library.id)
+                    let isCleared = docsAfter.isEmpty
+
+                    try engine.deleteLibrary(id: library.id)
+
+                    return hasDocs && isCleared
+                } catch {
+                    return false
+                }
+            }
             // Test 8: Tools - search_documents truncation and citation
             await runTest(name: "Tools - search_documents truncation + citation") {
                 // Seed a temporary service with one long chunk and verify truncation + source formatting
