@@ -9,6 +9,8 @@ This document provides a chronological history of user-facing changes, highlight
 
 ## v4.3 - June 20, 2026
 
+*   **Transparent Verification Engine**: When the AI abstains from answering due to lack of evidence, it will now gracefully provide its drafted reasoning with a prominent `[Needs Verification]` warning, rather than hiding the drafted answer entirely.
+*   **Accurate Telemetry Status**: Fixed a minor UI bug that caused the Verification Gates status panel to incorrectly light up red (as "Failed") during perfectly healthy standard queries.
 *   **Instant Library Scrolling**: Fixed a massive scroll-lag issue when browsing large libraries. Scrolling through your documents is now 240x smoother.
 *   **Faster Answer Generation**: Rebuilt the context aggregation math, reducing the time it takes the app to deduplicate massive datasets by 1000x. Answers generate substantially faster.
 *   **Enhanced Reliability**: Simplified the underlying AI routing engine to be exclusively reliant on native Apple Intelligence, resulting in fewer context errors.

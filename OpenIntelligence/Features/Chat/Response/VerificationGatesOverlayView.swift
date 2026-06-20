@@ -31,8 +31,8 @@ struct VerificationGatesOverlayView: View {
         case .standard:
             return [
                 VerificationGate(id: 1, title: "Intent Formulation", kind: .intentRoute, secondaryKind: .planning),
-                VerificationGate(id: 2, title: "Scope Validation", kind: .retrieval, secondaryKind: nil),
-                VerificationGate(id: 3, title: "RRF Confidence", kind: .rrf, secondaryKind: nil),
+                VerificationGate(id: 2, title: "Scope Validation", kind: .retrieval, secondaryKind: .context),
+                VerificationGate(id: 3, title: "Data Confidence", kind: .rrf, secondaryKind: .confidence),
                 VerificationGate(id: 4, title: "Semantic Grounding", kind: .grounding, secondaryKind: .verification)
             ]
         case .deepThink:
@@ -137,8 +137,13 @@ struct VerificationGatesOverlayView: View {
                 let subsequentEvents = events[index...]
                 if let failureEvent = subsequentEvents.first(where: { $0.kind == .warning || $0.kind == .fallback }) {
                     // Make sure the warning happened before the next gate (or there is no next gate)
-                    let nextGateIndex = (i + 1 < newGates.count) ? events.firstIndex(where: { $0.kind == newGates[i+1].kind || $0.kind == newGates[i+1].secondaryKind }) : nil
-                    
+                    var nextGateIndex: Int? = nil
+                    for j in (i + 1)..<newGates.count {
+                        if let idx = events.firstIndex(where: { $0.kind == newGates[j].kind || $0.kind == newGates[j].secondaryKind }) {
+                            nextGateIndex = idx
+                            break
+                        }
+                    }                    
                     if let nextGateIdx = nextGateIndex, events.firstIndex(of: failureEvent)! < nextGateIdx {
                         newGates[i].status = .failed(reason: failureEvent.title)
                         hasFailed = true

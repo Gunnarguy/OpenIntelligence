@@ -9,6 +9,9 @@ This document provides a comprehensive, version-by-version breakdown of major ar
 
 ## v4.3 - June 20, 2026
 
+*   **RAG Gate UI Accuracy**: Fixed a bug where verification gates in Standard Mode would falsely appear as "failed" due to asynchronous UI state arrays missing intermediate contextual flags.
+*   **Abstention Transparency**: Updated the confidence calibration pipeline to gracefully output the drafted source-answer along with a prominent `[Needs Verification]` warning when strict evidence thresholds are not met, rather than fully discarding the answer.
+*   **Confidence Calculation**: Resolved a bug that caused the pipeline to report 100% confidence on abstained queries where the only supported claim had 100% fidelity but critical claims were completely missing.
 *   **1000x Faster RAG Deduplication**: Removed $O(N^2)$ array-based deduplication loops during context packing, replacing them with an $O(1)$ Hash Set lookup for instantaneous evidence aggregation.
 *   **240x Faster Database Dashboard Scrolling**: Implemented a dynamic UUID dictionary cache to eliminate constant UUID string re-computation on row render, achieving perfectly smooth 120hz scrolling on massive libraries.
 *   **Architectural Pruning**: Completely removed the legacy `OnDeviceAnalysisService` to simplify LLM routing and reduce overhead, relying entirely on the native Apple Foundation Models integration.

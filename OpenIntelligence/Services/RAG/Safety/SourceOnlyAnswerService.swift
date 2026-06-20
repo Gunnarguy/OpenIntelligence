@@ -326,9 +326,9 @@ final class SourceOnlyAnswerService {
             || criticalFailure
             || belowThresholdCritical
 
-        let fidelityScore = supportedClaims.isEmpty
-            ? 0
-            : supportedClaims.map(\.fidelity).reduce(0, +) / Float(supportedClaims.count)
+        let fidelityScore: Float = shouldAbstain
+            ? 0.0
+            : (supportedClaims.isEmpty ? 0.0 : supportedClaims.map(\.fidelity).reduce(0, +) / Float(supportedClaims.count))
 
         let abstentionReason: String?
         if shouldAbstain {
@@ -346,7 +346,7 @@ final class SourceOnlyAnswerService {
         }
 
         let finalAnswer = shouldAbstain
-            ? buildAbstentionText(reason: abstentionReason ?? "Retrieved evidence was insufficient.")
+            ? "⚠️ **[Needs Verification]** This answer was drafted but could not be strictly verified against the retrieved evidence:\n\n\(candidateAnswer)\n\n*(Reason: \(abstentionReason ?? "Insufficient evidence"))*"
             : renderVerifiedAnswer(
                 supportedClaims: supportedClaims,
                 missingFacets: draft.missingFacets,
