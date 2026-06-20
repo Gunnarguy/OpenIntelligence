@@ -1,7 +1,8 @@
 import XCTest
-@testable import OpenIntelligenceEngine
 
 #if canImport(FoundationModels)
+@testable import OpenIntelligenceEngine
+
 final class LLMRepetitionTests: XCTestCase {
 
     var service: AppleFoundationLLMService!
