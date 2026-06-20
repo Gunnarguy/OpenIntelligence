@@ -56,9 +56,6 @@ struct KnowledgeContainer: Identifiable, Codable, Equatable, Sendable {
     // Retrieval tuning - controls how search results are ranked and filtered
     var retrievalConfig: RetrievalConfig
 
-    // DEPRECATED: strictMode removed - use retrievalConfig.minSimilarity instead
-    // Migration: strictMode=true → minSimilarity=0.52, strictMode=false → minSimilarity=0.35
-
     // Stats for quick UI rendering
     var totalDocuments: Int
     var totalChunks: Int
@@ -111,12 +108,12 @@ struct KnowledgeContainer: Identifiable, Codable, Equatable, Sendable {
                 ? .iCloudShared
                 : .localOnly)
 
-        // Migration: convert legacy strictMode to retrievalConfig
         if let config = try container.decodeIfPresent(RetrievalConfig.self, forKey: .retrievalConfig) {
             retrievalConfig = config
         } else if let strictMode = try container.decodeIfPresent(Bool.self, forKey: .strictMode) {
-            // Migrate from strictMode
-            retrievalConfig = RetrievalConfig.migrated(fromStrictMode: strictMode)
+            var config = RetrievalConfig.default
+            config.minSimilarity = strictMode ? 0.52 : 0.35
+            retrievalConfig = config
         } else {
             retrievalConfig = .default
         }
@@ -218,7 +215,6 @@ struct KnowledgeContainer: Identifiable, Codable, Equatable, Sendable {
 // MARK: - Retrieval Configuration
 
 /// Controls how search results are ranked, filtered, and fused.
-/// This replaces the old strictMode boolean with granular tuning controls.
 struct RetrievalConfig: Codable, Equatable, Sendable {
     /// Minimum cosine similarity required for a chunk to be considered relevant (0.0-1.0)
     /// Higher values = stricter filtering, fewer but more relevant results
@@ -290,22 +286,6 @@ struct RetrievalConfig: Codable, Equatable, Sendable {
         minConfidentChunks: 1,
         requireExplicitCitations: false
     )
-
-    /// Migration helper: convert legacy strictMode to RetrievalConfig
-    static func migrated(fromStrictMode strictMode: Bool) -> RetrievalConfig {
-        if strictMode {
-            return RetrievalConfig(
-                minSimilarity: 0.52,
-                vectorWeight: 0.7,
-                lexicalWeight: 0.3,
-                mmrLambda: 0.75,
-                minConfidentChunks: 3,
-                requireExplicitCitations: true
-            )
-        } else {
-            return .default
-        }
-    }
 
     // MARK: - Comparison Helpers
 
