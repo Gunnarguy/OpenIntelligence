@@ -86,6 +86,13 @@ let package = Package(
                     "-enable-experimental-feature", "DebugDescriptionMacro"
                 ])
             ]
+        ),
+        .testTarget(
+            name: "OpenIntelligenceEngineTests",
+            dependencies: [
+                "OpenIntelligenceEngine"
+            ],
+            path: "Tests/OpenIntelligenceEngineTests"
         )
     ],
     swiftLanguageModes: [

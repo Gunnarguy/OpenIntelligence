@@ -289,7 +289,7 @@ class HybridSearchService {
     /// Any keyword that matches >30% of candidate chunks has zero discriminative value
     /// (it's a corpus-common word for THIS document, regardless of domain) and gets
     /// zero boost. Works for any domain, any document, forever — no hardcoded lists.
-    private func applyKeywordMatchBoost(query: String, results: [RetrievedChunk]) -> [RetrievedChunk] {
+    internal func applyKeywordMatchBoost(query: String, results: [RetrievedChunk]) -> [RetrievedChunk] {
         let queryKeywords = extractImportantKeywords(from: query)
         guard !queryKeywords.isEmpty, !results.isEmpty else { return results }
 
@@ -505,7 +505,7 @@ class HybridSearchService {
     /// OPTIMIZED: Returns deduplicated set to prevent inflated boost scores.
     /// Previously returned duplicates from expanded queries (e.g., "oil" appearing 9x
     /// in 9 query variations), causing 282/300 chunks to be "boosted" = meaningless.
-    private func extractImportantKeywords(from query: String) -> [String] {
+    internal func extractImportantKeywords(from query: String) -> [String] {
         let stopwords: Set<String> = [
             "the", "a", "an", "is", "are", "was", "were", "be", "been", "being",
             "have", "has", "had", "do", "does", "did", "will", "would", "could", "should",
