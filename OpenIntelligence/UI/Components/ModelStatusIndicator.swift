@@ -16,7 +16,7 @@ struct ModelStatusIndicator: View {
     var body: some View {
         Menu {
             Picker("Model Preference", selection: $settings.fmPreference) {
-                ForEach(FoundationModelPreference.allCases) { preference in
+                ForEach(FoundationModelPreference.availableCases) { preference in
                     Text(preference.displayName).tag(preference)
                 }
             }

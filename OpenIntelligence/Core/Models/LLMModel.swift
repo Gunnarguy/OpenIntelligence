@@ -161,6 +161,14 @@ enum FoundationModelPreference: String, CaseIterable, Identifiable, Sendable {
         case .privateCloudCompute: return "☁️ Private Cloud Compute"
         }
     }
+    
+    static var availableCases: [FoundationModelPreference] {
+        if #available(iOS 27.0, macOS 27.0, *) {
+            return [.automatic, .core3B, .advanced20B, .privateCloudCompute]
+        } else {
+            return [.automatic, .core3B, .privateCloudCompute]
+        }
+    }
 }
 
 enum ExecutionContext: CaseIterable, Sendable {
