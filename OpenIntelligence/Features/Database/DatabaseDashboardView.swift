@@ -39,6 +39,9 @@ struct DatabaseDashboardView: View {
     @State private var rebuildLogs: [RebuildLogEntry] = []
     @State private var showRebuildLog = false
 
+    @State private var containerNameMap: [UUID: String] = [:]
+    @State private var documentNameMap: [UUID: String] = [:]
+
     struct RebuildLogEntry: Identifiable {
         let id = UUID()
         let timestamp: Date
@@ -158,6 +161,13 @@ struct DatabaseDashboardView: View {
         #endif
         .task {
             await loadAllData()
+            updateMaps()
+        }
+        .onChange(of: containerService.containers.count) { _, _ in
+            updateMaps()
+        }
+        .onChange(of: ragService.documents.count) { _, _ in
+            updateMaps()
         }
         .refreshable {
             await loadAllData()
@@ -1384,11 +1394,16 @@ struct DatabaseDashboardView: View {
     }
 
     private func containerName(for containerId: UUID) -> String {
-        containerService.containers.first { $0.id == containerId }?.name ?? "Unknown"
+        containerNameMap[containerId] ?? "Unknown"
     }
 
     private func documentName(for documentId: UUID) -> String {
-        ragService.documents.first { $0.id == documentId }?.filename ?? String(documentId.uuidString.prefix(8)) + "..."
+        documentNameMap[documentId] ?? String(documentId.uuidString.prefix(8)) + "..."
+    }
+
+    private func updateMaps() {
+        containerNameMap = Dictionary(uniqueKeysWithValues: containerService.containers.map { ($0.id, $0.name) })
+        documentNameMap = Dictionary(uniqueKeysWithValues: ragService.documents.map { ($0.id, $0.filename) })
     }
 
     // MARK: - Rebuild Log View
