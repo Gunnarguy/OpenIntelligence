@@ -158,3 +158,4 @@ OpenIntelligence version 4.0 & 4.1 is a milestone upgrade that integrates Apple 
 
 Detailed internal algorithm changes and research-oriented engine updates are tracked privately rather than in the public changelog.
 - [Orchestration] Added FoundationModelPreference override to allow manual selection of 3B Core, 20B Advanced, or Private Cloud Compute tiers in ChatScreen.
+- [Orchestration] Fixed InferenceConfig argument order in ChatScreen to resolve compilation failure.

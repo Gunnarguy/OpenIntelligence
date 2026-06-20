@@ -2545,6 +2545,7 @@ struct ChatScreen: View {
                     temperature: Float(capturedTemperature),
                     topP: Float(capturedTopP),
                     topK: 40,
+                    fmPreference: capturedFmPreference,
                     useKVCache: true,
                     systemPrompt: capturedSystemPrompt,
                     contextLength: capturedContextLength,
@@ -2552,8 +2553,7 @@ struct ChatScreen: View {
                     presencePenalty: Float(capturedPresencePenalty),
                     repetitionPenalty: Float(capturedRepetitionPenalty),
                     executionContext: capturedExecutionContext,
-                    allowPrivateCloudCompute: capturedAllowPCC,
-                    fmPreference: capturedFmPreference
+                    allowPrivateCloudCompute: capturedAllowPCC
                 )
 
                 let queryStreamHandler: LLMStreamHandler?
