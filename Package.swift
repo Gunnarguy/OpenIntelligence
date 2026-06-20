@@ -4,7 +4,8 @@ import PackageDescription
 let package = Package(
     name: "OpenIntelligenceEngine",
     platforms: [
-        .iOS("26.0")
+        .iOS("26.0"),
+        .macOS("26.0")
     ],
     products: [
         .library(
@@ -41,10 +42,11 @@ let package = Package(
                 "Services/Infrastructure/Tips",
                 "Services/LLM/ModelResolutionService.swift",
                 "Services/LLM/LocalOpenAIServerLLMService.swift",
-                "Services/Query/UX",
                 "Services/Storage/DocumentationCacheService.swift",
                 "Resources/Assets",
-                "Resources/StoreKit"
+                "Resources/StoreKit",
+                "Core/Support/test_write.txt",
+                "Services/Evaluation"
             ],
             sources: [
                 "Core",
@@ -86,6 +88,11 @@ let package = Package(
                     "-enable-experimental-feature", "DebugDescriptionMacro"
                 ])
             ]
+        ),
+        .testTarget(
+            name: "OpenIntelligenceEngineTests",
+            dependencies: ["OpenIntelligenceEngine"],
+            path: "OpenIntelligenceTests"
         )
     ],
     swiftLanguageModes: [
