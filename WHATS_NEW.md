@@ -12,6 +12,7 @@ Version 4.3 focuses on groundbreaking performance optimizations and codebase sim
 - **Lightning-Fast Answer Generation:** The RAG deduplication pipeline was completely rebuilt using an O(1) hash lookup, resulting in a 1,000x speedup during the evidence aggregation phase. Large, context-heavy queries now aggregate in milliseconds instead of seconds.
 - **Buttery-Smooth Database Dashboard:** The Database Dashboard now utilizes a dynamic UUID dictionary cache, rendering rows ~240x faster and completely eliminating stutter when scrolling through massive libraries.
 - **Simplified Architecture:** Removed legacy, unneeded models like `OnDeviceAnalysisService` to rely entirely on our modernized Apple Intelligence system APIs. 
+- **20B Advanced Model Integration:** Successfully integrated Apple's massive 20-billion parameter Foundation Model (AFM 3 Core Advanced). OpenIntelligence now dynamically prioritizes the advanced local model for deep reasoning tasks, keeping your data entirely on-device with zero server latency whenever possible.
 - **Bulletproof Reliability:** Expanded our RAG Evaluations suite to harden token budget obedience and Hybrid Search boundary logic, ensuring extreme stability for edge cases.
 
 ## 4.0 & 4.1

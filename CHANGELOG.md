@@ -9,6 +9,7 @@ This is the public version history for OpenIntelligence. It focuses on user-visi
 - **[Retrieval]** Lightning-Fast Answer Generation: Rebuilt the RAG deduplication pipeline using O(N) Set-based tracking, resulting in an over 1,000x speedup in evidence aggregation for large libraries.
 - **[Orchestration]** Buttery-Smooth Database Dashboard: Implemented a dynamic UUID dictionary cache in `DatabaseDashboardView`, accelerating row rendering performance by ~240x during heavy scrolling.
 - **[Orchestration]** Removed legacy `OnDeviceAnalysisService` to simplify LLM routing, fully trusting Apple Intelligence native FoundationModels.
+- **[Orchestration]** Integrated the 20B Apple Foundation Model (AFM 3 Core Advanced) into the execution pipeline. Prioritized `.onDeviceAdvanced` routing over Private Cloud Compute to maximize local privacy and eliminate cloud latency for reasoning operations.
 - **[Orchestration]** Hardened token budget obedience and evaluation suites to maintain extreme robustness against Apple Intelligence constraints.
 
 ## 4.2 - June 2026

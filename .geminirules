@@ -30,3 +30,6 @@ Every time you modify, add, delete, or integrate code in this repository, you mu
 
 > [!WARNING]
 > If you fail to tag `CHANGELOG.md` with an exact architectural tag (e.g., `[Retrieval]`), the strict `pre-commit` hook will hard-reject your code commits.
+
+## Environment Context
+**CRITICAL:** The user is developing on Xcode 27 Beta, targeting iOS 27 and macOS 27. Always assume the latest WWDC 26 APIs and OS versions are available (including Apple Foundation Models AFM 3). Do NOT assume Xcode 18 or iOS 18/26.

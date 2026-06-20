@@ -40,34 +40,50 @@ struct FoundationModelRoutePolicy {
             }
             
         case .deepThink:
+            // 1. If it's too big, send to PCC
             if estimatedContextTokens > onDeviceLimit && pccAllowed {
                 let pcc = PrivateCloudComputeLanguageModel()
                 if pcc.isAvailable && !pcc.quotaUsage.isLimitReached {
                     return .privateCloudCompute(reasoning: .deep)
                 }
             }
+            
+            // 2. Prioritize local advanced model when the context fits
+            if #available(iOS 27.0, macOS 27.0, *) {
+                return .onDeviceAdvanced
+            }
+            
+            // 3. Fallback to PCC for older OS if allowed
             if pccAllowed {
                 let pcc = PrivateCloudComputeLanguageModel()
                 if pcc.isAvailable && !pcc.quotaUsage.isLimitReached {
                     return .privateCloudCompute(reasoning: .moderate)
                 }
             }
-            return .onDevice
+            return .onDeviceAdvanced
             
         case .maximum:
+            // 1. If it's too big, send to PCC
             if estimatedContextTokens > onDeviceLimit && pccAllowed {
                 let pcc = PrivateCloudComputeLanguageModel()
                 if pcc.isAvailable && !pcc.quotaUsage.isLimitReached {
                     return .privateCloudCompute(reasoning: .deep)
                 }
             }
+            
+            // 2. Prioritize local advanced model when the context fits
+            if #available(iOS 27.0, macOS 27.0, *) {
+                return .onDeviceAdvanced
+            }
+            
+            // 3. Fallback to PCC for older OS if allowed
             if pccAllowed {
                 let pcc = PrivateCloudComputeLanguageModel()
                 if pcc.isAvailable && !pcc.quotaUsage.isLimitReached {
                     return .privateCloudCompute(reasoning: .deep)
                 }
             }
-            return .onDevice
+            return .onDeviceAdvanced
         }
     }
 }

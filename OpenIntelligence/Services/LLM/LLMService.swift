@@ -575,7 +575,9 @@ struct LLMResponse {
             let executionBasedModelName: String
             switch actualRoute {
             case .onDevice:
-                executionBasedModelName = "Apple Intelligence (On-Device)"
+                executionBasedModelName = "Apple Intelligence (3B Core)"
+            case .onDeviceAdvanced:
+                executionBasedModelName = "Apple Intelligence (20B Advanced)"
             case .privateCloudCompute:
                 executionBasedModelName = "Apple Intelligence (PCC)"
             case .automatic:
@@ -615,9 +617,11 @@ struct LLMResponse {
             
             switch actualRoute {
             case .onDevice:
-                actualExecutionLocation = "📱 On-Device"
+                actualExecutionLocation = "📱 On-Device (3B Core)"
+            case .onDeviceAdvanced:
+                actualExecutionLocation = "📱 On-Device (20B Advanced)"
             case .privateCloudCompute(let reasoning):
-                actualExecutionLocation = "☁️ Private Cloud Compute"
+                actualExecutionLocation = "☁️ Private Cloud Compute (Server)"
                 if reasoning != .none {
                     let level: ContextOptions.ReasoningLevel
                     switch reasoning {

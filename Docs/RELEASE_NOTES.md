@@ -14,6 +14,7 @@ This document provides a comprehensive, version-by-version breakdown of major ar
 *   **Confidence Calculation**: Resolved a bug that caused the pipeline to report 100% confidence on abstained queries where the only supported claim had 100% fidelity but critical claims were completely missing.
 *   **1000x Faster RAG Deduplication**: Removed $O(N^2)$ array-based deduplication loops during context packing, replacing them with an $O(1)$ Hash Set lookup for instantaneous evidence aggregation.
 *   **240x Faster Database Dashboard Scrolling**: Implemented a dynamic UUID dictionary cache to eliminate constant UUID string re-computation on row render, achieving perfectly smooth 120hz scrolling on massive libraries.
+*   **AFM 3 Advanced Integration**: Integrated the 20B Apple Foundation Model (AFM 3 Core Advanced) into the execution pipeline, prioritizing local routing (`.onDeviceAdvanced`) over Private Cloud Compute to maximize privacy and eliminate cloud latency for reasoning operations.
 *   **Architectural Pruning**: Completely removed the legacy `OnDeviceAnalysisService` to simplify LLM routing and reduce overhead, relying entirely on the native Apple Foundation Models integration.
 *   **Strict RAG Budget Enforcement**: Hardened the prompt compiler to ensure strict token budget obedience against the 4K local context window constraints.
 

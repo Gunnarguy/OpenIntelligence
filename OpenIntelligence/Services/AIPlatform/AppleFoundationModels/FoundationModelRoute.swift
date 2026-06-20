@@ -19,6 +19,7 @@ public enum PCCReasoningLevel: String, Sendable, Equatable {
 @available(iOS 26.0, macOS 16.0, *)
 public enum AppleFoundationModelRoute: Sendable, Equatable {
     case onDevice
+    case onDeviceAdvanced
     case privateCloudCompute(reasoning: PCCReasoningLevel)
     case automatic
 }

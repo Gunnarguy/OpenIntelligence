@@ -52,6 +52,33 @@ struct FoundationModelSessionFactory {
             } else {
                 finalSession = LanguageModelSession(model: model, tools: tools, instructions: Instructions(instructionsText))
             }
+            
+        case .onDeviceAdvanced:
+            if #available(iOS 27.0, macOS 27.0, *) {
+                // Initialize the 20B Advanced model on iOS 27+
+                let model = SystemLanguageModel.advanced
+                guard case .available = model.availability else { throw LLMError.modelUnavailable }
+                if let savedTranscript = pendingTranscript, !disableTools {
+                    finalSession = LanguageModelSession(model: model, tools: tools, transcript: savedTranscript)
+                    finalSession.prewarm()
+                    transcriptConsumed = true
+                } else {
+                    finalSession = LanguageModelSession(model: model, tools: tools, instructions: Instructions(instructionsText))
+                }
+            } else {
+                // Graceful fallback to the standard model for iOS 26 users
+                let model = SystemLanguageModel.default
+                guard case .available = model.availability else { throw LLMError.modelUnavailable }
+                selectedRoute = .onDevice // Update selected route for telemetry to reflect fallback
+                if let savedTranscript = pendingTranscript, !disableTools {
+                    finalSession = LanguageModelSession(model: model, tools: tools, transcript: savedTranscript)
+                    finalSession.prewarm()
+                    transcriptConsumed = true
+                } else {
+                    finalSession = LanguageModelSession(model: model, tools: tools, instructions: Instructions(instructionsText))
+                }
+            }
+            
         case .privateCloudCompute(_):
             let model = PrivateCloudComputeLanguageModel()
             guard model.isAvailable else { throw LLMError.modelUnavailable }
