@@ -4,7 +4,7 @@
 
 This is the public version history for OpenIntelligence. It focuses on user-visible product changes and intentionally omits private engine tuning, thresholds, and internal implementation details.
 
-## 4.3 - Unreleased
+## 4.3.1 - Unreleased
 
 - **[Orchestration]** Powered by the AFM 3 Architecture: Updated model configuration parsing to dynamically route and visibly highlight across the entire third-generation model suite (AFM 3 Core, AFM 3 Core Advanced, and AFM 3 Cloud Pro).
 - **[Agentic]** Siri Screen Awareness: Integrated AppIntents background context frameworks to allow Siri to natively ingest on-screen files and URLs directly into RAG libraries without touching the app.

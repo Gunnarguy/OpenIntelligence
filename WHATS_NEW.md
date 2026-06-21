@@ -4,7 +4,7 @@
 
 Public release highlights for OpenIntelligence.
 
-## 4.3
+## 4.3.1
 
 Version 4.3 introduces full visibility and support for Apple's third-generation Foundation Models (AFM 3) alongside groundbreaking performance optimizations. Legacy architectural overhead has been eliminated and the RAG (Retrieval-Augmented Generation) pipeline is supercharged for massive libraries.
 
