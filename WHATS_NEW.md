@@ -6,6 +6,14 @@ Public release highlights for OpenIntelligence.
 
 ## 4.3.1
 
+Version 4.3.1 introduces crucial macOS UI layout updates and resolves deep system-level file-lock hangs during iCloud synchronization.
+
+### Highlights
+- **Flawless UI Fluidity:** Eliminated deep system-level file-lock hangs that could freeze the app during iCloud synchronization, keeping the interface locked at 120fps.
+- **Polished macOS Elements:** Perfected layout bindings for the telemetry HUD on native Mac Catalyst/macOS builds so nothing overlaps the chat input field or Unified Metrics Bar, and properly re-enabled native Image Playground "Illustrate" support.
+
+## 4.3
+
 Version 4.3 introduces full visibility and support for Apple's third-generation Foundation Models (AFM 3) alongside groundbreaking performance optimizations. Legacy architectural overhead has been eliminated and the RAG (Retrieval-Augmented Generation) pipeline is supercharged for massive libraries.
 
 ### Highlights
@@ -19,9 +27,6 @@ Version 4.3 introduces full visibility and support for Apple's third-generation 
 - **Enhanced Platform Sync:** Aligned internal OS targets seamlessly with Apple's unified OS strategy (macOS 26 & iOS 26). Hardened the background ingestion queue and RAG routing engine so that Apple Intelligence features like the 3B Core model reliably stay in their fast lane without unintentionally triggering resource-heavy background loops.
 - **Apple API Context Alignment:** Strict alignment with Apple's official June 2026 Foundation Models API documentation. The local on-device context window correctly bounds to 4K tokens, smoothly handing off larger workloads seamlessly to the 32K-token Private Cloud Compute enclave.
 - **Unleashed Mac Hardware Scaling:** Rebuilt the hardware capability service to aggressively and dynamically scale background ingestion limits, RAM buffers, and concurrent evaluation vectors when installed on ultra-advanced Apple Silicon, unlocking pure supercomputer performance on extreme workstations.
-- **Flawless UI Fluidity:** Eliminated deep system-level file-lock hangs that could freeze the app during iCloud synchronization, keeping the interface locked at 120fps.
-- **Polished macOS Elements:** Perfected layout bindings for the telemetry HUD on native Mac Catalyst/macOS builds so nothing overlaps the chat input field or Unified Metrics Bar, and properly re-enabled native Image Playground "Illustrate" support.
-
 ## 4.0 & 4.1
 
 Changes since 3.7.1:

@@ -6,6 +6,12 @@ This is the public version history for OpenIntelligence. It focuses on user-visi
 
 ## 4.3.1 - Unreleased
 
+- **[Orchestration]** Fixed MainActor deadlock in WorkspaceSyncService by offloading NSFileCoordinator read locks to detached background tasks, eliminating UI hangs during iCloud synchronizations.
+- **[UI]** Lifted the Apple Silicon hardware telemetry HUD to avoid occlusion by the bottom conversational metrics bar, and correctly disabled visual X-ray structural overlays on macOS compilation targets.
+- **[UI]** Restored native macOS Image Playground (.imagePlaygroundSupport) button bindings.
+
+## 4.3 - June 2026
+
 - **[Orchestration]** Powered by the AFM 3 Architecture: Updated model configuration parsing to dynamically route and visibly highlight across the entire third-generation model suite (AFM 3 Core, AFM 3 Core Advanced, and AFM 3 Cloud Pro).
 - **[Agentic]** Siri Screen Awareness: Integrated AppIntents background context frameworks to allow Siri to natively ingest on-screen files and URLs directly into RAG libraries without touching the app.
 - **[Generative]** ADM 3 Cloud Integration: Plumbed Apple's ADM 3 architecture via Image Playground API into the core generation pipeline for instant visual concept rendering.
@@ -26,10 +32,6 @@ This is the public version history for OpenIntelligence. It focuses on user-visi
 - **[Shortcuts]** Fixed string interpolation in AppIntents parameter summaries.
 - **[Shortcuts]** Dropped 3 experimental iOS 27.0 AppShortcuts to strictly enforce Apple's 10-shortcut system limit.
 - **[Shortcuts]** Resolved ITMS-90626 by removing the trademark "Siri" from Screen Awareness `IntentDescription` metadata.
-
-- **[Orchestration]** Fixed MainActor deadlock in WorkspaceSyncService by offloading NSFileCoordinator read locks to detached background tasks, eliminating UI hangs during iCloud synchronizations.
-- **[UI]** Lifted the Apple Silicon hardware telemetry HUD to avoid occlusion by the bottom conversational metrics bar, and correctly disabled visual X-ray structural overlays on macOS compilation targets.
-- **[UI]** Restored native macOS Image Playground (.imagePlaygroundSupport) button bindings.
 
 ## 4.2 - June 2026
 
