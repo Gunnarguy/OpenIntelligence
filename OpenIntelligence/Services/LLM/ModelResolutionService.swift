@@ -272,6 +272,7 @@ final class ModelResolutionService: ObservableObject {
 
         case .onDeviceAnalysis:
             return .onDevice
+            
         }
     }
 

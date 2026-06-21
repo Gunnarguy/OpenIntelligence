@@ -18,6 +18,8 @@ This is the public version history for OpenIntelligence. It focuses on user-visi
 - **[UI]** Pruned visual noise by removing obsolete logic relating to the deprecated "Fibonacci sphere" distribution in `AdaptiveVisualizationsView`.
 - **[Tests]** Expanded `OpenIntelligenceEngineTests` suite with hybrid search safety checks and Semantic Chunker hardening against empty strings and malformed data.
 - **[Orchestration]** Fixed agentic reasoning orchestration so that Standard mode strictly prohibits auto-escalating to Deep Think loops when utilizing the constrained 3B Core model.
+- **[Orchestration]** Fixed UI context capability strings to correctly report: 4K (3B Core), 4K (20B Advanced), 32K (PCC Cloud Pro). Purged hallucinated token contexts to strictly align with Apple June 2026 Foundation Models API specs.
+- **[Orchestration]** Unlocked RAM ceilings allowing exponential concurrent pipeline scaling for ultra-advanced Apple Silicon.
 - **[Orchestration]** Reclassified `VerificationGateService` Domain Isolation gate to an advisory status to prevent abstention false-positives on cross-domain queries.
 - **[Background]** Hardened `BackgroundTaskService` against `BGTaskSchedulerErrorDomain error 3` by eliminating string dynamic identifiers and wildcards from system registration logic.
 - **[FoundationModels]** Harmonized all availability macro targeting across the entire codebase to `iOS 26.0, macOS 26.0`, correctly aligning with Apple's 2025 unified naming architecture.

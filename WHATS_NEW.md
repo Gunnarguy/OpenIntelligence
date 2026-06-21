@@ -16,6 +16,8 @@ Version 4.3 introduces full visibility and support for Apple's third-generation 
 - **Simplified Architecture:** Removed legacy, unneeded models like `OnDeviceAnalysisService` to rely entirely on modernized Apple Intelligence system APIs. 
 - **Bulletproof Reliability:** Expanded the RAG Evaluations suite to harden token budget obedience and Hybrid Search boundary logic, ensuring extreme stability for edge cases.
 - **Enhanced Platform Sync:** Aligned internal OS targets seamlessly with Apple's unified OS strategy (macOS 26 & iOS 26). Hardened the background ingestion queue and RAG routing engine so that Apple Intelligence features like the 3B Core model reliably stay in their fast lane without unintentionally triggering resource-heavy background loops.
+- **Apple API Context Alignment:** Strict alignment with Apple's official June 2026 Foundation Models API documentation. The local on-device context window correctly bounds to 4K tokens, smoothly handing off larger workloads seamlessly to the 32K-token Private Cloud Compute enclave.
+- **Unleashed Mac Hardware Scaling:** Rebuilt the hardware capability service to aggressively and dynamically scale background ingestion limits, RAM buffers, and concurrent evaluation vectors when installed on ultra-advanced Apple Silicon, unlocking pure supercomputer performance on extreme workstations.
 
 ## 4.0 & 4.1
  

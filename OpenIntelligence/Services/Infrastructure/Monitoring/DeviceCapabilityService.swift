@@ -376,7 +376,9 @@ final class DeviceCapabilityService: @unchecked Sendable {
         case .baseline: return 3 // Conservative for A17 Pro
         case .enhanced: return 5 // A18 has better thermal headroom
         case .advanced: return 6 // A19 projected
-        case .ultraAdvanced: return 8 // M-series / future
+        case .ultraAdvanced: 
+            let ramMultiplier = max(1.0, cachedMemoryGB / 16.0)
+            return min(32, Int(8.0 * ramMultiplier)) // M-series / future
         }
     }
 
@@ -387,7 +389,9 @@ final class DeviceCapabilityService: @unchecked Sendable {
         case .baseline: return 16000 // ~4 sessions
         case .enhanced: return 24000 // ~6 sessions
         case .advanced: return 32000 // ~8 sessions
-        case .ultraAdvanced: return 48000 // ~12 sessions
+        case .ultraAdvanced: 
+            let ramMultiplier = max(1.0, cachedMemoryGB / 16.0)
+            return min(256000, Int(48000.0 * ramMultiplier)) // ~12+ sessions depending on RAM
         }
     }
 
@@ -427,7 +431,9 @@ final class DeviceCapabilityService: @unchecked Sendable {
         case .baseline: return 512    // A17 Pro: vDSP handles this easily
         case .enhanced: return 768    // A18 Pro: larger batches for throughput
         case .advanced: return 1024   // A19 Pro: full SIMD utilization
-        case .ultraAdvanced: return 1536 // M-series: maximum batch throughput
+        case .ultraAdvanced: 
+            let ramMultiplier = max(1, Int(cachedMemoryGB / 8))
+            return min(16384, 1536 * ramMultiplier) // M-series: maximum batch throughput
         }
     }
 
@@ -446,7 +452,9 @@ final class DeviceCapabilityService: @unchecked Sendable {
         case .baseline: return 24   // A17 Pro: boosted from 16
         case .enhanced: return 32   // A18 Pro: boosted from 24
         case .advanced: return 48   // A19 Pro: full throughput
-        case .ultraAdvanced: return 64 // M-series: maximum batch
+        case .ultraAdvanced: 
+            let ramMultiplier = max(1, Int(cachedMemoryGB / 8))
+            return min(512, 64 * ramMultiplier) // M-series: maximum batch
         }
     }
 
@@ -478,7 +486,9 @@ final class DeviceCapabilityService: @unchecked Sendable {
         case .baseline: return 3000   // A17 Pro: fast single-core
         case .enhanced: return 6000   // A18 Pro: maximum chunk processing
         case .advanced: return 10000  // A19 Pro: next-gen cores
-        case .ultraAdvanced: return 20000 // M-series: unlimited
+        case .ultraAdvanced: 
+            let ramMultiplier = max(1, Int(cachedMemoryGB / 8))
+            return min(250000, 20000 * ramMultiplier) // M-series: unlimited
         }
     }
 
@@ -505,16 +515,15 @@ final class DeviceCapabilityService: @unchecked Sendable {
             if cachedTier == .unsupported {
                 return 4
             }
+            // Scale dynamically by RAM for Macs
+            let ramMultiplier = max(1, Int(cachedMemoryGB / 8))
+            var baseConcurrency = 8
             if chipIsAtLeast("M5") || chipIsAtLeast("M4") {
-                return 16
+                baseConcurrency = 16
+            } else if chipIsAtLeast("M3") {
+                baseConcurrency = 12
             }
-            if chipIsAtLeast("M3") {
-                return 12
-            }
-            if chipIsAtLeast("M2") || chipIsAtLeast("M1") {
-                return 8
-            }
-            return 8
+            return min(64, baseConcurrency * ramMultiplier)
         }
 
         // iOS devices: 2x VisionOCRThrottle limits for pipeline saturation
@@ -524,7 +533,10 @@ final class DeviceCapabilityService: @unchecked Sendable {
         case .baseline: return 8   // A17 Pro: 2x the 4 Vision ops
         case .enhanced: return 12  // A18 Pro: 2x the 6 Vision ops
         case .advanced: return 16  // A19 Pro: 2x the 8 Vision ops
-        case .ultraAdvanced: return 12 // M-series iPad: 2x + headroom
+        case .ultraAdvanced: 
+            // Scale iPads by RAM too (e.g. 16GB M4 iPad Pro)
+            let ramMultiplier = max(1, Int(cachedMemoryGB / 8))
+            return min(32, 12 * ramMultiplier)
         }
     }
 
@@ -540,31 +552,8 @@ final class DeviceCapabilityService: @unchecked Sendable {
             return 1
         }
 
-        // Mac check - active cooling allows sustained throughput
-        if isMac || ProcessInfo.processInfo.isiOSAppOnMac {
-            if cachedTier == .unsupported {
-                return 4
-            }
-            if chipIsAtLeast("M5") || chipIsAtLeast("M4") {
-                return 16
-            }
-            if chipIsAtLeast("M3") {
-                return 12
-            }
-            if chipIsAtLeast("M2") || chipIsAtLeast("M1") {
-                return 8
-            }
-            return 8
-        }
-
-        // iOS devices - 2x VisionOCRThrottle for pipeline saturation
-        switch cachedTier {
-        case .unsupported: return 2
-        case .baseline: return 8   // A17 Pro: 2x the 4 Vision ops
-        case .enhanced: return 12  // A18 Pro: 2x the 6 Vision ops
-        case .advanced: return 16  // A19 Pro: 2x the 8 Vision ops
-        case .ultraAdvanced: return 12 // M-series iPad: 2x + headroom
-        }
+        // Match vision parsing concurrency to maintain pipeline balance
+        return visionParsingConcurrency
     }
 
     /// Maximum number of full-resolution PDF page images alive in memory simultaneously.
@@ -584,30 +573,24 @@ final class DeviceCapabilityService: @unchecked Sendable {
             return 1
         }
 
+        // Dynamically scale based on RAM: Allocate up to 15% of total system RAM for PDF image buffers
+        // 206 MB per page. 
+        let maxSafeMemoryMB = (cachedMemoryGB * 1024.0) * 0.15
+        let maxPagesByRam = max(1, Int(maxSafeMemoryMB / 206.0))
+
         if isMac || ProcessInfo.processInfo.isiOSAppOnMac {
             if cachedTier == .unsupported {
                 return 2
             }
-            if chipIsAtLeast("M5") || chipIsAtLeast("M4") {
-                return 8
-            }
-            if chipIsAtLeast("M3") {
-                return 6
-            }
-            if chipIsAtLeast("M2") || chipIsAtLeast("M1") {
-                return 6
-            }
-            return 6
+            return min(64, maxPagesByRam)
         }
-        // CRANKED: Modern devices have plenty of RAM for concurrent page images.
-        // Images are released immediately after Vision OCR completes per page.
-        // At 360 DPI, 206 MB/page: 4 pages = 824 MB (well within 8 GB headroom)
+        
         switch cachedTier {
         case .unsupported: return 1
-        case .baseline: return 3   // A17 Pro: ~6 GB RAM, 3 × 206 MB = 618 MB (safe)
-        case .enhanced: return 4   // A18 Pro: ~8 GB RAM, 4 × 206 MB = 824 MB
-        case .advanced: return 5   // A19 Pro: ~8 GB RAM, 5 × 206 MB = 1.0 GB (fine with fast release)
-        case .ultraAdvanced: return 5 // M-series iPad: 8-16 GB RAM
+        case .baseline: return min(3, maxPagesByRam)   // A17 Pro
+        case .enhanced: return min(4, maxPagesByRam)   // A18 Pro
+        case .advanced: return min(5, maxPagesByRam)   // A19 Pro
+        case .ultraAdvanced: return min(16, maxPagesByRam) // M-series iPad
         }
     }
 
@@ -627,16 +610,14 @@ final class DeviceCapabilityService: @unchecked Sendable {
             if cachedTier == .unsupported {
                 return 4
             }
+            let ramMultiplier = max(1, Int(cachedMemoryGB / 8))
+            var baseConcurrency = 12
             if chipIsAtLeast("M5") || chipIsAtLeast("M4") {
-                return 24
+                baseConcurrency = 24
+            } else if chipIsAtLeast("M3") {
+                baseConcurrency = 16
             }
-            if chipIsAtLeast("M3") {
-                return 16
-            }
-            if chipIsAtLeast("M2") || chipIsAtLeast("M1") {
-                return 12
-            }
-            return 12
+            return min(128, baseConcurrency * ramMultiplier)
         }
 
         // CRANKED: Embeddings run on GPU during ingestion (freeing ANE for Vision).
@@ -647,7 +628,9 @@ final class DeviceCapabilityService: @unchecked Sendable {
         case .baseline: return 12  // A17 Pro: GPU is underutilized during OCR
         case .enhanced: return 16  // A18 Pro: 6-core GPU, plenty of headroom
         case .advanced: return 20  // A19 Pro: scaled GPU throughput
-        case .ultraAdvanced: return 16 // M-series iPad: balanced with other GPU work
+        case .ultraAdvanced: 
+            let ramMultiplier = max(1, Int(cachedMemoryGB / 8))
+            return min(64, 16 * ramMultiplier)
         }
     }
 
@@ -713,16 +696,6 @@ final class DeviceCapabilityService: @unchecked Sendable {
         return activeGPUAccelerationLevel >= 0.3
     }
 
-    /// Maximum concurrent GPU operations (image processing, rendering)
-    ///
-    /// Metal Feature Set Tables:
-    /// - Apple9 (A17 Pro): 6-core GPU, 1024 threads/group, 32KB threadgroup mem
-    /// - Apple10 (A18/A18 Pro): 5-6 core GPU, improved scheduling
-    /// - All support Metal 3 & 4, ray tracing, mesh shaders
-    /// STABLE: Reduced after MTLDebugBlitCommandEncoder crashes.
-    ///
-    /// IMPORTANT: Mac needs LOWER values despite more GPU cores!
-    /// macOS Metal command buffer scheduling differs from iOS.
     var gpuConcurrency: Int {
         if isBackgroundCPUSafeIngestionActive {
             return 1
@@ -733,16 +706,14 @@ final class DeviceCapabilityService: @unchecked Sendable {
             if cachedTier == .unsupported {
                 return 2
             }
+            let ramMultiplier = max(1, Int(cachedMemoryGB / 8))
+            var baseConcurrency = 6
             if chipIsAtLeast("M5") || chipIsAtLeast("M4") {
-                return 12
+                baseConcurrency = 12
+            } else if chipIsAtLeast("M3") {
+                baseConcurrency = 8
             }
-            if chipIsAtLeast("M3") {
-                return 8
-            }
-            if chipIsAtLeast("M2") || chipIsAtLeast("M1") {
-                return 6
-            }
-            return 6
+            return min(128, baseConcurrency * ramMultiplier)
         }
 
         let level = activeGPUAccelerationLevel
@@ -753,7 +724,9 @@ final class DeviceCapabilityService: @unchecked Sendable {
             case .baseline: return 10   // A17 Pro: 6-core GPU, boosted
             case .enhanced: return 14   // A18 Pro: 6-core GPU, full utilization
             case .advanced: return 16   // A19 Pro: next-gen GPU cores
-            case .ultraAdvanced: return 12 // M-series iPad: thermal-limited
+            case .ultraAdvanced: 
+                let ramMultiplier = max(1, Int(cachedMemoryGB / 8))
+                return min(64, 12 * ramMultiplier)
             }
         } else if level >= 0.6 {
             // Performance mode
@@ -762,7 +735,9 @@ final class DeviceCapabilityService: @unchecked Sendable {
             case .baseline: return 8
             case .enhanced: return 10
             case .advanced: return 12
-            case .ultraAdvanced: return 8 // M-series iPad
+            case .ultraAdvanced: 
+                let ramMultiplier = max(1, Int(cachedMemoryGB / 8))
+                return min(32, 8 * ramMultiplier)
             }
         } else if level >= 0.3 {
             // Balanced mode - GPU-backed PDF rendering + moderate concurrency
@@ -771,7 +746,9 @@ final class DeviceCapabilityService: @unchecked Sendable {
             case .baseline: return 6    // A17 Pro: light GPU assist
             case .enhanced: return 8    // A18 Pro: moderate GPU assist
             case .advanced: return 8    // A19 Pro: moderate GPU assist
-            case .ultraAdvanced: return 6 // M-series iPad
+            case .ultraAdvanced: 
+                let ramMultiplier = max(1, Int(cachedMemoryGB / 8))
+                return min(24, 6 * ramMultiplier)
             }
         } else {
             // Efficiency mode - minimal GPU usage
@@ -829,7 +806,7 @@ final class DeviceCapabilityService: @unchecked Sendable {
                 maxTotalTokens: 20000,
                 streamIntermediateResults: true,
                 confidenceThreshold: 0.85, // Higher quality threshold
-                    escalationThreshold: 0.35
+                escalationThreshold: 0.35
             )
 
         case .enhanced:
@@ -853,10 +830,13 @@ final class DeviceCapabilityService: @unchecked Sendable {
             )
 
         case .ultraAdvanced:
-            // M-series / future: Full power, highest quality
+            // M-series / future: Full power, highest quality, dynamically scale to RAM
+            let ramMultiplier = max(1.0, cachedMemoryGB / 16.0)
+            let steps = min(32, Int(12.0 * ramMultiplier))
+            let tokens = min(128000, Int(56000.0 * ramMultiplier))
             return AgenticConfig(
-                maxSteps: 12,
-                maxTotalTokens: 56000,
+                maxSteps: steps,
+                maxTotalTokens: tokens,
                 streamIntermediateResults: true,
                 confidenceThreshold: 0.95,
                 escalationThreshold: 0.50
@@ -913,10 +893,10 @@ final class DeviceCapabilityService: @unchecked Sendable {
             return (tier, chip, formFactor, identifier, tops)
         }
 
-        // Mac detection (native Mac apps via Catalyst)
-        if identifier.hasPrefix("Mac") {
-            let (tier, chip, tops) = detectMacCapability(identifier: identifier)
-            return (tier, chip, .mac, identifier, tops)
+        // Mac detection (native Mac apps via Catalyst or macOS natively)
+        if identifier.hasPrefix("Mac") || identifier.hasPrefix("iMac") || identifier == "arm64" || identifier == "x86_64" {
+            let hostMac = detectHostMacCapability()
+            return (hostMac.tier, hostMac.chip, .mac, identifier, hostMac.tops)
         }
 
         // Fallback for unknown devices

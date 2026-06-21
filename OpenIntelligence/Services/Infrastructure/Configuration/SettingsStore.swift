@@ -89,6 +89,11 @@ final class SettingsStore: ObservableObject {
         static let enableTranslation = "enableTranslation" // Bool
         static let enableSpeechAnalysis = "enableSpeechAnalysis" // Bool
         static let smartReplyCount = "smartReplyCount" // Int (1-5)
+        
+        // 4.3 Features
+        static let enableScreenAwareness = "enableScreenAwareness" // Bool
+        static let enableADM3Visuals = "enableADM3Visuals" // Bool
+        static let enableRAGEvaluations = "enableRAGEvaluations" // Bool
 
         // Shared Workspace Sync
         static let enableSharedWorkspaceSync = WorkspaceSyncService.syncEnabledDefaultsKey
@@ -211,6 +216,9 @@ final class SettingsStore: ObservableObject {
         }
     }
 
+    /// Enable RAG Evaluations Suite for validating output precision.
+    @Published var enableRAGEvaluations: Bool
+
     // MARK: - Quality Mode
 
     /// Controls the accuracy/speed tradeoff for RAG queries.
@@ -260,6 +268,12 @@ final class SettingsStore: ObservableObject {
 
     /// Enable Speech Analysis for audio transcription and voice queries.
     @Published var enableSpeechAnalysis: Bool
+
+    /// Enable Screen Awareness via Shortcuts AppIntents.
+    @Published var enableScreenAwareness: Bool
+
+    /// Enable ADM 3 Visual Generation for image playground features.
+    @Published var enableADM3Visuals: Bool
 
     /// Number of smart reply suggestions to generate (1-5).
     @Published var smartReplyCount: Int
@@ -476,6 +490,7 @@ final class SettingsStore: ObservableObject {
 
         // Developer: Pipeline trace defaults to false - enable to see step-by-step RAG execution
         enablePipelineTrace = defaults.object(forKey: Keys.enablePipelineTrace) as? Bool ?? false
+        enableRAGEvaluations = defaults.object(forKey: Keys.enableRAGEvaluations) as? Bool ?? false
 
         // Appearance settings
         // Accent color - nil means use system default
@@ -494,6 +509,8 @@ final class SettingsStore: ObservableObject {
         enableWritingTools = defaults.object(forKey: Keys.enableWritingTools) as? Bool ?? true
         enableTranslation = defaults.object(forKey: Keys.enableTranslation) as? Bool ?? true
         enableSpeechAnalysis = defaults.object(forKey: Keys.enableSpeechAnalysis) as? Bool ?? true
+        enableScreenAwareness = defaults.object(forKey: Keys.enableScreenAwareness) as? Bool ?? true
+        enableADM3Visuals = defaults.object(forKey: Keys.enableADM3Visuals) as? Bool ?? true
         smartReplyCount = defaults.object(forKey: Keys.smartReplyCount) as? Int ?? 3
         enableSharedWorkspaceSync = defaults.object(forKey: Keys.enableSharedWorkspaceSync) as? Bool ?? false
 
@@ -582,6 +599,9 @@ final class SettingsStore: ObservableObject {
             $enableWritingTools.map { _ in () }.eraseToAnyPublisher(),
             $enableTranslation.map { _ in () }.eraseToAnyPublisher(),
             $enableSpeechAnalysis.map { _ in () }.eraseToAnyPublisher(),
+            $enableScreenAwareness.map { _ in () }.eraseToAnyPublisher(),
+            $enableADM3Visuals.map { _ in () }.eraseToAnyPublisher(),
+            $enableRAGEvaluations.map { _ in () }.eraseToAnyPublisher(),
             $smartReplyCount.map { _ in () }.eraseToAnyPublisher(),
             $enableSharedWorkspaceSync.map { _ in () }.eraseToAnyPublisher(),
             $fmPreference.map { _ in () }.eraseToAnyPublisher(),
@@ -780,6 +800,7 @@ final class SettingsStore: ObservableObject {
 
         // Developer / Debug
         defaults.set(enablePipelineTrace, forKey: Keys.enablePipelineTrace)
+        defaults.set(enableRAGEvaluations, forKey: Keys.enableRAGEvaluations)
 
         // Appearance
         defaults.set(appAccentColorHex, forKey: Keys.appAccentColorHex)
@@ -796,6 +817,8 @@ final class SettingsStore: ObservableObject {
         defaults.set(enableWritingTools, forKey: Keys.enableWritingTools)
         defaults.set(enableTranslation, forKey: Keys.enableTranslation)
         defaults.set(enableSpeechAnalysis, forKey: Keys.enableSpeechAnalysis)
+        defaults.set(enableScreenAwareness, forKey: Keys.enableScreenAwareness)
+        defaults.set(enableADM3Visuals, forKey: Keys.enableADM3Visuals)
         defaults.set(smartReplyCount, forKey: Keys.smartReplyCount)
         defaults.set(enableSharedWorkspaceSync, forKey: Keys.enableSharedWorkspaceSync)
     }
@@ -929,6 +952,7 @@ extension SettingsStore {
 
         case .onDeviceAnalysis:
             return "Fully on-device (never leaves your device)"
+            
         }
     }
 
@@ -943,6 +967,7 @@ extension SettingsStore {
                 return ("🔒", "Data stays on device")
             }
             return ("🔐", "E2E encrypted, zero retention")
+            
         }
     }
 

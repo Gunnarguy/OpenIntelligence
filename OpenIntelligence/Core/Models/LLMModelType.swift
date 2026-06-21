@@ -9,7 +9,7 @@ import Foundation
 
 /// Supported high-level LLM integrations that can power the chat experience.
 /// NOTE: Local downloadable models (GGUF, CoreML, MLX) have been removed.
-/// The app now uses Apple Intelligence (with PCC) and On-Device Analysis only.
+/// The app now uses Apple Intelligence (with PCC), On-Device Analysis, and Open Protocol Layer third-party models.
 enum LLMModelType: String, CaseIterable, Identifiable {
     case appleIntelligence = "apple_intelligence" // On-device + PCC automatic
     case onDeviceAnalysis = "on_device_analysis" // Extractive QA, always available
@@ -83,7 +83,7 @@ extension LLMModelType {
     var displayName: String {
         switch self {
         case .appleIntelligence:
-            return "Apple Intelligence"
+            return "AFM 3 Core Advanced"
         case .onDeviceAnalysis:
             return "On-Device Analysis"
         }
@@ -143,7 +143,7 @@ extension LLMModelType {
     var contextDescription: String {
         switch self {
         case .appleIntelligence:
-            return "4,096 tokens on-device (PCC up to ~65K)"
+            return "4K (3B Core), 4K (20B Advanced), 32K (PCC Cloud Pro)"
         case .onDeviceAnalysis:
             return "No generation context"
         }
@@ -178,11 +178,14 @@ extension LLMModelType {
     }
 
     var isPrivate: Bool {
-        return true // Both options are privacy-first
+        switch self {
+        case .appleIntelligence, .onDeviceAnalysis:
+            return true
+        }
     }
 
     var isFast: Bool {
-        return true // Both options are fast
+        return true // All options are fast
     }
 
     var quality: Bool {
@@ -200,21 +203,21 @@ extension LLMModelType {
         case .appleIntelligence:
             return ModelCapabilityCardInfo(
                 emoji: "🍎",
-                nickname: "Hybrid Ace",
-                tagline: "On-device 3B model with PCC PT-MoE for long or complex prompts.",
+                nickname: "AFM 3 Ecosystem",
+                tagline: "Dynamic routing between on-device 3B Core, 20B Core Advanced, and massive PCC models.",
                 chips: [
-                    .init(icon: "text.alignleft", label: "Text", detail: "Grounded chat", tone: .accent),
-                    .init(icon: "eye.fill", label: "Vision", detail: "Screenshots", tone: .info),
+                    .init(icon: "cpu", label: "3B / 20B", detail: "On-Device", tone: .accent),
+                    .init(icon: "cloud.fill", label: "PCC", detail: "Cloud Pro", tone: .info),
                     .init(icon: "wand.and.stars", label: "Actions", detail: "App tools", tone: .success),
                 ],
                 stats: [
-                    .init(icon: "bolt.fill", label: "Latency", value: "< 0.8 s", detail: "Median TTFT on A18", accent: .success),
+                    .init(icon: "bolt.fill", label: "Latency", value: "< 0.8 s", detail: "Median TTFT", accent: .success),
                     .init(icon: "gauge", label: "Throughput", value: "≈65 tok/s", detail: "Neural Engine streaming", accent: .accent),
-                    .init(icon: "square.stack.3d.down.right.fill", label: "Context", value: "4K / 65K", detail: "TN3193 + PCC long-context", accent: .info),
+                    .init(icon: "square.stack.3d.down.right.fill", label: "Context", value: "4K / 4K / 32K", detail: "3B / 20B / PCC", accent: .info),
                     .init(icon: "lock.shield.fill", label: "Privacy", value: "Zero-retention", detail: "Encrypted PCC hops", accent: .success),
-                    .init(icon: "hammer", label: "Tools", value: "Functions + App Intents", detail: "Auto tool routing", accent: .accent),
+                    .init(icon: "hammer", label: "Tools", value: "App Intents", detail: "Auto tool routing", accent: .accent),
                 ],
-                footer: "On-device by default; PCC runs on attested, stateless Apple Silicon."
+                footer: "Seamlessly scales from 3B parameters to massive PCC clusters based on prompt complexity."
             )
         case .onDeviceAnalysis:
             return ModelCapabilityCardInfo(

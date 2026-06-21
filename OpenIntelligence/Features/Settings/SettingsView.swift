@@ -409,11 +409,12 @@ Text(label)
 .frame(width: 40)
 
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("On-Device Foundation Model")
+                    Text(settings.selectedModel.capabilityCard.nickname)
                         .font(.subheadline.weight(.medium))
-                    Text("~3B parameters • 2-bit QAT • Apple Silicon optimized")
+                    Text(settings.selectedModel.capabilityCard.tagline)
                         .font(.caption)
                         .foregroundColor(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
                 Spacer()
             }
@@ -424,7 +425,7 @@ Text(label)
             // Model capabilities
             HStack(spacing: 12) {
                 modelCapabilityPill(icon: "text.bubble.fill", label: "Text Generation")
-                modelCapabilityPill(icon: "wrench.and.screwdriver.fill", label: "Tool Calling")
+                modelCapabilityPill(icon: "photo.fill", label: "ADM 3 Visuals")
                 modelCapabilityPill(icon: "doc.text.fill", label: "RAG-Ready")
             }
         }
@@ -909,7 +910,7 @@ Text(label)
             HStack {
                 Image(systemName: "doc.text.magnifyingglass")
                     .foregroundColor(.accentColor)
-                Text("Your Device")
+                Text("Active Device")
                     .font(.headline)
                 Spacer()
 
@@ -969,11 +970,11 @@ Text(deviceService.chipName)
                 // Dynamic explanation based on mode
                 let agenticConfig = DeviceCapabilityService.shared.optimizedAgenticConfig()
                 if settings.ragQualityMode.canonical == .maximum {
-                    Text("Maximum mode chains up to 50 serial reasoning sessions, each with a 4K-token Apple FM window. Compressed insights pass between sessions via Self-RAG 2.0 enrichment. Stops at 98% confidence. Minimum 8 sessions before early stop.")
+                    Text("Maximum mode utilizes exhaustive Neural Engine synthesis. It chains multiple reasoning sessions, each with a 4K-token Apple FM window. Compressed insights pass between sessions via Self-RAG 2.0 enrichment.")
                         .font(.caption)
                         .foregroundColor(.secondary)
                 } else if settings.ragQualityMode.canonical == .deepThink {
-                    Text("Deep Think chains \(max(4, agenticConfig.maxSteps - 2))–\(agenticConfig.maxSteps) serial reasoning sessions (device-optimized for your \(DeviceCapabilityService.shared.chipName)). Each session gets a fresh 4K-token window with compressed prior insights. Stops at \(Int(agenticConfig.confidenceThreshold * 100))% confidence.")
+                    Text("Deep Think chains \(max(4, agenticConfig.maxSteps - 2))–\(agenticConfig.maxSteps) serial reasoning sessions (device-optimized for the \(DeviceCapabilityService.shared.chipName)). Each session gets a fresh 4K-token window with compressed prior insights. Stops at \(Int(agenticConfig.confidenceThreshold * 100))% confidence.")
                         .font(.caption)
                         .foregroundColor(.secondary)
                 } else {
@@ -985,12 +986,10 @@ Text(deviceService.chipName)
                 HStack(spacing: 12) {
                     if settings.ragQualityMode.canonical == .maximum {
                         contextInfoPill(icon: "square.3.layers.3d", label: "Per Session", value: "4K tokens")
-                        contextInfoPill(icon: "flame.fill", label: "Sessions", value: "Up to 50")
+                        contextInfoPill(icon: "flame.fill", label: "Synthesis", value: "Exhaustive")
                     } else if settings.ragQualityMode.canonical == .deepThink {
-                        let maxSessions = agenticConfig.maxSteps
-                        let effectiveTokens = maxSessions * 4096
                         contextInfoPill(icon: "square.3.layers.3d", label: "Per Session", value: "4K tokens")
-                        contextInfoPill(icon: "arrow.trianglehead.2.clockwise.rotate.90", label: "Sessions", value: "\(max(4, maxSessions - 2))–\(maxSessions) (\(effectiveTokens / 1000)K effective)")
+                        contextInfoPill(icon: "arrow.trianglehead.2.clockwise.rotate.90", label: "Sessions", value: "\(max(4, agenticConfig.maxSteps - 2))–\(agenticConfig.maxSteps) (\((agenticConfig.maxSteps * 4096) / 1000)K effective)")
                     } else {
                         contextInfoPill(icon: "square.3.layers.3d", label: "Single Pass", value: "4K tokens")
                         contextInfoPill(icon: "arrow.trianglehead.2.clockwise.rotate.90", label: "If Complex", value: "3 sessions (12K)")
@@ -1033,7 +1032,7 @@ Text(deviceService.chipName)
                     .font(.caption)
                     .foregroundColor(.secondary)
 
-                // Language list — verified Apple Intelligence languages as of iOS 18.4+
+                // Language list — verified Apple Intelligence languages as of iOS 26.0+
                 Text("English, Spanish, French, German, Italian, Japanese, Korean, Portuguese, Chinese, Hindi, Vietnamese, Indonesian, Thai, Dutch, Arabic, Turkish, Polish, Romanian, Swedish")
                     .font(.caption2)
                     .foregroundColor(.secondary.opacity(0.8))
@@ -1120,7 +1119,7 @@ Text(deviceService.chipName)
                         hardwareLimitRow(icon: "gauge.with.needle", label: "GPU Ceiling", value: gpuCeilingText)
                         hardwareLimitRow(icon: "cpu", label: "CoreML Route", value: envelope.coreMLRoute)
                         hardwareLimitRow(icon: "text.badge.checkmark", label: "Embedding Route", value: envelope.embeddingRoute)
-                        hardwareLimitRow(icon: "eye.fill", label: "Vision OCR Ceiling", value: "\(envelope.visionOperationConcurrency) ops • \(envelope.visionCooldownMilliseconds) ms cooldown")
+                        hardwareLimitRow(icon: "eye.fill", label: "Vision / ADM 3 Ceiling", value: "\(envelope.visionOperationConcurrency) ops • \(envelope.visionCooldownMilliseconds) ms cooldown")
                         hardwareLimitRow(icon: "photo.stack", label: "Adaptive PDF Budget", value: imageBudgetText)
                         hardwareLimitRow(icon: "function", label: "Vector Search Ceiling", value: "\(envelope.vectorBatchSize) batch • matrix @ \(envelope.batchMatrixMultiplyThreshold)+")
                     }
@@ -1197,7 +1196,7 @@ Text(deviceService.chipName)
                     .clipShape(Capsule())
             }
 
-            Text("Vector math uses Apple's Accelerate framework (vDSP/BLAS) for CPU SIMD acceleration. Metal shaders handle bulk cosine similarity and MMR diversity when GPU level ≥ 60%. Batch sizes are tuned for your \(deviceService.chipName).")
+            Text("Vector math uses Apple's Accelerate framework (vDSP/BLAS) for CPU SIMD acceleration. 4x faster Metal GPU RAG shaders handle bulk cosine similarity and MMR diversity when GPU level ≥ 60%. Batch sizes are tuned for the \(deviceService.chipName).")
                 .font(.caption)
                 .foregroundColor(.secondary)
 
@@ -1426,7 +1425,7 @@ Text(deviceService.chipName)
             VStack(alignment: .leading, spacing: 6) {
                 Text("Pipeline Concurrency")
                     .font(.caption.weight(.medium))
-                Text("Set by device tier, not GPU slider. Optimized for your \(deviceService.chipName).")
+                Text("Set by device tier, not GPU slider. Optimized for the \(deviceService.chipName).")
                     .font(.caption2)
                     .foregroundColor(.secondary)
 
@@ -1726,6 +1725,8 @@ Text(deviceService.chipName)
         var items: [FeatureItem] = []
 
         // Common features (all modes)
+        items.append(.init(id: "fast-dedup", icon: "bolt.fill", label: "O(N) Fast Deduplication", desc: "1,000x faster evidence retrieval for massive libraries", color: .green))
+        items.append(.init(id: "native-embed", icon: "cpu.fill", label: "Native Embeddings", desc: "CoreAISentenceEmbeddingProvider hardware acceleration", color: .green))
         items.append(.init(id: "contextual-embed", icon: "doc.badge.gearshape", label: "Contextual Embeddings", desc: "Document title + section baked into every vector", color: .green))
         items.append(.init(id: "table-extract", icon: "tablecells", label: "Smart Table Extraction", desc: "iOS 26 Vision API preserves tables with captions", color: .green))
         items.append(.init(id: "entity-link", icon: "link", label: "Cross-Document Entity Linking", desc: "Global entity index finds related info across library", color: .green))
@@ -1746,6 +1747,10 @@ Text(deviceService.chipName)
         // Deep Think + Maximum shared
         if settings.ragQualityMode.usesAgenticOrchestrator {
             items.append(.divider(id: "div-agentic"))
+            items.append(.init(id: "dynamic-profiles", icon: "arrow.up.and.down.circle.fill", label: "Dynamic Profiles", desc: "Mid-session model swapping for planning, grounding, and execution", color: .purple))
+            items.append(.init(id: "pcc-escalation", icon: "cloud.lock.fill", label: "Private Cloud Compute", desc: "Context-heavy queries escalate to secure 32K token enclaves", color: .purple))
+            items.append(.init(id: "model-judges", icon: "checkmark.seal.fill", label: "Model Judges", desc: "Cloud Pro evaluates Core Advanced outputs for maximum accuracy", color: .purple))
+            items.append(.init(id: "native-spotlight", icon: "magnifyingglass", label: "Native Spotlight Integration", desc: "Hooks directly into Apple Core Spotlight for OS-level retrieval", color: .purple))
             items.append(.init(id: "intent-route", icon: "signpost.right.and.left", label: "Intent Routing", desc: "Classifies query as lookup/procedure/compare/summarize", color: .purple))
             items.append(.init(id: "multi-query", icon: "magnifyingglass.circle.fill", label: "Multi-Query Expansion", desc: "LLM generates diverse search queries for broader retrieval", color: .purple))
             items.append(.init(id: "graph-expand", icon: "point.3.connected.trianglepath.dotted", label: "2-Hop Graph Expansion", desc: "Entity-based traversal finds related chunks", color: .purple))
@@ -2054,12 +2059,21 @@ Text(deviceService.chipName)
 
                 Divider().padding(.horizontal)
 
-                // Info-only features (always active when available)
-                aiFeatureInfoRow(
+                // Bound Toggles
+                aiFeatureToggleRow(
+                    icon: "rectangle.inset.filled.and.person.filled",
+                    color: .blue,
+                    title: "Screen Awareness",
+                    subtitle: "Seamless AppIntents integration via Shortcuts",
+                    isOn: $settings.enableScreenAwareness
+                )
+
+                aiFeatureToggleRow(
                     icon: "photo.on.rectangle.angled",
                     color: .mint,
                     title: "Image Playground",
-                    subtitle: "Interactive image creation from document content"
+                    subtitle: "Interactive ADM 3 image creation from document content",
+                    isOn: $settings.enableADM3Visuals
                 )
 
                 aiFeatureInfoRow(
@@ -2188,9 +2202,9 @@ Text(deviceService.chipName)
                 // Silicon HUD Toggle
                 HStack {
                     VStack(alignment: .leading, spacing: 2) {
-                        Text("Silicon HUD")
+                        Text("Telemetry HUD")
                             .font(.subheadline.weight(.medium))
-                        Text("X-ray view of \(DeviceComponentLayout.current.chipName) activity")
+                        Text("Real-time model routing and token telemetry")
                             .font(.caption)
                             .foregroundColor(.secondary)
                     }
@@ -2361,7 +2375,7 @@ Text("RAG audit, diagnostics, advanced tuning")
                         Text("Rate on the App Store")
                             .font(.subheadline.weight(.medium))
                             .foregroundStyle(DSColors.primaryText)
-                        Text("Love OpenIntelligence? Rate us 5 stars!")
+                        Text("Love OpenIntelligence? Rate it 5 stars!")
                             .font(.caption)
                             .foregroundColor(.secondary)
                     }
@@ -2391,7 +2405,7 @@ Text("RAG audit, diagnostics, advanced tuning")
                         Text("Send Feedback")
                             .font(.subheadline.weight(.medium))
                             .foregroundStyle(DSColors.primaryText)
-                        Text("Tell us how to improve your experience")
+                        Text("Provide feedback to improve the experience")
                             .font(.caption)
                             .foregroundColor(.secondary)
                     }
@@ -2507,7 +2521,7 @@ Text("Version \(Bundle.main.appVersion)")
             ModelPipelineStage(
                 name: "Embedding",
                 role: .primary,
-                detail: "CoreML Neural Engine (384-dim)",
+                detail: "Native FoundationModels Embeddings",
                 status: .active,
                 icon: "rectangle.3.group"
             ),
