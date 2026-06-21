@@ -85,20 +85,21 @@ struct ModelStatusIndicator: View {
             Text(cleanModelName(modelResolution.currentState.activeModelName))
                 .font(.system(size: 10, weight: .bold))
                 .foregroundColor(.primary)
-            
-            HStack(spacing: 3) {
-                Text(modelResolution.currentState.executionPath.emoji)
-                    .font(.system(size: 8.5))
-                Text(modelResolution.currentState.executionPath.displayName)
-                    .font(.system(size: 8.5, weight: .semibold))
-                    .foregroundColor(.secondary)
+            if settings.fmPreference == .automatic {
+                HStack(spacing: 3) {
+                    Text(modelResolution.currentState.executionPath.emoji)
+                        .font(.system(size: 8.5))
+                    Text(modelResolution.currentState.executionPath.displayName)
+                        .font(.system(size: 8.5, weight: .semibold))
+                        .foregroundColor(.secondary)
+                }
             }
         }
     }
 
     private func cleanModelName(_ name: String) -> String {
         if settings.fmPreference != .automatic {
-            return "Apple Intelligence (User Selected)"
+            return settings.fmPreference.displayName
         }
 
         if name.contains("Apple Intel") || name.contains("Apple Intelligence") {

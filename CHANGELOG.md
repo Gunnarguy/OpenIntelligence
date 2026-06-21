@@ -161,3 +161,5 @@ Detailed internal algorithm changes and research-oriented engine updates are tra
 - [Orchestration] Fixed InferenceConfig argument order in ChatScreen to resolve compilation failure.
 - [Orchestration] Dynamically hide 20B Advanced preference from UI on older OS versions.
 - [Orchestration] Resolved duplicated text rendering in manual model selector pill.
+- [Orchestration] Fixed bug causing Gate I to falsely fail during Verification Pipeline execution.
+- [UI] Cleaned up manual model selector pill layout.

@@ -131,34 +131,33 @@ struct VerificationGatesOverlayView: View {
             
             let gate = newGates[i]
             
-            // Check if this gate's event has occurred
             if let index = events.firstIndex(where: { $0.kind == gate.kind || $0.kind == gate.secondaryKind }) {
-                // Determine if it failed: look ahead for warnings/fallbacks immediately following
+                // Determine if it failed: look ahead for warnings immediately following
                 let subsequentEvents = events[index...]
-                if let failureEvent = subsequentEvents.first(where: { $0.kind == .warning || $0.kind == .fallback }) {
-                    // Make sure the warning happened before the next gate (or there is no next gate)
-                    var nextGateIndex: Int? = nil
-                    for j in (i + 1)..<newGates.count {
-                        if let idx = events.firstIndex(where: { $0.kind == newGates[j].kind || $0.kind == newGates[j].secondaryKind }) {
-                            nextGateIndex = idx
-                            break
-                        }
-                    }                    
-                    if let nextGateIdx = nextGateIndex, events.firstIndex(of: failureEvent)! < nextGateIdx {
-                        newGates[i].status = .failed(reason: failureEvent.title)
-                        hasFailed = true
-                    } else if nextGateIndex == nil {
-                        newGates[i].status = .failed(reason: failureEvent.title)
-                        hasFailed = true
-                    } else {
-                        newGates[i].status = .passed
+                
+                var nextGateIndex: Int? = nil
+                for j in (i + 1)..<newGates.count {
+                    if let idx = events.firstIndex(where: { $0.kind == newGates[j].kind || $0.kind == newGates[j].secondaryKind }) {
+                        nextGateIndex = idx
+                        break
                     }
+                }
+                
+                // If a subsequent gate was reached, this gate definitively passed
+                if nextGateIndex != nil {
+                    newGates[i].status = .passed
                 } else {
-                    // Check if it's the very last event currently processing
-                    if index == events.count - 1 {
-                        newGates[i].status = .processing
+                    // No subsequent gate reached yet. Check if a warning caused an abstention.
+                    if let failureEvent = subsequentEvents.first(where: { $0.kind == .warning }) {
+                        newGates[i].status = .failed(reason: failureEvent.title)
+                        hasFailed = true
                     } else {
-                        newGates[i].status = .passed
+                        // Check if it's the very last event currently processing
+                        if index == events.count - 1 {
+                            newGates[i].status = .processing
+                        } else {
+                            newGates[i].status = .passed
+                        }
                     }
                 }
             } else {
