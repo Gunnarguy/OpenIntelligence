@@ -9,24 +9,27 @@ Public release highlights for OpenIntelligence.
 Version 4.3 introduces full visibility and support for Apple's third-generation Foundation Models (AFM 3) alongside groundbreaking performance optimizations. Legacy architectural overhead has been eliminated and the RAG (Retrieval-Augmented Generation) pipeline is supercharged for massive libraries.
 
 ### Highlights
+- **Unleashed RAM ceilings** for exponential pipeline scaling on advanced Apple Silicon, and precisely aligned context limits to the official AFM 3 API specs (4K/32K).
 - **Powered by the AFM 3 Architecture:** OpenIntelligence now fully routes across Apple's third-generation Foundation Models. Simple RAG tasks run lightning-fast on the local **AFM 3 Core (3B)**, while complex agentic reasoning dynamically escalates to **AFM 3 Cloud Pro** via Private Cloud Compute. Apple's **ADM 3 Cloud** is also tied directly into the generation pipeline for instant visual concept rendering via Image Playground, alongside native support for the blazing fast **AFM 3 Core Advanced (20B)** for users on macOS 27 and iOS 27.
 - **Siri Screen Awareness:** Siri can now natively ingest on-screen files and URLs directly into local RAG libraries completely hands-free using the new AppIntents background context frameworks.
 - **Lightning-Fast Answer Generation:** The RAG deduplication pipeline was completely rebuilt using an O(1) hash lookup, resulting in a 1,000x speedup during the evidence aggregation phase. Large, context-heavy queries now aggregate in milliseconds instead of seconds.
 - **Buttery-Smooth Database Dashboard:** The Database Dashboard now utilizes a dynamic UUID dictionary cache, rendering rows ~240x faster and completely eliminating stutter when scrolling through massive libraries.
-- **Simplified Architecture:** Removed legacy, unneeded models like `OnDeviceAnalysisService` to rely entirely on modernized Apple Intelligence system APIs. 
+- **Simplified Architecture:** Removed legacy, unneeded models like `OnDeviceAnalysisService` to rely entirely on modernized Apple Intelligence system APIs.
 - **Bulletproof Reliability:** Expanded the RAG Evaluations suite to harden token budget obedience and Hybrid Search boundary logic, ensuring extreme stability for edge cases.
 - **Enhanced Platform Sync:** Aligned internal OS targets seamlessly with Apple's unified OS strategy (macOS 26 & iOS 26). Hardened the background ingestion queue and RAG routing engine so that Apple Intelligence features like the 3B Core model reliably stay in their fast lane without unintentionally triggering resource-heavy background loops.
 - **Apple API Context Alignment:** Strict alignment with Apple's official June 2026 Foundation Models API documentation. The local on-device context window correctly bounds to 4K tokens, smoothly handing off larger workloads seamlessly to the 32K-token Private Cloud Compute enclave.
 - **Unleashed Mac Hardware Scaling:** Rebuilt the hardware capability service to aggressively and dynamically scale background ingestion limits, RAM buffers, and concurrent evaluation vectors when installed on ultra-advanced Apple Silicon, unlocking pure supercomputer performance on extreme workstations.
+- **Flawless UI Fluidity:** Eliminated deep system-level file-lock hangs that could freeze the app during iCloud synchronization, keeping the interface locked at 120fps.
+- **Polished macOS Elements:** Perfected layout bindings for the telemetry HUD on native Mac Catalyst/macOS builds so nothing overlaps the chat input field or Unified Metrics Bar, and properly re-enabled native Image Playground "Illustrate" support.
 
 ## 4.0 & 4.1
- 
+
 Changes since 3.7.1:
- 
+
 Version 4.0 & 4.1 introduces the WWDC26 Apple Intelligence modernization suite, featuring dynamic model routing, Core AI frameworks, a first-class RAG Evaluations suite, local sentence embedding acceleration, live reasoning telemetry, and a beautiful Liquid Glass UI design.
- 
+
 ### Highlights
- 
+
 - **Dynamic On-Device vs. Private Cloud Compute Routing**: Queries route based on complexity. Standard queries run locally using the 4K-token on-device model (`SystemLanguageModel.default`), while complex reasoning or context-heavy queries escalate to secure Private Cloud Compute (`PrivateCloudComputeLanguageModel`) utilizing a 32K-token context window.
 - **Under the Hood UI Dashboard**: A premium details popover card dynamically visualizes active model routing, token budget usage (4K vs 32K), resolved execution pathways (On-Device/PCC), and last query telemetry.
 - **Core AI Local Scaffolding**: Prepared experimental `CoreAISentenceEmbeddingProvider` local scaffolding under Apple's Core AI framework (.aimodel loading with 512-token BERT tokenization), keeping the production baseline stable on the optimized Core ML vector engine.

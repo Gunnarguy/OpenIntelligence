@@ -302,7 +302,7 @@ final class WorkspaceSyncService: ObservableObject {
 
         let localInventory: WorkspaceInventory
         do {
-            localInventory = try workspaceInventory(at: localWorkspaceRoot)
+            localInventory = try await workspaceInventory(at: localWorkspaceRoot)
         } catch {
             lastErrorMessage = error.localizedDescription
             return activateLocalWorkspace(reason: "Could not load local libraries for iCloud sync.")
@@ -371,7 +371,7 @@ final class WorkspaceSyncService: ObservableObject {
             try ensureDirectory(sharedWorkspaceRoot)
             await prepareWorkspaceDownloads(root: sharedWorkspaceRoot)
 
-            let sharedInventory = try workspaceInventory(at: sharedWorkspaceRoot)
+            let sharedInventory = try await workspaceInventory(at: sharedWorkspaceRoot)
             let unsupportedContainers = unsupportedSyncContainerNames(
                 localInventory: localSyncedInventory,
                 sharedInventory: sharedInventory
@@ -458,8 +458,8 @@ final class WorkspaceSyncService: ObservableObject {
             await prepareWorkspaceDownloads(root: pendingBootstrapPlan.sharedRoot)
             try await resolveSharedMetadataConflictsIfNeeded(in: pendingBootstrapPlan.sharedRoot)
 
-            let localInventory = try workspaceInventory(at: pendingBootstrapPlan.localRoot)
-            let sharedInventory = try workspaceInventory(at: pendingBootstrapPlan.sharedRoot)
+            let localInventory = try await workspaceInventory(at: pendingBootstrapPlan.localRoot)
+            let sharedInventory = try await workspaceInventory(at: pendingBootstrapPlan.sharedRoot)
 
             switch choice {
             case .mergeLibraries:
@@ -505,7 +505,7 @@ final class WorkspaceSyncService: ObservableObject {
         }
 
         do {
-            let localInventory = try workspaceInventory(at: localWorkspaceRoot)
+            let localInventory = try await workspaceInventory(at: localWorkspaceRoot)
             recordSyncAttempt()
 
             guard fileManager.ubiquityIdentityToken != nil else {
@@ -526,7 +526,7 @@ final class WorkspaceSyncService: ObservableObject {
             await prepareWorkspaceDownloads(root: sharedWorkspaceRoot)
             try await resolveSharedMetadataConflictsIfNeeded(in: sharedWorkspaceRoot)
 
-            let sharedInventory = try workspaceInventory(at: sharedWorkspaceRoot)
+            let sharedInventory = try await workspaceInventory(at: sharedWorkspaceRoot)
             guard !sharedInventory.containers.isEmpty else {
                 lastErrorMessage = "No existing iCloud libraries were found for this Apple account."
                 return activateLocalWorkspace(reason: "No existing iCloud libraries were found.")
@@ -670,7 +670,7 @@ final class WorkspaceSyncService: ObservableObject {
         await prepareWorkspaceDownloads(root: sharedRoot)
         try await resolveSharedMetadataConflictsIfNeeded(in: sharedRoot)
 
-        let sharedInventory = try workspaceInventory(at: sharedRoot)
+        let sharedInventory = try await workspaceInventory(at: sharedRoot)
         let targetContainerIDs = matchingSharedContainerIDs(for: container, in: sharedInventory.containers)
 
         guard !targetContainerIDs.isEmpty else {
@@ -836,7 +836,13 @@ final class WorkspaceSyncService: ObservableObject {
         defaults.object(forKey: Self.lastResolvedBootstrapSharedSignatureDefaultsKey) as? Int
     }
 
-    private func workspaceInventory(at root: URL) throws -> WorkspaceInventory {
+    nonisolated private func workspaceInventory(at root: URL) async throws -> WorkspaceInventory {
+        try await Task.detached {
+            try self.readWorkspaceInventorySync(at: root)
+        }.value
+    }
+
+    nonisolated private func readWorkspaceInventorySync(at root: URL) throws -> WorkspaceInventory {
         guard fileManager.fileExists(atPath: root.path) else {
             return WorkspaceInventory(containers: [], documents: [])
         }
@@ -871,7 +877,7 @@ final class WorkspaceSyncService: ObservableObject {
 
     private func configuredSyncedContainerIDs() -> Set<UUID> {
         let localRoot = OpenIntelligenceRuntimePaths.applicationSupportRoot()
-        guard let containers = try? workspaceInventory(at: localRoot).containers else {
+        guard let containers = try? readWorkspaceInventorySync(at: localRoot).containers else {
             return []
         }
 
@@ -2106,7 +2112,7 @@ final class WorkspaceSyncService: ObservableObject {
         }
     }
 
-    private func repairWorkspaceMetadataIfNeeded(
+    nonisolated private func repairWorkspaceMetadataIfNeeded(
         at root: URL,
         containers: [KnowledgeContainer],
         documents: [Document],
@@ -2754,7 +2760,9 @@ final class WorkspaceSyncService: ObservableObject {
             return
         }
 
-        try Self.coordinatedCopyItem(at: source, to: destination)
+        try await Task.detached {
+            try Self.coordinatedCopyItem(at: source, to: destination)
+        }.value
     }
 
     nonisolated private func ensureDirectory(_ url: URL) throws {

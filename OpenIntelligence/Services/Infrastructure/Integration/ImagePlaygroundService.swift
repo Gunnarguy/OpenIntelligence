@@ -854,7 +854,7 @@ struct ImagePlaygroundSheetModifier: ViewModifier {
 
     func body(content: Content) -> some View {
         #if canImport(ImagePlayground)
-        if #available(iOS 26.0, *) {
+        if #available(iOS 26.0, macOS 26.0, *) {
             content
                 .imagePlaygroundSheet(
                     isPresented: $service.showImagePlayground,
@@ -871,7 +871,7 @@ struct ImagePlaygroundSheetModifier: ViewModifier {
     }
 
     #if canImport(ImagePlayground)
-    @available(iOS 26.0, *)
+    @available(iOS 26.0, macOS 26.0, *)
     private func buildConcepts() -> [ImagePlaygroundConcept] {
         var concepts: [ImagePlaygroundConcept] = []
 

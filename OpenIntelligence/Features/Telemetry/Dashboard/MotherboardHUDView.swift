@@ -365,6 +365,16 @@ struct HardwareXRayOverlay: View {
         #endif
     }
 
+    private var isMac: Bool {
+        #if os(macOS)
+        return true
+        #elseif targetEnvironment(macCatalyst)
+        return true
+        #else
+        return ProcessInfo.processInfo.isiOSAppOnMac
+        #endif
+    }
+
     var body: some View {
         GeometryReader { geometry in
             let screenWidth = geometry.size.width
@@ -377,7 +387,9 @@ struct HardwareXRayOverlay: View {
             let tapticFrame = rectToScreen(orientedTaptic, width: screenWidth, height: screenHeight)
 
             let showVisualBorders: Bool = {
-                #if targetEnvironment(macCatalyst)
+                #if os(macOS)
+                return false
+                #elseif targetEnvironment(macCatalyst)
                 return false
                 #else
                 if ProcessInfo.processInfo.isiOSAppOnMac {
@@ -427,7 +439,11 @@ struct HardwareXRayOverlay: View {
                     metricsSummary: settings.hudShowMetrics ? telemetry.compactMetricsSummary : "",
                     activities: settings.hudShowMetrics ? telemetry.componentActivities : []
                 )
-                .position(x: 45, y: geometry.safeAreaInsets.top + 85)
+                .scaleEffect(isMac ? 1.4 : 1.0, anchor: isMac ? .bottomLeading : .topLeading)
+                .padding(.bottom, isMac ? 130 : 0)
+                .padding(.leading, isMac ? 30 : 45)
+                .padding(.top, isMac ? 0 : geometry.safeAreaInsets.top + 85)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: isMac ? .bottomLeading : .topLeading)
 
                 // Device info (for debugging only)
                 if showDeviceInfo && showVisualBorders {

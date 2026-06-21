@@ -27,6 +27,10 @@ This is the public version history for OpenIntelligence. It focuses on user-visi
 - **[Shortcuts]** Dropped 3 experimental iOS 27.0 AppShortcuts to strictly enforce Apple's 10-shortcut system limit.
 - **[Shortcuts]** Resolved ITMS-90626 by removing the trademark "Siri" from Screen Awareness `IntentDescription` metadata.
 
+- **[Orchestration]** Fixed MainActor deadlock in WorkspaceSyncService by offloading NSFileCoordinator read locks to detached background tasks, eliminating UI hangs during iCloud synchronizations.
+- **[UI]** Lifted the Apple Silicon hardware telemetry HUD to avoid occlusion by the bottom conversational metrics bar, and correctly disabled visual X-ray structural overlays on macOS compilation targets.
+- **[UI]** Restored native macOS Image Playground (.imagePlaygroundSupport) button bindings.
+
 ## 4.2 - June 2026
 
 - **Modernized UI for macOS/iOS**: Completely rebuilt the live telemetry HUD utilizing iOS 26/macOS 26/WWDC26+ APIs. Integrated `.ultraThinMaterial` for premium glassmorphism, hardware `.sensoryFeedback` for interactive haptics, and smooth `.symbolEffect` animations.

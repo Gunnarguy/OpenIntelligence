@@ -524,8 +524,8 @@ struct ChatScreen: View {
         //         containerService: ragService.containerService
         //     )
         // }
-.navigationTitle("Chat")
-        // .imagePlaygroundSupport()
+        .navigationTitle("Chat")
+        .imagePlaygroundSupport()
         #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
         #endif

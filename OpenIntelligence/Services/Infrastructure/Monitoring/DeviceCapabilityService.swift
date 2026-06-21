@@ -40,7 +40,7 @@ enum DeviceCapabilityTier: String, Sendable, Comparable {
         case .baseline: return "Standard"
         case .enhanced: return "Enhanced"
         case .advanced: return "Advanced"
-        case .ultraAdvanced: return "Ultra"
+        case .ultraAdvanced: return "Ultimate"
         case .unsupported: return "Not Supported"
         }
     }
