@@ -35,7 +35,7 @@ struct ScreenAwarenessSnippetView: View {
 struct IngestDocumentIntent: AppIntent {
     static var title: LocalizedStringResource = "Ingest Document"
     static var description: IntentDescription = .init(
-        "Adds a document or file directly to OpenIntelligence via Siri Screen Awareness.",
+        "Adds a document or file directly to OpenIntelligence via Screen Awareness.",
         categoryName: "Ingestion"
     )
 
