@@ -45,7 +45,7 @@ struct IngestDocumentIntent: AppIntent {
     var file: IntentFile
 
     static var parameterSummary: some ParameterSummary {
-        Summary("Add \(\.$file) to OpenIntelligence")
+        Summary("Add \.$file to OpenIntelligence")
     }
 
     func perform() async throws -> some IntentResult & ProvidesDialog & ShowsSnippetView {
@@ -93,7 +93,7 @@ struct IngestURLIntent: AppIntent {
     var url: URL
 
     static var parameterSummary: some ParameterSummary {
-        Summary("Save \(\.$url) to OpenIntelligence")
+        Summary("Save \.$url to OpenIntelligence")
     }
 
     func perform() async throws -> some IntentResult & ProvidesDialog & ShowsSnippetView {
