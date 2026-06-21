@@ -21,7 +21,8 @@ This is the public version history for OpenIntelligence. It focuses on user-visi
 - **[Orchestration]** Reclassified `VerificationGateService` Domain Isolation gate to an advisory status to prevent abstention false-positives on cross-domain queries.
 - **[Background]** Hardened `BackgroundTaskService` against `BGTaskSchedulerErrorDomain error 3` by eliminating string dynamic identifiers and wildcards from system registration logic.
 - **[FoundationModels]** Harmonized all availability macro targeting across the entire codebase to `iOS 26.0, macOS 26.0`, correctly aligning with Apple's 2025 unified naming architecture.
-- **[Shortcuts]** Fixed string interpolation (`\.$file`) and background ingestion routing for Siri Screen Awareness AppIntents.
+- **[Shortcuts]** Fixed string interpolation in AppIntents parameter summaries.
+- **[Shortcuts]** Dropped 3 experimental iOS 27.0 AppShortcuts to strictly enforce Apple's 10-shortcut system limit.
 
 ## 4.2 - June 2026
 
