@@ -60,9 +60,11 @@ struct IngestDocumentIntent: AppIntent {
             )
         }
 
-        // Queue via BackgroundTaskService to handle large files gracefully
-        let service = await MainActor.run { BackgroundTaskService.shared }
-        await service.beginUserInitiatedBackgroundIngestion(url: fileURL)
+        // Queue via RAGService to handle large files gracefully on the MainActor
+        await MainActor.run {
+            let ragService = RAGService()
+            ragService.enqueueDocuments([fileURL])
+        }
 
         return .result(
             dialog: IntentDialog(stringLiteral: "I've started ingesting your document into OpenIntelligence."),
@@ -95,9 +97,11 @@ struct IngestURLIntent: AppIntent {
     }
 
     func perform() async throws -> some IntentResult & ProvidesDialog & ShowsSnippetView {
-        // Route URL background ingestion
-        let service = await MainActor.run { BackgroundTaskService.shared }
-        await service.beginUserInitiatedBackgroundIngestion(url: url)
+        // Route URL background ingestion on the MainActor
+        await MainActor.run {
+            let ragService = RAGService()
+            ragService.enqueueDocuments([url])
+        }
 
         return .result(
             dialog: IntentDialog(stringLiteral: "I've started processing the webpage."),
