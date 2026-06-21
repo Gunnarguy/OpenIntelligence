@@ -10,7 +10,7 @@ import Foundation
 #if canImport(FoundationModels)
 import FoundationModels
 
-@available(iOS 26.0, macOS 16.0, *)
+@available(iOS 26.0, macOS 26.0, *)
 enum FoundationModelDynamicProfile: String, CaseIterable, Sendable {
     case directChat
     case groundedRAG
@@ -43,7 +43,7 @@ enum FoundationModelDynamicProfile: String, CaseIterable, Sendable {
     }
 }
 
-@available(iOS 26.0, macOS 16.0, *)
+@available(iOS 26.0, macOS 26.0, *)
 final class FoundationModelDynamicProfileRegistry: Sendable {
     
     /// Resolve dynamic profile for the given RAG answer intent.

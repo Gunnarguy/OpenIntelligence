@@ -7,8 +7,8 @@
 		<string>com.openintelligence.index-maintenance</string>
 		<string>com.openintelligence.spotlight-reindex</string>
 		<string>com.openintelligence.app-refresh</string>
-		<string>com.openintelligence.document-ingestion.*</string>
-		<string>com.openintelligence.rag-query.*</string>
+		<string>com.openintelligence.document-ingestion</string>
+		<string>com.openintelligence.rag-query</string>
 	</array>
 	<key>CFBundleURLTypes</key>
 	<array>

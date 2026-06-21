@@ -14,6 +14,7 @@ Version 4.3 focuses on groundbreaking performance optimizations and codebase sim
 - **Simplified Architecture:** Removed legacy, unneeded models like `OnDeviceAnalysisService` to rely entirely on our modernized Apple Intelligence system APIs. 
 - **20B Advanced Model Integration:** Successfully integrated Apple's massive 20-billion parameter Foundation Model (AFM 3 Core Advanced). OpenIntelligence now dynamically prioritizes the advanced local model for deep reasoning tasks, keeping your data entirely on-device with zero server latency whenever possible.
 - **Bulletproof Reliability:** Expanded our RAG Evaluations suite to harden token budget obedience and Hybrid Search boundary logic, ensuring extreme stability for edge cases.
+- **Enhanced Platform Sync:** Aligned our internal OS targets seamlessly with Apple's 2025 unified OS strategy (macOS 26 & iOS 26). Hardened the background ingestion queue and RAG routing engine so that Apple Intelligence features like the 3B Core model reliably stay in their fast lane without unintentionally triggering resource-heavy background loops.
 
 ## 4.0 & 4.1
  

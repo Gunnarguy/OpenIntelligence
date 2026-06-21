@@ -11,6 +11,13 @@ This is the public version history for OpenIntelligence. It focuses on user-visi
 - **[Orchestration]** Removed legacy `OnDeviceAnalysisService` to simplify LLM routing, fully trusting Apple Intelligence native FoundationModels.
 - **[Orchestration]** Integrated the 20B Apple Foundation Model (AFM 3 Core Advanced) into the execution pipeline. Prioritized `.onDeviceAdvanced` routing over Private Cloud Compute to maximize local privacy and eliminate cloud latency for reasoning operations.
 - **[Orchestration]** Hardened token budget obedience and evaluation suites to maintain extreme robustness against Apple Intelligence constraints.
+- **[Models]** Streamlined configuration parsing by removing legacy `strictMode` boolean from `KnowledgeContainer`, mapping directly to native `minSimilarity` thresholds.
+- **[UI]** Pruned visual noise by removing obsolete logic relating to the deprecated "Fibonacci sphere" distribution in `AdaptiveVisualizationsView`.
+- **[Tests]** Expanded `OpenIntelligenceEngineTests` suite with hybrid search safety checks and Semantic Chunker hardening against empty strings and malformed data.
+- **[Orchestration]** Fixed agentic reasoning orchestration so that Standard mode strictly prohibits auto-escalating to Deep Think loops when utilizing the constrained 3B Core model.
+- **[Orchestration]** Reclassified `VerificationGateService` Domain Isolation gate to an advisory status to prevent abstention false-positives on cross-domain queries.
+- **[Background]** Hardened `BackgroundTaskService` against `BGTaskSchedulerErrorDomain error 3` by eliminating string dynamic identifiers and wildcards from system registration logic.
+- **[FoundationModels]** Harmonized all availability macro targeting across the entire codebase to `iOS 26.0, macOS 26.0`, correctly aligning with Apple's 2025 unified naming architecture.
 
 ## 4.2 - June 2026
 

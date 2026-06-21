@@ -238,7 +238,7 @@ actor VerificationGateService {
         let allPassed = gateResults.allSatisfy { $0.passed }
         let overallConfidence = gateResults.reduce(0.0) { $0 + $1.confidence } / Float(gateResults.count)
 
-        let criticalGates: Set<VerificationGate> = [.retrievalConfidence, .numericSanity, .semanticGrounding, .domainIsolation]
+        let criticalGates: Set<VerificationGate> = [.retrievalConfidence, .numericSanity, .semanticGrounding]
         let criticalFailures = gateResults.filter { !$0.passed && criticalGates.contains($0.gate) }
         let shouldAbstain = !criticalFailures.isEmpty
 

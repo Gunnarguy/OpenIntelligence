@@ -163,11 +163,15 @@ enum FoundationModelPreference: String, CaseIterable, Identifiable, Sendable {
     }
     
     static var availableCases: [FoundationModelPreference] {
+        #if DEBUG
+        return [.automatic, .core3B, .advanced20B, .privateCloudCompute]
+        #else
         if #available(iOS 27.0, macOS 27.0, *) {
             return [.automatic, .core3B, .advanced20B, .privateCloudCompute]
         } else {
             return [.automatic, .core3B, .privateCloudCompute]
         }
+        #endif
     }
 }
 
@@ -213,7 +217,7 @@ enum ExecutionContext: CaseIterable, Sendable {
     /// Maximum context window tokens for this execution mode
     var maxContextTokens: Int {
         #if canImport(FoundationModels)
-        if #available(iOS 26.0, macOS 16.0, *) {
+        if #available(iOS 26.0, macOS 26.0, *) {
             switch self {
             case .cloudOnly, .preferCloud:
                 return FoundationModelTokenBudget.contextSize(isAppleFMOnDevice: false)

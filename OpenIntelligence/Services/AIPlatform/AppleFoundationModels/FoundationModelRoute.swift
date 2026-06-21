@@ -8,7 +8,7 @@ import Foundation
 #if canImport(FoundationModels)
 import FoundationModels
 
-@available(iOS 26.0, macOS 16.0, *)
+@available(iOS 26.0, macOS 26.0, *)
 public enum PCCReasoningLevel: String, Sendable, Equatable {
     case none
     case light
@@ -16,7 +16,7 @@ public enum PCCReasoningLevel: String, Sendable, Equatable {
     case deep
 }
 
-@available(iOS 26.0, macOS 16.0, *)
+@available(iOS 26.0, macOS 26.0, *)
 public enum AppleFoundationModelRoute: Sendable, Equatable {
     case onDevice
     case onDeviceAdvanced

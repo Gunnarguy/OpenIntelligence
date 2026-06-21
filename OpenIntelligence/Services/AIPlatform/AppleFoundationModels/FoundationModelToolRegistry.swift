@@ -16,7 +16,7 @@ import FoundationModels
 // All tools MUST truncate results to respect this budget.
 
 /// Tool for searching user's document library
-@available(iOS 26.0, macOS 16.0, *)
+@available(iOS 26.0, macOS 26.0, *)
 struct SearchDocumentsTool: Tool {
     let name = "search_documents"
     let description =
@@ -59,7 +59,7 @@ struct SearchDocumentsTool: Tool {
 }
 
 /// Tool for listing all available documents
-@available(iOS 26.0, macOS 16.0, *)
+@available(iOS 26.0, macOS 26.0, *)
 struct ListDocumentsTool: Tool {
     let name = "list_documents"
     let description =
@@ -82,7 +82,7 @@ struct ListDocumentsTool: Tool {
 }
 
 /// Tool for getting summary of a specific document
-@available(iOS 26.0, macOS 16.0, *)
+@available(iOS 26.0, macOS 26.0, *)
 struct GetDocumentSummaryTool: Tool {
     let name = "get_document_summary"
     let description =
@@ -112,7 +112,7 @@ struct GetDocumentSummaryTool: Tool {
 
 /// Tool for counting exact pattern occurrences across ALL documents
 /// Uses FullTextStorageService for precise counting (not semantic search)
-@available(iOS 26.0, macOS 16.0, *)
+@available(iOS 26.0, macOS 26.0, *)
 struct CountPatternTool: Tool {
     let name = "count_pattern"
     let description = """
@@ -146,7 +146,7 @@ struct CountPatternTool: Tool {
 
 /// Tool for searching exact text patterns with surrounding context
 /// Uses FullTextStorageService for precise matching (not semantic search)
-@available(iOS 26.0, macOS 16.0, *)
+@available(iOS 26.0, macOS 26.0, *)
 struct SearchExactPatternTool: Tool {
     let name = "search_exact_pattern"
     let description = """
@@ -181,7 +181,7 @@ struct SearchExactPatternTool: Tool {
 // MARK: - Analysis Tools
 
 /// Tool for getting corpus-wide statistics and analysis
-@available(iOS 26.0, macOS 16.0, *)
+@available(iOS 26.0, macOS 26.0, *)
 struct GetCorpusStatsTool: Tool {
     let name = "get_corpus_stats"
     let description = """
@@ -210,7 +210,7 @@ struct GetCorpusStatsTool: Tool {
 }
 
 /// Tool for finding documents related to a topic
-@available(iOS 26.0, macOS 16.0, *)
+@available(iOS 26.0, macOS 26.0, *)
 struct FindRelatedDocumentsTool: Tool {
     let name = "find_related_documents"
     let description = """
@@ -247,7 +247,7 @@ struct FindRelatedDocumentsTool: Tool {
 }
 
 /// Tool for comparing content across multiple documents
-@available(iOS 26.0, macOS 16.0, *)
+@available(iOS 26.0, macOS 26.0, *)
 struct CompareDocumentsTool: Tool {
     let name = "compare_documents"
     let description = """
@@ -284,7 +284,7 @@ struct CompareDocumentsTool: Tool {
 // MARK: - Consolidated Engine-Native Tool Surface
 
 /// Core retrieval tool for semantic, exact, and related-document evidence access.
-@available(iOS 26.0, macOS 16.0, *)
+@available(iOS 26.0, macOS 26.0, *)
 struct RetrieveCorpusEvidenceTool: Tool {
     let name = "retrieve_corpus_evidence"
     let description = """
@@ -340,7 +340,7 @@ struct RetrieveCorpusEvidenceTool: Tool {
 }
 
 /// Inspect a specific document for summary and metadata.
-@available(iOS 26.0, macOS 16.0, *)
+@available(iOS 26.0, macOS 26.0, *)
 struct InspectDocumentTool: Tool {
     let name = "inspect_document"
     let description = "Inspect a specific document by name and return its summary, metadata, and content overview."
@@ -363,7 +363,7 @@ struct InspectDocumentTool: Tool {
 }
 
 /// Compare how documents discuss a topic.
-@available(iOS 26.0, macOS 16.0, *)
+@available(iOS 26.0, macOS 26.0, *)
 struct CompareTopicAcrossDocumentsTool: Tool {
     let name = "compare_topic_across_documents"
     let description = "Compare how multiple documents discuss the same topic to find differences, overlap, and supporting evidence."
@@ -392,7 +392,7 @@ struct CompareTopicAcrossDocumentsTool: Tool {
 }
 
 /// High-level library overview tool for corpus-wide inspection.
-@available(iOS 26.0, macOS 16.0, *)
+@available(iOS 26.0, macOS 26.0, *)
 struct GetLibraryOverviewTool: Tool {
     let name = "get_library_overview"
     let description = "Return a compact overview of the current library, including corpus stats and available documents."
@@ -416,7 +416,7 @@ struct GetLibraryOverviewTool: Tool {
     }
 }
 
-@available(iOS 26.0, macOS 16.0, *)
+@available(iOS 26.0, macOS 26.0, *)
 struct FoundationModelToolRegistry {
     static func createTools(toolHandler: RAGToolHandler?) -> [any Tool] {
         guard let ragService = toolHandler as? RAGService else {

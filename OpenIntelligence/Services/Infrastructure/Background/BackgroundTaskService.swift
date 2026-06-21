@@ -133,8 +133,8 @@ final class BackgroundTaskService: Sendable {
     static let indexMaintenanceIdentifier = "com.openintelligence.index-maintenance"
     static let spotlightReindexIdentifier = "com.openintelligence.spotlight-reindex"
     static let appRefreshIdentifier = "com.openintelligence.app-refresh"
-    static let continuedIngestionIdentifier = "com.openintelligence.document-ingestion.*"
-    static let continuedQueryIdentifier = "com.openintelligence.rag-query.*"
+    static let continuedIngestionIdentifier = "com.openintelligence.document-ingestion"
+    static let continuedQueryIdentifier = "com.openintelligence.rag-query"
     private static let continuedIngestionIdentifierPrefix = "com.openintelligence.document-ingestion"
     private static let continuedQueryIdentifierPrefix = "com.openintelligence.rag-query"
 
@@ -171,11 +171,11 @@ final class BackgroundTaskService: Sendable {
     private init() {}
 
     private static func continuedIngestionRequestIdentifier() -> String {
-        "\(continuedIngestionIdentifierPrefix).\(UUID().uuidString)"
+        continuedIngestionIdentifier
     }
 
     private static func continuedQueryRequestIdentifier() -> String {
-        "\(continuedQueryIdentifierPrefix).\(UUID().uuidString)"
+        continuedQueryIdentifier
     }
 
     // MARK: - Task Scheduling
@@ -1360,8 +1360,8 @@ final class BackgroundTaskService: Sendable {
     static let indexMaintenanceIdentifier = "com.openintelligence.index-maintenance"
     static let spotlightReindexIdentifier = "com.openintelligence.spotlight-reindex"
     static let appRefreshIdentifier = "com.openintelligence.app-refresh"
-    static let continuedIngestionIdentifier = "com.openintelligence.document-ingestion.*"
-    static let continuedQueryIdentifier = "com.openintelligence.rag-query.*"
+    static let continuedIngestionIdentifier = "com.openintelligence.document-ingestion"
+    static let continuedQueryIdentifier = "com.openintelligence.rag-query"
 
     private init() {}
 

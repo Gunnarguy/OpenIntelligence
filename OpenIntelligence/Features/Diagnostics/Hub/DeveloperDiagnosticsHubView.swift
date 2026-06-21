@@ -43,7 +43,7 @@ struct DeveloperDiagnosticsHubView: View {
             // Private Cloud Compute Diagnostics
             Section {
                 #if canImport(FoundationModels)
-                if #available(iOS 26.0, macOS 16.0, *) {
+                if #available(iOS 26.0, macOS 26.0, *) {
                     let pccModel = PrivateCloudComputeLanguageModel()
                     LabeledContent("PCC Availability", value: pccModel.isAvailable ? "Available" : "Unavailable")
                     if pccModel.isAvailable {

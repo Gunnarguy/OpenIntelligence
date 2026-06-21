@@ -130,12 +130,11 @@ struct OpenIntelligenceApp: App {
     /// Register background processing and refresh tasks
     #if os(iOS)
     private func registerBackgroundTasks() {
-#if !targetEnvironment(macCatalyst)
-        if #available(iOS 26.0, *) {
-            BGTaskScheduler.shared.register(
-                forTaskWithIdentifier: BackgroundTaskService.continuedIngestionIdentifier,
-                using: nil
-            ) { task in
+        #if !targetEnvironment(macCatalyst)
+        BGTaskScheduler.shared.register(
+            forTaskWithIdentifier: BackgroundTaskService.continuedIngestionIdentifier,
+            using: nil
+        ) { task in
                 guard let continuedTask = task as? BGContinuedProcessingTask else {
                     task.setTaskCompleted(success: false)
                     return
@@ -155,8 +154,7 @@ struct OpenIntelligenceApp: App {
 
                 BackgroundTaskService.shared.handleContinuedQuery(task: continuedTask)
             }
-        }
-#endif
+        #endif
 
         // Background index maintenance (vector DB compaction, entity index cleanup)
         BGTaskScheduler.shared.register(

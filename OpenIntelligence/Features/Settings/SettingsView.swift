@@ -506,7 +506,7 @@ Text(label)
             .clipShape(RoundedRectangle(cornerRadius: 10))
 
             #if canImport(FoundationModels)
-            if #available(iOS 26.0, macOS 16.0, *) {
+            if #available(iOS 26.0, macOS 26.0, *) {
                 Divider()
                 
                 // PCC Quota Status

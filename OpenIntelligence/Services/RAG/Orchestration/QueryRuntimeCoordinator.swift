@@ -204,9 +204,9 @@ final class QueryRuntimeCoordinator {
             allowToolCalling: qualityMode.usesAgenticOrchestrator
         )
 
-        // -- Agentic Routing Decision --
-
-        let plannerEscalated = qualityMode.canonical == .standard && queryPlan.shouldAutoEscalateToAgentic
+        // Disable auto-escalation for Apple FMs because PCC context limits and 3B fallbacks
+        // often cause infinite generation loops during 8-session agentic chains.
+        let plannerEscalated = qualityMode.canonical == .standard && queryPlan.shouldAutoEscalateToAgentic && !isAppleFMService
         let executionPath: QueryExecutionPath
         if forceAgentic {
             executionPath = .forcedAgentic

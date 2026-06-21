@@ -72,7 +72,7 @@ public struct FoundationModelTokenBudget: Sendable {
     
     #if canImport(FoundationModels)
     /// Estimate token count of a Transcript entry list for Apple Foundation Models.
-    @available(iOS 26.0, macOS 16.0, *)
+    @available(iOS 26.0, macOS 26.0, *)
     public nonisolated static func estimateTranscriptTokens(_ transcript: Transcript) -> Int {
         var totalChars = 0
         for entry in transcript {

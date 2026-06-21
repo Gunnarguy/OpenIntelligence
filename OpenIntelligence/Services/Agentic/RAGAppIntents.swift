@@ -338,7 +338,7 @@ struct RAGAppShortcutsProvider: AppShortcutsProvider {
             systemImageName: "magnifyingglass.circle.fill"
         )
 
-        if #available(iOS 26.0, *) {
+        if #available(iOS 27.0, *) {
             AppShortcut(
                 intent: AnalyzeImageIntent(),
                 phrases: [

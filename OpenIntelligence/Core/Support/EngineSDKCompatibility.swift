@@ -152,7 +152,7 @@ import Foundation
 import FoundationModels
 
 // Local fallback for the new WWDC26 API to ensure compilation.
-@available(iOS 26.0, macOS 16.0, *)
+@available(iOS 26.0, macOS 26.0, *)
 public struct PrivateCloudComputeLanguageModel {
     public init() {}
     public var isAvailable: Bool { true }
@@ -172,7 +172,7 @@ public struct PrivateCloudComputeLanguageModel {
     public var quotaUsage: QuotaUsage { QuotaUsage() }
 }
 
-@available(iOS 26.0, macOS 16.0, *)
+@available(iOS 26.0, macOS 26.0, *)
 public struct ContextOptions {
     public enum ReasoningLevel: String {
         case none
@@ -186,7 +186,7 @@ public struct ContextOptions {
     }
 }
 
-@available(iOS 26.0, macOS 16.0, *)
+@available(iOS 26.0, macOS 26.0, *)
 extension LanguageModelSession {
     public convenience init(model: PrivateCloudComputeLanguageModel, tools: [any Tool] = [], instructions: Instructions) {
         self.init(model: SystemLanguageModel.default, tools: tools, instructions: instructions)
