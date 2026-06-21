@@ -6,15 +6,16 @@ Public release highlights for OpenIntelligence.
 
 ## 4.3
 
-Version 4.3 focuses on groundbreaking performance optimizations and codebase simplification. We've eliminated legacy architectural overhead and supercharged our RAG (Retrieval-Augmented Generation) pipeline for massive libraries.
+Version 4.3 introduces full visibility and support for Apple's third-generation Foundation Models (AFM 3) alongside groundbreaking performance optimizations. Legacy architectural overhead has been eliminated and the RAG (Retrieval-Augmented Generation) pipeline is supercharged for massive libraries.
 
 ### Highlights
+- **Powered by the AFM 3 Architecture:** OpenIntelligence now fully routes across Apple's third-generation Foundation Models. Simple RAG tasks run lightning-fast on the local **AFM 3 Core (3B)**, while complex agentic reasoning dynamically escalates to **AFM 3 Cloud Pro** via Private Cloud Compute. Apple's **ADM 3 Cloud** is also tied directly into the generation pipeline for instant visual concept rendering via Image Playground, alongside native support for the blazing fast **AFM 3 Core Advanced (20B)** for users on macOS 27 and iOS 27.
+- **Siri Screen Awareness:** Siri can now natively ingest on-screen files and URLs directly into local RAG libraries completely hands-free using the new AppIntents background context frameworks.
 - **Lightning-Fast Answer Generation:** The RAG deduplication pipeline was completely rebuilt using an O(1) hash lookup, resulting in a 1,000x speedup during the evidence aggregation phase. Large, context-heavy queries now aggregate in milliseconds instead of seconds.
 - **Buttery-Smooth Database Dashboard:** The Database Dashboard now utilizes a dynamic UUID dictionary cache, rendering rows ~240x faster and completely eliminating stutter when scrolling through massive libraries.
-- **Simplified Architecture:** Removed legacy, unneeded models like `OnDeviceAnalysisService` to rely entirely on our modernized Apple Intelligence system APIs. 
-- **20B Advanced Model Integration:** Successfully integrated Apple's massive 20-billion parameter Foundation Model (AFM 3 Core Advanced). OpenIntelligence now dynamically prioritizes the advanced local model for deep reasoning tasks, keeping your data entirely on-device with zero server latency whenever possible.
-- **Bulletproof Reliability:** Expanded our RAG Evaluations suite to harden token budget obedience and Hybrid Search boundary logic, ensuring extreme stability for edge cases.
-- **Enhanced Platform Sync:** Aligned our internal OS targets seamlessly with Apple's 2025 unified OS strategy (macOS 26 & iOS 26). Hardened the background ingestion queue and RAG routing engine so that Apple Intelligence features like the 3B Core model reliably stay in their fast lane without unintentionally triggering resource-heavy background loops.
+- **Simplified Architecture:** Removed legacy, unneeded models like `OnDeviceAnalysisService` to rely entirely on modernized Apple Intelligence system APIs. 
+- **Bulletproof Reliability:** Expanded the RAG Evaluations suite to harden token budget obedience and Hybrid Search boundary logic, ensuring extreme stability for edge cases.
+- **Enhanced Platform Sync:** Aligned internal OS targets seamlessly with Apple's unified OS strategy (macOS 26 & iOS 26). Hardened the background ingestion queue and RAG routing engine so that Apple Intelligence features like the 3B Core model reliably stay in their fast lane without unintentionally triggering resource-heavy background loops.
 
 ## 4.0 & 4.1
  

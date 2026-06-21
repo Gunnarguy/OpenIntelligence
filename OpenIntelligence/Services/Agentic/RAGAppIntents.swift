@@ -24,7 +24,7 @@ private struct DocumentImportStatusSnapshot: Sendable {
 
 /// Allows users to query their document library via Siri
 /// Usage: "Hey Siri, ask my documents about quarterly revenue"
-@available(iOS 16.0, *)
+@available(iOS 26.0, macOS 26.0, *)
 struct QueryDocumentsIntent: AppIntent {
     static var title: LocalizedStringResource = "Query Documents"
     static var description: IntentDescription = .init(
@@ -134,7 +134,7 @@ struct QueryDocumentsIntent: AppIntent {
 
 /// Allows users to add documents via Siri
 /// Usage: "Hey Siri, add a document to my RAG library"
-@available(iOS 16.0, *)
+@available(iOS 26.0, macOS 26.0, *)
 struct AddDocumentIntent: AppIntent {
     static var title: LocalizedStringResource = "Add Document"
     static var description: IntentDescription = .init(
@@ -158,7 +158,7 @@ struct AddDocumentIntent: AppIntent {
 
 /// Lists all documents in the RAG library
 /// Usage: "Hey Siri, what documents do I have in RAG?"
-@available(iOS 16.0, *)
+@available(iOS 26.0, macOS 26.0, *)
 struct ListDocumentsIntent: AppIntent {
     static var title: LocalizedStringResource = "List Documents"
     static var description: IntentDescription = .init(
@@ -200,7 +200,7 @@ struct ListDocumentsIntent: AppIntent {
 // MARK: - Document Import Status Intent
 
 /// Reports the status of any pending or active document imports.
-@available(iOS 16.0, *)
+@available(iOS 26.0, macOS 26.0, *)
 struct DocumentImportStatusIntent: AppIntent {
     static var title: LocalizedStringResource = "Check Document Import Status"
     static var description: IntentDescription = .init(
@@ -262,7 +262,7 @@ struct DocumentImportStatusIntent: AppIntent {
 // MARK: - App Shortcuts Provider
 
 /// Provides suggested shortcuts for the Shortcuts app
-@available(iOS 16.0, *)
+@available(iOS 26.0, macOS 26.0, *)
 struct RAGAppShortcutsProvider: AppShortcutsProvider {
     static var appShortcuts: [AppShortcut] {
         AppShortcut(
@@ -338,6 +338,31 @@ struct RAGAppShortcutsProvider: AppShortcutsProvider {
             systemImageName: "magnifyingglass.circle.fill"
         )
 
+
+        if #available(iOS 26.0, macOS 26.0, *) {
+            AppShortcut(
+                intent: IngestDocumentIntent(),
+                phrases: [
+                    "Add this document to \(.applicationName)",
+                    "Save this file to my \(.applicationName) library",
+                    "Ingest document into \(.applicationName)"
+                ],
+                shortTitle: "Ingest Document",
+                systemImageName: "doc.badge.plus"
+            )
+
+            AppShortcut(
+                intent: IngestURLIntent(),
+                phrases: [
+                    "Extract this webpage into \(.applicationName)",
+                    "Save this URL to my \(.applicationName) library",
+                    "Ingest link into \(.applicationName)"
+                ],
+                shortTitle: "Ingest Webpage",
+                systemImageName: "link.badge.plus"
+            )
+        }
+
         if #available(iOS 27.0, *) {
             AppShortcut(
                 intent: AnalyzeImageIntent(),
@@ -377,7 +402,7 @@ struct RAGAppShortcutsProvider: AppShortcutsProvider {
 
 /// Tells user which embedding provider is active
 /// Usage: "Hey Siri, what embedding model is RAG using?"
-@available(iOS 16.0, *)
+@available(iOS 26.0, macOS 26.0, *)
 struct GetEmbeddingProviderIntent: AppIntent {
     static var title: LocalizedStringResource = "Check Embedding Provider"
     static var description: IntentDescription = .init(
@@ -430,7 +455,7 @@ struct GetEmbeddingProviderIntent: AppIntent {
 
 // MARK: - Embedding Provider Snippet View
 
-@available(iOS 16.0, *)
+@available(iOS 26.0, macOS 26.0, *)
 struct EmbeddingProviderSnippetView: View {
     let providerName: String
     let description: String
@@ -472,7 +497,7 @@ struct EmbeddingProviderSnippetView: View {
 
 // MARK: - Snippet Views (for Siri and Shortcuts UI)
 
-@available(iOS 16.0, *)
+@available(iOS 26.0, macOS 26.0, *)
 struct RAGResponseSnippetView: View {
     let question: String
     let answer: String
@@ -516,7 +541,7 @@ struct RAGResponseSnippetView: View {
     }
 }
 
-@available(iOS 16.0, *)
+@available(iOS 26.0, macOS 26.0, *)
 struct DocumentListSnippetView: View {
     let documents: [Document]
 
@@ -549,7 +574,7 @@ struct DocumentListSnippetView: View {
     }
 }
 
-@available(iOS 16.0, *)
+@available(iOS 26.0, macOS 26.0, *)
 struct DocumentImportStatusSnippetView: View {
     let activeCount: Int
     let currentFilename: String
@@ -590,7 +615,7 @@ struct DocumentImportStatusSnippetView: View {
     }
 }
 
-@available(iOS 16.0, *)
+@available(iOS 26.0, macOS 26.0, *)
 struct ErrorSnippetView: View {
     let message: String
 
@@ -610,7 +635,7 @@ struct ErrorSnippetView: View {
 
 // MARK: - Entity-Native App Intents
 
-@available(iOS 16.0, *)
+@available(iOS 26.0, macOS 26.0, *)
 struct AskDocumentIntent: AppIntent {
     static var title: LocalizedStringResource = "Ask About a Document"
     static var description: IntentDescription = .init(
@@ -656,7 +681,7 @@ struct AskDocumentIntent: AppIntent {
     }
 }
 
-@available(iOS 16.0, *)
+@available(iOS 26.0, macOS 26.0, *)
 struct SummarizeDocumentIntent: AppIntent {
     static var title: LocalizedStringResource = "Summarize Document"
     static var description: IntentDescription = .init(
@@ -699,7 +724,7 @@ struct SummarizeDocumentIntent: AppIntent {
     }
 }
 
-@available(iOS 16.0, *)
+@available(iOS 26.0, macOS 26.0, *)
 struct CompareDocumentsIntent: AppIntent {
     static var title: LocalizedStringResource = "Compare Documents"
     static var description: IntentDescription = .init(
@@ -747,7 +772,7 @@ struct CompareDocumentsIntent: AppIntent {
     }
 }
 
-@available(iOS 16.0, *)
+@available(iOS 26.0, macOS 26.0, *)
 struct SearchLibraryIntent: AppIntent {
     static var title: LocalizedStringResource = "Search Library"
     static var description: IntentDescription = .init(

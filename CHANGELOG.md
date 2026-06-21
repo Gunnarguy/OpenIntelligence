@@ -6,6 +6,9 @@ This is the public version history for OpenIntelligence. It focuses on user-visi
 
 ## 4.3 - Unreleased
 
+- **[Orchestration]** Powered by the AFM 3 Architecture: Updated model configuration parsing to dynamically route and visibly highlight across the entire third-generation model suite (AFM 3 Core, AFM 3 Core Advanced, and AFM 3 Cloud Pro).
+- **[Agentic]** Siri Screen Awareness: Integrated AppIntents background context frameworks to allow Siri to natively ingest on-screen files and URLs directly into RAG libraries without touching the app.
+- **[Generative]** ADM 3 Cloud Integration: Plumbed Apple's ADM 3 architecture via Image Playground API into the core generation pipeline for instant visual concept rendering.
 - **[Retrieval]** Lightning-Fast Answer Generation: Rebuilt the RAG deduplication pipeline using O(N) Set-based tracking, resulting in an over 1,000x speedup in evidence aggregation for large libraries.
 - **[Orchestration]** Buttery-Smooth Database Dashboard: Implemented a dynamic UUID dictionary cache in `DatabaseDashboardView`, accelerating row rendering performance by ~240x during heavy scrolling.
 - **[Orchestration]** Removed legacy `OnDeviceAnalysisService` to simplify LLM routing, fully trusting Apple Intelligence native FoundationModels.

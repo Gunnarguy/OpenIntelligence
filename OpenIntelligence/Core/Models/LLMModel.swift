@@ -155,10 +155,10 @@ enum FoundationModelPreference: String, CaseIterable, Identifiable, Sendable {
     
     var displayName: String {
         switch self {
-        case .automatic: return "Automatic (Hybrid)"
-        case .core3B: return "📱 On-Device (3B Core)"
-        case .advanced20B: return "📱 On-Device (20B Advanced)"
-        case .privateCloudCompute: return "☁️ Private Cloud Compute"
+        case .automatic: return "Automatic (AFM Hybrid)"
+        case .core3B: return "📱 On-Device (AFM 3 Core)"
+        case .advanced20B: return "📱 On-Device (AFM 3 Core Advanced)"
+        case .privateCloudCompute: return "☁️ Private Cloud Compute (Cloud Pro)"
         }
     }
     
