@@ -11,6 +11,7 @@ This is the public version history for OpenIntelligence. It focuses on user-visi
 - **[Orchestration]** Lifted the Apple Silicon hardware telemetry HUD to avoid occlusion by the bottom conversational metrics bar on macOS, while explicitly preserving original layout coordinates on iOS.
 - **[Orchestration]** Restored native macOS Image Playground (.imagePlaygroundSupport) button bindings.
 - **[Orchestration]** Enhanced Image Playground generation by utilizing `.extracted(from:)` to pass the entire LLM response, enabling full semantic interpretation instead of relying solely on isolated extracted nouns.
+- **[Orchestration]** Capped Image Playground extraction context at 1000 characters to optimize semantic extraction without overloading the Apple Intelligence framework with unnecessarily large text blocks.
 
 ## 4.3 - June 2026
 

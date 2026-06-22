@@ -876,8 +876,10 @@ struct ImagePlaygroundSheetModifier: ViewModifier {
         var concepts: [ImagePlaygroundConcept] = []
 
         if let source = service.imagePlaygroundSourceText, !source.isEmpty {
-            // Let Apple's out-of-process UI framework handle text NLP parsing natively
-            concepts.append(.extracted(from: source))
+            // Let Apple's out-of-process UI framework handle text NLP parsing natively.
+            // Capped at 1000 characters to provide deep semantic context without overloading the framework.
+            let contextString = String(source.prefix(1000))
+            concepts.append(.extracted(from: contextString))
         }
 
         for component in service.imagePlaygroundConcepts {
