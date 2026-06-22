@@ -8,6 +8,10 @@
 
 import SwiftUI
 
+#if canImport(AppKit)
+import AppKit
+#endif
+
 struct SettingsView: View {
     @ObservedObject var ragService: RAGService
     @EnvironmentObject private var containerService: ContainerService
@@ -2454,11 +2458,12 @@ Text("RAG audit, diagnostics, advanced tuning")
     }
 
     private func shareApp() {
-        #if canImport(UIKit)
         let items: [Any] = [
             "I'm using OpenIntelligence for private, on-device AI and RAG search. Check it out on the App Store!",
             OpenIntelligenceLinks.appStoreURL
         ]
+        
+        #if canImport(UIKit)
         let activityVC = UIActivityViewController(activityItems: items, applicationActivities: nil)
         
         // Setup popover for iPad support
@@ -2473,6 +2478,12 @@ Text("RAG audit, diagnostics, advanced tuning")
             }
             
             rootVC.present(activityVC, animated: true)
+        }
+        #elseif os(macOS)
+        let picker = NSSharingServicePicker(items: items)
+        if let window = NSApplication.shared.windows.first(where: { $0.isKeyWindow }),
+           let contentView = window.contentView {
+            picker.show(relativeTo: .zero, of: contentView, preferredEdge: .minY)
         }
         #endif
     }

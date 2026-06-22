@@ -12,6 +12,7 @@ This is the public version history for OpenIntelligence. It focuses on user-visi
 - **[Orchestration]** Restored native macOS Image Playground (.imagePlaygroundSupport) button bindings.
 - **[Orchestration]** Enhanced Image Playground generation by utilizing `.extracted(from:)` to pass the entire LLM response, enabling full semantic interpretation instead of relying solely on isolated extracted nouns.
 - **[Orchestration]** Capped Image Playground extraction context at 1000 characters to optimize semantic extraction without overloading the Apple Intelligence framework with unnecessarily large text blocks.
+- **[Orchestration]** Implemented native macOS sharing interfaces across the application, adding `ShareLink` support for Pipeline Trace Logs and enabling `NSSharingServicePicker` for "Share with Friends" functionality in Settings.
 
 ## 4.3 - June 2026
 
