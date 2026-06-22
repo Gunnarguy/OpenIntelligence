@@ -875,11 +875,13 @@ class RAGService: ObservableObject {
                 }
 
                 if item.url.isFileURL {
+                    let reachable = (try? item.url.checkResourceIsReachable()) ?? false
+                    if !reachable {
+                        Log.warning("[RAGService] Skipping persisted ingestion item because file is unreachable: \(item.url.lastPathComponent)", category: .ingestion)
+                        continue
+                    }
                     if FileManager.default.isUbiquitousItem(at: item.url) {
                         try? FileManager.default.startDownloadingUbiquitousItem(at: item.url)
-                    } else if !FileManager.default.fileExists(atPath: item.url.path) {
-                        Log.warning("[RAGService] Skipping persisted ingestion item because file is missing: \(item.url.lastPathComponent)", category: .ingestion)
-                        continue
                     }
                 }
 
