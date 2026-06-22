@@ -16,7 +16,8 @@ echo "Latest version found: $LATEST_VERSION"
 # Change directory to the project root
 cd ..
 
-# Use agvtool to bump the marketing version matching the changelog
-xcrun agvtool new-marketing-version $LATEST_VERSION
+# Update the global MARKETING_VERSION (used for iOS) with sed. 
+# This strictly matches "MARKETING_VERSION = x.y.z;" to avoid breaking macOS specific overrides like "MARKETING_VERSION[sdk=macosx*]" = 1.0;
+sed -i '' -E "s/MARKETING_VERSION = [0-9.]*;/MARKETING_VERSION = $LATEST_VERSION;/g" OpenIntelligence.xcodeproj/project.pbxproj
 
-echo "Successfully synchronized Xcode project version with CHANGELOG.md ($LATEST_VERSION)!"
+echo "Successfully synchronized Xcode project version with CHANGELOG.md ($LATEST_VERSION) while preserving macOS version target!"
