@@ -819,8 +819,8 @@ final class ImagePlaygroundService: ObservableObject {
             let concepts = await extractConceptsWithLLM(from: response, maxConcepts: count)
             Log.info("[ImagePlayground] Presenting \(concepts.count) scene components: \(concepts)", category: .pipeline)
             emit("Presenting Image Playground", detail: "\(concepts.count) components: \(concepts.joined(separator: ", "))")
-            // Pass source text so the sheet can use .extracted() for bulletproof rendering
-            presentPlayground(withConcepts: concepts, sourceText: String(response.prefix(500)))
+            // Pass the full source text so the sheet can use .extracted() for deep semantic rendering
+            presentPlayground(withConcepts: concepts, sourceText: response)
         }
     }
 
@@ -836,7 +836,7 @@ final class ImagePlaygroundService: ObservableObject {
     /// Returns a result indicating the sheet was presented for user interaction
     func generateImage(from request: ImageGenerationRequest) async -> ImageGenerationResult {
         let concepts = await extractConceptsWithLLM(from: request.prompt)
-        presentPlayground(withConcepts: concepts)
+        presentPlayground(withConcepts: concepts, sourceText: request.prompt)
         return ImageGenerationResult(
             imageURL: nil,
             prompt: request.prompt,
@@ -875,8 +875,11 @@ struct ImagePlaygroundSheetModifier: ViewModifier {
     private func buildConcepts() -> [ImagePlaygroundConcept] {
         var concepts: [ImagePlaygroundConcept] = []
 
-        // ALL concepts are .text() with universally-safe everyday objects.
-        // We do NOT use .extracted() — raw document text triggers Apple's content filter.
+        if let source = service.imagePlaygroundSourceText, !source.isEmpty {
+            // Let Apple's out-of-process UI framework handle text NLP parsing natively
+            concepts.append(.extracted(from: source))
+        }
+
         for component in service.imagePlaygroundConcepts {
             concepts.append(.text(component))
         }
