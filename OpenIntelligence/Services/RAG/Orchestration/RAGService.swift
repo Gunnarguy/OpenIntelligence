@@ -11128,7 +11128,8 @@ class RAGService: ObservableObject {
                 // for "fuel tank capacity") and skipped LLM entirely. All queries now
                 // proceed to LLM generation for reliable answers.
                 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
+                
+                /*
                 if answerIntentIsExtractive || isPrecisionValueQuery(question),
                    let extractiveOverride = await highPrecisionLookupOverrideAnswer(
                        question: question,
@@ -11177,43 +11178,7 @@ class RAGService: ObservableObject {
                             : min(extractiveConfidence, max(sourceOnlyOutcome.fidelityScore, 0.75))
                     }
 #endif
-
-                    let extractiveMetadata = ResponseMetadata(
-                        timeToFirstToken: nil,
-                        totalGenerationTime: 0,
-                        tokensGenerated: 0,
-                        tokensPerSecond: nil,
-                        modelUsed: "Direct Source Extraction",
-                        retrievalTime: retrievalTime,
-                        retrievalConfigSummary: retrievalConfig.summary,
-                        gatingDecision: gatingDecision,
-                        toolCallsMade: nil,
-                        embeddingProvider: embeddingProviderId,
-                        usedAgenticMode: false,
-                        qualityModeName: qualityModeDisplayName,
-                        originalQuery: question,
-                        reasoningTrace: nil
-                    )
-                    let extractiveResponse = RAGResponse(
-                        queryId: ragQueryValue.id,
-                        retrievedChunks: precisionLookupCandidates,
-                        generatedResponse: resolvedDisplayResponse(
-                            fallback: extractiveAnswer,
-                            structuredAnswer: structuredAnswer
-                        ),
-                        metadata: extractiveMetadata,
-                        confidenceScore: extractiveConfidence,
-                        qualityWarnings: extractiveWarnings,
-                        structuredAnswer: structuredAnswer
-                    )
-
-                    return await finalizeResponse(
-                        query: question,
-                        containerId: selectedId,
-                        containerName: selectedName,
-                        response: extractiveResponse
-                    )
-                }
+                */
 
                 // Step 6: Generate response using LLM with augmented context
                 Log.section("Step 6: LLM Generation", level: .info, category: .pipeline)
