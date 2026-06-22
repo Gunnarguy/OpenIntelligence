@@ -6165,7 +6165,11 @@ class RAGService: ObservableObject {
             targetContainerId = await MainActor.run { self.containerService.activeContainerId }
         }
         let documentsToRebuild = await MainActor.run {
-            self.documents.filter { document in
+            let activeUrls = Set(self.ingestionItems.map { $0.url } + self.pausedIngestions.map { $0.url })
+            return self.documents.filter { document in
+                if activeUrls.contains(document.fileURL) {
+                    return false // Prevent duplicate extraction pipelines if item is already queued or paused
+                }
                 if let docContainer = document.containerId {
                     return docContainer == targetContainerId
                 } else if let fallbackId = self.containerService.containers.first?.id {
