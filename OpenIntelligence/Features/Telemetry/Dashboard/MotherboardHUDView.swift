@@ -433,17 +433,26 @@ struct HardwareXRayOverlay: View {
                 // Mini legend on LEFT side, below nav bar area
                 // Persists as long as HUD is enabled; shows triggered components
                 // COMPACT: Positioned tighter to corner to minimize interference
-                SiliconLegend(
-                    chipName: layout.chipName,
-                    intensity: max(totalIntensity, telemetry.hapticIntensity),
-                    metricsSummary: settings.hudShowMetrics ? telemetry.compactMetricsSummary : "",
-                    activities: settings.hudShowMetrics ? telemetry.componentActivities : []
-                )
-                .scaleEffect(isMac ? 1.4 : 1.0, anchor: isMac ? .bottomLeading : .topLeading)
-                .padding(.bottom, isMac ? 130 : 0)
-                .padding(.leading, isMac ? 30 : 45)
-                .padding(.top, isMac ? 0 : geometry.safeAreaInsets.top + 85)
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: isMac ? .bottomLeading : .topLeading)
+                if isMac {
+                    SiliconLegend(
+                        chipName: layout.chipName,
+                        intensity: max(totalIntensity, telemetry.hapticIntensity),
+                        metricsSummary: settings.hudShowMetrics ? telemetry.compactMetricsSummary : "",
+                        activities: settings.hudShowMetrics ? telemetry.componentActivities : []
+                    )
+                    .scaleEffect(1.4, anchor: .bottomLeading)
+                    .padding(.bottom, 130)
+                    .padding(.leading, 30)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
+                } else {
+                    SiliconLegend(
+                        chipName: layout.chipName,
+                        intensity: max(totalIntensity, telemetry.hapticIntensity),
+                        metricsSummary: settings.hudShowMetrics ? telemetry.compactMetricsSummary : "",
+                        activities: settings.hudShowMetrics ? telemetry.componentActivities : []
+                    )
+                    .position(x: 45, y: geometry.safeAreaInsets.top + 85)
+                }
 
                 // Device info (for debugging only)
                 if showDeviceInfo && showVisualBorders {

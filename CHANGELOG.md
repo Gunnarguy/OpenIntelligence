@@ -8,8 +8,8 @@ This is the public version history for OpenIntelligence. It focuses on user-visi
 
 - **[Orchestration]** Fixed MainActor deadlock in WorkspaceSyncService by offloading NSFileCoordinator read locks to detached background tasks, eliminating UI hangs during iCloud synchronizations.
 - **[Orchestration]** Resolved a persistent ingestion queue loop where deleted ubiquitous iCloud files could be resurrected as paused ingestion tasks across devices by utilizing checkResourceIsReachable().
-- **[UI]** Lifted the Apple Silicon hardware telemetry HUD to avoid occlusion by the bottom conversational metrics bar, and correctly disabled visual X-ray structural overlays on macOS compilation targets.
-- **[UI]** Restored native macOS Image Playground (.imagePlaygroundSupport) button bindings.
+- **[Orchestration]** Lifted the Apple Silicon hardware telemetry HUD to avoid occlusion by the bottom conversational metrics bar on macOS, while explicitly preserving original layout coordinates on iOS.
+- **[Orchestration]** Restored native macOS Image Playground (.imagePlaygroundSupport) button bindings.
 - **[Orchestration]** Enhanced Image Playground generation by utilizing `.extracted(from:)` to pass the entire LLM response, enabling full semantic interpretation instead of relying solely on isolated extracted nouns.
 
 ## 4.3 - June 2026
