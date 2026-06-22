@@ -6165,7 +6165,11 @@ class RAGService: ObservableObject {
             targetContainerId = await MainActor.run { self.containerService.activeContainerId }
         }
         let documentsToRebuild = await MainActor.run {
-            let activeUrls = Set(self.ingestionItems.map { $0.url } + self.pausedIngestions.map { $0.url })
+            var activeUrls = Set<URL>()
+            for item in self.ingestionItems {
+                activeUrls.insert(item.url)
+            }
+            
             return self.documents.filter { document in
                 if activeUrls.contains(document.fileURL) {
                     return false // Prevent duplicate extraction pipelines if item is already queued or paused
@@ -6359,7 +6363,7 @@ class RAGService: ObservableObject {
                 let maxTokens = containerEmbeddingService.maxSafeTokens
                 
                 let translatedChunkTexts = await translatedTextsForEmbedding(
-                    chunksToReembed.map(\.content),
+                    chunksToReembed.map { $0.content },
                     container: container
                 )
 

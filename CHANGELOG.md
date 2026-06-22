@@ -14,6 +14,7 @@ This is the public version history for OpenIntelligence. It focuses on user-visi
 - **[Orchestration]** Capped Image Playground extraction context at 1000 characters to optimize semantic extraction without overloading the Apple Intelligence framework with unnecessarily large text blocks.
 - **[Orchestration]** Implemented native macOS sharing interfaces across the application, adding `ShareLink` support for Pipeline Trace Logs and enabling `NSSharingServicePicker` for "Share with Friends" functionality in Settings.
 - **[Orchestration]** Fixed a race condition during background iCloud synchronization where a document could be duplicated in the local extraction queue if it was both restored as an interrupted session and automatically detected as missing vectors by the self-healing rebuild daemon.
+- **[Orchestration]** Resolved a Swift 6 compiler type-inference error related to `Identifiable` conformance when iterating over active background ingestion queues.
 
 ## 4.3 - June 2026
 
