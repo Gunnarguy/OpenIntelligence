@@ -245,9 +245,15 @@ final class ContainerService: ObservableObject {
             let enc = JSONEncoder()
             enc.outputFormatting = [.prettyPrinted, .sortedKeys]
             let data = try enc.encode(containers)
-            try WorkspaceSyncService.coordinatedWriteData(data, to: url)
+            Task.detached {
+                do {
+                    try WorkspaceSyncService.coordinatedWriteData(data, to: url)
+                } catch {
+                    Log.error("[ContainerService] Failed to write containers: \(error.localizedDescription)", category: .initialization)
+                }
+            }
         } catch {
-            Log.error("[ContainerService] Failed to save containers: \(error.localizedDescription)", category: .initialization)
+            Log.error("[ContainerService] Failed to encode containers: \(error.localizedDescription)", category: .initialization)
         }
     }
 

@@ -58,13 +58,19 @@ final class TranscriptPersistenceService {
             let encoder = JSONEncoder()
             encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
             let data = try encoder.encode(transcript)
-            try WorkspaceSyncService.coordinatedWriteData(data, to: url)
-
+            
             let entryCount = transcript.count
-            Log.debug("[TranscriptPersistence] Saved transcript with \(entryCount) entries for container \(containerId)", category: .initialization)
+            Task.detached {
+                do {
+                    try WorkspaceSyncService.coordinatedWriteData(data, to: url)
+                    Log.debug("[TranscriptPersistence] Saved transcript with \(entryCount) entries for container \(containerId)", category: .initialization)
+                } catch {
+                    Log.error("[TranscriptPersistence] Failed to save transcript for container \(containerId): \(error.localizedDescription)", category: .initialization)
+                }
+            }
             return true
         } catch {
-            Log.error("[TranscriptPersistence] Failed to save transcript for container \(containerId): \(error.localizedDescription)", category: .initialization)
+            Log.error("[TranscriptPersistence] Failed to encode transcript for container \(containerId): \(error.localizedDescription)", category: .initialization)
             return false
         }
     }
@@ -107,11 +113,13 @@ final class TranscriptPersistenceService {
 
         guard FileManager.default.fileExists(atPath: url.path) else { return }
 
-        do {
-            try WorkspaceSyncService.coordinatedRemoveItem(at: url)
-            Log.debug("[TranscriptPersistence] Deleted transcript for container \(containerId)", category: .initialization)
-        } catch {
-            Log.error("[TranscriptPersistence] Failed to delete transcript for container \(containerId): \(error.localizedDescription)", category: .initialization)
+        Task.detached {
+            do {
+                try WorkspaceSyncService.coordinatedRemoveItem(at: url)
+                Log.debug("[TranscriptPersistence] Deleted transcript for container \(containerId)", category: .initialization)
+            } catch {
+                Log.error("[TranscriptPersistence] Failed to delete transcript for container \(containerId): \(error.localizedDescription)", category: .initialization)
+            }
         }
     }
 

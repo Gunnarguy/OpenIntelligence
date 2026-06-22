@@ -677,9 +677,15 @@ final class ConversationMemoryService {
             encoder.outputFormatting = [.prettyPrinted]
             encoder.dateEncodingStrategy = .iso8601
             let data = try encoder.encode(memory)
-            try WorkspaceSyncService.coordinatedWriteData(data, to: url)
+            Task.detached {
+                do {
+                    try WorkspaceSyncService.coordinatedWriteData(data, to: url)
+                } catch {
+                    Log.error("[ConversationMemory] Failed to save memory: \(error)", category: .retrieval)
+                }
+            }
         } catch {
-            Log.error("[ConversationMemory] Failed to save memory: \(error)", category: .retrieval)
+            Log.error("[ConversationMemory] Failed to encode memory: \(error)", category: .retrieval)
         }
     }
 
@@ -700,7 +706,9 @@ final class ConversationMemoryService {
 
     private func deleteMemory(for containerId: UUID) {
         let url = memoryURL(for: containerId)
-        try? WorkspaceSyncService.coordinatedRemoveItem(at: url)
+        Task.detached {
+            try? WorkspaceSyncService.coordinatedRemoveItem(at: url)
+        }
     }
 }
 
