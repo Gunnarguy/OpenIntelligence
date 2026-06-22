@@ -10,8 +10,8 @@ Version 4.3.1 introduces crucial macOS UI layout updates and resolves deep syste
 
 ### Highlights
 - **Flawless UI Fluidity:** Eliminated deep system-level file-lock hangs that could freeze the app during iCloud synchronization, keeping the interface locked at 120fps.
-- **Polished macOS Elements:** Perfected layout bindings for the telemetry HUD on native Mac Catalyst/macOS builds so nothing overlaps the chat input field or Unified Metrics Bar, and properly re-enabled native Image Playground "Illustrate" support.
-- **iCloud Sync Hardening:** Resolved a persistent queue loop where deleted ubiquitous iCloud files could be resurrected as paused ingestion tasks across devices.
+- **Polished macOS Elements:** Perfected layout bindings for the telemetry HUD on native Mac Catalyst/macOS builds so nothing overlaps the chat input field or Unified Metrics Bar, properly re-enabled native Image Playground "Illustrate" support, and introduced native `ShareLink` and `NSSharingServicePicker` sheets for exporting trace logs and sharing the app.
+- **iCloud Sync Hardening:** Resolved a persistent queue loop where deleted ubiquitous iCloud files could be resurrected as paused ingestion tasks across devices, and eliminated a massive background extraction race-condition that would duplicate background vision OCR pipelines during self-healing rebuilds.
 
 ## 4.3
 
