@@ -206,3 +206,11 @@ scripts/remove_pcc_mock.py
 
 # Local IDE and agent configurations
 .gemini/
+
+# Google Ads Pipeline Scripts (Contains hardcoded credentials)
+deploy_pipeline.py
+get_refresh_token.py
+scripts/inject_linker.py
+google_ads_automation_payload/
+client_secret_*.json
+authenticate_in_desktop_application.py
