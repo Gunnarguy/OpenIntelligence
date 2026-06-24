@@ -656,7 +656,7 @@ extension StructuredAnswer {
         }
     }
 
-    nonisolated private static func minimumClaimLength(for answerIntent: AnswerIntent) -> Int {
+    nonisolated internal static func minimumClaimLength(for answerIntent: AnswerIntent) -> Int {
         answerIntent.isExtractiveFirst ? 8 : 20
     }
 
