@@ -849,10 +849,14 @@ actor SQLiteFullTextService {
         // Wrap in transaction for speed (100x faster than individual inserts)
         beginTransaction()
 
-        for chunk in chunks {
-            var statement: OpaquePointer?
-            guard sqlite3_prepare_v2(db, insertSQL, -1, &statement, nil) == SQLITE_OK else { continue }
+        var statement: OpaquePointer?
+        guard sqlite3_prepare_v2(db, insertSQL, -1, &statement, nil) == SQLITE_OK else {
+            rollbackTransaction()
+            return
+        }
+        defer { sqlite3_finalize(statement) }
 
+        for chunk in chunks {
             let chunkId = "\(documentId.uuidString)_\(chunk.chunkIndex)"
             sqlite3_bind_text(statement, 1, chunkId, -1, SQLITE_TRANSIENT)
             sqlite3_bind_text(statement, 2, documentId.uuidString, -1, SQLITE_TRANSIENT)
@@ -869,7 +873,8 @@ actor SQLiteFullTextService {
             sqlite3_bind_text(statement, 9, chunk.content, -1, SQLITE_TRANSIENT)
 
             sqlite3_step(statement)
-            sqlite3_finalize(statement)
+            sqlite3_reset(statement)
+            sqlite3_clear_bindings(statement)
 
             if let structuredMetadata = chunk.structuredMetadata {
                 persistStructuredChunkMetadata(
@@ -1062,13 +1067,13 @@ actor SQLiteFullTextService {
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """
 
+        var rowStatement: OpaquePointer?
+        guard sqlite3_prepare_v2(db, insertRowSQL, -1, &rowStatement, nil) == SQLITE_OK else { return }
+        defer { sqlite3_finalize(rowStatement) }
+
         for (rowIndex, row) in structuredMetadata.rows.enumerated() {
             let rowQuality = structuredRowQualityScore(headers: structuredMetadata.headers, row: row)
             let isLowQuality = structuredMetadata.lowQualityRowIndices.contains(rowIndex) || rowQuality < 0.38
-
-            var rowStatement: OpaquePointer?
-            guard sqlite3_prepare_v2(db, insertRowSQL, -1, &rowStatement, nil) == SQLITE_OK else { continue }
-            defer { sqlite3_finalize(rowStatement) }
 
             let rowId = "\(chunkId)_row_\(rowIndex)"
             let rowJSON = jsonString(for: row)
@@ -1102,6 +1107,9 @@ actor SQLiteFullTextService {
                 let error = String(cString: sqlite3_errmsg(db))
                 Log.error("[SQLiteFTS5] Structured table row insert failed: \(error)", category: .vectorDB)
             }
+
+            sqlite3_reset(rowStatement)
+            sqlite3_clear_bindings(rowStatement)
         }
     }
 
