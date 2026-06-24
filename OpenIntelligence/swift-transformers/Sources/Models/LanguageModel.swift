@@ -533,8 +533,13 @@ public class LanguageModelWithStatefulKVCache: LanguageModel {
         ]
         if isRequiringAttentionMask {
             #if !((os(macOS) || targetEnvironment(macCatalyst)) && arch(x86_64))
-            // TODO: Infer scalar type from cache or model I/O descriptors
-            let attentionMask = MLTensor(zeros: [1, 1, 1, tokenCount + 1], scalarType: Float16.self)
+            let isFloat32 = modelDescription.inputDescriptionsByName[Keys.attentionMask]?.multiArrayConstraint?.dataType == .float32
+            let attentionMask: MLTensor
+            if isFloat32 {
+                attentionMask = MLTensor(zeros: [1, 1, 1, tokenCount + 1], scalarType: Float.self)
+            } else {
+                attentionMask = MLTensor(zeros: [1, 1, 1, tokenCount + 1], scalarType: Float16.self)
+            }
             inputDictionary[Keys.attentionMask] = attentionMask
             #else
             fatalError()
@@ -542,8 +547,13 @@ public class LanguageModelWithStatefulKVCache: LanguageModel {
         }
         if isRequiringCausalMask {
             #if !((os(macOS) || targetEnvironment(macCatalyst)) && arch(x86_64))
-            // TODO: Infer scalar type from cache or model I/O descriptors
-            let causalMask = MLTensor(zeros: [1, 1, 1, tokenCount + 1], scalarType: Float16.self)
+            let isFloat32 = modelDescription.inputDescriptionsByName[Keys.causalMask]?.multiArrayConstraint?.dataType == .float32
+            let causalMask: MLTensor
+            if isFloat32 {
+                causalMask = MLTensor(zeros: [1, 1, 1, tokenCount + 1], scalarType: Float.self)
+            } else {
+                causalMask = MLTensor(zeros: [1, 1, 1, tokenCount + 1], scalarType: Float16.self)
+            }
             inputDictionary[Keys.causalMask] = causalMask
             #else
             fatalError()
