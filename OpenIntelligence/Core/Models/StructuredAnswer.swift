@@ -677,7 +677,7 @@ extension StructuredAnswer {
             .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
-    nonisolated private static func citationIndex(from citation: String) -> Int? {
+    nonisolated internal static func citationIndex(from citation: String) -> Int? {
         let pattern = #"S(\d+)"#
         guard let regex = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]) else {
             return nil
