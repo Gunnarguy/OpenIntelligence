@@ -2641,15 +2641,21 @@ struct EmbeddingSpaceRenderer: View {
         let count = min(chunks.count, coords.count, docIds.count)
         guard count > 0 else { return [] }
 
-        let xs = coords.prefix(count).map { $0.x }
-        let ys = coords.prefix(count).map { $0.y }
-        let zs = coords.prefix(count).map { $0.z }
-        let minX = xs.min() ?? 0
-        let maxX = xs.max() ?? 1
-        let minY = ys.min() ?? 0
-        let maxY = ys.max() ?? 1
-        let minZ = zs.min() ?? 0
-        let maxZ = zs.max() ?? 1
+        var minX = coords[0].x
+        var maxX = coords[0].x
+        var minY = coords[0].y
+        var maxY = coords[0].y
+        var minZ = coords[0].z
+        var maxZ = coords[0].z
+
+        if count > 1 {
+            for i in 1..<count {
+                let coord = coords[i]
+                if coord.x < minX { minX = coord.x } else if coord.x > maxX { maxX = coord.x }
+                if coord.y < minY { minY = coord.y } else if coord.y > maxY { maxY = coord.y }
+                if coord.z < minZ { minZ = coord.z } else if coord.z > maxZ { maxZ = coord.z }
+            }
+        }
         let spanX = max(maxX - minX, 0.001)
         let spanY = max(maxY - minY, 0.001)
         let spanZ = max(maxZ - minZ, 0.001)
