@@ -3058,6 +3058,17 @@ actor SQLiteFullTextService {
     private func ensureColumnExists(table: String, column: String, definition: String) {
         guard let db = database else { return }
 
+        // Security fix: Validate table and column names to prevent SQL injection
+        let validIdentifierRegex = "^[a-zA-Z_][a-zA-Z0-9_]*$"
+        guard table.range(of: validIdentifierRegex, options: .regularExpression) != nil else {
+            Log.error("[SQLiteFTS5] Invalid table name for schema modification: \(table)", category: .vectorDB)
+            return
+        }
+        guard column.range(of: validIdentifierRegex, options: .regularExpression) != nil else {
+            Log.error("[SQLiteFTS5] Invalid column name for schema modification: \(column)", category: .vectorDB)
+            return
+        }
+
         let pragmaSQL = "PRAGMA table_info(\(table))"
         var statement: OpaquePointer?
         guard sqlite3_prepare_v2(db, pragmaSQL, -1, &statement, nil) == SQLITE_OK else { return }
