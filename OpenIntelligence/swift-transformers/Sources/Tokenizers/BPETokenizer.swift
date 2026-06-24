@@ -67,6 +67,9 @@ class BPETokenizer: PreTrainedTokenizerModel, @unchecked Sendable {
     /// Whether consecutive unknown tokens should be fused together.
     let fuseUnknownTokens: Bool
 
+    /// Whether to fall back to byte-level encoding for unknown tokens.
+    let byteFallback: Bool
+
     static func mergesFromConfig(_ config: Config?) -> [[String]]? {
         guard let config else { return nil }
 
@@ -128,6 +131,7 @@ class BPETokenizer: PreTrainedTokenizerModel, @unchecked Sendable {
         bosTokenId = bosToken == nil ? nil : tokensToIds[bosToken! as NSString]
 
         fuseUnknownTokens = tokenizerConfig.fuseUnk.boolean(or: false)
+        byteFallback = tokenizerData.model.byteFallback.boolean(or: false)
     }
 
     /// Converts a token string to its corresponding numeric ID.
@@ -231,8 +235,11 @@ class BPETokenizer: PreTrainedTokenizerModel, @unchecked Sendable {
             if convertTokenToId(token) != unknownTokenId {
                 tokens.append(token)
             } else {
-                // TODO: if config.byte_fallback is False, append the unknown token instead
-                tokens.append(contentsOf: hexaEncode(text: token))
+                if !byteFallback, let unknownToken = unknownToken {
+                    tokens.append(unknownToken)
+                } else {
+                    tokens.append(contentsOf: hexaEncode(text: token))
+                }
             }
         }
         return tokens
