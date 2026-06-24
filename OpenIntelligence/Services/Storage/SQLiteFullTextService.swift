@@ -673,20 +673,7 @@ actor SQLiteFullTextService {
         ensureInitialized()
         guard let db = database else { return }
 
-        // Get all document IDs for this container first
-        let selectSQL = "SELECT document_id FROM documents WHERE container_id = ?"
-        var selectStmt: OpaquePointer?
-        var documentIds: [String] = []
-
-        if sqlite3_prepare_v2(db, selectSQL, -1, &selectStmt, nil) == SQLITE_OK {
-            sqlite3_bind_text(selectStmt, 1, containerId.uuidString, -1, SQLITE_TRANSIENT)
-            while sqlite3_step(selectStmt) == SQLITE_ROW {
-                if let idPtr = sqlite3_column_text(selectStmt, 0) {
-                    documentIds.append(String(cString: idPtr))
-                }
-            }
-            sqlite3_finalize(selectStmt)
-        }
+        var deletedCount = 0
 
         // Delete from FTS5
         let deleteSQL = "DELETE FROM documents WHERE container_id = ?"
@@ -695,6 +682,7 @@ actor SQLiteFullTextService {
         if sqlite3_prepare_v2(db, deleteSQL, -1, &statement, nil) == SQLITE_OK {
             sqlite3_bind_text(statement, 1, containerId.uuidString, -1, SQLITE_TRANSIENT)
             sqlite3_step(statement)
+            deletedCount = Int(sqlite3_changes(db))
             sqlite3_finalize(statement)
         }
 
@@ -729,7 +717,7 @@ actor SQLiteFullTextService {
         }
 
         checkpoint()
-        Log.info("[SQLiteFTS5] Deleted \(documentIds.count) documents for container \(containerId)", category: .vectorDB)
+        Log.info("[SQLiteFTS5] Deleted \(deletedCount) documents for container \(containerId)", category: .vectorDB)
     }
 
     // MARK: - Chunk-Level CRUD Operations
