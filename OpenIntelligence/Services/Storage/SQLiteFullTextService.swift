@@ -1107,35 +1107,41 @@ actor SQLiteFullTextService {
 
     private func deleteStructuredMetadata(documentId: UUID, using db: OpaquePointer?) {
         guard let db else { return }
-        let deletes = [
-            "DELETE FROM chunk_structured WHERE document_id = ?",
-            "DELETE FROM chunk_table_rows WHERE document_id = ?"
-        ]
 
-        for sql in deletes {
-            var statement: OpaquePointer?
-            if sqlite3_prepare_v2(db, sql, -1, &statement, nil) == SQLITE_OK {
-                sqlite3_bind_text(statement, 1, documentId.uuidString, -1, SQLITE_TRANSIENT)
-                sqlite3_step(statement)
-                sqlite3_finalize(statement)
-            }
+        var statement: OpaquePointer?
+
+        let sql1 = "DELETE FROM chunk_structured WHERE document_id = ?"
+        if sqlite3_prepare_v2(db, sql1, -1, &statement, nil) == SQLITE_OK {
+            sqlite3_bind_text(statement, 1, documentId.uuidString, -1, SQLITE_TRANSIENT)
+            sqlite3_step(statement)
+            sqlite3_finalize(statement)
+        }
+
+        let sql2 = "DELETE FROM chunk_table_rows WHERE document_id = ?"
+        if sqlite3_prepare_v2(db, sql2, -1, &statement, nil) == SQLITE_OK {
+            sqlite3_bind_text(statement, 1, documentId.uuidString, -1, SQLITE_TRANSIENT)
+            sqlite3_step(statement)
+            sqlite3_finalize(statement)
         }
     }
 
     private func deleteStructuredMetadata(containerId: UUID, using db: OpaquePointer?) {
         guard let db else { return }
-        let deletes = [
-            "DELETE FROM chunk_structured WHERE container_id = ?",
-            "DELETE FROM chunk_table_rows WHERE container_id = ?"
-        ]
 
-        for sql in deletes {
-            var statement: OpaquePointer?
-            if sqlite3_prepare_v2(db, sql, -1, &statement, nil) == SQLITE_OK {
-                sqlite3_bind_text(statement, 1, containerId.uuidString, -1, SQLITE_TRANSIENT)
-                sqlite3_step(statement)
-                sqlite3_finalize(statement)
-            }
+        var statement: OpaquePointer?
+
+        let sql1 = "DELETE FROM chunk_structured WHERE container_id = ?"
+        if sqlite3_prepare_v2(db, sql1, -1, &statement, nil) == SQLITE_OK {
+            sqlite3_bind_text(statement, 1, containerId.uuidString, -1, SQLITE_TRANSIENT)
+            sqlite3_step(statement)
+            sqlite3_finalize(statement)
+        }
+
+        let sql2 = "DELETE FROM chunk_table_rows WHERE container_id = ?"
+        if sqlite3_prepare_v2(db, sql2, -1, &statement, nil) == SQLITE_OK {
+            sqlite3_bind_text(statement, 1, containerId.uuidString, -1, SQLITE_TRANSIENT)
+            sqlite3_step(statement)
+            sqlite3_finalize(statement)
         }
     }
 
