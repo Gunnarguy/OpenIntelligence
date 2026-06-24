@@ -343,6 +343,39 @@ struct CoreValidationView: View {
                 }
             }
 
+
+            // Test 9: RetrievalConfig - Exact Match
+            await runTest(name: "RetrievalConfig - Exact Match") {
+                let config = RetrievalConfig.default
+                return config.isCloseTo(.default)
+            }
+
+            // Test 10: RetrievalConfig - Within Tolerance
+            await runTest(name: "RetrievalConfig - Within Tolerance") {
+                var config = RetrievalConfig.default
+                // Default tolerance is 0.08
+                config.minSimilarity += 0.05
+                config.vectorWeight -= 0.05
+                config.mmrLambda += 0.05
+                return config.isCloseTo(.default)
+            }
+
+            // Test 11: RetrievalConfig - Outside Tolerance
+            await runTest(name: "RetrievalConfig - Outside Tolerance") {
+                var config = RetrievalConfig.default
+                // Default tolerance is 0.08, modifying by 0.10 should fail
+                config.minSimilarity += 0.10
+                return !config.isCloseTo(.default)
+            }
+
+            // Test 12: RetrievalConfig - Custom Tolerance
+            await runTest(name: "RetrievalConfig - Custom Tolerance") {
+                var config = RetrievalConfig.default
+                // Change by 0.15, default tolerance (0.08) fails, but custom tolerance (0.20) should pass
+                config.vectorWeight += 0.15
+                return !config.isCloseTo(.default) && config.isCloseTo(.default, tolerance: 0.20)
+            }
+
             // Finalize
             await MainActor.run {
                 isRunning = false
