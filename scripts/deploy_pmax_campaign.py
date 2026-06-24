@@ -120,7 +120,7 @@ def main(client, customer_id):
     c.campaign_budget = budget_temp_id
     # Maximize conversions
     client.copy_from(c.maximize_conversions, client.get_type("MaximizeConversions"))
-    c.contains_eu_political_advertising = False
+    c.contains_eu_political_advertising = client.enums.EuPoliticalAdvertisingStatusEnum.DOES_NOT_CONTAIN_EU_POLITICAL_ADVERTISING
     mutate_operations.append(campaign_op)
 
     # CAMPAIGN ASSETS (Solves Brand Guidelines Error)
