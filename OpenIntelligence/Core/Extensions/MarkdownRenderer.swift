@@ -363,11 +363,29 @@ private struct MarkdownParser {
     }
 
     private static func isHorizontalRule(_ line: String) -> Bool {
-        let trimmed = line.trimmingCharacters(in: .whitespaces)
-        guard trimmed.count >= 3 else { return false }
-        return (trimmed.allSatisfy({ $0 == "-" || $0 == " " }) && trimmed.filter({ $0 == "-" }).count >= 3) ||
-               (trimmed.allSatisfy({ $0 == "*" || $0 == " " }) && trimmed.filter({ $0 == "*" }).count >= 3) ||
-               (trimmed.allSatisfy({ $0 == "_" || $0 == " " }) && trimmed.filter({ $0 == "_" }).count >= 3)
+        var hasSeenMarker = false
+        var marker: Character = " "
+        var count = 0
+
+        for char in line {
+            if char == " " || char == "\t" {
+                continue
+            }
+            if char == "-" || char == "*" || char == "_" {
+                if !hasSeenMarker {
+                    hasSeenMarker = true
+                    marker = char
+                    count = 1
+                } else if char == marker {
+                    count += 1
+                } else {
+                    return false
+                }
+            } else {
+                return false
+            }
+        }
+        return count >= 3
     }
 
     private static func isTableRow(_ line: String) -> Bool {
