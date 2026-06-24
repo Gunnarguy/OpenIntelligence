@@ -189,7 +189,7 @@ final class NLEmbeddingProvider: EmbeddingProvider {
             let hasNumbers = normalized.rangeOfCharacter(from: .decimalDigits) != nil
             vec[266] = hasNumbers ? 1.0 : -1.0
         }
-        let magnitude = sqrt(vec.map { $0 * $0 }.reduce(0, +))
+        let magnitude = sqrt(vec.reduce(0) { $0 + $1 * $1 })
         if magnitude > 0 {
             vec = vec.map { $0 / magnitude }
         }
