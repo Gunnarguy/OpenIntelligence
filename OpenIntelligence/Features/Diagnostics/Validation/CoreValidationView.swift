@@ -343,6 +343,46 @@ struct CoreValidationView: View {
                 }
             }
 
+
+            // Test 9: MarkdownParser Edge Cases
+            await runTest(name: "MarkdownParser - normalizeInlineMarkdown Edge Cases") {
+                let cases = [
+                    (
+                        "Here is some text. ### A Heading - **Bold point**",
+                        "Here is some text. \n### A Heading \n- **Bold point**"
+                    ),
+                    (
+                        "Code: ```swift print() ``` and more text",
+                        "Code: \n```swift print() \n``` and more text"
+                    ),
+                    (
+                        "Some text > A quote block",
+                        "Some text \n> A quote block"
+                    ),
+                    (
+                        "End of thought. 1. First item 2. Second item",
+                        "End of thought. \n1. First item \n2. Second item"
+                    ),
+                    (
+                        "| Name | Age | |---|---| | John | 30 |",
+                        "| Name | Age |\n|---|---|\n| John | 30 |"
+                    ),
+                    (
+                        "End of thought. ---",
+                        "End of thought. \n---"
+                    )
+                ]
+
+                for (input, expected) in cases {
+                    let result = MarkdownParser.normalizeInlineMarkdown(input)
+                    if result != expected {
+                        print("Failed normalization: input: \(input), expected: \(expected), got: \(result)")
+                        return false
+                    }
+                }
+                return true
+            }
+
             // Finalize
             await MainActor.run {
                 isRunning = false

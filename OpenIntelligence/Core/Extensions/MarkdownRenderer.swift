@@ -51,13 +51,13 @@ private enum MarkdownTableAlignment {
 }
 
 /// Parses raw markdown text into an array of blocks
-private struct MarkdownParser {
+struct MarkdownParser {
 
     /// Pre-process text to split inline markdown blocks onto separate lines.
     /// LLMs (especially small on-device models) sometimes emit markdown syntax
     /// all on one line, e.g. "### Title - **bullet**: text. - **bullet**: text."
     /// This normalizer inserts newlines so the block parser can handle them.
-    private static func normalizeInlineMarkdown(_ text: String) -> String {
+    static func normalizeInlineMarkdown(_ text: String) -> String {
         var result = text
 
         // Insert newline before markdown headers that appear mid-line
