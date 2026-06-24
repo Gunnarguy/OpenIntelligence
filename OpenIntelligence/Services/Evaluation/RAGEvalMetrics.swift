@@ -146,8 +146,8 @@ extension RAGEvalMetrics {
         let visualRate = visualCases.isEmpty ? 1.0 : Double(visualUsed.count) / Double(visualCases.count)
 
         // Latency
+        let meanLatency = results.isEmpty ? 0.0 : results.reduce(0) { $0 + $1.latencySeconds } / Double(results.count)
         let latencies = results.map(\.latencySeconds).sorted()
-        let meanLatency = latencies.reduce(0, +) / Double(latencies.count)
         let p95Index = Int(Double(latencies.count) * 0.95)
         let p95Latency = latencies.indices.contains(p95Index) ? latencies[p95Index] : latencies.last ?? 0
 
