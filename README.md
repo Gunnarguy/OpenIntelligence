@@ -73,6 +73,19 @@ flowchart TD
   A4 --> B3
 ```
 
+### 🧠 Quality Modes & Inference Routing
+The entire RAG architecture operates on a strict **29-Step Pipeline** (6 Ingestion steps + 23 Query Loop steps). To handle complex queries, the query loop escalates dynamically across three agentic modes and foundation models:
+
+**3 Agentic Quality Modes**
+* **Standard:** Executes the 23-step query loop sequentially for maximum speed and battery life.
+* **Deep Think:** Actively loops the retrieval agent through 4-8 concurrent reasoning sessions until it hits 98% confidence.
+* **Maximum:** Removes the 8-session ceiling, granting the orchestrator an unlimited budget to recursively hunt down answers up to 50 loops.
+
+**3 Foundation Model Routes**
+* `3B Core`: Offline Apple Silicon model (Standard offline inference).
+* `20B Advanced`: Offline Apple Silicon model leveraging unified memory and NAND Flash Paging.
+* `Private Cloud Compute (PT-MoE)`: Escalates over encrypted channels to Apple's 32K context secure server enclaves, powered by a Parallel-Track Mixture-of-Experts architecture.
+
 ---
 
 ## 🗺️ Codebase Map

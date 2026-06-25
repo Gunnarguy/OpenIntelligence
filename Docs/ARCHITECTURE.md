@@ -98,9 +98,11 @@ graph TD
 ### Phase 1: Query Routing & Understanding
 * **Query Expansion & Intent Classification**: Resolves pronouns, extracts entities via `NLTagger` NER, expands queries using Synonyms, and classifies user intent (lookup, procedure, compare, or summarize).
 * **Query Embedding**: Generates a 384-dimensional query vector.
-* **Model Routing Policy**: 
-  - **On-Device Default**: Standard quality queries execute locally via `SystemLanguageModel.default`, subject to a 4,096-token context window limit.
-  - **PCC Escalation**: If the context size exceeds 4,096 tokens, or if the user selects **Deep Think** or **Maximum** quality modes, the route policy elevates the query to `PrivateCloudComputeLanguageModel` in Apple's secure Private Cloud Compute (PCC) enclaves, supporting a 32K token context window. In the current build, this remote enclave execution is resolved locally on `SystemLanguageModel.default` via [EngineSDKCompatibility.swift](file:///Users/gunnarhostetler/Documents/GitHub/OpenIntelligence-Public/OpenIntelligence/Core/Support/EngineSDKCompatibility.swift).
+* **Model Routing Policy & Quality Modes**:
+  The orchestrator escalates dynamically based on the user's selected Quality Mode:
+  - **Standard**: Executes the 23-step query loop sequentially for maximum speed. Uses the **3B Core** (`SystemLanguageModel.default`) with a 4,096-token context limit.
+  - **Deep Think**: Actively loops the retrieval agent through 4-8 concurrent reasoning sessions until it hits 98% confidence. Leverages the **20B Advanced** model using unified memory and NAND flash paging.
+  - **Maximum**: Removes the 8-session ceiling, granting the orchestrator an unlimited budget to recursively hunt down answers up to 50 loops. Escalates to **Private Cloud Compute (PT-MoE)** over encrypted channels to Apple's 32K context secure server enclaves.
 
 ### Phase 2: Evidence Retrieval & Packing
 * **Hybrid Search**: Fuses vector similarity scores and FTS5 BM25 lexical scores using Reciprocal Rank Fusion (RRF).
