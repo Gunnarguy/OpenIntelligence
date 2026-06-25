@@ -18,7 +18,7 @@ import AppKit
 // MARK: - Block-Level Markdown Parser
 
 /// Represents a parsed markdown block
-private enum MarkdownBlock: Identifiable {
+enum MarkdownBlock: Identifiable {
     case heading(level: Int, text: String)
     case paragraph(text: String)
     case table(header: [String], alignments: [MarkdownTableAlignment], rows: [[String]])
@@ -44,7 +44,7 @@ private enum MarkdownBlock: Identifiable {
     }
 }
 
-private enum MarkdownTableAlignment {
+enum MarkdownTableAlignment {
     case leading
     case center
     case trailing
