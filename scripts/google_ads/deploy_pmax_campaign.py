@@ -77,17 +77,35 @@ def main(client, customer_id):
     
     print("3. Generating Text Assets...")
     headline_assets = [
-        upload_text_asset(client, customer_id, "On-Device AI Document Query"),
         upload_text_asset(client, customer_id, "Privacy-First RAG Pipeline"),
         upload_text_asset(client, customer_id, "Apple Foundation Models"),
         upload_text_asset(client, customer_id, "Local-First Document AI"),
-        upload_text_asset(client, customer_id, "Chat With Any Document")
+        upload_text_asset(client, customer_id, "On-Device AI Document Query"),
+        upload_text_asset(client, customer_id, "Chat With Any Document"),
+        upload_text_asset(client, customer_id, "Local 3B-Parameter AFM"),
+        upload_text_asset(client, customer_id, "SQLite FTS5 Hybrid Search"),
+        upload_text_asset(client, customer_id, "29-Step RAG Architecture"),
+        upload_text_asset(client, customer_id, "Private Cloud Compute Ready"),
+        upload_text_asset(client, customer_id, "Semantic Document Chunking"),
+        upload_text_asset(client, customer_id, "Zero-Dependency Metal RAG"),
+        upload_text_asset(client, customer_id, "Cross-Encoder Reranking"),
+        upload_text_asset(client, customer_id, "Vision OCR Ingestion"),
+        upload_text_asset(client, customer_id, "Lexical & Vector Search"),
+        upload_text_asset(client, customer_id, "On-Device Inference iOS 26")
     ]
-    long_headline_asset = upload_text_asset(client, customer_id, "Experience an entirely on-device RAG pipeline built natively for Apple platforms.")
+    long_headline_assets = [
+        upload_text_asset(client, customer_id, "Experience an entirely on-device RAG pipeline built natively for Apple platforms."),
+        upload_text_asset(client, customer_id, "Ingest documents with Vision OCR and query them locally via Apple Foundation Models."),
+        upload_text_asset(client, customer_id, "Zero-dependency RAG engine using 384-dim MiniLM vectors and BNNS acceleration."),
+        upload_text_asset(client, customer_id, "Execute a rigorous 29-step RAG pipeline securely on your iPhone without the cloud."),
+        upload_text_asset(client, customer_id, "A production-grade iOS AI workspace with hybrid retrieval and cross-encoder reranking.")
+    ]
     desc_assets = [
         upload_text_asset(client, customer_id, "Zero-dependency RAG engine using local BNNS vectors and SQLite FTS5 hybrid retrieval."),
         upload_text_asset(client, customer_id, "Run production-grade AI on your iPhone or Mac without sacrificing your data privacy."),
-        upload_text_asset(client, customer_id, "Extract insights using local Vision OCR and generate grounded answers with citations.")
+        upload_text_asset(client, customer_id, "Extract insights using local Vision OCR and generate grounded answers with citations."),
+        upload_text_asset(client, customer_id, "Leverage Apple's 4K-token local context windows for deep semantic document search."),
+        upload_text_asset(client, customer_id, "Features semantic chunking, Reciprocal Rank Fusion, and Platt-calibrated confidence.")
     ]
     biz_name_asset = upload_text_asset(client, customer_id, "Fascinaiting")
 
@@ -150,7 +168,8 @@ def main(client, customer_id):
     # Text
     for h_asset in headline_assets:
         mutate_operations.append(create_asset_group_asset_op(client, ag_temp_id, h_asset, client.enums.AssetFieldTypeEnum.HEADLINE))
-    mutate_operations.append(create_asset_group_asset_op(client, ag_temp_id, long_headline_asset, client.enums.AssetFieldTypeEnum.LONG_HEADLINE))
+    for lh_asset in long_headline_assets:
+        mutate_operations.append(create_asset_group_asset_op(client, ag_temp_id, lh_asset, client.enums.AssetFieldTypeEnum.LONG_HEADLINE))
     for d_asset in desc_assets:
         mutate_operations.append(create_asset_group_asset_op(client, ag_temp_id, d_asset, client.enums.AssetFieldTypeEnum.DESCRIPTION))
 
