@@ -4,6 +4,10 @@
 
 Public release highlights for OpenIntelligence.
 
+## 4.4
+
+Version 4.4 is a minor update that forces an App Store Connect build synchronization offset.
+
 ## 4.3.1
 
 Version 4.3.1 introduces crucial macOS UI layout updates and resolves deep system-level file-lock hangs during iCloud synchronization.

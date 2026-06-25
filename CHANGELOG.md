@@ -4,7 +4,11 @@
 
 This is the public version history for OpenIntelligence. It focuses on user-visible product changes and intentionally omits private engine tuning, thresholds, and internal implementation details.
 
-## 4.3.1 - Unreleased
+## 4.4 - Unreleased
+
+- **[Orchestration]** Incremented version number to force Xcode Cloud build offset.
+
+## 4.3.1 - June 2026
 
 - **[Orchestration]** Fixed MainActor deadlock in WorkspaceSyncService by offloading NSFileCoordinator read locks to detached background tasks, eliminating UI hangs during iCloud synchronizations.
 - **[Orchestration]** Offloaded synchronous file operations in TranscriptPersistenceService, ConversationMemoryService, and ContainerService to detached tasks to prevent MainActor deadlocks and guarantee UI fluidity.
