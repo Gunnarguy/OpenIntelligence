@@ -78,7 +78,7 @@ The entire RAG architecture operates on a strict **29-Step Pipeline** (6 Ingesti
 
 **3 Agentic Quality Modes**
 * **Standard:** Executes the 23-step query loop sequentially for maximum speed and battery life.
-* **Deep Think:** Actively loops the retrieval agent through 4-8 concurrent reasoning sessions until it hits 98% confidence.
+* **Deep Think:** Actively loops the retrieval agent through 4-10 concurrent reasoning sessions until it hits 98% confidence (scales dynamically based on device thermal state).
 * **Maximum:** Removes the 8-session ceiling, granting the orchestrator an unlimited budget to recursively hunt down answers up to 50 loops.
 
 **3 Foundation Model Routes**
