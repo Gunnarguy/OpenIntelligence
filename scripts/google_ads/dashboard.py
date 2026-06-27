@@ -277,7 +277,7 @@ css = f"""
     .indicator-red {{ background-color: {RED}; box-shadow: 0 0 8px {RED}; }}
 
     /* Streamlit Container overrides */
-    div[data-testid="stVerticalBlockBorderWrapper"] {
+    div[data-testid="stVerticalBlockBorderWrapper"] {{
         background: {CARD} !important;
         backdrop-filter: blur(12px) !important;
         -webkit-backdrop-filter: blur(12px) !important;
@@ -285,7 +285,7 @@ css = f"""
         border-radius: 12px !important;
         box-shadow: {SHADOW} !important;
         padding: 1.25rem !important;
-    }
+    }}
 
     /* Streamlit tabs override */
     button[data-baseweb="tab"] {{
