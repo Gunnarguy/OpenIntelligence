@@ -15,6 +15,8 @@ This directory contains the operational playbooks for autonomous agents (like Ge
 - **`03_CHANGE_IMPACT_DOC_UPDATE.md`**: The maintenance workflow for updating documentation after PR merges or code changes.
 - **`04_PR_GOVERNANCE_REVIEW.md`**: Pre-merge checklist and governance review constraints.
 - **`05_EVIDENCE_THREADS_IMPLEMENTATION_GUARDRAILS.md`**: Specific implementation constraints for the Evidence Threads feature.
+- **`06_PHASE_1A_IMPLEMENTATION_PLAN.md`**: Implementation plan for Evidence Threads Phase 1A.
+- **`07_TASK_ROUTER_AND_CHANGE_CONTROL.md`**: Task routing and preflight change impact verification.
 
 ## Phase Gates
 Agents must operate in discrete phases. At the end of a phase, the agent must present its work and halt. Do not proceed to the next phase without explicit user command (`NEXT PHASE: Phase X`).

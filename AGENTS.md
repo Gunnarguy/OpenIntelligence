@@ -14,4 +14,6 @@ This is the top-level universal instruction file for any autonomous agent operat
 8. **Never** present conceptual relationships as exact code linkages.
 9. **Always** include `evidence_level` and `confidence` for architecture/doc claims.
 10. **Stop** after the requested phase and wait for explicit verification and instructions before proceeding.
-11. **Phase 1A Implementation:** If performing Phase 1A Evidence Threads implementation, you must strictly follow `Docs/AgentPlaybooks/06_PHASE_1A_IMPLEMENTATION_PLAN.md`.
+11. **Task Routing:** Read `Docs/AgentPlaybooks/07_TASK_ROUTER_AND_CHANGE_CONTROL.md` before any implementation or roadmap update task.
+12. **Explicit Approval:** Agents must NOT auto-proceed from planning to implementation without explicit user approval.
+13. **Phase 1A Implementation:** If performing Phase 1A Evidence Threads implementation, you must strictly follow `Docs/AgentPlaybooks/06_PHASE_1A_IMPLEMENTATION_PLAN.md`.

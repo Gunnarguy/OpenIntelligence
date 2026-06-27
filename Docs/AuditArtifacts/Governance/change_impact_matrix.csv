@@ -1,0 +1,18 @@
+changed_path_glob,subsystem,risk_level,required_docs_to_read,docs_to_update_if_changed,tests_required,forbidden_without_approval,notion_update_required,evidence_level_required,confidence_required,verification_command,notes
+OpenIntelligence/Core/Models/**,Core Data Models,High,Architecture Atlas,Architecture Atlas,Yes,No,Yes,0.9,0.9,xcodebuild test,Core schema changes cascade everywhere.
+OpenIntelligence/Services/Storage/**,Local Storage,High,Architecture Atlas,Architecture Atlas,Yes,No,Yes,0.9,0.9,xcodebuild test,Data persistence changes risk data loss.
+OpenIntelligence/Services/Infrastructure/Storage/WorkspaceSyncService.swift,iCloud Sync,Critical,Architecture Atlas,Architecture Atlas,Yes,Yes,Yes,1.0,0.95,xcodebuild test,Highest risk of data corruption.
+OpenIntelligence/Services/Billing/**,Billing & StoreKit,Critical,Architecture Atlas,Architecture Atlas,Yes,Yes,Yes,1.0,0.95,xcodebuild test,App Store rejection risk.
+OpenIntelligence/Services/AIPlatform/**,AI Platform,High,Architecture Atlas,Architecture Atlas,Yes,No,Yes,0.9,0.9,xcodebuild test,Model integration routing.
+OpenIntelligence/Services/LLM/**,LLM Inference,High,Architecture Atlas,Architecture Atlas,Yes,No,Yes,0.9,0.9,xcodebuild test,Core text generation.
+OpenIntelligence/Services/RAG/**,RAG Pipeline,High,Architecture Atlas,Architecture Atlas,Yes,No,Yes,0.9,0.9,xcodebuild test,Retrieval augmented generation logic.
+OpenIntelligence/Features/Chat/**,Chat UI,Medium,Architecture Atlas,Architecture Atlas,Yes,No,No,0.8,0.8,xcodebuild test,User interface surface.
+OpenIntelligence/Features/**/AppIntents*,App Intents,Medium,Architecture Atlas,Architecture Atlas,Yes,Yes,No,0.8,0.8,xcodebuild test,Siri integration surface.
+OpenIntelligence/Services/VectorStore/**,Vector DB,High,Architecture Atlas,Architecture Atlas,Yes,Yes,Yes,0.9,0.9,xcodebuild test,Vector database schema.
+Docs/**,Documentation,Low,None,None,No,No,No,0.5,0.5,None,Documentation only.
+README.md,Documentation,Low,None,None,No,No,No,0.5,0.5,None,Documentation only.
+PRIVACY.md,Documentation,Low,None,None,No,No,No,0.5,0.5,None,Documentation only.
+HOW_IT_WORKS.md,Documentation,Low,None,None,No,No,No,0.5,0.5,None,Documentation only.
+StoreKit configs,Billing Configuration,Critical,None,None,No,Yes,Yes,1.0,0.95,None,Requires explicit approval.
+.xcodeproj/project.pbxproj,Xcode Project,Critical,None,None,Yes,Yes,No,1.0,0.95,xcodebuild,Build system changes.
+Entitlements files,App Entitlements,Critical,None,None,Yes,Yes,No,1.0,0.95,xcodebuild,Capabilities changes.
