@@ -14,35 +14,33 @@
 <p align="center">
    <a href="https://apps.apple.com/us/app/openintelligence/id6756559175"><img alt="Download OpenIntelligence on the App Store" src="https://img.shields.io/badge/App%20Store-Download-0D96F6?style=for-the-badge&logo=appstore&logoColor=white"></a>
    <a href="Docs/DEMO.md"><img alt="Read the OpenIntelligence demo guide" src="https://img.shields.io/badge/Demo-Guide-6E56CF?style=for-the-badge"></a>
-   <a href="Docs/ARCHITECTURE.md"><img alt="Read the OpenIntelligence architecture guide" src="https://img.shields.io/badge/Architecture-Read-111827?style=for-the-badge"></a>
+   <a href="Docs/OPENINTELLIGENCE_ARCHITECTURE_ATLAS.md"><img alt="Read the OpenIntelligence architecture guide" src="https://img.shields.io/badge/Architecture-Read-111827?style=for-the-badge"></a>
    <a href="https://gunzino.notion.site/OpenIntelligence-Public-Roadmap-e4446012bb8940e6b78a745aee688075"><img alt="View the OpenIntelligence public roadmap" src="https://img.shields.io/badge/Public-Roadmap-FF6B6B?style=for-the-badge&logo=notion&logoColor=white"></a>
 </p>
 
-OpenIntelligence is an exploratory, privacy-obsessed document query assistant built natively for Apple platforms. It proves that you can run production-grade document ingestion, vector indexing, lexical retrieval, and generative AI **entirely on device** without sacrificing privacy or relying on third-party cloud wrappers.
+OpenIntelligence is an exploratory, privacy-obsessed document query assistant built natively for Apple platforms. It demonstrates that production-grade document ingestion, vector indexing, lexical retrieval, and generative AI can run **entirely on device** without sacrificing privacy or relying on third-party cloud wrappers.
 
 ---
 
 ## 📚 Rigorous Engineering Documentation
 
-OpenIntelligence is backed by extensive, rigorous engineering documentation. If you want to understand how we achieved reliable, hallucination-resistant on-device RAG using Apple's 4K-token local context windows, start here:
+OpenIntelligence is backed by extensive, rigorous engineering documentation detailing how reliable, hallucination-resistant on-device RAG is achieved using Apple's 4K-token local context windows. Start here:
 
 ### Core Architecture & Systems
-* [**System Architecture**](Docs/ARCHITECTURE.md): The high-level view of the decoupled import-time and query-time pipelines.
-* [**Retrieval Pipeline (`RETRIEVAL_PIPELINE.md`)**](Docs/RETRIEVAL_PIPELINE.md): Deep dive into our hybrid search engine (BM25 + Core ML Vector) and Reciprocal Rank Fusion implementation.
-* [**Ingestion Pipeline (`INGESTION_PIPELINE.md`)**](Docs/INGESTION_PIPELINE.md): How we chunk documents, run local Vision OCR fallbacks, and structure semantic data.
-* [**Privacy & Routing (`PRIVACY_AND_ROUTING.md`)**](Docs/PRIVACY_AND_ROUTING.md): Our strict local-first data guarantees and routing protocols.
+* [**System Architecture**](Docs/OPENINTELLIGENCE_ARCHITECTURE_ATLAS.md): The high-level view of the decoupled import-time and query-time pipelines.
+* [**Retrieval Pipeline (`RETRIEVAL_PIPELINE.md`)**](Docs/RETRIEVAL_PIPELINE.md): Deep dive into the hybrid search engine (BM25 + Core ML Vector) and Reciprocal Rank Fusion implementation.
+* [**Ingestion Pipeline (`INGESTION_PIPELINE.md`)**](Docs/INGESTION_PIPELINE.md): How the system chunks documents, runs local Vision OCR fallbacks, and structures semantic data.
+* [**Privacy & Routing (`PRIVACY_AND_ROUTING.md`)**](Docs/PRIVACY_AND_ROUTING.md): Strict local-first data guarantees and routing protocols.
 
 ### Apple Intelligence Engineering Specs
-* [**Apple Foundation Models Specs**](Docs/Engineering/APPLE_MODELS.md): How we optimize for macOS/iOS 26.x and WWDC26 betas, managing 4K token budgets and `SystemLanguageModel` sessions.
+* [**Apple Foundation Models Specs**](Docs/Engineering/APPLE_MODELS.md): Optimization for macOS/iOS 26.x and WWDC26 betas, managing 4K token budgets and `SystemLanguageModel` sessions.
 * [**Apple Document Intelligence**](Docs/Engineering/APPLE_DOCUMENT_INTELLIGENCE.md): Detailed usage of Vision, PDFKit, and CoreText for semantic extraction.
 * [**Private Cloud Compute (PCC)**](Docs/Engineering/PRIVATE_CLOUD_COMPUTE.md): Documentation on Apple's PCC architecture constraints and secure enclave routing.
-* [**RAG Technical Specifications**](Docs/Engineering/RAG_TECHNICAL.md): Hard math behind our vector dimensions (384), semantic evidence overlap index (`0.70`), and confidence gates.
-* [**Storage & Pipeline Trace**](Docs/Engineering/STORAGE_AND_PIPELINE_TRACE.md): How SQLite FTS5 and BNNS-accelerated vectors run at the metal level.
 
 ### Audits & Constraints
-* [**Hard Limits**](Docs/Engineering/HARD_LIMITS.md): A transparent look at what the engine *can't* do and where memory bottlenecks occur.
+* [**Hard Limits**](Docs/Engineering/HARD_LIMITS.md): A transparent look at engine constraints and where memory bottlenecks occur.
 * [**Current State & Gaps**](Docs/CURRENT_STATE_AND_GAPS.md): Ongoing challenges with local LLM hallucination and pipeline latency.
-* [**Evaluation Framework**](Docs/EVALS.md): How we run local `scripts/run_rag_benchmarks.py` to continuously validate output quality.
+* [**Evaluation Framework**](Docs/EVALS.md): How local `scripts/run_rag_benchmarks.py` scripts are run to continuously validate output quality.
 
 ---
 

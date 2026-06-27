@@ -1,0 +1,7 @@
+source_file_or_component,impacted_docs,reason,update_required_when_changed,evidence_source,confidence,notes
+EngineSDKCompatibility.swift,Docs/Engineering/PRIVATE_CLOUD_COMPUTE.md;PRIVACY.md,Local PCC simulation fallback,yes,EngineSDKCompatibility.swift,exact,Any change to PCC routing requires privacy doc updates
+WorkspaceSyncService.swift,HOW_IT_WORKS.md,iCloud Drive ubiquity sync details,yes,WorkspaceSyncService.swift,exact,Sync changes affect HOW_IT_WORKS.md
+SQLiteFullTextService.swift,HOW_IT_WORKS.md,Shared SQLite tables vs isolated databases,yes,SQLiteFullTextService.swift,exact,Storage structure affects HOW_IT_WORKS.md
+EntitlementStore.swift,Docs/BILLING_AND_LIMITS.md,UserDefaults usage instead of Keychain,yes,EntitlementStore.swift,exact,Billing changes require limits doc updates
+EmbeddingService.swift,Docs/AppleIntelligenceTransitionPlan.md,Core AI embeddings toggle,yes,EmbeddingService.swift,exact,Changes to embedding engine affect transition plan
+Docs/OPENINTELLIGENCE_ARCHITECTURE_ATLAS.md,README.md,New canonical architecture document replaced old,yes,Docs/OPENINTELLIGENCE_ARCHITECTURE_ATLAS.md,exact,README must point to active architecture atlas

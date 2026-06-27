@@ -1,0 +1,3 @@
+file_path,type_or_function,product_or_tier,quota_or_gate,source_of_truth,risk_level,evidence_level,confidence,evidence_source,evidence_command_or_file,verification_notes
+EntitlementStore.swift,StoreKit Verifier,Pro Tier,Lifetime / Subs,StoreKit Receipt,High,code_verified,exact,EntitlementStore.swift,grep_search,Manages quotas and limits using UserDefaults not Keychain
+BillingProduct.swift,Product Enum,In-App Purchases,N/A,StoreKit,Medium,doc_claim_only,high,BILLING_AND_LIMITS.md,manual_analysis,Central registry of product identifiers

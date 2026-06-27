@@ -1,6 +1,4 @@
-> **Documentation status:** Verified for OpenIntelligence v4.1 on 2026-06-13.
-> **Source of truth:** Codebase audit in `Docs/AUDIT/`.
-> **Scope:** Describes shipped behavior unless explicitly labeled experimental, developer-only, or scaffolded.
+> **Documentation status:** [Archived]. This document is kept for historical evidence. Do not use as the source of truth for OpenIntelligence v4.3.
 
 # RAG Technical Specifications
 

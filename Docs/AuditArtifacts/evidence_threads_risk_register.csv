@@ -1,0 +1,21 @@
+Risk Name,Severity,Likelihood,Affected Components / Files,Mitigation Strategy
+data loss,Critical,High,RAGService.swift; ChatScreen.swift,Implement Design B (isolated thread files) to bypass the global 200-message container cap.
+accidental iCloud sync,Critical,High,WorkspaceSyncService.swift,Store thread files under LocalCache/ (e.g. LocalCache/EvidenceThreads) which is excluded from iCloud sweeps.
+sync loops,High,Medium,WorkspaceSyncService.swift; EvidenceThreadStore.swift,Implement local-only atomic write coordinatedWriteLocalOnlyData to avoid posting .localWorkspaceDidChange.
+malformed JSON,High,Low,EvidenceThreadStore.swift; ChatMessage.swift,Perform JSON write atomically (.atomic option) and wrap decoding in robust try-catch blocks with fallbacks.
+corrupted index,High,Low,EvidenceThreadStore.swift,Reconstruct index.json dynamically by scanning the thread folder and parsing thread file headers if index load fails.
+missing thread file,Medium,Low,EvidenceThreadStore.swift; ChatScreen.swift,Handle missing files gracefully by removing the thread from the index or showing a "Thread not found" placeholder.
+deleted source document,Medium,Medium,ChatMessage.swift; GroundedAnswerView.swift,Citations reference document UUIDs. Show "Document deleted" chip in source chip view if document metadata is missing.
+stale citations,Low,Medium,SourceChipsView.swift,Citations are saved as snapshots inside ChatMessage (retrievedChunks). Snippets remain readable even if source document is updated.
+large JSON files,Low,Low,EvidenceThreadStore.swift,Cap message history per thread to 100 messages and prune heavy fields (embeddings / pipelineTrace) before saving.
+message pruning,High,Low,RAGService.swift,Design B isolates thread files. Individual threads enforce their own caps rather than the unified container-level cap.
+UI state desync,Medium,Medium,ChatScreen.swift; EvidenceThreadStore.swift,Bind UI elements directly to `@Published` properties of centralized thread store and observe activeThreadId state.
+streaming-write overhead,Medium,High,EvidenceThreadStore.swift; LLMService.swift,Buffer disk writes during token streaming and write to disk only on sentence completions or when generation completes.
+app background save failure,High,Medium,EvidenceThreadStore.swift; AppDelegate.swift,Observe app backgrounding notifications and execute files writes synchronously inside a UIBackgroundTaskIdentifier block.
+Siri/PCC consent deadlock,High,High,RAGAppIntents.swift; RAGService.swift,App Intents must check if running in background and force local-only execution if PCC consent is .notDetermined.
+App Shortcut registration failure,High,Low,RAGAppIntents.swift,Do not register any App Shortcuts for Evidence Threads; keep them strictly in-app to comply with Apple's 10 shortcut limit.
+StoreKit regression,High,Low,EntitlementStore.swift; StoreKitBillingService.swift,Read effective tier limits in EntitlementStore without modifying StoreKit receipt validation or product configurations.
+privacy copy mismatch,Medium,Low,Docs/PRIVACY.md; App Store Copy,Ensure marketing copy aligns with local-first routing rules; do not claim "100% on-device inference".
+App Review risk,High,Low,EntitlementStore.swift,Ensure quota gating on threads does not block core app features for free tier; let App Review test with Sandbox accounts.
+build failure,Critical,Low,Package.swift; OpenIntelligence.xcodeproj,Do not modify Package.swift or Xcode project files; keep all files self-contained under Core/Models and Services/.
+test coverage gaps,Medium,Medium,OpenIntelligenceTests.swift,Write unit tests verifying isolated thread creation; index reconstruction; and container-isolation logic.

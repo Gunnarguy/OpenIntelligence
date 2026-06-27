@@ -1,8 +1,6 @@
 # Docs/ARCHITECTURE.md — OpenIntelligence v4.1
 
-> **Documentation status:** Verified for OpenIntelligence v4.1 on 2026-06-13.
-> **Source of truth:** Codebase audit in `Docs/AUDIT/`.
-> **Scope:** Describes shipped behavior unless explicitly labeled experimental, developer-only, or scaffolded.
+> **Documentation status:** [Superseded]. This document has been superseded by `Docs/OPENINTELLIGENCE_ARCHITECTURE_ATLAS.md`. Do not use as the source of truth for OpenIntelligence v4.3.
 
 OpenIntelligence is an Apple-native document intelligence application built around a SwiftUI app shell and a retrieval-oriented document engine.
 

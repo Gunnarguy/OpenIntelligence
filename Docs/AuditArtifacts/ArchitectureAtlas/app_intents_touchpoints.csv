@@ -1,0 +1,4 @@
+intent_name,file_path,registered_shortcut_yes_no,background_execution_yes_no,reads_state,writes_state,can_trigger_routing_or_pcc,risk_level,evidence_level,confidence,evidence_source,evidence_command_or_file,verification_notes
+QueryDocumentsIntent,RAGAppIntents.swift,Yes,Yes,Yes,No,Yes,High,code_verified,exact,RAGAppIntents.swift,grep_search,Can trigger PCC background deadlock in LLMService
+IngestDocumentIntent,ScreenAwarenessIntents.swift,No,Yes,No,Yes,No,Medium,code_verified,exact,ScreenAwarenessIntents.swift,grep_search,Background document ingestion
+IngestFromCameraIntent,VisualIntelligenceIntents.swift,No,No,No,Yes,No,Medium,code_verified,exact,VisualIntelligenceIntents.swift,grep_search,UI foreground camera capture

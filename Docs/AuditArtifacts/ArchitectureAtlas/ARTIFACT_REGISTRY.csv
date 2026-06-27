@@ -1,0 +1,66 @@
+artifact_path,phase_created,artifact_type,purpose,status,depends_on,should_future_agents_read,evidence_quality,notes
+Docs/AuditArtifacts/ArchitectureAtlas/repo_inventory.csv,Phase 1,CSV,List of all tracked repository files,accepted,None,Yes,high,Base ground truth for files
+Docs/AuditArtifacts/ArchitectureAtlas/document_inventory.csv,Phase 1,CSV,List of all documentation files,accepted,None,Yes,high,Base ground truth for docs
+Docs/AuditArtifacts/ArchitectureAtlas/config_inventory.csv,Phase 1,CSV,List of all configuration files,accepted,None,Yes,high,Base ground truth for configs
+Docs/AuditArtifacts/ArchitectureAtlas/phase_1_inventory_summary.md,Phase 1,Markdown,Summary of Phase 1,accepted,None,No,high,Summary artifact
+Docs/AuditArtifacts/ArchitectureAtlas/swift_entity_inventory.csv,Phase 2,CSV,List of Swift entities,accepted,repo_inventory.csv,Yes,high,Recovered via static analysis
+Docs/AuditArtifacts/ArchitectureAtlas/service_inventory.csv,Phase 2,CSV,List of services,accepted,repo_inventory.csv,Yes,high,Recovered via static analysis
+Docs/AuditArtifacts/ArchitectureAtlas/view_inventory.csv,Phase 2,CSV,List of views,accepted,repo_inventory.csv,Yes,high,Recovered via static analysis
+Docs/AuditArtifacts/ArchitectureAtlas/viewmodel_inventory.csv,Phase 2,CSV,List of viewmodels,accepted,repo_inventory.csv,Yes,high,Recovered via static analysis
+Docs/AuditArtifacts/ArchitectureAtlas/model_inventory.csv,Phase 2,CSV,List of models,accepted,repo_inventory.csv,Yes,high,Recovered via static analysis
+Docs/AuditArtifacts/ArchitectureAtlas/function_inventory.csv,Phase 2,CSV,List of functions,accepted,repo_inventory.csv,Yes,high,Recovered via static analysis
+Docs/AuditArtifacts/ArchitectureAtlas/phase_2_entity_summary.md,Phase 2,Markdown,Summary of Phase 2,accepted,None,No,high,Summary of recovery metrics
+Docs/AuditArtifacts/ArchitectureAtlas/component_inventory.csv,Phase 3,CSV,Mapping of files to subsystems,accepted,repo_inventory.csv,Yes,medium,Logical architecture mapping
+Docs/AuditArtifacts/ArchitectureAtlas/subsystem_map.md,Phase 3,Markdown,Hierarchical subsystem view,accepted,component_inventory.csv,Yes,medium,Visualizes architecture
+Docs/AuditArtifacts/ArchitectureAtlas/phase_3_component_summary.md,Phase 3,Markdown,Summary of Phase 3,accepted,None,No,medium,Summary artifact
+Docs/AuditArtifacts/ArchitectureAtlas/call_relationships.csv,Phase 4,CSV,Function and subsystem call map,accepted,component_inventory.csv,Yes,medium,Corrected from initial hallucinations
+Docs/AuditArtifacts/ArchitectureAtlas/notification_and_side_channel_map.csv,Phase 4,CSV,Map of async and state channels,accepted,component_inventory.csv,Yes,medium,Highlights hidden linkages
+Docs/AuditArtifacts/ArchitectureAtlas/phase_4_relationship_summary.md,Phase 4,Markdown,Summary of Phase 4,accepted,None,No,medium,Includes hallucination correction notes
+Docs/AuditArtifacts/ArchitectureAtlas/phase_4_recovery_and_integrity_check.md,Phase 4,Markdown,Integrity check,missing,None,No,unknown,Requires recovery
+Docs/AuditArtifacts/ArchitectureAtlas/data_flow_map.csv,Phase 5,CSV,Data object lifecycle flows,accepted,call_relationships.csv,Yes,high,Stabilized
+Docs/AuditArtifacts/ArchitectureAtlas/storage_touchpoints.csv,Phase 5,CSV,Disk read/write boundaries,accepted,call_relationships.csv,Yes,high,Stabilized
+Docs/AuditArtifacts/ArchitectureAtlas/sync_touchpoints.csv,Phase 5,CSV,Cloud sync boundaries,accepted,call_relationships.csv,Yes,high,Stabilized
+Docs/AuditArtifacts/ArchitectureAtlas/routing_touchpoints.csv,Phase 5,CSV,PCC and local execution routing,accepted,call_relationships.csv,Yes,high,Stabilized
+Docs/AuditArtifacts/ArchitectureAtlas/billing_touchpoints.csv,Phase 5,CSV,StoreKit quota boundaries,accepted,call_relationships.csv,Yes,high,Stabilized
+Docs/AuditArtifacts/ArchitectureAtlas/app_intents_touchpoints.csv,Phase 5,CSV,Siri shortcuts and intents,accepted,call_relationships.csv,Yes,high,Stabilized
+Docs/AuditArtifacts/ArchitectureAtlas/phase_5_flow_summary.md,Phase 5,Markdown,Summary of Phase 5,accepted,None,No,high,Stabilized
+Docs/AuditArtifacts/ArchitectureAtlas/documentation_cross_reference.csv,Phase 6,CSV,Maps components to doc deficiencies,accepted,repo_inventory.csv,Yes,high,Corrected post-6b review
+Docs/AuditArtifacts/ArchitectureAtlas/document_claim_matrix.csv,Phase 6,CSV,Maps document claims to code reality,accepted,repo_inventory.csv,Yes,high,Corrected post-6b review
+Docs/AuditArtifacts/ArchitectureAtlas/document_contradictions.csv,Phase 6,CSV,Logs specific documentation contradictions,accepted,repo_inventory.csv,Yes,high,Corrected post-6b review
+Docs/AuditArtifacts/ArchitectureAtlas/phase_6_docs_summary.md,Phase 6,Markdown,Summary of Phase 6 draft scan,accepted,None,No,medium,Draft summary
+Docs/AuditArtifacts/ArchitectureAtlas/phase_6a_flash_scan_notes.md,Phase 6,Markdown,Detailed scan notes from Phase 6A,accepted,None,No,medium,Contains draft reasoning
+Docs/AuditArtifacts/ArchitectureAtlas/phase_6b_pro_review.md,Phase 6,Markdown,Final verification and hallucination purge,accepted,None,No,high,Pro review summary
+Docs/AuditArtifacts/ArchitectureAtlas/phase_5_stabilization_report.md,Phase 5,Markdown,Summary of corrections made,accepted,None,No,high,Post-stabilization report
+Docs/AuditArtifacts/ArchitectureAtlas/evidence_threads_impact_map.csv,Phase 7,CSV,File constraint mapping for new feature,accepted,None,Yes,high,Guides Phase 1 implementation
+Docs/AuditArtifacts/ArchitectureAtlas/evidence_threads_design_decision.md,Phase 7,Markdown,Decision log for architecture,accepted,None,Yes,high,Explains Design B selection
+Docs/AuditArtifacts/ArchitectureAtlas/phase_7_evidence_threads_summary.md,Phase 7,Markdown,Phase 7 Summary,accepted,None,No,high,Summary artifact
+Docs/AuditArtifacts/ArchitectureAtlas/phase_2_recovery_notes.md,Phase 2,Markdown,Recovery process notes,accepted,None,No,high,Details on RAGService brace fix
+Docs/AuditArtifacts/ArchitectureAtlas/PHASE_3_TO_7_DELTA_REPAIR_REPORT.md,Phase 7,Markdown,Overall delta report,accepted,None,Yes,high,Delta repair outcome\nDocs/OPENINTELLIGENCE_ARCHITECTURE_ATLAS.md,Phase 8,Markdown,Canonical architecture map,accepted,None,Yes,high,Synthesized map
+Docs/CANONICAL_OPENINTELLIGENCE_SOURCE_OF_TRUTH.md,Phase 8,Markdown,Ground truth,accepted,None,Yes,high,Ground truth
+Docs/DOCUMENTATION_CONSISTENCY_AUDIT.md,Phase 8,Markdown,Documentation audit,accepted,None,Yes,high,Audit summary
+Docs/AuditArtifacts/ArchitectureAtlas/phase_8_final_summary.md,Phase 8,Markdown,Summary of Phase 8,accepted,None,No,high,Phase 8 summary
+Docs/AuditArtifacts/ArchitectureAtlas/future_agent_checklist.md,Phase 8,Markdown,Agent checklist,accepted,None,Yes,high,Checklist
+Docs/AgentPlaybooks/architecture-atlas-update.md,Phase 8,Markdown,Playbook,accepted,None,Yes,high,Playbook
+Docs/AgentPlaybooks/documentation-reconciliation.md,Phase 8,Markdown,Playbook,accepted,None,Yes,high,Playbook
+Docs/AgentPlaybooks/change-impact-docs-update.md,Phase 8,Markdown,Playbook,accepted,None,Yes,high,Playbook
+Docs/AgentPlaybooks/pr-review-docs-gate.md,Phase 8,Markdown,Playbook,accepted,None,Yes,high,Playbook
+Docs/AuditArtifacts/DocumentationGovernance/document_disposition_matrix.csv,Phase 9A,CSV,Matrix of classified repository docs,accepted,None,Yes,high,Active disposition matrix
+Docs/AuditArtifacts/DocumentationGovernance/phase_9a_disposition_summary.md,Phase 9A,Markdown,Summary of document dispositions,accepted,None,No,high,Active summary report
+Docs/AuditArtifacts/DocumentationGovernance/docs_updated_manifest.csv,Phase 9B Correction,CSV,Record of modified docs,accepted,None,Yes,high,Reconstructed from diffs
+Docs/AuditArtifacts/DocumentationGovernance/change_to_docs_map.csv,Phase 9B Correction,CSV,Map of codebase to docs,accepted,None,Yes,high,Reconstructed from diffs
+Docs/AuditArtifacts/DocumentationGovernance/phase_9b_docs_cleanup_summary.md,Phase 9B Correction,Markdown,Summary of doc updates,accepted,None,No,high,Reconstructed from diffs
+Docs/AuditArtifacts/DocumentationGovernance/phase_9a_pro_review.md,Phase 9B Correction,Markdown,Reconstruction note for missing review,accepted,None,No,high,Reconstruction note only
+Docs/AuditArtifacts/DocumentationGovernance/phase_9b_correction_report.md,Phase 9B Correction,Markdown,Report on premature review and fix,accepted,None,No,high,Details incident
+Docs/AuditArtifacts/DocumentationGovernance/phase_9b_pro_review.md,Phase 9B Review,Markdown,Review report for Phase 9B cleanup and corrections,accepted,None,No,high,Finalized Phase 9B Review
+Docs/AuditArtifacts/FinalReview/final_architecture_governance_review.md,Final Review,Markdown,Summary of final review,rejected,None,No,high,Historical NO-GO - superseded by future review
+Docs/AuditArtifacts/FinalReview/final_readiness_matrix.csv,Final Review,CSV,Matrix of implementation readiness,rejected,None,No,high,Historical NO-GO - superseded by future review
+Docs/AuditArtifacts/FinalReview/final_unresolved_risks.csv,Final Review,CSV,List of final risks,rejected,None,No,high,Historical NO-GO - superseded by future review
+Docs/AuditArtifacts/FinalReview/final_implementation_gate.md,Final Review,Markdown,Implementation gate,rejected,None,No,high,Historical NO-GO - superseded by future review
+Docs/AuditArtifacts/FinalReview/final_artifact_retention_matrix.csv,Final Review,CSV,Artifact retention map,accepted,None,Yes,high,Final gate
+Docs/AuditArtifacts/FinalReview/final_canonical_file_index.md,Final Review,Markdown,Canonical file index,accepted,None,Yes,high,Final gate
+Docs/AuditArtifacts/FinalReview/final_next_steps.md,Final Review,Markdown,Next user actions,accepted,None,Yes,high,Final gate
+Docs/AuditArtifacts/FinalReview/final_review_commands_used.md,Final Review,Markdown,Commands used during review,accepted,None,No,high,Final gate
+Docs/AuditArtifacts/FinalReview/final_architecture_governance_review.md,Final Review,Markdown,Summary of final review,accepted,None,Yes,high,Final gate
+Docs/AuditArtifacts/FinalReview/final_readiness_matrix.csv,Final Review,CSV,Matrix of implementation readiness,accepted,None,Yes,high,Final gate
+Docs/AuditArtifacts/FinalReview/final_unresolved_risks.csv,Final Review,CSV,List of final risks,accepted,None,Yes,high,Final gate
+Docs/AuditArtifacts/FinalReview/final_implementation_gate.md,Final Review,Markdown,Implementation gate,accepted,None,Yes,high,Final gate

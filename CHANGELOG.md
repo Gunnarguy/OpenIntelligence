@@ -96,7 +96,6 @@ OpenIntelligence version 4.0 & 4.1 is a milestone upgrade that integrates Apple 
 
 ## 3.6 - May 2026
 
-- Shoutout to Tim for asking for this.
 - Added per-library storage choice so every library can be Local Only or iCloud Drive independently
 - Kept the app local-first by default, with only iCloud-marked libraries entering the shared iCloud workspace
 - Added cross-device reuse for iCloud libraries so imported files and processed library state can show up on the user's other Apple devices

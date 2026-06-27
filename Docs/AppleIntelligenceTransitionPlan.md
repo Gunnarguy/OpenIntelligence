@@ -1,4 +1,4 @@
-> **Documentation status:** Historical reference. This document may describe earlier implementation plans or deprecated architecture. Do not use as the source of truth for OpenIntelligence v4.1.
+> **Documentation status:** [Planned] / [Experimental]. This document outlines future technical blueprints for WWDC26 Apple Intelligence integration. Do not use as the source of truth for OpenIntelligence v4.1.
 
 # Apple Intelligence & Foundation Models Transition Plan (WWDC26 Master Blueprint)
 
@@ -10,7 +10,7 @@ This document provides a comprehensive technical blueprint, performance roadmap,
 
 OpenIntelligence is built as a local-first RAG engine containing advanced retrieval-plane optimizations (e.g., hybrid vector + BM25 search, MMR, parent document expansion, and spec table keyword-sniper extraction). However, the current orchestration layer (`RAGService` and `LLMService`) is monolithic and relies on ad-hoc session-recreation heuristics.
 
-By moving to the WWDC26 **Foundation Models** and **Core AI** APIs, we can restructure OpenIntelligence into a modular, native agent runtime. We will strangle the legacy mega-orchestrators gradually, preserving high-performing direct extraction paths while letting Apple's native APIs manage context windows, stateful sessions, tool execution, and dynamic model profiling.
+By moving to the WWDC26 **Foundation Models** and **Core AI** APIs, OpenIntelligence can be restructured into a modular, native agent runtime. The legacy mega-orchestrators will be strangled gradually, preserving high-performing direct extraction paths while letting Apple's native APIs manage context windows, stateful sessions, tool execution, and dynamic model profiling.
 
 This transition enables:
 *   **A 40%+ reduction in embedding and re-ranking latency** on device.
@@ -22,7 +22,7 @@ This transition enables:
 
 ## 2. WWDC25 vs. WWDC26 Integration Matrix
 
-The following table summarizes our current transition status, mapping the legacy implementations to WWDC26 technologies:
+The following table summarizes the current transition status, mapping the legacy implementations to WWDC26 technologies:
 
 | Integration Area | WWDC25 (Legacy Architecture) | WWDC26 (Current Branch Status) | Future Backlog Target | % Covered Now |
 | :--- | :--- | :--- | :--- | :--- |
@@ -90,7 +90,7 @@ With the deprecation of SiriKit, Apple Intelligence relies entirely on the **App
     *   Add undo functionality for intents that modify state, such as `AddDocumentIntent` or `DeleteDocumentIntent`.
 
 ### 4.2. Dynamic Island & Live Activities (Reasoning State UI)
-Dynamic Island and Live Activities now support Buttons and Toggles providing immediate visual feedback. We will introduce a reasoning Live Activity to provide real-time updates for long-running RAG queries.
+Dynamic Island and Live Activities now support Buttons and Toggles providing immediate visual feedback. A reasoning Live Activity will be introduced to provide real-time updates for long-running RAG queries.
 *   **Ingestion Live Activity Visual Upgrades**:
     *   Expand `IngestionLiveActivityWidget` to support interactive buttons and toggles (e.g., pausing/resuming an active document import directly from the Lock Screen).
 *   **RAG Reasoning Live Activity (`RAGQueryReasoningLiveActivity`)**:
@@ -100,10 +100,10 @@ Dynamic Island and Live Activities now support Buttons and Toggles providing imm
         *   *Leading*: Displays the active query.
         *   *Trailing*: Telemetry stats like tokens generated, elapsed time, and confidence score.
         *   *Bottom*: Displays the active step in the pipeline (e.g., `"🔍 Searching vector space..."` -> `"🧠 Synthesizing patterns..."` -> `"⚖️ Running verification gates..."`).
-    *   **Lock Screen View**: Displays a complete visual checklist of the pipeline. Since WWDC26 supports interactive buttons/toggles, we can add a native **"Cancel Query"** or **"Pause"** button that talks directly to the running `RAGService` task via `LiveActivityIntent`.
+    *   **Lock Screen View**: Displays a complete visual checklist of the pipeline. Since WWDC26 supports interactive buttons/toggles, a native **"Cancel Query"** or **"Pause"** button can be added that talks directly to the running `RAGService` task via `LiveActivityIntent`.
 
 ### 4.3. Background Processing & Prewarming Boundaries
-Active execution of large local foundation models on the Apple Neural Engine is suspended by iOS when the app enters the background to conserve power. Full-scale background RAG queries cannot run indefinitely. We must restrict background tasks to short-lived prewarming or silent data maintenance.
+Active execution of large local foundation models on the Apple Neural Engine is suspended by iOS when the app enters the background to conserve power. Full-scale background RAG queries cannot run indefinitely. Background tasks must be restricted to short-lived prewarming or silent data maintenance.
 *   **BGTaskScheduler Silent Index Maintenance**:
     *   Register a `BGProcessingTask` to perform silent RAG optimizations when the device is charging and idle (vector index compaction, SQLite database vacuuming, FTS5 optimization, and incremental Core Spotlight semantic re-indexing).
 *   **Transient background task extensions (`beginBackgroundTask`)**:
@@ -115,7 +115,7 @@ Active execution of large local foundation models on the Apple Neural Engine is 
 
 ## 5. Targeted Code Base Refactoring Plan
 
-We will decompose the monolithic components into focused, domain-specific services under `OpenIntelligence/Services/AIPlatform/` and `OpenIntelligence/Services/RAGPipeline/`.
+The monolithic components will be decomposed into focused, domain-specific services under `OpenIntelligence/Services/AIPlatform/` and `OpenIntelligence/Services/RAGPipeline/`.
 
 ```
 OpenIntelligence/Services/AIPlatform/
@@ -140,7 +140,7 @@ OpenIntelligence/Services/AIPlatform/
 
 ## 6. Complete Implementation Roadmap
 
-To implement these changes safely without breaking current runtime behaviors, we divide the roadmap into immediate backward-compatible work (v4.0) and future adoptive features requiring iOS 27.0 APIs (v4.1+).
+To implement these changes safely without breaking current runtime behaviors, the roadmap is divided into immediate backward-compatible work (v4.0) and future adoptive features requiring iOS 27.0 APIs (v4.1+).
 
 ### Phase 1: v4.0 Release (Immediate / Safe & Backward-Compatible)
 *These items have been completed and verified on the current transition branch:*
@@ -173,7 +173,7 @@ To implement these changes safely without breaking current runtime behaviors, we
 
 ## 7. Hard Operational & Performance Constraints
 
-We must enforce these guidelines during the transition:
+These guidelines must be enforced during the transition:
 
 1.  **Preserve Precision Extraction Paths**: Never route exact-value, numeric lookup, dosage, legal statute, or specification questions directly to free-form LLM generation when exact keyword/regex evidence is resolved.
 2.  **Tool-calling Limits**: Avoid attaching more than **5 active tools** to a `LanguageModelSession` simultaneously to prevent context contamination and performance degradation.

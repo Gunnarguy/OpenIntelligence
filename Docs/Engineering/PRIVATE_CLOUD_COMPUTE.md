@@ -1,4 +1,5 @@
-> **Documentation status:** Historical reference. This document may describe earlier implementation plans or deprecated architecture. Do not use as the source of truth for OpenIntelligence v4.1.
+> **Documentation status:** Verified for OpenIntelligence v4.3 on 2026-06-20.
+> **Source of truth:** Codebase audit in `Docs/AUDIT/`.
 
 # Private Cloud Compute (PCC) Security Architecture Reference
 
@@ -52,6 +53,9 @@ PCC node
 ## What This Means for OpenIntelligence
 
 OpenIntelligence leverages Apple's public Foundation Models framework. The app supports dynamic route selection policies, routing standard/offline queries to `SystemLanguageModel.default` and reasoning-heavy or context-overflow queries to `PrivateCloudComputeLanguageModel`.
+
+> [!WARNING]
+> While the model routing policy maps routes to remote Private Cloud Compute, remote enclave execution is not compiled in or active in the current codebase. All elevated PCC routes are resolved locally using a simulated compatibility wrapper (`EngineSDKCompatibility.swift`).
 
 The safe implementation assumptions are:
 

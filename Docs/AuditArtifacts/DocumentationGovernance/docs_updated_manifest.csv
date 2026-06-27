@@ -1,0 +1,15 @@
+path,update_type,stale_claim_fixed,replacement_summary,reason,source_evidence,linked_canonical_decision,evidence_level,confidence,verification_notes
+CHANGELOG.md,style_correction,yes,Removed informal 'Shoutout' comment,CON15 style violation,CHANGELOG.md,None,doc_claim_only,exact,Verified diff removes subjective text
+Docs/ARCHITECTURE.md,style_correction,yes,Replaced 'I designed' with 'The codebase is designed',CON07 style violation,Docs/ARCHITECTURE.md,None,doc_claim_only,exact,Verified diff removes first-person pronoun
+Docs/AppleIntelligenceTransitionPlan.md,claim_correction,yes,Added note that Core AI embeddings are disabled,Clarify embedding status,EmbeddingService.swift,None,code_verified,exact,Verified diff clarifies disabled Core AI feature
+Docs/BILLING_AND_LIMITS.md,claim_correction,yes,Fixed Keychain claim to UserDefaults and removed pronouns,CON12 CON13 and Keychain contradiction,EntitlementStore.swift,None,code_verified,exact,Verified diff removes pronouns and clarifies UserDefaults
+Docs/Engineering/PRIVATE_CLOUD_COMPUTE.md,claim_correction,yes,Added local simulation disclaimer,PCC contradiction,EngineSDKCompatibility.swift,None,code_verified,exact,Verified diff states PCC is simulated locally
+Docs/Engineering/RAG_TECHNICAL.md,header_update,no,Updated version header,Routine update,Docs/Engineering/RAG_TECHNICAL.md,None,doc_claim_only,exact,Verified header update
+Docs/Engineering/STORAGE_AND_PIPELINE_TRACE.md,header_update,no,Updated version header,Routine update,Docs/Engineering/STORAGE_AND_PIPELINE_TRACE.md,None,doc_claim_only,exact,Verified header update
+Docs/INGESTION_PIPELINE.md,style_correction,yes,Removed 'I use',CON14 style violation,Docs/INGESTION_PIPELINE.md,None,doc_claim_only,exact,Verified diff removes pronoun
+Docs/PRIVACY_AND_ROUTING.md,style_correction,yes,Removed 'I built' and 'I built local user consent',CON08 style violation,Docs/PRIVACY_AND_ROUTING.md,None,doc_claim_only,exact,Verified diff removes pronouns
+Docs/RETRIEVAL_PIPELINE.md,style_correction,yes,Removed 'I built' and 'I included',CON09 CON10 CON11 style violation,Docs/RETRIEVAL_PIPELINE.md,None,doc_claim_only,exact,Verified diff removes pronouns
+Docs/ROADMAP.md,header_update,no,Updated version header,Routine update,Docs/ROADMAP.md,None,doc_claim_only,exact,Verified header update
+HOW_IT_WORKS.md,claim_correction,yes,Clarified shared SQLite table and iCloud Drive sync,CON01 CON02 contradictions,WorkspaceSyncService.swift,None,code_verified,exact,Verified diff clarifies shared SQLite and iCloud sync
+PRIVACY.md,claim_correction,yes,Added local simulation disclaimer,PCC contradiction,EngineSDKCompatibility.swift,None,code_verified,exact,Verified diff states PCC is simulated locally
+README.md,claim_correction,yes,Updated Architecture link and removed pronouns,Superseded architecture doc and style rules,README.md,Docs/OPENINTELLIGENCE_ARCHITECTURE_ATLAS.md,doc_claim_only,exact,Verified diff updates architecture link and fixes pronouns

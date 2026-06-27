@@ -14,7 +14,7 @@ Import documents -> Prepare them locally -> Search the right evidence -> Generat
 
 ## 1. Import
 
-OpenIntelligence accepts common document, text, image, and media formats from the iPhone file system and supported Apple share surfaces. The app organizes content into user-owned libraries so work stays scoped and manageable. Each library can stay Local Only or be marked iCloud Drive, so shared libraries can move across the user's Apple devices without forcing everything into one global cloud mode.
+OpenIntelligence accepts common document, text, image, and media formats from the iPhone file system and supported Apple share surfaces. Content is organized into user-owned libraries using a shared SQLite database with `container_id` isolation, ensuring work stays scoped and manageable. Libraries can remain Local Only or sync across Apple devices via iCloud Drive ubiquity sync (`WorkspaceSyncService`), avoiding a forced global cloud mode.
 
 ## 2. Prepare
 

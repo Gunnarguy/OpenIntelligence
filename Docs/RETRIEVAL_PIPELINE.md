@@ -1,13 +1,13 @@
 # Docs/RETRIEVAL_PIPELINE.md — OpenIntelligence v4.1
 
-> **Documentation status:** Verified for OpenIntelligence v4.1 on 2026-06-13.
+> **Documentation status:** Verified for OpenIntelligence v4.3 on 2026-06-20.
 > **Source of truth:** Codebase audit in `Docs/AUDIT/`.
 > **Scope:** Describes shipped behavior unless explicitly labeled experimental, developer-only, or scaffolded.
 
 ---
 
 ## 1. Overview
-The retrieval pipeline is the core engineering idea in OpenIntelligence: answers are grounded in user-provided material and expose the exact evidence that influenced them. I built this app to bias responses toward groundedness, showing uncertainty when evidence is weak rather than inventing confident prose.
+The retrieval pipeline is the core engineering idea in OpenIntelligence: answers are grounded in user-provided material and expose the exact evidence that influenced them. The app is built to bias responses toward groundedness, showing uncertainty when evidence is weak rather than inventing confident prose.
 
 ---
 
@@ -52,9 +52,9 @@ flowchart TD
 ---
 
 ## 4. Library Isolation
-Library and workspace boundaries are critical because retrieval quality depends on scope. I designed the app so that a query is answered strictly against the user-selected document container rather than all files indiscriminately, preventing cross-container leakage.
+Library and workspace boundaries are critical because retrieval quality depends on scope. The app is designed so that a query is answered strictly against the user-selected document container rather than all files indiscriminately, preventing cross-container leakage.
 
 ---
 
 ## 5. Diagnostics & Telemetry
-I included diagnostic and telemetry surfaces for inspecting chunks, retrieval quality, answer details, and pipeline behavior. These are engineering tools for iteration and must not be interpreted as validation for regulated or safety-critical workflows.
+Diagnostic and telemetry surfaces are included for inspecting chunks, retrieval quality, answer details, and pipeline behavior. These are engineering tools for iteration and must not be interpreted as validation for regulated or safety-critical workflows.

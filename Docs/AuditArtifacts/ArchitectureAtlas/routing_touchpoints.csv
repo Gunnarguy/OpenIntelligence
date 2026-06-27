@@ -1,0 +1,4 @@
+file_path,type_or_function,route_type,token_limit_or_budget,consent_required,fallback_behavior,app_intent_reachable,risk_level,evidence_level,confidence,evidence_source,evidence_command_or_file,verification_notes
+FoundationModelRoutePolicy.swift,Route Evaluator,Local / PCC,4096 / 8192 (PCC),No,Fallback to local,Yes,Medium,code_verified,exact,FoundationModelRoutePolicy.swift,grep_search,Determines route but does not handle consent dialogs
+PCCRouteEvaluator.swift,PCC Fallback,PCC,8192,Yes,Local Execution,Yes,High,code_verified,exact,PCCRouteEvaluator.swift,grep_search,Evaluates fallback if PCC fails
+LLMService.swift,PCC Consent,PCC,N/A,Yes,System Dialog,Yes,High,code_verified,exact,LLMService.swift,grep_search,Catches consent errors and triggers system dialogs

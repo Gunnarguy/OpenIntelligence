@@ -1,0 +1,19 @@
+risk_id,risk_or_question,category,severity,current_status,must_resolve_before_phase,evidence_needed,likely_files_to_inspect,notes
+R01,Phase 5 stabilization required,Audit Quality,Critical,Open,Phase 6,grep_verified,Phase 5 CSVs,Must resolve before proceeding
+R02,CloudKit vs iCloud ubiquity sync terminology,Sync,High,Open,Phase 6,code_verified,WorkspaceSyncService.swift,Needs explicit sync engine identification
+R03,SQLite/FTS sync behavior,Sync,High,Open,Phase 6,code_verified,SQLiteFullTextService.swift,"Are SQLite files synced, or just rebuilt from CloudKit?"
+R04,ImportedDocuments sync behavior,Sync,High,Open,Phase 6,code_verified,WorkspaceSyncService.swift,Are physical files synced or excluded?
+R05,Vector sync behavior,Sync,High,Open,Phase 6,code_verified,BNNSVectorDatabase.swift,"Are dense vectors synced, rebuilt, or local-only?"
+R06,PCC consent suspension exact file/symbol,Routing,High,Open,Phase 6,code_verified,FoundationModelRoutePolicy.swift,Where exactly does the deadlock occur?
+R07,App Intent PCC risk,Routing,Medium,Open,Phase 6,code_verified,RAGAppIntents.swift,Can Siri intents trigger the PCC deadlock?
+R08,Keychain/StoreKit recovery path,Billing,Medium,Open,Phase 6,code_verified,EntitlementStore.swift,What is the exact fallback if Keychain validation fails?
+R09,BNNS memory mapping claim,Storage,Medium,Open,Phase 6,code_verified,BNNSVectorDatabase.swift,Verify the exact mmap logic used
+R10,Docs overgeneralization risk,Documentation,Medium,Open,Phase 6,N/A,All docs,Avoid removing technical specificity during doc reconciliation
+R11,Evidence Threads storage path risk,Architecture,High,Open,Implementation,artifact_derived,Architecture Atlas,Where should Evidence Threads be safely persisted?
+R12,No destructive migration risk,Architecture,High,Open,Implementation,N/A,Database files,Schema migrations must not wipe user data
+R13,Missing Phase 2 Foundation,Audit Quality,Critical,Resolved,Phase 8,artifact_derived,Phase 2 CSVs,Phase 2 entity inventories successfully recovered. Needs user review.
+R14,Missing Phase 4 Integrity Check,Audit Quality,High,Resolved,Phase 8,artifact_derived,Phase 4 Summary,Resolved by Phase 3-7 Consolidated Delta Repair.
+R15,Downstream Phase Delta Repair,Audit Quality,High,Resolved,Phase 8,artifact_derived,Downstream CSVs,Resolved by Phase 3-7 Consolidated Delta Repair.
+R16,Missing Phase 9B tracking artifacts,Governance,Critical,Resolved,Phase 9B Review,artifact_derived,Phase 9B artifacts,Reconstructed from diffs during Phase 9B Correction
+R17,Premature final review artifacts treated as gate,Governance,High,Resolved,Final Review,artifact_derived,Final Review artifacts,Premature artifacts marked as historical NO-GO
+R18,Final documentation consistency prior to implementation,Governance,High,Resolved,Final Review,artifact_derived,All tracked documentation,Verify comprehensive documentation safety before greenlighting Phase 1 Implementation.

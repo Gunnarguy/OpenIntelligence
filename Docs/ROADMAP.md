@@ -1,6 +1,6 @@
 # Docs/ROADMAP.md — OpenIntelligence v4.1
 
-> **Documentation status:** Verified for OpenIntelligence v4.1 on 2026-06-13.
+> **Documentation status:** Verified for OpenIntelligence v4.3 on 2026-06-20.
 > **Source of truth:** Codebase audit in `Docs/AUDIT/`.
 > **Scope:** Describes future technical directions for the prototype. It is not a product commitment.
 

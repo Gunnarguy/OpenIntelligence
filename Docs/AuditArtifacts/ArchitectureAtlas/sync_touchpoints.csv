@@ -1,0 +1,3 @@
+file_path,type_or_function,sync_behavior,local_path,remote_path,included_or_excluded,conflict_strategy,risk_level,evidence_level,confidence,evidence_source,evidence_command_or_file,verification_notes
+WorkspaceSyncService.swift,iCloud Ubiquity,Bidirectional,Local Vector/JSON,iCloud Drive,Included,Merge vector chunks,High,code_verified,exact,WorkspaceSyncService.swift,grep_search,Syncs persistentJSON vector chunks and metadata
+ImportedDocuments,Raw Files,Conditionally Excluded,Local Storage,Shared ImportedDocuments,Unknown,N/A,Low,code_verified,exact,WorkspaceSyncService.swift,grep_search,Upgraded to exact/code_verified via Phase 2 Recovery delta repair.

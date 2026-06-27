@@ -1,6 +1,6 @@
 # Docs/INGESTION_PIPELINE.md — OpenIntelligence v4.1
 
-> **Documentation status:** Verified for OpenIntelligence v4.1 on 2026-06-13.
+> **Documentation status:** Verified for OpenIntelligence v4.3 on 2026-06-20.
 > **Source of truth:** Codebase audit in `Docs/AUDIT/`.
 > **Scope:** Describes shipped behavior unless explicitly labeled experimental, developer-only, or scaffolded.
 
@@ -33,7 +33,7 @@ flowchart TD
 ## 2. Text Extraction Lanes
 
 ### PDF Ingestion
-- **Standard Lane:** Uses PDFKit to extract the native text layer if available. I use [StructuredDocumentParser.swift](file:///Users/gunnarhostetler/Documents/GitHub/OpenIntelligence-Public/OpenIntelligence/Services/Document/Processing/StructuredDocumentParser.swift) to resolve structures like tables, lists, and headings.
+- **Standard Lane:** Uses PDFKit to extract the native text layer if available. [StructuredDocumentParser.swift](file:///Users/gunnarhostetler/Documents/GitHub/OpenIntelligence-Public/OpenIntelligence/Services/Document/Processing/StructuredDocumentParser.swift) is used to resolve structures like tables, lists, and headings.
 - **OCR Fallback Lane:** If the native text layer is missing or malformed, the pipeline invokes [LayoutAwareExtractor.swift](file:///Users/gunnarhostetler/Documents/GitHub/OpenIntelligence-Public/OpenIntelligence/Services/Document/Processing/LayoutAwareExtractor.swift) to render pages as images and run local Apple Vision OCR, restoring page layout anchors.
 
 ### Text & Markdown Ingestion

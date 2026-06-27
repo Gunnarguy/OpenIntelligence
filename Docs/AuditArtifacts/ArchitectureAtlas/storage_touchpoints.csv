@@ -1,0 +1,8 @@
+file_path,type_or_function,storage_kind,read_or_write,storage_location,data_stored,atomicity,sync_behavior,risk_level,evidence_level,confidence,evidence_source,evidence_command_or_file,verification_notes
+Application Support,FileManager,Directory,Read/Write,Local,"Databases, Models, Indices",None,N/A,Low,code_verified,exact,OpenIntelligenceRuntimePaths.swift,grep_search,Base directory for most persistent data
+ImportedDocuments,ContainerManager,Directory,Write,Local,Raw imported files,File level,Sync ignored,Low,code_verified,exact,KnowledgeContainer.swift,grep_search,Subdirectory of baseDir
+TemporaryDirectory,FileManager,Directory,Read/Write,Local,"Export traces, Temp audio",None,N/A,Low,code_verified,exact,PipelineTraceExporter.swift,grep_search,Volatile temp files
+SQLiteFullTextService.swift,FTS5,Database,Read/Write,Local,"Text blocks, metadata",Transaction,Local Only,Medium,code_verified,exact,SQLiteFullTextService.swift,grep_search,Primary relational store; not synced via ubiquity
+BNNSVectorDatabase.swift,Vector,Memory Mapped,Read/Write,Local,Vector embeddings,Block,Unknown,High,code_verified,exact,BNNSVectorDatabase.swift,grep_search,"Vector memory map, OOM risk"
+KeychainStorage.swift,Keychain,Secure Store,Read/Write,Secure Enclave,API Keys / Tokens,Item,Local Only,High,code_verified,exact,KeychainStorage.swift,grep_search,Uses kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
+UserDefaults,AppStorage,Preferences,Read/Write,Local,"Settings, Flags",Item,N/A,Low,code_verified,exact,CloudConsentPromptView.swift,grep_search,Heavily utilized for state persistence
