@@ -1135,7 +1135,7 @@ elif workspace == "Google Ads Deep-Dive":
             st.markdown(geo_table, unsafe_allow_html=True)
 
 # ----------------- WORKSPACE 3: TRAFFIC & TECH -----------------
-elif workspace == "GA4 Traffic & Technology":
+elif workspace == "GA4 Traffic & Tech":
     st.markdown("<h2>Technology & Journey Diagnostics</h2>", unsafe_allow_html=True)
     st.markdown("Telemetry profiles focusing on visitor device stacks, page layouts, and referral pathways.")
     
