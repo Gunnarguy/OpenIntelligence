@@ -1,3 +1,4 @@
+import textwrap
 import os
 import sys
 import pandas as pd
@@ -310,13 +311,13 @@ def metric_card(label, value, delta=None, delta_type="up"):
     cls = f"delta-{delta_type}"
     arrow = "↑" if delta_type == "up" else ("↓" if delta_type == "down" else "→")
     delta_html = f'<div class="metric-delta {cls}">{arrow} {delta}</div>' if delta else ""
-    st.markdown(f"""
+    st.markdown(textwrap.dedent(f"""
     <div class="metric-card">
         <div class="metric-label">{label}</div>
         <div class="metric-value">{value}</div>
         {delta_html}
     </div>
-    """, unsafe_allow_html=True)
+    """), unsafe_allow_html=True)
 
 # Plotly styling utility
 def style_plotly_chart(fig):
@@ -340,7 +341,7 @@ def style_plotly_chart(fig):
 
 # ----------------- SIDEBAR WORKSPACE NAVIGATION -----------------
 with st.sidebar:
-    st.markdown(f"""
+    st.markdown(textwrap.dedent(f"""
     <div class="sidebar-logo">
         <div class="logo-mark">◆</div>
         <div>
@@ -348,7 +349,7 @@ with st.sidebar:
             <div style="font-size: 0.68rem; color: {TEXT_MUTED};">Analytics Hub</div>
         </div>
     </div>
-    """, unsafe_allow_html=True)
+    """), unsafe_allow_html=True)
 
     st.markdown("### Select Workspace")
     workspace = st.selectbox(
@@ -361,12 +362,12 @@ with st.sidebar:
     theme_label = "☀️ Light Interface" if IS_DARK else "🌙 Dark Interface"
     st.button(theme_label, on_click=toggle_theme, use_container_width=True)
     
-    st.markdown(f"""
+    st.markdown(textwrap.dedent(f"""
     <div style="margin-top: 2rem; padding: 0.75rem; background: {CARD}; border: 1px solid {BORDER}; border-radius: 8px;">
         <span class="indicator indicator-green"></span>
         <span style="font-size: 0.75rem; color: {TEXT_MUTED}; font-weight: 500;">API Gateway Connected</span>
     </div>
-    """, unsafe_allow_html=True)
+    """), unsafe_allow_html=True)
 
 # ----------------- DATA INGESTION & CAPTURE LAYERS -----------------
 
@@ -808,11 +809,11 @@ if workspace == "Google Ads & GA4 Overview":
     chart_col1, chart_col2 = st.columns([6, 4])
     
     with chart_col1:
-        st.markdown("""
+        st.markdown(textwrap.dedent("""
         <div class="panel-wrap">
             <div class="panel-title">Combined Audience & Traffic Trends</div>
             <div class="panel-subtitle">Dual-axis telemetry tracking pageviews vs active sessions (GA4)</div>
-        """, unsafe_allow_html=True)
+        """), unsafe_allow_html=True)
         
         fig = go.Figure()
         fig.add_trace(go.Scatter(
@@ -829,11 +830,11 @@ if workspace == "Google Ads & GA4 Overview":
         st.markdown("</div>", unsafe_allow_html=True)
         
     with chart_col2:
-        st.markdown("""
+        st.markdown(textwrap.dedent("""
         <div class="panel-wrap">
             <div class="panel-title">Primary Referral Acquisition</div>
             <div class="panel-subtitle">Top channels driving visits to Fascinaiting</div>
-        """, unsafe_allow_html=True)
+        """), unsafe_allow_html=True)
         
         source_labels = journey_df["source_medium"].head(5).tolist()
         source_values = journey_df["sessions"].head(5).tolist()
@@ -846,11 +847,11 @@ if workspace == "Google Ads & GA4 Overview":
         st.markdown("</div>", unsafe_allow_html=True)
 
     # 3. Campaign Performance Table
-    st.markdown("""
+    st.markdown(textwrap.dedent("""
     <div class="panel-wrap">
         <div class="panel-title">Active Google Ads Campaigns</div>
         <div class="panel-subtitle">Current status and budget efficiency ratings</div>
-    """, unsafe_allow_html=True)
+    """), unsafe_allow_html=True)
     
     if isinstance(ads_df, pd.DataFrame):
         rows = ""
@@ -891,7 +892,7 @@ if workspace == "Google Ads & GA4 Overview":
             <tbody>{rows}</tbody>
         </table>
         """
-        st.markdown(table_html, unsafe_allow_html=True)
+        st.markdown(textwrap.dedent(table_html), unsafe_allow_html=True)
     else:
         st.error("Google Ads query failed.")
     st.markdown("</div>", unsafe_allow_html=True)
@@ -907,11 +908,11 @@ elif workspace == "Google Ads Deep-Dive":
     ad_col1, ad_col2 = st.columns([6, 4])
     
     with ad_col1:
-        st.markdown("""
+        st.markdown(textwrap.dedent("""
         <div class="panel-wrap">
             <div class="panel-title">Ad Group Breakdown</div>
             <div class="panel-subtitle">Operational delivery metrics across campaign groups</div>
-        """, unsafe_allow_html=True)
+        """), unsafe_allow_html=True)
         
         ag_rows = ""
         max_ctr = max([(r['clicks']/r['impressions']*100) if r['impressions']>0 else 0 for _, r in adgroups_df.iterrows()]) if not adgroups_df.empty else 1
@@ -948,15 +949,15 @@ elif workspace == "Google Ads Deep-Dive":
             <tbody>{ag_rows}</tbody>
         </table>
         """
-        st.markdown(ag_table, unsafe_allow_html=True)
+        st.markdown(textwrap.dedent(ag_table), unsafe_allow_html=True)
         st.markdown("</div>", unsafe_allow_html=True)
         
     with ad_col2:
-        st.markdown("""
+        st.markdown(textwrap.dedent("""
         <div class="panel-wrap">
             <div class="panel-title">Device Delivery Matrix</div>
             <div class="panel-subtitle">Audience splits across core platforms</div>
-        """, unsafe_allow_html=True)
+        """), unsafe_allow_html=True)
         
         dev_rows = ""
         max_ctr = max([(r['clicks']/r['impressions']*100) if r['impressions']>0 else 0 for _, r in devices_df.iterrows()]) if not devices_df.empty else 1
@@ -989,7 +990,7 @@ elif workspace == "Google Ads Deep-Dive":
             <tbody>{dev_rows}</tbody>
         </table>
         """
-        st.markdown(dev_table, unsafe_allow_html=True)
+        st.markdown(textwrap.dedent(dev_table), unsafe_allow_html=True)
         st.markdown("</div>", unsafe_allow_html=True)
 
 # ----------------- WORKSPACE 3: ADS KEYWORDS & SEARCH TERMS -----------------
@@ -999,11 +1000,11 @@ elif workspace == "Google Ads Keywords & Search Terms":
     
     kw_df = get_ads_keywords()
     
-    st.markdown("""
+    st.markdown(textwrap.dedent("""
     <div class="panel-wrap">
         <div class="panel-title">Active Keywords Telemetry</div>
         <div class="panel-subtitle">Click performance by keyword targeting vector</div>
-    """, unsafe_allow_html=True)
+    """), unsafe_allow_html=True)
     
     kw_rows = ""
     max_ctr = max([(r['clicks']/r['impressions']*100) if r['impressions']>0 else 0 for _, r in kw_df.iterrows()]) if not kw_df.empty else 1
@@ -1044,7 +1045,7 @@ elif workspace == "Google Ads Keywords & Search Terms":
         <tbody>{kw_rows}</tbody>
     </table>
     """
-    st.markdown(kw_table, unsafe_allow_html=True)
+    st.markdown(textwrap.dedent(kw_table), unsafe_allow_html=True)
     st.markdown("</div>", unsafe_allow_html=True)
 
 # ----------------- WORKSPACE 4: TRAFFIC & TECH -----------------
@@ -1055,11 +1056,11 @@ elif workspace == "GA4 Traffic & Technology":
     t_col1, t_col2 = st.columns([5, 5])
     
     with t_col1:
-        st.markdown("""
+        st.markdown(textwrap.dedent("""
         <div class="panel-wrap">
             <div class="panel-title">System & Client Tech Matrix</div>
             <div class="panel-subtitle">Client OS and browser engine splits (30d)</div>
-        """, unsafe_allow_html=True)
+        """), unsafe_allow_html=True)
         
         tech_rows = ""
         for idx, row in tech_df.iterrows():
@@ -1084,15 +1085,15 @@ elif workspace == "GA4 Traffic & Technology":
             <tbody>{tech_rows}</tbody>
         </table>
         """
-        st.markdown(tech_table, unsafe_allow_html=True)
+        st.markdown(textwrap.dedent(tech_table), unsafe_allow_html=True)
         st.markdown("</div>", unsafe_allow_html=True)
         
     with t_col2:
-        st.markdown("""
+        st.markdown(textwrap.dedent("""
         <div class="panel-wrap">
             <div class="panel-title">Clickstream & Outbound Anchors</div>
             <div class="panel-subtitle">Top external redirects clicked by your audience</div>
-        """, unsafe_allow_html=True)
+        """), unsafe_allow_html=True)
         
         click_rows = ""
         for idx, row in click_df.iterrows():
@@ -1120,7 +1121,7 @@ elif workspace == "GA4 Traffic & Technology":
             <tbody>{click_rows}</tbody>
         </table>
         """
-        st.markdown(click_table, unsafe_allow_html=True)
+        st.markdown(textwrap.dedent(click_table), unsafe_allow_html=True)
         st.markdown("</div>", unsafe_allow_html=True)
 
 # ----------------- WORKSPACE 5: EVENTS EXPLORER -----------------
@@ -1131,11 +1132,11 @@ elif workspace == "GA4 Live Event Explorer":
     e_col1, e_col2 = st.columns([6, 4])
     
     with e_col1:
-        st.markdown("""
+        st.markdown(textwrap.dedent("""
         <div class="panel-wrap">
             <div class="panel-title">Interaction Telemetry Index</div>
             <div class="panel-subtitle">Total occurrences of client events (30d)</div>
-        """, unsafe_allow_html=True)
+        """), unsafe_allow_html=True)
         
         ev_rows = ""
         for idx, row in events_df.iterrows():
@@ -1160,15 +1161,15 @@ elif workspace == "GA4 Live Event Explorer":
             <tbody>{ev_rows}</tbody>
         </table>
         """
-        st.markdown(ev_table, unsafe_allow_html=True)
+        st.markdown(textwrap.dedent(ev_table), unsafe_allow_html=True)
         st.markdown("</div>", unsafe_allow_html=True)
         
     with e_col2:
-        st.markdown("""
+        st.markdown(textwrap.dedent("""
         <div class="panel-wrap">
             <div class="panel-title">Active Geographic Telemetry</div>
             <div class="panel-subtitle">Real-time geographical tracking stream</div>
-        """, unsafe_allow_html=True)
+        """), unsafe_allow_html=True)
         
         geo_rows = ""
         for idx, row in rt_df.iterrows():
@@ -1193,5 +1194,5 @@ elif workspace == "GA4 Live Event Explorer":
             <tbody>{geo_rows}</tbody>
         </table>
         """
-        st.markdown(geo_table, unsafe_allow_html=True)
+        st.markdown(textwrap.dedent(geo_table), unsafe_allow_html=True)
         st.markdown("</div>", unsafe_allow_html=True)
