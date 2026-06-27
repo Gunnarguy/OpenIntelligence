@@ -513,8 +513,8 @@ def get_ads_keywords():
                   metrics.clicks,
                   metrics.cost_micros,
                   metrics.conversions
-                FROM ad_group_criterion
-                WHERE ad_group_criterion.type = 'KEYWORD' AND ad_group_criterion.status != 'REMOVED'
+                FROM keyword_view
+                WHERE ad_group_criterion.status != 'REMOVED'
             """
             search_request = client.get_type("SearchGoogleAdsRequest")
             search_request.customer_id = customer_id
