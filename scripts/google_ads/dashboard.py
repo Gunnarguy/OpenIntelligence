@@ -276,6 +276,17 @@ css = f"""
     .indicator-green {{ background-color: {GREEN}; box-shadow: 0 0 8px {GREEN}; }}
     .indicator-red {{ background-color: {RED}; box-shadow: 0 0 8px {RED}; }}
 
+    /* Streamlit Container overrides */
+    div[data-testid="stVerticalBlockBorderWrapper"] {
+        background: {CARD} !important;
+        backdrop-filter: blur(12px) !important;
+        -webkit-backdrop-filter: blur(12px) !important;
+        border: 1px solid {BORDER} !important;
+        border-radius: 12px !important;
+        box-shadow: {SHADOW} !important;
+        padding: 1.25rem !important;
+    }
+
     /* Streamlit tabs override */
     button[data-baseweb="tab"] {{
         background: transparent !important;
@@ -809,93 +820,45 @@ if workspace == "Google Ads & GA4 Overview":
     chart_col1, chart_col2 = st.columns([6, 4])
     
     with chart_col1:
-        st.markdown(textwrap.dedent("""
-        <div class="panel-wrap">
-            <div class="panel-title">Combined Audience & Traffic Trends</div>
-            <div class="panel-subtitle">Dual-axis telemetry tracking pageviews vs active sessions (GA4)</div>
-        """), unsafe_allow_html=True)
-        
-        fig = go.Figure()
-        fig.add_trace(go.Scatter(
-            x=ga_df["date"], y=ga_df["pageviews"],
-            name="Pageviews", line=dict(color=ACCENT, width=2.5),
-            mode="lines+markers"
-        ))
-        fig.add_trace(go.Scatter(
-            x=ga_df["date"], y=ga_df["sessions"],
-            name="Active Sessions", line=dict(color=AMBER, width=2),
-            mode="lines"
-        ))
-        st.plotly_chart(style_plotly_chart(fig), use_container_width=True, config={"displayModeBar": False})
-        st.markdown("</div>", unsafe_allow_html=True)
+        with st.container(border=True):
+            st.markdown('<div class="panel-title">Combined Audience & Traffic Trends</div><div class="panel-subtitle">Dual-axis telemetry tracking pageviews vs active sessions (GA4)</div>', unsafe_allow_html=True)
+            fig = go.Figure()
+            fig.add_trace(go.Scatter(
+                x=ga_df["date"], y=ga_df["pageviews"],
+                name="Pageviews", line=dict(color=ACCENT, width=2.5),
+                mode="lines+markers"
+            ))
+            fig.add_trace(go.Scatter(
+                x=ga_df["date"], y=ga_df["sessions"],
+                name="Active Sessions", line=dict(color=AMBER, width=2),
+                mode="lines"
+            ))
+            st.plotly_chart(style_plotly_chart(fig), use_container_width=True, config={"displayModeBar": False})
         
     with chart_col2:
-        st.markdown(textwrap.dedent("""
-        <div class="panel-wrap">
-            <div class="panel-title">Primary Referral Acquisition</div>
-            <div class="panel-subtitle">Top channels driving visits to Fascinaiting</div>
-        """), unsafe_allow_html=True)
-        
-        source_labels = journey_df["source_medium"].head(5).tolist()
-        source_values = journey_df["sessions"].head(5).tolist()
-        
-        fig_pie = go.Figure(data=[go.Pie(
-            labels=source_labels, values=source_values, hole=0.5,
-            marker=dict(colors=[ACCENT, TEXT_MUTED, AMBER, GREEN, RED])
-        )])
-        st.plotly_chart(style_plotly_chart(fig_pie), use_container_width=True, config={"displayModeBar": False})
-        st.markdown("</div>", unsafe_allow_html=True)
+        with st.container(border=True):
+            st.markdown('<div class="panel-title">Primary Referral Acquisition</div><div class="panel-subtitle">Top channels driving visits to Fascinaiting</div>', unsafe_allow_html=True)
+            source_labels = journey_df["source_medium"].head(5).tolist()
+            source_values = journey_df["sessions"].head(5).tolist()
+            fig_pie = go.Figure(data=[go.Pie(
+                labels=source_labels, values=source_values, hole=0.5,
+                marker=dict(colors=[ACCENT, TEXT_MUTED, AMBER, GREEN, RED])
+            )])
+            st.plotly_chart(style_plotly_chart(fig_pie), use_container_width=True, config={"displayModeBar": False})
 
     # 3. Campaign Performance Table
-    st.markdown(textwrap.dedent("""
-    <div class="panel-wrap">
-        <div class="panel-title">Active Google Ads Campaigns</div>
-        <div class="panel-subtitle">Current status and budget efficiency ratings</div>
-    """), unsafe_allow_html=True)
-    
     if isinstance(ads_df, pd.DataFrame):
         rows = ""
         max_ctr = max([(r['clicks']/r['impressions']*100) if r['impressions']>0 else 0 for _, r in ads_df.iterrows()]) if not ads_df.empty else 1
         for idx, row in ads_df.iterrows():
             status_badge = "badge-green" if row["status"] == "ENABLED" else "badge-amber"
             ctr = (row["clicks"] / row["impressions"] * 100) if row["impressions"] > 0 else 0
-            rows += f"""
-            <tr>
-                <td><b>{row['name']}</b><br><span style='font-size: 10px; color: {TEXT_MUTED};'>ID: {row['id']}</span></td>
-                <td><span class="badge {status_badge}">{row['status']}</span></td>
-                <td><span class="badge badge-blue">{row['channel_type']}</span></td>
-                <td>{row['impressions']:,}</td>
-                <td>{row['clicks']:,}</td>
-                <td>
-                    <div class="progress-bar-container">
-                        <div class="progress-bar-fill" style="width: {min((ctr / max_ctr) * 100, 100) if max_ctr > 0 else 0:.1f}%;"></div>
-                    </div>&nbsp;&nbsp;{ctr:.2f}%
-                </td>
-                <td>${row['cost']:.2f}</td>
-                <td>{row['conversions']:.0f}</td>
-            </tr>
-            """
-        table_html = f"""
-        <table class="data-table">
-            <thead>
-                <tr>
-                    <th>Campaign Details</th>
-                    <th>Status</th>
-                    <th>Network</th>
-                    <th>Impressions</th>
-                    <th>Clicks</th>
-                    <th>CTR Rating</th>
-                    <th>Cost</th>
-                    <th>Conversions</th>
-                </tr>
-            </thead>
-            <tbody>{rows}</tbody>
-        </table>
-        """
-        st.markdown(textwrap.dedent(table_html), unsafe_allow_html=True)
+            rows += f"<tr><td><b>{row['name']}</b><br><span style='font-size:10px;color:{TEXT_MUTED};'>ID: {row['id']}</span></td><td><span class='badge {status_badge}'>{row['status']}</span></td><td><span class='badge badge-blue'>{row['channel_type']}</span></td><td>{row['impressions']:,}</td><td>{row['clicks']:,}</td><td><div class='progress-bar-container'><div class='progress-bar-fill' style='width: {min((ctr / max_ctr) * 100, 100) if max_ctr > 0 else 0:.1f}%;'></div></div>&nbsp;&nbsp;{ctr:.2f}%</td><td>${row['cost']:.2f}</td><td>{row['conversions']:.0f}</td></tr>"
+        
+        table_html = f'<div class="panel-wrap"><div class="panel-title">Active Google Ads Campaigns</div><div class="panel-subtitle">Current status and budget efficiency ratings</div><table class="data-table"><thead><tr><th>Campaign Details</th><th>Status</th><th>Network</th><th>Impressions</th><th>Clicks</th><th>CTR Rating</th><th>Cost</th><th>Conversions</th></tr></thead><tbody>{rows}</tbody></table></div>'
+        st.markdown(table_html, unsafe_allow_html=True)
     else:
         st.error("Google Ads query failed.")
-    st.markdown("</div>", unsafe_allow_html=True)
 
 # ----------------- WORKSPACE 2: ADS DRILL-DOWN -----------------
 elif workspace == "Google Ads Deep-Dive":
@@ -908,90 +871,26 @@ elif workspace == "Google Ads Deep-Dive":
     ad_col1, ad_col2 = st.columns([6, 4])
     
     with ad_col1:
-        st.markdown(textwrap.dedent("""
-        <div class="panel-wrap">
-            <div class="panel-title">Ad Group Breakdown</div>
-            <div class="panel-subtitle">Operational delivery metrics across campaign groups</div>
-        """), unsafe_allow_html=True)
-        
         ag_rows = ""
         max_ctr = max([(r['clicks']/r['impressions']*100) if r['impressions']>0 else 0 for _, r in adgroups_df.iterrows()]) if not adgroups_df.empty else 1
         for idx, row in adgroups_df.iterrows():
             status_badge = "badge-green" if row["status"] == "ENABLED" else "badge-amber"
             ctr = (row["clicks"] / row["impressions"] * 100) if row["impressions"] > 0 else 0
             cpc = (row["cost"] / row["clicks"]) if row["clicks"] > 0 else 0.0
-            ag_rows += f"""
-            <tr>
-                <td><b>{row['name']}</b><br><span style='font-size: 10px; color: {TEXT_MUTED};'>{row['campaign']}</span></td>
-                <td><span class="badge {status_badge}">{row['status']}</span></td>
-                <td>{row['impressions']:,}</td>
-                <td>{row['clicks']:,}</td>
-                <td>{ctr:.2f}%</td>
-                <td>${cpc:.2f}</td>
-                <td>${row['cost']:.2f}</td>
-                <td>{row['conversions']:.0f}</td>
-            </tr>
-            """
-        ag_table = f"""
-        <table class="data-table">
-            <thead>
-                <tr>
-                    <th>Ad Group</th>
-                    <th>Status</th>
-                    <th>Impr.</th>
-                    <th>Clicks</th>
-                    <th>CTR</th>
-                    <th>Avg CPC</th>
-                    <th>Spend</th>
-                    <th>Conversions</th>
-                </tr>
-            </thead>
-            <tbody>{ag_rows}</tbody>
-        </table>
-        """
-        st.markdown(textwrap.dedent(ag_table), unsafe_allow_html=True)
-        st.markdown("</div>", unsafe_allow_html=True)
+            ag_rows += f"<tr><td><b>{row['name']}</b><br><span style='font-size:10px;color:{TEXT_MUTED};'>{row['campaign']}</span></td><td><span class='badge {status_badge}'>{row['status']}</span></td><td>{row['impressions']:,}</td><td>{row['clicks']:,}</td><td>{ctr:.2f}%</td><td>${cpc:.2f}</td><td>${row['cost']:.2f}</td><td>{row['conversions']:.0f}</td></tr>"
+        
+        ag_table = f'<div class="panel-wrap"><div class="panel-title">Ad Group Breakdown</div><div class="panel-subtitle">Operational delivery metrics across campaign groups</div><table class="data-table"><thead><tr><th>Ad Group</th><th>Status</th><th>Impr.</th><th>Clicks</th><th>CTR</th><th>Avg CPC</th><th>Spend</th><th>Conversions</th></tr></thead><tbody>{ag_rows}</tbody></table></div>'
+        st.markdown(ag_table, unsafe_allow_html=True)
         
     with ad_col2:
-        st.markdown(textwrap.dedent("""
-        <div class="panel-wrap">
-            <div class="panel-title">Device Delivery Matrix</div>
-            <div class="panel-subtitle">Audience splits across core platforms</div>
-        """), unsafe_allow_html=True)
-        
         dev_rows = ""
         max_ctr = max([(r['clicks']/r['impressions']*100) if r['impressions']>0 else 0 for _, r in devices_df.iterrows()]) if not devices_df.empty else 1
         for idx, row in devices_df.iterrows():
             ctr = (row["clicks"] / row["impressions"] * 100) if row["impressions"] > 0 else 0
-            dev_rows += f"""
-            <tr>
-                <td><b>{row['device']}</b></td>
-                <td>{row['impressions']:,}</td>
-                <td>{row['clicks']:,}</td>
-                <td>
-                    <div class="progress-bar-container">
-                        <div class="progress-bar-fill" style="width: {min((ctr / max_ctr) * 100, 100) if max_ctr > 0 else 0:.1f}%;"></div>
-                    </div>&nbsp;&nbsp;{ctr:.2f}%
-                </td>
-                <td>${row['cost']:.2f}</td>
-            </tr>
-            """
-        dev_table = f"""
-        <table class="data-table">
-            <thead>
-                <tr>
-                    <th>Device Category</th>
-                    <th>Impressions</th>
-                    <th>Clicks</th>
-                    <th>CTR Metric</th>
-                    <th>Spend</th>
-                </tr>
-            </thead>
-            <tbody>{dev_rows}</tbody>
-        </table>
-        """
-        st.markdown(textwrap.dedent(dev_table), unsafe_allow_html=True)
-        st.markdown("</div>", unsafe_allow_html=True)
+            dev_rows += f"<tr><td><b>{row['device']}</b></td><td>{row['impressions']:,}</td><td>{row['clicks']:,}</td><td><div class='progress-bar-container'><div class='progress-bar-fill' style='width: {min((ctr / max_ctr) * 100, 100) if max_ctr > 0 else 0:.1f}%;'></div></div>&nbsp;&nbsp;{ctr:.2f}%</td><td>${row['cost']:.2f}</td></tr>"
+            
+        dev_table = f'<div class="panel-wrap"><div class="panel-title">Device Delivery Matrix</div><div class="panel-subtitle">Audience splits across core platforms</div><table class="data-table"><thead><tr><th>Device Category</th><th>Impressions</th><th>Clicks</th><th>CTR Metric</th><th>Spend</th></tr></thead><tbody>{dev_rows}</tbody></table></div>'
+        st.markdown(dev_table, unsafe_allow_html=True)
 
 # ----------------- WORKSPACE 3: ADS KEYWORDS & SEARCH TERMS -----------------
 elif workspace == "Google Ads Keywords & Search Terms":
@@ -1000,53 +899,16 @@ elif workspace == "Google Ads Keywords & Search Terms":
     
     kw_df = get_ads_keywords()
     
-    st.markdown(textwrap.dedent("""
-    <div class="panel-wrap">
-        <div class="panel-title">Active Keywords Telemetry</div>
-        <div class="panel-subtitle">Click performance by keyword targeting vector</div>
-    """), unsafe_allow_html=True)
-    
     kw_rows = ""
     max_ctr = max([(r['clicks']/r['impressions']*100) if r['impressions']>0 else 0 for _, r in kw_df.iterrows()]) if not kw_df.empty else 1
     for idx, row in kw_df.iterrows():
         status_badge = "badge-green" if row["status"] == "ENABLED" else "badge-amber"
         ctr = (row["clicks"] / row["impressions"] * 100) if row["impressions"] > 0 else 0
         cpc = (row["cost"] / row["clicks"]) if row["clicks"] > 0 else 0.0
-        kw_rows += f"""
-        <tr>
-            <td><b>"{row['keyword']}"</b><br><span style='font-size: 10px; color: {TEXT_MUTED};'>{row['match_type']}</span></td>
-            <td><span class="badge {status_badge}">{row['status']}</span></td>
-            <td>{row['impressions']:,}</td>
-            <td>{row['clicks']:,}</td>
-            <td>
-                <div class="progress-bar-container">
-                    <div class="progress-bar-fill" style="width: {min((ctr / max_ctr) * 100, 100) if max_ctr > 0 else 0:.1f}%;"></div>
-                </div>&nbsp;&nbsp;{ctr:.2f}%
-            </td>
-            <td>${cpc:.2f}</td>
-            <td>${row['cost']:.2f}</td>
-            <td>{row['conversions']:.0f}</td>
-        </tr>
-        """
-    kw_table = f"""
-    <table class="data-table">
-        <thead>
-            <tr>
-                <th>Keyword & Target Type</th>
-                <th>Status</th>
-                <th>Impressions</th>
-                <th>Clicks</th>
-                <th>CTR Rating</th>
-                <th>Avg CPC</th>
-                <th>Spend</th>
-                <th>Conversions</th>
-            </tr>
-        </thead>
-        <tbody>{kw_rows}</tbody>
-    </table>
-    """
-    st.markdown(textwrap.dedent(kw_table), unsafe_allow_html=True)
-    st.markdown("</div>", unsafe_allow_html=True)
+        kw_rows += f"<tr><td><b>\"{row['keyword']}\"</b><br><span style='font-size:10px;color:{TEXT_MUTED};'>{row['match_type']}</span></td><td><span class='badge {status_badge}'>{row['status']}</span></td><td>{row['impressions']:,}</td><td>{row['clicks']:,}</td><td><div class='progress-bar-container'><div class='progress-bar-fill' style='width: {min((ctr / max_ctr) * 100, 100) if max_ctr > 0 else 0:.1f}%;'></div></div>&nbsp;&nbsp;{ctr:.2f}%</td><td>${cpc:.2f}</td><td>${row['cost']:.2f}</td><td>{row['conversions']:.0f}</td></tr>"
+        
+    kw_table = f'<div class="panel-wrap"><div class="panel-title">Active Keywords Telemetry</div><div class="panel-subtitle">Click performance by keyword targeting vector</div><table class="data-table"><thead><tr><th>Keyword & Target Type</th><th>Status</th><th>Impressions</th><th>Clicks</th><th>CTR Rating</th><th>Avg CPC</th><th>Spend</th><th>Conversions</th></tr></thead><tbody>{kw_rows}</tbody></table></div>'
+    st.markdown(kw_table, unsafe_allow_html=True)
 
 # ----------------- WORKSPACE 4: TRAFFIC & TECH -----------------
 elif workspace == "GA4 Traffic & Technology":
@@ -1056,73 +918,23 @@ elif workspace == "GA4 Traffic & Technology":
     t_col1, t_col2 = st.columns([5, 5])
     
     with t_col1:
-        st.markdown(textwrap.dedent("""
-        <div class="panel-wrap">
-            <div class="panel-title">System & Client Tech Matrix</div>
-            <div class="panel-subtitle">Client OS and browser engine splits (30d)</div>
-        """), unsafe_allow_html=True)
-        
         tech_rows = ""
         for idx, row in tech_df.iterrows():
-            tech_rows += f"""
-            <tr>
-                <td><b>{row['os']}</b></td>
-                <td>{row['browser']}</td>
-                <td>{row['users']:,}</td>
-                <td>{row['sessions']:,}</td>
-            </tr>
-            """
-        tech_table = f"""
-        <table class="data-table">
-            <thead>
-                <tr>
-                    <th>Operating System</th>
-                    <th>Browser</th>
-                    <th>Unique Users</th>
-                    <th>Total Sessions</th>
-                </tr>
-            </thead>
-            <tbody>{tech_rows}</tbody>
-        </table>
-        """
-        st.markdown(textwrap.dedent(tech_table), unsafe_allow_html=True)
-        st.markdown("</div>", unsafe_allow_html=True)
+            tech_rows += f"<tr><td><b>{row['os']}</b></td><td>{row['browser']}</td><td>{row['users']:,}</td><td>{row['sessions']:,}</td></tr>"
+            
+        tech_table = f'<div class="panel-wrap"><div class="panel-title">System & Client Tech Matrix</div><div class="panel-subtitle">Client OS and browser engine splits (30d)</div><table class="data-table"><thead><tr><th>Operating System</th><th>Browser</th><th>Unique Users</th><th>Total Sessions</th></tr></thead><tbody>{tech_rows}</tbody></table></div>'
+        st.markdown(tech_table, unsafe_allow_html=True)
         
     with t_col2:
-        st.markdown(textwrap.dedent("""
-        <div class="panel-wrap">
-            <div class="panel-title">Clickstream & Outbound Anchors</div>
-            <div class="panel-subtitle">Top external redirects clicked by your audience</div>
-        """), unsafe_allow_html=True)
-        
         click_rows = ""
         for idx, row in click_df.iterrows():
             disp_url = str(row['url'])
             if len(disp_url) > 40:
                 disp_url = disp_url[:37] + "..."
-            click_rows += f"""
-            <tr>
-                <td><b>{row['text']}</b><br><span style='font-size: 10px; color: {TEXT_MUTED};'>{disp_url}</span></td>
-                <td>{row['page']}</td>
-                <td><span class="badge badge-blue">{row['source']}</span></td>
-                <td><b>{row['clicks']}</b></td>
-            </tr>
-            """
-        click_table = f"""
-        <table class="data-table">
-            <thead>
-                <tr>
-                    <th>Anchor Info</th>
-                    <th>Trigger Page</th>
-                    <th>Acquisition Source</th>
-                    <th>Clicks</th>
-                </tr>
-            </thead>
-            <tbody>{click_rows}</tbody>
-        </table>
-        """
-        st.markdown(textwrap.dedent(click_table), unsafe_allow_html=True)
-        st.markdown("</div>", unsafe_allow_html=True)
+            click_rows += f"<tr><td><b>{row['text']}</b><br><span style='font-size:10px;color:{TEXT_MUTED};'>{disp_url}</span></td><td>{row['page']}</td><td><span class='badge badge-blue'>{row['source']}</span></td><td><b>{row['clicks']}</b></td></tr>"
+            
+        click_table = f'<div class="panel-wrap"><div class="panel-title">Clickstream & Outbound Anchors</div><div class="panel-subtitle">Top external redirects clicked by your audience</div><table class="data-table"><thead><tr><th>Anchor Info</th><th>Trigger Page</th><th>Acquisition Source</th><th>Clicks</th></tr></thead><tbody>{click_rows}</tbody></table></div>'
+        st.markdown(click_table, unsafe_allow_html=True)
 
 # ----------------- WORKSPACE 5: EVENTS EXPLORER -----------------
 elif workspace == "GA4 Live Event Explorer":
@@ -1132,67 +944,17 @@ elif workspace == "GA4 Live Event Explorer":
     e_col1, e_col2 = st.columns([6, 4])
     
     with e_col1:
-        st.markdown(textwrap.dedent("""
-        <div class="panel-wrap">
-            <div class="panel-title">Interaction Telemetry Index</div>
-            <div class="panel-subtitle">Total occurrences of client events (30d)</div>
-        """), unsafe_allow_html=True)
-        
         ev_rows = ""
         for idx, row in events_df.iterrows():
-            ev_rows += f"""
-            <tr>
-                <td><b><code>{row['event_name']}</code></b></td>
-                <td>{row['count']:,}</td>
-                <td>{row['users']:,}</td>
-                <td>{(row['count']/row['users']):.1f}</td>
-            </tr>
-            """
-        ev_table = f"""
-        <table class="data-table">
-            <thead>
-                <tr>
-                    <th>Event Tag</th>
-                    <th>Total Triggers</th>
-                    <th>Unique Users</th>
-                    <th>Triggers / User</th>
-                </tr>
-            </thead>
-            <tbody>{ev_rows}</tbody>
-        </table>
-        """
-        st.markdown(textwrap.dedent(ev_table), unsafe_allow_html=True)
-        st.markdown("</div>", unsafe_allow_html=True)
+            ev_rows += f"<tr><td><b><code>{row['event_name']}</code></b></td><td>{row['count']:,}</td><td>{row['users']:,}</td><td>{(row['count']/row['users']):.1f}</td></tr>"
+            
+        ev_table = f'<div class="panel-wrap"><div class="panel-title">Interaction Telemetry Index</div><div class="panel-subtitle">Total occurrences of client events (30d)</div><table class="data-table"><thead><tr><th>Event Tag</th><th>Total Triggers</th><th>Unique Users</th><th>Triggers / User</th></tr></thead><tbody>{ev_rows}</tbody></table></div>'
+        st.markdown(ev_table, unsafe_allow_html=True)
         
     with e_col2:
-        st.markdown(textwrap.dedent("""
-        <div class="panel-wrap">
-            <div class="panel-title">Active Geographic Telemetry</div>
-            <div class="panel-subtitle">Real-time geographical tracking stream</div>
-        """), unsafe_allow_html=True)
-        
         geo_rows = ""
         for idx, row in rt_df.iterrows():
-            geo_rows += f"""
-            <tr>
-                <td>📍 <b>{row['city']}, {row['country']}</b></td>
-                <td>{row['device']}</td>
-                <td>📄 {row['page']}</td>
-                <td><span class="badge badge-blue">{row['users']} active</span></td>
-            </tr>
-            """
-        geo_table = f"""
-        <table class="data-table">
-            <thead>
-                <tr>
-                    <th>Location</th>
-                    <th>Device</th>
-                    <th>Page</th>
-                    <th>Metric</th>
-                </tr>
-            </thead>
-            <tbody>{geo_rows}</tbody>
-        </table>
-        """
-        st.markdown(textwrap.dedent(geo_table), unsafe_allow_html=True)
-        st.markdown("</div>", unsafe_allow_html=True)
+            geo_rows += f"<tr><td>📍 <b>{row['city']}, {row['country']}</b></td><td>{row['device']}</td><td>📄 {row['page']}</td><td><span class='badge badge-blue'>{row['users']} active</span></td></tr>"
+            
+        geo_table = f'<div class="panel-wrap"><div class="panel-title">Active Geographic Telemetry</div><div class="panel-subtitle">Real-time geographical tracking stream</div><table class="data-table"><thead><tr><th>Location</th><th>Device</th><th>Page</th><th>Metric</th></tr></thead><tbody>{geo_rows}</tbody></table></div>'
+        st.markdown(geo_table, unsafe_allow_html=True)
