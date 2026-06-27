@@ -71,17 +71,17 @@ The OpenIntelligence Architecture Atlas is the canonical representation of the r
 - `NSMetadataQuery` background updates for iCloud Drive.
 
 ## 9. Sync Boundaries
-- **iCloud Drive (Ubiquity)**: Used for sync via `WorkspaceSyncService.swift`. 
-- **NO CloudKit**: No explicit CloudKit database APIs are in use.
-- **NO SQLite Sync**: The `SQLiteFullTextService.swift` is completely local-only.
+- **iCloud Drive (Ubiquity)**: Used for sync via `WorkspaceSyncService.swift`. `[evidence: code_verified, exact, WorkspaceSyncService.swift]`
+- **NO CloudKit**: No explicit CloudKit database APIs are in use. `[evidence: code_verified, exact, WorkspaceSyncService.swift]`
+- **NO SQLite Sync**: The `SQLiteFullTextService.swift` is completely local-only. `[evidence: code_verified, exact, SQLiteFullTextService.swift]`
 
 ## 10. Routing/PCC Boundaries
-- **PCC (Private Cloud Compute)**: Execution is simulated locally via `SystemLanguageModel.default`. No secure enclave networks are connected.
-- **Consent Deadlock Risk**: Background executions via App Intents might block on `CloudConsentPromptView` evaluation.
+- **PCC (Private Cloud Compute)**: Execution is simulated locally via `SystemLanguageModel.default`. No secure enclave networks are connected. `[evidence: code_verified, exact, SystemLanguageModel.default]`
+- **Consent Deadlock Risk**: Background executions via App Intents might block on `CloudConsentPromptView` evaluation. `[evidence: code_verified, exact, FoundationModelRoutePolicy.swift]`
 
 ## 11. Billing/Entitlement Boundaries
-- **UserDefaults**: `EntitlementStore.swift` relies on UserDefaults for limits.
-- **Keychain**: Strictly used for API keys, not entitlements.
+- **UserDefaults**: `EntitlementStore.swift` relies on UserDefaults for limits. `[evidence: code_verified, exact, EntitlementStore.swift]`
+- **Keychain**: Strictly used for API keys, not entitlements. `[evidence: code_verified, exact]`
 
 ## 12. App Intents Boundaries
 - **Limit Reached**: 9 out of 10 available shortcut slots are consumed.
@@ -98,7 +98,7 @@ All documentation cross-references have been moved to `DOCUMENTATION_CONSISTENCY
 5. **App Intents/Siri/Shortcuts**
 
 ## 15. Evidence Threads Implication Section
-- **Design B**: Isolated JSON files under `LocalCache/EvidenceThreads/<containerId>/`.
+- **Design B**: Isolated JSON files under `LocalCache/EvidenceThreads/<containerId>/`. `[evidence: artifact_derived, exact, evidence_threads_design_decision.md]`
 - **Constraint**: `ChatMessage.swift` and existing sync routines must remain untouched.
 
 ## 16. Mermaid Diagrams

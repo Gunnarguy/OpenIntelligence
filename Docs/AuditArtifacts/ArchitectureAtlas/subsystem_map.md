@@ -755,7 +755,7 @@ This document maps the application architecture across all 30 core subsystems.
 
 ## Icloud/workspace sync
 
-- **Purpose**: Syncs the workspace library structures and indices across Apple devices via CloudKit.
+- **Purpose**: Syncs the workspace library structures and indices across Apple devices via iCloud Drive (Ubiquity).
 - **Risk Level**: **HIGH**
 - **Data Owned**: Workspace inventories, merge results
 - **Dependencies**: SQLite/FTS storage, library/container management

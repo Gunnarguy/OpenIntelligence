@@ -1,15 +1,12 @@
-risk_id,risk,severity,likelihood,affected_area,blocker_yes_no,mitigation,owner_or_next_action,evidence,confidence
-R06,PCC consent suspension exact file/symbol,High,Medium,Routing,no,Keep PCC isolated during Phase 1A,Phase 1B Implementation,FoundationModelRoutePolicy.swift,exact
-R07,App Intent PCC risk,Medium,Medium,Routing,no,Do not expose threads to intents yet,Phase 1B Implementation,RAGAppIntents.swift,exact
-R08,Keychain/StoreKit recovery path,Medium,Low,Billing,no,Rely on UserDefaults for Phase 1A,Future Audit,EntitlementStore.swift,exact
-R09,BNNS memory mapping claim,Medium,Low,Storage,no,Do not alter vector engine,Future Audit,BNNSVectorDatabase.swift,exact
-R11,Evidence Threads storage path risk,High,Low,Architecture,no,Use isolated LocalCache/EvidenceThreads JSON,Phase 1A Implementation,evidence_threads_design_decision.md,exact
-R12,No destructive migration risk,High,Low,Architecture,no,Forbid SQL/Vector deletion commands,Phase 1A Implementation,Implementation Gate,exact
-R18,Final documentation consistency prior to implementation,High,Low,Governance,no,Phase 9B completed and verified,None,Phase 9B artifacts,exact
-R19,Risk of relying on old audit docs as truth,High,Medium,Governance,no,Use final_canonical_file_index.md,Future Agents,final_canonical_file_index.md,exact
-R20,Risk of docs drifting again after implementation,High,Medium,Governance,no,Mandate 03_CHANGE_IMPACT_DOC_UPDATE.md in PRs,Future Agents,03_CHANGE_IMPACT_DOC_UPDATE.md,exact
-R21,Risk of future agents ignoring AGENTS.md/GEMINI.md,Critical,Low,Governance,no,These are top-level configuration rules,Future Agents,AGENTS.md,exact
-R22,Risk of implementing Evidence Threads without reading final gate,Critical,Low,Implementation,no,Prompt stub explicitly dictates reading it,Future Agents,Implementation Gate,exact
-R23,Risk of accidental sync/storage boundary violation,High,Medium,Implementation,no,Implementation gate prohibits sync/storage changes,Phase 1A Implementation,Implementation Gate,exact
-R24,Risk of overgeneralized docs returning,Medium,Medium,Documentation,no,Mandate documentation reconciliation workflows,Future Agents,02_DOCUMENTATION_RECONCILIATION.md,exact
-R25,Risk of untracked governance files being lost if not committed,Critical,Low,Governance,no,Mandate commit of all files before starting implementation,User,final_next_steps.md,exact
+risk_id,risk,severity,likelihood,affected_area,blocker_yes_no,mitigation,owner_or_next_action,evidence,confidence,current_status,notes
+R06,PCC consent suspension exact file/symbol,High,Medium,Routing,no,Keep PCC isolated during Phase 1A,Phase 1B Implementation,FoundationModelRoutePolicy.swift,exact,accepted_residual,Non-blocking for Phase 1A
+R07,App Intent PCC risk,Medium,Medium,Routing,no,Do not expose threads to intents yet,Phase 1B Implementation,RAGAppIntents.swift,exact,accepted_residual,Non-blocking for Phase 1A
+R08,Keychain/StoreKit recovery path,Medium,Low,Billing,no,Rely on UserDefaults for Phase 1A,Future Audit,EntitlementStore.swift,exact,accepted_residual,Non-blocking for Phase 1A
+R09,BNNS memory mapping claim,Medium,Low,Storage,no,Do not alter vector engine,Future Audit,BNNSVectorDatabase.swift,exact,accepted_residual,Non-blocking for Phase 1A
+R19,Risk of relying on old audit docs as truth,High,Medium,Governance,no,Use final_canonical_file_index.md,Future Agents,final_canonical_file_index.md,exact,accepted_residual,Non-blocking for Phase 1A
+R20,Risk of docs drifting again after implementation,High,Medium,Governance,no,Mandate 03_CHANGE_IMPACT_DOC_UPDATE.md in PRs,Future Agents,03_CHANGE_IMPACT_DOC_UPDATE.md,exact,accepted_residual,Non-blocking for Phase 1A
+R21,Risk of future agents ignoring AGENTS.md/GEMINI.md,Critical,Low,Governance,no,These are top-level configuration rules,Future Agents,AGENTS.md,exact,accepted_residual,Non-blocking for Phase 1A
+R22,Risk of implementing Evidence Threads without reading final gate,Critical,Low,Implementation,no,Prompt stub explicitly dictates reading it,Future Agents,Implementation Gate,exact,accepted_residual,Non-blocking for Phase 1A
+R23,Risk of accidental sync/storage boundary violation,High,Medium,Implementation,no,Implementation gate prohibits sync/storage changes,Phase 1A Implementation,Implementation Gate,exact,accepted_residual,Non-blocking for Phase 1A
+R24,Risk of overgeneralized docs returning,Medium,Medium,Documentation,no,Mandate documentation reconciliation workflows,Future Agents,02_DOCUMENTATION_RECONCILIATION.md,exact,accepted_residual,Non-blocking for Phase 1A
+R25,Risk of untracked governance files being lost if not committed,Critical,Low,Governance,no,Mandate commit of all files before starting implementation,User,final_next_steps.md,exact,accepted_residual,Non-blocking for Phase 1A

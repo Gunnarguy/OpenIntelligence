@@ -7,31 +7,31 @@ This document is the absolute ground truth for the OpenIntelligence repository a
 OpenIntelligence is a local-first, privacy-preserving retrieval-augmented generation application for Apple platforms, leveraging on-device intelligence.
 
 ## 3. Safe Claims
-- The app uses iCloud Drive (Ubiquity containers) for sync via `NSFileCoordinator` and `NSMetadataQuery`.
-- PCC execution is simulated entirely locally on `SystemLanguageModel.default`.
-- Relational metadata indexing relies on a single shared SQLite file with column-based `container_id` isolation.
-- Billing entitlements are stored in `UserDefaults`.
+- The app uses iCloud Drive (Ubiquity containers) for sync via `NSFileCoordinator` and `NSMetadataQuery`. `[evidence: code_verified, exact, WorkspaceSyncService.swift]`
+- PCC execution is simulated entirely locally on `SystemLanguageModel.default`. `[evidence: code_verified, exact, SystemLanguageModel.default]`
+- Relational metadata indexing relies on a single shared SQLite file with column-based `container_id` isolation. `[evidence: code_verified, exact, SQLiteFullTextService.swift]`
+- Billing entitlements are stored in `UserDefaults`. `[evidence: code_verified, exact, EntitlementStore.swift]`
 
 ## 4. Unsafe Claims
-- The app uses CloudKit databases. (FALSE)
-- The app executes against a remote PCC secure enclave. (FALSE)
-- Core AI embeddings are used in production. (FALSE, it's behind `#if false`).
-- Knowledge libraries use separate isolated SQLite files. (FALSE)
+- The app uses CloudKit databases. (FALSE) `[evidence: code_verified, exact]`
+- The app executes against a remote PCC secure enclave. (FALSE) `[evidence: code_verified, exact]`
+- Core AI embeddings are used in production. (FALSE, it's behind `#if false`). `[evidence: code_verified, exact]`
+- Knowledge libraries use separate isolated SQLite files. (FALSE) `[evidence: code_verified, exact]`
 
 ## 5. Non-Negotiable Facts
 - `SUPERSEDING_EVIDENCE_PROTOCOL.md` must be followed for all agent workflows.
 - No destructive commands may be run.
 
 ## 6. Storage Boundaries
-- SQLite is strictly local.
-- Vectors use `BNNSVectorDatabase` with memory mapping.
-- Chat messages are serialized to monolithic JSON arrays.
+- SQLite is strictly local. `[evidence: code_verified, exact]`
+- Vectors use `BNNSVectorDatabase` with memory mapping. `[evidence: code_verified, exact]`
+- Chat messages are serialized to monolithic JSON arrays. `[evidence: code_verified, exact]`
 
 ## 7. Sync Boundaries
-- `WorkspaceSyncService.swift` sweeps local files for iCloud Drive ubiquity sync.
+- `WorkspaceSyncService.swift` sweeps local files for iCloud Drive ubiquity sync. `[evidence: code_verified, exact, WorkspaceSyncService.swift]`
 
 ## 8. Routing/PCC Boundaries
-- `LLMService.swift` and `FoundationModelRoutePolicy.swift` handle consent. Deadlocks can occur if background tasks bypass the `CloudConsentPromptView`.
+- `LLMService.swift` and `FoundationModelRoutePolicy.swift` handle consent. Deadlocks can occur if background tasks bypass the `CloudConsentPromptView`. `[evidence: code_verified, exact, FoundationModelRoutePolicy.swift]`
 
 ## 9. Billing Boundaries
 - Managed by `EntitlementStore.swift` via `UserDefaults`.
@@ -40,7 +40,7 @@ OpenIntelligence is a local-first, privacy-preserving retrieval-augmented genera
 - `RAGAppIntents` utilizes 9 of the 10 available App Shortcuts limit.
 
 ## 11. Evidence Threads Canonical Decision
-- **Design B**: Use isolated thread files under `LocalCache/EvidenceThreads/<containerId>/`.
+- **Design B**: Use isolated thread files under `LocalCache/EvidenceThreads/<containerId>/`. `[evidence: artifact_derived, exact, evidence_threads_design_decision.md]`
 - Legacy `ChatMessage` must remain untouched.
 
 ## 12. Phase Boundaries

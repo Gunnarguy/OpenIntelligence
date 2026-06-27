@@ -75,9 +75,9 @@ Five subsystems carry a **High** risk classification due to external integration
 
 | Subsystem | Risk Level | Primary Drivers | Key Components |
 | :--- | :--- | :--- | :--- |
-| **PCC routing/consent** | **HIGH** | Strict local-first privacy defaults. Background voice intents must fail-safe if CloudKit/PCC consent is not determined yet. | `CloudConsentPromptView`, `FoundationModelRoute`, `CloudTransmission` |
+| **PCC routing/consent** | **HIGH** | Strict local-first privacy defaults. Background voice intents must fail-safe if iCloud/PCC consent is not determined yet. | `CloudConsentPromptView`, `FoundationModelRoute`, `CloudTransmission` |
 | **Apple Foundation Models** | **HIGH** | Interaction with on-device Apple FM models using private system frameworks; risk of behavioral changes across iOS/macOS version boundaries. | `FoundationModelSessionFactory`, `FoundationModelPromptCompiler`, `AppleFoundationLLMService` |
-| **iCloud/workspace sync** | **HIGH** | Data consistency risk. Coordinates document/workspace metadata sync via CloudKit; conflict resolution edge-cases. | `WorkspaceSyncService`, `SyncResolutionStrategy` |
+| **iCloud/workspace sync** | **HIGH** | Data consistency risk. Coordinates document/workspace metadata sync via iCloud Drive Ubiquity; conflict resolution edge-cases. | `WorkspaceSyncService`, `SyncResolutionStrategy` |
 | **StoreKit / Billing** | **HIGH** | Hard payload capability gates. Unsynchronized local subscription validations or sandbox IAP receipt verification lags. | `StoreKitConfiguration.storekit`, `EntitlementStore`, `PlanUpgradeSheet` |
 | **App Intents/Siri/Shortcuts**| **HIGH** | Core system integration boundary. Hard OS limit of 10 shortcuts registered via `AppShortcutsProvider`. Currently uses 9 shortcuts, leaving only 1 available slot. | `RAGAppIntents`, `ScreenAwarenessIntents`, `VisualIntelligenceIntents` |
 

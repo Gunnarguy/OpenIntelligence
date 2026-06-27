@@ -39,4 +39,51 @@ This playbook defines the step-by-step process for mapping the OpenIntelligence 
 - **Required Checks**: Verify exact symbols using `00_SUPERSEDING_EVIDENCE_PROTOCOL.md`.
 - **Stop Condition**: `phase_4_relationship_summary.md` generated.
 
-*(Future Phases 5-9 will be appended here as they are defined by the user).*
+## Phase 5: Data-Flow and Touchpoint Map
+- **Purpose**: Map data objects, cloud sync behaviors, and risk boundaries.
+- **Recommended Model**: Gemini 3.1 Pro
+- **Allowed Files**: `data_flow_map.csv`, `storage_touchpoints.csv`, `sync_touchpoints.csv`, `routing_touchpoints.csv`, `billing_touchpoints.csv`, `app_intents_touchpoints.csv`, `phase_5_flow_summary.md`
+- **Forbidden Files**: App source, tests, configurations, existing docs.
+- **Stop Condition**: `phase_5_flow_summary.md` generated.
+
+## Phase 6: Documentation Scan & Pro Review
+- **Purpose**: Map documentation deficiencies and verify claims.
+- **Recommended Model**: Gemini 3.5 Flash / Gemini 3.1 Pro
+- **Allowed Files**: `documentation_cross_reference.csv`, `document_claim_matrix.csv`, `document_contradictions.csv`, `phase_6_docs_summary.md`, `phase_6a_flash_scan_notes.md`, `phase_6b_pro_review.md`
+- **Forbidden Files**: App source, tests, configurations.
+- **Stop Condition**: `phase_6b_pro_review.md` generated.
+
+## Phase 7: Evidence Threads Placement
+- **Purpose**: Determine isolated storage boundaries for new feature.
+- **Recommended Model**: Gemini 3.1 Pro
+- **Allowed Files**: `evidence_threads_impact_map.csv`, `evidence_threads_design_decision.md`, `phase_7_evidence_threads_summary.md`
+- **Forbidden Files**: App source, tests, configurations.
+- **Stop Condition**: `phase_7_evidence_threads_summary.md` generated.
+
+## Phase 8: Canonical Control System
+- **Purpose**: Synthesize recovered maps into canonical control documents.
+- **Recommended Model**: Gemini 3.1 Pro
+- **Allowed Files**: `OPENINTELLIGENCE_ARCHITECTURE_ATLAS.md`, `CANONICAL_OPENINTELLIGENCE_SOURCE_OF_TRUTH.md`, `DOCUMENTATION_CONSISTENCY_AUDIT.md`
+- **Forbidden Files**: App source, tests, configurations.
+- **Stop Condition**: `phase_8_final_summary.md` generated.
+
+## Phase 9A: Document Disposition
+- **Purpose**: Classify all documentation into actionable dispositions.
+- **Recommended Model**: Gemini 3.5 Flash
+- **Allowed Files**: `document_disposition_matrix.csv`, `phase_9a_disposition_summary.md`
+- **Forbidden Files**: App source, tests, configurations.
+- **Stop Condition**: `phase_9a_disposition_summary.md` generated.
+
+## Phase 9B: Document Correction
+- **Purpose**: Execute documentation updates based on disposition matrix.
+- **Recommended Model**: Gemini 3.1 Pro
+- **Allowed Files**: Any target documentation file listed in the disposition matrix.
+- **Forbidden Files**: App source, tests, configurations.
+- **Stop Condition**: `phase_9b_docs_cleanup_summary.md` and `phase_9b_pro_review.md` generated.
+
+## Final Comprehensive Review
+- **Purpose**: Final verification gate before implementation.
+- **Recommended Model**: Gemini 3.1 Pro
+- **Allowed Files**: `final_readiness_matrix.csv`, `final_unresolved_risks.csv`, `final_implementation_gate.md`
+- **Forbidden Files**: App source, tests, configurations.
+- **Stop Condition**: `final_implementation_gate.md` states whether implementation is READY or BLOCKED.
