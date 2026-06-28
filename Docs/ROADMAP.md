@@ -25,5 +25,5 @@
 ## 3. Platform Integration (Future Work)
 
 - **Core AI Integration:** Replace the local `CoreMLSentenceEmbeddingProvider` with the native system-level Core AI frameworks once the SDK becomes stable on iOS/macOS.
-- **Private Cloud Compute (PCC):** Transition from local SLM simulation to real Private Cloud Compute secure enclave execution.
+- **Private Cloud Compute (PCC) (Completed):** Native Private Cloud Compute secure enclave execution is integrated for iOS 27 / macOS 27+, falling back to local SLM simulation on older OS releases.
 - **Siri & AppIntents:** Explore native system integration for Siri shortcuts and Spotlight indexing using AppEntities.

@@ -8,13 +8,12 @@ OpenIntelligence is a local-first, privacy-preserving retrieval-augmented genera
 
 ## 3. Safe Claims
 - The app uses iCloud Drive (Ubiquity containers) for sync via `NSFileCoordinator` and `NSMetadataQuery`. `[evidence: code_verified, exact, WorkspaceSyncService.swift]`
-- PCC execution is simulated entirely locally on `SystemLanguageModel.default`. `[evidence: code_verified, exact, SystemLanguageModel.default]`
+- PCC execution routes natively to secure enclaves via `FoundationModels.PrivateCloudComputeLanguageModel` on iOS 27 / macOS 27+, falling back cleanly to local `SystemLanguageModel` simulation on older OS versions. `[evidence: code_verified, exact, FoundationModelSessionFactory.swift]`
 - Relational metadata indexing relies on a single shared SQLite file with column-based `container_id` isolation. `[evidence: code_verified, exact, SQLiteFullTextService.swift]`
 - Billing entitlements are stored in `UserDefaults`. `[evidence: code_verified, exact, EntitlementStore.swift]`
 
 ## 4. Unsafe Claims
 - The app uses CloudKit databases. (FALSE) `[evidence: code_verified, exact]`
-- The app executes against a remote PCC secure enclave. (FALSE) `[evidence: code_verified, exact]`
 - Core AI embeddings are used in production. (FALSE, it's behind `#if false`). `[evidence: code_verified, exact]`
 - Knowledge libraries use separate isolated SQLite files. (FALSE) `[evidence: code_verified, exact]`
 

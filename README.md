@@ -35,7 +35,7 @@ OpenIntelligence is backed by extensive, rigorous engineering documentation deta
 ### Apple Intelligence Engineering Specs
 * [**Apple Foundation Models Specs**](Docs/Engineering/APPLE_MODELS.md): Optimization guide for macOS/iOS 26.x/27, managing 4K token budgets, guided generation via `@Generable`, and `SystemLanguageModel` sessions.
 * [**Apple Document Intelligence**](Docs/Engineering/APPLE_DOCUMENT_INTELLIGENCE.md): Practical integration with Vision OCR, SFSpeechRecognizer, PDFKit, and CoreText for semantic document parsing.
-* [**Private Cloud Compute (PCC)**](Docs/Engineering/PRIVATE_CLOUD_COMPUTE.md): Analysis of Apple's PCC enclave constraints, secure remote processing, and local simulation layers.
+* [**Private Cloud Compute (PCC)**](Docs/Engineering/PRIVATE_CLOUD_COMPUTE.md): Analysis of Apple's PCC enclave constraints, secure remote processing, and native execution routing layers.
 
 ### Audits & Constraints
 * [**Hard Limits**](Docs/Engineering/HARD_LIMITS.md): A centralized reference for token boundaries, model caps, memory limitations, and platform bottlenecks.
@@ -82,7 +82,7 @@ The entire RAG architecture operates on a strict **29-Step Pipeline** (6 Ingesti
 #### 3 Foundation Model Routes
 * **3B Core:** Offline Apple Silicon model (`SystemLanguageModel.default`) executing standard query tasks.
 * **20B Advanced:** Offline Apple Silicon model leveraging unified memory and NAND Flash Paging for enhanced reasoning.
-* **Private Cloud Compute (PT-MoE):** Escalates over encrypted channels to Apple's 32K context secure server enclaves. In the current build, remote enclave execution is simulated entirely locally on `SystemLanguageModel.default` using a compatibility wrapper (`EngineSDKCompatibility.swift`).
+* **Private Cloud Compute (PT-MoE):** Escalates over encrypted channels to Apple's 32K context secure server enclaves. Integrates native `FoundationModels.PrivateCloudComputeLanguageModel` execution when running on iOS 27 / macOS 27+, falling back cleanly to local `SystemLanguageModel` simulation on older OS versions.
 
 ---
 

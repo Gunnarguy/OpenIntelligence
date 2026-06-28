@@ -78,7 +78,7 @@ The OpenIntelligence Architecture Atlas is the canonical representation of the r
 - **NO SQLite Sync**: The `SQLiteFullTextService.swift` is completely local-only. `[evidence: code_verified, exact, SQLiteFullTextService.swift]`
 
 ## 10. Routing/PCC Boundaries
-- **PCC (Private Cloud Compute)**: Execution is simulated locally via `SystemLanguageModel.default`. No secure enclave networks are connected. `[evidence: code_verified, exact, SystemLanguageModel.default]`
+- **PCC (Private Cloud Compute)**: Execution routes natively to secure enclaves via `FoundationModels.PrivateCloudComputeLanguageModel` on iOS 27 / macOS 27+, falling back cleanly to local `SystemLanguageModel` simulation on older versions. `[evidence: code_verified, exact, FoundationModelSessionFactory.swift]`
 - **Consent Deadlock Risk**: Background executions via App Intents might block on `CloudConsentPromptView` evaluation. `[evidence: code_verified, exact, FoundationModelRoutePolicy.swift]`
 
 ## 11. Billing/Entitlement Boundaries

@@ -54,8 +54,8 @@ PCC node
 
 OpenIntelligence leverages Apple's public Foundation Models framework. The app supports dynamic route selection policies, routing standard/offline queries to `SystemLanguageModel.default` and reasoning-heavy or context-overflow queries to `PrivateCloudComputeLanguageModel`.
 
-> [!WARNING]
-> While the model routing policy maps routes to remote Private Cloud Compute, remote enclave execution is not compiled in or active in the current codebase. All elevated PCC routes are resolved locally using a simulated compatibility wrapper (`EngineSDKCompatibility.swift`).
+> [!IMPORTANT]
+> OpenIntelligence implements native Private Cloud Compute (PCC) execution via `FoundationModels.PrivateCloudComputeLanguageModel` when running on iOS 27 / macOS 27+, allowing elevated query modes (Deep Think/Maximum) to run natively on secure enclaves. When running on older OS releases (iOS/macOS 26.x), PCC routes fall back cleanly to local simulation on `SystemLanguageModel.default` using a compatibility wrapper (`EngineSDKCompatibility.swift`).
 
 The safe implementation assumptions are:
 

@@ -13,7 +13,7 @@ Version 4.4 introduces the new **Evidence Threads** capability alongside refined
 - **Production UI Sidebar:** Integrates a slide-out `ThreadSidebarView` directly within `ChatScreen.swift` matching the unified Liquid Glass Design System. Users can create, switch between, and delete research threads seamlessly via a new leading toolbar navigation button.
 - **Diagnostics-Only Exposure:** Introduces dedicated engineering telemetry and developer diagnostic views (`EvidenceThreadDebugView` and `EvidenceThreadDebugService`) to safely verify atomic persistence boundaries without affecting production chat views.
 - **Entitlement Realism:** Confirmed that the Pro subscription tier caps document ingestion at a hard limit of 1,000 documents to respect device memory limits. Unlimited document storage is reserved exclusively for the Lifetime tier.
-- **PCC Simulation:** Clarified that all elevated Private Cloud Compute (PCC) pathways are simulated locally on `SystemLanguageModel.default` inside `EngineSDKCompatibility.swift` to support compilation on current public SDKs.
+- **Native Private Cloud Compute:** Integrates native `FoundationModels.PrivateCloudComputeLanguageModel` execution when running on iOS 27 / macOS 27+, enabling escalated query modes (Deep Think/Maximum) to run over encrypted enclaves. Falls back cleanly to local `SystemLanguageModel` simulation on older OS versions.
 
 ## 4.3.1
 

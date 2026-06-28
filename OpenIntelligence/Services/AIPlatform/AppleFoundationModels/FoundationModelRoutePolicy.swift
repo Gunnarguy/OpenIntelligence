@@ -55,8 +55,7 @@ struct FoundationModelRoutePolicy {
         case .deepThink:
             // 1. If it's too big, send to PCC
             if estimatedContextTokens > onDeviceLimit && pccAllowed {
-                let pcc = PrivateCloudComputeLanguageModel()
-                if pcc.isAvailable && !pcc.quotaUsage.isLimitReached {
+                if isPCCAvailable() {
                     return .privateCloudCompute(reasoning: .deep)
                 }
             }
@@ -68,8 +67,7 @@ struct FoundationModelRoutePolicy {
             
             // 3. Fallback to PCC for older OS if allowed
             if pccAllowed {
-                let pcc = PrivateCloudComputeLanguageModel()
-                if pcc.isAvailable && !pcc.quotaUsage.isLimitReached {
+                if isPCCAvailable() {
                     return .privateCloudCompute(reasoning: .moderate)
                 }
             }
@@ -78,8 +76,7 @@ struct FoundationModelRoutePolicy {
         case .maximum:
             // 1. If it's too big, send to PCC
             if estimatedContextTokens > onDeviceLimit && pccAllowed {
-                let pcc = PrivateCloudComputeLanguageModel()
-                if pcc.isAvailable && !pcc.quotaUsage.isLimitReached {
+                if isPCCAvailable() {
                     return .privateCloudCompute(reasoning: .deep)
                 }
             }
@@ -91,12 +88,21 @@ struct FoundationModelRoutePolicy {
             
             // 3. Fallback to PCC for older OS if allowed
             if pccAllowed {
-                let pcc = PrivateCloudComputeLanguageModel()
-                if pcc.isAvailable && !pcc.quotaUsage.isLimitReached {
+                if isPCCAvailable() {
                     return .privateCloudCompute(reasoning: .deep)
                 }
             }
             return .onDeviceAdvanced
+        }
+    }
+    
+    private static func isPCCAvailable() -> Bool {
+        if #available(iOS 27.0, macOS 27.0, *) {
+            let pcc = FoundationModels.PrivateCloudComputeLanguageModel()
+            return pcc.isAvailable && !pcc.quotaUsage.isLimitReached
+        } else {
+            let pcc = PrivateCloudComputeLanguageModel()
+            return pcc.isAvailable && !pcc.quotaUsage.isLimitReached
         }
     }
 }

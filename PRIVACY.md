@@ -5,7 +5,7 @@ Last updated: February 2026
 ## Data Processing Overview
 
 - **Local-first by design**: Document ingestion, chunking, embedding, vector search, and answer synthesis all execute on-device using Apple's Neural Engine. No document text or telemetry leaves your device unless you explicitly enable Private Cloud Compute.
-- **Cloud fallback**: While the routing policy supports Apple Private Cloud Compute for complex queries, remote enclave execution is currently simulated locally using `SystemLanguageModel.default`. In a production PCC environment, only the active query and selected context snippets are transmitted via Apple's encrypted PCC protocol, and Apple guarantees cryptographic deletion after response completion.
+- **Cloud fallback**: For complex queries, the routing policy escalates to Apple Private Cloud Compute (PCC) secure server enclaves. Execution is run natively on Apple enclaves via `FoundationModels.PrivateCloudComputeLanguageModel` when running on iOS 27 / macOS 27+, falling back cleanly to local simulation on older OS versions. In a production PCC environment, only the active query and selected context snippets are transmitted via Apple's encrypted PCC protocol, and Apple guarantees cryptographic deletion after response completion.
 - **Telemetry**: The app does not ship third-party analytics. TelemetryCenter events stay on-device unless the user enables optional export within Reviewer/Developer mode.
 - **Motherboard HUD**: The hardware telemetry overlay (CPU, GPU, memory, thermal, battery data) reads system metrics locally via Darwin/sysctl APIs. No telemetry data is transmitted, stored persistently, or shared. The HUD is purely visual and ephemeral.
 
@@ -15,7 +15,7 @@ Last updated: February 2026
 | ----------------------- | ------------------------- | ------------------------------------------- | ---------------------------- |
 | On-Device Analysis      | Local Neural Engine / CPU | Nothing                                     | Default state                |
 | Apple Foundation Models | On-device Neural Engine   | Nothing                                     | None (automatic)             |
-| Private Cloud Compute   | Simulated locally (Apple PCC servers in production) | Query + context (encrypted, zero-retention) | Allow PCC toggle in Settings |
+| Private Cloud Compute   | Native enclaves on iOS/macOS 27+ (simulated fallback on older OS versions) | Query + context (encrypted, zero-retention) | Allow PCC toggle in Settings |
 
 ## Keys & Credentials
 
@@ -39,7 +39,7 @@ Last updated: February 2026
 
 ## Private Cloud Compute & Export Compliance
 
-- In production, Apple PCC sessions are end-to-end encrypted with cryptographic deletion after response completion. Currently, PCC routing is simulated locally.
+- In production, Apple PCC sessions are end-to-end encrypted with cryptographic deletion after response completion. Currently, PCC routing runs natively on iOS/macOS 27+ and falls back to local simulation on older OS versions.
 - App declares `ITSAppUsesNonExemptEncryption=false` in Info.plist. The app uses only standard encryption (HTTPS/TLS) provided by the operating system, which is exempt from export compliance documentation.
 
 ## Contact

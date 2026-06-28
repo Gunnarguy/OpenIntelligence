@@ -4,7 +4,7 @@
 
 OpenIntelligence is an Apple-native document intelligence application built around a SwiftUI app shell and a retrieval-oriented document engine.
 
-I designed the codebase to expose the entire RAG pipeline: document ingestion, chunking, indexing, retrieval, grounded answer generation, citation handling, confidence surfaces, and diagnostics. The architecture is local-first, with Apple-managed cloud capacity (PCC) simulated for future platform compatibility.
+The codebase is structured to expose the entire RAG pipeline: document ingestion, chunking, indexing, retrieval, grounded answer generation, citation handling, confidence surfaces, and diagnostics. The architecture is local-first, with Apple-managed cloud capacity (PCC) integrated natively on iOS 27 / macOS 27+ and simulated for compatibility on older versions.
 
 ---
 

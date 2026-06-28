@@ -4,7 +4,7 @@
 > **Source of truth:** Codebase audit in `Docs/AUDIT/`.
 > **Scope:** Describes shipped behavior unless explicitly labeled experimental, developer-only, or scaffolded.
 
-This document describes the privacy guardrails, local execution boundaries, and simulated Private Cloud Compute (PCC) routing logic in OpenIntelligence v4.1.
+This document describes the privacy guardrails, local execution boundaries, and Private Cloud Compute (PCC) routing logic in OpenIntelligence v4.4.
 
 ---
 
@@ -31,12 +31,12 @@ To support larger query contexts and complex queries, the app implements a dynam
 
 ---
 
-## 3. Current Code Reality: PCC Simulation
+## 3. Native PCC Execution and Simulated Fallback
 
-> [!WARNING]
-> While the model routing policy maps routes to remote Private Cloud Compute, remote enclave execution is not compiled in or active in the current codebase.
+> [!NOTE]
+> When running on iOS 27 / macOS 27+, OpenIntelligence utilizes native Apple Private Cloud Compute (PCC) execution via `FoundationModels.PrivateCloudComputeLanguageModel` for all escalated query pathways (Deep Think/Maximum modes, or contexts exceeding 4,096 tokens). This routes queries over encrypted channels to Apple's secure server enclaves.
 >
-> All elevated PCC routes are resolved locally on `SystemLanguageModel.default` using a compatibility wrapper in [EngineSDKCompatibility.swift](file:///Users/gunnarhostetler/Documents/GitHub/OpenIntelligence-Public/OpenIntelligence/Core/Support/EngineSDKCompatibility.swift). The app compiles and runs entirely on-device, and no remote attestation or network-enclave execution is active.
+> On older OS versions (iOS/macOS 26.x), all elevated PCC routes fall back cleanly to local simulation on `SystemLanguageModel.default` using a compatibility wrapper in [EngineSDKCompatibility.swift](file:///Users/gunnarhostetler/Documents/GitHub/OpenIntelligence-Public/OpenIntelligence/Core/Support/EngineSDKCompatibility.swift).
 
 ---
 

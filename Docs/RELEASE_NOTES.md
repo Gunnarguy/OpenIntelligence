@@ -14,6 +14,7 @@ This document provides a comprehensive, version-by-version breakdown of major ar
 *   **RAG System Integration:** Configured `RAGService` to load the most recent thread automatically on preload, persist RAG responses (including rich citations and reasoning) to the active thread, and handle thread deletions cleanly.
 *   **Legacy Preservation:** Retained the immutability of `ChatMessage` while utilizing it inside `EvidenceThread` to prevent breaking existing sync and database schemas.
 *   **Diagnostics View:** Retained engineering diagnostic tools (`EvidenceThreadDebugView` and `EvidenceThreadDebugService`) for isolated persistence boundary testing.
+*   **Native Private Cloud Compute:** Integrated native `FoundationModels.PrivateCloudComputeLanguageModel` execution when running on iOS 27 / macOS 27+, enabling escalated query modes (Deep Think/Maximum) to run over encrypted enclaves. Falls back cleanly to local `SystemLanguageModel` simulation on older OS versions.
 
 ---
 

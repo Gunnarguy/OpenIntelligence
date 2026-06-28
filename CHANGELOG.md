@@ -14,7 +14,7 @@ This is the public version history for OpenIntelligence. It focuses on user-visi
 - **[Orchestration]** Created `ThreadSidebarView` with standard Design System tokens to serve as an elegant slide-out navigation panel for managing and selecting threads. Wired it dynamically to the leading toolbar navigation button.
 - **[Orchestration]** Updated `RAGService` to load the most recent thread automatically on container preload, save new queries dynamically to the active thread, and handle thread deletions cleanly without crossing sync boundaries.
 - **[Entitlements]** Aligned and verified quota logic in `QuotaPolicy.swift` restricting the Pro tier to a hard limit of 1,000 document uploads (unlimited uploads are restricted to Lifetime).
-- **[PCC Simulation]** Documented that elevated model routes (Deep Think and Maximum quality modes) run locally via simulation in `EngineSDKCompatibility.swift`.
+- **[Orchestration]** Integrated native `FoundationModels.PrivateCloudComputeLanguageModel` execution when running on iOS 27 / macOS 27+, allowing elevated quality modes (Deep Think/Maximum) to run natively on secure enclaves, while maintaining simulated local fallback for older OS versions.
 - **[Orchestration]** Reverted `EvidenceThread` and `EvidenceThreadStore` scope modifiers from `public` to `internal` to prevent compilation errors regarding exposed internal model properties.
 
 ## 4.3.1 - June 2026
