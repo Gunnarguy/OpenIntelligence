@@ -81,6 +81,7 @@ struct FoundationModelSessionFactory {
             }
             
         case .privateCloudCompute(_):
+            #if compiler(>=6.1)
             if #available(iOS 27.0, macOS 27.0, *) {
                 let nativeModel = FoundationModels.PrivateCloudComputeLanguageModel()
                 guard nativeModel.isAvailable else { throw LLMError.modelUnavailable }
@@ -102,6 +103,17 @@ struct FoundationModelSessionFactory {
                     finalSession = LanguageModelSession(model: model, tools: tools, instructions: Instructions(instructionsText))
                 }
             }
+            #else
+            let model = PrivateCloudComputeLanguageModel()
+            guard model.isAvailable else { throw LLMError.modelUnavailable }
+            if let savedTranscript = pendingTranscript, !disableTools {
+                finalSession = LanguageModelSession(model: model, tools: tools, transcript: savedTranscript)
+                finalSession.prewarm()
+                transcriptConsumed = true
+            } else {
+                finalSession = LanguageModelSession(model: model, tools: tools, instructions: Instructions(instructionsText))
+            }
+            #endif
         case .automatic:
             let model = SystemLanguageModel.default
             guard case .available = model.availability else { throw LLMError.modelUnavailable }

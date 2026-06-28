@@ -16,6 +16,7 @@ This is the public version history for OpenIntelligence. It focuses on user-visi
 - **[Entitlements]** Aligned and verified quota logic in `QuotaPolicy.swift` restricting the Pro tier to a hard limit of 1,000 document uploads (unlimited uploads are restricted to Lifetime).
 - **[Orchestration]** Integrated native `FoundationModels.PrivateCloudComputeLanguageModel` execution when running on iOS 27 / macOS 27+, allowing elevated quality modes (Deep Think/Maximum) to run natively on secure enclaves, while maintaining simulated local fallback for older OS versions.
 - **[Orchestration]** Reverted `EvidenceThread` and `EvidenceThreadStore` scope modifiers from `public` to `internal` to prevent compilation errors regarding exposed internal model properties.
+- **[Orchestration]** Wrapped native Private Cloud Compute execution in compiler-version conditionals (`#if compiler(>=6.1)`) to support compilation on older SDK environments like the GitHub Actions CI runner.
 
 ## 4.3.1 - June 2026
 
