@@ -55,7 +55,7 @@ The OpenIntelligence Architecture Atlas is the canonical representation of the r
 
 ## 6. Model/Persistence Map
 - `ChatMessage`: JSON serialized and stored locally.
-- `EvidenceThread` (planned): Isolated JSON files per thread.
+- `EvidenceThread` (active): Isolated JSON files per thread.
 
 ## 7. Major User Flows
 1. App Launch & Container Restore
