@@ -138,6 +138,10 @@ final class QueryRuntimeCoordinator {
     ) async -> QueryRuntimeContext {
 
         var config = inferenceConfig
+        if config.fmPreference == .core3B || config.fmPreference == .advanced20B {
+            config.allowPrivateCloudCompute = false
+            config.executionContext = .onDeviceOnly
+        }
         let networkAvailable = NetworkMonitor.shared.isConnected
         let reliabilityModeEnabled = settingsStore?.reliabilityModeEnabled ?? true
 

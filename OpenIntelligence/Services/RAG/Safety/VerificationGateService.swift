@@ -181,6 +181,7 @@ actor VerificationGateService {
         let gateB = await runGateB(
             response: response,
             chunks: retrievedChunks,
+            query: query,
             structuredClaims: structuredClaims
         )
         gateResults.append(gateB.gateResult)
@@ -313,6 +314,7 @@ actor VerificationGateService {
     private func runGateB(
         response: String,
         chunks: [RetrievedChunk],
+        query: String,
         structuredClaims: [StructuredRAGClaim]? = nil
     ) async -> GateBEvaluation {
         let structuredClaims = structuredClaims?.filter {
@@ -345,7 +347,7 @@ actor VerificationGateService {
         }
 
         let corpus = buildCorpus(from: chunks)
-        let claimResults = claimInputs.map { evaluateClaim($0, in: chunks, corpus: corpus) }
+        let claimResults = claimInputs.map { evaluateClaim($0, in: chunks, corpus: corpus, query: query) }
 
         let supportedCount = claimResults.filter { $0.verdict == .supported }.count
         let partialCount = claimResults.filter { $0.verdict == .partial }.count
@@ -1226,7 +1228,8 @@ actor VerificationGateService {
     private func evaluateClaim(
         _ claimInput: VerificationClaimInput,
         in chunks: [RetrievedChunk],
-        corpus: String
+        corpus: String,
+        query: String
     ) -> RAGVerificationResult.ClaimResult {
         let claimText = cleanClaimText(claimInput.claim)
         let citedChunks = citedEvidence(for: claimInput.citations, in: chunks)
@@ -1235,9 +1238,9 @@ actor VerificationGateService {
 
         let citedCorpus = buildCorpus(from: citedChunks)
         let supportingCorpus = buildCorpus(from: supportingChunks)
-        let citedCoverage = !citedChunks.isEmpty && isClaimCovered(claim: claimText, inCorpus: citedCorpus)
-        let supportingCoverage = !supportingChunks.isEmpty && isClaimCovered(claim: claimText, inCorpus: supportingCorpus)
-        let corpusCoverage = isClaimCovered(claim: claimText, inCorpus: corpus)
+        let citedCoverage = !citedChunks.isEmpty && isClaimCovered(claim: claimText, inCorpus: citedCorpus, query: query)
+        let supportingCoverage = !supportingChunks.isEmpty && isClaimCovered(claim: claimText, inCorpus: supportingCorpus, query: query)
+        let corpusCoverage = isClaimCovered(claim: claimText, inCorpus: corpus, query: query)
         let supportConfidence = claimSupportConfidence(for: claimText, evidence: supportingChunks)
         let resolvedEvidenceIds = supportingChunks.map { $0.chunk.id.uuidString }
 
@@ -1290,7 +1293,7 @@ actor VerificationGateService {
     }
 
     /// Check if claim text appears in corpus (fuzzy matching)
-    private func isClaimCovered(claim: String, inCorpus corpus: String) -> Bool {
+    private func isClaimCovered(claim: String, inCorpus corpus: String, query: String) -> Bool {
         // Extract key terms from claim (nouns, numbers, codes)
         let tagger = NLTagger(tagSchemes: [.lexicalClass])
         tagger.string = claim
@@ -1311,8 +1314,45 @@ actor VerificationGateService {
 
         guard !keyTerms.isEmpty else { return true }  // No key terms = vacuously covered
 
-        // Require majority of key terms to appear in corpus
-        let foundCount = keyTerms.filter { corpus.contains($0) }.count
+        // Extract query terms as a set
+        let queryTerms = Set(extractQueryAnchorTerms(from: query))
+
+        // Require majority of key terms to appear in corpus or query
+        let foundCount = keyTerms.filter { term in
+            if corpus.contains(term) || queryTerms.contains(term) {
+                return true
+            }
+            // Plural/singular stemming checks
+            if term.hasSuffix("s") {
+                let singular = String(term.dropLast())
+                if corpus.contains(singular) || queryTerms.contains(singular) {
+                    return true
+                }
+            }
+            if term.hasSuffix("ies") {
+                let singular = String(term.dropLast(3)) + "y"
+                if corpus.contains(singular) || queryTerms.contains(singular) {
+                    return true
+                }
+            }
+            if term.hasSuffix("y") {
+                let plural = String(term.dropLast()) + "ies"
+                if corpus.contains(plural) || queryTerms.contains(plural) {
+                    return true
+                }
+            }
+            // Reverse checks (corpus/query has singular, term is singular, check if plural matches)
+            let pluralReg = term + "s"
+            if corpus.contains(pluralReg) || queryTerms.contains(pluralReg) {
+                return true
+            }
+            let pluralEs = term + "es"
+            if corpus.contains(pluralEs) || queryTerms.contains(pluralEs) {
+                return true
+            }
+            return false
+        }.count
+
         return Float(foundCount) / Float(keyTerms.count) >= 0.5
     }
 

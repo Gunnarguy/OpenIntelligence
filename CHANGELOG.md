@@ -17,6 +17,10 @@ This is the public version history for OpenIntelligence. It focuses on user-visi
 - **[Orchestration]** Integrated native `FoundationModels.PrivateCloudComputeLanguageModel` execution when running on iOS 27 / macOS 27+, allowing elevated quality modes (Deep Think/Maximum) to run natively on secure enclaves, while maintaining simulated local fallback for older OS versions.
 - **[Orchestration]** Reverted `EvidenceThread` and `EvidenceThreadStore` scope modifiers from `public` to `internal` to prevent compilation errors regarding exposed internal model properties.
 - **[Orchestration]** Wrapped native Private Cloud Compute execution in compiler-version conditionals (`#if compiler(>=6.4)`) to support compilation on older SDK environments (like Xcode 16.x on the GitHub Actions CI runner).
+- **[Retrieval]** Refined RAG verification gate logic to prevent false-positive refusals on query-specific terms, and added English stemming rules for singular/plural word variants.
+- **[Retrieval]** Restored support for ungrounded fallbacks under standard/reliability modes when ungrounded answers are permitted.
+- **[Orchestration]** Hardened model preference selection by forcing local execution boundaries (`allowPrivateCloudCompute = false`, `executionContext = .onDeviceOnly`) and capping RAG context budgets to 6K tokens when the 3B Core or 20B Advanced models are selected.
+- **[Orchestration]** Resolved all Swift 6 compiler warnings and actor isolation issues across RAGService and EvidenceThreadStore.
 
 ## 4.3.1 - June 2026
 

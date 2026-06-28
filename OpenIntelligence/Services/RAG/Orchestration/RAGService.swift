@@ -548,30 +548,24 @@ class RAGService: ObservableObject {
 
     /// Preloads chat history without blocking the main actor on disk IO or JSON decoding.
     func preloadChatHistory(for containerId: UUID?) async -> [ChatMessage] {
-        let resolvedId = await MainActor.run { containerId ?? self.containerService.activeContainerId }
+        let resolvedId = containerId ?? self.containerService.activeContainerId
 
-        if let cached = await MainActor.run(body: { self.chatHistories[resolvedId] }) {
+        if let cached = self.chatHistories[resolvedId] {
             return cached
         }
 
-        let loaded = await Task.detached(priority: .utility) { [weak self] () -> [ChatMessage] in
-            guard let self = self else { return [] }
-            do {
-                let threads = try self.threadStore.listThreads(containerId: resolvedId)
-                if let mostRecent = threads.first {
-                    await MainActor.run { self.activeThreadId = mostRecent.id }
-                    return mostRecent.messages.map { $0.sanitizedForPersistence() }
-                }
-            } catch {
-                Log.error("[RAGService] Failed to load threads for container \(resolvedId): \(error.localizedDescription)", category: .initialization)
+        do {
+            let threads = try self.threadStore.listThreads(containerId: resolvedId)
+            if let mostRecent = threads.first {
+                self.activeThreadId = mostRecent.id
+                let loaded = mostRecent.messages.map { $0.sanitizedForPersistence() }
+                self.chatHistories[resolvedId] = loaded
+                return loaded
             }
-            return []
-        }.value
-
-        return await MainActor.run {
-            self.chatHistories[resolvedId] = loaded
-            return loaded
+        } catch {
+            Log.error("[RAGService] Failed to load threads for container \(resolvedId): \(error.localizedDescription)", category: .initialization)
         }
+        return []
     }
 
     /// Maximum messages to retain per container to prevent unbounded memory/disk growth.
@@ -10863,11 +10857,11 @@ class RAGService: ObservableObject {
                 // Previously, spec prioritization sorted candidates but the slicing used the
                 // original unsorted array, so fuse-box tables could be selected over oil specs.
                 let includedRetrievedChunks = Array(orderedCandidates.prefix(actualChunksUsed))
-                let precisionLookupCandidates = buildPrecisionLookupCandidates(
-                    included: includedRetrievedChunks,
-                    ordered: orderedCandidates,
-                    desiredCount: max(actualChunksUsed + 6, 16)
-                )
+                // let precisionLookupCandidates = buildPrecisionLookupCandidates(
+                //     included: includedRetrievedChunks,
+                //     ordered: orderedCandidates,
+                //     desiredCount: max(actualChunksUsed + 6, 16)
+                // )
                 let includedChunks = includedRetrievedChunks.map { $0.chunk }
                 recoveryRetrievedChunks = includedRetrievedChunks
 
@@ -12344,7 +12338,8 @@ class RAGService: ObservableObject {
                         answerIntent: answerIntent,
                         verificationResult: verificationResult,
                         structuredGeneration: llmResponse.structuredRAGGeneration,
-                        loops: reasoningTraceForMetadata?.count ?? 1
+                        loops: reasoningTraceForMetadata?.count ?? 1,
+                        allowUngroundedFallback: allowUngroundedFallback
                     )
 
 #if canImport(FoundationModels)
@@ -12782,7 +12777,8 @@ class RAGService: ObservableObject {
                 retrievedChunks: retrievedChunks,
                 answerIntent: answerIntent,
                 verificationResult: nil,
-                loops: 1
+                loops: 1,
+                allowUngroundedFallback: true
             )
             return RAGResponse(
                 queryId: ragQuery.id,
@@ -12953,7 +12949,8 @@ class RAGService: ObservableObject {
                 answerIntent: answerIntent,
                 verificationResult: verificationResult,
                 structuredGeneration: llmResponse.structuredRAGGeneration,
-                loops: 1
+                loops: 1,
+                allowUngroundedFallback: true
             )
             return RAGResponse(
                 queryId: ragQuery.id,

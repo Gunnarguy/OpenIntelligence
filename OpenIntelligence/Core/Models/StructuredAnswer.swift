@@ -330,7 +330,8 @@ extension StructuredAnswer {
         verificationResult: RAGVerificationResult?,
         structuredGeneration: StructuredRAGGeneration? = nil,
         loops: Int = 1,
-        includeInlineCitations: Bool = true
+        includeInlineCitations: Bool = true,
+        allowUngroundedFallback: Bool = false
     ) -> StructuredAnswer {
         let trimmedResponse = response.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedResponse.isEmpty else {
@@ -351,7 +352,8 @@ extension StructuredAnswer {
                 verificationResult: verificationResult,
                 structuredGeneration: structuredGeneration,
                 loops: loops,
-                includeInlineCitations: includeInlineCitations
+                includeInlineCitations: includeInlineCitations,
+                allowUngroundedFallback: allowUngroundedFallback
             )
         }
 
@@ -447,7 +449,8 @@ extension StructuredAnswer {
             builder.build(),
             answerIntent: answerIntent,
             verificationResult: verificationResult,
-            includeInlineCitations: includeInlineCitations
+            includeInlineCitations: includeInlineCitations,
+            allowUngroundedFallback: allowUngroundedFallback
         )
     }
 
@@ -458,7 +461,8 @@ extension StructuredAnswer {
         verificationResult: RAGVerificationResult?,
         structuredGeneration: StructuredRAGGeneration,
         loops: Int,
-        includeInlineCitations: Bool
+        includeInlineCitations: Bool,
+        allowUngroundedFallback: Bool
     ) -> StructuredAnswer {
         let preferredAnswer = structuredGeneration.answer.trimmingCharacters(in: .whitespacesAndNewlines)
         let answerText = preferredAnswer.isEmpty ? response : preferredAnswer
@@ -552,7 +556,8 @@ extension StructuredAnswer {
             builder.build(),
             answerIntent: answerIntent,
             verificationResult: verificationResult,
-            includeInlineCitations: includeInlineCitations
+            includeInlineCitations: includeInlineCitations,
+            allowUngroundedFallback: allowUngroundedFallback
         )
     }
 
@@ -811,7 +816,8 @@ extension StructuredAnswer {
         _ structuredAnswer: StructuredAnswer,
         answerIntent: AnswerIntent,
         verificationResult: RAGVerificationResult?,
-        includeInlineCitations: Bool
+        includeInlineCitations: Bool,
+        allowUngroundedFallback: Bool = false
     ) -> StructuredAnswer {
         guard let verificationResult else { return structuredAnswer }
 
@@ -821,7 +827,7 @@ extension StructuredAnswer {
 
         guard hasClaimVerification else { return structuredAnswer }
 
-        if acceptedClaims.isEmpty {
+        if acceptedClaims.isEmpty && !allowUngroundedFallback {
             let refusalReason = verificationResult.abstainReason ?? "I couldn't verify a reliable answer from the retrieved evidence."
             return StructuredAnswer(
                 refuse: true,

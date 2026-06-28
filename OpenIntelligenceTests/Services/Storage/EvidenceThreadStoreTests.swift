@@ -4,7 +4,7 @@
 //
 
 import XCTest
-@testable import OpenIntelligence
+@testable import OpenIntelligenceEngine
 
 final class EvidenceThreadStoreTests: XCTestCase {
     var store: EvidenceThreadStore!
