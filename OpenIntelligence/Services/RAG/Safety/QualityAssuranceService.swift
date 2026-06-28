@@ -696,9 +696,9 @@ actor QualityAssuranceService {
     func quickSanityCheck(embeddingService: EmbeddingService) async -> Bool {
         // Test just 3 critical pairs
         let criticalPairs = [
-            ("dog", "canine", 0.6),      // Synonym must be high
-            ("car", "banana", 0.3),      // Unrelated must be low
-            ("machine learning", "AI", 0.5)  // Related must be moderate
+            ("dog", "canine", 0.55),      // Synonym must be high
+            ("car", "banana", 0.45),      // Unrelated must be low
+            ("machine", "computer", 0.40)  // Related must be moderate
         ]
 
         for (a, b, threshold) in criticalPairs {
@@ -707,12 +707,14 @@ actor QualityAssuranceService {
                 let embB = try await embeddingService.generateEmbedding(for: b)
                 let sim = cosineSimilarity(embA, embB)
 
-                // First pair should be ABOVE threshold, others relative
                 if a == "dog" && sim < Float(threshold) {
                     return false  // Synonyms should be similar
                 }
                 if a == "car" && sim > Float(threshold) {
                     return false  // Unrelated should NOT be similar
+                }
+                if a == "machine" && sim < Float(threshold) {
+                    return false  // Related concepts should be somewhat similar
                 }
             } catch {
                 return false

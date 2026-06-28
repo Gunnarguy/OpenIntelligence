@@ -6,6 +6,7 @@ enum OpenIntelligenceLinks {
     static let appStoreURL = URL(string: "https://apps.apple.com/app/id\(appStoreID)")!
     static let writeReviewURL = URL(string: "https://apps.apple.com/app/id\(appStoreID)?action=write-review")!
     static let feedbackEmailAddress = "gunnarguy@me.com"
+    static let notionRoadmapURL = URL(string: "https://app.notion.com/p/gunzino/37f49a74d54f81b79424dae1288c0043")!
 
     static func feedbackMailtoURL(source: String) -> URL {
         let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "unknown"
@@ -176,6 +177,14 @@ struct AboutView: View {
                                 tint: .secondary
                             ) {
                                 openURL(OpenIntelligenceLinks.githubURL)
+                            }
+                            externalLinkRow(
+                                title: "Notion Roadmap",
+                                subtitle: "Track the features, tasks, and future technical roadmap milestones",
+                                icon: "map.fill",
+                                tint: .primary
+                            ) {
+                                openURL(OpenIntelligenceLinks.notionRoadmapURL)
                             }
                             externalLinkRow(
                                 title: "Write an App Store Review",
