@@ -81,7 +81,7 @@ struct FoundationModelSessionFactory {
             }
             
         case .privateCloudCompute(_):
-            #if compiler(>=6.1)
+            #if compiler(>=6.4)
             if #available(iOS 27.0, macOS 27.0, *) {
                 let nativeModel = FoundationModels.PrivateCloudComputeLanguageModel()
                 guard nativeModel.isAvailable else { throw LLMError.modelUnavailable }
