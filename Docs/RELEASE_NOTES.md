@@ -1,9 +1,19 @@
-> **Documentation status:** Verified for OpenIntelligence v4.3 on June 20, 2026.
+> **Documentation status:** Verified for OpenIntelligence v4.4 on June 27, 2026.
 
 
 # OpenIntelligence Release Notes
 
 This document provides a comprehensive, version-by-version breakdown of major architectural and feature updates to the OpenIntelligence Apple Intelligence-native evidence system.
+
+---
+
+## v4.4 - June 2026
+
+*   **Evidence Threads Core:** Replaced dynamic, ephemeral chat persistence with robust, durable research threads stored locally on disk under `LocalCache/EvidenceThreads/<containerId>/`.
+*   **Production Sidebar UI:** Built an elegant, slide-out `ThreadSidebarView` conforming to standard Design System tokens (`DSColors`, `DSSpacing`, `DSTypography`). Users can manage, switch between, and delete research threads via a new leading toolbar button.
+*   **RAG System Integration:** Configured `RAGService` to load the most recent thread automatically on preload, persist RAG responses (including rich citations and reasoning) to the active thread, and handle thread deletions cleanly.
+*   **Legacy Preservation:** Retained the immutability of `ChatMessage` while utilizing it inside `EvidenceThread` to prevent breaking existing sync and database schemas.
+*   **Diagnostics View:** Retained engineering diagnostic tools (`EvidenceThreadDebugView` and `EvidenceThreadDebugService`) for isolated persistence boundary testing.
 
 ---
 

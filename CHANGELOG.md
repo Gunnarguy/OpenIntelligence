@@ -9,6 +9,10 @@ This is the public version history for OpenIntelligence. It focuses on user-visi
 - **[Evidence Threads]** Implemented Phase 1A local thread persistence. Created `EvidenceThread` and `EvidenceThreadMessage` Codable models to store research chat sessions locally on disk.
 - **[Evidence Threads]** Placed thread storage directories under `LocalCache/EvidenceThreads/<containerId>/` to isolate them and prevent accidental sweeps from the iCloud Drive ubiquity sync daemon.
 - **[Diagnostics]** Implemented Phase 1B Diagnostics-Only Exposure. Created `EvidenceThreadDebugService` and `EvidenceThreadDebugView` inside `Features/Debug/` to test persistence, thread mocking, and thread deletion without altering production views.
+- **[Orchestration]** Completed Phase 1C & 1D Integration. Integrated Evidence Thread persistence into the production `RAGService` and `ChatScreen` systems.
+- **[Orchestration]** Replaced the skeletal `EvidenceThreadMessage` with the fully featured `ChatMessage` array, ensuring immutability while capturing complete response details and citations on disk.
+- **[Orchestration]** Created `ThreadSidebarView` with standard Design System tokens to serve as an elegant slide-out navigation panel for managing and selecting threads. Wired it dynamically to the leading toolbar navigation button.
+- **[Orchestration]** Updated `RAGService` to load the most recent thread automatically on container preload, save new queries dynamically to the active thread, and handle thread deletions cleanly without crossing sync boundaries.
 - **[Entitlements]** Aligned and verified quota logic in `QuotaPolicy.swift` restricting the Pro tier to a hard limit of 1,000 document uploads (unlimited uploads are restricted to Lifetime).
 - **[PCC Simulation]** Documented that elevated model routes (Deep Think and Maximum quality modes) run locally via simulation in `EngineSDKCompatibility.swift`.
 - **[Orchestration]** Reverted `EvidenceThread` and `EvidenceThreadStore` scope modifiers from `public` to `internal` to prevent compilation errors regarding exposed internal model properties.

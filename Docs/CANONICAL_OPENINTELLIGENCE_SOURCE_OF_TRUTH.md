@@ -41,7 +41,8 @@ OpenIntelligence is a local-first, privacy-preserving retrieval-augmented genera
 
 ## 11. Evidence Threads Canonical Decision
 - **Design B**: Use isolated thread files under `LocalCache/EvidenceThreads/<containerId>/`. `[evidence: artifact_derived, exact, evidence_threads_design_decision.md]`
-- Legacy `ChatMessage` must remain untouched.
+- Legacy `ChatMessage` remains untouched (EvidenceThread uses ChatMessage array for immutability).
+- RAGService and ChatScreen integration complete. ChatScreen features a slide-out ThreadSidebarView, enabling thread switching, creation, and deletion, with history persistence and loading managed asynchronously by RAGService.
 
 ## 12. Phase Boundaries
 - Phase 0: Master Operating Rules (Complete)
@@ -53,6 +54,7 @@ OpenIntelligence is a local-first, privacy-preserving retrieval-augmented genera
 - Phase 6: Documentation Scan & Pro Review (Complete)
 - Phase 7: Evidence Threads Placement (Complete)
 - Phase 8: Canonical Control System (Complete)
+- Phase 9: Evidence Threads MVP Integration (Complete)
 
 ## 13. Files Allowed/Prohibited by Phase
 - Audit phases prohibit modification of `*.swift` files, tests, configurations.

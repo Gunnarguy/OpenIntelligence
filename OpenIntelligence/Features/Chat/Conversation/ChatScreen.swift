@@ -197,6 +197,7 @@ struct ChatScreen: View {
 
     @AppStorage("retrievalTopK") private var retrievalTopK: Int = 3
     @State private var showScrollToBottom: Bool = false
+    @State private var showThreadSidebar: Bool = false
     @State private var messages: [ChatMessage] = []
     @State private var didSeedScreenshotDemo: Bool = false
     @State private var streamingText: String = ""
@@ -516,6 +517,23 @@ struct ChatScreen: View {
             }
 
             writingToolsProgressOverlay
+            
+            if showThreadSidebar {
+                ThreadSidebarView(
+                    ragService: ragService,
+                    isPresented: $showThreadSidebar,
+                    onThreadSelected: { threadId in
+                        let containerId = ragService.containerService.activeContainerId
+                        let loadedMessages = ragService.loadThread(threadId, for: containerId)
+                        messages = loadedMessages
+                        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                            showThreadSidebar = false
+                        }
+                    }
+                )
+                .transition(.move(edge: .leading))
+                .zIndex(100)
+            }
         }
         // MARK: - Vision Capture (v2 feature - disabled for v1 App Store release)
         // .fullScreenCover(isPresented: $showVisionCapture) {
@@ -639,6 +657,17 @@ struct ChatScreen: View {
         }
         .toolbar {
             #if os(iOS)
+                ToolbarItem(placement: .topBarLeading) {
+                    Button {
+                        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                            showThreadSidebar.toggle()
+                        }
+                    } label: {
+                        Image(systemName: "sidebar.left")
+                            .imageScale(.large)
+                    }
+                }
+                
                 // MARK: - AI Hub (RAG Transforms + Image Playground)
                 ToolbarItem(placement: .topBarTrailing) {
                     aiHubToolbarButton
@@ -671,6 +700,17 @@ struct ChatScreen: View {
                     .animation(nil, value: messages.count)
                 }
             #else
+                ToolbarItem(placement: .navigation) {
+                    Button {
+                        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                            showThreadSidebar.toggle()
+                        }
+                    } label: {
+                        Image(systemName: "sidebar.left")
+                            .imageScale(.large)
+                    }
+                }
+                
                 ToolbarItem {
                     Menu {
                         Button {

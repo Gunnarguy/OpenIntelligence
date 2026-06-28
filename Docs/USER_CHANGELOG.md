@@ -1,9 +1,19 @@
-> **Documentation status:** Verified for OpenIntelligence v4.3 on June 20, 2026.
+> **Documentation status:** Verified for OpenIntelligence v4.4 on June 27, 2026.
 
 
 # OpenIntelligence User-Facing Changelog
 
 This document provides a chronological history of user-facing changes, highlighting how OpenIntelligence continuously improves transparency, speed, and reliability.
+
+---
+
+## v4.4 - June 2026
+
+*   **Evidence Threads:** Introduced durable conversational threads. Chat sessions and their active citations, metadata, and responses are now persisted on disk, eliminating dynamic ephemerality.
+*   **Slide-Out Thread Sidebar:** Added a premium, spring-animated slide-out menu to view, create, switch, and delete research threads. Features full swipe-to-delete support and active-selection highlighting.
+*   **Design System Parity:** Structured the new sidebar using the app's native visual tokens (`DSColors`, `DSSpacing`, `DSTypography`), rendering a visually integrated, sleek interface on both iOS and macOS.
+*   **Local Cache Isolation:** Isolated thread storage under `LocalCache/EvidenceThreads/` to strictly protect your history from iCloud Drive sync sweeps.
+*   **Engineering Diagnostics View:** Retained the debug view and mocked thread triggers inside the Developer Diagnostics Hub to inspect and verify thread persistence.
 
 ---
 

@@ -37,8 +37,8 @@ final class EvidenceThreadDebugService: ObservableObject {
             containerId: defaultContainerId,
             title: "Mock Thread \(Int.random(in: 100...999))",
             messages: [
-                EvidenceThreadMessage(role: .user, content: "Hello, this is a mock diagnostic thread."),
-                EvidenceThreadMessage(role: .assistant, content: "I am correctly isolated in the EvidenceThread store.")
+                ChatMessage(role: .user, content: "Hello, this is a mock diagnostic thread."),
+                ChatMessage(role: .assistant, content: "I am correctly isolated in the EvidenceThread store.")
             ]
         )
         do {

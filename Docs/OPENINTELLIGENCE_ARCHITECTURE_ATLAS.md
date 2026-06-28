@@ -101,7 +101,8 @@ All documentation cross-references have been moved to `DOCUMENTATION_CONSISTENCY
 
 ## 15. Evidence Threads Implication Section
 - **Design B**: Isolated JSON files under `LocalCache/EvidenceThreads/<containerId>/`. `[evidence: artifact_derived, exact, evidence_threads_design_decision.md]`
-- **Constraint**: `ChatMessage.swift` and existing sync routines must remain untouched.
+- **Integration**: Complete. Persistent history is integrated into `RAGService.swift` and presented through `ThreadSidebarView.swift` inside `ChatScreen.swift`.
+- **Constraint**: `ChatMessage.swift` and existing sync routines remain untouched (preserved by using `ChatMessage` in `EvidenceThread` messages array).
 
 ## 16. Mermaid Diagrams
 

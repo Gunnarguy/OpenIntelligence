@@ -15,7 +15,7 @@ final class EvidenceThreadStoreTests: XCTestCase {
         store = EvidenceThreadStore()
         testContainerId = UUID()
         
-        let message = EvidenceThreadMessage(role: .user, content: "Hello, testing!")
+        let message = ChatMessage(role: .user, content: "Hello, testing!")
         testThread = EvidenceThread(
             containerId: testContainerId,
             title: "Test Thread",

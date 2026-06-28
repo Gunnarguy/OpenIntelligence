@@ -339,6 +339,7 @@ class RAGService: ObservableObject {
     private let contextPackingService: ContextPackingService
     private let extractiveSummarizationService: ExtractiveSummarizationService
     private let specificationExtractor = SpecificationExtractor()
+    let threadStore = EvidenceThreadStore()
     private weak var entitlementStore: EntitlementStore?
     private var cancellables = Set<AnyCancellable>()
     @MainActor private weak var settingsStore: SettingsStore?
@@ -528,9 +529,21 @@ class RAGService: ObservableObject {
         if let cached = chatHistories[resolvedId] {
             return cached
         }
-        let loaded = loadChatHistoryFromDisk(for: resolvedId)
-        chatHistories[resolvedId] = loaded
-        return loaded
+        
+        do {
+            let threads = try threadStore.listThreads(containerId: resolvedId)
+            if let mostRecent = threads.first {
+                activeThreadId = mostRecent.id
+                let loaded = mostRecent.messages.map { $0.sanitizedForPersistence() }
+                chatHistories[resolvedId] = loaded
+                return loaded
+            }
+        } catch {
+            Log.error("[RAGService] Failed to load threads: \(error.localizedDescription)", category: .initialization)
+        }
+        
+        chatHistories[resolvedId] = []
+        return []
     }
 
     /// Preloads chat history without blocking the main actor on disk IO or JSON decoding.
@@ -541,9 +554,18 @@ class RAGService: ObservableObject {
             return cached
         }
 
-        let url = AppSupportPaths.chatHistoryURL(containerId: resolvedId)
-        let loaded = await Task.detached(priority: .utility) {
-            Self.readChatHistoryFromDisk(at: url, containerId: resolvedId)
+        let loaded = await Task.detached(priority: .utility) { [weak self] () -> [ChatMessage] in
+            guard let self = self else { return [] }
+            do {
+                let threads = try self.threadStore.listThreads(containerId: resolvedId)
+                if let mostRecent = threads.first {
+                    await MainActor.run { self.activeThreadId = mostRecent.id }
+                    return mostRecent.messages.map { $0.sanitizedForPersistence() }
+                }
+            } catch {
+                Log.error("[RAGService] Failed to load threads for container \(resolvedId): \(error.localizedDescription)", category: .initialization)
+            }
+            return []
         }.value
 
         return await MainActor.run {
@@ -566,7 +588,28 @@ class RAGService: ObservableObject {
             ? Array(messages.suffix(Self.maxMessagesPerContainer))
             : messages
         chatHistories[resolvedId] = trimmedMessages
-        saveChatHistory(trimmedMessages.map { $0.sanitizedForPersistence() }, for: resolvedId)
+        
+        let threadIdToSave = activeThreadId ?? UUID()
+        activeThreadId = threadIdToSave
+        
+        let firstUserMessage = trimmedMessages.first { $0.role == .user }?.content ?? "New Thread"
+        let title = String(firstUserMessage.prefix(50)).trimmingCharacters(in: .whitespacesAndNewlines)
+
+        let thread = EvidenceThread(
+            id: threadIdToSave,
+            containerId: resolvedId,
+            title: title,
+            createdAt: Date(),
+            updatedAt: Date(),
+            messages: trimmedMessages.map { $0.sanitizedForPersistence() },
+            metadata: [:]
+        )
+
+        do {
+            try threadStore.saveThread(thread)
+        } catch {
+            Log.error("[RAGService] Failed to save thread for container \(resolvedId): \(error.localizedDescription)", category: .initialization)
+        }
     }
 
     /// Clears chat history for a container both in memory and on disk.
@@ -574,7 +617,16 @@ class RAGService: ObservableObject {
     func clearChatHistory(for containerId: UUID?) {
         let resolvedId = containerId ?? containerService.activeContainerId
         chatHistories[resolvedId] = []
-        saveChatHistory([], for: resolvedId)
+        
+        if let currentThread = activeThreadId {
+            do {
+                try threadStore.deleteThread(id: currentThread, containerId: resolvedId)
+                Log.debug("[RAGService] Deleted thread \(currentThread)", category: .initialization)
+            } catch {
+                Log.error("[RAGService] Failed to delete thread: \(error.localizedDescription)", category: .initialization)
+            }
+            activeThreadId = nil
+        }
 
         // Reset Deep Think / Maximum mode live metrics to avoid stale UI
         resetDeepThinkLiveMetrics()
@@ -616,6 +668,32 @@ class RAGService: ObservableObject {
         if resetSession {
             resetLLMSession()
         }
+    }
+    
+    // MARK: - Evidence Threads Additions
+    
+    @MainActor
+    func loadThread(_ threadId: UUID, for containerId: UUID) -> [ChatMessage] {
+        do {
+            let thread = try threadStore.getThread(id: threadId, containerId: containerId)
+            activeThreadId = thread.id
+            let loaded = thread.messages.map { $0.sanitizedForPersistence() }
+            chatHistories[containerId] = loaded
+            return loaded
+        } catch {
+            Log.error("[RAGService] Failed to load thread \(threadId): \(error.localizedDescription)", category: .initialization)
+            return []
+        }
+    }
+    
+    func listThreads(for containerId: UUID) -> [EvidenceThread] {
+        return (try? threadStore.listThreads(containerId: containerId)) ?? []
+    }
+    
+    @MainActor
+    func createNewThread(for containerId: UUID) {
+        activeThreadId = UUID()
+        chatHistories[containerId] = []
     }
 
     /// Resets Deep Think / Maximum mode live metrics to prevent stale state in UI.
@@ -1030,6 +1108,7 @@ class RAGService: ObservableObject {
     @MainActor @Published private(set) var cloudConsent: [CloudProvider: CloudConsentState] = [:]
     @MainActor @Published private(set) var containerIntelligence: [UUID: LibraryIntelligenceCenter.IntelligenceReport] = [:]
     @MainActor @Published private(set) var chatHistories: [UUID: [ChatMessage]] = [:]
+    @MainActor @Published var activeThreadId: UUID? = nil
     @MainActor @Published var thinkingEvents: [ThinkingEvent] = []
     @MainActor @Published private(set) var lastAuditSnapshot: RAGAuditSnapshot?
     @MainActor @Published private(set) var lastVectorAudit: VectorStoreAudit?
