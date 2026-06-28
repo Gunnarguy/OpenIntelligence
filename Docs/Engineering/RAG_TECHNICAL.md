@@ -97,7 +97,7 @@ Questions and answers often don't share vocabulary:
 - Query: "What oil does my car take?"
 - Answer: "SAE 0W-20 synthetic oil, 5.3 quarts capacity"
 
-By generating a hypothetical answer first, we bridge this vocabulary gap.
+By generating a hypothetical answer first, the system bridges this vocabulary gap.
 
 ### Flow
 

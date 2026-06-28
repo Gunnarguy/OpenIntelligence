@@ -25,7 +25,7 @@ This directory contains test files for validating the core RAG pipeline function
 2. **Check console logs** for:
    - Text extraction accuracy
    - Chunk count (should be ~1 chunk per 300-350 words)
-   - Embedding generation (512 dimensions)
+   - Embedding generation (384 dimensions)
    - Storage confirmation
 3. **Query the document** in Chat view
 4. **Verify retrieval** - relevant chunks should appear

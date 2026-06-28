@@ -6,9 +6,16 @@ Public release highlights for OpenIntelligence.
 
 ## 4.4
 
-Version 4.4 is a minor update that forces an App Store Connect build synchronization offset.
+Version 4.4 introduces the new **Evidence Threads** capability alongside refined local execution boundaries.
+
+### Highlights
+- **Evidence Threads (Phase 1):** ephemerality is eliminated by allowing queries and cited passages to be persisted in durable research threads. Conversation histories are saved locally as isolated JSON files scoped per knowledge container under the local cache directory, keeping them completely safe from unintended iCloud Drive synchronizations.
+- **Diagnostics-Only Exposure:** Introduces dedicated engineering telemetry and developer diagnostic views (`EvidenceThreadDebugView` and `EvidenceThreadDebugService`) to safely verify atomic persistence boundaries without affecting production chat views.
+- **Entitlement Realism:** Confirmed that the Pro subscription tier caps document ingestion at a hard limit of 1,000 documents to respect device memory limits. Unlimited document storage is reserved exclusively for the Lifetime tier.
+- **PCC Simulation:** Clarified that all elevated Private Cloud Compute (PCC) pathways are simulated locally on `SystemLanguageModel.default` inside `EngineSDKCompatibility.swift` to support compilation on current public SDKs.
 
 ## 4.3.1
+
 
 Version 4.3.1 introduces crucial macOS UI layout updates and resolves deep system-level file-lock hangs during iCloud synchronization.
 

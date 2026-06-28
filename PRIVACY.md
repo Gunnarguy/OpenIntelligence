@@ -26,8 +26,10 @@ Last updated: February 2026
 ## Storage & Retention
 
 - **Documents**: Stored locally in `Application Support/OpenIntelligence`. Users can delete individual knowledge containers or purge all documents from Settings → Knowledge Base.
-- **Vectors & Embeddings**: Persisted per container in JSON via `PersistentVectorDatabase`. Deleting a container removes both metadata and embedding files.
+- **Vectors & Embeddings**: Persisted per container in binary memory-mapped vector database files managed by `BNNSVectorDatabase`. Deleting a container removes both metadata and embedding files.
+- **Evidence Threads**: Chat thread history is stored locally in isolated JSON files under `LocalCache/EvidenceThreads/<containerId>/` to prevent unintended synchronization via iCloud Drive.
 - **Cache**: Hybrid retrieval caches (20 most recent queries) are ephemeral and automatically expire after five minutes.
+
 
 ## User Controls
 

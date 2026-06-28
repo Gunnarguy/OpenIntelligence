@@ -72,7 +72,7 @@ flowchart TD
 ```
 
 ### 🧠 Quality Modes & Inference Routing
-The entire RAG architecture operates on a strict **29-Step Pipeline** (6 Ingestion steps + 23 Query Loop steps). To handle complex queries, the query loop escalates dynamically across three agentic modes and foundation models:
+The entire RAG architecture operates on a strict **29-Step Pipeline** (6 Ingestion steps + 23 Query Loop steps). To handle complex queries, the query loop routes dynamically across three agentic modes and foundation models:
 
 **3 Agentic Quality Modes**
 * **Standard:** Executes the 23-step query loop sequentially for maximum speed and battery life.
@@ -80,9 +80,9 @@ The entire RAG architecture operates on a strict **29-Step Pipeline** (6 Ingesti
 * **Maximum:** Removes the 8-session ceiling, granting the orchestrator an unlimited budget to recursively hunt down answers up to 50 loops.
 
 **3 Foundation Model Routes**
-* `3B Core`: Offline Apple Silicon model (Standard offline inference).
-* `20B Advanced`: Offline Apple Silicon model leveraging unified memory and NAND Flash Paging.
-* `Private Cloud Compute (PT-MoE)`: Escalates over encrypted channels to Apple's 32K context secure server enclaves, powered by a Parallel-Track Mixture-of-Experts architecture.
+* `3B Core`: Offline Apple Silicon model (`SystemLanguageModel.default`).
+* `20B Advanced`: Offline Apple Silicon model leveraging unified memory and NAND Flash Paging (macOS 27 / iOS 27 only).
+* `Private Cloud Compute (PT-MoE)`: Escalates over encrypted channels to Apple's 32K context secure server enclaves. In the current build, remote enclave execution is simulated entirely locally on `SystemLanguageModel.default`.
 
 ---
 
@@ -95,14 +95,18 @@ The entire RAG architecture operates on a strict **29-Step Pipeline** (6 Ingesti
 | **Indexing** | `SQLiteFullTextService.swift`, `BNNSVectorDatabase.swift` | Blazing-fast SQLite FTS5 lexical storage and local BNNS-accelerated vector indexing. |
 | **Retrieval** | `HybridSearchService.swift`, `ContextPackingService.swift` | BM25 + Vector hybrid merging, parent-chunk reconstruction, exact token packing. |
 | **Orchestration** | `LLMService.swift`, `RAGService.swift` | Execution coordination with the local `SystemLanguageModel` and evaluation loops. |
+| **Evidence Threads**| `EvidenceThread.swift`, `EvidenceThreadStore.swift` | Isolated local storage of conversational research threads per knowledge container. |
 | **Shortcuts** | `RAGAppIntents.swift` | Siri integration and entity-native App Intents for OS-level query capabilities. |
 
 ---
 
 ## 🛠️ Placeholders & Scaffolding Warnings
 To maintain codebase transparency, please note:
-- **Core AI Integration:** Disabled via `#if false` directives in `CoreAISentenceEmbeddingProvider.swift`. The project currently runs on reliable local `CoreMLSentenceEmbeddingProvider` implementations until the OS 27 beta stabilizes.
+- **Core AI Integration:** Disabled via `#if false` directives in `CoreAISentenceEmbeddingProvider.swift`. The project currently runs on local `CoreMLSentenceEmbeddingProvider` implementations.
 - **Private Cloud Compute (PCC):** Routed locally using a fallback system language model wrapper in `EngineSDKCompatibility.swift` to ensure compilability on current public SDKs.
+- **iCloud Sync:** Sync utilizes iCloud Drive ubiquity containers (`NSFileCoordinator` and `NSMetadataQuery`). The app does not utilize CloudKit databases.
+- **Pro Tier Document Limit:** Document uploads are restricted to a hard quota of 1,000 documents under the Pro tier. Unlimited uploads are restricted to the Lifetime tier.
+
 
 ---
 

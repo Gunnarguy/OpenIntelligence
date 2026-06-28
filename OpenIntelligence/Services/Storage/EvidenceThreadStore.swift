@@ -9,10 +9,10 @@ import os.log
 /// A local-only store for Evidence Threads.
 /// Stores threads as isolated JSON files in `Application Support/LocalCache/EvidenceThreads/<containerId>/`.
 /// Explicitly isolated from WorkspaceSyncService and ChatMessage.
-public final class EvidenceThreadStore: Sendable {
+final class EvidenceThreadStore: Sendable {
     private let logger = Logger(subsystem: "com.openintelligence", category: "EvidenceThreadStore")
 
-    public init() {}
+    init() {}
 
     /// Returns the root URL for all Evidence Threads: `Application Support/LocalCache/EvidenceThreads/`
     private func getRootDirectoryURL() throws -> URL {
@@ -43,7 +43,7 @@ public final class EvidenceThreadStore: Sendable {
     }
 
     /// Saves the thread to disk as JSON.
-    public func saveThread(_ thread: EvidenceThread) throws {
+    func saveThread(_ thread: EvidenceThread) throws {
         try ensureDirectoryExists(for: thread.containerId)
         let fileURL = try getThreadFileURL(id: thread.id, containerId: thread.containerId)
         
@@ -56,7 +56,7 @@ public final class EvidenceThreadStore: Sendable {
     }
 
     /// Retrieves a thread by ID and container ID.
-    public func getThread(id: UUID, containerId: UUID) throws -> EvidenceThread {
+    func getThread(id: UUID, containerId: UUID) throws -> EvidenceThread {
         let fileURL = try getThreadFileURL(id: id, containerId: containerId)
         
         guard FileManager.default.fileExists(atPath: fileURL.path) else {
@@ -71,7 +71,7 @@ public final class EvidenceThreadStore: Sendable {
     }
 
     /// Lists all threads within a specific container.
-    public func listThreads(containerId: UUID) throws -> [EvidenceThread] {
+    func listThreads(containerId: UUID) throws -> [EvidenceThread] {
         let containerURL = try getContainerDirectoryURL(for: containerId)
         
         guard FileManager.default.fileExists(atPath: containerURL.path) else {
@@ -100,7 +100,7 @@ public final class EvidenceThreadStore: Sendable {
     }
 
     /// Deletes a thread by ID and container ID.
-    public func deleteThread(id: UUID, containerId: UUID) throws {
+    func deleteThread(id: UUID, containerId: UUID) throws {
         let fileURL = try getThreadFileURL(id: id, containerId: containerId)
         if FileManager.default.fileExists(atPath: fileURL.path) {
             try FileManager.default.removeItem(at: fileURL)

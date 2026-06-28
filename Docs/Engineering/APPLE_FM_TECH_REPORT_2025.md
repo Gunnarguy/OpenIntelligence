@@ -60,9 +60,10 @@ Apple Intelligence runs **two separate foundation models**:
 | Tokenizer vocab | 150K tokens                             | 150K tokens                                |
 | Languages       | 16                                      | 16                                         |
 
-**The Foundation Models framework (what we use) exposes ONLY the on-device ~3B model to third-party developers.**
+**The Foundation Models framework exposes ONLY the on-device ~3B model to third-party developers.**
 
-The server model is used exclusively by Apple's own features via PCC. We do NOT get direct access to PT-MoE.
+The server model is used exclusively by Apple's own features via PCC. Direct access to PT-MoE is not available.
+
 
 ---
 
@@ -180,7 +181,7 @@ Benefits:
 
 ## Context Windows
 
-### On-Device (What We Get)
+### On-Device (Limits)
 
 | Constraint                   | Value                        | Source                  |
 | ---------------------------- | ---------------------------- | ----------------------- |
@@ -188,7 +189,7 @@ Benefits:
 | Token ≈ characters (English) | ~3-4 chars/token             | TN3193                  |
 | Token ≈ characters (CJK)     | ~1 char/token                | TN3193                  |
 | Max practical characters     | ~14,336 (English)            | Derived                 |
-| Our RAG context budget       | ~5,500 chars / ~1,500 tokens | Architecture constraint |
+| RAG context budget           | ~5,500 chars / ~1,500 tokens | Architecture constraint |
 
 ### Server Training Context
 
@@ -196,7 +197,8 @@ The server model was trained on sequences up to **65K tokens** in the context-le
 
 - **Third-party developers have NO access to the server model's context window**
 - The server model serves Apple's own features via PCC
-- We only see the 4096-token on-device model through the Foundation Models framework
+- Only the 4096-token on-device model is exposed through the Foundation Models framework
+
 
 ### What Eats Tokens
 
@@ -321,7 +323,7 @@ The on-device model **beats Qwen-2.5-3B** across the board, is **competitive wit
 
 Server model is **behind** LLaMA 4 Scout, Qwen-3-235B, and GPT-4o on all benchmarks.
 
-### Post-Compression Quality (What We Actually Get)
+### Post-Compression Quality (Realized Performance)
 
 | Model                 | MMLU (compressed) | IFEval (compressed) |
 | --------------------- | ----------------- | ------------------- |
@@ -358,21 +360,22 @@ Server model is **behind** LLaMA 4 Scout, Qwen-3-235B, and GPT-4o on all benchma
 
 ## Implications for OpenIntelligence
 
-### What This Means for Our RAG Pipeline
+### What This Means for the RAG Pipeline
 
 1. **4096 tokens is the hard ceiling** — every prompt, instruction, tool schema, context chunk, and response must fit. There is no escape hatch.
 
 2. **The on-device model is ~3B parameters at 2-bit quantization** — it's good at extraction, summarization, classification. It is NOT good at complex multi-hop reasoning, creative synthesis across many sources, or deep analytical thinking.
 
-3. **We do NOT have access to PT-MoE** — the server model with its 65K context window and higher quality is Apple-internal only. Our entire pipeline runs through the ~3B on-device model.
+3. **Direct access to PT-MoE is not available** — the server model with its 65K context window and higher quality is Apple-internal only. The entire pipeline runs through the ~3B on-device model.
 
 4. **Full GraphRAG with LLM-powered entity resolution and triple extraction is not a shipped claim** — those operations require evaluated entity extraction, relationship extraction, clustering, and community summaries. The current app uses graph-lite context packing, deterministic entities, and RAPTOR-lite summaries.
 
-5. **Our existing pipeline is correctly architected** — semantic chunking + vector search + BM25 hybrid + context packing into ~5500 chars is the RIGHT approach for a 4096-token model. The multi-session agentic approach (3-50 sessions) is exactly what Apple recommends for complex tasks.
+5. **The existing pipeline is correctly architected** — semantic chunking + vector search + BM25 hybrid + context packing into ~5500 chars is the correct approach for a 4096-token model. The multi-session agentic approach (3-50 sessions) matches Apple's recommendations for complex tasks.
 
 6. **NLTagger NER + PascalCase entity extraction is appropriate** — using the OS-level NER (which is fast and free) instead of burning LLM tokens on entity extraction is the right call.
 
-7. **Tool calling is limited** — Apple recommends 3-5 tools max. We have 12+. This needs optimization.
+7. **Tool calling is limited** — Apple recommends 3-5 tools max. The current project has 12+. This requires optimization.
+
 
 ---
 

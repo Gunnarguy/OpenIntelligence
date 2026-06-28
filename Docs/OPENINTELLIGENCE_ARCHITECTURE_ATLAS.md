@@ -47,9 +47,11 @@ The OpenIntelligence Architecture Atlas is the canonical representation of the r
 - `SQLiteFullTextService`: Manages shared relational storage.
 - `EntitlementStore`: Manages UserDefaults-backed billing logic.
 - `LLMService`: Handles prompt compilation and PCC execution.
+- `EvidenceThreadDebugService`: Diagnostics-only service to test `EvidenceThreadStore` without touching production pathways.
 
 ## 5. View/ViewModel Map
 - SwiftUI Views use `@EnvironmentObject` and `@AppStorage` heavily for dependency injection and state sharing.
+- `EvidenceThreadDebugView`: Standalone SwiftUI view for Evidence Threads local store diagnostics.
 
 ## 6. Model/Persistence Map
 - `ChatMessage`: JSON serialized and stored locally.

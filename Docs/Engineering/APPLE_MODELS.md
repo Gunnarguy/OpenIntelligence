@@ -647,7 +647,7 @@ This document is kept as an Apple-platform reference. OpenIntelligence-specific 
 ### Related OpenIntelligence Docs
 
 - [Apple FM Tech Report 2025](./APPLE_FM_TECH_REPORT_2025.md) — Model architecture, PT-MoE, KV-cache sharing, compression, benchmarks
-- [Private Cloud Compute](./PRIVATE_CLOUD_COMPUTE.md) — PCC security architecture, why we don't have access
+- [Private Cloud Compute](./PRIVATE_CLOUD_COMPUTE.md) — PCC security architecture and execution boundaries
 - [Hard Limits](./HARD_LIMITS.md) — Every hard constraint in one place, feature checklist
 
 ### Apple Sources

@@ -4,11 +4,17 @@
 
 This is the public version history for OpenIntelligence. It focuses on user-visible product changes and intentionally omits private engine tuning, thresholds, and internal implementation details.
 
-## 4.4 - Unreleased
+## 4.4 - June 2026
 
-- **[Orchestration]** Incremented version number to force Xcode Cloud build offset.
+- **[Evidence Threads]** Implemented Phase 1A local thread persistence. Created `EvidenceThread` and `EvidenceThreadMessage` Codable models to store research chat sessions locally on disk.
+- **[Evidence Threads]** Placed thread storage directories under `LocalCache/EvidenceThreads/<containerId>/` to isolate them and prevent accidental sweeps from the iCloud Drive ubiquity sync daemon.
+- **[Diagnostics]** Implemented Phase 1B Diagnostics-Only Exposure. Created `EvidenceThreadDebugService` and `EvidenceThreadDebugView` inside `Features/Debug/` to test persistence, thread mocking, and thread deletion without altering production views.
+- **[Entitlements]** Aligned and verified quota logic in `QuotaPolicy.swift` restricting the Pro tier to a hard limit of 1,000 document uploads (unlimited uploads are restricted to Lifetime).
+- **[PCC Simulation]** Documented that elevated model routes (Deep Think and Maximum quality modes) run locally via simulation in `EngineSDKCompatibility.swift`.
+- **[Orchestration]** Reverted `EvidenceThread` and `EvidenceThreadStore` scope modifiers from `public` to `internal` to prevent compilation errors regarding exposed internal model properties.
 
 ## 4.3.1 - June 2026
+
 
 - **[Orchestration]** Fixed MainActor deadlock in WorkspaceSyncService by offloading NSFileCoordinator read locks to detached background tasks, eliminating UI hangs during iCloud synchronizations.
 - **[Orchestration]** Offloaded synchronous file operations in TranscriptPersistenceService, ConversationMemoryService, and ContainerService to detached tasks to prevent MainActor deadlocks and guarantee UI fluidity.

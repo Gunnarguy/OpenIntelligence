@@ -14,19 +14,20 @@ Import documents -> Prepare them locally -> Search the right evidence -> Generat
 
 ## 1. Import
 
-OpenIntelligence accepts common document, text, image, and media formats from the iPhone file system and supported Apple share surfaces. Content is organized into user-owned libraries using a shared SQLite database with `container_id` isolation, ensuring work stays scoped and manageable. Libraries can remain Local Only or sync across Apple devices via iCloud Drive ubiquity sync (`WorkspaceSyncService`), avoiding a forced global cloud mode.
+OpenIntelligence accepts common document, text, image, and media formats from the iPhone/Mac file system and supported Apple share surfaces. Content is organized into libraries using a shared SQLite database with column-based `container_id` isolation. Libraries can remain Local Only or sync across Apple devices via iCloud Drive ubiquity sync (`WorkspaceSyncService`).
 
 ## 2. Prepare
 
-After import, the app extracts text, tables, figures, and other structure, prepares content for search, and stores the resulting artifacts locally so future questions can be answered quickly. Preparation behavior adapts to the content type, document quality, and visual complexity instead of relying on a user-selected ingestion mode. Clean digital text such as text files, markdown, code, CSV, transcripts, and native office-style documents is preserved more conservatively, while OCR-heavy, scanned, or visually noisy sources still use stronger cleanup and recovery.
+After import, the app extracts text, tables, and structures, preparing content for search. Binary vector indices are generated locally using Core ML embeddings and written directly to local sandboxed vector databases via `BNNSVectorDatabase`. Clean digital text is processed via a conservative layout extractor, while scanned or noisy sources route through layout-aware Vision OCR.
 
 ## 3. Retrieve
 
-When a user asks a question, OpenIntelligence searches the imported material for the most relevant evidence and tries to surface supporting passages from the right documents before generating an answer.
+When a user asks a question, OpenIntelligence searches the active library for the most relevant evidence, merging FTS5 lexical scores and vector similarity scores.
 
 ## 4. Answer
 
-The app turns retrieved evidence into a readable response with citations. The engine is designed around Apple's public Foundation Models path where available and a small public session context, so it retrieves, compresses, and verifies evidence instead of trying to place an entire library into one prompt.
+The app turns retrieved evidence into a readable response with citations. Standard RAG queries run locally on the 3B Core model, while escalated queries (Deep Think or Maximum mode) dynamically route to simulated Private Cloud Compute (PCC) enclaves running locally on `SystemLanguageModel.default`. conversational histories are stored durably inside isolated local JSON files (Evidence Threads) scoped to each container, rather than remaining ephemeral.
+
 
 ## 5. Review
 

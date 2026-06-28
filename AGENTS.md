@@ -17,3 +17,4 @@ This is the top-level universal instruction file for any autonomous agent operat
 11. **Task Routing:** Read `Docs/AgentPlaybooks/07_TASK_ROUTER_AND_CHANGE_CONTROL.md` before any implementation or roadmap update task.
 12. **Explicit Approval:** Agents must NOT auto-proceed from planning to implementation without explicit user approval.
 13. **Phase 1A Implementation:** If performing Phase 1A Evidence Threads implementation, you must strictly follow `Docs/AgentPlaybooks/06_PHASE_1A_IMPLEMENTATION_PLAN.md`.
+14. **Notion Roadmap Updates:** Always update the OpenIntelligence Roadmap database in Notion after completing tasks or phases. The Database ID is `37f49a74-d54f-81b7-9424-dae1288c0043` (URL: https://app.notion.com/p/gunzino/37f49a74d54f81b79424dae1288c0043). Use the Notion MCP tools (`API-post-page` or `API-post-search`) to track progress.

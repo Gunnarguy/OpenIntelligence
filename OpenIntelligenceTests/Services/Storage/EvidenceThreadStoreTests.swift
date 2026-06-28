@@ -101,4 +101,27 @@ final class EvidenceThreadStoreTests: XCTestCase {
         try store.deleteThread(id: threadA.id, containerId: containerA)
         try store.deleteThread(id: threadB.id, containerId: containerB)
     }
+    
+    func testConcurrency() async throws {
+        let concurrentStore = EvidenceThreadStore()
+        let container = UUID()
+        let iterations = 100
+        
+        await withTaskGroup(of: Void.self) { group in
+            for i in 0..<iterations {
+                group.addTask {
+                    let thread = EvidenceThread(containerId: container, title: "Concurrent Thread \(i)")
+                    try? concurrentStore.saveThread(thread)
+                }
+            }
+        }
+        
+        let loadedThreads = try concurrentStore.listThreads(containerId: container)
+        XCTAssertEqual(loadedThreads.count, iterations)
+        
+        // Cleanup
+        for thread in loadedThreads {
+            try concurrentStore.deleteThread(id: thread.id, containerId: container)
+        }
+    }
 }
