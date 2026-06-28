@@ -451,7 +451,7 @@ struct HardwareXRayOverlay: View {
                         metricsSummary: settings.hudShowMetrics ? telemetry.compactMetricsSummary : "",
                         activities: settings.hudShowMetrics ? telemetry.componentActivities : []
                     )
-                    .position(x: 45, y: geometry.safeAreaInsets.top + 85)
+                    .position(x: 110, y: geometry.safeAreaInsets.top + 22)
                 }
 
                 // Device info (for debugging only)
