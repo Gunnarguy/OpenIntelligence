@@ -9,7 +9,7 @@
 /* Begin PBXBuildFile section */
 		B016E7B72F0F5F5F00AABA0C /* Tokenizers in Frameworks */ = {isa = PBXBuildFile; productRef = B016E7B62F0F5F5F00AABA0C /* Tokenizers */; };
 		E0A100022F0F5F5F00AABA0C /* Tokenizers in Frameworks */ = {isa = PBXBuildFile; productRef = B016E7B62F0F5F5F00AABA0C /* Tokenizers */; };
-		F0A100012F1A000100AA1001 /* OpenIntelligenceLiveActivities.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = F0A100022F1A000100AA1001 /* OpenIntelligenceLiveActivities.appex */; platformFilter = ios; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		F0A100012F1A000100AA1001 /* OpenIntelligenceLiveActivities.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = F0A100022F1A000100AA1001 /* OpenIntelligenceLiveActivities.appex */; platformFilter = ios; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		F0A100032F1A000100AA1001 /* OpenIntelligence/Services/Infrastructure/Background/IngestionLiveActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0A100042F1A000100AA1001 /* OpenIntelligence/Services/Infrastructure/Background/IngestionLiveActivityAttributes.swift */; };
 		F0A100242F1A000100AA1001 /* IngestionLiveActivityWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0A100202F1A000100AA1001 /* IngestionLiveActivityWidget.swift */; };
 		F0A100252F1A000100AA1001 /* OpenIntelligenceLiveActivitiesBundle.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0A100212F1A000100AA1001 /* OpenIntelligenceLiveActivitiesBundle.swift */; };
@@ -27,15 +27,15 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXCopyFilesBuildPhase section */
-		F0A1000C2F1A000100AA1001 /* Embed App Extensions */ = {
+		F0A1000C2F1A000100AA1001 /* Embed Foundation Extensions */ = {
 			isa = PBXCopyFilesBuildPhase;
 			buildActionMask = 2147483647;
 			dstPath = "";
 			dstSubfolderSpec = 13;
 			files = (
-				F0A100012F1A000100AA1001 /* OpenIntelligenceLiveActivities.appex in Embed App Extensions */,
+				F0A100012F1A000100AA1001 /* OpenIntelligenceLiveActivities.appex in Embed Foundation Extensions */,
 			);
-			name = "Embed App Extensions";
+			name = "Embed Foundation Extensions";
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXCopyFilesBuildPhase section */
@@ -328,7 +328,7 @@
 				B0D565DA2E98AC50001274A2 /* Sources */,
 				B0D565DB2E98AC50001274A2 /* Frameworks */,
 				B0D565DC2E98AC50001274A2 /* Resources */,
-				F0A1000C2F1A000100AA1001 /* Embed App Extensions */,
+				F0A1000C2F1A000100AA1001 /* Embed Foundation Extensions */,
 			);
 			buildRules = (
 			);
@@ -413,7 +413,7 @@
 			attributes = {
 				BuildIndependentTargetsInParallel = 1;
 				LastSwiftUpdateCheck = 2600;
-				LastUpgradeCheck = 2650;
+				LastUpgradeCheck = 2700;
 				TargetAttributes = {
 					B0D565DD2E98AC50001274A2 = {
 						CreatedOnToolsVersion = 26.0;
