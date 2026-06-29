@@ -527,6 +527,9 @@ class RAGService: ObservableObject {
     func chatHistory(for containerId: UUID?) -> [ChatMessage] {
         let resolvedId = containerId ?? containerService.activeContainerId
         if let cached = chatHistories[resolvedId] {
+            if let threadId = activeThreadIds[resolvedId] {
+                activeThreadId = threadId
+            }
             return cached
         }
         
@@ -534,6 +537,7 @@ class RAGService: ObservableObject {
             let threads = try threadStore.listThreads(containerId: resolvedId)
             if let mostRecent = threads.first {
                 activeThreadId = mostRecent.id
+                activeThreadIds[resolvedId] = mostRecent.id
                 let loaded = mostRecent.messages.map { $0.sanitizedForPersistence() }
                 chatHistories[resolvedId] = loaded
                 return loaded
@@ -551,6 +555,9 @@ class RAGService: ObservableObject {
         let resolvedId = containerId ?? self.containerService.activeContainerId
 
         if let cached = self.chatHistories[resolvedId] {
+            if let threadId = self.activeThreadIds[resolvedId] {
+                self.activeThreadId = threadId
+            }
             return cached
         }
 
@@ -558,6 +565,7 @@ class RAGService: ObservableObject {
             let threads = try self.threadStore.listThreads(containerId: resolvedId)
             if let mostRecent = threads.first {
                 self.activeThreadId = mostRecent.id
+                self.activeThreadIds[resolvedId] = mostRecent.id
                 let loaded = mostRecent.messages.map { $0.sanitizedForPersistence() }
                 self.chatHistories[resolvedId] = loaded
                 return loaded
@@ -585,6 +593,7 @@ class RAGService: ObservableObject {
         
         let threadIdToSave = activeThreadId ?? UUID()
         activeThreadId = threadIdToSave
+        activeThreadIds[resolvedId] = threadIdToSave
         
         let firstUserMessage = trimmedMessages.first { $0.role == .user }?.content ?? "New Thread"
         let title = String(firstUserMessage.prefix(50)).trimmingCharacters(in: .whitespacesAndNewlines)
@@ -611,6 +620,7 @@ class RAGService: ObservableObject {
     func clearChatHistory(for containerId: UUID?) {
         let resolvedId = containerId ?? containerService.activeContainerId
         chatHistories[resolvedId] = []
+        activeThreadIds[resolvedId] = nil
         
         if let currentThread = activeThreadId {
             do {
@@ -671,6 +681,7 @@ class RAGService: ObservableObject {
         do {
             let thread = try threadStore.getThread(id: threadId, containerId: containerId)
             activeThreadId = thread.id
+            activeThreadIds[containerId] = thread.id
             let loaded = thread.messages.map { $0.sanitizedForPersistence() }
             chatHistories[containerId] = loaded
             return loaded
@@ -686,7 +697,9 @@ class RAGService: ObservableObject {
     
     @MainActor
     func createNewThread(for containerId: UUID) {
-        activeThreadId = UUID()
+        let newId = UUID()
+        activeThreadId = newId
+        activeThreadIds[containerId] = newId
         chatHistories[containerId] = []
     }
 
@@ -1103,6 +1116,7 @@ class RAGService: ObservableObject {
     @MainActor @Published private(set) var containerIntelligence: [UUID: LibraryIntelligenceCenter.IntelligenceReport] = [:]
     @MainActor @Published private(set) var chatHistories: [UUID: [ChatMessage]] = [:]
     @MainActor @Published var activeThreadId: UUID? = nil
+    @MainActor @Published private(set) var activeThreadIds: [UUID: UUID] = [:]
     @MainActor @Published var thinkingEvents: [ThinkingEvent] = []
     @MainActor @Published private(set) var lastAuditSnapshot: RAGAuditSnapshot?
     @MainActor @Published private(set) var lastVectorAudit: VectorStoreAudit?
