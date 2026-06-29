@@ -24,6 +24,7 @@ This is the public version history for OpenIntelligence. It focuses on user-visi
 - **[Retrieval]** Adjusted similarity thresholds and replaced vocabulary-limited word pairs in the Developer Diagnostics Quick Sanity Check to prevent false failures under CoreML and legacy Natural Language embedding providers.
 - **[Orchestration]** Added a direct external link row to the Notion Roadmap database in the About Screen to easily monitor milestones and task statuses.
 - **[Orchestration]** Shifted the iOS Silicon HUD status overlay horizontally to the right of the top-left threads sidebar button to avoid overlapping while maintaining the original vertical offset.
+- **[Orchestration]** Fixed the 'New Chat' action to preserve previous conversation history in a completed thread instead of deleting it from disk.
 
 ## 4.3.1 - June 2026
 

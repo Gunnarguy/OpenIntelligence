@@ -1730,7 +1730,7 @@ struct ChatScreen: View {
         showRetrievedDetails = false
         thinkingEvents.removeAll()
         requestedExecutionContext = .automatic
-        ragService.clearChatHistory(for: ragService.containerService.activeContainerId)
+        ragService.createNewThread(for: ragService.containerService.activeContainerId)
     }
 
     private func clearChat() {
