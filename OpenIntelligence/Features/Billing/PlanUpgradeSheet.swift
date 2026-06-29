@@ -99,17 +99,11 @@ struct PlanUpgradeSheet: View {
                     socialProofBanner
                     whyUpgradeNowSection
                     storyCarousel
-                    if shouldShowRefillQuickAction {
-                        refillQuickAction
-                    }
 
                     ForEach(planOptions) { option in
                         tierCard(for: option)
                     }
 
-                    if entitlementStore.shouldOfferDocumentPack {
-                        addOnCard
-                    }
                     multiDocumentTip
                     managementControls
                     complianceFooter
@@ -230,68 +224,7 @@ private extension PlanUpgradeSheet {
         )
     }
 
-    var addOnCard: some View {
-        let activePacks = entitlementStore.addOnPacks
-        let packCap = entitlementStore.documentPackCap
-        let remainingPacks = entitlementStore.remainingDocumentPackCapacity
-        let isCapped = entitlementStore.hasReachedDocumentPackCap
-        let bonusDocuments = activePacks * QuotaPolicy.addOnDocumentIncrement
 
-        return VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Label("Document Pack", systemImage: "plus.rectangle.on.rectangle")
-                    .font(.headline)
-                Spacer()
-                Text(QuotaPolicy.addOnDocumentIncrement.description + " docs")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-            Text("Need a quick burst of capacity? Add \(QuotaPolicy.addOnDocumentIncrement) extra document slots. Up to \(packCap) packs can be active at once.")
-                .font(.footnote)
-                .foregroundStyle(.secondary)
-            VStack(alignment: .leading, spacing: 4) {
-                ProgressView(
-                    value: Double(activePacks),
-                    total: Double(packCap)
-                )
-                .tint(isCapped ? .orange : .accentColor)
-
-                if activePacks > 0 {
-                    Text("Active packs: \(activePacks)/\(packCap) (\(bonusDocuments) extra docs)")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(.secondary)
-                } else {
-                    Text("No add-on packs active yet.")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(.secondary)
-                }
-
-                if isCapped {
-                    Label("Maximum pack cap reached. Remove documents or upgrade to unlock more space.", systemImage: "exclamationmark.triangle")
-                        .font(.caption2)
-                        .foregroundStyle(.orange)
-                } else if remainingPacks > 0 {
-                    Text("You can add \(remainingPacks) more pack\(remainingPacks == 1 ? "" : "s") (\(remainingPacks * QuotaPolicy.addOnDocumentIncrement) docs) before hitting the cap.")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                }
-            }
-            Button {
-                purchase(.documentPackAddOn)
-            } label: {
-                Label(
-                    isCapped ? "Pack Limit Reached" : "Buy Document Pack – \(priceLabel(for: .documentPackAddOn))",
-                    systemImage: isCapped ? "lock.fill" : "cart.badge.plus"
-                )
-                .frame(maxWidth: .infinity)
-            }
-            .buttonStyle(.borderedProminent)
-            .disabled(isCapped || isRefreshingProducts || purchasingProduct != nil)
-        }
-        .padding()
-        .background(DSColors.surface)
-        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-    }
 
     var storyCarousel: some View {
         TabView(selection: $selectedStoryIndex) {
@@ -337,39 +270,7 @@ private extension PlanUpgradeSheet {
         }
     }
 
-    var shouldShowRefillQuickAction: Bool {
-        entitlementStore.shouldOfferDocumentPack && !entitlementStore.hasReachedDocumentPackCap
-    }
 
-    var refillQuickAction: some View {
-        let remaining = entitlementStore.remainingDocumentPackCapacity
-        let docsPerPack = QuotaPolicy.addOnDocumentIncrement
-        return VStack(alignment: .leading, spacing: 10) {
-            Label("Need documents today?", systemImage: "sparkles.rectangle.stack")
-                .font(.headline)
-            Text("Refill instantly with a document pack. Each pack adds \(docsPerPack) slots without changing your plan.")
-                .font(.footnote)
-                .foregroundStyle(.secondary)
-            if remaining > 0 {
-                Text("You can add \(remaining) more pack\(remaining == 1 ? "" : "s") before reaching the cap.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-            Button {
-                purchase(.documentPackAddOn)
-            } label: {
-                Label("Refill documents – \(priceLabel(for: .documentPackAddOn))", systemImage: "tray.and.arrow.down.fill")
-                    .frame(maxWidth: .infinity)
-            }
-            .buttonStyle(.borderedProminent)
-            .disabled(purchasingProduct != nil || isRefreshingProducts)
-        }
-        .padding()
-        .background(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .fill(DSColors.surface)
-        )
-    }
 
     var multiDocumentTip: some View {
         HStack(alignment: .top, spacing: 12) {

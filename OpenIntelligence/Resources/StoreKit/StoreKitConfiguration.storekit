@@ -28,21 +28,6 @@
       "productID" : "lifetime_cohort",
       "referenceName" : "Lifetime Cohort",
       "type" : "NonConsumable"
-    },
-    {
-      "displayPrice" : "2.99",
-      "familyShareable" : false,
-      "internalID" : "B2C3D4E5-F6A7-8901-BCDE-F23456789012",
-      "localizations" : [
-        {
-          "description" : "Adds 10 extra documents to your workspace quota.",
-          "displayName" : "Document Pack",
-          "locale" : "en_US"
-        }
-      ],
-      "productID" : "doc_pack_addon",
-      "referenceName" : "Document Pack Add-on",
-      "type" : "Consumable"
     }
   ],
   "settings" : {
