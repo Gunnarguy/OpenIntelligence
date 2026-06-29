@@ -15,6 +15,7 @@ This document provides a chronological history of user-facing changes, highlight
 *   **Local Cache Isolation:** Isolated thread storage under `LocalCache/EvidenceThreads/` to strictly protect your history from iCloud Drive sync sweeps.
 *   **Engineering Diagnostics View:** Retained the debug view and mocked thread triggers inside the Developer Diagnostics Hub to inspect and verify thread persistence.
 *   **Native Private Cloud Compute:** Escalates complex queries to Apple's secure Private Cloud Compute server enclaves natively on iOS 27 / macOS 27+, falling back to local simulation on older OS versions.
+*   **Pro Annual Pricing & Free Trial:** Calibrated the Pro Annual subscription to $29.99/year (representing a 58% savings vs monthly) and introduced a 7-day free trial.
 
 ---
 

@@ -42,15 +42,15 @@ struct PlanUpgradeSheet: View {
             tier: .pro,
             planName: "Pro (Annual)",
             product: .proAnnual,
-            tagline: "Save 30% with annual billing",
+            tagline: "7-day free trial, then $29.99/yr",
             badgeText: "Best Value",
             tint: .purple,
             isFeatured: true,
             features: [
+                "7-day free trial included",
                 "Up to 1,000 documents",
                 "10 libraries",
-                "Expanded workspace limits",
-                "Save 30% vs monthly",
+                "Save 58% vs monthly",
             ]
         ),
         PlanTierOption(
@@ -444,7 +444,7 @@ private extension PlanUpgradeSheet {
         }
         switch product {
         case .proMonthly: return "$5.99"
-        case .proAnnual: return "$49.99"
+        case .proAnnual: return "$29.99"
         case .lifetimeCohort: return "$59.99"
         case .documentPackAddOn: return "$2.99"
         }

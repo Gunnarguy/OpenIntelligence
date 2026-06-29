@@ -142,14 +142,20 @@
           "codeOffers" : [
 
           ],
-          "displayPrice" : "49.99",
+          "displayPrice" : "29.99",
           "familyShareable" : true,
           "groupNumber" : 1,
           "internalID" : "D4E5F6A7-B8C9-0123-DEFA-456789012345",
-          "introductoryOffer" : null,
+          "introductoryOffer" : {
+            "internalID" : "A2B3C4D5-E6F7-8901-BCDE-345678901234",
+            "numberOfPeriods" : 1,
+            "paymentMode" : "free",
+            "referenceName" : "7 Day Free Trial",
+            "subscriptionPeriod" : "P1W"
+          },
           "localizations" : [
             {
-              "description" : "Annual billing for up to 1,000 documents and 10 libraries. Save 30%.",
+              "description" : "Annual billing for up to 1,000 documents and 10 libraries. Save 58% (7-day free trial).",
               "displayName" : "Pro Annual",
               "locale" : "en_US"
             }

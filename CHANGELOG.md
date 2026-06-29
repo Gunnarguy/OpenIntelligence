@@ -25,6 +25,7 @@ This is the public version history for OpenIntelligence. It focuses on user-visi
 - **[Orchestration]** Added a direct external link row to the Notion Roadmap database in the About Screen to easily monitor milestones and task statuses.
 - **[Orchestration]** Shifted the iOS Silicon HUD status overlay horizontally to the right of the top-left threads sidebar button to avoid overlapping while maintaining the original vertical offset.
 - **[Orchestration]** Fixed the 'New Chat' action to preserve previous conversation history in a completed thread instead of deleting it from disk, and introduced container-scoped active thread tracking to prevent cross-container thread selection bleed.
+- **[Orchestration]** Calibrated Pro Annual subscription price to $29.99/year (representing a 58% savings vs monthly) and introduced a 7-day free trial introductory offer.
 
 ## 4.3.1 - June 2026
 
