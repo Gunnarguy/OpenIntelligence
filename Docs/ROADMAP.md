@@ -24,6 +24,6 @@
 
 ## 3. Platform Integration (Future Work)
 
-- **Core AI Integration:** Replace the local `CoreMLSentenceEmbeddingProvider` with the native system-level Core AI frameworks once the SDK becomes stable on iOS/macOS.
+- **Core AI Integration (Completed):** Fully integrated and enabled Silicon-native sentence embeddings under Apple's Core AI framework (`CoreAISentenceEmbeddingProvider.swift`) on iOS 27+ / macOS 27+, with Core ML fallback support.
 - **Private Cloud Compute (PCC) (Completed):** Native Private Cloud Compute secure enclave execution is integrated for iOS 27 / macOS 27+, falling back to local SLM simulation on older OS releases.
-- **Siri & AppIntents:** Explore native system integration for Siri shortcuts and Spotlight indexing using AppEntities.
+- **Siri & AppIntents (Completed):** Registered shortcuts and app intents for libraries, documents, and conversation history (`ListEvidenceThreadsIntent` and `CreateNewEvidenceThreadIntent`).

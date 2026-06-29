@@ -41,9 +41,8 @@ A broad scan of the repository's documentation directory was performed, covering
 - **Severity**: **MEDIUM**
 
 ### 5. Embedding Infrastructure: Core ML vs. Core AI
-- **Claimed in Docs**: `Docs/RELEASE_NOTES.md` describes Core AI sentence embeddings as active in the production build.
-- **Reality in Code**: `CoreAISentenceEmbeddingProvider` is experimental scaffolding wrapped in `#if false` compile guards. Production sentence embeddings run exclusively on the Core ML provider.
-- **Severity**: **MEDIUM**
+- **Alignment Status**: Fully resolved. Core AI sentence embeddings (`CoreAISentenceEmbeddingProvider`) have been enabled and registered as a selectable option in library settings, with dynamic auto-tuning upgrades. Standard targets fallback to the optimized Core ML provider.
+- **Severity**: **RESOLVED**
 
 ### 6. Code Comments: In-Memory vs. Serialized Chat
 - **Claimed in Docs**: `ChatMessage.swift` has a comment claiming that ChatV2 messages are transient and in-memory only.

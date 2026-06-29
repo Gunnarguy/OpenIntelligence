@@ -416,6 +416,8 @@ struct GetEmbeddingProviderIntent: AppIntent {
             return ("Standard NL Embedding", "Fast and efficient word2vec-style model", false)
         case "coreml_sentence_embedding":
             return ("CoreML Sentence", "Sentence-level semantic embedding", false)
+        case "coreai_sentence_embedding":
+            return ("CoreAI Sentence", "Silicon-native sentence-level semantic embedding", false)
         case "apple_fm_embed":
             return ("Apple Foundation Model", "Apple Intelligence powered embedding", true)
         default:
@@ -786,3 +788,134 @@ struct SearchLibraryIntent: AppIntent {
         }
     }
 }
+
+// MARK: - List Evidence Threads Intent
+
+@available(iOS 26.0, macOS 26.0, *)
+struct ListEvidenceThreadsIntent: AppIntent {
+    static var title: LocalizedStringResource = "List Evidence Threads"
+    static var description: IntentDescription = .init(
+        "Show all conversation threads in your library",
+        categoryName: "Chat",
+        searchKeywords: ["threads", "history", "conversations", "chats"]
+    )
+
+    static var openAppWhenRun: Bool = false
+
+    @Parameter(title: "Library", description: "The library to list threads from", default: nil)
+    var library: OILibraryEntity?
+
+    func perform() async throws -> some IntentResult & ProvidesDialog & ShowsSnippetView {
+        Log.info("[Siri] List Evidence Threads intent invoked", category: .pipeline)
+
+        let ragService = await MainActor.run {
+            RAGService.activePresentedInstance ?? RAGService()
+        }
+
+        let containerId = await MainActor.run {
+            library?.id ?? ragService.containerService.activeContainerId
+        }
+
+        let threads = await MainActor.run {
+            ragService.listThreads(for: containerId)
+        }
+
+        guard !threads.isEmpty else {
+            return .result(
+                dialog: IntentDialog(stringLiteral: "You don't have any threads in this library yet."),
+                view: ErrorSnippetView(message: "No threads available")
+            )
+        }
+
+        let threadTitles = threads.map { $0.title }.joined(separator: ", ")
+        let spokenResponse = "You have \(threads.count) thread\(threads.count == 1 ? "" : "s"): \(threadTitles)"
+
+        return .result(
+            dialog: IntentDialog(stringLiteral: spokenResponse),
+            view: ThreadListSnippetView(threads: threads)
+        )
+    }
+}
+
+// MARK: - Create New Evidence Thread Intent
+
+@available(iOS 26.0, macOS 26.0, *)
+struct CreateNewEvidenceThreadIntent: AppIntent {
+    static var title: LocalizedStringResource = "Create New Thread"
+    static var description: IntentDescription = .init(
+        "Start a new conversation thread in your library",
+        categoryName: "Chat",
+        searchKeywords: ["new thread", "new chat", "start chat"]
+    )
+
+    static var openAppWhenRun: Bool = true // Open app to show new chat screen
+
+    @Parameter(title: "Library", description: "The library to create a thread in", default: nil)
+    var library: OILibraryEntity?
+
+    func perform() async throws -> some IntentResult & ProvidesDialog {
+        Log.info("[Siri] Create New Thread intent invoked", category: .pipeline)
+
+        let ragService = await MainActor.run {
+            RAGService.activePresentedInstance ?? RAGService()
+        }
+
+        let containerId = await MainActor.run {
+            library?.id ?? ragService.containerService.activeContainerId
+        }
+
+        do {
+            try await MainActor.run {
+                try ragService.createNewThread(for: containerId)
+            }
+            return .result(
+                dialog: IntentDialog(stringLiteral: "Started a new thread in your library.")
+            )
+        } catch let quotaError as EvidenceThreadQuotaError {
+            return .result(
+                dialog: IntentDialog(stringLiteral: "Could not create thread: \(quotaError.localizedDescription)")
+            )
+        } catch {
+            return .result(
+                dialog: IntentDialog(stringLiteral: "Failed to create thread: \(error.localizedDescription)")
+            )
+        }
+    }
+}
+
+// MARK: - Snippet Views
+
+@available(iOS 26.0, macOS 26.0, *)
+struct ThreadListSnippetView: View {
+    let threads: [EvidenceThread]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Evidence Threads")
+                .font(.headline)
+
+            ForEach(threads.prefix(10)) { thread in
+                HStack {
+                    Image(systemName: "chat.bubble.fill")
+                        .foregroundColor(.green)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(thread.title)
+                            .font(.body)
+                            .lineLimit(1)
+                        Text(thread.updatedAt, style: .date)
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                }
+            }
+
+            if threads.count > 10 {
+                Text("... and \(threads.count - 10) more")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+        }
+        .padding()
+    }
+}
+

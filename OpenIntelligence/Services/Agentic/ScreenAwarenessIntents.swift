@@ -62,7 +62,7 @@ struct IngestDocumentIntent: AppIntent {
 
         // Queue via RAGService to handle large files gracefully on the MainActor
         await MainActor.run {
-            let ragService = RAGService()
+            let ragService = RAGService.activePresentedInstance ?? RAGService()
             ragService.enqueueDocuments([fileURL])
         }
 
@@ -99,7 +99,7 @@ struct IngestURLIntent: AppIntent {
     func perform() async throws -> some IntentResult & ProvidesDialog & ShowsSnippetView {
         // Route URL background ingestion on the MainActor
         await MainActor.run {
-            let ragService = RAGService()
+            let ragService = RAGService.activePresentedInstance ?? RAGService()
             ragService.enqueueDocuments([url])
         }
 

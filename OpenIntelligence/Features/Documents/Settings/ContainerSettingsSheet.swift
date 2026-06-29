@@ -364,7 +364,7 @@ struct ContainerSettingsSheet: View {
     }
 
     var embeddingProviderOptions: [EmbeddingProviderOption] {
-        [
+        var options = [
             // MARK: - CoreML Sentence Embedding (Primary)
 
             // Custom Core ML model: all-MiniLM-L6-v2 (sentence-transformers)
@@ -387,6 +387,31 @@ struct ContainerSettingsSheet: View {
                 alert: nil
             ),
         ]
+
+        #if canImport(CoreAI)
+        if #available(iOS 27.0, macOS 27.0, *) {
+            options.append(
+                EmbeddingProviderOption(
+                    id: "coreai_sentence_embedding",
+                    icon: "sparkles",
+                    title: "Core AI Sentence",
+                    tagline: "Silicon-Native • 384-dim",
+                    detail: "Apple Intelligence-backed sentence embeddings. Runs zero-copy inference natively on Apple Silicon with 40%+ latency reduction.",
+                    isSelectable: true,
+                    badgeText: "⚡ Native",
+                    supportedDimensions: [384],
+                    metrics: [
+                        OptionMetric(icon: "bolt.fill", text: "Silicon-native ANE", tint: .indigo),
+                        OptionMetric(icon: "memorychip", text: "Zero-copy memory"),
+                        OptionMetric(icon: "gauge.with.needle", text: "40%+ faster"),
+                    ],
+                    alert: nil
+                )
+            )
+        }
+        #endif
+
+        return options
     }
 
     var dimensionOptions: [DimensionOption] {

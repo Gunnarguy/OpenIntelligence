@@ -27,6 +27,8 @@ struct DocumentDetailsView: View {
             return "NLEmbedding"
         case "coreml_sentence_embedding":
             return "CoreML Sentence"
+        case "coreai_sentence_embedding":
+            return "CoreAI Sentence"
         case "apple_fm_embed":
             return "Apple FM"
         default:
@@ -43,6 +45,8 @@ struct DocumentDetailsView: View {
             return "Word2Vec word-level averaging, 512-dim"
         case "coreml_sentence_embedding":
             return "all-MiniLM-L6-v2, 384-dim sentence vectors"
+        case "coreai_sentence_embedding":
+            return "Silicon-native MiniLM-L6-v2, 384-dim sentence vectors"
         case "apple_fm_embed":
             return "Foundation Model embeddings (1024-dim)"
         default:

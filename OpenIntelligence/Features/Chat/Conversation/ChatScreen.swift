@@ -1730,7 +1730,17 @@ struct ChatScreen: View {
         showRetrievedDetails = false
         thinkingEvents.removeAll()
         requestedExecutionContext = .automatic
-        ragService.createNewThread(for: ragService.containerService.activeContainerId)
+        do {
+            try ragService.createNewThread(for: ragService.containerService.activeContainerId)
+        } catch let quotaError as EvidenceThreadQuotaError {
+            DSHaptics.error()
+            toastManager.show(
+                ToastItem(title: quotaError.localizedDescription, icon: "lock.fill", tint: .red),
+                duration: 4.0
+            )
+        } catch {
+            Log.error("[ChatScreen] Failed to create new thread: \(error.localizedDescription)", category: .initialization)
+        }
     }
 
     private func clearChat() {

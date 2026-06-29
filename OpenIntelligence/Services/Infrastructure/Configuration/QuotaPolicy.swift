@@ -51,6 +51,34 @@ enum QuotaPolicy {
             return lifetimeLibraryLimit
         }
     }
+
+    static let freeEvidenceThreadLimit: Int = 5
+    static let proEvidenceThreadLimit: Int = 20
+    static let lifetimeEvidenceThreadLimit: Int = .max
+
+    static func evidenceThreadLimit(for tier: WorkspaceTier = .free) -> Int {
+        switch tier {
+        case .free:
+            return freeEvidenceThreadLimit
+        case .pro:
+            return proEvidenceThreadLimit
+        case .lifetime:
+            return lifetimeEvidenceThreadLimit
+        }
+    }
+}
+
+struct EvidenceThreadQuotaError: LocalizedError {
+    let limit: Int
+    let tier: WorkspaceTier
+
+    var errorDescription: String? {
+        "Thread limit reached. Your \(tier.displayName) plan supports up to \(limit) active threads per library."
+    }
+
+    var recoverySuggestion: String? {
+        "Delete an existing thread or upgrade your plan to create more."
+    }
 }
 
 /// User-visible error surfaced when ingestion attempts exceed the free-tier quota.

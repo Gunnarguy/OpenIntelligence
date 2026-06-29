@@ -9,8 +9,10 @@ This document provides a comprehensive, version-by-version breakdown of major ar
 
 ## v4.4 - June 2026
 
-*   **Evidence Threads Core:** Replaced dynamic, ephemeral chat persistence with robust, durable research threads stored locally on disk under `LocalCache/EvidenceThreads/<containerId>/`.
+*   **Evidence Threads Core:** Replaced dynamic, ephemeral chat persistence with robust, durable research threads stored under `Application Support/EvidenceThreads/<containerId>/` and bidirectionally synchronized across devices via iCloud Drive.
 *   **Production Sidebar UI:** Built an elegant, slide-out `ThreadSidebarView` conforming to standard Design System tokens (`DSColors`, `DSSpacing`, `DSTypography`). Users can manage, switch between, and delete research threads via a new leading toolbar button.
+*   **Billing Quota Gates**: Thread creation is gated by monetization tier quotas (5 for Free, 20 for Pro, unlimited for Lifetime) via `QuotaPolicy.swift` with localized error displays.
+*   **Siri App Intents**: Registered `ListEvidenceThreadsIntent` and `CreateNewEvidenceThreadIntent` to expose threads to Siri and Shortcuts, refactoring them to execute directly on the active presented `RAGService.activePresentedInstance` to instantly populate the user interface and support library entity parameter filtering.
 *   **RAG System Integration:** Configured `RAGService` to load the most recent thread automatically on preload, persist RAG responses (including rich citations and reasoning) to the active thread, and handle thread deletions cleanly.
 *   **Legacy Preservation:** Retained the immutability of `ChatMessage` while utilizing it inside `EvidenceThread` to prevent breaking existing sync and database schemas.
 *   **Diagnostics View:** Retained engineering diagnostic tools (`EvidenceThreadDebugView` and `EvidenceThreadDebugService`) for isolated persistence boundary testing.
@@ -65,13 +67,13 @@ The massive, monolithic `AppleFoundationLLMService` class was decomposed into di
 
 ---
 
-### 2. Core AI Experimental Framework & Production Core ML Embeddings
+### 2. Core AI Framework & Production Core ML Embeddings
 
-To prepare for future local execution models on Apple Silicon and support local-first AI, the Core AI framework layer was introduced. However, since system-level local execution APIs are still maturing, the production-ready embedding layer remains backed by the proven Core ML pipeline:
+To support local-first AI on Apple Silicon, the Core AI framework layer has been fully enabled and integrated:
 
-*   **Production Local Embeddings (`CoreMLSentenceEmbeddingProvider`)**: The live, production-ready local vector processing pipeline remains fully powered by the highly optimized Core ML engine (`CoreMLSentenceEmbeddingProvider`).
-*   **Experimental Core AI Scaffold (`CoreAISentenceEmbeddingProvider`)**: Staged preliminary scaffolding for running tokenization and dense vector calculations directly on Apple's Core AI framework. This provider is currently disabled (`#if false`) and staged for future OS-level API capabilities, ensuring the production build remains stable on the proven Core ML pipeline.
-*   **`CoreAIModelRegistry` / Backends**: Staged experimental registries and execution/embedding backend scaffolding (`CoreAIExecutionBackend`, `CoreAIEmbeddingBackend` under `OpenIntelligence/Services/AIPlatform/CoreAI/`) to prepare for running custom models directly on Apple Silicon once the system APIs mature.
+*   **Production Local Embeddings (`CoreMLSentenceEmbeddingProvider`)**: The live local vector processing pipeline is powered by the highly optimized Core ML engine (`CoreMLSentenceEmbeddingProvider`) on older OS targets.
+*   **Core AI Integration (`CoreAISentenceEmbeddingProvider`)**: Fully integrated and enabled Silicon-native zero-copy sentence embeddings on iOS 27+ / macOS 27+. It is registered as a selectable option in library settings, with dynamic auto-tuning automatically upgrading compatible containers to this high-performance backend.
+*   **`CoreAIModelRegistry` / Backends**: Staged registries and execution/embedding backend scaffolding (`CoreAIExecutionBackend`, `CoreAIEmbeddingBackend` under `OpenIntelligence/Services/AIPlatform/CoreAI/`) to support running custom models directly on Apple Silicon.
 
 ---
 

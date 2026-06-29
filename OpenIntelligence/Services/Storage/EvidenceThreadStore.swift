@@ -12,14 +12,52 @@ import os.log
 final class EvidenceThreadStore: Sendable {
     private let logger = Logger(subsystem: "com.openintelligence", category: "EvidenceThreadStore")
 
-    init() {}
+    init() {
+        migrateLegacyThreadsIfNeeded()
+    }
 
-    /// Returns the root URL for all Evidence Threads: `Application Support/LocalCache/EvidenceThreads/`
+    private func migrateLegacyThreadsIfNeeded() {
+        do {
+            guard let appSupportURL = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first else { return }
+            let legacyRoot = appSupportURL.appendingPathComponent("LocalCache/EvidenceThreads", isDirectory: true)
+            let newRoot = appSupportURL.appendingPathComponent("EvidenceThreads", isDirectory: true)
+            
+            guard FileManager.default.fileExists(atPath: legacyRoot.path) else { return }
+            
+            if !FileManager.default.fileExists(atPath: newRoot.path) {
+                try FileManager.default.createDirectory(at: newRoot, withIntermediateDirectories: true)
+            }
+            
+            let containerDirs = try FileManager.default.contentsOfDirectory(at: legacyRoot, includingPropertiesForKeys: nil, options: .skipsHiddenFiles)
+            for containerDir in containerDirs {
+                let containerIdStr = containerDir.lastPathComponent
+                let targetContainerDir = newRoot.appendingPathComponent(containerIdStr, isDirectory: true)
+                if !FileManager.default.fileExists(atPath: targetContainerDir.path) {
+                    try FileManager.default.createDirectory(at: targetContainerDir, withIntermediateDirectories: true)
+                }
+                
+                let threadFiles = try FileManager.default.contentsOfDirectory(at: containerDir, includingPropertiesForKeys: nil, options: .skipsHiddenFiles)
+                for threadFile in threadFiles where threadFile.pathExtension == "json" {
+                    let targetFile = targetContainerDir.appendingPathComponent(threadFile.lastPathComponent)
+                    if !FileManager.default.fileExists(atPath: targetFile.path) {
+                        try FileManager.default.copyItem(at: threadFile, to: targetFile)
+                    }
+                }
+            }
+            
+            try FileManager.default.removeItem(at: legacyRoot)
+            logger.info("Successfully migrated legacy Evidence Threads to synchronized location.")
+        } catch {
+            logger.error("Failed to migrate legacy Evidence Threads: \(error.localizedDescription)")
+        }
+    }
+
+    /// Returns the root URL for all Evidence Threads: `Application Support/EvidenceThreads/`
     private func getRootDirectoryURL() throws -> URL {
         guard let appSupportURL = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first else {
             throw Error.directoryNotFound
         }
-        return appSupportURL.appendingPathComponent("LocalCache/EvidenceThreads", isDirectory: true)
+        return appSupportURL.appendingPathComponent("EvidenceThreads", isDirectory: true)
     }
 
     /// Returns the URL for a specific container's directory: `.../EvidenceThreads/<containerId>/`
@@ -51,7 +89,7 @@ final class EvidenceThreadStore: Sendable {
         encoder.dateEncodingStrategy = .iso8601
         
         let data = try encoder.encode(thread)
-        try data.write(to: fileURL, options: .atomic)
+        try WorkspaceSyncService.coordinatedWriteData(data, to: fileURL)
         logger.debug("Successfully saved EvidenceThread \(thread.id) to local store.")
     }
 
@@ -63,7 +101,7 @@ final class EvidenceThreadStore: Sendable {
             throw Error.threadNotFound
         }
         
-        let data = try Data(contentsOf: fileURL)
+        let data = try WorkspaceSyncService.coordinatedReadData(from: fileURL)
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
         
@@ -86,16 +124,14 @@ final class EvidenceThreadStore: Sendable {
         
         for url in fileURLs where url.pathExtension == "json" {
             do {
-                let data = try Data(contentsOf: url)
+                let data = try WorkspaceSyncService.coordinatedReadData(from: url)
                 let thread = try decoder.decode(EvidenceThread.self, from: data)
                 threads.append(thread)
             } catch {
                 logger.error("Failed to decode EvidenceThread at \(url.path): \(error.localizedDescription)")
-                // Continue loading other valid threads
             }
         }
         
-        // Sort by updated descending
         return threads.sorted { $0.updatedAt > $1.updatedAt }
     }
 
@@ -103,7 +139,7 @@ final class EvidenceThreadStore: Sendable {
     func deleteThread(id: UUID, containerId: UUID) throws {
         let fileURL = try getThreadFileURL(id: id, containerId: containerId)
         if FileManager.default.fileExists(atPath: fileURL.path) {
-            try FileManager.default.removeItem(at: fileURL)
+            try WorkspaceSyncService.coordinatedRemoveItem(at: fileURL)
             logger.debug("Successfully deleted EvidenceThread \(id).")
         }
     }

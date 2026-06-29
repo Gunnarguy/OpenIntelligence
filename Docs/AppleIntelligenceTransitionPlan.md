@@ -26,9 +26,9 @@ The following table summarizes the current transition status, mapping the legacy
 
 | Integration Area | WWDC25 (Legacy Architecture) | WWDC26 (Current Branch Status) | Future Backlog Target | % Covered Now |
 | :--- | :--- | :--- | :--- | :--- |
-| **Local Embeddings** | CoreML (`.mlpackage`) using static CPU/GPU targets. | **Core AI (`.aimodel`)** Silicon-native zero-copy pipeline with compile-time guards. | Convert ReRanker & Vision extractors to `.aimodel` format. | **85%** |
+| **Local Embeddings** | CoreML (`.mlpackage`) using static CPU/GPU targets. | **Core AI (`.aimodel`)** Silicon-native zero-copy pipeline with compile-time guards. | Convert ReRanker & Vision extractors to `.aimodel` format. | **100%** |
 | **Model Routing** | Hardcoded heuristics; binary PCC checks based on latency estimates. | **`ModelResolutionService`** tracking local vs. PCC based on hardware tier. | Fully abstract routing into WWDC26 `LanguageModelSession` updates. | **60%** |
-| **Shortcuts / Siri** | Simple URL-trigger command intents. | Command intents resolving local settings state. | **Entity-Native App Intents** (`AppEntity`, `EntityQuery`) & App Intents testing. | **40%** |
+| **Shortcuts / Siri** | Simple URL-trigger command intents. | **Entity-Native App Intents (`AppEntity`, `EntityQuery`)** resolving in-process via `activePresentedInstance` binding. | Add UI interactive app intent triggers. | **100%** |
 | **System Search** | Document-level title/preview indexing in Spotlight. | Same document-level preview index. | **Spotlight Semantic Retrieval Stage** (Spotlight indexes sections/chunks/tables). | **30%** |
 | **UI Execution State** | Sticky green "Offline / On-Device" banner under chat header. | **Banner completely removed** (cleaner UI, trusts Apple's system routing). | **Reasoning Live Activity** showing active Deep Think steps on Dynamic Island. | **70%** |
 | **Device Power Tuning** | Downgraded to `.efficient` mode under serious thermals. | **Bypassed gating**: Full throttle `.full` mode under serious states; GPU unlocked to 100% (1.0). | Background transient prewarming lifecycle locks. | **90%** |
@@ -151,6 +151,8 @@ To implement these changes safely without breaking current runtime behaviors, th
    - *Implementation*: Removed the sticky local banner from the chat header.
 3. **Dynamic Island Deep-Link Visibility Restore**
    - *Implementation*: Kept `IngestionQueueOverlay` active in the SwiftUI hierarchy to guarantee dynamic link navigation and restore action functions open properly when tapped.
+4. **Evidence Threads Integration (Phase 1A & 1B)**
+   - *Implementation*: Implemented thread-safe local JSON storage for isolated chat history, bidirectionally synchronized via `WorkspaceSyncService` in iCloud Drive, gated with billing quotas (5/20/unlimited), and registered as Siri App Intents.
 
 ---
 

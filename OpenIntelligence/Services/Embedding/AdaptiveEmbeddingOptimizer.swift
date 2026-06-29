@@ -768,7 +768,15 @@ actor LibraryIntelligenceCenter {
         let winner = scores.max(by: { $0.1 < $1.1 }) ?? (384, 0.3, "coreml_sentence_embedding")
         let dimension = winner.0
         let confidence = min(1.0, winner.1 / 2.0)
-        let provider = winner.2
+        var provider = winner.2
+
+        #if canImport(CoreAI)
+        if provider == "coreml_sentence_embedding" {
+            if #available(iOS 27.0, macOS 27.0, *) {
+                provider = "coreai_sentence_embedding"
+            }
+        }
+        #endif
 
         // Add provider-specific reasoning
         switch provider {
@@ -778,6 +786,8 @@ actor LibraryIntelligenceCenter {
             reasoning.append("NLContextualEmbedding provides 15-25% accuracy boost for semantic search.")
         case "coreml_sentence_embedding":
             reasoning.append("Core ML sentence encoder strikes balance for this profile.")
+        case "coreai_sentence_embedding":
+            reasoning.append("Core AI sentence encoder strikes balance for this profile with Silicon-native acceleration.")
         default:
             reasoning.append("NaturalLanguage embeddings deliver speed with 512D coverage.")
         }

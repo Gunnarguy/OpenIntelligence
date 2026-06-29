@@ -79,6 +79,12 @@ struct SettingsView: View {
                     // Apple Intelligence Features
                     appleIntelligenceFeaturesCard
 
+                    // Siri Voice Integration
+                    siriIntegrationCard
+
+                    // Shortcuts Actions & Automation
+                    shortcutsAutomationCard
+
                     // Generation Tuning (exposed hidden settings)
                     generationTuningCard
 
@@ -1759,7 +1765,7 @@ Text(deviceService.chipName)
             items.append(.init(id: "multi-query", icon: "magnifyingglass.circle.fill", label: "Multi-Query Expansion", desc: "LLM generates diverse search queries for broader retrieval", color: .purple))
             items.append(.init(id: "graph-expand", icon: "point.3.connected.trianglepath.dotted", label: "2-Hop Graph Expansion", desc: "Entity-based traversal finds related chunks", color: .purple))
             items.append(.init(id: "recursive-loop", icon: "arrow.trianglehead.2.clockwise.rotate.90", label: "Recursive Research Loop", desc: "Autonomous [SEARCH:]/[ANSWER] protocol until confident", color: .purple))
-            items.append(.init(id: "verify-gates", icon: "checkmark.seal.fill", label: "Verification Gates A–G", desc: "7-stage anti-hallucination checks before answering", color: .purple))
+            items.append(.init(id: "verify-gates", icon: "checkmark.seal.fill", label: "Verification Gates A–I", desc: "9-stage anti-hallucination checks before answering (Confidence, Coverage, Numeric, Contradiction, Semantic, Quote, Quality, Completeness, Isolation)", color: .purple))
             items.append(.init(id: "confidence-cal", icon: "function", label: "Confidence Calibration", desc: "Sigmoid-calibrated scores from rerank + margin + evidence count", color: .purple))
             items.append(.init(id: "extract-summary", icon: "text.line.first.and.arrowtriangle.forward", label: "Extractive Summarization", desc: "Sentence selection via bi-encoder for summarize intent", color: .purple))
             items.append(.init(id: "graph-pack", icon: "rectangle.compress.vertical", label: "Graph Context Packing", desc: "Optimal token budget allocation across evidence", color: .purple))
@@ -2098,6 +2104,211 @@ Text(deviceService.chipName)
         }
         .background(DSColors.surface)
         .clipShape(RoundedRectangle(cornerRadius: 16))
+     }
+
+    private var siriIntegrationCard: some View {
+        VStack(spacing: 0) {
+            HStack(spacing: 10) {
+                ZStack {
+                    Circle()
+                        .fill(Color.orange.opacity(0.2))
+                        .frame(width: 32, height: 32)
+                    Image(systemName: "siri")
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundColor(.orange)
+                }
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Siri Voice Shortcuts")
+                        .font(.headline)
+                    Text("Speak directly to Siri without any manual setup")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+                Spacer()
+                Text("9 of 10 Registered")
+                    .font(.caption.weight(.semibold).monospacedDigit())
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 3)
+                    .background(Color.green)
+                    .clipShape(Capsule())
+            }
+            .padding()
+
+            Divider().padding(.horizontal)
+
+            VStack(alignment: .leading, spacing: 12) {
+                Text("Instant Voice Phrases")
+                    .font(.subheadline.bold())
+                    .padding(.horizontal)
+                    .padding(.top, 12)
+
+                VStack(spacing: 10) {
+                    shortcutCommandRow(title: "Query Active Documents", phrase: "Ask OpenIntelligence about my documents")
+                    shortcutCommandRow(title: "List Loaded Files", phrase: "List my documents in OpenIntelligence")
+                    shortcutCommandRow(title: "Check Import Queue", phrase: "Check document import status in OpenIntelligence")
+                    shortcutCommandRow(title: "Query Specific Document", phrase: "Ask OpenIntelligence about [Document Name]")
+                    shortcutCommandRow(title: "Generate File Summary", phrase: "Summarize [Document Name] in OpenIntelligence")
+                    shortcutCommandRow(title: "Compare Multiple Files", phrase: "Compare documents in OpenIntelligence")
+                    shortcutCommandRow(title: "Search Custom Library", phrase: "Search [Library Name] in OpenIntelligence")
+                    shortcutCommandRow(title: "Ingest Current Screen PDF", phrase: "Add this document to OpenIntelligence")
+                    shortcutCommandRow(title: "Ingest Current Safari URL", phrase: "Extract this webpage into OpenIntelligence")
+                }
+
+                Divider().padding(.horizontal)
+
+                Text("Trust & Hallucination Prevention")
+                    .font(.subheadline.bold())
+                    .padding(.horizontal)
+
+                HStack(alignment: .top, spacing: 12) {
+                    Image(systemName: "checkmark.shield.fill")
+                        .font(.title2)
+                        .foregroundColor(.green)
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Strict Verification Gates")
+                            .font(.subheadline.weight(.semibold))
+                        Text("Siri voice responses run the exact same on-device validation rules as the main chat view. If no precise document evidence supports a claim, Siri returns a prominent 'Needs Verification' dialog instead of hallucinating.")
+                            .font(.caption)
+                            .foregroundColor(DSColors.secondaryText)
+                            .fixedSize(horizontal: false, vertical: false)
+                    }
+                }
+                .padding(.horizontal)
+                .padding(.bottom, 16)
+            }
+        }
+        .background(DSColors.surface)
+        .clipShape(RoundedRectangle(cornerRadius: 16))
+    }
+
+    private var shortcutsAutomationCard: some View {
+        VStack(spacing: 0) {
+            HStack(spacing: 10) {
+                ZStack {
+                    Circle()
+                        .fill(Color.blue.opacity(0.2))
+                        .frame(width: 32, height: 32)
+                    Image(systemName: "square.2.layers.3d")
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundColor(.blue)
+                }
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Shortcuts App Integration")
+                        .font(.headline)
+                    Text("Custom automations & drag-and-drop actions")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+                Spacer()
+                Text("16 Actions Available")
+                    .font(.caption.weight(.semibold).monospacedDigit())
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 3)
+                    .background(Color.blue)
+                    .clipShape(Capsule())
+            }
+            .padding()
+
+            Divider().padding(.horizontal)
+
+            VStack(alignment: .leading, spacing: 12) {
+                Text("App Actions in Shortcuts Library")
+                    .font(.subheadline.bold())
+                    .padding(.horizontal)
+                    .padding(.top, 12)
+
+                VStack(alignment: .leading, spacing: 14) {
+                    shortcutsActionGroup(title: "Document Ingestion", actions: [
+                        "Add Document" : "Ingest a file parameter directly into a selected library.",
+                        "Ingest Current Document" : "Imports the open document from screen context.",
+                        "Ingest Safari URL" : "Extracts and processes the active Safari webpage URL.",
+                        "Ingest From Camera" : "Launch document scanner or camera feed to import."
+                    ])
+
+                    shortcutsActionGroup(title: "Retrieval & QA", actions: [
+                        "Query Documents" : "Hybrid vector/keyword search with RRF over active library.",
+                        "Ask Document" : "Direct QA targeted at a single document entity.",
+                        "Search Library" : "Switches to and searches a designated library container."
+                    ])
+
+                    shortcutsActionGroup(title: "Summarization & Analysis", actions: [
+                        "Summarize Document" : "Generates abstractive summary of document contents.",
+                        "Compare Documents" : "Evaluate differences in facts or metrics across files.",
+                        "Analyze Image" : "Run visual OCR and VLM analysis on a camera photo.",
+                        "Visual Search" : "Queries visual library database index using an image."
+                    ])
+
+                    shortcutsActionGroup(title: "Conversation & History", actions: [
+                        "List Evidence Threads" : "Exposes conversational history and thread properties.",
+                        "Create New Evidence Thread" : "Instantiates a new workspace conversation session."
+                    ])
+
+                    shortcutsActionGroup(title: "Telemetry & System", actions: [
+                        "Get Active Embedding Model" : "Returns active hardware acceleration route (Core AI vs Core ML).",
+                        "Check Import Queue Status" : "Queries background ingestion, OCR, and vector indices."
+                    ])
+                }
+                .padding(.horizontal)
+                .padding(.bottom, 16)
+            }
+        }
+        .background(DSColors.surface)
+        .clipShape(RoundedRectangle(cornerRadius: 16))
+    }
+
+    private func shortcutsActionGroup(title: String, actions: [String: String]) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(title)
+                .font(.caption.bold())
+                .foregroundColor(.accentColor)
+            
+            VStack(alignment: .leading, spacing: 6) {
+                ForEach(actions.keys.sorted(), id: \.self) { key in
+                    HStack(alignment: .top) {
+                        Text(key)
+                            .font(.caption.bold())
+                            .foregroundColor(DSColors.primaryText)
+                            .frame(width: 170, alignment: .leading)
+                        Text(actions[key] ?? "")
+                            .font(.caption2)
+                            .foregroundColor(DSColors.secondaryText)
+                            .fixedSize(horizontal: false, vertical: false)
+                        Spacer()
+                    }
+                }
+            }
+            .padding(.leading, 8)
+        }
+    }
+
+    private func shortcutCommandRow(title: String, phrase: String) -> some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.caption.bold())
+                    .foregroundColor(DSColors.secondaryText)
+                Text("\"\(phrase)\"")
+                    .font(.system(.subheadline, design: .monospaced))
+                    .foregroundColor(DSColors.primaryText)
+            }
+            Spacer()
+            Button {
+                #if canImport(UIKit)
+                UIPasteboard.general.string = phrase
+                #elseif canImport(AppKit)
+                let pasteboard = NSPasteboard.general
+                pasteboard.declareTypes([.string], owner: nil)
+                pasteboard.setString(phrase, forType: .string)
+                #endif
+            } label: {
+                Image(systemName: "doc.on.doc")
+                    .font(.caption)
+                    .foregroundColor(.accentColor)
+            }
+        }
+        .padding(.horizontal)
     }
 
     /// A toggleable Apple Intelligence feature row.

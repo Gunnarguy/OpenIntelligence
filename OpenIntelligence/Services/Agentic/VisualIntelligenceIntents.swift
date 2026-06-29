@@ -62,7 +62,7 @@ struct AnalyzeImageIntent: AppIntent {
 
         // If a question was asked, query RAG with the extracted context
         if !question.isEmpty {
-            let ragService = await MainActor.run { RAGService() }
+            let ragService = await MainActor.run { RAGService.activePresentedInstance ?? RAGService() }
             let config = InferenceConfig(maxTokens: 300, temperature: 0.7)
 
             do {
@@ -199,7 +199,7 @@ struct VisualSearchIntent: AppIntent {
         }
 
         // Use extracted text as a query
-        let ragService = await MainActor.run { RAGService() }
+        let ragService = await MainActor.run { RAGService.activePresentedInstance ?? RAGService() }
         let config = InferenceConfig(maxTokens: 300, temperature: 0.7)
 
         do {

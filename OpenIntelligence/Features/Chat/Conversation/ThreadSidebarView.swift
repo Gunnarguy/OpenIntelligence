@@ -12,6 +12,8 @@ struct ThreadSidebarView: View {
     var onThreadSelected: (UUID) -> Void
     
     @State private var threads: [EvidenceThread] = []
+    @State private var errorMessage: String? = nil
+    @State private var showQuotaAlert = false
     
     var body: some View {
         HStack(spacing: 0) {
@@ -22,9 +24,17 @@ struct ThreadSidebarView: View {
                     Spacer()
                     Button {
                         let containerId = ragService.containerService.activeContainerId
-                        ragService.createNewThread(for: containerId)
-                        onThreadSelected(ragService.activeThreadId ?? UUID())
-                        loadThreads()
+                        do {
+                            try ragService.createNewThread(for: containerId)
+                            onThreadSelected(ragService.activeThreadId ?? UUID())
+                            loadThreads()
+                        } catch let quotaError as EvidenceThreadQuotaError {
+                            DSHaptics.error()
+                            errorMessage = quotaError.localizedDescription
+                            showQuotaAlert = true
+                        } catch {
+                            Log.error("[ThreadSidebarView] Failed to create thread: \(error.localizedDescription)", category: .initialization)
+                        }
                     } label: {
                         Image(systemName: "square.and.pencil")
                             .imageScale(.large)
@@ -59,7 +69,7 @@ struct ThreadSidebarView: View {
                             let thread = threads[index]
                             try? ragService.threadStore.deleteThread(id: thread.id, containerId: containerId)
                             if ragService.activeThreadId == thread.id {
-                                ragService.createNewThread(for: containerId)
+                                try? ragService.createNewThread(for: containerId)
                                 onThreadSelected(ragService.activeThreadId ?? UUID())
                             }
                         }
@@ -87,6 +97,11 @@ struct ThreadSidebarView: View {
         }
         .onChange(of: ragService.containerService.activeContainerId) { _, _ in
             loadThreads()
+        }
+        .alert("Thread Limit Reached", isPresented: $showQuotaAlert, presenting: errorMessage) { _ in
+            Button("OK", role: .cancel) {}
+        } message: { detail in
+            Text(detail)
         }
     }
     

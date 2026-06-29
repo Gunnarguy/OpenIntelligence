@@ -100,9 +100,11 @@ All documentation cross-references have been moved to `DOCUMENTATION_CONSISTENCY
 5. **App Intents/Siri/Shortcuts**
 
 ## 15. Evidence Threads Implication Section
-- **Design B**: Isolated JSON files under `LocalCache/EvidenceThreads/<containerId>/`. `[evidence: artifact_derived, exact, evidence_threads_design_decision.md]`
+- **Design B**: Relocated from `LocalCache` to `Application Support/EvidenceThreads/<containerId>/` to support iCloud Drive synchronization. `[evidence: code_verified, exact, EvidenceThreadStore.swift]`
 - **Integration**: Complete. Persistent history is integrated into `RAGService.swift` and presented through `ThreadSidebarView.swift` inside `ChatScreen.swift`.
-- **Constraint**: `ChatMessage.swift` and existing sync routines remain untouched (preserved by using `ChatMessage` in `EvidenceThread` messages array).
+- **Constraint**: Synchronization is performed bidirectionally on changes via `WorkspaceSyncService.swift` using coordinated file writes. `[evidence: code_verified, exact, WorkspaceSyncService.swift]`
+- **Quota Gating**: Thread creation is gated by monetization tier quotas (5 for Free, 20 for Pro, unlimited for Lifetime) via `QuotaPolicy.swift`. `[evidence: code_verified, exact, QuotaPolicy.swift]`
+- **App Intents**: Registered `ListEvidenceThreadsIntent` and `CreateNewEvidenceThreadIntent` App Intents for Siri/Shortcuts, utilizing `ThreadListSnippetView` snippets. Resolved in-process on the presented `RAGService.activePresentedInstance` to reload and populate presented UI screens instantly, accepting optional `OILibraryEntity` parameter inputs. `[evidence: code_verified, exact, RAGAppIntents.swift]`
 
 ## 16. Mermaid Diagrams
 
@@ -173,3 +175,8 @@ graph TD
   App[OpenIntelligence] -->|Write| File[LocalCache/EvidenceThreads/.../*.json]
   App -.->|No Sync| iCloud[iCloud Drive]
 ```
+
+## 17. Core AI Embedding Subsystem Boundary
+- **Core AI Integration**: Silicon-native zero-copy sentence embeddings are generated via `CoreAISentenceEmbeddingProvider.swift` using dynamic `NDArray` and `InferenceFunction.run(inputs:)` graph execution on iOS 27 / macOS 27+ Apple Intelligence SDK. `[evidence: code_verified, exact, CoreAISentenceEmbeddingProvider.swift]`
+- **Adaptive Auto-Tuning**: `LibraryIntelligenceCenter` automatically recommends and switches to the Core AI provider on supported hardware, falling back dynamically to `CoreMLSentenceEmbeddingProvider` on older targets. `[evidence: code_verified, exact, AdaptiveEmbeddingOptimizer.swift]`
+

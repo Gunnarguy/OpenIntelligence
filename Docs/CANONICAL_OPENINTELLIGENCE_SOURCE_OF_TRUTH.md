@@ -11,10 +11,10 @@ OpenIntelligence is a local-first, privacy-preserving retrieval-augmented genera
 - PCC execution routes natively to secure enclaves via `FoundationModels.PrivateCloudComputeLanguageModel` on iOS 27 / macOS 27+, falling back cleanly to local `SystemLanguageModel` simulation on older OS versions. `[evidence: code_verified, exact, FoundationModelSessionFactory.swift]`
 - Relational metadata indexing relies on a single shared SQLite file with column-based `container_id` isolation. `[evidence: code_verified, exact, SQLiteFullTextService.swift]`
 - Billing entitlements are stored in `UserDefaults`. `[evidence: code_verified, exact, EntitlementStore.swift]`
+- Core AI embeddings are used in production. Runs zero-copy Silicon-native sentence embeddings on iOS 27+ / macOS 27+ compatible devices, falling back to Core ML. `[evidence: code_verified, exact, CoreAISentenceEmbeddingProvider.swift]`
 
 ## 4. Unsafe Claims
 - The app uses CloudKit databases. (FALSE) `[evidence: code_verified, exact]`
-- Core AI embeddings are used in production. (FALSE, it's behind `#if false`). `[evidence: code_verified, exact]`
 - Knowledge libraries use separate isolated SQLite files. (FALSE) `[evidence: code_verified, exact]`
 
 ## 5. Non-Negotiable Facts
@@ -39,7 +39,8 @@ OpenIntelligence is a local-first, privacy-preserving retrieval-augmented genera
 - `RAGAppIntents` utilizes 9 of the 10 available App Shortcuts limit.
 
 ## 11. Evidence Threads Canonical Decision
-- **Design B**: Use isolated thread files under `LocalCache/EvidenceThreads/<containerId>/`. `[evidence: artifact_derived, exact, evidence_threads_design_decision.md]`
+- **Design B**: Relocated from `LocalCache` to `Application Support/EvidenceThreads/<containerId>/` to support iCloud Drive synchronization. `[evidence: code_verified, exact, EvidenceThreadStore.swift]`
+- **Synchronization**: Thread files are synchronized bidirectionally via `WorkspaceSyncService.swift` on changes, gated by tier-specific limits (5 Free / 20 Pro / Unlimited Lifetime) in `QuotaPolicy.swift`. `[evidence: code_verified, exact]`
 - Legacy `ChatMessage` remains untouched (EvidenceThread uses ChatMessage array for immutability).
 - RAGService and ChatScreen integration complete. ChatScreen features a slide-out ThreadSidebarView, enabling thread switching, creation, and deletion, with history persistence and loading managed asynchronously by RAGService.
 

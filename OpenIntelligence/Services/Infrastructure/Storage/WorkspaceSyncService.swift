@@ -1951,6 +1951,13 @@ final class WorkspaceSyncService: ObservableObject {
                 sharedRoot: sharedRoot,
                 strategy: strategy
             )
+            try await synchronizeEvidenceThreads(
+                canonicalContainerID: container.id,
+                sourceContainerIDs: sourceContainerIDs,
+                localRoot: localRoot,
+                sharedRoot: sharedRoot,
+                strategy: strategy
+            )
         }
     }
 
@@ -2090,6 +2097,81 @@ final class WorkspaceSyncService: ObservableObject {
         for sourceContainerID in sourceContainerIDs where sourceContainerID != canonicalContainerID {
             try? Self.coordinatedRemoveItem(at: localRoot.appendingPathComponent("\(filePrefix)\(sourceContainerID.uuidString).json"))
             try? Self.coordinatedRemoveItem(at: sharedRoot.appendingPathComponent("\(filePrefix)\(sourceContainerID.uuidString).json"))
+        }
+    }
+
+    nonisolated private func synchronizeEvidenceThreads(
+        canonicalContainerID: UUID,
+        sourceContainerIDs: Set<UUID>,
+        localRoot: URL,
+        sharedRoot: URL,
+        strategy: SyncResolutionStrategy
+    ) async throws {
+        let localThreadDir = localRoot.appendingPathComponent("EvidenceThreads/\(canonicalContainerID.uuidString)", isDirectory: true)
+        let sharedThreadDir = sharedRoot.appendingPathComponent("EvidenceThreads/\(canonicalContainerID.uuidString)", isDirectory: true)
+
+        let localSourceDirs = sourceContainerIDs.map {
+            localRoot.appendingPathComponent("EvidenceThreads/\($0.uuidString)", isDirectory: true)
+        }
+        let sharedSourceDirs = sourceContainerIDs.map {
+            sharedRoot.appendingPathComponent("EvidenceThreads/\($0.uuidString)", isDirectory: true)
+        }
+
+        var allThreadFilenames: Set<String> = []
+        for dir in (localSourceDirs + sharedSourceDirs) {
+            if let files = try? fileManager.contentsOfDirectory(at: dir, includingPropertiesForKeys: nil, options: .skipsHiddenFiles) {
+                for fileURL in files where fileURL.pathExtension == "json" {
+                    allThreadFilenames.insert(fileURL.lastPathComponent)
+                }
+            }
+        }
+
+        guard !allThreadFilenames.isEmpty else {
+            return
+        }
+
+        try? ensureDirectory(localThreadDir)
+        try? ensureDirectory(sharedThreadDir)
+
+        for filename in allThreadFilenames {
+            let localTargetURL = localThreadDir.appendingPathComponent(filename)
+            let sharedTargetURL = sharedThreadDir.appendingPathComponent(filename)
+
+            let localCandidates = sourceContainerIDs.map {
+                localRoot.appendingPathComponent("EvidenceThreads/\($0.uuidString)/\(filename)")
+            }
+            let sharedCandidates = sourceContainerIDs.map {
+                sharedRoot.appendingPathComponent("EvidenceThreads/\($0.uuidString)/\(filename)")
+            }
+
+            let preferredSource: URL?
+            switch strategy {
+            case .mergeLibraries:
+                preferredSource = (localCandidates + sharedCandidates)
+                    .filter { fileManager.fileExists(atPath: $0.path) }
+                    .max(by: { modificationDate(for: $0) < modificationDate(for: $1) })
+
+            case .useICloudWorkspace, .importExistingICloudLibraries:
+                preferredSource = sharedCandidates
+                    .filter { fileManager.fileExists(atPath: $0.path) }
+                    .max(by: { modificationDate(for: $0) < modificationDate(for: $1) })
+            }
+
+            guard let preferredSource else { continue }
+
+            if !fileManager.fileExists(atPath: localTargetURL.path) || modificationDate(for: preferredSource) > modificationDate(for: localTargetURL) {
+                try? await copyItem(at: preferredSource, to: localTargetURL)
+            }
+            if !fileManager.fileExists(atPath: sharedTargetURL.path) || modificationDate(for: preferredSource) > modificationDate(for: sharedTargetURL) {
+                try? await copyItem(at: preferredSource, to: sharedTargetURL)
+            }
+        }
+
+        for sourceContainerID in sourceContainerIDs where sourceContainerID != canonicalContainerID {
+            let localOldDir = localRoot.appendingPathComponent("EvidenceThreads/\(sourceContainerID.uuidString)", isDirectory: true)
+            let sharedOldDir = sharedRoot.appendingPathComponent("EvidenceThreads/\(sourceContainerID.uuidString)", isDirectory: true)
+            try? Self.coordinatedRemoveItem(at: localOldDir)
+            try? Self.coordinatedRemoveItem(at: sharedOldDir)
         }
     }
 

@@ -22,7 +22,7 @@ Current source code reflects Apple's modern platform context limits and models a
 
 | Platform Area | WWDC25 / macOS 26.x (Tahoe) / iOS 26.x | WWDC26 / macOS 27.0+ (Beta) / iOS 27.0+ (Beta) | Code Level Implementation |
 | :--- | :--- | :--- | :--- |
-| **Local Embeddings** | Powered by **Core ML** (`CoreMLSentenceEmbeddingProvider`) using `.mlpackage` structures. | Powered by **Core AI** (`CoreAISentenceEmbeddingProvider`) using Silicon-native `.aimodel` structures. | Implemented via `#if canImport(CoreAI)` and `@available(iOS 27.0, macOS 27.0, *)` guards (currently disabled in v4.1 via `#if false`). |
+| **Local Embeddings** | Powered by **Core ML** (`CoreMLSentenceEmbeddingProvider`) using `.mlpackage` structures. | Powered by **Core AI** (`CoreAISentenceEmbeddingProvider`) using Silicon-native `.aimodel` structures. | Implemented via `#if canImport(CoreAI)` and `@available(iOS 27.0, macOS 27.0, *)` guards (fully integrated and registered). |
 | **Generation Options** | `GenerationOptions` initializer uses the `sampling` parameter. | `GenerationOptions` initializer renames parameter to `samplingMode`. | Gated in `LLMService.swift` under `#if compiler(>=6.4)`. |
 | **Transcript Entries** | Supports `.instructions`, `.prompt`, `.response`, `.toolCalls`, and `.toolOutput`. | Adds `.reasoning(reasoning)` case to stream intermediate thinking steps. | Gated in `FoundationModelTokenBudget.swift` under `#if compiler(>=6.4)`. |
 | **Session Profiles** | Rebuilds `LanguageModelSession` instances upon instruction or tool updates. | Unlocks **Dynamic Profiles** to hot-swap tools/instructions inside an active session. | Staged in `FoundationModelDynamicProfileRegistry.swift` with availability guards. |

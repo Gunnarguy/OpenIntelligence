@@ -76,6 +76,7 @@ class EmbeddingService {
             "nl_embedding": [512],
             "nl_contextual_embedding": [512],
             "coreml_sentence_embedding": [384],  // MiniLM-L6-v2 is fixed at 384D
+            "coreai_sentence_embedding": [384],
             "apple_fm_embed": [1024],
         ]
 
@@ -98,6 +99,30 @@ class EmbeddingService {
 
         let resolved: EmbeddingService
         switch id {
+        case "coreai_sentence_embedding":
+            #if canImport(CoreAI)
+            if #available(iOS 27.0, macOS 27.0, *) {
+                resolved = EmbeddingService(
+                    provider: CoreAISentenceEmbeddingProvider(),
+                    providerId: "coreai_sentence_embedding",
+                    targetDimension: validatedDimension(for: "coreai_sentence_embedding", requested: targetDimension)
+                )
+            } else {
+                Log.warning("CoreAI requested but not supported on this OS version, falling back to CoreML", category: .embedding)
+                resolved = EmbeddingService(
+                    provider: CoreMLSentenceEmbeddingProvider(),
+                    providerId: "coreml_sentence_embedding",
+                    targetDimension: validatedDimension(for: "coreml_sentence_embedding", requested: targetDimension)
+                )
+            }
+            #else
+            Log.warning("CoreAI requested but CoreAI framework is not available at compile time, falling back to CoreML", category: .embedding)
+            resolved = EmbeddingService(
+                provider: CoreMLSentenceEmbeddingProvider(),
+                providerId: "coreml_sentence_embedding",
+                targetDimension: validatedDimension(for: "coreml_sentence_embedding", requested: targetDimension)
+            )
+            #endif
         case "coreml_sentence_embedding":
             resolved = EmbeddingService(
                 provider: CoreMLSentenceEmbeddingProvider(),

@@ -322,6 +322,7 @@ enum IngestionContext: String, Codable, Sendable {
 /// Main orchestrator for the RAG (Retrieval-Augmented Generation) pipeline
 /// Coordinates document processing, embedding, retrieval, and generation
 class RAGService: ObservableObject {
+    @MainActor public static weak var activePresentedInstance: RAGService? = nil
     nonisolated private static let maxPersistedChatHistoryBytes = 4 * 1024 * 1024
     nonisolated private static let ingestionLeaseDuration: TimeInterval = 120
 
@@ -696,7 +697,15 @@ class RAGService: ObservableObject {
     }
     
     @MainActor
-    func createNewThread(for containerId: UUID) {
+    func createNewThread(for containerId: UUID) throws {
+        let tier = entitlementStore?.effectiveTier ?? .free
+        let limit = QuotaPolicy.evidenceThreadLimit(for: tier)
+        let currentCount = listThreads(for: containerId).count
+        
+        if currentCount >= limit {
+            throw EvidenceThreadQuotaError(limit: limit, tier: tier)
+        }
+        
         let newId = UUID()
         activeThreadId = newId
         activeThreadIds[containerId] = newId
@@ -1455,6 +1464,12 @@ class RAGService: ObservableObject {
                     self.activeModelName = modelName
                 }
             }
+        }
+
+        // Register active presented instance now that all properties are initialized
+        let currentInstance = self
+        Task { @MainActor in
+            RAGService.activePresentedInstance = currentInstance
         }
     }
 
@@ -6757,6 +6772,8 @@ class RAGService: ObservableObject {
         switch plan.providerId {
         case "coreml_sentence_embedding":
             friendlyProvider = "Core ML Sentence"
+        case "coreai_sentence_embedding":
+            friendlyProvider = "Core AI Sentence"
         case "apple_fm_embed":
             friendlyProvider = "Apple FM"
         case "nl_contextual_embedding":

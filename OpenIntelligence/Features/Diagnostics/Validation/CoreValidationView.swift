@@ -450,6 +450,8 @@ struct EmbeddingStatusCard: View {
             return "Standard NL"
         case "coreml_sentence_embedding":
             return "CoreML Sentence"
+        case "coreai_sentence_embedding":
+            return "CoreAI Sentence"
         case "apple_fm_embed":
             return "Apple FM"
         default:

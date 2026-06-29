@@ -97,18 +97,18 @@ The entire RAG architecture operates on a strict **29-Step Pipeline** (6 Ingesti
 | **Orchestration** | `LLMService.swift`, `RAGService.swift` | Execution coordination with the local `SystemLanguageModel` and evaluation loops. |
 | **Evidence Threads**| `EvidenceThread.swift`, `EvidenceThreadStore.swift` | Thread-safe local persistence of conversational research queries and verification results. |
 | **Diagnostics** | `EvidenceThreadDebugService.swift`, `EvidenceThreadDebugView.swift` | Developer-only view and helper service to test local persistent store integrity. |
-| **Shortcuts** | `RAGAppIntents.swift` | Siri integration and entity-native App Intents for OS-level query capabilities. |
+| **Shortcuts** | `RAGAppIntents.swift`, `ScreenAwarenessIntents.swift`, `VisualIntelligenceIntents.swift` | Siri voice integration and entity-native App Intents (16 active actions) resolving in-process via presented activeInstance binding. |
 
 ---
 
 ## 🛠️ Placeholders & Scaffolding Warnings
 
 To maintain codebase transparency, please note:
-* **Core AI Integration:** Disabled via `#if false` directives in `CoreAISentenceEmbeddingProvider.swift`. The project currently runs on local `CoreMLSentenceEmbeddingProvider` implementations (utilizing 384-dimensional MiniLM-L6-v2 embeddings).
+* **Core AI Integration:** Fully integrated and registered via `CoreAISentenceEmbeddingProvider.swift`. Runs zero-copy Silicon-native sentence embeddings on iOS 27+ / macOS 27+ compatible devices, automatically falling back to the standard `CoreMLSentenceEmbeddingProvider` on older targets.
 * **Private Cloud Compute (PCC):** Routed locally using a fallback system language model wrapper in `EngineSDKCompatibility.swift` to ensure compilability on current public SDKs.
 * **iCloud Sync:** Sync utilizes iCloud Drive ubiquity containers (`NSFileCoordinator` and `NSMetadataQuery`). The app does not utilize CloudKit databases.
 * **Pro Tier Document Limit:** Document uploads are restricted to a hard quota of 1,000 documents under the Pro tier. Unlimited uploads are restricted to the Lifetime tier.
-* **Evidence Thread Isolation:** Persistent thread history JSON arrays are written exclusively to `LocalCache/EvidenceThreads/<containerId>/` to prevent unintended synchronization via iCloud Drive.
+* **Evidence Thread Synchronization:** Thread history JSON arrays are stored under `Application Support/EvidenceThreads/<containerId>/` and are synchronized bidirectionally across devices via `WorkspaceSyncService` in iCloud Drive, gated by tier-specific limits (5 Free / 20 Pro / Unlimited Lifetime).
 
 ---
 

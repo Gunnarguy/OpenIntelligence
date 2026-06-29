@@ -4,8 +4,6 @@
 //
 //  Silicon-native embedding engine backed by Apple's new Core AI framework.
 //
-
-#if false
 import Foundation
 import Accelerate
 import Tokenizers
@@ -14,7 +12,7 @@ import Tokenizers
 import CoreAI
 #endif
 
-@available(iOS 27.0, *)
+@available(iOS 27.0, macOS 27.0, *)
 final class CoreAISentenceEmbeddingProvider: EmbeddingProvider {
     // MARK: - Properties
 
@@ -122,14 +120,24 @@ final class CoreAISentenceEmbeddingProvider: EmbeddingProvider {
         }
 
         // Zero-copy input tensor creation using the Swift array directly in unified memory
-        let inputTensor = Tensor(shape: [1, maxSequenceLength], data: inputIds.map { Int32($0) })
+        let inputTensor = NDArray(scalars: inputIds.map { Int32($0) }, shape: [1, maxSequenceLength])
 
-        let outputs = try await encodeFunction.execute(["input_ids": inputTensor])
-        guard let embeddingsTensor = outputs["embeddings"] else {
+        var outputs = try await encodeFunction.run(inputs: ["input_ids": inputTensor])
+        guard let embeddingsTensor = outputs.remove("embeddings")?.ndArray else {
             throw EmbeddingError.outputParsingFailed
         }
 
-        return embeddingsTensor.toArray(type: Float.self)
+        let tensorView = embeddingsTensor.view(as: Float.self)
+        guard let span = tensorView.contiguousElements else {
+            throw EmbeddingError.outputParsingFailed
+        }
+
+        var array = [Float]()
+        array.reserveCapacity(span.count)
+        for i in 0..<span.count {
+            array.append(span[i])
+        }
+        return array
         #else
         throw EmbeddingError.modelUnavailable
         #endif
@@ -144,4 +152,3 @@ final class CoreAISentenceEmbeddingProvider: EmbeddingProvider {
         return results
     }
 }
-#endif
