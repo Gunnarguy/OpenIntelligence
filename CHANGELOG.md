@@ -27,6 +27,7 @@ This is the public version history for OpenIntelligence. It focuses on user-visi
 - **[Orchestration]** Fixed the 'New Chat' action to preserve previous conversation history in a completed thread instead of deleting it from disk, and introduced container-scoped active thread tracking to prevent cross-container thread selection bleed.
 - **[Orchestration]** Calibrated Pro Annual subscription price to $29.99/year (representing a 58% savings vs monthly) and introduced a 7-day free trial introductory offer.
 - **[Orchestration]** Discontinued the consumable Document Pack add-on, removing all related UI cards, quick-refill views, and purchase flows.
+- **[Orchestration]** Replaced the custom two-step review prompt alert with direct calls to Apple's native \`requestReview\` action during successful sessions and thumbs-up events, satisfying App Store Review Guideline 5.6.
 
 ## 4.3.1 - June 2026
 

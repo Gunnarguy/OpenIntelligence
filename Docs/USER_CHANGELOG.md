@@ -17,6 +17,7 @@ This document provides a chronological history of user-facing changes, highlight
 *   **Native Private Cloud Compute:** Escalates complex queries to Apple's secure Private Cloud Compute server enclaves natively on iOS 27 / macOS 27+, falling back to local simulation on older OS versions.
 *   **Pro Annual Pricing & Free Trial:** Calibrated the Pro Annual subscription to $29.99/year (representing a 58% savings vs monthly) and introduced a 7-day free trial.
 *   **Discontinued Document Pack Add-on:** Discontinued the consumable Document Pack add-on, removing related UI cards, quick-refill views, and purchase flows.
+*   **Direct Review Prompts:** Streamlined the app-rating experience by triggering Apple's native review prompt directly at key "happy moments" (like tapping Thumbs Up), eliminating the intermediate alert dialog.
 
 ---
 

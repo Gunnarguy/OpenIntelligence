@@ -2891,7 +2891,7 @@ struct ChatScreen: View {
             guard !Task.isCancelled, canPresentScheduledReviewPrompt else { return }
 
             AppReviewPromptTracker.markPromptAttempted()
-            showFriendlyReviewPrompt = true
+            requestReview()
         }
     }
 
@@ -2908,7 +2908,7 @@ struct ChatScreen: View {
         }
 
         AppReviewPromptTracker.markPromptAttempted()
-        showFriendlyReviewPrompt = true
+        requestReview()
     }
 
     private func presentMaximumModePaywall() {
