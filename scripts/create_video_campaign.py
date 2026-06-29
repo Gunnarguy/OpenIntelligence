@@ -5,7 +5,7 @@ from google.ads.googleads.errors import GoogleAdsException
 
 CUSTOMER_ID = "4509379845"
 BUDGET_AMOUNT_MICROS = 2000000 # $2.00 per day
-YOUTUBE_VIDEO_IDS = ["FfhbrBuB68s", "SUxEpnLDY8A", "6EmJymIMOR4"]
+YOUTUBE_VIDEO_IDS = ["FfhbrBuB68s", "SUxEpnLDY8A", "6EmJymIMOR4", "HQGIkXVI0pw"]
 
 def create_youtube_asset(client, customer_id, video_id):
     asset_service = client.get_service("AssetService")

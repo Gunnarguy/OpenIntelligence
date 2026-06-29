@@ -6,7 +6,7 @@ from google.ads.googleads.errors import GoogleAdsException
 
 CUSTOMER_ID = "4509379845"
 BUDGET_AMOUNT_MICROS = 5000000 # $5.00/day
-YOUTUBE_VIDEO_IDS = ["FfhbrBuB68s", "SUxEpnLDY8A", "6EmJymIMOR4"]
+YOUTUBE_VIDEO_IDS = ["FfhbrBuB68s", "SUxEpnLDY8A", "6EmJymIMOR4", "HQGIkXVI0pw"]
 FINAL_URL = "https://fascinaiting.me"
 ASSET_DIR = "google_ads_automation_payload/pmax_assets"
 
