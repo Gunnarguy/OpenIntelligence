@@ -27,7 +27,7 @@ The following table summarizes the current transition status, mapping the legacy
 | Integration Area | WWDC25 (Legacy Architecture) | WWDC26 (Current Branch Status) | Future Backlog Target | % Covered Now |
 | :--- | :--- | :--- | :--- | :--- |
 | **Local Embeddings** | CoreML (`.mlpackage`) using static CPU/GPU targets. | **Core AI (`.aimodel`)** Silicon-native zero-copy pipeline with compile-time guards. | Convert ReRanker & Vision extractors to `.aimodel` format. | **100%** |
-| **Model Routing** | Hardcoded heuristics; binary PCC checks based on latency estimates. | **`ModelResolutionService`** tracking local vs. PCC based on hardware tier. | Fully abstract routing into WWDC26 `LanguageModelSession` updates. | **60%** |
+| **Model Routing** | Hardcoded heuristics; binary PCC checks based on latency estimates. | **`ModelResolutionService`** tracking local vs. PCC based on hardware tier. | Fully abstract routing into WWDC26 `LanguageModelSession` updates. | **100%** |
 | **Shortcuts / Siri** | Simple URL-trigger command intents. | **Entity-Native App Intents (`AppEntity`, `EntityQuery`)** resolving in-process via `activePresentedInstance` binding. | Add UI interactive app intent triggers. | **100%** |
 | **System Search** | Document-level title/preview indexing in Spotlight. | Same document-level preview index. | **Spotlight Semantic Retrieval Stage** (Spotlight indexes sections/chunks/tables). | **30%** |
 | **UI Execution State** | Sticky green "Offline / On-Device" banner under chat header. | **Banner completely removed** (cleaner UI, trusts Apple's system routing). | **Reasoning Live Activity** showing active Deep Think steps on Dynamic Island. | **70%** |
