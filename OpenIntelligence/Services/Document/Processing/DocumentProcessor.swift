@@ -409,10 +409,10 @@ class DocumentProcessor {
     /// Contains emails, phone numbers, URLs, dates, etc. extracted via DataDetection
     private(set) var lastDetectedEntities: [(type: String, value: String)] = []
 
-    /// BertTokenizer for accurate token counting (matches embedding model tokenization)
-    /// CRITICAL: NLTokenizer word count ≠ BertTokenizer tokens for technical content
+    /// Tokenizer for accurate token counting (matches embedding model tokenization)
+    /// CRITICAL: NLTokenizer word count ≠ Tokenizer tokens for technical content
     /// Example: "VHA21\VHAPALGarciG1" = 1 NL word but 10+ embedding tokens
-    private var embeddingTokenizer: BertTokenizer?
+    private var embeddingTokenizer: Tokenizer?
 
     /// Dynamic custom words for the current document being processed.
     /// Extracted from PDFKit's text layer BEFORE Vision OCR runs, so Vision
@@ -426,21 +426,16 @@ class DocumentProcessor {
         loadTokenizer()
     }
 
-    /// Load BertTokenizer from embedding vocab for accurate token counting
+    /// Load Tokenizer from embedding vocab for accurate token counting
     private func loadTokenizer() {
-        if let url = OpenIntelligenceResourceBundle.url(forResource: "embedding_vocab", withExtension: "json") {
-            do {
-                let vocabData = try Data(contentsOf: url)
-                let vocabDict = try JSONDecoder().decode([String: Int].self, from: vocabData)
-                embeddingTokenizer = BertTokenizer(
-                    vocab: vocabDict,
-                    merges: nil,
-                    tokenizeChineseChars: true,
-                    doLowerCase: true
-                )
-                Log.info("[DocumentProcessor] Loaded BertTokenizer for accurate chunk validation", category: .ingestion)
-            } catch {
-                Log.warning("[DocumentProcessor] Failed to load BertTokenizer: \(error). Falling back to word estimation.", category: .ingestion)
+        if let url = OpenIntelligenceResourceBundle.url(forResource: "embedding_tokenizer", withExtension: nil) {
+            Task {
+                do {
+                    embeddingTokenizer = try await AutoTokenizer.from(directory: url)
+                    Log.info("[DocumentProcessor] Loaded Rust-backed Tokenizer for accurate chunk validation", category: .ingestion)
+                } catch {
+                    Log.warning("[DocumentProcessor] Failed to load tokenizer: \(error). Falling back to word estimation.", category: .ingestion)
+                }
             }
         }
     }
@@ -6290,14 +6285,18 @@ class DocumentProcessor {
     /// ~200 words should be safe even for high-tokenization content (200 * 2 = 400 tokens)
     private static let maxEmbeddableWords = 200
 
-    /// Count ACTUAL embedding tokens using BertTokenizer
+    /// Count ACTUAL embedding tokens using Tokenizer
     /// CRITICAL: NLTokenizer "word count" does NOT match BPE/WordPiece tokens!
     /// Example: "VHA21\VHAPALGarciG1" = 1 NL word but 10+ embedding tokens
     /// Tables with abbreviations/codes can be 2-3x higher than word-based estimates
     private func countTokens(_ text: String) -> Int {
         if let tokenizer = embeddingTokenizer {
-            let tokens = tokenizer.tokenize(text: text)
-            return tokens.count + 2  // +2 for [CLS] and [SEP]
+            do {
+                let ids = try tokenizer.encode(text: text, addSpecialTokens: true)
+                return ids.count
+            } catch {
+                return text.count / 3 + 2
+            }
         } else {
             // Fallback: conservative 3 chars/token for technical content
             return text.count / 3 + 2

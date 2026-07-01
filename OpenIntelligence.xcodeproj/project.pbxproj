@@ -99,11 +99,22 @@
 			);
 			target = E0A100072F0F5F5F00AABA0C /* OpenIntelligenceEngine */;
 		};
+		F0A100072F1A000100AA1002 /* Exceptions for "OpenIntelligence" folder in "OpenIntelligence" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Resources/MLModels/embedding_tokenizer/tokenizer.json,
+				Resources/MLModels/reranker_tokenizer/tokenizer.json,
+			);
+			target = B0D565DD2E98AC50001274A2 /* OpenIntelligence */;
+		};
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		B0D565E02E98AC50001274A2 /* OpenIntelligence */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				F0A100072F1A000100AA1002 /* Exceptions for "OpenIntelligence" folder in "OpenIntelligence" target */,
+			);
 			path = OpenIntelligence;
 			sourceTree = "<group>";
 		};

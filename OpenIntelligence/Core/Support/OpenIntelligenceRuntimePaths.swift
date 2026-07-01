@@ -83,7 +83,7 @@ enum OpenIntelligenceResourceBundle {
 #endif
     }
 
-    nonisolated static func url(forResource name: String, withExtension ext: String) -> URL? {
+    nonisolated static func url(forResource name: String, withExtension ext: String? = nil) -> URL? {
         current.url(forResource: name, withExtension: ext)
     }
 

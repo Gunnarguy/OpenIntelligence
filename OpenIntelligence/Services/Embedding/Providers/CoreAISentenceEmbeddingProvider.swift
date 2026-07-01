@@ -14,6 +14,8 @@ import CoreAI
 
 @available(iOS 27.0, macOS 27.0, *)
 final class CoreAISentenceEmbeddingProvider: EmbeddingProvider {
+    static let shared = CoreAISentenceEmbeddingProvider()
+
     // MARK: - Properties
 
     let dimension: Int = 384
@@ -24,10 +26,14 @@ final class CoreAISentenceEmbeddingProvider: EmbeddingProvider {
     private var encodeFunction: InferenceFunction?
     #endif
 
-    private var tokenizer: BertTokenizer?
+    private var tokenizer: Tokenizer?
     private let clsId: Int = 101
     private let sepId: Int = 102
     private let padId: Int = 0
+
+    // Async loading state tracking
+    var isModelLoaded: Bool = false
+    var isModelLoadingFailed: Bool = false
 
     // MARK: - Init
 
@@ -37,20 +43,15 @@ final class CoreAISentenceEmbeddingProvider: EmbeddingProvider {
     }
 
     private func setup() {
-        // Load BertTokenizer vocabulary
-        if let url = OpenIntelligenceResourceBundle.url(forResource: "embedding_vocab", withExtension: "json") {
-            do {
-                let vocabData = try Data(contentsOf: url)
-                let vocabDict = try JSONDecoder().decode([String: Int].self, from: vocabData)
-                tokenizer = BertTokenizer(
-                    vocab: vocabDict,
-                    merges: nil,
-                    tokenizeChineseChars: true,
-                    doLowerCase: true
-                )
-                Log.info("[CoreAISentenceEmbeddingProvider] Loaded tokenizer", category: .embedding)
-            } catch {
-                Log.error("[CoreAISentenceEmbeddingProvider] Failed to load tokenizer: \(error)", category: .embedding)
+        // Load Rust-backed tokenizer from the resource bundle directory
+        if let url = OpenIntelligenceResourceBundle.url(forResource: "embedding_tokenizer", withExtension: nil) {
+            Task {
+                do {
+                    tokenizer = try await AutoTokenizer.from(directory: url)
+                    Log.info("[CoreAISentenceEmbeddingProvider] Loaded Rust-backed tokenizer", category: .embedding)
+                } catch {
+                    Log.error("[CoreAISentenceEmbeddingProvider] Failed to load tokenizer: \(error)", category: .embedding)
+                }
             }
         }
 
@@ -67,8 +68,10 @@ final class CoreAISentenceEmbeddingProvider: EmbeddingProvider {
                 let loadedModel = try await AIModel(contentsOf: url)
                 self.model = loadedModel
                 self.encodeFunction = try loadedModel.loadFunction(named: "encode")
+                self.isModelLoaded = true
                 Log.info("[CoreAISentenceEmbeddingProvider] Loaded Core AI model successfully", category: .embedding)
             } catch {
+                self.isModelLoadingFailed = true
                 Log.error("[CoreAISentenceEmbeddingProvider] Failed to load Core AI model: \(error)", category: .embedding)
             }
         }
@@ -85,13 +88,26 @@ final class CoreAISentenceEmbeddingProvider: EmbeddingProvider {
         #endif
     }
 
-    func countTokens(_ text: String) -> Int {
-        guard let tokenizer = tokenizer else { return 0 }
-        let tokens = tokenizer.tokenize(text: text)
-        return tokens.count + 2
+    func awaitReady() async {
+        #if canImport(CoreAI)
+        // Wait until isModelLoaded or isModelLoadingFailed is true AND tokenizer is not nil
+        while (!isModelLoaded && !isModelLoadingFailed) || (tokenizer == nil && !isModelLoadingFailed) {
+            try? await Task.sleep(nanoseconds: 50_000_000) // 50ms
+        }
+        #endif
     }
 
-    var maxSafeTokens: Int { maxSequenceLength - 2 }
+    func countTokens(_ text: String) -> Int {
+        guard let tokenizer = tokenizer else { return 0 }
+        do {
+            let ids = try tokenizer.encode(text: text, addSpecialTokens: true)
+            return ids.count
+        } catch {
+            return 0
+        }
+    }
+
+    var maxSafeTokens: Int { maxSequenceLength }
 
     func embed(text: String) async throws -> [Float] {
         guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
@@ -103,19 +119,17 @@ final class CoreAISentenceEmbeddingProvider: EmbeddingProvider {
             throw EmbeddingError.modelUnavailable
         }
 
-        let tokens = tokenizer.tokenize(text: text)
-        var tokenIds = tokenizer.convertTokensToIds(tokens).compactMap { $0 }
-
-        if tokenIds.count > maxSequenceLength - 2 {
-            tokenIds = Array(tokenIds.prefix(maxSequenceLength - 2))
+        var inputIds: [Int]
+        do {
+            inputIds = try tokenizer.encode(text: text, addSpecialTokens: true)
+        } catch {
+            throw EmbeddingError.outputParsingFailed
         }
 
-        var inputIds = [clsId]
-        inputIds.append(contentsOf: tokenIds)
-        inputIds.append(sepId)
-
-        let padLength = maxSequenceLength - inputIds.count
-        if padLength > 0 {
+        if inputIds.count > maxSequenceLength {
+            inputIds = Array(inputIds.prefix(maxSequenceLength))
+        } else if inputIds.count < maxSequenceLength {
+            let padLength = maxSequenceLength - inputIds.count
             inputIds.append(contentsOf: repeatElement(padId, count: padLength))
         }
 

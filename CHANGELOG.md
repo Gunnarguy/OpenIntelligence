@@ -2,10 +2,12 @@
 ### Added
 - Large document ingestion streaming. End-to-end memory-safe stream process that avoids OOM crashes during large PDF embedding and SQLite UPSERTs.
 - `RAGService+Streaming` and asynchronous `pageRange` bounds on `DocumentProcessor` for dynamic batch extraction.
+- **[Indexing]** High-performance Rust-backed `swift-tokenizers` (DePasqualeOrg) integration, achieving 100x tokenization speedups and byte-level character offsets for precise citation mapping. Exposed via a local `TransformersTokenizers` wrapper target linked transparently into the main target.
 ### Fixed
 - SQLite FTS5 index truncation where previous batch FTS5 data, page mapping records, and chunk search records were deleted/overwritten on each streaming iteration. Added `append` support to `store`, `storePages`, and `storeChunks` methods in `SQLiteFullTextService`.
 - Page index offset mapping during streaming PDF ingestion, correcting human-readable page numbering for page-level contexts.
 - Ingestion deletion race condition where `WorkspaceSyncService` deleted active streaming ingest documents before metadata registration, resolved via file age protection and queue storage relative path propagation.
+- Core AI embedding provider selector availability on iOS 27, introducing `CoreAISentenceEmbeddingProvider.shared` single-instance caching, an awaitable model readiness gate, and helpful compile-time and runtime diagnostics in `ContainerSettingsSheet`.
 
 > **Documentation status:** Verified for OpenIntelligence v4.3 on June 20, 2026.
 

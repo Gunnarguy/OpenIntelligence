@@ -103,7 +103,7 @@ class EmbeddingService {
             #if canImport(CoreAI)
             if #available(iOS 27.0, macOS 27.0, *) {
                 resolved = EmbeddingService(
-                    provider: CoreAISentenceEmbeddingProvider(),
+                    provider: CoreAISentenceEmbeddingProvider.shared,
                     providerId: "coreai_sentence_embedding",
                     targetDimension: validatedDimension(for: "coreai_sentence_embedding", requested: targetDimension)
                 )

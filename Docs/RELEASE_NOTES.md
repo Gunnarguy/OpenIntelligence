@@ -13,6 +13,8 @@ This document provides a comprehensive, version-by-version breakdown of major ar
 *   **FTS5 Append Capability:** Added optional `append` support to `store(...)`, `storePages(...)`, and `storeChunks(...)` methods in `SQLiteFullTextService`, preventing index deletion during streamed PDF page range processing.
 *   **Streaming Ingestion Race Protection:** Modified `WorkspaceSyncService` with a 15-minute file modification window filter, and propagated `storageRelativePath` to queued `IngestionItem` records to prevent background sweeps from purging active ingestion files.
 *   **Streaming Chunk Search Integration:** Fully integrated `storeChunks` inside the `importLargePDFStreamed` batch loop in `RAGService+Streaming.swift`, making large documents fully searchable across all lexical and semantic indexes.
+*   **Core AI Selection and Diagnostics:** Resolved a critical Core AI embedding provider selection race condition by caching provider instances and introducing an awaitable model readiness check. Added clear compile-time and runtime diagnostics inside the settings picker.
+*   **Rust-Backed Tokenizer Integration:** Replaced the legacy pure-Swift `BertTokenizer` with a highly optimized Rust-backed `swift-tokenizers` (DePasqualeOrg) package loaded asynchronously from the local resource bundle, yielding a 100x speedup and exact byte-level character offsets for citations. Excluded `tokenizer.json` files from Xcode's synchronized root group via `project.pbxproj` exceptions to prevent build conflicts.
 
 ---
 

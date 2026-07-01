@@ -70,7 +70,7 @@ final class CoreMLSentenceEmbeddingProvider: EmbeddingProvider {
         private var model: MLModel?
     #endif
 
-    private var tokenizer: BertTokenizer?
+    private var tokenizer: Tokenizer?
     private let clsId: Int
     private let sepId: Int
     private let padId: Int
@@ -186,22 +186,17 @@ final class CoreMLSentenceEmbeddingProvider: EmbeddingProvider {
         #endif
 
         // Load Tokenizer
-        if let url = OpenIntelligenceResourceBundle.url(forResource: "embedding_vocab", withExtension: "json") {
-            do {
-                let vocabData = try Data(contentsOf: url)
-                let vocabDict = try JSONDecoder().decode([String: Int].self, from: vocabData)
-                tokenizer = BertTokenizer(
-                    vocab: vocabDict,
-                    merges: nil,
-                    tokenizeChineseChars: true,
-                    doLowerCase: true
-                )
-                Log.info("[CoreMLSentenceEmbeddingProvider] Loaded tokenizer", category: .embedding)
-            } catch {
-                Log.error("[CoreMLSentenceEmbeddingProvider] Failed to load tokenizer: \(error)", category: .embedding)
+        if let url = OpenIntelligenceResourceBundle.url(forResource: "embedding_tokenizer", withExtension: nil) {
+            Task {
+                do {
+                    tokenizer = try await AutoTokenizer.from(directory: url)
+                    Log.info("[CoreMLSentenceEmbeddingProvider] Loaded Rust-backed tokenizer", category: .embedding)
+                } catch {
+                    Log.error("[CoreMLSentenceEmbeddingProvider] Failed to load tokenizer: \(error)", category: .embedding)
+                }
             }
         } else {
-            Log.warning("[CoreMLSentenceEmbeddingProvider] embedding_vocab.json not found in Bundle", category: .embedding)
+            Log.warning("[CoreMLSentenceEmbeddingProvider] embedding_tokenizer not found in Bundle", category: .embedding)
         }
     }
 
@@ -225,13 +220,19 @@ final class CoreMLSentenceEmbeddingProvider: EmbeddingProvider {
     /// This is critical for chunk size validation - NLTokenizer "word count" doesn't match BPE/WordPiece tokens
     /// Example: "VHA21\VHAPALGarciG1" = 1 NL word but 10+ embedding tokens
     func countTokens(_ text: String) -> Int {
-        guard let tokenizer = tokenizer else { return 0 }
-        let tokens = tokenizer.tokenize(text: text)
-        return tokens.count + 2  // +2 for [CLS] and [SEP] tokens
+        guard let tokenizer = tokenizer else {
+            return text.count / 3 + 2
+        }
+        do {
+            let ids = try tokenizer.encode(text: text, addSpecialTokens: true)
+            return ids.count
+        } catch {
+            return text.count / 3 + 2
+        }
     }
 
     /// Maximum safe text length in tokens (accounting for CLS/SEP)
-    var maxSafeTokens: Int { maxSequenceLength - 2 }  // 510 for default 512
+    var maxSafeTokens: Int { maxSequenceLength }
 
     // MARK: - Embedding
 
@@ -241,6 +242,13 @@ final class CoreMLSentenceEmbeddingProvider: EmbeddingProvider {
         }
 
         #if canImport(CoreML)
+            // Wait up to 1 second for tokenizer to finish loading if it's nil (rare initialization race)
+            var count = 0
+            while tokenizer == nil && count < 20 {
+                try? await Task.sleep(nanoseconds: 50_000_000) // 50ms
+                count += 1
+            }
+
             guard let model = model, let tokenizer = tokenizer else {
                 throw EmbeddingError.modelUnavailable
             }
@@ -428,31 +436,30 @@ final class CoreMLSentenceEmbeddingProvider: EmbeddingProvider {
 
     // MARK: - Helpers
 
-    private func prepareInputs(text: String, tokenizer: BertTokenizer) -> ([Int], [Int], [Int]) {
-        let tokens = tokenizer.tokenize(text: text)
-        var tokenIds = tokenizer.convertTokensToIds(tokens).compactMap { $0 }
+    private func prepareInputs(text: String, tokenizer: Tokenizer) -> ([Int], [Int], [Int]) {
+        var inputIds: [Int]
+        do {
+            inputIds = try tokenizer.encode(text: text, addSpecialTokens: true)
+        } catch {
+            inputIds = []
+        }
 
-        // CRITICAL: Truncation should NEVER happen with proper chunking (max 340 words → ~450 tokens)
-        // If we're hitting this, it means a chunk escaped the safety net in DocumentProcessor
-        if tokenIds.count > maxSequenceLength - 2 {
-            let originalCount = tokenIds.count
-            let lostTokens = originalCount - (maxSequenceLength - 2)
+        // CRITICAL: Truncation should NEVER happen with proper chunking
+        if inputIds.count > maxSequenceLength {
+            let originalCount = inputIds.count
+            let lostTokens = originalCount - maxSequenceLength
             let lossPercent = Int(Double(lostTokens) / Double(originalCount) * 100)
-            tokenIds = Array(tokenIds.prefix(maxSequenceLength - 2))
+            inputIds = Array(inputIds.prefix(maxSequenceLength))
 
             // Log as ERROR because this indicates a bug in the chunking pipeline
             // Every word should be accounted for - truncation = data loss
             Log.error(
-                "[CoreMLSentenceEmbedding] ❌ TRUNCATION: \(originalCount)→\(maxSequenceLength - 2) tokens " +
+                "[CoreMLSentenceEmbedding] ❌ TRUNCATION: \(originalCount)→\(maxSequenceLength) tokens " +
                 "(losing \(lostTokens) tokens = \(lossPercent)% of content!). " +
                 "BUG: Chunk escaped size limits. Text preview: \"\(text.prefix(100))...\"",
                 category: .embedding
             )
         }
-
-        var inputIds: [Int] = [clsId]
-        inputIds.append(contentsOf: tokenIds)
-        inputIds.append(sepId)
 
         var attentionMask = Array(repeating: 1, count: inputIds.count)
         let padLength = maxSequenceLength - inputIds.count

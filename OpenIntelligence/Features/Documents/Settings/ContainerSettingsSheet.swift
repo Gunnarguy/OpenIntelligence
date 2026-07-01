@@ -106,6 +106,19 @@ struct ContainerSettingsSheet: View {
             return "Contextual embeddings require a one-time model download. Check network connection."
         case "coreml_sentence_embedding":
             return "No Core ML model found. Import a .mlpackage to use this provider."
+        case "coreai_sentence_embedding":
+            #if canImport(CoreAI)
+            if #available(iOS 27.0, macOS 27.0, *) {
+                if CoreAISentenceEmbeddingProvider.shared.isModelLoaded {
+                    return nil
+                } else if CoreAISentenceEmbeddingProvider.shared.isModelLoadingFailed {
+                    return "Failed to load Core AI model. Check model asset presence in bundle."
+                } else {
+                    return "Core AI model is still loading..."
+                }
+            }
+            #endif
+            return "Core AI is not supported on this build/device."
         default:
             return "This provider is not available on your device."
         }
@@ -120,6 +133,8 @@ struct ContainerSettingsSheet: View {
             return "Contextual Embeddings"
         case "coreml_sentence_embedding":
             return "Core ML Sentence"
+        case "coreai_sentence_embedding":
+            return "Core AI Sentence"
         case "apple_fm_embed":
             return "Apple Foundation Model"
         default:
@@ -388,28 +403,55 @@ struct ContainerSettingsSheet: View {
             ),
         ]
 
+        var coreAISelectable = false
+        var coreAIBadge = "⚡ Native"
+        let coreAIDetail = "Apple Intelligence-backed sentence embeddings. Runs zero-copy inference natively on Apple Silicon with 40%+ latency reduction."
+        var coreAIAlertMessage: ProviderAvailabilityAlert? = nil
+
         #if canImport(CoreAI)
         if #available(iOS 27.0, macOS 27.0, *) {
-            options.append(
-                EmbeddingProviderOption(
-                    id: "coreai_sentence_embedding",
-                    icon: "sparkles",
-                    title: "Core AI Sentence",
-                    tagline: "Silicon-Native • 384-dim",
-                    detail: "Apple Intelligence-backed sentence embeddings. Runs zero-copy inference natively on Apple Silicon with 40%+ latency reduction.",
-                    isSelectable: true,
-                    badgeText: "⚡ Native",
-                    supportedDimensions: [384],
-                    metrics: [
-                        OptionMetric(icon: "bolt.fill", text: "Silicon-native ANE", tint: .indigo),
-                        OptionMetric(icon: "memorychip", text: "Zero-copy memory"),
-                        OptionMetric(icon: "gauge.with.needle", text: "40%+ faster"),
-                    ],
-                    alert: nil
-                )
+            coreAISelectable = true
+        } else {
+            coreAIAlertMessage = ProviderAvailabilityAlert(
+                id: "coreai_sentence_embedding_os_req",
+                icon: "exclamationmark.triangle.fill",
+                title: "iOS 27 Required",
+                description: "Core AI features require iOS 27.0+ or macOS 27.0+ APIs.",
+                bullets: ["Update your device to the latest OS version."],
+                accent: .orange
             )
+            coreAIBadge = "iOS 27+"
         }
+        #else
+        coreAIAlertMessage = ProviderAvailabilityAlert(
+            id: "coreai_sentence_embedding_build_req",
+            icon: "hammer.fill",
+            title: "Build Toolchain Issue",
+            description: "Core AI is not compiled into this application binary.",
+            bullets: ["Rebuild the application using Xcode 27.0+ and the iOS 27 SDK."],
+            accent: .red
+        )
+        coreAIBadge = "Unsupported build"
         #endif
+
+        options.append(
+            EmbeddingProviderOption(
+                id: "coreai_sentence_embedding",
+                icon: "sparkles",
+                title: "Core AI Sentence",
+                tagline: "Silicon-Native • 384-dim",
+                detail: coreAIDetail,
+                isSelectable: coreAISelectable,
+                badgeText: coreAIBadge,
+                supportedDimensions: [384],
+                metrics: [
+                    OptionMetric(icon: "bolt.fill", text: "Silicon-native ANE", tint: .indigo),
+                    OptionMetric(icon: "memorychip", text: "Zero-copy memory"),
+                    OptionMetric(icon: "gauge.with.needle", text: "40%+ faster"),
+                ],
+                alert: coreAIAlertMessage
+            )
+        )
 
         return options
     }
@@ -503,6 +545,12 @@ struct ContainerSettingsSheet: View {
     /// Refresh provider availability by checking each embedding service
     private func refreshProviderAvailability() {
         Task {
+            #if canImport(CoreAI)
+            if #available(iOS 27.0, macOS 27.0, *) {
+                await CoreAISentenceEmbeddingProvider.shared.awaitReady()
+            }
+            #endif
+
             var availability: [String: Bool] = [:]
 
             // Check each provider's runtime availability

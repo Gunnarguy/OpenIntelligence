@@ -70,8 +70,8 @@ let package = Package(
             resources: [
                 .copy("Resources/MLModels/EmbeddingModel.mlpackage"),
                 .copy("Resources/MLModels/ReRankerModel.mlpackage"),
-                .copy("Resources/MLModels/embedding_vocab.json"),
-                .copy("Resources/MLModels/reranker_vocab.json"),
+                .copy("Resources/MLModels/embedding_tokenizer"),
+                .copy("Resources/MLModels/reranker_tokenizer"),
                 .copy("Resources/PrivacyInfo.xcprivacy")
             ],
             swiftSettings: [

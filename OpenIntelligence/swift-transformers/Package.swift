@@ -1,39 +1,26 @@
-// swift-tools-version: 5.9
-// The swift-tools-version declares the minimum version of Swift required to build this package.
-
+// swift-tools-version: 6.0
 import PackageDescription
-
-/// Define the strict concurrency settings to be applied to all targets.
-let swiftSettings: [SwiftSetting] = [
-    .enableExperimentalFeature("StrictConcurrency")
-]
 
 let package = Package(
     name: "swift-transformers",
-    platforms: [.iOS(.v16), .macOS(.v13)],
+    platforms: [
+        .iOS("17.0"),
+        .macOS("14.0")
+    ],
     products: [
-        .library(name: "Hub", targets: ["Hub"]),
-        .library(name: "Tokenizers", targets: ["Tokenizers"]),
-        .library(name: "Transformers", targets: ["Tokenizers", "Generation", "Models"]),
+        .library(name: "Tokenizers", targets: ["TransformersTokenizers"])
     ],
     dependencies: [
-        .package(url: "https://github.com/huggingface/swift-jinja.git", from: "2.0.0"),
-        .package(url: "https://github.com/apple/swift-collections.git", from: "1.0.0"),
+        .package(url: "https://github.com/DePasqualeOrg/swift-tokenizers.git", from: "0.5.0")
     ],
     targets: [
-        .target(name: "Generation", dependencies: ["Tokenizers"]),
         .target(
-            name: "Hub",
+            name: "TransformersTokenizers",
             dependencies: [
-                .product(name: "Jinja", package: "swift-jinja"),
-                .product(name: "OrderedCollections", package: "swift-collections"),
+                .product(name: "Tokenizers", package: "swift-tokenizers")
             ],
-            resources: [
-                .process("Resources")
-            ],
-            swiftSettings: swiftSettings
-        ),
-        .target(name: "Models", dependencies: ["Tokenizers", "Generation"]),
-        .target(name: "Tokenizers", dependencies: ["Hub", .product(name: "Jinja", package: "swift-jinja")]),
+            path: "Sources/TokenizersWrapper"
+        )
     ]
 )
+

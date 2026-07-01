@@ -187,7 +187,7 @@ graph TD
 ```
 
 ## 17. Core AI Embedding Subsystem Boundary
-- **Core AI Integration**: Silicon-native zero-copy sentence embeddings are generated via `CoreAISentenceEmbeddingProvider.swift` using dynamic `NDArray` and `InferenceFunction.run(inputs:)` graph execution on iOS 27 / macOS 27+ Apple Intelligence SDK. `[evidence: code_verified, exact, CoreAISentenceEmbeddingProvider.swift]`
+- **Core AI Integration**: Silicon-native zero-copy sentence embeddings are generated via `CoreAISentenceEmbeddingProvider.swift` using dynamic `NDArray` and `InferenceFunction.run(inputs:)` graph execution on iOS 27 / macOS 27+ Apple Intelligence SDK. Access and selector selection availability are stabilized via shared instance caching and an awaitable readiness gate in `ContainerSettingsSheet`. `[evidence: code_verified, exact, CoreAISentenceEmbeddingProvider.swift, ContainerSettingsSheet.swift]`
 - **Adaptive Auto-Tuning**: `LibraryIntelligenceCenter` automatically recommends and switches to the Core AI provider on supported hardware, falling back dynamically to `CoreMLSentenceEmbeddingProvider` on older targets. `[evidence: code_verified, exact, AdaptiveEmbeddingOptimizer.swift]`
 
 ### DocumentProcessor & RAGService Streaming

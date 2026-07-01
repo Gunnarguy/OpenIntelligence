@@ -41,7 +41,7 @@ actor RAGEngine {
         private var rerankerModel: MLModel?
     #endif
 
-    private var rerankerTokenizer: BertTokenizer?
+    private var rerankerTokenizer: Tokenizer?
     private var isSetupComplete = false
 
     init() {
@@ -85,12 +85,10 @@ actor RAGEngine {
         #endif
 
         // Load Tokenizer
-        if let url = OpenIntelligenceResourceBundle.url(forResource: "reranker_vocab", withExtension: "json") {
+        if let url = OpenIntelligenceResourceBundle.url(forResource: "reranker_tokenizer", withExtension: nil) {
             do {
-                let vocabData = try Data(contentsOf: url)
-                let vocabDict = try JSONDecoder().decode([String: Int].self, from: vocabData)
-                self.rerankerTokenizer = BertTokenizer(vocab: vocabDict, merges: nil, tokenizeChineseChars: true, doLowerCase: true)
-                Log.info("[RAGEngine] Loaded ReRanker Tokenizer", category: .retrieval)
+                self.rerankerTokenizer = try await AutoTokenizer.from(directory: url)
+                Log.info("[RAGEngine] Loaded Rust-backed ReRanker Tokenizer", category: .retrieval)
             } catch {
                 Log.error("[RAGEngine] Failed to load ReRanker Tokenizer: \(error)", category: .retrieval)
             }
@@ -1278,18 +1276,12 @@ actor RAGEngine {
             query: String,
             topK: Int,
             model: MLModel,
-            tokenizer: BertTokenizer
+            tokenizer: Tokenizer
         ) async -> [RetrievedChunk] {
             let cappedTopK = min(topK, chunks.count)
             let maxLen = 512
 
-            // Prepare query tokens once (shared across all chunks)
-            let queryTokens = tokenizer.tokenize(text: query)
-            let queryIds = tokenizer.convertTokensToIds(queryTokens).compactMap { $0 }
-
             // Special Token IDs
-            let clsId = tokenizer.convertTokenToId("[CLS]") ?? 101
-            let sepId = tokenizer.convertTokenToId("[SEP]") ?? 102
             let padId = tokenizer.convertTokenToId("[PAD]") ?? 0
 
             // OPTIMIZATION: Pre-tokenize ALL chunks upfront (CPU-bound, fast)
@@ -1301,36 +1293,30 @@ actor RAGEngine {
                 let tokenTypes: [Int]
             }
 
-            let fixedCount = 3 + queryIds.count // [CLS] + Q + [SEP] + [SEP]
-            let availableForDoc = maxLen - fixedCount
-
             var tokenizedInputs: [TokenizedInput] = []
             tokenizedInputs.reserveCapacity(chunks.count)
 
             for (idx, r) in chunks.enumerated() {
                 // Include contextual prefix for cross-encoder (Anthropic's Contextual Retrieval)
                 let docText = (r.chunk.contextualPrefix ?? "") + r.chunk.content
-                let docTokens = tokenizer.tokenize(text: docText)
-                let docIds = tokenizer.convertTokensToIds(docTokens).compactMap { $0 }
-                let truncatedDocIds = Array(docIds.prefix(max(0, availableForDoc)))
+                
+                var encoding: TokenizerEncoding
+                do {
+                    encoding = try tokenizer.encodeWithMetadata(text: query, textPair: docText, addSpecialTokens: true, offsetUnit: .utf8)
+                } catch {
+                    continue
+                }
 
-                var inputIds: [Int] = []
-                inputIds.reserveCapacity(maxLen)
-                inputIds.append(clsId)
-                inputIds.append(contentsOf: queryIds)
-                inputIds.append(sepId)
-                inputIds.append(contentsOf: truncatedDocIds)
-                inputIds.append(sepId)
+                var inputIds = encoding.tokenIds
+                var tokenTypes = encoding.tokenTypeIds
+                var attentionMask = encoding.attentionMask
 
-                var tokenTypes: [Int] = []
-                tokenTypes.reserveCapacity(maxLen)
-                tokenTypes.append(contentsOf: Array(repeating: 0, count: 2 + queryIds.count))
-                tokenTypes.append(contentsOf: Array(repeating: 1, count: 1 + truncatedDocIds.count))
-
-                var attentionMask = Array(repeating: 1, count: inputIds.count)
-
-                let padLen = maxLen - inputIds.count
-                if padLen > 0 {
+                if inputIds.count > maxLen {
+                    inputIds = Array(inputIds.prefix(maxLen))
+                    tokenTypes = Array(tokenTypes.prefix(maxLen))
+                    attentionMask = Array(attentionMask.prefix(maxLen))
+                } else if inputIds.count < maxLen {
+                    let padLen = maxLen - inputIds.count
                     inputIds.append(contentsOf: Array(repeating: padId, count: padLen))
                     attentionMask.append(contentsOf: Array(repeating: 0, count: padLen))
                     tokenTypes.append(contentsOf: Array(repeating: 0, count: padLen))

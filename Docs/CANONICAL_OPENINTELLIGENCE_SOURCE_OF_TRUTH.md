@@ -14,6 +14,7 @@ OpenIntelligence is a local-first, privacy-preserving retrieval-augmented genera
 - Core AI embeddings are used in production. Runs zero-copy Silicon-native sentence embeddings on iOS 27+ / macOS 27+ compatible devices, falling back to Core ML. `[evidence: code_verified, exact, CoreAISentenceEmbeddingProvider.swift]`
 - Ingestion pipeline runs zero-copy `CGImage` Vision OCR/Structure processing and page-level JSON checkpoints under `localCacheDir()`. `[evidence: code_verified, exact, DocumentProcessor.swift]`
 - Large document ingestion streams in page batches (OOM safe) and performs incremental FTS5 database inserts via an append option. `WorkspaceSyncService` protects recently modified or queue-tracked files from sync-based deletion sweeps. `[evidence: code_verified, exact, RAGService+Streaming.swift, WorkspaceSyncService.swift]`
+- On-device tokenization is powered by a high-performance Rust-backed `swift-tokenizers` (DePasqualeOrg) package loaded asynchronously from the local resource bundle, replacing legacy pure-Swift `BertTokenizer` to provide a 100x speedup and exact byte-level character offsets. `[evidence: code_verified, exact, CoreAISentenceEmbeddingProvider.swift, CoreMLSentenceEmbeddingProvider.swift, DocumentProcessor.swift, RAGEngine.swift]`
 
 ## 4. Unsafe Claims
 - The app uses CloudKit databases. (FALSE) `[evidence: code_verified, exact]`

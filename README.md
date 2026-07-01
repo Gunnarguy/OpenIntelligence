@@ -119,7 +119,7 @@ The entire RAG architecture operates on a strict **29-Step Pipeline** (6 Ingesti
 ## 🛠️ Placeholders & Scaffolding Warnings
 
 To maintain codebase transparency, please note:
-* **Core AI Integration:** Fully integrated and registered via `CoreAISentenceEmbeddingProvider.swift`. Runs zero-copy Silicon-native sentence embeddings on iOS 27+ / macOS 27+ compatible devices, automatically falling back to the standard `CoreMLSentenceEmbeddingProvider` on older targets.
+* **Core AI Integration:** Fully integrated and registered via `CoreAISentenceEmbeddingProvider.swift`. Runs zero-copy Silicon-native sentence embeddings on iOS 27+ / macOS 27+ compatible devices, automatically falling back to the standard `CoreMLSentenceEmbeddingProvider` on older targets. Powered by a unified, high-performance Rust-backed `swift-tokenizers` (DePasqualeOrg) wrapper target for microsecond-latency batch tokenization and exact byte-level offset matching.
 * **Private Cloud Compute (PCC):** Native Private Cloud Compute secure enclave execution is integrated for iOS 27 / macOS 27+, falling back cleanly to local simulation via `EngineSDKCompatibility.swift` on older OS releases.
 * **iCloud Sync:** Sync utilizes iCloud Drive ubiquity containers (`NSFileCoordinator` and `NSMetadataQuery`). The app does not utilize CloudKit databases.
 * **Pro Tier Document Limit:** Document uploads are restricted to a hard quota of 1,000 documents under the Pro tier. Unlimited uploads are restricted to the Lifetime tier.
