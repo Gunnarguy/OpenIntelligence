@@ -31,6 +31,7 @@ The following table summarizes the current transition status, mapping the legacy
 | **Shortcuts / Siri** | Simple URL-trigger command intents. | **Entity-Native App Intents (`AppEntity`, `EntityQuery`)** resolving in-process via `activePresentedInstance` binding. | Add UI interactive app intent triggers. | **100%** |
 | **System Search** | Document-level title/preview indexing in Spotlight. | Same document-level preview index. | **Spotlight Semantic Retrieval Stage** (Spotlight indexes sections/chunks/tables). | **30%** |
 | **UI Execution State** | Sticky green "Offline / On-Device" banner under chat header. | **Banner completely removed** (cleaner UI, trusts Apple's system routing). | **Reasoning Live Activity** showing active Deep Think steps on Dynamic Island. | **70%** |
+| **AI Diagnostics / Fallback UI** | Local/Remote sync settings flags. | **PCC Fallback UI & AI Subsystem Diagnostics (v4.5.0 Completed)**: Full fallback controls resolved, and AI Subsystem Diagnostics card (x-ray vision) integrated. | Continuous monitoring of Core AI vs. Core ML loading status. | **100%** |
 | **Device Power Tuning** | Downgraded to `.efficient` mode under serious thermals. | **Bypassed gating**: Full throttle `.full` mode under serious states; GPU unlocked to 100% (1.0). | Background transient prewarming lifecycle locks. | **90%** |
 | **Tokenizer Engine** | Legacy pure-Swift `BertTokenizer` with synchronous JSON vocab loads. | **Rust-backed `swift-tokenizers`** package linked via local wrapper library. | Complete migration to fully native `.aimodel` tokenizer profiles if Apple releases them. | **100%** |
 
@@ -162,6 +163,8 @@ To implement these changes safely without breaking current runtime behaviors, th
 
 *   **Core AI Sentence Embeddings with Core ML Fallback** (Completed)
     - *Implementation*: Integrated native `.aimodel` representations with dynamic compile-time and runtime availability guards, and a fallback to Core ML. Added shared instance caching, awaitable model readiness checks, and picker alerts to address race conditions on iOS 27 / macOS 27 devices.
+*   **PCC Entitlement Graceful Fallback** (Completed)
+    - *Implementation*: Implemented in-process signature scanning using `EntitlementChecker` to check for `com.apple.developer.private-cloud-compute` before initializing `FoundationModels.PrivateCloudComputeLanguageModel()`. Returns `false` or throws `modelUnavailable` to fall back gracefully to local on-device models.
 *   **PR 1 – Token & Context Budget Extraction**: Move context length constants and token estimation rules to a clean coordinator, querying the official `LanguageModelSession` token budgeting APIs when running on iOS 27+.
 *   **PR 2 – Decomposition of AppleFoundationLLMService**: Split `LLMService` responsibilities into structured subcomponents (`FoundationModelSessionFactory`, `FoundationModelToolRegistry`, `FoundationModelPromptCompiler`).
 *   **PR 3 – Dynamic Execution Profiles**: Swap tools and instructions dynamically inside `LanguageModelSession` instead of resetting sessions.

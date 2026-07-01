@@ -4,12 +4,16 @@
 - `RAGService+Streaming` and asynchronous `pageRange` bounds on `DocumentProcessor` for dynamic batch extraction.
 - **[Indexing]** High-performance Rust-backed `swift-tokenizers` (DePasqualeOrg) integration, achieving 100x tokenization speedups and byte-level character offsets for precise citation mapping. Exposed via a local `TransformersTokenizers` wrapper target (renamed to resolve SPM product name collision and GUID registration conflicts) linked transparently into the main target.
 - **[Orchestration]** Dynamic default embedding provider auto-selection. Automatically configures new libraries and settings to default to the native `coreai_sentence_embedding` on iOS 27+ / macOS 27+ targets while preserving `coreml_sentence_embedding` fallbacks for older (iOS/macOS 26) releases.
+- **[Diagnostics]** An **AI Subsystem Diagnostics** card integrated into the Library settings, providing real-time "x-ray vision" of model load status, Neural Engine/GPU hardware acceleration targets, Rust-backed tokenizer parser, vocabulary details, byte-level citation offsets, and latency profiles.
 ### Fixed
 - SQLite FTS5 index truncation where previous batch FTS5 data, page mapping records, and chunk search records were deleted/overwritten on each streaming iteration. Added `append` support to `store`, `storePages`, and `storeChunks` methods in `SQLiteFullTextService`.
 - Page index offset mapping during streaming PDF ingestion, correcting human-readable page numbering for page-level contexts.
 - Ingestion deletion race condition where `WorkspaceSyncService` deleted active streaming ingest documents before metadata registration, resolved via file age protection and queue storage relative path propagation.
 - Core AI embedding provider selector availability on iOS 27, introducing `CoreAISentenceEmbeddingProvider.shared` single-instance caching, an awaitable model readiness gate, and helpful compile-time and runtime diagnostics in `ContainerSettingsSheet`.
+- **[Orchestration]** Resolved a fatal process crash when executing reasoning-heavy queries via Private Cloud Compute without the required developer entitlement. Implemented a runtime signature verification utility (`EntitlementChecker`) that checks the app's code signature/provisioning profile on iOS 27+ / macOS 27+ and falls back gracefully to local on-device models if the entitlement is missing.
 - **[Indexing]** Tokenizer resource resolution. Moved tokenizer resource bundles to the local `swift-transformers` package target to completely bypass Xcode file-system synchronized target resource collisions and flattening bugs, resolving compile-time and runtime loading issues.
+- **[Settings]** SwiftUI scope lookup error inside settings sheets by accessing `@EnvironmentObject` variables directly using `self.settings` inside sheet extensions, resolving PCC fallback configuration compile failures.
+- **[Ingestion]** Ingestion file sync-sweep race condition where background cleanups deleted recently uploaded files. Resolved by touching the modification date of newly copied workspace files to current date, ensuring they are protected by the 15-minute sweep guard before metadata registration finishes.
 
 > **Documentation status:** Verified for OpenIntelligence v4.3 on June 20, 2026.
 

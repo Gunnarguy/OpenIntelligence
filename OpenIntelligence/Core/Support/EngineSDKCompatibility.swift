@@ -198,4 +198,42 @@ extension LanguageModelSession {
         return self.streamResponse(to: prompt, options: options)
     }
 }
+
+/// Helper utility to dynamically check entitlements in the app signature at runtime.
+public struct EntitlementChecker {
+    public static func hasEntitlement(_ entitlementKey: String) -> Bool {
+        #if targetEnvironment(simulator)
+        // Private Cloud Compute is not supported or required in the simulator environment.
+        return false
+        #else
+        guard let path = Bundle.main.path(forResource: "embedded", ofType: "mobileprovision") else {
+            // App Store builds strip the embedded provisioning profile.
+            // In these builds, the presence of the entitlement is validated by Apple during upload,
+            // so we assume it is present.
+            return true
+        }
+        
+        guard let data = try? Data(contentsOf: URL(fileURLWithPath: path)) else {
+            return false
+        }
+        
+        // Use Latin-1 encoding to read the profile as a string without failing on binary CMS headers
+        guard let profileString = String(data: data, encoding: .isoLatin1) else {
+            return false
+        }
+        
+        let keyString = "<key>\(entitlementKey)</key>"
+        if let range = profileString.range(of: keyString) {
+            let searchStart = range.upperBound
+            let searchEnd = profileString.index(searchStart, offsetBy: 100, limitedBy: profileString.endIndex) ?? profileString.endIndex
+            let substring = profileString[searchStart..<searchEnd]
+            if substring.contains("<true/>") {
+                return true
+            }
+        }
+        
+        return false
+        #endif
+    }
+}
 #endif

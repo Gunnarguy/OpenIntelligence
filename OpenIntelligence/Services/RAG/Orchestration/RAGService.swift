@@ -6030,6 +6030,7 @@ class RAGService: ObservableObject {
         let destinationURL = AppSupportPaths.nextAvailableImportedDocumentURL(preferredFileName: url.lastPathComponent)
         if !FileManager.default.fileExists(atPath: destinationURL.path) {
             try FileManager.default.copyItem(at: url, to: destinationURL)
+            try? FileManager.default.setAttributes([.modificationDate: Date()], ofItemAtPath: destinationURL.path)
         }
         return destinationURL
     }

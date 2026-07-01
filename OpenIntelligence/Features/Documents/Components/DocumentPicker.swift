@@ -97,6 +97,7 @@ struct DocumentPicker: UIViewControllerRepresentable {
 
                 do {
                     try fileManager.copyItem(at: url, to: destinationURL)
+                    try? fileManager.setAttributes([.modificationDate: Date()], ofItemAtPath: destinationURL.path)
                     copiedURLs.append(destinationURL)
                     Log.debug("✓ Queued: \(url.lastPathComponent)", category: .ingestion)
                 } catch {

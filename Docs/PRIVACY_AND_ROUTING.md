@@ -35,8 +35,8 @@ To support larger query contexts and complex queries, the app implements a dynam
 
 > [!NOTE]
 > When running on iOS 27 / macOS 27+, OpenIntelligence utilizes native Apple Private Cloud Compute (PCC) execution via `FoundationModels.PrivateCloudComputeLanguageModel` for all escalated query pathways (Deep Think/Maximum modes, or contexts exceeding 4,096 tokens). This routes queries over encrypted channels to Apple's secure server enclaves.
->
-> On older OS versions (iOS/macOS 26.x), all elevated PCC routes fall back cleanly to local simulation on `SystemLanguageModel.default` using a compatibility wrapper in [EngineSDKCompatibility.swift](file:///Users/gunnarhostetler/Documents/GitHub/OpenIntelligence/OpenIntelligence/Core/Support/EngineSDKCompatibility.swift).
+> 
+> To prevent fatal process crashes on developer builds that lack the `com.apple.developer.private-cloud-compute` developer entitlement, a runtime signature check (`EntitlementChecker`) verifies the signature. If the entitlement is missing, or if running on older OS versions (iOS/macOS 26.x), PCC routes fall back cleanly to local simulation on `SystemLanguageModel.default` using the compatibility wrapper in [EngineSDKCompatibility.swift](file:///Users/gunnarhostetler/Documents/GitHub/OpenIntelligence/OpenIntelligence/Core/Support/EngineSDKCompatibility.swift).
 
 ---
 

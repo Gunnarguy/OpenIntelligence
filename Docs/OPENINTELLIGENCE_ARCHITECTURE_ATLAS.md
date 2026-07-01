@@ -80,6 +80,8 @@ The OpenIntelligence Architecture Atlas is the canonical representation of the r
 
 ## 10. Routing/PCC Boundaries
 - **PCC (Private Cloud Compute)**: Execution routes natively to secure enclaves via `FoundationModels.PrivateCloudComputeLanguageModel` on iOS 27 / macOS 27+, falling back cleanly to local `SystemLanguageModel` simulation on older versions. `[evidence: code_verified, exact, FoundationModelSessionFactory.swift]`
+- **PCC Entitlement Crash Prevention**: A signature verification utility (`EntitlementChecker` in `EngineSDKCompatibility.swift`) checks for the `com.apple.developer.private-cloud-compute` entitlement at runtime. If missing, the app avoids instantiating `PrivateCloudComputeLanguageModel` (which would trigger a fatal process crash) and gracefully routes queries to local on-device models. `[evidence: code_verified, exact, FoundationModelRoutePolicy.swift, FoundationModelSessionFactory.swift]`
+- **PCC Fallback UI & Subsystem Diagnostics**: A dedicated iCloud execution consent fallback panel is integrated in `ContainerSettingsSheet+Sections.swift` using `self.settings` scope visibility. An AI Subsystem Diagnostics card in the library settings displays real-time readiness status of the sentence embedding model, acceleration targets, Rust-backed tokenizer parser, vocabulary metrics, and exact citation byte offsets. `[evidence: code_verified, exact, ContainerSettingsSheet+Sections.swift]`
 - **Consent Deadlock Risk**: Background executions via App Intents might block on `CloudConsentPromptView` evaluation. `[evidence: code_verified, exact, FoundationModelRoutePolicy.swift]`
 
 ## 11. Billing/Entitlement Boundaries
@@ -175,6 +177,9 @@ graph TD
 ```mermaid
 graph TD
   Request[User Prompt] --> Policy[FoundationModelRoutePolicy]
+  Policy -->|Route to PCC| Entitlement{Check Entitlement}
+  Entitlement -->|Has Entitlement| PCC[PrivateCloudComputeLanguageModel]
+  Entitlement -->|Missing Entitlement| LocalFallback[Local On-Device Fallback]
   Policy -->|Consent Required| Consent[CloudConsentPromptView]
   Policy -->|Local Sim| LLM[SystemLanguageModel.default]
 ```

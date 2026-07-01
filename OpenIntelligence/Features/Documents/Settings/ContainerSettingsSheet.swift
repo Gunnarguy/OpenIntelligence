@@ -12,7 +12,7 @@ import SwiftUI
 struct ContainerSettingsSheet: View {
     @ObservedObject var containerService: ContainerService
     @ObservedObject var ragService: RAGService
-    @EnvironmentObject private var settings: SettingsStore
+    @EnvironmentObject var settings: SettingsStore
     @EnvironmentObject private var entitlementStore: EntitlementStore
     @EnvironmentObject private var workspaceSyncService: WorkspaceSyncService
     @Environment(\.dismiss) var dismiss
@@ -83,6 +83,8 @@ struct ContainerSettingsSheet: View {
     private var hasICloudSyncAccess: Bool {
         entitlementStore.effectiveTier.isAtLeast(.pro)
     }
+
+
 
     var lastSelfTuneSummary: String? {
         guard let stamp = activeContainer?.lastSelfTuneAt else { return nil }
@@ -189,6 +191,7 @@ struct ContainerSettingsSheet: View {
                 storageSection
                 accuracyDefaultsSection
                 intelligenceSection
+                privateCloudComputeSection
                 chunkingSection
                 aiFeatureOverridesSection
                 // Search behavior presets removed — auto-tuned by AdaptivePipelineOptimizer

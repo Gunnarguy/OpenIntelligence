@@ -99,6 +99,9 @@ struct FoundationModelRoutePolicy {
     private static func isPCCAvailable() -> Bool {
         #if compiler(>=6.4)
         if #available(iOS 27.0, macOS 27.0, *) {
+            guard EntitlementChecker.hasEntitlement("com.apple.developer.private-cloud-compute") else {
+                return false
+            }
             let pcc = FoundationModels.PrivateCloudComputeLanguageModel()
             return pcc.isAvailable && !pcc.quotaUsage.isLimitReached
         } else {
