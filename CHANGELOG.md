@@ -9,7 +9,7 @@
 - Page index offset mapping during streaming PDF ingestion, correcting human-readable page numbering for page-level contexts.
 - Ingestion deletion race condition where `WorkspaceSyncService` deleted active streaming ingest documents before metadata registration, resolved via file age protection and queue storage relative path propagation.
 - Core AI embedding provider selector availability on iOS 27, introducing `CoreAISentenceEmbeddingProvider.shared` single-instance caching, an awaitable model readiness gate, and helpful compile-time and runtime diagnostics in `ContainerSettingsSheet`.
-- **[Indexing]** Tokenizer resource resolution in the application bundle. Renamed tokenizer directories to utilize the `.bundle` extension to prevent Xcode folder-group flattening and namespace collisions, resolving runtime initialization errors.
+- **[Indexing]** Tokenizer resource resolution. Moved tokenizer resource bundles to the local `swift-transformers` package target to completely bypass Xcode file-system synchronized target resource collisions and flattening bugs, resolving compile-time and runtime loading issues.
 
 > **Documentation status:** Verified for OpenIntelligence v4.3 on June 20, 2026.
 

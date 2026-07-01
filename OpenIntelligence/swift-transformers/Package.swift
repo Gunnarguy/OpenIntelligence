@@ -19,7 +19,11 @@ let package = Package(
             dependencies: [
                 .product(name: "Tokenizers", package: "swift-tokenizers")
             ],
-            path: "Sources/TokenizersWrapper"
+            path: "Sources/TokenizersWrapper",
+            resources: [
+                .copy("Resources/embedding_tokenizer.bundle"),
+                .copy("Resources/reranker_tokenizer.bundle")
+            ]
         )
     ]
 )

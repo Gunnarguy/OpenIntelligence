@@ -70,27 +70,37 @@ enum OpenIntelligenceRuntimePaths {
 enum OpenIntelligenceResourceBundle {
     private final class Marker: NSObject {}
     nonisolated private static let swiftPackageBundleName = "OpenIntelligenceEngine_OpenIntelligenceEngine.bundle"
+    nonisolated private static let tokenizersBundleName = "swift-transformers_TransformersTokenizers.bundle"
 
     nonisolated(unsafe) static var current: Bundle {
-#if SWIFT_PACKAGE
-        if let bundle = resolveSwiftPackageBundle() {
-            return bundle
-        }
-
-        return Bundle.main
-#else
         Bundle(for: Marker.self)
-#endif
     }
 
     nonisolated static func url(forResource name: String, withExtension ext: String? = nil) -> URL? {
-        current.url(forResource: name, withExtension: ext)
+        // 1. Search in the resolved tokenizers package bundle
+        if let tokenizersBundle = resolveSwiftPackageBundle(named: tokenizersBundleName),
+           let url = tokenizersBundle.url(forResource: name, withExtension: ext) {
+            return url
+        }
+
+        // 2. Search in the resolved engine package bundle
+        if let engineBundle = resolveSwiftPackageBundle(named: swiftPackageBundleName),
+           let url = engineBundle.url(forResource: name, withExtension: ext) {
+            return url
+        }
+
+        // 3. Search in the target framework bundle
+        if let url = Bundle(for: Marker.self).url(forResource: name, withExtension: ext) {
+            return url
+        }
+
+        // 4. Search in the main app bundle
+        return Bundle.main.url(forResource: name, withExtension: ext)
     }
 
-#if SWIFT_PACKAGE
-    nonisolated private static func resolveSwiftPackageBundle() -> Bundle? {
+    nonisolated private static func resolveSwiftPackageBundle(named bundleName: String) -> Bundle? {
         let allBundles = Bundle.allBundles + Bundle.allFrameworks
-        if let existingBundle = allBundles.first(where: { $0.bundleURL.lastPathComponent == swiftPackageBundleName }) {
+        if let existingBundle = allBundles.first(where: { $0.bundleURL.lastPathComponent == bundleName }) {
             return existingBundle
         }
 
@@ -103,7 +113,7 @@ enum OpenIntelligenceResourceBundle {
         ].compactMap { $0 }
 
         for root in candidateRoots {
-            let directCandidate = root.appendingPathComponent(swiftPackageBundleName, isDirectory: true)
+            let directCandidate = root.appendingPathComponent(bundleName, isDirectory: true)
             if let bundle = Bundle(url: directCandidate) {
                 return bundle
             }
@@ -111,7 +121,7 @@ enum OpenIntelligenceResourceBundle {
             let contentsResourcesCandidate = root
                 .appendingPathComponent("Contents", isDirectory: true)
                 .appendingPathComponent("Resources", isDirectory: true)
-                .appendingPathComponent(swiftPackageBundleName, isDirectory: true)
+                .appendingPathComponent(bundleName, isDirectory: true)
 
             if let bundle = Bundle(url: contentsResourcesCandidate) {
                 return bundle
@@ -120,5 +130,4 @@ enum OpenIntelligenceResourceBundle {
 
         return nil
     }
-#endif
 }
