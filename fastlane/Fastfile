@@ -55,7 +55,7 @@ platform :ios do
 
   desc "Upload release metadata for the App Store version"
   lane :upload_release_metadata do |options|
-    version = options[:version] || "4.1"
+    version = options[:version] || "4.5"
 
     deliver(
       api_key: asc_api_key,
@@ -72,8 +72,8 @@ platform :ios do
 
   desc "Build and upload the current release build to App Store Connect"
   lane :upload_release_build do |options|
-    version = options[:version] || "4.1"
-    build_number = options[:build] || "47"
+    version = options[:version] || "4.5"
+    build_number = options[:build] || "150"
     output_name = "OpenIntelligence-#{version}-#{build_number}.ipa"
     build_output_directory = project_root("build")
     release_notes_path = fastlane_path("metadata", "en-US", "release_notes.txt")
@@ -103,8 +103,8 @@ platform :ios do
 
   desc "Submit the current App Store version for review using an existing processed build"
   lane :submit_release do |options|
-    version = options[:version] || "4.1"
-    build_number = options[:build] || "47"
+    version = options[:version] || "4.5"
+    build_number = options[:build] || "150"
     reject_if_possible = options.key?(:reject_if_possible) ? options[:reject_if_possible] : true
     submit_for_review = options.key?(:submit_for_review) ? options[:submit_for_review] : true
 
@@ -128,11 +128,19 @@ platform :ios do
 
   desc "Push metadata, upload build, and submit version for review"
   lane :release_to_review do |options|
-    version = options[:version] || "4.1"
-    build_number = options[:build] || "47"
+    version = options[:version] || "4.5"
+    build_number = options[:build] || "150"
 
     upload_release_metadata(version: version)
     upload_release_build(version: version, build: build_number, skip_build: options[:skip_build])
     submit_release(version: version, build: build_number, reject_if_possible: options[:reject_if_possible])
+  end
+
+  desc "Push metadata, upload build, and submit version for review (alias for release_to_review)"
+  lane :release do |options|
+    version = options[:version] || "4.5"
+    build_number = options[:build] || "150"
+
+    release_to_review(version: version, build: build_number, skip_build: options[:skip_build], reject_if_possible: options[:reject_if_possible])
   end
 end
