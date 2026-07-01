@@ -12,6 +12,8 @@ OpenIntelligence is a local-first, privacy-preserving retrieval-augmented genera
 - Relational metadata indexing relies on a single shared SQLite file with column-based `container_id` isolation. `[evidence: code_verified, exact, SQLiteFullTextService.swift]`
 - Billing entitlements are stored in `UserDefaults`. `[evidence: code_verified, exact, EntitlementStore.swift]`
 - Core AI embeddings are used in production. Runs zero-copy Silicon-native sentence embeddings on iOS 27+ / macOS 27+ compatible devices, falling back to Core ML. `[evidence: code_verified, exact, CoreAISentenceEmbeddingProvider.swift]`
+- Ingestion pipeline runs zero-copy `CGImage` Vision OCR/Structure processing and page-level JSON checkpoints under `localCacheDir()`. `[evidence: code_verified, exact, DocumentProcessor.swift]`
+- Large document ingestion streams in page batches (OOM safe) and performs incremental FTS5 database inserts via an append option. `WorkspaceSyncService` protects recently modified or queue-tracked files from sync-based deletion sweeps. `[evidence: code_verified, exact, RAGService+Streaming.swift, WorkspaceSyncService.swift]`
 
 ## 4. Unsafe Claims
 - The app uses CloudKit databases. (FALSE) `[evidence: code_verified, exact]`
@@ -25,6 +27,7 @@ OpenIntelligence is a local-first, privacy-preserving retrieval-augmented genera
 - SQLite is strictly local. `[evidence: code_verified, exact]`
 - Vectors use `BNNSVectorDatabase` with memory mapping. `[evidence: code_verified, exact]`
 - Chat messages are serialized to monolithic JSON arrays. `[evidence: code_verified, exact]`
+- Ingestion checkpoints are stored as JSON files under `localCacheDir()/IngestionCheckpoints/<fingerprint>/`. `[evidence: code_verified, exact, DocumentProcessor.swift]`
 
 ## 7. Sync Boundaries
 - `WorkspaceSyncService.swift` sweeps local files for iCloud Drive ubiquity sync. `[evidence: code_verified, exact, WorkspaceSyncService.swift]`
@@ -55,6 +58,7 @@ OpenIntelligence is a local-first, privacy-preserving retrieval-augmented genera
 - Phase 7: Evidence Threads Placement (Complete)
 - Phase 8: Canonical Control System (Complete)
 - Phase 9: Evidence Threads MVP Integration (Complete)
+- Phase 10: Ingestion & watchOS Live Activity Refinement (Complete)
 
 ## 13. Files Allowed/Prohibited by Phase
 - Audit phases prohibit modification of `*.swift` files, tests, configurations.

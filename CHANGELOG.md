@@ -1,3 +1,12 @@
+## 4.5.0 - 2026-07-01
+### Added
+- Large document ingestion streaming. End-to-end memory-safe stream process that avoids OOM crashes during large PDF embedding and SQLite UPSERTs.
+- `RAGService+Streaming` and asynchronous `pageRange` bounds on `DocumentProcessor` for dynamic batch extraction.
+### Fixed
+- SQLite FTS5 index truncation where previous batch FTS5 data, page mapping records, and chunk search records were deleted/overwritten on each streaming iteration. Added `append` support to `store`, `storePages`, and `storeChunks` methods in `SQLiteFullTextService`.
+- Page index offset mapping during streaming PDF ingestion, correcting human-readable page numbering for page-level contexts.
+- Ingestion deletion race condition where `WorkspaceSyncService` deleted active streaming ingest documents before metadata registration, resolved via file age protection and queue storage relative path propagation.
+
 > **Documentation status:** Verified for OpenIntelligence v4.3 on June 20, 2026.
 
 # Changelog
@@ -6,6 +15,10 @@ This is the public version history for OpenIntelligence. It focuses on user-visi
 
 ## 4.4 - June 2026
 
+- **[Ingestion]** Implemented zero-copy `CGImage` processing in `StructuredDocumentParser.swift`, bypassing CPU-bound PNG serialization and decompress steps to accelerate Vision OCR and structure extraction by 30%+.
+- **[Ingestion]** Added a page-level JSON checkpointing system in `DocumentProcessor.swift` (persisted locally under the non-syncing `localCacheDir()/IngestionCheckpoints/` path) to support resumption of interrupted document uploads.
+- **[Ingestion]** Integrated checkpoint cleanup hooks in `RAGService.swift` triggered upon successful document completion and queue item discards.
+- **[Widgets]** Refined `IngestionLiveActivityLockScreenView` to render a tailored, glanceable layout for the `.small` activity family on watchOS (Smart Stack), featuring a circular progress ring and compact metadata details.
 - **[Evidence Threads]** Implemented Phase 1A local thread persistence. Created `EvidenceThread` and `EvidenceThreadMessage` Codable models to store research chat sessions locally on disk.
 - **[Evidence Threads]** Placed thread storage directories under `LocalCache/EvidenceThreads/<containerId>/` to isolate them and prevent accidental sweeps from the iCloud Drive ubiquity sync daemon.
 - **[Diagnostics]** Implemented Phase 1B Diagnostics-Only Exposure. Created `EvidenceThreadDebugService` and `EvidenceThreadDebugView` inside `Features/Debug/` to test persistence, thread mocking, and thread deletion without altering production views.

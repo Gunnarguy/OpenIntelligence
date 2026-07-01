@@ -1,6 +1,6 @@
-# Docs/PRIVACY_AND_ROUTING.md — OpenIntelligence v4.1
+# Docs/PRIVACY_AND_ROUTING.md — OpenIntelligence v4.4 (working on v4.5)
 
-> **Documentation status:** Verified for OpenIntelligence v4.3 on 2026-06-20.
+> **Documentation status:** Verified for OpenIntelligence v4.4 on 2026-06-30.
 > **Source of truth:** Codebase audit in `Docs/AUDIT/`.
 > **Scope:** Describes shipped behavior unless explicitly labeled experimental, developer-only, or scaffolded.
 
@@ -18,7 +18,7 @@ OpenIntelligence was built as a local-first application. All core operations—t
 
 ## 2. On-Device vs. PCC Routing Logic
 
-To support larger query contexts and complex queries, the app implements a dynamic routing policy defined in [FoundationModelRoutePolicy.swift](file:///Users/gunnarhostetler/Documents/GitHub/OpenIntelligence-Public/OpenIntelligence/Services/AIPlatform/AppleFoundationModels/FoundationModelRoutePolicy.swift):
+To support larger query contexts and complex queries, the app implements a dynamic routing policy defined in [FoundationModelRoutePolicy.swift](file:///Users/gunnarhostetler/Documents/GitHub/OpenIntelligence/OpenIntelligence/Services/AIPlatform/AppleFoundationModels/FoundationModelRoutePolicy.swift):
 
 ### 1. On-Device Execution (Default)
 - **Scope:** Standard query modes.
@@ -36,7 +36,7 @@ To support larger query contexts and complex queries, the app implements a dynam
 > [!NOTE]
 > When running on iOS 27 / macOS 27+, OpenIntelligence utilizes native Apple Private Cloud Compute (PCC) execution via `FoundationModels.PrivateCloudComputeLanguageModel` for all escalated query pathways (Deep Think/Maximum modes, or contexts exceeding 4,096 tokens). This routes queries over encrypted channels to Apple's secure server enclaves.
 >
-> On older OS versions (iOS/macOS 26.x), all elevated PCC routes fall back cleanly to local simulation on `SystemLanguageModel.default` using a compatibility wrapper in [EngineSDKCompatibility.swift](file:///Users/gunnarhostetler/Documents/GitHub/OpenIntelligence-Public/OpenIntelligence/Core/Support/EngineSDKCompatibility.swift).
+> On older OS versions (iOS/macOS 26.x), all elevated PCC routes fall back cleanly to local simulation on `SystemLanguageModel.default` using a compatibility wrapper in [EngineSDKCompatibility.swift](file:///Users/gunnarhostetler/Documents/GitHub/OpenIntelligence/OpenIntelligence/Core/Support/EngineSDKCompatibility.swift).
 
 ---
 

@@ -76,6 +76,7 @@ The OpenIntelligence Architecture Atlas is the canonical representation of the r
 - **iCloud Drive (Ubiquity)**: Used for sync via `WorkspaceSyncService.swift`. `[evidence: code_verified, exact, WorkspaceSyncService.swift]`
 - **NO CloudKit**: No explicit CloudKit database APIs are in use. `[evidence: code_verified, exact, WorkspaceSyncService.swift]`
 - **NO SQLite Sync**: The `SQLiteFullTextService.swift` is completely local-only. `[evidence: code_verified, exact, SQLiteFullTextService.swift]`
+- **Ingestion Checkpoints**: Saved under `localCacheDir()/IngestionCheckpoints/` to guarantee they are strictly local-only and excluded from iCloud syncing paths. `[evidence: code_verified, exact, DocumentProcessor.swift]`
 
 ## 10. Routing/PCC Boundaries
 - **PCC (Private Cloud Compute)**: Execution routes natively to secure enclaves via `FoundationModels.PrivateCloudComputeLanguageModel` on iOS 27 / macOS 27+, falling back cleanly to local `SystemLanguageModel` simulation on older versions. `[evidence: code_verified, exact, FoundationModelSessionFactory.swift]`
@@ -136,14 +137,23 @@ sequenceDiagram
 
 ### Document Ingestion Flow
 ```mermaid
-sequenceDiagram
-  participant User
-  participant Import as ImportService
-  participant OCR
-  participant Vector as BNNSVectorDatabase
-  User->>Import: Add PDF
-  Import->>OCR: extract text
-  OCR->>Vector: Generate & store embeddings
+flowchart TD
+  subgraph INGEST["Import-Time Pipeline"]
+    A1["Import Files"]
+    A2["File Size Check"]
+    A1 --> A2
+    A2 -- "< 10MB" --> A3["Standard Extraction & Parsing"]
+    A3 --> A4["Semantic Chunking"]
+    A4 --> A5["Vector & SQLite Indexing"]
+    
+    A2 -- ">= 10MB" --> S1["Stream Batches (15 pages)"]
+    S1 --> S2["Extract Chunks"]
+    S2 --> S3["Generate Embeddings"]
+    S3 --> S4["Store Batch to Vector & DB"]
+    S4 --> S5{"More Pages?"}
+    S5 -- "Yes" --> S1
+    S5 -- "No" --> S6["Finalize Ingestion"]
+  end
 ```
 
 ### Chat Persistence Flow
@@ -180,3 +190,5 @@ graph TD
 - **Core AI Integration**: Silicon-native zero-copy sentence embeddings are generated via `CoreAISentenceEmbeddingProvider.swift` using dynamic `NDArray` and `InferenceFunction.run(inputs:)` graph execution on iOS 27 / macOS 27+ Apple Intelligence SDK. `[evidence: code_verified, exact, CoreAISentenceEmbeddingProvider.swift]`
 - **Adaptive Auto-Tuning**: `LibraryIntelligenceCenter` automatically recommends and switches to the Core AI provider on supported hardware, falling back dynamically to `CoreMLSentenceEmbeddingProvider` on older targets. `[evidence: code_verified, exact, AdaptiveEmbeddingOptimizer.swift]`
 
+### DocumentProcessor & RAGService Streaming
+In v4.5, `RAGService.importDocument` was refactored to support batched extraction via `importLargePDFStreamed`. `DocumentProcessor` accepts a `pageRange` and processes chunks dynamically, bypassing memory limits for large PDF extraction and Vector DB Upserting. Fixed FTS5 index truncation and page offset mapping errors during streaming batch ingestion, ensuring fully searchable large documents.

@@ -579,23 +579,23 @@ actor StructuredDocumentParser {
         //
         // With 3-5 concurrent parsePageImage calls in the TaskGroup, the downscaled path
         // remains the default. Full resolution is only used for pages flagged by the
-        // caller as high fidelity critical.
-        //
         // CIImage.transformed(by:) is lazy — no pixel allocation until createCGImage fires.
         let structureImage = preferFullResolution
             ? image
             : image.transformed(by: CGAffineTransform(scaleX: 0.5, y: 0.5))
 
-        // Convert scaled CIImage to Data for RecognizeDocumentsRequest (structure detection only).
+        // Convert CIImage to CGImage (structure detection only).
         // The original full-resolution image is retained separately for the VNRecognizeTextRequest
         // fallback path, which is a pure OCR path where 360 DPI matters for fine print.
-        guard let structureImageData = imageToData(structureImage) else {
-            Log.warning("[StructuredDocumentParser] Failed to convert image to data, falling back to OCR", category: .ingestion)
+        guard let structureImageCG = sharedGPUContext.createCGImage(structureImage, from: structureImage.extent) else {
+            Log.warning("[StructuredDocumentParser] Failed to convert CIImage to CGImage, falling back to OCR", category: .ingestion)
             throw StructuredParsingError.imageConversionFailed
         }
-        // Lazily produce full-res data only if the OCR fallback path is actually needed.
+        // Lazily produce full-res CGImage only if the OCR fallback path is actually needed.
         // Avoids the memory cost on the happy path (structure found).
-        lazy var fullResImageData: Data? = imageToData(image)
+        let fullResImageCG = {
+            sharedGPUContext.createCGImage(image, from: image.extent)
+        }
 
         if preferFullResolution {
             Log.info("[StructuredDocumentParser] Page \(pageNumber): using full-resolution structure parsing for maximum fidelity", category: .ingestion)
@@ -621,7 +621,7 @@ actor StructuredDocumentParser {
         // Perform the structured document recognition (throttled to prevent Metal GPU races)
         let configuredRequest = request
         let structuredSnapshot: StructuredDocumentSnapshot? = try await VisionOCRThrottle.performAsync { [self] in
-            let observations = try await configuredRequest.perform(on: structureImageData)
+            let observations = try await configuredRequest.perform(on: structureImageCG)
             guard let document = observations.first?.document else {
                 return nil
             }
@@ -636,7 +636,8 @@ actor StructuredDocumentParser {
             // from 360 DPI for fine print, footnotes, and small table cell text.
             Log.info("[StructuredDocumentParser] No document structure on page \(pageNumber), trying RecognizeTextRequest", category: .ingestion)
             do {
-                let fallbackText = try await performTextRecognitionFallback(on: fullResImageData ?? structureImageData, customWords: customWords)
+                let fallbackCG = fullResImageCG() ?? structureImageCG
+                let fallbackText = try await performTextRecognitionFallback(on: fallbackCG, customWords: customWords)
                 if !fallbackText.isEmpty {
                     let elapsed = Date().timeIntervalSince(startTime)
                     Log.info("[StructuredDocumentParser] RecognizeTextRequest captured \(fallbackText.split(separator: " ").count) words on page \(pageNumber) in \(String(format: "%.2f", elapsed))s", category: .ingestion)
@@ -678,7 +679,8 @@ actor StructuredDocumentParser {
             Log.info("[StructuredDocumentParser] Quality too low (\(Int(qualityScore * 100))%), trying RecognizeTextRequest fallback", category: .ingestion)
             do {
                 // Use full-res image for OCR fallback — 360 DPI preserves fine print quality
-                let fallbackText = try await performTextRecognitionFallback(on: fullResImageData ?? structureImageData, customWords: customWords)
+                let fallbackCG = fullResImageCG() ?? structureImageCG
+                let fallbackText = try await performTextRecognitionFallback(on: fallbackCG, customWords: customWords)
                 if fallbackText.count > rawText.count {
                     rawText = fallbackText
                     rawWordCount = rawText.split(separator: " ").count
@@ -1272,7 +1274,7 @@ actor StructuredDocumentParser {
     /// - Images with poor lighting or contrast
     ///
     /// Available from iOS 18.0+ (not iOS 26 specific)
-    private func performTextRecognitionFallback(on imageData: Data, customWords: [String]) async throws -> String {
+    private func performTextRecognitionFallback(on image: CGImage, customWords: [String]) async throws -> String {
         var request = RecognizeTextRequest()
         request.recognitionLevel = .accurate
         request.usesLanguageCorrection = true
@@ -1285,7 +1287,7 @@ actor StructuredDocumentParser {
 
         let configuredRequest = request
         let recognizedText = try await VisionOCRThrottle.performAsync { [self] in
-            let observations = try await configuredRequest.perform(on: imageData)
+            let observations = try await configuredRequest.perform(on: image)
             return await self.assembleSpatiallyOrderedFallbackText(from: observations)
         }
 

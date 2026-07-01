@@ -1,9 +1,9 @@
-> **Documentation status:** [Archived]. This document is kept for historical evidence. Do not use as the source of truth for OpenIntelligence v4.3.
+> **Documentation status:** Verified for OpenIntelligence v4.4 (working on v4.5) on 2026-06-30.
 
 # RAG Technical Specifications
 
-**Version**: 1.5
-**Updated**: April 24, 2026
+**Version**: 4.4 (working on v4.5)
+**Updated**: June 30, 2026
 **Compatibility**: iOS 26+ / Apple Intelligence
 
 This document provides the technical formulas, algorithms, and deep dive specifications for the RAG pipeline.
@@ -515,22 +515,37 @@ All advanced RAG settings in `SettingsStore.swift`:
 ## File Map
 
 ```
-Services/
-├── HyDEService.swift                    # Hypothetical Document Embeddings
-├── ParentDocumentService.swift          # Parent/sibling context expansion
-├── ContextualCompressionService.swift   # Chunk compression + grounding
-├── AgenticOrchestrator.swift            # Multi-session reasoning
-├── DeviceCapabilityService.swift        # Hardware tier detection + form factors
-├── AdaptivePipelineOptimizer.swift      # Runtime thermal/battery optimization
-├── RAGEngine.swift                      # Reranking, MMR, lost-in-middle
-├── RAGService.swift                     # Main orchestrator
-├── QueryRewriterService.swift           # Query clarification
-├── QueryEnhancementService.swift        # Intent classification
-├── IterativeRetrievalService.swift      # Multi-pass retrieval
-└── SettingsStore.swift                  # All settings
+OpenIntelligence/Services/
+├── Query/
+│   ├── Rewriting/
+│   │   ├── HyDEService.swift              # Hypothetical Document Embeddings
+│   │   └── QueryRewriterService.swift     # Query clarification / rewriting
+│   └── Intent/
+│       └── QueryEnhancementService.swift  # Semantic classification & intent analysis
+├── RAG/
+│   ├── Orchestration/
+│   │   ├── RAGEngine.swift                # Reranking, MMR, and positional salience (Lost-in-Middle) packing
+│   │   └── RAGService.swift               # Main RAG execution orchestrator
+│   ├── Retrieval/
+│   │   ├── ParentDocumentService.swift    # Parent/sibling context expansion
+│   │   └── IterativeRetrievalService.swift # Multi-pass retrieval loops
+│   ├── Compression/
+│   │   └── ContextualCompressionService.swift # Chunk-level prompt token compression
+│   └── Safety/
+│       └── VerificationGateService.swift  # Anti-hallucination verification checks (Gates A-I)
+├── Agentic/
+│   └── AgenticOrchestrator.swift          # Closed-loop agentic multi-session reasoning
+├── Storage/
+│   ├── SQLiteFullTextService.swift        # Relational metadata + FTS5 search index
+│   └── SettingsStore.swift                # Persistence of user options & feature gates
+└── Infrastructure/
+    ├── Configuration/
+    │   └── DeviceCapabilityService.swift  # Apple Silicon hardware tier / form factor detection
+    └── Optimization/
+        └── AdaptivePipelineOptimizer.swift # Real-time thermal and battery throttling mitigation
 
-Views/ChatV2/
-└── ChatScreen.swift                     # Query task management
+OpenIntelligence/Features/ChatV2/
+└── ChatScreen.swift                       # Query task management & UI entry point
 ```
 
 ---

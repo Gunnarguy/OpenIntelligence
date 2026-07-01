@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import CryptoKit
 import NaturalLanguage
 import PDFKit
 import UniformTypeIdentifiers
@@ -311,7 +312,7 @@ class DocumentProcessor {
 
     /// Wrapper to hold structured elements with page info (works on all iOS versions)
     /// Sendable struct with nonisolated init to allow construction in TaskGroup
-    private struct StructuredElementWrapper: Sendable {
+    fileprivate struct StructuredElementWrapper: Sendable {
         let text: String
         let elementType: String  // "table", "list", "paragraph", "title"
         let pageNumber: Int
@@ -517,7 +518,7 @@ class DocumentProcessor {
     /// Also stores the full original text for exact queries:
     /// - SQLiteFullTextService (FTS5) when containerId is provided (10-100X faster search)
     /// - FullTextStorageService (file-based) as fallback when containerId is nil
-    func processDocument(at url: URL, chunkOverride: ChunkingOverride? = nil, containerId: UUID? = nil) async throws -> (Document, [ProcessedChunk]) {
+    func processDocument(at url: URL, chunkOverride: ChunkingOverride? = nil, containerId: UUID? = nil, pageRange: ClosedRange<Int>? = nil, documentId: UUID? = nil) async throws -> (Document, [ProcessedChunk]) {
         try Task.checkCancellation()
         // Reset ALL per-document state to prevent vocabulary/entity leaks between documents
         lastDetectedEntities = []
@@ -534,7 +535,7 @@ class DocumentProcessor {
         Log.info("[DocumentProcessor] Processing \(filename) (\(String(format: "%.2f", fileSizeMB)) MB)", category: .ingestion)
 
     let startTime = Date()
-    let documentId = UUID()
+    let documentId = documentId ?? UUID()
     var pagesProcessed: Int? = nil
     var ocrPagesCount: Int? = nil
 
@@ -653,7 +654,7 @@ class DocumentProcessor {
 
         // Use structured parsing for PDFs on iOS 26+ (preserves table/list structure)
         if documentType == .pdf {
-            let structuredResult = try await extractStructuredPDFContent(url: url)
+            let structuredResult = try await extractStructuredPDFContent(url: url, pageRange: pageRange)
             extractedText = structuredResult.text
             pageInfo = structuredResult.pageInfo
             structuredElements = structuredResult.structuredElements
@@ -743,9 +744,10 @@ class DocumentProcessor {
 
         // Step B: Build human-readable full-doc text with page markers for FTS5
         let storedText: String
+        let startPageNum = pageRange?.lowerBound ?? 0
         if pageTextsFromSentinel.count > 1 {
             storedText = pageTextsFromSentinel.enumerated().map { (index, pageContent) in
-                "--- Page \(index + 1) ---\n\(pageContent)"
+                "--- Page \(startPageNum + index + 1) ---\n\(pageContent)"
             }.joined(separator: "\n\n")
         } else {
             // Single page or no sentinels (non-PDF) — store as-is without markers
@@ -756,16 +758,17 @@ class DocumentProcessor {
         if let containerId = containerId {
             try Task.checkCancellation()
             // Primary path: SQLite FTS5 with container isolation (v1.1.0+)
-            await SQLiteFullTextService.shared.store(text: storedText, for: documentId, containerId: containerId)
+            let shouldAppend = pageRange != nil
+            await SQLiteFullTextService.shared.store(text: storedText, for: documentId, containerId: containerId, append: shouldAppend)
             Log.debug("[DocumentProcessor] Stored normalized text (\(storedCharCount) chars) to FTS5 for exact query support", category: .ingestion)
 
             // Step C: Store per-page content for page-level search and context isolation
             if pageTextsFromSentinel.count > 1 {
                 let pageEntries = pageTextsFromSentinel.enumerated().map { (index, content) in
-                    (pageNumber: index + 1, content: content)
+                    (pageNumber: startPageNum + index + 1, content: content)
                 }
                 try Task.checkCancellation()
-                await SQLiteFullTextService.shared.storePages(pages: pageEntries, for: documentId, containerId: containerId)
+                await SQLiteFullTextService.shared.storePages(pages: pageEntries, for: documentId, containerId: containerId, append: shouldAppend)
                 Log.info("[DocumentProcessor] Stored \(pageEntries.count) individual pages to FTS5 for page-level context", category: .ingestion)
             }
         } else {
@@ -3117,12 +3120,15 @@ class DocumentProcessor {
         // This runs ONCE per document (~200-500ms) and prevents the catastrophic
         // failure where 93% of content is silently lost to garbled text acceptance.
         // ═══════════════════════════════════════════════════════════════════════
+        let startPageIdx = 0
+        let endPageIdx = pageCount - 1
         let documentTextLayerGarbled: Bool
         textLayerValidation: do {
             // Sample 3 spread-out pages to get representative PDFKit text
-            let sampleIndices = pageCount <= 3
-                ? Array(0..<pageCount)
-                : [0, pageCount / 3, 2 * pageCount / 3]
+            let sliceCount = (endPageIdx - startPageIdx) + 1
+            let sampleIndices = sliceCount <= 3
+                ? Array(startPageIdx...endPageIdx)
+                : [startPageIdx, startPageIdx + sliceCount / 3, startPageIdx + 2 * sliceCount / 3]
 
             var bestSampleText = ""
             var bestSamplePage: PDFPage?
@@ -3247,7 +3253,7 @@ class DocumentProcessor {
         var complexityAnalyses: [PageComplexityAnalysis] = []
 
         // Batch analyze pages (runs concurrently, very fast)
-        let pagesToAnalyze: [(PDFPage, Int)] = (0..<pageCount).compactMap { index in
+        let pagesToAnalyze: [(PDFPage, Int)] = (startPageIdx...endPageIdx).compactMap { index in
             guard let page = pdfDocument.page(at: index) else { return nil }
             return (page, index + 1)
         }
@@ -3332,8 +3338,8 @@ class DocumentProcessor {
         // Process pages in render-safe sub-batches
         // Outer stride: groups pages for progress reporting (keeps maxConcurrentPages for ANE pipeline)
         // Inner stride: limits concurrent full-res images to pdfRenderingConcurrency
-        for batchStart in stride(from: 0, to: pageCount, by: maxConcurrentPages) {
-            let batchEnd = min(batchStart + maxConcurrentPages, pageCount)
+        for batchStart in stride(from: startPageIdx, to: endPageIdx + 1, by: maxConcurrentPages) {
+            let batchEnd = min(batchStart + maxConcurrentPages, endPageIdx + 1)
 
             // Sub-batch rendering: render only maxRenderConcurrency pages at a time
             for renderStart in stride(from: batchStart, to: batchEnd, by: maxRenderConcurrency) {
@@ -3714,7 +3720,7 @@ class DocumentProcessor {
     /// Extract PDF content with structure awareness (tables, lists, paragraphs as separate elements)
     /// On iOS 26+, uses Vision's RecognizeDocumentsRequest for structure-aware parsing.
     /// This preserves tabular data integrity - specs in one table won't mix with unrelated data.
-    private func extractStructuredPDFContent(url: URL) async throws -> StructuredExtractionResult {
+    private func extractStructuredPDFContent(url: URL, pageRange: ClosedRange<Int>? = nil) async throws -> StructuredExtractionResult {
         let pdfDocument = try loadPDF(url: url, context: "Structured PDF")
 
         let pageCount = pdfDocument.pageCount
@@ -3724,7 +3730,7 @@ class DocumentProcessor {
 
         // Check if structured parsing is available (iOS 26+)
         if #available(iOS 26.0, *) {
-            return try await extractWithStructuredParsing(pdfDocument: pdfDocument, pageCount: pageCount)
+            return try await extractWithStructuredParsing(pdfDocument: pdfDocument, pageCount: pageCount, url: url, pageRange: pageRange)
         } else {
             // Fallback to regular extraction on older iOS versions
             Log.debug("[DocumentProcessor] iOS < 26: Using flat text extraction (no structure awareness)", category: .ingestion)
@@ -3768,9 +3774,14 @@ class DocumentProcessor {
     /// - Uses PDFKit for paragraph text (correct column ordering)
     /// - Uses Vision for table/list structure detection only
     @available(iOS 26.0, *)
-    private func extractWithStructuredParsing(pdfDocument: PDFDocument, pageCount: Int) async throws -> StructuredExtractionResult {
+    private func extractWithStructuredParsing(pdfDocument: PDFDocument, pageCount: Int, url: URL, pageRange: ClosedRange<Int>? = nil) async throws -> StructuredExtractionResult {
+        let startPageIdx = pageRange?.lowerBound ?? 0
+        let endPageIdx = min(pageRange?.upperBound ?? (pageCount - 1), pageCount - 1)
         let parser = StructuredDocumentParser.shared
         let layoutExtractor = LayoutAwareExtractor.shared
+        let fingerprint = computeDocumentFingerprint(at: url)
+        let checkpointDir = checkpointDirectoryURL(for: fingerprint)
+        Log.info("[Checkpoint] Processing document with fingerprint: \(fingerprint)", category: .ingestion)
 
         // Pass dynamic vocabulary to the structured document parser
         // so RecognizeDocumentsRequest knows the document's domain terms
@@ -3788,9 +3799,10 @@ class DocumentProcessor {
         // ═══════════════════════════════════════════════════════════════════════
         let documentTextLayerGarbled: Bool
         textLayerValidation: do {
-            let sampleIndices = pageCount <= 3
-                ? Array(0..<pageCount)
-                : [0, pageCount / 3, 2 * pageCount / 3]
+            let sliceCount = (endPageIdx - startPageIdx) + 1
+            let sampleIndices = sliceCount <= 3
+                ? Array(startPageIdx...endPageIdx)
+                : [startPageIdx, startPageIdx + sliceCount / 3, startPageIdx + 2 * sliceCount / 3]
 
             var bestSampleText = ""
             var bestSamplePage: PDFPage?
@@ -3959,7 +3971,7 @@ class DocumentProcessor {
         // Simple single-column pages skip Vision entirely → massive speedup
         // ═══════════════════════════════════════════════════════════════════════
         let complexityStartTime = Date()
-        let pagesToAnalyze: [(PDFPage, Int)] = (0..<pageCount).compactMap { index in
+        let pagesToAnalyze: [(PDFPage, Int)] = (startPageIdx...endPageIdx).compactMap { index in
             guard let page = pdfDocument.page(at: index) else { return nil }
             return (page, index + 1)
         }
@@ -3995,8 +4007,8 @@ class DocumentProcessor {
         let maxRenderConcurrency = DeviceCapabilityService.shared.pdfRenderingConcurrency
         Log.info("[DocumentProcessor] Memory-safe Vision rendering: max \(maxRenderConcurrency) page images alive at once (~\(maxRenderConcurrency * 206) MB)", category: .ingestion)
 
-        for batchStart in stride(from: 0, to: pageCount, by: maxConcurrentPages) {
-            let batchEnd = min(batchStart + maxConcurrentPages, pageCount)
+        for batchStart in stride(from: startPageIdx, to: endPageIdx + 1, by: maxConcurrentPages) {
+            let batchEnd = min(batchStart + maxConcurrentPages, endPageIdx + 1)
 
             // Emit rich progress with current metrics
             await MainActor.run {
@@ -4034,6 +4046,48 @@ class DocumentProcessor {
 
             var batchRenderData: [PageRenderData] = []
             for pageIndex in subBatchIndices {
+                // 1. Check if checkpoint exists on disk
+                let checkpointURL = checkpointDir.appendingPathComponent("page_\(pageIndex).json")
+                if FileManager.default.fileExists(atPath: checkpointURL.path),
+                   let data = try? Data(contentsOf: checkpointURL),
+                   let checkpoint = try? JSONDecoder().decode(IngestionCheckpointPage.self, from: data) {
+                    
+                    Log.info("[Checkpoint] Loaded page \(pageIndex + 1) from checkpoint", category: .ingestion)
+                    let parsedElements = checkpoint.elements.map { $0.toWrapper() }
+                    let pageResult = PageParseResult(
+                        pageIndex: checkpoint.pageIndex,
+                        elements: parsedElements,
+                        pageText: checkpoint.pageText,
+                        hasStructure: checkpoint.hasStructure,
+                        usedOCR: checkpoint.usedOCR,
+                        tablesFound: checkpoint.tablesFound,
+                        listsFound: checkpoint.listsFound,
+                        headersFound: checkpoint.headersFound
+                    )
+                    results.append(pageResult)
+                    
+                    // Increment live metrics from checkpoint
+                    let wordCount = checkpoint.pageText.split(separator: " ").count
+                    incrementMetric(
+                        tables: checkpoint.tablesFound,
+                        lists: checkpoint.listsFound,
+                        headers: checkpoint.headersFound,
+                        ocrPages: checkpoint.usedOCR ? 1 : 0,
+                        words: wordCount
+                    )
+                    
+                    // Add dummy render data to preserve index alignment
+                    batchRenderData.append(PageRenderData(
+                        pageIndex: pageIndex,
+                        pageImage: nil,
+                        plainText: nil,
+                        layoutText: "[CHECKPOINT_SKIPPED]",
+                        layoutTables: [],
+                        preferHighResolutionStructure: false
+                    ))
+                    continue
+                }
+
                 autoreleasepool {
                     guard let page = pdfDocument.page(at: pageIndex) else {
                         batchRenderData.append(PageRenderData(pageIndex: pageIndex, pageImage: nil, plainText: nil, layoutText: nil, layoutTables: [], preferHighResolutionStructure: false))
@@ -4210,6 +4264,9 @@ class DocumentProcessor {
             let batchResults = await withTaskGroup(of: PageParseResult.self) { group in
                 for (batchOffset, pageIndex) in subBatchIndices.enumerated() {
                     let renderData = batchRenderData[batchOffset]
+                    if renderData.layoutText == "[CHECKPOINT_SKIPPED]" {
+                        continue
+                    }
                     let isHybridMode = useHybridMode  // Capture for sendable closure
                     let isGarbled = documentTextLayerGarbled  // Capture for sendable closure
                     // Gap 1 fix: capture customWords by value here (not via actor state on shared
@@ -4768,6 +4825,24 @@ class DocumentProcessor {
                 batchLists += r.listsFound
                 batchHeaders += r.headersFound
                 if r.usedOCR { batchOCR += 1 }
+
+                // Save page checkpoint
+                let pageIndex = r.pageIndex
+                let checkpointURL = checkpointDir.appendingPathComponent("page_\(pageIndex).json")
+                let checkpointPage = IngestionCheckpointPage(
+                    pageIndex: r.pageIndex,
+                    elements: r.elements.map { CodableStructuredElement($0) },
+                    pageText: r.pageText,
+                    hasStructure: r.hasStructure,
+                    usedOCR: r.usedOCR,
+                    tablesFound: r.tablesFound,
+                    listsFound: r.listsFound,
+                    headersFound: r.headersFound
+                )
+                if let data = try? JSONEncoder().encode(checkpointPage) {
+                    try? data.write(to: checkpointURL)
+                    Log.info("[Checkpoint] Saved checkpoint for page \(r.pageIndex + 1)", category: .ingestion)
+                }
             }
             incrementMetric(tables: batchTables, lists: batchLists, headers: batchHeaders, ocrPages: batchOCR)
 
@@ -8910,7 +8985,7 @@ class DocumentProcessor {
 
     // MARK: - Utilities
 
-    private func detectDocumentType(url: URL) -> DocumentType {
+    func detectDocumentType(url: URL) -> DocumentType {
         let pathExtension = url.pathExtension.lowercased()
 
         switch pathExtension {
@@ -9273,5 +9348,147 @@ private final class ZIPArchive {
         }
 
         return result > 0 ? Data(decompressed.prefix(result)) : nil
+    }
+}
+
+// MARK: - DocumentProcessor Ingestion Checkpointing & Codable Models Extension
+
+extension DocumentProcessor {
+    // MARK: - Checkpoint System Helpers
+
+    private var checkpointsDirectoryURL: URL {
+        let url = AppSupportPaths.localCacheDir().appendingPathComponent("IngestionCheckpoints", isDirectory: true)
+        try? FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
+        return url
+    }
+
+    private func checkpointDirectoryURL(for fingerprint: String) -> URL {
+        let url = checkpointsDirectoryURL.appendingPathComponent(fingerprint, isDirectory: true)
+        try? FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
+        return url
+    }
+
+    private func computeDocumentFingerprint(at url: URL) -> String {
+        let attrs = try? FileManager.default.attributesOfItem(atPath: url.path)
+        let size = (attrs?[.size] as? Int64) ?? 0
+        let date = (attrs?[.modificationDate] as? Date)?.timeIntervalSince1970 ?? 0
+        let path = url.path
+        let key = "\(path)_\(size)_\(date)"
+        let data = Data(key.utf8)
+        let hash = SHA256.hash(data: data)
+        return hash.compactMap { String(format: "%02x", $0) }.joined()
+    }
+
+    /// Clean up any checkpoint files for the given document URL
+    func cleanCheckpoints(for url: URL) {
+        let fingerprint = computeDocumentFingerprint(at: url)
+        let checkpointDir = checkpointDirectoryURL(for: fingerprint)
+        try? FileManager.default.removeItem(at: checkpointDir)
+        Log.info("[Checkpoint] Cleaned up temporary page checkpoints for \(url.lastPathComponent) (fingerprint: \(fingerprint))", category: .ingestion)
+    }
+
+    // MARK: - Codable Checkpoint Mappings
+
+    struct CodableDetectedEntity: Codable, Sendable {
+        let type: String
+        let value: String
+        let rawText: String
+
+        init(from entity: DetectedEntity) {
+            self.type = entity.type.rawValue
+            self.value = entity.value
+            self.rawText = entity.rawText
+        }
+
+        func toDetectedEntity() -> DetectedEntity {
+            let typeEnum = DetectedEntity.EntityType(rawValue: type) ?? .unknown
+            return DetectedEntity(type: typeEnum, value: value, rawText: rawText)
+        }
+    }
+
+    struct CodableTableData: Codable, Sendable {
+        let pageNumber: Int
+        let rows: [[String]]
+        let headerRow: [String]?
+        let caption: String?
+        let detectedEntities: [CodableDetectedEntity]
+        let cellAlignments: [[String]]
+
+        init(_ data: TableData) {
+            self.pageNumber = data.pageNumber
+            self.rows = data.rows
+            self.headerRow = data.headerRow
+            self.caption = data.caption
+            self.detectedEntities = data.detectedEntities.map { CodableDetectedEntity(from: $0) }
+            self.cellAlignments = data.cellAlignments.map { $0.map { $0.rawValue } }
+        }
+
+        func toTableData() -> TableData {
+            let entities = self.detectedEntities.map { $0.toDetectedEntity() }
+            let alignments = self.cellAlignments.map { $0.map { TableCellAlignment(rawValue: $0) ?? .left } }
+            return TableData(
+                pageNumber: self.pageNumber,
+                rows: self.rows,
+                headerRow: self.headerRow,
+                caption: self.caption,
+                detectedEntities: entities,
+                cellAlignments: alignments
+            )
+        }
+    }
+
+    struct CodableTupleEntity: Codable, Sendable {
+        let type: String
+        let value: String
+    }
+
+    struct CodableStructuredElement: Codable, Sendable {
+        let text: String
+        let elementType: String
+        let pageNumber: Int
+        let isAtomicChunk: Bool
+        let detectedEntities: [CodableTupleEntity]
+        let tableData: CodableTableData?
+        let listItems: [String]?
+        let extractionSource: String?
+        let qualityScore: Double?
+
+        fileprivate init(_ wrapper: DocumentProcessor.StructuredElementWrapper) {
+            self.text = wrapper.text
+            self.elementType = wrapper.elementType
+            self.pageNumber = wrapper.pageNumber
+            self.isAtomicChunk = wrapper.isAtomicChunk
+            self.detectedEntities = wrapper.detectedEntities.map { CodableTupleEntity(type: $0.type, value: $0.value) }
+            self.tableData = wrapper.tableData.map { CodableTableData($0) }
+            self.listItems = wrapper.listItems
+            self.extractionSource = wrapper.extractionSource
+            self.qualityScore = wrapper.qualityScore
+        }
+
+        fileprivate func toWrapper() -> DocumentProcessor.StructuredElementWrapper {
+            let entities = self.detectedEntities.map { (type: $0.type, value: $0.value) }
+            return DocumentProcessor.StructuredElementWrapper(
+                text: self.text,
+                elementType: self.elementType,
+                pageNumber: self.pageNumber,
+                isAtomicChunk: self.isAtomicChunk,
+                detectedEntities: entities,
+                tableData: self.tableData?.toTableData(),
+                listItems: self.listItems,
+                extractionSource: self.extractionSource,
+                qualityScore: self.qualityScore
+            )
+        }
+    }
+
+    struct IngestionCheckpointPage: Codable, Sendable {
+        let pageIndex: Int
+        let elements: [CodableStructuredElement]
+        let pageText: String
+        let hasStructure: Bool
+        let usedOCR: Bool
+        let tablesFound: Int
+        let listsFound: Int
+        let headersFound: Int
     }
 }

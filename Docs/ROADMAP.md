@@ -1,6 +1,6 @@
-# Docs/ROADMAP.md — OpenIntelligence v4.4
+# Docs/ROADMAP.md — OpenIntelligence v4.4 (working on v4.5)
 
-> **Documentation status:** Verified for OpenIntelligence v4.4 on 2026-06-28.
+> **Documentation status:** Verified for OpenIntelligence v4.4 on 2026-06-30.
 > **Source of truth:** Codebase audit in `Docs/AUDIT/`.
 > **Scope:** Describes future technical directions for the prototype. It is not a product commitment.
 
@@ -8,8 +8,10 @@
 
 ## 1. Near Term
 
+- **Ingestion Performance & Checkpointing (Completed):** Bypassed PNG encoding by feeding GPU-rendered `CGImage` buffers directly to Vision OCR/Structure requests. Introduced a local page-level JSON checkpointing cache to protect long document ingestions from OOM and app-restart data loss. Fixed FTS5 index truncation and page offset mapping errors during streaming batch ingestion, ensuring fully searchable large documents. Resolved a race condition where `WorkspaceSyncService` deleted active streaming ingest documents before metadata registration.
+- **watchOS Live Activities Layout (Completed):** Customized the lock screen widget view with conditional rendering for watchOS Smart Stack `.small` widget family, detailing a circular gauge and compact status labels.
 - **Clean up File Inventory:** Resolve the mismatch in `file_inventory_4.1.csv` by categorizing remaining files and documenting evidence notes.
-- **Dynamic Candidate Cutoff Fix:** Modify the candidate pool formula in [RAGEngine.swift](file:///Users/gunnarhostetler/Documents/GitHub/OpenIntelligence-Public/OpenIntelligence/Services/RAG/Orchestration/RAGEngine.swift) to dynamically scale chunk pool sizes for small libraries rather than hardcoding a floor of 100 chunks.
+- **Dynamic Candidate Cutoff Fix:** Modify the candidate pool formula in [RAGEngine.swift](file:///Users/gunnarhostetler/Documents/GitHub/OpenIntelligence/OpenIntelligence/Services/RAG/Orchestration/RAGEngine.swift) to dynamically scale chunk pool sizes for small libraries rather than hardcoding a floor of 100 chunks.
 - **Negation and Contradiction Sweeps:** Explore upgrading negation checks to include numeric fact comparisons and direct citation checks.
 
 ---

@@ -1,6 +1,6 @@
-# Docs/RETRIEVAL_PIPELINE.md — OpenIntelligence v4.1
+# Docs/RETRIEVAL_PIPELINE.md — OpenIntelligence v4.4 (working on v4.5)
 
-> **Documentation status:** Verified for OpenIntelligence v4.3 on 2026-06-20.
+> **Documentation status:** Verified for OpenIntelligence v4.4 on 2026-06-30.
 > **Source of truth:** Codebase audit in `Docs/AUDIT/`.
 > **Scope:** Describes shipped behavior unless explicitly labeled experimental, developer-only, or scaffolded.
 
@@ -40,12 +40,12 @@ flowchart TD
 1. **Import**: Files enter through Apple platform document workflows.
 2. **Extraction**: Text, layout, and metadata are extracted.
 3. **Chunking**: Chunks are generated with metadata using semantic and structure-aware rules.
-4. **Indexing**: Chunks are written into local search (SQLite FTS5) and vector databases ([BNNSVectorDatabase.swift](file:///Users/gunnarhostetler/Documents/GitHub/OpenIntelligence-Public/OpenIntelligence/Services/VectorStore/BNNSVectorDatabase.swift)).
+4. **Indexing**: Chunks are written into local search (SQLite FTS5) and vector databases ([BNNSVectorDatabase.swift](file:///Users/gunnarhostetler/Documents/GitHub/OpenIntelligence/OpenIntelligence/Services/VectorStore/BNNSVectorDatabase.swift)).
 5. **Query Analysis & Planning**: Incoming questions are classified, scoped, and prepared for retrieval.
 6. **Retrieval**: Candidate chunks are selected from the active library or workspace container.
 7. **Reranking and Packing**: Evidence is scored using a local Core ML TinyBERT cross-encoder (with proximity-based heuristic fallback if the model is absent), deduplicated (MMR), expanded with sibling context, and compressed.
 8. **Model Routing & Generation**: Resolves the routing policy. Queries in standard mode default to on-device execution (up to 4K tokens). Escalated modes (Deep Think/Maximum) route to a secure Private Cloud Compute (PCC) policy (supporting 32K tokens) executing natively on secure enclaves via `FoundationModels.PrivateCloudComputeLanguageModel` on iOS 27 / macOS 27+, falling back cleanly to local simulation on older OS versions.
-9. **Fidelity Verification**: Responses pass through negation and overlap verification checks in [VerificationGateService.swift](file:///Users/gunnarhostetler/Documents/GitHub/OpenIntelligence-Public/OpenIntelligence/Services/RAG/Safety/VerificationGateService.swift) to detect contradictions and determine if the engine should abstain.
+9. **Fidelity Verification**: Responses pass through negation and overlap verification checks in [VerificationGateService.swift](file:///Users/gunnarhostetler/Documents/GitHub/OpenIntelligence/OpenIntelligence/Services/RAG/Safety/VerificationGateService.swift) to detect contradictions and determine if the engine should abstain.
 10. **Presentation**: Answers are shown with liquid glass UI indicators, citations, quality gauges, and review affordances.
 11. **Continuous Evaluation**: Pipeline stages are run against local JSONL benchmarks and verified against quality targets (e.g. Recall@5 $\ge 0.85$, Citation Precision $\ge 0.90$) using the native Evaluations harness.
 

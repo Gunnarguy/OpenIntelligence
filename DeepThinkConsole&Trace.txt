@@ -25,27 +25,85 @@
 ℹ️  🚀 GPU Compute: Apple A18 Pro GPU ready for vector operations
 ℹ️  🚀 GPU Image Processing: Metal context ready for OCR
 ℹ️  Model resolved: Apple Intelligence (User Selected)
-ℹ️  📦 StoreKit returned 4 products
-ℹ️    ✅ Loaded: doc_pack_addon - Document Pack ($2.99)
+ℹ️  📦 StoreKit returned 3 products
 ℹ️    ✅ Loaded: lifetime_cohort - Lifetime Cohort ($59.99)
-ℹ️    ✅ Loaded: pro_annual - Pro Annual ($49.99)
 ℹ️    ✅ Loaded: pro_monthly - Pro Monthly ($5.99)
-🔍 [SuggestedQuestions] Cache invalidated for container B0E06DD9
-ℹ️  [BILLING] Products refreshed – {bundleId=Gunndamental.OpenIntelligence, environment=device, expected=4, loaded=4, loadedIDs=doc_pack_addon,lifetime_cohort,pro_annual,pro_monthly, missingIDs=, receiptPresent=unknown, receiptSandboxHint=unknown}
-🔍 [SuggestedQuestions] Cache invalidated for container B0E06DD9
-ℹ️  [BNNS] Loaded 115 chunks (mmap'd 0MB vectors, 0 bytes heap)
+ℹ️    ✅ Loaded: pro_annual - Pro Annual ($29.99)
+⚠️  ❌ Missing products: doc_pack_addon
+🔍 [SuggestedQuestions] Cache invalidated for container 9A09DC08
+ℹ️  [BILLING] Products refreshed – {bundleId=Gunndamental.OpenIntelligence, environment=device, expected=4, loaded=3, loadedIDs=lifetime_cohort,pro_annual,pro_monthly, missingIDs=doc_pack_addon, receiptPresent=unknown, receiptSandboxHint=unknown}
 ℹ️  ✅ Reconciled entitlement: lifetime_cohort
+🔍 [SuggestedQuestions] Cache invalidated for container 9A09DC08
+ℹ️  [BNNS] Loaded 32 chunks (mmap'd 0MB vectors, 0 bytes heap)
 ℹ️  🌍 StoreKit environment: Xcode, storefront: USA
 ℹ️  Entitlement reconciliation complete — activeTier: lifetime, effectiveTier: lifetime, legacy: historicalPaidPurchase, docs: 9223372036854775807, libs: 20
-ℹ️  [SuggestedQuestions] Returning 10 questions from bank (refresh: false)
-🔍 [SuggestedQuestions] Returning 10 cached questions for container
-🔍 [SuggestedQuestions] Returning 10 cached questions for container
-🔍 [SuggestedQuestions] Returning 10 cached questions for container
-ℹ️  [BNNS] Loaded 115 chunks (mmap'd 0MB vectors, 0 bytes heap)
+ℹ️  [BNNS] Loaded 32 chunks (mmap'd 0MB vectors, 0 bytes heap)
+ℹ️  [SuggestedQuestions] Returning 8 curated sample workspace questions
 ℹ️  [Consent Prewarm] Checking key 'cloudConsent.applePCC' = 'allowed'
 ℹ️  [Consent Prewarm] PCC consent already determined (persisted): allowed
+🔍 [ChatScreen] Generated 8 dynamic suggested questions (force: false)
+ℹ️  [BNNS] Loaded 32 chunks (mmap'd 0MB vectors, 0 bytes heap)
+ℹ️  [BNNS] Loaded 32 chunks (mmap'd 0MB vectors, 0 bytes heap)
+ℹ️  [BNNS] Loaded 32 chunks (mmap'd 0MB vectors, 0 bytes heap)
+🔍 [BNNS] Batch buffered 32 chunks (persist deferred)
+🔍 [BNNS] Persisted 32 chunks (32 mmap'd)
+ℹ️  [BNNS] Loaded 32 chunks (mmap'd 0MB vectors, 0 bytes heap)
+🔍 [BNNS] Batch buffered 32 chunks (persist deferred)
+🔍 [BNNS] Persisted 32 chunks (32 mmap'd)
+ℹ️  [BNNS] Loaded 2 chunks (mmap'd 0MB vectors, 0 bytes heap)
+🔍 [AutoAdapt] Skipping embedding shift - confidence 0.15 below threshold
+ℹ️  [SelfTuning] Skipping automatic rebuild/config change during standard ingestion for container 9A09DC08-759D-49DB-AC1C-84E92AB701B9. Explicit rebuild required for: Chunk strategy → Denseprecision • Window 350→300
+ℹ️  [BNNS] Loaded 2 chunks (mmap'd 0MB vectors, 0 bytes heap)
+ℹ️  [BNNS] Loaded 2 chunks (mmap'd 0MB vectors, 0 bytes heap)
+🔍 [BNNS] Batch buffered 2 chunks (persist deferred)
+🔍 [BNNS] Persisted 2 chunks (2 mmap'd)
+ℹ️  [BNNS] Loaded 2 chunks (mmap'd 0MB vectors, 0 bytes heap)
+🔍 [BNNS] Batch buffered 2 chunks (persist deferred)
+🔍 [BNNS] Persisted 2 chunks (2 mmap'd)
+ℹ️  [BNNS] Loaded 115 chunks (mmap'd 0MB vectors, 0 bytes heap)
+ℹ️  [BNNS] Loaded 115 chunks (mmap'd 0MB vectors, 0 bytes heap)
+ℹ️  [BNNS] Loaded 115 chunks (mmap'd 0MB vectors, 0 bytes heap)
+🔍 [BNNS] Batch buffered 115 chunks (persist deferred)
+🔍 [BNNS] Persisted 115 chunks (115 mmap'd)
+ℹ️  [BNNS] Loaded 115 chunks (mmap'd 0MB vectors, 0 bytes heap)
+🔍 [BNNS] Batch buffered 115 chunks (persist deferred)
+🔍 [BNNS] Persisted 115 chunks (115 mmap'd)
+ℹ️  [BNNS] Loaded 32 chunks (mmap'd 0MB vectors, 0 bytes heap)
+ℹ️  [BNNS] Loaded 32 chunks (mmap'd 0MB vectors, 0 bytes heap)
+ℹ️  [BNNS] Loaded 32 chunks (mmap'd 0MB vectors, 0 bytes heap)
+🔍 [BNNS] Batch buffered 32 chunks (persist deferred)
+🔍 [BNNS] Persisted 32 chunks (32 mmap'd)
+ℹ️  [BNNS] Loaded 32 chunks (mmap'd 0MB vectors, 0 bytes heap)
+🔍 [BNNS] Batch buffered 32 chunks (persist deferred)
+🔍 [BNNS] Persisted 32 chunks (32 mmap'd)
+ℹ️  [BNNS] Loaded 2 chunks (mmap'd 0MB vectors, 0 bytes heap)
+ℹ️  [BNNS] Loaded 2 chunks (mmap'd 0MB vectors, 0 bytes heap)
+ℹ️  [BNNS] Loaded 2 chunks (mmap'd 0MB vectors, 0 bytes heap)
+🔍 [BNNS] Batch buffered 2 chunks (persist deferred)
+🔍 [BNNS] Persisted 2 chunks (2 mmap'd)
+ℹ️  [BNNS] Loaded 2 chunks (mmap'd 0MB vectors, 0 bytes heap)
+🔍 [BNNS] Batch buffered 2 chunks (persist deferred)
+🔍 [BNNS] Persisted 2 chunks (2 mmap'd)
+ℹ️  [BNNS] Loaded 115 chunks (mmap'd 0MB vectors, 0 bytes heap)
+ℹ️  [BNNS] Loaded 115 chunks (mmap'd 0MB vectors, 0 bytes heap)
+ℹ️  [BNNS] Loaded 115 chunks (mmap'd 0MB vectors, 0 bytes heap)
+🔍 [BNNS] Batch buffered 115 chunks (persist deferred)
+🔍 [BNNS] Persisted 115 chunks (115 mmap'd)
+ℹ️  [BNNS] Loaded 115 chunks (mmap'd 0MB vectors, 0 bytes heap)
+🔍 [BNNS] Batch buffered 115 chunks (persist deferred)
+🔍 [BNNS] Persisted 115 chunks (115 mmap'd)
+ℹ️  [BNNS] Loaded 32 chunks (mmap'd 0MB vectors, 0 bytes heap)
+📝 [HardwareTelemetry] Haptic pulse: selection
+🔍 [SuggestedQuestions] Cache invalidated for container CE72BA0E
+🔍 [RAGService] Container changed: 9A09DC08 → CE72BA0E
+🔍 [TranscriptPersistence] Saved transcript with 1 entries for container 9A09DC08-759D-49DB-AC1C-84E92AB701B9
+ℹ️  [TranscriptPersistence] Loaded transcript with 1 entries for container CE72BA0E-73B0-421A-8445-0D26B6055C7B
+ℹ️  [AppleFM] Queued transcript with 1 entries for session restoration
+ℹ️  [BNNS] Loaded 2 chunks (mmap'd 0MB vectors, 0 bytes heap)
+ℹ️  [SuggestedQuestions] Returning 10 questions from bank (refresh: false)
 🔍 [ChatScreen] Generated 10 dynamic suggested questions (force: false)
-📝 [HardwareTelemetry] Haptic pulse: thermal-40
+⚠️  [TabBar] Selected tab changed from chat to documents
+📝 [HardwareTelemetry] Haptic pulse: tab
 ℹ️  [BNNS] Loaded 32 chunks (mmap'd 0MB vectors, 0 bytes heap)
 ℹ️  [BNNS] Loaded 32 chunks (mmap'd 0MB vectors, 0 bytes heap)
 ℹ️  [BNNS] Loaded 32 chunks (mmap'd 0MB vectors, 0 bytes heap)
@@ -70,50 +128,35 @@
 ℹ️  [BNNS] Loaded 115 chunks (mmap'd 0MB vectors, 0 bytes heap)
 🔍 [BNNS] Batch buffered 115 chunks (persist deferred)
 🔍 [BNNS] Persisted 115 chunks (115 mmap'd)
-ℹ️  [SelfTuning] Skipping automatic rebuild/config change during standard ingestion for container B0E06DD9-A83A-42EE-89AC-564860838BCC. Explicit rebuild required for: Chunk strategy → Denseprecision
+⚠️  [TabBar] Selected tab changed from documents to database
+ℹ️  [DatabaseDash] Phase 1: requesting getStatistics()
+ℹ️  [SQLiteFTS5] getStatistics() entered
+ℹ️  [SQLiteFTS5] Database initialized at /var/mobile/Containers/Data/Application/B99CF6F6-8EB9-41D9-9346-82D6F0620CAE/Library/Application Support/OpenIntelligence/LocalCache/FTS5/fulltext.sqlite
+ℹ️  [SQLiteFTS5] Chunk-level FTS5 table initialized
+ℹ️  [SQLiteFTS5] Page-level FTS5 table initialized
+ℹ️  [SQLiteFTS5] getStatistics() complete — 5 docs
+📝 [HardwareTelemetry] Haptic pulse: tab
+ℹ️  [DatabaseDash] Phase 1: getStatistics() complete, requesting getDocumentStats()
+ℹ️  [SQLiteFTS5] getDocumentStats() entered
+ℹ️  [SQLiteFTS5] getDocumentStats() complete — 1 docs
+ℹ️  [DatabaseDash] Phase 1: getDocumentStats() complete — showing UI
+ℹ️  [DatabaseDash] Phase 2: loading diagnostics/vocabulary
+ℹ️  [DatabaseDash] Phase 2: complete
+📝 [HardwareTelemetry] Haptic pulse: success
+⚠️  [TabBar] Selected tab changed from database to chat
+📝 [HardwareTelemetry] Haptic pulse: tab
 🔍 [RAGService] Reset Deep Think live metrics and audit snapshot
 ℹ️  [RAGService] Reset LLM session - context budget restored
-🔍 [RAGService] Deleted thread C63E6F24-7CBD-48A9-A4DC-B43F1594AD62
-🔍 [RAGService] Reset Deep Think live metrics and audit snapshot
-🔍 [ConversationMemory] Cleared memory for container B0E06DD9-A83A-42EE-89AC-564860838BCC
-🔍 [RAGService] Cleared chat history, transcript, memory, and live metrics for container B0E06DD9-A83A-42EE-89AC-564860838BCC
-ℹ️  [RAGService] Reset LLM session - context budget restored
-🔍 [TranscriptPersistence] Deleted transcript for container B0E06DD9-A83A-42EE-89AC-564860838BCC
-ℹ️  [BNNS] Loaded 32 chunks (mmap'd 0MB vectors, 0 bytes heap)
-ℹ️  [BNNS] Loaded 32 chunks (mmap'd 0MB vectors, 0 bytes heap)
-ℹ️  [BNNS] Loaded 32 chunks (mmap'd 0MB vectors, 0 bytes heap)
-🔍 [BNNS] Batch buffered 32 chunks (persist deferred)
-🔍 [BNNS] Persisted 32 chunks (32 mmap'd)
-ℹ️  [BNNS] Loaded 32 chunks (mmap'd 0MB vectors, 0 bytes heap)
-🔍 [BNNS] Batch buffered 32 chunks (persist deferred)
-🔍 [BNNS] Persisted 32 chunks (32 mmap'd)
-ℹ️  [BNNS] Loaded 2 chunks (mmap'd 0MB vectors, 0 bytes heap)
-ℹ️  [BNNS] Loaded 2 chunks (mmap'd 0MB vectors, 0 bytes heap)
-ℹ️  [BNNS] Loaded 2 chunks (mmap'd 0MB vectors, 0 bytes heap)
-🔍 [BNNS] Batch buffered 2 chunks (persist deferred)
-🔍 [BNNS] Persisted 2 chunks (2 mmap'd)
-ℹ️  [BNNS] Loaded 2 chunks (mmap'd 0MB vectors, 0 bytes heap)
-🔍 [BNNS] Batch buffered 2 chunks (persist deferred)
-🔍 [BNNS] Persisted 2 chunks (2 mmap'd)
-ℹ️  [BNNS] Loaded 115 chunks (mmap'd 0MB vectors, 0 bytes heap)
-ℹ️  [BNNS] Loaded 115 chunks (mmap'd 0MB vectors, 0 bytes heap)
-ℹ️  [BNNS] Loaded 115 chunks (mmap'd 0MB vectors, 0 bytes heap)
-🔍 [BNNS] Batch buffered 115 chunks (persist deferred)
-🔍 [BNNS] Persisted 115 chunks (115 mmap'd)
-ℹ️  [BNNS] Loaded 115 chunks (mmap'd 0MB vectors, 0 bytes heap)
-🔍 [BNNS] Batch buffered 115 chunks (persist deferred)
-🔍 [BNNS] Persisted 115 chunks (115 mmap'd)
-ℹ️  [BNNS] Loaded 115 chunks (mmap'd 0MB vectors, 0 bytes heap)
 ℹ️  [BackgroundTasks] Submitted continued query task
 📝 [HardwareTelemetry] Haptic pulse: selection
 📝 [HardwareTelemetry] Haptic pulse: message-sent
-ℹ️  [SYSTEM] Continued query submitted – {backgroundGPU=disabled, battery=70%, chip=A18 Pro, deviceTier=enhanced, formFactor=iPhone, lowPowerMode=off, mode=balanced, rationale=This device does not advertise background GPU support. | Continue on CPU/ANE-first routing to maximize survivability under background constraints., subtitle=Why are certain receptors critical fo…, thermal=Fair, title=Answering your questi…}
+ℹ️  [SYSTEM] Continued query submitted – {backgroundGPU=disabled, battery=40%, chip=A18 Pro, deviceTier=enhanced, formFactor=iPhone, lowPowerMode=off, mode=balanced, rationale=This device does not advertise background GPU support. | Continue on CPU/ANE-first routing to maximize survivability under background constraints., subtitle=What role do neurotransmitters play i…, thermal=Nominal, title=Answering your questi…}
 📝 [HardwareTelemetry] Haptic pulse: processing
 📝 [HardwareTelemetry] Haptic pulse: processing
 📝 [HardwareTelemetry] Haptic pulse: message-received
 📝 [HardwareTelemetry] Pulse RAG Pipeline @ 70%
 ℹ️  [QueryRuntime] PCC disabled → onDeviceOnly
-🔍 [QueryEnhancement] Intent: conceptual (keyword=0, conceptual=3)
+🔍 [QueryEnhancement] Intent: balanced (keyword=0, conceptual=0)
 ℹ️  [QueryRuntime] Using Deep Think mode (user selected)
 ℹ️  [RAG] Reliability-first fallbacks enabled
 ℹ️  [CoreMLSentenceEmbeddingProvider] Loaded EmbeddingModel.mlmodelc - compute: GPU+CPU (forced GPU mode)
@@ -123,36 +166,72 @@
 ╔══════════════════════════════════════════════════════════════╗
 ║ AGENTIC REASONING MODE                                       ║
 ╠══════════════════════════════════════════════════════════════╣
-║ 📝 Query: Why are certain receptors critical for dopamine re ║
+║ 📝 Query: What role do neurotransmitters play in motivation? ║
 ║ 🧠 Multi-session orchestration active                        ║
 ║ ⚡ Bypassing 4K single-session limit                          ║
 ╚══════════════════════════════════════════════════════════════╝
 🔍 [RAGService] Reset Deep Think live metrics and audit snapshot
 ℹ️  [RAGService] Reset LLM session - context budget restored
-🔍 [QueryEnhancement] Intent: conceptual (keyword=0, conceptual=3)
+ℹ️  [CoreMLSentenceEmbeddingProvider] Loaded EmbeddingModel.mlmodelc - compute: GPU+CPU (forced GPU mode)
+ℹ️  [CoreMLSentenceEmbeddingProvider] Loaded tokenizer
+ℹ️  [EmbeddingService] Using provider 'coreml_sentence_embedding' (available: true)
+ℹ️  [CoreMLSentenceEmbeddingProvider] Loaded EmbeddingModel.mlmodelc - compute: GPU+CPU (forced GPU mode)
+ℹ️  [CoreMLSentenceEmbeddingProvider] Loaded tokenizer
+ℹ️  [EmbeddingService] Using provider 'coreml_sentence_embedding' (available: true)
+🔍 [QueryEnhancement] Intent: balanced (keyword=0, conceptual=0)
+📝 [HardwareTelemetry] Pulse Embedding @ 80%
+📝 [HardwareTelemetry] Pulse Embedding @ 70%
+🔍 [CorpusVocabulary] Built vocabulary: 12 terms (kwMinFreq=1), 0 co-occurrence entries (coMinFreq=2), filtered 0 invalid terms
+🔍 [QueryEnhancement] Expanding query
+🔍 [QueryEnhancement] Key terms: role, neurotransmitters, play, motivation
+🔍 [QueryEnhancement] Produced 1 variations
+🔍 [FullRetrieval] Expanded query: What role do neurotransmitters play in motivation?...
+ℹ️  [Gazetteer] Loaded 742 terms from disk
+🔍 [Hybrid] Using FTS5-accelerated BM25 for container CE72BA0E-73B0-421A-8445-0D26B6055C7B
+🔍 [Hybrid] True parallel hybrid search starting (vector + FTS5)
+🔍 [SQLiteFTS5] Chunk search 'What role do neurotransmitters play in motivation?' needed OR fallback → 1 results
+🔍 [Hybrid] Keyword 'role' hit 50% of chunks — zero boost (≥50%)
+🔍 [Hybrid] Keyword 'neurotransmitters' hit 50% of chunks — zero boost (≥50%)
+🔍 [Hybrid] True parallel search completed in 9.7ms — 2 vector + 1 FTS5 + 0 row hits (0 lexical-only)
+ℹ️  [RAGEngine] Loaded ReRankerModel.mlmodelc
+ℹ️  [RAGEngine] Loaded ReRanker Tokenizer
+📝 [HardwareTelemetry] Pulse ReRanking @ 85%
+🔍 [RAGEngine] AI Re-ranking: raw -9.89→-2.60, normalized 0.10→0.90
+🔍 [RAGEngine] Top chunk preview: The document examines dopamine and serotonin signaling in psychiatry. It focuses on transient and sustained effects of these neurotransmitters. The pu...
+📝 [HardwareTelemetry] Pulse RAG Pipeline @ 70%
+📝 [HardwareTelemetry] Pulse Query Processing @ 50%
+🔍 [ExtractiveQA] Query parsing - Entities: [], Descriptive: ["role", "neurotransmitters", "play", "motivation"]
+🔍 [ExtractiveQA] Primary entities: []
+🔍 [ExtractiveQA] Descriptive keywords: ["role", "motivation", "neurotransmitters", "play"]
+🔍 [ExtractiveQA] No proximity match found (best: 0.0)
+🔍 [ExtractiveQA] No specification values found in chunks
+🔍 [QueryEnhancement] Intent: balanced (keyword=0, conceptual=0)
 ℹ️  [Agentic] Self-RAG: Document retrieval needed
 ℹ️  [Agentic] Step 1: Multi-query retrieval for universal coverage
-🔍 [QueryEnhancement] Intent: conceptual (keyword=0, conceptual=3)
+🔍 [QueryEnhancement] Intent: balanced (keyword=0, conceptual=0)
 🔍 AppleFoundationLLMService initialized (model will be loaded on first use)
 ℹ️  System prompt changed, recreating session
 🔍 General chat mode: prompt=Write concrete search phrases for the exact questi...
-🔍 Generation: ~158 tokens, exec=automatic
+🔍 Generation: ~151 tokens, exec=automatic
 ℹ️  Model resolved: Apple Intelligence (User Selected)
 ℹ️  [GENERATION] Apple FM: Generation started – {execPref=automatic, maxTokens=200, pccAllowed=true, route=onDevice, temperature=0.7}
 📝 [HardwareTelemetry] Sustain START LLM Inference
 ℹ️  Model resolved: Apple Intelligence (3B Core) (User Selected)
-ℹ️  [FM] First token in 1.76s (📱 On-Device (3B Core))
+ℹ️  [FM] First token in 2.11s (📱 On-Device (3B Core))
 📝 [HardwareTelemetry] Haptic pulse: generation-start
 📝 [HardwareTelemetry] Haptic pulse: generation-tick
+📝 [HardwareTelemetry] Haptic pulse: generation-tick
+📝 [HardwareTelemetry] Haptic pulse: generation-tick
+📝 [HardwareTelemetry] Haptic pulse: generation-tick
 📝 [HardwareTelemetry] Sustain STOP LLM Inference
-🔍 [FM] Stream complete: 14 snapshots, 112 chars
-ℹ️  [FM] Generation complete: 12 words in 2.02s (📱 On-Device (3B Core))
+🔍 [FM] Stream complete: 32 snapshots, 170 chars
+ℹ️  [FM] Generation complete: 19 words in 2.61s (📱 On-Device (3B Core))
 ℹ️  [FM] Response appears incomplete - attempting continuation
 📝 [HardwareTelemetry] Haptic pulse: generation-complete
-ℹ️  [GENERATION] Apple FM: Generation complete – {exec=Apple Intelligence (3B Core), tokens=12, totalTime=2.02, ttft=1.76}
+ℹ️  [GENERATION] Apple FM: Generation complete – {exec=Apple Intelligence (3B Core), tokens=19, totalTime=2.61, ttft=2.11}
 🔍 [FM] Repetition ratio: 100.0%
 ⚠️  [FM] Continuation detected as repetitive - stopping
-ℹ️  [MultiQuery] Generated 3 search queries: ["dopamine regulation receptors", "Dopamine regulation receptor function", "Dopamine regulation receptor necessity"]
+ℹ️  [MultiQuery] Generated 4 search queries: ["neurotransmitters AND motivation", "Role of neurotransmitters in motivation", "Neurotransmitters function in motivation", "Neurotransmitters influence motivation"]
 🔍 [Deep Think] Query Generation: +50 tokens (total: 50)
 ℹ️  [CoreMLSentenceEmbeddingProvider] Loaded EmbeddingModel.mlmodelc - compute: GPU+CPU (forced GPU mode)
 ℹ️  [CoreMLSentenceEmbeddingProvider] Loaded tokenizer
@@ -160,32 +239,44 @@
 🔍 [QueryEnhancement] Intent: balanced (keyword=1, conceptual=0)
 📝 [HardwareTelemetry] Pulse Embedding @ 80%
 📝 [HardwareTelemetry] Pulse Embedding @ 70%
-🔍 [CorpusVocabulary] Built vocabulary: 1610 terms (kwMinFreq=1), 892 co-occurrence entries (coMinFreq=2), filtered 0 invalid terms
 🔍 [QueryEnhancement] Expanding query
-🔍 [QueryEnhancement] Key terms: dopamine, regulation, receptors
-🔍 [QueryEnhancement] Corpus expansions: dopamine receptors potentiate, dopamine receptors potentiate NMDApotassium
-🔍 [QueryEnhancement] Produced 3 variations
-ℹ️  [Gazetteer] Loaded 742 terms from disk
-🔍 [FullRetrieval] Expanded query: dopamine regulation receptors dopamine receptors potentiate dopamine receptors potentiate NMDApotass...
-ℹ️  [SQLiteFTS5] Database initialized at /var/mobile/Containers/Data/Application/594C0004-6864-406A-A36C-4280F723FFCE/Library/Application Support/OpenIntelligence/LocalCache/FTS5/fulltext.sqlite
-ℹ️  [SQLiteFTS5] Chunk-level FTS5 table initialized
-ℹ️  [SQLiteFTS5] Page-level FTS5 table initialized
-🔍 [Hybrid] Using FTS5-accelerated BM25 for container B0E06DD9-A83A-42EE-89AC-564860838BCC
+🔍 [QueryEnhancement] Key terms: neurotransmitters, motivation
+🔍 [QueryEnhancement] Produced 1 variations
+🔍 [FullRetrieval] Gazetteer added 1 domain terms
+🔍 [FullRetrieval] Expanded query: neurotransmitters AND motivation ER...
+🔍 [Hybrid] Using FTS5-accelerated BM25 for container CE72BA0E-73B0-421A-8445-0D26B6055C7B
 🔍 [Hybrid] True parallel hybrid search starting (vector + FTS5)
-🔍 [SQLiteFTS5] Chunk search 'dopamine regulation receptors' returned 11 results
-ℹ️  [Hybrid] FTS5 found 1 chunks missed by vector search (true hybrid gain)
-🔍 [Hybrid] Keyword 'dopamine' hit 83% of chunks — zero boost (≥50%)
-🔍 [Hybrid] Keyword boost: 30/91 chunks boosted for ["regulation(64%)", "receptors(51%)"] (filtered 1 at ≥50% hit rate)
-🔍 [Hybrid] Structure boost: 12 table/list chunks boosted for spec query
-🔍 [Hybrid] True parallel search completed in 77.3ms — 90 vector + 11 FTS5 + 0 row hits (1 lexical-only)
-ℹ️  [RAGEngine] Loaded ReRankerModel.mlmodelc
-ℹ️  [RAGEngine] Loaded ReRanker Tokenizer
+🔍 [SQLiteFTS5] Chunk search 'neurotransmitters AND motivation' needed OR fallback → 1 results
+🔍 [Hybrid] Keyword 'neurotransmitters' hit 50% of chunks — zero boost (≥50%)
+🔍 [Hybrid] Keyword 'and' hit 50% of chunks — zero boost (≥50%)
+🔍 [Hybrid] True parallel search completed in 49.1ms — 2 vector + 1 FTS5 + 0 row hits (0 lexical-only)
 📝 [HardwareTelemetry] Pulse ReRanking @ 85%
-🔍 [RAGEngine] AI Re-ranking: raw -5.96→5.31, normalized 0.10→0.90
-🔍 [RAGEngine] Top chunk preview: 80. Ford CP. The role of D2-autoreceptors in regulating dopamine neuron 663- -673. sion mediated by Gi/o-coupled receptors. Trends Neurosci. 2014; 37:...
+🔍 [RAGEngine] AI Re-ranking: raw -10.27→-6.44, normalized 0.10→0.90
+🔍 [RAGEngine] Top chunk preview: The document examines dopamine and serotonin signaling in psychiatry. It focuses on transient and sustained effects of these neurotransmitters. The pu...
 📝 [HardwareTelemetry] Pulse RAG Pipeline @ 70%
 📝 [HardwareTelemetry] Pulse Query Processing @ 50%
-ℹ️  [FullRetrieval] Spec sniper added 3 targeted chunks
+ℹ️  [CoreMLSentenceEmbeddingProvider] Loaded EmbeddingModel.mlmodelc - compute: GPU+CPU (forced GPU mode)
+ℹ️  [CoreMLSentenceEmbeddingProvider] Loaded tokenizer
+ℹ️  [EmbeddingService] Using provider 'coreml_sentence_embedding' (available: true)
+🔍 [QueryEnhancement] Intent: balanced (keyword=0, conceptual=0)
+📝 [HardwareTelemetry] Pulse Embedding @ 80%
+📝 [HardwareTelemetry] Pulse Embedding @ 70%
+🔍 [QueryEnhancement] Expanding query
+🔍 [QueryEnhancement] Key terms: Role, neurotransmitters, motivation
+🔍 [QueryEnhancement] Produced 1 variations
+🔍 [FullRetrieval] Gazetteer added 1 domain terms
+🔍 [FullRetrieval] Expanded query: Role of neurotransmitters in motivation ER...
+🔍 [Hybrid] Using FTS5-accelerated BM25 for container CE72BA0E-73B0-421A-8445-0D26B6055C7B
+🔍 [Hybrid] True parallel hybrid search starting (vector + FTS5)
+🔍 [SQLiteFTS5] Chunk search 'Role of neurotransmitters in motivation' needed OR fallback → 1 results
+🔍 [Hybrid] Keyword 'role' hit 50% of chunks — zero boost (≥50%)
+🔍 [Hybrid] Keyword 'neurotransmitters' hit 50% of chunks — zero boost (≥50%)
+🔍 [Hybrid] True parallel search completed in 30.1ms — 2 vector + 1 FTS5 + 0 row hits (0 lexical-only)
+📝 [HardwareTelemetry] Pulse ReRanking @ 85%
+🔍 [RAGEngine] AI Re-ranking: raw -9.98→-3.54, normalized 0.10→0.90
+🔍 [RAGEngine] Top chunk preview: The document examines dopamine and serotonin signaling in psychiatry. It focuses on transient and sustained effects of these neurotransmitters. The pu...
+📝 [HardwareTelemetry] Pulse RAG Pipeline @ 70%
+📝 [HardwareTelemetry] Pulse Query Processing @ 50%
 ℹ️  [CoreMLSentenceEmbeddingProvider] Loaded EmbeddingModel.mlmodelc - compute: GPU+CPU (forced GPU mode)
 ℹ️  [CoreMLSentenceEmbeddingProvider] Loaded tokenizer
 ℹ️  [EmbeddingService] Using provider 'coreml_sentence_embedding' (available: true)
@@ -193,23 +284,20 @@
 📝 [HardwareTelemetry] Pulse Embedding @ 80%
 📝 [HardwareTelemetry] Pulse Embedding @ 70%
 🔍 [QueryEnhancement] Expanding query
-🔍 [QueryEnhancement] Key terms: Dopamine, regulation, receptor, function
-🔍 [QueryEnhancement] Corpus expansions: Dopamine regulation receptor function controls transient have projection sites, dopamine receptors potentiate
-🔍 [QueryEnhancement] Produced 3 variations
-🔍 [FullRetrieval] Expanded query: Dopamine regulation receptor function Dopamine regulation receptor function controls transient have ...
-🔍 [Hybrid] Using FTS5-accelerated BM25 for container B0E06DD9-A83A-42EE-89AC-564860838BCC
+🔍 [QueryEnhancement] Key terms: Neurotransmitters, function, motivation
+🔍 [QueryEnhancement] Produced 1 variations
+🔍 [FullRetrieval] Gazetteer added 1 domain terms
+🔍 [FullRetrieval] Expanded query: Neurotransmitters function in motivation ER...
+🔍 [Hybrid] Using FTS5-accelerated BM25 for container CE72BA0E-73B0-421A-8445-0D26B6055C7B
 🔍 [Hybrid] True parallel hybrid search starting (vector + FTS5)
-🔍 [SQLiteFTS5] Chunk search 'Dopamine regulation receptor function' returned 5 results
-🔍 [Hybrid] Keyword 'dopamine' hit 80% of chunks — zero boost (≥50%)
-🔍 [Hybrid] Keyword boost: 37/90 chunks boosted for ["regulation(68%)", "receptor(46%)", "function(57%)"] (filtered 1 at ≥50% hit rate)
-🔍 [Hybrid] Structure boost: 11 table/list chunks boosted for spec query
-🔍 [Hybrid] True parallel search completed in 57.6ms — 90 vector + 5 FTS5 + 0 row hits (0 lexical-only)
+🔍 [SQLiteFTS5] Chunk search 'Neurotransmitters function in motivation' needed OR fallback → 1 results
+🔍 [Hybrid] Keyword 'neurotransmitters' hit 50% of chunks — zero boost (≥50%)
+🔍 [Hybrid] True parallel search completed in 27.6ms — 2 vector + 1 FTS5 + 0 row hits (0 lexical-only)
 📝 [HardwareTelemetry] Pulse ReRanking @ 85%
-🔍 [RAGEngine] AI Re-ranking: raw -7.24→4.77, normalized 0.10→0.90
-🔍 [RAGEngine] Top chunk preview: 80. Ford CP. The role of D2-autoreceptors in regulating dopamine neuron 663- -673. sion mediated by Gi/o-coupled receptors. Trends Neurosci. 2014; 37:...
+🔍 [RAGEngine] AI Re-ranking: raw -10.54→-6.20, normalized 0.10→0.90
+🔍 [RAGEngine] Top chunk preview: The document examines dopamine and serotonin signaling in psychiatry. It focuses on transient and sustained effects of these neurotransmitters. The pu...
 📝 [HardwareTelemetry] Pulse RAG Pipeline @ 70%
 📝 [HardwareTelemetry] Pulse Query Processing @ 50%
-ℹ️  [FullRetrieval] Spec sniper added 3 targeted chunks
 ℹ️  [CoreMLSentenceEmbeddingProvider] Loaded EmbeddingModel.mlmodelc - compute: GPU+CPU (forced GPU mode)
 ℹ️  [CoreMLSentenceEmbeddingProvider] Loaded tokenizer
 ℹ️  [EmbeddingService] Using provider 'coreml_sentence_embedding' (available: true)
@@ -217,54 +305,50 @@
 📝 [HardwareTelemetry] Pulse Embedding @ 80%
 📝 [HardwareTelemetry] Pulse Embedding @ 70%
 🔍 [QueryEnhancement] Expanding query
-🔍 [QueryEnhancement] Key terms: Dopamine, regulation, receptor, necessity
-🔍 [QueryEnhancement] Corpus expansions: Dopamine regulation receptor necessity monoamine function d2 receptor serotonin, dopamine receptors potentiate
-🔍 [QueryEnhancement] Produced 3 variations
+🔍 [QueryEnhancement] Key terms: Neurotransmitters, influence, motivation
+🔍 [QueryEnhancement] Produced 1 variations
 🔍 [FullRetrieval] Gazetteer added 1 domain terms
-🔍 [FullRetrieval] Expanded query: Dopamine regulation receptor necessity Dopamine regulation receptor necessity monoamine function d2 ...
-🔍 [Hybrid] Using FTS5-accelerated BM25 for container B0E06DD9-A83A-42EE-89AC-564860838BCC
+🔍 [FullRetrieval] Expanded query: Neurotransmitters influence motivation ER...
+🔍 [Hybrid] Using FTS5-accelerated BM25 for container CE72BA0E-73B0-421A-8445-0D26B6055C7B
 🔍 [Hybrid] True parallel hybrid search starting (vector + FTS5)
-🔍 [SQLiteFTS5] Chunk search 'Dopamine regulation receptor necessity' needed OR fallback → 60 results
-ℹ️  [Hybrid] FTS5 found 10 chunks missed by vector search (true hybrid gain)
-🔍 [Hybrid] Keyword 'dopamine' hit 82% of chunks — zero boost (≥50%)
-🔍 [Hybrid] Keyword boost: 36/100 chunks boosted for ["regulation(64%)", "receptor(46%)", "necessity(100%)"] (filtered 1 at ≥50% hit rate)
-🔍 [Hybrid] Structure boost: 18 table/list chunks boosted for spec query
-🔍 [Hybrid] True parallel search completed in 77.0ms — 90 vector + 60 FTS5 + 0 row hits (10 lexical-only)
+🔍 [SQLiteFTS5] Chunk search 'Neurotransmitters influence motivation' needed OR fallback → 1 results
+🔍 [Hybrid] Keyword 'neurotransmitters' hit 50% of chunks — zero boost (≥50%)
+🔍 [Hybrid] True parallel search completed in 42.9ms — 2 vector + 1 FTS5 + 0 row hits (0 lexical-only)
 📝 [HardwareTelemetry] Pulse ReRanking @ 85%
-🔍 [RAGEngine] AI Re-ranking: raw -8.20→-1.34, normalized 0.10→0.90
-🔍 [RAGEngine] Top chunk preview: Kim KM, Baratta MV, Yang A, Lee D, Boyden ES, Fiorillo CD 7: e33612. natural reward is sufficient for operant reinforcement. PLoS One 2012; 46. Rossi ...
+🔍 [RAGEngine] AI Re-ranking: raw -10.67→-8.16, normalized 0.10→0.90
+🔍 [RAGEngine] Top chunk preview: The document examines dopamine and serotonin signaling in psychiatry. It focuses on transient and sustained effects of these neurotransmitters. The pu...
 📝 [HardwareTelemetry] Pulse RAG Pipeline @ 70%
 📝 [HardwareTelemetry] Pulse Query Processing @ 50%
-ℹ️  [FullRetrieval] Spec sniper added 3 targeted chunks
-🔍 [MultiQuery] Top chunk (reranker score 0.78): ellular structures, including presynapse, postsynapse, and axon initial segments...
-ℹ️  [MultiQuery] Fused 168 results into 20 unique chunks
+🔍 [MultiQuery] Top chunk (reranker score 0.90): The document examines dopamine and serotonin signaling in psychiatry. It focuses...
+ℹ️  [MultiQuery] Fused 8 results into 2 unique chunks
 🔍 [Deep Think] Multi-Query Search: +0 tokens (total: 50)
-🔍 [LexicalRelevance] 3/5 keywords found = 60%
-ℹ️  [Agentic] Relevance check: lexical=60%, intent=true
+🔍 [LexicalRelevance] 2/4 keywords found = 50%
+ℹ️  [Agentic] Relevance check: lexical=50%, intent=true
 ℹ️  [Agentic] Retrieval quality: Excellent (>50% match), Intent valid: true
 ℹ️  [Agentic] Excellent retrieval → reasoning chain
 ℹ️  [Agentic] Using 5-session reasoning chain
-🔍 [QueryEnhancement] Intent: conceptual (keyword=0, conceptual=3)
-ℹ️  [ReasoningChain] Starting dynamic 4-8-session chain for: Why are certain receptors critical for d... (confidence reporting: true, threshold: 90%)
-🔍 [ReasoningChain] Session 1: 37 sentences from 3 sources (3433 chars)
-🔍 [ReasoningChain] Session 2: 40 sentences from 3 sources (3397 chars)
-🔍 [ReasoningChain] Session 3: 34 sentences from 3 sources (3456 chars)
-🔍 [ReasoningChain] Session 4: 33 sentences from 3 sources (3435 chars)
-🔍 [ReasoningChain] Session 5: 36 sentences from 3 sources (3455 chars)
-🔍 [ReasoningChain] Session 6: 39 sentences from 3 sources (3430 chars)
-🔍 [ReasoningChain] Session 7: 32 sentences from 3 sources (2302 chars)
-🔍 [ReasoningChain] Session 8: 30 sentences from 3 sources (3376 chars)
-🔍 [ReasoningChain] Built 8 rotating contexts (first: 3433 chars, 4 chunks/session, stride 2)
+🔍 [QueryEnhancement] Intent: balanced (keyword=0, conceptual=0)
+ℹ️  [ReasoningChain] Starting dynamic 4-8-session chain for: What role do neurotransmitters play in m... (confidence reporting: true, threshold: 90%)
+🔍 [ReasoningChain] Session 1: 2 sentences from 1 sources (285 chars)
+🔍 [ReasoningChain] Session 2: 2 sentences from 1 sources (285 chars)
+🔍 [ReasoningChain] Session 3: 2 sentences from 1 sources (285 chars)
+🔍 [ReasoningChain] Session 4: 2 sentences from 1 sources (285 chars)
+🔍 [ReasoningChain] Session 5: 2 sentences from 1 sources (285 chars)
+🔍 [ReasoningChain] Session 6: 2 sentences from 1 sources (285 chars)
+🔍 [ReasoningChain] Session 7: 2 sentences from 1 sources (285 chars)
+🔍 [ReasoningChain] Session 8: 2 sentences from 1 sources (285 chars)
+🔍 [ReasoningChain] Built 8 rotating contexts (first: 285 chars, 2 chunks/session, stride 1)
 ℹ️  [ReasoningChain] DEEP THINK MODE: Dynamic 4-8 sessions, targeting 90% confidence
 🔍 [ReasoningChain] Session 1/4-8 (deep think, confidence: 10%)
-🔍 [ReasoningChain] Session 1 context (3433 chars): [S4] 80. Ford CP. The role of D2-autoreceptors in regulating dopamine neuron — (Psychiatry Clin Neurosci - 2019 - Yagishita - Transient and sustained effects of dopamine and serotonin signaling in-2.pdf)
-Adolescent stress-induced epigenetic control of dopaminergic neurons via glucocorticoids. Alvarez VA. Dopamine regulation of lateral inhibition between striatal > 2013;339:335-339. The role of D2-autoreceptors in regulating dopamine neuron. Alvarez VA. Dopamine regulation of lateral inhibition b...
+🔍 [ReasoningChain] Session 1 context (285 chars): [S1] Document Summary — (Psychiatry Clin Neurosci - 2019 - Yagishita - Transient and sustained effects of dopamine and serotonin signaling in.pdf)
+It focuses on transient and sustained effects of these neurotransmitters. The purpose is to analyze their roles in psychiatric disorders.
+...
 ℹ️  System prompt changed, recreating session
-🔍 General chat mode: prompt=QUESTION: Why are certain receptors critical for d...
-🔍 Generation: ~1537 tokens, exec=automatic
+🔍 General chat mode: prompt=QUESTION: What role do neurotransmitters play in m...
+🔍 Generation: ~274 tokens, exec=automatic
 ℹ️  [GENERATION] Apple FM: Generation started – {execPref=automatic, maxTokens=700, pccAllowed=true, route=onDevice, temperature=0.5}
 📝 [HardwareTelemetry] Sustain START LLM Inference
-ℹ️  [FM] First token in 2.82s (📱 On-Device (3B Core))
+ℹ️  [FM] First token in 3.05s (📱 On-Device (3B Core))
 📝 [HardwareTelemetry] Haptic pulse: generation-start
 📝 [HardwareTelemetry] Haptic pulse: generation-tick
 📝 [HardwareTelemetry] Haptic pulse: generation-tick
@@ -283,69 +367,44 @@ Adolescent stress-induced epigenetic control of dopaminergic neurons via glucoco
 📝 [HardwareTelemetry] Haptic pulse: generation-tick
 📝 [HardwareTelemetry] Haptic pulse: generation-tick
 📝 [HardwareTelemetry] Haptic pulse: generation-tick
-📝 [HardwareTelemetry] Haptic pulse: generation-tick
-📝 [HardwareTelemetry] Haptic pulse: generation-tick
-📝 [HardwareTelemetry] Haptic pulse: generation-tick
-📝 [HardwareTelemetry] Haptic pulse: generation-tick
-📝 [HardwareTelemetry] Haptic pulse: generation-tick
-📝 [HardwareTelemetry] Haptic pulse: generation-tick
-📝 [HardwareTelemetry] Haptic pulse: generation-tick
-📝 [HardwareTelemetry] Haptic pulse: generation-tick
-📝 [HardwareTelemetry] Haptic pulse: generation-tick
-📝 [HardwareTelemetry] Haptic pulse: generation-tick
-📝 [HardwareTelemetry] Haptic pulse: generation-tick
-📝 [HardwareTelemetry] Haptic pulse: generation-tick
-📝 [HardwareTelemetry] Haptic pulse: generation-tick
-📝 [HardwareTelemetry] Haptic pulse: generation-tick
-📝 [HardwareTelemetry] Haptic pulse: generation-tick
-📝 [HardwareTelemetry] Haptic pulse: generation-tick
-📝 [HardwareTelemetry] Haptic pulse: generation-tick
-📝 [HardwareTelemetry] Haptic pulse: generation-tick
-📝 [HardwareTelemetry] Haptic pulse: generation-tick
-📝 [HardwareTelemetry] Haptic pulse: generation-tick
-📝 [HardwareTelemetry] Haptic pulse: generation-tick
 📝 [HardwareTelemetry] Sustain STOP LLM Inference
-🔍 [FM] Stream complete: 304 snapshots, 1932 chars
-ℹ️  [FM] Generation complete: 258 words in 11.87s (📱 On-Device (3B Core))
+🔍 [FM] Stream complete: 140 snapshots, 915 chars
+ℹ️  [FM] Generation complete: 116 words in 7.15s (📱 On-Device (3B Core))
 📝 [HardwareTelemetry] Haptic pulse: generation-complete
-ℹ️  [GENERATION] Apple FM: Generation complete – {exec=Apple Intelligence (3B Core), tokens=258, totalTime=11.87, ttft=2.82}
-ℹ️  [ReasoningChain] Evidence confidence: 37% (coverage: 66%, novelty: 89%, saturation: 0%, lowNovelty=0, saturationStreak=0)
-🔍 [ReasoningChain] Session 1 insight: Certain receptors are critical for dopamine regulation because they help modulat...
-🔍 [ReasoningChain] Session 2/4-8 (deep think, confidence: 37%)
-🔍 [ReasoningChain] Session 2 context (3397 chars): [S2] 80. Ford CP. The role of D2-autoreceptors in regulating dopamine neuron — (Psychiatry Clin Neurosci - 2019 - Yagishita - Transient and sustained effects of dopamine and serotonin signaling in-2.pdf)
-Adolescent stress-induced epigenetic control of dopaminergic neurons via glucocorticoids. Alvarez VA. Dopamine regulation of lateral inhibition between striatal > 2013;339:335-339. The role of D2-autoreceptors in regulating dopamine neuron. Alvarez VA. Dopamine regulation of lateral inhibition b...
+ℹ️  [GENERATION] Apple FM: Generation complete – {exec=Apple Intelligence (3B Core), tokens=116, totalTime=7.15, ttft=3.05}
+ℹ️  [ReasoningChain] Evidence confidence: 38% (coverage: 80%, novelty: 93%, saturation: 0%, lowNovelty=0, saturationStreak=0)
+🔍 [ReasoningChain] Session 1 insight: Neurotransmitters play a significant role in motivation, particularly through th...
+🔍 [ReasoningChain] Session 2/4-8 (deep think, confidence: 38%)
+🔍 [ReasoningChain] Session 2 context (285 chars): [S1] Document Summary — (Psychiatry Clin Neurosci - 2019 - Yagishita - Transient and sustained effects of dopamine and serotonin signaling in.pdf)
+It focuses on transient and sustained effects of these neurotransmitters. The purpose is to analyze their roles in psychiatric disorders.
+...
 ℹ️  System prompt changed, recreating session
-🔍 General chat mode: prompt=QUESTION: Why are certain receptors critical for d...
-🔍 Generation: ~1309 tokens, exec=automatic
+🔍 General chat mode: prompt=QUESTION: What role do neurotransmitters play in m...
+🔍 Generation: ~522 tokens, exec=automatic
 ℹ️  [GENERATION] Apple FM: Generation started – {execPref=automatic, maxTokens=700, pccAllowed=true, route=onDevice, temperature=0.5}
 📝 [HardwareTelemetry] Sustain START LLM Inference
-ℹ️  [FM] First token in 3.37s (📱 On-Device (3B Core))
+ℹ️  [FM] First token in 2.23s (📱 On-Device (3B Core))
 📝 [HardwareTelemetry] Haptic pulse: generation-start
 📝 [HardwareTelemetry] Haptic pulse: generation-tick
 📝 [HardwareTelemetry] Haptic pulse: generation-tick
-📝 [HardwareTelemetry] Haptic pulse: generation-tick
-📝 [HardwareTelemetry] Haptic pulse: generation-tick
-📝 [HardwareTelemetry] Haptic pulse: generation-tick
-📝 [HardwareTelemetry] Haptic pulse: generation-tick
-📝 [HardwareTelemetry] Haptic pulse: generation-tick
-📝 [HardwareTelemetry] Haptic pulse: generation-tick
 📝 [HardwareTelemetry] Sustain STOP LLM Inference
-🔍 [FM] Stream complete: 68 snapshots, 379 chars
-ℹ️  [FM] Generation complete: 48 words in 4.77s (📱 On-Device (3B Core))
+🔍 [FM] Stream complete: 20 snapshots, 117 chars
+ℹ️  [FM] Generation complete: 17 words in 2.52s (📱 On-Device (3B Core))
 📝 [HardwareTelemetry] Haptic pulse: generation-complete
-ℹ️  [GENERATION] Apple FM: Generation complete – {exec=Apple Intelligence (3B Core), tokens=48, totalTime=4.77, ttft=3.37}
-ℹ️  [ReasoningChain] Evidence confidence: 43% (coverage: 66%, novelty: 75%, saturation: 0%, lowNovelty=0, saturationStreak=0)
-🔍 [ReasoningChain] Session 2 insight: Rapid activation of striatal D2-receptors is associated with phasic dopamine rel...
-🔍 [ReasoningChain] Session 3/4-8 (deep think, confidence: 43%)
-🔍 [ReasoningChain] Session 3 context (3456 chars): [S4] REVIEW ARTICLE — (Psychiatry Clin Neurosci - 2019 - Yagishita - Transient and sustained effects of dopamine and serotonin signaling in-2.pdf)
-movements.40 In addition to effort-related behavior, optogenetic stimulation of dopamine neurons in the VTA modulates aggressive behavior acutely, although a detailed time course was not clari ed.48. (b) Schematic representing sustained by transient alteration in dopamine and serosient dopamine and serotonin signal cause long-lasting effects to modity...
+ℹ️  [GENERATION] Apple FM: Generation complete – {exec=Apple Intelligence (3B Core), tokens=17, totalTime=2.52, ttft=2.23}
+ℹ️  [ReasoningChain] Evidence confidence: 44% (coverage: 80%, novelty: 66%, saturation: 0%, lowNovelty=0, saturationStreak=0)
+🔍 [ReasoningChain] Session 2 insight: According to [S1], the analysis of dopamine and serotonin signaling focuses on t...
+🔍 [ReasoningChain] Session 3/4-8 (deep think, confidence: 44%)
+🔍 [ReasoningChain] Session 3 context (285 chars): [S1] Document Summary — (Psychiatry Clin Neurosci - 2019 - Yagishita - Transient and sustained effects of dopamine and serotonin signaling in.pdf)
+It focuses on transient and sustained effects of these neurotransmitters. The purpose is to analyze their roles in psychiatric disorders.
+...
 ℹ️  System prompt changed, recreating session
-🔍 General chat mode: prompt=QUESTION: Why are certain receptors critical for d...
-🔍 Generation: ~1508 tokens, exec=automatic
+🔍 General chat mode: prompt=QUESTION: What role do neurotransmitters play in m...
+🔍 Generation: ~616 tokens, exec=automatic
 ℹ️  [GENERATION] Apple FM: Generation started – {execPref=automatic, maxTokens=700, pccAllowed=true, route=onDevice, temperature=0.5}
 📝 [HardwareTelemetry] Sustain START LLM Inference
-📝 [HardwareTelemetry] Haptic pulse: thermal-70
-ℹ️  [FM] First token in 2.66s (📱 On-Device (3B Core))
+📝 [HardwareTelemetry] Haptic pulse: thermal-40
+ℹ️  [FM] First token in 3.68s (📱 On-Device (3B Core))
 📝 [HardwareTelemetry] Haptic pulse: generation-start
 📝 [HardwareTelemetry] Haptic pulse: generation-tick
 📝 [HardwareTelemetry] Haptic pulse: generation-tick
@@ -360,52 +419,22 @@ movements.40 In addition to effort-related behavior, optogenetic stimulation of 
 📝 [HardwareTelemetry] Haptic pulse: generation-tick
 📝 [HardwareTelemetry] Haptic pulse: generation-tick
 📝 [HardwareTelemetry] Haptic pulse: generation-tick
-📝 [HardwareTelemetry] Haptic pulse: generation-tick
-📝 [HardwareTelemetry] Haptic pulse: generation-tick
-📝 [HardwareTelemetry] Haptic pulse: generation-tick
-📝 [HardwareTelemetry] Haptic pulse: generation-tick
-📝 [HardwareTelemetry] Haptic pulse: generation-tick
-📝 [HardwareTelemetry] Haptic pulse: generation-tick
-📝 [HardwareTelemetry] Haptic pulse: generation-tick
-📝 [HardwareTelemetry] Haptic pulse: generation-tick
-📝 [HardwareTelemetry] Haptic pulse: generation-tick
-📝 [HardwareTelemetry] Haptic pulse: generation-tick
-📝 [HardwareTelemetry] Haptic pulse: generation-tick
-📝 [HardwareTelemetry] Haptic pulse: generation-tick
-📝 [HardwareTelemetry] Haptic pulse: generation-tick
-📝 [HardwareTelemetry] Haptic pulse: generation-tick
-📝 [HardwareTelemetry] Haptic pulse: generation-tick
-📝 [HardwareTelemetry] Haptic pulse: generation-tick
-📝 [HardwareTelemetry] Haptic pulse: generation-tick
-📝 [HardwareTelemetry] Haptic pulse: generation-tick
-📝 [HardwareTelemetry] Haptic pulse: generation-tick
-📝 [HardwareTelemetry] Haptic pulse: generation-tick
-📝 [HardwareTelemetry] Haptic pulse: generation-tick
-📝 [HardwareTelemetry] Haptic pulse: generation-tick
-📝 [HardwareTelemetry] Haptic pulse: generation-tick
-📝 [HardwareTelemetry] Haptic pulse: generation-tick
-📝 [HardwareTelemetry] Haptic pulse: generation-tick
-📝 [HardwareTelemetry] Haptic pulse: generation-tick
-📝 [HardwareTelemetry] Haptic pulse: generation-tick
-📝 [HardwareTelemetry] Haptic pulse: generation-tick
-📝 [HardwareTelemetry] Haptic pulse: generation-tick
-📝 [HardwareTelemetry] Haptic pulse: generation-tick
 📝 [HardwareTelemetry] Sustain STOP LLM Inference
-🔍 [FM] Stream complete: 346 snapshots, 2270 chars
-ℹ️  [FM] Generation complete: 294 words in 11.65s (📱 On-Device (3B Core))
+🔍 [FM] Stream complete: 109 snapshots, 718 chars
+ℹ️  [FM] Generation complete: 99 words in 6.57s (📱 On-Device (3B Core))
 📝 [HardwareTelemetry] Haptic pulse: generation-complete
-ℹ️  [GENERATION] Apple FM: Generation complete – {exec=Apple Intelligence (3B Core), tokens=294, totalTime=11.65, ttft=2.66}
-ℹ️  [ReasoningChain] Evidence confidence: 47% (coverage: 83%, novelty: 65%, saturation: 37%, lowNovelty=0, saturationStreak=0)
-🔍 [ReasoningChain] Session 3 insight: Certain receptors are critical for dopamine regulation because they modulate the...
-🔍 [ReasoningChain] Session 4/4-8 (deep think, confidence: 47%)
-🔍 [ReasoningChain] Session 4 context (3435 chars): [S2] REVIEW ARTICLE — (Psychiatry Clin Neurosci - 2019 - Yagishita - Transient and sustained effects of dopamine and serotonin signaling in-2.pdf)
-movements.40 In addition to effort-related behavior, optogenetic stimulation of dopamine neurons in the VTA modulates aggressive behavior acutely, although a detailed time course was not clari ed.48. (b) Schematic representing sustained by transient alteration in dopamine and serosient dopamine and serotonin signal cause long-lasting effects to modity...
-🔍 [ReasoningChain] Truncated insight summary from 1209 to 1200 chars
-🔍 General chat mode: prompt=QUESTION: Why are certain receptors critical for d...
-🔍 Generation: ~1653 tokens, exec=automatic
+ℹ️  [GENERATION] Apple FM: Generation complete – {exec=Apple Intelligence (3B Core), tokens=99, totalTime=6.57, ttft=3.68}
+ℹ️  [ReasoningChain] Evidence confidence: 45% (coverage: 80%, novelty: 80%, saturation: 42%, lowNovelty=0, saturationStreak=0)
+🔍 [ReasoningChain] Session 3 insight: The analysis of dopamine and serotonin signaling, as outlined in the document, e...
+🔍 [ReasoningChain] Session 4/4-8 (deep think, confidence: 45%)
+🔍 [ReasoningChain] Session 4 context (285 chars): [S1] Document Summary — (Psychiatry Clin Neurosci - 2019 - Yagishita - Transient and sustained effects of dopamine and serotonin signaling in.pdf)
+It focuses on transient and sustained effects of these neurotransmitters. The purpose is to analyze their roles in psychiatric disorders.
+...
+🔍 General chat mode: prompt=QUESTION: What role do neurotransmitters play in m...
+🔍 Generation: ~778 tokens, exec=automatic
 ℹ️  [GENERATION] Apple FM: Generation started – {execPref=automatic, maxTokens=700, pccAllowed=true, route=onDevice, temperature=0.5}
 📝 [HardwareTelemetry] Sustain START LLM Inference
-ℹ️  [FM] First token in 2.68s (📱 On-Device (3B Core))
+ℹ️  [FM] First token in 2.51s (📱 On-Device (3B Core))
 📝 [HardwareTelemetry] Haptic pulse: generation-start
 📝 [HardwareTelemetry] Haptic pulse: generation-tick
 📝 [HardwareTelemetry] Haptic pulse: generation-tick
@@ -419,25 +448,24 @@ movements.40 In addition to effort-related behavior, optogenetic stimulation of 
 📝 [HardwareTelemetry] Haptic pulse: generation-tick
 📝 [HardwareTelemetry] Haptic pulse: generation-tick
 📝 [HardwareTelemetry] Haptic pulse: generation-tick
-📝 [HardwareTelemetry] Haptic pulse: generation-tick
-📝 [HardwareTelemetry] Haptic pulse: generation-tick
 📝 [HardwareTelemetry] Sustain STOP LLM Inference
-🔍 [FM] Stream complete: 119 snapshots, 762 chars
-ℹ️  [FM] Generation complete: 96 words in 6.34s (📱 On-Device (3B Core))
+🔍 [FM] Stream complete: 101 snapshots, 703 chars
+ℹ️  [FM] Generation complete: 99 words in 4.94s (📱 On-Device (3B Core))
 📝 [HardwareTelemetry] Haptic pulse: generation-complete
-ℹ️  [GENERATION] Apple FM: Generation complete – {exec=Apple Intelligence (3B Core), tokens=96, totalTime=6.34, ttft=2.68}
-ℹ️  [ReasoningChain] Evidence confidence: 51% (coverage: 83%, novelty: 81%, saturation: 42%, lowNovelty=0, saturationStreak=0)
-🔍 [ReasoningChain] Session 4 insight: Certain receptors are critical for dopamine regulation because they facilitate t...
-🔍 [ReasoningChain] Session 5/4-8 (deep think, confidence: 51%)
-🔍 [ReasoningChain] Session 5 context (3455 chars): [S4] PCN Pinical Ny urosciences — (Psychiatry Clin Neurosci - 2019 - Yagishita - Transient and sustained effects of dopamine and serotonin signaling in-2.pdf)
-Serotonin receptor 1A knockreceptors: From structure to function. Organization of monosynaptic inputs to the serotonin and dopamine neu-. Space, time and dopamine. Dopamine. Missale C, Nash SR, Robinson SW, Jaber M, Caron MG. Dopamine > Ramboz S, Oosting R, Amara DA et al. Missale C, Nash SR, Robinson SW, Jaber M, Caron MG. Dopamine > Phys...
+ℹ️  [GENERATION] Apple FM: Generation complete – {exec=Apple Intelligence (3B Core), tokens=99, totalTime=4.94, ttft=2.51}
+ℹ️  [ReasoningChain] Evidence confidence: 49% (coverage: 80%, novelty: 76%, saturation: 41%, lowNovelty=0, saturationStreak=0)
+🔍 [ReasoningChain] Session 4 insight: According to the analysis detailed in [S1], neurotransmitters such as dopamine a...
+🔍 [ReasoningChain] Session 5/4-8 (deep think, confidence: 49%)
+🔍 [ReasoningChain] Session 5 context (285 chars): [S1] Document Summary — (Psychiatry Clin Neurosci - 2019 - Yagishita - Transient and sustained effects of dopamine and serotonin signaling in.pdf)
+It focuses on transient and sustained effects of these neurotransmitters. The purpose is to analyze their roles in psychiatric disorders.
+...
 🔍 [ReasoningChain] Deep Think mode: condensed 4 insights to 3 for prompt
-🔍 [ReasoningChain] Truncated insight summary from 1230 to 1200 chars
-🔍 General chat mode: prompt=QUESTION: Why are certain receptors critical for d...
-🔍 Generation: ~1653 tokens, exec=automatic
+🔍 [ReasoningChain] Truncated insight summary from 1229 to 1200 chars
+🔍 General chat mode: prompt=QUESTION: What role do neurotransmitters play in m...
+🔍 Generation: ~880 tokens, exec=automatic
 ℹ️  [GENERATION] Apple FM: Generation started – {execPref=automatic, maxTokens=700, pccAllowed=true, route=onDevice, temperature=0.5}
 📝 [HardwareTelemetry] Sustain START LLM Inference
-ℹ️  [FM] First token in 2.96s (📱 On-Device (3B Core))
+ℹ️  [FM] First token in 3.51s (📱 On-Device (3B Core))
 📝 [HardwareTelemetry] Haptic pulse: generation-start
 📝 [HardwareTelemetry] Haptic pulse: generation-tick
 📝 [HardwareTelemetry] Haptic pulse: generation-tick
@@ -446,22 +474,32 @@ Serotonin receptor 1A knockreceptors: From structure to function. Organization o
 📝 [HardwareTelemetry] Haptic pulse: generation-tick
 📝 [HardwareTelemetry] Haptic pulse: generation-tick
 📝 [HardwareTelemetry] Haptic pulse: generation-tick
+📝 [HardwareTelemetry] Haptic pulse: generation-tick
+📝 [HardwareTelemetry] Haptic pulse: generation-tick
+📝 [HardwareTelemetry] Haptic pulse: generation-tick
+📝 [HardwareTelemetry] Haptic pulse: generation-tick
+📝 [HardwareTelemetry] Haptic pulse: generation-tick
+📝 [HardwareTelemetry] Haptic pulse: generation-tick
+📝 [HardwareTelemetry] Haptic pulse: generation-tick
+📝 [HardwareTelemetry] Haptic pulse: generation-tick
 📝 [HardwareTelemetry] Sustain STOP LLM Inference
-🔍 [FM] Stream complete: 56 snapshots, 329 chars
-ℹ️  [FM] Generation complete: 44 words in 3.95s (📱 On-Device (3B Core))
+🔍 [FM] Stream complete: 126 snapshots, 836 chars
+ℹ️  [FM] Generation complete: 116 words in 7.31s (📱 On-Device (3B Core))
 📝 [HardwareTelemetry] Haptic pulse: generation-complete
-ℹ️  [GENERATION] Apple FM: Generation complete – {exec=Apple Intelligence (3B Core), tokens=44, totalTime=3.95, ttft=2.96}
-ℹ️  [ReasoningChain] Evidence confidence: 53% (coverage: 83%, novelty: 88%, saturation: 63%, lowNovelty=0, saturationStreak=0)
-🔍 [ReasoningChain] Session 5 insight: Certain receptors are critical for dopamine regulation because they facilitate t...
-🔍 [ReasoningChain] Session 6/4-8 (deep think, confidence: 53%)
-🔍 [ReasoningChain] Session 6 context (3430 chars): [S2] PCN Pinical Ny urosciences — (Psychiatry Clin Neurosci - 2019 - Yagishita - Transient and sustained effects of dopamine and serotonin signaling in-2.pdf)
-Serotonin receptor 1A knockreceptors: From structure to function. Organization of monosynaptic inputs to the serotonin and dopamine neu-. Space, time and dopamine. Dopamine. Missale C, Nash SR, Robinson SW, Jaber M, Caron MG. Dopamine > Ramboz S, Oosting R, Amara DA et al. Missale C, Nash SR, Robinson SW, Jaber M, Caron MG. Dopamine > Phys...
+ℹ️  [GENERATION] Apple FM: Generation complete – {exec=Apple Intelligence (3B Core), tokens=116, totalTime=7.31, ttft=3.51}
+ℹ️  [ReasoningChain] Evidence confidence: 51% (coverage: 80%, novelty: 60%, saturation: 53%, lowNovelty=0, saturationStreak=0)
+🔍 [ReasoningChain] Session 5 insight: The analysis of dopamine and serotonin signaling, as outlined in [S1], reveals t...
+🔍 [ReasoningChain] Session 6/4-8 (deep think, confidence: 51%)
+🔍 [ReasoningChain] Session 6 context (285 chars): [S1] Document Summary — (Psychiatry Clin Neurosci - 2019 - Yagishita - Transient and sustained effects of dopamine and serotonin signaling in.pdf)
+It focuses on transient and sustained effects of these neurotransmitters. The purpose is to analyze their roles in psychiatric disorders.
+...
 🔍 [ReasoningChain] Deep Think mode: condensed 5 insights to 3 for prompt
-🔍 General chat mode: prompt=QUESTION: Why are certain receptors critical for d...
-🔍 Generation: ~1636 tokens, exec=automatic
+🔍 [ReasoningChain] Truncated insight summary from 1230 to 1200 chars
+🔍 General chat mode: prompt=QUESTION: What role do neurotransmitters play in m...
+🔍 Generation: ~880 tokens, exec=automatic
 ℹ️  [GENERATION] Apple FM: Generation started – {execPref=automatic, maxTokens=700, pccAllowed=true, route=onDevice, temperature=0.5}
 📝 [HardwareTelemetry] Sustain START LLM Inference
-ℹ️  [FM] First token in 3.82s (📱 On-Device (3B Core))
+ℹ️  [FM] First token in 3.75s (📱 On-Device (3B Core))
 📝 [HardwareTelemetry] Haptic pulse: generation-start
 📝 [HardwareTelemetry] Haptic pulse: generation-tick
 📝 [HardwareTelemetry] Haptic pulse: generation-tick
@@ -475,26 +513,24 @@ Serotonin receptor 1A knockreceptors: From structure to function. Organization o
 📝 [HardwareTelemetry] Haptic pulse: generation-tick
 📝 [HardwareTelemetry] Haptic pulse: generation-tick
 📝 [HardwareTelemetry] Haptic pulse: generation-tick
-📝 [HardwareTelemetry] Haptic pulse: generation-tick
-📝 [HardwareTelemetry] Haptic pulse: generation-tick
-📝 [HardwareTelemetry] Haptic pulse: generation-tick
-📝 [HardwareTelemetry] Haptic pulse: generation-tick
 📝 [HardwareTelemetry] Sustain STOP LLM Inference
-🔍 [FM] Stream complete: 130 snapshots, 781 chars
-ℹ️  [FM] Generation complete: 99 words in 8.00s (📱 On-Device (3B Core))
+🔍 [FM] Stream complete: 101 snapshots, 786 chars
+ℹ️  [FM] Generation complete: 108 words in 6.95s (📱 On-Device (3B Core))
 📝 [HardwareTelemetry] Haptic pulse: generation-complete
-ℹ️  [GENERATION] Apple FM: Generation complete – {exec=Apple Intelligence (3B Core), tokens=99, totalTime=8.00, ttft=3.82}
-ℹ️  [ReasoningChain] Evidence confidence: 55% (coverage: 83%, novelty: 81%, saturation: 63%, lowNovelty=0, saturationStreak=0)
-🔍 [ReasoningChain] Session 6 insight: Certain receptors are critical for dopamine regulation because the absence of sp...
-🔍 [ReasoningChain] Session 7/4-8 (deep think, confidence: 55%)
-🔍 [ReasoningChain] Session 7 context (2302 chars): [S1] 19. Arbuthnott GW, Wickens J. Space, time and dopamine. Trends Neu- — (Psychiatry Clin Neurosci - 2019 - Yagishita - Transient and sustained effects of dopamine and serotonin signaling in-2.pdf)
-Serotonin receptor 1A knockreceptors: From structure to function. Absence of 5-HT1B receptors is associated with impaired. effects of 5-HT1B receptors on aggression and impulsivity. Missale C, Nash SR, Robinson SW, Jaber M, Caron MG. Dopamine > 1998; 78: 189-225. Missale C, Nash SR, Robinson SW, Jab...
+ℹ️  [GENERATION] Apple FM: Generation complete – {exec=Apple Intelligence (3B Core), tokens=108, totalTime=6.95, ttft=3.75}
+ℹ️  [ReasoningChain] Evidence confidence: 52% (coverage: 80%, novelty: 35%, saturation: 59%, lowNovelty=0, saturationStreak=0)
+🔍 [ReasoningChain] Session 6 insight: The analysis of dopamine and serotonin signaling, as detailed in [S1], reveals t...
+🔍 [ReasoningChain] Session 7/4-8 (deep think, confidence: 52%)
+🔍 [ReasoningChain] Session 7 context (285 chars): [S1] Document Summary — (Psychiatry Clin Neurosci - 2019 - Yagishita - Transient and sustained effects of dopamine and serotonin signaling in.pdf)
+It focuses on transient and sustained effects of these neurotransmitters. The purpose is to analyze their roles in psychiatric disorders.
+...
 🔍 [ReasoningChain] Deep Think mode: condensed 6 insights to 3 for prompt
-🔍 General chat mode: prompt=QUESTION: Why are certain receptors critical for d...
-🔍 Generation: ~1636 tokens, exec=automatic
+🔍 [ReasoningChain] Truncated insight summary from 1230 to 1200 chars
+🔍 General chat mode: prompt=QUESTION: What role do neurotransmitters play in m...
+🔍 Generation: ~880 tokens, exec=automatic
 ℹ️  [GENERATION] Apple FM: Generation started – {execPref=automatic, maxTokens=700, pccAllowed=true, route=onDevice, temperature=0.5}
 📝 [HardwareTelemetry] Sustain START LLM Inference
-ℹ️  [FM] First token in 3.96s (📱 On-Device (3B Core))
+ℹ️  [FM] First token in 2.54s (📱 On-Device (3B Core))
 📝 [HardwareTelemetry] Haptic pulse: generation-start
 📝 [HardwareTelemetry] Haptic pulse: generation-tick
 📝 [HardwareTelemetry] Haptic pulse: generation-tick
@@ -507,31 +543,24 @@ Serotonin receptor 1A knockreceptors: From structure to function. Absence of 5-H
 📝 [HardwareTelemetry] Haptic pulse: generation-tick
 📝 [HardwareTelemetry] Haptic pulse: generation-tick
 📝 [HardwareTelemetry] Haptic pulse: generation-tick
-📝 [HardwareTelemetry] Haptic pulse: generation-tick
-📝 [HardwareTelemetry] Haptic pulse: generation-tick
-📝 [HardwareTelemetry] Haptic pulse: generation-tick
-📝 [HardwareTelemetry] Haptic pulse: generation-tick
-📝 [HardwareTelemetry] Haptic pulse: generation-tick
-📝 [HardwareTelemetry] Haptic pulse: generation-tick
-📝 [HardwareTelemetry] Haptic pulse: generation-tick
-📝 [HardwareTelemetry] Haptic pulse: generation-tick
 📝 [HardwareTelemetry] Sustain STOP LLM Inference
-🔍 [FM] Stream complete: 154 snapshots, 1066 chars
-ℹ️  [FM] Generation complete: 139 words in 9.44s (📱 On-Device (3B Core))
+🔍 [FM] Stream complete: 93 snapshots, 701 chars
+ℹ️  [FM] Generation complete: 94 words in 5.35s (📱 On-Device (3B Core))
 📝 [HardwareTelemetry] Haptic pulse: generation-complete
-ℹ️  [GENERATION] Apple FM: Generation complete – {exec=Apple Intelligence (3B Core), tokens=139, totalTime=9.44, ttft=3.96}
-ℹ️  [ReasoningChain] Evidence confidence: 59% (coverage: 83%, novelty: 80%, saturation: 48%, lowNovelty=0, saturationStreak=0)
-🔍 [ReasoningChain] Session 7 insight: Certain receptors are critical for dopamine regulation because they influence th...
-🔍 [ReasoningChain] Session 8/4-8 (deep think, confidence: 59%)
-🔍 [ReasoningChain] Session 8 context (3376 chars): [S1] 19. Arbuthnott GW, Wickens J. Space, time and dopamine. Trends Neu- — (Psychiatry Clin Neurosci - 2019 - Yagishita - Transient and sustained effects of dopamine and serotonin signaling in-2.pdf)
-Serotonin receptor 1A knockreceptors: From structure to function. Absence of 5-HT1B receptors is associated with impaired. effects of 5-HT1B receptors on aggression and impulsivity. Missale C, Nash SR, Robinson SW, Jaber M, Caron MG. Dopamine > 1998; 78: 189-225. Missale C, Nash SR, Robinson SW, Jab...
+ℹ️  [GENERATION] Apple FM: Generation complete – {exec=Apple Intelligence (3B Core), tokens=94, totalTime=5.35, ttft=2.54}
+ℹ️  [ReasoningChain] Evidence confidence: 53% (coverage: 80%, novelty: 61%, saturation: 79%, lowNovelty=0, saturationStreak=0)
+🔍 [ReasoningChain] Session 7 insight: The analysis of dopamine and serotonin signaling, as documented in [S1], extends...
+🔍 [ReasoningChain] Session 8/4-8 (deep think, confidence: 53%)
+🔍 [ReasoningChain] Session 8 context (285 chars): [S1] Document Summary — (Psychiatry Clin Neurosci - 2019 - Yagishita - Transient and sustained effects of dopamine and serotonin signaling in.pdf)
+It focuses on transient and sustained effects of these neurotransmitters. The purpose is to analyze their roles in psychiatric disorders.
+...
 🔍 [ReasoningChain] Deep Think mode: condensed 7 insights to 3 for prompt
 🔍 [ReasoningChain] Truncated insight summary from 1230 to 1200 chars
-🔍 General chat mode: prompt=QUESTION: Why are certain receptors critical for d...
-🔍 Generation: ~1653 tokens, exec=automatic
+🔍 General chat mode: prompt=QUESTION: What role do neurotransmitters play in m...
+🔍 Generation: ~880 tokens, exec=automatic
 ℹ️  [GENERATION] Apple FM: Generation started – {execPref=automatic, maxTokens=700, pccAllowed=true, route=onDevice, temperature=0.5}
 📝 [HardwareTelemetry] Sustain START LLM Inference
-ℹ️  [FM] First token in 4.03s (📱 On-Device (3B Core))
+ℹ️  [FM] First token in 4.17s (📱 On-Device (3B Core))
 📝 [HardwareTelemetry] Haptic pulse: generation-start
 📝 [HardwareTelemetry] Haptic pulse: generation-tick
 📝 [HardwareTelemetry] Haptic pulse: generation-tick
@@ -543,29 +572,20 @@ Serotonin receptor 1A knockreceptors: From structure to function. Absence of 5-H
 📝 [HardwareTelemetry] Haptic pulse: generation-tick
 📝 [HardwareTelemetry] Haptic pulse: generation-tick
 📝 [HardwareTelemetry] Haptic pulse: generation-tick
-📝 [HardwareTelemetry] Haptic pulse: generation-tick
-📝 [HardwareTelemetry] Haptic pulse: generation-tick
-📝 [HardwareTelemetry] Haptic pulse: generation-tick
-📝 [HardwareTelemetry] Haptic pulse: generation-tick
-📝 [HardwareTelemetry] Haptic pulse: generation-tick
-📝 [HardwareTelemetry] Haptic pulse: generation-tick
-📝 [HardwareTelemetry] Haptic pulse: generation-tick
-📝 [HardwareTelemetry] Haptic pulse: generation-tick
-📝 [HardwareTelemetry] Haptic pulse: generation-tick
 📝 [HardwareTelemetry] Sustain STOP LLM Inference
-🔍 [FM] Stream complete: 152 snapshots, 890 chars
-ℹ️  [FM] Generation complete: 116 words in 8.52s (📱 On-Device (3B Core))
+🔍 [FM] Stream complete: 84 snapshots, 612 chars
+ℹ️  [FM] Generation complete: 84 words in 5.89s (📱 On-Device (3B Core))
 📝 [HardwareTelemetry] Haptic pulse: generation-complete
-ℹ️  [GENERATION] Apple FM: Generation complete – {exec=Apple Intelligence (3B Core), tokens=116, totalTime=8.52, ttft=4.03}
-ℹ️  [ReasoningChain] Evidence confidence: 61% (coverage: 83%, novelty: 85%, saturation: 53%, lowNovelty=0, saturationStreak=0)
-🔍 [ReasoningChain] Session 8 insight: The additional documents reveal that certain receptors are critical for dopamine...
+ℹ️  [GENERATION] Apple FM: Generation complete – {exec=Apple Intelligence (3B Core), tokens=84, totalTime=5.89, ttft=4.17}
+ℹ️  [ReasoningChain] Evidence confidence: 56% (coverage: 80%, novelty: 80%, saturation: 84%, lowNovelty=0, saturationStreak=0)
+🔍 [ReasoningChain] Session 8 insight: The analysis of dopamine and serotonin signaling, as documented in [S1], extends...
 ℹ️  [ReasoningChain] Running Deep Think synthesis (8 insights)...
 ℹ️  System prompt changed, recreating session
-🔍 General chat mode: prompt=QUESTION: Why are certain receptors critical for d...
-🔍 Generation: ~1430 tokens, exec=automatic
+🔍 General chat mode: prompt=QUESTION: What role do neurotransmitters play in m...
+🔍 Generation: ~1427 tokens, exec=automatic
 ℹ️  [GENERATION] Apple FM: Generation started – {execPref=automatic, maxTokens=1500, pccAllowed=true, route=onDevice, temperature=0.5}
 📝 [HardwareTelemetry] Sustain START LLM Inference
-ℹ️  [FM] First token in 3.39s (📱 On-Device (3B Core))
+ℹ️  [FM] First token in 2.49s (📱 On-Device (3B Core))
 📝 [HardwareTelemetry] Haptic pulse: generation-start
 📝 [HardwareTelemetry] Haptic pulse: generation-tick
 📝 [HardwareTelemetry] Haptic pulse: generation-tick
@@ -619,105 +639,80 @@ Serotonin receptor 1A knockreceptors: From structure to function. Absence of 5-H
 📝 [HardwareTelemetry] Haptic pulse: generation-tick
 📝 [HardwareTelemetry] Haptic pulse: generation-tick
 📝 [HardwareTelemetry] Haptic pulse: generation-tick
-📝 [HardwareTelemetry] Haptic pulse: generation-tick
-📝 [HardwareTelemetry] Haptic pulse: generation-tick
-📝 [HardwareTelemetry] Haptic pulse: generation-tick
-📝 [HardwareTelemetry] Haptic pulse: generation-tick
-📝 [HardwareTelemetry] Haptic pulse: generation-tick
-📝 [HardwareTelemetry] Haptic pulse: generation-tick
-📝 [HardwareTelemetry] Haptic pulse: generation-tick
-📝 [HardwareTelemetry] Haptic pulse: generation-tick
-📝 [HardwareTelemetry] Haptic pulse: generation-tick
-📝 [HardwareTelemetry] Haptic pulse: generation-tick
-📝 [HardwareTelemetry] Haptic pulse: generation-tick
-📝 [HardwareTelemetry] Haptic pulse: generation-tick
-📝 [HardwareTelemetry] Haptic pulse: generation-tick
-📝 [HardwareTelemetry] Haptic pulse: generation-tick
-📝 [HardwareTelemetry] Haptic pulse: generation-tick
-📝 [HardwareTelemetry] Haptic pulse: generation-tick
-📝 [HardwareTelemetry] Haptic pulse: generation-tick
-📝 [HardwareTelemetry] Haptic pulse: generation-tick
-📝 [HardwareTelemetry] Haptic pulse: generation-tick
-📝 [HardwareTelemetry] Haptic pulse: generation-tick
-📝 [HardwareTelemetry] Haptic pulse: generation-tick
-📝 [HardwareTelemetry] Haptic pulse: generation-tick
-📝 [HardwareTelemetry] Haptic pulse: generation-tick
-📝 [HardwareTelemetry] Haptic pulse: generation-tick
-📝 [HardwareTelemetry] Haptic pulse: generation-tick
-📝 [HardwareTelemetry] Haptic pulse: generation-tick
-📝 [HardwareTelemetry] Haptic pulse: generation-tick
 📝 [HardwareTelemetry] Sustain STOP LLM Inference
-🔍 [FM] Stream complete: 637 snapshots, 3809 chars
-ℹ️  [FM] Generation complete: 482 words in 23.64s (📱 On-Device (3B Core))
-ℹ️  [FM] Nuclear bold strip: 29 spans (density: 6.0%)
+🔍 [FM] Stream complete: 418 snapshots, 2573 chars
+ℹ️  [FM] Generation complete: 334 words in 15.59s (📱 On-Device (3B Core))
+ℹ️  [FM] Bold normalization: kept 3 unique, stripped 8 duplicates (was 11 total, density: 3.3%)
 📝 [HardwareTelemetry] Haptic pulse: generation-complete
-ℹ️  [GENERATION] Apple FM: Generation complete – {exec=Apple Intelligence (3B Core), tokens=482, totalTime=23.64, ttft=3.39}
-ℹ️  [ReasoningChain] Deep Think synthesis: 482 tokens (3693 chars)
-ℹ️  [ReasoningChain] Completed 8 sessions, 1574 total tokens
-🔍 [Deep Think] Reasoning Chain (8 sessions): +1574 tokens (total: 3198)
-ℹ️  [Self-RAG 2.0] Starting verification: query=Why are certain receptors critical for dopamine re..., answer=3693 chars
-ℹ️  [Self-RAG 2.0] Verification complete: retry (relevance=70%, citations=0/2, confidence=58%)
+ℹ️  [GENERATION] Apple FM: Generation complete – {exec=Apple Intelligence (3B Core), tokens=334, totalTime=15.59, ttft=2.49}
+ℹ️  [ReasoningChain] Deep Think synthesis: 334 tokens (2537 chars)
+ℹ️  [ReasoningChain] Completed 8 sessions, 1067 total tokens
+🔍 [Deep Think] Reasoning Chain (8 sessions): +1067 tokens (total: 2184)
+ℹ️  [Self-RAG 2.0] Starting verification: query=What role do neurotransmitters play in motivation?..., answer=2537 chars
+ℹ️  [Self-RAG 2.0] Verification complete: retry (relevance=100%, citations=0/1, confidence=61%)
 ℹ️  [Agentic] Self-RAG: Verification suggests retry (Strike 1/3)
-ℹ️  [RecursiveResearch] Starting recursive research loop for: Why are certain receptors critical for dopamine re...
+ℹ️  [RecursiveResearch] Starting recursive research loop for: What role do neurotransmitters play in motivation?...
 ℹ️  [CoreMLSentenceEmbeddingProvider] Loaded EmbeddingModel.mlmodelc - compute: GPU+CPU (forced GPU mode)
 ℹ️  [CoreMLSentenceEmbeddingProvider] Loaded tokenizer
 ℹ️  [EmbeddingService] Using provider 'coreml_sentence_embedding' (available: true)
-🔍 [QueryEnhancement] Intent: conceptual (keyword=0, conceptual=3)
+🔍 [QueryEnhancement] Intent: balanced (keyword=0, conceptual=0)
 📝 [HardwareTelemetry] Pulse Embedding @ 80%
 📝 [HardwareTelemetry] Pulse Embedding @ 70%
 🔍 [QueryEnhancement] Expanding query
-🔍 [QueryEnhancement] Key terms: are, certain, receptors, critical, dopamine, regulation
-🔍 [QueryEnhancement] Corpus expansions: dopamine receptors potentiate, dopamine receptors potentiate NMDApotassium
-🔍 [QueryEnhancement] Produced 4 variations
-🔍 [FullRetrieval] Gazetteer added 3 domain terms
-🔍 [FullRetrieval] Expanded query: Why are certain receptors critical for dopamine regulation? dopamine receptors potentiate dopamine r...
-🔍 [Hybrid] Using FTS5-accelerated BM25 for container B0E06DD9-A83A-42EE-89AC-564860838BCC
+🔍 [QueryEnhancement] Key terms: role, neurotransmitters, play, motivation
+🔍 [QueryEnhancement] Produced 1 variations
+🔍 [FullRetrieval] Gazetteer added 1 domain terms
+🔍 [FullRetrieval] Expanded query: What role do neurotransmitters play in motivation? ER...
+🔍 [Hybrid] Using FTS5-accelerated BM25 for container CE72BA0E-73B0-421A-8445-0D26B6055C7B
 🔍 [Hybrid] True parallel hybrid search starting (vector + FTS5)
-🔍 [SQLiteFTS5] Chunk search 'Why are certain receptors critical for dopamine regulation?' needed OR fallback → 60 results
-🔍 [Hybrid] Keyword 'dopamine' hit 72% of chunks — zero boost (≥50%)
-🔍 [Hybrid] Keyword boost: 33/115 chunks boosted for ["certain(100%)", "receptors(61%)", "critical(94%)", "regulation(68%)"] (filtered 1 at ≥50% hit rate)
-🔍 [Hybrid] Structure boost: 18 table/list chunks boosted for spec query
-🔍 [Hybrid] True parallel search completed in 101.3ms — 115 vector + 60 FTS5 + 0 row hits (0 lexical-only)
+🔍 [SQLiteFTS5] Chunk search 'What role do neurotransmitters play in motivation?' needed OR fallback → 1 results
+🔍 [Hybrid] Keyword 'role' hit 50% of chunks — zero boost (≥50%)
+🔍 [Hybrid] Keyword 'neurotransmitters' hit 50% of chunks — zero boost (≥50%)
+🔍 [Hybrid] True parallel search completed in 39.5ms — 2 vector + 1 FTS5 + 0 row hits (0 lexical-only)
 📝 [HardwareTelemetry] Pulse ReRanking @ 85%
-🔍 [RAGEngine] AI Re-ranking: raw -9.78→-2.73, normalized 0.10→0.90
-🔍 [RAGEngine] Top chunk preview: voltage-gated calcium channel, whose onset was more than 10 min. In sum, the released dopamine and serotonin are detected using GPCR whose downstream ...
+🔍 [RAGEngine] AI Re-ranking: raw -9.89→-2.60, normalized 0.10→0.90
+🔍 [RAGEngine] Top chunk preview: The document examines dopamine and serotonin signaling in psychiatry. It focuses on transient and sustained effects of these neurotransmitters. The pu...
 📝 [HardwareTelemetry] Pulse RAG Pipeline @ 70%
 📝 [HardwareTelemetry] Pulse Query Processing @ 50%
 🔍 [RecursiveResearch] Iteration 1/3
-🔍 [RecursiveResearch] Decision prompt: 2172 chars
+🔍 [RecursiveResearch] Decision prompt: 725 chars
 ℹ️  System prompt changed, recreating session
-🔍 General chat mode: prompt=QUESTION: Why are certain receptors critical for d...
-🔍 Generation: ~869 tokens, exec=automatic
+🔍 General chat mode: prompt=QUESTION: What role do neurotransmitters play in m...
+🔍 Generation: ~290 tokens, exec=automatic
 ℹ️  [GENERATION] Apple FM: Generation started – {execPref=automatic, maxTokens=600, pccAllowed=true, route=onDevice, temperature=0.5}
 📝 [HardwareTelemetry] Sustain START LLM Inference
-ℹ️  [FM] First token in 2.40s (📱 On-Device (3B Core))
+ℹ️  [FM] First token in 2.15s (📱 On-Device (3B Core))
 📝 [HardwareTelemetry] Haptic pulse: generation-start
 📝 [HardwareTelemetry] Haptic pulse: generation-tick
 📝 [HardwareTelemetry] Haptic pulse: generation-tick
 📝 [HardwareTelemetry] Haptic pulse: generation-tick
-📝 [HardwareTelemetry] Haptic pulse: generation-tick
-📝 [HardwareTelemetry] Haptic pulse: generation-tick
 📝 [HardwareTelemetry] Sustain STOP LLM Inference
-🔍 [FM] Stream complete: 46 snapshots, 281 chars
-ℹ️  [FM] Generation complete: 35 words in 3.43s (📱 On-Device (3B Core))
+🔍 [FM] Stream complete: 26 snapshots, 166 chars
+ℹ️  [FM] Generation complete: 21 words in 2.62s (📱 On-Device (3B Core))
 📝 [HardwareTelemetry] Haptic pulse: generation-complete
-ℹ️  [GENERATION] Apple FM: Generation complete – {exec=Apple Intelligence (3B Core), tokens=35, totalTime=3.43, ttft=2.40}
+ℹ️  [GENERATION] Apple FM: Generation complete – {exec=Apple Intelligence (3B Core), tokens=21, totalTime=2.62, ttft=2.15}
 ℹ️  [RecursiveResearch] Completed with answer at iteration 1
-🔍 [Agentic] Semantic delta between verification attempts: 0.9022
-ℹ️  [Self-RAG 2.0] Starting verification: query=Why are certain receptors critical for dopamine re..., answer=272 chars
-ℹ️  [Self-RAG 2.0] Verification complete: accept (relevance=43%, citations=0/0, confidence=55%)
-ℹ️  [Agentic] Complete: 14 steps, 4679 tokens, 109.5s
+🔍 [Agentic] Semantic delta between verification attempts: 0.8828
+ℹ️  [Self-RAG 2.0] Starting verification: query=What role do neurotransmitters play in motivation?..., answer=157 chars
+ℹ️  [Self-RAG 2.0] Verification complete: escalate (relevance=50%, citations=0/0, confidence=45%)
+ℹ️  [Agentic] Complete: 14 steps, 2282 tokens, 87.0s
+🔍 [ExtractiveQA] Query parsing - Entities: [], Descriptive: ["role", "neurotransmitters", "play", "motivation"]
+🔍 [ExtractiveQA] Primary entities: []
+🔍 [ExtractiveQA] Descriptive keywords: ["role", "motivation", "play", "neurotransmitters"]
+🔍 [ExtractiveQA] No proximity match found (best: 0.0)
+🔍 [ExtractiveQA] No specification values found in chunks
+⚠️  [SourceOnly] Draft generation failed: The model refused to answer.
 ℹ️  📊 RAG Query Statistics
-ℹ️    • Query: Why are certain receptors critical for dopamine re… (≈8 words)
-ℹ️    • Chunks: 66 (≈156 words avg)
+ℹ️    • Query: What role do neurotransmitters play in motivation?… (≈7 words)
+ℹ️    • Chunks: 2 (≈15 words avg)
 ℹ️    • Retrieval: 0.00s
-ℹ️    • Generation: 109.47s
-ℹ️    • Response words: 35
+ℹ️    • Generation: 86.96s
+ℹ️    • Response words: 20
 ℹ️    • Model: Apple Foundation Model (Agentic)
-ℹ️    • Time to first token: 7.82s
-ℹ️    • Tokens per second: 42.7
-ℹ️  [SYSTEM] Query stats – {chunkCount=66, chunkWords=10304, generationTime=109.47, model=Apple Foundation Model (Agentic), queryWords=8, responseWords=35, retrievalTime=0.00}
-🔍 [ConversationMemory] Added turn. Recent: 6, Entities: 20
+ℹ️    • Time to first token: 6.21s
+ℹ️    • Tokens per second: 26.2
+ℹ️  [SYSTEM] Query stats – {chunkCount=2, chunkWords=29, generationTime=86.96, model=Apple Foundation Model (Agentic), queryWords=7, responseWords=20, retrievalTime=0.00}
+🔍 [ConversationMemory] Added turn. Recent: 6, Entities: 10
 📝 [HardwareTelemetry] Haptic pulse: light
 📝 [HardwareTelemetry] Pulse Query Processing @ 60%
 📝 [HardwareTelemetry] Pulse Query Processing @ 50%
@@ -746,21 +741,22 @@ Serotonin receptor 1A knockreceptors: From structure to function. Absence of 5-H
 ℹ️  [BNNS] Loaded 115 chunks (mmap'd 0MB vectors, 0 bytes heap)
 🔍 [BNNS] Batch buffered 115 chunks (persist deferred)
 🔍 [BNNS] Persisted 115 chunks (115 mmap'd)
-------
+----------_
+
 ════════════════════════════════════════════════════════════════════════
   OPENINTELLIGENCE PIPELINE TRACE
-  Generated: 2026-06-29T01:24:38Z
-  Message ID: 028E240C-8873-43FE-BA52-E4AFBDE43B21
-  Container: B0E06DD9-A83A-42EE-89AC-564860838BCC
+  Generated: 2026-07-01T03:13:40Z
+  Message ID: 364E6F10-E9B0-42CA-90F0-4E27553667EA
+  Container: CE72BA0E-73B0-421A-8445-0D26B6055C7B
 ════════════════════════════════════════════════════════════════════════
 
 ▶ QUERY
 ────────────────────────────────────────────────────────────────────────
-Why are certain receptors critical for dopamine regulation?
+What role do neurotransmitters play in motivation?
 
-▶ RESPONSE (272 chars)
+▶ RESPONSE (157 chars)
 ────────────────────────────────────────────────────────────────────────
-Receptors are critical for dopamine regulation because they mediate the transient and sustained effects of dopamine and serotonin on reward-related learning, stress responses, and motivation-related behavior, which are central to mood regulation and depression mechanisms.
+Dopamine and serotonin are neurotransmitters that play roles in motivation, particularly in transient and sustained effects related to psychiatric disorders.
 
 ▶ METADATA
 ────────────────────────────────────────────────────────────────────────
@@ -769,737 +765,149 @@ Receptors are critical for dopamine regulation because they mediate the transien
   Agentic:          YES
   Retrieval Config: Agentic
   Retrieval Time:   0ms
-  Total Gen Time:   109.5s
-  TTFT:             7819ms
-  Tokens Generated: 4679
-  Tokens/sec:       42.7
+  Total Gen Time:   87.0s
+  TTFT:             6211ms
+  Tokens Generated: 2282
+  Tokens/sec:       26.2
   Tool Calls:       2
 
-▶ THINKING EVENTS (89 events)
+▶ THINKING EVENTS (97 events)
 ────────────────────────────────────────────────────────────────────────
   +000000ms [Planning] Deep Think Mode │ Starting multi-step reasoning (Enhanced mode, up to 8 steps)
-  +013299ms [Planning] Planning │ Searching with 3 query variations
-  +013300ms [Retrieval] Multi-query search │ Searching 3 query variations
-  +013315ms [Retrieval] Query 1/3 │ "dopamine regulation receptors..."
-  +013406ms [Planning] Query analysis │ Analyzing: "dopamine regulation receptors..."
-  +013436ms [Embedding] Encoding query │ 384-dim neural embedding
-  +013630ms [Vector Search] Vector ready │ Query encoded for semantic search
-  +013853ms [Query Rewrite] Query expansion │ Intent: balanced → Vector 50% / Keyword 50%
-  +013879ms [Query Rewrite] Synonym expansion │ +2 terms added
-  +013894ms [Retrieval] Hybrid search │ Vector + BM25 on 115 chunks
-  +014006ms [RRF Fusion] RRF fusion │ 30 candidates from hybrid search
-  +014006ms [Re-ranking] AI re-ranking │ Scoring 30 chunks with neural model
-  +014838ms [Re-ranking] Re-ranking complete │ Top scores: 78%, 78%, 73%
-  +014838ms [MMR Diversity] MMR diversification │ Optimizing for coverage (λ=0.60)
-  +014886ms [MMR Diversity] Diversity optimized │ 15 chunks after MMR
-  +014931ms [Retrieval] Spec sniper │ +3 targeted chunks via keyword+number co-occurrence
-  +014932ms [Parent Doc Expansion] Parent doc retrieval │ Expanding with ±3 sibling chunks
-  +014962ms [Parent Doc Expansion] Context expanded │ 18 → 56 chunks with siblings
-  +014978ms [Position Reorder] Lost-in-Middle reorder │ Best evidence at start/end of context
-  +015008ms [Retrieval] Retrieval complete │ 56 chunks ready for synthesis
-  +015037ms [Retrieval] Query 1 done │ 56 chunks retrieved
-  +015054ms [Retrieval] Query 2/3 │ "Dopamine regulation receptor function..."
-  +015104ms [Planning] Query analysis │ Analyzing: "Dopamine regulation receptor function..."
-  +015120ms [Embedding] Encoding query │ 384-dim neural embedding
-  +015159ms [Vector Search] Vector ready │ Query encoded for semantic search
-  +015190ms [Query Rewrite] Query expansion │ Intent: balanced → Vector 50% / Keyword 50%
-  +015205ms [Query Rewrite] Synonym expansion │ +2 terms added
-  +015232ms [Retrieval] Hybrid search │ Vector + BM25 on 115 chunks
-  +015316ms [RRF Fusion] RRF fusion │ 30 candidates from hybrid search
-  +015334ms [Re-ranking] AI re-ranking │ Scoring 30 chunks with neural model
-  +015419ms [Re-ranking] Re-ranking complete │ Top scores: 78%, 77%, 72%
-  +015451ms [MMR Diversity] MMR diversification │ Optimizing for coverage (λ=0.60)
-  +015468ms [MMR Diversity] Diversity optimized │ 15 chunks after MMR
-  +015513ms [Retrieval] Spec sniper │ +3 targeted chunks via keyword+number co-occurrence
-  +015530ms [Parent Doc Expansion] Parent doc retrieval │ Expanding with ±3 sibling chunks
-  +015545ms [Parent Doc Expansion] Context expanded │ 18 → 55 chunks with siblings
-  +015555ms [Position Reorder] Lost-in-Middle reorder │ Best evidence at start/end of context
-  +015616ms [Retrieval] Retrieval complete │ 55 chunks ready for synthesis
-  +015627ms [Retrieval] Query 2 done │ 55 chunks retrieved
-  +015642ms [Retrieval] Query 3/3 │ "Dopamine regulation receptor necessity..."
-  +015713ms [Planning] Query analysis │ Analyzing: "Dopamine regulation receptor necessity..."
-  +015734ms [Embedding] Encoding query │ 384-dim neural embedding
-  +015769ms [Vector Search] Vector ready │ Query encoded for semantic search
-  +015801ms [Query Rewrite] Query expansion │ Intent: balanced → Vector 50% / Keyword 50%
-  +015812ms [Query Rewrite] Synonym expansion │ +3 terms added
-  +015825ms [Retrieval] Hybrid search │ Vector + BM25 on 115 chunks
-  +015932ms [RRF Fusion] RRF fusion │ 30 candidates from hybrid search
-  +015946ms [Re-ranking] AI re-ranking │ Scoring 30 chunks with neural model
-  +016038ms [Re-ranking] Re-ranking complete │ Top scores: 87%, 82%, 78%
-  +016053ms [MMR Diversity] MMR diversification │ Optimizing for coverage (λ=0.60)
-  +016069ms [MMR Diversity] Diversity optimized │ 15 chunks after MMR
-  +016111ms [Retrieval] Spec sniper │ +3 targeted chunks via keyword+number co-occurrence
-  +016113ms [Parent Doc Expansion] Parent doc retrieval │ Expanding with ±3 sibling chunks
-  +016128ms [Parent Doc Expansion] Context expanded │ 18 → 57 chunks with siblings
-  +016144ms [Position Reorder] Lost-in-Middle reorder │ Best evidence at start/end of context
-  +016165ms [Retrieval] Retrieval complete │ 57 chunks ready for synthesis
-  +016198ms [Retrieval] Query 3 done │ 57 chunks retrieved
-  +016216ms [RRF Fusion] Fusing results │ RRF across 3 result sets
-  +016232ms [Retrieval]  Dopamine regulation receptor function | Dopamine regulation receptor necessity
+  +000000ms [Retrieval] Precision lookup │ Checking exact source values before multi-session reasoning
+  +001183ms [Verification Gates] Precision lookup │ No high-confidence source span locked
+  +017367ms [Planning] Planning │ Searching with 4 query variations
+  +017431ms [Retrieval] Multi-query search │ Searching 4 query variations
+  +017460ms [Retrieval] Query 1/4 │ "neurotransmitters AND motivation..."
+  +017588ms [Planning] Query analysis │ Analyzing: "neurotransmitters AND motivation..."
+  +017636ms [Embedding] Encoding query │ 384-dim neural embedding
+  +017755ms [Vector Search] Vector ready │ Query encoded for semantic search
+  +017792ms [Query Rewrite] Query expansion │ Intent: balanced → Vector 50% / Keyword 50%
+  +017828ms [Query Rewrite] Synonym expansion │ +1 terms added
+  +017853ms [Retrieval] Hybrid search │ Vector + BM25 on 2 chunks
+  +017932ms [RRF Fusion] RRF fusion │ 2 candidates from hybrid search
+  +017956ms [Re-ranking] AI re-ranking │ Scoring 2 chunks with neural model
+  +018011ms [Re-ranking] Re-ranking complete │ Top scores: 90%, 10%
+  +018026ms [MMR Diversity] MMR diversification │ Optimizing for coverage (λ=0.60)
+  +018073ms [MMR Diversity] Diversity optimized │ 2 chunks after MMR
+  +018109ms [Parent Doc Expansion] Parent doc retrieval │ Expanding with ±3 sibling chunks
+  +018138ms [Retrieval] Retrieval complete │ 2 chunks ready for synthesis
+  +018153ms [Retrieval] Query 1 done │ 2 chunks retrieved
+  +018170ms [Retrieval] Query 2/4 │ "Role of neurotransmitters in motivation..."
+  +018252ms [Planning] Query analysis │ Analyzing: "Role of neurotransmitters in motivation..."
+  +018280ms [Embedding] Encoding query │ 384-dim neural embedding
+  +018332ms [Vector Search] Vector ready │ Query encoded for semantic search
+  +018360ms [Query Rewrite] Query expansion │ Intent: balanced → Vector 50% / Keyword 50%
+  +018408ms [Query Rewrite] Synonym expansion │ +1 terms added
+  +018430ms [Retrieval] Hybrid search │ Vector + BM25 on 2 chunks
+  +018486ms [RRF Fusion] RRF fusion │ 2 candidates from hybrid search
+  +018505ms [Re-ranking] AI re-ranking │ Scoring 2 chunks with neural model
+  +018558ms [Re-ranking] Re-ranking complete │ Top scores: 90%, 10%
+  +018580ms [MMR Diversity] MMR diversification │ Optimizing for coverage (λ=0.60)
+  +018618ms [MMR Diversity] Diversity optimized │ 2 chunks after MMR
+  +018664ms [Parent Doc Expansion] Parent doc retrieval │ Expanding with ±3 sibling chunks
+  +018702ms [Retrieval] Retrieval complete │ 2 chunks ready for synthesis
+  +018724ms [Retrieval] Query 2 done │ 2 chunks retrieved
+  +018729ms [Retrieval] Query 3/4 │ "Neurotransmitters function in motivation..."
+  +018812ms [Planning] Query analysis │ Analyzing: "Neurotransmitters function in motivation..."
+  +018841ms [Embedding] Encoding query │ 384-dim neural embedding
+  +018914ms [Vector Search] Vector ready │ Query encoded for semantic search
+  +018951ms [Query Rewrite] Query expansion │ Intent: balanced → Vector 50% / Keyword 50%
+  +018991ms [Query Rewrite] Synonym expansion │ +1 terms added
+  +018995ms [Retrieval] Hybrid search │ Vector + BM25 on 2 chunks
+  +019028ms [RRF Fusion] RRF fusion │ 2 candidates from hybrid search
+  +019049ms [Re-ranking] AI re-ranking │ Scoring 2 chunks with neural model
+  +019169ms [Re-ranking] Re-ranking complete │ Top scores: 90%, 10%
+  +019196ms [MMR Diversity] MMR diversification │ Optimizing for coverage (λ=0.60)
+  +019232ms [MMR Diversity] Diversity optimized │ 2 chunks after MMR
+  +019278ms [Parent Doc Expansion] Parent doc retrieval │ Expanding with ±3 sibling chunks
+  +019372ms [Retrieval] Retrieval complete │ 2 chunks ready for synthesis
+  +019404ms [Retrieval] Query 3 done │ 2 chunks retrieved
+  +019412ms [Retrieval] Query 4/4 │ "Neurotransmitters influence motivation..."
+  +019485ms [Planning] Query analysis │ Analyzing: "Neurotransmitters influence motivation..."
+  +019569ms [Embedding] Encoding query │ 384-dim neural embedding
+  +019639ms [Vector Search] Vector ready │ Query encoded for semantic search
+  +019679ms [Query Rewrite] Query expansion │ Intent: balanced → Vector 50% / Keyword 50%
+  +019759ms [Query Rewrite] Synonym expansion │ +1 terms added
+  +019786ms [Retrieval] Hybrid search │ Vector + BM25 on 2 chunks
+  +019847ms [RRF Fusion] RRF fusion │ 2 candidates from hybrid search
+  +019851ms [Re-ranking] AI re-ranking │ Scoring 2 chunks with neural model
+  +019937ms [Re-ranking] Re-ranking complete │ Top scores: 90%, 10%
+  +019981ms [MMR Diversity] MMR diversification │ Optimizing for coverage (λ=0.60)
+  +020023ms [MMR Diversity] Diversity optimized │ 2 chunks after MMR
+  +020081ms [Parent Doc Expansion] Parent doc retrieval │ Expanding with ±3 sibling chunks
+  +020131ms [Retrieval] Retrieval complete │ 2 chunks ready for synthesis
+  +020166ms [Retrieval] Query 4 done │ 2 chunks retrieved
+  +020174ms [RRF Fusion] Fusing results │ RRF across 4 result sets
+  +020191ms [Retrieval]  Role of neurotransmitters in motivation | Neurotransmitters function in motivation | Neurotransmitters influence motivation
 
-Found 20 unique chunks after RRF fusion
+Found 2 unique chunks after RRF fusion
  │
-  +016252ms [Re-ranking] Confidence │ Excellent (>50% match) (90%)
+  +020215ms [Re-ranking] Confidence │ Excellent (>50% match) (90%)
 Semantic match: ✓ High confidence match
-  +028259ms [Retrieval] Session 1: Initial Analysis │ Certain receptors are critical for dopamine regulation because they help modulate the activity of dopamine neurons, which in turn influence complex cognitive and behavioral processes. For instance, D2-autoreceptors play a significant role in regulating dopamine neurons, particularly in the striatum, where they mediate lateral inhibition—a process that helps sharpen neural responses and maintain efficient circuit function [S1], [S2]. These receptors are involved in rapid activation of striatal dopamine release, which is essential for processes such as decision-making, reward processing, and the regulation of movement and locomotion [S1]. The regulation of dopamine by D2-autoreceptors extends to the prefrontal cortex (PFC), where they help gate information between the lateralization of cortical areas and the hippocampus, thereby supporting prefrontal function [S1]. Moreover, the activation of D2-receptors in response to transient dopamine release is linked to the modulation of neuronal activities in the PFC, which are critical for navigating conflicting signals related to reward and punishment [S1]. This suggests that D2-autoreceptors are not merely passive receptors but active participants in shaping the functional output of dopamine systems. Additionally, the absence of 5-HT1B receptors is associated with impaired impulse control, highlighting the broader role of dopamine receptors in behavioral regulation [S2]. While the provided documents primarily focus on dopamine receptors, such as D2-autoreceptors and 5-HT1B receptors, the functional implications of receptor activation underscore the importance of specific receptors in maintaining dopamine homeostasis and supporting adaptive behaviors. These findings are supported by studies examining the organization of monosynaptic inputs to midbrain dopamine neurons and their role in organizing spatial, temporal, and motivational aspects of behavior [S2]. • 37% confident • 258 tokens • scanning
-  +033075ms [Re-ranking] Session 2: Pattern Recognition │ Rapid activation of striatal D2-receptors is associated with phasic dopamine release, which drives the regulation of lateral inhibition between striatal neurons [S2]. Additionally, phasic dopamine release mediated by Gi/o-coupled receptors contributes to the modulation of cellular excitability and the regulation of potassium channels, such as G-protein-activated channels [S2]. • 43% confident • 48 tokens • scanning
-  +044826ms [Re-ranking] Session 3: Deepening Understanding │ Certain receptors are critical for dopamine regulation because they modulate the activity of dopamine neurons, which influence complex cognitive and behavioral processes. For example, D2-autoreceptors play a significant role in regulating dopamine neurons, particularly in the striatum, where they mediate lateral inhibition—a process that helps sharpen neural responses and maintain efficiency. Additionally, rapid activation of striatal D2-receptors is associated with phasic dopamine release, which drives the regulation of lateral inhibition between striatal neurons. Phasic dopamine release mediated by Gi/o-coupled receptors further contributes to the modulation of cellular excitability and the regulation of potassium channels, such as G-protein-activated channels. The role of D2-autoreceptors extends beyond lateral inhibition, as they regulate prefrontal function by gating callosal and hippocampal activity. This regulation enables the rapid ability of neurons to respond to phasic dopamine release, highlighting the importance of these receptors in modulating executive functions. Furthermore, optogenetic stimulation of dopamine neurons in the ventral tegmental area (VTA) demonstrates that dopamine stimulation acutely modulates aggressive behavior and effort-related behavior, although a detailed time course was not clarified. These findings suggest that dopamine activity is not static and can rapidly alter social interactions and behavioral responses. Transient and sustained effects of dopamine and serotonin signaling reveal that transient signaling can induce long-lasting effects on later behavior and social interaction. For instance, optogenetic techniques facilitate the elucidation of endogenous dopamine and serotonin signaling, revealing that dopamine activity can be transient, disappearing within a minute following stimulation cessation. This indicates that dopamine regulation is dynamic and can be finely tuned to regulate behaviors such as self-stimulation of dopamine neurons in the substantia nigra, which is linked to depression-related behaviors. These insights underscore the complexity of dopamine regulation and the critical role of specific receptors in modulating both immediate and long-term behavioral outcomes. • 47% confident • 292 tokens • scanning
-  +051225ms [Re-ranking] Session 4: Deepening Understanding │ Certain receptors are critical for dopamine regulation because they facilitate the modulation of prefrontal function by regulating callosal and hippocampal activity. D2 receptors, which are rapid activators of striatal function, play a role in gating prefrontal processes, underscoring their importance in cognitive control [S1]. Additionally, the modulation of prefrontal function through D2-autoreceptors contributes to the regulation of complex behavioral responses, particularly in contexts involving instrumental conditioning and reward-based learning [S1]. These receptors are not merely involved in dopamine release but actively shape the neural circuits that underpin higher-order functions, linking receptor activity to sustained behavioral adaptations. • 51% confident • 96 tokens • scanning
-  +055248ms [Generation] Session 5: Final Synthesis │ Synthesizing final answer... • 53% confident • 44 tokens • scanning
-  +063350ms [Re-ranking] Session 6: Deepening Understanding │ Certain receptors are critical for dopamine regulation because the absence of specific serotonin receptors influences behavioral outcomes related to aggression, impulsivity, and anxiety. According to [S2], the absence of 5-HT1B receptors is associated with impaired effects of 5-HT1B receptors on aggression and impulsivity, as demonstrated in male 5-HT1B knockout mice. Additionally, studies indicate that mice lacking 5-HT2c serotonin receptors exhibit impaired impulse control, contributing to an animal model of anxiety-related disorders [S2]. These findings highlight that serotonin receptor signaling intersects with dopamine regulation in shaping complex behavioral responses, extending the understanding of how receptor dysfunction can disrupt dopamine-dependent functions. • 55% confident • 99 tokens • scanning
-  +072875ms [Re-ranking] Session 7: Deepening Understanding │ Certain receptors are critical for dopamine regulation because they influence the development and function of neural circuits that govern complex behaviors. For example, the absence of 5-HT2c serotonin receptors is associated with altered motivational and behavioral responses, as demonstrated in animal models [S2]. This suggests that serotonin receptors play a functional role in modulating dopamine-dependent processes, even though the prior findings focused primarily on dopamine receptors and their direct effects on cognitive control and aggression. Additionally, the developmental origins of anxiety are linked to the organization of monosynaptic inputs to serotonin and dopamine neurons, highlighting how receptor-mediated signaling shapes emotional regulation [S2]. These findings indicate that the structural and functional integration of dopamine and serotonin receptors during brain development is essential for regulating anxiety-related behaviors, a process not explicitly addressed in the earlier discussions of receptor roles in dopamine regulation. • 59% confident • 139 tokens • scanning
-  +081462ms [Re-ranking] Session 8: Deepening Understanding │ The additional documents reveal that certain receptors are critical for dopamine regulation because they influence decision-making processes related to goal-directed behavior. Specifically, 5-HT2 receptors are considered to relay information about future status, which includes anticipatory activity involving dopamine and serotonin. This information is integral to processes such as delivery, temporal discounting, and the determination of the distance to a reward [S1]. These anticipatory responses are observed in complex tasks like instrumental learning and T-maze learning, where the magnitude of phasic dopamine responses to cues reflects the importance of these regulatory processes [S1]. The role of 5-HT2 receptors extends beyond basic behavior to influence the strategic evaluation of rewards, underscoring their significance in modulating dopamine-dependent decision-making [S1]. • 61% confident • 116 tokens • scanning
-  +105214ms [Re-ranking]  Citations │ 0/2 verified | Confidence: 58% | Action: retry
-  +105236ms [Retrieval] Searching │ Query: "Why are certain receptors critical for d..."
-  +105325ms [Planning] Query analysis │ Analyzing: "Why are certain receptors critical for dopamine re..."
-  +105373ms [Embedding] Encoding query │ 384-dim neural embedding
-  +105438ms [Vector Search] Vector ready │ Query encoded for semantic search
-  +105471ms [Query Rewrite] Query expansion │ Intent: conceptual → Vector 60% / Keyword 40%
-  +105503ms [Query Rewrite] Synonym expansion │ +6 terms added
-  +105523ms [Retrieval] Hybrid search │ Vector + BM25 on 115 chunks
-  +105654ms [RRF Fusion] RRF fusion │ 40 candidates from hybrid search
-  +105674ms [Re-ranking] AI re-ranking │ Scoring 40 chunks with neural model
-  +105816ms [Re-ranking] Re-ranking complete │ Top scores: 90%, 90%, 89%
-  +105831ms [MMR Diversity] MMR diversification │ Optimizing for coverage (λ=0.60)
-  +105870ms [MMR Diversity] Diversity optimized │ 20 chunks after MMR
-  +105890ms [Parent Doc Expansion] Parent doc retrieval │ Expanding with ±3 sibling chunks
-  +105906ms [Parent Doc Expansion] Context expanded │ 20 → 59 chunks with siblings
-  +105921ms [Position Reorder] Lost-in-Middle reorder │ Best evidence at start/end of context
-  +105964ms [Retrieval] Retrieval complete │ 59 chunks ready for synthesis
-  +105978ms [Retrieval] 🔍 Searching documents │ Found 59 relevant chunks (re-ranked by relevance):  [1] From Psychiatry Clin Neurosci - 2019 - Yagishita - Transient and sustained effects of dopamine and serotonin signaling in-2.pdf (Relevance: 83.2%): This document reviews dopamine and serotonin signaling in motivation-related behavior, focusing on depression. It highlights transient and sustained effects of these neurotransmitters on reward-related learning and stress responses, using animal studies with advanced manipulation. Monoamine deficiencies, linked to antidepressants and antipsychotics, are central to depressive mechanisms. The text emphasizes that distinct synaptic and cellular mechanisms are required for transient and sustained effects, depending on projection sites. The document synthesizes findings from studies on monoamine receptors and neural circuits, underscoring the complexity of monoamine involvement in depression. Its purpose is to advance understanding of dopamine and serotonin dynamics in mood regulation.  [2] From Psychiatry Clin Neurosci - 2019 - Yagishita - Transient and sustained effects of dopamine and serotonin signaling in-2.pdf (Page 6) (Relevance: 77.3%): cortex, which reflected reward-prediction error signals during learnactivation to reward-related tasks showed depressive symptoms ing. Another study further showed that adolescents with low NAc dopamine and/or serotonin sustained mechanisms were ineffective in detected 2 years after the experiment.! Such findings suggest that subjects with depression. symptoms suggest that behavioral and neuronal dysfunctions are These results of clinical studies on subjects with depressive potentially associated with both transient and sustained dopamine and serotonin functions, although it is impossible to measure dopamine the impairment can emerge when dopamine and serotonin release are and serotonin dynamics directly at second timescales in humans. All simply reduced. However, such a simple view of monoamine defidysfunction of transient signals from GPCR to channels may explain ciency has several drawbacks, as discussed previously.' Alternatively, impairment in sustained actions is the plasticity m [...]  [3] From Psychiatry Clin Neurosci - 2019 - Yagishita - Transient and sustained effects of dopamine and serotonin signaling in-2.pdf (Page 4) (Relevance: 76.5%): 8 Therefore, under Gs-coupled recep- minutes in the cortical and striatal neurons in response to the submay be relevant to the transient modulation of behavior. tors, PKA signaling may transiently modify channel functions, which and 5-HTI receptors for serotonin provide transient inhibition mecha- Gio-coupled receptors, D2, D3, and D4 receptors for dopamine, regulation of potassium channels and voltage-gated calcium chan- nisms through several downstream signaling activities, such as the protein signaling exhibits long-lasting effects. At the axon terminal release of neurotransmitters transiently; however, at others, Gi%- nels. At some axon terminals, Gi%-protein signaling suppresses the release through potassium channels. A similar feedback inhibition of dopamine neurons, the D2 receptor (D2R) suppresses dopamine mechanism exists for serotonin neurons via 5-HT1A receptors. Gluta- matergic and GABAergic axons can also be inhibited by dopamine inputs to pyramidal neurons in the PFC from [...]  [4] From Psychiatry Clin Neurosci - 2019 - Yagishita - Transient and sustained effects of dopamine and serotonin signaling in-2.pdf (Page 5) (Relevance: 76.5%): out rapid signaling in the sub-second timescale,38,40 the neuronal substrates of such rapid signaling in the striatum remain unclear. The striatal spiny-projection neurons (SPN) express Gs/olf-coupling D1 receptors or Gi/o-coupling D2 receptors mainly. So far, no possible mechanism has been suggested for the rapid regulation of cellular excitability at the sub-second timescale under Gs/olf signaling. Gi/o and D2 receptors may regulate cellular excitability through the rapid regulation of potassium channels, such as G-protein-activated inwardly rectifying potassium channel (GIRK); however, SPN in the striatum do not express GIRK. Although the GIRK mechanism does not explain the rapid action of dopamine at the striatum, an optogenetic study of striatal slices with the arti cial expression of GIRK in SPN revealed that D2R could detect the brief activation of dopamine at the hundred-millisecond scale.83 Therefore, rapid signaling using D2R of SPN may play an important role for the rapid ac [...]  [5] From Psychiatry Clin Neurosci - 2019 - Yagishita - Transient and sustained effects of dopamine and serotonin signaling in-2.pdf (Page 5) (Relevance: 76.5%): inputs from the neocortex and causes persistent suppression, or longterm depression (LTD), which has been suggested to underlie social reward conditioning.61 Notably, the same presynaptic action of 5-HT1B receptor was transient in PFC inputs,81 indicating that the same receptor controls transient and sustained mechanisms differentially depending on the respective brain regions. In the postsynapse of SPN in the NAc, the 5-HT4 receptor inhibits LTD when coupled with repeated stimulation with glutamate and action potentials.92 In the neocortex, the transient activation of serotonin facilitated LTD in a 5-HT2C receptor-dependent manner.93 While behavioral studies have shown that dopamine and serotonin modulate learning and stress responses, whether these neurotransmitters share synaptic and cellular mechanisms has not been well reported. Some studies have revealed synaptic changes following stress. After social defeat stress, which involves dopamine signaling in the NAc for the acquisition [...]  [6] From Psychiatry Clin Neurosci - 2019 - Yagishita - Transient and sustained effects of dopamine and serotonin signaling in-2.pdf (Page 5) (Relevance: 76.2%): addition to the exertion, decision-making processes involving prediction of bene t and cost are also affected. In a physical effort task where subjects were required to press a button to earn monetary rewards among high-cost high-return and low-cost low-return options, subjects with depression avoided selecting higher-effort tasks.97 During the tasks, subjects with depression exhibited lower activity in the striatum and cingulate cortex compared to the controls.98 Therefore, a potential interpretation of the results is that reward prediction, which is highly likely to induce transient dopamine and serotonin activity, failed to activate downstream signaling in the brain regions such as  14401819, 2020, 2, Downloaded from https://onlinelibrary.wiley.com/doi/10.1111/pcn.12942, Wiley Online Library on [16/04/2026]. See the Terms and Conditions (https://onlinelibrary.wiley.com/terms-and-conditions) on Wiley Online Library for rules of use; OA articles are governed by the applicable Creative [...]  [7] From Psychiatry Clin Neurosci - 2019 - Yagishita - Transient and sustained effects of dopamine and serotonin signaling in-2.pdf (Page 4) (Relevance: 75.9%): reward, conditioned stimuli that predict the delivery of reward cause phasic dopamine and serotonin activation. 25,31,35,5l Similar anticipatory responses of dopamine are observed in more complex tasks, such as instrumental learning° and T maze learningẠỊThe magnitude of phasic dopamine responses to cues reflects the subjectively expected value, such as the amount of reward value, probability of reward decision-making during goal-directed behavin; which influences sidered to relay information on future status, fore, the anticipatory activity of dopamine and serotonin can be condelivery, temporal discounting, and distance to the reward.?1,72 There behavior. In addition to the learning, chronic stress regulates dopa- and avoidance mine activity, which may in turn modulate motivation-related behav- ior. For example, a study suggested that chronic mild stress reduced the phasic activities of dopamine neurons in a basolateral-amygdala- and ventral-pallidum-dependent manner. Therefore, the t [...]  [8] From Psychiatry Clin Neurosci - 2019 - Yagishita - Transient and sustained effects of dopamine and serotonin signaling in-2.pdf (Page 8) (Relevance: 74.3%): Hayashi-Takagi A, Yagishita S, Nakamura M et al. Labelling and optical erasure of synaptic memory traces in the motor cortex. Noture 88. Yagishita S, Hayashi-Takagi A, Ellis-Davies GC, Urakubo H, Ishii S, 2015;525:333-338. plasticity of dendritic spines. Science 2014; 345: 1616-1620. Kasai H. A critical time window for dopamine actions on the structural 89. Huang YY, Simpson E, Kellendonk C, Kandel ER. Genetic evidence for the bidirectional modulation of synaptic plasticity in the prefrontal cortex by D1 receptors. Proc. Natl. Acad. Sci. U. S. A. 2004; 101: 90. Otani S, Daniel H, Roisin MP, Crepel F. Dopaminergic modulation of 2003; 13:1251-1256. long-term synaptic plasticity in rat prefrontal neurons. Cereb. Cortex  DONEsycnatry an 14401819, 2020, 2, Downloaded from https://onlinelibrary.wiley.com/doi/10.1111/pcn. 12942, Wiley Online Library on [16/04/2026]. See the Terms and Conditions (https://onlinelibrary.wiley.com/terms-and-conditions) on Wiley Online Library for rules of use; OA [...]  [9] From Psychiatry Clin Neurosci - 2019 - Yagishita - Transient and sustained effects of dopamine and serotonin signaling in-2.pdf (Page 1) (Relevance: 70.7%): such as reward-related learning and stress responses that effects often exhibit specific roles depending on the projeclast longer than several days. Transient and sustained tion sites, where distinct synaptic and cellular mechanisms sient and sustained timescale. Therefore, it appears that are required to process the neurotransmitters for each tran- Monoamine deficiency has long been one of the major hypothetical ing monoamine oxidase inhibitors and tricyclic antidepressants, act to etiologies of depression. Different classes of antidepressants, includatypical antipsychotics, which also target monoamines (such as dopaenhance the concentration of monoamines in the brain. Additionally, treatment effects cannot be explained based simply on increased mine and serotonin), ameliorate depressive symptoms.? However, serotonin reuptake inhibitor does not produce immediate antidepresmonoamine levels. For instance, increasing serotonin levels using a sant effects. Rather, a period of several week [...]  [10] From Psychiatry Clin Neurosci - 2019 - Yagishita - Transient and sustained effects of dopamine and serotonin signaling in-2.pdf (Page 2) (Relevance: 67.9%): recordings, one can record signals according to behavioral timescales, reflecting averaged activity of monoamine axon terminals, which behavioral events. Bulk recording of fluorescence reveals global signals enables estimation of the amount of monoamine release during volume fluorescence. Another limitation is the inability to directly measure the ing absolute values, as the measurements rely on relative changes in transmission. One drawback of this method is the difficulty in measuramount of monoamine release as genetically encoded calcium indicators measure axonal activity, which does not necessary correlate with the amount of monoamine release due to release regulation at the preamine G protein-coupled receptors (GPCR) have been developed as synapse and reuptake by transporters. More recently, engineered monofluorescent reporters for extracellular monoamine concentration, brain regions.36,37 enabling direct monitoring of released monoamine dynamics in specific behavior Effects of tr [...]   • Tokens: 1446, Duration: 0.8s
-  +109466ms [Generation] ✨ Synthesizing answer │ Receptors are critical for dopamine regulation because they mediate the transient and sustained effects of dopamine and serotonin on reward-related learning, stress responses, and motivation-related behavior, which are central to mood regulation and depression mechanisms. • Tokens: 35, Duration: 3.5s
-  +109495ms [Re-ranking]  Confidence │ 55% | Action: accept
-  +109495ms [Generation] Synthesis complete │ 14 reasoning steps, confidence: 55%
+  +027447ms [Retrieval] Session 1: Initial Analysis │ Neurotransmitters play a significant role in motivation, particularly through their involvement in transient and sustained effects that contribute to psychiatric disorders. According to the document, the analysis of dopamine and serotonin signaling—two key neurotransmitters—reveals their complex contributions to motivational processes. The focus on these neurotransmitters aims to understand how their signaling patterns influence both short-term and long-term motivational states. The document highlights that dopamine and serotonin are central to the modulation of motivation, though the specific mechanisms and clinical implications remain under investigation. While the provided text does not detail exact biological processes or clinical outcomes, it underscores the importance of examining these neurotransmitters in the context of psychiatric disorders to better understand their role in motivation. [S1] • 38% confident • 116 tokens • scanning
+  +030056ms [Re-ranking] Session 2: Pattern Recognition │ According to [S1], the analysis of dopamine and serotonin signaling focuses on their roles in motivational processes. • 44% confident • 17 tokens • scanning
+  +036727ms [Re-ranking] Session 3: Deepening Understanding │ The analysis of dopamine and serotonin signaling, as outlined in the document, extends beyond the transient and sustained effects typically associated with motivational processes, emphasizing their complex contributions to the underlying mechanisms of motivation. According to [S1], the focus on these neurotransmitters is not merely to analyze their involvement in psychiatric disorders but to delve into the intricate ways in which they influence motivational functions. This analysis underscores that the roles of dopamine and serotonin are multifaceted, contributing to both immediate and long-term aspects of motivation, thereby highlighting the depth of their impact on behavioral drive and emotional regulation. • 45% confident • 99 tokens • scanning
+  +041762ms [Re-ranking] Session 4: Deepening Understanding │ According to the analysis detailed in [S1], neurotransmitters such as dopamine and serotonin are examined not only for their involvement in transient and sustained effects but also for their complex contributions to the underlying mechanisms of motivation. The document underscores that the focus extends beyond the mere analysis of their roles in psychiatric disorders, emphasizing the intricate ways these chemical messengers influence motivational processes. This analysis is framed as a comprehensive exploration of how dopamine and serotonin signaling operates within the broader context of motivation, highlighting the depth of their involvement in the cognitive and emotional aspects of behavior. • 49% confident • 99 tokens • scanning
+  +049148ms [Generation] Session 5: Final Synthesis │ Synthesizing final answer... • 51% confident • 116 tokens • scanning
+  +056176ms [Re-ranking] Session 6: Deepening Understanding │ The analysis of dopamine and serotonin signaling, as detailed in [S1], reveals that these neurotransmitters are examined not only for their involvement in transient and sustained effects but also for their complex contributions to the underlying mechanisms of motivation. The document underscores that the focus extends beyond the mere analysis of their roles in psychiatric disorders, emphasizing the intricate way in which these chemical messengers influence the fundamental processes that drive purposeful behavior. This analysis highlights that the effects of dopamine and serotonin are integral to the nuanced systems that govern motivation, suggesting that their involvement extends beyond surface-level behavioral regulation to encompass deeper, more complex regulatory pathways. • 52% confident • 108 tokens • scanning
+  +061699ms [Re-ranking] Session 7: Deepening Understanding │ The analysis of dopamine and serotonin signaling, as documented in [S1], extends beyond the analysis of transient and sustained effects to examine the complex contributions of these neurotransmitters to the underlying mechanisms of motivation. The focus of this analysis encompasses the intricate ways in which dopamine and serotonin signaling influences motivational processes, indicating that their roles in motivation are not limited to their involvement in psychiatric disorders. This broader examination suggests that the neurotransmitters contribute to the foundational processes that govern motivation, highlighting the depth of their involvement in driving behavioral and emotional engagement. • 53% confident • 94 tokens • scanning
+  +067693ms [Re-ranking] Session 8: Deepening Understanding │ The analysis of dopamine and serotonin signaling, as documented in [S1], extends beyond the analysis of transient and sustained effects to examine the intricate ways in which these neurotransmitters influence motivational processes. The document emphasizes that the focus encompasses the complex contributions of dopamine and serotonin signaling to the underlying mechanisms of motivation, highlighting that the examination of these neurotransmitters is not limited to their involvement in psychiatric disorders but rather extends to the nuanced and multifaceted roles they play in driving motivational behavior. • 56% confident • 84 tokens • scanning
+  +083369ms [Re-ranking]  Citations │ 0/1 verified | Confidence: 61% | Action: retry
+  +083421ms [Retrieval] Searching │ Query: "What role do neurotransmitters play in m..."
+  +083554ms [Planning] Query analysis │ Analyzing: "What role do neurotransmitters play in motivation?..."
+  +083635ms [Embedding] Encoding query │ 384-dim neural embedding
+  +083738ms [Vector Search] Vector ready │ Query encoded for semantic search
+  +083777ms [Query Rewrite] Query expansion │ Intent: balanced → Vector 50% / Keyword 50%
+  +083843ms [Query Rewrite] Synonym expansion │ +1 terms added
+  +083866ms [Retrieval] Hybrid search │ Vector + BM25 on 2 chunks
+  +083938ms [RRF Fusion] RRF fusion │ 2 candidates from hybrid search
+  +083960ms [Re-ranking] AI re-ranking │ Scoring 2 chunks with neural model
+  +084011ms [Re-ranking] Re-ranking complete │ Top scores: 90%, 10%
+  +084031ms [MMR Diversity] MMR diversification │ Optimizing for coverage (λ=0.60)
+  +084063ms [MMR Diversity] Diversity optimized │ 2 chunks after MMR
+  +084101ms [Context Assembly] Quality filter │ Kept 1/2 (≥12% threshold)
+  +084133ms [Parent Doc Expansion] Parent doc retrieval │ Expanding with ±3 sibling chunks
+  +084152ms [Parent Doc Expansion] Context expanded │ 1 → 2 chunks with siblings
+  +084188ms [Retrieval] Retrieval complete │ 2 chunks ready for synthesis
+  +084211ms [Retrieval] 🔍 Searching documents │ Found 2 relevant chunks (re-ranked by relevance):  [1] From Psychiatry Clin Neurosci - 2019 - Yagishita - Transient and sustained effects of dopamine and serotonin signaling in.pdf (Relevance: 90.0%): The document examines dopamine and serotonin signaling in psychiatry. It focuses on transient and sustained effects of these neurotransmitters. The purpose is to analyze their roles in psychiatric disorders.  [2] From Psychiatry Clin Neurosci - 2019 - Yagishita - Transient and sustained effects of dopamine and serotonin signaling in.pdf (Relevance: 76.5%):    • Tokens: 77, Duration: 0.8s
+  +086931ms [Generation] ✨ Synthesizing answer │ Dopamine and serotonin are neurotransmitters that play roles in motivation, particularly in transient and sustained effects related to psychiatric disorders. • Tokens: 21, Duration: 2.7s
+  +086966ms [Re-ranking]  Confidence │ 45% | Action: escalate
+  +086967ms [Generation] Synthesis complete │ 14 reasoning steps, confidence: 46%
 
 ▶ REASONING TRACE (11 sessions)
 ────────────────────────────────────────────────────────────────────────
   Session 1: 🔍 Analyzing Evidence: Confidence: Excellent (>50% match) (90%)
 Semantic match: ✓ High confidence match
-  Session 2: 🧠 Finding Patterns: Certain receptors are critical for dopamine regulation because they help modulate the activity of dopamine neurons, which in turn influence complex cognitive and behavioral processes. For instance, D2-autoreceptors play a significant role in regulating dopamine neurons, particularly in the striatum, where they mediate lateral inhibition—a process that helps sharpen neural responses and maintain efficient circuit function [S1], [S2]. These receptors are involved in rapid activation of striatal dopamine release, which is essential for processes such as decision-making, reward processing, and the regulation of movement and locomotion [S1].
-The regulation of dopamine by D2-autoreceptors extends to the prefrontal cortex (PFC), where they help gate information between the lateralization of cortical areas and the hippocampus, thereby supporting prefrontal function [S1]. Moreover, the activation of D2-receptors in response to transient dopamine release is linked to the modulation of neuronal activities in the PFC, which are critical for navigating conflicting signals related to reward and punishment [S1]. This suggests that D2-autoreceptors are not merely passive receptors but active participants in shaping the functional output of dopamine systems.
-Additionally, the absence of 5-HT1B receptors is associated with impaired impulse control, highlighting the broader role of dopamine receptors in behavioral regulation [S2]. While the provided documents primarily focus on dopamine receptors, such as D2-autoreceptors and 5-HT1B receptors, the functional implications of receptor activation underscore the importance of specific receptors in maintaining dopamine homeostasis and supporting adaptive behaviors. These findings are supported by studies examining the organization of monosynaptic inputs to midbrain dopamine neurons and their role in organizing spatial, temporal, and motivational aspects of behavior [S2].
-  Session 3: 💡 Refining: Rapid activation of striatal D2-receptors is associated with phasic dopamine release, which drives the regulation of lateral inhibition between striatal neurons [S2]. Additionally, phasic dopamine release mediated by Gi/o-coupled receptors contributes to the modulation of cellular excitability and the regulation of potassium channels, such as G-protein-activated channels [S2].
-  Session 4: ✨ Synthesis: Certain receptors are critical for dopamine regulation because they modulate the activity of dopamine neurons, which influence complex cognitive and behavioral processes. For example, D2-autoreceptors play a significant role in regulating dopamine neurons, particularly in the striatum, where they mediate lateral inhibition—a process that helps sharpen neural responses and maintain efficiency. Additionally, rapid activation of striatal D2-receptors is associated with phasic dopamine release, which drives the regulation of lateral inhibition between striatal neurons. Phasic dopamine release mediated by Gi/o-coupled receptors further contributes to the modulation of cellular excitability and the regulation of potassium channels, such as G-protein-activated channels.
-The role of D2-autoreceptors extends beyond lateral inhibition, as they regulate prefrontal function by gating callosal and hippocampal activity. This regulation enables the rapid ability of neurons to respond to phasic dopamine release, highlighting the importance of these receptors in modulating executive functions. Furthermore, optogenetic stimulation of dopamine neurons in the ventral tegmental area (VTA) demonstrates that dopamine stimulation acutely modulates aggressive behavior and effort-related behavior, although a detailed time course was not clarified. These findings suggest that dopamine activity is not static and can rapidly alter social interactions and behavioral responses.
-Transient and sustained effects of dopamine and serotonin signaling reveal that transient signaling can induce long-lasting effects on later behavior and social interaction. For instance, optogenetic techniques facilitate the elucidation of endogenous dopamine and serotonin signaling, revealing that dopamine activity can be transient, disappearing within a minute following stimulation cessation. This indicates that dopamine regulation is dynamic and can be finely tuned to regulate behaviors such as self-stimulation of dopamine neurons in the substantia nigra, which is linked to depression-related behaviors. These insights underscore the complexity of dopamine regulation and the critical role of specific receptors in modulating both immediate and long-term behavioral outcomes.
-  Session 5: Session 5: Certain receptors are critical for dopamine regulation because they facilitate the modulation of prefrontal function by regulating callosal and hippocampal activity. D2 receptors, which are rapid activators of striatal function, play a role in gating prefrontal processes, underscoring their importance in cognitive control [S1]. Additionally, the modulation of prefrontal function through D2-autoreceptors contributes to the regulation of complex behavioral responses, particularly in contexts involving instrumental conditioning and reward-based learning [S1]. These receptors are not merely involved in dopamine release but actively shape the neural circuits that underpin higher-order functions, linking receptor activity to sustained behavioral adaptations.
-  Session 6: Session 6: Certain receptors are critical for dopamine regulation because they facilitate the modulation of prefrontal function by regulating callosal and hippocampal activity. D2 receptors, which are rapid activators of striatal function, play a role in gating prefrontal processes, underscoring their importance in cognitive control [S1].
-  Session 7: Session 7: Certain receptors are critical for dopamine regulation because the absence of specific serotonin receptors influences behavioral outcomes related to aggression, impulsivity, and anxiety. According to [S2], the absence of 5-HT1B receptors is associated with impaired effects of 5-HT1B receptors on aggression and impulsivity, as demonstrated in male 5-HT1B knockout mice. Additionally, studies indicate that mice lacking 5-HT2c serotonin receptors exhibit impaired impulse control, contributing to an animal model of anxiety-related disorders [S2]. These findings highlight that serotonin receptor signaling intersects with dopamine regulation in shaping complex behavioral responses, extending the understanding of how receptor dysfunction can disrupt dopamine-dependent functions.
-  Session 8: Session 8: Certain receptors are critical for dopamine regulation because they influence the development and function of neural circuits that govern complex behaviors. For example, the absence of 5-HT2c serotonin receptors is associated with altered motivational and behavioral responses, as demonstrated in animal models [S2]. This suggests that serotonin receptors play a functional role in modulating dopamine-dependent processes, even though the prior findings focused primarily on dopamine receptors and their direct effects on cognitive control and aggression.
-Additionally, the developmental origins of anxiety are linked to the organization of monosynaptic inputs to serotonin and dopamine neurons, highlighting how receptor-mediated signaling shapes emotional regulation [S2]. These findings indicate that the structural and functional integration of dopamine and serotonin receptors during brain development is essential for regulating anxiety-related behaviors, a process not explicitly addressed in the earlier discussions of receptor roles in dopamine regulation.
-  Session 9: Session 9: The additional documents reveal that certain receptors are critical for dopamine regulation because they influence decision-making processes related to goal-directed behavior. Specifically, 5-HT2 receptors are considered to relay information about future status, which includes anticipatory activity involving dopamine and serotonin. This information is integral to processes such as delivery, temporal discounting, and the determination of the distance to a reward [S1]. These anticipatory responses are observed in complex tasks like instrumental learning and T-maze learning, where the magnitude of phasic dopamine responses to cues reflects the importance of these regulatory processes [S1]. The role of 5-HT2 receptors extends beyond basic behavior to influence the strategic evaluation of rewards, underscoring their significance in modulating dopamine-dependent decision-making [S1].
-  Session 10: Session 10: Relevance: 70% | Citations: 0/2 verified | Confidence: 58% | Action: retry
-  Session 11: Session 11: Receptors are critical for dopamine regulation because they mediate the transient and sustained effects of dopamine and serotonin on reward-related learning, stress responses, and motivation-related behavior, which are central to mood regulation and depression mechanisms.
+  Session 2: 🧠 Finding Patterns: Neurotransmitters play a significant role in motivation, particularly through their involvement in transient and sustained effects that contribute to psychiatric disorders. According to the document, the analysis of dopamine and serotonin signaling—two key neurotransmitters—reveals their complex contributions to motivational processes. The focus on these neurotransmitters aims to understand how their signaling patterns influence both short-term and long-term motivational states.
+The document highlights that dopamine and serotonin are central to the modulation of motivation, though the specific mechanisms and clinical implications remain under investigation. While the provided text does not detail exact biological processes or clinical outcomes, it underscores the importance of examining these neurotransmitters in the context of psychiatric disorders to better understand their role in motivation.
+[S1]
+  Session 3: 💡 Refining: According to [S1], the analysis of dopamine and serotonin signaling focuses on their roles in motivational processes.
+  Session 4: ✨ Synthesis: The analysis of dopamine and serotonin signaling, as outlined in the document, extends beyond the transient and sustained effects typically associated with motivational processes, emphasizing their complex contributions to the underlying mechanisms of motivation. According to [S1], the focus on these neurotransmitters is not merely to analyze their involvement in psychiatric disorders but to delve into the intricate ways in which they influence motivational functions. This analysis underscores that the roles of dopamine and serotonin are multifaceted, contributing to both immediate and long-term aspects of motivation, thereby highlighting the depth of their impact on behavioral drive and emotional regulation.
+  Session 5: Session 5: According to the analysis detailed in [S1], neurotransmitters such as dopamine and serotonin are examined not only for their involvement in transient and sustained effects but also for their complex contributions to the underlying mechanisms of motivation. The document underscores that the focus extends beyond the mere analysis of their roles in psychiatric disorders, emphasizing the intricate ways these chemical messengers influence motivational processes. This analysis is framed as a comprehensive exploration of how dopamine and serotonin signaling operates within the broader context of motivation, highlighting the depth of their involvement in the cognitive and emotional aspects of behavior.
+  Session 6: Session 6: The analysis of dopamine and serotonin signaling, as outlined in [S1], reveals that these neurotransmitters are examined not only for their involvement in transient and sustained effects but also for their complex contributions to the underlying mechanisms of motivation. The document emphasizes that the focus extends beyond the mere analysis of their roles in psychiatric disorders, indicating that the investigation of dopamine and serotonin signaling encompasses a broader examination of how these chemical messengers influence the fundamental processes that drive purposeful behavior. This expanded analysis suggests that dopamine and serotonin contribute to motivation in ways that are intricately tied to the internal regulatory systems that govern goal-directed actions, beyond the specific contexts of mental health conditions.
+  Session 7: Session 7: The analysis of dopamine and serotonin signaling, as detailed in [S1], reveals that these neurotransmitters are examined not only for their involvement in transient and sustained effects but also for their complex contributions to the underlying mechanisms of motivation. The document underscores that the focus extends beyond the mere analysis of their roles in psychiatric disorders, emphasizing the intricate way in which these chemical messengers influence the fundamental processes that drive purposeful behavior. This analysis highlights that the effects of dopamine and serotonin are integral to the nuanced systems that govern motivation, suggesting that their involvement extends beyond surface-level behavioral regulation to encompass deeper, more complex regulatory pathways.
+  Session 8: Session 8: The analysis of dopamine and serotonin signaling, as documented in [S1], extends beyond the analysis of transient and sustained effects to examine the complex contributions of these neurotransmitters to the underlying mechanisms of motivation. The focus of this analysis encompasses the intricate ways in which dopamine and serotonin signaling influences motivational processes, indicating that their roles in motivation are not limited to their involvement in psychiatric disorders. This broader examination suggests that the neurotransmitters contribute to the foundational processes that govern motivation, highlighting the depth of their involvement in driving behavioral and emotional engagement.
+  Session 9: Session 9: The analysis of dopamine and serotonin signaling, as documented in [S1], extends beyond the analysis of transient and sustained effects to examine the intricate ways in which these neurotransmitters influence motivational processes. The document emphasizes that the focus encompasses the complex contributions of dopamine and serotonin signaling to the underlying mechanisms of motivation, highlighting that the examination of these neurotransmitters is not limited to their involvement in psychiatric disorders but rather extends to the nuanced and multifaceted roles they play in driving motivational behavior.
+  Session 10: Session 10: Relevance: 100% | Citations: 0/1 verified | Confidence: 61% | Action: retry
+  Session 11: Session 11: Dopamine and serotonin are neurotransmitters that play roles in motivation, particularly in transient and sustained effects related to psychiatric disorders.
 
-▶ RETRIEVED CHUNKS (66 chunks)
+▶ RETRIEVED CHUNKS (2 chunks)
 ────────────────────────────────────────────────────────────────────────
 
   ── Chunk 1 ──
-  Source:     Psychiatry Clin Neurosci - 2019 - Yagishita - Transient and sustained effects of dopamine and serotonin signaling in-2.pdf
+  Source:     Psychiatry Clin Neurosci - 2019 - Yagishita - Transient and sustained effects of dopamine and serotonin signaling in.pdf
   Rank:       1
-  Similarity: 0.7800
-  Page:       5
-  Section:    PCNPsychiatry and Clinical Neurosciences
-  Path:       PCNPsychiatry and Clinical Neurosciences
-  Structure:  paragraph
-  Content:    ellular structures, including presynapse, postsynapse, and axon initial segments, are capable of altering the excitability or transmission properties at timescales ranging from subseconds to minutes, thereby facilitating the rapid and transient regulation of neuronal function. Future studies could r...
+  Similarity: 0.9000
+  Section:    Document Summary
+  Content:    The document examines dopamine and serotonin signaling in psychiatry. It focuses on transient and sustained effects of these neurotransmitters. The purpose is to analyze their roles in psychiatric disorders.
 
   ── Chunk 2 ──
-  Source:     Psychiatry Clin Neurosci - 2019 - Yagishita - Transient and sustained effects of dopamine and serotonin signaling in-2.pdf
+  Source:     Psychiatry Clin Neurosci - 2019 - Yagishita - Transient and sustained effects of dopamine and serotonin signaling in.pdf
   Rank:       2
-  Similarity: 0.7925
-  Page:       4
-  Structure:  paragraph
-  Content:    mine neurons, the D2 receptor (D2R) suppresses dopamine mechanism exists for serotonin neurons via 5-HT1A receptors. Gluta- matergic and GABAergic axons can also be inhibited by dopamine inputs to pyramidal neurons in the PFC from the contralateral and serotonin through Gio-protein signaling. For ex...
-
-  ── Chunk 3 ──
-  Source:     Psychiatry Clin Neurosci - 2019 - Yagishita - Transient and sustained effects of dopamine and serotonin signaling in-2.pdf
-  Rank:       3
-  Similarity: 0.8425
-  Page:       7
-  Section:    16. Weissbourd B, Ren J, DeLoach KE, Guenthner CJ, Miyamichi K,
-  Path:       16. Weissbourd B, Ren J, DeLoach KE, Guenthner CJ, Miyamichi K,
-  Structure:  paragraph
-  Content:    Neuron 2014; 83: 645-662. Luo L. Presynaptic partners of dorsal raphe serotonergic and 17. Ogawa SK, Cohen JY, Hwang D, Uchida N, Watabe-Uchida M. Organization of monosynaptic inputs to the serotonin and dopamine neu- 18. Cragg SJ, Rice ME. DAncing past the DAT at a DA synapse. Trends 19. Arbuthnott...
-
-  ── Chunk 4 ──
-  Source:     Psychiatry Clin Neurosci - 2019 - Yagishita - Transient and sustained effects of dopamine and serotonin signaling in-2.pdf
-  Rank:       4
-  Similarity: 0.7800
-  Page:       7
-  Section:    47. Chaudhury D, Walsh JJ, Friedman AK et al. Rapid regulation of
-  Path:       47. Chaudhury D, Walsh JJ, Friedman AK et al. Rapid regulation of
-  Structure:  paragraph
-  Content:    audhury D, Walsh JJ, Friedman AK et al. Rapid regulation of rons. Nature 2013; 493: 532-536. depression-related behaviours by control of midbrain dopamine neu- 48. Yu Q, Teixeira CM, Mahadevia D et al. Dopamine and serotonin signaling during two sensitive developmental periods differentially impact ...
-
-  ── Chunk 5 ──
-  Source:     Psychiatry Clin Neurosci - 2019 - Yagishita - Transient and sustained effects of dopamine and serotonin signaling in-2.pdf
-  Rank:       5
-  Similarity: 0.7752
-  Page:       8
-  Section:    80. Ford CP. The role of D2-autoreceptors in regulating dopamine neuron
-  Path:       80. Ford CP. The role of D2-autoreceptors in regulating dopamine neuron
-  Structure:  paragraph
-  Content:     The role of D2-autoreceptors in regulating dopamine neuron 663- -673. sion mediated by Gi/o-coupled receptors. Trends Neurosci. 2014; 37: .81 Kjaerby C, Athilingam J, Robinson SE, lafrati J, Sohal VS. Serotonin activity and transmission. Neuroscience 2014; 282: 13-22. campal inputs. Cell Rep. 2016;...
-
-  ── Chunk 6 ──
-  Source:     Psychiatry Clin Neurosci - 2019 - Yagishita - Transient and sustained effects of dopamine and serotonin signaling in-2.pdf
-  Rank:       6
-  Similarity: 0.7161
-  Page:       6
-  Structure:  paragraph
-  Content:    Saunders BT, Richard JM, Margolis EB, Janak PH. Dopamine neurons create Pavlovian conditioned stimuli with circuit-defined motivational properties. Nat. Neurosci. 2018; 21: 1072-1083. Gross C, Hen R. The developmental origins of anxiety. Nat. Rev. Neu- 13. rosci. 2004; 5: 545-552 Chong TTJ. Updating...
-
-  ── Chunk 7 ──
-  Source:     Psychiatry Clin Neurosci - 2019 - Yagishita - Transient and sustained effects of dopamine and serotonin signaling in-2.pdf
-  Rank:       7
-  Similarity: 0.7133
-  Section:    Document Summary
-  Content:    This document reviews dopamine and serotonin signaling in motivation-related behavior, focusing on depression. It highlights transient and sustained effects of these neurotransmitters on reward-related learning and stress responses, using animal studies with advanced manipulation. Monoamine deficien...
-
-  ── Chunk 8 ──
-  Source:     Psychiatry Clin Neurosci - 2019 - Yagishita - Transient and sustained effects of dopamine and serotonin signaling in-2.pdf
-  Rank:       8
-  Similarity: 0.7161
-  Page:       7
-  Section:    PCN Pinical Ny urosciences
-  Structure:  paragraph
-  Content:    PCN Pinical Ny urosciences 15. Watabe-Uchida M, Zhu L, Ogawa SK, Vamanrao A, Uchida N. Wholebrain mapping of direct inputs to midbrain dopamine neurons. Neuron 16. Weissbourd B, Ren J, DeLoach KE, Guenthner CJ, Miyamichi K, 2012; 74:858-873. GABAergic neurons. Neuron 2014; 83: 645-662. Luo L. Presyn...
-
-  ── Chunk 9 ──
-  Source:     Psychiatry Clin Neurosci - 2019 - Yagishita - Transient and sustained effects of dopamine and serotonin signaling in-2.pdf
-  Rank:       9
-  Similarity: 0.8700
-  Page:       3
-  Section:    PCNPsychiatry and Clinical Neurosciences
-  Path:       REVIEW ARTICLE > PCNPsychiatry and Clinical Neurosciences
-  Structure:  paragraph
-  Content:    dopamine activity allowed the demonstration of the rapid activation of dopamine axonal activity at the onset of locomotion, which terminated at movement offset in sub-second order, validating the manipulation results.38 In the study, stimulation of dopaminergic terminals in the ventral striatum or N...
-
-  ── Chunk 10 ──
-  Source:     Psychiatry Clin Neurosci - 2019 - Yagishita - Transient and sustained effects of dopamine and serotonin signaling in-2.pdf
-  Rank:       10
-  Similarity: 0.7161
-  Page:       7
-  Section:    19. Arbuthnott GW, Wickens J. Space, time and dopamine. Trends Neu-
-  Path:       19. Arbuthnott GW, Wickens J. Space, time and dopamine. Trends Neu-
-  Structure:  paragraph
-  Content:    Physiol. Rev. 1998; 78: 189-225. out: An animal model of anxiety-related disorder. Proc. Natl. Acad. Sci. 22. Bouwknecht JA, Hijzen TH, van der Gugten J, Mass RAA, Hen R, impulse control in male 5-HT1B knockout mice. Biol. Psychiatry 2001; Olivier B. Absence of 5-HT1B receptors is associated with im...
-
-  ── Chunk 11 ──
-  Source:     Psychiatry Clin Neurosci - 2019 - Yagishita - Transient and sustained effects of dopamine and serotonin signaling in-2.pdf
-  Rank:       11
-  Similarity: 0.6736
-  Page:       4
-  Structure:  paragraph
-  Content:    phasic dopamine responses to cues reflects the subjectively expected value, such as the amount of reward value, probability of reward decision-making during goal-directed behavin; which influences sidered to relay information on future status, fore, the anticipatory activity of dopamine and serotoni...
-
-  ── Chunk 12 ──
-  Source:     Psychiatry Clin Neurosci - 2019 - Yagishita - Transient and sustained effects of dopamine and serotonin signaling in-2.pdf
-  Rank:       12
-  Similarity: 0.7161
-  Page:       6
-  Structure:  paragraph
-  Content:    13. rosci. 2004; 5: 545-552 Chong TTJ. Updating the role of dopamine in human motivation and 14. Nestler EJ, Carlezon WA Jr. The mesolimbic dopamine reward circuit apathy. Curr. Opin. Behav. Sci. 2018; 22: 35-41. in depression. Biol. Psychiatry 2006; 59: 1151-1159. Psychiatry and Clinical Neuroscien...
-
-  ── Chunk 13 ──
-  Source:     Psychiatry Clin Neurosci - 2019 - Yagishita - Transient and sustained effects of dopamine and serotonin signaling in-2.pdf
-  Rank:       13
-  Similarity: 0.6592
-  Page:       8
-  Structure:  paragraph
-  Content:    Biol. 2018; 28: 74. Chang CH, Grace AA. Amygdala-ventral pallidum pathway decreases dopamine activity after chronic mild stress in rats. Biol. Psychiatry 75. Neijt HC, Plomp JJ, Vijverberg HP. Kinetics of the membrane current toma cells. J. Physiol. 1989; 411: 257-269. mediated by serotonin 5-HT3 re...
-
-  ── Chunk 14 ──
-  Source:     Psychiatry Clin Neurosci - 2019 - Yagishita - Transient and sustained effects of dopamine and serotonin signaling in-2.pdf
-  Rank:       14
-  Similarity: 0.7395
-  Page:       2
-  Section:    REVIEW ARTICLE
-  Path:       REVIEW ARTICLE
-  Structure:  paragraph
-  Content:    after tran- sient dopamine or serotonin signaling. Tran tonin. (b) Schematic representing sustained by transient alteration in dopamine and serosient dopamine and serotonin signal cause long-lasting effects to modity later behaviora respons out in rest respot esto later responses to social signal af...
-
-  ── Chunk 15 ──
-  Source:     Psychiatry Clin Neurosci - 2019 - Yagishita - Transient and sustained effects of dopamine and serotonin signaling in-2.pdf
-  Rank:       15
-  Similarity: 0.7161
-  Page:       7
-  Section:    19. Arbuthnott GW, Wickens J. Space, time and dopamine. Trends Neu-
-  Path:       19. Arbuthnott GW, Wickens J. Space, time and dopamine. Trends Neu-
-  Structure:  paragraph
-  Content:    Space, time and dopamine. Trends Neu- Missale C, Nash SR, Robinson SW, Jaber M, Caron MG. Dopamine Ramboz S, Oosting R, Amara DA et al. Serotonin receptor 1A knockreceptors: From structure to function. Physiol. Rev. 1998; 78: 189-225. out: An animal model of anxiety-related disorder. Proc. Natl. Aca...
-
-  ── Chunk 16 ──
-  Source:     Psychiatry Clin Neurosci - 2019 - Yagishita - Transient and sustained effects of dopamine and serotonin signaling in-2.pdf
-  Rank:       16
-  Similarity: 0.6736
-  Page:       4
-  Structure:  paragraph
-  Content:    io-coupled receptors, D2, D3, and D4 receptors for dopamine, regulation of potassium channels and voltage-gated calcium chan- nisms through several downstream signaling activities, such as the protein signaling exhibits long-lasting effects. At the axon terminal release of neurotransmitters transien...
-
-  ── Chunk 17 ──
-  Source:     Psychiatry Clin Neurosci - 2019 - Yagishita - Transient and sustained effects of dopamine and serotonin signaling in-2.pdf
-  Rank:       17
-  Similarity: 0.7395
-  Page:       3
-  Section:    PCNPsychiatry and Clinical Neurosciences
-  Path:       REVIEW ARTICLE > PCNPsychiatry and Clinical Neurosciences
-  Structure:  paragraph
-  Content:    n was applied during the task trial but not when it was applied between the task trials, which were tens of seconds, suggesting that the serotonin effect was transient in the regulation of the moment-tomoment level of patience. During engaging in the task, serotonin stimulation did not affect motor ...
-
-  ── Chunk 18 ──
-  Source:     Psychiatry Clin Neurosci - 2019 - Yagishita - Transient and sustained effects of dopamine and serotonin signaling in-2.pdf
-  Rank:       18
-  Similarity: 0.7161
-  Page:       7
-  Structure:  paragraph
-  Content:     Nautiyal KM, Tanaka KF, Barr MM et al. Distinct circuits underlie the effects of 5-HT1B receptors on aggression and impulsivity. Neuron Tecott LH, Sun LM, Akana SF et al. Eating disorder and epilepsy in Schultz W, Dayan P, Montague PR. A neural substrate of prediction mice lacking 5-HT2c serotonin ...
-
-  ── Chunk 19 ──
-  Source:     Psychiatry Clin Neurosci - 2019 - Yagishita - Transient and sustained effects of dopamine and serotonin signaling in-2.pdf
-  Rank:       19
-  Similarity: 0.7395
-  Page:       3
-  Section:    PCNPsychiatry and Clinical Neurosciences
-  Path:       REVIEW ARTICLE > PCNPsychiatry and Clinical Neurosciences
-  Structure:  paragraph
-  Content:    the amygdala increased responses to electrical shock transiently, and their activation caused anxiety-like behavior.55 The exact time courses of anxiety-like behaviors regulated by serotonin remain unclear. Transient activation of dopamine and serotonin modulates immediate behavior, and distinct typ...
-
-  ── Chunk 20 ──
-  Source:     Psychiatry Clin Neurosci - 2019 - Yagishita - Transient and sustained effects of dopamine and serotonin signaling in-2.pdf
-  Rank:       20
-  Similarity: 0.7800
-  Page:       8
-  Section:    80. Ford CP. The role of D2-autoreceptors in regulating dopamine neuron
-  Path:       80. Ford CP. The role of D2-autoreceptors in regulating dopamine neuron
-  Structure:  paragraph
-  Content:    Neuroscience 2014; 282: 13-22. campal inputs. Cell Rep. 2016; 17: 2882-2890. 1B receptors regulate prefrontal function by gating callosal and hippo- 82. Ko KW, Rasband MN, Meseguer V, Kramer RH, Golding NL. Seroto- HCN channels. Nat. Neurosci. 2016; 19: 826-834. nin modulates spike probability in th...
-
-  ── Chunk 21 ──
-  Source:     Psychiatry Clin Neurosci - 2019 - Yagishita - Transient and sustained effects of dopamine and serotonin signaling in-2.pdf
-  Rank:       2
-  Similarity: 0.7733
-  Page:       6
-  Structure:  paragraph
-  Content:     that behavioral and neuronal dysfunctions are These results of clinical studies on subjects with depressive potentially associated with both transient and sustained dopamine and serotonin functions, although it is impossible to measure dopamine the impairment can emerge when dopamine and serotonin ...
-
-  ── Chunk 22 ──
-  Source:     Psychiatry Clin Neurosci - 2019 - Yagishita - Transient and sustained effects of dopamine and serotonin signaling in-2.pdf
-  Rank:       4
-  Similarity: 0.7650
-  Page:       5
-  Section:    PCNPsychiatry and Clinical Neurosciences
-  Path:       PCNPsychiatry and Clinical Neurosciences
-  Structure:  paragraph
-  Content:    he sub-second timescale under Gs/olf signaling. Gi/o and D2 receptors may regulate cellular excitability through the rapid regulation of potassium channels, such as G-protein-activated inwardly rectifying potassium channel (GIRK); however, SPN in the striatum do not express GIRK. Although the GIRK m...
-
-  ── Chunk 23 ──
-  Source:     Psychiatry Clin Neurosci - 2019 - Yagishita - Transient and sustained effects of dopamine and serotonin signaling in-2.pdf
-  Rank:       5
-  Similarity: 0.7650
-  Page:       5
-  Section:    PCNPsychiatry and Clinical Neurosciences
-  Path:       PCNPsychiatry and Clinical Neurosciences
-  Structure:  paragraph
-  Content:    same receptor controls transient and sustained mechanisms differentially depending on the respective brain regions. In the postsynapse of SPN in the NAc, the 5-HT4 receptor inhibits LTD when coupled with repeated stimulation with glutamate and action potentials.92 In the neocortex, the transient act...
-
-  ── Chunk 24 ──
-  Source:     Psychiatry Clin Neurosci - 2019 - Yagishita - Transient and sustained effects of dopamine and serotonin signaling in-2.pdf
-  Rank:       6
-  Similarity: 0.7624
-  Page:       5
-  Section:    PCNPsychiatry and Clinical Neurosciences
-  Path:       PCNPsychiatry and Clinical Neurosciences
-  Structure:  paragraph
-  Content:    rt tasks.97 During the tasks, subjects with depression exhibited lower activity in the striatum and cingulate cortex compared to the controls.98 Therefore, a potential interpretation of the results is that reward prediction, which is highly likely to induce transient dopamine and serotonin activity,...
-
-  ── Chunk 25 ──
-  Source:     Psychiatry Clin Neurosci - 2019 - Yagishita - Transient and sustained effects of dopamine and serotonin signaling in-2.pdf
-  Rank:       8
-  Similarity: 0.7432
-  Page:       8
-  Structure:  paragraph
-  Content:    Science 2014; 345: 1616-1620. Kasai H. A critical time window for dopamine actions on the structural 89. Huang YY, Simpson E, Kellendonk C, Kandel ER. Genetic evidence for the bidirectional modulation of synaptic plasticity in the prefrontal cortex by D1 receptors. Proc. Natl. Acad. Sci. U. S. A. 20...
-
-  ── Chunk 26 ──
-  Source:     Psychiatry Clin Neurosci - 2019 - Yagishita - Transient and sustained effects of dopamine and serotonin signaling in-2.pdf
-  Rank:       9
-  Similarity: 0.7074
-  Page:       1
-  Section:    IN Pychatry an
-  Path:       IN Pychatry an
-  Structure:  paragraph
-  Content:    are required to process the neurotransmitters for each tran- Monoamine deficiency has long been one of the major hypothetical ing monoamine oxidase inhibitors and tricyclic antidepressants, act to etiologies of depression. Different classes of antidepressants, includatypical antipsychotics, which al...
-
-  ── Chunk 27 ──
-  Source:     Psychiatry Clin Neurosci - 2019 - Yagishita - Transient and sustained effects of dopamine and serotonin signaling in-2.pdf
-  Rank:       10
-  Similarity: 0.6789
-  Page:       2
-  Section:    REVIEW ARTICLE
-  Path:       REVIEW ARTICLE
-  Structure:  paragraph
-  Content:    Another limitation is the inability to directly measure the ing absolute values, as the measurements rely on relative changes in transmission. One drawback of this method is the difficulty in measuramount of monoamine release as genetically encoded calcium indicators measure axonal activity, which d...
-
-  ── Chunk 28 ──
-  Source:     Psychiatry Clin Neurosci - 2019 - Yagishita - Transient and sustained effects of dopamine and serotonin signaling in-2.pdf
-  Rank:       11
-  Similarity: 0.6789
-  Page:       3
-  Section:    PCNPsychiatry and Clinical Neurosciences
-  Path:       REVIEW ARTICLE > PCNPsychiatry and Clinical Neurosciences
-  Structure:  paragraph
-  Content:    lation effects emerged within a minute of the onset of the stimulation and disappeared within a minute following cessation of the stimulation, which indicated that the dopamine effect was transient. When the dopamine activities were recorded, the timing of light illumination did not correspond to th...
-
-  ── Chunk 29 ──
-  Source:     Psychiatry Clin Neurosci - 2019 - Yagishita - Transient and sustained effects of dopamine and serotonin signaling in-2.pdf
-  Rank:       12
-  Similarity: 0.6789
-  Page:       3
-  Section:    PCNPsychiatry and Clinical Neurosciences
-  Path:       REVIEW ARTICLE > PCNPsychiatry and Clinical Neurosciences
-  Structure:  paragraph
-  Content:     as the tail-suspension test, serotonin neurons exhibited rapid increases in activity, which were correlated with movement, but exhibited decreases in activity under low-threat conditions.54 In addition, serotonin stimulation enhanced behavior transiently within a few seconds during the high-threat ...
-
-  ── Chunk 30 ──
-  Source:     Psychiatry Clin Neurosci - 2019 - Yagishita - Transient and sustained effects of dopamine and serotonin signaling in-2.pdf
-  Rank:       13
-  Similarity: 0.6620
-  Page:       2
-  Section:    REVIEW ARTICLE
-  Path:       REVIEW ARTICLE
-  Structure:  paragraph
-  Content:    [Part 2] optogenetic tools in monoamine neurons.  For the manipulation of such as adeno-associated viruses for the specific expression of. be combined with Cre-dependent expression systems in viral vectors,. nal activity at the soma with millisecond accuracy. 29,30 For the monitor- monoamine neurons...
-
-  ── Chunk 31 ──
-  Source:     Psychiatry Clin Neurosci - 2019 - Yagishita - Transient and sustained effects of dopamine and serotonin signaling in-2.pdf
-  Rank:       15
-  Similarity: 0.6573
-  Page:       6
-  Structure:  list
-  Content:    -mısol grinub alangia roT9 noitiberq-bıswer botofer doidw xeroo
-
-  ── Chunk 32 ──
-  Source:     Psychiatry Clin Neurosci - 2019 - Yagishita - Transient and sustained effects of dopamine and serotonin signaling in-2.pdf
-  Rank:       16
-  Similarity: 0.6573
-  Page:       6
-  Structure:  paragraph
-  Content:    symptoms and neuronal dysfunction. '03,104 Loss of pleasure when Recent studies have shown the heterogeneity of depressive a core symptom of depression. When subjective reports on the eating food is regarded as an anhedonic response, which constitutes pleasantness of foods or sucrose water were asse...
-
-  ── Chunk 33 ──
-  Source:     Psychiatry Clin Neurosci - 2019 - Yagishita - Transient and sustained effects of dopamine and serotonin signaling in-2.pdf
-  Rank:       17
-  Similarity: 0.6573
-  Page:       6
-  Structure:  paragraph
-  Content:    [Part 1] lay heterogeneous patterns in sympboth transient and sustained effects of dopamine and serotonin for. toms and neuronal dysfunction.  As anhedonia is a major variable. dard measurement tool in rodent models for depression, recapitulating (which evaluates anhedonia-like behavior in animals) ...
-
-  ── Chunk 34 ──
-  Source:     Psychiatry Clin Neurosci - 2019 - Yagishita - Transient and sustained effects of dopamine and serotonin signaling in-2.pdf
-  Rank:       18
-  Similarity: 0.6548
-  Page:       1
-  Section:    REVIEW ARTICLE
-  Path:       REVIEW ARTICLE
-  Structure:  paragraph
-  Content:     the perspective of transient and sustained effects. © 2019 The Authors 91  Transient and sustained monoamine effects Dopamine neurons in the ventral tegmental area (VTA) and substantia Dopamine and serotonin neuronal circuits striatum and less dense projections to other brain regions, such as the n...
-
-  ── Chunk 35 ──
-  Source:     Psychiatry Clin Neurosci - 2019 - Yagishita - Transient and sustained effects of dopamine and serotonin signaling in-2.pdf
-  Rank:       19
-  Similarity: 0.6317
-  Page:       8
-  Structure:  paragraph
-  Content:    Alvarez VA. Dopamine regulation of lateral inhibition between striatal 85. Niwa M, Jaaro-Peled H, Tankou S et al. Adolescent stress-induced epigenetic control of dopaminergic neurons via glucocorticoids. Science 86. Matsuzaki M, Honkura N, Ellis-Davies GC, Kasai H. Structural basis 2013;339:335-339....
-
-  ── Chunk 36 ──
-  Source:     Psychiatry Clin Neurosci - 2019 - Yagishita - Transient and sustained effects of dopamine and serotonin signaling in-2.pdf
-  Rank:       20
-  Similarity: 0.6317
-  Page:       8
-  Structure:  paragraph
-  Content:    ayashi-Takagi A, Yagishita S, Nakamura M et al. Labelling and optical erasure of synaptic memory traces in the motor cortex. Noture 88. Yagishita S, Hayashi-Takagi A, Ellis-Davies GC, Urakubo H, Ishii S, 2015;525:333-338. plasticity of dendritic spines. Science 2014; 345: 1616-1620. Kasai H. A criti...
-
-  ── Chunk 37 ──
-  Source:     Psychiatry Clin Neurosci - 2019 - Yagishita - Transient and sustained effects of dopamine and serotonin signaling in-2.pdf
-  Rank:       21
-  Similarity: 0.6317
-  Page:       8
-  Section:    90. Otani S, Daniel H, Roisin MP, Crepel F. Dopaminergic modulation of
-  Path:       90. Otani S, Daniel H, Roisin MP, Crepel F. Dopaminergic modulation of
-  Structure:  paragraph
-  Content:    See the Terms and Conditions (https://onlinelibrary.wiley.com/terms-and-conditions) on Wiley Online Library for rules of use; OA articles are governed by the applicable Creative Commons License linical Neuroscience 91. Molina-Luna K, Pekanovic A, Rohrich S et al. Dopamine in motor cortex is necessar...
-
-  ── Chunk 38 ──
-  Source:     Psychiatry Clin Neurosci - 2019 - Yagishita - Transient and sustained effects of dopamine and serotonin signaling in-2.pdf
-  Rank:       23
-  Similarity: 0.6153
-  Page:       4
-  Structure:  paragraph
-  Content:    [Part 2] 25,31,35,5l Similar anticipatory responses of dopamine are observed in more complex tasks, such as instrumental learning° and T maze learningẠỊThe magnitude of. phasic dopamine responses to cues reflects the subjectively expected value, such as the amount of reward value, probability of rew...
-
-  ── Chunk 39 ──
-  Source:     Psychiatry Clin Neurosci - 2019 - Yagishita - Transient and sustained effects of dopamine and serotonin signaling in-2.pdf
-  Rank:       24
-  Similarity: 0.5607
-  Page:       7
-  Section:    42. Yoshida K, Drew MR, Mimura M, Tanaka KF. Serotonin-mediated
-  Path:       42. Yoshida K, Drew MR, Mimura M, Tanaka KF. Serotonin-mediated
-  Structure:  paragraph
-  Content:     See the Terms and Conditions (https://onlinelibrary.wiley.com/terms-and-conditions) on Wiley Online Library for rules of use; OA articles are governed by the applicable Creative Commons License Transient and sustained monoamine effects _ 43. Walsh JJ, Christoffel DJ, Heifets BD et al. 5-HT release ...
-
-  ── Chunk 40 ──
-  Source:     Psychiatry Clin Neurosci - 2019 - Yagishita - Transient and sustained effects of dopamine and serotonin signaling in-2.pdf
-  Rank:       25
-  Similarity: 0.5607
-  Page:       7
-  Section:    46. Rossi MA, Sukharnikova T, Hayrapetyan VY, Yang L, Yin HH. Oper-
-  Path:       46. Rossi MA, Sukharnikova T, Hayrapetyan VY, Yang L, Yin HH. Oper-
-  Structure:  paragraph
-  Content:    Rossi MA, Sukharnikova T, Hayrapetyan VY, Yang L, Yin HH. Oper- One 2013; 8: e65799 ant self-stimulation of dopamine neurons in the substantia nigra. PLoS 47. Chaudhury D, Walsh JJ, Friedman AK et al. Rapid regulation of rons. Nature 2013; 493: 532-536. depression-related behaviours by control of mi...
-
-  ── Chunk 41 ──
-  Source:     Psychiatry Clin Neurosci - 2019 - Yagishita - Transient and sustained effects of dopamine and serotonin signaling in-2.pdf
-  Rank:       26
-  Similarity: 0.5607
-  Page:       7
-  Structure:  paragraph
-  Content:    Kim CK, Yang SJ, Pichamoorthy N et al. Simultaneous fast measurement of circuit dynamics at multiple sites across the mammalian brain. 50. Vander Weele CM, Siciliano CA, Matthews GA et al. Dopamine Nat. Methods 2016; 13: 325-328. stimuli. Nature 2018; 563: 397-401. enhances signal-to-noise ratio in ...
-
-  ── Chunk 42 ──
-  Source:     Psychiatry Clin Neurosci - 2019 - Yagishita - Transient and sustained effects of dopamine and serotonin signaling in-2.pdf
-  Rank:       28
-  Similarity: 0.5302
-  Page:       8
-  Structure:  paragraph
-  Content:    dopamine receptors potentiate NMDApotassium channels. Nat. Rev. Neurosci. 2005; 6: 850-862. neurons. Cereb. Cortex 2001; 11: 452-462. mediated excitability increase in layer V prefrontal cortical pyramidal 78. Castro LR, Brito M, Guiot E et al. Striatal neurones have a specific 3197- -3214. ability ...
-
-  ── Chunk 43 ──
-  Source:     Psychiatry Clin Neurosci - 2019 - Yagishita - Transient and sustained effects of dopamine and serotonin signaling in-2.pdf
-  Rank:       29
-  Similarity: 0.5302
-  Page:       8
-  Section:    83. Marcott PF, Mamaligas AA, Ford CP. Phasic dopamine release drives
-  Path:       83. Marcott PF, Mamaligas AA, Ford CP. Phasic dopamine release drives
-  Structure:  paragraph
-  Content:    Marcott PF, Mamaligas AA, Ford CP. Phasic dopamine release drives 84. Dobbs LK, Kaplan AR, Lemos JC, Matsui A, Rubinstein M, rapid activation of striatal D2-receptors. Neuron 2014; 84: 164-176. neurons gates the stimulant actions of cocaine. Neuron 2016; 90: Alvarez VA. Dopamine regulation of latera...
-
-  ── Chunk 44 ──
-  Source:     Psychiatry Clin Neurosci - 2019 - Yagishita - Transient and sustained effects of dopamine and serotonin signaling in-2.pdf
-  Rank:       32
-  Similarity: 0.7704
-  Page:       2
-  Section:    REVIEW ARTICLE
-  Path:       REVIEW ARTICLE
-  Structure:  paragraph
-  Content:    , Ga-coupled 5-HT2 receptors, ionic 5-HT3 receptors, and Gs-coupled 5-HT4, 5-HT6, and 5-HT, receptors. Each receptor may impulse control for 5-H11B receptors, and feeding behavior for have specific functions, such as anxiety for 5-HTiA receptors, genetic manipulations have related specific brain fun...
-
-  ── Chunk 45 ──
-  Source:     Psychiatry Clin Neurosci - 2019 - Yagishita - Transient and sustained effects of dopamine and serotonin signaling in-2.pdf
-  Rank:       34
-  Similarity: 0.7650
-  Page:       5
-  Section:    PCNPsychiatry and Clinical Neurosciences
-  Path:       PCNPsychiatry and Clinical Neurosciences
-  Structure:  paragraph
-  Content:    such as synaptic plasticity, particularly those involving structural changes in synapses, which are accompanied by the electrical potentiation of synapses and storage of memory over days in the neocortex.86,87 In the NAc, dopamine promoted synaptic plasticity and spine Psychiatry and Clinical Neuros...
-
-  ── Chunk 46 ──
-  Source:     Psychiatry Clin Neurosci - 2019 - Yagishita - Transient and sustained effects of dopamine and serotonin signaling in-2.pdf
-  Rank:       35
-  Similarity: 0.7650
-  Page:       5
-  Section:    PCNPsychiatry and Clinical Neurosciences
-  Path:       PCNPsychiatry and Clinical Neurosciences
-  Structure:  paragraph
-  Content:     serotonin effects to support several aspects of motivation-related behavior. Depressive symptoms from the perspective of transient and sustained monoamine effects Some facets of depressive symptoms, such as anhedonia and loss of energy, can be regarded as dysfunction of motivation-related neuronal ...
-
-  ── Chunk 47 ──
-  Source:     Psychiatry Clin Neurosci - 2019 - Yagishita - Transient and sustained effects of dopamine and serotonin signaling in-2.pdf
-  Rank:       36
-  Similarity: 0.7624
-  Page:       5
-  Section:    PCNPsychiatry and Clinical Neurosciences
-  Path:       PCNPsychiatry and Clinical Neurosciences
-  Structure:  paragraph
-  Content:    subjects with depression exhibited lower activity in the striatum and cingulate cortex compared to the controls.98 Therefore, a potential interpretation of the results is that reward prediction, which is highly likely to induce transient dopamine and serotonin activity, failed to activate downstream...
-
-  ── Chunk 48 ──
-  Source:     Psychiatry Clin Neurosci - 2019 - Yagishita - Transient and sustained effects of dopamine and serotonin signaling in-2.pdf
-  Rank:       37
-  Similarity: 0.7594
-  Page:       4
-  Structure:  paragraph
-  Content:    excites interneurons during effort-related behavior to inhibit pyrami- the excitability of the cells. In the ventral hippocampus, the channel dal neurons. 42 Signaling under Ga-proteins also depalarizes the meminhibition of potassium channels through phospholipase activation. brane potential transie...
-
-  ── Chunk 49 ──
-  Source:     Psychiatry Clin Neurosci - 2019 - Yagishita - Transient and sustained effects of dopamine and serotonin signaling in-2.pdf
-  Rank:       38
-  Similarity: 0.7074
-  Page:       1
-  Section:    IN Pychatry an
-  Structure:  paragraph
-  Content:    IN Pychatry an linical Neuroscience Transient and sustained effects of dopamine and serotonin signaling in motivation-related behavior Sho Yagishita, MD, PhD ©1* antipsychotics have suggested a role of dopamine and sero- Pharmacological studies of antidepressants and atypical tonin signaling in depr...
-
-  ── Chunk 50 ──
-  Source:     Psychiatry Clin Neurosci - 2019 - Yagishita - Transient and sustained effects of dopamine and serotonin signaling in-2.pdf
-  Rank:       39
-  Similarity: 0.7074
-  Page:       1
-  Section:    IN Pychatry an
-  Path:       IN Pychatry an
-  Structure:  paragraph
-  Content:    egarded as motivation-related behavior, and * Correspondence: Email: syagishita@m.u-tokyo.ac.jp ' Laboratory of Structural Physiology, Center for Disease Biology and Integrative Medicine, Faculty of Medicine, The University of Tokyo, Tokyo, Japan Psychiatry and Clinical Neurosciences © 2019 Japanese...
-
-  ── Chunk 51 ──
-  Source:     Psychiatry Clin Neurosci - 2019 - Yagishita - Transient and sustained effects of dopamine and serotonin signaling in-2.pdf
-  Rank:       43
-  Similarity: 0.6620
-  Page:       2
-  Section:    REVIEW ARTICLE
-  Path:       REVIEW ARTICLE
-  Structure:  paragraph
-  Content:    ated viruses for the specific expression of be combined with Cre-dependent expression systems in viral vectors, nal activity at the soma with millisecond accuracy.29,30 For the monitor- monoamine neurons, illuminating opsins can activate or inhibit neuroby probing light-induced firing.1,32 Therefore...
-
-  ── Chunk 52 ──
-  Source:     Psychiatry Clin Neurosci - 2019 - Yagishita - Transient and sustained effects of dopamine and serotonin signaling in-2.pdf
-  Rank:       44
-  Similarity: 0.6573
-  Page:       6
-  Structure:  list
-  Content:    -aorqob ntiw atosjdua tedt bolsoven gnino ІRM Isnoitonut gninub etslugnio ronetne bas A ent ni vtivitos beeb batidinxe noia
-
-  ── Chunk 53 ──
-  Source:     Psychiatry Clin Neurosci - 2019 - Yagishita - Transient and sustained effects of dopamine and serotonin signaling in-2.pdf
-  Rank:       45
-  Similarity: 0.6573
-  Page:       6
-  Structure:  paragraph
-  Content:    Transient and sustained monoamine effects moment-to-moment regulation of behavior. the striatum and cingulate cortex and resulted in the impairment of subjects with depression. Pavlovian conditioning using a water reward The impairment of learning or conditioning is also observed in sion exhibited d...
-
-  ── Chunk 54 ──
-  Source:     Psychiatry Clin Neurosci - 2019 - Yagishita - Transient and sustained effects of dopamine and serotonin signaling in-2.pdf
-  Rank:       46
-  Similarity: 0.6573
-  Page:       6
-  Structure:  paragraph
-  Content:    ntact,''1-113 suggesting that the neuronal mechanism for reward prediction is impaired preferentially and may resemble a subtype of major depression without severe anhedonia. regions such as the frontal cortex, the ventral and dorsal striatum, Since neuronal features for subtyping depression!°4 invo...
-
-  ── Chunk 55 ──
-  Source:     Psychiatry Clin Neurosci - 2019 - Yagishita - Transient and sustained effects of dopamine and serotonin signaling in-2.pdf
-  Rank:       47
-  Similarity: 0.6548
-  Page:       1
-  Section:    REVIEW ARTICLE
-  Path:       REVIEW ARTICLE
-  Structure:  paragraph
-  Content:    Recent studies using advanced genetics tools impairment of the associated signals may explain some aspects of for manipulating and monitoring neuronal activities have begun to reveal the various timescales of dopamine and serotonin actions at using only classical experimental techniques. Transient d...
-
-  ── Chunk 56 ──
-  Source:     Psychiatry Clin Neurosci - 2019 - Yagishita - Transient and sustained effects of dopamine and serotonin signaling in-2.pdf
-  Rank:       48
-  Similarity: 0.6548
-  Page:       2
-  Section:    REVIEW ARTICLE
-  Path:       REVIEW ARTICLE
-  Structure:  paragraph
-  Content:    [Part 1] GABAergic neurons; and the DR comprises serotoninergic, glutamonoamine dynamics at the projection sites where released monoelectrical recording at soma does not provide information about. jection sites has been addressed by microdialysis with highamines exert their effects.  The issue of mo...
-
-  ── Chunk 57 ──
-  Source:     Psychiatry Clin Neurosci - 2019 - Yagishita - Transient and sustained effects of dopamine and serotonin signaling in-2.pdf
-  Rank:       49
-  Similarity: 0.6317
-  Page:       8
-  Structure:  paragraph
-  Content:    induced epigenetic control of dopaminergic neurons via glucocorticoids. Science 86. Matsuzaki M, Honkura N, Ellis-Davies GC, Kasai H. Structural basis 2013;339:335-339. 761-766. of long-term potentiation in single dendritic spines. Nature 2004; 429: 87. Hayashi-Takagi A, Yagishita S, Nakamura M et a...
-
-  ── Chunk 58 ──
-  Source:     Psychiatry Clin Neurosci - 2019 - Yagishita - Transient and sustained effects of dopamine and serotonin signaling in-2.pdf
-  Rank:       50
-  Similarity: 0.6317
-  Page:       8
-  Section:    90. Otani S, Daniel H, Roisin MP, Crepel F. Dopaminergic modulation of
-  Path:       90. Otani S, Daniel H, Roisin MP, Crepel F. Dopaminergic modulation of
-  Structure:  paragraph
-  Content:    long-term synaptic plasticity in rat prefrontal neurons. Cereb. Cortex  DONEsycnatry an 14401819, 2020, 2, Downloaded from https://onlinelibrary.wiley.com/doi/10.1111/pcn. 12942, Wiley Online Library on [16/04/2026]. See the Terms and Conditions (https://onlinelibrary.wiley.com/terms-and-conditions)...
-
-  ── Chunk 59 ──
-  Source:     Psychiatry Clin Neurosci - 2019 - Yagishita - Transient and sustained effects of dopamine and serotonin signaling in-2.pdf
-  Rank:       51
-  Similarity: 0.6317
-  Page:       8
-  Structure:  paragraph
-  Content:    Dopamine in motor cortex is necessary for skill learning and synaptic plasticity. PLoS One 92. Cavaccinı A, Grittı M, Giorgi A et al. Serotonergic signaling controls 2009; 4: e7082. 93. 801-816. He K, Huertas M, Hong SZ et al. Distinct eligibility traces for LTP and input-specific synaptic plasticit...
-
-  ── Chunk 60 ──
-  Source:     Psychiatry Clin Neurosci - 2019 - Yagishita - Transient and sustained effects of dopamine and serotonin signaling in-2.pdf
-  Rank:       52
-  Similarity: 0.6153
-  Page:       4
-  Structure:  paragraph
-  Content:    [Part 1] tonin may not cause sustained effects directly. observed the reinforcement effects of serotonin neurons following. at the projection sites for reinforcing behavior.  Other studies have not. nin are evident in specific contexts, such as reversal learning and. stimulation in the soma.  39,53,...
-
-  ── Chunk 61 ──
-  Source:     Psychiatry Clin Neurosci - 2019 - Yagishita - Transient and sustained effects of dopamine and serotonin signaling in-2.pdf
-  Rank:       53
-  Similarity: 0.6029
-  Page:       3
-  Section:    PCNPsychiatry and Clinical Neurosciences
-  Path:       REVIEW ARTICLE > PCNPsychiatry and Clinical Neurosciences
-  Structure:  paragraph
-  Content:    neurons veri ed that dopamine activation mediated the acquisition of reinforcement learning, such as conditioned place preference,29 cueapproach behavior,11,44 and instrumental learning,45,46 demonstrating that phasic activation of dopamine is adequate to cause learning. Such behavioral changes are ...
-
-  ── Chunk 62 ──
-  Source:     Psychiatry Clin Neurosci - 2019 - Yagishita - Transient and sustained effects of dopamine and serotonin signaling in-2.pdf
-  Rank:       54
-  Similarity: 0.5607
-  Page:       7
-  Section:    44. Steinberg EE, Keiflin R, Boivin JR, Witten IB, Deisseroth K,
-  Path:       44. Steinberg EE, Keiflin R, Boivin JR, Witten IB, Deisseroth K,
-  Structure:  paragraph
-  Content:    and learning. Nat. Neurosci. 2013; 16: 966-973. Janak PH. A causal link between prediction errors, dopamine neurons Optogenetic mimicry of the transient activation of dopamine neurons by Kim KM, Baratta MV, Yang A, Lee D, Boyden ES, Fiorillo CD 7: e33612. natural reward is sufficient for operant rei...
-
-  ── Chunk 63 ──
-  Source:     Psychiatry Clin Neurosci - 2019 - Yagishita - Transient and sustained effects of dopamine and serotonin signaling in-2.pdf
-  Rank:       55
-  Similarity: 0.5607
-  Page:       7
-  Structure:  paragraph
-  Content:    Yu Q, Teixeira CM, Mahadevia D et al. Dopamine and serotonin signaling during two sensitive developmental periods differentially impact 19:688-698. adult aggressive and affective behaviors in mice. Mol. Psychiatry 2014; 49. Kim CK, Yang SJ, Pichamoorthy N et al. Simultaneous fast measurement of circ...
-
-  ── Chunk 64 ──
-  Source:     Psychiatry Clin Neurosci - 2019 - Yagishita - Transient and sustained effects of dopamine and serotonin signaling in-2.pdf
-  Rank:       56
-  Similarity: 0.5607
-  Page:       7
-  Section:    50. Vander Weele CM, Siciliano CA, Matthews GA et al. Dopamine
-  Path:       50. Vander Weele CM, Siciliano CA, Matthews GA et al. Dopamine
-  Structure:  paragraph
-  Content:    n cortical-brainstem encoding of aversive 51. Li Y, Zhong W, Wang D et al. Serotonin neurons in the dorsal raphe 52. Miyazaki KW, Miyazaki K, Doya K. Activation of dorsal raphe serotonucleus encode reward signals. Nat. Commun. 2016; 7: 10503. nin neurons is necessary for waiting for delayed rewards....
-
-  ── Chunk 65 ──
-  Source:     Psychiatry Clin Neurosci - 2019 - Yagishita - Transient and sustained effects of dopamine and serotonin signaling in-2.pdf
-  Rank:       57
-  Similarity: 0.5302
-  Page:       8
-  Section:    75. Neijt HC, Plomp JJ, Vijverberg HP. Kinetics of the membrane current
-  Path:       75. Neijt HC, Plomp JJ, Vijverberg HP. Kinetics of the membrane current
-  Structure:  paragraph
-  Content:    mediated by serotonin 5-HT3 receptors in cultured mouse neuroblas- 76. Delmas P, Brown DA. Pathways modulating neural KCNQ/M (Kv7) 77. Wang J, O'Donnell P. D(1) dopamine receptors potentiate NMDApotassium channels. Nat. Rev. Neurosci. 2005; 6: 850-862. neurons. Cereb. Cortex 2001; 11: 452-462. media...
-
-  ── Chunk 66 ──
-  Source:     Psychiatry Clin Neurosci - 2019 - Yagishita - Transient and sustained effects of dopamine and serotonin signaling in-2.pdf
-  Rank:       59
-  Similarity: 0.4903
-  Page:       3
-  Section:    PCNPsychiatry and Clinical Neurosciences
-  Path:       REVIEW ARTICLE > PCNPsychiatry and Clinical Neurosciences
-  Structure:  paragraph
-  Content:    dopamine activation mediated the acquisition of reinforcement learning, such as conditioned place preference,29 cueapproach behavior,11,44 and instrumental learning,45,46 demonstrating that phasic activation of dopamine is adequate to cause learning. Such behavioral changes are sustained for days af...
+  Similarity: 0.1000
+  Content:
 
 ════════════════════════════════════════════════════════════════════════
   END OF TRACE
 ════════════════════════════════════════════════════════════════════════
-

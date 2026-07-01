@@ -195,7 +195,7 @@ struct PipelineMetrics: Codable, Sendable, Equatable {
 struct IngestionItem: Identifiable, Codable, Sendable, Equatable {
     let id: UUID
     private let legacyURL: URL?
-    let storageRelativePath: String?
+    var storageRelativePath: String?
     let containerId: UUID?
     var documentHash: String?
     var leaseOwnerDeviceId: String?

@@ -1,4 +1,4 @@
-> **Documentation status:** Verified for OpenIntelligence v4.4 on June 27, 2026.
+> **Documentation status:** Verified for OpenIntelligence v4.5 on July 1, 2026.
 
 
 # OpenIntelligence Release Notes
@@ -7,8 +7,21 @@ This document provides a comprehensive, version-by-version breakdown of major ar
 
 ---
 
+## v4.5 - July 2026
+
+*   **Ingestion Pipeline Stability & Correctness:** Resolved critical FTS5 index truncation, page offset mapping errors, and an ingestion deletion race condition during batch-based streaming ingestion.
+*   **FTS5 Append Capability:** Added optional `append` support to `store(...)`, `storePages(...)`, and `storeChunks(...)` methods in `SQLiteFullTextService`, preventing index deletion during streamed PDF page range processing.
+*   **Streaming Ingestion Race Protection:** Modified `WorkspaceSyncService` with a 15-minute file modification window filter, and propagated `storageRelativePath` to queued `IngestionItem` records to prevent background sweeps from purging active ingestion files.
+*   **Streaming Chunk Search Integration:** Fully integrated `storeChunks` inside the `importLargePDFStreamed` batch loop in `RAGService+Streaming.swift`, making large documents fully searchable across all lexical and semantic indexes.
+
+---
+
 ## v4.4 - June 2026
 
+*   **Ingestion Pipeline Acceleration:** Migrated from expensive UIImage-to-PNG data serialization to zero-copy `CGImage` direct processing in `StructuredDocumentParser.swift`, accelerating Vision OCR and structured parsing by 30%+ while reducing peak memory allocation.
+*   **Page-Level JSON Checkpointing:** Integrated a robust checkpointing mechanism in `DocumentProcessor.swift` using local-only non-synced JSON files under `localCacheDir()/IngestionCheckpoints/<fingerprint>/`. If ingestion is interrupted (due to memory pressure, crash, or manual pause), the queue resumes from the exact page where it stopped rather than reprocessing from page 1.
+*   **Ingestion Cache Management:** Wired automatic checkpoint cleanup in `RAGService.swift` on successful indexing completion and user-discard events.
+*   **Apple Watch Smart Stack Layout:** Replaced the crowded Lock Screen view with a tailored compact layout when rendering in the `.small` activity family on watchOS (Smart Stack), utilizing a circular progress ring, doc badge, and high-legibility telemetry text.
 *   **Evidence Threads Core:** Replaced dynamic, ephemeral chat persistence with robust, durable research threads stored under `Application Support/EvidenceThreads/<containerId>/` and bidirectionally synchronized across devices via iCloud Drive.
 *   **Production Sidebar UI:** Built an elegant, slide-out `ThreadSidebarView` conforming to standard Design System tokens (`DSColors`, `DSSpacing`, `DSTypography`). Users can manage, switch between, and delete research threads via a new leading toolbar button.
 *   **Billing Quota Gates**: Thread creation is gated by monetization tier quotas (5 for Free, 20 for Pro, unlimited for Lifetime) via `QuotaPolicy.swift` with localized error displays.

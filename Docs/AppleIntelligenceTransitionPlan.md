@@ -91,8 +91,8 @@ With the deprecation of SiriKit, Apple Intelligence relies entirely on the **App
 
 ### 4.2. Dynamic Island & Live Activities (Reasoning State UI)
 Dynamic Island and Live Activities now support Buttons and Toggles providing immediate visual feedback. A reasoning Live Activity will be introduced to provide real-time updates for long-running RAG queries.
-*   **Ingestion Live Activity Visual Upgrades**:
-    *   Expand `IngestionLiveActivityWidget` to support interactive buttons and toggles (e.g., pausing/resuming an active document import directly from the Lock Screen).
+*   **Ingestion Live Activity Visual Upgrades (Completed)**:
+    *   Optimized Ingestion Live Activity for watchOS Smart Stack (`.small` activity family), rendering a circular progress ring, doc badge, and high-legibility text. Added robust background page-level checkpoint recovery to prevent data loss.
 *   **RAG Reasoning Live Activity (`RAGQueryReasoningLiveActivity`)**:
     *   Create a new Live Activity to track active reasoning progress during complex queries.
     *   **Dynamic Island (Compact/Minimal)**: Show a brain icon or spark image with a live progress percentage.
@@ -106,8 +106,8 @@ Dynamic Island and Live Activities now support Buttons and Toggles providing imm
 Active execution of large local foundation models on the Apple Neural Engine is suspended by iOS when the app enters the background to conserve power. Full-scale background RAG queries cannot run indefinitely. Background tasks must be restricted to short-lived prewarming or silent data maintenance.
 *   **BGTaskScheduler Silent Index Maintenance**:
     *   Register a `BGProcessingTask` to perform silent RAG optimizations when the device is charging and idle (vector index compaction, SQLite database vacuuming, FTS5 optimization, and incremental Core Spotlight semantic re-indexing).
-*   **Transient background task extensions (`beginBackgroundTask`)**:
-    *   Wrap document ingestion stages in short-lived background tasks. If the app is minimized during a PDF import, request up to 30 seconds of execution time to cleanly save the processed chunks and transition the Live Activity to a paused state instead of corrupting the database.
+*   **Transient background task extensions (`beginBackgroundTask`) (Completed)**:
+    *   Wrapped document ingestion stages in short-lived background tasks. Combined with page-level checkpoints, if the app is minimized or suspended, it gracefully flushes completed pages to disk, transitions the Live Activity, and resumes seamlessly upon reactivation.
 *   **Model Session Prewarming**:
     *   Use a short transient background task to prewarm `LanguageModelSession` when the app receives a push notification or when search-related Siri shortcuts are suggested, reducing First-Token Latency (TTFT) when the query is finally triggered.
 
@@ -181,3 +181,8 @@ These guidelines must be enforced during the transition:
 2.  **Tool-calling Limits**: Avoid attaching more than **5 active tools** to a `LanguageModelSession` simultaneously to prevent context contamination and performance degradation.
 3.  **No Latency Regression**: Standard queries must target a Time-To-First-Token (TTFT) of **<= 1.5 seconds** when running on local hardware.
 4.  **No Unsanctioned Data Exposure**: Under no circumstances should raw document content be routed to a remote endpoint without checking the user's `CloudExecutionPolicy` and network state.
+### Phase 2B Completed: Large-Document Streaming
+- Notion Task: `Accelerate Document Ingestion Without Sacrificing Accuracy` completed.
+- `RAGService` now leverages batched embeddings (15 pages per batch) with real-time UI telemetry.
+- Fixed FTS5 index truncation and page offset mapping errors during streaming batch ingestion, ensuring fully searchable large documents.
+- Resolved a race condition where `WorkspaceSyncService` deleted active streaming ingest documents before metadata registration via file age protection and queue storage relative path propagation.

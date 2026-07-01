@@ -1130,6 +1130,13 @@ final class WorkspaceSyncService: ObservableObject {
             for fileURL in localContents {
                 if let relativePath = relativePath(from: localRoot, to: fileURL) {
                     if !referencedLocalPaths.contains(relativePath) {
+                        // Protect recently created/modified files to prevent race conditions during ingestion
+                        let attrs = try? fileManager.attributesOfItem(atPath: fileURL.path)
+                        if let modDate = attrs?[.modificationDate] as? Date,
+                           Date().timeIntervalSince(modDate) < 900 { // 15 minutes
+                            Log.info("[WorkspaceSyncService] Skipping deletion of recently modified potential ingest file: \(fileURL.lastPathComponent)")
+                            continue
+                        }
                         try? Self.coordinatedRemoveItem(at: fileURL)
                         Log.info("[WorkspaceSyncService] Deleted local orphaned document file: \(fileURL.lastPathComponent)")
                     }

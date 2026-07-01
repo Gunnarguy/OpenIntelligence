@@ -362,14 +362,21 @@ actor SQLiteFullTextService {
     ///   - text: Complete document text
     ///   - documentId: Document UUID
     ///   - containerId: Container UUID for isolation
-    func store(text: String, for documentId: UUID, containerId: UUID) async {
+    func store(text: String, for documentId: UUID, containerId: UUID, append: Bool = false) async {
         ensureInitialized()
         guard let db = database else {
             Log.error("[SQLiteFTS5] Database not initialized", category: .vectorDB)
             return
         }
 
-        // Delete existing entry if present (upsert behavior)
+        var finalC = text
+        if append {
+            if let existingText = await retrieve(for: documentId) {
+                if !existingText.isEmpty {
+                    finalC = existingText + "\n\n" + text
+                }
+            }
+        }
         await delete(for: documentId)
 
         // Insert into FTS5 table
@@ -388,7 +395,7 @@ actor SQLiteFullTextService {
 
         sqlite3_bind_text(statement, 1, docIdStr, -1, SQLITE_TRANSIENT)
         sqlite3_bind_text(statement, 2, containerIdStr, -1, SQLITE_TRANSIENT)
-        sqlite3_bind_text(statement, 3, text, -1, SQLITE_TRANSIENT)
+        sqlite3_bind_text(statement, 3, finalC, -1, SQLITE_TRANSIENT)
 
         if sqlite3_step(statement) != SQLITE_DONE {
             let error = String(cString: sqlite3_errmsg(db))
@@ -402,20 +409,20 @@ actor SQLiteFullTextService {
         if sqlite3_prepare_v2(db, contentSQL, -1, &contentStmt, nil) == SQLITE_OK {
             sqlite3_bind_text(contentStmt, 1, docIdStr, -1, SQLITE_TRANSIENT)
             sqlite3_bind_text(contentStmt, 2, containerIdStr, -1, SQLITE_TRANSIENT)
-            sqlite3_bind_text(contentStmt, 3, text, -1, SQLITE_TRANSIENT)
+            sqlite3_bind_text(contentStmt, 3, finalC, -1, SQLITE_TRANSIENT)
             sqlite3_step(contentStmt)
             sqlite3_finalize(contentStmt)
         }
 
         // Store metadata
-        let wordCount = countWords(in: text)
+        let wordCount = countWords(in: finalC)
         let metaSQL = "INSERT OR REPLACE INTO document_meta (document_id, container_id, character_count, word_count, created_at) VALUES (?, ?, ?, ?, ?)"
         var metaStmt: OpaquePointer?
 
         if sqlite3_prepare_v2(db, metaSQL, -1, &metaStmt, nil) == SQLITE_OK {
             sqlite3_bind_text(metaStmt, 1, docIdStr, -1, SQLITE_TRANSIENT)
             sqlite3_bind_text(metaStmt, 2, containerIdStr, -1, SQLITE_TRANSIENT)
-            sqlite3_bind_int64(metaStmt, 3, Int64(text.count))
+            sqlite3_bind_int64(metaStmt, 3, Int64(finalC.count))
             sqlite3_bind_int64(metaStmt, 4, Int64(wordCount))
             sqlite3_bind_double(metaStmt, 5, Date().timeIntervalSince1970)
             sqlite3_step(metaStmt)
@@ -423,7 +430,7 @@ actor SQLiteFullTextService {
         }
 
         checkpoint()
-        Log.debug("[SQLiteFTS5] Stored document \(documentId) (\(text.count) chars, \(wordCount) words)", category: .vectorDB)
+        Log.debug("[SQLiteFTS5] Stored document \(documentId) (\(finalC.count) chars, \(wordCount) words)", category: .vectorDB)
     }
 
     /// Store per-page text in FTS5 index for page-level search and context isolation
@@ -431,7 +438,7 @@ actor SQLiteFullTextService {
     ///   - pages: Array of (pageNumber, content) tuples — one per PDF page
     ///   - documentId: Document UUID
     ///   - containerId: Container UUID for isolation
-    func storePages(pages: [(pageNumber: Int, content: String)], for documentId: UUID, containerId: UUID) async {
+    func storePages(pages: [(pageNumber: Int, content: String)], for documentId: UUID, containerId: UUID, append: Bool = false) async {
         ensureInitialized()
         guard let db = database else {
             Log.error("[SQLiteFTS5] Database not initialized for page storage", category: .vectorDB)
@@ -440,13 +447,15 @@ actor SQLiteFullTextService {
 
         guard !pages.isEmpty else { return }
 
-        // Delete existing pages for this document
-        let deleteSQL = "DELETE FROM document_pages WHERE document_id = ?"
-        var delStmt: OpaquePointer?
-        if sqlite3_prepare_v2(db, deleteSQL, -1, &delStmt, nil) == SQLITE_OK {
-            sqlite3_bind_text(delStmt, 1, documentId.uuidString, -1, SQLITE_TRANSIENT)
-            sqlite3_step(delStmt)
-            sqlite3_finalize(delStmt)
+        if !append {
+            // Delete existing pages for this document
+            let deleteSQL = "DELETE FROM document_pages WHERE document_id = ?"
+            var delStmt: OpaquePointer?
+            if sqlite3_prepare_v2(db, deleteSQL, -1, &delStmt, nil) == SQLITE_OK {
+                sqlite3_bind_text(delStmt, 1, documentId.uuidString, -1, SQLITE_TRANSIENT)
+                sqlite3_step(delStmt)
+                sqlite3_finalize(delStmt)
+            }
         }
 
         // Insert each page as a separate row in a transaction
@@ -825,20 +834,22 @@ actor SQLiteFullTextService {
         checkpoint()
     }
 
-    /// Store all chunks for a document in a single transaction (fast batch insert)
     func storeChunks(
         documentId: UUID,
         containerId: UUID,
         chunks: [(chunkIndex: Int, pageNumber: Int?, sectionTitle: String?,
                   sectionPath: String?, structureType: String?, chunkType: String?,
                   tableTitle: String?, content: String,
-                  structuredMetadata: StructuredChunkMetadata?)]
+                  structuredMetadata: StructuredChunkMetadata?)],
+        append: Bool = false
     ) async {
         ensureInitialized()
         guard let db = database else { return }
 
-        // Delete any existing chunks for this document first
-        await deleteChunks(for: documentId)
+        if !append {
+            // Delete any existing chunks for this document first
+            await deleteChunks(for: documentId)
+        }
 
         let insertSQL = """
             INSERT INTO chunks (chunk_id, document_id, container_id, chunk_index, page_number,

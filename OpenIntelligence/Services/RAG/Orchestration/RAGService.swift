@@ -328,7 +328,7 @@ class RAGService: ObservableObject {
 
     // MARK: - Dependencies
 
-    private let documentProcessor: DocumentProcessor
+    let documentProcessor: DocumentProcessor
     private let embeddingService: EmbeddingService
     private let embeddingServiceWasInjected: Bool
     let containerService: ContainerService
@@ -836,7 +836,7 @@ class RAGService: ObservableObject {
     }
 
     @MainActor
-    private func syncContainerStats(for containerId: UUID, lastIndexedAt: Date? = nil) {
+    func syncContainerStats(for containerId: UUID, lastIndexedAt: Date? = nil) {
         let containerDocuments = documentsForContainer(containerId)
         let totalChunks = containerDocuments.reduce(0) { $0 + $1.totalChunks }
         containerService.updateStats(
@@ -3371,7 +3371,7 @@ class RAGService: ObservableObject {
         }
     }
 
-    private func saveDocumentsToDisk() async {
+    func saveDocumentsToDisk() async {
         let snapshot = await MainActor.run {
             let fp = self.localIndexSyncFingerprint(for: self.documents)
             self.lastLocalIndexSyncFingerprint = fp
@@ -3411,16 +3411,25 @@ class RAGService: ObservableObject {
     }
 
     @MainActor
-    private func setDocumentHashForIngestionItem(id: UUID?, documentHash: String?) {
+    private func updateIngestionItemMetadata(id: UUID?, documentHash: String?, storageRelativePath: String?) {
         guard let id,
-              let documentHash,
               let index = ingestionItems.firstIndex(where: { $0.id == id }) else {
             return
         }
 
-        guard ingestionItems[index].documentHash != documentHash else { return }
-        ingestionItems[index].documentHash = documentHash
-        savePersistedIngestionQueueState()
+        var changed = false
+        if let documentHash, ingestionItems[index].documentHash != documentHash {
+            ingestionItems[index].documentHash = documentHash
+            changed = true
+        }
+        if let storageRelativePath, ingestionItems[index].storageRelativePath != storageRelativePath {
+            ingestionItems[index].storageRelativePath = storageRelativePath
+            changed = true
+        }
+
+        if changed {
+            savePersistedIngestionQueueState()
+        }
     }
 
     private func computeDocumentHash(for url: URL) throws -> String {
@@ -3465,7 +3474,7 @@ class RAGService: ObservableObject {
         return containerService.containers.first(where: { $0.id == targetContainerId })?.syncMode ?? .localOnly
     }
 
-    private func dbForActiveContainer() async -> VectorDatabase {
+    func dbForActiveContainer() async -> VectorDatabase {
         return await MainActor.run {
             let container = self.containerService.activeContainer
             // Sync active container to router for memory pressure handling
@@ -4250,6 +4259,9 @@ class RAGService: ObservableObject {
             if fileURL.path.contains("ImportedDocuments") {
                 try? FileManager.default.removeItem(at: fileURL)
             }
+
+            // 1.5 Clean up temporary page checkpoints
+            documentProcessor.cleanCheckpoints(for: fileURL)
             
             // 2. Remove document record from the catalog if it exists
             if let existingDoc = existingImportedDocument(
@@ -4442,8 +4454,15 @@ class RAGService: ObservableObject {
         return item
     }
 
+
     @MainActor
-    private func updateIngestionItem(
+    func removeIngestionItem(id: UUID?) {
+        guard let id else { return }
+        ingestionItems.removeAll { $0.id == id }
+    }
+
+    @MainActor
+    func updateIngestionItem(
         id: UUID?,
         filename: String,
         stage: IngestionStage,
@@ -4720,7 +4739,11 @@ class RAGService: ObservableObject {
         }
 
         await MainActor.run {
-            self.setDocumentHashForIngestionItem(id: trackingId, documentHash: documentHash)
+            self.updateIngestionItemMetadata(
+                id: trackingId,
+                documentHash: documentHash,
+                storageRelativePath: managedRelativePath
+            )
         }
 
         if let existingDocument = await MainActor.run(resultType: Document?.self, body: {
@@ -4971,6 +4994,25 @@ class RAGService: ObservableObject {
 
         do {
             // Step 1: Parse document and extract chunks
+            let documentType = documentProcessor.detectDocumentType(url: managedURL)
+            let fileAttrs = try? FileManager.default.attributesOfItem(atPath: managedURL.path)
+            let fileSizeMB = Double((fileAttrs?[.size] as? Int64) ?? 0) / 1_048_576.0
+            
+            let isLargePDF = documentType == .pdf && fileSizeMB > 10
+            if isLargePDF {
+                try await importLargePDFStreamed(
+                    at: managedURL,
+                    trackingId: trackingId ?? UUID(),
+                    filename: filename,
+                    activeContainerId: activeContainerId,
+                    chunkOverride: chunkOverride,
+                    providerId: providerId,
+                    embeddingDim: initialDimension,
+                    containerEmbeddingService: containerEmbeddingService
+                )
+                return // Streaming method handles the full end-to-end pipeline
+            }
+
             let extractionStartTime = Date()
             let (document, processedChunks) = try await documentProcessor.processDocument(
                 at: managedURL,
@@ -4988,9 +5030,7 @@ class RAGService: ObservableObject {
             let minChunkWords = chunkWordCounts.min() ?? 0
             let maxChunkWords = chunkWordCounts.max() ?? 0
 
-            // Get file metadata
-            let fileAttrs = try? FileManager.default.attributesOfItem(atPath: managedURL.path)
-            let fileSizeMB = Double((fileAttrs?[.size] as? Int64) ?? 0) / 1_048_576.0
+            // Get file metadata (already parsed above)
 
             TelemetryCenter.emit(
                 .ingestion,
@@ -5918,6 +5958,9 @@ class RAGService: ObservableObject {
                 force: true,
                 allowSelfTuningScheduling: context.allowsSelfTuningScheduling
             )
+
+            // Clean up temporary page checkpoints on successful ingestion completion
+            documentProcessor.cleanCheckpoints(for: managedURL)
 
             if context.allowsSelfTuningScheduling, !pendingSelfTuneReasons.isEmpty {
                 scheduleSelfTuningRebuild(for: activeContainerId, reasons: pendingSelfTuneReasons)

@@ -72,7 +72,7 @@ graph TD
 - **`OpenIntelligence/Services/RAG`**: Retrieval, context packing, orchestration, verification, source-only answering, confidence, and safety checks.
 - **`OpenIntelligence/Services/Embedding`**: Embedding generation utilizing Core ML, containing disabled Core AI providers.
 - **`OpenIntelligence/Services/Storage`**: Full-text indexers (SQLite FTS5) and local storage services.
-- **`OpenIntelligence/Services/VectorStore`**: Vector database abstractions and local vector search ([BNNSVectorDatabase.swift](file:///Users/gunnarhostetler/Documents/GitHub/OpenIntelligence-Public/OpenIntelligence/Services/VectorStore/BNNSVectorDatabase.swift)).
+- **`OpenIntelligence/Services/VectorStore`**: Vector database abstractions and local vector search ([BNNSVectorDatabase.swift](file:///Users/gunnarhostetler/Documents/GitHub/OpenIntelligence/OpenIntelligence/Services/VectorStore/BNNSVectorDatabase.swift)).
 - **`OpenIntelligence/Services/AIPlatform/AppleFoundationModels`**: Monolithic manager handling Apple Foundation Model sessions, prompt compilation, and token budgets.
 - **`OpenIntelligence/Services/AIPlatform/CoreAI`**: Custom local model registry, local model runtimes, and disabled embedding/cross-encoder scaffolding.
 - **`OpenIntelligence/Services/Evaluation`**: Local evaluation suite containing the RAG runner, JSONL datasets loader, report writer, and evaluations bridge.
@@ -82,12 +82,12 @@ graph TD
 
 ## 3. Ingestion & Indexing Pipeline
 
-1. **Parse**: Files enter through document workflows. Content is parsed using type-specific extractors. For PDFs, the system uses [LayoutAwareExtractor](file:///Users/gunnarhostetler/Documents/GitHub/OpenIntelligence-Public/OpenIntelligence/Services/Document/Processing/LayoutAwareExtractor.swift) or Vision OCR when a native text layer is missing.
-2. **Semantic Chunking**: [SemanticChunker](file:///Users/gunnarhostetler/Documents/GitHub/OpenIntelligence-Public/OpenIntelligence/Services/Document/Chunking/SemanticChunker.swift) splits text into retrievable units (typically $\le 310$ words) while identifying document structures like sections, lists, and tables.
+1. **Parse**: Files enter through document workflows. Content is parsed using type-specific extractors. For PDFs, the system uses [LayoutAwareExtractor](file:///Users/gunnarhostetler/Documents/GitHub/OpenIntelligence/OpenIntelligence/Services/Document/Processing/LayoutAwareExtractor.swift) or Vision OCR when a native text layer is missing.
+2. **Semantic Chunking**: [SemanticChunker](file:///Users/gunnarhostetler/Documents/GitHub/OpenIntelligence/OpenIntelligence/Services/Document/Chunking/SemanticChunker.swift) splits text into retrievable units (typically $\le 310$ words) while identifying document structures like sections, lists, and tables.
 3. **Entity Extraction**: Runs `NLTagger` Named Entity Recognition (NER) to extract key entities, formatting them in PascalCase.
 4. **Token Validation**: Chunks are validated using local tokenizers (e.g. `BertTokenizer` $\le 510$ tokens) to guarantee compatibility with embedding models.
 5. **Embedding Generation**: Generates 384-dimensional dense vectors using a local Core ML model (`CoreMLSentenceEmbeddingProvider`).
-6. **Corpus Storage**: Text and layout metadata are indexed into a shared SQLite FTS5 database (using `container_id` isolation), and dense vectors are written into [BNNSVectorDatabase](file:///Users/gunnarhostetler/Documents/GitHub/OpenIntelligence-Public/OpenIntelligence/Services/VectorStore/BNNSVectorDatabase.swift).
+6. **Corpus Storage**: Text and layout metadata are indexed into a shared SQLite FTS5 database (using `container_id` isolation), and dense vectors are written into [BNNSVectorDatabase](file:///Users/gunnarhostetler/Documents/GitHub/OpenIntelligence/OpenIntelligence/Services/VectorStore/BNNSVectorDatabase.swift).
 
 ---
 
@@ -105,12 +105,12 @@ graph TD
 ### Phase 2: Evidence Retrieval & Packing
 * **Hybrid Search**: Fuses vector similarity scores and FTS5 BM25 lexical scores using Reciprocal Rank Fusion (RRF).
 * **Cross-Encoder Rerank**: Scores candidate chunks using a local Core ML TinyBERT reranker. If the model is absent, it falls back to a term-proximity/boost heuristic score.
-* **Context Expansion**: Expands matching chunks to include neighboring sibling chunks using [ParentDocumentService](file:///Users/gunnarhostetler/Documents/GitHub/OpenIntelligence-Public/OpenIntelligence/Services/RAG/Retrieval/ParentDocumentService.swift).
+* **Context Expansion**: Expands matching chunks to include neighboring sibling chunks using [ParentDocumentService](file:///Users/gunnarhostetler/Documents/GitHub/OpenIntelligence/OpenIntelligence/Services/RAG/Retrieval/ParentDocumentService.swift).
 * **Context Assembly**: Arranges the evidence using a **Lost-in-Middle** reordering algorithm (placing high-relevance chunks at the start and end of the prompt window to maximize LLM attention).
 
 ### Phase 3: Generation & Safety Verification
 * **LLM Generation**: Invokes the resolved foundation model using the packed evidence context.
-* **Verification Gates**: Routes the generated response through safety checks in [VerificationGateService.swift](file:///Users/gunnarhostetler/Documents/GitHub/OpenIntelligence-Public/OpenIntelligence/Services/RAG/Safety/VerificationGateService.swift) (including negation checks and word-overlap contradiction sweeps) to calibrate confidence and trigger abstentions when evidence is weak.
+* **Verification Gates**: Routes the generated response through safety checks in [VerificationGateService.swift](file:///Users/gunnarhostetler/Documents/GitHub/OpenIntelligence/OpenIntelligence/Services/RAG/Safety/VerificationGateService.swift) (including negation checks and word-overlap contradiction sweeps) to calibrate confidence and trigger abstentions when evidence is weak.
 
 ---
 
@@ -118,7 +118,7 @@ graph TD
 
 To prevent regressions, the RAG pipeline is validated against test datasets using the `Evaluation` framework.
 * **Test Suites**: Run JSONL test files containing ground-truth chunks and expected answers.
-* **Compatibility**: The [AppleEvaluationsBridge](file:///Users/gunnarhostetler/Documents/GitHub/OpenIntelligence-Public/OpenIntelligence/Services/Evaluation/AppleEvaluationsBridge.swift) bridges evaluation data to Apple's native command-line testing suite (`fm CLI`).
+* **Compatibility**: The [AppleEvaluationsBridge](file:///Users/gunnarhostetler/Documents/GitHub/OpenIntelligence/OpenIntelligence/Services/Evaluation/AppleEvaluationsBridge.swift) bridges evaluation data to Apple's native command-line testing suite (`fm CLI`).
 
 ---
 

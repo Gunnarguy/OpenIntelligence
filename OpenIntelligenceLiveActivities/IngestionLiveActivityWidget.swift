@@ -184,38 +184,86 @@ private struct IngestionLiveActivityLockScreenView: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: isActivityFullscreen ? 14 : 10) {
-            ViewThatFits(in: .horizontal) {
-                horizontalHeader
-                stackedHeader
-            }
+        switch activityFamily {
+        case .small:
+            watchOSCompactView
+        default:
+            VStack(alignment: .leading, spacing: isActivityFullscreen ? 14 : 10) {
+                ViewThatFits(in: .horizontal) {
+                    horizontalHeader
+                    stackedHeader
+                }
 
-            ProgressView(value: context.state.progress, total: 1.0)
-                .tint(tint)
+                ProgressView(value: context.state.progress, total: 1.0)
+                    .tint(tint)
 
-            ViewThatFits(in: .horizontal) {
-                horizontalStatus
-                stackedStatus
-            }
+                ViewThatFits(in: .horizontal) {
+                    horizontalStatus
+                    stackedStatus
+                }
 
-            if !context.state.remainingDocuments.isEmpty {
-                VStack(alignment: .leading, spacing: 4) {
-                    ForEach(context.state.remainingDocuments, id: \.self) { document in
-                        Text("• \(document)")
-                            .font(.caption)
-                            .lineLimit(1)
+                if !context.state.remainingDocuments.isEmpty {
+                    VStack(alignment: .leading, spacing: 4) {
+                        ForEach(context.state.remainingDocuments, id: \.self) { document in
+                            Text("• \(document)")
+                                .font(.caption)
+                                .lineLimit(1)
+                        }
                     }
                 }
-            }
 
-            if context.state.thermalBucket == .serious || context.state.thermalBucket == .critical {
-                Label("Thermal management active", systemImage: "thermometer.medium")
-                    .font(.caption)
-                    .foregroundStyle(.orange)
+                if context.state.thermalBucket == .serious || context.state.thermalBucket == .critical {
+                    Label("Thermal management active", systemImage: "thermometer.medium")
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                }
             }
+            .padding(.horizontal, 16)
+            .padding(.vertical, isActivityFullscreen ? 12 : 8)
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, isActivityFullscreen ? 12 : 8)
+    }
+
+    private var watchOSCompactView: some View {
+        HStack(spacing: 8) {
+            ZStack {
+                Circle()
+                    .stroke(tint.opacity(0.15), lineWidth: 3.5)
+                Circle()
+                    .trim(from: 0.0, to: CGFloat(context.state.progress))
+                    .stroke(tint, style: StrokeStyle(lineWidth: 3.5, lineCap: .round))
+                    .rotationEffect(.degrees(-90))
+                
+                Image(systemName: "doc.badge.gearshape")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(tint)
+            }
+            .frame(width: 32, height: 32)
+            
+            VStack(alignment: .leading, spacing: 1) {
+                Text(context.state.currentFilename)
+                    .font(.system(size: 12, weight: .bold))
+                    .lineLimit(1)
+                
+                HStack(spacing: 4) {
+                    Text(context.state.currentStage)
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                    
+                    Text("•")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.secondary)
+                    
+                    Text("\(Int((context.state.progress * 100).rounded()))%")
+                        .font(.system(size: 10, weight: .semibold, design: .rounded))
+                        .foregroundStyle(tint)
+                }
+            }
+            
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
     }
 
     private var horizontalHeader: some View {
