@@ -20,7 +20,7 @@ let package = Package(
         .target(
             name: "OpenIntelligenceEngine",
             dependencies: [
-                .product(name: "Tokenizers", package: "swift-transformers")
+                .product(name: "TransformersTokenizers", package: "swift-transformers")
             ],
             path: "OpenIntelligence",
             exclude: [

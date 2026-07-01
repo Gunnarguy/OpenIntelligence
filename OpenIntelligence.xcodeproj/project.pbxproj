@@ -7,8 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		B016E7B72F0F5F5F00AABA0C /* Tokenizers in Frameworks */ = {isa = PBXBuildFile; productRef = B016E7B62F0F5F5F00AABA0C /* Tokenizers */; };
-		E0A100022F0F5F5F00AABA0C /* Tokenizers in Frameworks */ = {isa = PBXBuildFile; productRef = B016E7B62F0F5F5F00AABA0C /* Tokenizers */; };
+		B016E7B72F0F5F5F00AABA0C /* TransformersTokenizers in Frameworks */ = {isa = PBXBuildFile; productRef = B016E7B62F0F5F5F00AABA0C /* TransformersTokenizers */; };
+		E0A100022F0F5F5F00AABA0C /* TransformersTokenizers in Frameworks */ = {isa = PBXBuildFile; productRef = B016E7B62F0F5F5F00AABA0C /* TransformersTokenizers */; };
 		F0A100012F1A000100AA1001 /* OpenIntelligenceLiveActivities.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = F0A100022F1A000100AA1001 /* OpenIntelligenceLiveActivities.appex */; platformFilter = ios; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		F0A100032F1A000100AA1001 /* OpenIntelligence/Services/Infrastructure/Background/IngestionLiveActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0A100042F1A000100AA1001 /* OpenIntelligence/Services/Infrastructure/Background/IngestionLiveActivityAttributes.swift */; };
 		F0A100242F1A000100AA1001 /* IngestionLiveActivityWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0A100202F1A000100AA1001 /* IngestionLiveActivityWidget.swift */; };
@@ -351,7 +351,7 @@
 			);
 			name = OpenIntelligence;
 			packageProductDependencies = (
-				B016E7B62F0F5F5F00AABA0C /* Tokenizers */,
+				B016E7B62F0F5F5F00AABA0C /* TransformersTokenizers */,
 			);
 			productName = OpenIntelligence;
 			productReference = B0D565DE2E98AC50001274A2 /* OpenIntelligence.app */;
@@ -391,7 +391,7 @@
 			);
 			name = OpenIntelligenceEngine;
 			packageProductDependencies = (
-				B016E7B62F0F5F5F00AABA0C /* Tokenizers */,
+				B016E7B62F0F5F5F00AABA0C /* TransformersTokenizers */,
 			);
 			productName = OpenIntelligenceEngine;
 			productReference = E0A100042F0F5F5F00AABA0C /* OpenIntelligenceEngine.framework */;
@@ -970,10 +970,10 @@
 /* End XCLocalSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
-		B016E7B62F0F5F5F00AABA0C /* Tokenizers */ = {
+		B016E7B62F0F5F5F00AABA0C /* TransformersTokenizers */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = B016E7B32F0F5F5F00AABA0C /* XCLocalSwiftPackageReference "OpenIntelligence/swift-transformers" */;
-			productName = Tokenizers;
+			productName = TransformersTokenizers;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

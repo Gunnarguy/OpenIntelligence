@@ -8,7 +8,7 @@ let package = Package(
         .macOS("14.0")
     ],
     products: [
-        .library(name: "Tokenizers", targets: ["TransformersTokenizers"])
+        .library(name: "TransformersTokenizers", targets: ["TransformersTokenizers"])
     ],
     dependencies: [
         .package(url: "https://github.com/DePasqualeOrg/swift-tokenizers.git", from: "0.5.0")
