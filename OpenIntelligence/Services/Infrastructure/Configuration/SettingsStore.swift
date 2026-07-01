@@ -13,6 +13,9 @@
 import Combine
 import Foundation
 import SwiftUI
+#if canImport(CoreAI)
+import CoreAI
+#endif
 
 /// Central settings state shared across the app.
 /// - Persists values to `UserDefaults` so SwiftUI `@AppStorage` bindings stay in sync.
@@ -463,8 +466,14 @@ final class SettingsStore: ObservableObject {
         reliabilityModeEnabled =
             defaults.object(forKey: Keys.reliabilityModeEnabled) as? Bool ?? true
 
-        // Embedding provider settings (CoreML is the primary provider)
-        defaultEmbeddingProvider = defaults.string(forKey: Keys.defaultEmbeddingProvider) ?? "coreml_sentence_embedding"
+        // Embedding provider settings (Auto-select native Core AI on iOS 27+ / macOS 27+)
+        var resolvedDefaultProvider = "coreml_sentence_embedding"
+        #if canImport(CoreAI)
+        if #available(iOS 27.0, macOS 27.0, *) {
+            resolvedDefaultProvider = "coreai_sentence_embedding"
+        }
+        #endif
+        defaultEmbeddingProvider = defaults.string(forKey: Keys.defaultEmbeddingProvider) ?? resolvedDefaultProvider
         useHighAccuracyEmbeddings = defaults.object(forKey: Keys.useHighAccuracyEmbeddings) as? Bool ?? true
 
         // Advanced RAG Intelligence settings
@@ -728,10 +737,15 @@ final class SettingsStore: ObservableObject {
         // Kept for backward compatibility with existing settings
         $useHighAccuracyEmbeddings
             .dropFirst()
-.sink { [weak self] _ in
+            .sink { [weak self] _ in
                 guard let self else { return }
-                // Always use CoreML - it's the only supported provider
-                self.defaultEmbeddingProvider = "coreml_sentence_embedding"
+                var resolvedProvider = "coreml_sentence_embedding"
+                #if canImport(CoreAI)
+                if #available(iOS 27.0, macOS 27.0, *) {
+                    resolvedProvider = "coreai_sentence_embedding"
+                }
+                #endif
+                self.defaultEmbeddingProvider = resolvedProvider
             }
             .store(in: &cancellables)
 

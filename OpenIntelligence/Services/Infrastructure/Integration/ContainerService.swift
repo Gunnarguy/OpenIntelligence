@@ -270,12 +270,23 @@ final class ContainerService: ObservableObject {
     }
 
     private static func defaultContainer() -> KnowledgeContainer {
-        KnowledgeContainer(
+        let defaultProviderId: String
+        #if canImport(CoreAI)
+        if #available(iOS 27.0, macOS 27.0, *) {
+            defaultProviderId = "coreai_sentence_embedding"
+        } else {
+            defaultProviderId = "coreml_sentence_embedding"
+        }
+        #else
+        defaultProviderId = "coreml_sentence_embedding"
+        #endif
+
+        return KnowledgeContainer(
             name: "General",
             icon: "folder.fill",
             colorHex: "#4F46E5",
             description: "Default library",
-            embeddingProviderId: "coreml_sentence_embedding",
+            embeddingProviderId: defaultProviderId,
             embeddingDim: 384,
             vectorDBKind: .persistentJSON,
             autoAdaptDimension: true,  // Enabled by default for optimal chunking

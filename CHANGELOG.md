@@ -3,6 +3,7 @@
 - Large document ingestion streaming. End-to-end memory-safe stream process that avoids OOM crashes during large PDF embedding and SQLite UPSERTs.
 - `RAGService+Streaming` and asynchronous `pageRange` bounds on `DocumentProcessor` for dynamic batch extraction.
 - **[Indexing]** High-performance Rust-backed `swift-tokenizers` (DePasqualeOrg) integration, achieving 100x tokenization speedups and byte-level character offsets for precise citation mapping. Exposed via a local `TransformersTokenizers` wrapper target (renamed to resolve SPM product name collision and GUID registration conflicts) linked transparently into the main target.
+- **[Orchestration]** Dynamic default embedding provider auto-selection. Automatically configures new libraries and settings to default to the native `coreai_sentence_embedding` on iOS 27+ / macOS 27+ targets while preserving `coreml_sentence_embedding` fallbacks for older (iOS/macOS 26) releases.
 ### Fixed
 - SQLite FTS5 index truncation where previous batch FTS5 data, page mapping records, and chunk search records were deleted/overwritten on each streaming iteration. Added `append` support to `store`, `storePages`, and `storeChunks` methods in `SQLiteFullTextService`.
 - Page index offset mapping during streaming PDF ingestion, correcting human-readable page numbering for page-level contexts.
