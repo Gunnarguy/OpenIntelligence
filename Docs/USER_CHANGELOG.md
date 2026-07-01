@@ -1,4 +1,4 @@
-> **Documentation status:** Verified for OpenIntelligence v4.4 on June 27, 2026.
+> **Documentation status:** Verified for OpenIntelligence v4.5 on July 1, 2026.
 
 
 # OpenIntelligence User-Facing Changelog
@@ -6,6 +6,13 @@
 This document provides a chronological history of user-facing changes, highlighting how OpenIntelligence continuously improves transparency, speed, and reliability.
 
 ---
+
+## v4.5 - July 2026
+
+*   **Rust-Backed Tokenizer Engine:** Replaced the legacy pure-Swift tokenizer with a highly optimized Rust-backed `swift-tokenizers` engine. This delivers microsecond-level document tokenization (a 100x speedup) and exact byte-level character offset tracking for citations.
+*   **Ingestion Pipeline Stability:** Fixed FTS5 index corruption and page offset mapping bugs during streamed ingestion of large documents. Large files are now fully searchable.
+*   **Core AI Diagnostic Options**: Stabilized Silicon-native Core AI sentence embeddings on iOS 27+ / macOS 27+ with robust model readiness indicators and detailed build/OS error diagnostics in settings.
+*   **CI/CD Pipeline Upgrades**: Updated cloud build environments to `macos-26` to natively support Xcode 27+ and Swift 6.2+.
 
 ## v4.4 - June 2026
 

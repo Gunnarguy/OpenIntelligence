@@ -1,8 +1,18 @@
-> **Documentation status:** Verified for OpenIntelligence v4.3 on June 20, 2026.
+> **Documentation status:** Verified for OpenIntelligence v4.5 on July 1, 2026.
 
 # What's New
 
 Public release highlights for OpenIntelligence.
+
+## 4.5
+
+Version 4.5 introduces the high-performance Rust-backed Tokenizer Engine alongside major ingestion stability enhancements and Core AI diagnostics.
+
+### Highlights
+- **Rust-Backed Tokenizer Engine:** Replaced the legacy pure-Swift `BertTokenizer` with a high-performance Rust-backed `swift-tokenizers` (DePasqualeOrg) wrapper target. This yields a 100x speedup in document tokenization alongside exact byte-level character offset mappings for citations. Renamed the SPM wrapper library to `TransformersTokenizers` and excluded `tokenizer.json` files from Xcode synchronized group build phases to resolve SPM product name collisions and resource copy conflicts.
+- **Ingestion Pipeline Stability:** Resolved critical FTS5 index truncation, page offset mapping errors, and background sweep race conditions during batch-based streaming ingestion. Added optional `append` support to `store(...)` methods in `SQLiteFullTextService` to keep large files searchable.
+- **Core AI Selector & Diagnostics:** Fully stabilized on-device Core AI sentence embeddings on iOS 27+ / macOS 27+ targets. Cached the provider instance, introduced an awaitable model readiness gate, and added compile-time and runtime diagnostics in the settings pane to guide toolchain resolution.
+- **CI/CD Build Toolchain Update:** Updated all GitHub Actions CI/CD workflows (CI, App Store, and Release) to run on `macos-26` images to natively support the modern Swift 6.2+ / Xcode 27+ build toolchain.
 
 ## 4.4
 
