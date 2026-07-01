@@ -44,7 +44,7 @@ final class CoreAISentenceEmbeddingProvider: EmbeddingProvider {
 
     private func setup() {
         // Load Rust-backed tokenizer from the resource bundle directory
-        if let url = OpenIntelligenceResourceBundle.url(forResource: "embedding_tokenizer", withExtension: nil) {
+        if let url = OpenIntelligenceResourceBundle.url(forResource: "embedding_tokenizer", withExtension: "bundle") {
             Task {
                 do {
                     tokenizer = try await AutoTokenizer.from(directory: url)

@@ -428,7 +428,7 @@ class DocumentProcessor {
 
     /// Load Tokenizer from embedding vocab for accurate token counting
     private func loadTokenizer() {
-        if let url = OpenIntelligenceResourceBundle.url(forResource: "embedding_tokenizer", withExtension: nil) {
+        if let url = OpenIntelligenceResourceBundle.url(forResource: "embedding_tokenizer", withExtension: "bundle") {
             Task {
                 do {
                     embeddingTokenizer = try await AutoTokenizer.from(directory: url)

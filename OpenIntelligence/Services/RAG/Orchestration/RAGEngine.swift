@@ -85,7 +85,7 @@ actor RAGEngine {
         #endif
 
         // Load Tokenizer
-        if let url = OpenIntelligenceResourceBundle.url(forResource: "reranker_tokenizer", withExtension: nil) {
+        if let url = OpenIntelligenceResourceBundle.url(forResource: "reranker_tokenizer", withExtension: "bundle") {
             do {
                 self.rerankerTokenizer = try await AutoTokenizer.from(directory: url)
                 Log.info("[RAGEngine] Loaded Rust-backed ReRanker Tokenizer", category: .retrieval)

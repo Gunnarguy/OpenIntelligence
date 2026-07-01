@@ -186,7 +186,7 @@ final class CoreMLSentenceEmbeddingProvider: EmbeddingProvider {
         #endif
 
         // Load Tokenizer
-        if let url = OpenIntelligenceResourceBundle.url(forResource: "embedding_tokenizer", withExtension: nil) {
+        if let url = OpenIntelligenceResourceBundle.url(forResource: "embedding_tokenizer", withExtension: "bundle") {
             Task {
                 do {
                     tokenizer = try await AutoTokenizer.from(directory: url)
