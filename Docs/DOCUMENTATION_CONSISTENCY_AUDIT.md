@@ -16,7 +16,7 @@
 - `CHANGELOG.md`
 
 ## 2. Stale Docs
-- `Docs/RELEASE_NOTES.md` (claims Core AI sentence embeddings are active).
+- ~~`Docs/RELEASE_NOTES.md` (claims Core AI sentence embeddings are active).~~ **RESOLVED 2026-07-01**: superseded — Core AI sentence embeddings ARE in production with Core ML fallback per `Docs/CANONICAL_OPENINTELLIGENCE_SOURCE_OF_TRUTH.md` §3; the release-notes claim is accurate. `[evidence: artifact_derived, high, CANONICAL_OPENINTELLIGENCE_SOURCE_OF_TRUTH.md]`
 - `Docs/ARCHITECTURE.md` (violates objective tone rules).
 
 ## 3. Contradictory Docs

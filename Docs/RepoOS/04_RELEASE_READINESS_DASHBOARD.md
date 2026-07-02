@@ -1,0 +1,23 @@
+# RepoOS 04 — Release Readiness Dashboard
+
+Human-readable pre-release checklist. Run as a read-only verification pass (router route 11); record PASS/FAIL with evidence per row into a dated report under `Docs/AuditArtifacts/`. Status column below reflects the last audited state from the FinalReview artifacts (2026 audit), not a live run — re-verify every row before shipping.
+
+| # | Area | Check | How to verify | Last audited state |
+|---|---|---|---|---|
+| 1 | Build | Simulator smoke build succeeds, warning-free (AGENTS.md rule 14) | `bash scripts/build_simulator_smoke.sh`; inspect `.simulator-smoke/xcodebuild.log` | Not re-run in this pass |
+| 2 | Tests | Full suite green | `xcodebuild test -scheme OpenIntelligence -destination 'platform=iOS Simulator,name=iPhone 17 Pro' -skipPackagePluginValidation CODE_SIGNING_ALLOWED=NO` (suites: `OpenIntelligenceEngineTests`, `SemanticChunkerTests`, `DocumentProcessorTests`, `ContextPackingServiceTests`, `HybridSearchServiceTests`) | Not re-run in this pass |
+| 3 | Privacy | No network transmission outside consented PCC path; trace exports warning (plain-text) acknowledged | Review `Docs/PRIVACY_AND_ROUTING.md` vs `CloudTransmission.swift`, `PipelineTraceExporter.swift` (export privacy gap flagged in subsystem_map) | Gap noted: plain-text trace exports |
+| 4 | Local-only behavior | SQLite and ingestion checkpoints strictly local; no CloudKit APIs | `grep -rn "CKDatabase\|CKContainer" OpenIntelligence/ --include=*.swift` → empty; checkpoints under `localCacheDir()/IngestionCheckpoints/` (canonical §6) | PASS at last audit (readiness matrix rows 7–8) |
+| 5 | iCloud sync | Ubiquity sync via `WorkspaceSyncService.swift` with NSFileCoordinator; sweep-guard intact; last-write-wins conflict risk accepted | Code review of `WorkspaceSyncService.swift` mtime touch + 15-min guard (canonical §3); multi-device manual test | PASS at last audit; conflict-policy risk open |
+| 6 | PCC routing | Entitlement absent from `OpenIntelligence.entitlements` (intentional); `EntitlementChecker` gate prevents fatal crash; local fallback works | `grep -n "private-cloud-compute" OpenIntelligence/OpenIntelligence.entitlements` → absent; run on device without entitlement → no crash, local answers | PASS per canonical §3 |
+| 7 | PCC consent | No background/App Intents path can hang on `CloudConsentPromptView` | Exercise intents with cloud routing enabled; risks R06/R07 (`Docs/AuditArtifacts/FinalReview/final_unresolved_risks.csv`) remain accepted-residual | OPEN residual risk |
+| 8 | StoreKit | Products in `StoreKitConfiguration.storekit` match App Store Connect; purchase/restore works in `OpenIntelligence-StoreKitTesting` scheme; sandbox status-lag issue known | Manual purchase/restore run; compare product IDs | Sandbox lag gap noted (subsystem_map) |
+| 9 | Billing/quotas | Entitlements resolve from UserDefaults (`EntitlementStore.swift`); tier quotas enforced (5/20/unlimited via `QuotaPolicy.swift`) | Unit/manual check of quota gating on thread creation | PASS per canonical §11 |
+| 10 | App Intents | Exactly ≤10 App Shortcuts registered (currently 9/10); intents resolve on `RAGService.activePresentedInstance` | Count registrations in `RAGAppIntents.swift`; run Ask/Summarize/Search shortcuts | PASS per canonical §10 |
+| 11 | Retrieval | Hybrid search returns results across FTS5 + vector paths after fresh ingest; large-PDF streaming ingest completes searchable (FTS truncation fix, Atlas §18) | Ingest a >10MB PDF; query it; `HybridSearchServiceTests` | PASS per Atlas §18 |
+| 12 | Citations | Citation byte offsets align with source text (Rust tokenizer exact offsets, canonical §3); highlight alignment spot-check | Manual spot-check on 3 documents; AI Subsystem Diagnostics card shows tokenizer ready | PASS per canonical §3 |
+| 13 | Docs consistency | Canonical docs match shipped behavior; CHANGELOG/RELEASE_NOTES/ROADMAP/Notion updated (AGENTS.md rule 14) | Run route 10 reconciliation; check `Docs/DOCUMENTATION_CONSISTENCY_AUDIT.md` items closed | PARTIAL — stale FinalReview gate + handoff packet flagged in `Docs/AuditArtifacts/RepoOS/repoos_generation_report.md` |
+| 14 | Governance hygiene | No forbidden-file diffs; no secrets in tree; working tree clean | `git status --porcelain`; `python3 scripts/secret_scan.py` | Re-run each release |
+
+## Verdict rule
+Ship only when rows 1–2, 4–6, 8–10 are PASS in a fresh run, and every FAIL/OPEN row has a written user-accepted risk note. Rows 7 and 13 currently carry known open items — they require explicit user sign-off, not silent passage.

@@ -184,12 +184,15 @@ graph TD
   Policy -->|Local Sim| LLM[SystemLanguageModel.default]
 ```
 
-### Evidence Threads Proposed Placement Diagram
+### Evidence Threads Placement Diagram (Implemented — Design B)
 ```mermaid
 graph TD
-  App[OpenIntelligence] -->|Write| File[LocalCache/EvidenceThreads/.../*.json]
-  App -.->|No Sync| iCloud[iCloud Drive]
+  UI["ThreadSidebarView / ChatScreen"] --> RAG["RAGService"]
+  RAG -->|"quota gate 5/20/unlimited (QuotaPolicy)"| Store["EvidenceThreadStore"]
+  Store -->|"coordinated write"| File["Application Support/EvidenceThreads/&lt;containerId&gt;/*.json"]
+  File <-->|"bidirectional sync (WorkspaceSyncService)"| iCloud["iCloud Drive Ubiquity"]
 ```
+Historical note: earlier planning artifacts proposed `LocalCache/EvidenceThreads/` with no sync (Phase 1A local-only design). Phase 1B relocated threads to `Application Support/EvidenceThreads/<containerId>/` with bidirectional iCloud Drive sync. `[evidence: code_verified, exact, Docs/AuditArtifacts/Implementation/phase_1b_1c_1d_post_implementation_verification.md, WorkspaceSyncService.swift]`
 
 ## 17. Core AI Embedding Subsystem Boundary
 - **Core AI Integration**: Silicon-native zero-copy sentence embeddings are generated via `CoreAISentenceEmbeddingProvider.swift` using dynamic `NDArray` and `InferenceFunction.run(inputs:)` graph execution on iOS 27 / macOS 27+ Apple Intelligence SDK. Access and selector selection availability are stabilized via shared instance caching and an awaitable readiness gate in `ContainerSettingsSheet`. `[evidence: code_verified, exact, CoreAISentenceEmbeddingProvider.swift, ContainerSettingsSheet.swift]`

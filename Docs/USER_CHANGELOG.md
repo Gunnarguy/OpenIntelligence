@@ -19,7 +19,7 @@ This document provides a chronological history of user-facing changes, highlight
 *   **Evidence Threads:** Introduced durable conversational threads. Chat sessions and their active citations, metadata, and responses are now persisted on disk, eliminating dynamic ephemerality.
 *   **Slide-Out Thread Sidebar:** Added a premium, spring-animated slide-out menu to view, create, switch, and delete research threads. Features full swipe-to-delete support and active-selection highlighting.
 *   **Design System Parity:** Structured the new sidebar using the app's native visual tokens (`DSColors`, `DSSpacing`, `DSTypography`), rendering a visually integrated, sleek interface on both iOS and macOS.
-*   **Local Cache Isolation:** Isolated thread storage under `LocalCache/EvidenceThreads/` to strictly protect your history from iCloud Drive sync sweeps.
+*   **Thread Storage:** Threads initially shipped in isolated local-only storage. *(Updated July 2026: thread storage has since moved into the app's workspace storage and now syncs across your devices via iCloud Drive using safe, coordinated file writes. If you edit the same thread on two devices at nearly the same time, the most recent change wins.)*
 *   **Engineering Diagnostics View:** Retained the debug view and mocked thread triggers inside the Developer Diagnostics Hub to inspect and verify thread persistence.
 *   **Native Private Cloud Compute:** Escalates complex queries to Apple's secure Private Cloud Compute server enclaves natively on iOS 27 / macOS 27+, falling back to local simulation on older OS versions.
 *   **Pro Annual Pricing & Free Trial:** Calibrated the Pro Annual subscription to $29.99/year (representing a 58% savings vs monthly) and introduced a 7-day free trial.
