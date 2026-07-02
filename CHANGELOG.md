@@ -1,3 +1,12 @@
+## 4.5.1 - 2026-07-02
+### Added
+- **[Indexing]** Compiled and bundled `EmbeddingModel.aimodel` inside the package resource bundle to support the native, zero-copy Core AI embedding execution path on Apple Silicon.
+- **[Indexing]** Created `scripts/compile_core_ai_model.py` to automate PyTorch-to-Core AI model graph conversion using the Apple `coreai-torch` extensions.
+### Fixed
+- **[UI]** Enabled saving of embedding configuration options when a provider is unavailable at save-time, allowing runtime fallback routing (e.g., Core AI falling back to Core ML) to resolve and execute cleanly.
+- **[Indexing]** Fixed Core AI tensor name mapping by explicitly binding the exported PyTorch graph output to "embeddings" and parsing the MLFeatureProvider dictionary correctly in `CoreAISentenceEmbeddingProvider`.
+- **[Orchestration]** Fixed global embedding provider toggling bug during document ingestion that bypassed container settings. Relocated `enableIngestionMode` scoping explicitly into the `addDocument()` pipeline to guarantee the selected container provider (e.g., Core AI vs Core ML) is accurately targeted.
+
 ## 4.5.0 - 2026-07-01
 ### Added
 - Large document ingestion streaming. End-to-end memory-safe stream process that avoids OOM crashes during large PDF embedding and SQLite UPSERTs.

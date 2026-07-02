@@ -4329,10 +4329,6 @@ class RAGService: ObservableObject {
 
         var shouldRestartQueueAfterUserCancellation = false
 
-        // Enable GPU embeddings to free ANE for Vision OCR (true parallelism)
-        embeddingService.enableIngestionMode()
-        Log.info("[RAGService] ⚡ Ingestion mode: GPU embeddings + ANE Vision OCR", category: .ingestion)
-
         while let next = await MainActor.run(body: { self.nextQueuedIngestionItem() }) {
             if Task.isCancelled { break }
             let context = await MainActor.run { self.ingestionContexts[next.id] ?? .userInitiated }
@@ -4363,9 +4359,6 @@ class RAGService: ObservableObject {
                 }
             }
         }
-
-        // Return to default compute mode
-        embeddingService.disableIngestionMode()
 
         await MainActor.run {
             self.isProcessing = false
@@ -4912,6 +4905,12 @@ class RAGService: ObservableObject {
         }
 
         let pipelineStartTime = Date()
+        
+        containerEmbeddingService.enableIngestionMode()
+        defer {
+            containerEmbeddingService.disableIngestionMode()
+        }
+        
         TelemetryCenter.emit(
             .ingestion,
             title: "Ingestion started",

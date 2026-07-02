@@ -202,9 +202,9 @@ final class CoreMLSentenceEmbeddingProvider: EmbeddingProvider {
 
     var isAvailable: Bool {
         #if canImport(CoreML)
-            let available = model != nil && tokenizer != nil
+            let available = model != nil
             if !available {
-                Log.warning("[CoreMLSentenceEmbeddingProvider] Provider unavailable: model=\(model != nil), tokenizer=\(tokenizer != nil)", category: .embedding)
+                Log.warning("[CoreMLSentenceEmbeddingProvider] Provider unavailable: model=\(model != nil)", category: .embedding)
             }
 
             return available

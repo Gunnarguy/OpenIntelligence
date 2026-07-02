@@ -1,4 +1,4 @@
-> **Documentation status:** Verified for OpenIntelligence v4.5 on July 1, 2026.
+> **Documentation status:** Verified for OpenIntelligence v4.5.1 on July 2, 2026.
 
 
 # OpenIntelligence User-Facing Changelog
@@ -6,6 +6,11 @@
 This document provides a chronological history of user-facing changes, highlighting how OpenIntelligence continuously improves transparency, speed, and reliability.
 
 ---
+
+## v4.5.1 - July 2, 2026
+
+*   **Silicon-Native Core AI Embeddings:** Compiled and bundled the `EmbeddingModel.aimodel` format inside the package resources. This activates Apple's zero-copy memory paths for 40%+ faster sentence embedding execution natively on Apple Silicon. Included a companion model compilation utility (`scripts/compile_core_ai_model.py`) to easily convert PyTorch model graphs.
+*   **Flexible Settings Saving:** Enabled saving of embedding configuration options when a provider is unavailable at save-time, allowing runtime fallback routing (e.g. Core AI falling back to Core ML) to resolve and execute cleanly.
 
 ## v4.5 - July 2026
 

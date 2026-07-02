@@ -1,6 +1,6 @@
-# Docs/ROADMAP.md — OpenIntelligence v4.4 (working on v4.5)
+# Docs/ROADMAP.md — OpenIntelligence v4.5.1 (working on v4.6)
 
-> **Documentation status:** Verified for OpenIntelligence v4.4 on 2026-06-30.
+> **Documentation status:** Verified for OpenIntelligence v4.5.1 on 2026-07-02.
 > **Source of truth:** Codebase audit in `Docs/AUDIT/`.
 > **Scope:** Describes future technical directions for the prototype. It is not a product commitment.
 
@@ -8,6 +8,7 @@
 
 ## 1. Near Term
 
+- **Core AI Model Compilation & Settings Save (v4.5.1 Completed):** Compiled the native `all-MiniLM-L6-v2` transformer model weights into an optimized Core AI `.aimodel` structure using `coreai-torch` extensions. Bypassed Xcode's build-time `mlassetc` version checks (which block deployment targets below 27.0) by renaming the directory to `EmbeddingModel.bundle` and copying it as a raw resource folder, loading it dynamically at runtime. Fixed settings sheet blocker to allow saving of embedding configuration options when a provider is temporarily unavailable. Fixed Core AI tensor name mapping by explicitly binding the exported PyTorch graph output to "embeddings". Fixed global embedding provider toggling bug during document ingestion that bypassed container settings.
 - **Rust-Backed Tokenizer Migration (Completed):** Migrated the local on-device tokenizer from legacy pure-Swift `BertTokenizer` to high-performance Rust-backed `swift-tokenizers` (DePasqualeOrg) package loaded asynchronously from the local resource bundle, yielding a 100x speedup and exact byte-level character offsets. Excluded `tokenizer.json` files from Xcode's synchronized root group via `project.pbxproj` exception sets to prevent app-level copy conflicts.
 - **Ingestion Performance & Checkpointing (Completed):** Bypassed PNG encoding by feeding GPU-rendered `CGImage` buffers directly to Vision OCR/Structure requests. Introduced a local page-level JSON checkpointing cache to protect long document ingestions from OOM and app-restart data loss. Fixed FTS5 index truncation and page offset mapping errors during streaming batch ingestion, ensuring fully searchable large documents. Resolved a race condition where `WorkspaceSyncService` deleted active streaming ingest documents before metadata registration. Exposed and stabilized the Core AI sentence embedding provider option on iOS 27 through shared-instance caching, an awaitable readiness gate, and clean compile-time/runtime picker alerts.
 - **watchOS Live Activities Layout (Completed):** Customized the lock screen widget view with conditional rendering for watchOS Smart Stack `.small` widget family, detailing a circular gauge and compact status labels.

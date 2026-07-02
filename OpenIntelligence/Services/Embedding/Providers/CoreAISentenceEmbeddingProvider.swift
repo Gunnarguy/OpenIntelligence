@@ -58,16 +58,52 @@ final class CoreAISentenceEmbeddingProvider: EmbeddingProvider {
         #if canImport(CoreAI)
         // Load the .aimodel compiled from PyTorch
         let modelName = "EmbeddingModel"
-        guard let url = OpenIntelligenceResourceBundle.url(forResource: modelName, withExtension: "aimodel") else {
-            Log.error("[CoreAISentenceEmbeddingProvider] Model \(modelName).aimodel not found in bundle", category: .embedding)
+        var modelURL: URL? = nil
+        
+        if let url = OpenIntelligenceResourceBundle.url(forResource: modelName, withExtension: "bundle") {
+            modelURL = url
+        } else if let mlirbURL = OpenIntelligenceResourceBundle.url(forResource: "main", withExtension: "mlirb") {
+            modelURL = mlirbURL.deletingLastPathComponent()
+            Log.info("[CoreAISentenceEmbeddingProvider] Core AI model flattened in bundle root, loading from parent directory", category: .embedding)
+        }
+        
+        guard let sourceURL = modelURL else {
+            self.isModelLoadingFailed = true
+            Log.error("[CoreAISentenceEmbeddingProvider] Model \(modelName).bundle or main.mlirb not found in bundle", category: .embedding)
             return
+        }
+
+        // Core AI runtime strictly expects the model directory to end in .aimodel.
+        // We create a symbolic link in the temporary directory ending in .aimodel pointing to the source directory.
+        let fileManager = FileManager.default
+        let tempDir = fileManager.temporaryDirectory
+        let symlinkURL = tempDir.appendingPathComponent("\(modelName).aimodel")
+        
+        do {
+            // fileExists(atPath:) follows symlinks and returns false if the destination is missing.
+            // Since app bundle UUIDs change on every build, the old symlink becomes broken.
+            // We must unconditionally try to remove it.
+            try? fileManager.removeItem(at: symlinkURL)
+            
+            try fileManager.createSymbolicLink(at: symlinkURL, withDestinationURL: sourceURL)
+            Log.info("[CoreAISentenceEmbeddingProvider] Created .aimodel symlink at \(symlinkURL.path)", category: .embedding)
+        } catch {
+            Log.error("[CoreAISentenceEmbeddingProvider] Failed to create symlink: \(error)", category: .embedding)
         }
 
         Task {
             do {
-                let loadedModel = try await AIModel(contentsOf: url)
+                let loadedModel = try await AIModel(contentsOf: symlinkURL)
                 self.model = loadedModel
-                self.encodeFunction = try loadedModel.loadFunction(named: "encode")
+                // PyTorch export usually names the default graph "forward" or "main".
+                self.encodeFunction = (try? loadedModel.loadFunction(named: "forward")) ?? 
+                                      (try? loadedModel.loadFunction(named: "main")) ?? 
+                                      (try? loadedModel.loadFunction(named: "encode"))
+                
+                if self.encodeFunction == nil {
+                    throw EmbeddingError.modelUnavailable
+                }
+                
                 self.isModelLoaded = true
                 Log.info("[CoreAISentenceEmbeddingProvider] Loaded Core AI model successfully", category: .embedding)
             } catch {
@@ -82,7 +118,7 @@ final class CoreAISentenceEmbeddingProvider: EmbeddingProvider {
 
     var isAvailable: Bool {
         #if canImport(CoreAI)
-        return model != nil && encodeFunction != nil && tokenizer != nil
+        return !isModelLoadingFailed
         #else
         return false
         #endif
@@ -115,7 +151,14 @@ final class CoreAISentenceEmbeddingProvider: EmbeddingProvider {
         }
 
         #if canImport(CoreAI)
-        guard let encodeFunction = encodeFunction, let tokenizer = tokenizer else {
+        await awaitReady()
+
+        guard let encodeFunction = encodeFunction else {
+            Log.error("[CoreAISentenceEmbeddingProvider] embed failed: encodeFunction is nil. isModelLoaded: \(isModelLoaded), isModelLoadingFailed: \(isModelLoadingFailed)", category: .embedding)
+            throw EmbeddingError.modelUnavailable
+        }
+        guard let tokenizer = tokenizer else {
+            Log.error("[CoreAISentenceEmbeddingProvider] embed failed: tokenizer is nil", category: .embedding)
             throw EmbeddingError.modelUnavailable
         }
 
@@ -137,22 +180,33 @@ final class CoreAISentenceEmbeddingProvider: EmbeddingProvider {
         let inputTensor = NDArray(scalars: inputIds.map { Int32($0) }, shape: [1, maxSequenceLength])
 
         var outputs = try await encodeFunction.run(inputs: ["input_ids": inputTensor])
-        guard let embeddingsTensor = outputs.remove("embeddings")?.ndArray else {
+        
+        let tensorValue = outputs.remove("embeddings") ?? 
+                          outputs.remove("output_0") ?? 
+                          outputs.remove("output") ?? 
+                          outputs.remove("_0")
+        
+        guard let embeddingsTensor = tensorValue?.ndArray else {
+            Log.error("[CoreAISentenceEmbeddingProvider] missing output tensor (tried embeddings, output_0, output, _0).", category: .embedding)
             throw EmbeddingError.outputParsingFailed
         }
 
         let tensorView = embeddingsTensor.view(as: Float.self)
-        guard let span = tensorView.contiguousElements else {
-            throw EmbeddingError.outputParsingFailed
-        }
-
+        
         var array = [Float]()
-        array.reserveCapacity(span.count)
-        for i in 0..<span.count {
-            array.append(span[i])
+        if let span = tensorView.contiguousElements {
+            array.reserveCapacity(span.count)
+            for i in 0..<span.count {
+                array.append(span[i])
+            }
+        } else {
+            // Fallback for non-contiguous
+            Log.error("[CoreAISentenceEmbeddingProvider] Tensor is not contiguous! This is the cause of the outputParsingFailed error.", category: .embedding)
+            throw EmbeddingError.outputParsingFailed
         }
         return array
         #else
+        Log.error("[CoreAISentenceEmbeddingProvider] embed failed: canImport(CoreAI) is false at compile time in this compilation unit", category: .embedding)
         throw EmbeddingError.modelUnavailable
         #endif
     }

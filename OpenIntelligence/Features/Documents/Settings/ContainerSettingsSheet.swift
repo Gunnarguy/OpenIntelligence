@@ -214,7 +214,7 @@ struct ContainerSettingsSheet: View {
                     Button("Save") {
                         handleSave()
                     }
-.disabled(isReembedding || !isCurrentProviderAvailable)
+                    .disabled(isReembedding)
                 }
             }
             .onAppear {

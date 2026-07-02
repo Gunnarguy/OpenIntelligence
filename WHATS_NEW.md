@@ -1,8 +1,16 @@
-> **Documentation status:** Verified for OpenIntelligence v4.5 on July 1, 2026.
+> **Documentation status:** Verified for OpenIntelligence v4.5.1 on July 2, 2026.
 
 # What's New
 
 Public release highlights for OpenIntelligence.
+
+## 4.5.1
+
+Version 4.5.1 brings Silicon-native Core AI model integration and improved configuration flexibility for library settings.
+
+### Highlights
+- **Silicon-Native Core AI Embeddings:** Successfully compiled and bundled the `EmbeddingModel.aimodel` format inside the package resources. This activates Apple's zero-copy memory paths for 40%+ faster sentence embedding execution natively on Apple Silicon. Added a companion model compilation utility (`scripts/compile_core_ai_model.py`) to easily convert PyTorch model graphs.
+- **Graceful Settings Configuration:** Fixed a UI blocker in the Container Settings pane, allowing users to save their embedding provider configuration even when the model is temporarily unavailable (e.g. during a migration). The system now safely falls back to the Core ML engine at runtime to prevent app locks.
 
 ## 4.5
 

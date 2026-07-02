@@ -10,7 +10,7 @@
 		B016E7B72F0F5F5F00AABA0C /* TransformersTokenizers in Frameworks */ = {isa = PBXBuildFile; productRef = B016E7B62F0F5F5F00AABA0C /* TransformersTokenizers */; };
 		E0A100022F0F5F5F00AABA0C /* TransformersTokenizers in Frameworks */ = {isa = PBXBuildFile; productRef = B016E7B62F0F5F5F00AABA0C /* TransformersTokenizers */; };
 		F0A100012F1A000100AA1001 /* OpenIntelligenceLiveActivities.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = F0A100022F1A000100AA1001 /* OpenIntelligenceLiveActivities.appex */; platformFilter = ios; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
-		F0A100032F1A000100AA1001 /* IngestionLiveActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0A100042F1A000100AA1001 /* IngestionLiveActivityAttributes.swift */; };
+		F0A100032F1A000100AA1001 /* OpenIntelligence/Services/Infrastructure/Background/IngestionLiveActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0A100042F1A000100AA1001 /* OpenIntelligence/Services/Infrastructure/Background/IngestionLiveActivityAttributes.swift */; };
 		F0A100242F1A000100AA1001 /* IngestionLiveActivityWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0A100202F1A000100AA1001 /* IngestionLiveActivityWidget.swift */; };
 		F0A100252F1A000100AA1001 /* OpenIntelligenceLiveActivitiesBundle.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0A100212F1A000100AA1001 /* OpenIntelligenceLiveActivitiesBundle.swift */; };
 		F0A100262F1A000100AA1001 /* OpenIntelligenceActivityIcon.png in Resources */ = {isa = PBXBuildFile; fileRef = F0A100222F1A000100AA1001 /* OpenIntelligenceActivityIcon.png */; };
@@ -45,7 +45,7 @@
 		DDFD1600670D479C7075E2C2 /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS18.0.sdk/System/Library/Frameworks/Foundation.framework; sourceTree = DEVELOPER_DIR; };
 		E0A100042F0F5F5F00AABA0C /* OpenIntelligenceEngine.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = OpenIntelligenceEngine.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		F0A100022F1A000100AA1001 /* OpenIntelligenceLiveActivities.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = OpenIntelligenceLiveActivities.appex; sourceTree = BUILT_PRODUCTS_DIR; };
-		F0A100042F1A000100AA1001 /* IngestionLiveActivityAttributes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenIntelligence/Services/Infrastructure/Background/IngestionLiveActivityAttributes.swift; sourceTree = "<group>"; };
+		F0A100042F1A000100AA1001 /* OpenIntelligence/Services/Infrastructure/Background/IngestionLiveActivityAttributes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenIntelligence/Services/Infrastructure/Background/IngestionLiveActivityAttributes.swift; sourceTree = "<group>"; };
 		F0A100202F1A000100AA1001 /* IngestionLiveActivityWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IngestionLiveActivityWidget.swift; sourceTree = "<group>"; };
 		F0A100212F1A000100AA1001 /* OpenIntelligenceLiveActivitiesBundle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenIntelligenceLiveActivitiesBundle.swift; sourceTree = "<group>"; };
 		F0A100222F1A000100AA1001 /* OpenIntelligenceActivityIcon.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = OpenIntelligenceActivityIcon.png; sourceTree = "<group>"; };
@@ -104,8 +104,6 @@
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		B0D565E02E98AC50001274A2 /* OpenIntelligence */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			exceptions = (
-			);
 			path = OpenIntelligence;
 			sourceTree = "<group>";
 		};
@@ -119,8 +117,6 @@
 		};
 		E0A100162F0F5F5F00AABA0C /* OpenIntelligence/SDK */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			exceptions = (
-			);
 			path = OpenIntelligence/SDK;
 			sourceTree = "<group>";
 		};
@@ -134,29 +130,21 @@
 		};
 		E0A100182F0F5F5F00AABA0C /* OpenIntelligence/Services/Document */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			exceptions = (
-			);
 			path = OpenIntelligence/Services/Document;
 			sourceTree = "<group>";
 		};
 		E0A100192F0F5F5F00AABA0C /* OpenIntelligence/Services/Embedding */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			exceptions = (
-			);
 			path = OpenIntelligence/Services/Embedding;
 			sourceTree = "<group>";
 		};
 		E0A100202F0F5F5F00AABA0C /* OpenIntelligence/Services/Infrastructure/Compute */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			exceptions = (
-			);
 			path = OpenIntelligence/Services/Infrastructure/Compute;
 			sourceTree = "<group>";
 		};
 		E0A100212F0F5F5F00AABA0C /* OpenIntelligence/Services/Infrastructure/Configuration */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			exceptions = (
-			);
 			path = OpenIntelligence/Services/Infrastructure/Configuration;
 			sourceTree = "<group>";
 		};
@@ -170,15 +158,11 @@
 		};
 		E0A100232F0F5F5F00AABA0C /* OpenIntelligence/Services/Infrastructure/Monitoring */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			exceptions = (
-			);
 			path = OpenIntelligence/Services/Infrastructure/Monitoring;
 			sourceTree = "<group>";
 		};
 		E0A100242F0F5F5F00AABA0C /* OpenIntelligence/Services/Infrastructure/Optimization */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			exceptions = (
-			);
 			path = OpenIntelligence/Services/Infrastructure/Optimization;
 			sourceTree = "<group>";
 		};
@@ -192,15 +176,11 @@
 		};
 		E0A100262F0F5F5F00AABA0C /* OpenIntelligence/Services/Query */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			exceptions = (
-			);
 			path = OpenIntelligence/Services/Query;
 			sourceTree = "<group>";
 		};
 		E0A100272F0F5F5F00AABA0C /* OpenIntelligence/Services/RAG */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			exceptions = (
-			);
 			path = OpenIntelligence/Services/RAG;
 			sourceTree = "<group>";
 		};
@@ -214,22 +194,16 @@
 		};
 		E0A100292F0F5F5F00AABA0C /* OpenIntelligence/Services/VectorStore */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			exceptions = (
-			);
 			path = OpenIntelligence/Services/VectorStore;
 			sourceTree = "<group>";
 		};
 		E0A1002A2F0F5F5F00AABA0C /* OpenIntelligence/Services/Infrastructure/Storage */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			exceptions = (
-			);
 			path = OpenIntelligence/Services/Infrastructure/Storage;
 			sourceTree = "<group>";
 		};
 		E0A1002B2F0F5F5F00AABA0C /* OpenIntelligence/Services/AIPlatform */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			exceptions = (
-			);
 			path = OpenIntelligence/Services/AIPlatform;
 			sourceTree = "<group>";
 		};
@@ -291,7 +265,7 @@
 				E0A100272F0F5F5F00AABA0C /* OpenIntelligence/Services/RAG */,
 				E0A100282F0F5F5F00AABA0C /* OpenIntelligence/Services/Storage */,
 				E0A100292F0F5F5F00AABA0C /* OpenIntelligence/Services/VectorStore */,
-				F0A100042F1A000100AA1001 /* IngestionLiveActivityAttributes.swift */,
+				F0A100042F1A000100AA1001 /* OpenIntelligence/Services/Infrastructure/Background/IngestionLiveActivityAttributes.swift */,
 			);
 			name = "Recovered References";
 			sourceTree = "<group>";
@@ -460,7 +434,7 @@
 			mainGroup = B0D565D52E98AC50001274A2;
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
-				B016E7B32F0F5F5F00AABA0C /* XCLocalSwiftPackageReference "swift-transformers" */,
+				B016E7B32F0F5F5F00AABA0C /* XCLocalSwiftPackageReference "OpenIntelligence/swift-transformers" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = B0D565DF2E98AC50001274A2 /* Products */;
@@ -518,7 +492,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				F0A100032F1A000100AA1001 /* IngestionLiveActivityAttributes.swift in Sources */,
+				F0A100032F1A000100AA1001 /* OpenIntelligence/Services/Infrastructure/Background/IngestionLiveActivityAttributes.swift in Sources */,
 				F0A100242F1A000100AA1001 /* IngestionLiveActivityWidget.swift in Sources */,
 				F0A100252F1A000100AA1001 /* OpenIntelligenceLiveActivitiesBundle.swift in Sources */,
 			);
@@ -978,7 +952,7 @@
 /* End XCConfigurationList section */
 
 /* Begin XCLocalSwiftPackageReference section */
-		B016E7B32F0F5F5F00AABA0C /* XCLocalSwiftPackageReference "swift-transformers" */ = {
+		B016E7B32F0F5F5F00AABA0C /* XCLocalSwiftPackageReference "OpenIntelligence/swift-transformers" */ = {
 			isa = XCLocalSwiftPackageReference;
 			relativePath = "OpenIntelligence/swift-transformers";
 		};
@@ -987,7 +961,7 @@
 /* Begin XCSwiftPackageProductDependency section */
 		B016E7B62F0F5F5F00AABA0C /* TransformersTokenizers */ = {
 			isa = XCSwiftPackageProductDependency;
-			package = B016E7B32F0F5F5F00AABA0C /* XCLocalSwiftPackageReference "swift-transformers" */;
+			package = B016E7B32F0F5F5F00AABA0C /* XCLocalSwiftPackageReference "OpenIntelligence/swift-transformers" */;
 			productName = TransformersTokenizers;
 		};
 /* End XCSwiftPackageProductDependency section */

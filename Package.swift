@@ -69,6 +69,7 @@ let package = Package(
             ],
             resources: [
                 .copy("Resources/MLModels/EmbeddingModel.mlpackage"),
+                .copy("Resources/MLModels/EmbeddingModel.bundle"),
                 .copy("Resources/MLModels/ReRankerModel.mlpackage"),
                 .copy("Resources/PrivacyInfo.xcprivacy")
             ],
