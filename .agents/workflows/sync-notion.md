@@ -6,12 +6,16 @@ Hardcoded target — do NOT search for it:
 - Database ID: `37f49a74-d54f-81b7-9424-dae1288c0043` (use ONLY with retrieve-database calls)
 - Data source ID: `37f49a74-d54f-81b0-92d9-000bce5e05fa` (use ONLY with query-data-source calls — note it differs from the database ID)
 
-## Exact tool recipe (Notion REST-style MCP, e.g. `notion-mcp-server`)
-1. Query rows: `API-query-data-source` with `data_source_id: "37f49a74-d54f-81b0-92d9-000bce5e05fa"`. NEVER pass the database ID here — that returns 400 invalid_request_url.
-2. If the data source ID ever fails: `API-retrieve-a-database` with `database_id: "37f49a74-d54f-81b7-9424-dae1288c0043"`, read `data_sources[0].id` from the response, and use that.
-3. Filter open items with: `{"filter": {"property": "Status", "select": {"does_not_equal": "Completed"}}}`.
-4. NEVER fall back to workspace-wide `API-post-search` to answer roadmap questions — it returns rows from OTHER databases.
-5. Sanity check: this roadmap's Status values contain NO emojis (`To Do`, `In Progress`, `Completed`). If results show emoji statuses (e.g. "🔨 In Progress"), you are reading the WRONG database — stop and re-run step 1 or 2.
+## Exact tool recipe (Notion REST-style MCP, e.g. `notion-mcp-server`) — tiered, stop-on-failure
+Try these in order. Move to the next tier ONLY on failure of the previous one.
+
+1. **Tier 1 (new API):** `API-query-data-source` with `data_source_id: "37f49a74-d54f-81b0-92d9-000bce5e05fa"`.
+   - KNOWN FAILURE: if this returns `400 invalid_request_url`, the MCP server's Notion API version predates data-source endpoints. Do not retry with other IDs — go to Tier 2.
+2. **Tier 2 (legacy API — expected to work on this server):** `API-post-database-query` with `database_id: "37f49a74-d54f-81b7-9424-dae1288c0043"` and body `{"filter": {"property": "Status", "select": {"does_not_equal": "Completed"}}}`.
+3. **Tier 3 (ID discovery):** `API-retrieve-a-database` with `database_id: "37f49a74-d54f-81b7-9424-dae1288c0043"`; if the response exposes `data_sources[0].id`, retry Tier 1 with that exact value; otherwise retry Tier 2.
+4. **If all tiers fail: STOP.** Report each tier's exact error to the user and ask how to proceed. NEVER answer a roadmap question from `API-post-search` or any workspace-wide search — those return rows from OTHER databases and have already produced wrong answers once.
+5. Filter for open items: Status `does_not_equal` "Completed" (same filter shape works on both query endpoints).
+6. Sanity check on ANY result set: this roadmap's Status values contain NO emojis (`To Do`, `In Progress`, `Completed`) and its Components are exactly `Ingestion/Chunking/Indexing/Retrieval/Orchestration/Shortcuts/General/UI`. Emoji statuses (e.g. "🔨 In Progress") = WRONG database = discard the results and report.
 
 1. Determine the feature/fix summary and its architectural tag from the current diff (or from /update-docs output).
 2. Query the data source for an existing row whose `Name` matches the feature (fuzzy match on keywords).
