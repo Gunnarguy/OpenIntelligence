@@ -3,8 +3,15 @@
 Update the OpenIntelligence Roadmap in Notion. Runs standalone or called from /finalize.
 
 Hardcoded target — do NOT search for it:
-- Database ID: `37f49a74-d54f-81b7-9424-dae1288c0043`
-- Data source: `collection://37f49a74-d54f-81b0-92d9-000bce5e05fa`
+- Database ID: `37f49a74-d54f-81b7-9424-dae1288c0043` (use ONLY with retrieve-database calls)
+- Data source ID: `37f49a74-d54f-81b0-92d9-000bce5e05fa` (use ONLY with query-data-source calls — note it differs from the database ID)
+
+## Exact tool recipe (Notion REST-style MCP, e.g. `notion-mcp-server`)
+1. Query rows: `API-query-data-source` with `data_source_id: "37f49a74-d54f-81b0-92d9-000bce5e05fa"`. NEVER pass the database ID here — that returns 400 invalid_request_url.
+2. If the data source ID ever fails: `API-retrieve-a-database` with `database_id: "37f49a74-d54f-81b7-9424-dae1288c0043"`, read `data_sources[0].id` from the response, and use that.
+3. Filter open items with: `{"filter": {"property": "Status", "select": {"does_not_equal": "Completed"}}}`.
+4. NEVER fall back to workspace-wide `API-post-search` to answer roadmap questions — it returns rows from OTHER databases.
+5. Sanity check: this roadmap's Status values contain NO emojis (`To Do`, `In Progress`, `Completed`). If results show emoji statuses (e.g. "🔨 In Progress"), you are reading the WRONG database — stop and re-run step 1 or 2.
 
 1. Determine the feature/fix summary and its architectural tag from the current diff (or from /update-docs output).
 2. Query the data source for an existing row whose `Name` matches the feature (fuzzy match on keywords).

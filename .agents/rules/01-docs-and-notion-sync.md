@@ -22,7 +22,7 @@ When you edit files matching a pattern below, update the listed docs in the same
 CHANGELOG bullets always carry the architectural tag: `[Retrieval]`, `[Ingestion]`, `[Chunking]`, `[Indexing]`, `[Orchestration]`, `[Shortcuts]`, `[UI]`, or `[General]`.
 
 ## Notion Roadmap — when to touch it (unprompted)
-Database ID: `37f49a74-d54f-81b7-9424-dae1288c0043` (data source: `collection://37f49a74-d54f-81b0-92d9-000bce5e05fa`). Never search for the DB; use this ID.
+Database ID: `37f49a74-d54f-81b7-9424-dae1288c0043`; its data source ID is `37f49a74-d54f-81b0-92d9-000bce5e05fa` (different suffix — query tools take the data source ID, retrieve-database tools take the database ID). Never locate the roadmap via workspace search, and never answer roadmap questions from search results — other databases in the workspace have similar-looking rows (theirs use emoji statuses; this one does not). Follow the exact tool recipe in `.agents/workflows/sync-notion.md`.
 
 - **Starting a feature/task** → query the DB for a matching row. If found, set `Status` = `In Progress`. If not, create one (`Name` = feature summary, `Status` = `In Progress`, `Component`, `Priority`, `Target Release`, `Added` = today).
 - **Completing a feature/task** → set `Status` = `Completed` AND set the `Completed` date to today.
