@@ -21,7 +21,7 @@ This document provides a chronological history of user-facing changes, highlight
 *   **Design System Parity:** Structured the new sidebar using the app's native visual tokens (`DSColors`, `DSSpacing`, `DSTypography`), rendering a visually integrated, sleek interface on both iOS and macOS.
 *   **Thread Storage:** Threads initially shipped in isolated local-only storage. *(Updated July 2026: thread storage has since moved into the app's workspace storage and now syncs across your devices via iCloud Drive using safe, coordinated file writes. If you edit the same thread on two devices at nearly the same time, the most recent change wins.)*
 *   **Engineering Diagnostics View:** Retained the debug view and mocked thread triggers inside the Developer Diagnostics Hub to inspect and verify thread persistence.
-*   **Native Private Cloud Compute:** Escalates complex queries to Apple's secure Private Cloud Compute server enclaves natively on iOS 27 / macOS 27+, falling back to local simulation on older OS versions.
+*   **Native Private Cloud Compute Support:** Integrates route-policy support and diagnostics to escalate complex queries to Apple's secure Private Cloud Compute server enclaves on iOS 27 / macOS 27+ for supported and entitled builds, with graceful automatic fallback to local on-device execution when unavailable.
 *   **Pro Annual Pricing & Free Trial:** Calibrated the Pro Annual subscription to $29.99/year (representing a 58% savings vs monthly) and introduced a 7-day free trial.
 *   **Discontinued Document Pack Add-on:** Discontinued the consumable Document Pack add-on, removing related UI cards, quick-refill views, and purchase flows.
 *   **Direct Review Prompts:** Streamlined the app-rating experience by triggering Apple's native review prompt directly at key "happy moments" (like tapping Thumbs Up), eliminating the intermediate alert dialog.
@@ -75,7 +75,7 @@ WWDC26 shifted the platform architecture by pushing core AI capabilities into sy
 #### What Users Will Notice First
 
 *   **Transparent Verification UI**: Responses are explicitly labeled so you can see if they are **Source-Locked** (fully supported by your documents), **Partially Supported**, or **Lacking Sufficient Evidence**.
-*   **Model Routing Visibility**: The status pill in the header shows you exactly where your query ran: **On-Device** (standard questions up to 4K tokens) or **Private Cloud Compute** (complex or long-context questions up to 32K tokens).
+*   **Model Routing Visibility:** The status pill in the header shows you exactly where your query is targeted to run: **On-Device** (standard questions) or **Private Cloud Compute** (complex or long-context questions, falling back locally if the build lacks the required cloud entitlement).
 *   **Live Reasoning Telemetry**: You can watch the model's active thinking loop in real-time inside the bottom metrics bar as it organizes thoughts, resolves routing, and writes answers.
 *   **Lag-Free Visual Transitions**: The processing dashboard and overlays transition smoothly using GPU-accelerated effects, eliminating visual stutter during document imports.
 *   **4x Faster Local Vector Search**: Local vector similarity calculations run on Apple Silicon hardware accelerators using custom Metal pipelines, reducing RAG search latency by 4x.
@@ -87,7 +87,7 @@ WWDC26 shifted the platform architecture by pushing core AI capabilities into sy
 #### Key Improvements
 
 #### 1. Smarter On-Device vs. Private Cloud Compute Routing
-*   **Dynamic Policy**: Local execution is preferred for standard queries to protect battery life and latency. Heavy reasoning queries or large files automatically route to secure Private Cloud Compute.
+*   **Dynamic Policy:** Local execution is preferred for standard queries to protect battery life and latency. Heavy reasoning queries or large files are dynamically targeted to route to secure Private Cloud Compute, with automatic local fallback if the entitlement is not present.
 *   **Under the Hood Details**: Tap the header status pill to open a popover detailing the active model name, token budget usage, and explanations of Apple's PCC privacy guarantees.
 *   **Direct Route Metrics**: The status bar displays telemetry from the actual resolved routing engine rather than an estimation based on response latency.
 
@@ -139,4 +139,4 @@ WWDC26 shifted the platform architecture by pushing core AI capabilities into sy
 *   **Universal AppIcon**: Added a unified universal AppIcon configuration across iOS and macOS targets, resolving catalog build warnings.
 *   **Visual density**: Standardized margins (14pt) and tighter corner radii for message bubbles (16pt) and cards (12pt) to create a denser, more cohesive Liquid Glass UI.
 
-- **Model Preference Selector:** You can now tap the Apple Intelligence pill in the chat view to manually force your queries to run on the 3B Core model, 20B Advanced model, or Private Cloud Compute, bypassing the automatic routing.
+- **Model Preference Selector:** You can now tap the Apple Intelligence pill in the chat view to configure preference targeting for the 3B Core model, 20B Advanced model, or Private Cloud Compute (which will run locally if the entitlement is not present).
