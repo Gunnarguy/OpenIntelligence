@@ -1,20 +1,16 @@
-## 4.5.1 - 2026-07-02
+## 4.5.0 - 2026-07-01
 ### Added
 - **[Indexing]** Compiled and bundled `EmbeddingModel.aimodel` inside the package resource bundle to support the native, zero-copy Core AI embedding execution path on Apple Silicon.
 - **[Indexing]** Created `scripts/compile_core_ai_model.py` to automate PyTorch-to-Core AI model graph conversion using the Apple `coreai-torch` extensions.
-### Fixed
-- **[UI]** Enabled saving of embedding configuration options when a provider is unavailable at save-time, allowing runtime fallback routing (e.g., Core AI falling back to Core ML) to resolve and execute cleanly.
-- **[Indexing]** Fixed Core AI tensor name mapping by explicitly binding the exported PyTorch graph output to "embeddings" and parsing the MLFeatureProvider dictionary correctly in `CoreAISentenceEmbeddingProvider`.
-- **[Orchestration]** Fixed global embedding provider toggling bug during document ingestion that bypassed container settings. Relocated `enableIngestionMode` scoping explicitly into the `addDocument()` pipeline to guarantee the selected container provider (e.g., Core AI vs Core ML) is accurately targeted.
-
-## 4.5.0 - 2026-07-01
-### Added
 - Large document ingestion streaming. End-to-end memory-safe stream process that avoids OOM crashes during large PDF embedding and SQLite UPSERTs.
 - `RAGService+Streaming` and asynchronous `pageRange` bounds on `DocumentProcessor` for dynamic batch extraction.
 - **[Indexing]** High-performance Rust-backed `swift-tokenizers` (DePasqualeOrg) integration, achieving 100x tokenization speedups and byte-level character offsets for precise citation mapping. Exposed via a local `TransformersTokenizers` wrapper target (renamed to resolve SPM product name collision and GUID registration conflicts) linked transparently into the main target.
 - **[Orchestration]** Dynamic default embedding provider auto-selection. Automatically configures new libraries and settings to default to the native `coreai_sentence_embedding` on iOS 27+ / macOS 27+ targets while preserving `coreml_sentence_embedding` fallbacks for older (iOS/macOS 26) releases.
 - **[Diagnostics]** An **AI Subsystem Diagnostics** card integrated into the Library settings, providing real-time "x-ray vision" of model load status, Neural Engine/GPU hardware acceleration targets, Rust-backed tokenizer parser, vocabulary details, byte-level citation offsets, and latency profiles.
 ### Fixed
+- **[UI]** Enabled saving of embedding configuration options when a provider is unavailable at save-time, allowing runtime fallback routing (e.g., Core AI falling back to Core ML) to resolve and execute cleanly.
+- **[Indexing]** Fixed Core AI tensor name mapping by explicitly binding the exported PyTorch graph output to "embeddings" and parsing the MLFeatureProvider dictionary correctly in `CoreAISentenceEmbeddingProvider`.
+- **[Orchestration]** Fixed global embedding provider toggling bug during document ingestion that bypassed container settings. Relocated `enableIngestionMode` scoping explicitly into the `addDocument()` pipeline to guarantee the selected container provider (e.g., Core AI vs Core ML) is accurately targeted.
 - SQLite FTS5 index truncation where previous batch FTS5 data, page mapping records, and chunk search records were deleted/overwritten on each streaming iteration. Added `append` support to `store`, `storePages`, and `storeChunks` methods in `SQLiteFullTextService`.
 - Page index offset mapping during streaming PDF ingestion, correcting human-readable page numbering for page-level contexts.
 - Ingestion deletion race condition where `WorkspaceSyncService` deleted active streaming ingest documents before metadata registration, resolved via file age protection and queue storage relative path propagation.
