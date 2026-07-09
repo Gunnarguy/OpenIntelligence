@@ -27,6 +27,7 @@ The following table summarizes the current transition status, mapping the legacy
 | Integration Area | WWDC25 (Legacy Architecture) | WWDC26 (Current Branch Status) | Future Backlog Target | % Covered Now |
 | :--- | :--- | :--- | :--- | :--- |
 | **Local Embeddings** | CoreML (`.mlpackage`) using static CPU/GPU targets. | **Core AI (`.aimodel`)** Silicon-native zero-copy pipeline with compile-time guards. | Convert ReRanker & Vision extractors to `.aimodel` format. | **100%** |
+| **Ingestion Concurrency** | Shared rendering without sync (causing parallel deadlocks/crashes). | **NSRecursiveLock serialization (v4.5.1 Completed)** around CoreImage image generation, ensuring thread-safe Metal access. | Auto-scale max rendering concurrency dynamically with GPU telemetry. | **100%** |
 | **Model Routing** | Hardcoded heuristics; binary PCC checks based on latency estimates. | **`ModelResolutionService`** tracking local vs. PCC based on hardware tier. | Fully abstract routing into WWDC26 `LanguageModelSession` updates. | **100%** |
 | **Shortcuts / Siri** | Simple URL-trigger command intents. | **Entity-Native App Intents (`AppEntity`, `EntityQuery`)** resolving in-process via `activePresentedInstance` binding. | Add UI interactive app intent triggers. | **100%** |
 | **System Search** | Document-level title/preview indexing in Spotlight. | Same document-level preview index. | **Spotlight Semantic Retrieval Stage** (Spotlight indexes sections/chunks/tables). | **30%** |
@@ -191,3 +192,9 @@ These guidelines must be enforced during the transition:
 - `RAGService` now leverages batched embeddings (15 pages per batch) with real-time UI telemetry.
 - Fixed FTS5 index truncation and page offset mapping errors during streaming batch ingestion, ensuring fully searchable large documents.
 - Resolved a race condition where `WorkspaceSyncService` deleted active streaming ingest documents before metadata registration via file age protection and queue storage relative path propagation.
+
+### Phase 2C Completed: Predictive Self-Tuning Ingestion
+- Notion Task: `Predictive Self-Tuning Ingestion Pipeline` completed.
+- `LibraryIntelligenceCenter` predicts chunking configuration dynamically from a 10-page text sample before formal indexing begins.
+- Eliminates destructive database rebuilds for non-destructive chunking shifts by propagating configuration early to the container session.
+- Seamless tuning adjusts automatically to varied file sizes and logic densities, maintaining maximum ingestion throughput without UI restarts.

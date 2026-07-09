@@ -144,6 +144,17 @@ enum PCCSettings: String, CaseIterable, Sendable, Codable {
     case allow = "Allow for Deep Think and Maximum"
 }
 
+struct DeviceHardware {
+    static var supportsAdvancedOnDeviceModel: Bool {
+        #if targetEnvironment(simulator)
+        return true
+        #else
+        let twelveGigabytes: UInt64 = 11_500_000_000
+        return ProcessInfo.processInfo.physicalMemory >= twelveGigabytes
+        #endif
+    }
+}
+
 /// Defines where Apple Foundation Models should execute
 enum FoundationModelPreference: String, CaseIterable, Identifiable, Sendable {
     case automatic = "Automatic"
@@ -163,15 +174,15 @@ enum FoundationModelPreference: String, CaseIterable, Identifiable, Sendable {
     }
     
     static var availableCases: [FoundationModelPreference] {
-        #if DEBUG
-        return [.automatic, .core3B, .advanced20B, .privateCloudCompute]
-        #else
         if #available(iOS 27.0, macOS 27.0, *) {
-            return [.automatic, .core3B, .advanced20B, .privateCloudCompute]
+            if DeviceHardware.supportsAdvancedOnDeviceModel {
+                return [.automatic, .core3B, .advanced20B, .privateCloudCompute]
+            } else {
+                return [.automatic, .core3B, .privateCloudCompute]
+            }
         } else {
             return [.automatic, .core3B, .privateCloudCompute]
         }
-        #endif
     }
 }
 

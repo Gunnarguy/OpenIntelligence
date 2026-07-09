@@ -138,6 +138,13 @@ struct DeveloperDiagnosticsHubView: View {
                 } label: {
                     Label("RAG Accuracy", systemImage: "checkmark.seal.fill")
                 }
+                #if DEBUG
+                NavigationLink {
+                    ValidationDashboardView(ragService: ragService, settingsStore: SettingsStore(ragService: ragService))
+                } label: {
+                    Label("Validation Benchmark", systemImage: "gauge.with.dots.needle.bottom.100percent")
+                }
+                #endif
                 NavigationLink {
                     ChunkInspectorView(ragService: ragService)
                         .environmentObject(ragService.containerService)

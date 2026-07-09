@@ -1,6 +1,6 @@
 # OpenIntelligence
 
-> **Documentation status:** Verified for OpenIntelligence v4.5 on July 1, 2026.
+> **Documentation status:** Verified for OpenIntelligence v4.5.1 on July 5, 2026.
 > **Scope:** Describes shipped behavior for on-device Apple Intelligence RAG architecture.
 
 <p align="center">
@@ -55,8 +55,9 @@ The runtime operates in two decoupled phases:
 flowchart TD
   subgraph INGEST["Import-Time Pipeline"]
     A1["Import Files"]
-    A2["File Size Check"]
-    A1 --> A2
+    SCAN["Predictive Pre-Scan (10 pages)"]
+    A1 --> SCAN
+    SCAN --> A2["File Size Check"]
     A2 -- "< 10MB" --> A3["Standard Extraction & Parsing"]
     A3 --> A4["Semantic Chunking"]
     A4 --> A5["Vector & SQLite Indexing"]
@@ -94,7 +95,7 @@ The entire RAG architecture operates on a strict **29-Step Pipeline** (6 Ingesti
 #### 3 Foundation Model Routes
 * **3B Core:** Offline Apple Silicon model (`SystemLanguageModel.default`) executing standard query tasks.
 * **20B Advanced:** Offline Apple Silicon model leveraging unified memory and NAND Flash Paging for enhanced reasoning.
-* **Private Cloud Compute (PT-MoE):** Escalates over encrypted channels to Apple's 32K context secure server enclaves. Integrates native `FoundationModels.PrivateCloudComputeLanguageModel` execution when running on iOS 27 / macOS 27+, falling back cleanly to local `SystemLanguageModel` simulation on older OS versions.
+* **Private Cloud Compute (PT-MoE) — entitlement-gated, not yet active:** The routing layer targets Apple's 32K-context secure enclaves via `FoundationModels.PrivateCloudComputeLanguageModel` on iOS 27 / macOS 27+. PCC requires a developer entitlement that is currently pending Apple approval, so remote enclave execution does not run in shipping builds: `EntitlementChecker` detects the missing entitlement at runtime and routes every query to local `SystemLanguageModel` execution instead.
 
 ---
 
@@ -120,7 +121,7 @@ The entire RAG architecture operates on a strict **29-Step Pipeline** (6 Ingesti
 
 To maintain codebase transparency, please note:
 * **Core AI Integration:** Fully integrated and registered via `CoreAISentenceEmbeddingProvider.swift`. Runs zero-copy Silicon-native sentence embeddings on iOS 27+ / macOS 27+ compatible devices, automatically falling back to the standard `CoreMLSentenceEmbeddingProvider` on older targets. Powered by a unified, high-performance Rust-backed `swift-tokenizers` (DePasqualeOrg) wrapper target for microsecond-latency batch tokenization and exact byte-level offset matching.
-* **Private Cloud Compute (PCC):** Native Private Cloud Compute secure enclave execution is integrated for iOS 27 / macOS 27+, falling back cleanly to local simulation via `EngineSDKCompatibility.swift` on older OS releases. Runtime signature checking via `EntitlementChecker` dynamically detects missing developer entitlements and redirects to local on-device models to prevent process crashes.
+* **Private Cloud Compute (PCC):** PCC execution is **entitlement-gated and not active in shipping builds** — the entitlement is pending Apple approval. Integration code paths exist for iOS 27 / macOS 27+ behind `EngineSDKCompatibility.swift`; `EntitlementChecker` performs runtime signature checks and redirects to local on-device models to prevent process crashes. In practice, all production queries run fully on-device.
 * **iCloud Sync:** Sync utilizes iCloud Drive ubiquity containers (`NSFileCoordinator` and `NSMetadataQuery`). The app does not utilize CloudKit databases.
 * **Pro Tier Document Limit:** Document uploads are restricted to a hard quota of 1,000 documents under the Pro tier. Unlimited uploads are restricted to the Lifetime tier.
 * **Evidence Thread Synchronization:** Thread history JSON arrays are stored under `Application Support/EvidenceThreads/<containerId>/` and are synchronized bidirectionally across devices via `WorkspaceSyncService` in iCloud Drive, gated by tier-specific limits (5 Free / 20 Pro / Unlimited Lifetime).

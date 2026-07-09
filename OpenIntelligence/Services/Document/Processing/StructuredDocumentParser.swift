@@ -11,6 +11,7 @@
 //
 
 import Foundation
+import os
 import Vision
 import CoreImage
 import Metal
@@ -37,6 +38,8 @@ nonisolated private let sharedGPUContext: CIContext = {
         return CIContext(options: [.useSoftwareRenderer: true])
     }
 }()
+
+nonisolated private let renderLock = OSAllocatedUnfairLock()
 
 /// Represents a structured element extracted from a document
 enum StructuredElement: Sendable {
@@ -587,14 +590,24 @@ actor StructuredDocumentParser {
         // Convert CIImage to CGImage (structure detection only).
         // The original full-resolution image is retained separately for the VNRecognizeTextRequest
         // fallback path, which is a pure OCR path where 360 DPI matters for fine print.
-        guard let structureImageCG = sharedGPUContext.createCGImage(structureImage, from: structureImage.extent) else {
+        let structureImageCG = renderLock.withLock {
+            let img = sharedGPUContext.createCGImage(structureImage, from: structureImage.extent)
+            _ = img?.dataProvider?.data
+            return img
+        }
+        
+        guard let structureCG = structureImageCG else {
             Log.warning("[StructuredDocumentParser] Failed to convert CIImage to CGImage, falling back to OCR", category: .ingestion)
             throw StructuredParsingError.imageConversionFailed
         }
         // Lazily produce full-res CGImage only if the OCR fallback path is actually needed.
         // Avoids the memory cost on the happy path (structure found).
         let fullResImageCG = {
-            sharedGPUContext.createCGImage(image, from: image.extent)
+            renderLock.withLock {
+                let img = sharedGPUContext.createCGImage(image, from: image.extent)
+                _ = img?.dataProvider?.data
+                return img
+            }
         }
 
         if preferFullResolution {
@@ -621,7 +634,7 @@ actor StructuredDocumentParser {
         // Perform the structured document recognition (throttled to prevent Metal GPU races)
         let configuredRequest = request
         let structuredSnapshot: StructuredDocumentSnapshot? = try await VisionOCRThrottle.performAsync { [self] in
-            let observations = try await configuredRequest.perform(on: structureImageCG)
+            let observations = try await configuredRequest.perform(on: structureCG)
             guard let document = observations.first?.document else {
                 return nil
             }
@@ -636,7 +649,7 @@ actor StructuredDocumentParser {
             // from 360 DPI for fine print, footnotes, and small table cell text.
             Log.info("[StructuredDocumentParser] No document structure on page \(pageNumber), trying RecognizeTextRequest", category: .ingestion)
             do {
-                let fallbackCG = fullResImageCG() ?? structureImageCG
+                let fallbackCG = fullResImageCG() ?? structureCG
                 let fallbackText = try await performTextRecognitionFallback(on: fallbackCG, customWords: customWords)
                 if !fallbackText.isEmpty {
                     let elapsed = Date().timeIntervalSince(startTime)
@@ -679,7 +692,7 @@ actor StructuredDocumentParser {
             Log.info("[StructuredDocumentParser] Quality too low (\(Int(qualityScore * 100))%), trying RecognizeTextRequest fallback", category: .ingestion)
             do {
                 // Use full-res image for OCR fallback — 360 DPI preserves fine print quality
-                let fallbackCG = fullResImageCG() ?? structureImageCG
+                let fallbackCG = fullResImageCG() ?? structureCG
                 let fallbackText = try await performTextRecognitionFallback(on: fallbackCG, customWords: customWords)
                 if fallbackText.count > rawText.count {
                     rawText = fallbackText

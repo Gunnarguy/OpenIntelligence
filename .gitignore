@@ -214,3 +214,17 @@ scripts/inject_linker.py
 google_ads_automation_payload/
 client_secret_*.json
 authenticate_in_desktop_application.py
+
+# Local scratch files and test files
+build_output.txt
+coreai.md
+ingestion4.5.1.txt
+ingestiontoquerytoquerytoquery.txt
+test_coreai.swift
+test_coreai2.swift
+AFM3/
+
+# Local benchmark fixtures and runs
+Benchmarks/Fixtures/private_*
+Benchmarks/run/
+Benchmarks/temp_sportage_manifest.json

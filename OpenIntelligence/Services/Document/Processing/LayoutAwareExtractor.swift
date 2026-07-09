@@ -11,6 +11,7 @@
 //
 
 import Foundation
+import os
 import Vision
 import PDFKit
 import CoreImage
@@ -85,6 +86,7 @@ actor LayoutAwareExtractor {
 
     static let shared = LayoutAwareExtractor()
     private nonisolated static let visionRenderContext = CIContext(options: [.cacheIntermediates: false])
+    private nonisolated static let renderLock = OSAllocatedUnfairLock()
 
     private init() {}
 
@@ -213,7 +215,13 @@ actor LayoutAwareExtractor {
     private func recognizeTextBlocks(in image: CIImage, pageNumber: Int) async throws -> [TextBlock] {
         // Capture actor-isolated value before entering nonisolated context
         let minConf = self.minConfidence
-        guard let cgImage = Self.visionRenderContext.createCGImage(image, from: image.extent) else {
+        let renderedCG = Self.renderLock.withLock {
+            let img = Self.visionRenderContext.createCGImage(image, from: image.extent)
+            _ = img?.dataProvider?.data
+            return img
+        }
+
+        guard let cgImage = renderedCG else {
             throw NSError(
                 domain: "LayoutAwareExtractor",
                 code: -1,

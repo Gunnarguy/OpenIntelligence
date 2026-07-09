@@ -17,7 +17,23 @@ struct ModelStatusIndicator: View {
         Menu {
             Picker("Model Preference", selection: $settings.fmPreference) {
                 ForEach(FoundationModelPreference.availableCases) { preference in
-                    Text(preference.displayName).tag(preference)
+                    if preference == .privateCloudCompute {
+                        #if canImport(FoundationModels)
+                        let hasEntitlement = EntitlementChecker.hasEntitlement("com.apple.developer.private-cloud-compute")
+                        #else
+                        let hasEntitlement = false
+                        #endif
+                        
+                        if hasEntitlement {
+                            Text(preference.displayName).tag(preference)
+                        } else {
+                            Text("\(preference.displayName) (Requires Entitlement)")
+                                .tag(preference)
+                                .disabled(true)
+                        }
+                    } else {
+                        Text(preference.displayName).tag(preference)
+                    }
                 }
             }
         } label: {

@@ -9,7 +9,7 @@ This document provides a comprehensive, version-by-version breakdown of major ar
 
 ## v4.5 - July 2026
 
-*   **Ingestion Pipeline Stability & Correctness:** Resolved critical FTS5 index truncation, page offset mapping errors, and an ingestion deletion race condition during batch-based streaming ingestion.
+*   **Ingestion Pipeline Stability & Correctness:** Resolved critical FTS5 index truncation, page offset mapping errors, parallel ingestion concurrency race conditions/CoreImage deadlocks on Apple Silicon (by introducing `NSRecursiveLock` serialization around CGImage rendering), and an ingestion deletion race condition during batch-based streaming ingestion.
 *   **FTS5 Append Capability:** Added optional `append` support to `store(...)`, `storePages(...)`, and `storeChunks(...)` methods in `SQLiteFullTextService`, preventing index deletion during streamed PDF page range processing.
 *   **Streaming Ingestion Race Protection:** Modified `WorkspaceSyncService` with a 15-minute file modification window filter, and propagated `storageRelativePath` to queued `IngestionItem` records to prevent background sweeps from purging active ingestion files.
 *   **Ingestion File Sync-Sweep Protection:** Fixed a rare ingestion file sync-sweep race condition where background cleanups deleted recently uploaded files. Resolved by touching the modification date of newly copied workspace files to current date, ensuring they are protected by the 15-minute sweep guard before metadata registration finishes.

@@ -9,8 +9,12 @@ This document provides a chronological history of user-facing changes, highlight
 
 ## v4.5.1 - July 2, 2026
 
+*   **Parallel PDF Ingestion Concurrency Fix:** Resolved concurrency race conditions and deadlocks on Apple Silicon by introducing thread-safe `NSRecursiveLock` serialization around CoreImage image generation, preventing concurrent Metal context crashes during multi-page parallel processing.
 *   **Silicon-Native Core AI Embeddings:** Compiled and bundled the `EmbeddingModel.aimodel` format inside the package resources. This activates Apple's zero-copy memory paths for 40%+ faster sentence embedding execution natively on Apple Silicon. Included a companion model compilation utility (`scripts/compile_core_ai_model.py`) to easily convert PyTorch model graphs.
 *   **Flexible Settings Saving:** Enabled saving of embedding configuration options when a provider is unavailable at save-time, allowing runtime fallback routing (e.g. Core AI falling back to Core ML) to resolve and execute cleanly.
+*   **Silicon HUD Layout Correction:** Restored the iOS Silicon HUD position back to its original layout coordinates (x: 45, y: safeAreaInsets.top + 85), and configured the HUD legend to dynamically shift to the right (x: 345) when the conversation history sidebar is visible to prevent overlap.
+*   **Private Cloud Compute Fallback & UI Safeguard:** Configured dynamic Hybrid (Automatic) model routing to check for active developer entitlements before selecting Private Cloud Compute, ensuring seamless fallbacks to local models and eliminating routing delays. Greyed out and disabled the PCC option in the header model preference selection menu until the official developer entitlement is active.
+*   **Local 20B Model Memory Gating:** Corrected the local execution availability for Apple's 20B sparse on-device model (AFM 3 Core Advanced). Because the OS gates local 20B execution to devices with 12GB+ RAM, we have added programmatic physical memory verification to hide this preference option and automatically fall back to the 3B Core model on 8GB devices (including the iPhone 16 Pro Max), preventing hidden system routing fallbacks.
 
 ## v4.5 - July 2026
 

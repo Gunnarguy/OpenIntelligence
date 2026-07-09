@@ -42,6 +42,7 @@
 //
 
 import Foundation
+import os
 import Vision
 import CoreImage
 import PDFKit
@@ -179,6 +180,7 @@ final class PageComplexityAnalyzer: @unchecked Sendable {
 
     /// Software renderer used when continued ingestion must avoid background GPU work.
     private nonisolated static let cpuContext = CIContext(options: [.useSoftwareRenderer: true])
+    private nonisolated static let renderLock = OSAllocatedUnfairLock()
 
     private nonisolated static func activeImageRenderContext() -> CIContext {
         if DeviceCapabilityService.isBackgroundCPUSafeIngestionProfileActive {
@@ -880,7 +882,11 @@ final class PageComplexityAnalyzer: @unchecked Sendable {
         var visualTextArea = 0.0
 
         // Convert CIImage to CGImage for Vision using the active foreground/background-safe context.
-        let cgImage = Self.activeImageRenderContext().createCGImage(image, from: image.extent)
+        let cgImage = Self.renderLock.withLock {
+            let img = Self.activeImageRenderContext().createCGImage(image, from: image.extent)
+            _ = img?.dataProvider?.data
+            return img
+        }
 
         guard let cgImg = cgImage else {
             return VisionAnalysisResults(

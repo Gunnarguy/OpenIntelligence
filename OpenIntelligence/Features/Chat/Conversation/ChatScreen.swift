@@ -511,7 +511,7 @@ struct ChatScreen: View {
 
             // Motherboard HUD - Full-screen X-ray overlay
             if settings.showSiliconHUD {
-                HardwareXRayOverlay()
+                HardwareXRayOverlay(showSidebar: showThreadSidebar)
                     .allowsHitTesting(false)
                     .transition(.opacity)
             }
@@ -3461,6 +3461,9 @@ struct QualityModeQuickPicker: View {
                     )
             )
         }
+        .menuStyle(.borderlessButton)
+        .buttonStyle(.plain)
+        .fixedSize()
     }
 
     private var modeTagline: String {

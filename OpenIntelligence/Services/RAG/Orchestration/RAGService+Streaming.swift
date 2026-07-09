@@ -5,6 +5,14 @@ import NaturalLanguage
 import PDFKit
 
 // MARK: - Large Document Streaming Ingestion
+struct StreamingIngestionState: Codable {
+    let documentId: UUID
+    let lastCompletedPage: Int
+    let totalChunks: Int
+    let totalWords: Int
+    let totalChars: Int
+}
+
 extension RAGService {
 
     /// Streams large PDFs in batches of pages to prevent OOM crashes during extraction and embedding.
@@ -18,34 +26,66 @@ extension RAGService {
         embeddingDim: Int,
         containerEmbeddingService: EmbeddingService
     ) async throws {
-        Log.info("[RAGService] Streaming large PDF ingestion for \\(filename)", category: .ingestion)
+        Log.info("[RAGService] Streaming large PDF ingestion for \(filename)", category: .ingestion)
         
         let extractionStartTime = Date()
-        let documentId = UUID()
+        
+        // Compute fingerprint and checkpoint path
+        let fingerprint = documentProcessor.computeDocumentFingerprint(at: url)
+        let checkpointDir = documentProcessor.checkpointDirectoryURL(for: fingerprint)
+        let stateURL = checkpointDir.appendingPathComponent("ingestion_state.json")
+        
+        var documentId = UUID()
+        var lastCompletedPage: Int? = nil
+        var totalChunks = 0
+        var totalWords = 0
+        var totalChars = 0
+        
+        // Restore session state if it exists
+        if let stateData = try? Data(contentsOf: stateURL),
+           let state = try? JSONDecoder().decode(StreamingIngestionState.self, from: stateData) {
+            documentId = state.documentId
+            lastCompletedPage = state.lastCompletedPage
+            totalChunks = state.totalChunks
+            totalWords = state.totalWords
+            totalChars = state.totalChars
+            Log.info("[RAGService] Restored streaming ingestion session for \(filename): documentId=\(documentId), lastCompletedPage=\(state.lastCompletedPage), chunks=\(totalChunks)", category: .ingestion)
+        } else {
+            let initialState = StreamingIngestionState(
+                documentId: documentId,
+                lastCompletedPage: -1,
+                totalChunks: 0,
+                totalWords: 0,
+                totalChars: 0
+            )
+            if let initialData = try? JSONEncoder().encode(initialState) {
+                try? initialData.write(to: stateURL, options: .atomic)
+            }
+        }
         
         // Find total pages
         let pdfDoc = PDFDocument(url: url)
         let totalPages = pdfDoc?.pageCount ?? 100 // fallback if unknown
         
-        var totalChunks = 0
-        var totalWords = 0
-        var totalChars = 0
-        
         let batchSize = 15 // 15 pages per batch to keep memory strictly under 300MB
-        
         let db = await dbForActiveContainer()
-        
         
         for startPage in stride(from: 0, to: totalPages, by: batchSize) {
             let endPage = min(startPage + batchSize - 1, totalPages - 1)
             let pageRange = startPage...endPage
+            
+            // Skip already fully processed batches
+            if let lastPage = lastCompletedPage, endPage <= lastPage {
+                Log.info("[RAGService] Skipping already ingested batch: Pages \(startPage+1)-\(endPage+1)", category: .ingestion)
+                continue
+            }
             
             await MainActor.run {
                 updateIngestionItem(
                     id: trackingId,
                     filename: filename,
                     stage: .extracting,
-                    detail: "Batch \\((startPage / batchSize) + 1): Pages \\(startPage+1)-\\(endPage+1) of \\(totalPages)...",
+                    detail: "Batch \((startPage / batchSize) + 1): Pages \(startPage+1)-\(endPage+1) of \(totalPages)...",
                     progress: Double(startPage) / Double(totalPages)
                 )
             }
@@ -151,7 +191,22 @@ extension RAGService {
                 append: true
             )
             
-            Log.info("[RAGService] Streamed batch \((startPage / batchSize) + 1): \(processedChunks.count) chunks saved and indexed in FTS5", category: .ingestion)
+            // Flush to vector DB binary files immediately for crash and sleep resilience
+            try await db.persist()
+            
+            // Save state progress after successful DB and FTS commits
+            let state = StreamingIngestionState(
+                documentId: documentId,
+                lastCompletedPage: endPage,
+                totalChunks: totalChunks,
+                totalWords: totalWords,
+                totalChars: totalChars
+            )
+            if let stateData = try? JSONEncoder().encode(state) {
+                try? stateData.write(to: stateURL, options: .atomic)
+            }
+            
+            Log.info("[RAGService] Streamed and persisted batch \((startPage / batchSize) + 1): \(processedChunks.count) chunks", category: .ingestion)
         }
         
         let extractionTime = Date().timeIntervalSince(extractionStartTime)
@@ -169,12 +224,31 @@ extension RAGService {
         await MainActor.run {
             self.documents.append(document)
             self.syncContainerStats(for: activeContainerId, lastIndexedAt: Date())
-            
-            // Generate content tags asynchronously if iOS 26
-            Task {
-                await self.saveDocumentsToDisk()
-            }
-            updateIngestionItem(id: trackingId, filename: filename, stage: .complete, detail: "Ingested \\(totalPages) pages in batches") { metrics in
+        }
+        
+        // Synchronously save document metadata to disk before yielding/generating suggested questions
+        await saveDocumentsToDisk()
+        
+        // Generate suggested questions for the document using its ingested chunks
+        await MainActor.run {
+            updateIngestionItem(
+                id: trackingId,
+                filename: filename,
+                stage: .storing,
+                detail: "Generating suggested questions...",
+                progress: 0.99
+            )
+        }
+        
+        let documentChunks = (try? await db.allChunks())?.filter { $0.documentId == documentId } ?? []
+        await SuggestedQuestionsService.shared.generateQuestionsForIngestedDocument(
+            document,
+            chunks: documentChunks,
+            in: activeContainerId
+        )
+        
+        await MainActor.run {
+            updateIngestionItem(id: trackingId, filename: filename, stage: .complete, detail: "Ingested \(totalPages) pages in batches") { metrics in
                 metrics.totalWords = totalWords
                 metrics.chunkCount = totalChunks
                 metrics.extractionTimeMs = Int(extractionTime * 1000)
@@ -185,5 +259,8 @@ extension RAGService {
                 self.removeIngestionItem(id: trackingId)
             }
         }
+        
+        // Clean up temporary page checkpoints and session state files on successful ingestion completion
+        documentProcessor.cleanCheckpoints(for: url)
     }
 }

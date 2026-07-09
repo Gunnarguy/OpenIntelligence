@@ -20,6 +20,7 @@ struct ContentView: View {
     @StateObject private var entitlementStore: EntitlementStore
     @State private var selectedTab: Tab = .chat
     @State private var previousScenePhase: ScenePhase = .inactive
+    @State private var showVisualValidationDashboard = false
     private let screenshotMode: ScreenshotMode
 
     init() {
@@ -131,6 +132,13 @@ struct ContentView: View {
         .environmentObject(entitlementStore)
         .environmentObject(workspaceSyncService)
         .environmentObject(containerService)
+        .sheet(isPresented: $showVisualValidationDashboard) {
+            #if DEBUG
+            ValidationDashboardView(ragService: ragService, settingsStore: settingsStore)
+            #else
+            EmptyView()
+            #endif
+        }
         // `DocumentLibraryView` (and other tabs) relies on SettingsStore via @EnvironmentObject.
         // Previously we only injected it on the Settings tab, which caused a runtime crash when
         // Documents tried to create a new library (it reads settings.useHighAccuracyEmbeddings).
@@ -152,11 +160,32 @@ struct ContentView: View {
             }
 
             if DebugRAGValidationHarness.isEnabled {
-                await DebugRAGValidationHarness.runIfNeeded(
-                    ragService: ragService,
-                    settingsStore: settingsStore
-                )
-                return
+                if DebugRAGValidationHarness.isVisualModeEnabled {
+                    ragService.clearIngestionQueue()
+                    selectedTab = .documents
+                    
+                    Task.detached(priority: .userInitiated) {
+                        do {
+                            let _ = try await DebugRAGValidationHarness.runIfNeeded(
+                                ragService: ragService,
+                                settingsStore: settingsStore
+                            )
+                            await MainActor.run {
+                                showVisualValidationDashboard = true
+                            }
+                        } catch {
+                            await MainActor.run {
+                                showVisualValidationDashboard = true
+                            }
+                        }
+                    }
+                } else {
+                    let _ = try? await DebugRAGValidationHarness.runIfNeeded(
+                        ragService: ragService,
+                        settingsStore: settingsStore
+                    )
+                    return
+                }
             }
             #endif
 

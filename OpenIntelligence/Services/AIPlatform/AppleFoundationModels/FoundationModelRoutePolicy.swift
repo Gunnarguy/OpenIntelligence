@@ -31,7 +31,11 @@ struct FoundationModelRoutePolicy {
         case .core3B:
             return .onDevice
         case .advanced20B:
-            return .onDeviceAdvanced
+            if DeviceHardware.supportsAdvancedOnDeviceModel {
+                return .onDeviceAdvanced
+            } else {
+                return .onDevice
+            }
         case .privateCloudCompute:
             return .privateCloudCompute(reasoning: queryType == .standard ? .none : .deep)
         case .automatic:
@@ -46,8 +50,10 @@ struct FoundationModelRoutePolicy {
             return .onDevice
             
         case .standard:
-            if estimatedContextTokens > onDeviceLimit && pccAllowed {
+            if estimatedContextTokens > onDeviceLimit && pccAllowed && isPCCAvailable() {
                 return .privateCloudCompute(reasoning: .none)
+            } else if #available(iOS 27.0, macOS 27.0, *) {
+                return .onDeviceAdvanced
             } else {
                 return .onDevice
             }

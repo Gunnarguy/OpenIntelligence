@@ -6847,8 +6847,6 @@ class DocumentProcessor {
         if let ctx = NSGraphicsContext.current?.cgContext {
             ctx.saveGState()
             ctx.scaleBy(x: scale, y: scale)
-            ctx.translateBy(x: 0, y: pageBounds.size.height)
-            ctx.scaleBy(x: 1.0, y: -1.0)
             page.draw(with: .cropBox, to: ctx)
             ctx.restoreGState()
         }
@@ -9361,13 +9359,13 @@ extension DocumentProcessor {
         return url
     }
 
-    private func checkpointDirectoryURL(for fingerprint: String) -> URL {
+    func checkpointDirectoryURL(for fingerprint: String) -> URL {
         let url = checkpointsDirectoryURL.appendingPathComponent(fingerprint, isDirectory: true)
         try? FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
         return url
     }
 
-    private func computeDocumentFingerprint(at url: URL) -> String {
+    func computeDocumentFingerprint(at url: URL) -> String {
         let attrs = try? FileManager.default.attributesOfItem(atPath: url.path)
         let size = (attrs?[.size] as? Int64) ?? 0
         let date = (attrs?[.modificationDate] as? Date)?.timeIntervalSince1970 ?? 0

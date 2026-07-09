@@ -142,8 +142,9 @@ sequenceDiagram
 flowchart TD
   subgraph INGEST["Import-Time Pipeline"]
     A1["Import Files"]
-    A2["File Size Check"]
-    A1 --> A2
+    SCAN["Predictive Pre-Scan (10 pages)"]
+    A1 --> SCAN
+    SCAN --> A2["File Size Check"]
     A2 -- "< 10MB" --> A3["Standard Extraction & Parsing"]
     A3 --> A4["Semantic Chunking"]
     A4 --> A5["Vector & SQLite Indexing"]
@@ -200,4 +201,5 @@ Historical note: earlier planning artifacts proposed `LocalCache/EvidenceThreads
 - **Adaptive Auto-Tuning**: `SettingsStore` and `RAGService` automatically recommend and switch to the Core AI provider on supported hardware, falling back dynamically to `CoreMLSentenceEmbeddingProvider` on older targets. Ingestion mode scoping is strictly enforced per-document in `RAGService.addDocument()` to bypass global configuration conflicts. `[evidence: code_verified, exact, SettingsStore.swift, RAGService.swift]`
 
 ### DocumentProcessor & RAGService Streaming
-In v4.5, `RAGService.importDocument` was refactored to support batched extraction via `importLargePDFStreamed`. `DocumentProcessor` accepts a `pageRange` and processes chunks dynamically, bypassing memory limits for large PDF extraction and Vector DB Upserting. Fixed FTS5 index truncation and page offset mapping errors during streaming batch ingestion, ensuring fully searchable large documents.
+In v4.5, `RAGService.importDocument` was refactored to support batched extraction via `importLargePDFStreamed`. `DocumentProcessor` accepts a `pageRange` and processes chunks dynamically, bypassing memory limits for large PDF extraction and Vector DB Upserting. Fixed FTS5 index truncation and page offset mapping errors during streaming batch ingestion, ensuring fully searchable large documents. 
+In v4.5.1, resolved concurrency race conditions and deadlocks on Apple Silicon by introducing thread-safe `NSRecursiveLock` serialization around CGImage rendering in `LayoutAwareExtractor`, `StructuredDocumentParser`, and `PageComplexityAnalyzer`.

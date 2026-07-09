@@ -67,44 +67,69 @@ final class IngestionLiveActivityService {
             }
         } else {
             guard activityOperationTask == nil else { return }
-            do {
-                let activity = try Activity.request(
-                    attributes: IngestionLiveActivityAttributes(
-                        sessionID: UUID(),
-                        containerName: trimmedContainerName
-                    ),
-                    content: content,
-                    pushType: nil
-                )
-                currentActivity = activity
-                lastContentState = contentState
-                lastUpdateAt = Date()
-                observeCurrentActivityIfNeeded()
-            } catch {
-                Log.warning("[IngestionLiveActivity] Failed to start Live Activity: \(error.localizedDescription)", category: .ui)
+            let allActivities = Activity<IngestionLiveActivityAttributes>.activities
+            activityOperationTask = Task { @MainActor [weak self] in
+                // Clean up any leaked or orphaned activities in the OS before starting a new one
+                for activity in allActivities {
+                    await activity.end(nil, dismissalPolicy: .immediate)
+                }
+                
+                guard !Task.isCancelled else { return }
+                
+                do {
+                    let activity = try Activity.request(
+                        attributes: IngestionLiveActivityAttributes(
+                            sessionID: UUID(),
+                            containerName: trimmedContainerName
+                        ),
+                        content: content,
+                        pushType: nil
+                    )
+                    self?.currentActivity = activity
+                    self?.lastContentState = contentState
+                    self?.lastUpdateAt = Date()
+                    self?.observeCurrentActivityIfNeeded()
+                    Log.info("[IngestionLiveActivity] Started new Live Activity (sessionID: \(activity.attributes.sessionID))", category: .ui)
+                } catch {
+                    Log.warning("[IngestionLiveActivity] Failed to start Live Activity: \(error.localizedDescription)", category: .ui)
+                }
+                self?.activityOperationTask = nil
             }
         }
     }
 
     func endCurrentActivity(finalState: IngestionLiveActivityAttributes.ContentState?) {
-        guard let currentActivity else { return }
-
+        let allActivities = Activity<IngestionLiveActivityAttributes>.activities
+        
         activityOperationTask?.cancel()
         activityOperationTask = nil
         activityStateObservationTask?.cancel()
         activityStateObservationTask = nil
+        
+        let targetActivity = currentActivity
         self.currentActivity = nil
         lastContentState = nil
         lastUpdateAt = .distantPast
 
+        guard targetActivity != nil || !allActivities.isEmpty else { return }
+
         activityOperationTask = Task { @MainActor [weak self] in
-            if let finalState {
-                await currentActivity.end(
-                    ActivityContent(state: finalState, staleDate: nil),
-                    dismissalPolicy: .after(.now + 600)
-                )
-            } else {
-                await currentActivity.end(nil, dismissalPolicy: .immediate)
+            if let targetActivity {
+                if let finalState {
+                    await targetActivity.end(
+                        ActivityContent(state: finalState, staleDate: nil),
+                        dismissalPolicy: .after(.now + 600)
+                    )
+                } else {
+                    await targetActivity.end(nil, dismissalPolicy: .immediate)
+                }
+            }
+
+            // Clean up any remaining/duplicate activities in the system immediately
+            for activity in allActivities {
+                if activity.id != targetActivity?.id {
+                    await activity.end(nil, dismissalPolicy: .immediate)
+                }
             }
 
             self?.activityOperationTask = nil

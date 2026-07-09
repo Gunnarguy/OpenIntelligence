@@ -26,11 +26,16 @@ enum DebugRAGValidationHarness {
         let benchmarkEntitlement: WorkspaceTier?
     }
 
-    private static let cachedConfiguration: Configuration? = makeConfiguration()
+    static let cachedConfiguration: Configuration? = makeConfiguration()
     private static let runGate = RunGate()
+    static var lastReport: String? = nil
 
     static var isEnabled: Bool {
         cachedConfiguration != nil
+    }
+
+    static var isVisualModeEnabled: Bool {
+        cachedConfiguration != nil && (LaunchArguments.has("--rag-validation-visual") || LaunchArguments.has("rag-validation-visual"))
     }
 
     static func configureStorageIfNeeded() {
@@ -42,6 +47,12 @@ enum DebugRAGValidationHarness {
 
     static func runHeadlessIfNeeded() {
         guard cachedConfiguration != nil else { return }
+        
+        // If they requested visual mode, bypass the headless runner and let the UI handle it!
+        if LaunchArguments.has("--rag-validation-visual") || LaunchArguments.has("rag-validation-visual") {
+            return
+        }
+        
         configureStorageIfNeeded()
 
         Task { @MainActor in
@@ -51,18 +62,39 @@ enum DebugRAGValidationHarness {
             let ragService = RAGService(containerService: containerService, entitlementStore: entitlementStore)
             let settingsStore = SettingsStore(ragService: ragService)
 
-            await runIfNeeded(
-                ragService: ragService,
-                settingsStore: settingsStore
-            )
+            do {
+                let report = try await runIfNeeded(
+                    ragService: ragService,
+                    settingsStore: settingsStore
+                )
+                print(report)
+                fflush(stdout)
+                exit(0)
+            } catch {
+                if let errorReport = (error as NSError).userInfo[NSLocalizedDescriptionKey] as? String {
+                    print(errorReport)
+                } else {
+                    print(error.localizedDescription)
+                }
+                fflush(stdout)
+                exit(1)
+            }
         }
     }
 
     static func runIfNeeded(
         ragService: RAGService,
         settingsStore: SettingsStore
-    ) async {
-        guard let configuration = cachedConfiguration, runGate.claim() else { return }
+    ) async throws -> String {
+        guard let configuration = cachedConfiguration, runGate.claim() else { return "No configuration or already running." }
+        return try await run(configuration: configuration, ragService: ragService, settingsStore: settingsStore)
+    }
+
+    static func run(
+        configuration: Configuration,
+        ragService: RAGService,
+        settingsStore: SettingsStore
+    ) async throws -> String {
 
         let previousMode = settingsStore.ragQualityMode
         let previousTraceSetting = settingsStore.enablePipelineTrace
@@ -83,6 +115,11 @@ enum DebugRAGValidationHarness {
 
         Log.info("[RAGValidation] Starting validation run", category: .pipeline)
         Log.info("[RAGValidation] Storage: \(configuration.storageDirectory.path)", category: .pipeline)
+        
+        let storageString = "[RAGValidation] Storage: \(configuration.storageDirectory.path)\n"
+        fputs(storageString, stdout)
+        fflush(stdout)
+        
         Log.info("[RAGValidation] Output: \(reportURL.path)", category: .pipeline)
 
         do {
@@ -112,17 +149,14 @@ enum DebugRAGValidationHarness {
                 auditSnapshot: auditSnapshot,
                 copiedTraceURL: copiedTraceURL
             )
+            Self.lastReport = report
             try report.write(to: reportURL, atomically: true, encoding: .utf8)
 
             Log.info("[RAGValidation] Report written to \(reportURL.path)", category: .pipeline)
             if let copiedTraceURL {
                 Log.info("[RAGValidation] Trace copied to \(copiedTraceURL.path)", category: .pipeline)
             }
-            print("[RAGValidation] Report: \(reportURL.path)")
-            if let copiedTraceURL {
-                print("[RAGValidation] Trace: \(copiedTraceURL.path)")
-            }
-            exit(0)
+            return report
         } catch {
             Log.error("[RAGValidation] Validation failed: \(error.localizedDescription)", category: .pipeline)
             Log.flushTraceLog()
@@ -132,12 +166,9 @@ enum DebugRAGValidationHarness {
                 error: error,
                 copiedTraceURL: copiedTraceURL
             )
+            Self.lastReport = errorReport
             try? errorReport.write(to: reportURL, atomically: true, encoding: .utf8)
-            print("[RAGValidation] Report: \(reportURL.path)")
-            if let copiedTraceURL {
-                print("[RAGValidation] Trace: \(copiedTraceURL.path)")
-            }
-            exit(1)
+            throw NSError(domain: "RAGValidation", code: 1, userInfo: [NSLocalizedDescriptionKey: errorReport])
         }
     }
 
@@ -308,7 +339,7 @@ enum DebugRAGValidationHarness {
     }
 
     private static func makeConfiguration() -> Configuration? {
-        guard LaunchArguments.has("--rag-validation") || LaunchArguments.has("rag-validation") else {
+        guard LaunchArguments.has("--rag-validation") || LaunchArguments.has("rag-validation") || LaunchArguments.has("--rag-validation-visual") || LaunchArguments.has("rag-validation-visual") else {
             return nil
         }
 
@@ -357,8 +388,10 @@ enum DebugRAGValidationHarness {
         let key = "cloudConsent.applePCC"
         let defaults = UserDefaults.standard
         switch consent {
-        case "allowed", "denied":
-            defaults.set(consent, forKey: key)
+        case "allow", "deny", "allowed", "denied":
+            let valueToSet = consent.starts(with: "allow") ? "allowed" : "denied"
+            defaults.set(valueToSet, forKey: key)
+            defaults.register(defaults: [key: valueToSet])
         case "default":
             defaults.removeObject(forKey: key)
         default:

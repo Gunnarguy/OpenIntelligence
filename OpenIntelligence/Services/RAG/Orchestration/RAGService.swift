@@ -9,6 +9,7 @@ import Combine
 import CryptoKit
 import Foundation
 import NaturalLanguage
+import PDFKit
 #if canImport(UIKit)
 import UIKit
 #endif
@@ -492,6 +493,24 @@ class RAGService: ObservableObject {
         let (updated, reasons) = resolveAutoAdjustments(for: container, report: report)
         guard !reasons.isEmpty else { return }
 
+        let embeddingShift = evaluateEmbeddingShift(container: container, plan: report.embedding)
+        let requiresRebuild = embeddingShift != nil
+
+        if !requiresRebuild {
+            // Chunking strategy/window shifts DO NOT require a full database rebuild.
+            // We can dynamically apply them directly to the container configuration.
+            if updated != container {
+                await MainActor.run {
+                    self.containerService.updateContainer(updated)
+                }
+                Log.info(
+                    "[SelfTuning] Dynamically adjusted chunking configuration for container \(targetId): \(reasons.joined(separator: " | ")). No rebuild required.",
+                    category: .ingestion
+                )
+            }
+            return
+        }
+
         if !allowSelfTuningScheduling {
             Log.info(
                 "[SelfTuning] Skipping automatic rebuild/config change during standard ingestion for container \(targetId). Explicit rebuild required for: \(reasons.joined(separator: " | "))",
@@ -918,7 +937,10 @@ class RAGService: ObservableObject {
         guard !hasActiveRuntimeIngestion else { return }
 
         let url = AppSupportPaths.ingestionQueueURL()
-        guard let data = try? WorkspaceSyncService.coordinatedReadData(from: url) else { return }
+        guard let data = try? WorkspaceSyncService.coordinatedReadData(from: url) else {
+            IngestionRuntimeBridge.shared.endLiveActivity()
+            return
+        }
 
         do {
             let decoder = JSONDecoder()
@@ -1001,6 +1023,7 @@ class RAGService: ObservableObject {
 
             guard !restoredItems.isEmpty else {
                 try? WorkspaceSyncService.coordinatedRemoveItem(at: url)
+                IngestionRuntimeBridge.shared.endLiveActivity()
                 return
             }
 
@@ -1047,6 +1070,18 @@ class RAGService: ObservableObject {
         ingestionContexts.removeAll()
         liveActivityTrackedIngestionIds.removeAll()
         syncIngestionLiveActivity()
+    }
+
+    @MainActor
+    func clearIngestionQueue() {
+        ingestionTask?.cancel()
+        ingestionTask = nil
+        isProcessing = false
+        ingestionItems.removeAll()
+        ingestionContexts.removeAll()
+        liveActivityTrackedIngestionIds.removeAll()
+        syncIngestionLiveActivity()
+        savePersistedIngestionQueueState()
     }
 
     @MainActor
@@ -1716,6 +1751,25 @@ class RAGService: ObservableObject {
         }
     }
 
+    private func getLaunchArgumentValue(for key: String) -> String? {
+        let args = ProcessInfo.processInfo.arguments
+        let prefix = "--\(key)="
+        if let arg = args.first(where: { $0.hasPrefix(prefix) }) {
+            return String(arg.dropFirst(prefix.count))
+        }
+        let fullKey = "--\(key)"
+        if let idx = args.firstIndex(of: fullKey) {
+            let nextIdx = args.index(after: idx)
+            if nextIdx < args.endIndex {
+                let val = args[nextIdx]
+                if !val.hasPrefix("--") {
+                    return val
+                }
+            }
+        }
+        return nil
+    }
+
     // MARK: - Consent Prewarm
 
     /// Prewarm cloud consent by showing the popup during app startup (if needed)
@@ -1726,6 +1780,16 @@ class RAGService: ObservableObject {
         // Check UserDefaults DIRECTLY to ensure we're reading persisted value
         // This avoids race conditions with SettingsStore initialization
         let key = ConsentDefaults.key(for: .applePCC)
+        
+        if let validationConsent = getLaunchArgumentValue(for: "rag-validation-pcc-consent") {
+            let normalized = validationConsent.lowercased().starts(with: "allow") ? "allowed" : "denied"
+            if let state = CloudConsentState(rawValue: normalized) {
+                cloudConsent[.applePCC] = state
+                Log.info("[Consent Prewarm] Overriding consent from launch args: \(normalized)", category: .initialization)
+                return
+            }
+        }
+        
         let persistedRaw = UserDefaults.standard.string(forKey: key)
         Log.info("[Consent Prewarm] Checking key '\(key)' = '\(persistedRaw ?? "nil")'", category: .initialization)
 
@@ -3636,6 +3700,13 @@ class RAGService: ObservableObject {
     ) -> [DocumentChunk] {
         guard !chunks.isEmpty else { return [] }
 
+        // Precompute all scores upfront to avoid heavy O(N log N) nested string checking during sorting
+        var scoreCache: [UUID: Double] = [:]
+        scoreCache.reserveCapacity(chunks.count)
+        for chunk in chunks {
+            scoreCache[chunk.id] = suggestedQuestionSampleScore(chunk)
+        }
+
         var byDocument: [UUID: [DocumentChunk]] = [:]
         for chunk in chunks {
             byDocument[chunk.documentId, default: []].append(chunk)
@@ -3643,12 +3714,14 @@ class RAGService: ObservableObject {
 
         for docId in byDocument.keys {
             byDocument[docId]?.sort { lhs, rhs in
-                suggestedQuestionSampleScore(lhs) > suggestedQuestionSampleScore(rhs)
+                (scoreCache[lhs.id] ?? 0.0) > (scoreCache[rhs.id] ?? 0.0)
             }
         }
 
         let orderedDocumentIds = byDocument.keys.sorted { lhs, rhs in
-            suggestedQuestionDocumentScore(byDocument[lhs] ?? []) > suggestedQuestionDocumentScore(byDocument[rhs] ?? [])
+            let lhsScore = suggestedQuestionDocumentScore(byDocument[lhs] ?? [], scoreCache: scoreCache)
+            let rhsScore = suggestedQuestionDocumentScore(byDocument[rhs] ?? [], scoreCache: scoreCache)
+            return lhsScore > rhsScore
         }
 
         var selected: [DocumentChunk] = []
@@ -3689,7 +3762,7 @@ class RAGService: ObservableObject {
             let remainder = orderedDocumentIds
                 .flatMap { byDocument[$0] ?? [] }
                 .sorted { lhs, rhs in
-                    suggestedQuestionSampleScore(lhs) > suggestedQuestionSampleScore(rhs)
+                    (scoreCache[lhs.id] ?? 0.0) > (scoreCache[rhs.id] ?? 0.0)
                 }
 
             for candidate in remainder {
@@ -3702,11 +3775,11 @@ class RAGService: ObservableObject {
         return selected
     }
 
-    private func suggestedQuestionDocumentScore(_ chunks: [DocumentChunk]) -> Double {
+    private func suggestedQuestionDocumentScore(_ chunks: [DocumentChunk], scoreCache: [UUID: Double]) -> Double {
         guard !chunks.isEmpty else { return 0 }
 
         let topChunkScore = chunks
-            .map(suggestedQuestionSampleScore)
+            .map { scoreCache[$0.id] ?? 0.0 }
             .sorted(by: >)
             .prefix(3)
             .reduce(0, +)
@@ -4133,7 +4206,7 @@ class RAGService: ObservableObject {
     @MainActor
     private func startIngestionTaskIfNeeded() {
         guard ingestionTask == nil else { return }
-        ingestionTask = Task { [weak self] in
+        ingestionTask = Task.detached(priority: .userInitiated) { [weak self] in
             guard let self else { return }
             await self.runIngestionLoop()
         }
@@ -4997,6 +5070,37 @@ class RAGService: ObservableObject {
             let fileAttrs = try? FileManager.default.attributesOfItem(atPath: managedURL.path)
             let fileSizeMB = Double((fileAttrs?[.size] as? Int64) ?? 0) / 1_048_576.0
             
+            // Pre-scan document and auto-tune container settings before ingestion starts (predictive self-tuning)
+            var activeChunkOverride = chunkOverride
+            if let currentContainer = container, currentContainer.autoAdaptDimension {
+                let previewText = await extractPreviewText(from: managedURL, documentType: documentType)
+                if !previewText.isEmpty {
+                    let plan = await intelligenceCenter.recommendChunkingPlan(forPreviewText: previewText, contentType: documentType)
+                    
+                    var updated = currentContainer
+                    let directive = ChunkingDirective(
+                        source: .auto,
+                        strategy: plan.strategy.rawValue,
+                        targetWordWindow: plan.targetWordWindow,
+                        overlapWords: plan.overlapWords,
+                        rationale: plan.rationales
+                    )
+                    updated.chunkingDirective = directive
+                    
+                    if updated != currentContainer {
+                        await MainActor.run {
+                            self.containerService.updateContainer(updated)
+                        }
+                        container = updated
+                        activeChunkOverride = chunkingOverride(for: updated)
+                        Log.info(
+                            "[SelfTuning] Predictive pre-scan auto-tuned configuration for \(filename): Chunk strategy → \(plan.strategy.rawValue.capitalized) • Window \(plan.targetWordWindow) (Rationale: \(plan.rationales.joined(separator: " | "))). Ingesting with optimized settings.",
+                            category: .ingestion
+                        )
+                    }
+                }
+            }
+
             let isLargePDF = documentType == .pdf && fileSizeMB > 10
             if isLargePDF {
                 try await importLargePDFStreamed(
@@ -5004,7 +5108,7 @@ class RAGService: ObservableObject {
                     trackingId: trackingId ?? UUID(),
                     filename: filename,
                     activeContainerId: activeContainerId,
-                    chunkOverride: chunkOverride,
+                    chunkOverride: activeChunkOverride,
                     providerId: providerId,
                     embeddingDim: initialDimension,
                     containerEmbeddingService: containerEmbeddingService
@@ -5015,7 +5119,7 @@ class RAGService: ObservableObject {
             let extractionStartTime = Date()
             let (document, processedChunks) = try await documentProcessor.processDocument(
                 at: managedURL,
-                chunkOverride: chunkOverride,
+                chunkOverride: activeChunkOverride,
                 containerId: activeContainerId  // FTS5 storage with container isolation
             )
             try Task.checkCancellation()
@@ -6760,6 +6864,27 @@ class RAGService: ObservableObject {
             targetWordWindow: directive.targetWordWindow,
             overlapWords: directive.overlapWords
         )
+    }
+
+    private func extractPreviewText(from url: URL, documentType: DocumentType) async -> String {
+        guard documentType == .pdf else {
+            if let content = try? String(contentsOf: url, encoding: .utf8) {
+                return String(content.prefix(10000))
+            }
+            return ""
+        }
+        
+        return await Task.detached(priority: .userInitiated) {
+            guard let pdfDoc = PDFDocument(url: url) else { return "" }
+            var sampleText = ""
+            let pageCount = min(pdfDoc.pageCount, 10)
+            for i in 0..<pageCount {
+                if let pageText = pdfDoc.page(at: i)?.string {
+                    sampleText += pageText + "\n"
+                }
+            }
+            return sampleText
+        }.value
     }
 
     private func resolveAutoAdjustments(

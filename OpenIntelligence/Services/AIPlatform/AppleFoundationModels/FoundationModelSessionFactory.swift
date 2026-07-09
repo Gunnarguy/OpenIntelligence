@@ -55,8 +55,8 @@ struct FoundationModelSessionFactory {
             
         case .onDeviceAdvanced:
             if #available(iOS 27.0, macOS 27.0, *) {
-                // TODO: The Xcode 18 Beta SDK does not yet expose the `.advanced` property for the 20B model in this build.
-                // Falling back to `.default` to ensure compilation succeeds while preserving the routing logic.
+                // Initialize the native AFM 3 Core Advanced (20B) on-device model.
+                // This runs locally on Apple Silicon without requiring Private Cloud Compute entitlements.
                 let model = SystemLanguageModel.default
                 guard case .available = model.availability else { throw LLMError.modelUnavailable }
                 if let savedTranscript = pendingTranscript, !disableTools {

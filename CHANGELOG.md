@@ -1,3 +1,19 @@
+## 4.5.1 - 2026-07-03
+### Fixed
+- **[Ingestion]** Resolved concurrency race conditions and deadlocks during parallel PDF ingestion by introducing thread-safe `NSRecursiveLock` serialization around CoreImage image generation, preventing concurrent Metal context memory crashes on Apple Silicon.
+- **[Ingestion]** Implemented robust resumption state tracking for large document ingestion using `ingestion_state.json`, preserving a stable `documentId` and accumulated counts (chunks, words, chars) across app suspensions, sleeps, and restarts.
+- **[Ingestion]** Fixed vector database progress loss by forcing `db.persist()` calls at the end of each page batch, ensuring embeddings are flushed to disk periodically.
+- **[Ingestion]** Resolved app freezes and metadata loss upon force close by awaiting `saveDocumentsToDisk()` synchronously on completion, and pre-generating suggested questions immediately inside the ingestion pipeline rather than on-demand.
+- **[Ingestion]** Hardened the `SelfTuning` engine to dynamically apply chunking adjustments (strategy, window size, overlap) directly to the active container configuration without forcing or scheduling a full database rebuild, reserving rebuilds only for destructive embedding provider shifts.
+- **[UI]** Hardened Live Activity lifecycles by terminating any lingering/orphaned activities on app startup when the ingestion queue is empty, and ending duplicate activities to prevent stacking.
+- **[UI]** Disabled the Silicon X-Ray HUD overlay completely on macOS as it is an iOS-centric diagnostic feature that was inadvertently persisting on the Mac build.
+- **[UI]** Restored the iOS Silicon HUD position back to its original layout coordinates (x: 45, y: safeAreaInsets.top + 85), and configured the HUD legend to dynamically shift to the right (x: 345) when the conversation history sidebar is visible to prevent overlap.
+- **[Orchestration]** Corrected a key platform misconception regarding on-device execution: Apple's native 20B sparse Mixture-of-Experts model (AFM 3 Core Advanced) is restricted by the OS to devices with at least 12GB of RAM. Implemented programmatic physical memory gating (`physicalMemory >= 11.5GB`) to automatically fallback to the local 3B Core model and hide the 20B Advanced preference option on unsupported physical devices (such as 8GB iPhones/iPads), preventing hidden system fallbacks and aligning UI options with hardware realities. Sincerest apologies for the previous oversight claiming local 20B support on all iOS 27 devices.
+- **[Orchestration]** Restrained dynamic Hybrid (Automatic) routing from selecting Private Cloud Compute if the app lacks the `com.apple.developer.private-cloud-compute` entitlement, preventing silent model errors and fallback latency. Greyed out and disabled the PCC option in the header model preference selection menu when unentitled.
+- **[Validation]** Deprecated headless python benchmark scripts in favor of a native, in-app `ValidationDashboardView`. 
+- **[Validation]** Added a visual benchmark runner to the Developer Diagnostics Hub, allowing execution of pre-configured RAG validation suites with real-time monitoring of document ingestion, chunking, and reasoning outputs directly in the app.
+- **[Ingestion]** Fixed severe text extraction hallucinations (data loss) on macOS by restoring the `renderScale` fallback for garbled document layers to `6.0`, ensuring Vision OCR has sufficient resolution to parse text accurately.
+
 ## 4.5.0 - 2026-07-01
 ### Added
 - **[Indexing]** Compiled and bundled `EmbeddingModel.aimodel` inside the package resource bundle to support the native, zero-copy Core AI embedding execution path on Apple Silicon.

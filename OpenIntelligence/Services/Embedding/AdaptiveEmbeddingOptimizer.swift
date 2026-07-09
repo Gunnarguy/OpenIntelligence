@@ -170,6 +170,52 @@ actor LibraryIntelligenceCenter {
         )
     }
 
+    /// Recommends a chunking plan for a new document by analyzing its raw text before ingestion.
+    func recommendChunkingPlan(forPreviewText text: String, contentType: DocumentType) -> ChunkingPlan {
+        let languageHypotheses = detectLanguages(in: text)
+        let multilingualScore = calculateMultilingualScore(languageHypotheses)
+        let words = tokenizeWords(text)
+        let uniqueWords = Set(words)
+        _ = detectTechnicalDensity(words: words, uniqueWords: uniqueWords)
+        let hasCode = detectCodeSnippets(in: text)
+        let hasMath = detectMathematicalContent(in: text)
+        _ = analyzeSemanticComplexity(text)
+        
+        // Estimated structured ratio based on line breaks, lists, or headers
+        let lines = text.components(separatedBy: .newlines)
+        let structuredLines = lines.filter { line in
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+            return trimmed.starts(with: "-") || trimmed.starts(with: "*") || (trimmed.first?.isNumber ?? false)
+        }
+        let structuredRatio = lines.isEmpty ? 0.0 : Double(structuredLines.count) / Double(lines.count)
+        
+        // Assume baseline chunk average based on sample words count
+        let avgWords = words.isEmpty ? 0.0 : Double(words.count) / 10.0
+        
+        let dummyDoc = Document(
+            id: UUID(),
+            filename: "temp",
+            fileURL: URL(fileURLWithPath: "/tmp/dummy.pdf"),
+            storageRelativePath: nil,
+            fileHash: nil,
+            contentType: contentType,
+            addedAt: Date(),
+            totalChunks: 0,
+            processingMetadata: nil,
+            containerId: nil,
+            contentTags: nil
+        )
+        
+        return buildChunkingPlan(
+            avgWords: avgWords,
+            hasCode: hasCode,
+            hasMath: hasMath,
+            structuredRatio: structuredRatio,
+            documents: [dummyDoc],
+            multilingualScore: multilingualScore
+        )
+    }
+
     // MARK: - Chunking
 
     private func buildChunkingPlan(

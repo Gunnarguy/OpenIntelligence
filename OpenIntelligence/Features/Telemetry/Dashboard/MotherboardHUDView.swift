@@ -293,6 +293,7 @@ struct HardwareXRayOverlay: View {
 
     private let layout = DeviceComponentLayout.current
     var showDeviceInfo: Bool = false
+    var showSidebar: Bool = false
 
     /// Combined intensity from all active components
     private var totalIntensity: Double {
@@ -376,9 +377,12 @@ struct HardwareXRayOverlay: View {
     }
 
     var body: some View {
-        GeometryReader { geometry in
-            let screenWidth = geometry.size.width
-            let screenHeight = geometry.size.height
+        if isMac {
+            EmptyView()
+        } else {
+            GeometryReader { geometry in
+                let screenWidth = geometry.size.width
+                let screenHeight = geometry.size.height
             
             let orientedSoc = orientRect(layout.socRect)
             let orientedTaptic = orientRect(layout.tapticRect)
@@ -451,7 +455,7 @@ struct HardwareXRayOverlay: View {
                         metricsSummary: settings.hudShowMetrics ? telemetry.compactMetricsSummary : "",
                         activities: settings.hudShowMetrics ? telemetry.componentActivities : []
                     )
-                    .position(x: 110, y: geometry.safeAreaInsets.top + 85)
+                    .position(x: showSidebar ? 345 : 45, y: geometry.safeAreaInsets.top + 85)
                 }
 
                 // Device info (for debugging only)
@@ -462,8 +466,9 @@ struct HardwareXRayOverlay: View {
                         .position(x: screenWidth / 2, y: screenHeight * 0.02)
                 }
             }
+            .ignoresSafeArea()
         }
-        .ignoresSafeArea()
+    }
     }
 
     private func rectToScreen(_ rect: CGRect, width: CGFloat, height: CGFloat) -> CGRect {
