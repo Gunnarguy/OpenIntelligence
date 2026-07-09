@@ -19,6 +19,13 @@ struct OpenIntelligenceApp: App {
         DebugRAGValidationHarness.runHeadlessIfNeeded()
         #endif
 
+        #if targetEnvironment(macCatalyst)
+        // Disable automatic window tabbing on macOS to prevent duplicate window tabs
+        if let nsWindowClass = NSClassFromString("NSWindow") as? NSObject.Type {
+            nsWindowClass.setValue(false, forKey: "allowsAutomaticWindowTabbing")
+        }
+        #endif
+
         configureIngestionRuntimeBridge()
         configureQueryRuntimeBridge()
 
