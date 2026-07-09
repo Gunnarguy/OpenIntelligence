@@ -23,11 +23,14 @@ To support larger query contexts and complex queries, the app implements a dynam
 ### 1. On-Device Execution (Default)
 - **Scope:** Standard query modes.
 - **Constraints:** Max context window is capped at **4,096 tokens**.
-- **Model:** Executes locally using `SystemLanguageModel.default`.
+- **Model Resolution (12GB RAM Gate):** The OS-level model daemon resolves `SystemLanguageModel.default` based on the device's physical memory:
+  - **AFM 3 Core (3B parameters):** Loaded automatically on physical devices with **<12GB RAM** (e.g. iPhone 15 Pro, iPhone 16, and iPhone 16 Pro Max).
+  - **AFM 3 Core Advanced (20B parameters, Sparse MoE):** Loaded on devices with **12GB+ RAM** (Apple Silicon Macs, M-series iPads, and the iOS Simulator).
+- **Programmatic Enforcement:** A memory verification check (`physicalMemory >= 11.5GB`) gates the manual selector and dynamic router. If physical memory is insufficient, the app hides the "20B Advanced" picker option and falls back to the 3B Core model route locally.
 
 ### 2. PCC Escalation
 - **Scope:** Escalated queries where the context/history size exceeds 4,096 tokens, or when the user selects **Deep Think** or **Maximum** modes.
-- **Target:** Apple's secure Private Cloud Compute (PCC) enclaves, supporting up to a **32,768-token** context window.
+- **Target:** Apple's secure Private Cloud Compute (PCC) enclaves, running the cloud-based **AFM 3 Cloud Pro** model (70B+ parameters) with up to a **32,768-token** context window.
 
 ---
 

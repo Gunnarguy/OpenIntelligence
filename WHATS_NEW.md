@@ -10,6 +10,8 @@ Version 4.5.1 brings Silicon-native Core AI model integration and improved confi
 
 ### Highlights
 - **Silicon-Native Core AI Embeddings:** Successfully compiled and bundled the `EmbeddingModel.aimodel` format inside the package resources. This activates Apple's zero-copy memory paths for 40%+ faster sentence embedding execution natively on Apple Silicon. Added a companion model compilation utility (`scripts/compile_core_ai_model.py`) to easily convert PyTorch model graphs.
+- **On-Device 20B RAM Gate Fallback:** Corrected on-device execution availability for Apple's 20B sparse Mixture-of-Experts model (AFM 3 Core Advanced). Because the OS gates local 20B execution to devices with 12GB+ RAM, we have added programmatic physical memory checks (`physicalMemory >= 11.5GB`) to hide the 20B picker option and automatically fall back to the local 3B Core model on 8GB devices (including the iPhone 16 Pro Max), preventing silent OS downgrades and ensuring console/UI telemetry is 100% accurate.
+- **Mac Catalyst Window Tabbing Resolution:** Disabled automatic macOS window tabbing programmatically on Mac Catalyst targets. This resolves a layout collision where macOS natively grouped windows into redundant system-level tabs, keeping navigation clean and centered on the app's internal TabView structure.
 - **Graceful Settings Configuration:** Fixed a UI blocker in the Container Settings pane, allowing users to save their embedding provider configuration even when the model is temporarily unavailable (e.g. during a migration). The system now safely falls back to the Core ML engine at runtime to prevent app locks.
 
 ## 4.5
