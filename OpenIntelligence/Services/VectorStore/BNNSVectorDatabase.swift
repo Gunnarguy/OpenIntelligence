@@ -161,7 +161,10 @@ actor BNNSVectorDatabase: VectorDatabase {
 
                 // 2. Memory-map vectors — 0 bytes heap, OS pages on demand
                 let expectedBytes = decodedChunks.count * dimension * MemoryLayout<Float>.size
-                var mapped = try Data(contentsOf: bin.vectors, options: .alwaysMapped)
+                var mapped = Data()
+                if expectedBytes > 0 {
+                    mapped = try Data(contentsOf: bin.vectors, options: .alwaysMapped)
+                }
                 if mapped.count != expectedBytes {
                     if expectedBytes > 0,
                        mapped.count > expectedBytes,
