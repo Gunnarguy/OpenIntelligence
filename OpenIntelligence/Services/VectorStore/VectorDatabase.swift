@@ -316,14 +316,26 @@ class InMemoryVectorDatabase: VectorDatabase {
     /// Compute vector norm (magnitude)
     private func computeNorm(_ vector: [Float]) -> Float {
         guard !vector.isEmpty else { return 0.0 }
-        return sqrt(vDSP.dot(vector, vector))
+        var sum: Float = 0.0
+        vector.withUnsafeBufferPointer { ptr in
+            guard let baseAddress = ptr.baseAddress else { return }
+            vDSP_svesq(baseAddress, 1, &sum, vDSP_Length(vector.count))
+        }
+        return sqrt(sum)
     }
 
     /// Optimized cosine similarity using pre-computed norms
     private func optimizedCosineSimilarity(_ a: [Float], _ b: [Float], queryNorm: Float, chunkNorm: Float) -> Float {
         guard a.count == b.count, !a.isEmpty else { return 0.0 }
 
-        let dotProduct = vDSP.dot(a, b)
+        var dotProduct: Float = 0.0
+        a.withUnsafeBufferPointer { aPtr in
+            b.withUnsafeBufferPointer { bPtr in
+                guard let aBase = aPtr.baseAddress, let bBase = bPtr.baseAddress else { return }
+                vDSP_dotpr(aBase, 1, bBase, 1, &dotProduct, vDSP_Length(a.count))
+            }
+        }
+
         let magnitude = queryNorm * chunkNorm
         guard magnitude > 0 else { return 0.0 }
 
@@ -333,9 +345,19 @@ class InMemoryVectorDatabase: VectorDatabase {
     private func cosineSimilarity(_ a: [Float], _ b: [Float]) -> Float {
         guard a.count == b.count, !a.isEmpty else { return 0.0 }
 
-        let dotProduct = vDSP.dot(a, b)
-        let magnitudeA = vDSP.dot(a, a)
-        let magnitudeB = vDSP.dot(b, b)
+        var dotProduct: Float = 0.0
+        var magnitudeA: Float = 0.0
+        var magnitudeB: Float = 0.0
+        let length = vDSP_Length(a.count)
+
+        a.withUnsafeBufferPointer { aPtr in
+            b.withUnsafeBufferPointer { bPtr in
+                guard let aBase = aPtr.baseAddress, let bBase = bPtr.baseAddress else { return }
+                vDSP_dotpr(aBase, 1, bBase, 1, &dotProduct, length)
+                vDSP_svesq(aBase, 1, &magnitudeA, length)
+                vDSP_svesq(bBase, 1, &magnitudeB, length)
+            }
+        }
 
         let magnitude = sqrt(magnitudeA) * sqrt(magnitudeB)
         guard magnitude > 0 else { return 0.0 }
