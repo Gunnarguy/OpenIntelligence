@@ -196,7 +196,7 @@ final class QueryEnhancementService {
     /// - **Keyword-heavy**: Looking for specific terms, codes, values (boost BM25)
     /// - **Conceptual**: Asking about processes, explanations (boost vectors)
     /// - **Balanced**: Mix of both
-    func classifyIntent(_ query: String) -> QueryIntent {
+    nonisolated func classifyIntent(_ query: String) -> QueryIntent {
         let lower = query.lowercased()
         let rawWords = lower.split(whereSeparator: { $0.isWhitespace || $0.isNewline }).map(String.init)
 
@@ -675,7 +675,7 @@ final class QueryEnhancementService {
 
     /// Produces a small set of query variants for keyword-heavy retrieval (BM25).
     /// - Note: The first element is always the original query (trimmed).
-    func expandQuery(_ query: String) -> [String] {
+    nonisolated func expandQuery(_ query: String) -> [String] {
         let original = query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !original.isEmpty else { return [] }
 
