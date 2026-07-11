@@ -333,11 +333,13 @@ final class GPUComputeService: @unchecked Sendable {
         Log.info("[GPUComputeService] Buffer cache cleared", category: .retrieval)
     }
 
-    private func handleMemoryWarning() {
+    #if canImport(UIKit)
+    private nonisolated func handleMemoryWarning() {
         // MEMORY FIX: Release buffer cache on memory pressure to prevent OOM jetsam kills
         bufferPool?.clear()
         Log.warning("[GPUComputeService] ⚠️ Memory warning — buffer cache cleared", category: .retrieval)
     }
+    #endif
 
     // MARK: - Metal 4 Resource Management
 
