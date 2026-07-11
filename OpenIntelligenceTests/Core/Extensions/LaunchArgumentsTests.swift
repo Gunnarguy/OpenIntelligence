@@ -1,43 +1,43 @@
 import XCTest
-@testable import OpenIntelligenceEngine
+@testable import OpenIntelligence
 
 final class LaunchArgumentsTests: XCTestCase {
     func testHas() {
-        let args = ["--debug", "verbose", "--output=test.txt", "--format", "json"]
+        let parser = LaunchArguments.Parser(arguments: ["--debug", "verbose", "--output=test.txt", "--format", "json"])
 
-        XCTAssertTrue(LaunchArguments.has("--debug", in: args))
-        XCTAssertTrue(LaunchArguments.has("debug", in: args))
-        XCTAssertTrue(LaunchArguments.has("verbose", in: args))
-        XCTAssertTrue(LaunchArguments.has("--verbose", in: args))
-        XCTAssertFalse(LaunchArguments.has("missing", in: args))
-        XCTAssertFalse(LaunchArguments.has("--missing", in: args))
+        XCTAssertTrue(parser.has("--debug"))
+        XCTAssertTrue(parser.has("debug"))
+        XCTAssertTrue(parser.has("verbose"))
+        XCTAssertTrue(parser.has("--verbose"))
+        XCTAssertFalse(parser.has("missing"))
+        XCTAssertFalse(parser.has("--missing"))
     }
 
     func testValueFor() {
-        let args = ["--debug", "verbose", "--output=test.txt", "--format", "json"]
+        let parser = LaunchArguments.Parser(arguments: ["--debug", "verbose", "--output=test.txt", "--format", "json"])
 
-        XCTAssertEqual(LaunchArguments.value(for: "output", in: args), "test.txt")
-        XCTAssertNil(LaunchArguments.value(for: "debug", in: args))
-        XCTAssertNil(LaunchArguments.value(for: "format", in: args))
-        XCTAssertNil(LaunchArguments.value(for: "missing", in: args))
+        XCTAssertEqual(parser.value(for: "output"), "test.txt")
+        XCTAssertNil(parser.value(for: "debug"))
+        XCTAssertNil(parser.value(for: "format"))
+        XCTAssertNil(parser.value(for: "missing"))
     }
 
     func testValueAfter() {
-        let args = ["--debug", "verbose", "--output=test.txt", "--format", "json", "--empty"]
+        let parser = LaunchArguments.Parser(arguments: ["--debug", "verbose", "--output=test.txt", "--format", "json", "--empty"])
 
-        XCTAssertEqual(LaunchArguments.value(after: "format", in: args), "json")
-        XCTAssertEqual(LaunchArguments.value(after: "--format", in: args), "json")
-        XCTAssertEqual(LaunchArguments.value(after: "debug", in: args), "verbose")
-        XCTAssertNil(LaunchArguments.value(after: "empty", in: args))
-        XCTAssertNil(LaunchArguments.value(after: "missing", in: args))
+        XCTAssertEqual(parser.value(after: "format"), "json")
+        XCTAssertEqual(parser.value(after: "--format"), "json")
+        XCTAssertEqual(parser.value(after: "debug"), "verbose")
+        XCTAssertNil(parser.value(after: "empty"))
+        XCTAssertNil(parser.value(after: "missing"))
     }
 
     func testValueEither() {
-        let args = ["--output=file1.txt", "--format", "json", "--debug"]
+        let parser = LaunchArguments.Parser(arguments: ["--output=file1.txt", "--format", "json", "--debug"])
 
-        XCTAssertEqual(LaunchArguments.valueEither(for: "output", in: args), "file1.txt")
-        XCTAssertEqual(LaunchArguments.valueEither(for: "format", in: args), "json")
-        XCTAssertNil(LaunchArguments.valueEither(for: "debug", in: args))
-        XCTAssertNil(LaunchArguments.valueEither(for: "missing", in: args))
+        XCTAssertEqual(parser.valueEither(for: "output"), "file1.txt")
+        XCTAssertEqual(parser.valueEither(for: "format"), "json")
+        XCTAssertNil(parser.valueEither(for: "debug"))
+        XCTAssertNil(parser.valueEither(for: "missing"))
     }
 }

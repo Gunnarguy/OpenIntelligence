@@ -7,50 +7,54 @@ enum LaunchArguments {
         ProcessInfo.processInfo.arguments
     }
 
-    static func has(_ flag: String) -> Bool {
-        has(flag, in: all)
+    struct Parser {
+        let arguments: [String]
+
+        func has(_ flag: String) -> Bool {
+            if flag.hasPrefix("--") {
+                let trimmed = String(flag.dropFirst(2))
+                return arguments.contains(flag) || arguments.contains(trimmed) || arguments.contains("--\(trimmed)")
+            }
+            return arguments.contains(flag) || arguments.contains("--\(flag)")
+        }
+
+        func value(for key: String) -> String? {
+            let prefix = "--\(key)="
+            guard let arg = arguments.first(where: { $0.hasPrefix(prefix) }) else { return nil }
+            return String(arg.dropFirst(prefix.count))
+        }
+
+        func value(after key: String) -> String? {
+            let fullKey = key.hasPrefix("--") ? key : "--\(key)"
+            guard let idx = arguments.firstIndex(of: fullKey) else { return nil }
+            let next = arguments.index(after: idx)
+            guard next < arguments.endIndex else { return nil }
+            let v = arguments[next]
+            if v.hasPrefix("--") { return nil }
+            return v
+        }
+
+        func valueEither(for key: String) -> String? {
+            value(for: key) ?? value(after: key)
+        }
     }
 
-    static func has(_ flag: String, in arguments: [String]) -> Bool {
-        if flag.hasPrefix("--") {
-            let trimmed = String(flag.dropFirst(2))
-            return arguments.contains(flag) || arguments.contains(trimmed) || arguments.contains("--\(trimmed)")
-        }
-        return arguments.contains(flag) || arguments.contains("--\(flag)")
+    static func has(_ flag: String) -> Bool {
+        Parser(arguments: all).has(flag)
     }
 
     /// Returns the value for `--key=value` if present.
     static func value(for key: String) -> String? {
-        value(for: key, in: all)
-    }
-
-    static func value(for key: String, in arguments: [String]) -> String? {
-        let prefix = "--\(key)="
-        guard let arg = arguments.first(where: { $0.hasPrefix(prefix) }) else { return nil }
-        return String(arg.dropFirst(prefix.count))
+        Parser(arguments: all).value(for: key)
     }
 
     /// Returns the value after `--key value` if present.
     static func value(after key: String) -> String? {
-        value(after: key, in: all)
-    }
-
-    static func value(after key: String, in arguments: [String]) -> String? {
-        let fullKey = key.hasPrefix("--") ? key : "--\(key)"
-        guard let idx = arguments.firstIndex(of: fullKey) else { return nil }
-        let next = arguments.index(after: idx)
-        guard next < arguments.endIndex else { return nil }
-        let v = arguments[next]
-        if v.hasPrefix("--") { return nil }
-        return v
+        Parser(arguments: all).value(after: key)
     }
 
     /// Accepts either `--key=value` or `--key value`.
     static func valueEither(for key: String) -> String? {
-        valueEither(for: key, in: all)
-    }
-
-    static func valueEither(for key: String, in arguments: [String]) -> String? {
-        value(for: key, in: arguments) ?? value(after: key, in: arguments)
+        Parser(arguments: all).valueEither(for: key)
     }
 }
