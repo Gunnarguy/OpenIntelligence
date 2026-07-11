@@ -315,11 +315,9 @@ class InMemoryVectorDatabase: VectorDatabase {
 
     /// Compute vector norm (magnitude)
     private func computeNorm(_ vector: [Float]) -> Float {
-        var sum: Float = 0.0
-        for value in vector {
-            sum += value * value
-        }
-        return sqrt(sum)
+        var sumSq: Float = 0.0
+        vDSP_svesq(vector, 1, &sumSq, vDSP_Length(vector.count))
+        return sqrt(sumSq)
     }
 
     /// Optimized cosine similarity using pre-computed norms
