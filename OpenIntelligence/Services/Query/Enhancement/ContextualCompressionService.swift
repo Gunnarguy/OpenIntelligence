@@ -96,13 +96,13 @@ final class ContextualCompressionService: @unchecked Sendable {
     ) async throws -> CompressionResult {
         #if canImport(FoundationModels)
             guard #available(iOS 26.0, *) else {
-                return CompressionResult.passthrough(chunk)
+                return CompressionResult.passthrough(chunk, forQuery: query)
             }
 
             // Skip compression for short chunks
             let wordCount = chunk.split(separator: " ").count
             if wordCount < 50 {
-                return CompressionResult.passthrough(chunk)
+                return CompressionResult.passthrough(chunk, forQuery: query)
             }
 
             let startTime = Date()
@@ -111,13 +111,13 @@ final class ContextualCompressionService: @unchecked Sendable {
             if session == nil {
                 let model = SystemLanguageModel.default
                 guard model.isAvailable else {
-                    return CompressionResult.passthrough(chunk)
+                    return CompressionResult.passthrough(chunk, forQuery: query)
                 }
                 session = LanguageModelSession(model: model)
             }
 
             guard let session = session else {
-                return CompressionResult.passthrough(chunk)
+                return CompressionResult.passthrough(chunk, forQuery: query)
             }
 
             let prompt = buildCompressionPrompt(chunk: chunk, query: query, sectionTitle: sectionTitle, config: config)
@@ -140,12 +140,13 @@ final class ContextualCompressionService: @unchecked Sendable {
             // new content instead of extracting. Discard and use original.
             if ratio > 1.0 {
                 Log.info("[Compression] REJECTED expansion \(originalTokens)→\(compressedTokens) tokens (\(String(format: "%.0f", ratio * 100))%) — using original", category: .retrieval)
-                return CompressionResult.passthrough(chunk)
+                return CompressionResult.passthrough(chunk, forQuery: query)
             }
 
             Log.info("[Compression] \(originalTokens)→\(compressedTokens) tokens (\(String(format: "%.0f", ratio * 100))%) in \(String(format: "%.0f", elapsed * 1000))ms", category: .retrieval)
 
             return CompressionResult(
+                query: query,
                 originalContent: chunk,
                 compressedContent: compressed,
                 originalTokens: originalTokens,
@@ -154,7 +155,7 @@ final class ContextualCompressionService: @unchecked Sendable {
             )
 
         #else
-            return CompressionResult.passthrough(chunk)
+            return CompressionResult.passthrough(chunk, forQuery: query)
         #endif
     }
 
@@ -182,7 +183,7 @@ final class ContextualCompressionService: @unchecked Sendable {
                 Log.warning("[Compression] Time budget exhausted (\(String(format: "%.1f", elapsed))s/\(String(format: "%.0f", totalTimeBudget))s) after \(index)/\(chunks.count) chunks — using originals for remainder", category: .retrieval)
                 // Passthrough remaining chunks
                 for remainIdx in index..<chunks.count {
-                    results.append(CompressionResult.passthrough(chunks[remainIdx]))
+                    results.append(CompressionResult.passthrough(chunks[remainIdx], forQuery: query))
                 }
                 break
             }
@@ -199,7 +200,7 @@ final class ContextualCompressionService: @unchecked Sendable {
                 results.append(result)
             } catch {
                 Log.warning("[Compression] Chunk \(index + 1)/\(chunks.count) failed: \(error.localizedDescription) — using original", category: .retrieval)
-                results.append(CompressionResult.passthrough(chunk))
+                results.append(CompressionResult.passthrough(chunk, forQuery: query))
             }
         }
 
@@ -347,6 +348,7 @@ final class ContextualCompressionService: @unchecked Sendable {
 
 /// Result of contextual compression
 struct CompressionResult: Sendable {
+    let query: String
     let originalContent: String
     let compressedContent: String
     let originalTokens: Int
@@ -365,7 +367,12 @@ struct CompressionResult: Sendable {
     /// the middle or end, not the beginning.
     nonisolated var effectiveContent: String {
         if compressedContent.contains("NO_RELEVANT_CONTENT") || compressedContent.isEmpty {
+            var extractedSentences = [String]()
+
             // UNIVERSAL FIX: Extract sentences likely to contain the needle.
+            // We use simple substring matching as a fast pass before relying on LLM compression.
+            let terms = query.lowercased().split(separator: " ").map { String($0) }
+
             // Previously took first 400 chars — a needle at char 450 was lost forever.
             // Now: score each sentence by information density (numbers, capitalized terms,
             // colons, units) and take the highest-scoring ones up to 400 chars.
@@ -381,6 +388,15 @@ struct CompressionResult: Sendable {
             // Score each sentence by information density
             let scored = sentences.map { sentence -> (String, Int) in
                 var score = 0
+                let lowerSentence = sentence.lowercased()
+
+                // Query matching (highest weight)
+                for term in terms {
+                    if term.count > 3 && lowerSentence.contains(term) {
+                        score += 5
+                    }
+                }
+
                 // Numbers (specs, measurements, dates, values)
                 if sentence.rangeOfCharacter(from: .decimalDigits) != nil { score += 3 }
                 // Capitalized words (entities, proper nouns, acronyms)
@@ -403,6 +419,7 @@ struct CompressionResult: Sendable {
                 if fallback.count + sentence.count + 2 > 400 { break }
                 if !fallback.isEmpty { fallback += ". " }
                 fallback += sentence
+                extractedSentences.append(sentence)
             }
 
             if fallback.isEmpty {
@@ -412,7 +429,7 @@ struct CompressionResult: Sendable {
             return fallback.count < originalContent.count ? fallback + "..." : fallback
         }
         return compressedContent
-    }
+    }  }
 
     /// Returns true if compression marked this chunk as irrelevant
     nonisolated var wasMarkedIrrelevant: Bool {
@@ -420,7 +437,7 @@ struct CompressionResult: Sendable {
     }
 
     /// Passthrough result when compression is skipped
-    nonisolated static func passthrough(_ content: String) -> CompressionResult {
+    nonisolated static func passthrough(_ content: String, forQuery query: String = "") -> CompressionResult {
         // Word-count-based estimation matching estimateTokens() logic
         let words = content.split(whereSeparator: { $0.isWhitespace || $0.isNewline })
         let wordCount = words.count
@@ -431,6 +448,7 @@ struct CompressionResult: Sendable {
         let subwordFactor: Float = 1.3 + (technicalRatio * 0.7)
         let tokens = max(1, Int(Float(wordCount) * subwordFactor))
         return CompressionResult(
+            query: query,
             originalContent: content,
             compressedContent: content,
             originalTokens: tokens,
