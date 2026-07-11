@@ -367,8 +367,6 @@ struct CompressionResult: Sendable {
     /// the middle or end, not the beginning.
     nonisolated var effectiveContent: String {
         if compressedContent.contains("NO_RELEVANT_CONTENT") || compressedContent.isEmpty {
-            var extractedSentences = [String]()
-
             // UNIVERSAL FIX: Extract sentences likely to contain the needle.
             // We use simple substring matching as a fast pass before relying on LLM compression.
             let terms = query.lowercased().split(separator: " ").map { String($0) }
@@ -419,7 +417,6 @@ struct CompressionResult: Sendable {
                 if fallback.count + sentence.count + 2 > 400 { break }
                 if !fallback.isEmpty { fallback += ". " }
                 fallback += sentence
-                extractedSentences.append(sentence)
             }
 
             if fallback.isEmpty {
