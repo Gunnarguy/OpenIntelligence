@@ -578,7 +578,7 @@ final class QueryEnhancementService {
             "catalog number", "item number", "product code", "sku"
         ]
         for pattern in embeddedLookupPatterns {
-            if lower.range(of: "\\b\(pattern)s?\\b", options: .regularExpression) != nil {
+            if lower.range(of: "(?i)\\b\(pattern)s?\\b", options: .regularExpression) != nil {
                 Log.debug("[QueryEnhancement] Detected embedded lookup pattern: '\(pattern)'", category: .retrieval)
                 return .lookup
             }
@@ -592,7 +592,7 @@ final class QueryEnhancementService {
             "should i use"
         ]
         for pattern in specLookupPatterns {
-            if lower.range(of: "\\b\(pattern)s?\\b", options: .regularExpression) != nil {
+            if lower.range(of: "(?i)\\b\(pattern)s?\\b", options: .regularExpression) != nil {
                 Log.debug("[QueryEnhancement] Detected spec lookup pattern: '\(pattern)'", category: .retrieval)
                 return .lookup
             }
