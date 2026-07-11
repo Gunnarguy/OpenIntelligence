@@ -11004,10 +11004,9 @@ class RAGService: ObservableObject {
                     actualChunksUsed = assembled.used
 
                     // UNIVERSAL FIX 10: Needle rescue from dropped chunks.
-                    // When assembleContext runs out of budget, chunks at positions 4+ are dropped
-                    // entirely. But a keyword-matching needle sentence in chunk #7 is now invisible
+                    // Previously, dropped chunks were simply ignored and never passed
                     // to the LLM. Fix: run sentence extraction on the DROPPED chunks only,
-                    // appending high-value sentences into any remaining budget.
+                    // extracting any sentence that contains a keyword from the query.
                     // This catches needles across ALL intents (summarize, procedure, compare, etc.)
                     // without replacing whole-chunk packing for the primary chunks.
                     let droppedChunks = Array(orderedCandidates.dropFirst(assembled.used))
@@ -11015,16 +11014,16 @@ class RAGService: ObservableObject {
                     let rescueBudgetFloor = (answerIntentIsExtractive || isPrecisionValueQuery(question)) ? 80 : 160
 
                     if !droppedChunks.isEmpty && remainingBudget > rescueBudgetFloor {
-                        let rescueResult = await extractRelevantSentences(
+                        let droppedSentences = await extractRelevantSentences(
                             from: droppedChunks,
                             query: question,
                             maxChars: remainingBudget,
                             compact: true,  // Always compact for rescue sentences to maximize density
                             isExtractiveFirst: answerIntentIsExtractive
                         )
-                        if rescueResult.sentencesIncluded > 0 {
-                            assembledContext += "\n---\n" + rescueResult.context
-                            Log.info("[RAG] Needle rescue: +\(rescueResult.sentencesIncluded) sentences from \(rescueResult.sourcesUsed) dropped chunks (\(rescueResult.context.count) chars)", category: .retrieval)
+                        if droppedSentences.sentencesIncluded > 0 {
+                            assembledContext += "\n---\n" + droppedSentences.context
+                            Log.info("[RAG] Needle rescue: +\(droppedSentences.sentencesIncluded) sentences from \(droppedSentences.sourcesUsed) dropped chunks (\(droppedSentences.context.count) chars)", category: .retrieval)
                         }
                     }
 
