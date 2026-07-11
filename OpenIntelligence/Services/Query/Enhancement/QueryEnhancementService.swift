@@ -1116,7 +1116,7 @@ extension CorpusVocabulary {
         }
 
         // Phase 2: Build vocabulary from validated terms.
-        // UNIVERSAL FIX: Previously required minFrequency of 2+ (or chunks/500), which
+        // Previously required minFrequency of 2+ (or chunks/500), which
         // excluded terms appearing in only 1 chunk — i.e., exactly the rare needles users
         // search for (a specific drug name, part number, legal citation, etc.).
         //
