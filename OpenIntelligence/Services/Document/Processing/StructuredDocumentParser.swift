@@ -652,7 +652,7 @@ actor StructuredDocumentParser {
                 let fallbackCG = fullResImageCG() ?? structureCG
                 let fallbackText = try await performTextRecognitionFallback(on: fallbackCG, customWords: customWords)
                 if !fallbackText.isEmpty {
-                    let extractedCount = fallbackText.split(separator: " ").count
+                    let extractedCount = fallbackText.components(separatedBy: .whitespacesAndNewlines).filter { !$0.isEmpty }.count
                     var qualityScore: Double = 0.5
 
                     // Gap 2 fix: use PDFKit native word count as ground truth denominator when provided.
