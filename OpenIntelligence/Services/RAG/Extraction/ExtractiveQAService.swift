@@ -465,7 +465,7 @@ actor HeuristicExtractiveQAService: ExtractiveQAService {
             }
 
         case .when:
-            let nsRange = NSRange(sentenceLower.startIndex..., in: sentenceLower)
+            let nsRange = NSRange(location: 0, length: sentenceLower.utf16.count)
             for regex in ExtractiveQARegexes.scoreDatePatterns {
                 if regex.firstMatch(in: sentenceLower, range: nsRange) != nil {
                     typeBonus = max(typeBonus, 0.25)
@@ -484,14 +484,14 @@ actor HeuristicExtractiveQAService: ExtractiveQAService {
             }
 
         case .howMany:
-            let nsRange = NSRange(sentence.startIndex..., in: sentence)
+            let nsRange = NSRange(location: 0, length: sentence.utf16.count)
             if ExtractiveQARegexes.digits.firstMatch(in: sentence, range: nsRange) != nil {
                 typeBonus = 0.25
             }
 
         case .definition:
             // Definitional patterns: "X is Y", "refers to", "defined as", "known as", "means"
-            let nsRange = NSRange(sentenceLower.startIndex..., in: sentenceLower)
+            let nsRange = NSRange(location: 0, length: sentenceLower.utf16.count)
             for regex in ExtractiveQARegexes.defPatterns {
                 if regex.firstMatch(in: sentenceLower, range: nsRange) != nil {
                     typeBonus = max(typeBonus, 0.2)
@@ -531,7 +531,7 @@ actor HeuristicExtractiveQAService: ExtractiveQAService {
         // --- Signal 4: Specificity bonus ---
         // Sentences with numbers, measurements, or technical terms score higher
         var specificityBonus: Float = 0
-        let nsRange = NSRange(sentence.startIndex..., in: sentence)
+        let nsRange = NSRange(location: 0, length: sentence.utf16.count)
         if ExtractiveQARegexes.measurements.firstMatch(in: sentence, range: nsRange) != nil {
             specificityBonus = 0.15 // Has measurements with units
         } else if ExtractiveQARegexes.digits.firstMatch(in: sentence, range: nsRange) != nil {
@@ -547,7 +547,7 @@ actor HeuristicExtractiveQAService: ExtractiveQAService {
         switch type {
         case .howMany:
             // Extract numeric value with context
-            let nsRange = NSRange(sentence.startIndex..., in: sentence)
+            let nsRange = NSRange(location: 0, length: sentence.utf16.count)
             if let match = ExtractiveQARegexes.howManySpan.firstMatch(in: sentence, range: nsRange),
                let range = Range(match.range, in: sentence) {
                 return String(sentence[range])
@@ -570,7 +570,7 @@ actor HeuristicExtractiveQAService: ExtractiveQAService {
 
         case .when:
             // Extract temporal expression
-            let nsRange = NSRange(sentence.startIndex..., in: sentence)
+            let nsRange = NSRange(location: 0, length: sentence.utf16.count)
             for regex in ExtractiveQARegexes.extractDatePatterns {
                 if let match = regex.firstMatch(in: sentence, range: nsRange),
                    let range = Range(match.range, in: sentence) {
@@ -596,7 +596,7 @@ actor HeuristicExtractiveQAService: ExtractiveQAService {
         case .definition:
             // For "what is X?" try to extract the definitional part after "is"
             let sentenceLower = sentence.lowercased()
-            let nsRange = NSRange(sentenceLower.startIndex..., in: sentenceLower)
+            let nsRange = NSRange(location: 0, length: sentenceLower.utf16.count)
             if let isMatch = ExtractiveQARegexes.extractIs.firstMatch(in: sentenceLower, range: nsRange),
                let isRange = Range(isMatch.range, in: sentenceLower) {
                 let definition = String(sentence[isRange.upperBound...]).trimmingCharacters(in: .whitespacesAndNewlines)
