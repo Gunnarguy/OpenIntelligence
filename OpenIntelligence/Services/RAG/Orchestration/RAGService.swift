@@ -13210,8 +13210,8 @@ class RAGService: ObservableObject {
     /// Generate a direct LLM response without document context.
     /// Used as a graceful fallback when retrieval returns no results or documents are unavailable.
     private func generateExpansions(query: String, count: Int) async throws -> [String] {
-        let queryEnhancer = QueryEnhancementService(corpusVocabulary: nil)
-        let expandedQueries = queryEnhancer.expandQuery(query)
+        let queryEnhancer = await MainActor.run { QueryEnhancementService(corpusVocabulary: nil) }
+        let expandedQueries = await MainActor.run { queryEnhancer.expandQuery(query) }
         let effectiveQueryLower = query.lowercased()
 
         let validExpansions = expandedQueries.filter { expansion in
