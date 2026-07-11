@@ -205,35 +205,35 @@ class HybridSearchService {
 
         Log.debug("Hybrid search starting (vector: \(vectorWeight), keyword: \(keywordWeight))", category: .pipeline)
 
-        // 1. Vector search - retrieve more candidates for better coverage
+        // 1. Vector search and Lexical Recall - run concurrently
         // ENHANCEMENT: Scale vector candidates with topK for large corpus support
         let vectorCandidateMultiplier = topK > 50 ? 2 : 3  // Less aggressive multiplier for large topK
-        let vectorResults = try await vectorDatabase.search(embedding: embedding, topK: topK * vectorCandidateMultiplier)
 
+        let maxRecall = lexicalRecallLimit(query: query, topK: topK)
+
+        async let vectorTask = vectorDatabase.search(embedding: embedding, topK: topK * vectorCandidateMultiplier)
+        async let lexicalTask = lexicalRecallCandidates(
+            query: query,
+            embedding: embedding,
+            maxCandidates: maxRecall,
+            cachedChunks: cachedChunks,
+            isOverviewQuery: isOverviewQuery
+        )
+
+        let vectorResults = try await vectorTask
         let vectorResultsFiltered = isOverviewQuery ? RAPTORSummaryRouter.filterSummaryRetrievedChunks(vectorResults) : vectorResults
         var candidatePool = vectorResultsFiltered
 
-        if shouldRunLexicalRecall(query: query, vectorCount: vectorResultsFiltered.count, topK: topK) {
-            // UNIVERSAL: Always runs, but candidate pool scales with vector confidence.
-            // Healthy vector = smaller pool (fast). Weak vector = full pool (thorough).
-            let maxRecall = lexicalRecallLimit(query: query, vectorCount: vectorResultsFiltered.count, topK: topK)
-            let lexicalCandidates = try await lexicalRecallCandidates(
-                query: query,
-                embedding: embedding,
-                maxCandidates: maxRecall,
-                cachedChunks: cachedChunks,
-                isOverviewQuery: isOverviewQuery
-            )
-            if !lexicalCandidates.isEmpty {
-                let existing = Set(candidatePool.map { $0.chunk.id })
-                let unique = lexicalCandidates.filter { !existing.contains($0.chunk.id) }
-                if !unique.isEmpty {
-                    candidatePool.append(contentsOf: unique)
-                    Log.debug(
-                        "Lexical recall added \(unique.count) candidates (max: \(maxRecall))",
-                        category: .pipeline
-                    )
-                }
+        let lexicalCandidates = try await lexicalTask
+        if !lexicalCandidates.isEmpty {
+            let existing = Set(candidatePool.map { $0.chunk.id })
+            let unique = lexicalCandidates.filter { !existing.contains($0.chunk.id) }
+            if !unique.isEmpty {
+                candidatePool.append(contentsOf: unique)
+                Log.debug(
+                    "Lexical recall added \(unique.count) candidates (max: \(maxRecall))",
+                    category: .pipeline
+                )
             }
         }
 
@@ -537,18 +537,9 @@ class HybridSearchService {
         return important
     }
 
-    /// Determines whether lexical recall should run and how many candidates to fetch.
+    /// Returns the lexical recall candidate limit.
     /// UNIVERSAL FIX: Always runs lexical recall — keyword-only needles must never be invisible.
-    /// When vector search is healthy, uses a smaller candidate pool (topK*2) to keep latency low.
-    /// When vector search is weak (< topK results) or query has exact-match cues, uses the full pool.
-    private func shouldRunLexicalRecall(query: String, vectorCount: Int, topK: Int) -> Bool {
-        // Always run — the only question is how many candidates (handled by caller's maxRecall)
-        return true
-    }
-
-    /// Returns the lexical recall candidate limit, scaled by retrieval confidence.
-    /// Healthy vector search → smaller pool (fast). Weak vector → full pool (thorough).
-    private func lexicalRecallLimit(query: String, vectorCount: Int, topK: Int) -> Int {
+    private func lexicalRecallLimit(query: String, topK: Int) -> Int {
         let normalized = query.lowercased()
         let hasDigits = normalized.rangeOfCharacter(from: .decimalDigits) != nil
         let hasExactCue =
@@ -558,11 +549,11 @@ class HybridSearchService {
             || normalized.contains("exhibit")
             || normalized.contains("statute")
 
-        if vectorCount < topK || hasDigits || hasExactCue {
-            // Weak vector or exact-match query: full lexical recall
+        if hasDigits || hasExactCue {
+            // Exact-match query: full lexical recall
             return min(500, max(topK * 5, 100))
         } else {
-            // Healthy vector: smaller lexical recall to catch keyword-only needles without latency hit
+            // Smaller lexical recall to catch keyword-only needles without latency hit
             return min(200, max(topK * 2, 50))
         }
     }
