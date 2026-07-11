@@ -316,9 +316,7 @@ class InMemoryVectorDatabase: VectorDatabase {
     /// Compute vector norm (magnitude)
     private func computeNorm(_ vector: [Float]) -> Float {
         var sum: Float = 0.0
-        for value in vector {
-            sum += value * value
-        }
+        vDSP_svesq(vector, 1, &sum, vDSP_Length(vector.count))
         return sqrt(sum)
     }
 
@@ -327,9 +325,7 @@ class InMemoryVectorDatabase: VectorDatabase {
         guard a.count == b.count else { return 0.0 }
 
         var dotProduct: Float = 0.0
-        for i in 0..<a.count {
-            dotProduct += a[i] * b[i]
-        }
+        vDSP_dotpr(a, 1, b, 1, &dotProduct, vDSP_Length(a.count))
 
         let magnitude = queryNorm * chunkNorm
         guard magnitude > 0 else { return 0.0 }
@@ -344,11 +340,10 @@ class InMemoryVectorDatabase: VectorDatabase {
         var magnitudeA: Float = 0.0
         var magnitudeB: Float = 0.0
 
-        for i in 0..<a.count {
-            dotProduct += a[i] * b[i]
-            magnitudeA += a[i] * a[i]
-            magnitudeB += b[i] * b[i]
-        }
+        let length = vDSP_Length(a.count)
+        vDSP_dotpr(a, 1, b, 1, &dotProduct, length)
+        vDSP_svesq(a, 1, &magnitudeA, length)
+        vDSP_svesq(b, 1, &magnitudeB, length)
 
         let magnitude = sqrt(magnitudeA) * sqrt(magnitudeB)
         guard magnitude > 0 else { return 0.0 }
