@@ -652,13 +652,23 @@ actor StructuredDocumentParser {
                 let fallbackCG = fullResImageCG() ?? structureCG
                 let fallbackText = try await performTextRecognitionFallback(on: fallbackCG, customWords: customWords)
                 if !fallbackText.isEmpty {
+                    let extractedCount = fallbackText.split(separator: " ").count
+                    var qualityScore = 0.5
+
+                    // Gap 2 fix: use PDFKit native word count as ground truth denominator when provided.
+                    // This prevents artificial 100% scores when both OCR and extraction fail.
+                    if let nativeCount = nativeWordCount, nativeCount > 0 {
+                        qualityScore = min(1.0, Double(extractedCount) / Double(nativeCount))
+                    }
+
                     let elapsed = Date().timeIntervalSince(startTime)
-                    Log.info("[StructuredDocumentParser] RecognizeTextRequest captured \(fallbackText.split(separator: " ").count) words on page \(pageNumber) in \(String(format: "%.2f", elapsed))s", category: .ingestion)
+                    Log.info("[StructuredDocumentParser] RecognizeTextRequest captured \(extractedCount) words on page \(pageNumber) in \(String(format: "%.2f", elapsed))s", category: .ingestion)
+
                     return StructuredPageContent(
                         pageNumber: pageNumber,
                         elements: [.paragraph(text: fallbackText, pageNumber: pageNumber)],
                         rawText: fallbackText,
-                        qualityScore: 0.5, // Moderate quality since we have raw text but no structure
+                        qualityScore: qualityScore,
                         figureReferences: []
                     )
                 }
