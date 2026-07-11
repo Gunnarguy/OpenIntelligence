@@ -8837,7 +8837,7 @@ class RAGService: ObservableObject {
                         isOverviewQuery: answerIntent == .summarize
                     )
 
-                    // UNIVERSAL FIX 9: Multi-vector supplementary retrieval.
+                    // Multi-vector supplementary retrieval.
                     // The primary search uses ONE embedding (HyDE or rewritten query).
                     // Query expansion generates ~12 variations but only uses them for BM25 text.
                     // Problem: if the primary embedding misses a needle due to vocabulary mismatch,
@@ -11003,7 +11003,7 @@ class RAGService: ObservableObject {
                     var assembledContext = assembled.context
                     actualChunksUsed = assembled.used
 
-                    // UNIVERSAL FIX 10: Needle rescue from dropped chunks.
+                    // Needle rescue from dropped chunks.
                     // When assembleContext runs out of budget, chunks at positions 4+ are dropped
                     // entirely. But a keyword-matching needle sentence in chunk #7 is now invisible
                     // to the LLM. Fix: run sentence extraction on the DROPPED chunks only,
