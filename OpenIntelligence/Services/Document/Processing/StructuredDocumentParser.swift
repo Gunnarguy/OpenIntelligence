@@ -653,7 +653,7 @@ actor StructuredDocumentParser {
                 let fallbackText = try await performTextRecognitionFallback(on: fallbackCG, customWords: customWords)
                 if !fallbackText.isEmpty {
                     let extractedCount = fallbackText.split(separator: " ").count
-                    var qualityScore = 0.5
+                    var qualityScore: Double = 0.5
 
                     // Gap 2 fix: use PDFKit native word count as ground truth denominator when provided.
                     // This prevents artificial 100% scores when both OCR and extraction fail.
