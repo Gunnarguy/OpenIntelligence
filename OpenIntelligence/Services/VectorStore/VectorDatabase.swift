@@ -315,14 +315,15 @@ class InMemoryVectorDatabase: VectorDatabase {
 
     /// Compute vector norm (magnitude)
     private func computeNorm(_ vector: [Float]) -> Float {
-        return sqrt(vDSP.dot(vector, vector))
+        return sqrt(vDSP.sumOfSquares(vector))
     }
 
     /// Optimized cosine similarity using pre-computed norms
     private func optimizedCosineSimilarity(_ a: [Float], _ b: [Float], queryNorm: Float, chunkNorm: Float) -> Float {
         guard a.count == b.count else { return 0.0 }
 
-        let dotProduct = vDSP.dot(a, b)
+        var dotProduct: Float = 0.0
+        vDSP_dotpr(a, 1, b, 1, &dotProduct, vDSP_Length(a.count))
 
         let magnitude = queryNorm * chunkNorm
         guard magnitude > 0 else { return 0.0 }
@@ -333,11 +334,13 @@ class InMemoryVectorDatabase: VectorDatabase {
     private func cosineSimilarity(_ a: [Float], _ b: [Float]) -> Float {
         guard a.count == b.count else { return 0.0 }
 
-        let dotProduct = vDSP.dot(a, b)
-        let magnitudeA = vDSP.dot(a, a)
-        let magnitudeB = vDSP.dot(b, b)
+        var dotProduct: Float = 0.0
+        vDSP_dotpr(a, 1, b, 1, &dotProduct, vDSP_Length(a.count))
 
-        let magnitude = sqrt(magnitudeA) * sqrt(magnitudeB)
+        let magnitudeA = sqrt(vDSP.sumOfSquares(a))
+        let magnitudeB = sqrt(vDSP.sumOfSquares(b))
+
+        let magnitude = magnitudeA * magnitudeB
         guard magnitude > 0 else { return 0.0 }
 
         return dotProduct / magnitude
