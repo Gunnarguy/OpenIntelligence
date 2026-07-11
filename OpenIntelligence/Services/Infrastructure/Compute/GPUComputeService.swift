@@ -315,8 +315,8 @@ final class GPUComputeService: @unchecked Sendable {
             forName: UIApplication.didReceiveMemoryWarningNotification,
             object: nil,
             queue: .main
-        ) { [weak pool = self.bufferPool] _ in
-            pool?.clear()
+        ) { [weak self] _ in
+            self?.bufferPool?.clear()
             Log.warning("[GPUComputeService] ⚠️ Memory warning — buffer cache cleared", category: .retrieval)
         }
         #endif
