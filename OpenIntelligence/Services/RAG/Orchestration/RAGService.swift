@@ -15024,17 +15024,6 @@ class RAGService: ObservableObject {
         return merged
     }
 
-    private func buildPrecisionLookupCandidates(
-        included: [RetrievedChunk],
-        ordered: [RetrievedChunk],
-        desiredCount: Int
-    ) -> [RetrievedChunk] {
-        guard !ordered.isEmpty else { return included }
-
-        let expandedCount = min(ordered.count, max(included.count, desiredCount))
-        let expanded = Array(ordered.prefix(expandedCount))
-        return mergeUniqueChunks(included, expanded)
-    }
 
     private func extractQueryTerms(_ question: String) -> [String] {
         let stopWords: Set<String> = [
