@@ -315,8 +315,9 @@ final class GPUComputeService: @unchecked Sendable {
             forName: UIApplication.didReceiveMemoryWarningNotification,
             object: nil,
             queue: .main
-        ) { [weak self] _ in
-            self?.handleMemoryWarning()
+        ) { [weak pool = self.bufferPool] _ in
+            pool?.clear()
+            Log.warning("[GPUComputeService] ⚠️ Memory warning — buffer cache cleared", category: .retrieval)
         }
         #endif
     }
@@ -332,14 +333,6 @@ final class GPUComputeService: @unchecked Sendable {
         bufferPool?.clear()
         Log.info("[GPUComputeService] Buffer cache cleared", category: .retrieval)
     }
-
-    #if canImport(UIKit)
-    private nonisolated func handleMemoryWarning() {
-        // MEMORY FIX: Release buffer cache on memory pressure to prevent OOM jetsam kills
-        bufferPool?.clear()
-        Log.warning("[GPUComputeService] ⚠️ Memory warning — buffer cache cleared", category: .retrieval)
-    }
-    #endif
 
     // MARK: - Metal 4 Resource Management
 
