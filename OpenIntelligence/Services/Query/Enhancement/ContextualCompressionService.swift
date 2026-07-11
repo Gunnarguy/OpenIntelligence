@@ -96,13 +96,13 @@ final class ContextualCompressionService: @unchecked Sendable {
     ) async throws -> CompressionResult {
         #if canImport(FoundationModels)
             guard #available(iOS 26.0, *) else {
-                return CompressionResult.passthrough(chunk, forQuery: query)
+                return CompressionResult.passthrough(chunk, query: query)
             }
 
             // Skip compression for short chunks
             let wordCount = chunk.split(separator: " ").count
             if wordCount < 50 {
-                return CompressionResult.passthrough(chunk, forQuery: query)
+                return CompressionResult.passthrough(chunk, query: query)
             }
 
             let startTime = Date()
@@ -111,13 +111,13 @@ final class ContextualCompressionService: @unchecked Sendable {
             if session == nil {
                 let model = SystemLanguageModel.default
                 guard model.isAvailable else {
-                    return CompressionResult.passthrough(chunk, forQuery: query)
+                    return CompressionResult.passthrough(chunk, query: query)
                 }
                 session = LanguageModelSession(model: model)
             }
 
             guard let session = session else {
-                return CompressionResult.passthrough(chunk, forQuery: query)
+                return CompressionResult.passthrough(chunk, query: query)
             }
 
             let prompt = buildCompressionPrompt(chunk: chunk, query: query, sectionTitle: sectionTitle, config: config)
@@ -140,7 +140,7 @@ final class ContextualCompressionService: @unchecked Sendable {
             // new content instead of extracting. Discard and use original.
             if ratio > 1.0 {
                 Log.info("[Compression] REJECTED expansion \(originalTokens)→\(compressedTokens) tokens (\(String(format: "%.0f", ratio * 100))%) — using original", category: .retrieval)
-                return CompressionResult.passthrough(chunk, forQuery: query)
+                return CompressionResult.passthrough(chunk, query: query)
             }
 
             Log.info("[Compression] \(originalTokens)→\(compressedTokens) tokens (\(String(format: "%.0f", ratio * 100))%) in \(String(format: "%.0f", elapsed * 1000))ms", category: .retrieval)
@@ -155,7 +155,7 @@ final class ContextualCompressionService: @unchecked Sendable {
             )
 
         #else
-            return CompressionResult.passthrough(chunk, forQuery: query)
+            return CompressionResult.passthrough(chunk, query: query)
         #endif
     }
 
@@ -183,7 +183,7 @@ final class ContextualCompressionService: @unchecked Sendable {
                 Log.warning("[Compression] Time budget exhausted (\(String(format: "%.1f", elapsed))s/\(String(format: "%.0f", totalTimeBudget))s) after \(index)/\(chunks.count) chunks — using originals for remainder", category: .retrieval)
                 // Passthrough remaining chunks
                 for remainIdx in index..<chunks.count {
-                    results.append(CompressionResult.passthrough(chunks[remainIdx], forQuery: query))
+                    results.append(CompressionResult.passthrough(chunks[remainIdx], query: query))
                 }
                 break
             }
@@ -200,7 +200,7 @@ final class ContextualCompressionService: @unchecked Sendable {
                 results.append(result)
             } catch {
                 Log.warning("[Compression] Chunk \(index + 1)/\(chunks.count) failed: \(error.localizedDescription) — using original", category: .retrieval)
-                results.append(CompressionResult.passthrough(chunk, forQuery: query))
+                results.append(CompressionResult.passthrough(chunk, query: query))
             }
         }
 
@@ -388,7 +388,7 @@ struct CompressionResult: Sendable {
                 var score = 0
                 let lowerSentence = sentence.lowercased()
 
-                // Query matching (highest weight)
+                // Query matching
                 for term in terms {
                     if term.count > 3 && lowerSentence.contains(term) {
                         score += 5
@@ -434,7 +434,7 @@ struct CompressionResult: Sendable {
     }
 
     /// Passthrough result when compression is skipped
-    nonisolated static func passthrough(_ content: String, forQuery query: String = "") -> CompressionResult {
+    nonisolated static func passthrough(_ content: String, query: String = "") -> CompressionResult {
         // Word-count-based estimation matching estimateTokens() logic
         let words = content.split(whereSeparator: { $0.isWhitespace || $0.isNewline })
         let wordCount = words.count
