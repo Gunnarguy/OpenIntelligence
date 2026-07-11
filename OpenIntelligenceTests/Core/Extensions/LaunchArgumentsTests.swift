@@ -1,5 +1,5 @@
 import XCTest
-@testable import OpenIntelligence
+@testable import OpenIntelligenceEngine
 
 final class LaunchArgumentsTests: XCTestCase {
     func testHas() {
