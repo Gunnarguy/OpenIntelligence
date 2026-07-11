@@ -171,6 +171,23 @@ final class QueryEnhancementService {
         self.corpusVocabulary = corpusVocabulary
     }
 
+    private static let maximumQueryHistoryItems = 300
+    private static let maximumQueryLengthToStore = 200
+
+    private func storeQueryHistory(_ query: String) {
+        // Capped at 300 entries × 200 chars ≈ 120KB
+        let truncatedQuery = String(query.prefix(Self.maximumQueryLengthToStore))
+        var history = UserDefaults.standard.stringArray(forKey: "OpenIntelligence.QueryHistory") ?? []
+        history.insert(truncatedQuery, at: 0)
+
+        if history.count > Self.maximumQueryHistoryItems {
+            history = Array(history.prefix(Self.maximumQueryHistoryItems))
+        }
+
+        UserDefaults.standard.set(history, forKey: "OpenIntelligence.QueryHistory")
+    }
+
+
     // MARK: - Query Intent Classification
 
     /// Classifies query intent to enable adaptive weight tuning.
@@ -663,6 +680,8 @@ final class QueryEnhancementService {
         guard !original.isEmpty else { return [] }
 
         Log.debug("[QueryEnhancement] Expanding query", category: .retrieval)
+
+        storeQueryHistory(original)
 
         var variations: [String] = [original]
 
