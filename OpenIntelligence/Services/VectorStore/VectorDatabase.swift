@@ -316,25 +316,14 @@ class InMemoryVectorDatabase: VectorDatabase {
     /// Compute vector norm (magnitude)
     private func computeNorm(_ vector: [Float]) -> Float {
         guard !vector.isEmpty else { return 0.0 }
-        var sum: Float = 0.0
-        vector.withUnsafeBufferPointer { ptr in
-            guard let baseAddress = ptr.baseAddress else { return }
-            vDSP_svesq(baseAddress, 1, &sum, vDSP_Length(vector.count))
-        }
-        return sqrt(sum)
+        return cblas_snrm2(Int32(vector.count), vector, 1)
     }
 
     /// Optimized cosine similarity using pre-computed norms
     private func optimizedCosineSimilarity(_ a: [Float], _ b: [Float], queryNorm: Float, chunkNorm: Float) -> Float {
         guard a.count == b.count, !a.isEmpty else { return 0.0 }
 
-        var dotProduct: Float = 0.0
-        a.withUnsafeBufferPointer { aPtr in
-            b.withUnsafeBufferPointer { bPtr in
-                guard let aBase = aPtr.baseAddress, let bBase = bPtr.baseAddress else { return }
-                vDSP_dotpr(aBase, 1, bBase, 1, &dotProduct, vDSP_Length(a.count))
-            }
-        }
+        let dotProduct = cblas_sdot(Int32(a.count), a, 1, b, 1)
 
         let magnitude = queryNorm * chunkNorm
         guard magnitude > 0 else { return 0.0 }
@@ -345,19 +334,10 @@ class InMemoryVectorDatabase: VectorDatabase {
     private func cosineSimilarity(_ a: [Float], _ b: [Float]) -> Float {
         guard a.count == b.count, !a.isEmpty else { return 0.0 }
 
-        var dotProduct: Float = 0.0
-        var magnitudeA: Float = 0.0
-        var magnitudeB: Float = 0.0
-        let length = vDSP_Length(a.count)
-
-        a.withUnsafeBufferPointer { aPtr in
-            b.withUnsafeBufferPointer { bPtr in
-                guard let aBase = aPtr.baseAddress, let bBase = bPtr.baseAddress else { return }
-                vDSP_dotpr(aBase, 1, bBase, 1, &dotProduct, length)
-                vDSP_svesq(aBase, 1, &magnitudeA, length)
-                vDSP_svesq(bBase, 1, &magnitudeB, length)
-            }
-        }
+        let count = Int32(a.count)
+        let dotProduct = cblas_sdot(count, a, 1, b, 1)
+        let magnitudeA = cblas_sdot(count, a, 1, a, 1)
+        let magnitudeB = cblas_sdot(count, b, 1, b, 1)
 
         let magnitude = sqrt(magnitudeA) * sqrt(magnitudeB)
         guard magnitude > 0 else { return 0.0 }
