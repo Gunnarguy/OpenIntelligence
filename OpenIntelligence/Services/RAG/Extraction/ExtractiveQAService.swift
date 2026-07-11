@@ -21,6 +21,50 @@ import CoreML
 import Foundation
 import NaturalLanguage
 
+// MARK: - Precompiled Regular Expressions
+
+/// Statically compiled regular expressions to avoid recompilation inside hot loops.
+enum ExtractiveQARegexes {
+    // Shared Date Patterns
+    static let year = try! NSRegularExpression(pattern: "\\d{4}", options: [])
+    static let dateFormat = try! NSRegularExpression(pattern: "\\d{1,2}/\\d{1,2}", options: [])
+    static let months = try! NSRegularExpression(pattern: "january|february|march|april|may|june|july|august|september|october|november|december", options: [])
+    static let days = try! NSRegularExpression(pattern: "monday|tuesday|wednesday|thursday|friday|saturday|sunday", options: [])
+    static let time = try! NSRegularExpression(pattern: "\\d{1,2}\\s+(am|pm)", options: [])
+    static let temporalMarkers = try! NSRegularExpression(pattern: "ago|since|until|before|after", options: [])
+
+    static let scoreDatePatterns = [year, dateFormat, months, days, time, temporalMarkers]
+
+    // Definition Patterns
+    static let defIs = try! NSRegularExpression(pattern: "\\bis\\b.*\\b(a|an|the)\\b", options: [])
+    static let defRefers = try! NSRegularExpression(pattern: "refers to", options: [])
+    static let defDefined = try! NSRegularExpression(pattern: "defined as", options: [])
+    static let defKnown = try! NSRegularExpression(pattern: "known as", options: [])
+    static let defMeansThat = try! NSRegularExpression(pattern: "means that", options: [])
+    static let defMeaning = try! NSRegularExpression(pattern: "meaning", options: [])
+
+    static let defPatterns = [defIs, defRefers, defDefined, defKnown, defMeansThat, defMeaning]
+
+    // How Many
+    static let digits = try! NSRegularExpression(pattern: "\\d+", options: [])
+
+    // Specificity Bonus
+    static let measurements = try! NSRegularExpression(pattern: "\\d+\\.?\\d*\\s*(mg|kg|ml|mm|cm|m|km|lbs|oz|ft|in|mph|kph|psi|°[CF]|watts?|volts?|amps?|ohms?|hz|mhz|ghz|gb|mb|kb|tb)", options: [.caseInsensitive])
+
+    // Extract Span Patterns
+    static let howManySpan = try! NSRegularExpression(pattern: "\\d+[\\d,\\.]*\\s*\\w*(?:\\s+\\w+)?", options: [])
+
+    static let extractDateFormats = try! NSRegularExpression(pattern: "\\b\\d{1,2}[/-]\\d{1,2}[/-]\\d{2,4}\\b", options: [.caseInsensitive])
+    static let extractMonthDayYear = try! NSRegularExpression(pattern: "\\b(?:january|february|march|april|may|june|july|august|september|october|november|december)\\s+\\d{1,2},?\\s*\\d{0,4}\\b", options: [.caseInsensitive])
+    static let extractYear = try! NSRegularExpression(pattern: "\\b\\d{4}\\b", options: [.caseInsensitive])
+    static let extractTime = try! NSRegularExpression(pattern: "\\b\\d{1,2}\\s*(?:am|pm)\\b", options: [.caseInsensitive])
+
+    static let extractDatePatterns = [extractDateFormats, extractMonthDayYear, extractYear, extractTime]
+
+    static let extractIs = try! NSRegularExpression(pattern: "\\bis\\s+", options: [])
+}
+
+
 // MARK: - Protocol Definition
 
 /// Extractive QA service for identifying answer spans within retrieved context.
@@ -421,16 +465,9 @@ actor HeuristicExtractiveQAService: ExtractiveQAService {
             }
 
         case .when:
-            let datePatterns = [
-                "\\d{4}", // Year
-                "\\d{1,2}/\\d{1,2}", // Date formats
-                "january|february|march|april|may|june|july|august|september|october|november|december",
-                "monday|tuesday|wednesday|thursday|friday|saturday|sunday",
-                "\\d{1,2}\\s+(am|pm)", // Time
-                "ago|since|until|before|after" // Temporal markers
-            ]
-            for pattern in datePatterns {
-                if sentenceLower.range(of: pattern, options: .regularExpression) != nil {
+            let nsRange = NSRange(sentenceLower.startIndex..., in: sentenceLower)
+            for regex in ExtractiveQARegexes.scoreDatePatterns {
+                if regex.firstMatch(in: sentenceLower, range: nsRange) != nil {
                     typeBonus = max(typeBonus, 0.25)
                 }
             }
@@ -447,22 +484,23 @@ actor HeuristicExtractiveQAService: ExtractiveQAService {
             }
 
         case .howMany:
-            if sentence.range(of: "\\d+", options: .regularExpression) != nil {
+            let nsRange = NSRange(sentence.startIndex..., in: sentence)
+            if ExtractiveQARegexes.digits.firstMatch(in: sentence, range: nsRange) != nil {
                 typeBonus = 0.25
             }
 
         case .definition:
             // Definitional patterns: "X is Y", "refers to", "defined as", "known as", "means"
-            let defPatterns = ["\\bis\\b.*\\b(a|an|the)\\b", "refers to", "defined as", "known as", "means that", "meaning"]
-            for pattern in defPatterns {
-                if sentenceLower.range(of: pattern, options: .regularExpression) != nil {
+            let nsRange = NSRange(sentenceLower.startIndex..., in: sentenceLower)
+            for regex in ExtractiveQARegexes.defPatterns {
+                if regex.firstMatch(in: sentenceLower, range: nsRange) != nil {
                     typeBonus = max(typeBonus, 0.2)
                 }
             }
 
         case .how:
             // Procedural markers
-            let procPatterns = ["step", "first", "then", "next", "finally", "begin by", "start with", "to do this"]
+            let procPatterns: [String] = ["step", "first", "then", "next", "finally", "begin by", "start with", "to do this"]
             for pattern in procPatterns {
                 if sentenceLower.contains(pattern) {
                     typeBonus = max(typeBonus, 0.15)
@@ -471,7 +509,7 @@ actor HeuristicExtractiveQAService: ExtractiveQAService {
 
         case .why:
             // Causal markers
-            let causePatterns = ["because", "due to", "caused by", "result of", "reason", "therefore", "since"]
+            let causePatterns: [String] = ["because", "due to", "caused by", "result of", "reason", "therefore", "since"]
             for pattern in causePatterns {
                 if sentenceLower.contains(pattern) {
                     typeBonus = max(typeBonus, 0.2)
@@ -493,9 +531,10 @@ actor HeuristicExtractiveQAService: ExtractiveQAService {
         // --- Signal 4: Specificity bonus ---
         // Sentences with numbers, measurements, or technical terms score higher
         var specificityBonus: Float = 0
-        if sentence.range(of: "\\d+\\.?\\d*\\s*(mg|kg|ml|mm|cm|m|km|lbs|oz|ft|in|mph|kph|psi|°[CF]|watts?|volts?|amps?|ohms?|hz|mhz|ghz|gb|mb|kb|tb)", options: [.regularExpression, .caseInsensitive]) != nil {
+        let nsRange = NSRange(sentence.startIndex..., in: sentence)
+        if ExtractiveQARegexes.measurements.firstMatch(in: sentence, range: nsRange) != nil {
             specificityBonus = 0.15 // Has measurements with units
-        } else if sentence.range(of: "\\d+", options: .regularExpression) != nil {
+        } else if ExtractiveQARegexes.digits.firstMatch(in: sentence, range: nsRange) != nil {
             specificityBonus = 0.05 // Has numbers
         }
 
@@ -508,8 +547,10 @@ actor HeuristicExtractiveQAService: ExtractiveQAService {
         switch type {
         case .howMany:
             // Extract numeric value with context
-            if let match = sentence.range(of: "\\d+[\\d,\\.]*\\s*\\w*(?:\\s+\\w+)?", options: .regularExpression) {
-                return String(sentence[match])
+            let nsRange = NSRange(sentence.startIndex..., in: sentence)
+            if let match = ExtractiveQARegexes.howManySpan.firstMatch(in: sentence, range: nsRange),
+               let range = Range(match.range, in: sentence) {
+                return String(sentence[range])
             }
 
         case .who:
@@ -529,15 +570,11 @@ actor HeuristicExtractiveQAService: ExtractiveQAService {
 
         case .when:
             // Extract temporal expression
-            let datePatterns = [
-                "\\b\\d{1,2}[/-]\\d{1,2}[/-]\\d{2,4}\\b", // Date formats
-                "\\b(?:january|february|march|april|may|june|july|august|september|october|november|december)\\s+\\d{1,2},?\\s*\\d{0,4}\\b", // Month day year
-                "\\b\\d{4}\\b", // Year
-                "\\b\\d{1,2}\\s*(?:am|pm)\\b" // Time
-            ]
-            for pattern in datePatterns {
-                if let match = sentence.range(of: pattern, options: [.regularExpression, .caseInsensitive]) {
-                    return String(sentence[match])
+            let nsRange = NSRange(sentence.startIndex..., in: sentence)
+            for regex in ExtractiveQARegexes.extractDatePatterns {
+                if let match = regex.firstMatch(in: sentence, range: nsRange),
+                   let range = Range(match.range, in: sentence) {
+                    return String(sentence[range])
                 }
             }
 
@@ -559,7 +596,9 @@ actor HeuristicExtractiveQAService: ExtractiveQAService {
         case .definition:
             // For "what is X?" try to extract the definitional part after "is"
             let sentenceLower = sentence.lowercased()
-            if let isRange = sentenceLower.range(of: "\\bis\\s+", options: .regularExpression) {
+            let nsRange = NSRange(sentenceLower.startIndex..., in: sentenceLower)
+            if let isMatch = ExtractiveQARegexes.extractIs.firstMatch(in: sentenceLower, range: nsRange),
+               let isRange = Range(isMatch.range, in: sentenceLower) {
                 let definition = String(sentence[isRange.upperBound...]).trimmingCharacters(in: .whitespacesAndNewlines)
                 if definition.count > 10 && definition.count < 300 {
                     return definition.hasSuffix(".") ? String(definition.dropLast()) : definition
