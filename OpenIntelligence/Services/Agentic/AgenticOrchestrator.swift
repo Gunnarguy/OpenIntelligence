@@ -3141,7 +3141,7 @@ final class AgenticOrchestrator: Sendable {
         }
 
         // If it's a spec query and answer has technical content, that's a strong signal
-        let technicalBonus: Float = (isSpecQuery && hasTechnicalContent) ? 0.40 : 0
+        let technicalBonus: Float = isSpecQuery ? 0.40 : 0
 
         // Score 1: Key term coverage (what % of query terms appear in answer?)
         // Relaxed: even 1 match is meaningful for short queries
