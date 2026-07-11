@@ -177,14 +177,16 @@ final class QueryEnhancementService {
     private nonisolated func storeQueryHistory(_ query: String) {
         // Capped at 300 entries × 200 chars ≈ 120KB
         let truncatedQuery = String(query.prefix(Self.maximumQueryLengthToStore))
-        var history = UserDefaults.standard.stringArray(forKey: "OpenIntelligence.QueryHistory") ?? []
-        history.insert(truncatedQuery, at: 0)
+        Task { @MainActor in
+            var history = UserDefaults.standard.stringArray(forKey: "OpenIntelligence.QueryHistory") ?? []
+            history.insert(truncatedQuery, at: 0)
 
-        if history.count > Self.maximumQueryHistoryItems {
-            history = Array(history.prefix(Self.maximumQueryHistoryItems))
+            if history.count > Self.maximumQueryHistoryItems {
+                history = Array(history.prefix(Self.maximumQueryHistoryItems))
+            }
+
+            UserDefaults.standard.set(history, forKey: "OpenIntelligence.QueryHistory")
         }
-
-        UserDefaults.standard.set(history, forKey: "OpenIntelligence.QueryHistory")
     }
 
 
