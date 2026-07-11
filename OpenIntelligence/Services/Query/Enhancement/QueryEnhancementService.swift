@@ -37,7 +37,7 @@ enum QueryIntent: String, Sendable {
     var weightAdjustment: (vectorDelta: Float, keywordDelta: Float) {
         switch self {
         case .keyword:
-            // UNIVERSAL FIX: Gentle nudge, not a sledgehammer.
+            // Gentle nudge, not a sledgehammer.
             // OCR'd text is noisy — BM25 alone can't find "fuel tank capacity"
             // when the OCR'd text says "Fuel Capacity" or "fue l capa city".
             // Embeddings understand meaning; they must always have a strong vote.

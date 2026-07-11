@@ -172,7 +172,7 @@ final class HyDEService: @unchecked Sendable {
             groundedDoc = hypotheticalDoc
         }
 
-        // UNIVERSAL FIX: Blend original query + hypothetical document for embedding.
+        // Blend original query + hypothetical document for embedding.
         // Previously used ONLY the hypothetical doc, which meant a hallucinated hypothetical
         // (e.g., "Drug X is typically 500mg" when the answer is 250mg) would pull retrieval
         // entirely in the wrong direction with zero safety net.

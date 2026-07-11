@@ -538,7 +538,7 @@ class HybridSearchService {
     }
 
     /// Determines whether lexical recall should run and how many candidates to fetch.
-    /// UNIVERSAL FIX: Always runs lexical recall — keyword-only needles must never be invisible.
+    /// Always runs lexical recall — keyword-only needles must never be invisible.
     /// When vector search is healthy, uses a smaller candidate pool (topK*2) to keep latency low.
     /// When vector search is weak (< topK results) or query has exact-match cues, uses the full pool.
     private func shouldRunLexicalRecall(query: String, vectorCount: Int, topK: Int) -> Bool {

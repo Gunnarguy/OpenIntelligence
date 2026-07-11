@@ -365,7 +365,7 @@ struct CompressionResult: Sendable {
     /// the middle or end, not the beginning.
     nonisolated var effectiveContent: String {
         if compressedContent.contains("NO_RELEVANT_CONTENT") || compressedContent.isEmpty {
-            // UNIVERSAL FIX: Extract sentences likely to contain the needle.
+            // Extract sentences likely to contain the needle.
             // Previously took first 400 chars — a needle at char 450 was lost forever.
             // Now: score each sentence by information density (numbers, capitalized terms,
             // colons, units) and take the highest-scoring ones up to 400 chars.
