@@ -3134,6 +3134,12 @@ final class AgenticOrchestrator: Sendable {
             }
         }
 
+        // CRITICAL FIX: If query is about specs/types, check if answer has technical content
+        // If it doesn't, we probably retrieved bad chunks or the LLM hallucinated.
+        if isSpecQuery && !hasTechnicalContent {
+            return 0.0
+        }
+
         // If it's a spec query and answer has technical content, that's a strong signal
         let technicalBonus: Float = (isSpecQuery && hasTechnicalContent) ? 0.40 : 0
 
