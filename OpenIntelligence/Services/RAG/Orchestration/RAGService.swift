@@ -11056,11 +11056,6 @@ class RAGService: ObservableObject {
                 // Previously, spec prioritization sorted candidates but the slicing used the
                 // original unsorted array, so fuse-box tables could be selected over oil specs.
                 let includedRetrievedChunks = Array(orderedCandidates.prefix(actualChunksUsed))
-                // let precisionLookupCandidates = buildPrecisionLookupCandidates(
-                //     included: includedRetrievedChunks,
-                //     ordered: orderedCandidates,
-                //     desiredCount: max(actualChunksUsed + 6, 16)
-                // )
                 let includedChunks = includedRetrievedChunks.map { $0.chunk }
                 recoveryRetrievedChunks = includedRetrievedChunks
 
