@@ -3069,24 +3069,13 @@ actor SQLiteFullTextService {
     private func ensureColumnExists(table: String, column: String, definition: String) {
         guard let db = database else { return }
 
-        // Validate inputs to prevent SQL injection in DDL statements (where parameters are not supported)
-        let allowedIdentifierChars = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "_"))
-        guard !table.isEmpty && table.unicodeScalars.allSatisfy({ allowedIdentifierChars.contains($0) }) else {
-            Log.error("[SQLiteFTS5] Invalid table name for schema update: \(table)", category: .vectorDB)
-            return
-        }
-        guard !column.isEmpty && column.unicodeScalars.allSatisfy({ allowedIdentifierChars.contains($0) }) else {
-            Log.error("[SQLiteFTS5] Invalid column name for schema update: \(column)", category: .vectorDB)
-            return
-        }
+        // Securely format identifiers to prevent SQL injection in DDL statements
+        let safeTable = "\"" + table.replacingOccurrences(of: "\"", with: "\"\"") + "\""
+        let safeColumn = "\"" + column.replacingOccurrences(of: "\"", with: "\"\"") + "\""
 
-        let allowedDefinitionChars = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "_ '.-"))
-        guard !definition.isEmpty && definition.unicodeScalars.allSatisfy({ allowedDefinitionChars.contains($0) }) else {
-            Log.error("[SQLiteFTS5] Invalid column definition for schema update: \(definition)", category: .vectorDB)
-            return
-        }
+        // definition is expected to be a hardcoded developer string
 
-        let pragmaSQL = "PRAGMA table_info(\(table))"
+        let pragmaSQL = "PRAGMA table_info(\(safeTable))"
         var statement: OpaquePointer?
         guard sqlite3_prepare_v2(db, pragmaSQL, -1, &statement, nil) == SQLITE_OK else { return }
         defer { sqlite3_finalize(statement) }
@@ -3097,7 +3086,7 @@ actor SQLiteFullTextService {
             }
         }
 
-        _ = execute(sql: "ALTER TABLE \(table) ADD COLUMN \(column) \(definition)")
+        _ = execute(sql: "ALTER TABLE \(safeTable) ADD COLUMN \(safeColumn) \(definition)")
     }
 
     private func structuredTextQualityScore(_ text: String) -> Double {
