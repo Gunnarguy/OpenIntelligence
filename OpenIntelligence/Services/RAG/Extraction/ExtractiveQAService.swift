@@ -24,44 +24,44 @@ import NaturalLanguage
 // MARK: - Precompiled Regular Expressions
 
 /// Statically compiled regular expressions to avoid recompilation inside hot loops.
-enum ExtractiveQARegexes {
+enum ExtractiveQARegexes: Sendable {
     // Shared Date Patterns
-    static let year = try! NSRegularExpression(pattern: "\\d{4}", options: [])
-    static let dateFormat = try! NSRegularExpression(pattern: "\\d{1,2}/\\d{1,2}", options: [])
-    static let months = try! NSRegularExpression(pattern: "january|february|march|april|may|june|july|august|september|october|november|december", options: [])
-    static let days = try! NSRegularExpression(pattern: "monday|tuesday|wednesday|thursday|friday|saturday|sunday", options: [])
-    static let time = try! NSRegularExpression(pattern: "\\d{1,2}\\s+(am|pm)", options: [])
-    static let temporalMarkers = try! NSRegularExpression(pattern: "ago|since|until|before|after", options: [])
+    nonisolated(unsafe) static let year = try! NSRegularExpression(pattern: "\\d{4}", options: [])
+    nonisolated(unsafe) static let dateFormat = try! NSRegularExpression(pattern: "\\d{1,2}/\\d{1,2}", options: [])
+    nonisolated(unsafe) static let months = try! NSRegularExpression(pattern: "january|february|march|april|may|june|july|august|september|october|november|december", options: [])
+    nonisolated(unsafe) static let days = try! NSRegularExpression(pattern: "monday|tuesday|wednesday|thursday|friday|saturday|sunday", options: [])
+    nonisolated(unsafe) static let time = try! NSRegularExpression(pattern: "\\d{1,2}\\s+(am|pm)", options: [])
+    nonisolated(unsafe) static let temporalMarkers = try! NSRegularExpression(pattern: "ago|since|until|before|after", options: [])
 
-    static let scoreDatePatterns = [year, dateFormat, months, days, time, temporalMarkers]
+    nonisolated(unsafe) static let scoreDatePatterns = [year, dateFormat, months, days, time, temporalMarkers]
 
     // Definition Patterns
-    static let defIs = try! NSRegularExpression(pattern: "\\bis\\b.*\\b(a|an|the)\\b", options: [])
-    static let defRefers = try! NSRegularExpression(pattern: "refers to", options: [])
-    static let defDefined = try! NSRegularExpression(pattern: "defined as", options: [])
-    static let defKnown = try! NSRegularExpression(pattern: "known as", options: [])
-    static let defMeansThat = try! NSRegularExpression(pattern: "means that", options: [])
-    static let defMeaning = try! NSRegularExpression(pattern: "meaning", options: [])
+    nonisolated(unsafe) static let defIs = try! NSRegularExpression(pattern: "\\bis\\b.*\\b(a|an|the)\\b", options: [])
+    nonisolated(unsafe) static let defRefers = try! NSRegularExpression(pattern: "refers to", options: [])
+    nonisolated(unsafe) static let defDefined = try! NSRegularExpression(pattern: "defined as", options: [])
+    nonisolated(unsafe) static let defKnown = try! NSRegularExpression(pattern: "known as", options: [])
+    nonisolated(unsafe) static let defMeansThat = try! NSRegularExpression(pattern: "means that", options: [])
+    nonisolated(unsafe) static let defMeaning = try! NSRegularExpression(pattern: "meaning", options: [])
 
-    static let defPatterns = [defIs, defRefers, defDefined, defKnown, defMeansThat, defMeaning]
+    nonisolated(unsafe) static let defPatterns = [defIs, defRefers, defDefined, defKnown, defMeansThat, defMeaning]
 
     // How Many
-    static let digits = try! NSRegularExpression(pattern: "\\d+", options: [])
+    nonisolated(unsafe) static let digits = try! NSRegularExpression(pattern: "\\d+", options: [])
 
     // Specificity Bonus
-    static let measurements = try! NSRegularExpression(pattern: "\\d+\\.?\\d*\\s*(mg|kg|ml|mm|cm|m|km|lbs|oz|ft|in|mph|kph|psi|°[CF]|watts?|volts?|amps?|ohms?|hz|mhz|ghz|gb|mb|kb|tb)", options: [.caseInsensitive])
+    nonisolated(unsafe) static let measurements = try! NSRegularExpression(pattern: "\\d+\\.?\\d*\\s*(mg|kg|ml|mm|cm|m|km|lbs|oz|ft|in|mph|kph|psi|°[CF]|watts?|volts?|amps?|ohms?|hz|mhz|ghz|gb|mb|kb|tb)", options: [.caseInsensitive])
 
     // Extract Span Patterns
-    static let howManySpan = try! NSRegularExpression(pattern: "\\d+[\\d,\\.]*\\s*\\w*(?:\\s+\\w+)?", options: [])
+    nonisolated(unsafe) static let howManySpan = try! NSRegularExpression(pattern: "\\d+[\\d,\\.]*\\s*\\w*(?:\\s+\\w+)?", options: [])
 
-    static let extractDateFormats = try! NSRegularExpression(pattern: "\\b\\d{1,2}[/-]\\d{1,2}[/-]\\d{2,4}\\b", options: [.caseInsensitive])
-    static let extractMonthDayYear = try! NSRegularExpression(pattern: "\\b(?:january|february|march|april|may|june|july|august|september|october|november|december)\\s+\\d{1,2},?\\s*\\d{0,4}\\b", options: [.caseInsensitive])
-    static let extractYear = try! NSRegularExpression(pattern: "\\b\\d{4}\\b", options: [.caseInsensitive])
-    static let extractTime = try! NSRegularExpression(pattern: "\\b\\d{1,2}\\s*(?:am|pm)\\b", options: [.caseInsensitive])
+    nonisolated(unsafe) static let extractDateFormats = try! NSRegularExpression(pattern: "\\b\\d{1,2}[/-]\\d{1,2}[/-]\\d{2,4}\\b", options: [.caseInsensitive])
+    nonisolated(unsafe) static let extractMonthDayYear = try! NSRegularExpression(pattern: "\\b(?:january|february|march|april|may|june|july|august|september|october|november|december)\\s+\\d{1,2},?\\s*\\d{0,4}\\b", options: [.caseInsensitive])
+    nonisolated(unsafe) static let extractYear = try! NSRegularExpression(pattern: "\\b\\d{4}\\b", options: [.caseInsensitive])
+    nonisolated(unsafe) static let extractTime = try! NSRegularExpression(pattern: "\\b\\d{1,2}\\s*(?:am|pm)\\b", options: [.caseInsensitive])
 
-    static let extractDatePatterns = [extractDateFormats, extractMonthDayYear, extractYear, extractTime]
+    nonisolated(unsafe) static let extractDatePatterns = [extractDateFormats, extractMonthDayYear, extractYear, extractTime]
 
-    static let extractIs = try! NSRegularExpression(pattern: "\\bis\\s+", options: [])
+    nonisolated(unsafe) static let extractIs = try! NSRegularExpression(pattern: "\\bis\\s+", options: [])
 }
 
 
