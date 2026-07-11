@@ -173,7 +173,12 @@ final class HyDEService: @unchecked Sendable {
         }
 
         // UNIVERSAL FIX: Blend original query + hypothetical document for embedding.
-        // This ensures the original query terms aren't lost in the generated text.
+        // Previously used ONLY the hypothetical doc, which meant a hallucinated hypothetical
+        // (e.g., "Drug X is typically 500mg" when the answer is 250mg) would pull retrieval
+        // entirely in the wrong direction with zero safety net.
+        // Now: concatenate both so the embedding captures BOTH the query intent vocabulary
+        // AND the hypothetical answer vocabulary. MiniLM handles this well since the combined
+        // text is still well under 510 tokens.
         let blendedText = "\(query) \(groundedDoc)"
 
         return HyDEResult(
