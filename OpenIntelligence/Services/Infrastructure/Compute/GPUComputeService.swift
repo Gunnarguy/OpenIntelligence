@@ -875,7 +875,9 @@ final class GPUComputeService: @unchecked Sendable {
             }
         }
 
-        let queryNorm = sqrt(vDSP.sumOfSquares(query))
+        var querySumSq: Float = 0.0
+        vDSP_svesq(query, 1, &querySumSq, vDSP_Length(query.count))
+        let queryNorm = sqrt(querySumSq)
         guard queryNorm > 1e-9 else { return results }
 
         for i in 0..<documentCount {
@@ -977,14 +979,18 @@ final class GPUComputeService: @unchecked Sendable {
         }
 
         // Normalize by norms (dot product → cosine similarity)
-        let queryNorm = sqrt(vDSP.sumOfSquares(query))
+        var querySumSq: Float = 0.0
+        vDSP_svesq(query, 1, &querySumSq, vDSP_Length(query.count))
+        let queryNorm = sqrt(querySumSq)
         guard queryNorm > 1e-9 else { return results }
 
         for i in 0..<documentCount {
             let start = i * dimension
             let end = start + dimension
             let docSlice = Array(flatDocuments[start..<end])
-            let docNorm = sqrt(vDSP.sumOfSquares(docSlice))
+            var docSumSq: Float = 0.0
+            vDSP_svesq(docSlice, 1, &docSumSq, vDSP_Length(docSlice.count))
+            let docNorm = sqrt(docSumSq)
             if docNorm > 1e-9 {
                 results[i] /= (queryNorm * docNorm)
             } else {

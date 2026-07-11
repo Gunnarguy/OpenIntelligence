@@ -235,7 +235,9 @@ actor BNNSVectorDatabase: VectorDatabase {
             for chunk in validChunks {
                 let emb = chunk.embedding
                 emb.withUnsafeBytes { handle.write(Data($0)) }
-                norms.append(sqrt(vDSP.sumOfSquares(emb)))
+                var sumSq: Float = 0.0
+                vDSP_svesq(emb, 1, &sumSq, vDSP_Length(emb.count))
+                norms.append(sqrt(sumSq))
             }
             try handle.close()
 
@@ -330,7 +332,9 @@ actor BNNSVectorDatabase: VectorDatabase {
 
     @inline(__always)
     private func computeNormAccelerated(_ vector: [Float]) -> Float {
-        sqrt(vDSP.sumOfSquares(vector))
+        var sumSq: Float = 0.0
+        vDSP_svesq(vector, 1, &sumSq, vDSP_Length(vector.count))
+        return sqrt(sumSq)
     }
 
     /// Cosine similarity reading directly from mmap'd data — zero heap allocation

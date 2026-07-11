@@ -372,8 +372,13 @@ class EmbeddingService {
         var dotProduct: Float = 0
         vDSP_dotpr(a, 1, b, 1, &dotProduct, vDSP_Length(a.count))
 
-        let magnitudeA = sqrt(vDSP.sumOfSquares(a))
-        let magnitudeB = sqrt(vDSP.sumOfSquares(b))
+        var sumSqA: Float = 0.0
+        vDSP_svesq(a, 1, &sumSqA, vDSP_Length(a.count))
+        let magnitudeA = sqrt(sumSqA)
+
+        var sumSqB: Float = 0.0
+        vDSP_svesq(b, 1, &sumSqB, vDSP_Length(b.count))
+        let magnitudeB = sqrt(sumSqB)
         let magnitude = magnitudeA * magnitudeB
 
         guard magnitude > 1e-9 else { return 0.0 }
