@@ -57,7 +57,7 @@ struct FoundationModelSessionFactory {
             if #available(iOS 27.0, macOS 27.0, *) {
                 // Initialize the native AFM 3 Core Advanced (20B) on-device model.
                 // This runs locally on Apple Silicon without requiring Private Cloud Compute entitlements.
-                let model = SystemLanguageModel.default
+                let model = SystemLanguageModel.advanced
                 guard case .available = model.availability else { throw LLMError.modelUnavailable }
                 if let savedTranscript = pendingTranscript, !disableTools {
                     finalSession = LanguageModelSession(model: model, tools: tools, transcript: savedTranscript)
