@@ -12,7 +12,7 @@ import SwiftUI
 import Translation
 
 /// Data container for unified metrics bar (shown during streaming AND after completion)
-private struct ConsolidatedMetrics {
+struct ConsolidatedMetrics {
     let tokens: Int
     let tokensPerSecond: Double
     let characterCount: Int
