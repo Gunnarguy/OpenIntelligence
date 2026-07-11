@@ -3075,7 +3075,10 @@ actor SQLiteFullTextService {
 
         // definition is expected to be a hardcoded developer string
 
-        let pragmaSQL = "PRAGMA table_info(\(safeTable))"
+        // table_info PRAGMA expects the unquoted string or single-quoted string, not double-quoted identifier.
+        // For PRAGMA parameters, using a single-quoted literal is the safest way to pass the parameter.
+        let pragmaSafeTable = "'" + table.replacingOccurrences(of: "'", with: "''") + "'"
+        let pragmaSQL = "PRAGMA table_info(\(pragmaSafeTable))"
         var statement: OpaquePointer?
         guard sqlite3_prepare_v2(db, pragmaSQL, -1, &statement, nil) == SQLITE_OK else { return }
         defer { sqlite3_finalize(statement) }
