@@ -429,7 +429,7 @@ struct CompressionResult: Sendable {
             return fallback.count < originalContent.count ? fallback + "..." : fallback
         }
         return compressedContent
-    }  }
+    }
 
     /// Returns true if compression marked this chunk as irrelevant
     nonisolated var wasMarkedIrrelevant: Bool {
