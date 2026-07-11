@@ -12,8 +12,8 @@ import UniformTypeIdentifiers
 struct DocumentPicker: UIViewControllerRepresentable {
     let onDocumentsPicked: ([URL]) -> Void
 
-    func makeUIViewController(context: Context) -> UIDocumentPickerViewController {
-        let picker = UIDocumentPickerViewController(forOpeningContentTypes: [
+
+    static let supportedContentTypes: [UTType] = [
             // Documents
             .pdf,
             .plainText,
@@ -64,7 +64,10 @@ struct DocumentPicker: UIViewControllerRepresentable {
             .movie,
             .mpeg4Movie,
             .quickTimeMovie,
-        ], asCopy: true)
+    ]
+
+    func makeUIViewController(context: Context) -> UIDocumentPickerViewController {
+        let picker = UIDocumentPickerViewController(forOpeningContentTypes: Self.supportedContentTypes, asCopy: true)
         picker.delegate = context.coordinator
         picker.allowsMultipleSelection = true  // Enable multiple file selection
         return picker
