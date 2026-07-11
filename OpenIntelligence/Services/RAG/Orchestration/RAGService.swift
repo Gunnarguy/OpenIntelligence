@@ -8851,40 +8851,25 @@ class RAGService: ObservableObject {
                     // different semantic neighborhood and pull in irrelevant chunks.
                     // Appended queries like "oil type specification SAE" stay on-topic.
                     let allowSupplementaryVectorSearch = !answerIntentIsExtractive && !isTrivial
-                    if allowSupplementaryVectorSearch && expandedQueries.count > 1 {
-                        let existingChunkIds = Set(retrievedChunks.map { $0.chunk.id })
-                        let effectiveQueryLower = effectiveQuery.lowercased()
-                        // Pick up to 2 expansions that:
-                        // 1. Differ from the primary embedding text
-                        // 2. Are sufficiently long
-                        // 3. CONTAIN the original query (appended terms, not replacements)
-                        //    OR are corpus phrase expansions (short focused phrases)
-                        let supplementaryQueries = expandedQueries
-                            .filter { expansion in
-                                expansion != textToEmbed &&
-                                expansion != effectiveQuery &&
-                                expansion.count >= 10 &&
-                                (expansion.lowercased().hasPrefix(effectiveQueryLower) ||
-                                 expansion.count < effectiveQuery.count)  // Corpus phrases are shorter
-                            }
-                            .prefix(2)
-
-                        if !supplementaryQueries.isEmpty {
-                            Log.debug("[MultiVector] Running \(supplementaryQueries.count) supplementary vector searches", category: .retrieval)
-                            for suppQuery in supplementaryQueries {
-                                do {
-                                    let translatedSupplementaryQuery = await translatedQueryForEmbedding(suppQuery, container: selectedContainer)
-                                    let suppEmbedding = try await queryEmbeddingService.generateEmbedding(for: translatedSupplementaryQuery.text)
-                                    let suppResults = try await vdb.search(embedding: suppEmbedding, topK: effectiveTopK)
-                                    let newChunks = suppResults.filter { !existingChunkIds.contains($0.chunk.id) }
-                                    if !newChunks.isEmpty {
-                                        auditUsedSupplementaryVectorSearch = true
-                                        retrievedChunks.append(contentsOf: newChunks)
-                                        Log.debug("[MultiVector] +\(newChunks.count) new chunks from expansion: \"\(suppQuery.prefix(50))...\"", category: .retrieval)
-                                    }
-                                } catch {
-                                    Log.debug("[MultiVector] Supplementary search failed: \(error.localizedDescription)", category: .retrieval)
+                    if allowSupplementaryVectorSearch {
+                        // In previous versions, if the primary expansion failed to match anything,
+                        // it's invisible forever. Fix: embed top-2 unique expansion variations, run
+                        // vector search on both, and merge the results.
+                        let expansions = try await generateExpansions(query: query, count: 2)
+                        for expansion in expansions {
+                            let existingChunkIds = Set(retrievedChunks.map { $0.chunk.id })
+                            do {
+                                let translatedSupplementaryQuery = await translatedQueryForEmbedding(expansion, container: selectedContainer)
+                                let suppEmbedding = try await queryEmbeddingService.generateEmbedding(for: translatedSupplementaryQuery.text)
+                                let suppResults = try await vdb.search(embedding: suppEmbedding, topK: effectiveTopK)
+                                let newChunks = suppResults.filter { !existingChunkIds.contains($0.chunk.id) }
+                                if !newChunks.isEmpty {
+                                    auditUsedSupplementaryVectorSearch = true
+                                    retrievedChunks.append(contentsOf: newChunks)
+                                    Log.debug("[MultiVector] +\(newChunks.count) new chunks from expansion: \"\(expansion.prefix(50))...\"", category: .retrieval)
                                 }
+                            } catch {
+                                Log.debug("[MultiVector] Supplementary search failed: \(error.localizedDescription)", category: .retrieval)
                             }
                         }
                     } else if answerIntentIsExtractive && expandedQueries.count > 1 {
@@ -13224,6 +13209,20 @@ class RAGService: ObservableObject {
 
     /// Generate a direct LLM response without document context.
     /// Used as a graceful fallback when retrieval returns no results or documents are unavailable.
+    private func generateExpansions(query: String, count: Int) async throws -> [String] {
+        let queryEnhancer = QueryEnhancementService()
+        let expandedQueries = queryEnhancer.expandQuery(query)
+        let effectiveQueryLower = query.lowercased()
+
+        let validExpansions = expandedQueries.filter { expansion in
+            expansion != query &&
+            expansion.count >= 10 &&
+            (expansion.lowercased().hasPrefix(effectiveQueryLower) || expansion.count < query.count)
+        }
+
+        return Array(validExpansions.prefix(count))
+    }
+
     private func generateDirectChatResponse(
         question: String,
         ragQuery: RAGQuery,
