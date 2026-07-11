@@ -54,11 +54,14 @@ struct FoundationModelSessionFactory {
             }
             
         case .onDeviceAdvanced:
-            #if compiler(>=6.4)
             if #available(iOS 27.0, macOS 27.0, *) {
                 // Initialize the native AFM 3 Core Advanced (20B) on-device model.
                 // This runs locally on Apple Silicon without requiring Private Cloud Compute entitlements.
+                #if compiler(>=6.4)
                 let model = SystemLanguageModel.advanced
+                #else
+                let model = SystemLanguageModel.default
+                #endif
                 guard case .available = model.availability else { throw LLMError.modelUnavailable }
                 if let savedTranscript = pendingTranscript, !disableTools {
                     finalSession = LanguageModelSession(model: model, tools: tools, transcript: savedTranscript)
@@ -80,19 +83,6 @@ struct FoundationModelSessionFactory {
                     finalSession = LanguageModelSession(model: model, tools: tools, instructions: Instructions(instructionsText))
                 }
             }
-            #else
-            // Graceful fallback to the standard model for iOS 26 users
-            let model = SystemLanguageModel.default
-            guard case .available = model.availability else { throw LLMError.modelUnavailable }
-            selectedRoute = .onDevice // Update selected route for telemetry to reflect fallback
-            if let savedTranscript = pendingTranscript, !disableTools {
-                finalSession = LanguageModelSession(model: model, tools: tools, transcript: savedTranscript)
-                finalSession.prewarm()
-                transcriptConsumed = true
-            } else {
-                finalSession = LanguageModelSession(model: model, tools: tools, instructions: Instructions(instructionsText))
-            }
-            #endif
             
         case .privateCloudCompute(_):
             #if compiler(>=6.4)
