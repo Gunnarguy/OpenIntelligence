@@ -5,6 +5,7 @@
 
 ## 4.6 - 2026-07-14
 ### Fixed
+- **[Orchestration]** Re-enabled the macOS App Sandbox (`com.apple.security.app-sandbox = true`) and added user-selected file read access, fixing Mac App Store delivery rejection ITMS-90296. iOS builds are unaffected; previously shipped Mac builds were already sandboxed, so user data locations are unchanged.
 - **[Orchestration]** Fixed the Silicon X-Ray overlay's physical-position mapping compressing when the keyboard appears: component borders (Taptic Engine, SoC) drew at mid-screen while typing because the overlay's geometry excluded the keyboard region. The overlay now always maps against the full screen.
 - **[Orchestration]** Restored the owner-set Silicon HUD legend position: default just right of the thread-sidebar toggle (x: 110), shifting right (x: 345) when the conversation-history sidebar is open. A July 8 refactor had incorrectly reverted the default to the screen-left position.
 - **[Indexing]** Hardened FTS5 schema migrations: `ensureColumnExists` now takes a closed, compiler-owned `ColumnMigration` enum instead of raw table/column/definition strings, with identifier validation and proper identifier/PRAGMA quoting as defense in depth. Consolidates audited PRs #27 and #55; neither branch was merged directly.
