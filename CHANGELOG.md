@@ -5,6 +5,7 @@
 
 ## 4.6 - 2026-07-14
 ### Fixed
+- **[Orchestration]** Restored the owner-set Silicon HUD legend position: default just right of the thread-sidebar toggle (x: 110), shifting right (x: 345) when the conversation-history sidebar is open. A July 8 refactor had incorrectly reverted the default to the screen-left position.
 - **[Indexing]** Hardened FTS5 schema migrations: `ensureColumnExists` now takes a closed, compiler-owned `ColumnMigration` enum instead of raw table/column/definition strings, with identifier validation and proper identifier/PRAGMA quoting as defense in depth. Consolidates audited PRs #27 and #55; neither branch was merged directly.
 - **[Orchestration]** Model-route telemetry now reports the actually executed route: the "Advanced" on-device preference runs the standard on-device model (the installed SDK exposes no 20B/advanced model — compiler-probe verified), and telemetry no longer claims a model tier that never ran.
 - **[Orchestration]** `EntitlementChecker.hasEntitlement` now fails closed when no embedded provisioning profile can be found and additionally checks the macOS profile name (`embedded.provisionprofile`). Distribution builds can no longer instantiate native Private Cloud Compute without a provable entitlement; the existing safe fallback path engages instead.

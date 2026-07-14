@@ -464,7 +464,10 @@ struct HardwareXRayOverlay: View {
                         metricsSummary: settings.hudShowMetrics ? telemetry.compactMetricsSummary : "",
                         activities: settings.hudShowMetrics ? telemetry.componentActivities : []
                     )
-                    .position(x: showSidebar ? 345 : 45, y: geometry.safeAreaInsets.top + 85)
+                    // Owner-set position (91d4b76): legend sits just right of the
+                    // thread-sidebar toggle button; shifts right when the
+                    // conversation-history sidebar is open. Do not "restore" x to 45.
+                    .position(x: showSidebar ? 345 : 110, y: geometry.safeAreaInsets.top + 85)
                 }
 
                 // Device info (for debugging only)
