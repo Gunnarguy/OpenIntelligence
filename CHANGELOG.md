@@ -1,4 +1,8 @@
 ## [Unreleased]
+### Fixed
+- **[Indexing]** Hardened FTS5 schema migrations: `ensureColumnExists` now takes a closed, compiler-owned `ColumnMigration` enum instead of raw table/column/definition strings, with identifier validation and proper identifier/PRAGMA quoting as defense in depth. Consolidates audited PRs #27 and #55; neither branch was merged directly.
+- **[Orchestration]** Model-route telemetry now reports the actually executed route: the "Advanced" on-device preference runs the standard on-device model (the installed SDK exposes no 20B/advanced model — compiler-probe verified), and telemetry no longer claims a model tier that never ran.
+- **[Orchestration]** `EntitlementChecker.hasEntitlement` now fails closed when no embedded provisioning profile can be found and additionally checks the macOS profile name (`embedded.provisionprofile`). Distribution builds can no longer instantiate native Private Cloud Compute without a provable entitlement; the existing safe fallback path engages instead.
 ### Changed
 - **[Indexing]** Unified fallback-embedding magnitude computation in `NLEmbeddingProvider` to a single-pass reduce (bit-identical result, no intermediate array), matching the accumulation style of `validateEmbedding`. Reimplements audited PR #28.
 - **[Indexing]** Replaced the six-array min/max extraction in `Embedding3DView` normalization with a single-pass `normalizationBounds` helper preserving exact `min()`/`max()` NaN and seeding semantics. Reimplements audited PR #31 with the audit-mandated testable helper.

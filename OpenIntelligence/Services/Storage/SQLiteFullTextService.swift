@@ -309,12 +309,9 @@ actor SQLiteFullTextService {
         _ = execute(sql: "CREATE INDEX IF NOT EXISTS idx_chunk_table_rows_document ON chunk_table_rows(document_id)")
         _ = execute(sql: "CREATE INDEX IF NOT EXISTS idx_chunk_table_rows_chunk ON chunk_table_rows(chunk_id)")
 
-        ensureColumnExists(table: "chunk_structured", column: "extraction_quality", definition: "REAL NOT NULL DEFAULT 0")
-        ensureColumnExists(table: "chunk_structured", column: "extraction_source", definition: "TEXT NOT NULL DEFAULT ''")
-        ensureColumnExists(table: "chunk_table_rows", column: "row_quality", definition: "REAL NOT NULL DEFAULT 0")
-        ensureColumnExists(table: "chunk_table_rows", column: "is_low_quality", definition: "INTEGER NOT NULL DEFAULT 0")
-        ensureColumnExists(table: "chunk_table_rows", column: "extraction_quality", definition: "REAL NOT NULL DEFAULT 0")
-        ensureColumnExists(table: "chunk_table_rows", column: "extraction_source", definition: "TEXT NOT NULL DEFAULT ''")
+        for migration in ColumnMigration.allCases {
+            ensureColumnExists(migration)
+        }
 
         // MARK: Page-Level FTS5 Table
         // Stores each PDF page as a separate row for page-level search and context isolation.
@@ -3066,21 +3063,86 @@ actor SQLiteFullTextService {
         return true
     }
 
-    private func ensureColumnExists(table: String, column: String, definition: String) {
+    /// Closed catalog of additive column migrations. Every table name, column
+    /// name, and column definition is a compiler-owned constant on an enum case:
+    /// no call site can pass runtime strings into schema DDL, which is what made
+    /// the previous `(table:column:definition:)` signature an injection surface
+    /// (audited PRs #27/#55, consolidated per DEC-19). Add new columns by adding
+    /// a case — never by widening this back to string parameters.
+    private enum ColumnMigration: CaseIterable {
+        case chunkStructuredExtractionQuality
+        case chunkStructuredExtractionSource
+        case chunkTableRowsRowQuality
+        case chunkTableRowsIsLowQuality
+        case chunkTableRowsExtractionQuality
+        case chunkTableRowsExtractionSource
+
+        var table: String {
+            switch self {
+            case .chunkStructuredExtractionQuality, .chunkStructuredExtractionSource:
+                return "chunk_structured"
+            case .chunkTableRowsRowQuality, .chunkTableRowsIsLowQuality,
+                 .chunkTableRowsExtractionQuality, .chunkTableRowsExtractionSource:
+                return "chunk_table_rows"
+            }
+        }
+
+        var column: String {
+            switch self {
+            case .chunkStructuredExtractionQuality, .chunkTableRowsExtractionQuality:
+                return "extraction_quality"
+            case .chunkStructuredExtractionSource, .chunkTableRowsExtractionSource:
+                return "extraction_source"
+            case .chunkTableRowsRowQuality:
+                return "row_quality"
+            case .chunkTableRowsIsLowQuality:
+                return "is_low_quality"
+            }
+        }
+
+        var definition: String {
+            switch self {
+            case .chunkStructuredExtractionQuality, .chunkTableRowsRowQuality,
+                 .chunkTableRowsExtractionQuality:
+                return "REAL NOT NULL DEFAULT 0"
+            case .chunkTableRowsIsLowQuality:
+                return "INTEGER NOT NULL DEFAULT 0"
+            case .chunkStructuredExtractionSource, .chunkTableRowsExtractionSource:
+                return "TEXT NOT NULL DEFAULT ''"
+            }
+        }
+    }
+
+    private func ensureColumnExists(_ migration: ColumnMigration) {
         guard let db = database else { return }
 
-        let pragmaSQL = "PRAGMA table_info(\(table))"
+        // Defense in depth on top of the closed enum: identifier-shape
+        // validation (#27) and identifier/literal quoting (#55). The enum makes
+        // these unreachable-in-practice, but they keep any future case typo
+        // from producing malformed DDL.
+        let identifier = "^[A-Za-z_][A-Za-z0-9_]*$"
+        guard migration.table.range(of: identifier, options: .regularExpression) != nil,
+              migration.column.range(of: identifier, options: .regularExpression) != nil else {
+            Log.error("[SQLiteFTS5] Rejected malformed migration identifier for \(migration.table).\(migration.column)", category: .vectorDB)
+            return
+        }
+
+        // PRAGMA takes a single-quoted literal; DDL identifiers are double-quoted.
+        let pragmaTable = "'" + migration.table.replacingOccurrences(of: "'", with: "''") + "'"
+        let pragmaSQL = "PRAGMA table_info(\(pragmaTable))"
         var statement: OpaquePointer?
         guard sqlite3_prepare_v2(db, pragmaSQL, -1, &statement, nil) == SQLITE_OK else { return }
         defer { sqlite3_finalize(statement) }
 
         while sqlite3_step(statement) == SQLITE_ROW {
-            if let namePtr = sqlite3_column_text(statement, 1), String(cString: namePtr) == column {
+            if let namePtr = sqlite3_column_text(statement, 1), String(cString: namePtr) == migration.column {
                 return
             }
         }
 
-        _ = execute(sql: "ALTER TABLE \(table) ADD COLUMN \(column) \(definition)")
+        let quotedTable = "\"" + migration.table.replacingOccurrences(of: "\"", with: "\"\"") + "\""
+        let quotedColumn = "\"" + migration.column.replacingOccurrences(of: "\"", with: "\"\"") + "\""
+        _ = execute(sql: "ALTER TABLE \(quotedTable) ADD COLUMN \(quotedColumn) \(migration.definition)")
     }
 
     private func structuredTextQualityScore(_ text: String) -> Double {
