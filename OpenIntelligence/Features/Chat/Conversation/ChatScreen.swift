@@ -490,7 +490,12 @@ struct ChatScreen: View {
         )
     }
 
-    var body: some View {
+    // `body` is split into three layers (chatLifecycleLayer → chatPresentationLayer
+    // → body) because the original single ~430-line modifier chain exceeded the
+    // Swift type-checker budget on slower CI hardware ("unable to type-check this
+    // expression in reasonable time"). Pure mechanical split: modifier order and
+    // the resulting view tree are unchanged.
+    private var chatLifecycleLayer: some View {
         ZStack(alignment: .top) {
             mainContentArea
 
@@ -655,6 +660,10 @@ struct ChatScreen: View {
         .onReceive(ragService.$pendingCloudConsent) { record in
             activeCloudConsent = record
         }
+    }
+
+    private var chatPresentationLayer: some View {
+        chatLifecycleLayer
         .toolbar {
             #if os(iOS)
                 ToolbarItem(placement: .topBarLeading) {
@@ -823,102 +832,106 @@ struct ChatScreen: View {
         } message: {
             Text("I'm sorry that answer wasn't helpful. Please send me your feedback so I can improve OpenIntelligence!")
         }
-.onAppear {
-    let ragService = self.ragService
-    continuedQueryCoordinator.expirationHandler = { [weak ragService] in
-        ragService?.cancelActiveGeneration(resetSession: true)
-        Task { @MainActor in
-            self.currentQueryTask?.cancel()
-            self.currentQueryTask = nil
-            self.currentQuerySessionId = nil
-            self.isProcessing = false
-            self.stage = .idle
-            self.resetStreamingState()
-            self.generationStart = nil
+    }
+
+    var body: some View {
+        chatPresentationLayer
+        .onAppear {
+            let ragService = self.ragService
+            continuedQueryCoordinator.expirationHandler = { [weak ragService] in
+                ragService?.cancelActiveGeneration(resetSession: true)
+                Task { @MainActor in
+                    self.currentQueryTask?.cancel()
+                    self.currentQueryTask = nil
+                    self.currentQuerySessionId = nil
+                    self.isProcessing = false
+                    self.stage = .idle
+                    self.resetStreamingState()
+                    self.generationStart = nil
+                }
+            }
+            continuedQueryCoordinator.handleScenePhaseChange(scenePhase, isProcessing: isProcessing)
+            // Seed screenshot demo FIRST before loading persisted history
+            seedScreenshotDemoIfNeeded()
+            entitlementStore.refreshTransientState()
+            isAppeared = true
+            if needsSuggestedQuestionsRefresh || dynamicSuggestedQuestions.isEmpty {
+                needsSuggestedQuestionsRefresh = false
+                refreshDynamicQuestions()
+            }
         }
-    }
-    continuedQueryCoordinator.handleScenePhaseChange(scenePhase, isProcessing: isProcessing)
-    // Seed screenshot demo FIRST before loading persisted history
-    seedScreenshotDemoIfNeeded()
-    entitlementStore.refreshTransientState()
-    isAppeared = true
-    if needsSuggestedQuestionsRefresh || dynamicSuggestedQuestions.isEmpty {
-        needsSuggestedQuestionsRefresh = false
-        refreshDynamicQuestions()
-    }
-}
-.onDisappear {
-    isAppeared = false
-}
-.onReceive(NotificationCenter.default.publisher(for: Notification.Name("ActiveModelRouteResolved"))) { notification in
-    guard let pathString = notification.userInfo?["executionPath"] as? String else { return }
-    switch pathString {
-    case "onDevice":
-        self.execution = .onDevice
-    case "privateCloudCompute":
-        self.execution = .privateCloudCompute
-    default:
-        break
-    }
-}
-// MARK: - NSUserActivity / Handoff
-.userActivity("com.openintelligence.chat") { activity in
-    activity.title = "Chat with Documents"
-    activity.isEligibleForSearch = true
-    activity.isEligibleForHandoff = true
-    #if os(iOS)
-    activity.isEligibleForPrediction = true
-    #endif
-    if let containerId = ragService.containerService.activeContainerId as UUID? {
-        activity.userInfo = ["containerId": containerId]
-    }
-    }
-    // MARK: - Translation Overlay
-    #if !targetEnvironment(macCatalyst)
-    .translationPresentation(isPresented: $showTranslation, text: translationText)
-    #endif
-    // MARK: - WritingTools Result Sheet
-    .sheet(isPresented: $showWritingToolsResult) {
-    WritingToolsResultSheet(
-        title: writingToolsTitle,
-        result: writingToolsResult,
-        onCopy: {
-            #if canImport(UIKit)
-            UIPasteboard.general.string = writingToolsResult
+        .onDisappear {
+            isAppeared = false
+        }
+        .onReceive(NotificationCenter.default.publisher(for: Notification.Name("ActiveModelRouteResolved"))) { notification in
+            guard let pathString = notification.userInfo?["executionPath"] as? String else { return }
+            switch pathString {
+            case "onDevice":
+                self.execution = .onDevice
+            case "privateCloudCompute":
+                self.execution = .privateCloudCompute
+            default:
+                break
+            }
+        }
+        // MARK: - NSUserActivity / Handoff
+        .userActivity("com.openintelligence.chat") { activity in
+            activity.title = "Chat with Documents"
+            activity.isEligibleForSearch = true
+            activity.isEligibleForHandoff = true
+            #if os(iOS)
+            activity.isEligibleForPrediction = true
             #endif
-            DSHaptics.success()
-            toastManager.show(
-                ToastItem(title: "Copied to clipboard", icon: "doc.on.doc", tint: .green),
-                duration: 1.5
-            )
-        },
-        onInsertAsReply: {
-            showWritingToolsResult = false
-            let writingMessage = ChatMessage(
-                role: .assistant,
-                content: "**\(writingToolsTitle):**\n\n\(writingToolsResult)"
-            )
-            messages.append(writingMessage)
-        },
-        onFeedback: { isPositive in
-            // Log quality signal to pipeline observability.
-            // When LanguageModelSession.logFeedbackAttachment is wired through the
-            // service layer, re-route here for official Apple FM telemetry.
-            let signal = isPositive ? "positive" : "negative"
-            Log.info("[AIHub] User feedback '\(signal)' for \(writingToolsTitle)", category: .pipeline)
-            DSHaptics.selection()
-            toastManager.show(
-                ToastItem(
-                    title: isPositive ? "Thanks for the feedback!" : "Got it — we'll improve",
-                    icon: isPositive ? "hand.thumbsup.fill" : "hand.thumbsdown.fill",
-                    tint: isPositive ? .green : .orange
-                ),
-                duration: 2.0
-            )
+            if let containerId = ragService.containerService.activeContainerId as UUID? {
+                activity.userInfo = ["containerId": containerId]
+            }
         }
-    )
-    .presentationDetents([.medium, .large])
-}
+        // MARK: - Translation Overlay
+        #if !targetEnvironment(macCatalyst)
+            .translationPresentation(isPresented: $showTranslation, text: translationText)
+        #endif
+        // MARK: - WritingTools Result Sheet
+        .sheet(isPresented: $showWritingToolsResult) {
+            WritingToolsResultSheet(
+                title: writingToolsTitle,
+                result: writingToolsResult,
+                onCopy: {
+                    #if canImport(UIKit)
+                    UIPasteboard.general.string = writingToolsResult
+                    #endif
+                    DSHaptics.success()
+                    toastManager.show(
+                        ToastItem(title: "Copied to clipboard", icon: "doc.on.doc", tint: .green),
+                        duration: 1.5
+                    )
+                },
+                onInsertAsReply: {
+                    showWritingToolsResult = false
+                    let writingMessage = ChatMessage(
+                        role: .assistant,
+                        content: "**\(writingToolsTitle):**\n\n\(writingToolsResult)"
+                    )
+                    messages.append(writingMessage)
+                },
+                onFeedback: { isPositive in
+                    // Log quality signal to pipeline observability.
+                    // When LanguageModelSession.logFeedbackAttachment is wired through the
+                    // service layer, re-route here for official Apple FM telemetry.
+                    let signal = isPositive ? "positive" : "negative"
+                    Log.info("[AIHub] User feedback '\(signal)' for \(writingToolsTitle)", category: .pipeline)
+                    DSHaptics.selection()
+                    toastManager.show(
+                        ToastItem(
+                            title: isPositive ? "Thanks for the feedback!" : "Got it — we'll improve",
+                            icon: isPositive ? "hand.thumbsup.fill" : "hand.thumbsdown.fill",
+                            tint: isPositive ? .green : .orange
+                        ),
+                        duration: 2.0
+                    )
+                }
+            )
+            .presentationDetents([.medium, .large])
+        }
     }
 
     private var streamingTokensApprox: Int {

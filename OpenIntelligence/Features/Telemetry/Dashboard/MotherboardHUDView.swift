@@ -295,6 +295,15 @@ struct HardwareXRayOverlay: View {
     var showDeviceInfo: Bool = false
     var showSidebar: Bool = false
 
+    /// Explicit initializer. The synthesized memberwise init inherits `private`
+    /// from the private stored properties above, so cross-file callers (e.g.
+    /// ChatScreen's `showSidebar:` call) cannot see it under older Swift
+    /// compilers — CI failed on exactly that. Keep this internal and defaulted.
+    init(showDeviceInfo: Bool = false, showSidebar: Bool = false) {
+        self.showDeviceInfo = showDeviceInfo
+        self.showSidebar = showSidebar
+    }
+
     /// Combined intensity from all active components
     private var totalIntensity: Double {
         max(telemetry.cpuIntensity, telemetry.gpuIntensity, telemetry.aneIntensity)
