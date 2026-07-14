@@ -1,10 +1,10 @@
-> **Documentation status:** Verified for OpenIntelligence v4.5.1 on July 2, 2026.
+> **Documentation status:** Verified for OpenIntelligence v4.6 on July 14, 2026.
 
 # What's New
 
 Public release highlights for OpenIntelligence.
 
-## Unreleased (4.6 preview)
+## 4.6
 
 ### Reliability & Accuracy
 - **Truthful model-route reporting:** The "Advanced" on-device model preference now correctly reports the standard on-device model in telemetry and diagnostics. (No 20B on-device model exists in the current OS SDK; earlier releases could display a model tier that never actually ran.)

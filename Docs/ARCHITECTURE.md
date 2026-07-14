@@ -99,7 +99,7 @@ graph TD
 * **Model Routing Policy & Quality Modes**:
   The orchestrator escalates dynamically based on the user's selected Quality Mode:
   - **Standard**: Executes the 23-step query loop sequentially for maximum speed. Uses the **3B Core** (`SystemLanguageModel.default`) with a 4,096-token context limit.
-  - **Deep Think**: Actively loops the retrieval agent through 4-10 concurrent reasoning sessions until it hits 98% confidence (scales dynamically based on device thermal state). Leverages the **20B Advanced** model using unified memory and NAND flash paging.
+  - **Deep Think**: Actively loops the retrieval agent through 4-10 concurrent reasoning sessions until it hits 98% confidence (scales dynamically based on device thermal state). Runs on the standard on-device model; the "Advanced" route label is a preference, not a distinct local model (v4.6 correction — no 20B on-device API exists in the installed SDK).
   - **Maximum**: Removes the 8-session ceiling, granting the orchestrator an unlimited budget to recursively hunt down answers up to 50 loops. Escalates to **Private Cloud Compute (PT-MoE)** over encrypted channels to Apple's 32K context secure server enclaves.
 
 ### Phase 2: Evidence Retrieval & Packing

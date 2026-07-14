@@ -1,4 +1,4 @@
-> **Documentation status:** Verified for OpenIntelligence v4.5.1 on July 2, 2026.
+> **Documentation status:** Verified for OpenIntelligence v4.6 on July 14, 2026.
 
 
 # OpenIntelligence User-Facing Changelog
@@ -6,6 +6,14 @@
 This document provides a chronological history of user-facing changes, highlighting how OpenIntelligence continuously improves transparency, speed, and reliability.
 
 ---
+
+## v4.6 - July 14, 2026
+
+*   **Truthful Model Reporting:** The "Advanced" on-device model preference now reports the actually executed model route in telemetry and diagnostics. (Correction to earlier releases: the current OS SDK exposes no separate 20B on-device model API; the Advanced preference executes the standard on-device model.)
+*   **Safer Private Cloud Compute Gating:** Builds without a provable PCC entitlement now deterministically use the on-device fallback — the entitlement check fails closed instead of open, and macOS builds are now checked correctly.
+*   **Hardened Knowledge-Index Migrations:** Database schema migrations are driven by a fixed, code-owned migration catalog, eliminating a class of malformed-schema risk.
+*   **Restored Test Coverage:** The unit-test target removed in an earlier release is restored, with regression suites pinning embedding, parsing, citation, and launch-argument behavior.
+*   **PR Backlog Consolidation:** All 43 open automated pull requests were audited end-to-end; the valuable changes were reimplemented cleanly in this release and the remainder documented and closed.
 
 ## v4.5.1 - July 2, 2026
 
