@@ -480,6 +480,11 @@ struct HardwareXRayOverlay: View {
             }
             .ignoresSafeArea()
         }
+        // The GeometryReader itself must ignore the keyboard, not just its
+        // content: geometry.size feeds rectToScreen's physical-position
+        // mapping, so a keyboard-compressed reader pushes every component
+        // border (Taptic Engine, SoC) up toward mid-screen while typing.
+        .ignoresSafeArea(.keyboard)
     }
     }
 
