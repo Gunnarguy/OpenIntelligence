@@ -4,6 +4,13 @@
 
 Public release highlights for OpenIntelligence.
 
+## Unreleased (4.6 preview)
+
+### Reliability & Accuracy
+- **Truthful model-route reporting:** The "Advanced" on-device model preference now correctly reports the standard on-device model in telemetry and diagnostics. (No 20B on-device model exists in the current OS SDK; earlier releases could display a model tier that never actually ran.)
+- **Safer Private Cloud Compute gating:** Builds without a provable PCC entitlement now deterministically use the on-device fallback instead of attempting an unentitled cloud-model instantiation.
+- **Hardened knowledge-index migrations:** Database schema migrations are now driven by a fixed, code-owned migration catalog, eliminating a class of malformed-schema risk.
+
 ## 4.5.1
 
 Version 4.5.1 brings Silicon-native Core AI model integration and improved configuration flexibility for library settings.
