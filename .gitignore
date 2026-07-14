@@ -228,3 +228,13 @@ AFM3/
 Benchmarks/Fixtures/private_*
 Benchmarks/run/
 Benchmarks/temp_sportage_manifest.json
+
+# Local simulator and macOS test directories
+.simulator-test/
+.simulator-test.nosync/
+.simulator-smoke/
+.simulator-smoke.nosync/
+.simulator-release/
+.simulator-release.nosync/
+.macos-debug/
+.macos-debug.nosync/
