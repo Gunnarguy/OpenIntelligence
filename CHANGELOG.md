@@ -1,3 +1,17 @@
+## 4.6 - 2026-07-14
+### Fixed
+- **[Indexing]** Hardened FTS5 schema migrations: `ensureColumnExists` now takes a closed, compiler-owned `ColumnMigration` enum instead of raw table/column/definition strings, with identifier validation and proper identifier/PRAGMA quoting as defense in depth. Consolidates audited PRs #27 and #55; neither branch was merged directly.
+- **[Orchestration]** Model-route telemetry now reports the actually executed route: the "Advanced" on-device preference runs the standard on-device model (the installed SDK exposes no 20B/advanced model — compiler-probe verified), and telemetry no longer claims a model tier that never ran.
+- **[Orchestration]** `EntitlementChecker.hasEntitlement` now fails closed when no embedded provisioning profile can be found and additionally checks the macOS profile name (`embedded.provisionprofile`). Distribution builds can no longer instantiate native Private Cloud Compute without a provable entitlement; the existing safe fallback path engages instead.
+### Changed
+- **[Indexing]** Unified fallback-embedding magnitude computation in `NLEmbeddingProvider` to a single-pass reduce (bit-identical result, no intermediate array), matching the accumulation style of `validateEmbedding`. Reimplements audited PR #28.
+- **[Indexing]** Replaced the six-array min/max extraction in `Embedding3DView` normalization with a single-pass `normalizationBounds` helper preserving exact `min()`/`max()` NaN and seeding semantics. Reimplements audited PR #31 with the audit-mandated testable helper.
+- **[Indexing]** Variance computation in `AdaptiveEmbeddingOptimizer` now folds squared deviations in a single pass (bit-identical to the previous map+reduce). Reimplements audited PR #35.
+- **[Orchestration]** Rewrote `MarkdownRenderer.isHorizontalRule` as a single-pass scan that preserves the renderer's exact current semantics (mixed-marker rejection, whitespace trimming behavior), with a DEBUG-only test seam. Supersedes audited PR #34, whose literal patch would have changed tab handling.
+- **[Orchestration]** Extracted `StructuredAnswerParsing` (pure, internal) backing `StructuredAnswer`'s private `citationIndex`/`minimumClaimLength` helpers so tests exercise parsing rules without widening `StructuredAnswer` visibility. Reimplements audited PRs #29/#38 without their visibility widening; PR #38's original assertions were incorrect and are documented in the audit record.
+### Added
+- **[Orchestration]** Regression test suites pinning current behavior for: fallback embeddings, embedding-space normalization bounds, RAG eval mean/percentile latency (PR #33 audited as no-change-needed: its guard was dead code), horizontal-rule parsing, structured-answer citation parsing, launch-argument parsing edge matrix (adopts audited PR #51), `WorkspaceTier` and `LLMModelType` suites (consolidating audited PRs #26/#46 and #32/#50).
+
 ## 4.5.1 - 2026-07-03
 ### Fixed
 - **[Ingestion]** Resolved concurrency race conditions and deadlocks during parallel PDF ingestion by introducing thread-safe `NSRecursiveLock` serialization around CoreImage image generation, preventing concurrent Metal context memory crashes on Apple Silicon.

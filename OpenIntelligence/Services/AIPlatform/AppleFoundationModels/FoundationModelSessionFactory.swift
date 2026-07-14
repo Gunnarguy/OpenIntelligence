@@ -55,10 +55,13 @@ struct FoundationModelSessionFactory {
             
         case .onDeviceAdvanced:
             if #available(iOS 27.0, macOS 27.0, *) {
-                // Initialize the native AFM 3 Core Advanced (20B) on-device model.
-                // This runs locally on Apple Silicon without requiring Private Cloud Compute entitlements.
+                // The installed SDK exposes no advanced/20B on-device model
+                // (`SystemLanguageModel.advanced` does not exist — compiler-probe
+                // verified). This route executes the standard on-device model, so
+                // telemetry must report `.onDevice`, not a tier that never ran.
                 let model = SystemLanguageModel.default
                 guard case .available = model.availability else { throw LLMError.modelUnavailable }
+                selectedRoute = .onDevice // Telemetry: actual executed route
                 if let savedTranscript = pendingTranscript, !disableTools {
                     finalSession = LanguageModelSession(model: model, tools: tools, transcript: savedTranscript)
                     finalSession.prewarm()

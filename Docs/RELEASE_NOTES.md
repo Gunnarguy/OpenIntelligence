@@ -1,4 +1,4 @@
-> **Documentation status:** Verified for OpenIntelligence v4.5 on July 1, 2026.
+> **Documentation status:** Verified for OpenIntelligence v4.6 on July 14, 2026.
 
 
 # OpenIntelligence Release Notes
@@ -6,6 +6,15 @@
 This document provides a comprehensive, version-by-version breakdown of major architectural and feature updates to the OpenIntelligence Apple Intelligence-native evidence system.
 
 ---
+
+## v4.6 - July 2026
+
+*   **Zero-Regression PR Audit & Consolidation:** Completed a full evidence-gated audit of all 68 repository pull requests (43 open). Valuable changes were reimplemented cleanly on a consolidation branch (no bot branch was merged directly); duplicates, contaminated branches, and false-premise PRs were documented and closed. Full ledger in the consolidation PR description.
+*   **Model-Route Telemetry Correction (MAIN-1):** `FoundationModelSessionFactory` now sets `selectedRoute = .onDevice` in the `.onDeviceAdvanced` OS-27+ branch — telemetry no longer reports an "advanced" tier that never executed. `SystemLanguageModel.advanced` does not exist in the installed SDK (compiler-probe verified).
+*   **PCC Entitlement Fail-Closed (MAIN-2):** `EntitlementChecker.hasEntitlement` fails closed when no embedded provisioning profile is found and now also checks the macOS `embedded.provisionprofile` name. Unentitled distribution builds can no longer instantiate native `PrivateCloudComputeLanguageModel`; the safe on-device fallback engages.
+*   **FTS5 Migration Hardening:** `ensureColumnExists` now consumes a closed, compiler-owned `ColumnMigration` enum (consolidating PRs #27/#55) with identifier validation and identifier/PRAGMA quoting as defense in depth — no runtime strings reach schema DDL.
+*   **Unit-Test Target Restored:** The `OpenIntelligenceTests` target (removed by PR #3) is back, with regression suites for fallback embeddings, normalization bounds, RAG eval metrics, markdown horizontal rules, structured-answer citation parsing, launch arguments, `WorkspaceTier`, and `LLMModelType`.
+*   **Deterministic Micro-Optimizations:** Bit-identical single-pass rewrites of embedding magnitude, variance, and 3D-coordinate bounds computations (PRs #28/#31/#35), each with pinned-behavior tests.
 
 ## v4.5 - July 2026
 

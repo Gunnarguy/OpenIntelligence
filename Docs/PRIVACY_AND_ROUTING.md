@@ -23,12 +23,11 @@ To support larger query contexts and complex queries, the app implements a dynam
 ### 1. On-Device Execution (Default)
 - **Scope:** Standard query modes.
 - **Constraints:** Max context window is capped at **4,096 tokens**.
-- **Model Resolution (12GB RAM Gate):** The OS-level model daemon resolves `SystemLanguageModel.default` based on the device's physical memory:
-  - **AFM 3 Core (3B parameters):** Loaded automatically on physical devices with **<12GB RAM** (e.g. iPhone 15 Pro, iPhone 16, and iPhone 16 Pro Max).
-  - **AFM 3 Core Advanced (20B parameters, Sparse MoE):** Loaded on devices with **12GB+ RAM** (Apple Silicon Macs, M-series iPads, and the iOS Simulator).
-- **Programmatic Enforcement:** A memory verification check (`physicalMemory >= 11.5GB`) gates the manual selector and dynamic router. If physical memory is insufficient, the app hides the "20B Advanced" picker option and falls back to the 3B Core model route locally.
+- **Model Resolution:** The app always executes `SystemLanguageModel.default` for on-device queries. The installed SDK exposes no separate advanced/20B on-device model API (v4.6, compiler-probe verified); if the OS resolves different underlying weights on high-memory hardware, that happens behind `.default` and is opaque to the app. As of v4.6, route telemetry reports the executed route (`.onDevice`) truthfully regardless of the selected preference.
+- **Programmatic Enforcement:** A memory verification check (`physicalMemory >= 11.5GB`) gates the manual selector and dynamic router. If physical memory is insufficient, the app hides the "Advanced" picker preference and uses the standard on-device route.
 
 ### 2. PCC Escalation
+- **Entitlement gating (v4.6):** `EntitlementChecker` now **fails closed** — if entitlement presence cannot be proven from an embedded provisioning profile (including the macOS `embedded.provisionprofile` name), the PCC route throws `LLMError.modelUnavailable` and the query runs on-device. Distribution builds can no longer instantiate native PCC unentitled.
 - **Scope:** Escalated queries where the context/history size exceeds 4,096 tokens, or when the user selects **Deep Think** or **Maximum** modes.
 - **Target:** Apple's secure Private Cloud Compute (PCC) enclaves, running the cloud-based **AFM 3 Cloud Pro** model (70B+ parameters) with up to a **32,768-token** context window.
 

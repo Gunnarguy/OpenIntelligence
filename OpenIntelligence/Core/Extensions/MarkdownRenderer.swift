@@ -50,6 +50,16 @@ private enum MarkdownTableAlignment {
     case trailing
 }
 
+#if DEBUG
+/// Test seam: the parser type is file-private, so hosted unit tests reach
+/// horizontal-rule detection through this wrapper. Compiled out of Release.
+enum MarkdownParserTesting {
+    static func isHorizontalRule(_ line: String) -> Bool {
+        MarkdownParser.isHorizontalRule(line)
+    }
+}
+#endif
+
 /// Parses raw markdown text into an array of blocks
 private struct MarkdownParser {
 
@@ -362,12 +372,24 @@ private struct MarkdownParser {
         return (Int(numberStr) ?? 1, text)
     }
 
-    private static func isHorizontalRule(_ line: String) -> Bool {
+    fileprivate static func isHorizontalRule(_ line: String) -> Bool {
+        // Edge trimming must stay exactly CharacterSet.whitespaces; interior
+        // separators may only be ASCII spaces, never tabs or other whitespace.
         let trimmed = line.trimmingCharacters(in: .whitespaces)
-        guard trimmed.count >= 3 else { return false }
-        return (trimmed.allSatisfy({ $0 == "-" || $0 == " " }) && trimmed.filter({ $0 == "-" }).count >= 3) ||
-               (trimmed.allSatisfy({ $0 == "*" || $0 == " " }) && trimmed.filter({ $0 == "*" }).count >= 3) ||
-               (trimmed.allSatisfy({ $0 == "_" || $0 == " " }) && trimmed.filter({ $0 == "_" }).count >= 3)
+        var marker: Character?
+        var markerCount = 0
+        for char in trimmed {
+            if char == " " { continue }
+            guard char == "-" || char == "*" || char == "_" else { return false }
+            if let marker {
+                guard char == marker else { return false }
+            } else {
+                marker = char
+            }
+            markerCount += 1
+        }
+        // At least three of a single marker kind; mixed marker kinds never form a rule.
+        return markerCount >= 3
     }
 
     private static func isTableRow(_ line: String) -> Bool {

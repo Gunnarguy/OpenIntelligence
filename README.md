@@ -1,6 +1,6 @@
 # OpenIntelligence
 
-> **Documentation status:** Verified for OpenIntelligence v4.5.1 on July 5, 2026.
+> **Documentation status:** Verified for OpenIntelligence v4.6 on July 14, 2026.
 > **Scope:** Describes shipped behavior for on-device Apple Intelligence RAG architecture.
 
 <p align="center">
@@ -94,7 +94,7 @@ The entire RAG architecture operates on a strict **29-Step Pipeline** (6 Ingesti
 
 #### 3 Foundation Model Routes
 * **3B Core:** Offline Apple Silicon model (`SystemLanguageModel.default`) executing standard query tasks.
-* **20B Advanced:** Offline Apple Silicon model leveraging unified memory and NAND Flash Paging for enhanced reasoning.
+* **Advanced (preference):** A reasoning-priority preference for high-memory Apple Silicon devices. As of v4.6 it executes the standard on-device model and reports that route truthfully in telemetry — the installed OS SDK exposes no separate 20B on-device model API (compiler-probe verified), and any larger-model resolution by the OS behind `SystemLanguageModel.default` is opaque to the app.
 * **Private Cloud Compute (PT-MoE) — entitlement-gated, not yet active:** The routing layer targets Apple's 32K-context secure enclaves via `FoundationModels.PrivateCloudComputeLanguageModel` on iOS 27 / macOS 27+. PCC requires a developer entitlement that is currently pending Apple approval, so remote enclave execution does not run in shipping builds: `EntitlementChecker` detects the missing entitlement at runtime and routes every query to local `SystemLanguageModel` execution instead.
 
 ---

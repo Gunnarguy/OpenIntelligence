@@ -201,16 +201,35 @@ extension LanguageModelSession {
 
 /// Helper utility to dynamically check entitlements in the app signature at runtime.
 public struct EntitlementChecker {
+    /// Locates the embedded provisioning profile. iOS/dev builds embed
+    /// `embedded.mobileprovision`; macOS and Catalyst bundles embed
+    /// `Contents/embedded.provisionprofile`.
+    private static func embeddedProfilePath() -> String? {
+        if let iOSPath = Bundle.main.path(forResource: "embedded", ofType: "mobileprovision") {
+            return iOSPath
+        }
+        let macURL = Bundle.main.bundleURL.appendingPathComponent("Contents/embedded.provisionprofile")
+        if FileManager.default.fileExists(atPath: macURL.path) {
+            return macURL.path
+        }
+        return nil
+    }
+
     public static func hasEntitlement(_ entitlementKey: String) -> Bool {
         #if targetEnvironment(simulator)
         // Private Cloud Compute is not supported or required in the simulator environment.
         return false
         #else
-        guard let path = Bundle.main.path(forResource: "embedded", ofType: "mobileprovision") else {
-            // App Store builds strip the embedded provisioning profile.
-            // In these builds, the presence of the entitlement is validated by Apple during upload,
-            // so we assume it is present.
-            return true
+        guard let path = embeddedProfilePath() else {
+            // No embedded provisioning profile found — true for App Store /
+            // TestFlight builds (profile stripped). Entitlement presence cannot
+            // be PROVEN here, and this app's entitlements deliberately omit the
+            // PCC key, so FAIL CLOSED: callers (FoundationModelSessionFactory)
+            // then throw LLMError.modelUnavailable and fall back safely rather
+            // than instantiating native PrivateCloudComputeLanguageModel
+            // unentitled (audit finding MAIN-2 / RISK-14). Revisit only when the
+            // entitlement is actually granted and provable at runtime.
+            return false
         }
         
         guard let data = try? Data(contentsOf: URL(fileURLWithPath: path)) else {

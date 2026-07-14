@@ -662,7 +662,7 @@ extension StructuredAnswer {
     }
 
     nonisolated private static func minimumClaimLength(for answerIntent: AnswerIntent) -> Int {
-        answerIntent.isExtractiveFirst ? 8 : 20
+        StructuredAnswerParsing.minimumClaimLength(for: answerIntent)
     }
 
     nonisolated private static func keywordTokens(from text: String) -> Set<String> {
@@ -683,20 +683,7 @@ extension StructuredAnswer {
     }
 
     nonisolated private static func citationIndex(from citation: String) -> Int? {
-        let pattern = #"S(\d+)"#
-        guard let regex = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]) else {
-            return nil
-        }
-        let nsRange = NSRange(citation.startIndex..<citation.endIndex, in: citation)
-        guard let match = regex.firstMatch(in: citation, options: [], range: nsRange),
-              let range = Range(match.range(at: 1), in: citation),
-              let index = Int(citation[range]),
-              index > 0
-        else {
-            return nil
-        }
-
-        return index - 1
+        StructuredAnswerParsing.citationIndex(from: citation)
     }
 
     nonisolated private static func normalizeForMatch(_ text: String) -> String {
@@ -1203,5 +1190,38 @@ extension StructuredAnswer {
     nonisolated private static func lowercasedLeadingCharacter(_ text: String) -> String {
         guard let first = text.first else { return text }
         return first.lowercased() + text.dropFirst()
+    }
+}
+
+// MARK: - Structured Answer Parsing Rules
+
+/// Pure, stateless parsing rules backing `StructuredAnswer`'s private helpers.
+/// Internal (not private) so unit tests can exercise the rules directly without
+/// widening the visibility of any `StructuredAnswer` member.
+nonisolated enum StructuredAnswerParsing {
+    /// Minimum character count for a sentence to qualify as a standalone claim.
+    /// Extractive-first intents admit short literal spans (e.g. "SAE 0W-20").
+    nonisolated static func minimumClaimLength(for answerIntent: AnswerIntent) -> Int {
+        answerIntent.isExtractiveFirst ? 8 : 20
+    }
+
+    /// Resolves a citation token (e.g. "S3", "[s3]") to a zero-based chunk index.
+    /// Only the first "S<digits>" match is considered; model citations are
+    /// one-based, so "S0" and inputs without any match resolve to nil.
+    nonisolated static func citationIndex(from citation: String) -> Int? {
+        let pattern = #"S(\d+)"#
+        guard let regex = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]) else {
+            return nil
+        }
+        let nsRange = NSRange(citation.startIndex..<citation.endIndex, in: citation)
+        guard let match = regex.firstMatch(in: citation, options: [], range: nsRange),
+              let range = Range(match.range(at: 1), in: citation),
+              let index = Int(citation[range]),
+              index > 0
+        else {
+            return nil
+        }
+
+        return index - 1
     }
 }
