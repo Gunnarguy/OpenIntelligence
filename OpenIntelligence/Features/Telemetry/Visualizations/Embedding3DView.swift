@@ -2629,6 +2629,40 @@ struct EmbeddingSpaceRenderer: View {
         return Array(cards.prefix(4))
     }
 
+    /// Result must match `Array.min()`/`Array.max()` semantics exactly: comparisons
+    /// use strict `<`/`>` seeded from the first element, so a NaN at index 0 propagates
+    /// for that lane and a NaN at any later index is ignored. `count` is clamped to
+    /// `coords.count`; returns nil when no elements are in range.
+    /// nonisolated is safe: pure function over Sendable value types with no shared state.
+    nonisolated static func normalizationBounds(
+        coords: [SIMD3<Float>],
+        count: Int
+    ) -> (min: SIMD3<Float>, max: SIMD3<Float>)? {
+        let limit = min(count, coords.count)
+        guard limit > 0 else { return nil }
+        var minBound = coords[0]
+        var maxBound = coords[0]
+        for index in 1..<limit {
+            let coord = coords[index]
+            if coord.x < minBound.x {
+                minBound.x = coord.x
+            } else if coord.x > maxBound.x {
+                maxBound.x = coord.x
+            }
+            if coord.y < minBound.y {
+                minBound.y = coord.y
+            } else if coord.y > maxBound.y {
+                maxBound.y = coord.y
+            }
+            if coord.z < minBound.z {
+                minBound.z = coord.z
+            } else if coord.z > maxBound.z {
+                maxBound.z = coord.z
+            }
+        }
+        return (min: minBound, max: maxBound)
+    }
+
     private func buildAnnotationLabels(
         chunks: [DocumentChunk],
         coords: [SIMD3<Float>],
@@ -2641,15 +2675,13 @@ struct EmbeddingSpaceRenderer: View {
         let count = min(chunks.count, coords.count, docIds.count)
         guard count > 0 else { return [] }
 
-        let xs = coords.prefix(count).map { $0.x }
-        let ys = coords.prefix(count).map { $0.y }
-        let zs = coords.prefix(count).map { $0.z }
-        let minX = xs.min() ?? 0
-        let maxX = xs.max() ?? 1
-        let minY = ys.min() ?? 0
-        let maxY = ys.max() ?? 1
-        let minZ = zs.min() ?? 0
-        let maxZ = zs.max() ?? 1
+        guard let bounds = Self.normalizationBounds(coords: coords, count: count) else { return [] }
+        let minX = bounds.min.x
+        let maxX = bounds.max.x
+        let minY = bounds.min.y
+        let maxY = bounds.max.y
+        let minZ = bounds.min.z
+        let maxZ = bounds.max.z
         let spanX = max(maxX - minX, 0.001)
         let spanY = max(maxY - minY, 0.001)
         let spanZ = max(maxZ - minZ, 0.001)

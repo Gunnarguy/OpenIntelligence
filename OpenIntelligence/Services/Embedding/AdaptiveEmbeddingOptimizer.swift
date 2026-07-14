@@ -696,9 +696,8 @@ actor LibraryIntelligenceCenter {
         let avgSentenceLength = Double(sentenceLengths.reduce(0, +)) / Double(sentenceLengths.count)
         let avgClausesPerSentence = Double(totalClauses) / Double(sentenceLengths.count)
         let mean = avgSentenceLength
-        let variance = sentenceLengths
-            .map { pow(Double($0) - mean, 2) }
-            .reduce(0, +) / Double(sentenceLengths.count)
+        let variance = sentenceLengths.reduce(0.0) { $0 + pow(Double($1) - mean, 2) }
+            / Double(sentenceLengths.count)
         let stdDev = sqrt(variance)
         let lengthScore = min(1.0, avgSentenceLength / 30.0)
         let clauseScore = min(1.0, max(0, avgClausesPerSentence - 1.0) / 2.0)
