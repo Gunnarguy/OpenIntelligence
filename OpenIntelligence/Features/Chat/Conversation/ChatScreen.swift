@@ -490,7 +490,12 @@ struct ChatScreen: View {
         )
     }
 
-    var body: some View {
+    // `body` is split into three layers (chatLifecycleLayer → chatPresentationLayer
+    // → body) because the original single ~430-line modifier chain exceeded the
+    // Swift type-checker budget on slower CI hardware ("unable to type-check this
+    // expression in reasonable time"). Pure mechanical split: modifier order and
+    // the resulting view tree are unchanged.
+    private var chatLifecycleLayer: some View {
         ZStack(alignment: .top) {
             mainContentArea
 
@@ -655,6 +660,10 @@ struct ChatScreen: View {
         .onReceive(ragService.$pendingCloudConsent) { record in
             activeCloudConsent = record
         }
+    }
+
+    private var chatPresentationLayer: some View {
+        chatLifecycleLayer
         .toolbar {
             #if os(iOS)
                 ToolbarItem(placement: .topBarLeading) {
@@ -823,6 +832,10 @@ struct ChatScreen: View {
         } message: {
             Text("I'm sorry that answer wasn't helpful. Please send me your feedback so I can improve OpenIntelligence!")
         }
+    }
+
+    var body: some View {
+        chatPresentationLayer
 .onAppear {
     let ragService = self.ragService
     continuedQueryCoordinator.expirationHandler = { [weak ragService] in

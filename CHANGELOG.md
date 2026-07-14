@@ -1,3 +1,7 @@
+## [Unreleased]
+### Fixed
+- **[Orchestration]** Split ChatScreen's ~430-line single `body` modifier chain into three separately type-checked layers (pure mechanical split, identical view tree). Fixes the Swift type-checker timeout ("unable to type-check this expression in reasonable time") that has failed GitHub Actions CI since 2026-07-09 and explains bot PR #65's false compile-error premise.
+
 ## 4.6 - 2026-07-14
 ### Fixed
 - **[Indexing]** Hardened FTS5 schema migrations: `ensureColumnExists` now takes a closed, compiler-owned `ColumnMigration` enum instead of raw table/column/definition strings, with identifier validation and proper identifier/PRAGMA quoting as defense in depth. Consolidates audited PRs #27 and #55; neither branch was merged directly.
