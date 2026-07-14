@@ -1,6 +1,7 @@
 ## [Unreleased]
 ### Fixed
 - **[Orchestration]** Restructured the chat screen's view composition into separately compiled layers, resolving a Swift compiler timeout that could fail automated builds. No visual or behavioral change.
+- **[Orchestration]** Added an explicit initializer to the hardware X-Ray overlay so its sidebar-aware configuration constructs correctly across Swift compiler versions. No visual or behavioral change.
 
 ## 4.6 - 2026-07-14
 ### Fixed
