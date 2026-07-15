@@ -18,6 +18,7 @@ Icon
 DerivedData/
 build/
 Build/
+.build.nosync/
 *.build/
 *.o
 *.dSYM
