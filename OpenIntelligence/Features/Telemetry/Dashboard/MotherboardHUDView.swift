@@ -488,7 +488,11 @@ struct HardwareXRayOverlay: View {
                         savedLegendY = -1
                     }
                     .gesture(
-                        DragGesture()
+                        // Global coordinate space is required: the default
+                        // .local space moves WITH the dragged view, creating a
+                        // feedback loop that makes the legend spasm under the
+                        // finger. Global space stays fixed while the view moves.
+                        DragGesture(coordinateSpace: .global)
                             .onChanged { value in
                                 legendDragOffset = value.translation
                             }
