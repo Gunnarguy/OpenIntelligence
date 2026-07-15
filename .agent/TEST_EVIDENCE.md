@@ -16,7 +16,7 @@
 *   **Source Code:**
     ```swift
     import FoundationModels
- 
+
     @available(iOS 27.0, macOS 27.0, *)
     func probe() {
         _ = SystemLanguageModel.advanced

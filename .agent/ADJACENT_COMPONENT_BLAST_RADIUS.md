@@ -90,8 +90,3 @@ If PR #59 were to be implemented, its blast radius would be:
 *   **Direct Callers:** `DocumentProcessor`
 *   **Blast Radius Components:** Document ingestion pipeline, OCR fallback loops, and chunk quality metadata indexing.
 *   **Consequences of Quality Score Changes:** If the quality score is skewed, it directly affects whether the ingestion pipeline runs OCR fallback loops. Over-estimation suppresses OCR fallback on pages that require it (e.g. dense tables), causing text extraction failure. Under-estimation triggers redundant CPU/GPU-heavy OCR fallbacks, degrading device performance.
-
-
-
-
-

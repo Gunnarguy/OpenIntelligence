@@ -158,7 +158,7 @@
     * PR #30 (UI-embedded tests): `REWORK`. Unit tests improperly embedded in product diagnostic UI must be moved to XCTest or Swift Testing. Branch is massively contaminated.
     * PR #36 (Recommendation thresholds): `REWORK`. Fails to validate every recommendation threshold and boundary condition (e.g., exact threshold limits, N-1 edge cases). Branch is massively contaminated.
     * PR #43 (Markdown tests in UI): `REWORK`. Broad markdown test suite improperly embedded in `CoreValidationView.swift`. Must be tested in a dedicated target without exposing parser internals. Branch is massively contaminated.
-    * PR #51 (LaunchArguments missing edge cases): `REWORK`. Tests are incomplete and miss mandated edge cases (no arguments, duplicate flags, empty values, precedence, case behavior, terminator `--`, etc.). 
+    * PR #51 (LaunchArguments missing edge cases): `REWORK`. Tests are incomplete and miss mandated edge cases (no arguments, duplicate flags, empty values, precedence, case behavior, terminator `--`, etc.).
 * **Impact:** Phase A audit for Cluster 6 is complete. Manifest updated.
 
 ### DEC-22: Cluster 7 UI, Cleanup, and Small Optimizations Completion
