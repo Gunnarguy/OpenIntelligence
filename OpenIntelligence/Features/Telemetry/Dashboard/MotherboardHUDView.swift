@@ -486,30 +486,36 @@ struct HardwareXRayOverlay: View {
                         metricsSummary: settings.hudShowMetrics ? telemetry.compactMetricsSummary : "",
                         activities: settings.hudShowMetrics ? telemetry.componentActivities : []
                     )
-                    .gesture(
-                        // ONE composed gesture. A separate .onTapGesture(count: 2)
-                        // stacked before the drag makes the double-tap recognizer
-                        // hold touches while waiting for a second tap, starving the
-                        // DragGesture in arbitration (drag went dead / spasmed in
-                        // bursts). simultaneously(with:) lets both coexist: taps
-                        // never move 10pt so they can't trigger the drag, and a
-                        // drag is never a double-tap. Live translation renders via
-                        // .offset (layout frame stays put → stable local space).
-                        DragGesture()
+                    // Entire legend rectangle is hit-testable. Translucent
+                    // material backgrounds can fail hit-testing on transparent
+                    // pixels (iOS 27 beta), leaving only glyphs touchable —
+                    // without this, drags only registered when starting exactly
+                    // on text.
+                    .contentShape(Rectangle())
+                    .highPriorityGesture(
+                        // Single gesture, no competitors: highPriorityGesture
+                        // outranks every other recognizer in the subtree, and
+                        // minimumDistance 0 activates on touch-down. The former
+                        // double-tap reset was removed — a count-2 tap recognizer
+                        // stacked with a drag detains touches while waiting for
+                        // the second tap and starves the drag. Live translation
+                        // renders via .offset so the layout frame (and the
+                        // gesture's local space) never moves mid-drag.
+                        DragGesture(minimumDistance: 0)
                             .onChanged { value in
+                                #if DEBUG
+                                Log.info("[HUDDrag] onChanged translation=\(value.translation)", category: .pipeline)
+                                #endif
                                 legendDragOffset = value.translation
                             }
                             .onEnded { value in
+                                #if DEBUG
+                                Log.info("[HUDDrag] onEnded translation=\(value.translation)", category: .pipeline)
+                                #endif
                                 savedLegendX = min(max(legendBase.x + value.translation.width, 20), screenWidth - 20)
                                 savedLegendY = min(max(legendBase.y + value.translation.height, 40), screenHeight - 40)
                                 legendDragOffset = .zero
                             }
-                            .simultaneously(
-                                with: TapGesture(count: 2).onEnded {
-                                    savedLegendX = -1
-                                    savedLegendY = -1
-                                }
-                            )
                     )
                     .offset(legendDragOffset)
                     .position(legendBase)
