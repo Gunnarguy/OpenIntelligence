@@ -475,14 +475,13 @@ struct HardwareXRayOverlay: View {
                     // persists across launches. Double-tap resets to the v4.5
                     // default (right of the thread-sidebar toggle). Default y is
                     // absolute because the reader ignores all safe areas.
-                    // Default = the owner's v4.5 spot. Min-y 130 lets the legend
-                    // park right under the toolbar while keeping its full body
-                    // below the nav bar's touch-intercepting region (~103pt), so
-                    // it can always be re-grabbed.
+                    // Default = the owner's v4.5 spot. Clamps only keep the
+                    // legend from being lost offscreen — park it anywhere,
+                    // including against the status bar.
                     let defaultLegend = CGPoint(x: 110, y: 145)
                     let legendBase = CGPoint(
                         x: min(max(savedLegendX >= 0 ? savedLegendX : defaultLegend.x, 20), screenWidth - 20),
-                        y: min(max(savedLegendY >= 0 ? savedLegendY : defaultLegend.y, 130), screenHeight - 40)
+                        y: min(max(savedLegendY >= 0 ? savedLegendY : defaultLegend.y, 30), screenHeight - 40)
                     )
                     SiliconLegend(
                         chipName: layout.chipName,
@@ -530,9 +529,11 @@ struct HardwareXRayOverlay: View {
                     )
                     .offset(legendDragOffset)
                     .position(legendBase)
-                    .animation(nil, value: legendDragOffset)
-                    .animation(nil, value: savedLegendX)
-                    .animation(nil, value: savedLegendY)
+                    // Resolve the legend's geometry as ONE atomic unit: its
+                    // internal glow/pulse animations otherwise resolve position
+                    // on their own clocks during fast drags, visually tearing
+                    // the box into separate layers ("splitting into two").
+                    .geometryGroup()
                 }
 
                 // Device info (for debugging only)
