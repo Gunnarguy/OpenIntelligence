@@ -486,18 +486,15 @@ struct HardwareXRayOverlay: View {
                         metricsSummary: settings.hudShowMetrics ? telemetry.compactMetricsSummary : "",
                         activities: settings.hudShowMetrics ? telemetry.componentActivities : []
                     )
-                    .onTapGesture(count: 2) {
-                        savedLegendX = -1
-                        savedLegendY = -1
-                    }
                     .gesture(
-                        // Default (.local) space — the only one that reliably
-                        // recognizes inside this overlay on the iOS 27 SDK
-                        // (.global and .named both went dead). Jitter is
-                        // prevented structurally instead: the live translation
-                        // is applied with .offset below, which is a pure
-                        // rendering transform — the layout frame hosting this
-                        // gesture never moves, so the local space is stable.
+                        // ONE composed gesture. A separate .onTapGesture(count: 2)
+                        // stacked before the drag makes the double-tap recognizer
+                        // hold touches while waiting for a second tap, starving the
+                        // DragGesture in arbitration (drag went dead / spasmed in
+                        // bursts). simultaneously(with:) lets both coexist: taps
+                        // never move 10pt so they can't trigger the drag, and a
+                        // drag is never a double-tap. Live translation renders via
+                        // .offset (layout frame stays put → stable local space).
                         DragGesture()
                             .onChanged { value in
                                 legendDragOffset = value.translation
@@ -507,6 +504,12 @@ struct HardwareXRayOverlay: View {
                                 savedLegendY = min(max(legendBase.y + value.translation.height, 40), screenHeight - 40)
                                 legendDragOffset = .zero
                             }
+                            .simultaneously(
+                                with: TapGesture(count: 2).onEnded {
+                                    savedLegendX = -1
+                                    savedLegendY = -1
+                                }
+                            )
                     )
                     .offset(legendDragOffset)
                     .position(legendBase)
