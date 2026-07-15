@@ -801,111 +801,119 @@ private struct SiliconLegend: View {
 #endif
 
 #if canImport(UIKit)
-// MARK: - Floating Legend Window
+// MARK: - Floating Legend Window (mini-window architecture)
 
-/// The fundamental fix for the legend being untouchable near the top of the
-/// screen: the navigation bar intercepts touches at the WINDOW level, so no
-/// SwiftUI view inside the main window can ever be grabbed inside that strip.
-/// The legend therefore lives in its own passthrough UIWindow floating above
-/// the main window (nav bar included): every pixel of the legend is touchable
-/// anywhere on screen, and everything else passes through to the app.
+/// The legend lives in a SMALL floating window sized to the legend itself —
+/// the AssistiveTouch pattern. A window that only covers the legend cannot
+/// block or intercept anything else on screen BY CONSTRUCTION: there is no
+/// hit-test override, no passthrough logic, and no claimed-frame bookkeeping
+/// to go stale. Dragging moves the window via a plain UIKit pan recognizer
+/// (incremental translation, immune to the window moving under the finger).
 @MainActor
-final class FloatingLegendWindowManager {
+final class FloatingLegendWindowManager: NSObject {
     static let shared = FloatingLegendWindowManager()
-    private var window: PassthroughWindow?
-
-    /// Global-space frame of the legend content, reported from SwiftUI.
-    /// The window claims touches ONLY inside this frame (+ grab margin).
-    var legendHitFrame: CGRect = .zero
+    private var window: UIWindow?
+    private var visibilityCancellable: AnyCancellable?
+    private let margin: CGFloat = 16
 
     func ensureVisible(settings: SettingsStore) {
         guard window == nil else { return }
         let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
         guard let scene = scenes.first(where: { $0.activationState == .foregroundActive }) ?? scenes.first else { return }
+
         let host = UIHostingController(rootView: FloatingLegendRoot().environmentObject(settings))
         host.view.backgroundColor = .clear
-        let w = PassthroughWindow(windowScene: scene)
+
+        let w = UIWindow(windowScene: scene)
         w.rootViewController = host
         w.windowLevel = UIWindow.Level(rawValue: UIWindow.Level.normal.rawValue + 1)
         w.backgroundColor = .clear
-        w.isHidden = false
+        w.frame = initialFrame(in: scene)
+        w.isHidden = !settings.showSiliconHUD
         window = w
+
+        let pan = UIPanGestureRecognizer(target: self, action: #selector(handlePan(_:)))
+        host.view.addGestureRecognizer(pan)
+
+        // Window visibility follows the HUD toggle directly — observed here
+        // (not from inside the window) so it works even while hidden.
+        visibilityCancellable = settings.$showSiliconHUD
+            .receive(on: RunLoop.main)
+            .sink { [weak self] on in self?.window?.isHidden = !on }
+    }
+
+    private func initialFrame(in scene: UIWindowScene) -> CGRect {
+        let d = UserDefaults.standard
+        let cx = d.object(forKey: "hudLegendPosX") as? Double ?? -1
+        let cy = d.object(forKey: "hudLegendPosY") as? Double ?? -1
+        let center = CGPoint(x: cx >= 0 ? cx : 110, y: cy >= 0 ? cy : 145)
+        let size = CGSize(width: 220 + margin * 2, height: 140 + margin * 2)
+        let b = scene.screen.bounds
+        var origin = CGPoint(x: center.x - size.width / 2, y: center.y - size.height / 2)
+        origin.x = min(max(origin.x, -size.width + 60), b.width - 60)
+        origin.y = min(max(origin.y, 0), b.height - 60)
+        return CGRect(origin: origin, size: size)
+    }
+
+    /// The SwiftUI side reports the legend's rendered size; the window snugs
+    /// itself around it (+ grab margin) so it never covers more than the box.
+    func legendSizeChanged(_ size: CGSize) {
+        guard let w = window, size.width > 1, size.height > 1 else { return }
+        var f = w.frame
+        let newSize = CGSize(width: size.width + margin * 2, height: size.height + margin * 2)
+        guard abs(f.width - newSize.width) > 1 || abs(f.height - newSize.height) > 1 else { return }
+        f.size = newSize
+        w.frame = f
+    }
+
+    @objc private func handlePan(_ g: UIPanGestureRecognizer) {
+        guard let w = window else { return }
+        let t = g.translation(in: w)
+        var f = w.frame
+        f.origin.x += t.x
+        f.origin.y += t.y
+        w.frame = f
+        g.setTranslation(.zero, in: w)
+        if g.state == .ended || g.state == .cancelled {
+            clampAndPersist()
+        }
+    }
+
+    private func clampAndPersist() {
+        guard let w = window, let b = w.windowScene?.screen.bounds else { return }
+        var f = w.frame
+        f.origin.x = min(max(f.origin.x, -f.width + 60), b.width - 60)
+        f.origin.y = min(max(f.origin.y, 0), b.height - 60)
+        w.frame = f
+        UserDefaults.standard.set(Double(f.midX), forKey: "hudLegendPosX")
+        UserDefaults.standard.set(Double(f.midY), forKey: "hudLegendPosY")
     }
 }
 
-/// Passes through every touch that doesn't land on the legend itself.
-/// NOTE: SwiftUI hosting renders ALL content inside one UIView, so "which
-/// subview was hit" cannot distinguish the legend from empty space — the
-/// naive passthrough returned nil for everything and made the legend
-/// untouchable. Instead, SwiftUI reports the legend's frame and the window
-/// claims only points inside it.
-final class PassthroughWindow: UIWindow {
-    override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
-        let hitFrame = FloatingLegendWindowManager.shared.legendHitFrame
-        guard !hitFrame.isEmpty,
-              hitFrame.insetBy(dx: -30, dy: -30).contains(point) else { return nil }
-        return super.hitTest(point, with: event)
-    }
-}
-
-/// Root of the floating window: the draggable Silicon legend, park-anywhere.
+/// Root of the mini floating window: display-only; dragging is handled by the
+/// window-level UIPanGestureRecognizer.
 struct FloatingLegendRoot: View {
     @EnvironmentObject private var settings: SettingsStore
-    // Plain var: HardwareTelemetryState is @Observable (not ObservableObject);
-    // SwiftUI tracks its reads automatically, same as HardwareXRayOverlay.
     private var telemetry = HardwareTelemetryState.shared
     private let layout = DeviceComponentLayout.current
 
-    @AppStorage("hudLegendPosX") private var savedLegendX: Double = -1
-    @AppStorage("hudLegendPosY") private var savedLegendY: Double = -1
-    @State private var dragOffset: CGSize = .zero
-
     var body: some View {
-        GeometryReader { geo in
+        ZStack {
             if settings.showSiliconHUD {
-                let w = geo.size.width
-                let h = geo.size.height
-                let defaultPos = CGPoint(x: 110, y: 145)
-                let base = CGPoint(
-                    x: min(max(savedLegendX >= 0 ? savedLegendX : defaultPos.x, 20), w - 20),
-                    y: min(max(savedLegendY >= 0 ? savedLegendY : defaultPos.y, 20), h - 20)
-                )
                 SiliconLegend(
                     chipName: layout.chipName,
                     intensity: max(max(telemetry.cpuIntensity, telemetry.gpuIntensity), max(telemetry.aneIntensity, telemetry.hapticIntensity)),
                     metricsSummary: settings.hudShowMetrics ? telemetry.compactMetricsSummary : "",
                     activities: settings.hudShowMetrics ? telemetry.componentActivities : []
                 )
-                .contentShape(Rectangle().inset(by: -20))
-                .highPriorityGesture(
-                    DragGesture(minimumDistance: 0)
-                        .onChanged { value in
-                            var t = Transaction()
-                            t.disablesAnimations = true
-                            withTransaction(t) { dragOffset = value.translation }
-                        }
-                        .onEnded { value in
-                            savedLegendX = min(max(base.x + value.translation.width, 20), w - 20)
-                            savedLegendY = min(max(base.y + value.translation.height, 20), h - 20)
-                            dragOffset = .zero
-                        }
-                )
-                .offset(dragOffset)
-                .position(base)
-                // Report the legend's frame to the window for hit-testing.
-                // (Layout frame — .offset is render-only — so mid-drag the
-                // claimed region stays at the grab point, which is fine: the
-                // active gesture already owns the touch. Updates on release.)
-                .onGeometryChange(for: CGRect.self) { proxy in
-                    proxy.frame(in: .global)
-                } action: { frame in
-                    FloatingLegendWindowManager.shared.legendHitFrame = frame
+                .onGeometryChange(for: CGSize.self) { proxy in
+                    proxy.size
+                } action: { size in
+                    FloatingLegendWindowManager.shared.legendSizeChanged(size)
                 }
-                .compositingGroup()
-                .geometryGroup()
             }
         }
-        .ignoresSafeArea()
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }
 #endif
