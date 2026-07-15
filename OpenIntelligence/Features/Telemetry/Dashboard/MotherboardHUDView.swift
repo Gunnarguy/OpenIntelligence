@@ -475,13 +475,17 @@ struct HardwareXRayOverlay: View {
                     // persists across launches. Double-tap resets to the v4.5
                     // default (right of the thread-sidebar toggle). Default y is
                     // absolute because the reader ignores all safe areas.
-                    // Default = the owner's v4.5 spot. Clamps only keep the
-                    // legend from being lost offscreen — park it anywhere,
-                    // including against the status bar.
+                    // Default = the owner's v4.5 spot. The y-floor of 115 is a
+                    // hard physical constraint, not taste: the navigation bar
+                    // owns the touch strip above ~105pt at the OS level, so a
+                    // legend parked fully inside it can never be re-grabbed.
+                    // 115 keeps a grabbable edge below the bar while reading as
+                    // "tucked under the toolbar". This clamp also runs at load,
+                    // auto-rescuing any previously stranded saved position.
                     let defaultLegend = CGPoint(x: 110, y: 145)
                     let legendBase = CGPoint(
                         x: min(max(savedLegendX >= 0 ? savedLegendX : defaultLegend.x, 20), screenWidth - 20),
-                        y: min(max(savedLegendY >= 0 ? savedLegendY : defaultLegend.y, 30), screenHeight - 40)
+                        y: min(max(savedLegendY >= 0 ? savedLegendY : defaultLegend.y, 115), screenHeight - 40)
                     )
                     SiliconLegend(
                         chipName: layout.chipName,
@@ -523,7 +527,7 @@ struct HardwareXRayOverlay: View {
                                 Log.info("[HUDDrag] onEnded translation=\(value.translation)", category: .pipeline)
                                 #endif
                                 savedLegendX = min(max(legendBase.x + value.translation.width, 20), screenWidth - 20)
-                                savedLegendY = min(max(legendBase.y + value.translation.height, 40), screenHeight - 40)
+                                savedLegendY = min(max(legendBase.y + value.translation.height, 115), screenHeight - 40)
                                 legendDragOffset = .zero
                             }
                     )
