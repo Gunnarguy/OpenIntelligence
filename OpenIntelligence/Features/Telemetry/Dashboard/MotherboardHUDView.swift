@@ -464,10 +464,13 @@ struct HardwareXRayOverlay: View {
                         metricsSummary: settings.hudShowMetrics ? telemetry.compactMetricsSummary : "",
                         activities: settings.hudShowMetrics ? telemetry.componentActivities : []
                     )
-                    // Owner-set position (91d4b76): legend sits just right of the
-                    // thread-sidebar toggle button; shifts right when the
-                    // conversation-history sidebar is open. Do not "restore" x to 45.
-                    .position(x: showSidebar ? 345 : 110, y: geometry.safeAreaInsets.top + 85)
+                    // Owner-set position (91d4b76, shipped in v4.5): legend sits just
+                    // right of the thread-sidebar toggle button, UNCONDITIONALLY.
+                    // The "shift to x:345 when the sidebar opens" behavior was
+                    // agent-invented (abd1e3b) and never owner-requested — it made
+                    // the legend jump to mid-screen. Do not reintroduce it, and do
+                    // not "restore" x to 45.
+                    .position(x: 110, y: geometry.safeAreaInsets.top + 85)
                 }
 
                 // Device info (for debugging only)

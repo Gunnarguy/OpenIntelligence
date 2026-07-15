@@ -516,7 +516,7 @@ struct ChatScreen: View {
 
             // Motherboard HUD - Full-screen X-ray overlay
             if settings.showSiliconHUD {
-                HardwareXRayOverlay(showSidebar: showThreadSidebar)
+                HardwareXRayOverlay()
                     .allowsHitTesting(false)
                     .transition(.opacity)
             }
