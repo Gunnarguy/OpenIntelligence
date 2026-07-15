@@ -5,7 +5,7 @@
 
 ## 4.6 - 2026-07-14
 ### Fixed
-- **[Orchestration]** The Silicon HUD legend is now draggable with smooth global-space tracking: put it anywhere on screen and the position persists across launches; double-tap the legend to reset it to its default spot right of the sidebar toggle.
+- **[Orchestration]** The Silicon HUD legend is now draggable with finger-absolute tracking in the overlay's own coordinate space: put it anywhere on screen and the position persists across launches; double-tap the legend to reset it to its default spot right of the sidebar toggle.
 - **[Orchestration]** The X-Ray hardware borders (SoC purple box, Taptic Engine) now map against the true full-screen dimensions instead of the safe-area-shrunken view, so they highlight the actual physical component locations — with the navigation bar, home indicator, and keyboard no longer skewing the mapping.
 - **[Orchestration]** Restored the Silicon HUD legend to its exact v4.5 position (fixed x:110, right of the sidebar toggle): the mid-screen jump when the conversation sidebar opened was never owner-requested and is removed.
 - **[Orchestration]** Re-enabled the macOS App Sandbox (`com.apple.security.app-sandbox = true`) and added user-selected file read access, fixing Mac App Store delivery rejection ITMS-90296. iOS builds are unaffected; previously shipped Mac builds were already sandboxed, so user data locations are unchanged.
