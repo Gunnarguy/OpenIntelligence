@@ -475,17 +475,14 @@ struct HardwareXRayOverlay: View {
                     // persists across launches. Double-tap resets to the v4.5
                     // default (right of the thread-sidebar toggle). Default y is
                     // absolute because the reader ignores all safe areas.
-                    // Default = the owner's v4.5 spot. The y-floor of 115 is a
-                    // hard physical constraint, not taste: the navigation bar
-                    // owns the touch strip above ~105pt at the OS level, so a
-                    // legend parked fully inside it can never be re-grabbed.
-                    // 115 keeps a grabbable edge below the bar while reading as
-                    // "tucked under the toolbar". This clamp also runs at load,
-                    // auto-rescuing any previously stranded saved position.
+                    // Default = the owner's v4.5 spot. Park it ANYWHERE: the
+                    // 40pt invisible grab halo (contentShape below) guarantees a
+                    // touchable strip below the nav bar even when the box sits
+                    // flush against the status bar, so no position is stranded.
                     let defaultLegend = CGPoint(x: 110, y: 145)
                     let legendBase = CGPoint(
                         x: min(max(savedLegendX >= 0 ? savedLegendX : defaultLegend.x, 20), screenWidth - 20),
-                        y: min(max(savedLegendY >= 0 ? savedLegendY : defaultLegend.y, 115), screenHeight - 40)
+                        y: min(max(savedLegendY >= 0 ? savedLegendY : defaultLegend.y, 30), screenHeight - 40)
                     )
                     SiliconLegend(
                         chipName: layout.chipName,
@@ -498,7 +495,7 @@ struct HardwareXRayOverlay: View {
                     // pixels (iOS 27 beta), leaving only glyphs touchable —
                     // without this, drags only registered when starting exactly
                     // on text.
-                    .contentShape(Rectangle())
+                    .contentShape(Rectangle().inset(by: -40))
                     .highPriorityGesture(
                         // Single gesture, no competitors: highPriorityGesture
                         // outranks every other recognizer in the subtree, and
@@ -527,16 +524,18 @@ struct HardwareXRayOverlay: View {
                                 Log.info("[HUDDrag] onEnded translation=\(value.translation)", category: .pipeline)
                                 #endif
                                 savedLegendX = min(max(legendBase.x + value.translation.width, 20), screenWidth - 20)
-                                savedLegendY = min(max(legendBase.y + value.translation.height, 115), screenHeight - 40)
+                                savedLegendY = min(max(legendBase.y + value.translation.height, 30), screenHeight - 40)
                                 legendDragOffset = .zero
                             }
                     )
                     .offset(legendDragOffset)
                     .position(legendBase)
-                    // Resolve the legend's geometry as ONE atomic unit: its
-                    // internal glow/pulse animations otherwise resolve position
-                    // on their own clocks during fast drags, visually tearing
-                    // the box into separate layers ("splitting into two").
+                    // compositingGroup flattens the legend's material + glow
+                    // layers into a single rendered surface (layered materials
+                    // can double-image under fast transforms / under the nav
+                    // bar's glass); geometryGroup then resolves that surface's
+                    // position as one atomic unit per frame.
+                    .compositingGroup()
                     .geometryGroup()
                 }
 
