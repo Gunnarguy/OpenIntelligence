@@ -7,9 +7,9 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		E0A100042F0F5F5F00AABA0D /* OpenIntelligenceEngine.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = E0A100042F0F5F5F00AABA0C /* OpenIntelligenceEngine.framework */; };
 		B016E7B72F0F5F5F00AABA0C /* TransformersTokenizers in Frameworks */ = {isa = PBXBuildFile; productRef = B016E7B62F0F5F5F00AABA0C /* TransformersTokenizers */; };
 		E0A100022F0F5F5F00AABA0C /* TransformersTokenizers in Frameworks */ = {isa = PBXBuildFile; productRef = B016E7B62F0F5F5F00AABA0C /* TransformersTokenizers */; };
+		E0A100042F0F5F5F00AABA0D /* OpenIntelligenceEngine.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = E0A100042F0F5F5F00AABA0C /* OpenIntelligenceEngine.framework */; };
 		F0A100012F1A000100AA1001 /* OpenIntelligenceLiveActivities.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = F0A100022F1A000100AA1001 /* OpenIntelligenceLiveActivities.appex */; platformFilter = ios; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		F0A100032F1A000100AA1001 /* OpenIntelligence/Services/Infrastructure/Background/IngestionLiveActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0A100042F1A000100AA1001 /* OpenIntelligence/Services/Infrastructure/Background/IngestionLiveActivityAttributes.swift */; };
 		F0A100242F1A000100AA1001 /* IngestionLiveActivityWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0A100202F1A000100AA1001 /* IngestionLiveActivityWidget.swift */; };
@@ -613,28 +613,6 @@
 			};
 			name = Release;
 		};
-		F56921109921F3B8D6037496 /* Debug */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				BUNDLE_LOADER = "$(TEST_HOST)";
-				CLANG_ENABLE_OBJC_WEAK = NO;
-				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 150;
-				DEVELOPMENT_TEAM = Z3E334EXZD;
-				GENERATE_INFOPLIST_FILE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = Gunndamental.OpenIntelligence.tests;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				SDKROOT = iphoneos;
-				SWIFT_EMIT_LOC_STRINGS = NO;
-				SWIFT_OBJC_INTEROP_MODE = objcxx;
-				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2,6,7";
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/OpenIntelligence.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/OpenIntelligence";
-			};
-			name = Debug;
-		};
 		B0D565E72E98AC51001274A2 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -1035,18 +1013,31 @@
 			};
 			name = Release;
 		};
+		F56921109921F3B8D6037496 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CLANG_ENABLE_OBJC_WEAK = NO;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 150;
+				DEVELOPMENT_TEAM = Z3E334EXZD;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = Gunndamental.OpenIntelligence.tests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_OBJC_INTEROP_MODE = objcxx;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2,6,7";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/OpenIntelligence.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/OpenIntelligence";
+			};
+			name = Debug;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		D6CA55BABB4421C80E023711 /* Build configuration list for PBXNativeTarget "OpenIntelligenceTests" */ = {
-			isa = XCConfigurationList;
-			buildConfigurations = (
-				6AB4EB15D0C807FC1FF50FD8 /* Release */,
-				F56921109921F3B8D6037496 /* Debug */,
-			);
-			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
-		};
 		B0D565D92E98AC50001274A2 /* Build configuration list for PBXProject "OpenIntelligence" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
@@ -1061,6 +1052,15 @@
 			buildConfigurations = (
 				B0D565EA2E98AC51001274A2 /* Debug */,
 				B0D565EB2E98AC51001274A2 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		D6CA55BABB4421C80E023711 /* Build configuration list for PBXNativeTarget "OpenIntelligenceTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				6AB4EB15D0C807FC1FF50FD8 /* Release */,
+				F56921109921F3B8D6037496 /* Debug */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
