@@ -469,7 +469,9 @@ struct HardwareXRayOverlay: View {
                     // A higher window is the only fundamental fix.
                     Color.clear
                         .frame(width: 1, height: 1)
+                    #if canImport(UIKit)
                         .onAppear { FloatingLegendWindowManager.shared.ensureVisible(settings: settings) }
+                    #endif
                 }
 
                 // Device info (for debugging only)
