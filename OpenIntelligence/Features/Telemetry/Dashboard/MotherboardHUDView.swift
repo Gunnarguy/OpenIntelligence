@@ -475,15 +475,14 @@ struct HardwareXRayOverlay: View {
                     // persists across launches. Double-tap resets to the v4.5
                     // default (right of the thread-sidebar toggle). Default y is
                     // absolute because the reader ignores all safe areas.
-                    // Default spawn is BELOW the navigation bar's touch region:
-                    // UIKit chrome intercepts touches before SwiftUI content sees
-                    // them, so a legend parked at the bar boundary (y~145) is
-                    // visible but only partially grabbable. Saved positions are
-                    // floored the same way so a stale save can't strand it there.
-                    let defaultLegend = CGPoint(x: 110, y: 210)
+                    // Default = the owner's v4.5 spot. Min-y 130 lets the legend
+                    // park right under the toolbar while keeping its full body
+                    // below the nav bar's touch-intercepting region (~103pt), so
+                    // it can always be re-grabbed.
+                    let defaultLegend = CGPoint(x: 110, y: 145)
                     let legendBase = CGPoint(
                         x: min(max(savedLegendX >= 0 ? savedLegendX : defaultLegend.x, 20), screenWidth - 20),
-                        y: min(max(savedLegendY >= 0 ? savedLegendY : defaultLegend.y, 185), screenHeight - 40)
+                        y: min(max(savedLegendY >= 0 ? savedLegendY : defaultLegend.y, 130), screenHeight - 40)
                     )
                     SiliconLegend(
                         chipName: layout.chipName,
@@ -511,7 +510,14 @@ struct HardwareXRayOverlay: View {
                                 #if DEBUG
                                 Log.info("[HUDDrag] onChanged translation=\(value.translation)", category: .pipeline)
                                 #endif
-                                legendDragOffset = value.translation
+                                // Kill inherited animations: the legend's pulsing
+                                // glow animations otherwise leak onto the drag and
+                                // spring-lag every movement (visible jitter).
+                                var t = Transaction()
+                                t.disablesAnimations = true
+                                withTransaction(t) {
+                                    legendDragOffset = value.translation
+                                }
                             }
                             .onEnded { value in
                                 #if DEBUG
@@ -524,6 +530,9 @@ struct HardwareXRayOverlay: View {
                     )
                     .offset(legendDragOffset)
                     .position(legendBase)
+                    .animation(nil, value: legendDragOffset)
+                    .animation(nil, value: savedLegendX)
+                    .animation(nil, value: savedLegendY)
                 }
 
                 // Device info (for debugging only)
