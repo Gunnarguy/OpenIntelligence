@@ -840,7 +840,9 @@ final class PassthroughWindow: UIWindow {
 /// Root of the floating window: the draggable Silicon legend, park-anywhere.
 struct FloatingLegendRoot: View {
     @EnvironmentObject private var settings: SettingsStore
-    @ObservedObject private var telemetry = HardwareTelemetryState.shared
+    // Plain var: HardwareTelemetryState is @Observable (not ObservableObject);
+    // SwiftUI tracks its reads automatically, same as HardwareXRayOverlay.
+    private var telemetry = HardwareTelemetryState.shared
     private let layout = DeviceComponentLayout.current
 
     @AppStorage("hudLegendPosX") private var savedLegendX: Double = -1
