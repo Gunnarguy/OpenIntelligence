@@ -1,6 +1,6 @@
 # OpenIntelligence
 
-> **Documentation status:** Verified for OpenIntelligence v4.6 on July 14, 2026.
+> **Documentation status:** Source-verified for OpenIntelligence v4.6 on July 15, 2026; signed-device PCC validation remains pending.
 > **Scope:** Describes shipped behavior for on-device Apple Intelligence RAG architecture.
 
 <p align="center">
@@ -18,7 +18,7 @@
    <a href="https://gunzino.notion.site/OpenIntelligence-Public-Roadmap-e4446012bb8940e6b78a745aee688075"><img alt="View the OpenIntelligence public roadmap" src="https://img.shields.io/badge/Public-Roadmap-FF6B6B?style=for-the-badge&logo=notion&logoColor=white"></a>
 </p>
 
-OpenIntelligence is an exploratory, privacy-obsessed document query assistant built natively for Apple platforms. It demonstrates that production-grade document ingestion, vector indexing, lexical retrieval, and generative AI can run **entirely on device** without sacrificing privacy or relying on third-party cloud wrappers.
+OpenIntelligence is an exploratory, privacy-obsessed document query assistant built natively for Apple platforms. Document ingestion, vector indexing, lexical retrieval, planning, and verification remain on device. On iOS/macOS 27+, optional final synthesis may use Apple Private Cloud Compute only after entitlement evidence, capability, quota, minimization, and consent gates pass. The platform-specific entitlement path is generic arm64 iPhoneOS compile-verified, and no third-party cloud wrapper is used. Signed-installation PCC validation remains pending. `[evidence_level: build_verified, confidence: high_for_source_unverified_for_device, evidence_source: EngineSDKCompatibility.swift, ModelExecutionPlanner.swift, RAGService.swift, FoundationModelCapabilityProvider.swift]`
 
 ---
 

@@ -151,23 +151,73 @@ import Foundation
 
 #if canImport(FoundationModels)
 import FoundationModels
+import Security
 
-/// Helper utility to dynamically check entitlements in the app signature at runtime.
+/// Evaluates the strongest public entitlement evidence available on each platform.
 public struct EntitlementChecker {
     public static let privateCloudComputeKey = "com.apple.developer.private-cloud-compute"
 
-    /// Reads the entitlement from the running process's signed code object.
-    /// Unlike provisioning-profile text scanning, this also works after App Store
-    /// and TestFlight strip the embedded profile from the distributed bundle.
+    private static func embeddedProvisioningProfileURL() -> URL? {
+        if let iOSURL = Bundle.main.url(forResource: "embedded", withExtension: "mobileprovision") {
+            return iOSURL
+        }
+
+        let macURL = Bundle.main.bundleURL.appendingPathComponent("Contents/embedded.provisionprofile")
+        return FileManager.default.fileExists(atPath: macURL.path) ? macURL : nil
+    }
+
+    /// Extracts the signed build's entitlement dictionary from the CMS-wrapped
+    /// provisioning profile used by development and ad-hoc installations.
+    private static func embeddedProvisioningEntitlements(at profileURL: URL) -> [String: Any]? {
+        guard let profileData = try? Data(contentsOf: profileURL) else { return nil }
+
+        let plistStart = Data("<?xml".utf8)
+        let plistEnd = Data("</plist>".utf8)
+        guard let start = profileData.range(of: plistStart)?.lowerBound,
+              let endRange = profileData.range(
+                of: plistEnd,
+                options: [],
+                in: start..<profileData.endIndex
+              )
+        else { return nil }
+
+        let plistData = profileData.subdata(in: start..<endRange.upperBound)
+        guard let profile = try? PropertyListSerialization.propertyList(
+                from: plistData,
+                options: 0,
+                format: nil
+              ),
+              let dictionary = profile as? [String: Any]
+        else { return nil }
+        return dictionary["Entitlements"] as? [String: Any]
+    }
+
+    /// Checks the entitlement using the strongest public platform evidence.
+    /// Native macOS exposes SecTask. iOS/Catalyst development and ad-hoc builds
+    /// expose their signed provisioning profile. App Store and TestFlight builds
+    /// may omit that profile, so Apple's documented PCC availability and quota
+    /// APIs remain the authoritative runtime gates for those distributions.
     public static func hasEntitlement(_ entitlementKey: String) -> Bool {
         #if targetEnvironment(simulator)
         return false
-        #else
+        #elseif os(macOS) && !targetEnvironment(macCatalyst)
         guard let task = SecTaskCreateFromSelf(nil),
               let value = SecTaskCopyValueForEntitlement(task, entitlementKey as CFString, nil),
               CFGetTypeID(value) == CFBooleanGetTypeID()
         else { return false }
         return CFBooleanGetValue((value as! CFBoolean))
+        #else
+        guard let profileURL = embeddedProvisioningProfileURL() else {
+            // Distribution builds can omit the embedded profile. Only the
+            // approved PCC key may continue to the framework's availability
+            // and quota checks; arbitrary entitlement queries still fail closed.
+            return entitlementKey == privateCloudComputeKey
+        }
+        // An embedded but unreadable/malformed profile is a failed proof.
+        guard let entitlements = embeddedProvisioningEntitlements(at: profileURL) else {
+            return false
+        }
+        return entitlements[entitlementKey] as? Bool == true
         #endif
     }
 }

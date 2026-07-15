@@ -58,6 +58,8 @@ struct LiveFoundationModelCapabilityProvider: FoundationModelCapabilityProviding
                 quota = state.isApproachingLimit ? .approachingLimit : .belowLimit
             case .limitReached:
                 quota = .limitReached
+            @unknown default:
+                quota = .unknown
             }
             let available: Bool
             let reason: String?

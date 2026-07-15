@@ -45,7 +45,7 @@ Escalation never substitutes for missing evidence. Weak or irrelevant retrieval 
 
 ## Entitlement, OS, and quota gates
 
-Apple approval of `com.apple.developer.private-cloud-compute` was confirmed by the user on 2026-07-15, and the source entitlement is enabled. `EntitlementChecker` reads the entitlement from the running process's signed code object through Security.framework; it does not depend on an embedded provisioning profile that distribution may remove.
+Apple approval of `com.apple.developer.private-cloud-compute` was confirmed by the user on 2026-07-15, and the source entitlement is enabled. Runtime evidence is platform-specific: native macOS uses Security.framework `SecTask`; iOS/Catalyst development and ad-hoc builds parse the embedded signed provisioning profile; App Store/TestFlight builds that omit that profile allow only the approved PCC key to continue to Apple's documented `PrivateCloudComputeLanguageModel.availability` and quota checks. The branch passes a generic arm64 iPhoneOS compile gate, while signed installation and distribution runtime validation remain pending. `[evidence_level: build_verified+sdk_verified+user_confirmed, confidence: high_for_source_unverified_for_distribution]`
 
 Before PCC construction, the app verifies:
 
@@ -56,7 +56,7 @@ Before PCC construction, the app verifies:
 5. network and policy permit PCC;
 6. the planned envelope fits the live context budget.
 
-Quota is rechecked immediately before the model is constructed. A quota failure is not retried on PCC. Automatic/prefer-cloud may use the declared local fallback; cloud-only fails explicitly. `[evidence_level: code_verified+user_confirmed, confidence: high_for_source_unverified_for_distribution, evidence_source: FoundationModelCapabilityProvider.swift, FoundationModelSessionFactory.swift, OpenIntelligence.entitlements]`
+Quota is rechecked immediately before the model is constructed. A quota failure is not retried on PCC. Unknown future SDK quota states map to `.unknown` through Swift's `@unknown default` handling and therefore do not authorize PCC. Automatic/prefer-cloud may use the declared local fallback; cloud-only fails explicitly. `[evidence_level: code_verified+user_confirmed, confidence: high_for_source_unverified_for_distribution, evidence_source: FoundationModelCapabilityProvider.swift, FoundationModelSessionFactory.swift, OpenIntelligence.entitlements]`
 
 ## Evidence minimization and consent
 
