@@ -20,10 +20,10 @@ Try these in order. Move to the next tier ONLY on failure of the previous one.
 1. Determine the feature/fix summary and its architectural tag from the current diff (or from /update-docs output).
 2. Query the data source for an existing row whose `Name` matches the feature (fuzzy match on keywords).
 3. If a row exists: update `Status` → `Completed` (or `In Progress` if work is ongoing) and set the `Completed` date to today when completing.
-4. If no row exists: create one with `Name` = the CHANGELOG bullet text, `Status` = `Completed`, `Component` = the architectural tag, `Priority` = Medium unless obvious, `Target Release` = current release (check `Docs/USER_CHANGELOG.md` heading), `Added` = today.
+4. If no row exists: create one with `Name` = the CHANGELOG bullet text, `Status` = `Completed`, `Component` = the architectural tag, `Priority` = Medium unless obvious, `Target Release` = the `active_release.version` reported by the workspace preflight, `Added` = today. If the preflight reports `unknown`, stop and reconcile canonical version markers before writing.
 5. Schema guard — the ONLY valid select values are:
    - Status: `To Do`, `In Progress`, `Completed` (never "Shipped" — it does not exist)
-   - Component: `Ingestion`, `Chunking`, `Indexing`, `Retrieval`, `Orchestration`, `Shortcuts`, `General`, `UI`
+   - Component: `Ingestion`, `Chunking`, `Indexing`, `Retrieval`, `Orchestration`, `Shortcuts`, `General`, `UI`, `Infrastructure`
    - Priority: `High`, `Medium`, `Low`
    - Target Release: `v4.0`, `v4.1`, `v4.2`, `v4.3`, `v4.3.1`, `v4.4`, `v4.5 (Phase 2B)`, `v4.6`, `Future Backlog`
    If a needed option doesn't exist, use the closest valid one and note it — never invent select options.

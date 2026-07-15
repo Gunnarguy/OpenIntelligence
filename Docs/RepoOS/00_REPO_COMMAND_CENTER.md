@@ -44,6 +44,9 @@ Pick exactly one; each routes through `Docs/RepoOS/01_TASK_ROUTER.md`:
 - **D. Architecture re-audit / atlas update** → `Docs/AgentPlaybooks/architecture-atlas-update.md`; required before superseding the canonical doc (canonical §16).
 - **E. Resolve the stale-gate contradiction** → docs-only task: update `CURRENT_HANDOFF_PACKET.md` and FinalReview registry rows to reflect Phase 10 completion (needs user approval; modifies governance record).
 - **F. Anything touching a forbidden boundary** → STOP, present plan, wait for explicit user approval.
+- **G. RepoOS/Codex workflow automation** → Router row 14 → use `.codex/skills/route-openintelligence-work/SKILL.md`; keep Apple app source out of scope.
 
 ## Universal hard rules (apply to every task)
 No destructive git commands. No `project.pbxproj`, `.storekit`, or `.entitlements` edits without explicit user authorization (`Docs/AgentPlaybooks/07_TASK_ROUTER_AND_CHANGE_CONTROL.md`). No presenting conceptual links as exact code linkage. Tag all architecture claims with evidence_level + confidence. Stop after the requested phase.
+
+Run `.codex/skills/route-openintelligence-work/scripts/repoos_router.py preflight` before planning or acting. The script derives its result from the live change-impact matrix and reports whether the Notion roadmap is relevant, the active release, the `[Unreleased]` changelog target, the matching release-notes section, and the effective required-document union. `[evidence: code_verified, exact, .codex/skills/route-openintelligence-work/scripts/repoos_router.py]`

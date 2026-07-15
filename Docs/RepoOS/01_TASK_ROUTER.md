@@ -7,6 +7,7 @@ Routes common task types to owning subsystems with read-first docs, edit zones, 
 2. Find the owning subsystem below; read its row's read-first docs.
 3. Check `Docs/RepoOS/03_FORBIDDEN_EDIT_BOUNDARIES.md`.
 4. Produce an implementation plan, then **STOP and wait for `PROCEED: IMPLEMENT`** before any source edit (07_TASK_ROUTER rule; no auto-proceed).
+5. Run the workspace preflight and use its artifact-derived active release for `CHANGELOG.md` `[Unreleased]`, the matching `Docs/RELEASE_NOTES.md` section, and Notion `Target Release` whenever the routed task is a durable implementation.
 
 ## Universal verification commands
 - Build: `bash scripts/build_simulator_smoke.sh` (scheme `OpenIntelligence`, default destination `platform=iOS Simulator,name=iPhone 17 Pro`)
@@ -111,3 +112,12 @@ Routes common task types to owning subsystems with read-first docs, edit zones, 
 ### 13. Build / project config change
 - **Forbidden by default:** `OpenIntelligence.xcodeproj/project.pbxproj`, `Package.swift` targets, `Info.plist` capabilities, `ci_scripts/**`
 - **Approval:** ALWAYS, with explicit user authorization naming the file
+
+### 14. RepoOS / Codex workspace automation
+- **Subsystem:** developer governance and agent workflow automation
+- **Read first:** `AGENTS.md`, `.codex/skills/route-openintelligence-work/SKILL.md`, `.agents/rules/00-repoos-routing.md`, `.agents/rules/01-docs-and-notion-sync.md`
+- **Allowed:** `.codex/skills/**`, `.agents/**`, `Docs/RepoOS/**`, `Docs/AuditArtifacts/RepoOS/**`, `AGENTS.md`, and documentation required by rule 14
+- **Forbidden:** all `OpenIntelligence/**` app source, Xcode project configuration, StoreKit, entitlements, package dependency pins, and every Tier 2 boundary in `03_FORBIDDEN_EDIT_BOUNDARIES.md`
+- **Verify:** skill `quick_validate.py`; router unit tests executed directly with `python3 .codex/skills/route-openintelligence-work/scripts/test_repoos_router.py`; representative preflight runs; CSV parse; secret scan on new files; build smoke to prove no app regression
+- **Docs to update:** Command Center, Task Router, change-impact matrix, `CHANGELOG.md`, and the full AGENTS.md rule 14 set for a durable workflow feature
+- **Approval:** required before edits; Notion roadmap synchronization required for durable workspace automation

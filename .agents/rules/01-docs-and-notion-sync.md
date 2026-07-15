@@ -17,9 +17,14 @@ When you edit files matching a pattern below, update the listed docs in the same
 | `Services/Billing/**`, `Features/Billing/**` | `Docs/BILLING_AND_LIMITS.md`, `CHANGELOG.md` | General |
 | `EvidenceThread*`, `ThreadSidebarView.swift` | Atlas §15, canonical §11, `CHANGELOG.md` | Orchestration |
 | `Features/**`, `UI/**` (user-visible) | `WHATS_NEW.md`, `Docs/USER_CHANGELOG.md` | UI |
+| `.codex/skills/**`, `.agents/**`, `Docs/RepoOS/**` | Command Center, Task Router, change-impact matrix, `CHANGELOG.md`; full rule 14 list for a durable workflow feature | General |
 | Any phase/milestone completion | Full AGENTS.md rule 14 list: `README.md`, Atlas, `Docs/AppleIntelligenceTransitionPlan.md`, `CHANGELOG.md`, `Docs/RELEASE_NOTES.md`, canonical doc, `Docs/ROADMAP.md` + Notion | (as appropriate) |
 
 CHANGELOG bullets always carry the architectural tag: `[Retrieval]`, `[Ingestion]`, `[Chunking]`, `[Indexing]`, `[Orchestration]`, `[Shortcuts]`, `[UI]`, or `[General]`.
+
+## Active-release targeting (every task)
+
+Run the repository preflight before acting. It derives the active release from current artifacts and reports the exact targets. For every durable implementation, add the change to `CHANGELOG.md` under `[Unreleased]`, update the matching active-version section in `Docs/RELEASE_NOTES.md`, and use that same version for Notion `Target Release`. Read-only, diagnosis-only, pure-docs, and tests-only tasks report the targets but do not create empty or speculative release documentation changes. If the version is `unknown`, reconcile the canonical version markers before writing release documentation or Notion.
 
 ## Notion Roadmap — when to touch it (unprompted)
 Database ID: `37f49a74-d54f-81b7-9424-dae1288c0043`; its data source ID is `37f49a74-d54f-81b0-92d9-000bce5e05fa` (different suffix — query tools take the data source ID, retrieve-database tools take the database ID). Never locate the roadmap via workspace search, and never answer roadmap questions from search results — other databases in the workspace have similar-looking rows (theirs use emoji statuses; this one does not). Follow the exact tool recipe in `.agents/workflows/sync-notion.md`.
@@ -31,7 +36,7 @@ Database ID: `37f49a74-d54f-81b7-9424-dae1288c0043`; its data source ID is `37f4
 
 ## Notion schema — exact values only (do not invent options)
 - `Status`: `To Do` | `In Progress` | `Completed` — there is NO "Shipped" option.
-- `Component`: `Ingestion` | `Chunking` | `Indexing` | `Retrieval` | `Orchestration` | `Shortcuts` | `General` | `UI`
+- `Component`: `Ingestion` | `Chunking` | `Indexing` | `Retrieval` | `Orchestration` | `Shortcuts` | `General` | `UI` | `Infrastructure`
 - `Priority`: `High` | `Medium` | `Low`
 - `Target Release`: `v4.0`–`v4.4`, `v4.5 (Phase 2B)`, `v4.6`, `Future Backlog`
 - Dates: `Added`, `Completed` (ISO dates).

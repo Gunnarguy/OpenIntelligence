@@ -8,9 +8,11 @@ You are inside the OpenIntelligence repository. It has a governance layer called
 3. Identify the current phase from `Docs/AppleIntelligenceTransitionPlan.md`. Evidence Threads Phases 1A–1D are COMPLETE — never re-implement them.
 
 ## On every task
-1. Match the task to a row in `Docs/AuditArtifacts/RepoOS/change_impact_matrix.csv` by `task_type`.
-2. That row is binding: read the `read_first_docs`, stay inside `allowed_edit_paths`, never touch `forbidden_edit_paths`, run `required_tests`, and update `required_docs_to_update` in the SAME task — not later, not when asked.
-3. If no row matches, use `Docs/RepoOS/01_TASK_ROUTER.md` route 13 rules (treat as config-risk: stop and ask).
+1. Read `.codex/skills/route-openintelligence-work/SKILL.md` and run its `repoos_router.py preflight` command with the user's request and known paths. Record its active release and exact changelog/release-notes targets.
+2. Match the task to a row in `Docs/AuditArtifacts/RepoOS/change_impact_matrix.csv` by `task_type`.
+3. That row is binding: read the `read_first_docs`, stay inside `allowed_edit_paths`, never touch `forbidden_edit_paths`, run `required_tests`, and update `required_docs_to_update` in the SAME task — not later, not when asked.
+4. Evaluate Notion relevance on every task. Sync the roadmap at start and verified completion when required by the workspace skill and `.agents/rules/01-docs-and-notion-sync.md`.
+5. If no row matches, use `Docs/RepoOS/01_TASK_ROUTER.md` route 13 rules (treat as config-risk: stop and ask).
 
 ## Hard boundaries (from Docs/RepoOS/03_FORBIDDEN_EDIT_BOUNDARIES.md)
 Never edit without the user naming the file in their approval: `project.pbxproj`, `*.storekit`, `*.entitlements`, `Info.plist` capabilities, `Package.swift` dependency pins, `ChatMessage.swift`, `WorkspaceSyncService.swift`, `SQLiteFullTextService.swift` schema, `BNNSVectorDatabase.swift` format, `EntitlementStore.swift`, `QuotaPolicy.swift` tier limits, `RAGAppIntents.swift` shortcut count (9/10 slots used), `FoundationModelRoutePolicy.swift`, `FoundationModelSessionFactory.swift`, `EngineSDKCompatibility.swift`.

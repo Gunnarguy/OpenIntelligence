@@ -1,0 +1,4 @@
+interface:
+  display_name: "OpenIntelligence RepoOS"
+  short_description: "Route every workspace task through RepoOS"
+  default_prompt: "Use $route-openintelligence-work to route and execute this OpenIntelligence task safely."
