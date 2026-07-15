@@ -143,11 +143,11 @@ final class EmbeddingNormalizationBoundsTests: XCTestCase {
 
     func testResultIsOrderingIndependentForFiniteValues() {
         var rng = SplitMix64(state: 0x5EED_0001)
-        let base: [SIMD3<Float>] = (0..<32).map { i in
-            SIMD3(
-                Float(i) * 1.25 - 20,
-                Float(31 - i) * -0.75 + 3,
-                Float(i * i % 37) - 18)
+        let base: [SIMD3<Float>] = (0..<32).map { i -> SIMD3<Float> in
+            let x = Float(i) * 1.25 - 20.0
+            let y = Float(31 - i) * -0.75 + 3.0
+            let z = Float((i * i) % 37) - 18.0
+            return SIMD3<Float>(x, y, z)
         }
         guard
             let reference = EmbeddingSpaceRenderer.normalizationBounds(
