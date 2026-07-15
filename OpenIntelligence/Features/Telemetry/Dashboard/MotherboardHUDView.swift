@@ -304,6 +304,13 @@ struct HardwareXRayOverlay: View {
         self.showSidebar = showSidebar
     }
 
+    // Owner-draggable legend position, persisted across launches.
+    // Sentinel -1 means "use the default spot" (v4.5 position, right of the
+    // thread-sidebar toggle). Double-tap on the legend resets to default.
+    @AppStorage("hudLegendPosX") private var savedLegendX: Double = -1
+    @AppStorage("hudLegendPosY") private var savedLegendY: Double = -1
+    @State private var legendDragOffset: CGSize = .zero
+
     /// Combined intensity from all active components
     private var totalIntensity: Double {
         max(telemetry.cpuIntensity, telemetry.gpuIntensity, telemetry.aneIntensity)
@@ -427,6 +434,7 @@ struct HardwareXRayOverlay: View {
                         gpuIntensity: telemetry.gpuIntensity,
                         aneIntensity: telemetry.aneIntensity
                     )
+                    .allowsHitTesting(false)
                 }
 
                 // Show Taptic Engine border when haptics fire (if enabled)
@@ -437,6 +445,7 @@ struct HardwareXRayOverlay: View {
                         intensity: telemetry.hapticIntensity,
                         glowMultiplier: settings.hudGlowIntensity
                     )
+                    .allowsHitTesting(false)
                 }
 
                 // REMOVED: FloatingTapticIndicator - users want Taptic in HUD legend only
@@ -457,20 +466,42 @@ struct HardwareXRayOverlay: View {
                     .padding(.bottom, 130)
                     .padding(.leading, 30)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
+                    .allowsHitTesting(false)
                 } else {
+                    // Draggable legend: put it wherever you want; the position
+                    // persists across launches. Double-tap resets to the v4.5
+                    // default (right of the thread-sidebar toggle). Default y is
+                    // absolute because the reader ignores all safe areas.
+                    let defaultLegend = CGPoint(x: 110, y: 145)
+                    let legendBase = CGPoint(
+                        x: min(max(savedLegendX >= 0 ? savedLegendX : defaultLegend.x, 20), screenWidth - 20),
+                        y: min(max(savedLegendY >= 0 ? savedLegendY : defaultLegend.y, 40), screenHeight - 40)
+                    )
                     SiliconLegend(
                         chipName: layout.chipName,
                         intensity: max(totalIntensity, telemetry.hapticIntensity),
                         metricsSummary: settings.hudShowMetrics ? telemetry.compactMetricsSummary : "",
                         activities: settings.hudShowMetrics ? telemetry.componentActivities : []
                     )
-                    // Owner-set position (91d4b76, shipped in v4.5): legend sits just
-                    // right of the thread-sidebar toggle button, UNCONDITIONALLY.
-                    // The "shift to x:345 when the sidebar opens" behavior was
-                    // agent-invented (abd1e3b) and never owner-requested — it made
-                    // the legend jump to mid-screen. Do not reintroduce it, and do
-                    // not "restore" x to 45.
-                    .position(x: 110, y: geometry.safeAreaInsets.top + 85)
+                    .onTapGesture(count: 2) {
+                        savedLegendX = -1
+                        savedLegendY = -1
+                    }
+                    .gesture(
+                        DragGesture()
+                            .onChanged { value in
+                                legendDragOffset = value.translation
+                            }
+                            .onEnded { value in
+                                savedLegendX = min(max(legendBase.x + value.translation.width, 20), screenWidth - 20)
+                                savedLegendY = min(max(legendBase.y + value.translation.height, 40), screenHeight - 40)
+                                legendDragOffset = .zero
+                            }
+                    )
+                    .position(
+                        x: legendBase.x + legendDragOffset.width,
+                        y: legendBase.y + legendDragOffset.height
+                    )
                 }
 
                 // Device info (for debugging only)
@@ -479,15 +510,18 @@ struct HardwareXRayOverlay: View {
                         .font(.system(size: 9, weight: .medium, design: .monospaced))
                         .foregroundColor(.gray.opacity(0.3))
                         .position(x: screenWidth / 2, y: screenHeight * 0.02)
+                        .allowsHitTesting(false)
                 }
             }
             .ignoresSafeArea()
         }
-        // The GeometryReader itself must ignore the keyboard, not just its
-        // content: geometry.size feeds rectToScreen's physical-position
-        // mapping, so a keyboard-compressed reader pushes every component
-        // border (Taptic Engine, SoC) up toward mid-screen while typing.
-        .ignoresSafeArea(.keyboard)
+        // The GeometryReader itself must ignore ALL safe areas (container AND
+        // keyboard), not just its content: geometry.size feeds rectToScreen's
+        // physical-position mapping. A safe-area-shrunken reader (nav bar top,
+        // home indicator bottom, keyboard) maps "87% down the screen" against
+        // a shortened height, drawing the SoC and Taptic Engine borders above
+        // their true hardware locations.
+        .ignoresSafeArea()
     }
     }
 

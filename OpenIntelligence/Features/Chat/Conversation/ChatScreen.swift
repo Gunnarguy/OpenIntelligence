@@ -517,7 +517,8 @@ struct ChatScreen: View {
             // Motherboard HUD - Full-screen X-ray overlay
             if settings.showSiliconHUD {
                 HardwareXRayOverlay()
-                    .allowsHitTesting(false)
+                    // Hit-testing intentionally enabled: the overlay is
+                    // internally touch-transparent except the draggable legend.
                     .transition(.opacity)
             }
 
