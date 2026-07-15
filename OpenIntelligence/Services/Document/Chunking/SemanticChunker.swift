@@ -1595,6 +1595,45 @@ class SemanticChunker {
             return true
         }
 
+        // Fallback: If no entities were extracted (common in simulator environments lacking NLP assets),
+        // use regex to extract capitalized word sequences and single capitalized words.
+        if entities.isEmpty {
+            // Match consecutive capitalized words first (e.g. "Tim Cook", "Model Architecture")
+            let multiWordPattern = #"\b[A-Z][a-z]+(?:\s+[A-Z][a-z]+)+\b"#
+            if let regex = try? NSRegularExpression(pattern: multiWordPattern, options: []) {
+                let nsRange = NSRange(text.startIndex..., in: text)
+                let matches = regex.matches(in: text, options: [], range: nsRange)
+                for match in matches {
+                    if let range = Range(match.range, in: text) {
+                        let term = String(text[range]).trimmingCharacters(in: .whitespacesAndNewlines)
+                        let key = term.lowercased()
+                        if term.count >= 2, term.count <= 50, !seen.contains(key) {
+                            seen.insert(key)
+                            entities.append(term)
+                        }
+                    }
+                }
+            }
+
+            // Match single capitalized words (e.g. "Apple", "Cupertino")
+            let singleWordPattern = #"\b[A-Z][a-z]+\b"#
+            if let regex = try? NSRegularExpression(pattern: singleWordPattern, options: []) {
+                let nsRange = NSRange(text.startIndex..., in: text)
+                let matches = regex.matches(in: text, options: [], range: nsRange)
+                for match in matches {
+                    if let range = Range(match.range, in: text) {
+                        let term = String(text[range]).trimmingCharacters(in: .whitespacesAndNewlines)
+                        let key = term.lowercased()
+                        let stopWords: Set<String> = ["the", "this", "that", "these", "those", "there", "then", "when", "where", "which", "what", "who", "how", "why", "we", "our", "us", "i"]
+                        if term.count >= 2, term.count <= 50, !seen.contains(key), !stopWords.contains(key) {
+                            seen.insert(key)
+                            entities.append(term)
+                        }
+                    }
+                }
+            }
+        }
+
         // Return up to 15 entities per chunk (balance between richness and noise)
         return Array(entities.prefix(15))
     }
