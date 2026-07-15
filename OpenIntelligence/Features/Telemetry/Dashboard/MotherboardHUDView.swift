@@ -304,15 +304,6 @@ struct HardwareXRayOverlay: View {
         self.showSidebar = showSidebar
     }
 
-    // Owner-draggable legend position, persisted across launches.
-    // Sentinel -1 means "use the default spot" (v4.5 position, right of the
-    // thread-sidebar toggle). Double-tap on the legend resets to default.
-    @AppStorage("hudLegendPosX") private var savedLegendX: Double = -1
-    @AppStorage("hudLegendPosY") private var savedLegendY: Double = -1
-    /// Live drag translation, applied via `.offset` (rendering-only) so the
-    /// legend's layout frame — and therefore the gesture's local coordinate
-    /// space — never moves mid-drag. Committed into the saved position on end.
-    @State private var legendDragOffset: CGSize = .zero
 
     /// Combined intensity from all active components
     private var totalIntensity: Double {
@@ -471,72 +462,14 @@ struct HardwareXRayOverlay: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
                     .allowsHitTesting(false)
                 } else {
-                    // Draggable legend: put it wherever you want; the position
-                    // persists across launches. Double-tap resets to the v4.5
-                    // default (right of the thread-sidebar toggle). Default y is
-                    // absolute because the reader ignores all safe areas.
-                    // Default = the owner's v4.5 spot. Park it ANYWHERE: the
-                    // 40pt invisible grab halo (contentShape below) guarantees a
-                    // touchable strip below the nav bar even when the box sits
-                    // flush against the status bar, so no position is stranded.
-                    let defaultLegend = CGPoint(x: 110, y: 145)
-                    let legendBase = CGPoint(
-                        x: min(max(savedLegendX >= 0 ? savedLegendX : defaultLegend.x, 20), screenWidth - 20),
-                        y: min(max(savedLegendY >= 0 ? savedLegendY : defaultLegend.y, 30), screenHeight - 40)
-                    )
-                    SiliconLegend(
-                        chipName: layout.chipName,
-                        intensity: max(totalIntensity, telemetry.hapticIntensity),
-                        metricsSummary: settings.hudShowMetrics ? telemetry.compactMetricsSummary : "",
-                        activities: settings.hudShowMetrics ? telemetry.componentActivities : []
-                    )
-                    // Entire legend rectangle is hit-testable. Translucent
-                    // material backgrounds can fail hit-testing on transparent
-                    // pixels (iOS 27 beta), leaving only glyphs touchable —
-                    // without this, drags only registered when starting exactly
-                    // on text.
-                    .contentShape(Rectangle().inset(by: -40))
-                    .highPriorityGesture(
-                        // Single gesture, no competitors: highPriorityGesture
-                        // outranks every other recognizer in the subtree, and
-                        // minimumDistance 0 activates on touch-down. The former
-                        // double-tap reset was removed — a count-2 tap recognizer
-                        // stacked with a drag detains touches while waiting for
-                        // the second tap and starves the drag. Live translation
-                        // renders via .offset so the layout frame (and the
-                        // gesture's local space) never moves mid-drag.
-                        DragGesture(minimumDistance: 0)
-                            .onChanged { value in
-                                #if DEBUG
-                                Log.info("[HUDDrag] onChanged translation=\(value.translation)", category: .pipeline)
-                                #endif
-                                // Kill inherited animations: the legend's pulsing
-                                // glow animations otherwise leak onto the drag and
-                                // spring-lag every movement (visible jitter).
-                                var t = Transaction()
-                                t.disablesAnimations = true
-                                withTransaction(t) {
-                                    legendDragOffset = value.translation
-                                }
-                            }
-                            .onEnded { value in
-                                #if DEBUG
-                                Log.info("[HUDDrag] onEnded translation=\(value.translation)", category: .pipeline)
-                                #endif
-                                savedLegendX = min(max(legendBase.x + value.translation.width, 20), screenWidth - 20)
-                                savedLegendY = min(max(legendBase.y + value.translation.height, 30), screenHeight - 40)
-                                legendDragOffset = .zero
-                            }
-                    )
-                    .offset(legendDragOffset)
-                    .position(legendBase)
-                    // compositingGroup flattens the legend's material + glow
-                    // layers into a single rendered surface (layered materials
-                    // can double-image under fast transforms / under the nav
-                    // bar's glass); geometryGroup then resolves that surface's
-                    // position as one atomic unit per frame.
-                    .compositingGroup()
-                    .geometryGroup()
+                    // The legend lives in its own floating passthrough window
+                    // (FloatingLegendWindowManager): UIKit navigation chrome
+                    // intercepts touches at the window level, so NO view inside
+                    // the main window can be grabbed near the top of the screen.
+                    // A higher window is the only fundamental fix.
+                    Color.clear
+                        .frame(width: 1, height: 1)
+                        .onAppear { FloatingLegendWindowManager.shared.ensureVisible(settings: settings) }
                 }
 
                 // Device info (for debugging only)
@@ -863,6 +796,94 @@ private struct SiliconLegend: View {
         HardwareTelemetryState.shared.sustain(.vectorSimilarity, active: true, intensity: 0.4)
         HardwareTelemetryState.shared.sustain(.ragOrchestration, active: true, intensity: 0.3)
         HardwareTelemetryState.shared.reportHaptic(style: "preview")
+    }
+}
+#endif
+
+#if canImport(UIKit)
+// MARK: - Floating Legend Window
+
+/// The fundamental fix for the legend being untouchable near the top of the
+/// screen: the navigation bar intercepts touches at the WINDOW level, so no
+/// SwiftUI view inside the main window can ever be grabbed inside that strip.
+/// The legend therefore lives in its own passthrough UIWindow floating above
+/// the main window (nav bar included): every pixel of the legend is touchable
+/// anywhere on screen, and everything else passes through to the app.
+@MainActor
+final class FloatingLegendWindowManager {
+    static let shared = FloatingLegendWindowManager()
+    private var window: PassthroughWindow?
+
+    func ensureVisible(settings: SettingsStore) {
+        guard window == nil else { return }
+        let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
+        guard let scene = scenes.first(where: { $0.activationState == .foregroundActive }) ?? scenes.first else { return }
+        let host = UIHostingController(rootView: FloatingLegendRoot().environmentObject(settings))
+        host.view.backgroundColor = .clear
+        let w = PassthroughWindow(windowScene: scene)
+        w.rootViewController = host
+        w.windowLevel = UIWindow.Level(rawValue: UIWindow.Level.normal.rawValue + 1)
+        w.backgroundColor = .clear
+        w.isHidden = false
+        window = w
+    }
+}
+
+/// Passes through every touch that doesn't land on actual legend content.
+final class PassthroughWindow: UIWindow {
+    override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
+        guard let view = super.hitTest(point, with: event) else { return nil }
+        return view === rootViewController?.view ? nil : view
+    }
+}
+
+/// Root of the floating window: the draggable Silicon legend, park-anywhere.
+struct FloatingLegendRoot: View {
+    @EnvironmentObject private var settings: SettingsStore
+    @ObservedObject private var telemetry = HardwareTelemetryState.shared
+    private let layout = DeviceComponentLayout.current
+
+    @AppStorage("hudLegendPosX") private var savedLegendX: Double = -1
+    @AppStorage("hudLegendPosY") private var savedLegendY: Double = -1
+    @State private var dragOffset: CGSize = .zero
+
+    var body: some View {
+        GeometryReader { geo in
+            if settings.showSiliconHUD {
+                let w = geo.size.width
+                let h = geo.size.height
+                let defaultPos = CGPoint(x: 110, y: 145)
+                let base = CGPoint(
+                    x: min(max(savedLegendX >= 0 ? savedLegendX : defaultPos.x, 20), w - 20),
+                    y: min(max(savedLegendY >= 0 ? savedLegendY : defaultPos.y, 20), h - 20)
+                )
+                SiliconLegend(
+                    chipName: layout.chipName,
+                    intensity: max(max(telemetry.cpuIntensity, telemetry.gpuIntensity), max(telemetry.aneIntensity, telemetry.hapticIntensity)),
+                    metricsSummary: settings.hudShowMetrics ? telemetry.compactMetricsSummary : "",
+                    activities: settings.hudShowMetrics ? telemetry.componentActivities : []
+                )
+                .contentShape(Rectangle().inset(by: -20))
+                .highPriorityGesture(
+                    DragGesture(minimumDistance: 0)
+                        .onChanged { value in
+                            var t = Transaction()
+                            t.disablesAnimations = true
+                            withTransaction(t) { dragOffset = value.translation }
+                        }
+                        .onEnded { value in
+                            savedLegendX = min(max(base.x + value.translation.width, 20), w - 20)
+                            savedLegendY = min(max(base.y + value.translation.height, 20), h - 20)
+                            dragOffset = .zero
+                        }
+                )
+                .offset(dragOffset)
+                .position(base)
+                .compositingGroup()
+                .geometryGroup()
+            }
+        }
+        .ignoresSafeArea()
     }
 }
 #endif
