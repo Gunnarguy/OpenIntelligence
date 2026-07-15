@@ -814,6 +814,10 @@ final class FloatingLegendWindowManager {
     static let shared = FloatingLegendWindowManager()
     private var window: PassthroughWindow?
 
+    /// Global-space frame of the legend content, reported from SwiftUI.
+    /// The window claims touches ONLY inside this frame (+ grab margin).
+    var legendHitFrame: CGRect = .zero
+
     func ensureVisible(settings: SettingsStore) {
         guard window == nil else { return }
         let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
@@ -829,11 +833,18 @@ final class FloatingLegendWindowManager {
     }
 }
 
-/// Passes through every touch that doesn't land on actual legend content.
+/// Passes through every touch that doesn't land on the legend itself.
+/// NOTE: SwiftUI hosting renders ALL content inside one UIView, so "which
+/// subview was hit" cannot distinguish the legend from empty space — the
+/// naive passthrough returned nil for everything and made the legend
+/// untouchable. Instead, SwiftUI reports the legend's frame and the window
+/// claims only points inside it.
 final class PassthroughWindow: UIWindow {
     override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
-        guard let view = super.hitTest(point, with: event) else { return nil }
-        return view === rootViewController?.view ? nil : view
+        let hitFrame = FloatingLegendWindowManager.shared.legendHitFrame
+        guard !hitFrame.isEmpty,
+              hitFrame.insetBy(dx: -30, dy: -30).contains(point) else { return nil }
+        return super.hitTest(point, with: event)
     }
 }
 
@@ -881,6 +892,15 @@ struct FloatingLegendRoot: View {
                 )
                 .offset(dragOffset)
                 .position(base)
+                // Report the legend's frame to the window for hit-testing.
+                // (Layout frame — .offset is render-only — so mid-drag the
+                // claimed region stays at the grab point, which is fine: the
+                // active gesture already owns the touch. Updates on release.)
+                .onGeometryChange(for: CGRect.self) { proxy in
+                    proxy.frame(in: .global)
+                } action: { frame in
+                    FloatingLegendWindowManager.shared.legendHitFrame = frame
+                }
                 .compositingGroup()
                 .geometryGroup()
             }
