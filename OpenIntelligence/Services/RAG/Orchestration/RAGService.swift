@@ -1695,6 +1695,7 @@ class RAGService: ObservableObject {
                     "model": record.modelName,
                     "chars": "\(record.promptCharacterCount)",
                     "chunks": "\(record.contextChunkCount)",
+                    "planID": record.planID?.uuidString ?? "legacy",
                 ]
             )
             continuation?.resume(returning: .deny)
@@ -1706,7 +1707,8 @@ class RAGService: ObservableObject {
         modelName: String,
         prompt: String,
         context: String?,
-        chunks: [DocumentChunk]
+        chunks: [DocumentChunk],
+        modelExecutionPlan: ModelExecutionPlan? = nil
     ) -> CloudTransmissionRecord {
         let sanitizedPrompt = prompt.replacingOccurrences(of: "\n", with: " ")
         let preview = String(sanitizedPrompt.prefix(160))
@@ -1725,9 +1727,12 @@ class RAGService: ObservableObject {
             modelName: modelName,
             promptPreview: preview,
             promptCharacterCount: prompt.count,
+            contextCharacterCount: context?.count ?? 0,
             contextChunkCount: chunks.count,
             contextHashes: hashes,
-            estimatedBytes: estimatedBytes
+            estimatedBytes: estimatedBytes,
+            planID: modelExecutionPlan?.id,
+            routeReason: modelExecutionPlan?.stages.first(where: { $0.role == .synthesize })?.reason
         )
     }
 
@@ -3210,8 +3215,10 @@ class RAGService: ObservableObject {
         prompt: String,
         context: String?,
         sourceChunks: [DocumentChunk],
-        allowPrivateCloudCompute: Bool
+        allowPrivateCloudCompute: Bool,
+        modelExecutionPlan: ModelExecutionPlan?
     ) async throws {
+        guard modelExecutionPlan?.requiresCloudConsent == true else { return }
         guard let provider = cloudProvider(for: service) else { return }
         if !allowPrivateCloudCompute, provider == .applePCC {
             return // User blocked PCC; don't prompt for consent we won't use
@@ -3221,13 +3228,32 @@ class RAGService: ObservableObject {
             modelName: service.modelName,
             prompt: prompt,
             context: context,
-            chunks: sourceChunks
+            chunks: sourceChunks,
+            modelExecutionPlan: modelExecutionPlan
         )
 
         if await hasTransientGrant(for: provider) {
             await recordTransmission(record, grant: "session")
             return
         }
+
+        #if canImport(UIKit)
+        let isForegroundInteractive = await MainActor.run {
+            UIApplication.shared.applicationState == .active
+        }
+        guard isForegroundInteractive else {
+            TelemetryCenter.emit(
+                .system,
+                severity: .warning,
+                title: "Cloud consent unavailable outside foreground UI",
+                metadata: [
+                    "provider": provider.shortName,
+                    "planID": modelExecutionPlan?.id.uuidString ?? "unknown",
+                ]
+            )
+            throw RAGServiceError.cloudConsentUnavailable(provider: provider)
+        }
+        #endif
 
         let decision = await cloudConsentDecision(for: provider, record: record)
 
@@ -3299,6 +3325,8 @@ class RAGService: ObservableObject {
                 "chunks": "\(record.contextChunkCount)",
                 "bytes": "\(record.estimatedBytes)",
                 "grant": grant,
+                "planID": record.planID?.uuidString ?? "legacy",
+                "routeReason": record.routeReason?.rawValue ?? "legacy",
             ]
         )
     }
@@ -3320,14 +3348,16 @@ class RAGService: ObservableObject {
         prompt: String,
         context: String?,
         sourceChunks: [DocumentChunk],
-        allowPrivateCloudCompute: Bool
+        allowPrivateCloudCompute: Bool,
+        modelExecutionPlan: ModelExecutionPlan?
     ) async throws {
         try await ensureCloudConsentIfNeeded(
             service: service,
             prompt: prompt,
             context: context,
             sourceChunks: sourceChunks,
-            allowPrivateCloudCompute: allowPrivateCloudCompute
+            allowPrivateCloudCompute: allowPrivateCloudCompute,
+            modelExecutionPlan: modelExecutionPlan
         )
     }
 
@@ -10527,16 +10557,11 @@ class RAGService: ObservableObject {
                     }
                 }
 
-                // Resolve cloud consent and transient grant before context packing so we can use the correct token budget.
-                var cloudConsentState: CloudConsentState = await MainActor.run {
+                // Context planning remains local. Consent is requested only after the
+                // post-retrieval planner selects PCC and constructs the minimized payload.
+                let cloudConsentState: CloudConsentState = await MainActor.run {
                     cloudConsent[.applePCC] ?? .notDetermined
                 }
-                var cloudConsentAllowed = cloudConsentState == .allowed
-
-                var hasTransientGrant: Bool = await MainActor.run {
-                    transientConsentGrants.contains(.applePCC)
-                }
-
                 if isAppleFMOnDevice,
                    cloudConsentState == .denied,
                    inferenceConfig.executionContext != .onDeviceOnly
@@ -10544,47 +10569,6 @@ class RAGService: ObservableObject {
                     inferenceConfig.executionContext = .onDeviceOnly
                     inferenceConfig.allowPrivateCloudCompute = false
                     Log.info("[RAG] PCC consent denied → onDeviceOnly", category: .pipeline)
-                }
-
-                if isAppleFMOnDevice,
-                   networkAvailable,
-                   inferenceConfig.allowPrivateCloudCompute,
-                   inferenceConfig.executionContext != .onDeviceOnly,
-                   !pccSuppressed,
-                   cloudConsentState != .denied,
-                   !cloudConsentAllowed,
-                   !hasTransientGrant
-                {
-                    do {
-                        try await ensureCloudConsentIfNeeded(
-                            service: llmService,
-                            prompt: question,
-                            context: nil,
-                            sourceChunks: contextCandidates.map { $0.chunk },
-                            allowPrivateCloudCompute: inferenceConfig.allowPrivateCloudCompute
-                        )
-                        cloudConsentState = await MainActor.run {
-                            cloudConsent[.applePCC] ?? .notDetermined
-                        }
-                        cloudConsentAllowed = cloudConsentState == .allowed
-                        hasTransientGrant = await MainActor.run {
-                            transientConsentGrants.contains(.applePCC)
-                        }
-                    } catch {
-                        if case let RAGServiceError.cloudConsentDenied(provider) = error {
-                            cloudConsentState = .denied
-                            cloudConsentAllowed = false
-                            hasTransientGrant = false
-                            inferenceConfig.executionContext = .onDeviceOnly
-                            inferenceConfig.allowPrivateCloudCompute = false
-                            Log.info(
-                                "[RAG] Cloud consent denied (\(provider.shortName)) → onDeviceOnly",
-                                category: .pipeline
-                            )
-                        } else {
-                            throw error
-                        }
-                    }
                 }
 
                 #if targetEnvironment(simulator)
@@ -10596,7 +10580,9 @@ class RAGService: ObservableObject {
                         && inferenceConfig.executionContext != .onDeviceOnly
                         && !pccSuppressed
                 #endif
-                let allowLargeContext = pccEligible && (cloudConsentAllowed || hasTransientGrant)
+                // PCC eligibility controls how much local evidence may be prepared.
+                // Consent does not occur until the selected cloud envelope is final.
+                let allowLargeContext = pccEligible && cloudConsentState != .denied
 
                 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
                 // Step 4.9: Graph-Based Context Packing (AppleRAG §5)
@@ -11691,6 +11677,147 @@ class RAGService: ObservableObject {
                 var generationRetrievedChunks = includedRetrievedChunks
                 var usedOverflowRetry = false
 
+                if ModelRoutingFeatureFlags.plannerV1Enabled,
+                   llmService is AppleFoundationLLMService {
+                    let requiresMultiDocumentSynthesis: Bool = {
+                        guard uniqueSourceDocs > 1 else { return false }
+                        switch answerIntent {
+                        case .compare, .investigate, .findings, .compute:
+                            return true
+                        default:
+                            return qualityMode.canonical != .standard
+                        }
+                    }()
+                    let planned = await makePostRetrievalModelPlan(
+                        prompt: promptForGeneration,
+                        context: generationContext,
+                        config: genConfig,
+                        chunks: generationRetrievedChunks,
+                        consentState: cloudConsentState,
+                        networkAvailable: networkAvailable,
+                        requiresMultiDocumentSynthesis: requiresMultiDocumentSynthesis
+                    )
+                    let plan = planned.plan
+                    genConfig.modelExecutionPlan = plan
+
+                    switch plan.synthesisTarget {
+                    case .privateCloudCompute:
+                        let maximumCloudCharacters = max(
+                            800,
+                            min(
+                                generationContext.count,
+                                Int(Double(plan.contextBudget.remaining + plan.contextBudget.evidence) *
+                                    FoundationModelTokenBudget.cloudFallbackCharsPerToken)
+                            )
+                        )
+                        let envelope = CloudEvidenceMinimizer().makeEnvelope(
+                            plan: plan,
+                            query: question,
+                            chunks: generationRetrievedChunks,
+                            maximumCharacters: maximumCloudCharacters
+                        )
+                        generationContext = renderCloudEvidenceEnvelope(envelope)
+                        let includedIDs = Set(envelope.evidence.map(\.sourceID))
+                        generationRetrievedChunks = generationRetrievedChunks.filter {
+                            includedIDs.contains($0.chunk.id.uuidString)
+                        }
+                        generationChunks = generationRetrievedChunks.map(\.chunk)
+
+                        do {
+                            try await ensureCloudConsentIfNeeded(
+                                service: llmService,
+                                prompt: promptForGeneration,
+                                context: generationContext,
+                                sourceChunks: generationChunks,
+                                allowPrivateCloudCompute: genConfig.allowPrivateCloudCompute,
+                                modelExecutionPlan: plan
+                            )
+                        } catch let error as RAGServiceError {
+                            let canFallback = plan.fallback.target == .onDevice
+                            switch error {
+                            case .cloudConsentDenied(_), .cloudConsentUnavailable(_):
+                                guard canFallback else { throw error }
+                                let nonEvidenceTokens = planned.localBudget.used - planned.localBudget.evidence
+                                let localEvidenceTokens = max(
+                                    256,
+                                    planned.localBudget.contextSize - nonEvidenceTokens
+                                )
+                                let localMaxCharacters = min(
+                                    10_000,
+                                    max(
+                                        800,
+                                        Int(Double(localEvidenceTokens) *
+                                            FoundationModelTokenBudget.onDeviceCharsPerToken)
+                                    )
+                                )
+                                let localAssembly = await engine.assembleContext(
+                                    chunks: orderedCandidates,
+                                    maxChars: localMaxCharacters,
+                                    compact: true,
+                                    useLostInMiddleMitigation: useLostInMiddleMitigation
+                                )
+                                generationContext = localAssembly.context
+                                generationRetrievedChunks = Array(
+                                    orderedCandidates.prefix(localAssembly.used)
+                                )
+                                generationChunks = generationRetrievedChunks.map(\.chunk)
+                                genConfig.executionContext = .onDeviceOnly
+                                genConfig.allowPrivateCloudCompute = false
+                                Log.info(
+                                    "[ModelRouter] PCC consent unavailable/denied → local fallback for plan \(plan.id)",
+                                    category: .pipeline
+                                )
+                            default:
+                                throw error
+                            }
+                        }
+                    case .onDevice, .deterministic:
+                        if !planned.localBudget.fits {
+                            let nonEvidenceTokens = planned.localBudget.used - planned.localBudget.evidence
+                            let localEvidenceTokens = max(
+                                256,
+                                planned.localBudget.contextSize - nonEvidenceTokens
+                            )
+                            let localAssembly = await engine.assembleContext(
+                                chunks: orderedCandidates,
+                                maxChars: min(
+                                    10_000,
+                                    max(
+                                        800,
+                                        Int(Double(localEvidenceTokens) *
+                                            FoundationModelTokenBudget.onDeviceCharsPerToken)
+                                    )
+                                ),
+                                compact: true,
+                                useLostInMiddleMitigation: useLostInMiddleMitigation
+                            )
+                            generationContext = localAssembly.context
+                            generationRetrievedChunks = Array(
+                                orderedCandidates.prefix(localAssembly.used)
+                            )
+                            generationChunks = generationRetrievedChunks.map(\.chunk)
+                        }
+                        genConfig.executionContext = .onDeviceOnly
+                    case .abstain:
+                        throw RAGServiceError.modelNotAvailable
+                    }
+
+                    TelemetryCenter.emit(
+                        .generation,
+                        title: "Post-retrieval model route selected",
+                        metadata: [
+                            "planID": plan.id.uuidString,
+                            "policy": plan.policyVersion,
+                            "target": plan.synthesisTarget.rawValue,
+                            "reason": plan.stages.first(where: { $0.role == .synthesize })?.reason.rawValue ?? "unknown",
+                            "quota": plan.pccQuotaAtPlanning.rawValue,
+                            "budgetSource": plan.contextBudget.source.rawValue,
+                            "evidenceChunks": "\(plan.evidence.chunkCount)",
+                            "evidenceTokens": "\(plan.evidence.estimatedEvidenceTokens)",
+                        ]
+                    )
+                }
+
                 // Track reasoning trace from chained sessions (for UI display)
                 var reasoningTraceForMetadata: [String]? = nil
 
@@ -12586,14 +12713,24 @@ class RAGService: ObservableObject {
                         qualityModeName: qualityMode.displayName,
                         originalQuery: question, // For "Go Deeper" re-query
                         reasoningTrace: reasoningTraceForMetadata, // Chained session insights
-                        executionRoute: runtimeContext.executionRoute,
+                        executionRoute: llmResponse.executionReceipt.map { receipt in
+                            ResponseMetadata.ExecutionRoute(
+                                path: receipt.completedTarget == .privateCloudCompute
+                                    ? "Private Cloud Compute"
+                                    : "On-Device",
+                                reason: receipt.summary,
+                                policyApplied: receipt.policyVersion,
+                                emoji: receipt.completedTarget == .privateCloudCompute ? "☁️" : "📱"
+                            )
+                        } ?? runtimeContext.executionRoute,
                         tokenBudget: ResponseMetadata.TokenBudget(
                             totalLimit: runtimeContext.tokenBudget.totalLimit,
                             systemPrompt: runtimeContext.tokenBudget.systemPrompt,
                             retrievedContext: FoundationModelTokenBudget.estimateTokens(for: generationContext, isAppleFMOnDevice: runtimeContext.inferenceConfig.executionContext == .onDeviceOnly),
                             generation: llmResponse.tokensGenerated,
                             remaining: runtimeContext.tokenBudget.totalLimit - runtimeContext.tokenBudget.systemPrompt - FoundationModelTokenBudget.estimateTokens(for: generationContext, isAppleFMOnDevice: runtimeContext.inferenceConfig.executionContext == .onDeviceOnly) - llmResponse.tokensGenerated
-                        )
+                        ),
+                        executionReceipt: llmResponse.executionReceipt
                     )
 
                     let displayResponseText = resolvedDisplayResponse(
@@ -12668,7 +12805,8 @@ class RAGService: ObservableObject {
                         retrievalTime: retrievalTime,
                         retrievalConfigSummary: retrievalConfig.summary,
                         toolCallsMade: 0,
-                        embeddingProvider: embeddingProviderId
+                        embeddingProvider: embeddingProviderId,
+                        executionReceipt: llmResponse.executionReceipt
                     )
 
                     let response = RAGResponse(
@@ -12789,7 +12927,8 @@ class RAGService: ObservableObject {
                     retrievalTime: 0, // No retrieval in direct chat mode
                     retrievalConfigSummary: retrievalConfig.summary,
                     toolCallsMade: llmResponse.toolCallsMade,
-                    embeddingProvider: embeddingProviderId
+                    embeddingProvider: embeddingProviderId,
+                    executionReceipt: llmResponse.executionReceipt
                 )
 
                 let structuredAnswer = StructuredAnswer.from(
@@ -13140,7 +13279,8 @@ class RAGService: ObservableObject {
                 retrievalConfigSummary: retrievalConfig.summary,
                 gatingDecision: "reliability_fallback",
                 toolCallsMade: llmResponse.toolCallsMade,
-                embeddingProvider: embeddingProviderId
+                embeddingProvider: embeddingProviderId,
+                executionReceipt: llmResponse.executionReceipt
             )
             let structuredAnswer = StructuredAnswer.from(
                 response: llmResponse.text,
@@ -13284,7 +13424,8 @@ class RAGService: ObservableObject {
             retrievalTime: retrievalTime,
             retrievalConfigSummary: retrievalConfig.summary,
             toolCallsMade: llmResponse.toolCallsMade,
-            embeddingProvider: nil // No embedding used in direct chat fallback
+            embeddingProvider: nil, // No embedding used in direct chat fallback
+            executionReceipt: llmResponse.executionReceipt
         )
 
         var warnings: [String] = []
@@ -13927,6 +14068,138 @@ class RAGService: ObservableObject {
         llmService.modelName
     }
 
+    // MARK: - Post-Retrieval Model Routing
+
+    func makePostRetrievalModelPlan(
+        prompt: String,
+        context: String,
+        config: InferenceConfig,
+        chunks: [RetrievedChunk],
+        consentState: CloudConsentState,
+        networkAvailable: Bool,
+        requiresMultiDocumentSynthesis: Bool
+    ) async -> (plan: ModelExecutionPlan, localBudget: ContextBudgetSnapshot) {
+        let topScore = chunks.first?.similarityScore ?? 0
+        let meanScore = chunks.isEmpty
+            ? 0
+            : chunks.map(\.similarityScore).reduce(0, +) / Float(chunks.count)
+        let estimatedEvidenceTokens = FoundationModelTokenBudget.estimateTokens(
+            for: prompt + "\n" + context,
+            isAppleFMOnDevice: true
+        )
+        let evidence = PostRetrievalEvidence(
+            chunkCount: chunks.count,
+            topScore: topScore,
+            meanScore: meanScore,
+            estimatedEvidenceTokens: estimatedEvidenceTokens,
+            hasContradictions: false,
+            requiresExactExtraction: false,
+            requiresMultiDocumentSynthesis: requiresMultiDocumentSynthesis
+        )
+
+        #if canImport(UIKit)
+        let isForegroundInteractive = await MainActor.run {
+            UIApplication.shared.applicationState == .active
+        }
+        #else
+        let isForegroundInteractive = true
+        #endif
+        let transientConsentGranted = await MainActor.run {
+            transientConsentGrants.contains(.applePCC)
+        }
+
+        let constraints = PreRetrievalConstraints(
+            allowsPCC: config.allowPrivateCloudCompute && consentState != .denied,
+            requiresOnDevice: config.executionContext == .onDeviceOnly,
+            requiresPCC: config.executionContext == .cloudOnly,
+            networkAvailable: networkAvailable,
+            consentGranted: consentState == .allowed || transientConsentGranted,
+            isForegroundInteractive: isForegroundInteractive,
+            qualityMode: config.qualityMode.displayName
+        )
+
+        #if canImport(FoundationModels)
+        if #available(iOS 26.0, macOS 26.0, *) {
+            let capability = await LiveFoundationModelCapabilityProvider().snapshot()
+            let instructions = config.systemPrompt ?? ""
+            let localBudget = await FoundationModelTokenBudget.snapshot(
+                contextSize: capability.onDeviceContextSize,
+                instructions: instructions,
+                evidence: prompt + "\n" + context,
+                outputReserve: max(128, config.maxTokens),
+                schemaReserve: 200,
+                reasoningReserve: config.qualityMode.canonical == .standard ? 0 : 512
+            )
+            let pccBudget: ContextBudgetSnapshot?
+            if let pccContextSize = capability.pccContextSize {
+                pccBudget = await FoundationModelTokenBudget.snapshot(
+                    contextSize: pccContextSize,
+                    instructions: instructions,
+                    evidence: prompt + "\n" + context,
+                    outputReserve: max(128, config.maxTokens),
+                    schemaReserve: 200,
+                    reasoningReserve: config.qualityMode.canonical == .standard ? 0 : 1024
+                )
+            } else {
+                pccBudget = nil
+            }
+            let plan = ModelExecutionPlanner().makePlan(
+                constraints: constraints,
+                evidence: evidence,
+                localBudget: localBudget,
+                pccBudget: pccBudget,
+                capability: capability
+            )
+            return (plan, localBudget)
+        }
+        #endif
+
+        let localBudget = ContextBudgetSnapshot(
+            contextSize: 4096,
+            instructions: FoundationModelTokenBudget.estimateTokens(
+                for: config.systemPrompt ?? "",
+                isAppleFMOnDevice: true
+            ),
+            tools: config.disableTools ? 0 : 1000,
+            schema: 200,
+            history: 0,
+            evidence: estimatedEvidenceTokens,
+            output: max(128, config.maxTokens),
+            reasoning: 0,
+            safety: 256,
+            source: .conservativeFallback
+        )
+        let localCapability = FoundationModelCapabilitySnapshot(
+            supportsOnDevice: true,
+            onDeviceAvailable: true,
+            onDeviceContextSize: localBudget.contextSize,
+            supportsPCC: false,
+            hasPCCEntitlement: false,
+            pccAvailable: false,
+            pccQuota: .unsupported,
+            pccContextSize: nil,
+            source: .conservativeFallback,
+            unavailabilityReason: "Foundation Models PCC APIs unavailable"
+        )
+        return (
+            ModelExecutionPlanner().makePlan(
+                constraints: constraints,
+                evidence: evidence,
+                localBudget: localBudget,
+                pccBudget: nil,
+                capability: localCapability
+            ),
+            localBudget
+        )
+    }
+
+    func renderCloudEvidenceEnvelope(_ envelope: CloudEvidenceEnvelope) -> String {
+        envelope.evidence.enumerated().map { index, item in
+            let page = item.pageNumber.map { " p. \($0)" } ?? ""
+            return "[S\(index + 1)] \(item.documentName)\(page)\n\(item.text)"
+        }.joined(separator: "\n\n---\n\n")
+    }
+
     // MARK: - Apple Intelligence Feedback (iOS 26+)
 
     #if canImport(FoundationModels)
@@ -13965,7 +14238,7 @@ class RAGService: ObservableObject {
     // MARK: - Fallback-Aware Generation
 
     /// Try to generate with primary service, automatically falling back to configured fallbacks on failure
-    private func generateWithFallback(
+    func generateWithFallback(
         prompt: String,
         context: String?,
         config: InferenceConfig,
@@ -13975,8 +14248,16 @@ class RAGService: ObservableObject {
     ) async throws -> LLMResponse {
         let upstreamHandler = LLMStreamingContext.handler
 
-        func attempt(service: LLMService) async throws -> LLMResponse {
+        func attempt(
+            service: LLMService,
+            overrideConfig: InferenceConfig? = nil,
+            overrideContext: String? = nil,
+            overrideSourceChunks: [DocumentChunk]? = nil
+        ) async throws -> LLMResponse {
             let attemptStart = Date()
+            let attemptConfig = overrideConfig ?? config
+            let attemptContext = overrideContext ?? context
+            let attemptSourceChunks = overrideSourceChunks ?? sourceChunks
 
             // ═══════════════════════════════════════════════════════════════
             // StreamCapture with LIVE repetition loop detection
@@ -14083,22 +14364,23 @@ class RAGService: ObservableObject {
                     try await ensureCloudConsentIfNeeded(
                         service: service,
                         prompt: prompt,
-                        context: context,
-                        sourceChunks: sourceChunks,
-                        allowPrivateCloudCompute: config.allowPrivateCloudCompute
+                        context: attemptContext,
+                        sourceChunks: attemptSourceChunks,
+                        allowPrivateCloudCompute: attemptConfig.allowPrivateCloudCompute,
+                        modelExecutionPlan: attemptConfig.modelExecutionPlan
                     )
 
                     let response: LLMResponse
                     if allowStructuredRAG,
                        #available(iOS 26.0, *),
                        let appleService = service as? AppleFoundationLLMService,
-                       let context,
-                       !context.isEmpty,
-                       !sourceChunks.isEmpty {
-                        let systemChars = (config.systemPrompt ?? "").count
-                        let estimatedInputTokens = FoundationModelTokenBudget.estimateTokens(charsCount: context.count + prompt.count + systemChars + 180, isAppleFMOnDevice: true)
+                       let attemptContext,
+                       !attemptContext.isEmpty,
+                       !attemptSourceChunks.isEmpty {
+                        let systemChars = (attemptConfig.systemPrompt ?? "").count
+                        let estimatedInputTokens = FoundationModelTokenBudget.estimateTokens(charsCount: attemptContext.count + prompt.count + systemChars + 180, isAppleFMOnDevice: true)
                         let structuredSchemaTokens = structuredRAGMode == .reasoned ? 220 : 160
-                        let structuredOutputReserve = min(max(config.maxTokens, 180), 360)
+                        let structuredOutputReserve = min(max(attemptConfig.maxTokens, 180), 360)
                         let withinStructuredBudget = estimatedInputTokens + structuredSchemaTokens + structuredOutputReserve <= 3600
 
                         if withinStructuredBudget {
@@ -14106,24 +14388,24 @@ class RAGService: ObservableObject {
                             Log.info("[RAG] Using constrained structured answer generation (\(modeLabel))", category: .llm)
                             response = try await appleService.generateStructuredRAGAnswer(
                                 prompt: prompt,
-                                context: context,
-                                config: config,
-                                sourceCount: sourceChunks.count,
+                                context: attemptContext,
+                                config: attemptConfig,
+                                sourceCount: attemptSourceChunks.count,
                                 mode: structuredRAGMode
                             )
                         } else {
                             Log.debug("[RAG] Structured answer generation skipped due to token budget (~\(estimatedInputTokens) input tokens)", category: .llm)
                             response = try await service.generate(
                                 prompt: prompt,
-                                context: context,
-                                config: config
+                                context: attemptContext,
+                                config: attemptConfig
                             )
                         }
                     } else {
                         response = try await service.generate(
                             prompt: prompt,
-                            context: context,
-                            config: config
+                            context: attemptContext,
+                            config: attemptConfig
                         )
                     }
 
@@ -14145,7 +14427,9 @@ class RAGService: ObservableObject {
                                 timeToFirstToken: response.timeToFirstToken ?? firstChunkTime,
                                 totalTime: max(response.totalTime, Date().timeIntervalSince(attemptStart)),
                                 modelName: response.modelName ?? service.modelName,
-                                toolCallsMade: response.toolCallsMade
+                                toolCallsMade: response.toolCallsMade,
+                                structuredRAGGeneration: response.structuredRAGGeneration,
+                                executionReceipt: response.executionReceipt
                             )
                         }
                         // If clean prefix is too short, fall through to normal response
@@ -14166,7 +14450,9 @@ class RAGService: ObservableObject {
                             timeToFirstToken: response.timeToFirstToken ?? firstChunkTime,
                             totalTime: max(response.totalTime, Date().timeIntervalSince(attemptStart)),
                             modelName: response.modelName ?? service.modelName,
-                            toolCallsMade: response.toolCallsMade
+                            toolCallsMade: response.toolCallsMade,
+                            structuredRAGGeneration: response.structuredRAGGeneration,
+                            executionReceipt: response.executionReceipt
                         )
                     }
 
@@ -14188,13 +14474,32 @@ class RAGService: ObservableObject {
                         if LLMStreamingContext.handler != nil {
                             LLMStreamingContext.emit(text: "", isFinal: true)
                         }
+                        let partialReceipt = attemptConfig.modelExecutionPlan.map { plan in
+                            ModelExecutionReceipt(
+                                planID: plan.id,
+                                policyVersion: plan.policyVersion,
+                                intendedTarget: plan.synthesisTarget,
+                                attempts: [
+                                    ModelExecutionAttempt(
+                                        target: plan.synthesisTarget,
+                                        startedAt: attemptStart,
+                                        result: .failed,
+                                        failureCode: "partial_stream"
+                                    ),
+                                ],
+                                actualTarget: plan.synthesisTarget,
+                                completedTarget: plan.synthesisTarget,
+                                pccQuotaAtPlanning: plan.pccQuotaAtPlanning
+                            )
+                        }
                         return LLMResponse(
                             text: capturedTrimmed,
                             tokensGenerated: capturedTrimmed.split(whereSeparator: { $0.isWhitespace }).count,
                             timeToFirstToken: firstChunkTime,
                             totalTime: Date().timeIntervalSince(attemptStart),
                             modelName: service.modelName,
-                            toolCallsMade: 0
+                            toolCallsMade: 0,
+                            executionReceipt: partialReceipt
                         )
                     }
                     throw error
@@ -14202,16 +14507,88 @@ class RAGService: ObservableObject {
             }
         }
 
+        let primaryAttemptStartedAt = Date()
         do {
             return try await attempt(service: _llmService)
-        } catch {
-            let errorDesc = error.localizedDescription
+        } catch let primaryError {
+            let errorDesc = primaryError.localizedDescription
+
+            // PCC failures fall back only when no meaningful text was streamed.
+            // `attempt` returns partial output instead of throwing once streaming
+            // has begun, preventing mixed PCC/local responses.
+            if let plan = config.modelExecutionPlan,
+               plan.synthesisTarget == .privateCloudCompute,
+               plan.fallback.target == .onDevice {
+                var localConfig = config
+                localConfig.executionContext = .onDeviceOnly
+                localConfig.allowPrivateCloudCompute = false
+                let localContext = context.map { String($0.prefix(8_500)) }
+                let localChunks = Array(sourceChunks.prefix(8))
+                do {
+                    let localResponse = try await attempt(
+                        service: _llmService,
+                        overrideConfig: localConfig,
+                        overrideContext: localContext,
+                        overrideSourceChunks: localChunks
+                    )
+                    let failedCode = errorDesc.lowercased().contains("quota")
+                        ? "pcc_quota"
+                        : "pcc_generation"
+                    let localAttempts = localResponse.executionReceipt?.attempts ?? [
+                        ModelExecutionAttempt(
+                            target: .onDevice,
+                            startedAt: Date(),
+                            result: .succeeded
+                        ),
+                    ]
+                    let receipt = ModelExecutionReceipt(
+                        planID: plan.id,
+                        policyVersion: plan.policyVersion,
+                        intendedTarget: .privateCloudCompute,
+                        attempts: [
+                            ModelExecutionAttempt(
+                                target: .privateCloudCompute,
+                                startedAt: primaryAttemptStartedAt,
+                                result: .failed,
+                                failureCode: failedCode
+                            ),
+                        ] + localAttempts,
+                        actualTarget: .privateCloudCompute,
+                        completedTarget: .onDevice,
+                        fallbackReason: errorDesc.lowercased().contains("quota")
+                            ? .pccQuotaReached
+                            : .fallback,
+                        pccQuotaAtPlanning: plan.pccQuotaAtPlanning,
+                        verificationPassed: localResponse.executionReceipt?.verificationPassed
+                    )
+                    Log.warning(
+                        "[ModelRouter] PCC failed before streaming → completed on-device fallback for plan \(plan.id)",
+                        category: .llm
+                    )
+                    return LLMResponse(
+                        text: localResponse.text,
+                        tokensGenerated: localResponse.tokensGenerated,
+                        timeToFirstToken: localResponse.timeToFirstToken,
+                        totalTime: localResponse.totalTime,
+                        modelName: localResponse.modelName,
+                        toolCallsMade: localResponse.toolCallsMade,
+                        structuredRAGGeneration: localResponse.structuredRAGGeneration,
+                        executionReceipt: receipt
+                    )
+                } catch let fallbackError {
+                    Log.warning(
+                        "[ModelRouter] On-device fallback failed: \(fallbackError.localizedDescription)",
+                        category: .llm
+                    )
+                    throw primaryError
+                }
+            }
 
             // Rate-limit retry: Apple FM on-device model can hit transient rate limits
             // after heavy compression. Wait briefly and retry once before falling through
             // to fallback services.
             let isRateLimited: Bool
-            if let llmErr = error as? LLMError {
+            if let llmErr = primaryError as? LLMError {
                 switch llmErr {
                 case .rateLimited, .concurrentRequests: isRateLimited = true
                 default: isRateLimited = errorDesc.lowercased().contains("rate") || errorDesc.contains("concurrent")
@@ -14281,7 +14658,7 @@ class RAGService: ObservableObject {
             }
 
             // Rethrow original error
-            throw error
+            throw primaryError
         }
     }
 
@@ -16472,6 +16849,7 @@ enum RAGServiceError: LocalizedError {
     case noRelevantContext
     case maximumModeQuotaReached(limit: Int)
     case cloudConsentDenied(provider: CloudProvider)
+    case cloudConsentUnavailable(provider: CloudProvider)
 
     var errorDescription: String? {
         switch self {
@@ -16489,6 +16867,8 @@ enum RAGServiceError: LocalizedError {
             return "Maximum mode is limited to \(limit) uses per day on the free tier"
         case let .cloudConsentDenied(provider):
             return "Cloud transmission denied for \(provider.shortName)"
+        case let .cloudConsentUnavailable(provider):
+            return "Cloud consent for \(provider.shortName) requires the app to be open in the foreground"
         }
     }
 }

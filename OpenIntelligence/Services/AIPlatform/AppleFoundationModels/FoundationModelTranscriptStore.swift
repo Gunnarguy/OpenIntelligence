@@ -37,7 +37,9 @@ struct FoundationModelTranscriptStore: Sendable {
         let toolSchemaTokens = config.disableTools ? 0 : 1000
         let budgetForContent = contentTokens + outputReserve + toolSchemaTokens
 
-        let maxTranscriptTokens = max(0, 4096 - budgetForContent)
+        let contextSize = config.modelExecutionPlan?.contextBudget.contextSize
+            ?? FoundationModelTokenBudget.contextSize(isAppleFMOnDevice: true)
+        let maxTranscriptTokens = max(0, contextSize - budgetForContent)
         let currentTranscriptTokens = estimateTranscriptTokens(transcript)
 
         if currentTranscriptTokens > maxTranscriptTokens {

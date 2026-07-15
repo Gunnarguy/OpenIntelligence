@@ -1,6 +1,6 @@
-# Docs/INGESTION_PIPELINE.md — OpenIntelligence v4.4 (working on v4.5)
+# Ingestion Pipeline — OpenIntelligence v4.6
 
-> **Documentation status:** Verified for OpenIntelligence v4.5 on 2026-07-01.
+> **Documentation status:** Source-verified on 2026-07-15. PCC Dynamic Routing does not change ingestion; indexed content remains local until a later query explicitly selects and consents to a minimized PCC synthesis envelope.
 > **Source of truth:** Codebase audit in `Docs/AUDIT/`.
 > **Scope:** Describes shipped behavior unless explicitly labeled experimental, developer-only, or scaffolded.
 
@@ -27,6 +27,8 @@ flowchart TD
     I --> J[SQLite FTS5 Storage]
     I --> K[Core ML Embedding Generation]
     K --> L[BNNS Vector Storage]
+    J --> LOCAL[Local Search Index Boundary]
+    L --> LOCAL
     
     STREAM --> STATE[Load ingestion_state.json & stable doc ID]
     STATE --> S1[Process Batch of 15 Pages]

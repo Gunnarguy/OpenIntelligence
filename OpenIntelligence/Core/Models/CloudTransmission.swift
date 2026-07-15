@@ -44,9 +44,12 @@ struct CloudTransmissionRecord: Identifiable, Equatable, Sendable {
     let timestamp: Date
     let promptPreview: String
     let promptCharacterCount: Int
+    let contextCharacterCount: Int
     let contextChunkCount: Int
     let contextHashes: [String]
     let estimatedBytes: Int
+    let planID: UUID?
+    let routeReason: ModelRouteReason?
 
     init(
         id: UUID = UUID(),
@@ -55,9 +58,12 @@ struct CloudTransmissionRecord: Identifiable, Equatable, Sendable {
         timestamp: Date = Date(),
         promptPreview: String,
         promptCharacterCount: Int,
+        contextCharacterCount: Int = 0,
         contextChunkCount: Int,
         contextHashes: [String],
-        estimatedBytes: Int
+        estimatedBytes: Int,
+        planID: UUID? = nil,
+        routeReason: ModelRouteReason? = nil
     ) {
         self.id = id
         self.provider = provider
@@ -65,8 +71,11 @@ struct CloudTransmissionRecord: Identifiable, Equatable, Sendable {
         self.timestamp = timestamp
         self.promptPreview = promptPreview
         self.promptCharacterCount = promptCharacterCount
+        self.contextCharacterCount = contextCharacterCount
         self.contextChunkCount = contextChunkCount
         self.contextHashes = contextHashes
         self.estimatedBytes = estimatedBytes
+        self.planID = planID
+        self.routeReason = routeReason
     }
 }

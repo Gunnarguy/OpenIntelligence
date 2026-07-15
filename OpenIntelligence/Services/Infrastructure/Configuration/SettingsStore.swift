@@ -398,7 +398,10 @@ final class SettingsStore: ObservableObject {
 
         if let fmPrefRaw = defaults.string(forKey: Keys.fmPreference),
            let pref = FoundationModelPreference(rawValue: fmPrefRaw) {
-            fmPreference = pref
+            fmPreference = pref.canonical
+            if pref != pref.canonical {
+                defaults.set(pref.canonical.rawValue, forKey: Keys.fmPreference)
+            }
         } else {
             fmPreference = .automatic
         }
@@ -776,7 +779,7 @@ final class SettingsStore: ObservableObject {
     private func persistAll() {
         defaults.set(selectedModel.rawValue, forKey: Keys.selectedModel)
         defaults.set(executionContext.rawString, forKey: Keys.execContext)
-        defaults.set(fmPreference.rawValue, forKey: Keys.fmPreference)
+        defaults.set(fmPreference.canonical.rawValue, forKey: Keys.fmPreference)
 
         defaults.set(temperature, forKey: Keys.temperature)
         defaults.set(maxTokens, forKey: Keys.maxTokens)

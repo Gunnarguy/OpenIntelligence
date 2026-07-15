@@ -131,6 +131,7 @@ struct LLMResponse {
     let modelName: String? // Actual model used (includes execution location)
     let toolCallsMade: Int // Number of tool calls executed (for agentic RAG metrics)
     let structuredRAGGeneration: StructuredRAGGeneration?
+    let executionReceipt: ModelExecutionReceipt?
 
     init(
         text: String,
@@ -139,7 +140,8 @@ struct LLMResponse {
         totalTime: TimeInterval,
         modelName: String?,
         toolCallsMade: Int,
-        structuredRAGGeneration: StructuredRAGGeneration? = nil
+        structuredRAGGeneration: StructuredRAGGeneration? = nil,
+        executionReceipt: ModelExecutionReceipt? = nil
     ) {
         self.text = text
         self.tokensGenerated = tokensGenerated
@@ -148,6 +150,7 @@ struct LLMResponse {
         self.modelName = modelName
         self.toolCallsMade = toolCallsMade
         self.structuredRAGGeneration = structuredRAGGeneration
+        self.executionReceipt = executionReceipt
     }
 
     var tokensPerSecond: Float? {
@@ -317,10 +320,11 @@ struct LLMResponse {
             return 4096
         }
         
-        /// Context window size for Private Cloud Compute model
+        /// Conservative PCC context-window value for synchronous compatibility callers.
+        /// Runtime routing obtains the live SDK value asynchronously through
+        /// `LiveFoundationModelCapabilityProvider`.
         static var pccContextWindowSize: Int {
-            guard Thread.isMainThread else { return 32768 }
-            return PrivateCloudComputeLanguageModel().contextSize
+            32768
         }
 
         /// Approximate token count for a string.
@@ -575,9 +579,9 @@ struct LLMResponse {
             let executionBasedModelName: String
             switch actualRoute {
             case .onDevice:
-                executionBasedModelName = "Apple Intelligence (3B Core)"
+                executionBasedModelName = "Apple Intelligence (On-Device)"
             case .onDeviceAdvanced:
-                executionBasedModelName = "Apple Intelligence (20B Advanced)"
+                executionBasedModelName = "Apple Intelligence (On-Device)"
             case .privateCloudCompute:
                 executionBasedModelName = "Apple Intelligence (PCC)"
             case .automatic:
@@ -590,7 +594,12 @@ struct LLMResponse {
                 object: nil,
                 userInfo: [
                     "modelName": executionBasedModelName,
-                    "executionPath": actualRoute == .onDevice ? "onDevice" : "privateCloudCompute"
+                    "executionPath": {
+                        if case .privateCloudCompute = actualRoute { return "privateCloudCompute" }
+                        return "onDevice"
+                    }(),
+                    "planID": config.modelExecutionPlan?.id.uuidString ?? "direct",
+                    "intendedPath": config.modelExecutionPlan?.synthesisTarget.rawValue ?? "direct"
                 ]
             )
 
@@ -612,26 +621,16 @@ struct LLMResponse {
             var tokenCount = 0
             var firstTokenTime: TimeInterval?
             
-            var actualExecutionLocation: String
-            var contextOptions: ContextOptions?
+            let actualExecutionLocation: String
             
             switch actualRoute {
             case .onDevice:
-                actualExecutionLocation = "📱 On-Device (3B Core)"
+                actualExecutionLocation = "📱 On-Device"
             case .onDeviceAdvanced:
-                actualExecutionLocation = "📱 On-Device (20B Advanced)"
+                actualExecutionLocation = "📱 On-Device"
             case .privateCloudCompute(let reasoning):
                 actualExecutionLocation = "☁️ Private Cloud Compute (Server)"
-                if reasoning != .none {
-                    let level: ContextOptions.ReasoningLevel
-                    switch reasoning {
-                    case .deep: level = .deep
-                    case .moderate: level = .moderate
-                    case .light: level = .light
-                    case .none: level = .none
-                    }
-                    contextOptions = ContextOptions(reasoningLevel: level)
-                }
+                _ = reasoning
             case .automatic:
                 actualExecutionLocation = "Unknown"
             }
@@ -659,7 +658,31 @@ struct LLMResponse {
             )
             #endif
 
-            let responseStream = session.streamResponse(to: fullPrompt, options: options, contextOptions: contextOptions)
+            let responseStream: LanguageModelSession.ResponseStream<String>
+            #if compiler(>=6.4)
+            if #available(iOS 27.0, macOS 27.0, *),
+               case let .privateCloudCompute(reasoning) = actualRoute,
+               reasoning != .none
+            {
+                let reasoningLevel: FoundationModels.ContextOptions.ReasoningLevel
+                switch reasoning {
+                case .deep: reasoningLevel = .deep
+                case .moderate: reasoningLevel = .moderate
+                case .light: reasoningLevel = .light
+                case .none: reasoningLevel = .light
+                }
+                let contextOptions = FoundationModels.ContextOptions(reasoningLevel: reasoningLevel)
+                responseStream = session.streamResponse(
+                    to: fullPrompt,
+                    options: options,
+                    contextOptions: contextOptions
+                )
+            } else {
+                responseStream = session.streamResponse(to: fullPrompt, options: options)
+            }
+            #else
+            responseStream = session.streamResponse(to: fullPrompt, options: options)
+            #endif
 
             var snapshotCount = 0
             var guardrailViolation = false
@@ -798,13 +821,38 @@ struct LLMResponse {
             finalTokenCount = responseText.split(separator: " ").count
 
             let toolCalls = await ToolCallCounter.shared.takeAndReset()
+            let actualTarget: ModelExecutionTarget
+            if case .privateCloudCompute = actualRoute {
+                actualTarget = .privateCloudCompute
+            } else {
+                actualTarget = .onDevice
+            }
+            let executionReceipt = config.modelExecutionPlan.map { plan in
+                ModelExecutionReceipt(
+                    planID: plan.id,
+                    policyVersion: plan.policyVersion,
+                    intendedTarget: plan.synthesisTarget,
+                    attempts: [
+                        ModelExecutionAttempt(
+                            target: actualTarget,
+                            startedAt: startTime,
+                            result: .succeeded
+                        ),
+                    ],
+                    actualTarget: actualTarget,
+                    completedTarget: actualTarget,
+                    fallbackReason: plan.synthesisTarget == actualTarget ? nil : plan.fallback.reason,
+                    pccQuotaAtPlanning: plan.pccQuotaAtPlanning
+                )
+            }
             return LLMResponse(
                 text: responseText,
                 tokensGenerated: finalTokenCount,
                 timeToFirstToken: firstTokenTime,
                 totalTime: totalTime,
                 modelName: executionBasedModelName,
-                toolCallsMade: toolCalls
+                toolCallsMade: toolCalls,
+                executionReceipt: executionReceipt
             )
         }
 
@@ -852,9 +900,9 @@ struct LLMResponse {
             let executionBasedModelName: String
             switch actualRoute {
             case .onDevice:
-                executionBasedModelName = "Apple Intelligence (3B Core)"
+                executionBasedModelName = "Apple Intelligence (On-Device)"
             case .onDeviceAdvanced:
-                executionBasedModelName = "Apple Intelligence (20B Advanced)"
+                executionBasedModelName = "Apple Intelligence (On-Device)"
             case .privateCloudCompute:
                 executionBasedModelName = "Apple Intelligence (PCC)"
             case .automatic:
@@ -867,11 +915,17 @@ struct LLMResponse {
                 object: nil,
                 userInfo: [
                     "modelName": executionBasedModelName,
-                    "executionPath": actualRoute == .onDevice ? "onDevice" : "privateCloudCompute"
+                    "executionPath": {
+                        if case .privateCloudCompute = actualRoute { return "privateCloudCompute" }
+                        return "onDevice"
+                    }(),
+                    "planID": config.modelExecutionPlan?.id.uuidString ?? "direct",
+                    "intendedPath": config.modelExecutionPlan?.synthesisTarget.rawValue ?? "direct"
                 ]
             )
 
-            return try await FoundationModelStructuredGenerator.generateStructuredRAGAnswer(
+            let generationStartedAt = Date()
+            let response = try await FoundationModelStructuredGenerator.generateStructuredRAGAnswer(
                 session: session,
                 modelName: executionBasedModelName,
                 prompt: prompt,
@@ -879,6 +933,40 @@ struct LLMResponse {
                 config: config,
                 sourceCount: sourceCount,
                 mode: mode
+            )
+            let actualTarget: ModelExecutionTarget
+            if case .privateCloudCompute = actualRoute {
+                actualTarget = .privateCloudCompute
+            } else {
+                actualTarget = .onDevice
+            }
+            let executionReceipt = config.modelExecutionPlan.map { plan in
+                ModelExecutionReceipt(
+                    planID: plan.id,
+                    policyVersion: plan.policyVersion,
+                    intendedTarget: plan.synthesisTarget,
+                    attempts: [
+                        ModelExecutionAttempt(
+                            target: actualTarget,
+                            startedAt: generationStartedAt,
+                            result: .succeeded
+                        ),
+                    ],
+                    actualTarget: actualTarget,
+                    completedTarget: actualTarget,
+                    fallbackReason: plan.synthesisTarget == actualTarget ? nil : plan.fallback.reason,
+                    pccQuotaAtPlanning: plan.pccQuotaAtPlanning
+                )
+            }
+            return LLMResponse(
+                text: response.text,
+                tokensGenerated: response.tokensGenerated,
+                timeToFirstToken: response.timeToFirstToken,
+                totalTime: response.totalTime,
+                modelName: response.modelName,
+                toolCallsMade: response.toolCallsMade,
+                structuredRAGGeneration: response.structuredRAGGeneration,
+                executionReceipt: executionReceipt
             )
         }
         /// Detects if a response was cut off mid-sentence or mid-thought

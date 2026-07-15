@@ -8,7 +8,8 @@ OpenIntelligence is a local-first, privacy-preserving retrieval-augmented genera
 
 ## 3. Safe Claims
 - The app uses iCloud Drive (Ubiquity containers) for sync via `NSFileCoordinator` and `NSMetadataQuery`. `[evidence: code_verified, exact, WorkspaceSyncService.swift]`
-- PCC execution routes natively to secure enclaves via `FoundationModels.PrivateCloudComputeLanguageModel` on iOS 27 / macOS 27+ only if the process contains the `com.apple.developer.private-cloud-compute` code-signed entitlement, verified at runtime via `EntitlementChecker`. If the entitlement is missing, the system falls back cleanly to local `SystemLanguageModel` simulation to prevent fatal crashes. Dedicated UI settings sheets and an AI Subsystem Diagnostics card provide real-time status of PCC routing and model readiness. Due to Xcode Cloud archive export signing requirements, the entitlement is temporarily omitted from the active `.entitlements` file, relying on the runtime fallback to local models until the developer account is approved for the PCC capability. `[evidence: code_verified, exact, FoundationModelSessionFactory.swift, FoundationModelRoutePolicy.swift, ContainerSettingsSheet+Sections.swift, OpenIntelligence.entitlements]`
+- The public execution targets are `SystemLanguageModel.default` on-device and, on iOS/macOS 27+, `FoundationModels.PrivateCloudComputeLanguageModel`. There is no app-selectable public 3B/20B/Advanced model API. The source PCC entitlement is enabled following user-confirmed Apple approval; `EntitlementChecker` reads the signed process entitlement through Security.framework, and the session factory rechecks live availability and quota immediately before construction. iOS/macOS 26 is local-only—local execution is never represented as simulated PCC. Signed-device and distribution behavior is not yet verified. `[evidence_level: code_verified+user_confirmed, confidence: high_for_source_unverified_for_distribution, evidence_source: LLMModel.swift, EngineSDKCompatibility.swift, FoundationModelSessionFactory.swift, OpenIntelligence.entitlements]`
+- PCC route selection occurs after local retrieval. `ModelExecutionPlanner` consumes pre-retrieval constraints, post-retrieval evidence, live capability/quota state, and exact-or-labeled-fallback context budgets. The selected cloud stage receives a minimized evidence envelope only after valid consent; deterministic verification remains local. `ModelExecutionReceipt` separates intended, attempted, actual, fallback, and completed routes and is persisted optionally for backward compatibility. `[evidence_level: code_verified, confidence: high, evidence_source: ModelExecutionPlanner.swift, RAGService.swift, ModelExecutionReceipt.swift, RAGQuery.swift]`
 - Relational metadata indexing relies on a single shared SQLite file with column-based `container_id` isolation. `[evidence: code_verified, exact, SQLiteFullTextService.swift]`
 - Billing entitlements are stored in `UserDefaults`. `[evidence: code_verified, exact, EntitlementStore.swift]`
 - Core AI embeddings are used in production. Runs zero-copy Silicon-native sentence embeddings on iOS 27+ / macOS 27+ compatible devices, falling back to Core ML. The compiled model is bundled inside a custom raw resource folder (`EmbeddingModel.bundle`) to bypass Xcode build-time `mlassetc` compiler checks that block minimum deployment targets below 27.0. `[evidence: code_verified, exact, CoreAISentenceEmbeddingProvider.swift, Package.swift]`
@@ -34,7 +35,9 @@ OpenIntelligence is a local-first, privacy-preserving retrieval-augmented genera
 - `WorkspaceSyncService.swift` sweeps local files for iCloud Drive ubiquity sync. `[evidence: code_verified, exact, WorkspaceSyncService.swift]`
 
 ## 8. Routing/PCC Boundaries
-- `LLMService.swift` and `FoundationModelRoutePolicy.swift` handle consent. Deadlocks can occur if background tasks bypass the `CloudConsentPromptView`. `[evidence: code_verified, exact, FoundationModelRoutePolicy.swift]`
+- `QueryRuntimeCoordinator` produces constraints only; it does not claim a final PCC route. `RAGService` assembles evidence locally, creates the post-retrieval plan, minimizes the PCC envelope, and requests consent for that exact payload. `LLMService` and `FoundationModelSessionFactory` execute the selected public target and record the actual result. `[evidence_level: code_verified, confidence: high, evidence_source: QueryRuntimeCoordinator.swift, RAGService.swift, LLMService.swift, FoundationModelSessionFactory.swift]`
+- Background and App Intent execution never suspends waiting for `CloudConsentPromptView`: remembered consent may authorize PCC; otherwise automatic/prefer-cloud uses local fallback and cloud-only fails explicitly. No PCC/local fallback occurs after meaningful text has streamed. `[evidence_level: code_verified, confidence: high, evidence_source: ModelExecutionPlanner.swift, RAGService.swift]`
+- Telemetry may record plan IDs, public target names, counts, token budgets, quota categories, hashes, reason codes, and verification status. It must not record raw query, document, transcript, or reasoning content. `[evidence_level: code_verified+policy, confidence: high, evidence_source: RAGService.swift, ModelExecutionReceipt.swift]`
 
 ## 9. Billing Boundaries
 - Managed by `EntitlementStore.swift` via `UserDefaults`.
@@ -66,7 +69,8 @@ OpenIntelligence is a local-first, privacy-preserving retrieval-augmented genera
 - Implementation phases strictly define a limited blast radius of allowed files (e.g., `EvidenceThread.swift`).
 
 ## 14. Known Unresolved Risks
-- App Intents triggering PCC consent deadlock.
+- Signed physical-device, archive/TestFlight entitlement propagation, native PCC execution, quota exhaustion, and network-transition behavior remain unverified.
+- The background/App Intent consent deadlock has a source-level prevention path and focused policy tests, but still requires physical-device/manual validation.
 - iCloud Sync behavior for imported physical documents.
 - `BNNSVectorDatabase` memory mapping limits.
 
@@ -75,3 +79,8 @@ See `Docs/AuditArtifacts/ArchitectureAtlas/future_agent_checklist.md`.
 
 ## 16. How to Supersede this Canonical Doc
 To supersede this doc, an agent must complete a new Architecture Atlas discovery phase verifying the code changes and use `evidence_level` and `confidence` metrics in a Delta Repair report.
+
+## 17. Repository Agent Operations Boundary
+- Every repository task is routed through `.codex/skills/route-openintelligence-work/SKILL.md`, which derives task ownership and change requirements from `Docs/AuditArtifacts/RepoOS/change_impact_matrix.csv`. Its preflight also derives the active release from current repository artifacts and reports the exact changelog, release-notes, and Notion release targets without forcing edits for read-only work. `[evidence: code_verified, exact, .codex/skills/route-openintelligence-work/scripts/repoos_router.py]`
+- The workspace router is developer governance tooling only. It does not compile into, modify, or execute within the OpenIntelligence Apple app. `[evidence: code_verified, exact, change_impact_matrix.csv repoos_workspace_automation boundary]`
+- Notion relevance must be evaluated on every task; durable implementation, bug, milestone, release, and roadmap work is synchronized at start and verified completion according to `.agents/workflows/sync-notion.md`. `[evidence: code_verified, exact, .codex/skills/route-openintelligence-work/SKILL.md]`

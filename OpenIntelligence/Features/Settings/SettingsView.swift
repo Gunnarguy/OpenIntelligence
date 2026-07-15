@@ -29,6 +29,7 @@ struct SettingsView: View {
     @State private var showAdvancedGeneration = false
     @State private var isRefreshingSharedWorkspace = false
     @State private var sharedWorkspaceRefreshMessage: String?
+    @State private var pccCapability: FoundationModelCapabilitySnapshot?
 
     private static let sharedWorkspaceRelativeFormatter: RelativeDateTimeFormatter = {
         let formatter = RelativeDateTimeFormatter()
@@ -129,6 +130,7 @@ struct SettingsView: View {
     entitlementStore.refreshTransientState()
     updatePipelineStages()
 }
+.task { await refreshPCCCapability() }
 .onChange(of: settings.selectedModel) { _, _ in
     updatePipelineStages()
 }
@@ -530,23 +532,24 @@ Text(label)
                             .font(.subheadline.weight(.medium))
                     }
                     
-                    let pccModel = PrivateCloudComputeLanguageModel()
-                    if pccModel.isAvailable {
+                    if let capability = pccCapability, capability.pccAvailable {
                         HStack {
                             Text("Status:")
                                 .font(.caption)
                             Spacer()
-                            Text(pccModel.quotaUsage.isLimitReached ? "Limit Reached" : "Below Limit")
+                            Text(capability.pccQuota == .limitReached ? "Limit Reached" : capability.pccQuota.rawValue)
                                 .font(.caption.weight(.semibold))
-                                .foregroundColor(pccModel.quotaUsage.isLimitReached ? .red : .green)
+                                .foregroundColor(capability.pccQuota == .limitReached ? .red : .green)
                         }
-                        if pccModel.quotaUsage.limitIncreaseSuggestion {
-                            Text("iCloud+ upgrade suggested for higher daily limits.")
-                                .font(.caption2)
-                                .foregroundColor(.orange)
+                        if let contextSize = capability.pccContextSize {
+                            LabeledContent("Context", value: "\(contextSize) tokens")
+                                .font(.caption)
                         }
+                    } else if pccCapability == nil {
+                        ProgressView("Reading PCC capability…")
+                            .font(.caption)
                     } else {
-                        Text("PCC is currently unavailable on this device.")
+                        Text(pccCapability?.unavailabilityReason ?? "PCC is currently unavailable on this device.")
                             .font(.caption)
                             .foregroundColor(.secondary)
                     }
@@ -559,6 +562,14 @@ Text(label)
         .padding()
         .background(DSColors.surface)
         .clipShape(RoundedRectangle(cornerRadius: 16))
+    }
+
+    private func refreshPCCCapability() async {
+        #if canImport(FoundationModels)
+        if #available(iOS 26.0, macOS 26.0, *) {
+            pccCapability = await LiveFoundationModelCapabilityProvider().snapshot()
+        }
+        #endif
     }
 
     @ViewBuilder

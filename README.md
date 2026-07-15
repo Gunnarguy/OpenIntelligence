@@ -45,6 +45,10 @@ OpenIntelligence is backed by extensive, rigorous engineering documentation deta
 * [**Current State & Gaps**](Docs/CURRENT_STATE_AND_GAPS.md): Analysis of local inference latency, context packing, and model capability gaps.
 * [**Evaluation Framework**](Docs/EVALS.md): Detailed verification procedures using `scripts/run_rag_benchmarks.py` to assert extraction accuracy and similarity scores.
 
+### Agent Workspace Operations
+* [**RepoOS Command Center**](Docs/RepoOS/00_REPO_COMMAND_CENTER.md): Routes repository work through canonical evidence, safe edit boundaries, required tests, documentation synchronization, and release gates.
+* [**OpenIntelligence RepoOS Skill**](.codex/skills/route-openintelligence-work/SKILL.md): Gives Codex a repository-local task navigation layer backed by the live change-impact matrix, explicit Notion relevance checks, and active-release-aware changelog and release-notes targets. `[evidence: code_verified, exact, .codex/skills/route-openintelligence-work/scripts/repoos_router.py]`
+
 ---
 
 ## ⚙️ Technical Architecture Overview
@@ -92,10 +96,11 @@ The entire RAG architecture operates on a strict **29-Step Pipeline** (6 Ingesti
 * **Deep Think:** Actively loops the retrieval agent through 4-10 concurrent reasoning sessions until it hits 98% confidence (scales dynamically based on device thermal state).
 * **Maximum:** Removes the 8-session ceiling, granting the orchestrator an unlimited budget to recursively hunt down answers up to 50 loops.
 
-#### 3 Foundation Model Routes
-* **3B Core:** Offline Apple Silicon model (`SystemLanguageModel.default`) executing standard query tasks.
-* **Advanced (preference):** A reasoning-priority preference for high-memory Apple Silicon devices. As of v4.6 it executes the standard on-device model and reports that route truthfully in telemetry — the installed OS SDK exposes no separate 20B on-device model API (compiler-probe verified), and any larger-model resolution by the OS behind `SystemLanguageModel.default` is opaque to the app.
-* **Private Cloud Compute (PT-MoE) — entitlement-gated, not yet active:** The routing layer targets Apple's 32K-context secure enclaves via `FoundationModels.PrivateCloudComputeLanguageModel` on iOS 27 / macOS 27+. PCC requires a developer entitlement that is currently pending Apple approval, so remote enclave execution does not run in shipping builds: `EntitlementChecker` detects the missing entitlement at runtime and routes every query to local `SystemLanguageModel` execution instead.
+#### 2 Public Foundation Model Targets
+* **On-Device Apple Intelligence:** `SystemLanguageModel.default` executes retrieval-adjacent analysis and any synthesis that fits the live SDK context budget. OpenIntelligence does not claim a separately selectable 3B, 20B, or Advanced runtime because the installed public SDK exposes no such model selector.
+* **Private Cloud Compute:** On iOS/macOS 27+, the post-retrieval planner may select `FoundationModels.PrivateCloudComputeLanguageModel` for an evidence-sufficient long-context or multi-document synthesis. The app checks its signed PCC entitlement, live availability, quota, network, foreground/consent state, and exact context budget; only a minimized evidence envelope crosses the PCC boundary. iOS/macOS 26 remains local-only.
+
+Each response can carry a durable route receipt separating the intended, attempted, actual, fallback, and completed targets. Retrieval and verification remain local regardless of synthesis target. `[evidence_level: code_verified, confidence: high, evidence_source: ModelExecutionPlanner.swift, RAGService.swift, LLMService.swift]`
 
 ---
 
@@ -121,7 +126,7 @@ The entire RAG architecture operates on a strict **29-Step Pipeline** (6 Ingesti
 
 To maintain codebase transparency, please note:
 * **Core AI Integration:** Fully integrated and registered via `CoreAISentenceEmbeddingProvider.swift`. Runs zero-copy Silicon-native sentence embeddings on iOS 27+ / macOS 27+ compatible devices, automatically falling back to the standard `CoreMLSentenceEmbeddingProvider` on older targets. Powered by a unified, high-performance Rust-backed `swift-tokenizers` (DePasqualeOrg) wrapper target for microsecond-latency batch tokenization and exact byte-level offset matching.
-* **Private Cloud Compute (PCC):** PCC execution is **entitlement-gated and not active in shipping builds** — the entitlement is pending Apple approval. Integration code paths exist for iOS 27 / macOS 27+ behind `EngineSDKCompatibility.swift`; `EntitlementChecker` performs runtime signature checks and redirects to local on-device models to prevent process crashes. In practice, all production queries run fully on-device.
+* **Private Cloud Compute (PCC):** Apple approved the managed entitlement on 2026-07-15 and the source entitlement is enabled for v4.6. Source integration is complete, but a newly signed physical-device build, Archive/TestFlight artifact, live quota behavior, and actual PCC execution still require validation before production readiness is claimed. `[evidence_level: code_verified+user_confirmed, confidence: high_for_source_unverified_for_distribution, evidence_source: OpenIntelligence.entitlements and user confirmation 2026-07-15]`
 * **iCloud Sync:** Sync utilizes iCloud Drive ubiquity containers (`NSFileCoordinator` and `NSMetadataQuery`). The app does not utilize CloudKit databases.
 * **Pro Tier Document Limit:** Document uploads are restricted to a hard quota of 1,000 documents under the Pro tier. Unlimited uploads are restricted to the Lifetime tier.
 * **Evidence Thread Synchronization:** Thread history JSON arrays are stored under `Application Support/EvidenceThreads/<containerId>/` and are synchronized bidirectionally across devices via `WorkspaceSyncService` in iCloud Drive, gated by tier-specific limits (5 Free / 20 Pro / Unlimited Lifetime).

@@ -104,6 +104,10 @@ struct ResponseMetadata: Codable, Sendable {
     /// Token budget allocation for this response
     let tokenBudget: TokenBudget?
 
+    /// Durable intended-versus-actual model routing telemetry.
+    /// Optional so responses persisted before PCC dynamic routing remain decodable.
+    let executionReceipt: ModelExecutionReceipt?
+
     struct ExecutionRoute: Codable, Sendable, Equatable {
         let path: String // "On-Device", "Private Cloud Compute", etc.
         let reason: String // Why this path was chosen
@@ -134,7 +138,8 @@ struct ResponseMetadata: Codable, Sendable {
          originalQuery: String? = nil,
          reasoningTrace: [String]? = nil,
          executionRoute: ExecutionRoute? = nil,
-         tokenBudget: TokenBudget? = nil)
+         tokenBudget: TokenBudget? = nil,
+         executionReceipt: ModelExecutionReceipt? = nil)
     {
         self.timeToFirstToken = timeToFirstToken
         self.totalGenerationTime = totalGenerationTime
@@ -152,6 +157,7 @@ struct ResponseMetadata: Codable, Sendable {
         self.reasoningTrace = reasoningTrace
         self.executionRoute = executionRoute
         self.tokenBudget = tokenBudget
+        self.executionReceipt = executionReceipt
     }
 
     // MARK: - Computed Properties
@@ -192,7 +198,8 @@ struct ResponseMetadata: Codable, Sendable {
             originalQuery: originalQuery,
             reasoningTrace: resolvedTrace,
             executionRoute: executionRoute,
-            tokenBudget: tokenBudget
+            tokenBudget: tokenBudget,
+            executionReceipt: executionReceipt
         )
     }
 
@@ -222,8 +229,8 @@ struct ResponseMetadata: Codable, Sendable {
             originalQuery: originalQuery,
             reasoningTrace: compactedTrace?.isEmpty == true ? nil : compactedTrace,
             executionRoute: executionRoute,
-            tokenBudget: tokenBudget
+            tokenBudget: tokenBudget,
+            executionReceipt: executionReceipt
         )
     }
 }
-

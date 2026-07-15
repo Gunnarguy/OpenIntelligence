@@ -75,6 +75,10 @@ struct InferenceConfig {
     var qualityMode: RAGQualityMode = .standard
     var fmPreference: FoundationModelPreference = .automatic
 
+    /// Retrieval-informed execution decision. Nil preserves compatibility for
+    /// direct callers that have not passed through the RAG planner.
+    var modelExecutionPlan: ModelExecutionPlan?
+
 
     // MARK: - Legacy Parameters
 
@@ -166,22 +170,22 @@ enum FoundationModelPreference: String, CaseIterable, Identifiable, Sendable {
     
     var displayName: String {
         switch self {
-        case .automatic: return "Automatic (AFM Hybrid)"
-        case .core3B: return "📱 On-Device (AFM 3 Core)"
-        case .advanced20B: return "📱 On-Device (AFM 3 Core Advanced)"
-        case .privateCloudCompute: return "☁️ Private Cloud Compute (Cloud Pro)"
+        case .automatic: return "Automatic (Local + PCC)"
+        case .core3B, .advanced20B: return "📱 On-Device"
+        case .privateCloudCompute: return "☁️ Private Cloud Compute"
         }
+    }
+
+    /// Maps persisted legacy model-size choices to public runtime capabilities.
+    var canonical: FoundationModelPreference {
+        self == .advanced20B ? .core3B : self
     }
     
     static var availableCases: [FoundationModelPreference] {
         if #available(iOS 27.0, macOS 27.0, *) {
-            if DeviceHardware.supportsAdvancedOnDeviceModel {
-                return [.automatic, .core3B, .advanced20B, .privateCloudCompute]
-            } else {
-                return [.automatic, .core3B, .privateCloudCompute]
-            }
-        } else {
             return [.automatic, .core3B, .privateCloudCompute]
+        } else {
+            return [.automatic, .core3B]
         }
     }
 }

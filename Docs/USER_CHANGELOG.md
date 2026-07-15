@@ -1,4 +1,4 @@
-> **Documentation status:** Verified for OpenIntelligence v4.6 on July 14, 2026.
+> **Documentation status:** Source-verified and simulator-compiled for OpenIntelligence v4.6 on July 15, 2026; signed-device PCC validation remains pending.
 
 
 # OpenIntelligence User-Facing Changelog
@@ -7,10 +7,14 @@ This document provides a chronological history of user-facing changes, highlight
 
 ---
 
-## v4.6 - July 14, 2026
+## v4.6 - July 15, 2026
 
+*   **Smarter Private Cloud Compute Decisions:** Queries now retrieve evidence locally before choosing a model route. PCC is used only when the final evidence and context budget justify secure cloud synthesis; missing evidence never causes escalation.
+*   **Exact Cloud Consent:** The confirmation sheet describes why PCC was selected and shows the size of the minimized evidence payload that would be transmitted. Background actions never wait on a hidden consent prompt.
+*   **Reliable Local Fallback:** Automatic routing falls back on-device when consent, network, quota, or PCC availability blocks cloud execution, provided streaming has not meaningfully begun. Cloud-only requests report the problem instead of silently changing routes.
+*   **Accurate Route History:** Saved response metadata distinguishes intended, attempted, actual, fallback, and completed execution paths.
 *   **Truthful Model Reporting:** The "Advanced" on-device model preference now reports the actually executed model route in telemetry and diagnostics. (Correction to earlier releases: the current OS SDK exposes no separate 20B on-device model API; the Advanced preference executes the standard on-device model.)
-*   **Safer Private Cloud Compute Gating:** Builds without a provable PCC entitlement now deterministically use the on-device fallback — the entitlement check fails closed instead of open, and macOS builds are now checked correctly.
+*   **Apple-Approved PCC Capability Enabled:** The v4.6 source entitlement is enabled and the app verifies the signed process entitlement before constructing Apple’s native PCC model. Signed iOS 27 physical-device and TestFlight validation remains pending.
 *   **Hardened Knowledge-Index Migrations:** Database schema migrations are driven by a fixed, code-owned migration catalog, eliminating a class of malformed-schema risk.
 *   **Restored Test Coverage:** The unit-test target removed in an earlier release is restored, with regression suites pinning embedding, parsing, citation, and launch-argument behavior.
 *   **PR Backlog Consolidation:** All 43 open automated pull requests were audited end-to-end; the valuable changes were reimplemented cleanly in this release and the remainder documented and closed.

@@ -1,6 +1,6 @@
-# Docs/RETRIEVAL_PIPELINE.md — OpenIntelligence v4.4 (working on v4.5)
+# Retrieval Pipeline — OpenIntelligence v4.6
 
-> **Documentation status:** Verified for OpenIntelligence v4.4 on 2026-06-30.
+> **Documentation status:** Source-verified on 2026-07-15; PCC device/distribution validation remains pending.
 > **Source of truth:** Codebase audit in `Docs/AUDIT/`.
 > **Scope:** Describes shipped behavior unless explicitly labeled experimental, developer-only, or scaffolded.
 
@@ -23,9 +23,15 @@ flowchart TD
     Cutoff --> Rerank[Core ML TinyBERT Reranker / Heuristic Fallback]
     Rerank --> ContextExpand[Context Sibling Expansion - ParentDocumentService]
     ContextExpand --> LostInMiddle[Reorder Context - Lost-In-Middle]
-    LostInMiddle --> ModelRoute{Model Routing Policy}
-    ModelRoute -- On-Device <4K --> LocalLLM[SystemLanguageModel.default]
-    ModelRoute -- PCC >4K / DeepThink --> PCCLLM[PrivateCloudCompute - Local Fallback Run]
+    LostInMiddle --> Evidence[Post-Retrieval Evidence + Exact Token Budgets]
+    Evidence --> ModelRoute{ModelExecutionPlanner}
+    Capability[Signed Entitlement + Availability + Quota + Consent State] --> ModelRoute
+    ModelRoute -- Insufficient Evidence --> AbstainRefusal
+    ModelRoute -- Local --> LocalLLM[SystemLanguageModel.default]
+    ModelRoute -- PCC Candidate --> Minimize[Minimized Cloud Evidence Envelope]
+    Minimize --> Consent{Consent Valid?}
+    Consent -- Yes --> PCCLLM[PrivateCloudComputeLanguageModel]
+    Consent -- No / UI Unavailable --> LocalLLM
     LocalLLM --> Verification[Verification Gates A-I - Negation & Word-Overlap]
     PCCLLM --> Verification
     Verification --> Decision{Critical Gates Pass?}
@@ -44,8 +50,8 @@ flowchart TD
 5. **Query Analysis & Planning**: Incoming questions are classified, scoped, and prepared for retrieval.
 6. **Retrieval**: Candidate chunks are selected from the active library or workspace container.
 7. **Reranking and Packing**: Evidence is scored using a local Core ML TinyBERT cross-encoder (with proximity-based heuristic fallback if the model is absent), deduplicated (MMR), expanded with sibling context, and compressed.
-8. **Model Routing & Generation**: Resolves the routing policy. Queries in standard mode default to on-device execution (up to 4K tokens). Escalated modes (Deep Think/Maximum) route to a secure Private Cloud Compute (PCC) policy (supporting 32K tokens) executing natively on secure enclaves via `FoundationModels.PrivateCloudComputeLanguageModel` on iOS 27 / macOS 27+, falling back cleanly to local simulation on older OS versions.
-9. **Fidelity Verification**: Responses pass through negation and overlap verification checks in [VerificationGateService.swift](file:///Users/gunnarhostetler/Documents/GitHub/OpenIntelligence/OpenIntelligence/Services/RAG/Safety/VerificationGateService.swift) to detect contradictions and determine if the engine should abstain.
+8. **Post-Retrieval Model Routing & Generation**: `ModelExecutionPlanner` combines evidence sufficiency and synthesis burden with user policy, foreground state, network, signed entitlement, live quota/availability, and SDK token/context budgets. Local execution uses `SystemLanguageModel.default`; eligible iOS/macOS 27 synthesis may use native PCC after the exact minimized envelope is consented. iOS/macOS 26 remains local-only. `[evidence_level: code_verified, confidence: high, evidence_source: ModelExecutionPlanner.swift, RAGService.swift]`
+9. **Fidelity Verification & Receipt**: Responses pass through local verification checks. Route metadata is persisted as a `ModelExecutionReceipt` that separates intended, attempted, actual, fallback, and completed targets. `[evidence_level: code_verified, confidence: high, evidence_source: VerificationGateService.swift, ModelExecutionReceipt.swift, RAGQuery.swift]`
 10. **Presentation**: Answers are shown with liquid glass UI indicators, citations, quality gauges, and review affordances.
 11. **Continuous Evaluation**: Pipeline stages are run against local JSONL benchmarks and verified against quality targets (e.g. Recall@5 $\ge 0.85$, Citation Precision $\ge 0.90$) using the native Evaluations harness.
 

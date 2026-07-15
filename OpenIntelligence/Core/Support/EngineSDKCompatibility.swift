@@ -4,6 +4,7 @@ import Foundation
 import UniformTypeIdentifiers
 #if canImport(FoundationModels)
 import FoundationModels
+import Security
 #endif
 
 enum DSHaptics {
@@ -151,108 +152,24 @@ import Foundation
 #if canImport(FoundationModels)
 import FoundationModels
 
-// Local fallback for the new WWDC26 API to ensure compilation.
-@available(iOS 26.0, macOS 26.0, *)
-public struct PrivateCloudComputeLanguageModel {
-    public init() {}
-    public var isAvailable: Bool { true }
-    public var contextSize: Int { 32768 }
-    
-    public struct QuotaUsage {
-        public enum Status: String {
-            case belowLimit
-            case approachingLimit
-            case limitReached
-            public var description: String { rawValue }
-        }
-        public var status: Status { .belowLimit }
-        public var isLimitReached: Bool { false }
-        public var limitIncreaseSuggestion: Bool { true }
-    }
-    public var quotaUsage: QuotaUsage { QuotaUsage() }
-}
-
-@available(iOS 26.0, macOS 26.0, *)
-public struct ContextOptions {
-    public enum ReasoningLevel: String {
-        case none
-        case light
-        case moderate
-        case deep
-    }
-    public var reasoningLevel: ReasoningLevel
-    public init(reasoningLevel: ReasoningLevel) {
-        self.reasoningLevel = reasoningLevel
-    }
-}
-
-@available(iOS 26.0, macOS 26.0, *)
-extension LanguageModelSession {
-    public convenience init(model: PrivateCloudComputeLanguageModel, tools: [any Tool] = [], instructions: Instructions) {
-        self.init(model: SystemLanguageModel.default, tools: tools, instructions: instructions)
-    }
-    public convenience init(model: PrivateCloudComputeLanguageModel, tools: [any Tool] = [], transcript: Transcript) {
-        self.init(model: SystemLanguageModel.default, tools: tools, transcript: transcript)
-    }
-    public func streamResponse(to prompt: String, options: GenerationOptions, contextOptions: ContextOptions?) -> LanguageModelSession.ResponseStream<String> {
-        return self.streamResponse(to: prompt, options: options)
-    }
-}
-
 /// Helper utility to dynamically check entitlements in the app signature at runtime.
 public struct EntitlementChecker {
-    /// Locates the embedded provisioning profile. iOS/dev builds embed
-    /// `embedded.mobileprovision`; macOS and Catalyst bundles embed
-    /// `Contents/embedded.provisionprofile`.
-    private static func embeddedProfilePath() -> String? {
-        if let iOSPath = Bundle.main.path(forResource: "embedded", ofType: "mobileprovision") {
-            return iOSPath
-        }
-        let macURL = Bundle.main.bundleURL.appendingPathComponent("Contents/embedded.provisionprofile")
-        if FileManager.default.fileExists(atPath: macURL.path) {
-            return macURL.path
-        }
-        return nil
-    }
+    public static let privateCloudComputeKey = "com.apple.developer.private-cloud-compute"
 
+    /// Reads the entitlement from the running process's signed code object.
+    /// Unlike provisioning-profile text scanning, this also works after App Store
+    /// and TestFlight strip the embedded profile from the distributed bundle.
     public static func hasEntitlement(_ entitlementKey: String) -> Bool {
         #if targetEnvironment(simulator)
-        // Private Cloud Compute is not supported or required in the simulator environment.
         return false
         #else
-        guard let path = embeddedProfilePath() else {
-            // No embedded provisioning profile found — true for App Store /
-            // TestFlight builds (profile stripped). Entitlement presence cannot
-            // be PROVEN here, and this app's entitlements deliberately omit the
-            // PCC key, so FAIL CLOSED: callers (FoundationModelSessionFactory)
-            // then throw LLMError.modelUnavailable and fall back safely rather
-            // than instantiating native PrivateCloudComputeLanguageModel
-            // unentitled (audit finding MAIN-2 / RISK-14). Revisit only when the
-            // entitlement is actually granted and provable at runtime.
-            return false
-        }
-        
-        guard let data = try? Data(contentsOf: URL(fileURLWithPath: path)) else {
-            return false
-        }
-        
-        // Use Latin-1 encoding to read the profile as a string without failing on binary CMS headers
-        guard let profileString = String(data: data, encoding: .isoLatin1) else {
-            return false
-        }
-        
-        let keyString = "<key>\(entitlementKey)</key>"
-        if let range = profileString.range(of: keyString) {
-            let searchStart = range.upperBound
-            let searchEnd = profileString.index(searchStart, offsetBy: 100, limitedBy: profileString.endIndex) ?? profileString.endIndex
-            let substring = profileString[searchStart..<searchEnd]
-            if substring.contains("<true/>") {
-                return true
-            }
-        }
-        
-        return false
+        guard let task = SecTaskCreateFromSelf(nil),
+              let value = SecTaskCopyValueForEntitlement(task, entitlementKey as CFString, nil),
+              CFGetTypeID(value) == CFBooleanGetTypeID()
+        else { return false }
+        return CFBooleanGetValue((value as! CFBoolean))
         #endif
     }
 }
+
 #endif

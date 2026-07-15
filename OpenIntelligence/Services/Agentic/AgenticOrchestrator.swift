@@ -4414,7 +4414,9 @@ extension AgenticOrchestrator {
                     context: "",
                     systemPrompt: exhaustiveSystemPrompt,
                     maxTokens: synthesisMaxTokens,
-                    disableTools: true
+                    disableTools: true,
+                    qualityMode: .maximum,
+                    sourceChunks: chunks
                 )
                 // Clean up the synthesis output
                 finalAnswer = cleanupFinalAnswer(synthesisResponse.text)
@@ -4485,7 +4487,9 @@ extension AgenticOrchestrator {
                         context: "",
                         systemPrompt: synthesisSystemPrompt,
                         maxTokens: 1500,
-                        disableTools: true
+                        disableTools: true,
+                        qualityMode: .deepThink,
+                        sourceChunks: chunks
                     )
                     finalAnswer = cleanupFinalAnswer(synthesisResponse.text)
                     totalTokens += synthesisResponse.tokensGenerated
@@ -6870,11 +6874,15 @@ extension RAGService {
                 tempService.resetSession(clearTools: true)
             }
 
-            let config = InferenceConfig(
+            var config = InferenceConfig(
                 maxTokens: maxTokens,
                 temperature: 0.7,
                 systemPrompt: "You are an expert research analyst. Be concise and precise."
             )
+            // Agentic planning and evidence analysis remain local. Only the
+            // final post-retrieval synthesis may be selected for PCC.
+            config.executionContext = .onDeviceOnly
+            config.allowPrivateCloudCompute = false
 
             return try await tempService.generate(
                 prompt: prompt,
@@ -6895,7 +6903,9 @@ extension RAGService {
         systemPrompt: String,
         maxTokens: Int,
         disableTools: Bool = false,
-        temperature: Float = 0.5
+        temperature: Float = 0.5,
+        qualityMode: RAGQualityMode = .deepThink,
+        sourceChunks: [RetrievedChunk] = []
     ) async throws -> LLMResponse {
         try Task.checkCancellation()
         var config = InferenceConfig(
@@ -6906,68 +6916,91 @@ extension RAGService {
         // Tools disabled for Maximum mode sessions to prevent context overflow
         // The chunks are pre-gathered and passed directly in the prompt
         config.disableTools = disableTools
+        config.qualityMode = qualityMode
 
-        // Check network and PCC eligibility
         let networkAvailable = NetworkMonitor.shared.isConnected
         let pccSuppressed = await MainActor.run { self.isPCCSuppressedForDeepThink() }
         let isAppleFM = llmService is AppleFoundationLLMService
-
-        // Determine if PCC is eligible for this request
-        let pccEligible = isAppleFM && networkAvailable && !pccSuppressed
-
-        if pccEligible {
-            // Check current consent state
-            let consentState = await MainActor.run { cloudConsent[.applePCC] ?? .notDetermined }
-            let hasTransientGrant = await MainActor.run { self.hasTransientPCCGrant() }
-
-            // Only prompt for consent if not already granted
-            if consentState != .allowed && !hasTransientGrant {
-                // Call ensureConsentForDeepThink to trigger the consent UI prompt
-                // This matches Standard mode's behavior exactly
-                do {
-                    try await ensureConsentForDeepThink(
-                        service: llmService,
-                        prompt: prompt,
-                        context: context,
-                        sourceChunks: [], // Deep Think doesn't pass raw chunks here
-                        allowPrivateCloudCompute: true
-                    )
-                } catch {
-                    // If consent denied, fall back to on-device only
-                    if case RAGServiceError.cloudConsentDenied = error {
-                        config.allowPrivateCloudCompute = false
-                        config.executionContext = .onDeviceOnly
-                        Log.info("[DeepThink] PCC consent denied → on-device fallback", category: .pipeline)
-                    } else {
-                        throw error
-                    }
-                }
-            }
-
-            // Set PCC config based on consent outcome
-            let finalConsentState = await MainActor.run { cloudConsent[.applePCC] ?? .notDetermined }
-            let finalHasGrant = await MainActor.run { self.hasTransientPCCGrant() }
-
-            if finalConsentState == .allowed || finalHasGrant {
-                config.allowPrivateCloudCompute = true
-                config.executionContext = .automatic
-            } else {
-                config.allowPrivateCloudCompute = false
-                config.executionContext = .onDeviceOnly
-            }
-        } else {
-            // Not PCC eligible - use on-device only
+        if !isAppleFM || !networkAvailable || pccSuppressed {
             config.allowPrivateCloudCompute = false
             config.executionContext = .onDeviceOnly
-            if !networkAvailable {
-                Log.info("[DeepThink] Offline → on-device only", category: .pipeline)
-            }
         }
 
-        return try await llmService.generate(
+        let consentState = await MainActor.run {
+            cloudConsent[.applePCC] ?? .notDetermined
+        }
+        let planned = await makePostRetrievalModelPlan(
             prompt: prompt,
             context: context,
-            config: config
+            config: config,
+            chunks: sourceChunks,
+            consentState: consentState,
+            networkAvailable: networkAvailable,
+            requiresMultiDocumentSynthesis: Set(sourceChunks.map { $0.chunk.documentId }).count > 1
+        )
+        let plan = planned.plan
+        config.modelExecutionPlan = plan
+        var routedContext = context
+        var routedSourceChunks = sourceChunks
+
+        switch plan.synthesisTarget {
+        case .privateCloudCompute:
+            let envelope = CloudEvidenceMinimizer().makeEnvelope(
+                plan: plan,
+                query: prompt,
+                chunks: sourceChunks,
+                maximumCharacters: max(
+                    800,
+                    min(
+                        12_000,
+                        Int(Double(plan.contextBudget.remaining + plan.contextBudget.evidence) *
+                            FoundationModelTokenBudget.cloudFallbackCharsPerToken)
+                    )
+                )
+            )
+            routedContext = renderCloudEvidenceEnvelope(envelope)
+            let includedIDs = Set(envelope.evidence.map(\.sourceID))
+            routedSourceChunks = sourceChunks.filter {
+                includedIDs.contains($0.chunk.id.uuidString)
+            }
+            do {
+                try await ensureConsentForDeepThink(
+                    service: llmService,
+                    prompt: prompt,
+                    context: routedContext,
+                    sourceChunks: routedSourceChunks.map(\.chunk),
+                    allowPrivateCloudCompute: true,
+                    modelExecutionPlan: plan
+                )
+            } catch let error as RAGServiceError {
+                if plan.fallback.target == .onDevice,
+                   case .cloudConsentDenied(_) = error {
+                    config.allowPrivateCloudCompute = false
+                    config.executionContext = .onDeviceOnly
+                } else if plan.fallback.target == .onDevice,
+                          case .cloudConsentUnavailable(_) = error {
+                    config.allowPrivateCloudCompute = false
+                    config.executionContext = .onDeviceOnly
+                } else {
+                    throw error
+                }
+            }
+        case .onDevice, .deterministic:
+            config.allowPrivateCloudCompute = false
+            config.executionContext = .onDeviceOnly
+            if !planned.localBudget.fits {
+                routedContext = String(routedContext.prefix(8_500))
+            }
+        case .abstain:
+            throw RAGServiceError.modelNotAvailable
+        }
+
+        return try await generateWithFallback(
+            prompt: prompt,
+            context: routedContext,
+            config: config,
+            sourceChunks: routedSourceChunks.map(\.chunk),
+            allowStructuredRAG: false
         )
     }
 }

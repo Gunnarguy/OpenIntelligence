@@ -169,6 +169,19 @@ struct CloudConsentPromptView: View {
             if record.contextChunkCount > 0 {
                 ConsentDetailRow(label: "Context", value: "\(record.contextChunkCount) chunks")
             }
+            if record.contextCharacterCount > 0 {
+                ConsentDetailRow(label: "Context size", value: "\(record.contextCharacterCount) chars")
+            }
+            ConsentDetailRow(
+                label: "Payload",
+                value: ByteCountFormatter.string(
+                    fromByteCount: Int64(record.estimatedBytes),
+                    countStyle: .file
+                )
+            )
+            if let routeReason = record.routeReason {
+                ConsentDetailRow(label: "Why PCC", value: routeReason.rawValue)
+            }
         }
         .font(.footnote)
         .padding(DSSpacing.sm)

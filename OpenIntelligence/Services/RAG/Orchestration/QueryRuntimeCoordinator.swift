@@ -147,14 +147,15 @@ final class QueryRuntimeCoordinator {
 
         // -- PCC / Cloud Eligibility --
 
-        let cloudConsentAllowed = cloudConsent == .allowed
         let cloudEligible =
             isAppleFMService
                 && networkAvailable
                 && config.allowPrivateCloudCompute
                 && config.executionContext != .onDeviceOnly
                 && !isPCCSuppressed
-        let initialWantsCloudContext = cloudEligible && cloudConsentAllowed
+        // Preparing a larger candidate set is local work. Final PCC selection and
+        // consent happen after retrieval when the exact minimized payload is known.
+        let initialWantsCloudContext = cloudEligible && cloudConsent != .denied
 
         // -- Execution Context Selection --
 
@@ -178,13 +179,10 @@ final class QueryRuntimeCoordinator {
                     config.executionContext = .onDeviceOnly
                     Log.info("[QueryRuntime] PCC disabled → onDeviceOnly", category: .pipeline)
                 } else {
-                    if config.executionContext == .automatic {
-                        config.executionContext = .preferCloud
-                        Log.info("[QueryRuntime] Network available → preferCloud (PCC capable)", category: .pipeline)
-                    } else if config.executionContext == .cloudOnly, !cloudConsentAllowed {
-                        config.executionContext = .preferCloud
-                        Log.info("[QueryRuntime] PCC consent pending → preferCloud (allow fallback)", category: .pipeline)
-                    }
+                    Log.info(
+                        "[QueryRuntime] PCC remains eligible; final route deferred until after retrieval",
+                        category: .pipeline
+                    )
                 }
             }
         #endif
@@ -249,10 +247,10 @@ final class QueryRuntimeCoordinator {
 
         let isOnDevice = config.executionContext == .onDeviceOnly
         let route = ResponseMetadata.ExecutionRoute(
-            path: isOnDevice ? "On-Device" : (isAppleFMService ? "Private Cloud Compute" : "Local/Cloud API"),
-            reason: queryPlan.reasoning,
-            policyApplied: isAppleFMService ? "Apple Foundation Routing" : nil,
-            emoji: isOnDevice ? "📱" : (isAppleFMService ? "☁️" : "🌐")
+            path: isOnDevice ? "On-Device" : (isAppleFMService ? "Pending Post-Retrieval Plan" : "Local/Cloud API"),
+            reason: isOnDevice ? queryPlan.reasoning : "Final model route is selected after retrieval evidence is assembled.",
+            policyApplied: isAppleFMService ? ModelExecutionPlan.policyVersion : nil,
+            emoji: isOnDevice ? "📱" : (isAppleFMService ? "🔄" : "🌐")
         )
 
         let totalLimit = FoundationModelTokenBudget.tokenBudget(isAppleFMOnDevice: isOnDevice)

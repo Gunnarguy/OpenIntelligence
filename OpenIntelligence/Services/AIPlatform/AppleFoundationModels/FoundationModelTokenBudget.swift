@@ -26,7 +26,17 @@ public struct FoundationModelTokenBudget: Sendable {
     
     /// Returns the context window size (tokens) based on execution mode/location.
     public nonisolated static func contextSize(isAppleFMOnDevice: Bool) -> Int {
-        return isAppleFMOnDevice ? 8192 : 32768
+        if isAppleFMOnDevice {
+            #if canImport(FoundationModels)
+            if #available(iOS 26.0, macOS 26.0, *) {
+                return SystemLanguageModel.default.contextSize
+            }
+            #endif
+            return baseContextLength
+        }
+        // PCC contextSize is async on iOS/macOS 27. Callers performing a
+        // routing decision must prefer `LiveFoundationModelCapabilityProvider`.
+        return 32768
     }
     
     /// Returns the dynamic token budget leaving a safety buffer.
@@ -71,6 +81,67 @@ public struct FoundationModelTokenBudget: Sendable {
     // MARK: - Transcript Token Estimation
     
     #if canImport(FoundationModels)
+    @available(iOS 26.0, macOS 26.0, *)
+    static func snapshot(
+        contextSize: Int,
+        instructions: String,
+        tools: [any Tool] = [],
+        transcript: Transcript? = nil,
+        evidence: String,
+        outputReserve: Int,
+        schemaReserve: Int = 0,
+        reasoningReserve: Int = 0,
+        safetyReserve: Int = 256
+    ) async -> ContextBudgetSnapshot {
+        if #available(iOS 26.4, macOS 26.4, *) {
+            do {
+                let model = SystemLanguageModel.default
+                async let instructionCount = model.tokenCount(for: Instructions(instructions))
+                async let toolCount = model.tokenCount(for: tools)
+                async let evidenceCount = model.tokenCount(for: Prompt(evidence))
+                let historyCount: Int
+                if let transcript {
+                    historyCount = try await model.tokenCount(for: Array(transcript))
+                } else {
+                    historyCount = 0
+                }
+                let (resolvedInstructions, resolvedTools, resolvedEvidence) = try await (
+                    instructionCount,
+                    toolCount,
+                    evidenceCount
+                )
+                return ContextBudgetSnapshot(
+                    contextSize: contextSize,
+                    instructions: resolvedInstructions,
+                    tools: resolvedTools,
+                    schema: schemaReserve,
+                    history: historyCount,
+                    evidence: resolvedEvidence,
+                    output: outputReserve,
+                    reasoning: reasoningReserve,
+                    safety: safetyReserve,
+                    source: .sdkExact
+                )
+            } catch {
+                // Fall through to conservative estimates. Routing records the
+                // source so an estimate is never presented as an exact SDK count.
+            }
+        }
+
+        return ContextBudgetSnapshot(
+            contextSize: contextSize,
+            instructions: estimateTokens(for: instructions, isAppleFMOnDevice: true),
+            tools: tools.isEmpty ? 0 : 1000,
+            schema: schemaReserve,
+            history: transcript.map(estimateTranscriptTokens) ?? 0,
+            evidence: estimateTokens(for: evidence, isAppleFMOnDevice: true),
+            output: outputReserve,
+            reasoning: reasoningReserve,
+            safety: safetyReserve,
+            source: .conservativeFallback
+        )
+    }
+
     /// Estimate token count of a Transcript entry list for Apple Foundation Models.
     @available(iOS 26.0, macOS 26.0, *)
     public nonisolated static func estimateTranscriptTokens(_ transcript: Transcript) -> Int {

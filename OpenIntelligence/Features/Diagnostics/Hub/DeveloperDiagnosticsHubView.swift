@@ -16,6 +16,7 @@ struct DeveloperDiagnosticsHubView: View {
     @AppStorage("enableLLMLogs") private var enableLLMLogs: Bool = true
     @AppStorage("enableStreamingLogs") private var enableStreamingLogs: Bool = false
     @AppStorage("enableVectorDBLogs") private var enableVectorDBLogs: Bool = true
+    @State private var pccCapability: FoundationModelCapabilitySnapshot?
 
     var body: some View {
         List {
@@ -44,13 +45,20 @@ struct DeveloperDiagnosticsHubView: View {
             Section {
                 #if canImport(FoundationModels)
                 if #available(iOS 26.0, macOS 26.0, *) {
-                    let pccModel = PrivateCloudComputeLanguageModel()
-                    LabeledContent("PCC Availability", value: pccModel.isAvailable ? "Available" : "Unavailable")
-                    if pccModel.isAvailable {
-                        LabeledContent("Context Size", value: "32,768 tokens")
-                        LabeledContent("Quota Status", value: pccModel.quotaUsage.status.description)
-                        LabeledContent("Limit Reached", value: pccModel.quotaUsage.isLimitReached ? "Yes" : "No")
-                        LabeledContent("iCloud+ Suggested", value: pccModel.quotaUsage.limitIncreaseSuggestion ? "Yes" : "No")
+                    if let capability = pccCapability {
+                        LabeledContent("PCC Entitlement", value: capability.hasPCCEntitlement ? "Present" : "Missing")
+                        LabeledContent("PCC Availability", value: capability.pccAvailable ? "Available" : "Unavailable")
+                        LabeledContent(
+                            "Context Size",
+                            value: capability.pccContextSize.map { "\($0) tokens" } ?? "Not reported"
+                        )
+                        LabeledContent("Quota Status", value: capability.pccQuota.rawValue)
+                        LabeledContent("Limit Reached", value: capability.pccQuota == .limitReached ? "Yes" : "No")
+                        if let reason = capability.unavailabilityReason, !capability.pccAvailable {
+                            Text(reason)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
                         
                         let policyRoute = FoundationModelRoutePolicy.determineRoute(
                             queryType: .maximum,
@@ -74,6 +82,8 @@ struct DeveloperDiagnosticsHubView: View {
                         default:
                             LabeledContent("Maximum Reasoning", value: "N/A")
                         }
+                    } else {
+                        ProgressView("Reading PCC capability…")
                     }
                 } else {
                     Text("Requires iOS 26+")
@@ -193,6 +203,15 @@ struct DeveloperDiagnosticsHubView: View {
         .navigationBarTitleDisplayMode(.large)
         #endif
         .onAppear { applyLoggingSettings() }
+        .task { await refreshPCCCapability() }
+    }
+
+    private func refreshPCCCapability() async {
+        #if canImport(FoundationModels)
+        if #available(iOS 26.0, macOS 26.0, *) {
+            pccCapability = await LiveFoundationModelCapabilityProvider().snapshot()
+        }
+        #endif
     }
 
     // MARK: - System Status Row

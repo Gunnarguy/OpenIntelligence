@@ -86,11 +86,13 @@ struct FoundationModelSessionFactory {
         case .privateCloudCompute(_):
             #if compiler(>=6.4)
             if #available(iOS 27.0, macOS 27.0, *) {
-                guard EntitlementChecker.hasEntitlement("com.apple.developer.private-cloud-compute") else {
+                guard EntitlementChecker.hasEntitlement(EntitlementChecker.privateCloudComputeKey) else {
                     throw LLMError.modelUnavailable
                 }
                 let nativeModel = FoundationModels.PrivateCloudComputeLanguageModel()
-                guard nativeModel.isAvailable else { throw LLMError.modelUnavailable }
+                guard nativeModel.isAvailable, !nativeModel.quotaUsage.isLimitReached else {
+                    throw LLMError.modelUnavailable
+                }
                 if let savedTranscript = pendingTranscript, !disableTools {
                     finalSession = LanguageModelSession(model: nativeModel, tools: tools, transcript: savedTranscript)
                     finalSession.prewarm()
@@ -99,26 +101,12 @@ struct FoundationModelSessionFactory {
                     finalSession = LanguageModelSession(model: nativeModel, tools: tools, instructions: Instructions(instructionsText))
                 }
             } else {
-                let model = PrivateCloudComputeLanguageModel()
-                guard model.isAvailable else { throw LLMError.modelUnavailable }
-                if let savedTranscript = pendingTranscript, !disableTools {
-                    finalSession = LanguageModelSession(model: model, tools: tools, transcript: savedTranscript)
-                    finalSession.prewarm()
-                    transcriptConsumed = true
-                } else {
-                    finalSession = LanguageModelSession(model: model, tools: tools, instructions: Instructions(instructionsText))
-                }
+                // PCC is an iOS/macOS 27 capability. Never report a local iOS 26
+                // session as cloud execution.
+                throw LLMError.modelUnavailable
             }
             #else
-            let model = PrivateCloudComputeLanguageModel()
-            guard model.isAvailable else { throw LLMError.modelUnavailable }
-            if let savedTranscript = pendingTranscript, !disableTools {
-                finalSession = LanguageModelSession(model: model, tools: tools, transcript: savedTranscript)
-                finalSession.prewarm()
-                transcriptConsumed = true
-            } else {
-                finalSession = LanguageModelSession(model: model, tools: tools, instructions: Instructions(instructionsText))
-            }
+            throw LLMError.modelUnavailable
             #endif
         case .automatic:
             let model = SystemLanguageModel.default

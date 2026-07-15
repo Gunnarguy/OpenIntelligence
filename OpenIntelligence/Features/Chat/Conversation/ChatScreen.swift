@@ -3181,6 +3181,8 @@ struct ChatScreen: View {
                 return "Maximum is capped at \(limit) uses per day on Free. Switch modes or upgrade for unlimited Maximum."
             case .cloudConsentDenied:
                 return "Cloud processing was declined. Switch to on-device or try again."
+            case .cloudConsentUnavailable:
+                return "Cloud processing needs confirmation in the foreground. Open the app and try again."
             }
         }
 

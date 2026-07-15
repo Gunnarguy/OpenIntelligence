@@ -264,9 +264,9 @@ final class ModelResolutionService: ObservableObject {
             switch settings.executionContext {
             case .onDeviceOnly:
                 return .onDevice
-            case .cloudOnly, .preferCloud:
+            case .cloudOnly:
                 return .privateCloudCompute
-            case .automatic:
+            case .automatic, .preferCloud:
                 return .hybridAutomatic
             }
 

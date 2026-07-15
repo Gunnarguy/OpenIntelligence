@@ -80,11 +80,11 @@ The OpenIntelligence Architecture Atlas is the canonical representation of the r
 - **BNNS Vector Store**: Persisted vector database files (`_meta.json`, `_vectors.bin`, `_norms.bin`) are stored locally. Loading new or empty databases is gated to skip memory-mapping operations on 0-byte vectors files, resolving startup POSIX/Cocoa Code 260 errors. `[evidence: code_verified, exact, BNNSVectorDatabase.swift]`
 
 ## 10. Routing/PCC Boundaries
-- **PCC (Private Cloud Compute)**: Execution routes natively to secure enclaves via `FoundationModels.PrivateCloudComputeLanguageModel` on iOS 27 / macOS 27+, running the 70B+ AFM 3 Cloud Pro model and falling back cleanly to local `SystemLanguageModel` simulation on older versions. `[evidence: code_verified, exact, FoundationModelSessionFactory.swift]`
-- **Local Model RAM Gate**: The app implements programmatic physical memory checking (`physicalMemory >= 11.5GB` in `DeviceHardware`) that hides the "Advanced" preference on low-memory devices. **v4.6 correction:** the installed SDK exposes no separate 20B on-device model API (`SystemLanguageModel.advanced` does not exist — compiler-probe verified, TE-02); the Advanced route executes `SystemLanguageModel.default` and, as of v4.6, `FoundationModelSessionFactory` reports the executed route as `.onDevice` in telemetry rather than an "advanced" tier. Whether the OS resolves larger weights behind `.default` on high-RAM hardware is opaque to the app and is not claimed. `[evidence: compile_verified, exact, FoundationModelSessionFactory.swift, .agent/TEST_EVIDENCE.md TE-02]`
-- **PCC Entitlement Crash Prevention**: A signature verification utility (`EntitlementChecker` in `EngineSDKCompatibility.swift`) checks for the `com.apple.developer.private-cloud-compute` entitlement at runtime. If missing, the app avoids instantiating `PrivateCloudComputeLanguageModel` (which would trigger a fatal process crash) and gracefully routes queries to local on-device models. `[evidence: code_verified, exact, FoundationModelRoutePolicy.swift, FoundationModelSessionFactory.swift]`
+- **Public Model Targets**: On-device execution uses `SystemLanguageModel.default`. Native PCC uses `PrivateCloudComputeLanguageModel` on iOS/macOS 27+ only. The app makes no 3B, 20B, Advanced, or server parameter-count claim because the public SDK does not expose those identities. iOS/macOS 26 stays local; it is never labeled simulated PCC. `[evidence_level: compile_verified+code_verified, confidence: exact, evidence_source: FoundationModelSessionFactory.swift, LLMModel.swift]`
+- **Post-Retrieval Plan**: Local retrieval produces `PostRetrievalEvidence`; `ModelExecutionPlanner` combines it with user/privacy/network/foreground constraints, exact-or-labeled-fallback token budgets, signed entitlement, live PCC availability, and quota. Only the synthesis stage may target PCC; verification stays deterministic/local. `[evidence_level: code_verified, confidence: high, evidence_source: ModelExecutionPlanner.swift, RAGService.swift]`
+- **Entitlement and Quota**: `EntitlementChecker` reads `com.apple.developer.private-cloud-compute` from the signed process using Security.framework. `LiveFoundationModelCapabilityProvider` snapshots quota/context state, and `FoundationModelSessionFactory` rechecks availability and quota immediately before construction. Source enablement is complete; signed-device/distribution verification is pending. `[evidence_level: code_verified+user_confirmed, confidence: high_for_source_unverified_for_distribution, evidence_source: EngineSDKCompatibility.swift, FoundationModelCapabilityProvider.swift, FoundationModelSessionFactory.swift, OpenIntelligence.entitlements]`
 - **PCC Fallback UI & Subsystem Diagnostics**: A dedicated iCloud execution consent fallback panel is integrated in `ContainerSettingsSheet+Sections.swift` using `self.settings` scope visibility. An AI Subsystem Diagnostics card in the library settings displays real-time readiness status of the sentence embedding model, acceleration targets, Rust-backed tokenizer parser, vocabulary metrics, and exact citation byte offsets. `[evidence: code_verified, exact, ContainerSettingsSheet+Sections.swift]`
-- **Consent Deadlock Risk**: Background executions via App Intents might block on `CloudConsentPromptView` evaluation. `[evidence: code_verified, exact, FoundationModelRoutePolicy.swift]`
+- **Consent and Fallback**: Consent is requested only after the minimized envelope is final. Background/App Intent execution with no remembered consent selects local fallback or fails cloud-only explicitly, never waits for UI. Fallback occurs only before meaningful streaming; `ModelExecutionReceipt` persists intended/attempted/actual/fallback/completed targets. `[evidence_level: code_verified, confidence: high, evidence_source: RAGService.swift, AgenticOrchestrator.swift, ModelExecutionReceipt.swift]`
 
 ## 11. Billing/Entitlement Boundaries
 - **UserDefaults**: `EntitlementStore.swift` relies on UserDefaults for limits. `[evidence: code_verified, exact, EntitlementStore.swift]`
@@ -179,12 +179,20 @@ graph TD
 ### PCC Routing Diagram
 ```mermaid
 graph TD
-  Request[User Prompt] --> Policy[FoundationModelRoutePolicy]
-  Policy -->|Route to PCC| Entitlement{Check Entitlement}
-  Entitlement -->|Has Entitlement| PCC[PrivateCloudComputeLanguageModel]
-  Entitlement -->|Missing Entitlement| LocalFallback[Local On-Device Fallback]
-  Policy -->|Consent Required| Consent[CloudConsentPromptView]
-  Policy -->|Local Sim| LLM[SystemLanguageModel.default]
+  Request[User Prompt] --> LocalRetrieve[Local retrieval and evidence assembly]
+  LocalRetrieve --> Planner[ModelExecutionPlanner]
+  Capability[Signed entitlement + availability + quota + context] --> Planner
+  Planner -->|On-device| Local[SystemLanguageModel.default]
+  Planner -->|Insufficient evidence| Abstain[Grounded abstention]
+  Planner -->|PCC synthesis| Minimize[CloudEvidenceMinimizer]
+  Minimize --> Consent{Consent valid for final envelope?}
+  Consent -->|Yes| Recheck[Immediate quota and availability recheck]
+  Recheck --> PCC[PrivateCloudComputeLanguageModel]
+  Consent -->|No or foreground unavailable| LocalFallback[Declared on-device fallback]
+  PCC --> Verify[Deterministic local verification]
+  Local --> Verify
+  LocalFallback --> Verify
+  Verify --> Receipt[ModelExecutionReceipt]
 ```
 
 ### Evidence Threads Placement Diagram (Implemented — Design B)
@@ -205,3 +213,8 @@ Historical note: earlier planning artifacts proposed `LocalCache/EvidenceThreads
 ### DocumentProcessor & RAGService Streaming
 In v4.5, `RAGService.importDocument` was refactored to support batched extraction via `importLargePDFStreamed`. `DocumentProcessor` accepts a `pageRange` and processes chunks dynamically, bypassing memory limits for large PDF extraction and Vector DB Upserting. Fixed FTS5 index truncation and page offset mapping errors during streaming batch ingestion, ensuring fully searchable large documents. 
 In v4.5.1, resolved concurrency race conditions and deadlocks on Apple Silicon by introducing thread-safe `NSRecursiveLock` serialization around CGImage rendering in `LayoutAwareExtractor`, `StructuredDocumentParser`, and `PageComplexityAnalyzer`.
+
+## 18. RepoOS Agent-Workflow Boundary
+- **Workspace skill:** `.codex/skills/route-openintelligence-work/SKILL.md` defines the mandatory Codex workflow for this repository and points to current canonical artifacts rather than embedding a second architecture copy. `[evidence: code_verified, exact, .codex/skills/route-openintelligence-work/SKILL.md]`
+- **Deterministic routing:** `repoos_router.py` scores task wording and changed paths against `Docs/AuditArtifacts/RepoOS/change_impact_matrix.csv`, reports the selected route, hard boundaries, required evidence, tests, documentation, implementation gate, Notion relevance, and artifact-derived active release, and stops on an unmapped task. Durable implementations receive an effective documentation union that includes `CHANGELOG.md` `[Unreleased]`, the active-version section in `Docs/RELEASE_NOTES.md`, and the full rule 14 set. `[evidence: code_verified, exact, .codex/skills/route-openintelligence-work/scripts/repoos_router.py]`
+- **Runtime isolation:** The RepoOS skill, scripts, and agent rules are developer-workspace tooling; they do not compile into or execute inside the OpenIntelligence Apple application. `[evidence: code_verified, exact, change_impact_matrix.csv repoos_workspace_automation allowed and forbidden paths]`

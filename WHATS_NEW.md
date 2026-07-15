@@ -1,4 +1,4 @@
-> **Documentation status:** Verified for OpenIntelligence v4.6 on July 14, 2026.
+> **Documentation status:** Source-verified and simulator-compiled for OpenIntelligence v4.6 on July 15, 2026; signed-device PCC validation remains pending.
 
 # What's New
 
@@ -7,8 +7,11 @@ Public release highlights for OpenIntelligence.
 ## 4.6
 
 ### Reliability & Accuracy
+- **Evidence-informed Private Cloud Compute routing:** OpenIntelligence now retrieves locally before deciding whether a response actually benefits from PCC. Long-context and multi-document synthesis can use a minimized evidence envelope after a live entitlement/quota check and explicit payload consent; insufficient evidence never triggers cloud escalation.
+- **Truthful route receipts:** Response metadata separately records the intended, attempted, actual, fallback, and completed execution route, so the UI no longer presents a prediction as the route that ran.
+- **Safe cloud fallback:** If consent, network availability, quota, or PCC availability prevents cloud execution, Automatic mode falls back locally before meaningful streaming. Cloud-only requests fail explicitly, and cloud and local partial responses are never mixed.
 - **Truthful model-route reporting:** The "Advanced" on-device model preference now correctly reports the standard on-device model in telemetry and diagnostics. (No 20B on-device model exists in the current OS SDK; earlier releases could display a model tier that never actually ran.)
-- **Safer Private Cloud Compute gating:** Builds without a provable PCC entitlement now deterministically use the on-device fallback instead of attempting an unentitled cloud-model instantiation.
+- **Apple-approved PCC capability enabled:** The source entitlement is active for v4.6 and the app verifies the signed process entitlement before constructing Apple’s PCC model. A signed iOS 27 physical-device/TestFlight validation is still required before production readiness is claimed.
 - **Hardened knowledge-index migrations:** Database schema migrations are now driven by a fixed, code-owned migration catalog, eliminating a class of malformed-schema risk.
 
 ## 4.5.1

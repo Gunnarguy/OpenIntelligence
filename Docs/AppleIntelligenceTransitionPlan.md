@@ -1,4 +1,4 @@
-> **Documentation status:** [Planned] / [Experimental]. This document outlines future technical blueprints for WWDC26 Apple Intelligence integration. Do not use as the source of truth for OpenIntelligence v4.1.
+> **Documentation status:** Mixed implemented/backlog plan, source-verified 2026-07-15. PCC Dynamic Routing Phases 0–8 are implemented for v4.6; signed-device/distribution verification remains pending. Dynamic Profiles remain deferred.
 
 # Apple Intelligence & Foundation Models Transition Plan (WWDC26 Master Blueprint)
 
@@ -28,7 +28,7 @@ The following table summarizes the current transition status, mapping the legacy
 | :--- | :--- | :--- | :--- | :--- |
 | **Local Embeddings** | CoreML (`.mlpackage`) using static CPU/GPU targets. | **Core AI (`.aimodel`)** Silicon-native zero-copy pipeline with compile-time guards. | Convert ReRanker & Vision extractors to `.aimodel` format. | **100%** |
 | **Ingestion Concurrency** | Shared rendering without sync (causing parallel deadlocks/crashes). | **NSRecursiveLock serialization (v4.5.1 Completed)** around CoreImage image generation, ensuring thread-safe Metal access. | Auto-scale max rendering concurrency dynamically with GPU telemetry. | **100%** |
-| **Model Routing** | Hardcoded heuristics; binary PCC checks based on latency estimates. | **`ModelResolutionService`** tracking local vs. PCC based on hardware tier. | Fully abstract routing into WWDC26 `LanguageModelSession` updates. | **100%** |
+| **Model Routing** | Hardcoded heuristics; pre-retrieval PCC prediction. | **Post-retrieval `ModelExecutionPlanner` + `ModelExecutionReceipt`** using evidence, exact/labeled budgets, signed entitlement, quota, consent, minimized envelopes, and local verification. | Device evaluation and data-driven policy tuning; Dynamic Profiles remain deferred. | **Source complete; device validation pending** |
 | **Shortcuts / Siri** | Simple URL-trigger command intents. | **Entity-Native App Intents (`AppEntity`, `EntityQuery`)** resolving in-process via `activePresentedInstance` binding. | Add UI interactive app intent triggers. | **100%** |
 | **System Search** | Document-level title/preview indexing in Spotlight. | Same document-level preview index. | **Spotlight Semantic Retrieval Stage** (Spotlight indexes sections/chunks/tables). | **30%** |
 | **UI Execution State** | Sticky green "Offline / On-Device" banner under chat header. | **Banner completely removed** (cleaner UI, trusts Apple's system routing). | **Reasoning Live Activity** showing active Deep Think steps on Dynamic Island. | **70%** |
@@ -165,11 +165,13 @@ To implement these changes safely without breaking current runtime behaviors, th
 *   **Core AI Sentence Embeddings with Core ML Fallback** (Completed)
     - *Implementation*: Integrated native `.aimodel` representations with dynamic compile-time and runtime availability guards, and a fallback to Core ML. Added shared instance caching, awaitable model readiness checks, and picker alerts to address race conditions on iOS 27 / macOS 27 devices.
 *   **PCC Entitlement Graceful Fallback** (Completed)
-    - *Implementation*: Implemented in-process signature scanning using `EntitlementChecker` to check for `com.apple.developer.private-cloud-compute` before initializing `FoundationModels.PrivateCloudComputeLanguageModel()`. Returns `false` or throws `modelUnavailable` to fall back gracefully to local on-device models.
-*   **PR 1 – Token & Context Budget Extraction**: Move context length constants and token estimation rules to a clean coordinator, querying the official `LanguageModelSession` token budgeting APIs when running on iOS 27+.
+    - *Implementation*: `EntitlementChecker` now reads the signed process entitlement using Security.framework. The Apple-approved source entitlement is enabled; live availability/quota are rechecked immediately before native PCC construction. Signed artifact validation remains open. `[evidence_level: code_verified+user_confirmed, confidence: high_for_source_unverified_for_distribution]`
+*   **PCC Dynamic Routing Phases 0–8** (Source implementation completed 2026-07-15)
+    - *Implementation*: Local retrieval/planning → conditional minimized PCC synthesis → deterministic local verification. Automatic and prefer-cloud routes are selected after evidence assembly; consent binds to the final envelope; background/App Intent work cannot wait on UI; durable receipts distinguish intended/attempted/actual/fallback/completed targets. Intermediate agentic reasoning stays local and only final synthesis may use PCC. `[evidence_level: code_verified, confidence: high, evidence_source: ModelExecutionPlanner.swift, RAGService.swift, AgenticOrchestrator.swift, LLMService.swift]`
+*   **PR 1 – Token & Context Budget Extraction** (Completed): Uses public SDK context size and token counting where available, with explicitly labeled conservative fallbacks.
 *   **PR 2 – Decomposition of AppleFoundationLLMService**: Split `LLMService` responsibilities into structured subcomponents (`FoundationModelSessionFactory`, `FoundationModelToolRegistry`, `FoundationModelPromptCompiler`).
-*   **PR 3 – Dynamic Execution Profiles**: Swap tools and instructions dynamically inside `LanguageModelSession` instead of resetting sessions.
-*   **PR 4 – Query Runtime Coordination**: Offload query mode resolution and PCC routing from `RAGService` to a thin coordinator.
+*   **PR 3 – Dynamic Execution Profiles** (Deferred): Short-lived separate sessions remain the approved first architecture; profile reuse requires dedicated privacy/concurrency evaluation.
+*   **PR 4 – Query Runtime Coordination** (Completed): `QueryRuntimeCoordinator` now produces constraints and a pending route; final selection occurs post-retrieval.
 *   **PR 5 – Retrieval Pipeline Stage Refactoring**: Chain search, expansion, reranking, and MMR candidate selection into isolated stages.
 *   **PR 6 – Spotlight Semantic Retrieval Plane**: Index sections/chunks in Spotlight and query Spotlight's index dynamically in the search plane.
 *   **PR 7 – Evidence-Grounded Visual Intelligence**: Feed visual OCR outputs into the retrieval query pipeline.
@@ -198,3 +200,7 @@ These guidelines must be enforced during the transition:
 - `LibraryIntelligenceCenter` predicts chunking configuration dynamically from a 10-page text sample before formal indexing begins.
 - Eliminates destructive database rebuilds for non-destructive chunking shifts by propagating configuration early to the container session.
 - Seamless tuning adjusts automatically to varied file sizes and logic densities, maintaining maximum ingestion throughput without UI restarts.
+
+## 8. Repository Agent Operations
+
+- **RepoOS Workspace-Native Codex Routing (Completed 2026-07-15):** A repository-local skill and deterministic preflight now route agent work through the live change-impact matrix, evidence protocol, hard boundaries, required tests, documentation synchronization, Notion relevance, and the active release's changelog and release-notes targets. This operational layer is isolated from the Apple Intelligence runtime and does not change any product execution path. `[evidence: code_verified, exact, .codex/skills/route-openintelligence-work/scripts/repoos_router.py]`
