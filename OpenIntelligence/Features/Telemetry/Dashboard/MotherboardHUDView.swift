@@ -309,12 +309,10 @@ struct HardwareXRayOverlay: View {
     // thread-sidebar toggle). Double-tap on the legend resets to default.
     @AppStorage("hudLegendPosX") private var savedLegendX: Double = -1
     @AppStorage("hudLegendPosY") private var savedLegendY: Double = -1
-    /// Live legend center while dragging (nil when not dragging). Tracks the
-    /// absolute finger location in the overlay's named coordinate space — the
-    /// same space `.position` consumes — so there is no translation feedback
-    /// loop and no local/global space ambiguity.
-    @State private var legendDragLocation: CGPoint? = nil
-    @State private var legendGrabOffset: CGSize = .zero
+    /// Live drag translation, applied via `.offset` (rendering-only) so the
+    /// legend's layout frame — and therefore the gesture's local coordinate
+    /// space — never moves mid-drag. Committed into the saved position on end.
+    @State private var legendDragOffset: CGSize = .zero
 
     /// Combined intensity from all active components
     private var totalIntensity: Double {
@@ -493,35 +491,25 @@ struct HardwareXRayOverlay: View {
                         savedLegendY = -1
                     }
                     .gesture(
-                        // Finger-absolute tracking in the overlay's own named
-                        // space (identical to the space .position consumes).
-                        // .local spasms (space moves with the view) and .global
-                        // failed to track under ignoresSafeArea on iOS 27 —
-                        // absolute location in a container-fixed space has no
-                        // failure mode: the container never moves.
-                        DragGesture(coordinateSpace: .named("hudXraySpace"))
+                        // Default (.local) space — the only one that reliably
+                        // recognizes inside this overlay on the iOS 27 SDK
+                        // (.global and .named both went dead). Jitter is
+                        // prevented structurally instead: the live translation
+                        // is applied with .offset below, which is a pure
+                        // rendering transform — the layout frame hosting this
+                        // gesture never moves, so the local space is stable.
+                        DragGesture()
                             .onChanged { value in
-                                if legendDragLocation == nil {
-                                    legendGrabOffset = CGSize(
-                                        width: legendBase.x - value.startLocation.x,
-                                        height: legendBase.y - value.startLocation.y
-                                    )
-                                }
-                                legendDragLocation = CGPoint(
-                                    x: value.location.x + legendGrabOffset.width,
-                                    y: value.location.y + legendGrabOffset.height
-                                )
+                                legendDragOffset = value.translation
                             }
                             .onEnded { value in
-                                let endX = value.location.x + legendGrabOffset.width
-                                let endY = value.location.y + legendGrabOffset.height
-                                savedLegendX = min(max(endX, 20), screenWidth - 20)
-                                savedLegendY = min(max(endY, 40), screenHeight - 40)
-                                legendDragLocation = nil
-                                legendGrabOffset = .zero
+                                savedLegendX = min(max(legendBase.x + value.translation.width, 20), screenWidth - 20)
+                                savedLegendY = min(max(legendBase.y + value.translation.height, 40), screenHeight - 40)
+                                legendDragOffset = .zero
                             }
                     )
-                    .position(legendDragLocation ?? legendBase)
+                    .offset(legendDragOffset)
+                    .position(legendBase)
                 }
 
                 // Device info (for debugging only)
@@ -534,9 +522,6 @@ struct HardwareXRayOverlay: View {
                 }
             }
             .ignoresSafeArea()
-            // Anchor for the legend's drag gesture: a container-fixed space
-            // matching the coordinates .position consumes inside this ZStack.
-            .coordinateSpace(name: "hudXraySpace")
         }
         // The GeometryReader itself must ignore ALL safe areas (container AND
         // keyboard), not just its content: geometry.size feeds rectToScreen's
