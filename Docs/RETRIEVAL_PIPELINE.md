@@ -17,11 +17,15 @@ The retrieval pipeline is the core engineering idea in OpenIntelligence: answers
 flowchart TD
     UserQuery[User Query Input] --> QueryPlan[Query Analysis: NER & Expansion]
     QueryPlan --> EmbeddingGen[Generate Query Vector - Core ML]
+    GPUProfile[GPU Execution Profile] --> EmbeddingGen
     EmbeddingGen --> HybridSearch[Hybrid Search: FTS5 Lexical + Vector Similarity]
+    GPUProfile --> HybridSearch
     HybridSearch --> RRF[Reciprocal Rank Fusion - RRF]
     RRF --> Cutoff{Adaptive Ceiling Cutoff}
     Cutoff --> Rerank[Core ML TinyBERT Reranker / Heuristic Fallback]
-    Rerank --> ContextExpand[Context Sibling Expansion - ParentDocumentService]
+    Rerank --> MMR[MMR Diversity Selection]
+    GPUProfile --> MMR
+    MMR --> ContextExpand[Context Sibling Expansion - ParentDocumentService]
     ContextExpand --> LostInMiddle[Reorder Context - Lost-In-Middle]
     LostInMiddle --> Evidence[Post-Retrieval Evidence + Exact Token Budgets]
     Evidence --> ModelRoute{ModelExecutionPlanner}
@@ -30,6 +34,7 @@ flowchart TD
     ModelRoute -- Local --> LocalLLM[SystemLanguageModel.default]
     ModelRoute -- PCC Candidate --> Minimize[Minimized Cloud Evidence Envelope]
     Minimize --> Consent{Consent Valid?}
+    Remembered[Canonical Remembered Consent - No Launch Prompt] --> Consent
     Consent -- Yes --> PCCLLM[PrivateCloudComputeLanguageModel]
     Consent -- No / UI Unavailable --> LocalLLM
     LocalLLM --> Verification[Verification Gates A-I - Negation & Word-Overlap]

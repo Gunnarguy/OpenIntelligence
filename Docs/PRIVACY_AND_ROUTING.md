@@ -24,6 +24,7 @@ flowchart TD
   P -->|Fits or privacy requires local| L[On-device synthesis]
   P -->|Evidence-sufficient PCC candidate| M[Minimize evidence envelope]
   M --> G{Consent valid for this payload?}
+  K[Canonical remembered consent; no launch prompt] --> G
   G -->|Yes| X[Immediate quota and availability recheck]
   X --> PCC[Native PCC synthesis]
   G -->|Denied or UI unavailable| F[Declared on-device fallback or cloud-only error]
@@ -67,6 +68,8 @@ PCC consent happens only after the route and cloud evidence envelope are final. 
 - **Deny:** blocks PCC. Automatic/prefer-cloud uses on-device fallback; cloud-only returns an error.
 
 Background and App Intent execution never waits for a foreground consent sheet. Remembered consent may permit PCC; otherwise the planner selects local execution or fails cloud-only explicitly. `[evidence_level: code_verified, confidence: high, evidence_source: RAGService.swift, CloudConsentPromptView.swift, AgenticOrchestrator.swift]`
+
+`cloudConsent.applePCC` is the canonical remembered value. On upgrade, the legacy PCC picker is synchronized to that value; it cannot erase an explicit allow/deny decision. Selecting Ask removes the canonical decision. App launch loads consent state but does not pre-create a transmission record or present the sheet, so a prompt is tied only to a real finalized post-retrieval envelope. `[evidence_level: code_verified+test_verified, confidence: high_pending_physical_device_validation, evidence_source: SettingsStore.swift, RAGService.swift, PCCConsentPreferenceMigrationTests.swift]`
 
 ## Fallback and stream integrity
 

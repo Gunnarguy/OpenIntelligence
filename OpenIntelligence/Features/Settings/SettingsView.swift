@@ -1304,12 +1304,8 @@ Text(deviceService.chipName)
 
     // MARK: - GPU Acceleration Section
 
-    @State private var gpuLevel: Double = DeviceCapabilityService.shared.gpuAccelerationLevel
+    @State private var gpuProfile: GPUExecutionProfile = DeviceCapabilityService.shared.gpuExecutionProfile
 
-    // GPU concurrency from DeviceCapabilityService (reflects actual pipeline values)
-    private var currentGPUConcurrency: Int {
-        DeviceCapabilityService.shared.gpuConcurrency
-    }
     private func gpuAccelerationSection(deviceService: DeviceCapabilityService) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             // Header
@@ -1331,16 +1327,16 @@ Text(deviceService.chipName)
                     .clipShape(Capsule())
             }
 
-            Text("Higher GPU usage accelerates document ingestion but generates more heat. Neural Engine (ANE) is more efficient for ML inference.")
+            Text("Choose how OpenIntelligence schedules GPU-capable work. Apple frameworks still make the final hardware decision, so these are execution preferences rather than a literal utilization percentage.")
                 .font(.caption)
                 .foregroundColor(.secondary)
 
-            if deviceService.activeGPUAccelerationLevel < gpuLevel {
+            if deviceService.activeGPUExecutionProfile != gpuProfile {
                 HStack(spacing: 6) {
                     Image(systemName: "shield.lefthalf.filled")
                         .font(.caption)
                         .foregroundColor(.orange)
-                    Text("\(deviceService.chipName) is holding active GPU to \(Int(deviceService.activeGPUAccelerationLevel * 100))% even though \(Int(gpuLevel * 100))% was requested. This ceiling is deliberate to avoid unstable sustained loads.")
+                    Text("\(deviceService.chipName) is using the \(deviceService.activeGPUExecutionProfile.displayName) profile instead of \(gpuProfile.displayName) to avoid unstable sustained loads.")
                         .font(.caption2)
                         .foregroundColor(.orange)
                 }
@@ -1349,40 +1345,37 @@ Text(deviceService.chipName)
                 .clipShape(RoundedRectangle(cornerRadius: 8))
             }
 
-            // GPU Level Slider
+            // Discrete profiles avoid implying a precise GPU percentage that Core ML cannot promise.
             VStack(alignment: .leading, spacing: 6) {
                 HStack {
-                    Text("GPU Level")
+                    Text("Execution Profile")
                         .font(.caption.weight(.medium))
                     Spacer()
-                    Text(gpuLevelSummary(deviceService: deviceService))
-                        .font(.caption.monospacedDigit().bold())
-                        .foregroundColor(gpuModeColor)
-                        .contentTransition(.numericText())
-                }
-
-                Slider(value: $gpuLevel, in: 0...1, step: 0.1)
-                    .accentColor(gpuModeColor)
-                    .onChange(of: gpuLevel) { _, newValue in
-                        // Save immediately for real-time updates
-                        DeviceCapabilityService.shared.gpuAccelerationLevel = newValue
+                    Picker("Execution Profile", selection: $gpuProfile) {
+                        ForEach(GPUExecutionProfile.allCases) { profile in
+                            Text(profile.displayName).tag(profile)
+                        }
                     }
-
-                // Mode descriptions
-                HStack {
-                    Text("🔋 Efficient")
-                        .font(.caption2)
-                        .foregroundColor(gpuLevel < 0.3 ? .green : .secondary)
-                    Spacer()
-                    Text("🔥 Maximum")
-                        .font(.caption2)
-                        .foregroundColor(gpuLevel >= 0.9 ? .red : .secondary)
+                    .labelsHidden()
+                    .pickerStyle(.menu)
+                    .tint(gpuModeColor)
+                    .onChange(of: gpuProfile) { _, newValue in
+                        DeviceCapabilityService.shared.gpuExecutionProfile = newValue
+                    }
                 }
+
+                Text(gpuProfileDescription)
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+
+                Text("Core ML changes apply when its model next loads; PDF and vector policies apply to the next operation.")
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
             }
             .padding(10)
             .background(Color.green.opacity(0.08))
             .clipShape(RoundedRectangle(cornerRadius: 10))
-            .animation(.easeInOut(duration: 0.15), value: gpuLevel)
+            .animation(.easeInOut(duration: 0.15), value: gpuProfile)
 
             Divider()
                 .padding(.vertical, 2)
@@ -1409,44 +1402,44 @@ Text(deviceService.chipName)
             .background(Color.orange.opacity(0.08))
             .clipShape(RoundedRectangle(cornerRadius: 10))
 
-            // Current settings based on level - LIVE UPDATING
+            // Current policy derived from the same profile the execution paths consult.
             VStack(alignment: .leading, spacing: 6) {
                 gpuSettingRow(
                     icon: "cpu",
-                    label: "CoreML Compute",
+                    label: "Core ML (next load)",
                     value: deviceService.preferredComputeUnitsDescription
+                )
+                gpuSettingRow(
+                    icon: "cube.transparent",
+                    label: "Ingestion Embeddings",
+                    value: deviceService.embeddingComputeUnitsDescription
                 )
                 gpuSettingRow(
                     icon: "doc.text.image",
                     label: "PDF Rendering",
-                    value: gpuLevel >= 0.3 ? "Metal CIContext (GPU)" : "CPU CIContext"
+                    value: deviceService.useGPUForPDFRendering ? "Metal CIContext (GPU)" : "CPU CIContext"
                 )
                 gpuSettingRow(
                     icon: "function",
                     label: "Metal Vector Ops",
-                    value: gpuLevel >= 0.6 ? "Active (cosine/MMR/normalize)" : "Off (Accelerate CPU)"
-                )
-                gpuSettingRow(
-                    icon: "square.stack.3d.up",
-                    label: "GPU Op Concurrency",
-                    value: "\(currentGPUConcurrency) concurrent"
+                    value: deviceService.useMetalForVectorOps ? "Automatic for large searches" : "Off (Accelerate CPU)"
                 )
                 gpuSettingRow(
                     icon: "thermometer.medium",
                     label: "Thermal Impact",
-                    value: gpuLevel >= 0.9 ? "🔥 High" : (gpuLevel >= 0.6 ? "⚠️ Moderate" : "✅ Low")
+                    value: gpuThermalImpact
                 )
             }
-            .animation(.easeInOut(duration: 0.2), value: gpuLevel)
+            .animation(.easeInOut(duration: 0.2), value: gpuProfile)
 
             Divider()
                 .padding(.vertical, 2)
 
-            // Pipeline concurrency (tier-based, not GPU-slider dependent)
+            // Pipeline concurrency remains tier-based rather than profile-controlled.
             VStack(alignment: .leading, spacing: 6) {
                 Text("Pipeline Concurrency")
                     .font(.caption.weight(.medium))
-                Text("Set by device tier, not GPU slider. Optimized for the \(deviceService.chipName).")
+                Text("Set by device tier, not the execution profile. Optimized for the \(deviceService.chipName).")
                     .font(.caption2)
                     .foregroundColor(.secondary)
 
@@ -1471,31 +1464,10 @@ Text(deviceService.chipName)
                     value: "\(deviceService.embeddingConcurrency) parallel"
                 )
             }
-            .animation(.easeInOut(duration: 0.2), value: gpuLevel)
-
-            // Speed estimate for 400-page PDF
-            VStack(alignment: .leading, spacing: 4) {
-                Text("📄 400-Page PDF Estimate")
-                    .font(.caption.weight(.medium))
-                let renderSlots = deviceService.pdfRenderingConcurrency
-                let batches = 400 / renderSlots
-                let fastestSeconds = batches * 3
-                let slowestSeconds = batches * 5
-                let fastMinutes = fastestSeconds / 60
-                let fastRemainder = fastestSeconds % 60
-                let slowMinutes = slowestSeconds / 60
-                let slowRemainder = slowestSeconds % 60
-                Text("~\(fastMinutes)m \(fastRemainder)s to \(slowMinutes)m \(slowRemainder)s extraction • \(batches) batches of \(renderSlots) pages • adaptive visual ingestion")
-                    .font(.caption2.monospacedDigit())
-                    .foregroundColor(.secondary)
-            }
-            .padding(8)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color.blue.opacity(0.08))
-            .clipShape(RoundedRectangle(cornerRadius: 8))
+            .animation(.easeInOut(duration: 0.2), value: gpuProfile)
 
             // Warning for high GPU mode
-            if gpuLevel >= 0.9 {
+            if gpuProfile == .maximum {
                 HStack(spacing: 6) {
                     Image(systemName: "exclamationmark.triangle.fill")
                         .font(.caption)
@@ -1513,33 +1485,43 @@ Text(deviceService.chipName)
         .background(Color.green.opacity(0.08))
         .clipShape(RoundedRectangle(cornerRadius: 12))
         .onAppear {
-            gpuLevel = DeviceCapabilityService.shared.gpuAccelerationLevel
+            gpuProfile = DeviceCapabilityService.shared.gpuExecutionProfile
         }
     }
 
-    private func gpuLevelSummary(deviceService: DeviceCapabilityService) -> String {
-        let requested = Int(gpuLevel * 100)
-        let active = Int(deviceService.activeGPUAccelerationLevel * 100)
-        if active < requested {
-            return "\(requested)% req / \(active)% act"
+    private var gpuProfileDescription: String {
+        switch gpuProfile {
+        case .efficiency:
+            return "Prefers CPU and Neural Engine paths; disables GPU PDF rendering and Metal vector search."
+        case .balanced:
+            return "Uses GPU-backed PDF rendering while keeping normal model work Neural Engine-focused."
+        case .performance:
+            return "Allows all Core ML compute units and enables Metal for sufficiently large vector workloads."
+        case .maximum:
+            return "Prefers CPU + GPU model execution and the most aggressive supported GPU policy."
         }
-        return "\(requested)%"
+    }
+
+    private var gpuThermalImpact: String {
+        switch gpuProfile {
+        case .efficiency: return "✅ Lowest"
+        case .balanced: return "✅ Low"
+        case .performance: return "⚠️ Moderate"
+        case .maximum: return "🔥 High"
+        }
     }
 
     private var gpuModeName: String {
-        let level = DeviceCapabilityService.shared.activeGPUAccelerationLevel
-        if level >= 0.9 { return "Maximum" }
-        if level >= 0.6 { return "Performance" }
-        if level >= 0.3 { return "Balanced" }
-        return "Efficient"
+        DeviceCapabilityService.shared.activeGPUExecutionProfile.displayName
     }
 
     private var gpuModeColor: Color {
-        let level = DeviceCapabilityService.shared.activeGPUAccelerationLevel
-        if level >= 0.9 { return .red }
-        if level >= 0.6 { return .orange }
-        if level >= 0.3 { return .green }
-        return .blue
+        switch DeviceCapabilityService.shared.activeGPUExecutionProfile {
+        case .efficiency: return .blue
+        case .balanced: return .green
+        case .performance: return .orange
+        case .maximum: return .red
+        }
     }
 
     @ViewBuilder

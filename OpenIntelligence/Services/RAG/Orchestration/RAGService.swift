@@ -1525,13 +1525,15 @@ class RAGService: ObservableObject {
 
         // Load persisted documents metadata
         Task { @MainActor in
-            self.cloudConsent = self.loadPersistedConsentStates()
-
-            // After loading consent states, prewarm consent popup if needed
-            // This shows the PCC consent popup during startup rather than mid-query
-            // Delay slightly to let the UI fully render before showing popup
-            try? await Task.sleep(for: .seconds(2))
-            self.prewarmCloudConsentIfNeeded()
+            var states = self.loadPersistedConsentStates()
+            if let validationConsent = self.getLaunchArgumentValue(for: "rag-validation-pcc-consent") {
+                let normalized = validationConsent.lowercased().starts(with: "allow") ? "allowed" : "denied"
+                if let state = CloudConsentState(rawValue: normalized) {
+                    states[.applePCC] = state
+                    Log.info("[Consent] Applying launch-argument override: \(normalized)", category: .initialization)
+                }
+            }
+            self.cloudConsent = states
         }
         loadDocumentsFromDisk()
 
@@ -1879,69 +1881,6 @@ class RAGService: ObservableObject {
             }
         }
         return nil
-    }
-
-    // MARK: - Consent Prewarm
-
-    /// Prewarm cloud consent by showing the popup during app startup (if needed)
-    /// This prevents the consent popup from appearing mid-query and disrupting the pipeline.
-    /// Called after model warmup completes so the user sees the popup once before their first query.
-    @MainActor
-    func prewarmCloudConsentIfNeeded() {
-        // Check UserDefaults DIRECTLY to ensure we're reading persisted value
-        // This avoids race conditions with SettingsStore initialization
-        let key = ConsentDefaults.key(for: .applePCC)
-        
-        if let validationConsent = getLaunchArgumentValue(for: "rag-validation-pcc-consent") {
-            let normalized = validationConsent.lowercased().starts(with: "allow") ? "allowed" : "denied"
-            if let state = CloudConsentState(rawValue: normalized) {
-                cloudConsent[.applePCC] = state
-                Log.info("[Consent Prewarm] Overriding consent from launch args: \(normalized)", category: .initialization)
-                return
-            }
-        }
-        
-        let persistedRaw = UserDefaults.standard.string(forKey: key)
-        Log.info("[Consent Prewarm] Checking key '\(key)' = '\(persistedRaw ?? "nil")'", category: .initialization)
-
-        if let persistedRaw,
-           let persisted = CloudConsentState(rawValue: persistedRaw),
-           persisted != .notDetermined {
-            Log.info("[Consent Prewarm] PCC consent already determined (persisted): \(persisted.rawValue)", category: .initialization)
-            // Also ensure in-memory state matches persisted state
-            if cloudConsent[.applePCC] != persisted {
-                cloudConsent[.applePCC] = persisted
-            }
-            return
-        }
-
-        // Also check in-memory state as backup
-        if let state = cloudConsent[.applePCC], state != .notDetermined {
-            Log.debug("[Consent Prewarm] PCC consent already determined (memory): \(state.rawValue)", category: .initialization)
-            return
-        }
-
-        // Only prewarm if using Apple Foundation Models (PCC)
-        guard llmService is AppleFoundationLLMService else {
-            Log.debug("[Consent Prewarm] Not using Apple Foundation Models, skipping", category: .initialization)
-            return
-        }
-
-        Log.info("[Consent Prewarm] Showing PCC consent popup proactively", category: .initialization)
-
-        // Create a minimal consent record to trigger the popup
-        let prewarmRecord = CloudTransmissionRecord(
-            provider: .applePCC,
-            modelName: "Apple Intelligence (On-Device)",
-            promptPreview: "[Consent prewarm - no actual data transmitted]",
-            promptCharacterCount: 0,
-            contextChunkCount: 0,
-            contextHashes: [],
-            estimatedBytes: 0
-        )
-
-        // This will trigger the consent popup UI
-        pendingCloudConsent = prewarmRecord
     }
 
     // MARK: - Universal Pipeline Tracing

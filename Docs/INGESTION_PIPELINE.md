@@ -34,6 +34,8 @@ flowchart TD
     H --> I[Token Boundary Enforcer]
     I --> J[SQLite FTS5 Storage]
     I --> K[Core ML Embedding Generation]
+    PROFILE[GPU Execution Profile] --> E
+    PROFILE --> K
     K --> L[BNNS Vector Storage]
     J --> LOCAL[Local Search Index Boundary]
     L --> LOCAL
@@ -44,6 +46,7 @@ flowchart TD
     SKIP -- Yes --> NEXT_BATCH{More Pages?}
     SKIP -- No --> S2[Extract Chunks]
     S2 --> S3[Vectorize Batch]
+    PROFILE --> S3
     S3 --> S4[Store Batch to FTS5 & Vector DB]
     S4 --> S5[Call db.persist & Update ingestion_state.json]
     S5 --> NEXT_BATCH

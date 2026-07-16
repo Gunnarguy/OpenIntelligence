@@ -17,6 +17,40 @@ import SwiftUI
 import CoreAI
 #endif
 
+struct PCCConsentPreferenceResolution: Equatable, Sendable {
+    let consent: CloudConsentState
+    let setting: PCCSettings
+}
+
+/// Resolves the canonical consent key and the legacy picker without allowing a stale legacy
+/// `Ask` value to erase an explicit remembered decision.
+enum PCCConsentPreferenceMigration {
+    static func resolve(canonicalRaw: String?, legacyRaw: String?) -> PCCConsentPreferenceResolution {
+        if let canonicalRaw,
+           let canonical = CloudConsentState(rawValue: canonicalRaw),
+           canonical != .notDetermined
+        {
+            return PCCConsentPreferenceResolution(
+                consent: canonical,
+                setting: canonical == .allowed ? .allow : .never
+            )
+        }
+
+        if let legacyRaw, let legacy = PCCSettings(rawValue: legacyRaw) {
+            switch legacy {
+            case .never:
+                return PCCConsentPreferenceResolution(consent: .denied, setting: .never)
+            case .ask:
+                return PCCConsentPreferenceResolution(consent: .notDetermined, setting: .ask)
+            case .allow:
+                return PCCConsentPreferenceResolution(consent: .allowed, setting: .allow)
+            }
+        }
+
+        return PCCConsentPreferenceResolution(consent: .notDetermined, setting: .ask)
+    }
+}
+
 /// Central settings state shared across the app.
 /// - Persists values to `UserDefaults` so SwiftUI `@AppStorage` bindings stay in sync.
 /// - Emits debounced apply notifications once related settings change.
@@ -440,27 +474,26 @@ final class SettingsStore: ObservableObject {
             reviewerModeEnabled = false
             defaults.set(false, forKey: Keys.reviewerModeEnabled)
         #endif
-        let appleConsentRaw = defaults.string(forKey: Keys.applePCCConsent)
-        let pccSettingRaw = defaults.string(forKey: Keys.pccSetting)
-        let loadedPccSetting = PCCSettings(rawValue: pccSettingRaw ?? "") ?? .ask
-        pccSetting = loadedPccSetting
-        
-        switch loadedPccSetting {
-        case .never:
-            applePCCConsent = .denied
+        let consentResolution = PCCConsentPreferenceMigration.resolve(
+            canonicalRaw: defaults.string(forKey: Keys.applePCCConsent),
+            legacyRaw: defaults.string(forKey: Keys.pccSetting)
+        )
+        applePCCConsent = consentResolution.consent
+        pccSetting = consentResolution.setting
+
+        switch consentResolution.consent {
+        case .denied:
             executionContext = .onDeviceOnly
-        case .ask:
-            applePCCConsent = .notDetermined
-            executionContext = .automatic
-        case .allow:
-            applePCCConsent = .allowed
+        case .notDetermined, .allowed:
             executionContext = .automatic
         }
-        
-        // Clean up stale "notDetermined" strings that were incorrectly persisted
-        // Only allowed/denied should be persisted; notDetermined means no decision yet
-        if loadedPccSetting == .ask || appleConsentRaw == "notDetermined" {
+
+        // Canonicalize both keys synchronously so a relaunch cannot revive stale legacy state.
+        defaults.set(consentResolution.setting.rawValue, forKey: Keys.pccSetting)
+        if consentResolution.consent == .notDetermined {
             defaults.removeObject(forKey: Keys.applePCCConsent)
+        } else {
+            defaults.set(consentResolution.consent.rawValue, forKey: Keys.applePCCConsent)
         }
         hasUserPrimaryOverride =
             defaults.object(forKey: Keys.primaryModelUserOverride) as? Bool ?? false
@@ -801,6 +834,8 @@ final class SettingsStore: ObservableObject {
         // Never persist .notDetermined - that should trigger the consent popup
         if applePCCConsent != .notDetermined {
             defaults.set(applePCCConsent.rawValue, forKey: Keys.applePCCConsent)
+        } else {
+            defaults.removeObject(forKey: Keys.applePCCConsent)
         }
         defaults.set(pccSetting.rawValue, forKey: Keys.pccSetting)
         defaults.set(hasUserPrimaryOverride, forKey: Keys.primaryModelUserOverride)

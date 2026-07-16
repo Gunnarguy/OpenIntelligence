@@ -130,7 +130,12 @@ actor RAGEngine {
         // GPU ACCELERATION: Pre-compute all pairwise similarities for large candidate sets
         // This is O(n²) so GPU provides massive speedup (10-50x for 100+ candidates)
         let gpuCompute = await MainActor.run { GPUComputeService.shared }
-        let useGPU = candidates.count > 50 && gpuCompute.isGPUAvailable
+        let metalVectorOpsEnabled = await MainActor.run {
+            DeviceCapabilityService.shared.useMetalForVectorOps
+        }
+        let useGPU = candidates.count > 50
+            && metalVectorOpsEnabled
+            && gpuCompute.isGPUAvailable
 
         var diversityMatrix: [[Float]]? = nil
         if useGPU {

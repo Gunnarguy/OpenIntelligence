@@ -1,4 +1,4 @@
-> **Documentation status:** Mixed implemented/backlog plan, source-verified 2026-07-15. PCC Dynamic Routing Phases 0–8 are implemented for v4.6; signed-device/distribution verification remains pending. Dynamic Profiles remain deferred.
+> **Documentation status:** Mixed implemented/backlog plan, source-verified 2026-07-15. PCC Dynamic Routing Phases 0–8 plus app-level GPU execution profiles and consent persistence are implemented for v4.6; signed-device/distribution verification remains pending. Apple Foundation Model Dynamic Profiles remain deferred.
 
 # Apple Intelligence & Foundation Models Transition Plan (WWDC26 Master Blueprint)
 
@@ -34,7 +34,7 @@ The following table summarizes the current transition status, mapping the legacy
 | **System Search** | Document-level title/preview indexing in Spotlight. | Same document-level preview index. | **Spotlight Semantic Retrieval Stage** (Spotlight indexes sections/chunks/tables). | **30%** |
 | **UI Execution State** | Sticky green "Offline / On-Device" banner under chat header. | **Banner completely removed** (cleaner UI, trusts Apple's system routing). | **Reasoning Live Activity** showing active Deep Think steps on Dynamic Island. | **70%** |
 | **AI Diagnostics / Fallback UI** | Local/Remote sync settings flags. | **PCC Fallback UI & AI Subsystem Diagnostics (v4.5.0 Completed)**: Full fallback controls resolved, and AI Subsystem Diagnostics card (x-ray vision) integrated. | Continuous monitoring of Core AI vs. Core ML loading status. | **100%** |
-| **Device Power Tuning** | Downgraded to `.efficient` mode under serious thermals. | **Bypassed gating**: Full throttle `.full` mode under serious states; GPU unlocked to 100% (1.0). | Background transient prewarming lifecycle locks. | **90%** |
+| **Device Power Tuning** | Continuous 0–100% GPU slider implied exact utilization and reset a valid 0% choice. | **Four persisted execution profiles** gate PDF rendering, Core ML preferences, large Metal vector/MMR work, and background GPU eligibility from one policy source. Apple frameworks retain final scheduling control. | Signed-device thermal/battery profiling and policy tuning. | **Source complete; device validation pending** |
 | **Tokenizer Engine** | Legacy pure-Swift `BertTokenizer` with synchronous JSON vocab loads. | **Rust-backed `swift-tokenizers`** package linked via local wrapper library. | Complete migration to fully native `.aimodel` tokenizer profiles if Apple releases them. | **100%** |
 
 ---
@@ -150,7 +150,7 @@ To implement these changes safely without breaking current runtime behaviors, th
 *These items have been completed and verified on the current transition branch:*
 
 1. **Device Power Tuning & GPU Acceleration**
-   - *Implementation*: Raised GPU ceiling limits to 1.0 (100% full throttle) on modern tiers and bypassed `.serious` thermal state performance downgrades.
+   - *Implementation*: Replaced the non-literal percentage with Efficiency, Balanced, Performance, and Maximum execution profiles. Existing numeric preferences migrate compatibly—including a real zero—and the selected profile gates the actual PDF, Core ML preference, large Metal vector/MMR, and background-eligibility paths. `[evidence_level: code_verified+test_verified, confidence: high_pending_device_thermal_validation, evidence_source: DeviceCapabilityService.swift, RAGEngine.swift, BNNSVectorDatabase.swift]`
 2. **UI State Cleanup**
    - *Implementation*: Removed the sticky local banner from the chat header.
 3. **Dynamic Island Deep-Link Visibility Restore**

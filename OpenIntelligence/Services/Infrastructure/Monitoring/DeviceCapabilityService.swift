@@ -19,6 +19,47 @@ enum IngestionExecutionProfile: Sendable {
     case continuedProcessingGPU
 }
 
+/// User-facing execution preferences for GPU-capable work.
+///
+/// These are deliberately discrete: Apple frameworks retain final hardware scheduling control,
+/// so a percentage would imply precision the app cannot guarantee.
+enum GPUExecutionProfile: String, CaseIterable, Codable, Identifiable, Sendable {
+    case efficiency
+    case balanced
+    case performance
+    case maximum
+
+    var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .efficiency: return "Efficiency"
+        case .balanced: return "Balanced"
+        case .performance: return "Performance"
+        case .maximum: return "Maximum"
+        }
+    }
+
+    /// Compatibility value retained for existing pipeline policy and older app versions.
+    var legacyLevel: Double {
+        switch self {
+        case .efficiency: return 0.0
+        case .balanced: return 0.5
+        case .performance: return 0.75
+        case .maximum: return 1.0
+        }
+    }
+
+    init(legacyLevel: Double) {
+        switch min(max(legacyLevel, 0), 1) {
+        case ..<0.3: self = .efficiency
+        case ..<0.6: self = .balanced
+        case ..<0.9: self = .performance
+        default: self = .maximum
+        }
+    }
+}
+
 /// Device capability tiers for Apple Intelligence
 enum DeviceCapabilityTier: String, Sendable, Comparable {
     case baseline // A17 Pro (iPhone 15 Pro/Pro Max) - first Apple Intelligence
@@ -151,6 +192,11 @@ struct HardwareExecutionEnvelope: Sendable {
 final class DeviceCapabilityService: @unchecked Sendable {
     static let shared = DeviceCapabilityService()
 
+    private enum GPUDefaults {
+        static let profile = "gpuAccelerationProfile"
+        static let legacyLevel = "gpuAccelerationLevel"
+    }
+
     private nonisolated static let ingestionExecutionProfileLock = NSLock()
     private nonisolated(unsafe) static var ingestionExecutionProfileStorage: IngestionExecutionProfile = .interactive
 
@@ -172,11 +218,7 @@ final class DeviceCapabilityService: @unchecked Sendable {
         cachedMemoryGB = Self.detectMemoryGB()
         cachedMetalSnapshot = Self.detectMetalHardwareSnapshot()
 
-        // Set sensible default GPU acceleration if never set (0.0 means unset)
-        // Balanced (0.5) is a good default - uses ANE primarily with GPU assist
-        if UserDefaults.standard.double(forKey: "gpuAccelerationLevel") == 0.0 {
-            UserDefaults.standard.set(0.5, forKey: "gpuAccelerationLevel")
-        }
+        Self.migrateGPUExecutionProfile(in: .standard)
     }
 
     // MARK: - Public API
@@ -260,6 +302,28 @@ final class DeviceCapabilityService: @unchecked Sendable {
     /// Requested level after applying per-hardware ceilings.
     var activeGPUAccelerationLevel: Double {
         min(gpuAccelerationLevel, maxSafeGPUAccelerationLevel)
+    }
+
+    /// Requested user preference before hardware safety ceilings are applied.
+    var gpuExecutionProfile: GPUExecutionProfile {
+        get {
+            if let raw = UserDefaults.standard.string(forKey: GPUDefaults.profile),
+               let profile = GPUExecutionProfile(rawValue: raw)
+            {
+                return profile
+            }
+            return GPUExecutionProfile(legacyLevel: UserDefaults.standard.double(forKey: GPUDefaults.legacyLevel))
+        }
+        set {
+            let defaults = UserDefaults.standard
+            defaults.set(newValue.rawValue, forKey: GPUDefaults.profile)
+            defaults.set(newValue.legacyLevel, forKey: GPUDefaults.legacyLevel)
+        }
+    }
+
+    /// Effective preference after the device-specific sustained-load ceiling is applied.
+    var activeGPUExecutionProfile: GPUExecutionProfile {
+        GPUExecutionProfile(legacyLevel: activeGPUAccelerationLevel)
     }
 
     /// Actual Vision OCR concurrency ceiling used to avoid Metal command buffer instability.
@@ -636,54 +700,46 @@ final class DeviceCapabilityService: @unchecked Sendable {
 
     // MARK: - GPU Acceleration Settings
 
-    /// GPU acceleration level for ingestion (0.0 = Neural Engine only, 1.0 = Maximum GPU)
-    /// User-configurable via Settings. Higher values use more GPU but generate more heat.
-    ///
-    /// Levels:
-    /// - 0.0-0.3: Efficiency mode (ANE preferred, minimal GPU)
-    /// - 0.3-0.6: Balanced mode (ANE + some GPU for image processing)
-    /// - 0.6-0.9: Performance mode (GPU for CoreML + image processing)
-    /// - 1.0: Maximum mode (Force GPU for everything possible, high heat)
+    /// Compatibility bridge for older callers and persisted builds.
+    /// New UI and policy code should use `gpuExecutionProfile`.
     var gpuAccelerationLevel: Double {
-        get { UserDefaults.standard.double(forKey: "gpuAccelerationLevel") }
-        set { UserDefaults.standard.set(newValue, forKey: "gpuAccelerationLevel") }
+        get { gpuExecutionProfile.legacyLevel }
+        set { gpuExecutionProfile = GPUExecutionProfile(legacyLevel: newValue) }
     }
 
-    /// CoreML compute units based on GPU acceleration level
+    /// Core ML compute preference for the active execution profile.
     var preferredComputeUnits: MLComputeUnits {
         if isBackgroundCPUSafeIngestionActive {
             return .cpuOnly
         }
 
-        let level = activeGPUAccelerationLevel
-        if level >= 0.9 {
-            return .cpuAndGPU  // Force GPU, bypass Neural Engine
-        } else if level >= 0.6 {
-            return .all  // Let system choose (may use GPU for some ops)
-        } else {
-            return .cpuAndNeuralEngine  // Prefer ANE for efficiency
+        switch activeGPUExecutionProfile {
+        case .efficiency, .balanced:
+            return .cpuAndNeuralEngine
+        case .performance:
+            return .all
+        case .maximum:
+            return .cpuAndGPU
         }
     }
 
-    /// Force embeddings to GPU during ingestion to parallelize with Vision OCR on ANE
-    ///
-    /// Vision OCR is ANE-bound. Running embeddings on GPU simultaneously creates true parallelism:
-    /// - ANE: Vision OCR (text recognition)
-    /// - GPU: CoreML embeddings (MiniLM-L6-v2)
-    ///
-    /// This prevents ANE contention and can nearly double ingestion throughput.
+    /// Embedding compute preference used when an ingestion session loads its model.
     var embeddingComputeUnitsDuringIngestion: MLComputeUnits {
         if isBackgroundCPUSafeIngestionActive {
             return .cpuOnly
         }
 
-        // Always use GPU for embeddings during ingestion to free ANE for Vision
-        // GPU is 5-6% utilized during ingestion - let's put it to work!
-        switch cachedTier {
-        case .unsupported:
-            return .cpuAndNeuralEngine  // Older devices may not have good GPU CoreML support
-        case .baseline, .enhanced, .advanced, .ultraAdvanced:
-            return .cpuAndGPU  // Force GPU, leave ANE for Vision OCR
+        guard cachedTier != .unsupported else {
+            return .cpuAndNeuralEngine
+        }
+
+        switch activeGPUExecutionProfile {
+        case .efficiency:
+            return .cpuAndNeuralEngine
+        case .balanced:
+            return .all
+        case .performance, .maximum:
+            return .cpuAndGPU
         }
     }
 
@@ -693,7 +749,7 @@ final class DeviceCapabilityService: @unchecked Sendable {
             return false
         }
 
-        return activeGPUAccelerationLevel >= 0.3
+        return activeGPUExecutionProfile != .efficiency
     }
 
     var gpuConcurrency: Int {
@@ -762,7 +818,32 @@ final class DeviceCapabilityService: @unchecked Sendable {
             return false
         }
 
-        return activeGPUAccelerationLevel >= 0.6
+        switch activeGPUExecutionProfile {
+        case .efficiency, .balanced:
+            return false
+        case .performance, .maximum:
+            return true
+        }
+    }
+
+    /// Migrates the old continuous preference without treating a real 0% choice as "unset."
+    /// Internal for focused persistence-policy tests.
+    static func migrateGPUExecutionProfile(in defaults: UserDefaults) {
+        if let raw = defaults.string(forKey: GPUDefaults.profile),
+           let profile = GPUExecutionProfile(rawValue: raw)
+        {
+            defaults.set(profile.legacyLevel, forKey: GPUDefaults.legacyLevel)
+            return
+        }
+
+        let profile: GPUExecutionProfile
+        if defaults.object(forKey: GPUDefaults.legacyLevel) != nil {
+            profile = GPUExecutionProfile(legacyLevel: defaults.double(forKey: GPUDefaults.legacyLevel))
+        } else {
+            profile = .balanced
+        }
+        defaults.set(profile.rawValue, forKey: GPUDefaults.profile)
+        defaults.set(profile.legacyLevel, forKey: GPUDefaults.legacyLevel)
     }
 
     nonisolated var ingestionExecutionProfile: IngestionExecutionProfile {

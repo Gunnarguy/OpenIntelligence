@@ -484,8 +484,12 @@ actor BNNSVectorDatabase: VectorDatabase {
         var scores: [Float]
         let gpuThreshold = 1000
         let gpu = await getGPUCompute()
+        let metalVectorOpsEnabled = await DeviceCapabilityService.shared.useMetalForVectorOps
 
-        if count >= gpuThreshold, gpu.isGPUAvailable {
+        if count >= gpuThreshold,
+           metalVectorOpsEnabled,
+           gpu.isGPUAvailable
+        {
             // GPU: read from mmap via withAllVectorBytes — zero copy when pure mmap
             scores = withAllVectorBytes { rawBuf, docCount in
                 let floatBuf = UnsafeBufferPointer(
