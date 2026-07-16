@@ -1,9 +1,34 @@
-Version 4.2:
-- Modernized UI for macOS/iOS: Completely rebuilt the live telemetry HUD with ultra-thin materials, interactive haptics, and smooth symbol animations.
-- Dynamic Verification Gates: The visual HUD for RAG telemetry now adapts its pipeline dynamically based on your active Quality Mode.
-- Fixed Chat History Persistence: Resolved an issue that sometimes skipped loading your previous chat history during a cold boot.
-- Granular Hardware Telemetry: The Execution Badge now dynamically fetches and displays exact onboard RAM allocations alongside TOPS processing power.
-- Accuracy in Retrieval Metrics: Corrected UI labels to differentiate between semantic Database Matching (Vector Similarity) and active LLM reasoning thresholds (Total Confidence).
-- Agentic Tool Visibility: The telemetry HUD now surfaces implicit, hidden engine calls (such as Vector Search Engine lookups) during standard modes that do not trigger recursive tool event streams.
-- Clean Sub-second Telemetry: Fixed a visual bug presenting Time-To-First-Token in raw oversized milliseconds (e.g., 12000ms), standardizing values to an elegant `under 1.2s` formatted duration.
-- Native Resizable Telemetry Drawer: Completely rebuilt the expanded metrics panel to behave like a fluid, native iOS bottom sheet. Users can now physically pull the handle down to manually resize the metrics view seamlessly during live telemetry inspection or recording.
+Version 4.6 is a major Apple Intelligence routing, transparency, and reliability update for OpenIntelligence.
+
+EVIDENCE-FIRST MODEL ROUTING
+
+- OpenIntelligence now searches your library before deciding where an answer should run. The decision uses the evidence actually found, the amount of context required, and whether the question needs synthesis across multiple documents.
+- Normal work remains on-device. On supported iOS, iPadOS, and macOS 27 systems, longer evidence-backed requests can use Apple's native Private Cloud Compute when entitlement, availability, network, quota, and consent requirements are satisfied.
+- Missing or weak evidence never triggers cloud escalation. The app can stay local or abstain when the library does not contain enough information.
+
+CLEARER CONSENT AND EXECUTION HISTORY
+
+- Private Cloud Compute consent now happens after the final evidence package is prepared. The confirmation view explains why PCC was selected and shows the number of source passages, context size, and estimated payload size.
+- Saved response details now distinguish the intended route, attempted route, route that actually ran, any fallback, and the route that completed the answer.
+- Automatic mode can fall back on-device before meaningful response text has streamed. Cloud and local partial answers are never stitched together, and Cloud Only requests report why they could not run instead of silently changing routes.
+- Model labels and diagnostics now reflect the Apple model route the public SDK actually executed instead of claiming a selectable model tier that the operating system does not expose.
+
+PRIVATE CLOUD COMPUTE SUPPORT
+
+- Enabled OpenIntelligence's approved native PCC capability for supported builds and added platform-specific entitlement checks for iPhone, iPad, and Mac.
+- Availability and quota are checked again immediately before a PCC session begins. Unknown or unavailable quota states fail safely and do not authorize cloud execution.
+- Retrieval, evidence selection, citation checking, and final verification remain on-device even when PCC performs the final synthesis step.
+
+INGESTION THAT RESPECTS STOP
+
+- Closing or discarding an ingestion queue now records that decision during iCloud reconciliation, preventing those exact jobs from reappearing after a workspace reload or stale sync snapshot.
+- Automatic repair of an empty document index now runs one library at a time and stays disabled for a dismissed library on that device until you explicitly import or rebuild again.
+- Cancellation waits for a safe document boundary so stopping a repair does not leave half-removed catalog metadata behind.
+
+INDEXING AND EXTRACTION RELIABILITY
+
+- Knowledge-index migrations now use a fixed, code-owned migration catalog with stricter identifier validation, reducing the risk of malformed database upgrades.
+- Document chunk metadata has a deterministic fallback when system language tagging cannot return named entities, keeping retrieval useful in asset-constrained environments.
+- Expanded regression coverage now protects model routing, fallback behavior, embeddings, citation parsing, structured answers, ingestion recovery, and launch configuration.
+
+Version 4.6 keeps OpenIntelligence focused on the same goal: help you question complex source material, understand how each answer was produced, and return to the evidence when you need to verify it.

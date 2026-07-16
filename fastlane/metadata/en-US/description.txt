@@ -1,0 +1,41 @@
+Turn the files you already have into knowledge you can actually use.
+
+OpenIntelligence is a document research and question-answering app built specifically for Apple Intelligence-capable iPhone, iPad, and Mac. Import your own material into focused libraries, ask questions in plain language, and get answers with inline citations that lead back to the supporting sources.
+
+The app is centered on material you choose: research papers, technical manuals, reports, contracts, class notes, meeting recordings, code, or any collection of files you need to understand rather than merely store.
+
+WHAT YOU CAN DO
+
+- Summarize long documents, recordings, or entire libraries.
+- Compare claims and details across multiple sources.
+- Find exact facts, dates, specifications, measurements, and table values.
+- Ask follow-up questions while preserving the sources and conversation.
+- Choose Standard for quick factual work, Deep Think for multi-step questions, or Maximum for broader evidence synthesis.
+
+BRING YOUR OWN MATERIAL
+
+Import PDFs, Office and iWork documents, text and Markdown files, CSVs, code, images and scans, audio, or video. OpenIntelligence extracts text, uses Vision OCR where needed, transcribes speech, and builds a searchable index for each library.
+
+HOW ANSWERS ARE BUILT
+
+OpenIntelligence combines exact keyword matching with semantic vector search to retrieve relevant passages from your library. Apple Foundation Models turn those passages into a natural-language response. Citation and verification stages then compare the response against the retrieved material so you can inspect its support.
+
+If the sources do not establish an answer, the app can flag weak support or abstain instead of silently filling the gap with a confident guess.
+
+BUILT AROUND APPLE INTELLIGENCE
+
+Document processing, indexing, retrieval, evidence selection, and citation checking run on your device. Standard responses use Apple's on-device system language model. On supported systems, longer or evidence-heavy questions can use Apple Private Cloud Compute after OpenIntelligence explains why it was selected and how much source material would be sent.
+
+OpenIntelligence does not send your material to a third-party AI provider. Even when Private Cloud Compute is selected for final synthesis, document retrieval and verification stay on your device.
+
+ANSWERS YOU CAN INSPECT
+
+Inline citations connect answers to their supporting pages and passages. Response details expose source snippets, retrieval quality, verification warnings, timing, and the model route that actually completed the answer. The optional telemetry interface provides deeper visibility when you want it without being required for normal use.
+
+LIBRARIES THAT FIT YOUR WORK
+
+Keep different subjects, projects, or clients in separate libraries. Choose Local Only or iCloud Drive for each library, and organize ongoing research in saved conversation threads. Siri and Shortcuts actions are available for common document and library workflows.
+
+OpenIntelligence is built and maintained by one developer. Pro and Lifetime support directly fund continued development. To everyone already supporting the app: thank you. It has been a wild journey.
+
+Privacy Policy: https://gunzino.me/openintelligence/privacy
