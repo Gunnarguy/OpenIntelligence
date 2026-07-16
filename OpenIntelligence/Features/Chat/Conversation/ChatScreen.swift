@@ -2522,11 +2522,24 @@ struct ChatScreen: View {
         let capturedSystemPrompt = systemPrompt
         let capturedContextLength = contextLength
         let baseExecutionContext = settings.executionContext
-        let capturedExecutionContext: ExecutionContext =
-            baseExecutionContext == .automatic ? .preferCloud : baseExecutionContext
-        let capturedAllowPCC = baseExecutionContext != .onDeviceOnly
+        let capturedFmPreference = settings.fmPreference.canonical
+        let capturedExecutionContext: ExecutionContext
+        let capturedAllowPCC: Bool
+        switch capturedFmPreference {
+        case .automatic:
+            capturedExecutionContext =
+                baseExecutionContext == .automatic ? .preferCloud : baseExecutionContext
+            capturedAllowPCC = baseExecutionContext != .onDeviceOnly
+        case .core3B, .advanced20B:
+            capturedExecutionContext = .onDeviceOnly
+            capturedAllowPCC = false
+        case .privateCloudCompute:
+            capturedExecutionContext = .cloudOnly
+            // The privacy setting remains authoritative. If PCC is disabled,
+            // the planner records the requested cloud route and completes locally.
+            capturedAllowPCC = baseExecutionContext != .onDeviceOnly
+        }
         let capturedQualityMode = effectiveQualityMode.canonical
-        let capturedFmPreference = settings.fmPreference
         requestedExecutionContext = capturedExecutionContext
         let capturedUsedContainerId = usedContainerId
         let querySessionId = UUID()

@@ -27,7 +27,7 @@ flowchart TD
   K[Canonical remembered consent; no launch prompt] --> G
   G -->|Yes| X[Immediate quota and availability recheck]
   X --> PCC[Native PCC synthesis]
-  G -->|Denied or UI unavailable| F[Declared on-device fallback or cloud-only error]
+  G -->|Denied or UI unavailable| F[Declared on-device fallback]
   L --> V[Deterministic local verification]
   PCC --> V
   F --> V
@@ -57,7 +57,7 @@ Before PCC construction, the app verifies:
 5. network and policy permit PCC;
 6. the planned envelope fits the live context budget.
 
-Quota is rechecked immediately before the model is constructed. A quota failure is not retried on PCC. Unknown future SDK quota states map to `.unknown` through Swift's `@unknown default` handling and therefore do not authorize PCC. Automatic/prefer-cloud may use the declared local fallback; cloud-only fails explicitly. `[evidence_level: code_verified+user_confirmed, confidence: high_for_source_unverified_for_distribution, evidence_source: FoundationModelCapabilityProvider.swift, FoundationModelSessionFactory.swift, OpenIntelligence.entitlements]`
+Quota is rechecked immediately before the model is constructed. A quota failure is not retried on PCC. Unknown future SDK quota states map to `.unknown` through Swift's `@unknown default` handling and therefore do not authorize PCC. Hybrid and explicit PCC policy use the declared local fallback before meaningful streaming; the receipt retains PCC as intended and on-device as completed. `[evidence_level: code_verified+user_confirmed, confidence: high_for_source_unverified_for_distribution, evidence_source: FoundationModelCapabilityProvider.swift, FoundationModelSessionFactory.swift, ModelExecutionPlanner.swift, LLMService.swift, OpenIntelligence.entitlements]`
 
 ## Evidence minimization and consent
 
@@ -65,9 +65,9 @@ PCC consent happens only after the route and cloud evidence envelope are final. 
 
 - **Allow once:** grants the current in-process PCC provider session.
 - **Always allow:** persists provider consent; each transmission still produces a local record.
-- **Deny:** blocks PCC. Automatic/prefer-cloud uses on-device fallback; cloud-only returns an error.
+- **Deny:** blocks PCC. Hybrid and explicit PCC policy use the on-device fallback and label the answer accordingly.
 
-Background and App Intent execution never waits for a foreground consent sheet. Remembered consent may permit PCC; otherwise the planner selects local execution or fails cloud-only explicitly. `[evidence_level: code_verified, confidence: high, evidence_source: RAGService.swift, CloudConsentPromptView.swift, AgenticOrchestrator.swift]`
+Background and App Intent execution never waits for a foreground consent sheet. Remembered consent may permit PCC; otherwise Hybrid and explicit PCC policy complete through the declared on-device fallback. `[evidence_level: code_verified, confidence: high, evidence_source: RAGService.swift, CloudConsentPromptView.swift, AgenticOrchestrator.swift]`
 
 `cloudConsent.applePCC` is the canonical remembered value. On upgrade, the legacy PCC picker is synchronized to that value; it cannot erase an explicit allow/deny decision. Selecting Ask removes the canonical decision. App launch loads consent state but does not pre-create a transmission record or present the sheet, so a prompt is tied only to a real finalized post-retrieval envelope. `[evidence_level: code_verified+test_verified, confidence: high_pending_physical_device_validation, evidence_source: SettingsStore.swift, RAGService.swift, PCCConsentPreferenceMigrationTests.swift]`
 

@@ -599,7 +599,7 @@ struct LLMResponse {
                         return "onDevice"
                     }(),
                     "planID": config.modelExecutionPlan?.id.uuidString ?? "direct",
-                    "intendedPath": config.modelExecutionPlan?.synthesisTarget.rawValue ?? "direct"
+                    "intendedPath": config.modelExecutionPlan?.intendedTarget.rawValue ?? "direct"
                 ]
             )
 
@@ -831,7 +831,7 @@ struct LLMResponse {
                 ModelExecutionReceipt(
                     planID: plan.id,
                     policyVersion: plan.policyVersion,
-                    intendedTarget: plan.synthesisTarget,
+                    intendedTarget: plan.intendedTarget,
                     attempts: [
                         ModelExecutionAttempt(
                             target: actualTarget,
@@ -841,7 +841,9 @@ struct LLMResponse {
                     ],
                     actualTarget: actualTarget,
                     completedTarget: actualTarget,
-                    fallbackReason: plan.synthesisTarget == actualTarget ? nil : plan.fallback.reason,
+                    fallbackReason: plan.intendedTarget == actualTarget
+                        ? nil
+                        : (plan.plannerFallbackReason ?? plan.fallback.reason),
                     pccQuotaAtPlanning: plan.pccQuotaAtPlanning
                 )
             }
@@ -920,7 +922,7 @@ struct LLMResponse {
                         return "onDevice"
                     }(),
                     "planID": config.modelExecutionPlan?.id.uuidString ?? "direct",
-                    "intendedPath": config.modelExecutionPlan?.synthesisTarget.rawValue ?? "direct"
+                    "intendedPath": config.modelExecutionPlan?.intendedTarget.rawValue ?? "direct"
                 ]
             )
 
@@ -944,7 +946,7 @@ struct LLMResponse {
                 ModelExecutionReceipt(
                     planID: plan.id,
                     policyVersion: plan.policyVersion,
-                    intendedTarget: plan.synthesisTarget,
+                    intendedTarget: plan.intendedTarget,
                     attempts: [
                         ModelExecutionAttempt(
                             target: actualTarget,
@@ -954,7 +956,9 @@ struct LLMResponse {
                     ],
                     actualTarget: actualTarget,
                     completedTarget: actualTarget,
-                    fallbackReason: plan.synthesisTarget == actualTarget ? nil : plan.fallback.reason,
+                    fallbackReason: plan.intendedTarget == actualTarget
+                        ? nil
+                        : (plan.plannerFallbackReason ?? plan.fallback.reason),
                     pccQuotaAtPlanning: plan.pccQuotaAtPlanning
                 )
             }

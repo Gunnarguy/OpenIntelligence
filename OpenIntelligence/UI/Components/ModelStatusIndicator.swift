@@ -25,14 +25,14 @@ struct ModelStatusIndicator: View {
                         #endif
                         
                         if hasEntitlement {
-                            Text(preference.displayName).tag(preference)
+                            pickerLabel(for: preference).tag(preference)
                         } else {
-                            Text("\(preference.displayName) (Requires Entitlement)")
+                            Text("\(preference.pickerDisplayName) (Requires Entitlement)")
                                 .tag(preference)
                                 .disabled(true)
                         }
                     } else {
-                        Text(preference.displayName).tag(preference)
+                        pickerLabel(for: preference).tag(preference)
                     }
                 }
             }
@@ -47,6 +47,10 @@ struct ModelStatusIndicator: View {
             .clipShape(RoundedRectangle(cornerRadius: 8))
         }
         .buttonStyle(.plain)
+    }
+
+    private func pickerLabel(for preference: FoundationModelPreference) -> some View {
+        Label(preference.pickerDisplayName, systemImage: preferenceIcon(for: preference))
     }
 
     private struct DetailRow: View {
@@ -98,33 +102,32 @@ struct ModelStatusIndicator: View {
     @ViewBuilder
     private var modelLabel: some View {
         VStack(alignment: .leading, spacing: 2) {
-            Text(cleanModelName(modelResolution.currentState.activeModelName))
+            Text(settings.fmPreference.pickerDisplayName)
                 .font(.system(size: 10, weight: .bold))
                 .foregroundColor(.primary)
-            if settings.fmPreference == .automatic {
+            if modelResolution.isProcessing {
                 HStack(spacing: 3) {
                     Text(modelResolution.currentState.executionPath.emoji)
                         .font(.system(size: 8.5))
-                    Text(modelResolution.currentState.executionPath.displayName)
+                    Text("Using \(modelResolution.currentState.executionPath.displayName)")
                         .font(.system(size: 8.5, weight: .semibold))
                         .foregroundColor(.secondary)
                 }
+            } else {
+                Text(settings.fmPreference.pickerDetail)
+                    .font(.system(size: 8.5, weight: .semibold))
+                    .foregroundColor(.secondary)
+                    .lineLimit(1)
             }
         }
     }
 
-    private func cleanModelName(_ name: String) -> String {
-        if settings.fmPreference != .automatic {
-            return settings.fmPreference.displayName
+    private func preferenceIcon(for preference: FoundationModelPreference) -> String {
+        switch preference.canonical {
+        case .automatic: return "arrow.triangle.branch"
+        case .core3B, .advanced20B: return "iphone.gen3"
+        case .privateCloudCompute: return "cloud.fill"
         }
-
-        if name.contains("Apple Intel") || name.contains("Apple Intelligence") {
-            return "Apple Intelligence"
-        }
-        if name.contains("On-Device Analysis") {
-            return "On-Device Analysis"
-        }
-        return name
     }
 
     private var statusColor: Color {
@@ -140,7 +143,11 @@ struct ModelStatusIndicator: View {
         }
         switch modelResolution.currentState.status {
         case .ready:
-            return .green
+            switch settings.fmPreference.canonical {
+            case .automatic: return .purple
+            case .core3B, .advanced20B: return .green
+            case .privateCloudCompute: return .blue
+            }
         case .loading:
             return .blue
         case .unavailable:

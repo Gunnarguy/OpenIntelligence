@@ -176,6 +176,24 @@ enum FoundationModelPreference: String, CaseIterable, Identifiable, Sendable {
         }
     }
 
+    /// Stable policy label shown by the chat model picker. This intentionally
+    /// describes what the user selected, not the route used by the last answer.
+    var pickerDisplayName: String {
+        switch canonical {
+        case .automatic: return "Hybrid"
+        case .core3B, .advanced20B: return "On-Device"
+        case .privateCloudCompute: return "PCC"
+        }
+    }
+
+    var pickerDetail: String {
+        switch canonical {
+        case .automatic: return "Chooses the best route per query"
+        case .core3B, .advanced20B: return "Keeps generation on this device"
+        case .privateCloudCompute: return "Uses PCC with on-device fallback"
+        }
+    }
+
     /// Maps persisted legacy model-size choices to public runtime capabilities.
     var canonical: FoundationModelPreference {
         self == .advanced20B ? .core3B : self

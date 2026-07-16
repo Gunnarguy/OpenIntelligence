@@ -11,7 +11,9 @@ This document provides a chronological history of user-facing changes, highlight
 
 *   **Smarter Private Cloud Compute Decisions:** Queries now retrieve evidence locally before choosing a model route. PCC is used only when the final evidence and context budget justify secure cloud synthesis; missing evidence never causes escalation.
 *   **Exact Cloud Consent:** The confirmation sheet describes why PCC was selected and shows the size of the minimized evidence payload that would be transmitted. Background actions never wait on a hidden consent prompt.
-*   **Reliable Local Fallback:** Automatic routing falls back on-device when consent, network, quota, or PCC availability blocks cloud execution, provided streaming has not meaningfully begun. Cloud-only requests report the problem instead of silently changing routes.
+*   **Model Choice That Stays Put:** Hybrid, On-Device, and PCC now describe the policy you selected—not whichever route happened to run last. Hybrid remains selected after a PCC answer and after relaunch.
+*   **Route Badges on Answers:** Every Apple-model answer identifies the route that completed it: on-device, PCC, or on-device fallback. The badge opens the existing detailed route receipt.
+*   **Reliable Local Fallback:** Hybrid and explicit PCC requests fall back on-device when consent, network, entitlement, quota, or PCC availability blocks cloud execution, provided streaming has not meaningfully begun. The answer is labeled as a fallback instead of silently changing routes.
 *   **Remembered PCC Choice:** Always Allow and Never Allow persist across relaunches. The app no longer opens a generic PCC sheet on startup; permission is requested only for a real finalized evidence package.
 *   **Clear GPU Execution Profiles:** Efficiency, Balanced, Performance, and Maximum replace the misleading percentage control and align Settings with the work the app can actually route to GPU-capable paths.
 *   **Accurate Route History:** Saved response metadata distinguishes intended, attempted, actual, fallback, and completed execution paths.
@@ -29,7 +31,7 @@ This document provides a chronological history of user-facing changes, highlight
 *   **Flexible Settings Saving:** Enabled saving of embedding configuration options when a provider is unavailable at save-time, allowing runtime fallback routing (e.g. Core AI falling back to Core ML) to resolve and execute cleanly.
 *   **Silicon HUD Layout Correction:** Restored the iOS Silicon HUD position back to its original layout coordinates (x: 45, y: safeAreaInsets.top + 85), and configured the HUD legend to dynamically shift to the right (x: 345) when the conversation history sidebar is visible to prevent overlap.
 *   **Private Cloud Compute Fallback & UI Safeguard:** Configured dynamic Hybrid (Automatic) model routing to check for active developer entitlements before selecting Private Cloud Compute, ensuring seamless fallbacks to local models and eliminating routing delays. Greyed out and disabled the PCC option in the header model preference selection menu until the official developer entitlement is active.
-*   **Local 20B Model Memory Gating:** Corrected the local execution availability for Apple's 20B sparse on-device model (AFM 3 Core Advanced). Because the OS gates local 20B execution to devices with 12GB+ RAM, we have added programmatic physical memory verification to hide this preference option and automatically fall back to the 3B Core model on 8GB devices (including the iPhone 16 Pro Max), preventing hidden system routing fallbacks.
+*   **Historical Advanced Picker Correction:** The earlier RAM-gated “20B Advanced” label was not backed by a distinct public SDK model selector. v4.6 removes that active claim and migrates the saved preference to the public On-Device target.
 
 ## v4.5 - July 2026
 
@@ -163,4 +165,4 @@ WWDC26 shifted the platform architecture by pushing core AI capabilities into sy
 *   **Universal AppIcon**: Added a unified universal AppIcon configuration across iOS and macOS targets, resolving catalog build warnings.
 *   **Visual density**: Standardized margins (14pt) and tighter corner radii for message bubbles (16pt) and cards (12pt) to create a denser, more cohesive Liquid Glass UI.
 
-- **Model Preference Selector:** You can now tap the Apple Intelligence pill in the chat view to configure preference targeting for the 3B Core model, 20B Advanced model, or Private Cloud Compute (which will run locally if the entitlement is not present).
+- **Model Preference Selector:** The original selector is superseded by v4.6’s persistent Hybrid, On-Device, and PCC policies. PCC fallback is now explicitly labeled rather than represented as PCC running locally.

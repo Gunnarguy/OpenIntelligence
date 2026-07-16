@@ -28,7 +28,8 @@ flowchart TD
     MMR --> ContextExpand[Context Sibling Expansion - ParentDocumentService]
     ContextExpand --> LostInMiddle[Reorder Context - Lost-In-Middle]
     LostInMiddle --> Evidence[Post-Retrieval Evidence + Exact Token Budgets]
-    Evidence --> ModelRoute{ModelExecutionPlanner}
+    Policy[Persistent Picker Policy: Hybrid / On-Device / PCC] --> ModelRoute
+    Evidence --> ModelRoute{ModelExecutionPlanner v2}
     Capability[Signed Entitlement + Availability + Quota + Consent State] --> ModelRoute
     ModelRoute -- Insufficient Evidence --> AbstainRefusal
     ModelRoute -- Local --> LocalLLM[SystemLanguageModel.default]
@@ -42,6 +43,7 @@ flowchart TD
     Verification --> Decision{Critical Gates Pass?}
     Decision -- Yes --> GroundedAnswer[Render Grounded Answer with Citations]
     Decision -- No --> AbstainRefusal[Abstention Refusal Message]
+    GroundedAnswer --> RouteBadge[Receipt-backed Route Badge]
 ```
 
 ---
@@ -55,7 +57,7 @@ flowchart TD
 5. **Query Analysis & Planning**: Incoming questions are classified, scoped, and prepared for retrieval.
 6. **Retrieval**: Candidate chunks are selected from the active library or workspace container.
 7. **Reranking and Packing**: Evidence is scored using a local Core ML TinyBERT cross-encoder (with proximity-based heuristic fallback if the model is absent), deduplicated (MMR), expanded with sibling context, and compressed.
-8. **Post-Retrieval Model Routing & Generation**: `ModelExecutionPlanner` combines evidence sufficiency and synthesis burden with user policy, foreground state, network, signed entitlement, live quota/availability, and SDK token/context budgets. Local execution uses `SystemLanguageModel.default`; eligible iOS/macOS 27 synthesis may use native PCC after the exact minimized envelope is consented. iOS/macOS 26 remains local-only. `[evidence_level: code_verified, confidence: high, evidence_source: ModelExecutionPlanner.swift, RAGService.swift]`
+8. **Post-Retrieval Model Routing & Generation**: `ModelExecutionPlanner` combines evidence sufficiency and synthesis burden with the captured persistent policy, foreground state, network, signed entitlement, live quota/availability, and SDK token/context budgets. Hybrid chooses per query, On-Device is local-only, and explicit PCC requests cloud but records a truthful local completion when any cloud gate prevents use. Local execution uses `SystemLanguageModel.default`; eligible iOS/macOS 27 synthesis may use native PCC after the exact minimized envelope is consented. iOS/macOS 26 remains local-only. `[evidence_level: code_verified, confidence: high_pending_physical_device_validation, evidence_source: ChatScreen.swift, ModelExecutionPlanner.swift, LLMService.swift, RAGService.swift]`
 9. **Fidelity Verification & Receipt**: Responses pass through local verification checks. Route metadata is persisted as a `ModelExecutionReceipt` that separates intended, attempted, actual, fallback, and completed targets. `[evidence_level: code_verified, confidence: high, evidence_source: VerificationGateService.swift, ModelExecutionReceipt.swift, RAGQuery.swift]`
 10. **Presentation**: Answers are shown with liquid glass UI indicators, citations, quality gauges, and review affordances.
 11. **Continuous Evaluation**: Pipeline stages are run against local JSONL benchmarks and verified against quality targets (e.g. Recall@5 $\ge 0.85$, Citation Precision $\ge 0.90$) using the native Evaluations harness.

@@ -35,19 +35,15 @@ struct ModelExecutionPlanner: ModelExecutionPlanning {
             target = .abstain
             reason = .insufficientEvidence
             privacy = .pccProhibited
-        } else if evidence.requiresExactExtraction && !evidence.hasContradictions {
-            target = .deterministic
-            reason = .exactAnswerAvailable
-            privacy = .localOnly
         } else if constraints.requiresOnDevice {
             target = .onDevice
             reason = .userRequiredLocal
             privacy = .localOnly
         } else if constraints.requiresPCC {
             if !constraints.allowsPCC {
-                target = .abstain
+                target = .onDevice
                 reason = .privacyRequiredLocal
-                privacy = .pccProhibited
+                privacy = .localOnly
             } else if capability.canUsePCC
                         && constraints.networkAvailable
                         && (constraints.isForegroundInteractive || constraints.consentGranted) {
@@ -55,10 +51,22 @@ struct ModelExecutionPlanner: ModelExecutionPlanning {
                 reason = .userRequiredCloud
                 privacy = .pccEligibleAfterConsent
             } else {
-                target = .abstain
-                reason = capability.pccQuota == .limitReached ? .pccQuotaReached : .pccUnavailable
-                privacy = .pccProhibited
+                target = .onDevice
+                if capability.pccQuota == .limitReached {
+                    reason = .pccQuotaReached
+                } else if !constraints.networkAvailable {
+                    reason = .networkUnavailable
+                } else if !constraints.isForegroundInteractive && !constraints.consentGranted {
+                    reason = .consentUnavailable
+                } else {
+                    reason = .pccUnavailable
+                }
+                privacy = .localOnly
             }
+        } else if evidence.requiresExactExtraction && !evidence.hasContradictions {
+            target = .deterministic
+            reason = .exactAnswerAvailable
+            privacy = .localOnly
         } else if !constraints.allowsPCC {
             target = .onDevice
             reason = .privacyRequiredLocal
@@ -94,7 +102,7 @@ struct ModelExecutionPlanner: ModelExecutionPlanning {
 
         let fallbackTarget: ModelExecutionTarget?
         if target == .privateCloudCompute {
-            fallbackTarget = constraints.requiresPCC ? nil : .onDevice
+            fallbackTarget = .onDevice
         } else {
             fallbackTarget = nil
         }

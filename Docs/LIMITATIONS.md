@@ -26,6 +26,8 @@ OpenIntelligence is experimental software. It is useful as a proof-of-work repos
 - Citations indicate supporting sources, not formal proof.
 - Confidence signals are engineering aids, not certified reliability metrics.
 - Some Apple Intelligence or on-device model paths may depend on device, OS, and regional availability.
+- Native PCC routing, quota exhaustion, remembered consent, network-transition fallback, and the per-response route badges still require signed iOS 27 physical-device/TestFlight validation; source and simulator evidence cannot prove Apple's production route. `[evidence_level: code_verified, confidence: high_for_limitation, evidence_source: ModelExecutionPlanner.swift, FoundationModelSessionFactory.swift, MessageBubbleV2.swift]`
+- Apple's public Foundation Models SDK does not expose separately selectable 3B or 20B on-device identities. The app therefore labels the local route as On-Device rather than asserting a parameter count. `[evidence_level: sdk_verified+code_verified, confidence: exact, evidence_source: FoundationModelSessionFactory.swift, LLMModel.swift]`
 
 ## Demo Limits
 

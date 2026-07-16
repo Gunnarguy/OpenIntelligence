@@ -52,7 +52,8 @@ final class ModelExecutionPlannerTests: XCTestCase {
     private func evidence(
         topScore: Float = 0.8,
         estimatedTokens: Int = 1200,
-        multiDocument: Bool = false
+        multiDocument: Bool = false,
+        requiresExactExtraction: Bool = false
     ) -> PostRetrievalEvidence {
         PostRetrievalEvidence(
             chunkCount: 4,
@@ -60,7 +61,7 @@ final class ModelExecutionPlannerTests: XCTestCase {
             meanScore: topScore - 0.1,
             estimatedEvidenceTokens: estimatedTokens,
             hasContradictions: false,
-            requiresExactExtraction: false,
+            requiresExactExtraction: requiresExactExtraction,
             requiresMultiDocumentSynthesis: multiDocument
         )
     }
@@ -183,7 +184,7 @@ final class ModelExecutionPlannerTests: XCTestCase {
         XCTAssertEqual(plan.synthesisTarget, .privateCloudCompute)
     }
 
-    func testCloudOnlyWithDeniedPermissionAbstains() {
+    func testCloudOnlyWithDeniedPermissionFallsBackToLocal() {
         let plan = ModelExecutionPlanner().makePlan(
             constraints: constraints(allowsPCC: false, requiresPCC: true),
             evidence: evidence(),
@@ -192,8 +193,104 @@ final class ModelExecutionPlannerTests: XCTestCase {
             capability: capability()
         )
 
-        XCTAssertEqual(plan.synthesisTarget, .abstain)
-        XCTAssertEqual(plan.privacyBoundary, .pccProhibited)
+        XCTAssertEqual(plan.intendedTarget, .privateCloudCompute)
+        XCTAssertEqual(plan.synthesisTarget, .onDevice)
+        XCTAssertEqual(plan.plannerFallbackReason, .privacyRequiredLocal)
+        XCTAssertEqual(plan.privacyBoundary, .localOnly)
+    }
+
+    func testCloudOnlyWithExhaustedQuotaFallsBackToLocal() {
+        let plan = ModelExecutionPlanner().makePlan(
+            constraints: constraints(requiresPCC: true),
+            evidence: evidence(),
+            localBudget: localBudget,
+            pccBudget: pccBudget,
+            capability: capability(quota: .limitReached)
+        )
+
+        XCTAssertEqual(plan.intendedTarget, .privateCloudCompute)
+        XCTAssertEqual(plan.synthesisTarget, .onDevice)
+        XCTAssertEqual(plan.plannerFallbackReason, .pccQuotaReached)
+        XCTAssertEqual(plan.stages.first(where: { $0.role == .synthesize })?.reason, .pccQuotaReached)
+    }
+
+    func testCloudOnlyOverridesAutomaticExactExtractionShortcut() {
+        let plan = ModelExecutionPlanner().makePlan(
+            constraints: constraints(requiresPCC: true),
+            evidence: evidence(requiresExactExtraction: true),
+            localBudget: localBudget,
+            pccBudget: pccBudget,
+            capability: capability()
+        )
+
+        XCTAssertEqual(plan.synthesisTarget, .privateCloudCompute)
+        XCTAssertEqual(plan.fallback.target, .onDevice)
+        XCTAssertEqual(plan.stages.first(where: { $0.role == .synthesize })?.reason, .userRequiredCloud)
+    }
+
+    func testResponseBadgeShowsActualPCCRoute() {
+        let receipt = ModelExecutionReceipt(
+            planID: UUID(),
+            policyVersion: ModelExecutionPlan.policyVersion,
+            intendedTarget: .privateCloudCompute,
+            attempts: [],
+            actualTarget: .privateCloudCompute,
+            completedTarget: .privateCloudCompute,
+            pccQuotaAtPlanning: .belowLimit
+        )
+        let metadata = ResponseMetadata(
+            totalGenerationTime: 1,
+            tokensGenerated: 1,
+            modelUsed: "Private Cloud Compute",
+            retrievalTime: 0,
+            executionReceipt: receipt
+        )
+
+        XCTAssertEqual(ResponseRouteBadgeDescriptor(metadata: metadata)?.kind, .privateCloudCompute)
+    }
+
+    func testResponseBadgeShowsOnDeviceFallback() {
+        let receipt = ModelExecutionReceipt(
+            planID: UUID(),
+            policyVersion: ModelExecutionPlan.policyVersion,
+            intendedTarget: .privateCloudCompute,
+            attempts: [],
+            actualTarget: .onDevice,
+            completedTarget: .onDevice,
+            fallbackReason: .pccQuotaReached,
+            pccQuotaAtPlanning: .limitReached
+        )
+        let metadata = ResponseMetadata(
+            totalGenerationTime: 1,
+            tokensGenerated: 1,
+            modelUsed: "Apple Intelligence (On-Device)",
+            retrievalTime: 0,
+            executionReceipt: receipt
+        )
+
+        XCTAssertEqual(ResponseRouteBadgeDescriptor(metadata: metadata)?.kind, .onDeviceFallback)
+    }
+
+    func testResponseBadgeDoesNotCallUnrelatedLocalFallbackPCC() {
+        let receipt = ModelExecutionReceipt(
+            planID: UUID(),
+            policyVersion: ModelExecutionPlan.policyVersion,
+            intendedTarget: .onDevice,
+            attempts: [],
+            actualTarget: .onDevice,
+            completedTarget: .onDevice,
+            fallbackReason: .fallback,
+            pccQuotaAtPlanning: .unknown
+        )
+        let metadata = ResponseMetadata(
+            totalGenerationTime: 1,
+            tokensGenerated: 1,
+            modelUsed: "Apple Intelligence (On-Device)",
+            retrievalTime: 0,
+            executionReceipt: receipt
+        )
+
+        XCTAssertEqual(ResponseRouteBadgeDescriptor(metadata: metadata)?.kind, .onDevice)
     }
 
     func testReceiptRoundTripKeepsIntendedAndActualTargetsSeparate() throws {

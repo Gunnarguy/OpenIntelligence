@@ -148,7 +148,7 @@ struct ModelExecutionStage: Identifiable, Codable, Sendable, Equatable {
 }
 
 struct ModelExecutionPlan: Identifiable, Codable, Sendable, Equatable {
-    static let policyVersion = "pcc-dynamic-router-v1"
+    static let policyVersion = "pcc-dynamic-router-v2"
 
     let id: UUID
     let policyVersion: String
@@ -190,6 +190,17 @@ struct ModelExecutionPlan: Identifiable, Codable, Sendable, Equatable {
 
     var synthesisTarget: ModelExecutionTarget {
         stages.first(where: { $0.role == .synthesize })?.target ?? .abstain
+    }
+
+    /// The route requested before capability fallbacks were applied.
+    var intendedTarget: ModelExecutionTarget {
+        constraints.requiresPCC ? .privateCloudCompute : synthesisTarget
+    }
+
+    /// Captures planner-time fallback without manufacturing a failed PCC attempt.
+    var plannerFallbackReason: ModelRouteReason? {
+        guard intendedTarget != synthesisTarget else { return nil }
+        return stages.first(where: { $0.role == .synthesize })?.reason ?? .fallback
     }
 
     var requiresCloudConsent: Bool {
