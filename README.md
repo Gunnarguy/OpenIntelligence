@@ -20,6 +20,8 @@
 
 OpenIntelligence is an exploratory, privacy-obsessed document query assistant built natively for Apple platforms. Document ingestion, vector indexing, lexical retrieval, planning, and verification remain on device. On iOS/macOS 27+, optional final synthesis may use Apple Private Cloud Compute only after entitlement evidence, capability, quota, minimization, and consent gates pass. The platform-specific entitlement path is generic arm64 iPhoneOS compile-verified, and no third-party cloud wrapper is used. Signed-installation PCC validation remains pending. `[evidence_level: build_verified, confidence: high_for_source_unverified_for_device, evidence_source: EngineSDKCompatibility.swift, ModelExecutionPlanner.swift, RAGService.swift, FoundationModelCapabilityProvider.swift]`
 
+Interrupted ingestion is recoverable, but user dismissal is authoritative: queue discards sync deletion-wins markers, and automatic empty-index repair remains suppressed for that library on the current device until the user explicitly imports or requests a rebuild. `[evidence_level: code_verified, confidence: high_pending_runtime_validation, evidence_source: RAGService.swift, WorkspaceSyncService.swift, IngestionQueueOverlay.swift]`
+
 ---
 
 ## 📚 Rigorous Engineering Documentation

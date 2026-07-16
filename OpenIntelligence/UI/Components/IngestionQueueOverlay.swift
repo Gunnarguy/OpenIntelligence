@@ -294,6 +294,7 @@ struct IngestionQueueOverlay: View {
     var onCancelAll: (() -> Void)? = nil
     var onContinuePaused: (() -> Void)? = nil
     var onDiscardPaused: (() -> Void)? = nil
+    var onStopAndDismiss: (() -> Void)? = nil
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @State private var isMinimized = false
     @State private var isDismissed = false
@@ -632,6 +633,7 @@ struct IngestionQueueOverlay: View {
 
                     Button {
                         DSHaptics.medium()
+                        onStopAndDismiss?()
                         withAnimation { isDismissed = true }
                     } label: {
                         Image(systemName: "xmark")
@@ -642,6 +644,8 @@ struct IngestionQueueOverlay: View {
                             .clipShape(Circle())
                     }
                     .buttonStyle(.plain)
+                    .accessibilityLabel(hasCancelableItems ? "Stop and dismiss ingestion" : "Dismiss ingestion summary")
+                    .accessibilityHint(hasCancelableItems ? "Stops the current queue and prevents automatic restoration of these items." : "Closes the completed ingestion summary.")
                 }
             }
         }

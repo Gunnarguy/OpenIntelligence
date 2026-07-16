@@ -13,6 +13,14 @@ The ingestion pipeline converts raw files (PDFs, images, text documents) into se
 
 ```mermaid
 flowchart TD
+    QLOAD[Load coordinated ingestion queue] --> QMERGE[Merge deletion-wins tombstones]
+    QMERGE --> QDECIDE{Interrupted work remains?}
+    QDECIDE -- Continue --> A
+    QDECIDE -- Stop or Discard --> QTOMB[Persist tombstone and suppress automatic repair]
+    EMPTY[Metadata exists but vector index is empty] --> SINGLE[Sequential single-flight repair queue]
+    SINGLE --> SUPPRESSED{Library repair suppressed?}
+    SUPPRESSED -- Yes --> WAIT[Wait for explicit import or manual rebuild]
+    SUPPRESSED -- No --> A
     A[Import File] --> B{File Type}
     B -- PDF Size < 10MB --> C{Native Text Layer?}
     B -- PDF Size >= 10MB --> STREAM[Batched Streaming Ingestion]
@@ -99,6 +107,13 @@ Both indexes are isolated by `container_id` to enforce library boundaries.
   2. The loop skips rendering, parsing, embedding, and storage tasks for any page batch where `endPage <= lastCompletedPage`.
 - After successfully committing each page batch to the FTS5 index and vector DB, `db.persist()` is called to flush vector changes, and `ingestion_state.json` is updated atomically.
 - Upon successful document indexing completion or user queue item discard, the temporary checkpoint directory (containing page checkpoints and the state JSON) is deleted.
+
+### Authoritative Queue Dismissal & Automatic Repair
+- Stop/X and paused-item discard add a bounded tombstone for each removed queue ID to the coordinated `ingestion_queue.json` state. The field is optional while decoding, so older queue files remain readable.
+- `WorkspaceSyncService` merges tombstones before queue items. A matching stale local or shared item is filtered out, and a tombstone-only file is retained so an empty local queue can still defeat a stale iCloud snapshot.
+- Empty-vector self-healing requests enter one sequential in-process scheduler. Stop/Discard persists per-library suppression in local preferences and the rebuild checks it before each safe document stage.
+- A rebuild that has already removed a document completes the matching re-add before yielding, preventing cancellation from leaving catalog metadata partially deleted. A later explicit import or manual rebuild clears the suppression.
+- The tombstone history is capped at 512 newest IDs; a future explicit import receives a new ID and is not blocked by an older dismissal. `[evidence_level: code_verified, confidence: high_pending_runtime_validation, evidence_source: RAGService.swift, WorkspaceSyncService.swift, IngestionQueueOverlay.swift]`
 
 ### Streamed Ingestion Append Support
 - To support progressive SQLite indexing during batch-based streaming ingestion:

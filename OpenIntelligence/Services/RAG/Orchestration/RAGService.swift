@@ -326,6 +326,7 @@ class RAGService: ObservableObject {
     @MainActor public static weak var activePresentedInstance: RAGService? = nil
     nonisolated private static let maxPersistedChatHistoryBytes = 4 * 1024 * 1024
     nonisolated private static let ingestionLeaseDuration: TimeInterval = 120
+    nonisolated private static let selfHealingSuppressedContainersDefaultsKey = "openIntelligence.ingestion.selfHealingSuppressedContainers"
 
     // MARK: - Dependencies
 
@@ -352,6 +353,9 @@ class RAGService: ObservableObject {
     @MainActor private var suppressProcessingSummary: Bool = false
     @MainActor private var ingestionTask: Task<Void, Never>?
     @MainActor private var ingestionContexts: [UUID: IngestionContext] = [:]
+    @MainActor private var ingestionQueueTombstones: [IngestionQueueTombstone] = []
+    @MainActor private var selfHealingRebuildTask: Task<Void, Never>?
+    @MainActor private var pendingSelfHealingContainerIds: [UUID] = []
     @MainActor private var requestedIngestionCancellationIds: Set<UUID> = []
     @MainActor private var liveActivityTrackedIngestionIds: Set<UUID> = []
     @MainActor private var lastLocalIndexSyncFingerprint: String? {
@@ -898,10 +902,68 @@ class RAGService: ObservableObject {
     }
 
     @MainActor
+    private func recordIngestionQueueTombstones(for items: [IngestionItem]) {
+        guard !items.isEmpty else { return }
+        let discardedAt = Date()
+        ingestionQueueTombstones = IngestionQueueTombstonePolicy.merged(
+            ingestionQueueTombstones,
+            items.map {
+                IngestionQueueTombstone(
+                    id: $0.id,
+                    containerId: $0.containerId,
+                    discardedAt: discardedAt
+                )
+            }
+        )
+    }
+
+    @MainActor
+    private var selfHealingSuppressedContainerIds: Set<UUID> {
+        get {
+            let values = UserDefaults.standard.stringArray(
+                forKey: Self.selfHealingSuppressedContainersDefaultsKey
+            ) ?? []
+            return Set(values.compactMap(UUID.init(uuidString:)))
+        }
+        set {
+            UserDefaults.standard.set(
+                newValue.map(\.uuidString).sorted(),
+                forKey: Self.selfHealingSuppressedContainersDefaultsKey
+            )
+        }
+    }
+
+    @MainActor
+    private func suppressSelfHealing(for containerIds: Set<UUID>) {
+        guard !containerIds.isEmpty else { return }
+        selfHealingSuppressedContainerIds.formUnion(containerIds)
+        pendingSelfHealingContainerIds.removeAll { containerIds.contains($0) }
+    }
+
+    @MainActor
+    private func clearSelfHealingSuppression(for containerId: UUID) {
+        selfHealingSuppressedContainerIds.remove(containerId)
+    }
+
+    @MainActor
+    private func isSelfHealingSuppressed(for containerId: UUID) -> Bool {
+        selfHealingSuppressedContainerIds.contains(containerId)
+    }
+
+    nonisolated private static func isAutomaticSelfHealingItem(_ item: IngestionItem) -> Bool {
+        guard item.metrics.isRebuild else { return false }
+        let reason = item.metrics.rebuildReason
+        return reason.localizedCaseInsensitiveContains("self-healing")
+            || reason.localizedCaseInsensitiveContains("empty vector store")
+    }
+
+    @MainActor
     private func savePersistedIngestionQueueState() {
         let url = AppSupportPaths.ingestionQueueURL()
-        let activeItems = ingestionItems.filter { !$0.stage.isTerminal }
+        let tombstonedIds = Set(ingestionQueueTombstones.map(\.id))
+        let activeItems = ingestionItems.filter { !$0.stage.isTerminal && !tombstonedIds.contains($0.id) }
         let recentTerminalItems = ingestionItems.filter { item in
+            guard !tombstonedIds.contains(item.id) else { return false }
             guard item.stage.isTerminal else { return false }
             if let finishedAt = item.finishedAt {
                 return Date().timeIntervalSince(finishedAt) < 900 // 15 minutes
@@ -913,6 +975,7 @@ class RAGService: ObservableObject {
         let state = PersistedIngestionQueueState(
             items: itemsToPersist,
             contexts: itemsToPersist.map { PersistedIngestionContext(id: $0.id, context: ingestionContexts[$0.id] ?? .userInitiated) },
+            tombstones: ingestionQueueTombstones,
             updatedAt: Date()
         )
 
@@ -945,6 +1008,11 @@ class RAGService: ObservableObject {
         do {
             let decoder = JSONDecoder()
             let state = try decoder.decode(PersistedIngestionQueueState.self, from: data)
+            ingestionQueueTombstones = IngestionQueueTombstonePolicy.merged(
+                ingestionQueueTombstones,
+                state.tombstones
+            )
+            let tombstonedIds = Set(ingestionQueueTombstones.map(\.id))
             var restoredItems: [IngestionItem] = []
             var restoredContexts: [UUID: IngestionContext] = [:]
             let currentDeviceID = WorkspaceSyncService.currentDeviceID()
@@ -953,6 +1021,7 @@ class RAGService: ObservableObject {
             let defaultContainerId = containerService.containers.first?.id
 
             for item in state.items {
+                guard !tombstonedIds.contains(item.id) else { continue }
                 guard !item.stage.isTerminal else { continue }
 
                 if let containerId = item.containerId, !validContainerIds.contains(containerId) {
@@ -1022,7 +1091,11 @@ class RAGService: ObservableObject {
             }
 
             guard !restoredItems.isEmpty else {
-                try? WorkspaceSyncService.coordinatedRemoveItem(at: url)
+                if ingestionQueueTombstones.isEmpty {
+                    try? WorkspaceSyncService.coordinatedRemoveItem(at: url)
+                } else {
+                    savePersistedIngestionQueueState()
+                }
                 IngestionRuntimeBridge.shared.endLiveActivity()
                 return
             }
@@ -1074,6 +1147,11 @@ class RAGService: ObservableObject {
 
     @MainActor
     func clearIngestionQueue() {
+        let discardedItems = ingestionItems
+        recordIngestionQueueTombstones(for: discardedItems)
+        suppressSelfHealing(for: Set(discardedItems.compactMap { item in
+            Self.isAutomaticSelfHealingItem(item) ? item.containerId : nil
+        }))
         ingestionTask?.cancel()
         ingestionTask = nil
         isProcessing = false
@@ -1294,7 +1372,35 @@ class RAGService: ObservableObject {
     private struct PersistedIngestionQueueState: Codable, Sendable {
         let items: [IngestionItem]
         let contexts: [PersistedIngestionContext]
+        let tombstones: [IngestionQueueTombstone]
         let updatedAt: Date
+
+        private enum CodingKeys: String, CodingKey {
+            case items
+            case contexts
+            case tombstones
+            case updatedAt
+        }
+
+        init(
+            items: [IngestionItem],
+            contexts: [PersistedIngestionContext],
+            tombstones: [IngestionQueueTombstone],
+            updatedAt: Date
+        ) {
+            self.items = items
+            self.contexts = contexts
+            self.tombstones = tombstones
+            self.updatedAt = updatedAt
+        }
+
+        init(from decoder: Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            items = try container.decode([IngestionItem].self, forKey: .items)
+            contexts = try container.decode([PersistedIngestionContext].self, forKey: .contexts)
+            tombstones = try container.decodeIfPresent([IngestionQueueTombstone].self, forKey: .tombstones) ?? []
+            updatedAt = try container.decode(Date.self, forKey: .updatedAt)
+        }
     }
 
     // MARK: - Initialization
@@ -4195,6 +4301,9 @@ class RAGService: ObservableObject {
     func enqueueDocuments(_ urls: [URL], context: IngestionContext = .userInitiated) -> [UUID] {
         guard !urls.isEmpty else { return [] }
         let activeContainerId = containerService.activeContainerId
+        if context == .userInitiated {
+            clearSelfHealingSuppression(for: activeContainerId)
+        }
         let newItems = urls.map { url in
             let item = IngestionItem(
                 url: url,
@@ -4264,6 +4373,10 @@ class RAGService: ObservableObject {
         guard let index = ingestionItems.firstIndex(where: { $0.id == id }) else { return }
         let item = ingestionItems[index]
         guard !item.stage.isTerminal else { return }
+        recordIngestionQueueTombstones(for: [item])
+        if Self.isAutomaticSelfHealingItem(item), let containerId = item.containerId {
+            suppressSelfHealing(for: [containerId])
+        }
 
         if item.stage == .queued || item.stage == .paused {
             updateIngestionItem(
@@ -4283,11 +4396,15 @@ class RAGService: ObservableObject {
 
     @MainActor
     func cancelAllIngestion() {
-        let activeIds = ingestionItems
-            .filter { !$0.stage.isTerminal }
+        let activeItems = ingestionItems.filter { !$0.stage.isTerminal }
+        let activeIds = activeItems
             .map(\ .id)
 
         guard !activeIds.isEmpty else { return }
+        recordIngestionQueueTombstones(for: activeItems)
+        suppressSelfHealing(for: Set(activeItems.compactMap { item in
+            Self.isAutomaticSelfHealingItem(item) ? item.containerId : nil
+        }))
 
         for item in ingestionItems where item.stage == .queued || item.stage == .paused {
             updateIngestionItem(
@@ -4322,6 +4439,9 @@ class RAGService: ObservableObject {
 
         for index in pausedIndices {
             var item = ingestionItems[index]
+            if let containerId = item.containerId {
+                clearSelfHealingSuppression(for: containerId)
+            }
             item.stage = .queued
             item.detail = "Queued"
             item.progress = nil
@@ -4345,6 +4465,11 @@ class RAGService: ObservableObject {
         let pausedItems = ingestionItems.filter { $0.stage == .paused }
         let pausedIds = Set(pausedItems.map(\.id))
         guard !pausedIds.isEmpty else { return }
+
+        recordIngestionQueueTombstones(for: pausedItems)
+        suppressSelfHealing(for: Set(pausedItems.compactMap { item in
+            Self.isAutomaticSelfHealingItem(item) ? item.containerId : nil
+        }))
 
         ingestionItems.removeAll { pausedIds.contains($0.id) }
         ingestionContexts = ingestionContexts.filter { id, _ in !pausedIds.contains(id) }
@@ -4387,10 +4512,50 @@ class RAGService: ObservableObject {
         syncIngestionLiveActivity()
     }
 
+    /// Stops the visible queue and records deletion-wins state so iCloud cannot
+    /// resurrect the exact discarded work item on another workspace reload.
+    @MainActor
+    func stopAndDismissIngestionQueue() {
+        let activeItems = ingestionItems.filter { !$0.stage.isTerminal }
+        guard !activeItems.isEmpty else {
+            clearRuntimeIngestionQueueState()
+            savePersistedIngestionQueueState()
+            return
+        }
+
+        let activeIds = Set(activeItems.map(\.id))
+        let selfHealingContainerIds = Set(activeItems.compactMap { item in
+            Self.isAutomaticSelfHealingItem(item) ? item.containerId : nil
+        })
+        recordIngestionQueueTombstones(for: activeItems)
+        suppressSelfHealing(for: selfHealingContainerIds)
+        requestedIngestionCancellationIds.formUnion(activeIds)
+        ingestionTask?.cancel()
+        ingestionTask = nil
+
+        for item in activeItems where item.stage == .queued || item.stage == .paused {
+            documentProcessor.cleanCheckpoints(for: item.url)
+        }
+
+        ingestionItems.removeAll { activeIds.contains($0.id) }
+        ingestionContexts = ingestionContexts.filter { id, _ in !activeIds.contains(id) }
+        liveActivityTrackedIngestionIds.subtract(activeIds)
+        isProcessing = false
+        processingStatus = ""
+        savePersistedIngestionQueueState()
+        syncIngestionLiveActivity()
+        Log.info(
+            "[RAGService] User stopped and dismissed \(activeIds.count) ingestion item(s); automatic self-healing is suppressed for \(selfHealingContainerIds.count) library/libraries",
+            category: .ingestion
+        )
+    }
+
     @MainActor
     func cancelAndPurgeIngestion(for containerId: UUID) async {
         let matchingItems = ingestionItems.filter { $0.containerId == containerId }
         guard !matchingItems.isEmpty else { return }
+        recordIngestionQueueTombstones(for: matchingItems)
+        suppressSelfHealing(for: [containerId])
 
         let immediateRemovalIds = Set(
             matchingItems
@@ -6182,6 +6347,64 @@ class RAGService: ObservableObject {
             .joined(separator: ";")
     }
 
+    @MainActor
+    private func enqueueSelfHealingRebuild(for containerId: UUID) {
+        guard !isSelfHealingSuppressed(for: containerId) else {
+            Log.info(
+                "[RAGService] Automatic self-healing remains suppressed for container \(containerId) after user dismissal.",
+                category: .ingestion
+            )
+            return
+        }
+        guard !pendingSelfHealingContainerIds.contains(containerId) else { return }
+        let alreadyQueued = ingestionItems.contains { item in
+            item.containerId == containerId && !item.stage.isTerminal && Self.isAutomaticSelfHealingItem(item)
+        }
+        guard !alreadyQueued else { return }
+
+        pendingSelfHealingContainerIds.append(containerId)
+        guard selfHealingRebuildTask == nil else { return }
+        selfHealingRebuildTask = Task { @MainActor [weak self] in
+            await self?.runPendingSelfHealingRebuilds()
+        }
+    }
+
+    @MainActor
+    private func runPendingSelfHealingRebuilds() async {
+        defer { selfHealingRebuildTask = nil }
+        while !pendingSelfHealingContainerIds.isEmpty {
+            let containerId = pendingSelfHealingContainerIds.removeFirst()
+            guard !isSelfHealingSuppressed(for: containerId) else { continue }
+            do {
+                try await reembedDocuments(
+                    in: containerId,
+                    reason: "Self-healing: empty vector store"
+                )
+                if isSelfHealingSuppressed(for: containerId) {
+                    Log.info(
+                        "[RAGService] Self-healing rebuild stopped by user for container \(containerId)",
+                        category: .ingestion
+                    )
+                } else {
+                    Log.info(
+                        "[RAGService] Self-healing rebuild completed successfully for container \(containerId)",
+                        category: .ingestion
+                    )
+                }
+            } catch is CancellationError {
+                Log.info(
+                    "[RAGService] Self-healing rebuild cancelled for container \(containerId)",
+                    category: .ingestion
+                )
+            } catch {
+                Log.error(
+                    "[RAGService] Self-healing rebuild failed for container \(containerId): \(error.localizedDescription)",
+                    category: .ingestion
+                )
+            }
+        }
+    }
+
     private func rebuildLocalSearchIndexesFromCanonicalState(documents: [Document]) async -> Bool {
         let snapshot = await MainActor.run {
             (self.containerService.containers, self.containerService.containers.first?.id)
@@ -6205,20 +6428,9 @@ class RAGService: ObservableObject {
                     Log.warning("[RAGService] Safety guard triggered: vector store is empty but container \(container.id) has \(containerDocuments.count) documents. Skipping FTS5 rebuild.", category: .ingestion)
                     
                     let containerId = container.id
-                    let alreadyProcessing = await MainActor.run { self.isProcessing }
-                    if !alreadyProcessing {
-                        Log.info("[RAGService] Triggering background self-healing rebuild for container \(containerId)...", category: .ingestion)
-                        Task { [weak self] in
-                            guard let self else { return }
-                            do {
-                                try await self.reembedDocuments(in: containerId, reason: "Self-healing: empty vector store")
-                                Log.info("[RAGService] Self-healing rebuild completed successfully for container \(containerId)", category: .ingestion)
-                            } catch {
-                                Log.error("[RAGService] Self-healing rebuild failed for container \(containerId): \(error.localizedDescription)", category: .ingestion)
-                            }
-                        }
-                    } else {
-                        Log.info("[RAGService] Skipping self-healing rebuild because another ingestion/rebuild is already in progress.", category: .ingestion)
+                    Log.info("[RAGService] Queuing single-flight self-healing rebuild for container \(containerId)...", category: .ingestion)
+                    await MainActor.run {
+                        self.enqueueSelfHealingRebuild(for: containerId)
                     }
                     continue
                 }
@@ -6443,6 +6655,22 @@ class RAGService: ObservableObject {
         } else {
             targetContainerId = await MainActor.run { self.containerService.activeContainerId }
         }
+        let isAutomaticSelfHealing = reason?.localizedCaseInsensitiveContains("self-healing") == true
+            || reason?.localizedCaseInsensitiveContains("empty vector store") == true
+        let shouldProceed = await MainActor.run {
+            if isAutomaticSelfHealing {
+                return !isSelfHealingSuppressed(for: targetContainerId)
+            }
+            clearSelfHealingSuppression(for: targetContainerId)
+            return true
+        }
+        guard shouldProceed else {
+            Log.info(
+                "[RAGService] Skipping user-suppressed self-healing rebuild for container \(targetContainerId)",
+                category: .ingestion
+            )
+            return
+        }
         let documentsToRebuild = await MainActor.run {
             var activeUrls = Set<URL>()
             for item in self.ingestionItems {
@@ -6523,6 +6751,10 @@ class RAGService: ObservableObject {
         await MainActor.run {
             // Add all rebuild items to the queue so they're visible
             ingestionItems.append(contentsOf: rebuildItems)
+            for item in rebuildItems {
+                ingestionContexts[item.id] = .autoRebuild
+            }
+            savePersistedIngestionQueueState()
         }
 
         defer {
@@ -6549,8 +6781,14 @@ class RAGService: ObservableObject {
             targetDimension: initialDimension
         )
 
+        var wasStoppedByUser = false
         for (index, document) in documentsToRebuild.enumerated() {
             if Task.isCancelled { break }
+            if isAutomaticSelfHealing,
+               await MainActor.run(body: { self.isSelfHealingSuppressed(for: targetContainerId) }) {
+                wasStoppedByUser = true
+                break
+            }
 
             let trackingId = rebuildItems[index].id
 
@@ -6710,6 +6948,12 @@ class RAGService: ObservableObject {
                     }
                 )
 
+                if isAutomaticSelfHealing,
+                   await MainActor.run(body: { self.isSelfHealingSuppressed(for: targetContainerId) }) {
+                    wasStoppedByUser = true
+                    break
+                }
+
                 let finalChunks = zip(updatedChunks, embeddings).map { chunk, embedding in
                     DocumentChunk(
                         id: chunk.id,
@@ -6776,6 +7020,15 @@ class RAGService: ObservableObject {
                     }
                 }
 
+                if isAutomaticSelfHealing,
+                   await MainActor.run(body: { self.isSelfHealingSuppressed(for: targetContainerId) }) {
+                    wasStoppedByUser = true
+                    break
+                }
+
+                // Once removal begins, the matching re-add is intentionally atomic
+                // from the cancellation policy's perspective so the catalog cannot
+                // be left without the document after a mid-document dismissal.
                 try await removeDocument(document, keepPhysicalFile: true)
 
                 await MainActor.run {
@@ -6802,6 +7055,28 @@ class RAGService: ObservableObject {
                     self.isProcessing = true
                 }
             }
+        }
+
+        if wasStoppedByUser {
+            await MainActor.run {
+                let remainingItems = self.ingestionItems.filter { item in
+                    item.containerId == targetContainerId && Self.isAutomaticSelfHealingItem(item)
+                }
+                self.recordIngestionQueueTombstones(for: remainingItems)
+                let remainingIds = Set(remainingItems.map(\.id))
+                self.ingestionItems.removeAll { remainingIds.contains($0.id) }
+                self.ingestionContexts = self.ingestionContexts.filter { id, _ in !remainingIds.contains(id) }
+                self.savePersistedIngestionQueueState()
+            }
+            TelemetryCenter.emit(
+                .ingestion,
+                title: "Library rebuild stopped",
+                metadata: [
+                    "container": targetContainerId.uuidString,
+                    "reason": "userDismissedAutomaticSelfHealing",
+                ]
+            )
+            return
         }
 
         await MainActor.run {

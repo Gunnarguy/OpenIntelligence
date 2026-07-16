@@ -13,6 +13,7 @@ Public release highlights for OpenIntelligence.
 - **Truthful model-route reporting:** The "Advanced" on-device model preference now correctly reports the standard on-device model in telemetry and diagnostics. (No 20B on-device model exists in the current OS SDK; earlier releases could display a model tier that never actually ran.)
 - **Apple-approved PCC capability enabled:** The source entitlement is active for v4.6 and the app verifies the signed process entitlement before constructing Apple’s PCC model. A signed iOS 27 physical-device/TestFlight validation is still required before production readiness is claimed.
 - **Hardened knowledge-index migrations:** Database schema migrations are now driven by a fixed, code-owned migration catalog, eliminating a class of malformed-schema risk.
+- **An ingestion Stop button that actually stops:** Closing or discarding the queue prevents those exact jobs from returning after iCloud reload. Automatic repair jobs run one at a time and stay off for that library on the device where you dismissed them until you explicitly import or rebuild again.
 
 ## 4.5.1
 

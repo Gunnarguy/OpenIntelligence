@@ -98,20 +98,73 @@ struct PersistedIngestionContextRecord: Codable, Sendable {
     }
 }
 
+struct IngestionQueueTombstone: Codable, Sendable, Equatable, Identifiable {
+    let id: UUID
+    let containerId: UUID?
+    let discardedAt: Date
+
+    nonisolated init(id: UUID, containerId: UUID?, discardedAt: Date = Date()) {
+        self.id = id
+        self.containerId = containerId
+        self.discardedAt = discardedAt
+    }
+}
+
+enum IngestionQueueTombstonePolicy {
+    nonisolated static let maximumRetainedTombstones = 512
+
+    nonisolated static func merged(
+        _ first: [IngestionQueueTombstone],
+        _ second: [IngestionQueueTombstone]
+    ) -> [IngestionQueueTombstone] {
+        var byID: [UUID: IngestionQueueTombstone] = [:]
+        for tombstone in first + second {
+            if let existing = byID[tombstone.id], existing.discardedAt >= tombstone.discardedAt {
+                continue
+            }
+            byID[tombstone.id] = tombstone
+        }
+        return byID.values
+            .sorted { $0.discardedAt > $1.discardedAt }
+            .prefix(maximumRetainedTombstones)
+            .map { $0 }
+    }
+
+    nonisolated static func removingTombstonedItems(
+        _ items: [IngestionItem],
+        tombstones: [IngestionQueueTombstone]
+    ) -> [IngestionItem] {
+        let discardedIDs = Set(tombstones.map(\.id))
+        return items.filter { !discardedIDs.contains($0.id) }
+    }
+}
+
 struct PersistedIngestionQueueStateRecord: Codable, Sendable {
     let items: [IngestionItem]
     let contexts: [PersistedIngestionContextRecord]
+    let tombstones: [IngestionQueueTombstone]
     let updatedAt: Date
+
+    nonisolated var isEmpty: Bool {
+        items.isEmpty && tombstones.isEmpty
+    }
 
     enum CodingKeys: String, CodingKey {
         case items
         case contexts
+        case tombstones
         case updatedAt
     }
 
-    nonisolated init(items: [IngestionItem], contexts: [PersistedIngestionContextRecord], updatedAt: Date) {
+    nonisolated init(
+        items: [IngestionItem],
+        contexts: [PersistedIngestionContextRecord],
+        tombstones: [IngestionQueueTombstone] = [],
+        updatedAt: Date
+    ) {
         self.items = items
         self.contexts = contexts
+        self.tombstones = tombstones
         self.updatedAt = updatedAt
     }
 
@@ -119,6 +172,7 @@ struct PersistedIngestionQueueStateRecord: Codable, Sendable {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         self.items = try container.decode([IngestionItem].self, forKey: .items)
         self.contexts = try container.decode([PersistedIngestionContextRecord].self, forKey: .contexts)
+        self.tombstones = try container.decodeIfPresent([IngestionQueueTombstone].self, forKey: .tombstones) ?? []
         self.updatedAt = try container.decode(Date.self, forKey: .updatedAt)
     }
 
@@ -126,6 +180,7 @@ struct PersistedIngestionQueueStateRecord: Codable, Sendable {
         var container = encoder.container(keyedBy: CodingKeys.self)
         try container.encode(items, forKey: .items)
         try container.encode(contexts, forKey: .contexts)
+        try container.encode(tombstones, forKey: .tombstones)
         try container.encode(updatedAt, forKey: .updatedAt)
     }
 }
@@ -712,7 +767,7 @@ final class WorkspaceSyncService: ObservableObject {
             try Self.writeJSON(remainingDocuments, to: sharedDocumentsURL)
         }
 
-        if let remainingQueue, !remainingQueue.items.isEmpty {
+        if let remainingQueue, !remainingQueue.isEmpty {
             try Self.writeJSON(remainingQueue, to: sharedQueueURL)
         } else {
             try? Self.coordinatedRemoveItem(at: sharedQueueURL)
@@ -1387,7 +1442,7 @@ final class WorkspaceSyncService: ObservableObject {
         guard localQueue != nil || sharedQueue != nil else { return }
 
         let mergedQueue = mergeIngestionQueue(shared: sharedQueue, local: localQueue)
-        guard !mergedQueue.items.isEmpty else {
+        guard !mergedQueue.isEmpty else {
             try? Self.coordinatedRemoveItem(at: sharedQueueURL)
             return
         }
@@ -1759,9 +1814,15 @@ final class WorkspaceSyncService: ObservableObject {
 
     nonisolated private func mergeIngestionQueue(
         shared: PersistedIngestionQueueStateRecord?,
-        local: PersistedIngestionQueueStateRecord?
+        local: PersistedIngestionQueueStateRecord?,
+        includeLocalItems: Bool = true
     ) -> PersistedIngestionQueueStateRecord {
         let now = Date()
+        let mergedTombstones = IngestionQueueTombstonePolicy.merged(
+            shared?.tombstones ?? [],
+            local?.tombstones ?? []
+        )
+        let tombstonedIDs = Set(mergedTombstones.map(\.id))
         var orderedIds: [UUID] = []
         var itemsById: [UUID: IngestionItem] = [:]
         var itemKeyToId: [String: UUID] = [:]
@@ -1772,6 +1833,7 @@ final class WorkspaceSyncService: ObservableObject {
             let stateContextMap = Dictionary(state.contexts.map { ($0.id, $0.context) }, uniquingKeysWith: { first, _ in first })
 
             for item in state.items {
+                guard !tombstonedIDs.contains(item.id) else { continue }
                 if item.stage.isTerminal {
                     if let finishedAt = item.finishedAt, now.timeIntervalSince(finishedAt) > 900 {
                         continue
@@ -1792,7 +1854,9 @@ final class WorkspaceSyncService: ObservableObject {
         }
 
         ingest(shared)
-        ingest(local)
+        if includeLocalItems {
+            ingest(local)
+        }
 
         let mergedItems = orderedIds.compactMap { itemsById[$0] }
         let mergedContexts = mergedItems.map {
@@ -1802,6 +1866,7 @@ final class WorkspaceSyncService: ObservableObject {
         return PersistedIngestionQueueStateRecord(
             items: mergedItems,
             contexts: mergedContexts,
+            tombstones: mergedTombstones,
             updatedAt: max(shared?.updatedAt ?? .distantPast, local?.updatedAt ?? .distantPast)
         )
     }
@@ -1832,14 +1897,19 @@ final class WorkspaceSyncService: ObservableObject {
         switch strategy {
         case .mergeLibraries:
             let merged = mergeIngestionQueue(shared: sharedSyncedQueue, local: localSyncedQueue)
-            mergedSyncedQueue = merged.items.isEmpty ? nil : merged
+            mergedSyncedQueue = merged.isEmpty ? nil : merged
         case .useICloudWorkspace, .importExistingICloudLibraries:
-            mergedSyncedQueue = sharedSyncedQueue?.items.isEmpty == false ? sharedSyncedQueue : nil
+            let merged = mergeIngestionQueue(
+                shared: sharedSyncedQueue,
+                local: localSyncedQueue,
+                includeLocalItems: false
+            )
+            mergedSyncedQueue = merged.isEmpty ? nil : merged
         }
 
         let finalLocalQueue = mergeIngestionQueue(shared: localOnlyQueue, local: mergedSyncedQueue)
 
-        if finalLocalQueue.items.isEmpty {
+        if finalLocalQueue.isEmpty {
             try? Self.coordinatedRemoveItem(at: localQueueURL)
         } else {
             try Self.writeJSON(finalLocalQueue, to: localQueueURL)
@@ -1880,9 +1950,31 @@ final class WorkspaceSyncService: ObservableObject {
         let filteredContexts = state.contexts.filter { context in
             filteredItems.contains(where: { $0.id == context.id })
         }
+        let filteredTombstones = state.tombstones.filter { tombstone in
+            guard let containerId = tombstone.containerId else {
+                switch mode {
+                case .including:
+                    return false
+                case .excluding:
+                    return true
+                }
+            }
 
-        guard !filteredItems.isEmpty else { return nil }
-        return PersistedIngestionQueueStateRecord(items: filteredItems, contexts: filteredContexts, updatedAt: state.updatedAt)
+            switch mode {
+            case let .including(containerIDs):
+                return containerIDs.contains(containerId)
+            case let .excluding(containerIDs):
+                return !containerIDs.contains(containerId)
+            }
+        }
+
+        let filteredState = PersistedIngestionQueueStateRecord(
+            items: filteredItems,
+            contexts: filteredContexts,
+            tombstones: filteredTombstones,
+            updatedAt: state.updatedAt
+        )
+        return filteredState.isEmpty ? nil : filteredState
     }
 
     nonisolated private func filterIngestionQueueExcludingContainers(
@@ -1903,9 +1995,20 @@ final class WorkspaceSyncService: ObservableObject {
         let filteredContexts = state.contexts.filter { context in
             filteredItems.contains(where: { $0.id == context.id })
         }
+        let filteredTombstones = state.tombstones.filter { tombstone in
+            guard let resolvedContainerId = tombstone.containerId ?? defaultContainerId else {
+                return true
+            }
+            return !containerIDs.contains(resolvedContainerId)
+        }
 
-        guard !filteredItems.isEmpty else { return nil }
-        return PersistedIngestionQueueStateRecord(items: filteredItems, contexts: filteredContexts, updatedAt: state.updatedAt)
+        let filteredState = PersistedIngestionQueueStateRecord(
+            items: filteredItems,
+            contexts: filteredContexts,
+            tombstones: filteredTombstones,
+            updatedAt: state.updatedAt
+        )
+        return filteredState.isEmpty ? nil : filteredState
     }
 
     nonisolated private func synchronizeContainerArtifacts(
@@ -2227,7 +2330,7 @@ final class WorkspaceSyncService: ObservableObject {
 
         if didRepairQueue {
             let queueURL = root.appendingPathComponent("ingestion_queue.json")
-            if let repairedQueue, repairedQueue.items.isEmpty == false {
+            if let repairedQueue, repairedQueue.isEmpty == false {
                 try Self.writeJSON(repairedQueue, to: queueURL)
             } else {
                 try? Self.coordinatedRemoveItem(at: queueURL)
@@ -2309,15 +2412,23 @@ final class WorkspaceSyncService: ObservableObject {
         let remappedItems = state.items.map { item in
             applyingContainerAliases(to: item, aliases: aliases)
         }
+        let remappedTombstones = state.tombstones.map { tombstone in
+            IngestionQueueTombstone(
+                id: tombstone.id,
+                containerId: tombstone.containerId.flatMap { aliases[$0] ?? $0 },
+                discardedAt: tombstone.discardedAt
+            )
+        }
 
         let normalizedState = PersistedIngestionQueueStateRecord(
             items: remappedItems,
             contexts: state.contexts,
+            tombstones: remappedTombstones,
             updatedAt: state.updatedAt
         )
 
         let merged = mergeIngestionQueue(shared: nil, local: normalizedState)
-        return merged.items.isEmpty ? nil : merged
+        return merged.isEmpty ? nil : merged
     }
 
     nonisolated private func applyingContainerAliases(to item: IngestionItem, aliases: [UUID: UUID]) -> IngestionItem {

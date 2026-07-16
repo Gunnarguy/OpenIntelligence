@@ -508,7 +508,8 @@ struct ChatScreen: View {
                 onCancelItem: { ragService.cancelIngestionItem($0) },
                 onCancelAll: { ragService.cancelAllIngestion() },
                 onContinuePaused: { ragService.continuePausedIngestionQueue() },
-                onDiscardPaused: { ragService.discardPausedIngestionQueue() }
+                onDiscardPaused: { ragService.discardPausedIngestionQueue() },
+                onStopAndDismiss: { ragService.stopAndDismissIngestionQueue() }
             )
                 .padding(.horizontal, 16)
                 .padding(.bottom, 88)

@@ -142,6 +142,16 @@ sequenceDiagram
 ### Document Ingestion Flow
 ```mermaid
 flowchart TD
+  subgraph RECOVERY["Queue Recovery & Repair Control"]
+    Q1["Load coordinated queue JSON"] --> Q2["Merge deletion-wins tombstones"]
+    Q2 --> Q3{"Restorable work remains?"}
+    Q3 -- "Continue" --> A1
+    Q3 -- "Stop / Discard" --> Q4["Persist tombstone + suppress auto-repair"]
+    E1["Metadata exists; vector index empty"] --> E2["Sequential single-flight repair queue"]
+    E2 --> E3{"Library suppressed?"}
+    E3 -- "Yes" --> E4["Wait for explicit import or manual rebuild"]
+    E3 -- "No" --> A1
+  end
   subgraph INGEST["Import-Time Pipeline"]
     A1["Import Files"]
     SCAN["Predictive Pre-Scan (10 pages)"]
@@ -160,6 +170,8 @@ flowchart TD
     S5 -- "No" --> S6["Finalize Ingestion"]
   end
 ```
+
+Queue tombstones are part of the existing iCloud Drive-coordinated `ingestion_queue.json` record. A tombstone removes the matching item before duplicate reconciliation, including when the queue otherwise has no active items. Automatic empty-vector repairs are globally serialized in-process and check persistent per-library device-local suppression before each document-safe stage; explicit user imports and manual rebuilds clear that local suppression. `[evidence_level: build_verified, confidence: high_pending_runtime_validation, evidence_source: WorkspaceSyncService.swift, RAGService.swift, IngestionQueueOverlay.swift]`
 
 ### Chat Persistence Flow
 ```mermaid

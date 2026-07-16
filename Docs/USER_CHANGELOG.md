@@ -16,6 +16,7 @@ This document provides a chronological history of user-facing changes, highlight
 *   **Truthful Model Reporting:** The "Advanced" on-device model preference now reports the actually executed model route in telemetry and diagnostics. (Correction to earlier releases: the current OS SDK exposes no separate 20B on-device model API; the Advanced preference executes the standard on-device model.)
 *   **Apple-Approved PCC Capability Enabled:** The v4.6 source entitlement is enabled and the app verifies the signed process entitlement before constructing Apple’s native PCC model. Signed iOS 27 physical-device and TestFlight validation remains pending.
 *   **Hardened Knowledge-Index Migrations:** Database schema migrations are driven by a fixed, code-owned migration catalog, eliminating a class of malformed-schema risk.
+*   **Ingestion Stop Now Persists:** Closing or discarding an ingestion queue prevents those exact jobs from returning after iCloud reload. Automatic empty-index repair runs one library at a time and remains disabled for that library on the device where you dismissed it until you explicitly import or rebuild again.
 *   **Restored Test Coverage:** The unit-test target removed in an earlier release is restored, with regression suites pinning embedding, parsing, citation, and launch-argument behavior.
 *   **PR Backlog Consolidation:** All 43 open automated pull requests were audited end-to-end; the valuable changes were reimplemented cleanly in this release and the remainder documented and closed.
 
