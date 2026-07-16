@@ -815,7 +815,9 @@ private struct SiliconLegend: View {
 final class FloatingLegendWindowManager: NSObject {
     static let shared = FloatingLegendWindowManager()
     private var window: UIWindow?
-    private var visibilityCancellable: AnyCancellable?
+    private var cancellables = Set<AnyCancellable>()
+    private var isDragging = false
+    private var lastContentSize = CGSize(width: 220, height: 140)
     private let margin: CGFloat = 16
 
     func ensureVisible(settings: SettingsStore) {
@@ -839,37 +841,65 @@ final class FloatingLegendWindowManager: NSObject {
 
         // Window visibility follows the HUD toggle directly — observed here
         // (not from inside the window) so it works even while hidden.
-        visibilityCancellable = settings.$showSiliconHUD
+        settings.$showSiliconHUD
             .receive(on: RunLoop.main)
             .sink { [weak self] on in self?.window?.isHidden = !on }
+            .store(in: &cancellables)
+
+        // UIKit can stomp custom window frames to full-screen bounds during
+        // scene activation (the relaunch-reset bug): re-assert the saved
+        // position whenever the scene activates.
+        NotificationCenter.default.publisher(for: UIScene.didActivateNotification)
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in self?.reassertFrame() }
+            .store(in: &cancellables)
     }
 
-    private func initialFrame(in scene: UIWindowScene) -> CGRect {
+    private func reassertFrame() {
+        guard !isDragging, let w = window else { return }
+        w.frame = targetFrame(contentSize: lastContentSize, in: w.windowScene)
+    }
+
+    /// Frame derived from the PERSISTED center (never from the window's
+    /// current origin, which UIKit may have stomped to zero).
+    private func targetFrame(contentSize: CGSize, in scene: UIWindowScene?) -> CGRect {
         let d = UserDefaults.standard
         let cx = d.object(forKey: "hudLegendPosX") as? Double ?? -1
         let cy = d.object(forKey: "hudLegendPosY") as? Double ?? -1
         let center = CGPoint(x: cx >= 0 ? cx : 110, y: cy >= 0 ? cy : 145)
-        let size = CGSize(width: 220 + margin * 2, height: 140 + margin * 2)
-        let b = scene.screen.bounds
+        let size = CGSize(width: contentSize.width + margin * 2, height: contentSize.height + margin * 2)
+        let b = scene?.screen.bounds ?? UIScreen.main.bounds
         var origin = CGPoint(x: center.x - size.width / 2, y: center.y - size.height / 2)
         origin.x = min(max(origin.x, -size.width + 60), b.width - 60)
         origin.y = min(max(origin.y, 0), b.height - 60)
         return CGRect(origin: origin, size: size)
     }
 
+    private func initialFrame(in scene: UIWindowScene) -> CGRect {
+        targetFrame(contentSize: lastContentSize, in: scene)
+    }
+
     /// The SwiftUI side reports the legend's rendered size; the window snugs
     /// itself around it (+ grab margin) so it never covers more than the box.
     func legendSizeChanged(_ size: CGSize) {
         guard let w = window, size.width > 1, size.height > 1 else { return }
-        var f = w.frame
-        let newSize = CGSize(width: size.width + margin * 2, height: size.height + margin * 2)
-        guard abs(f.width - newSize.width) > 1 || abs(f.height - newSize.height) > 1 else { return }
-        f.size = newSize
-        w.frame = f
+        lastContentSize = size
+        if isDragging {
+            // Mid-drag: resize in place; never yank the box out from under
+            // the finger.
+            var f = w.frame
+            f.size = CGSize(width: size.width + margin * 2, height: size.height + margin * 2)
+            w.frame = f
+        } else {
+            // Recompute from the persisted center — self-heals any frame
+            // stomp instead of freezing it in (the relaunch-reset bug).
+            w.frame = targetFrame(contentSize: size, in: w.windowScene)
+        }
     }
 
     @objc private func handlePan(_ g: UIPanGestureRecognizer) {
         guard let w = window else { return }
+        if g.state == .began { isDragging = true }
         let t = g.translation(in: w)
         var f = w.frame
         f.origin.x += t.x
@@ -877,6 +907,7 @@ final class FloatingLegendWindowManager: NSObject {
         w.frame = f
         g.setTranslation(.zero, in: w)
         if g.state == .ended || g.state == .cancelled {
+            isDragging = false
             clampAndPersist()
         }
     }
