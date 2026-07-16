@@ -24,6 +24,8 @@ GPU-capable work is configured through four execution profiles rather than a fak
 
 The chat model picker now represents a persistent routing policy: Hybrid chooses per query, On-Device never selects PCC, and PCC requests native PCC with a declared on-device fallback when a cloud gate or quota prevents execution. The picker does not mutate to the last route. Each Apple-model answer renders its actual completed route from durable receipt metadata as an on-device, PCC, or on-device-fallback badge. `[evidence_level: build_verified+code_verified, confidence: high_pending_ui_and_device_validation, evidence_source: ChatScreen.swift, ModelStatusIndicator.swift, ModelExecutionPlanner.swift, LLMService.swift, MessageBubbleV2.swift and generic iOS 27 simulator build 2026-07-16]`
 
+The floating Silicon HUD resolves geometry from its owning iOS window scene rather than a deprecated process-global screen, so restored and dragged positions stay associated with the active display. `[evidence_level: build_verified+code_verified, confidence: exact_for_build, evidence_source: MotherboardHUDView.swift and generic iOS 27 simulator build 2026-07-16]`
+
 Interrupted ingestion is recoverable, but user dismissal is authoritative: queue discards sync deletion-wins markers, and automatic empty-index repair remains suppressed for that library on the current device until the user explicitly imports or requests a rebuild. `[evidence_level: code_verified, confidence: high_pending_runtime_validation, evidence_source: RAGService.swift, WorkspaceSyncService.swift, IngestionQueueOverlay.swift]`
 
 ---

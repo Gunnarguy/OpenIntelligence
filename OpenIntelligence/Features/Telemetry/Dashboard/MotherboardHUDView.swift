@@ -856,19 +856,19 @@ final class FloatingLegendWindowManager: NSObject {
     }
 
     private func reassertFrame() {
-        guard !isDragging, let w = window else { return }
-        w.frame = targetFrame(contentSize: lastContentSize, in: w.windowScene)
+        guard !isDragging, let w = window, let scene = w.windowScene else { return }
+        w.frame = targetFrame(contentSize: lastContentSize, in: scene)
     }
 
     /// Frame derived from the PERSISTED center (never from the window's
     /// current origin, which UIKit may have stomped to zero).
-    private func targetFrame(contentSize: CGSize, in scene: UIWindowScene?) -> CGRect {
+    private func targetFrame(contentSize: CGSize, in scene: UIWindowScene) -> CGRect {
         let d = UserDefaults.standard
         let cx = d.object(forKey: "hudLegendPosX") as? Double ?? -1
         let cy = d.object(forKey: "hudLegendPosY") as? Double ?? -1
         let center = CGPoint(x: cx >= 0 ? cx : 110, y: cy >= 0 ? cy : 145)
         let size = CGSize(width: contentSize.width + margin * 2, height: contentSize.height + margin * 2)
-        let b = scene?.screen.bounds ?? UIScreen.main.bounds
+        let b = scene.screen.bounds
         var origin = CGPoint(x: center.x - size.width / 2, y: center.y - size.height / 2)
         origin.x = min(max(origin.x, -size.width + 60), b.width - 60)
         origin.y = min(max(origin.y, 0), b.height - 60)
@@ -893,7 +893,8 @@ final class FloatingLegendWindowManager: NSObject {
         } else {
             // Recompute from the persisted center — self-heals any frame
             // stomp instead of freezing it in (the relaunch-reset bug).
-            w.frame = targetFrame(contentSize: size, in: w.windowScene)
+            guard let scene = w.windowScene else { return }
+            w.frame = targetFrame(contentSize: size, in: scene)
         }
     }
 

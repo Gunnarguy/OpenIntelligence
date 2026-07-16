@@ -71,6 +71,7 @@ The OpenIntelligence Architecture Atlas is the canonical representation of the r
 ## 8. Background/System Flows
 - `BGTaskScheduler` used for indexing sweeps.
 - `NSMetadataQuery` background updates for iCloud Drive.
+- The floating iOS Silicon HUD owns a dedicated `UIWindow` and derives all frame bounds from that window's non-optional `UIWindowScene.screen`; it does not use the deprecated process-global `UIScreen.main`. `[evidence_level: build_verified+code_verified, confidence: exact_for_build, evidence_source: MotherboardHUDView.swift and generic iOS 27 simulator build 2026-07-16]`
 
 ## 9. Sync Boundaries
 - **iCloud Drive (Ubiquity)**: Used for sync via `WorkspaceSyncService.swift`. `[evidence: code_verified, exact, WorkspaceSyncService.swift]`
