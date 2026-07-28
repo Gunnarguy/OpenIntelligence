@@ -70,3 +70,52 @@ let jsonReport = try RAGEvalReportWriter.generateJSON(metrics: metrics, results:
 ## Apple Evaluations Framework Integration
 
 The `AppleEvaluationsBridge` class provides compatibility with Apple's command-line tools and testing suites (`fm CLI`), allowing the evaluation runs to be analyzed natively on Apple platforms.
+
+---
+
+## Route Evidence Gates (Phase 9)
+
+The metrics above score **answer** quality. `RouteEvalMetrics` scores **route honesty**: whether the `ModelExecutionReceipt` chain a run produced is internally consistent and fail-closed.
+
+These gates exist because a route claim carries privacy consequences. A receipt that reports Private Cloud Compute for an answer that never left the device — or the reverse — is worse than no telemetry at all.
+
+### Invariants
+
+Every receipt is checked against six invariants. All are blocking: each one, if violated, makes route telemetry actively misleading rather than merely incomplete.
+
+| Invariant | Guarantee |
+| :--- | :--- |
+| `completedTargetAttested` | A receipt may only claim a route that has a `.succeeded` attempt on that same route |
+| `fallbackAttributed` | If `intendedTarget != completedTarget`, `fallbackReason` is set |
+| `fallbackReasonRequiresDivergence` | If `intendedTarget == completedTarget`, `fallbackReason` is `nil` |
+| `quotaFailClosed` | `.limitReached`, `.unsupported`, and `.unknown` quota states all block PCC attempts |
+| `attemptChainPresent` | A non-abstaining receipt records how the answer was produced |
+| `actualTargetAttempted` | The attempted route appears in the attempt chain |
+
+`.unknown` is fail-closed deliberately: unrecognized SDK quota values map to `.unknown`, and an unrecognized state is not permission.
+
+### Promotion Gates
+
+| Gate | Target |
+| :--- | :--- |
+| Receipt integrity rate | $= 1.00$ |
+| Unauthorized cloud attempts | $= 0$ |
+| Unattested completions | $= 0$ |
+| Unexplained fallbacks | $= 0$ |
+| Receipts scored | $\ge 1$ |
+
+An empty run **fails**. Absence of receipts is not evidence of correctness.
+
+### Execution
+
+```swift
+let metrics = RouteEvalMetrics.compute(from: receipts)
+guard metrics.meetsRouteGates else { /* inspect metrics.violations */ }
+print(metrics.markdownSummary)   // paste into the evidence bundle
+```
+
+Alongside the gates, the type reports completion latency by route, PCC→on-device fallback counts, and fallback-reason distribution.
+
+### Scope
+
+Scoring is computable from receipts alone, so identical scoring applies to simulator, physical-device, and TestFlight runs. **This makes device evidence checkable; it does not substitute for it.** Producing receipts that represent real Private Cloud Compute execution still requires a signed device — see the `Validate:` items in the Notion engineering roadmap and `Docs/AUDIT/PCC_DYNAMIC_ROUTING_TEST_MATRIX.csv`.

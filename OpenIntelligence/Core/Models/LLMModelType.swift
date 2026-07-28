@@ -140,10 +140,14 @@ extension LLMModelType {
 
     /// Context window size description for UI display.
     /// Per TN3193: On-device context is 4,096 tokens. PCC may expand this.
+    ///
+    /// The public Foundation Models SDK exposes no separately selectable
+    /// on-device model identities, so this description does not assert a
+    /// parameter count. See `Docs/LIMITATIONS.md`.
     var contextDescription: String {
         switch self {
         case .appleIntelligence:
-            return "4K (3B Core), 4K (20B Advanced), 32K (PCC Cloud Pro)"
+            return "4K on-device, expanded via Private Cloud Compute"
         case .onDeviceAnalysis:
             return "No generation context"
         }
@@ -204,20 +208,20 @@ extension LLMModelType {
             return ModelCapabilityCardInfo(
                 emoji: "🍎",
                 nickname: "AFM 3 Ecosystem",
-                tagline: "Dynamic routing between on-device 3B Core, 20B Core Advanced, and massive PCC models.",
+                tagline: "Evidence-first routing between Apple's on-device model and Private Cloud Compute.",
                 chips: [
-                    .init(icon: "cpu", label: "3B / 20B", detail: "On-Device", tone: .accent),
-                    .init(icon: "cloud.fill", label: "PCC", detail: "Cloud Pro", tone: .info),
+                    .init(icon: "cpu", label: "On-Device", detail: "Apple Intelligence", tone: .accent),
+                    .init(icon: "cloud.fill", label: "PCC", detail: "Private Cloud", tone: .info),
                     .init(icon: "wand.and.stars", label: "Actions", detail: "App tools", tone: .success),
                 ],
                 stats: [
                     .init(icon: "bolt.fill", label: "Latency", value: "< 0.8 s", detail: "Median TTFT", accent: .success),
                     .init(icon: "gauge", label: "Throughput", value: "≈65 tok/s", detail: "Neural Engine streaming", accent: .accent),
-                    .init(icon: "square.stack.3d.down.right.fill", label: "Context", value: "4K / 4K / 32K", detail: "3B / 20B / PCC", accent: .info),
+                    .init(icon: "square.stack.3d.down.right.fill", label: "Context", value: "4K+", detail: "On-device, more via PCC", accent: .info),
                     .init(icon: "lock.shield.fill", label: "Privacy", value: "Zero-retention", detail: "Encrypted PCC hops", accent: .success),
                     .init(icon: "hammer", label: "Tools", value: "App Intents", detail: "Auto tool routing", accent: .accent),
                 ],
-                footer: "Seamlessly scales from 3B parameters to massive PCC clusters based on prompt complexity."
+                footer: "Retrieval, verification, and normal work stay on this device. Longer evidence-backed synthesis can use Private Cloud Compute."
             )
         case .onDeviceAnalysis:
             return ModelCapabilityCardInfo(

@@ -1595,9 +1595,27 @@ class SemanticChunker {
             return true
         }
 
-        // Fallback: If no entities were extracted (common in simulator environments lacking NLP assets),
-        // use regex to extract capitalized word sequences and single capitalized words.
-        if entities.isEmpty {
+        // Deterministic supplement: ALWAYS runs. Do not make this conditional.
+        //
+        // Passes 1-3 depend on Natural Language's linguistic assets, whose results
+        // vary with process state. Observed on iOS 27: for "Tim Cook works at Apple
+        // in Cupertino.", NER tags "Apple" as `.otherWord` (not an organization),
+        // so "Apple" is only ever captured by the lexical-class pass as a
+        // capitalized noun — and that pass does not classify it consistently. The
+        // same chunk therefore yielded different entities between runs, which
+        // propagates into the entity index and 2-hop graph expansion.
+        //
+        // Two narrower gates were tried and both failed: `entities.isEmpty` (never
+        // fires on partial results) and "did each pass emit any tag" (a pass can
+        // emit tags while still missing the token). Neither is sound, because a
+        // present-but-differently-classified token is indistinguishable from an
+        // absent one at this layer.
+        //
+        // Running unconditionally is what makes extraction deterministic. The cost
+        // is bounded: the supplement only appends, dedupes against `seen`, and the
+        // final `prefix(15)` means it can only contribute when passes 1-3 returned
+        // fewer than 15 entities. On dense chunks it adds nothing.
+        do {
             // Match consecutive capitalized words first (e.g. "Tim Cook", "Model Architecture")
             let multiWordPattern = #"\b[A-Z][a-z]+(?:\s+[A-Z][a-z]+)+\b"#
             if let regex = try? NSRegularExpression(pattern: multiWordPattern, options: []) {

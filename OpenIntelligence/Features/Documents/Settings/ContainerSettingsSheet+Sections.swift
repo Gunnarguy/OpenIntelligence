@@ -1582,7 +1582,7 @@ extension ContainerSettingsSheet {
                             .font(.caption.weight(.bold))
                             .foregroundColor(.blue)
                     } else {
-                        Text("On-Device (AFM 3B/20B)")
+                        Text("On-Device (Apple Intelligence)")
                             .font(.caption.weight(.bold))
                             .foregroundColor(.green)
                     }

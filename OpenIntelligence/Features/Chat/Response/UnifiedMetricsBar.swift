@@ -4411,7 +4411,7 @@ struct UnifiedMetricsBar: View {
         case .unknown:
             return "Apple Intelligence"
         case .onDevice:
-            return "On-Device (3B model)"
+            return "On-Device"
         case .privateCloudCompute:
             return "Private Cloud Compute"
         case .mlxLocal:
@@ -4491,7 +4491,7 @@ struct UnifiedMetricsBar: View {
             }
             Text(execution == .privateCloudCompute
                 ? "Routed to Private Cloud Compute servers."
-                : "On-device 3B model. Complex queries may route to PCC.")
+                : "On-device model. Complex queries may route to PCC.")
                 .font(.system(size: 10))
                 .foregroundStyle(.secondary)
         }
