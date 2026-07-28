@@ -239,3 +239,6 @@ Benchmarks/temp_sportage_manifest.json
 .simulator-release.nosync/
 .macos-debug/
 .macos-debug.nosync/
+
+# Local attic for one-off artifacts moved out of the repo root (untracked, not iCloud-synced)
+.attic.nosync/

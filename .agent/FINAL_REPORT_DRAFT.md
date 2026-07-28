@@ -130,7 +130,7 @@ Uncommitted prior-agent work performed under superseded AUTH-03/AUTH-04 (DEC-24,
 3.  `SemanticChunker.swift`: 39-line NER-fallback behavior change with NO PR provenance — needs explicit owner accept/reject; currently unreviewed production drift.
 4.  Untracked `OpenIntelligenceTests/` (9 suites): overlaps #26/#46, #32/#50, #51, plus 5 unrequested suites — fold into Phase B commit 1 or discard.
 5.  `.gitignore` + `build_simulator_smoke.sh` (`.nosync` handling, DEC-07): benign tooling; recommend adopting in Phase B chore commit.
-6.  `macosconsole.txt`, `GEMINI_REMEDIATION_DIRECTIVE.md`, `INDEPENDENT_VERIFICATION_REPORT.md` (untracked, repo root): archive or delete after Phase B — owner call; do not commit to production history.
+6.  `macosconsole.txt` (now `.attic.nosync/`, in git history at b84a394), `Docs/Archive/GEMINI_REMEDIATION_DIRECTIVE.md`, `Docs/Archive/INDEPENDENT_VERIFICATION_REPORT.md` (untracked, repo root): archive or delete after Phase B — owner call; do not commit to production history.
 
 ## 9. Rollback Strategy
 *   Phase A itself: nothing to roll back (no tracked file modified; `.agent/` is untracked).
