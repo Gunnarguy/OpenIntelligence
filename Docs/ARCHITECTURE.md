@@ -98,9 +98,9 @@ graph TD
 * **Query Embedding**: Generates a 384-dimensional query vector.
 * **Model Routing Policy & Quality Modes**:
   The orchestrator escalates dynamically based on the user's selected Quality Mode:
-  - **Standard**: Executes the 23-step query loop sequentially for maximum speed. Uses the **3B Core** (`SystemLanguageModel.default`) with a 4,096-token context limit.
-  - **Deep Think**: Actively loops the retrieval agent through 4-10 concurrent reasoning sessions until it hits 98% confidence (scales dynamically based on device thermal state). Runs on the standard on-device model; the "Advanced" route label is a preference, not a distinct local model (v4.6 correction — no 20B on-device API exists in the installed SDK).
-  - **Maximum**: Removes the 8-session ceiling, granting the orchestrator an unlimited budget to recursively hunt down answers up to 50 loops. Escalates to **Private Cloud Compute (PT-MoE)** over encrypted channels to Apple's 32K context secure server enclaves.
+  - **Standard**: Executes the 23-step query loop sequentially for maximum speed. Uses the on-device model (`SystemLanguageModel.default`) with a 4,096-token context limit per TN3193.
+  - **Deep Think**: Actively loops the retrieval agent through 4-10 concurrent reasoning sessions until it hits 98% confidence (scales dynamically based on device thermal state). Runs on the on-device model; the "Advanced" route label is a preference, not a distinct selectable model (AFM 3 Core Advanced is OS-managed — the installed SDK exposes no selection or observation API; a CI canary alerts if that changes).
+  - **Maximum**: Removes the 8-session ceiling, granting the orchestrator an unlimited budget to recursively hunt down answers up to 50 loops. May escalate final synthesis to **Private Cloud Compute** — only after post-retrieval planning determines the evidence justifies it and entitlement, availability, quota, and consent gates pass; retrieval and verification remain local either way.
 
 ### Phase 2: Evidence Retrieval & Packing
 * **Hybrid Search**: Fuses vector similarity scores and FTS5 BM25 lexical scores using Reciprocal Rank Fusion (RRF).

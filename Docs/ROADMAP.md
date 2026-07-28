@@ -12,6 +12,18 @@
 - **Shield the git object store from iCloud (Resolved 2026-07-28; residual accepted):** `.git` is now a `gitdir: .git.nosync` pointer, taking the object store out of iCloud sync scope while keeping the repository path unchanged. Four conflict copies and five in-gitdir `.DS_Store` files were removed; `git fsck` is clean. The working tree remains synced by owner choice, so builds still require `-derivedDataPath` outside `~/Documents`, and `scripts/check_icloud_conflicts.sh` guards against conflict copies of source files (which the project's synchronized file groups would otherwise compile). `[evidence_level: build_verified+code_verified, confidence: exact]`
 - **Native PCC execution on device (Owner-confirmed 2026-07-28):** the owner reports Private Cloud Compute working on a physical device running v4.6. This clears the central open question — that PCC executes rather than silently falling back — and supersedes the prior blanket "unverified for device" status for the core execution path. `[evidence_level: user_confirmed, confidence: high_for_execution_path, evidence_source: owner device testing on v4.6, 2026-07-28]`
 - **Remaining PCC edge-scenario validation (Open):** owner confirmation covered PCC execution. It did not state coverage for quota exhaustion, mid-stream network transition, background/App Intent consent behavior, or Archive/TestFlight distribution signatures specifically. Those scenarios remain unconfirmed. See the `Validate:` items in the Notion engineering roadmap and the 35 scenarios in `Docs/AUDIT/PCC_DYNAMIC_ROUTING_TEST_MATRIX.csv`; `RouteEvalMetrics` now makes their receipts machine-checkable.
+- **Submit iOS 4.7 / macOS 3.0 (Open — the actual gate):** both versions sit in App Store Connect "Prepare for Submission." Read the rewritten `fastlane/metadata/en-US/release_notes.txt`, attach the newest Xcode Cloud build, `fastlane release_to_review`. Owner is weighing a benchmark-headline hold; hold should be days, not weeks — 4.7 corrects App Store-facing copy that is wrong in production.
+
+---
+
+## 0.5 Instrumentation & Benchmarking (planned; tracked in the Notion engineering roadmap)
+
+The owner-directed next arc: make the app's central claim — that Standard, Deep Think, and Maximum buy measurably different quality — observable. Four phases, each a Notion row targeted `v4.7 (iOS) / v3.0 (macOS)`:
+
+1. **Pipeline signposts:** `os_signpost` currently exists in exactly one file (`RAGEngine.swift`). Add `OSSignposter` intervals around every pipeline stage and each Deep Think / Maximum session. Zero behavior change; prerequisite for everything below.
+2. **Quality-mode matrix:** run all 20 `Benchmarks/rag_eval_v1.jsonl` cases under each quality mode, capturing `RAGEvalMetrics`, `RouteEvalMetrics`, and per-stage timing. Mac for iteration, iPhone for ground truth. Post-WWDC26 significance: the OS may transparently serve AFM 3 Core Advanced on capable silicon with no API to observe it — per-device measurement is the only visible instrument.
+3. **On-device Instruments tracing:** `xcrun xctrace` against the physical iPhone (verified visible 2026-07-28); requires a development-signed build and the signposts from (1).
+4. **Measured baselines replace unbacked figures:** the Settings capability card's `< 0.8 s` TTFT / `≈65 tok/s` and the container sheet's `PT-MoE 32K` get backed by measured numbers or deleted.
 
 ---
 

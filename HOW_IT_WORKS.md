@@ -26,7 +26,7 @@ When a user asks a question, OpenIntelligence searches the active library for th
 
 ## 4. Answer
 
-The app turns retrieved evidence into a readable response with citations. Standard RAG queries run locally on the 3B Core model, while escalated queries (Deep Think or Maximum mode) dynamically route to Private Cloud Compute (PCC) enclaves—running natively via `FoundationModels.PrivateCloudComputeLanguageModel` on iOS 27 / macOS 27+, and falling back to local simulation on older OS versions. conversational histories are stored durably inside isolated local JSON files (Evidence Threads) scoped to each container, rather than remaining ephemeral.
+The app turns retrieved evidence into a readable response with citations. Synthesis runs on Apple's on-device model by default. After retrieval, a deterministic execution planner decides whether the finalized evidence package justifies Private Cloud Compute — native `FoundationModels.PrivateCloudComputeLanguageModel` on iOS 27 / macOS 27+, and only when entitlement, availability, network, quota, and user consent all permit it. Older OS releases stay genuinely local (there is no PCC simulation), retrieval and verification stay on-device in every case, and each answer carries a receipt-backed badge showing the route that actually completed it. Conversational histories are stored durably inside isolated local JSON files (Evidence Threads) scoped to each container, rather than remaining ephemeral.
 
 
 ## 5. Review
