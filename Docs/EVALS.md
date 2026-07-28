@@ -44,6 +44,39 @@ Evaluation datasets are represented as JSON Lines files, with one JSON object pe
 
 ---
 
+## The Dataset
+
+`Benchmarks/rag_eval_v1.jsonl` — **20 cases** over committed synthetic fixtures. No private content, so it is reproducible by anyone with the repository.
+
+It is **generated**, not hand-written. Ground truth lives in `Benchmarks/ResearchFixtures/tiny_research_suite/manifest.json`, which the in-app validation harness already consumed in its own schema. `scripts/build_eval_dataset.py` converts that manifest into the `RAGEvalCase` JSONL this framework loads, so the two evaluation systems cannot drift apart:
+
+```bash
+python3 scripts/build_eval_dataset.py          # regenerate
+python3 scripts/build_eval_dataset.py --check  # fail if stale vs. the manifest
+```
+
+Never edit the JSONL by hand — edit the manifest and regenerate.
+
+### Coverage
+
+| Cases | Category | Exercises |
+| :--- | :--- | :--- |
+| 5 | `exact_value` | Precise figure lookup from tables and prose |
+| 5 | `factual` (retrieval-only) | Single-document grounded recall |
+| 3 | `factual` (lost-in-middle) | Answer position sensitivity — start, middle, end of context |
+| 5 | `multi_document` | Two-hop synthesis across paired documents |
+| 2 | `abstention` | Negative controls: the answer is genuinely absent and the app must abstain |
+
+The original manifest category is preserved in each case's `tags`, so `lost_in_middle` and `retrieval_only` subsets stay selectable even though both map onto `EvalCategory.factual`.
+
+The two abstention cases matter most. They are the only cases that catch confident fabrication, which is the failure mode this project's verification gates exist to prevent.
+
+### Limits
+
+This corpus is small and synthetic. It is a regression guard, not a benchmark — it will catch a pipeline change that breaks exact-value lookup or abstention, but it will not tell you how the system performs on real documents at scale. Treat a passing run as "nothing obvious broke," not as a quality score.
+
+---
+
 ## Execution & Report Generation
 
 To run evaluations programmatically:
