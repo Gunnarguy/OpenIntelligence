@@ -90,3 +90,7 @@ MACOS_VERSION=$(grep -m 1 'MARKETING_VERSION\[sdk=macosx\*\]' OpenIntelligence.x
 echo "Synchronized project version with CHANGELOG.md"
 echo "  iOS   MARKETING_VERSION = $LATEST_VERSION  ($IOS_COUNT targets)"
 echo "  macOS MARKETING_VERSION = $MACOS_VERSION  (override preserved, edited by hand)"
+
+# Informational canary: alert (without failing) the moment Apple's SDK exposes
+# developer-selectable AFM 3 Core Advanced. See scripts/probe_afm_advanced_canary.sh
+sh ../scripts/probe_afm_advanced_canary.sh || true
