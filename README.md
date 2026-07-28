@@ -1,6 +1,6 @@
 # OpenIntelligence
 
-> **Documentation status:** Source-verified for OpenIntelligence v4.6 on July 15, 2026; signed-device PCC validation remains pending.
+> **Documentation status:** Source-verified for OpenIntelligence v4.7 (iOS) / v3.0 (macOS) on July 28, 2026. Native PCC execution is owner-confirmed on a physical device; PCC edge scenarios and signed-distribution validation remain pending.
 > **Scope:** Describes shipped behavior for on-device Apple Intelligence RAG architecture.
 
 <p align="center">
@@ -134,7 +134,7 @@ Each response can carry a durable route receipt separating the intended, attempt
 
 To maintain codebase transparency, please note:
 * **Core AI Integration:** Fully integrated and registered via `CoreAISentenceEmbeddingProvider.swift`. Runs zero-copy Silicon-native sentence embeddings on iOS 27+ / macOS 27+ compatible devices, automatically falling back to the standard `CoreMLSentenceEmbeddingProvider` on older targets. Powered by a unified, high-performance Rust-backed `swift-tokenizers` (DePasqualeOrg) wrapper target for microsecond-latency batch tokenization and exact byte-level offset matching.
-* **Private Cloud Compute (PCC):** Apple approved the managed entitlement on 2026-07-15 and the source entitlement is enabled for v4.6. Source integration is complete, but a newly signed physical-device build, Archive/TestFlight artifact, live quota behavior, and actual PCC execution still require validation before production readiness is claimed. `[evidence_level: code_verified+user_confirmed, confidence: high_for_source_unverified_for_distribution, evidence_source: OpenIntelligence.entitlements and user confirmation 2026-07-15]`
+* **Private Cloud Compute (PCC):** Apple approved the managed entitlement on 2026-07-15 and the source entitlement is enabled. Native PCC execution is owner-confirmed on a physical iOS 27 device — PCC actually runs rather than silently falling back on-device. Still unverified: live quota-exhaustion behavior, mid-stream network-transition fallback, background/App Intent consent, and Archive/TestFlight distribution signatures. `[evidence_level: user_confirmed+code_verified, confidence: high_for_execution_path_unverified_for_edge_scenarios, evidence_source: OpenIntelligence.entitlements, owner device testing 2026-07-28]`
 * **iCloud Sync:** Sync utilizes iCloud Drive ubiquity containers (`NSFileCoordinator` and `NSMetadataQuery`). The app does not utilize CloudKit databases.
 * **Pro Tier Document Limit:** Document uploads are restricted to a hard quota of 1,000 documents under the Pro tier. Unlimited uploads are restricted to the Lifetime tier.
 * **Evidence Thread Synchronization:** Thread history JSON arrays are stored under `Application Support/EvidenceThreads/<containerId>/` and are synchronized bidirectionally across devices via `WorkspaceSyncService` in iCloud Drive, gated by tier-specific limits (5 Free / 20 Pro / Unlimited Lifetime).

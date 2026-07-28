@@ -1,4 +1,4 @@
-> **Documentation status:** Source-verified and simulator-compiled for OpenIntelligence v4.6 on July 15, 2026; signed-device PCC validation remains pending.
+> **Documentation status:** Source-verified and simulator-compiled for OpenIntelligence v4.7 (iOS) / v3.0 (macOS) on July 28, 2026. Native PCC execution is owner-confirmed on a physical device; PCC edge scenarios and signed-distribution validation remain pending.
 
 # What's New
 

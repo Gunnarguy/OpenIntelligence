@@ -1,12 +1,12 @@
-# Docs/ROADMAP.md — OpenIntelligence v4.6
+# Docs/ROADMAP.md — OpenIntelligence v4.7 (iOS) / v3.0 (macOS)
 
-> **Documentation status:** Source-verified for OpenIntelligence v4.6 on 2026-07-28. Native PCC execution is owner-confirmed on a physical device; PCC edge scenarios (quota exhaustion, network transition, background consent) and signed-distribution validation remain open.
+> **Documentation status:** Source-verified for OpenIntelligence v4.7 (iOS) / v3.0 (macOS) on 2026-07-28. App Store 4.6 (iOS) and 2.5 (macOS) are already released; this is the next submission. Native PCC execution is owner-confirmed on a physical device; PCC edge scenarios (quota exhaustion, network transition, background consent) and signed-distribution validation remain open.
 > **Source of truth:** Codebase audit in `Docs/AUDIT/`. Latest reconciliation: `Docs/AUDIT/ROADMAP_RECONCILIATION_2026-07-28.md`.
 > **Scope:** Describes future technical directions for the prototype. It is not a product commitment.
 
 ---
 
-## 0. Blocking Before v4.6 Submission
+## 0. Blocking Before v4.7 / v3.0 Submission
 
 - **Remove 3B/20B capability-card claims from the Settings UI (Resolved 2026-07-28):** the capability-card tagline, `3B / 20B` chip, context stat, and footer no longer assert a parameter count, and three further user-facing claims were corrected in `ModelInfoCard`, `UnifiedMetricsBar`, and the container settings sheet. Re-verified against the current SDK first: `SystemLanguageModel` has no member `advanced`, the public surface exposes only `availability`, `isAvailable`, and `UseCase{.general, .contentTagging}`, `.onDeviceAdvanced` executes `SystemLanguageModel.default` on every device, and the `physicalMemory >= 11.5GB` gate has no call sites. `[evidence_level: sdk_verified+code_verified+build_verified, confidence: exact]`
 - **Shield the git object store from iCloud (Resolved 2026-07-28; residual accepted):** `.git` is now a `gitdir: .git.nosync` pointer, taking the object store out of iCloud sync scope while keeping the repository path unchanged. Four conflict copies and five in-gitdir `.DS_Store` files were removed; `git fsck` is clean. The working tree remains synced by owner choice, so builds still require `-derivedDataPath` outside `~/Documents`, and `scripts/check_icloud_conflicts.sh` guards against conflict copies of source files (which the project's synchronized file groups would otherwise compile). `[evidence_level: build_verified+code_verified, confidence: exact]`

@@ -1,34 +1,17 @@
-Version 4.6 is a major Apple Intelligence routing, transparency, and reliability update for OpenIntelligence.
+Version 4.7 is a focused accuracy and consistency update following the 4.6 routing release.
 
-EVIDENCE-FIRST MODEL ROUTING
+HONEST MODEL LABELS
 
-- OpenIntelligence now searches your library before deciding where an answer should run. The decision uses the evidence actually found, the amount of context required, and whether the question needs synthesis across multiple documents.
-- Normal work remains on-device. On supported iOS, iPadOS, and macOS 27 systems, longer evidence-backed requests can use Apple's native Private Cloud Compute when entitlement, availability, network, quota, and consent requirements are satisfied.
-- Missing or weak evidence never triggers cloud escalation. The app can stay local or abstain when the library does not contain enough information.
+- OpenIntelligence no longer describes on-device execution in terms of a specific model size. Apple's public on-device framework does not expose separately selectable model identities, so the app now labels local work "On-Device" rather than naming a parameter count it cannot verify.
+- Model information in Settings, the per-answer details view, and library settings were all updated so every surface describes the same thing the app actually does.
 
-CLEARER CONSENT AND EXECUTION HISTORY
+MORE CONSISTENT DOCUMENT ANALYSIS
 
-- Private Cloud Compute consent now happens after the final evidence package is prepared. The confirmation view explains why PCC was selected and shows the number of source passages, context size, and estimated payload size.
-- Saved response details now distinguish the intended route, attempted route, route that actually ran, any fallback, and the route that completed the answer.
-- Automatic mode can fall back on-device before meaningful response text has streamed. Cloud and local partial answers are never stitched together, and Cloud Only requests report why they could not run instead of silently changing routes.
-- Model labels and diagnostics now reflect the Apple model route the public SDK actually executed instead of claiming a selectable model tier that the operating system does not expose.
+- Fixed an issue where the key terms extracted from a passage could differ between runs depending on the state of the system language tools. The same passage now produces the same terms every time, which makes related-topic search and cross-document connections more reliable.
 
-PRIVATE CLOUD COMPUTE SUPPORT
+UNDER THE HOOD
 
-- Enabled OpenIntelligence's approved native PCC capability for supported builds and added platform-specific entitlement checks for iPhone, iPad, and Mac.
-- Availability and quota are checked again immediately before a PCC session begins. Unknown or unavailable quota states fail safely and do not authorize cloud execution.
-- Retrieval, evidence selection, citation checking, and final verification remain on-device even when PCC performs the final synthesis step.
+- Added internal checks that verify each answer's recorded route against what actually ran, so a response cannot report a destination it did not use.
+- Expanded automated test coverage and build tooling.
 
-INGESTION THAT RESPECTS STOP
-
-- Closing or discarding an ingestion queue now records that decision during iCloud reconciliation, preventing those exact jobs from reappearing after a workspace reload or stale sync snapshot.
-- Automatic repair of an empty document index now runs one library at a time and stays disabled for a dismissed library on that device until you explicitly import or rebuild again.
-- Cancellation waits for a safe document boundary so stopping a repair does not leave half-removed catalog metadata behind.
-
-INDEXING AND EXTRACTION RELIABILITY
-
-- Knowledge-index migrations now use a fixed, code-owned migration catalog with stricter identifier validation, reducing the risk of malformed database upgrades.
-- Document chunk metadata has a deterministic fallback when system language tagging cannot return named entities, keeping retrieval useful in asset-constrained environments.
-- Expanded regression coverage now protects model routing, fallback behavior, embeddings, citation parsing, structured answers, ingestion recovery, and launch configuration.
-
-Version 4.6 keeps OpenIntelligence focused on the same goal: help you question complex source material, understand how each answer was produced, and return to the evidence when you need to verify it.
+Version 4.7 keeps OpenIntelligence focused on the same goal: help you question complex source material, understand how each answer was produced, and return to the evidence when you need to verify it.

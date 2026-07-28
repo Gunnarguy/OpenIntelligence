@@ -1,4 +1,14 @@
 ## [Unreleased]
+
+<!-- Next version's entries go here. `ci_scripts/ci_post_clone.sh` derives the
+     iOS MARKETING_VERSION from the first "## <number>" heading below, so this
+     bracketed heading is deliberately skipped by that grep. -->
+
+## 4.7 - 2026-07-28
+
+> iOS 4.7 / macOS 3.0. App Store 4.6 (iOS) and 2.5 (macOS) are already released,
+> so the work below — completed after the 4.6 cut — ships as the next version.
+
 ### Added
 - **[Orchestration]** Native Private Cloud Compute execution is confirmed working on a physical iOS 27 device running v4.6, reported by the owner from direct device testing. This clears the central open question for the v4.6 PCC work — that PCC actually executes rather than silently falling back on-device — and supersedes the prior blanket "code-verified, unverified for device" status for the execution path. Not covered by that confirmation and still unverified: quota exhaustion, mid-stream network-transition fallback, background/App Intent consent behavior, and Archive/TestFlight distribution signatures. `[evidence_level: user_confirmed, confidence: high_for_execution_path_unverified_for_edge_scenarios, evidence_source: owner device testing on v4.6, 2026-07-28]`
 - **[Orchestration]** Added Phase 9 route-evidence gates in `RouteEvalMetrics`. `RAGEvalMetrics` scores answer quality; the new type scores route honesty by checking six invariants over `ModelExecutionReceipt` chains — a completed route must have a succeeded attempt on that route, intent/outcome divergence must carry a fallback reason (and only then), non-authorizing quota states (`limitReached`, `unsupported`, `unknown`) must block PCC attempts, non-abstaining receipts must record an attempt chain, and the attempted route must appear in it. Also reports per-route completion latency, PCC→local fallback counts, and a markdown evidence summary. An empty run fails the gates: absence of receipts is not evidence of correctness. The gates are computable from receipts alone, so identical scoring applies to simulator, physical-device, and TestFlight runs — this makes device evidence checkable, it does not substitute for it. `[evidence_level: code_verified+test_verified, confidence: high, evidence_source: RouteEvalMetrics.swift, RouteEvalMetricsTests.swift]`

@@ -779,8 +779,8 @@
 				LD_RUNPATH_SEARCH_PATHS = "@executable_path/Frameworks";
 				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = "@executable_path/../Frameworks";
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = 4.6;
-				"MARKETING_VERSION[sdk=macosx*]" = 2.5;
+				MARKETING_VERSION = 4.7;
+				"MARKETING_VERSION[sdk=macosx*]" = 3.0;
 				PRODUCT_BUNDLE_IDENTIFIER = Gunndamental.OpenIntelligence;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
@@ -845,8 +845,8 @@
 				LD_RUNPATH_SEARCH_PATHS = "@executable_path/Frameworks";
 				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = "@executable_path/../Frameworks";
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = 4.6;
-				"MARKETING_VERSION[sdk=macosx*]" = 2.5;
+				MARKETING_VERSION = 4.7;
+				"MARKETING_VERSION[sdk=macosx*]" = 3.0;
 				PRODUCT_BUNDLE_IDENTIFIER = Gunndamental.OpenIntelligence;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
@@ -888,8 +888,8 @@
 					"@executable_path/Frameworks",
 					"@loader_path/Frameworks",
 				);
-				MARKETING_VERSION = 4.6;
-				"MARKETING_VERSION[sdk=macosx*]" = 2.5;
+				MARKETING_VERSION = 4.7;
+				"MARKETING_VERSION[sdk=macosx*]" = 3.0;
 				MODULE_VERIFIER_SUPPORTED_LANGUAGE_STANDARDS = "gnu17 gnu++20";
 				PRODUCT_BUNDLE_IDENTIFIER = Gunndamental.OpenIntelligenceEngine;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -929,8 +929,8 @@
 					"@executable_path/Frameworks",
 					"@loader_path/Frameworks",
 				);
-				MARKETING_VERSION = 4.6;
-				"MARKETING_VERSION[sdk=macosx*]" = 2.5;
+				MARKETING_VERSION = 4.7;
+				"MARKETING_VERSION[sdk=macosx*]" = 3.0;
 				MODULE_VERIFIER_SUPPORTED_LANGUAGE_STANDARDS = "gnu17 gnu++20";
 				PRODUCT_BUNDLE_IDENTIFIER = Gunndamental.OpenIntelligenceEngine;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -964,8 +964,8 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 4.6;
-				"MARKETING_VERSION[sdk=macosx*]" = 2.5;
+				MARKETING_VERSION = 4.7;
+				"MARKETING_VERSION[sdk=macosx*]" = 3.0;
 				PRODUCT_BUNDLE_IDENTIFIER = Gunndamental.OpenIntelligence.LiveActivities;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
@@ -996,8 +996,8 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 4.6;
-				"MARKETING_VERSION[sdk=macosx*]" = 2.5;
+				MARKETING_VERSION = 4.7;
+				"MARKETING_VERSION[sdk=macosx*]" = 3.0;
 				PRODUCT_BUNDLE_IDENTIFIER = Gunndamental.OpenIntelligence.LiveActivities;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
