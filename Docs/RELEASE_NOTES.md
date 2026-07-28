@@ -1,4 +1,4 @@
-> **Documentation status:** Source-verified and simulator-compiled for OpenIntelligence v4.6 on July 28, 2026. The full repository suite is **142/142 green** on iOS 27.0 (iPhone 17 Pro simulator), including the new route-evidence gates. The previously reported 109/110 was an order-dependent SemanticChunker assertion, now root-caused and fixed. Signed physical-device and distribution validation remains pending.
+> **Documentation status:** Source-verified and simulator-compiled for OpenIntelligence v4.6 on July 28, 2026. The full repository suite is **142/142 green** on iOS 27.0 (iPhone 17 Pro simulator), including the new route-evidence gates. The previously reported 109/110 was an order-dependent SemanticChunker assertion, now root-caused and fixed. Native PCC execution is owner-confirmed on a physical iOS 27 device; PCC edge scenarios (quota exhaustion, network transition, background consent) and Archive/TestFlight distribution validation remain pending.
 
 
 # OpenIntelligence Release Notes
