@@ -10,6 +10,15 @@ BUILD_LOG="$ARTIFACT_DIR/xcodebuild.log"
 
 mkdir -p "$ARTIFACT_DIR"
 
+# Fail fast on iCloud conflict copies. The Xcode project uses synchronized file
+# groups, so a stray "Foo 2.swift" left behind by iCloud gets compiled and shows
+# up as a duplicate-symbol error with no obvious connection to sync.
+# See scripts/check_icloud_conflicts.sh and RISK-20 in .agent/RISK_REGISTER.md.
+if ! "$ROOT_DIR/scripts/check_icloud_conflicts.sh" --quiet; then
+    echo "Aborting: repair the above first (scripts/check_icloud_conflicts.sh --fix)" >&2
+    exit 1
+fi
+
 echo "Building simulator smoke target"
 echo "Scheme: $SCHEME"
 echo "Destination: $DESTINATION"

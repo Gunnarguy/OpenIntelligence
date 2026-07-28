@@ -107,3 +107,25 @@
 *   **Description:** The repository lives in iCloud-synced `~/Documents` with Optimize Mac Storage; macOS evicted a 15MB git pack file to a dataless stub mid-session, causing indefinite hangs in `git rev-parse`/`git show` on PR objects.
 *   **Impact:** Medium (blocks audit/implementation work unpredictably; a future eviction during a commit could corrupt perception of repo state).
 *   **Mitigation applied:** force-materialized the pack by reading it. **Owner recommendation:** exclude the repo (or at least `.git/`) from iCloud optimization, or relocate the repo outside `~/Documents`. `[evidence_level: code_verified, confidence: exact]`
+
+### RISK-20 STATUS UPDATE (2026-07-28): MATERIALIZED — now causing hard failures, not just hangs.
+
+Two distinct failures reproduced this session:
+
+1.  **Build failure.** iCloud writes `com.apple.FinderInfo` and `com.apple.fileprovider.fpfs#P` extended attributes onto built products. `codesign` aborts on `swift-tokenizers_TokenizersFFI.bundle` and `swift-transformers_TransformersTokenizers.bundle` with *"resource fork, Finder information, or similar detritus not allowed"*, and the test build fails. `fpfs#P` is an iCloud File Provider attribute — iCloud is writing inside the DerivedData tree. **Workaround used:** `-derivedDataPath` outside `~/Documents`, which produced a green run.
+2.  **Git object-store corruption.** `.git/refs/heads/main 2` and `.git/index 2` exist — iCloud conflict copies of a branch ref and the git index. `git branch` reports `warning: ignoring ref with broken name refs/heads/main 2`. This is the corruption class the original entry predicted, now present on disk.
+
+Impact revised: **High** (was Medium). `.git` is 501 MB. `[evidence_level: build_verified+code_verified, confidence: exact, evidence_source: xcodebuild codesign failure 2026-07-28, xattr -l on built bundles, ls .git/refs/heads/]`
+
+**Resolution applied 2026-07-28 — object store shielded, working tree still synced.**
+
+Cleanup: removed four conflict copies (`.git/index 2`, `index 3`, `index 4`, `refs/heads/main 2` — the ref was verified an ancestor of `main`, so no unique work was lost; all four backed up before deletion) and five stray `.DS_Store` files inside `.git`, one of which sat in `.git/refs/` and made `git fsck` report `refs/.DS_Store: badRefName`. `git fsck` is now clean.
+
+Structural fix: the git directory was moved to `.git.nosync/` with a `gitdir: .git.nosync` pointer file at `.git`. macOS iCloud does not sync `.nosync`-suffixed directories, so the object store is no longer reachable by the sync daemon and cannot be conflict-copied. A relative gitdir path is used so the pointer survives a future repository move. `.git.nosync/` is excluded via `.git.nosync/info/exclude` (local-only; the tracked `.gitignore` is untouched). Verified: branch, HEAD, all 14 refs, the stash, and a byte-identical `git status` before and after.
+
+**Residual risk — the working tree is still synced.** Two consequences remain:
+
+- Build inputs sourced from the tree still carry iCloud extended attributes. This is what actually broke `codesign`: `swift-transformers` is a local package at `OpenIntelligence/swift-transformers`, inside the synced tree, so its copied bundle inherited `com.apple.FinderInfo`. Continue passing `-derivedDataPath` outside `~/Documents`.
+- A conflict copy of a *source* file is still possible, and the project's synchronized file groups would compile it — a stray `Foo 2.swift` surfaces as a duplicate-symbol error that does not look like a sync problem. `scripts/check_icloud_conflicts.sh` detects these (`--fix` removes them).
+
+Fully eliminating both requires relocating the repository outside `~/Documents`; the owner chose to keep the path. `[evidence_level: build_verified+code_verified, confidence: exact, evidence_source: git fsck, git show-ref, status diff before/after, scripts/check_icloud_conflicts.sh]`

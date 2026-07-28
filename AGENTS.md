@@ -2,6 +2,34 @@
 
 This is the top-level universal instruction file for any autonomous agent operating in the OpenIntelligence repository.
 
+---
+
+## 🚨 READ THIS FIRST: builds fail here for a non-obvious reason
+
+This repository lives in **iCloud-synced `~/Documents`**. That causes two failure modes that look like code bugs but are not:
+
+**1. If a build fails in a way that makes no sense** — duplicate symbols, "invalid redeclaration", a type declared twice, a codesign *"resource fork, Finder information, or similar detritus not allowed"* error, or git reporting a broken ref name — **run this before debugging anything else:**
+
+```bash
+scripts/check_icloud_conflicts.sh --fix
+```
+
+iCloud silently writes duplicate files named `Foo 2.swift` beside the original. The Xcode project uses **synchronized file groups**, so that duplicate becomes a real compiled source file. The resulting error points at your code and is completely unrelated to it.
+
+**2. Always build with DerivedData outside `~/Documents`.** Build inputs from the working tree carry iCloud extended attributes and break `codesign`:
+
+```bash
+xcodebuild ... -derivedDataPath /tmp/oi-build
+```
+
+`scripts/build_simulator_smoke.sh` already handles both and runs the check automatically.
+
+**Do not "fix" `.git` being a file rather than a directory.** It is a `gitdir: .git.nosync` pointer that deliberately keeps the git object store out of iCloud sync, after iCloud corrupted it (four conflict copies of `.git/index` plus a duplicate branch ref). Git works normally. Reverting it re-exposes the repository to corruption.
+
+Background: `.agent/RISK_REGISTER.md` (RISK-20) and `Docs/AUDIT/ROADMAP_RECONCILIATION_2026-07-28.md` (F-02).
+
+---
+
 **CRITICAL DIRECTIVES FOR ALL AGENTS:**
 
 1. Read `GEMINI.md` if running in Gemini/Antigravity.
