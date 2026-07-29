@@ -1,17 +1,7 @@
-This release is a focused accuracy and consistency update following the major evidence-routing release before it.
+This update makes OpenIntelligence more precise about what it tells you.
 
-HONEST MODEL LABELS
+- Labels now say exactly where each answer ran: on your device, or Apple Private Cloud Compute with your permission. Nothing claims more than the system can verify.
+- The key ideas pulled from your documents now come out the same every time, for steadier search and more reliable connections across files.
+- New internal checks make sure every answer's recorded route matches what actually ran.
 
-- OpenIntelligence no longer describes on-device execution in terms of a specific model size. Apple's public on-device framework does not expose separately selectable model identities, so the app now labels local work "On-Device" rather than naming a parameter count it cannot verify.
-- Model information in Settings, the per-answer details view, and library settings were all updated so every surface describes the same thing the app actually does.
-
-MORE CONSISTENT DOCUMENT ANALYSIS
-
-- Fixed an issue where the key terms extracted from a passage could differ between runs depending on the state of the system language tools. The same passage now produces the same terms every time, which makes related-topic search and cross-document connections more reliable.
-
-UNDER THE HOOD
-
-- Added internal checks that verify each answer's recorded route against what actually ran, so a response cannot report a destination it did not use.
-- Expanded automated test coverage and build tooling.
-
-This release keeps OpenIntelligence focused on the same goal: help you question complex source material, understand how each answer was produced, and return to the evidence when you need to verify it.
+Same goal as always: ask hard questions of your own files, see exactly where every answer came from, and trust what you can verify — not what you're told.
