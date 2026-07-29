@@ -4,4 +4,4 @@ This update makes OpenIntelligence more precise about what it tells you.
 - The key ideas pulled from your documents now come out the same every time, for steadier search and more reliable connections across files.
 - New internal checks make sure every answer's recorded route matches what actually ran.
 
-Same goal as always: ask hard questions of your own files, see exactly where every answer came from, and trust what you can verify — not what you're told.
+Same goal as always: ask hard questions of your own files, see exactly where every answer came from, and trust what you can verify, not what you're told.
