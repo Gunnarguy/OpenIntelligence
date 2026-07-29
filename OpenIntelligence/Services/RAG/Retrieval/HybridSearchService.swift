@@ -25,6 +25,7 @@
 //
 
 import Foundation
+import os
 import NaturalLanguage
 import Accelerate
 
@@ -862,6 +863,8 @@ class HybridSearchService {
         cachedChunks: [DocumentChunk]? = nil,
         isOverviewQuery: Bool = false
     ) async throws -> [RetrievedChunk] {
+        let __spHybridSearch = PipelineSignposts.query.beginInterval("HybridSearch")
+        defer { PipelineSignposts.query.endInterval("HybridSearch", __spHybridSearch) }
         Log.debug("[Hybrid] True parallel hybrid search starting (vector + FTS5)", category: .pipeline)
 
         let startTime = CFAbsoluteTimeGetCurrent()

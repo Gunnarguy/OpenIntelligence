@@ -20,7 +20,7 @@
 
 The owner-directed next arc: make the app's central claim — that Standard, Deep Think, and Maximum buy measurably different quality — observable. Four phases, each a Notion row targeted `v4.7 (iOS) / v3.0 (macOS)`:
 
-1. **Pipeline signposts:** `os_signpost` currently exists in exactly one file (`RAGEngine.swift`). Add `OSSignposter` intervals around every pipeline stage and each Deep Think / Maximum session. Zero behavior change; prerequisite for everything below.
+1. **Pipeline signposts (DONE 2026-07-29):** `PipelineSignposts` now instruments twelve stage seams across ingestion, retrieval, planning, generation, verification, and every agentic synthesis strategy. Ships in release builds; ready for `xcrun xctrace`. `[evidence_level: build_verified+test_verified, confidence: exact_for_simulator]`
 2. **Quality-mode matrix:** run all 20 `Benchmarks/rag_eval_v1.jsonl` cases under each quality mode, capturing `RAGEvalMetrics`, `RouteEvalMetrics`, and per-stage timing. Mac for iteration, iPhone for ground truth. Post-WWDC26 significance: the OS may transparently serve AFM 3 Core Advanced on capable silicon with no API to observe it — per-device measurement is the only visible instrument.
 3. **On-device Instruments tracing:** `xcrun xctrace` against the physical iPhone (verified visible 2026-07-28); requires a development-signed build and the signposts from (1).
 4. **Measured baselines replace unbacked figures:** the Settings capability card's `< 0.8 s` TTFT / `≈65 tok/s` and the container sheet's `PT-MoE 32K` get backed by measured numbers or deleted.

@@ -1,4 +1,4 @@
-Version 4.7 is a focused accuracy and consistency update following the 4.6 routing release.
+This release is a focused accuracy and consistency update following the major evidence-routing release before it.
 
 HONEST MODEL LABELS
 
@@ -14,4 +14,4 @@ UNDER THE HOOD
 - Added internal checks that verify each answer's recorded route against what actually ran, so a response cannot report a destination it did not use.
 - Expanded automated test coverage and build tooling.
 
-Version 4.7 keeps OpenIntelligence focused on the same goal: help you question complex source material, understand how each answer was produced, and return to the evidence when you need to verify it.
+This release keeps OpenIntelligence focused on the same goal: help you question complex source material, understand how each answer was produced, and return to the evidence when you need to verify it.

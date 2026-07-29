@@ -7,6 +7,11 @@ This document provides a comprehensive, version-by-version breakdown of major ar
 
 ---
 
+## v4.8 (iOS) - in progress
+
+*   **Pipeline Signposts (Phase A of the benchmark plan):** `PipelineSignposts` puts `OSSignposter` interval boundaries at twelve load-bearing seams — document processing, hybrid search, context assembly, execution planning, generation, verification gates, and every agentic synthesis strategy — under subsystem `Gunndamental.OpenIntelligence.Pipeline`. Near-zero cost unattached; ships in release so `xcrun xctrace` can attribute per-stage wall-clock on physical hardware. `[evidence_level: build_verified+test_verified, confidence: exact_for_simulator, evidence_source: PipelineSignposts.swift]`
+*   **Receipt Fidelity (F-06/F-07 resolved):** partial streams record a `.partial` attempt that attests the completed route while staying distinguishable from clean completion; `RouteEvalMetrics` counts partial completions. F-07 closed without code change — construction-time fallbacks never attempted the intended route, so their one-element chains were already truthful. `[evidence_level: code_verified+test_verified, confidence: high, evidence_source: ModelExecutionReceipt.swift, RouteEvalMetricsTests.swift]`
+
 ## v4.7 (iOS) / v3.0 (macOS) - July 2026
 
 App Store 4.6 (iOS) and 2.5 (macOS) shipped from the 4.6 cut below. The items in this section were completed afterwards and ship as the next version.

@@ -4,6 +4,13 @@ enum ModelExecutionAttemptResult: String, Codable, Sendable, Equatable {
     case succeeded
     case failed
     case skipped
+    /// The attempt streamed meaningful output, then failed before finishing.
+    /// The delivered answer genuinely came from this attempt's target, so a
+    /// `.partial` attempt attests a `completedTarget` the way `.succeeded`
+    /// does — while remaining distinguishable from a clean completion.
+    /// Introduced for the partial-stream path (F-06); `.failed` alone would
+    /// let a receipt claim a completed route whose only attempt failed.
+    case partial
 }
 
 struct ModelExecutionAttempt: Identifiable, Codable, Sendable, Equatable {

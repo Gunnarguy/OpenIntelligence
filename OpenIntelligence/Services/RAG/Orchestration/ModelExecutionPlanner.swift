@@ -1,4 +1,5 @@
 import Foundation
+import os
 
 protocol ModelExecutionPlanning: Sendable {
     func makePlan(
@@ -27,6 +28,8 @@ struct ModelExecutionPlanner: ModelExecutionPlanning {
         pccBudget: ContextBudgetSnapshot?,
         capability: FoundationModelCapabilitySnapshot
     ) -> ModelExecutionPlan {
+        let __spMakePlan = PipelineSignposts.synthesis.beginInterval("MakePlan")
+        defer { PipelineSignposts.synthesis.endInterval("MakePlan", __spMakePlan) }
         let target: ModelExecutionTarget
         let reason: ModelRouteReason
         let privacy: ModelPrivacyBoundary

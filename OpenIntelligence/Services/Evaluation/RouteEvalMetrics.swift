@@ -119,15 +119,19 @@ extension ModelExecutionReceipt {
         }
 
         let attemptedTargets = attempts.map(\.target)
-        let succeededTargets = attempts.filter { $0.result == .succeeded }.map(\.target)
+        // `.partial` attests alongside `.succeeded`: a partial stream's delivered
+        // text genuinely came from that target. `.failed`/`.skipped` never attest.
+        let attestingTargets = attempts
+            .filter { $0.result == .succeeded || $0.result == .partial }
+            .map(\.target)
 
-        // RI-1: the completed route must have actually succeeded.
+        // RI-1: the completed route must have actually produced the answer.
         if completedTarget == .onDevice || completedTarget == .privateCloudCompute {
-            if !succeededTargets.contains(completedTarget) {
+            if !attestingTargets.contains(completedTarget) {
                 record(
                     .completedTargetAttested,
-                    "completedTarget=\(completedTarget.rawValue) has no succeeded attempt "
-                        + "(attempts: \(attemptDescription))"
+                    "completedTarget=\(completedTarget.rawValue) has no succeeded or partial "
+                        + "attempt (attempts: \(attemptDescription))"
                 )
             }
         }
@@ -197,8 +201,14 @@ extension ModelExecutionReceipt {
     /// Wall-clock duration of the attempt that completed this receipt, if recorded.
     var completedAttemptDuration: TimeInterval? {
         attempts
-            .last { $0.target == completedTarget && $0.result == .succeeded }
+            .last { $0.target == completedTarget && ($0.result == .succeeded || $0.result == .partial) }
             .map { $0.finishedAt.timeIntervalSince($0.startedAt) }
+    }
+
+    /// Whether this receipt's answer was delivered by a partial stream — the
+    /// attempt emitted meaningful output and then failed before finishing.
+    var completedViaPartialStream: Bool {
+        attempts.contains { $0.target == completedTarget && $0.result == .partial }
     }
 }
 
@@ -239,6 +249,11 @@ struct RouteEvalMetrics: Codable, Sendable {
 
     /// Receipts that intended PCC but completed on-device.
     let pccToLocalFallbacks: Int
+
+    /// Receipts whose answer was delivered by a partial stream (`.partial` attempt).
+    /// Coherent, not a violation — but worth watching: a rising count means
+    /// streams are dying mid-answer often enough to matter.
+    let partialCompletions: Int
 
     /// Fallback reason counts keyed by raw value.
     let fallbackReasons: [String: Int]
@@ -325,8 +340,10 @@ extension RouteEvalMetrics {
         var durations: [String: [TimeInterval]] = [:]
         var coherent = 0
         var pccToLocal = 0
+        var partials = 0
 
         for receipt in receipts {
+            if receipt.completedViaPartialStream { partials += 1 }
             let violations = receipt.routeViolations()
             if violations.isEmpty { coherent += 1 }
             allViolations.append(contentsOf: violations)
@@ -361,6 +378,7 @@ extension RouteEvalMetrics {
             violationsByInvariant: byInvariant,
             completionsByTarget: completions,
             pccToLocalFallbacks: pccToLocal,
+            partialCompletions: partials,
             fallbackReasons: reasons,
             meanCompletionSecondsByTarget: meanByTarget
         )
@@ -374,6 +392,7 @@ extension RouteEvalMetrics {
         violationsByInvariant: [:],
         completionsByTarget: [:],
         pccToLocalFallbacks: 0,
+        partialCompletions: 0,
         fallbackReasons: [:],
         meanCompletionSecondsByTarget: [:]
     )
@@ -408,6 +427,10 @@ extension RouteEvalMetrics {
 
         if pccToLocalFallbacks > 0 {
             lines.append("PCC → on-device fallbacks: \(pccToLocalFallbacks)")
+        }
+
+        if partialCompletions > 0 {
+            lines.append("Partial-stream completions: \(partialCompletions)")
         }
 
         if !fallbackReasons.isEmpty {

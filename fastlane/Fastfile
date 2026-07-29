@@ -143,4 +143,37 @@ platform :ios do
 
     release_to_review(version: version, build: build_number, skip_build: options[:skip_build], reject_if_possible: options[:reject_if_possible])
   end
+
+  desc "Push metadata and submit for review using the newest build App Store Connect has already processed (no local archive). Xcode Cloud is the builder; this lane just picks its latest output. platform: ios (default) or osx."
+  lane :submit_latest do |options|
+    version = options[:version] || UI.user_error!("pass version:x.y")
+    platform_name = options[:platform] || "ios"
+    key = asc_api_key
+
+    build = latest_testflight_build_number(
+      api_key: key,
+      app_identifier: "Gunndamental.OpenIntelligence",
+      version: version,
+      platform: platform_name
+    )
+    UI.user_error!("No processed #{platform_name} build found for #{version}") if build.to_i <= 0
+    UI.important("Submitting #{platform_name} #{version} with existing processed build #{build}")
+
+    deliver(
+      api_key: key,
+      app_identifier: "Gunndamental.OpenIntelligence",
+      platform: platform_name,
+      app_version: version,
+      build_number: build.to_s,
+      force: true,
+      skip_binary_upload: true,
+      skip_screenshots: true,
+      metadata_path: fastlane_path("metadata"),
+      submit_for_review: true,
+      automatic_release: false,
+      reject_if_possible: options.key?(:reject_if_possible) ? options[:reject_if_possible] : true,
+      precheck_include_in_app_purchases: false,
+      submission_information: release_submission_information
+    )
+  end
 end

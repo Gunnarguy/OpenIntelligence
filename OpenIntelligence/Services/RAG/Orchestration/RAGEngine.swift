@@ -8,6 +8,7 @@
 //
 
 import Foundation
+import os
 import NaturalLanguage
 import Accelerate
 import CoreML
@@ -417,6 +418,8 @@ actor RAGEngine {
         compact: Bool = false,
         useLostInMiddleMitigation: Bool = true
     ) async -> (context: String, used: Int) {
+        let __spAssembleContext = PipelineSignposts.query.beginInterval("AssembleContext")
+        defer { PipelineSignposts.query.endInterval("AssembleContext", __spAssembleContext) }
         // Report CPU activity for context assembly
         Task { @MainActor in
             HardwareTelemetryReporter.pulse(.ragOrchestration, intensity: 0.5, duration: 0.2)

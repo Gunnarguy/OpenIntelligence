@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import os
 import CryptoKit
 import NaturalLanguage
 import PDFKit
@@ -514,6 +515,8 @@ class DocumentProcessor {
     /// - SQLiteFullTextService (FTS5) when containerId is provided (10-100X faster search)
     /// - FullTextStorageService (file-based) as fallback when containerId is nil
     func processDocument(at url: URL, chunkOverride: ChunkingOverride? = nil, containerId: UUID? = nil, pageRange: ClosedRange<Int>? = nil, documentId: UUID? = nil) async throws -> (Document, [ProcessedChunk]) {
+        let __spProcessDocument = PipelineSignposts.ingestion.beginInterval("ProcessDocument")
+        defer { PipelineSignposts.ingestion.endInterval("ProcessDocument", __spProcessDocument) }
         try Task.checkCancellation()
         // Reset ALL per-document state to prevent vocabulary/entity leaks between documents
         lastDetectedEntities = []

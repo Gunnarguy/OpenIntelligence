@@ -105,12 +105,44 @@ final class RouteEvalMetricsTests: XCTestCase {
 
     // MARK: - RI-1 Completed Target Attested
 
-    func testCompletedTargetWithoutSucceededAttemptViolates() {
+    func testCompletedTargetWithOnlyFailedAttemptViolates() {
         let receipt = receipt(
             intended: .privateCloudCompute,
-            attempts: [attempt(.privateCloudCompute, .failed, failureCode: "partial_stream")],
+            attempts: [attempt(.privateCloudCompute, .failed, failureCode: "pcc_generation")],
             actual: .privateCloudCompute,
             completed: .privateCloudCompute
+        )
+        let invariants = receipt.routeViolations().map(\.invariant)
+        XCTAssertTrue(invariants.contains(.completedTargetAttested), ".failed must never attest a completion")
+    }
+
+    /// The F-06 partial-stream shape: meaningful output streamed, then the
+    /// attempt died. The delivered text came from that target, so `.partial`
+    /// attests the completion — coherent, and counted separately.
+    func testPartialStreamCompletionAttests() {
+        let receipt = receipt(
+            intended: .privateCloudCompute,
+            attempts: [attempt(.privateCloudCompute, .partial, failureCode: "partial_stream")],
+            actual: .privateCloudCompute,
+            completed: .privateCloudCompute
+        )
+        XCTAssertTrue(receipt.routeViolations().isEmpty, "a partial stream is a coherent completion")
+        XCTAssertTrue(receipt.completedViaPartialStream)
+
+        let metrics = RouteEvalMetrics.compute(from: [receipt, cleanLocalReceipt])
+        XCTAssertEqual(metrics.partialCompletions, 1)
+        XCTAssertTrue(metrics.meetsRouteGates, "partial completions are tracked, not punished")
+        XCTAssertTrue(metrics.markdownSummary.contains("Partial-stream completions: 1"))
+    }
+
+    /// `.partial` on a different target must not attest the completed one.
+    func testPartialOnOtherTargetDoesNotAttest() {
+        let receipt = receipt(
+            intended: .privateCloudCompute,
+            attempts: [attempt(.privateCloudCompute, .partial, failureCode: "partial_stream")],
+            actual: .privateCloudCompute,
+            completed: .onDevice,
+            fallbackReason: .fallback
         )
         let invariants = receipt.routeViolations().map(\.invariant)
         XCTAssertTrue(invariants.contains(.completedTargetAttested))

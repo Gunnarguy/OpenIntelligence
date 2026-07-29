@@ -4,6 +4,15 @@
      iOS MARKETING_VERSION from the first "## <number>" heading below, so this
      bracketed heading is deliberately skipped by that grep. -->
 
+## 4.8 - 2026-07-29
+
+> Started the same day iOS 4.7 / macOS 3.0 went to review using already-processed
+> Xcode Cloud builds — so the instrumentation below rides the next version.
+
+### Added
+- **[Orchestration]** Instrumented the pipeline with `OSSignposter` stage boundaries (Phase A of the benchmark plan). New `PipelineSignposts` utility exposes `Ingestion`/`Query`/`Synthesis` categories under subsystem `Gunndamental.OpenIntelligence.Pipeline`, with twelve intervals at the load-bearing seams: document processing, hybrid search, context assembly, execution planning, generation, verification gates, the agentic umbrella, and each synthesis strategy (direct/comprehensive/honest/decomposed). Near-zero cost when no recorder is attached; ships in release builds so `xcrun xctrace` can attribute wall-clock per stage per quality mode on physical hardware. `[evidence_level: build_verified+test_verified, confidence: exact_for_simulator, evidence_source: PipelineSignposts.swift and the seven instrumented services]`
+- **[Orchestration]** Resolved receipt-fidelity findings F-06/F-07. F-06: partial streams now record a `.partial` attempt result instead of `.failed` — the delivered text genuinely came from that route, so `.partial` attests the `completedTarget` in `RouteEvalMetrics` while staying distinguishable from a clean completion; metrics gain a `partialCompletions` count. F-07 closed with **no code change**: tracing `actualRoute` showed it is fixed at session construction, so LLMService's one-element chains describe construction-time fallbacks where the intended route was never attempted (truthful as-is), and runtime PCC failures already merge the two-element chain in `RAGService`. `[evidence_level: code_verified+test_verified, confidence: high, evidence_source: ModelExecutionReceipt.swift, RAGService.swift partial-stream path, RouteEvalMetrics.swift, RouteEvalMetricsTests.swift, ensureSession trace]`
+
 ## 4.7 - 2026-07-28
 
 > iOS 4.7 / macOS 3.0. App Store 4.6 (iOS) and 2.5 (macOS) are already released,

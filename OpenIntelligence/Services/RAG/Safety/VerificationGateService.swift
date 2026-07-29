@@ -14,6 +14,7 @@
 //
 
 import Foundation
+import os
 import NaturalLanguage
 import Accelerate
 
@@ -167,6 +168,8 @@ actor VerificationGateService {
         structuredClaims: [StructuredRAGClaim]? = nil,
         answerIntent: AnswerIntent? = nil
     ) async -> RAGVerificationResult {
+        let __spVerificationGates = PipelineSignposts.synthesis.beginInterval("VerificationGates")
+        defer { PipelineSignposts.synthesis.endInterval("VerificationGates", __spVerificationGates) }
 
         let isTouchy = detectTouchyQuery(query)
         let tau = isTouchy ? config.tauTouchy : config.tauNormal

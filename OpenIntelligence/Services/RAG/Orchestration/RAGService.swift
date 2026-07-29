@@ -14697,7 +14697,7 @@ class RAGService: ObservableObject {
                                     ModelExecutionAttempt(
                                         target: plan.synthesisTarget,
                                         startedAt: attemptStart,
-                                        result: .failed,
+                                        result: .partial,
                                         failureCode: "partial_stream"
                                     ),
                                 ],

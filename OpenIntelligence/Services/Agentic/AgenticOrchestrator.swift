@@ -237,6 +237,8 @@ final class AgenticOrchestrator: Sendable {
         initialContext: String = "",
         onStep: ((ThinkingStep) async -> Void)? = nil
     ) async throws -> AgenticResult {
+        let __spAgenticExecute = PipelineSignposts.synthesis.beginInterval("AgenticExecute")
+        defer { PipelineSignposts.synthesis.endInterval("AgenticExecute", __spAgenticExecute) }
         guard let ragService = ragService else {
             throw AgenticError.serviceUnavailable
         }
@@ -1058,6 +1060,8 @@ final class AgenticOrchestrator: Sendable {
         searchResults: String,
         ragService: RAGService
     ) async throws -> ThinkingStep {
+        let __spSynthesisDirect = PipelineSignposts.synthesis.beginInterval("SynthesisDirect")
+        defer { PipelineSignposts.synthesis.endInterval("SynthesisDirect", __spSynthesisDirect) }
         let startTime = Date()
 
         // Truncate search results to fit in context budget
@@ -1115,6 +1119,8 @@ final class AgenticOrchestrator: Sendable {
         chunks: [RetrievedChunk],
         ragService: RAGService
     ) async throws -> ThinkingStep {
+        let __spSynthesisComprehensive = PipelineSignposts.synthesis.beginInterval("SynthesisComprehensive")
+        defer { PipelineSignposts.synthesis.endInterval("SynthesisComprehensive", __spSynthesisComprehensive) }
         let startTime = Date()
 
         // Format chunks EXACTLY like Standard mode's assembleContext with [S1], [S2] notation
@@ -1203,6 +1209,8 @@ final class AgenticOrchestrator: Sendable {
         confidence: RetrievalQuality,
         ragService: RAGService
     ) async throws -> ThinkingStep {
+        let __spSynthesisHonest = PipelineSignposts.synthesis.beginInterval("SynthesisHonest")
+        defer { PipelineSignposts.synthesis.endInterval("SynthesisHonest", __spSynthesisHonest) }
         let startTime = Date()
 
         // Truncate to fit in 4096 token budget
@@ -1251,6 +1259,8 @@ final class AgenticOrchestrator: Sendable {
         onStep: ((ThinkingStep) async -> Void)?,
         startTime: Date
     ) async throws -> AgenticResult {
+        let __spSynthesisDecomposed = PipelineSignposts.synthesis.beginInterval("SynthesisDecomposed")
+        defer { PipelineSignposts.synthesis.endInterval("SynthesisDecomposed", __spSynthesisDecomposed) }
         var allRetrievedChunks = initialChunks
 
         // Create detailed event forwarder for verbose ThinkingView events

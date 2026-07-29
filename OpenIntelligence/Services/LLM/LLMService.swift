@@ -7,6 +7,7 @@
 
 import CoreML
 import Foundation
+import os
 import NaturalLanguage
 
 #if canImport(UIKit)
@@ -516,6 +517,8 @@ struct LLMResponse {
         func generate(prompt: String, context: String?, config: InferenceConfig) async throws
             -> LLMResponse
         {
+            let __spGenerate = PipelineSignposts.synthesis.beginInterval("Generate")
+            defer { PipelineSignposts.synthesis.endInterval("Generate", __spGenerate) }
             // Verify the current locale is supported before generation
             if !supportsCurrentLocale {
                 let currentLocale = Locale.current.identifier
