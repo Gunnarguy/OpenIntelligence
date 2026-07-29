@@ -15,7 +15,7 @@ Last updated: February 2026
 | ----------------------- | ------------------------- | ------------------------------------------- | ---------------------------- |
 | On-Device Analysis      | Local Neural Engine / CPU | Nothing                                     | Default state                |
 | Apple Foundation Models | On-device Neural Engine   | Nothing                                     | None (automatic)             |
-| Private Cloud Compute   | Native enclaves on iOS/macOS 27+ (simulated fallback on older OS versions) | Query + context (encrypted, zero-retention) | Allow PCC toggle in Settings |
+| Private Cloud Compute   | Native enclaves on iOS/macOS 27+ only; older OS versions never use PCC and stay fully on-device | Minimized evidence payload, shown before sending (encrypted, zero-retention) | Post-retrieval consent prompt; remembered choice in Settings |
 
 ## Keys & Credentials
 
