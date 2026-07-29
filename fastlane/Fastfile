@@ -176,4 +176,23 @@ platform :ios do
       submission_information: release_submission_information
     )
   end
+
+  desc "Push metadata only — no build, no submission — to a version already in App Store Connect. Editable while Waiting for Review. platform: ios (default) or osx."
+  lane :push_metadata do |options|
+    version = options[:version] || UI.user_error!("pass version:x.y")
+    platform_name = options[:platform] || "ios"
+
+    deliver(
+      api_key: asc_api_key,
+      app_identifier: "Gunndamental.OpenIntelligence",
+      platform: platform_name,
+      app_version: version,
+      force: true,
+      skip_binary_upload: true,
+      skip_screenshots: true,
+      metadata_path: fastlane_path("metadata"),
+      submit_for_review: false,
+      precheck_include_in_app_purchases: false
+    )
+  end
 end

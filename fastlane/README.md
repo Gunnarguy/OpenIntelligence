@@ -47,6 +47,30 @@ Submit the current App Store version for review using an existing processed buil
 
 Push metadata, upload build, and submit version for review
 
+### ios release
+
+```sh
+[bundle exec] fastlane ios release
+```
+
+Push metadata, upload build, and submit version for review (alias for release_to_review)
+
+### ios submit_latest
+
+```sh
+[bundle exec] fastlane ios submit_latest
+```
+
+Push metadata and submit for review using the newest build App Store Connect has already processed (no local archive). Xcode Cloud is the builder; this lane just picks its latest output. platform: ios (default) or osx.
+
+### ios push_metadata
+
+```sh
+[bundle exec] fastlane ios push_metadata
+```
+
+Push metadata only — no build, no submission — to a version already in App Store Connect. Editable while Waiting for Review. platform: ios (default) or osx.
+
 ----
 
 This README.md is auto-generated and will be re-generated every time [_fastlane_](https://fastlane.tools) is run.
