@@ -6,6 +6,13 @@
 
 ## 4.8 - 2026-07-29
 
+### Fixed
+- **[Chunking]** Implemented the macOS document picker. `DocumentPicker` was gated behind `#if canImport(UIKit)`, so the native macOS build fell through to a stub reading "Document picker is unavailable on this platform" — Mac users had no way to import documents through it at all. Replaced with an `NSOpenPanel` implementation mirroring the iOS path: the same accepted types (PDF, Office, iWork, text, code, images, audio, video), multiple selection, and the same copy into the managed workspace with a refreshed modification date so the sync sweep does not treat fresh imports as stale. Adds security-scoped resource access, which iOS did not need because its picker hands back copies. `[evidence_level: build_verified, confidence: high, evidence_source: DocumentPicker.swift]`
+- **[Orchestration]** Closed a session race in `AppleFoundationLLMService`. `ensureSession` now returns the session it created alongside the route, and both call sites use that value rather than re-reading the shared `session` property. `generate` is `@MainActor async`, so calls interleave at `await` points; during multi-session reasoning one call's session reset could land between another call's `ensureSession` and its read of the property. **This is not the Deep Think fix** — see the known issue below. `[evidence_level: build_verified, confidence: high_for_the_race_not_a_fix_for_deep_think, evidence_source: LLMService.swift]`
+
+### Known Issues
+- **[Orchestration]** **Deep Think and Maximum fail on macOS.** Both return the user-facing error "The selected model isn't available right now. Please try again." whenever the multi-session reasoning chain engages; Standard is unaffected and answers normally in the same session. Confirmed through the real app UI, not just the benchmark harness. Owner confirms both modes work on iPhone, so the defect is macOS-specific. Ruled out so far: the headless harness, state contamination, ingestion, timeouts, concurrent-session limits in Apple's SDK, PCC consent leakage, missing PCC entitlement (a signed build with it fails identically), App Sandbox, model reachability (an earlier generation in the same process succeeds on-device), the session factory (instrumented — never throws), the `ensureSession` main-thread guard (instrumented — never fires), and the unavailable-service stub (the chain holds the genuine `AppleFoundationLLMService`). Full investigation in `Docs/AUDIT/QUALITY_MODE_VERIFICATION_2026-07-30.md`. **macOS 4.8 should be held from release until this is resolved.**
+
 > Opened the same day iOS 4.7 / macOS 3.0 went out (and were approved), so this
 > instrumentation work rides the next version. Builds 200+ carry the 4.8 stamp.
 

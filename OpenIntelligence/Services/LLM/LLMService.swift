@@ -485,32 +485,52 @@ struct LLMResponse {
             }
         }
 
-        // Lazy session creation - only when actually generating
-        private func ensureSession(route: AppleFoundationModelRoute, systemPrompt: String? = nil, disableTools: Bool = false) throws -> AppleFoundationModelRoute {
+        /// Lazy session creation. Returns the route **and the session itself**.
+        ///
+        /// Returning the session is what makes multi-session reasoning safe.
+        /// `generate` is `@MainActor async`, and async actor methods interleave
+        /// at every `await` — so when Deep Think or Maximum issue 4-8 generate
+        /// calls, they share this instance's mutable `session` property. One
+        /// call's `session = nil` (the force-statelessness reset, or a system
+        /// prompt change) could land between another call's `ensureSession` and
+        /// its read of `session`, so the reader saw `nil` and threw
+        /// `modelUnavailable` — surfacing to the user as "The selected model
+        /// isn't available right now."
+        ///
+        /// Standard mode never hit this because it issues a single call with
+        /// nothing to interleave with. Handing the session back means callers
+        /// use the instance they created rather than re-reading state a
+        /// reentrant call may already have cleared.
+        private func ensureSession(
+            route: AppleFoundationModelRoute,
+            systemPrompt: String? = nil,
+            disableTools: Bool = false
+        ) throws -> (route: AppleFoundationModelRoute, session: LanguageModelSession) {
             guard Thread.isMainThread else {
                 throw LLMError.modelUnavailable
             }
 
-            if session == nil {
-                let result = try FoundationModelSessionFactory.createSession(
-                    route: route,
-                    toolHandler: toolHandler,
-                    systemPrompt: systemPrompt,
-                    disableTools: disableTools,
-                    pendingTranscript: pendingTranscript
-                )
-
-                session = result.session
-                currentSystemPrompt = result.currentSystemPrompt
-                if result.pendingTranscriptConsumed {
-                    pendingTranscript = nil
-                } else if disableTools && pendingTranscript != nil {
-                    pendingTranscript = nil
-                }
-                
-                return result.actualRoute
+            if let existing = session {
+                return (route, existing)
             }
-            return route
+
+            let result = try FoundationModelSessionFactory.createSession(
+                route: route,
+                toolHandler: toolHandler,
+                systemPrompt: systemPrompt,
+                disableTools: disableTools,
+                pendingTranscript: pendingTranscript
+            )
+
+            session = result.session
+            currentSystemPrompt = result.currentSystemPrompt
+            if result.pendingTranscriptConsumed {
+                pendingTranscript = nil
+            } else if disableTools && pendingTranscript != nil {
+                pendingTranscript = nil
+            }
+
+            return (result.actualRoute, result.session)
         }
 
         @MainActor
@@ -573,11 +593,10 @@ struct LLMResponse {
             )
 
             // Ensure session is created with correct route
-            let actualRoute = try ensureSession(route: targetRoute, systemPrompt: config.systemPrompt, disableTools: config.disableTools)
-
-            guard let session = session else {
-                throw LLMError.modelUnavailable
-            }
+            // Use the session handed back by ensureSession. Re-reading the
+            // shared `session` property here raced with reentrant generate
+            // calls during multi-session reasoning (see ensureSession).
+            let (actualRoute, session) = try ensureSession(route: targetRoute, systemPrompt: config.systemPrompt, disableTools: config.disableTools)
 
             let executionBasedModelName: String
             switch actualRoute {
@@ -896,11 +915,8 @@ struct LLMResponse {
                 config: config
             )
             
-            let actualRoute = try ensureSession(route: targetRoute, systemPrompt: structuredConfig.systemPrompt, disableTools: true)
-
-            guard let session = session else {
-                throw LLMError.modelUnavailable
-            }
+            // Same reentrancy fix as the streaming path above.
+            let (actualRoute, session) = try ensureSession(route: targetRoute, systemPrompt: structuredConfig.systemPrompt, disableTools: true)
 
             let executionBasedModelName: String
             switch actualRoute {
