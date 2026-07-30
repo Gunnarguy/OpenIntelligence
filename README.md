@@ -1,7 +1,8 @@
 # OpenIntelligence
 
-> **Documentation status:** Source-verified for OpenIntelligence v4.7 (iOS) / v3.0 (macOS) on July 28, 2026. Native PCC execution is owner-confirmed on a physical device; PCC edge scenarios and signed-distribution validation remain pending.
+> **Documentation status:** Source-verified for OpenIntelligence v4.8 on July 30, 2026. Native PCC execution is owner-confirmed on a physical device; PCC edge scenarios and signed-distribution validation remain pending.
 > **Scope:** Describes shipped behavior for on-device Apple Intelligence RAG architecture.
+> **Recent correction:** Deep Think and Maximum carried two defects fixed on 2026-07-30 — their reasoning chain abstained on every session and contributed nothing, and the model picker did not reach their routing at all. Both are fixed and device-verified for the first; see `Docs/AUDIT/QUALITY_MODE_VERIFICATION_2026-07-30.md`. Claims about those modes below describe behavior as of commit `6f29d2d`.
 
 <p align="center">
    <img src=".github/assets/openintelligence-app-icon.png" alt="OpenIntelligence app icon" width="132" height="132">
@@ -22,7 +23,9 @@ OpenIntelligence is an exploratory, privacy-obsessed document query assistant bu
 
 GPU-capable work is configured through four execution profiles rather than a fake utilization percentage. The persisted profile gates PDF rendering, Core ML compute preferences at model reload boundaries, sufficiently large Metal vector/MMR operations, and background GPU eligibility; Apple frameworks still choose the final hardware route. Remembered PCC consent persists canonically, and the app requests it only for a real finalized evidence envelope—not during launch. `[evidence_level: code_verified+test_verified, confidence: high_pending_physical_device_validation, evidence_source: DeviceCapabilityService.swift, SettingsStore.swift, RAGService.swift, RAGEngine.swift, BNNSVectorDatabase.swift]`
 
-The chat model picker now represents a persistent routing policy: Hybrid chooses per query, On-Device never selects PCC, and PCC requests native PCC with a declared on-device fallback when a cloud gate or quota prevents execution. The picker does not mutate to the last route. Each Apple-model answer renders its actual completed route from durable receipt metadata as an on-device, PCC, or on-device-fallback badge. `[evidence_level: build_verified+code_verified, confidence: high_pending_ui_and_device_validation, evidence_source: ChatScreen.swift, ModelStatusIndicator.swift, ModelExecutionPlanner.swift, LLMService.swift, MessageBubbleV2.swift and generic iOS 27 simulator build 2026-07-16]`
+The chat model picker is a persistent routing policy: Hybrid chooses per query, On-Device never selects PCC, and PCC requests native PCC with a declared on-device fallback when a cloud gate or quota prevents execution. The picker does not mutate to the last route. Each Apple-model answer renders its actual completed route from durable receipt metadata as an on-device, PCC, or on-device-fallback badge.
+
+That policy held only in Standard until 2026-07-30. In Deep Think and Maximum the picker was inert: `AgenticOrchestrator.generateWithProperConsent` built a fresh `InferenceConfig` carrying only maxTokens, temperature, and systemPrompt, so `fmPreference`, `executionContext`, and `allowPrivateCloudCompute` all fell back to defaults. Three device runs — one per picker setting — were identical in routing, and an On-Device selection still sent a minimized evidence envelope to PCC. The cloud-consent gate was never bypassed (a `.denied` consent state genuinely blocked PCC, and the runs show a remembered grant), but the picker itself did not restrict routing. Fixed in `6f29d2d`: the user's selection is now captured per query and applied to the config before planning, so On-Device is absolute and covers synthesis. `[evidence_level: device_verified_for_the_defect+build_verified+test_verified_for_the_fix, confidence: high_for_the_defect_unverified_on_device_for_the_fix, evidence_source: PCC/On-Device/Hybrid device logs 2026-07-30, ChatScreen.swift, AgenticOrchestrator.swift, RAGService.swift]`
 
 The floating Silicon HUD resolves geometry from its owning iOS window scene rather than a deprecated process-global screen, so restored and dragged positions stay associated with the active display. `[evidence_level: build_verified+code_verified, confidence: exact_for_build, evidence_source: MotherboardHUDView.swift and generic iOS 27 simulator build 2026-07-16]`
 
@@ -100,9 +103,11 @@ flowchart TD
 The entire RAG architecture operates on a strict **29-Step Pipeline** (6 Ingestion steps + 23 Query Loop steps). To handle complex queries, the query loop routes dynamically across three agentic modes and foundation models:
 
 #### 3 Agentic Quality Modes
-* **Standard:** Executes the 23-step query loop sequentially for maximum speed and battery life.
-* **Deep Think:** Actively loops the retrieval agent through 4-10 concurrent reasoning sessions until it hits 98% confidence (scales dynamically based on device thermal state).
-* **Maximum:** Removes the 8-session ceiling, granting the orchestrator an unlimited budget to recursively hunt down answers up to 50 loops.
+* **Standard:** Executes the 23-step query loop sequentially for maximum speed and battery life. The only mode with a measured accuracy baseline: **80% over 20 ground-truthed cases, zero hallucinations** (local-only, 2026-07-30).
+* **Deep Think:** Runs **4–8 sequential reasoning sessions** over rotating context windows, passing compressed insights forward, then synthesizes. Sessions are serial, not concurrent — each one's prompt contains the prior findings. The chain stops early when accumulated confidence reaches its threshold, and is capped at `maxConfidence` 0.95. Measured end-to-end on a physical A18 Pro: ~99s for an 8-session run, of which ~65s is on-device generation.
+* **Maximum:** Removes the 8-session ceiling, granting the orchestrator an unlimited budget to recursively hunt down answers up to 50 loops, with `maxConfidence` 0.98. Shares `executeReasoningChain` with Deep Think; not separately device-verified since the 2026-07-30 fixes.
+
+> Neither Deep Think nor Maximum yet has a score against `Benchmarks/rag_eval_v1.jsonl`. Until 2026-07-30 their reasoning chain produced nothing, so the question this architecture exists to answer — *does more compute buy more correctness?* — remains open. Do not cite a Deep Think accuracy figure; none has been measured.
 
 #### 2 Public Foundation Model Targets
 * **On-Device Apple Intelligence:** `SystemLanguageModel.default` executes retrieval-adjacent analysis and any synthesis that fits the live SDK context budget. OpenIntelligence does not claim a separately selectable 3B, 20B, or Advanced runtime because the installed public SDK exposes no such model selector.
@@ -157,13 +162,24 @@ To maintain codebase transparency, please note:
    ```bash
    ./scripts/build_simulator_smoke.sh
    ```
-3. Execute the local RAG pipeline validation harness:
+3. Execute the quality-mode benchmark matrix (all 20 cases × each quality mode):
    ```bash
-   python3 scripts/run_rag_benchmarks.py
+   python3 scripts/run_quality_matrix.py
+   ```
+   PCC is denied by default so runs are reproducible offline; results separate `Measured` from `Unmeasured` rather than scoring an empty run as a failure.
+
+4. Check for iCloud conflict copies before any signing work:
+   ```bash
+   ./scripts/check_icloud_conflicts.sh
    ```
 
 ---
 
 ## License
 OpenIntelligence is open-source software. See [LICENSE](LICENSE) for details.
-\n## Document Ingestion Optimization\nOpenIntelligence now supports massive documents (500+ pages) through an end-to-end streamed and batched ingestion pipeline, preventing OOM crashes during CoreImage text-layer rendering and LLM embedding generation.\n
+
+---
+
+## Document Ingestion Optimization
+
+OpenIntelligence supports massive documents (500+ pages) through an end-to-end streamed and batched ingestion pipeline, preventing OOM crashes during CoreImage text-layer rendering and LLM embedding generation.

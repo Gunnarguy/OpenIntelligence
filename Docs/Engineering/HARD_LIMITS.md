@@ -15,15 +15,30 @@ Use them to stop overclaiming. Do not use UI copy, debug strings, or legacy comm
 
 | Constraint                     | Value                                    | Why it matters                                                                     |
 | ------------------------------ | ---------------------------------------- | ---------------------------------------------------------------------------------- |
-| On-Device Context window       | **4096 tokens**                          | default local path using `SystemLanguageModel.default`                             |
-| PCC Context window             | **32,768 tokens**                        | dynamic path using `PrivateCloudComputeLanguageModel` for reasoning-heavy queries  |
-| Model size                     | about **3B parameters** (local)          | useful, but not a large-server-model class system                                  |
+| On-Device Context window       | **SDK-reported**, 4096 fallback          | `FoundationModelTokenBudget.contextSize` returns `SystemLanguageModel.default.contextSize` on iOS/macOS 26+; 4096 is only the pre-26 fallback |
+| PCC Context window             | **32,768 tokens (unverified)**           | hardcoded sync fallback in `FoundationModelTokenBudget`; the real value is async on 27 and must come from `LiveFoundationModelCapabilityProvider` |
+| Model size                     | **not claimed**                          | the public SDK exposes no parameter-count or model-size selector; see the v4.7 "Public Model Truth" work |
 | Public PCC/server-model access | **Native iOS 26+ API**                   | app integrates directly with `PrivateCloudComputeLanguageModel`                    |
 | Recommended tool count         | **3-5 tools**                            | tool schemas eat context budget                                                    |
 
-Important current implementation note:
+Important current implementation notes:
 
-- Local-first defaults are restricted to 4,096 tokens. Standard queries that overflow this ceiling, or queries executed under Deep Think / Maximum modes, are dynamically escalated to Private Cloud Compute (PCC) via `PrivateCloudComputeLanguageModel` with up to 32K tokens support.
+- **The routing decision does not use the SDK value.** `FoundationModelRoutePolicy` hardcodes `let onDeviceLimit = 4096` and never consults `FoundationModelTokenBudget.contextSize` or `FoundationModelCapabilityProvider`, even though both exist and report the device's real window. Escalation therefore triggers at a literal rather than at the actual local capacity. `[evidence_level: code_verified, confidence: exact, evidence_source: FoundationModelRoutePolicy.swift:60]`
+- **The 32,768 figure is not measured.** It is a hardcoded fallback, and the code comment on it explicitly directs routing callers to the live capability provider instead. Treat it as an upper-bound assumption, not a verified limit. It is also asserted as fact in the app's own bundled documentation, which the engine then cites back to users.
+- Local-first defaults are restricted to 4,096 tokens for routing purposes. Standard queries that overflow this ceiling, or queries executed under Deep Think / Maximum, are dynamically escalated to PCC via `PrivateCloudComputeLanguageModel`.
+
+### Measured generation throughput (physical device, 2026-07-30)
+
+First real numbers, from an iPhone A18 Pro. These supersede the unbacked `< 0.8 s` TTFT and `≈65 tok/s` figures asserted in the Settings capability card.
+
+| Path | Throughput | TTFT | Sample |
+| :--- | ---: | ---: | :--- |
+| On-device (`SystemLanguageModel.default`) | **27 tok/s** | 2.2–3.2 s | 340 tokens in 15.44 s |
+| Private Cloud Compute | **86 tok/s** | 2.2–2.5 s | 453 tokens in 7.45 s |
+
+**PCC is roughly 3.2× faster per token than on-device.** The claimed `≈65 tok/s` is about 2.4× optimistic for the local path and is only exceeded by PCC. No observed TTFT was under 2 seconds, so `< 0.8 s` is not supported on this hardware.
+
+`[evidence_level: measured, confidence: high_for_this_device_unverified_across_hardware, evidence_source: four iPhone A18 Pro Deep Think runs 2026-07-30]`
 
 ### Embedding Constraints
 
