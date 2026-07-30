@@ -7,14 +7,45 @@
 
 ---
 
+## 0. RESOLVED — 2026-07-30, commit `665da0a`
+
+> **The cause was found. Everything from Section 1 down is the investigation trail that led there; it is preserved because two of its conclusions were wrong in instructive ways, and because the symptom data is still diagnostic.**
+
+**Root cause.** `RAGService.generateWithProperConsent` declares `sourceChunks: [RetrievedChunk] = []`, and 13 of its 14 call sites rely on that default because they pass evidence as an already-rendered `context` string. `executeReasoningChain` goes further and passes `context: ""` deliberately — `buildChainPrompt` already embeds the documents in the prompt text, and passing them again double-rendered into 4521-token overflows against a 4096 budget. So `makePostRetrievalModelPlan` computed `chunkCount == 0`, `PostRetrievalEvidence.isSufficient` returned false, the planner set `.abstain`, and `.abstain` threw `RAGServiceError.modelNotAvailable`.
+
+That error string is what the user saw. The evidence was real and on-target the entire time; it was inside `prompt`, where the planner could not see it. Only Deep Think and Maximum route through this path, which is exactly why Standard was unaffected.
+
+**A third wrong conclusion, corrected.** This document states the failure is macOS-specific and that scope beyond macOS is unknown. That is wrong. iPhone (A18 Pro) device logs show the identical `RAGServiceError.modelNotAvailable`. The defect was always cross-platform. The earlier belief came from testing macOS rigorously through the UI while iPhone was only checked casually.
+
+**A second failure was hiding behind the first.** Replacing the bogus error with a grounded abstention was not sufficient: all eight sessions then returned the abstention text *as their insight*, which was condensed and fed to the final PCC synthesis — telling the synthesizer there was no evidence while twenty chunks sat beside it. Self-RAG accepted that at 85% confidence. The mode did not crash; it silently degraded to Standard-with-PCC while reporting success.
+
+**Fixes** (all in `665da0a`): thread real chunks into the planner; pin chain sessions on-device via `forceOnDevice`; return a grounded abstention instead of an availability error; cut `PRIOR FINDINGS` at sentence boundaries in both truncation paths; strip fabricated structured output from insights and stop the prompt wording from priming it.
+
+**Verification** — four physical-device runs, final run A/B'd against the prior run on an identical corpus:
+
+| Metric | Before | After |
+| :--- | ---: | ---: |
+| Sessions emitting fabricated JSON | 3 of 8 | **0 of 8** |
+| Citations verified | 13/16 | **14/17** |
+| Total tokens | 3562 | **3342** |
+| Wall clock | 111.6s | **99.4s** |
+
+The qualitative signal: session 6 corrected session 2, writing *"Neither documents nor the prior findings mention that PCC is triggered specifically when the context exceeds 32,000 tokens"* after session 2 had asserted exactly that. Cross-session self-correction against the sources is the behaviour the mode exists to produce.
+
+**Still open.** Deep Think has no `rag_eval_v1.jsonl` score — it was verified against a personal library, not the dataset. The central question this document set out to answer, *does more compute buy more correctness*, remains unanswered, because until this fix the extra compute produced nothing. Two follow-ups are tracked separately: the confidence ceiling that makes early exit unreachable, and the unmeasured figures circulating in the app's own corpus.
+
+`[evidence_level: device_verified, confidence: high_for_iOS_unverified_for_macOS, evidence_source: four iPhone A18 Pro runs 2026-07-30, commit 665da0a]`
+
+---
+
 ## 1. Verdict
 
 | Mode | Status | Evidence |
 | :--- | :--- | :--- |
 | **Standard** | ✅ **Verified working** | 20/20 runs completed, 80% accuracy, zero hallucinations |
-| **Deep Think** | ❌ **CONFIRMED BROKEN in the real macOS app UI** | User sees: *"The selected model isn't available right now. Please try again."* |
-| **Maximum** | ❌ **Same failure** | Shares `executeReasoningChain` with Deep Think |
-| **iOS** | ❓ **Not yet tested** | Requires a physical device; the Simulator has no Apple Intelligence |
+| **Deep Think** | ✅ **Fixed in `665da0a`** — was broken as described below | Root cause in §0. Verified on four iPhone device runs |
+| **Maximum** | ⚠️ **Same root cause, fix not separately verified** | Shares `executeReasoningChain`, so the fix applies; no device run yet |
+| **iOS** | ✅ **Tested and fixed** — and it was *also* broken | The "macOS-specific" claim below is wrong; see §0 |
 
 > ### Confirmed through the normal chat interface, not the harness
 >

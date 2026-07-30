@@ -269,9 +269,20 @@ enum AgenticPolicyService {
         subQuestionConfidence: Float,
         noveltyScore: Float,
         sourceCoverage: Float,
-        maxConfidence: Float
+        maxConfidence: Float,
+        sessionBudget: Int = 50
     ) -> (confidence: Float, saturationScore: Float) {
-        let sessionProgress = min(0.68, log(Float(sessionNum) + 1) / log(50.0) * 0.68)
+        // `sessionProgress` is the dominant term (0.68 of a possible 0.99), and it
+        // reaches its ceiling only when `sessionNum` reaches the session budget.
+        // This was hardcoded to 50, which is right for Unlimited mode but not for
+        // Deep Think, which stops at 8: log(9)/log(50) * 0.68 = 0.382, capping an
+        // 8-session run at ~73% against a 90% stop threshold. Deep Think therefore
+        // could never early-exit and burned all eight sessions on every query,
+        // measured at ~65s of the ~99s total. Scaling the denominator to the actual
+        // budget makes the threshold reachable; passing 50 reproduces the old curve
+        // exactly, so Unlimited/Maximum behaviour is unchanged.
+        let budget = max(2, sessionBudget)
+        let sessionProgress = min(0.68, log(Float(sessionNum) + 1) / log(Float(budget) + 1) * 0.68)
         let subQuestionBonus = subQuestionConfidence * 0.18
         let sourceCoverageBonus = min(sourceCoverage, 1.0) * 0.05
         let totalChars = allInsights.joined().count

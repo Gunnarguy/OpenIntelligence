@@ -4241,7 +4241,8 @@ extension AgenticOrchestrator {
                     subQuestionConfidence: evidenceCoverage,
                     noveltyScore: factUpdate.noveltyScore,
                     sourceCoverage: usedSourceCoverage,
-                    maxConfidence: reasoningPolicy.maxConfidence
+                    maxConfidence: reasoningPolicy.maxConfidence,
+                    sessionBudget: effectiveMaxSessions
                 )
                 evidenceConfidence = calculatedConfidence
                 evidenceSaturation = saturationScore
