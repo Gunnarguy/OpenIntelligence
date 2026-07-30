@@ -84,11 +84,35 @@ Given the above, the fault is inside the reasoning-chain generation path specifi
 
 Standard mode never enters this path, which is exactly why it is unaffected. The next diagnostic step is to log the resolved `ModelExecutionTarget` and factory branch at the moment of the throw — `RouteEvalMetrics` receipts would capture this if a receipt were produced, but the throw happens before one is written.
 
-### Not yet tested: iOS
+### Narrowed to a precise location
 
-Every result in this document is from macOS builds. **iOS is unverified.** Deep Think is a headline shipped feature and its failure would be highly visible, so it is plausible this is macOS-specific — but that is a hypothesis, not a finding.
+Instrumented every `LLMError.modelUnavailable` throw site and re-ran. Results:
 
-**The single highest-value next test:** open the shipped app on an iPhone (TestFlight build 203 or App Store 4.6), import any two documents, and ask a question in Deep Think that requires combining them. If it answers, this is macOS-only. If it fails the same way, it is cross-platform and urgent.
+- `FoundationModelSessionFactory` was called twice — `route=automatic`, then `route=onDevice` — and **threw at neither**. Session creation succeeds.
+- The `ensureSession` main-thread guard (`LLMService.swift:490`) did **not** fire.
+
+That leaves the `guard let session = session else { throw LLMError.modelUnavailable }` checks immediately after `ensureSession` (`LLMService.swift:579` for the streaming path, `:902` for the structured path). The factory reports creating a session, yet the service's `session` property is still `nil` when the reasoning chain reads it.
+
+**This is the bug to fix.** It is a lifecycle/assignment problem in `AppleFoundationLLMService`, not a model-availability, entitlement, routing, sandbox, or threading problem — all of which were tested and excluded.
+
+### iOS: cannot be tested in the Simulator
+
+The iOS 27 Simulator has **no Apple Intelligence at all**. Running the same case there logs:
+
+```
+AppleFoundationLLMService unavailable on Simulator
+Running in Simulator - Foundation Models unavailable
+❌ No configured LLM available; Apple Intelligence is REQUIRED
+```
+
+The app detects this correctly and installs `AppleFoundationLLMServiceUnavailable`. This is an Apple platform limitation, not a defect — but it means **iOS verification requires a physical device**, and no amount of simulator work can substitute.
+
+**The single highest-value next test:** on a physical iPhone running the shipped app, import two related documents and ask a Deep Think question that requires combining them.
+
+- **It answers** → the bug is macOS-only. macOS 4.8 is in review and should be held; iOS ships safely.
+- **It fails the same way** → cross-platform, and both submissions should be pulled.
+
+Given that Deep Think has shipped since v4.4 and is the app's headline differentiator, prolonged total failure on iOS would likely have been noticed already — but that is inference, not evidence, and this document does not treat it as verified.
 
 ---
 
