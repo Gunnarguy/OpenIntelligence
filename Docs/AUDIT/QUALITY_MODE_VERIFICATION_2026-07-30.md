@@ -12,9 +12,18 @@
 | Mode | Status | Evidence |
 | :--- | :--- | :--- |
 | **Standard** | ✅ **Verified working** | 20/20 runs completed, 80% accuracy, zero hallucinations |
-| **Deep Think** | ❌ **Reproducibly fails on macOS** at reasoning-chain Session 1 | `Error: The selected LLM model is not available` |
+| **Deep Think** | ❌ **CONFIRMED BROKEN in the real macOS app UI** | User sees: *"The selected model isn't available right now. Please try again."* |
 | **Maximum** | ❌ **Same failure** | Shares `executeReasoningChain` with Deep Think |
-| **iOS** | ❓ **Not yet tested** | All testing to date is macOS-only |
+| **iOS** | ❓ **Not yet tested** | Requires a physical device; the Simulator has no Apple Intelligence |
+
+> ### Confirmed through the normal chat interface, not the harness
+>
+> An earlier version of this document hedged that the failure might be a benchmark artifact. **It is not.** The macOS app was launched normally — no launch arguments, no validation harness — and the question was typed into the chat box with documents already in the library:
+>
+> - **Deep Think** → *"The selected model isn't available right now. Please try again."*
+> - **Standard**, same question, same library, immediately after → answered in 8.2s at 99% confidence, badged `On-device · Standard · Verified`
+>
+> Back-to-back control in one session. Standard works; Deep Think does not. This is what a macOS user experiences today.
 
 > ## The failure is real on macOS. Scope beyond macOS is unknown.
 >
