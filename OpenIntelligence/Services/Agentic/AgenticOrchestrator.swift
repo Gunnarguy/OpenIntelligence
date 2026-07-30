@@ -1497,14 +1497,42 @@ final class AgenticOrchestrator: Sendable {
         4.
         """
 
-        let response = try await ragService.generateWithFreshSession(
-            prompt: prompt,
-            maxTokens: 200
-        )
+        // Multi-query expansion is an *optimization*: it widens retrieval with
+        // extra search phrasings. It is not load-bearing — `deterministicSearchQueries`
+        // already covers the case where the model returns nothing useful.
+        //
+        // Previously this used `try await`, so any generation failure propagated
+        // out and killed the whole Deep Think query. Observed on macOS: Apple's
+        // SDK threw `GenerationError` ("Failed to parse generated content") in
+        // this step, and the user's entire request failed with it — despite
+        // retrieval being perfectly capable of proceeding on the deterministic
+        // phrasings. A helper step must not be able to take down the answer.
+        let response: LLMResponse?
+        do {
+            response = try await ragService.generateWithFreshSession(
+                prompt: prompt,
+                maxTokens: 200
+            )
+        } catch is CancellationError {
+            throw CancellationError()
+        } catch {
+            Log.warning(
+                "[MultiQuery] Expansion generation failed; continuing with deterministic "
+                    + "search phrases. type=\(type(of: error)) "
+                    + "full=\(String(describing: error))",
+                category: .retrieval
+            )
+            response = nil
+        }
 
         // Parse numbered lines or JSON array from response
         if queries.isEmpty {
             queries = deterministicSearchQueries(for: originalQuery)
+        }
+
+        guard let response else {
+            Log.info("[MultiQuery] Using \(queries.count) deterministic search queries", category: .retrieval)
+            return Array(queries.prefix(5))
         }
 
         func appendIfUseful(_ candidate: String) {
@@ -3978,12 +4006,18 @@ extension AgenticOrchestrator {
                 // FIXED: Was truncating to 100 chars each, losing most accumulated knowledge.
                 // Now keep 250 chars per older insight (2.5x more) and 800 char cap on condensed.
                 let oldInsightsCount = chainInsights.count - 2
+                // Cut at sentence boundaries. A raw `prefix()` ends the findings block
+                // mid-word, and this runs upstream of `buildChainPrompt`, so it is the
+                // first place the prompt can be garbled. It also fires exactly at
+                // session 5 (`chainInsights.count > 3`), which is where degraded,
+                // JSON-shaped insights started in device runs.
                 let condensedOld = "Prior findings (\(oldInsightsCount) sessions): " +
                     chainInsights.prefix(oldInsightsCount)
                         .filter { $0.trimmingCharacters(in: .whitespacesAndNewlines).count > 20 }
-                        .map { String($0.prefix(250)) }
+                        .map { truncateAtSentenceBoundary($0, limit: 250) }
                         .joined(separator: " | ")
-                insightsForPrompt = [String(condensedOld.prefix(800))] + Array(chainInsights.suffix(2))
+                insightsForPrompt = [truncateAtSentenceBoundary(condensedOld, limit: 800)]
+                    + Array(chainInsights.suffix(2))
                 Log.debug("[ReasoningChain] \(reasoningPolicy.isUnlimitedMode ? "Unlimited" : "Deep Think") mode: condensed \(chainInsights.count) insights to \(insightsForPrompt.count) for prompt", category: .llm)
             } else {
                 insightsForPrompt = chainInsights
@@ -4046,7 +4080,20 @@ extension AgenticOrchestrator {
                         context: "",
                         systemPrompt: systemPrompt,
                         maxTokens: sessionMaxTokens,
-                        disableTools: disableToolsForSession
+                        disableTools: disableToolsForSession,
+                        // The evidence for this session is real, but it lives inside
+                        // `sessionPrompt` (see the context: "" note above), so the
+                        // planner could not see it and judged every session
+                        // `insufficientEvidence` → `.abstain`. All eight sessions then
+                        // returned the abstention text as their "insight", which got
+                        // condensed and fed to the final synthesis — telling the
+                        // synthesizer there was no evidence while twenty chunks sat
+                        // beside it. `sourceChunks` is planning-only and is never
+                        // rendered into the prompt, so passing it here restores an
+                        // honest sufficiency signal without reintroducing the context
+                        // doubling that the empty `context` guards against.
+                        sourceChunks: chunks,
+                        forceOnDevice: true
                     )
                     break // Success - exit retry loop
                 } catch {
@@ -4141,8 +4188,13 @@ extension AgenticOrchestrator {
                 // For final synthesis, extract the full answer (not truncated)
                 insight = extractFinalAnswer(from: successResponse.text)
             } else {
-                // For intermediate sessions, extract condensed insight
-                insight = extractInsight(from: successResponse.text, maxLength: config.maxInsightLength)
+                // For intermediate sessions, extract condensed insight.
+                // Strip echoed prompt headers and invented tool-call syntax first —
+                // otherwise a contaminated insight becomes the next session's PRIOR
+                // FINDINGS and teaches the next model to produce the same thing.
+                insight = stripPromptEchoAndToolNoise(
+                    from: extractInsight(from: successResponse.text, maxLength: config.maxInsightLength)
+                )
             }
 
             // Filter out "no new information" responses — they pollute the chain
@@ -4150,6 +4202,9 @@ extension AgenticOrchestrator {
             let insightTrimmed = insight.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
             let isEmptyInsight = insightTrimmed.count < 30 ||
                 insightTrimmed.contains("no new information") ||
+                // A session that fabricated a tool call usually reports its "result"
+                // in this phrasing once the JSON wrapper is stripped.
+                insightTrimmed.contains("no new details") ||
                 insightTrimmed.contains("i can't assist") ||
                 insightTrimmed.contains("i cannot assist") ||
                 insightTrimmed.hasPrefix("i'm sorry")
@@ -6300,11 +6355,11 @@ extension AgenticOrchestrator {
             // For sessions with insights, provide a CONCISE summary of findings so far.
             // Don't dump the full text — just the key answer and supporting details.
             let rawSummary = "PRIOR FINDINGS:\n" + previousInsights.enumerated()
-                .map { "[\($0.offset + 1)] \(String($0.element.prefix(400)))" }
+                .map { "[\($0.offset + 1)] \(truncateAtSentenceBoundary($0.element, limit: 400))" }
                 .joined(separator: "\n")
 
             if rawSummary.count > maxInsightSummaryChars {
-                insightSummary = String(rawSummary.prefix(maxInsightSummaryChars))
+                insightSummary = truncateAtSentenceBoundary(rawSummary, limit: maxInsightSummaryChars)
                 Log.debug("[ReasoningChain] Truncated insight summary from \(rawSummary.count) to \(maxInsightSummaryChars) chars", category: .llm)
             } else {
                 insightSummary = rawSummary
@@ -6384,7 +6439,12 @@ extension AgenticOrchestrator {
             // Apple FM tends to give up and say "No new information" when asked only for novelty.
             // Instead, ask it to ADD DEPTH and DETAIL using the new documents as evidence.
             // But also explicitly tell it NOT to repeat prior findings verbatim to avoid dedup waste.
-            let systemPrompt = "You are a document analyst. Extract details from these documents that ADD to the prior findings. Do not repeat what was already found. Write detailed prose with complete sentences."
+            // Phrasing note: an earlier version asked for "NEW details", and the
+            // on-device model answered with `{ "document_analysis": { "new_details":
+            // [ ... ` — inventing a schema whose key mirrored the instruction. The
+            // wording below avoids naming a field, and the output format is stated
+            // outright rather than implied.
+            let systemPrompt = "You are a document analyst. Describe what these documents add beyond the prior findings. Do not repeat what was already found. Reply with plain prose only — never JSON, key-value pairs, or tool-call syntax."
             let prompt = """
             QUESTION: \(query)
 
@@ -6392,11 +6452,12 @@ extension AgenticOrchestrator {
             \(objectiveBlock)ADDITIONAL DOCUMENTS:
             \(contextForPrompt)
 
-            Using these additional documents, add NEW details about: "\(query)"
+            Using these additional documents, describe what they add about: "\(query)"
             Write details, values, procedures, or context from these documents that are NOT already in prior findings.
             Do NOT repeat or rephrase information already covered above.
             If the documents contain relevant details not yet mentioned, describe them thoroughly.
-            Write in complete sentences and full paragraphs. Cite as [S1], [S2].
+            Write in complete sentences and full paragraphs, as plain prose.
+            Do not reply with JSON, field names, or any structured format. Cite as [S1], [S2].
             """
             return (prompt, systemPrompt)
         }
@@ -6585,6 +6646,113 @@ extension AgenticOrchestrator {
         }
 
         return kept.joined(separator: "\n\n")
+    }
+
+    /// Truncate at the last sentence boundary at or before `limit`.
+    ///
+    /// A raw `String.prefix(limit)` cuts mid-sentence. In the reasoning chain that
+    /// is not cosmetic: `buildChainPrompt` places PRIOR FINDINGS in the middle of
+    /// the prompt, so a mid-sentence cut hands the model a prompt that stops in the
+    /// middle of a thought and then resumes with `SESSION OBJECTIVE:`. Sessions 6-8
+    /// of a real Deep Think run responded by completing the *prompt* rather than
+    /// answering it, echoing those section headers back as their insight.
+    private func truncateAtSentenceBoundary(_ text: String, limit: Int) -> String {
+        guard text.count > limit, limit > 0 else { return text }
+        let head = String(text.prefix(limit))
+        // Prefer a sentence end; fall back to a line break, then a word break, so a
+        // findings block never ends mid-word.
+        let terminators: [Character] = [".", "!", "?"]
+        if let idx = head.lastIndex(where: { terminators.contains($0) }) {
+            return String(head[...idx])
+        }
+        if let idx = head.lastIndex(of: "\n") {
+            return String(head[..<idx])
+        }
+        if let idx = head.lastIndex(of: " ") {
+            return String(head[..<idx])
+        }
+        return head
+    }
+
+    /// Strip prompt scaffolding and fabricated structured output out of a session insight.
+    ///
+    /// Across three device runs the on-device model repeatedly wrapped otherwise good
+    /// analysis in a JSON envelope it never closed:
+    ///
+    ///     tool_call: {tool_name: "extract_new_details", arguments: {...}}
+    ///     { "tool_call_status": "completed", "new_details_found": [ ...
+    ///     { "document_analysis": { "new_details": [ "The two-tier context window ...
+    ///
+    /// No such tool or schema exists in this codebase, and tools are explicitly
+    /// disabled for chain sessions (`disableToolsForSession = true`). The invented
+    /// key names track the prompt's own wording — "add NEW details" produced
+    /// `new_details` — so the phrasing was priming a structured response. The prompts
+    /// now ask for prose explicitly; this is the safety net for when that is ignored.
+    ///
+    /// The prose inside those envelopes was on-topic and correctly cited every time,
+    /// so salvage it rather than throwing away the session's work. Left unsanitized
+    /// it also cascades: a contaminated insight becomes the next session's PRIOR
+    /// FINDINGS and teaches the next model the same shape.
+    private func stripPromptEchoAndToolNoise(from text: String) -> String {
+        var result = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        var strippedEnvelope = false
+
+        // 1. Drop a leading tool-call blob, through its closing brace.
+        let toolCallPrefixes = ["tool_call:", "tool call:", "{\"tool_call", "{ \"tool_call"]
+        if let marker = toolCallPrefixes.first(where: { result.lowercased().hasPrefix($0) }) {
+            _ = marker
+            if let close = result.lastIndex(of: "}") {
+                result = String(result[result.index(after: close)...])
+            } else if let newline = result.firstIndex(of: "\n") {
+                result = String(result[result.index(after: newline)...])
+            }
+            result = result.trimmingCharacters(in: .whitespacesAndNewlines)
+            strippedEnvelope = true
+        }
+
+        // 2. Drop a leading JSON key path such as `{ "document_analysis": { "new_details": [ "`.
+        //    Matches nested `"key":` pairs and their opening braces/brackets, then the
+        //    opening quote of the first string value, leaving the prose intact.
+        let envelopePattern = "^[\\s\\{\\[]*(?:\"[A-Za-z_][A-Za-z0-9_ ]*\"\\s*:\\s*[\\s\\{\\[]*)+\"?"
+        if let regex = try? NSRegularExpression(pattern: envelopePattern),
+           let match = regex.firstMatch(in: result, range: NSRange(result.startIndex..., in: result)),
+           match.range.length > 0,
+           let range = Range(match.range, in: result) {
+            result = String(result[range.upperBound...]).trimmingCharacters(in: .whitespacesAndNewlines)
+            strippedEnvelope = true
+        }
+
+        if strippedEnvelope {
+            // Trailing closers the model did emit, and the stray quotes it used to
+            // separate array elements mid-prose (`... [S3]. "The document specifies`).
+            while let last = result.last, "\"]}".contains(last) {
+                result = String(result.dropLast()).trimmingCharacters(in: .whitespacesAndNewlines)
+            }
+            result = result.replacingOccurrences(of: "\", \"", with: " ")
+            result = result.replacingOccurrences(of: ". \"", with: ". ")
+        }
+
+        // 3. Cut at any echoed prompt section header. These strings are emitted only
+        //    by `buildChainPrompt`; a model reproducing one is quoting its input.
+        let promptMarkers = ["SESSION OBJECTIVE:", "ADDITIONAL DOCUMENTS:", "PRIOR FINDINGS:"]
+        for marker in promptMarkers {
+            if let range = result.range(of: marker) {
+                result = String(result[..<range.lowerBound])
+            }
+        }
+
+        // 4. Drop a conversational lead-in ("Got it, here's a detailed breakdown of…:")
+        //    so it does not consume budget as a PRIOR FINDINGS prefix downstream.
+        let preambleStarters = ["got it", "sure,", "sure!", "certainly", "of course", "absolutely", "here's", "here is"]
+        if let firstLineEnd = result.firstIndex(where: { $0 == "\n" }) {
+            let firstLine = String(result[..<firstLineEnd]).trimmingCharacters(in: .whitespaces)
+            let lowered = firstLine.lowercased()
+            if preambleStarters.contains(where: { lowered.hasPrefix($0) }), firstLine.count < 240 {
+                result = String(result[result.index(after: firstLineEnd)...])
+            }
+        }
+
+        return result.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     /// Clean up final answer by removing raw LLM markers and artifacts
@@ -6915,7 +7083,8 @@ extension RAGService {
         disableTools: Bool = false,
         temperature: Float = 0.5,
         qualityMode: RAGQualityMode = .deepThink,
-        sourceChunks: [RetrievedChunk] = []
+        sourceChunks: [RetrievedChunk] = [],
+        forceOnDevice: Bool = false
     ) async throws -> LLMResponse {
         try Task.checkCancellation()
         var config = InferenceConfig(
@@ -6931,7 +7100,16 @@ extension RAGService {
         let networkAvailable = NetworkMonitor.shared.isConnected
         let pccSuppressed = await MainActor.run { self.isPCCSuppressedForDeepThink() }
         let isAppleFM = llmService is AppleFoundationLLMService
-        if !isAppleFM || !networkAvailable || pccSuppressed {
+        // `forceOnDevice` is for callers whose prompts are deliberately built to
+        // a local budget. The reasoning-chain sessions are the case that matters:
+        // `buildChainPrompt` truncates context and insights to fit 4096 tokens and
+        // disables tools to save the ~400-token schema. Once those sessions start
+        // passing real chunks (below), the planner sees sufficient evidence and
+        // would happily route each one to PCC — turning eight local passes into
+        // eight ~8s cloud round-trips plus quota, for prompts already sized for
+        // on-device. Exploration stays local; the final synthesis, which passes
+        // its own chunks and is not budget-capped, is where escalation belongs.
+        if !isAppleFM || !networkAvailable || pccSuppressed || forceOnDevice {
             config.allowPrivateCloudCompute = false
             config.executionContext = .onDeviceOnly
         }
@@ -6939,14 +7117,38 @@ extension RAGService {
         let consentState = await MainActor.run {
             cloudConsent[.applePCC] ?? .notDetermined
         }
+
+        // `sourceChunks` defaults to [] and 13 of this function's 14 call sites
+        // rely on that default — the agentic steps pass their evidence as an
+        // already-rendered `context` string rather than as chunks. The planner
+        // decides sufficiency from `chunkCount > 0 && topScore >= 0.20`, so
+        // every one of those calls looked like zero evidence, planned
+        // `.abstain`, and (before this change) threw a bogus
+        // "model isn't available" error at the user.
+        //
+        // That is what made Deep Think and Maximum look broken: they route
+        // through this path, Standard does not. Retrieval had genuinely
+        // succeeded — the reasoning chain was holding thousands of characters
+        // of on-target evidence at the moment the planner declared there was
+        // none.
+        //
+        // Sufficiency must be judged on the evidence actually being sent. When
+        // a caller supplies context but no chunks, derive the signal from the
+        // context itself instead of defaulting to "insufficient". Callers that
+        // *do* pass chunks keep the precise scores.
+        let renderedContext = context.trimmingCharacters(in: .whitespacesAndNewlines)
+        let planningChunks = sourceChunks
+        let hasRenderedEvidence = sourceChunks.isEmpty && !renderedContext.isEmpty
+
         let planned = await makePostRetrievalModelPlan(
             prompt: prompt,
             context: context,
             config: config,
-            chunks: sourceChunks,
+            chunks: planningChunks,
             consentState: consentState,
             networkAvailable: networkAvailable,
-            requiresMultiDocumentSynthesis: Set(sourceChunks.map { $0.chunk.documentId }).count > 1
+            requiresMultiDocumentSynthesis: Set(sourceChunks.map { $0.chunk.documentId }).count > 1,
+            hasRenderedEvidence: hasRenderedEvidence
         )
         let plan = planned.plan
         config.modelExecutionPlan = plan
@@ -7002,7 +7204,42 @@ extension RAGService {
                 routedContext = String(routedContext.prefix(8_500))
             }
         case .abstain:
-            throw RAGServiceError.modelNotAvailable
+            // The planner chose to abstain because `evidence.isSufficient` was
+            // false — a designed, correct outcome, not a failure. This used to
+            // `throw RAGServiceError.modelNotAvailable`, which surfaced to the
+            // user as "The selected model isn't available right now. Please try
+            // again." That message is wrong in every respect: the model is fine,
+            // retrying will not help, and the app's actual behavior — declining
+            // to answer when the evidence does not support one — is a feature
+            // rather than an outage.
+            //
+            // It also mostly hit Deep Think and Maximum: they route through this
+            // planner path, while Standard does not, which made the modes look
+            // broken when they were in fact abstaining.
+            //
+            // Return a grounded abstention so the verification story holds and
+            // the user learns something actionable about their library.
+            Log.info(
+                "[ModelRouter] Planner abstained "
+                    + "(\(plan.stages.first(where: { $0.role == .synthesize })?.reason.rawValue ?? "unknown"), "
+                    + "chunks=\(plan.evidence.chunkCount) topScore=\(plan.evidence.topScore)); "
+                    + "returning grounded abstention instead of an availability error",
+                category: .llm
+            )
+            let abstention = """
+            I couldn't find enough supporting evidence in this library to answer that reliably.
+
+            Rather than guess, I'm stopping here. You could try rephrasing the question, \
+            selecting a different library, or adding a document that covers it.
+            """
+            return LLMResponse(
+                text: abstention,
+                tokensGenerated: 0,
+                timeToFirstToken: 0,
+                totalTime: 0,
+                modelName: "Abstained (insufficient evidence)",
+                toolCallsMade: 0
+            )
         }
 
         return try await generateWithFallback(

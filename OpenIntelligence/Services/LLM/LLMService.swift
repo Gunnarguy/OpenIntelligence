@@ -764,6 +764,21 @@ struct LLMResponse {
                 // Stop Neural Engine activity on error
                 HardwareTelemetryReporter.sustain(.llmInference, active: false)
 
+                // Capture the SDK error in full BEFORE mapping. The mapper
+                // converts it into one of our own LLMError cases, so the
+                // original case and its associated Context — which is where
+                // Apple puts the actual reason, and often the offending
+                // content — is unrecoverable after this point. Logging only
+                // `localizedDescription` downstream is why a decodingFailure
+                // reads as the bare string "Failed to parse generated content".
+                Log.error(
+                    "[FM] GenerationError before mapping:\n"
+                        + "     case: \(String(describing: error))\n"
+                        + "     desc: \(error.localizedDescription)\n"
+                        + "     estimatedTokens: \(estimatedTokens) maxTokens: \(config.maxTokens) route: \(actualRoute)",
+                    category: .llm
+                )
+
                 let mapped = FoundationModelErrorMapper.mapError(error, isStructured: false, estimatedTokens: estimatedTokens)
                 switch mapped {
                 case let .throwError(mappedError):

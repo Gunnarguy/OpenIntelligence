@@ -7984,7 +7984,19 @@ class RAGService: ObservableObject {
                     qualityModeOverride: .standard
                 )
             }
-            Log.error("[Agentic] Failed: \(error.localizedDescription)", category: .pipeline)
+            // Log the FULL error, not just localizedDescription. Apple's
+            // FoundationModels errors carry their diagnostic payload in
+            // associated values — GenerationError.decodingFailure(Context)
+            // reduces to the bare string "Failed to parse generated content"
+            // under localizedDescription, discarding the reason and the
+            // offending content. String(describing:) preserves the case and
+            // its associated values, which is what makes these debuggable.
+            Log.error(
+                "[Agentic] Failed: \(error.localizedDescription)\n"
+                    + "         type: \(type(of: error))\n"
+                    + "         full: \(String(describing: error))",
+                category: .pipeline
+            )
             throw error
         }
     }
@@ -14291,18 +14303,26 @@ class RAGService: ObservableObject {
         chunks: [RetrievedChunk],
         consentState: CloudConsentState,
         networkAvailable: Bool,
-        requiresMultiDocumentSynthesis: Bool
+        requiresMultiDocumentSynthesis: Bool,
+        /// True when the caller has real retrieved evidence but is passing it as
+        /// an already-rendered `context` string rather than as `chunks` (the
+        /// agentic reasoning steps do this). Without it the planner would read
+        /// an empty `chunks` array as "no evidence" and abstain on work that had
+        /// retrieved perfectly good sources.
+        hasRenderedEvidence: Bool = false
     ) async -> (plan: ModelExecutionPlan, localBudget: ContextBudgetSnapshot) {
-        let topScore = chunks.first?.similarityScore ?? 0
+        let topScore = chunks.first?.similarityScore ?? (hasRenderedEvidence ? 1.0 : 0)
         let meanScore = chunks.isEmpty
-            ? 0
+            ? (hasRenderedEvidence ? 1.0 : 0)
             : chunks.map(\.similarityScore).reduce(0, +) / Float(chunks.count)
         let estimatedEvidenceTokens = FoundationModelTokenBudget.estimateTokens(
             for: prompt + "\n" + context,
             isAppleFMOnDevice: true
         )
         let evidence = PostRetrievalEvidence(
-            chunkCount: chunks.count,
+            // Rendered-context callers report one logical evidence unit so the
+            // planner's `chunkCount > 0` sufficiency test reflects reality.
+            chunkCount: chunks.isEmpty && hasRenderedEvidence ? 1 : chunks.count,
             topScore: topScore,
             meanScore: meanScore,
             estimatedEvidenceTokens: estimatedEvidenceTokens,

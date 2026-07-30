@@ -30,14 +30,14 @@ import Foundation
 import os
 
 enum PipelineSignposts {
-    private static let subsystem = "Gunndamental.OpenIntelligence.Pipeline"
+    nonisolated private static let subsystem = "Gunndamental.OpenIntelligence.Pipeline"
 
     /// Document import, extraction, chunking, and indexing stages.
-    static let ingestion = OSSignposter(subsystem: subsystem, category: "Ingestion")
+    nonisolated static let ingestion = OSSignposter(subsystem: subsystem, category: "Ingestion")
 
     /// Retrieval-side stages: hybrid search, rerank, context assembly.
-    static let query = OSSignposter(subsystem: subsystem, category: "Query")
+    nonisolated static let query = OSSignposter(subsystem: subsystem, category: "Query")
 
     /// Planning, generation, verification, and agentic session stages.
-    static let synthesis = OSSignposter(subsystem: subsystem, category: "Synthesis")
+    nonisolated static let synthesis = OSSignposter(subsystem: subsystem, category: "Synthesis")
 }
