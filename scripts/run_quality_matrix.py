@@ -92,9 +92,17 @@ def parse_report(text: str) -> dict:
 def score(case: dict, parsed: dict) -> dict:
     """Score one run against the manifest's ground truth."""
     answer = parsed.get("answer", "")
+    # Abstention phrasing varies more than expected. An early version missed
+    # "I do not have access to confidential pricing information" and scored a
+    # correct refusal as a hallucination -- the worst possible direction for
+    # this metric to be wrong in. Keep this list generous; a false "abstained"
+    # only downgrades an answer case, while a false "hallucinated" defames a
+    # refusal that was exactly right.
     abstained = bool(re.search(
         r"\b(cannot|can't|could not|couldn't|unable to|not (?:enough|sufficient)|"
-        r"does not (?:contain|include|provide)|no (?:information|evidence|mention)|"
+        r"does not (?:contain|include|provide|specify|mention)|"
+        r"(?:do|does) not have access|don't have access|no access to|"
+        r"no (?:information|evidence|mention|details)|not disclosed|"
         r"isn't (?:in|available)|not (?:found|available|provided|specified))\b",
         answer, re.I,
     ))
@@ -155,6 +163,19 @@ def run_one(
             tail = (proc.stderr or report or "").strip().splitlines()[-4:]
             return {"ok": False, "seconds": elapsed, "error": "no report", "tail": tail}
         parsed = parse_report(report)
+
+        # A report can be emitted with no ANSWER section at all: the harness
+        # writes its header and artifacts, but generation produced nothing.
+        # That is an unmeasured run, NOT a wrong answer, and scoring it as a
+        # miss would slander the mode. Observed on 2026-07-30: Deep Think and
+        # Maximum hit this on every case that engages the agentic loop, while
+        # cases that shortcut to Direct Source Extraction complete normally.
+        if not (parsed.get("answer") or "").strip():
+            return {
+                "ok": False, "seconds": elapsed, "report": report,
+                "error": "no answer produced (agentic path did not complete headlessly)",
+                "model": parsed.get("model"), "unmeasured": True,
+            }
         return {"ok": True, "seconds": elapsed, "ingested": ingest, "report": report, **parsed}
     except subprocess.TimeoutExpired:
         return {"ok": False, "seconds": timeout, "error": f"timeout after {timeout}s"}
@@ -164,6 +185,7 @@ def summarize(rows: list[dict], mode: str) -> dict:
     """Aggregate every run for one mode."""
     mine = [r for r in rows if r["mode"] == mode]
     ok = [r for r in mine if r["run"].get("ok")]
+    unmeasured = [r for r in mine if r["run"].get("unmeasured")]
     scored = [r for r in ok if r.get("score")]
     correct = [r for r in scored if r["score"]["correct"]]
 
@@ -182,7 +204,8 @@ def summarize(rows: list[dict], mode: str) -> dict:
         "mode": mode,
         "runs": len(mine),
         "completed": len(ok),
-        "failed": len(mine) - len(ok),
+        "unmeasured": len(unmeasured),
+        "failed": len(mine) - len(ok) - len(unmeasured),
         "correct": len(correct),
         "accuracy": round(len(correct) / len(scored), 3) if scored else None,
         "answer_accuracy": round(len(answer_ok) / len(answer_cases), 3) if answer_cases else None,
@@ -207,19 +230,24 @@ def render_markdown(summaries: list[dict], rows: list[dict], meta: dict) -> str:
     L.append("Does more compute buy more correctness? Each mode ran the same cases "
              "against the same fixtures; the only variable is the quality mode.")
     L.append("")
-    L.append("| Mode | Correct | Accuracy | Answers | Abstentions | Hallucinated | Mean s | LLM calls | Tokens |")
-    L.append("| :--- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |")
+    L.append("| Mode | Measured | Unmeasured | Correct | Accuracy | Abstentions | Hallucinated | Mean s |")
+    L.append("| :--- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |")
     for s in summaries:
         def fmt(v, pct=False):
             if v is None:
                 return "-"
             return f"{v * 100:.0f}%" if pct else str(v)
         L.append(
-            f"| {s['mode']} | {s['correct']}/{s['completed']} | {fmt(s['accuracy'], True)} | "
-            f"{fmt(s['answer_accuracy'], True)} | {fmt(s['abstention_rate'], True)} | "
-            f"{s['hallucinated_on_negative_control']} | {fmt(s['mean_seconds'])} | "
-            f"{fmt(s['mean_llm_calls'])} | {fmt(s['mean_tokens'])} |"
+            f"| {s['mode']} | {s['completed']}/{s['runs']} | {s.get('unmeasured', 0)} | "
+            f"{s['correct']} | {fmt(s['accuracy'], True)} | "
+            f"{fmt(s['abstention_rate'], True)} | "
+            f"{s['hallucinated_on_negative_control']} | {fmt(s['mean_seconds'])} |"
         )
+    L.append("")
+    L.append("**Unmeasured** runs produced no ANSWER section at all -- generation returned "
+             "nothing. These are excluded from accuracy rather than counted as wrong; a mode "
+             "that could not run is not a mode that answered badly. Accuracy is over measured "
+             "runs only, so a low Measured count means the number beside it is weak evidence.")
     L.append("")
     L.append("**Hallucinated** counts negative-control cases that produced a confident "
              "answer instead of abstaining. That column mattering more than accuracy is "
