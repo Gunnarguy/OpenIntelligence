@@ -7098,6 +7098,16 @@ extension RAGService {
         config.disableTools = disableTools
         config.qualityMode = qualityMode
 
+        // The user's model-picker choice, captured for this query in
+        // `executeAgenticQuery`. Carry it onto the config *before* planning, so
+        // the planner's `allowsPCC` reflects what was actually selected. Without
+        // this the fields below keep their defaults (.automatic / .automatic /
+        // true) and the picker is inert for Deep Think and Maximum.
+        let userRouting = await MainActor.run { self.activeUserRoutingPreference }
+        config.fmPreference = userRouting.fmPreference
+        config.executionContext = userRouting.executionContext
+        config.allowPrivateCloudCompute = userRouting.allowPrivateCloudCompute
+
         let networkAvailable = NetworkMonitor.shared.isConnected
         let pccSuppressed = await MainActor.run { self.isPCCSuppressedForDeepThink() }
         let isAppleFM = llmService is AppleFoundationLLMService
@@ -7110,7 +7120,18 @@ extension RAGService {
         // eight ~8s cloud round-trips plus quota, for prompts already sized for
         // on-device. Exploration stays local; the final synthesis, which passes
         // its own chunks and is not budget-capped, is where escalation belongs.
-        if !isAppleFM || !networkAvailable || pccSuppressed || forceOnDevice {
+        //
+        // That pin is a heuristic about prompt budgets, so an explicit PCC
+        // selection outranks it — otherwise choosing PCC would still produce
+        // eight local sessions, which is what device logs showed before this.
+        // `requiresOnDevice`, by contrast, is the user's instruction and is
+        // absolute: On-Device means no PCC for any call in the query, synthesis
+        // included. Once it is set, the planner sees `allowsPCC: false`, targets
+        // `.onDevice`, and the existing `.onDevice` branch below both keeps
+        // execution local and trims the context to the local budget.
+        let budgetPin = forceOnDevice && !userRouting.explicitlyPrefersPCC
+        if !isAppleFM || !networkAvailable || pccSuppressed
+            || userRouting.requiresOnDevice || budgetPin {
             config.allowPrivateCloudCompute = false
             config.executionContext = .onDeviceOnly
         }

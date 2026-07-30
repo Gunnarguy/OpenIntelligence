@@ -350,6 +350,54 @@ class RAGService: ObservableObject {
     @MainActor private var pendingConsentContinuation: CheckedContinuation<CloudConsentDecision, Never>?
     @MainActor private var transientConsentGrants: Set<CloudProvider> = []
     @MainActor private var pccSuppressedUntil: Date?
+
+    /// The routing preferences the user actually chose for the in-flight query.
+    ///
+    /// `ChatScreen` builds a full `InferenceConfig` carrying `fmPreference`,
+    /// `executionContext`, and `allowPrivateCloudCompute`, and Standard honours it:
+    /// it derives `pccEligible` from those fields and sizes the packed context to
+    /// match. The agentic path did neither — `generateWithProperConsent` built a
+    /// fresh `InferenceConfig` from only maxTokens/temperature/systemPrompt, so
+    /// every field above fell back to its default (`.automatic`, `.automatic`,
+    /// `true`). The model picker was therefore inert in Deep Think and Maximum:
+    /// device logs for On-Device, Hybrid, and PCC selections were identical, and
+    /// an On-Device selection still sent 16 KB of evidence to Apple PCC while the
+    /// UI reported "Apple Intelligence (PCC) (User Selected)".
+    ///
+    /// Captured per query in `executeAgenticQuery` and read back in
+    /// `generateWithProperConsent`.
+    @MainActor private(set) var activeUserRoutingPreference: UserRoutingPreference = .init()
+
+    /// The subset of `InferenceConfig` that expresses the user's routing intent.
+    struct UserRoutingPreference: Sendable {
+        var fmPreference: FoundationModelPreference = .automatic
+        var executionContext: ExecutionContext = .automatic
+        var allowPrivateCloudCompute: Bool = true
+
+        /// True when the user asked for local-only execution by any available
+        /// control. On-Device must mean on-device for *every* call in the query,
+        /// synthesis included — not just the reasoning sessions.
+        var requiresOnDevice: Bool {
+            fmPreference.canonical == .core3B
+                || executionContext == .onDeviceOnly
+                || !allowPrivateCloudCompute
+        }
+
+        /// True when the user explicitly asked for PCC rather than leaving it to
+        /// the app. An explicit choice outranks internal budget heuristics.
+        var explicitlyPrefersPCC: Bool {
+            fmPreference.canonical == .privateCloudCompute
+        }
+
+        init() {}
+
+        init(config: InferenceConfig?) {
+            guard let config else { return }
+            fmPreference = config.fmPreference
+            executionContext = config.executionContext
+            allowPrivateCloudCompute = config.allowPrivateCloudCompute
+        }
+    }
     @MainActor private var suppressProcessingSummary: Bool = false
     @MainActor private var ingestionTask: Task<Void, Never>?
     @MainActor private var ingestionContexts: [UUID: IngestionContext] = [:]
@@ -7542,6 +7590,21 @@ class RAGService: ObservableObject {
         qualityMode: RAGQualityMode,
         runtimeContext: QueryRuntimeContext
     ) async throws -> RAGResponse {
+        // Capture the user's routing choice for the whole query. Every generation
+        // in the agentic path reads this back; without it the model picker has no
+        // effect on Deep Think or Maximum at all.
+        await MainActor.run {
+            self.activeUserRoutingPreference = UserRoutingPreference(config: config)
+        }
+        let routingPreference = await MainActor.run { self.activeUserRoutingPreference }
+        Log.info(
+            "[QueryRuntime] User routing preference: \(routingPreference.fmPreference.rawValue) "
+                + "(execContext=\(routingPreference.executionContext), "
+                + "allowPCC=\(routingPreference.allowPrivateCloudCompute), "
+                + "resolvesTo=\(routingPreference.requiresOnDevice ? "on-device only" : routingPreference.explicitlyPrefersPCC ? "PCC preferred" : "hybrid"))",
+            category: .pipeline
+        )
+
         let selectedContainer = await MainActor.run {
             self.containerService.containers.first { $0.id == containerId }
         }
