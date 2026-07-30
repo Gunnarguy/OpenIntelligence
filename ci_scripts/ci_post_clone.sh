@@ -6,9 +6,10 @@
 # CHANGELOG.md. The "## [Unreleased]" heading is deliberately invisible to that
 # grep because "[" is not a digit.
 #
-# macOS uses a separate "MARKETING_VERSION[sdk=macosx*]" override, which the sed
-# below intentionally does not match. That override is maintained by hand in
-# project.pbxproj and follows its own version line (3.0 while iOS is 4.7).
+# iOS and macOS share one version line as of 2026-07-30. The old
+# "MARKETING_VERSION[sdk=macosx*]" override (which tracked macOS separately at
+# 2.5/3.0) was removed from project.pbxproj, so the sed below now stamps both
+# platforms from the same CHANGELOG heading.
 #
 # See scripts/build_eval_dataset.py for the other generated-artifact guard, and
 # Docs/ROADMAP.md for the release checklist.
@@ -85,11 +86,15 @@ if [ "$IOS_COUNT" -eq 0 ]; then
     exit 1
 fi
 
-MACOS_VERSION=$(grep -m 1 'MARKETING_VERSION\[sdk=macosx\*\]' OpenIntelligence.xcodeproj/project.pbxproj | sed 's/.*= *//; s/;//')
+STRAY_OVERRIDE=$(grep -c 'MARKETING_VERSION\[sdk=macosx\*\]' OpenIntelligence.xcodeproj/project.pbxproj || true)
+if [ "$STRAY_OVERRIDE" -gt 0 ]; then
+    echo "Error: a macOS MARKETING_VERSION override reappeared in project.pbxproj."
+    echo "iOS and macOS share one version line; remove it so both stamp $LATEST_VERSION."
+    exit 1
+fi
 
 echo "Synchronized project version with CHANGELOG.md"
-echo "  iOS   MARKETING_VERSION = $LATEST_VERSION  ($IOS_COUNT targets)"
-echo "  macOS MARKETING_VERSION = $MACOS_VERSION  (override preserved, edited by hand)"
+echo "  iOS + macOS MARKETING_VERSION = $LATEST_VERSION  ($IOS_COUNT targets)"
 
 # Informational canary: alert (without failing) the moment Apple's SDK exposes
 # developer-selectable AFM 3 Core Advanced. See scripts/probe_afm_advanced_canary.sh
