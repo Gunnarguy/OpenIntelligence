@@ -285,7 +285,8 @@ private struct ConsoleLogRow: View {
                 Text(detail)
                     .font(.system(size: 7, weight: .regular, design: .monospaced))
                     .foregroundStyle(tint.opacity(0.85))
-                    .lineLimit(1)
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.8)
             }
 
             Spacer(minLength: 0)
