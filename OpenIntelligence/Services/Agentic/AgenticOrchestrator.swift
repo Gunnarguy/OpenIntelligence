@@ -5887,16 +5887,44 @@ extension AgenticOrchestrator {
         // Gather supplementary context from recent insights (non-overlapping with FactBank)
         let supplementary: String
         if allInsights.count > 3 {
-            // Was suffix(3) × prefix(300): on a 50-session run, 47 sessions reached
-            // synthesis only as compressed FactBank summary, and one device trace
-            // produced a 236-character answer from 22,962 generated tokens. A caveat
-            // the model correctly found in session 4 was absent from the answer for
-            // exactly this reason. Widen the window, and scale the per-insight budget
-            // down as the count grows so the block stays bounded.
-            let keep = min(8, max(3, allInsights.count / 4))
+            // Fit the supplementary block into whatever the window has left after the
+            // fact bank, the fixed instruction text, and the reserved output.
+            //
+            // This block was originally suffix(3) × prefix(300), which starved the
+            // synthesizer on a 50-session run. Widening it without checking the budget
+            // made things worse, not better: a device trace then showed a ~3506-token
+            // prompt requesting 1500 output tokens against a 4096-token on-device
+            // window. 5006 into 4096 does not go — the model was left almost no room
+            // and emitted five tokens, a 48-character answer after 22,292 tokens of
+            // reasoning. Size the input to the window instead of assuming it fits.
             let perInsight = allInsights.count > 20 ? 220 : 320
-            let recent = allInsights.suffix(keep).map { String($0.prefix(perInsight)) }
-            supplementary = "\n\nSUPPLEMENTARY FINDINGS:\n" + recent.joined(separator: "\n")
+            let maxKeep = min(8, max(3, allInsights.count / 4))
+            let recent = allInsights.suffix(maxKeep).map { String($0.prefix(perInsight)) }
+            let header = "\n\nSUPPLEMENTARY FINDINGS:\n"
+            let joined = recent.joined(separator: "\n")
+
+            let remaining = supplementaryCharBudget(
+                factContextChars: factContext.count,
+                queryChars: query.count
+            )
+            if remaining <= header.count + 80 {
+                supplementary = ""
+                Log.info(
+                    "[Synthesis] Supplementary findings dropped — no context budget left "
+                        + "(fact bank \(factContext.count) chars)",
+                    category: .llm
+                )
+            } else if joined.count + header.count > remaining {
+                let fitted = truncateAtSentenceBoundary(joined, limit: remaining - header.count)
+                supplementary = header + fitted
+                Log.info(
+                    "[Synthesis] Supplementary findings trimmed to fit context: "
+                        + "\(joined.count) → \(fitted.count) chars",
+                    category: .llm
+                )
+            } else {
+                supplementary = header + joined
+            }
         } else {
             supplementary = ""
         }
@@ -6972,6 +7000,22 @@ extension AgenticOrchestrator {
         }
 
         return kept.joined(separator: "\n\n")
+    }
+
+    /// Characters still available for the supplementary findings block.
+    ///
+    /// Budgeted against the **on-device** window even when synthesis may escalate to
+    /// PCC. Under-using a 32K window costs nothing; over-filling a 4096 one costs the
+    /// entire answer, and an On-Device selection makes the small window mandatory.
+    private func supplementaryCharBudget(factContextChars: Int, queryChars: Int) -> Int {
+        let window = FoundationModelTokenBudget.contextSize(isAppleFMOnDevice: true)
+        let outputReserveTokens = 1500          // maxTokens requested for the answer
+        let serviceOverheadTokens = 200         // system prompt + LLMService wrapper
+        let instructionChars = 900              // the fixed instruction text below the findings
+
+        let inputTokens = max(0, window - outputReserveTokens - serviceOverheadTokens)
+        let inputChars = Int(Double(inputTokens) * Double(FoundationModelTokenBudget.onDeviceCharsPerToken))
+        return max(0, inputChars - factContextChars - queryChars - instructionChars)
     }
 
     /// Truncate at the last sentence boundary at or before `limit`.
