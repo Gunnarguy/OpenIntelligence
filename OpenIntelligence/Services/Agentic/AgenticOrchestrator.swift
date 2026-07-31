@@ -4753,6 +4753,10 @@ extension AgenticOrchestrator {
         enum TerminationReason: String, Sendable {
             case confidenceReached = "98% confidence achieved"
             case contentSaturated = "No new insights (content saturated)"
+            /// Sub-question coverage stopped improving: the chain kept finding new
+            /// text but none of it answered more of the question, which means the
+            /// remaining parts are not in this corpus.
+            case answerNotInCorpus = "Remaining sub-questions not present in the documents"
             case maxSessionsReached = "Maximum sessions reached"
             case thermalLimit = "Thermal throttling detected"
             case userCancelled = "User cancelled"
@@ -5310,6 +5314,14 @@ extension AgenticOrchestrator {
         // Track content saturation via semantic similarity
         var saturationStreak = 0
         var lowNoveltyStreak = 0
+        // Sub-question coverage over time. Novelty measures new *text*; this measures
+        // new *answer*. A device run held coverage at 80% from session 1 through 22
+        // while novelty ran 66–86% — the chain was reading fresh material that
+        // answered nothing further, for twenty sessions, because nothing else it
+        // needed was in the document. That is the signal for "the rest is not here",
+        // and neither novelty nor saturation can express it.
+        var coveragePlateauStreak = 0
+        var bestCoverage: Float = -1
         var consecutiveFailures = 0 // Track empty/failed responses from model
         var expansionCount = 0
         let maxExpansions = 3 // Allow up to 3 retrieval expansions (theoretically unlimited chunks)
@@ -5353,11 +5365,35 @@ extension AgenticOrchestrator {
             //   converged  — nothing new is being learned, and enough of the evidence
             //                has been seen that this is exhaustion rather than a
             //                cold start
+            // Has answering *progressed*, as distinct from text being *new*?
+            let coverageNow = factBank.subQuestionConfidence
+            if coverageNow > bestCoverage + 0.001 {
+                bestCoverage = coverageNow
+                coveragePlateauStreak = 0
+            } else {
+                coveragePlateauStreak += 1
+            }
+
             let completed = confidence >= targetConfidence
                 && factBank.subQuestionConfidence >= evidenceCoverageTarget
             let converged = noveltyExhausted
                 && sessionNum >= unlimitedPolicy.minimumSessionsBeforeConvergence
-            if completed || converged {
+            // Coverage has not moved for several sessions while the chain kept
+            // reading. Whatever is still unanswered is not in this corpus, and more
+            // sessions cannot change that.
+            let answerNotInCorpus = coveragePlateauStreak >= unlimitedPolicy.coveragePlateauStreakThreshold
+                && sessionNum >= unlimitedPolicy.minimumSessionsBeforeConvergence
+            if completed || converged || answerNotInCorpus {
+                if answerNotInCorpus && !completed && !converged {
+                    terminationReason = .answerNotInCorpus
+                    Log.info(
+                        "[Unlimited] Session \(sessionNum): coverage flat at "
+                            + "\(Int(bestCoverage * 100))% for \(coveragePlateauStreak) sessions "
+                            + "— the remaining "
+                            + "sub-questions are not in these documents. STOPPING",
+                        category: .llm
+                    )
+                }
                 terminationReason = .confidenceReached
                 Log.info(
                     "[Unlimited] Session \(sessionNum): confidence=\(Int(confidence * 100))%, coverage=\(Int(factBank.subQuestionConfidence * 100))%, lowNoveltyStreak=\(lowNoveltyStreak) - STOPPING",

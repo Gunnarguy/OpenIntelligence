@@ -55,6 +55,12 @@ struct AgenticReasoningPolicy: Sendable {
     /// fact bank. This keeps early sessions from being mistaken for exhaustion,
     /// without weakening the streak thresholds that make the rule responsive later.
     let minimumSessionsBeforeConvergence: Int
+
+    /// Sessions of flat sub-question coverage before concluding the remainder is
+    /// simply absent from the corpus. Deliberately more patient than the novelty and
+    /// saturation streaks: a plateau can break if a later chunk finally supplies the
+    /// missing piece, so this waits longer before calling it.
+    let coveragePlateauStreakThreshold: Int
     let sourceCoverageStopThreshold: Float
     let repetitionCheckStartSession: Int
     let repetitionSimilarityThreshold: Float
@@ -229,6 +235,7 @@ enum AgenticPolicyService {
             saturationScoreThreshold: 0.85,
             saturationStreakThreshold: 2,
             minimumSessionsBeforeConvergence: 4,
+            coveragePlateauStreakThreshold: 4,
             sourceCoverageStopThreshold: 0.85,
             repetitionCheckStartSession: isUnlimitedMode ? 8 : 4,
             repetitionSimilarityThreshold: isUnlimitedMode ? 0.65 : 0.50,
@@ -260,6 +267,7 @@ enum AgenticPolicyService {
             saturationScoreThreshold: 0.85,
             saturationStreakThreshold: 3,
             minimumSessionsBeforeConvergence: 6,
+            coveragePlateauStreakThreshold: 6,
             sourceCoverageStopThreshold: 1.0,
             repetitionCheckStartSession: 8,
             repetitionSimilarityThreshold: 0.65,
