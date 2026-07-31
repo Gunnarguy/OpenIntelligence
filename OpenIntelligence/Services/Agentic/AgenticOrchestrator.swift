@@ -5382,7 +5382,9 @@ extension AgenticOrchestrator {
             // Execute LLM call - tools DISABLED to prevent context overflow
             // Chunks are already gathered and passed in the prompt
             let sessionStart = Date()
-            let response = try await ragService.generateWithProperConsent(
+            let response: LLMResponse
+            do {
+                response = try await ragService.generateWithProperConsent(
                 prompt: prompt,
                 context: "",
                 systemPrompt: systemPrompt,
@@ -5401,7 +5403,41 @@ extension AgenticOrchestrator {
                 // what the planner must judge.
                 sourceChunks: sortedChunks,
                 forceOnDevice: true
-            )
+                )
+            } catch is CancellationError {
+                throw CancellationError()
+            } catch {
+                // This loop already survives a session that *returns* nothing, via
+                // the `consecutiveFailures` three-strike counter below. A session
+                // that *throws* skipped that machinery entirely and killed the whole
+                // query. Observed on device: session 1 succeeded, session 2 hit
+                // "[RAG] Primary LLM rate-limited", retried, failed with
+                // ParsingError / "Session ended without producing a response", and
+                // the run ended with no answer at all.
+                //
+                // The equivalent guard was added to `executeReasoningChain` in
+                // fda58ed; Maximum runs this loop instead and never received it.
+                // Route thrown failures into the same counter rather than inventing
+                // a second recovery path.
+                consecutiveFailures += 1
+                Log.warning(
+                    "[Unlimited] Session \(sessionNum) threw (failure \(consecutiveFailures)/3): "
+                        + "\(type(of: error)) — \(error.localizedDescription)",
+                    category: .llm
+                )
+                if consecutiveFailures >= 3 {
+                    Log.error(
+                        "[Unlimited] STOPPING: 3 consecutive generation failures",
+                        category: .llm
+                    )
+                    terminationReason = .error
+                    break
+                }
+                // Transient decode failures cluster right after a rate-limit backoff,
+                // so give the model a moment before the next session.
+                try? await Task.sleep(nanoseconds: 1_500_000_000)
+                continue
+            }
             let sessionDuration = Date().timeIntervalSince(sessionStart)
             totalTokens += response.tokensGenerated
 
@@ -5784,14 +5820,32 @@ extension AgenticOrchestrator {
         Never repeat the same information twice.
         """
 
-        let coreResponse = try await ragService.generateWithProperConsent(
+        // A throw here discards everything the run produced: up to 50 sessions and,
+        // on one device trace, 26 minutes of work. `currentAnswer` is the running
+        // synthesis the loop maintained along the way, so it is a real answer rather
+        // than a placeholder. Degrade to it instead of failing the query outright.
+        let coreResponse: LLMResponse
+        do {
+            coreResponse = try await ragService.generateWithProperConsent(
             prompt: synthesisPrompt,
             context: "",
             systemPrompt: "Document analyst. Answer using ONLY the provided findings. Never fabricate facts or statistics. Use **bold** sparingly for key terms only. Never repeat content. Reply in plain prose only — never JSON, key-value pairs, or field names.",
             maxTokens: 1500,
             disableTools: true,
             sourceChunks: sourceChunks
-        )
+            )
+        } catch is CancellationError {
+            throw CancellationError()
+        } catch {
+            let fallback = cleanupFinalAnswer(currentAnswer).trimmingCharacters(in: .whitespacesAndNewlines)
+            Log.warning(
+                "[Unlimited] Final synthesis threw (\(type(of: error))); "
+                    + "returning the accumulated running answer (\(fallback.count) chars)",
+                category: .llm
+            )
+            if !fallback.isEmpty { return fallback }
+            throw error
+        }
         var finalAnswer = cleanupFinalAnswer(coreResponse.text)
 
         // ── PASS 2: Refinement (REPLACES, never appends) — only if sufficient evidence ──
@@ -5816,7 +5870,10 @@ extension AgenticOrchestrator {
             Return the improved complete answer.
             """
 
-            let refinedResponse = try await ragService.generateWithProperConsent(
+            // This pass is optional by design -- it only replaces the answer when it
+            // comes back substantial. A throw should therefore cost nothing at all,
+            // rather than discarding a core synthesis that already succeeded.
+            let refinedResponse = try? await ragService.generateWithProperConsent(
                 prompt: refinementPrompt,
                 context: "",
                 systemPrompt: "Editor. Only include facts from the FACT BANK. Remove repetition. Remove unsupported claims. Reply in plain prose only — never JSON, key-value pairs, or field names.",
@@ -5824,7 +5881,7 @@ extension AgenticOrchestrator {
                 disableTools: true,
                 sourceChunks: sourceChunks
             )
-            let refined = cleanupFinalAnswer(refinedResponse.text)
+            let refined = cleanupFinalAnswer(refinedResponse?.text ?? "")
 
             // Only use refinement if it's substantial (not a truncated mess)
             if refined.count > finalAnswer.count / 2 {
