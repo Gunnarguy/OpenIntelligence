@@ -574,8 +574,14 @@ final class AgenticOrchestrator: Sendable {
                 )
 
                 // If recursive research found a better answer, use it
+                // The dump guard matters as much as the miss guard: this branch only
+                // asked whether the replacement was *also* flagged as a miss, never
+                // whether it was actually an answer. A raw evidence dump is flagged
+                // by neither, so it won every time it appeared.
                 let cleanRecursiveAnswer = recursiveResult.finalAnswer.trimmingCharacters(in: .whitespacesAndNewlines)
-                if !cleanRecursiveAnswer.isEmpty && !answerIndicatesRetrievalMiss(recursiveResult.finalAnswer) {
+                if !cleanRecursiveAnswer.isEmpty
+                    && !answerIndicatesRetrievalMiss(recursiveResult.finalAnswer)
+                    && !looksLikeRawEvidenceDump(cleanRecursiveAnswer) {
                     Log.info("[Agentic] Recursive research found answer after \(recursiveResult.steps.count) steps", category: .llm)
                     steps.append(contentsOf: recursiveResult.steps)
                     return AgenticResult(
@@ -2645,11 +2651,57 @@ final class AgenticOrchestrator: Sendable {
         return max(0.3, min(0.95, confidence))
     }
 
+    /// True when an "answer" is really just retrieved chunks pasted back.
+    ///
+    /// Recursive research can return the evidence it gathered rather than a written
+    /// answer. That output is worthless to a user and, because it contains no
+    /// hedging language, it slips past `answerIndicatesRetrievalMiss` and is allowed
+    /// to replace a perfectly good synthesis. Seen on device: a 91%-confidence
+    /// eight-session answer swapped for text beginning `[S1] Apple Intelligence
+    /// powers OpenIntelligence via WWDC26 FoundationModels...`, copied verbatim out
+    /// of the source document.
+    ///
+    /// A real synthesis never opens with a source marker — every synthesis prompt
+    /// asks for prose with `###` headers — so requiring both a leading marker and
+    /// several source-prefixed blocks keeps this narrow.
+    private func looksLikeRawEvidenceDump(_ answer: String) -> Bool {
+        let trimmed = answer.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed.hasPrefix("[S") else { return false }
+        let sourcePrefixedBlocks = trimmed
+            .components(separatedBy: "\n")
+            .filter { $0.trimmingCharacters(in: .whitespaces).hasPrefix("[S") }
+            .count
+        return sourcePrefixedBlocks >= 2
+    }
+
     /// Detect if an answer indicates the initial retrieval missed relevant content
     /// This catches cases where the model says "I cannot find" but the answer exists in different chunks
     /// that weren't retrieved because of semantic mismatch (e.g., "oil pressure" vs "oil type/viscosity")
     private func answerIndicatesRetrievalMiss(_ answer: String) -> Bool {
         let lowercased = answer.lowercased()
+
+        // A grounded answer is *allowed* to say what the documents do not cover.
+        // `buildSessionObjective` explicitly instructs the final session to "state
+        // that the documents do not fully resolve them instead of inferring beyond
+        // the evidence", and both "documents do not" and "do not specify" appear in
+        // the list below — so the app was telling the model to hedge and then
+        // classifying that hedge as a retrieval failure.
+        //
+        // Observed on device: an 8-session synthesis at 91% confidence tripped this,
+        // was discarded, and recursive research replaced it with raw retrieved chunks
+        // pasted back to the user. The replacement passed the guard at the call site
+        // precisely because an evidence dump contains no hedging language.
+        //
+        // The original intent — catching retrieval that grabbed the wrong content,
+        // "oil pressure" instead of "oil type" — produces a short, uncited answer.
+        // A long answer carrying source citations is the opposite of that: it is a
+        // grounded synthesis that happens to note a gap, which is the behaviour the
+        // reasoning chain is designed to produce.
+        let trimmedAnswer = answer.trimmingCharacters(in: .whitespacesAndNewlines)
+        let citationMarkers = trimmedAnswer.components(separatedBy: "[S").count - 1
+        if trimmedAnswer.count >= 800 && citationMarkers >= 2 {
+            return false
+        }
 
         // Strong indicators that retrieval grabbed wrong content
         let retrievalMissIndicators = [
