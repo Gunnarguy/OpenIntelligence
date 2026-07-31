@@ -4533,8 +4533,10 @@ extension AgenticOrchestrator {
             chainInsights.append(insight)
 
             // Emit thinking step
+            // Session 0 was labelled `.searching` and therefore displayed as
+            // RETRIEVAL, but retrieval completed before the chain started; session 0
+            // is the initial *analysis* pass over that evidence.
             let stepType: ThinkingStep.StepType = switch sessionIndex {
-            case 0: .searching
             case config.sessionCount - 1: .synthesizing
             default: .analyzing
             }
@@ -5582,15 +5584,13 @@ extension AgenticOrchestrator {
                 totalTokens += 200 // Estimate for synthesis
             }
 
-            // Determine step type based on session progress
-            let stepType: ThinkingStep.StepType
-            if sessionNum <= 2 {
-                stepType = .searching
-            } else if confidence >= 0.9 {
-                stepType = .synthesizing
-            } else {
-                stepType = .analyzing
-            }
+            // Every session here is a reasoning pass over evidence that was already
+            // retrieved before session 1 began — the console shows "Retrieval
+            // complete" above them. Labelling the first two `.searching` rendered
+            // them as RETRIEVAL in the live pipeline, the same class of mislabel as
+            // `.analyzing` reporting as RE-RANKING. Only a session that is actually
+            // consolidating gets `.synthesizing`.
+            let stepType: ThinkingStep.StepType = confidence >= 0.9 ? .synthesizing : .analyzing
 
             // Emit step with REAL confidence
             let step = ThinkingStep(
