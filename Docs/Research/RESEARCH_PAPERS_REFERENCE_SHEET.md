@@ -348,3 +348,63 @@ All local relational metadata and lexical indexes are stored in a single shared 
     - *Purpose*: Configures memory-mapped IO (mmap) up to 256MB. This permits direct zero-copy read boundaries, reading data pages straight out of system caches without copying blocks to heap registers.
 *   `tokenize = 'porter unicode61'`
     - *Purpose*: Configures the FTS5 virtual table tokenizer. Porter strips English suffixes (e.g. mapping "synthetics" to "synthetic") while unicode61 enforces case-insensitive word matching.
+
+---
+
+## Pipeline-Order Review — 2026-07-31
+
+Added during a review of whether the query loop runs its stages in the right
+order, judged against published retrieval research. Stage sequence taken from
+physical-device pipeline traces, not from documentation.
+
+### Papers backing the stages the engine already implements correctly
+
+| Stage in OpenIntelligence | Paper | Reference |
+| :--- | :--- | :--- |
+| RRF across dense + BM25 result sets | Cormack, Clarke & Buettcher, *Reciprocal Rank Fusion Outperforms Condorcet and Individual Rank Learning Methods* | SIGIR 2009 |
+| Dense retrieval arm | Karpukhin et al., *Dense Passage Retrieval for Open-Domain QA* | [arXiv:2004.04906](https://arxiv.org/abs/2004.04906) |
+| Cross-encoder rerank after fusion | Nogueira & Cho, *Passage Re-ranking with BERT* | [arXiv:1901.04085](https://arxiv.org/abs/1901.04085) |
+| MMR diversification | Carbonell & Goldstein, *The Use of MMR, Diversity-Based Reranking* | SIGIR 1998 |
+| Lost-in-the-Middle position reorder, applied last | Liu et al., *Lost in the Middle: How Language Models Use Long Contexts* | [arXiv:2307.03172](https://arxiv.org/abs/2307.03172) |
+| Post-generation verification gates | Asai et al., *Self-RAG: Learning to Retrieve, Generate and Critique* | [arXiv:2310.11511](https://arxiv.org/abs/2310.11511) |
+| Retrieval-miss → recursive research loop | Yan et al., *Corrective Retrieval Augmented Generation* | [arXiv:2401.15884](https://arxiv.org/abs/2401.15884) |
+| FactBank hierarchical compression across sessions | Sarthi et al., *RAPTOR: Recursive Abstractive Processing for Tree-Organized Retrieval* | [arXiv:2401.18059](https://arxiv.org/abs/2401.18059) |
+| Query expansion before retrieval | Gao et al., *Precise Zero-Shot Dense Retrieval without Relevance Labels* (HyDE) | [arXiv:2212.10496](https://arxiv.org/abs/2212.10496) |
+
+### Findings
+
+**F-1 — MMR runs before context expansion, so its guarantee is discarded.**
+Observed order: `MMR → 15 chunks` → `spec sniper +3` → `parent expansion 18 → 59`
+→ `Lost-in-Middle reorder` → pack. Sibling chunks are adjacent text and are
+therefore maximally redundant with their parents by construction, which is
+precisely what MMR (Carbonell & Goldstein) exists to remove. The set that
+reaches packing has never been diversity-filtered. In Maximum the effect is
+larger: a quality filter keeps 35 of 50 at a ≥20% threshold, then expansion
+grows the set to 102, so roughly two thirds of the final context passed no
+quality gate. Correct order is expand → diversify → pack, or re-apply
+redundancy filtering after expansion. `[evidence_level: device_verified, confidence: high, evidence_source: Deep Think and Maximum pipeline traces 2026-07-30/31]`
+
+**F-2 — The query is embedded before expansion runs.**
+Trace: `Embedding: encoding query` at +013602ms, `Query Rewrite: query expansion`
+at +013841ms, `Hybrid search` at +013868ms. The dense arm therefore searches the
+original query while BM25 receives the expanded terms. This is defensible if
+expansion is intended to feed the lexical arm only, but `README.md` describes
+the stage as "Analyze Intent & HyDE Expansion", and HyDE's mechanism is
+specifically to embed generated hypothetical text. Either the dense arm should
+re-embed post-expansion, or the HyDE claim should be dropped.
+`[evidence_level: device_verified, confidence: high_for_the_ordering_unverified_for_intent]`
+
+**F-3 — The "23-step query loop" figure is unenumerated.**
+`Docs/ARCHITECTURE.md` and `Docs/README.md` both cite a 23-step query loop, and
+`README.md` cites 29 steps total. `Docs/RETRIEVAL_PIPELINE.md`, labelled the
+active specification, enumerates 11. Device traces show roughly 23 distinct
+stage events, so the figure is plausible, but no document lists them.
+`[evidence_level: code_verified, confidence: exact]`
+
+### Verdict
+
+The ordering follows current published practice on every axis that matters most:
+hybrid retrieval, rank fusion, cross-encoder reranking after fusion, and
+position-aware packing applied last. F-1 is a genuine inversion with a
+measurable cost in context budget rather than a correctness bug; F-2 is a
+design question; F-3 is documentation drift.
