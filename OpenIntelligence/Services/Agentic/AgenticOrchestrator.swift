@@ -1168,7 +1168,12 @@ final class AgenticOrchestrator: Sendable {
             context: contextBuilder,
             systemPrompt: systemPrompt,
             maxTokens: 800, // Conservative to stay within 4096 total
-            disableTools: true
+            disableTools: true,
+            // This path renders `chunks` into `contextBuilder`, so the rendered-evidence
+            // fallback already keeps it from abstaining. Passing the chunks themselves
+            // upgrades that from a synthetic "there is some evidence" signal to the real
+            // count and similarity scores, which is what the planner is meant to judge.
+            sourceChunks: chunks
         )
 
         return ThinkingStep(
@@ -2408,7 +2413,8 @@ final class AgenticOrchestrator: Sendable {
                 query: query,
                 currentContext: accumulatedContext,
                 iteration: iteration,
-                ragService: ragService
+                ragService: ragService,
+                sourceChunks: allRetrievedChunks
             )
 
             totalTokens += decision.tokensUsed
@@ -2535,7 +2541,13 @@ final class AgenticOrchestrator: Sendable {
         query: String,
         currentContext: String,
         iteration: Int,
-        ragService: RAGService
+        ragService: RAGService,
+        /// Everything retrieved so far in this recursive loop, for post-retrieval
+        /// planning. `currentContext` is embedded in the prompt below and `context`
+        /// is passed empty to avoid double-rendering, which left the planner seeing
+        /// no evidence at all: it abstained, and the abstention text came back in
+        /// place of an `[ANSWER]`/`[SEARCH:]` decision the loop could parse.
+        sourceChunks: [RetrievedChunk]
     ) async throws -> (text: String, tokensUsed: Int, duration: TimeInterval) {
         let startTime = Date()
 
@@ -2559,7 +2571,10 @@ final class AgenticOrchestrator: Sendable {
             context: "",
             systemPrompt: "You are a research assistant deciding whether to search or answer.",
             maxTokens: 600,
-            disableTools: true
+            disableTools: true,
+            sourceChunks: sourceChunks,
+            // A routing decision, not an evidence synthesis. Keep it local.
+            forceOnDevice: true
         )
 
         let duration = Date().timeIntervalSince(startTime)
@@ -5373,7 +5388,19 @@ extension AgenticOrchestrator {
                 systemPrompt: systemPrompt,
                 maxTokens: 1000,
                 disableTools: true,
-                temperature: adaptiveTemp
+                temperature: adaptiveTemp,
+                // Same defect that made Deep Think inert, in Maximum's own loop:
+                // `context` is deliberately empty because the prompt already embeds
+                // the evidence, so with no chunks the planner saw `chunkCount == 0`,
+                // judged `insufficientEvidence`, and abstained on every session.
+                // A device run retrieved 103 chunks at 84/72/67% and then reported
+                // "Integrating 0 insights" before bailing in 17.8s.
+                //
+                // `sortedChunks` rather than `allChunks`: this loop grows its pool
+                // through adaptive retrieval when it saturates, so the live pool is
+                // what the planner must judge.
+                sourceChunks: sortedChunks,
+                forceOnDevice: true
             )
             let sessionDuration = Date().timeIntervalSince(sessionStart)
             totalTokens += response.tokensGenerated
@@ -5461,7 +5488,8 @@ extension AgenticOrchestrator {
                     query: query,
                     factBank: factBank,
                     recentInsights: Array(allInsights.suffix(3)),
-                    previousAnswer: currentAnswer
+                    previousAnswer: currentAnswer,
+                    sourceChunks: sortedChunks
                 )
                 totalTokens += 200 // Estimate for synthesis
             }
@@ -5516,7 +5544,8 @@ extension AgenticOrchestrator {
             query: query,
             factBank: factBank,
             allInsights: allInsights,
-            currentAnswer: currentAnswer
+            currentAnswer: currentAnswer,
+            sourceChunks: sortedChunks
         )
         totalTokens += 500 // Estimate for final synthesis
 
@@ -5654,7 +5683,11 @@ extension AgenticOrchestrator {
         query: String,
         factBank: FactBank,
         recentInsights: [String],
-        previousAnswer: String
+        previousAnswer: String,
+        /// The live retrieved pool. Passed for post-retrieval planning only — never
+        /// rendered on the on-device branch — so the planner can judge evidence
+        /// sufficiency instead of seeing zero chunks and abstaining.
+        sourceChunks: [RetrievedChunk]
     ) async throws -> String {
         guard let ragService = ragService else {
             throw AgenticError.serviceUnavailable
@@ -5686,7 +5719,12 @@ extension AgenticOrchestrator {
             context: "",
             systemPrompt: "Synthesize facts into clear answers. Preserve all data. Only include facts from the documents. Never fabricate statistics or research claims.",
             maxTokens: 1000,
-            disableTools: true
+            disableTools: true,
+            sourceChunks: sourceChunks,
+            // Runs inside the session loop, so it stays local for the same reason the
+            // sessions do: escalating every intermediate pass would turn one query
+            // into dozens of cloud round-trips. Final synthesis is where PCC belongs.
+            forceOnDevice: true
         )
 
         return cleanupFinalAnswer(response.text)
@@ -5700,7 +5738,11 @@ extension AgenticOrchestrator {
         query: String,
         factBank: FactBank,
         allInsights: [String],
-        currentAnswer: String
+        currentAnswer: String,
+        /// The live retrieved pool, for post-retrieval planning. This is the final
+        /// synthesis, so unlike the session loop it is deliberately *not* pinned
+        /// on-device -- this is the point where escalation is warranted.
+        sourceChunks: [RetrievedChunk]
     ) async throws -> String {
         guard let ragService = ragService else {
             throw AgenticError.serviceUnavailable
@@ -5747,7 +5789,8 @@ extension AgenticOrchestrator {
             context: "",
             systemPrompt: "Document analyst. Answer using ONLY the provided findings. Never fabricate facts or statistics. Use **bold** sparingly for key terms only. Never repeat content.",
             maxTokens: 1500,
-            disableTools: true
+            disableTools: true,
+            sourceChunks: sourceChunks
         )
         var finalAnswer = cleanupFinalAnswer(coreResponse.text)
 
@@ -5778,7 +5821,8 @@ extension AgenticOrchestrator {
                 context: "",
                 systemPrompt: "Editor. Only include facts from the FACT BANK. Remove repetition. Remove unsupported claims.",
                 maxTokens: 1500,
-                disableTools: true
+                disableTools: true,
+                sourceChunks: sourceChunks
             )
             let refined = cleanupFinalAnswer(refinedResponse.text)
 
@@ -5942,7 +5986,8 @@ extension AgenticOrchestrator {
         let finalAnswer = try await synthesizeClusterInsights(
             query: query,
             clusterInsights: clusterInsights,
-            synthesisSessions: config.synthesisSessions
+            synthesisSessions: config.synthesisSessions,
+            sourceChunks: allChunks
         )
 
         totalTokens += finalAnswer.tokensUsed
@@ -6216,7 +6261,11 @@ extension AgenticOrchestrator {
     private func synthesizeClusterInsights(
         query: String,
         clusterInsights: [MultiChainResult.ClusterInsight],
-        synthesisSessions: Int
+        synthesisSessions: Int,
+        /// The retrieved pool, for post-retrieval planning. Without it the planner
+        /// judges this synthesis to have zero evidence and abstains, regardless of
+        /// how much the clusters actually found.
+        sourceChunks: [RetrievedChunk]
     ) async throws -> (text: String, tokensUsed: Int) {
         guard let ragService = ragService else {
             throw AgenticError.serviceUnavailable
@@ -6282,7 +6331,8 @@ extension AgenticOrchestrator {
                 context: "",
                 systemPrompt: systemPrompt,
                 maxTokens: isLast ? 1500 : 1000,
-                disableTools: true
+                disableTools: true,
+                sourceChunks: sourceChunks
             )
 
             // Each session REPLACES the previous answer (refinement, not concatenation)
