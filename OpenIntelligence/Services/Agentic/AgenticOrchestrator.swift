@@ -6982,6 +6982,31 @@ extension AgenticOrchestrator {
         var result = text.trimmingCharacters(in: .whitespacesAndNewlines)
         var strippedEnvelope = false
 
+        // 0. Strip model-markup wrappers before anything else. Device runs showed
+        //    eight of twelve Maximum sessions producing an insight that opened with
+        //    one of these, and none were caught by the JSON-envelope rules below:
+        //
+        //      <think> I need to determine what controls impulse responses…
+        //      <tool_call name="document_analyst"> { "documents": [ "[S1] mentions…
+        //      ```json { "extracted_receptors": [ …
+        //
+        //    `<think>` is emitted *unclosed* (zero `</think>` across every captured
+        //    log), so removing the tag and keeping the prose is right — the text
+        //    after it is genuine reasoning. `<tool_call …>` payloads likewise carry
+        //    real cited material, so drop only the tag and let the envelope rules
+        //    below salvage what follows.
+        for tag in ["</think>", "<think>", "</tool_call>", "```json", "```"] {
+            result = result.replacingOccurrences(of: tag, with: " ")
+        }
+        if let toolTag = try? NSRegularExpression(pattern: "<tool_call\\b[^>]*>", options: [.caseInsensitive]) {
+            result = toolTag.stringByReplacingMatches(
+                in: result,
+                range: NSRange(result.startIndex..., in: result),
+                withTemplate: " "
+            )
+        }
+        result = result.trimmingCharacters(in: .whitespacesAndNewlines)
+
         // 1. Drop a leading tool-call blob, through its closing brace.
         let toolCallPrefixes = ["tool_call:", "tool call:", "{\"tool_call", "{ \"tool_call"]
         if let marker = toolCallPrefixes.first(where: { result.lowercased().hasPrefix($0) }) {
