@@ -5253,9 +5253,26 @@ extension AgenticOrchestrator {
         // should normally end a run. It exists so that a pathological case cannot
         // spend 26 minutes re-reading 65 chunks, which is what a device trace showed
         // when the stop condition was unreachable.
+        // Sessions draw from `sortedChunks`, which is ordered by relevance, so later
+        // sessions read progressively weaker evidence. Covering the entire pool was
+        // never the objective — covering the part that can still change the answer
+        // is. A device run bears this out: the chain converged at session 23 of 33
+        // with the tail contributing nothing.
+        //
+        // Budget against the high-value head of the pool rather than its length. A
+        // small library therefore stays close to Deep Think, where it belongs, and
+        // Maximum's cost is reserved for corpora large enough that one pass genuinely
+        // cannot see everything worth seeing.
+        //
+        //     pool    old ceiling        new ceiling
+        //       40    21  (~8 min)        9  (~3 min)
+        //       65    33  (~13 min)      15  (~6 min)
+        //      188    50  (~21 min)      45  (~18 min)
+        //      600    50  (capped)       50  (capped)
         let chunksPerSession = 3
-        let coveragePasses = Int(ceil(Double(allChunks.count) / Double(chunksPerSession)))
-        let evidenceScaledCeiling = max(8, Int(Double(coveragePasses) * 1.5))
+        let highValueChunks = max(12, Int(Double(allChunks.count) * 0.6))
+        let coveragePasses = Int(ceil(Double(highValueChunks) / Double(chunksPerSession)))
+        let evidenceScaledCeiling = max(8, Int(Double(coveragePasses) * 1.2))
         let effectiveMaxSessions = min(maxSessions, evidenceScaledCeiling)
         if effectiveMaxSessions < maxSessions {
             Log.info(
