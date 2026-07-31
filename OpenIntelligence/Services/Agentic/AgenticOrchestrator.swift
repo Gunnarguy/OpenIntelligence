@@ -5536,7 +5536,7 @@ extension AgenticOrchestrator {
             let sessionDuration = Date().timeIntervalSince(sessionStart)
             totalTokens += response.tokensGenerated
 
-            let insight = cleanupFinalAnswer(response.text)
+            let insight = cleanupFinalAnswer(response.text, isFinalAnswer: false)
             let responseTextLength = response.text.trimmingCharacters(in: .whitespacesAndNewlines).count
             let insightLength = insight.trimmingCharacters(in: .whitespacesAndNewlines).count
 
@@ -5856,7 +5856,7 @@ extension AgenticOrchestrator {
             forceOnDevice: true
         )
 
-        return cleanupFinalAnswer(response.text)
+        return cleanupFinalAnswer(response.text, isFinalAnswer: false)
     }
 
     /// Final synthesis of unlimited reasoning - SINGLE PASS with optional refinement
@@ -6441,7 +6441,7 @@ extension AgenticOrchestrator {
             clusterName: clusterName,
             documents: docNames,
             insight: cleanedInsight,
-            chainInsights: chainResult.chainInsights.map { cleanupFinalAnswer($0) },
+            chainInsights: chainResult.chainInsights.map { cleanupFinalAnswer($0, isFinalAnswer: false) },
             tokensUsed: chainResult.totalTokens,
             sessionsRun: chainResult.sessionCount
         )
@@ -7151,7 +7151,15 @@ extension AgenticOrchestrator {
     }
 
     /// Clean up final answer by removing raw LLM markers and artifacts
-    private func cleanupFinalAnswer(_ text: String) -> String {
+    /// - Parameter isFinalAnswer: when false, skip substitutions that replace the
+    ///   text with user-facing help copy. Intermediate reasoning insights must stay
+    ///   as the model wrote them: a session that honestly reports "I could not find
+    ///   X in these documents" is making a correct observation the chain needs, and
+    ///   swapping it for "This information may be in an image, diagram, or table…"
+    ///   both destroys that observation and asserts a cause nobody established. A
+    ///   device run showed exactly this at session 12, after which the help text
+    ///   entered the fact bank as a finding.
+    private func cleanupFinalAnswer(_ text: String, isFinalAnswer: Bool = true) -> String {
         // Strip fabricated structured output before anything else looks at the text.
         // This was previously applied only to intermediate reasoning-chain insights,
         // so final answers were unprotected — and a Maximum device run returned this
@@ -7169,7 +7177,8 @@ extension AgenticOrchestrator {
         // Handle "NOT FOUND" responses gracefully
         // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
         let upperText = result.uppercased()
-        if upperText.contains("NOT FOUND IN DOCUMENTS") ||
+        if isFinalAnswer,
+           upperText.contains("NOT FOUND IN DOCUMENTS") ||
            upperText.contains("DOCUMENTS DO NOT CONTAIN") ||
            upperText.contains("COULDN'T FIND") ||
            upperText.contains("COULD NOT FIND") ||
