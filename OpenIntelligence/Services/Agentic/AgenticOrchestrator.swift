@@ -5253,26 +5253,24 @@ extension AgenticOrchestrator {
         // should normally end a run. It exists so that a pathological case cannot
         // spend 26 minutes re-reading 65 chunks, which is what a device trace showed
         // when the stop condition was unreachable.
-        // Sessions draw from `sortedChunks`, which is ordered by relevance, so later
-        // sessions read progressively weaker evidence. Covering the entire pool was
-        // never the objective — covering the part that can still change the answer
-        // is. A device run bears this out: the chain converged at session 23 of 33
-        // with the tail contributing nothing.
+        // The ceiling is a runaway guard, not a policy lever. Convergence is what
+        // ends a run, and it works: a device trace stopped at session 23 on its own.
         //
-        // Budget against the high-value head of the pool rather than its length. A
-        // small library therefore stays close to Deep Think, where it belongs, and
-        // Maximum's cost is reserved for corpora large enough that one pass genuinely
-        // cannot see everything worth seeing.
+        // An earlier version of this budgeted only the top 60% of the relevance-ordered
+        // pool, on the theory that late sessions read the weakest chunks. The same
+        // trace refutes it — sessions 16 through 22 ran at 66–86% novelty and the chain
+        // stopped on *saturation*, with `lowNoveltyStreak=0`, meaning it was still
+        // finding new material when it quit. A 60% ceiling would have cut seven
+        // productive sessions.
         //
-        //     pool    old ceiling        new ceiling
-        //       40    21  (~8 min)        9  (~3 min)
-        //       65    33  (~13 min)      15  (~6 min)
-        //      188    50  (~21 min)      45  (~18 min)
-        //      600    50  (capped)       50  (capped)
+        // The division of labour that is actually correct: retrieval decides what is
+        // relevant, and does so with scores you can inspect; convergence decides when
+        // reasoning has stopped paying; the ceiling only stops a pathological run.
+        // A blunt percentage is neither a score nor an earned stop, so it belongs to
+        // neither stage.
         let chunksPerSession = 3
-        let highValueChunks = max(12, Int(Double(allChunks.count) * 0.6))
-        let coveragePasses = Int(ceil(Double(highValueChunks) / Double(chunksPerSession)))
-        let evidenceScaledCeiling = max(8, Int(Double(coveragePasses) * 1.2))
+        let coveragePasses = Int(ceil(Double(allChunks.count) / Double(chunksPerSession)))
+        let evidenceScaledCeiling = max(8, Int(Double(coveragePasses) * 1.5))
         let effectiveMaxSessions = min(maxSessions, evidenceScaledCeiling)
         if effectiveMaxSessions < maxSessions {
             Log.info(
