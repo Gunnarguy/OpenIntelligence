@@ -2,7 +2,7 @@
 
 > **Documentation status:** Source-verified for OpenIntelligence v4.8 on July 30, 2026. Native PCC execution is owner-confirmed on a physical device; PCC edge scenarios and signed-distribution validation remain pending.
 > **Scope:** Describes shipped behavior for on-device Apple Intelligence RAG architecture.
-> **Recent correction:** Deep Think and Maximum carried two defects fixed on 2026-07-30 — their reasoning chain abstained on every session and contributed nothing, and the model picker did not reach their routing at all. Both are fixed and device-verified for the first; see `Docs/AUDIT/QUALITY_MODE_VERIFICATION_2026-07-30.md`. Claims about those modes below describe behavior as of commit `6f29d2d`.
+> **Recent correction:** Deep Think and Maximum carried several defects, all fixed on 2026-07-30. Their reasoning chain abstained on every session and contributed nothing (`665da0a`); Deep Think's confidence threshold was mathematically unreachable so it never stopped early (`8a8c7ab`); the model picker never reached either mode's routing (`6f29d2d`); a single transient failure discarded an entire query (`fda50ed`); a grounded answer noting a gap was replaced with raw source text (`381b370`); and **Maximum remained broken after the first fix**, since that fix landed only in Deep Think's function (`b271ecf`). Device-verified: the chain, the picker, and early stopping. Build- and test-verified only: the last three. Claims about these modes below describe behavior as of `b271ecf`. Full investigation in `Docs/AUDIT/QUALITY_MODE_VERIFICATION_2026-07-30.md`.
 
 <p align="center">
    <img src=".github/assets/openintelligence-app-icon.png" alt="OpenIntelligence app icon" width="132" height="132">
@@ -54,7 +54,7 @@ OpenIntelligence is backed by extensive, rigorous engineering documentation deta
 ### Audits & Constraints
 * [**Hard Limits**](Docs/Engineering/HARD_LIMITS.md): A centralized reference for token boundaries, model caps, memory limitations, and platform bottlenecks.
 * [**Current State & Gaps**](Docs/CURRENT_STATE_AND_GAPS.md): Analysis of local inference latency, context packing, and model capability gaps.
-* [**Evaluation Framework**](Docs/EVALS.md): Detailed verification procedures using `scripts/run_rag_benchmarks.py` to assert extraction accuracy and similarity scores.
+* [**Evaluation Framework**](Docs/EVALS.md): Verification procedures for extraction accuracy and similarity scoring. Runnable entry point is `scripts/run_quality_matrix.py`; the previously documented `run_rag_benchmarks.py` was removed in `abd1e3b` when the harness moved in-app.
 
 ### Agent Workspace Operations
 * [**RepoOS Command Center**](Docs/RepoOS/00_REPO_COMMAND_CENTER.md): Routes repository work through canonical evidence, safe edit boundaries, required tests, documentation synchronization, and release gates.

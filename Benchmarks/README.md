@@ -1,3 +1,19 @@
+> ⚠️ **`scripts/run_rag_benchmarks.py` no longer exists.** It was removed in `abd1e3b`
+> (2026-07-08) when the harness moved in-app as the RAG validation dashboard. Every
+> command below that invokes it will fail. They are preserved because the flags and
+> workflows document intent that has not been reimplemented yet.
+>
+> **What works today:**
+> - `python3 scripts/run_quality_matrix.py --app <path>` — runs every case under every
+>   quality mode and reports the deltas. This is the supported entry point.
+> - The in-app validation dashboard (`ValidationDashboardView`), which drives the same
+>   `DebugRAGValidationHarness` with a live UI runloop.
+>
+> `scripts/rag_benchmark_studio.py` is also broken for the same reason: its `RUNNER`
+> constant points at the removed script.
+
+---
+
 # OpenIntelligence RAG Benchmarks
 
 This folder contains local benchmark manifests for the existing debug validation

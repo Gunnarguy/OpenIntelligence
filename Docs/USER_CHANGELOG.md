@@ -1,4 +1,4 @@
-> **Documentation status:** Source-verified and simulator-compiled for OpenIntelligence v4.6 on July 15, 2026; signed-device PCC validation remains pending.
+> **Documentation status:** Source-verified for OpenIntelligence v4.8 on July 30, 2026. Deep Think's reasoning chain, the model picker, and early stopping are device-verified; the remaining v4.8 fixes are build- and test-verified only.
 
 
 # OpenIntelligence User-Facing Changelog
@@ -6,6 +6,26 @@
 This document provides a chronological history of user-facing changes, highlighting how OpenIntelligence continuously improves transparency, speed, and reliability.
 
 ---
+
+## v4.8 - July 30, 2026
+
+*   **Deep Think and Maximum Now Reason Over Retrieved Evidence:** Both modes run several reasoning passes across your documents, each building on the one before it. The handoff between retrieval and the reasoning step was never connected, so every pass concluded there was nothing to work with. (Correction to earlier releases: Deep Think and Maximum did not perform the multi-pass reasoning described; queries returned Standard quality answers after a longer wait.)
+*   **Retrieval Was Never the Problem:** Documents were being found, ranked, and prepared correctly the entire time. The evidence simply never reached the step that decides how to answer.
+*   **Reasoning Passes Now Build on Each Other:** With evidence connected, later passes can challenge and refine what earlier passes concluded, checked against your sources.
+*   **Resolved "The selected model isn't available right now":** That message appeared when the reasoning step found nothing to plan against. It was never a model or hardware problem.
+*   **Model Picker Now Governs Deep Think and Maximum:** The On-Device, Hybrid, and Private Cloud Compute selection reached Standard correctly but was dropped in the two agentic modes, which fell back to the default policy instead.
+*   **On-Device Now Covers the Entire Query:** If Private Cloud Compute had been allowed previously and the picker was later set to On-Device, Deep Think could still send evidence to Apple's Private Cloud Compute. No data reached a third party, an explicit denial always blocked cloud execution, and Standard always honored the selection. On-Device now applies through final synthesis.
+*   **Document Import on Mac:** The macOS file picker was a placeholder reading "Document picker is unavailable on this platform." It is now a native picker supporting the same formats as iOS.
+*   **Deep Think Stops When Finished:** Its internal confidence target could not be reached mathematically, so every query ran the maximum number of passes regardless of whether further passes surfaced anything new.
+*   **Resilient Reasoning Passes:** A single transient generation failure no longer discards an entire query. Failed passes retry, and the chain continues across its remaining evidence windows.
+*   **Grounded Answers Are No Longer Discarded:** An answer that correctly noted a gap in your documents was being treated as a retrieval failure and replaced with raw source excerpts. Answers that cite their sources are now preserved.
+
+## v4.7 - July 28, 2026
+
+*   **Honest Route Labels:** Labels now say exactly where each answer ran: on your device, or Apple Private Cloud Compute with your permission. Nothing claims more than the system can verify.
+*   **Steadier Document Understanding:** The key ideas pulled from your documents now come out the same every time, for more consistent search and more reliable connections across files.
+*   **Route Verification:** New internal checks confirm that every answer's recorded route matches what actually ran.
+*   **Removed Unsupported Model Claims:** Settings no longer advertises selectable 3B or 20B on-device models, or a parameter-count based capability chip. (Correction to earlier releases: the public SDK exposes no such selector. Apple's larger on-device model is real and managed by the operating system, but no app can choose or observe it.)
 
 ## v4.6 - July 15, 2026
 

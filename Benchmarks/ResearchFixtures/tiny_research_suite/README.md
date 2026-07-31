@@ -10,6 +10,11 @@
 
         Run:
 
+
+> Note: `scripts/run_rag_benchmarks.py` was removed in `abd1e3b`. Use
+> `python3 scripts/run_quality_matrix.py --app <path>` or the in-app validation
+> dashboard. The command below is retained for reference only.
+
         ```bash
         python3 scripts/run_rag_benchmarks.py Benchmarks/ResearchFixtures/tiny_research_suite/manifest.json --open-dashboard
         ```

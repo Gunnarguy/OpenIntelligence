@@ -174,7 +174,7 @@ Still app-coupled today:
 Current benchmark and trace hooks live in:
 
 - `OpenIntelligence/App/DebugRAGValidationHarness.swift`
-- `scripts/run_rag_benchmarks.py`
+- `scripts/run_quality_matrix.py` (replaced `scripts/run_rag_benchmarks.py`, removed in `abd1e3b`)
 - `scripts/rag_benchmark_studio.py`
 - `Benchmarks/README.md`
 
