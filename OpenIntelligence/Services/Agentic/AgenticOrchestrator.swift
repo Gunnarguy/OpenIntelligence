@@ -5717,7 +5717,7 @@ extension AgenticOrchestrator {
         let response = try await ragService.generateWithProperConsent(
             prompt: prompt,
             context: "",
-            systemPrompt: "Synthesize facts into clear answers. Preserve all data. Only include facts from the documents. Never fabricate statistics or research claims.",
+            systemPrompt: "Synthesize facts into clear answers. Preserve all data. Only include facts from the documents. Never fabricate statistics or research claims. Reply in plain prose only — never JSON, key-value pairs, or field names.",
             maxTokens: 1000,
             disableTools: true,
             sourceChunks: sourceChunks,
@@ -5787,7 +5787,7 @@ extension AgenticOrchestrator {
         let coreResponse = try await ragService.generateWithProperConsent(
             prompt: synthesisPrompt,
             context: "",
-            systemPrompt: "Document analyst. Answer using ONLY the provided findings. Never fabricate facts or statistics. Use **bold** sparingly for key terms only. Never repeat content.",
+            systemPrompt: "Document analyst. Answer using ONLY the provided findings. Never fabricate facts or statistics. Use **bold** sparingly for key terms only. Never repeat content. Reply in plain prose only — never JSON, key-value pairs, or field names.",
             maxTokens: 1500,
             disableTools: true,
             sourceChunks: sourceChunks
@@ -5819,7 +5819,7 @@ extension AgenticOrchestrator {
             let refinedResponse = try await ragService.generateWithProperConsent(
                 prompt: refinementPrompt,
                 context: "",
-                systemPrompt: "Editor. Only include facts from the FACT BANK. Remove repetition. Remove unsupported claims.",
+                systemPrompt: "Editor. Only include facts from the FACT BANK. Remove repetition. Remove unsupported claims. Reply in plain prose only — never JSON, key-value pairs, or field names.",
                 maxTokens: 1500,
                 disableTools: true,
                 sourceChunks: sourceChunks
@@ -6921,12 +6921,23 @@ extension AgenticOrchestrator {
 
     /// Clean up final answer by removing raw LLM markers and artifacts
     private func cleanupFinalAnswer(_ text: String) -> String {
-        var result = text
+        // Strip fabricated structured output before anything else looks at the text.
+        // This was previously applied only to intermediate reasoning-chain insights,
+        // so final answers were unprotected — and a Maximum device run returned this
+        // as its entire answer after 50 sessions, 20,182 tokens, and 26 minutes:
+        //
+        //     { "neurotransmitters_linked_to_actions": [ "neurotransmitter": "dopamine", …
+        //
+        // 268 characters of unclosed JSON, and `citations=0/0` because a JSON blob
+        // carries no [S#] markers for the verifier to check. `cleanupFinalAnswer` has
+        // sixteen call sites and covers every path that produces a user-visible
+        // answer, so this is the right place for the guard rather than each caller.
+        var result = stripPromptEchoAndToolNoise(from: text)
 
         // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
         // Handle "NOT FOUND" responses gracefully
         // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-        let upperText = text.uppercased()
+        let upperText = result.uppercased()
         if upperText.contains("NOT FOUND IN DOCUMENTS") ||
            upperText.contains("DOCUMENTS DO NOT CONTAIN") ||
            upperText.contains("COULDN'T FIND") ||
