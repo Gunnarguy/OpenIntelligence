@@ -373,26 +373,40 @@ physical-device pipeline traces, not from documentation.
 
 ### Findings
 
-**F-1 — MMR runs before context expansion, so its guarantee is discarded.**
-Observed order: `MMR → 15 chunks` → `spec sniper +3` → `parent expansion 18 → 59`
-→ `Lost-in-Middle reorder` → pack. Sibling chunks are adjacent text and are
-therefore maximally redundant with their parents by construction, which is
-precisely what MMR (Carbonell & Goldstein) exists to remove. The set that
-reaches packing has never been diversity-filtered. In Maximum the effect is
-larger: a quality filter keeps 35 of 50 at a ≥20% threshold, then expansion
-grows the set to 102, so roughly two thirds of the final context passed no
-quality gate. Correct order is expand → diversify → pack, or re-apply
-redundancy filtering after expansion. `[evidence_level: device_verified, confidence: high, evidence_source: Deep Think and Maximum pipeline traces 2026-07-30/31]`
+> **Retraction, same day.** F-1 and F-2 below were wrong. Both were inferred from
+> trace-log stage labels without reading the implementations, and both dissolve on
+> contact with the code. They are kept rather than deleted because the reasoning
+> error is worth recording: a stage *name* in a trace does not tell you what the
+> stage *does*, and an ordering that looks wrong from the outside can be correct
+> because a later stage carries its own guard. Corrections follow each item.
 
-**F-2 — The query is embedded before expansion runs.**
-Trace: `Embedding: encoding query` at +013602ms, `Query Rewrite: query expansion`
-at +013841ms, `Hybrid search` at +013868ms. The dense arm therefore searches the
-original query while BM25 receives the expanded terms. This is defensible if
-expansion is intended to feed the lexical arm only, but `README.md` describes
-the stage as "Analyze Intent & HyDE Expansion", and HyDE's mechanism is
-specifically to embed generated hypothetical text. Either the dense arm should
-re-embed post-expansion, or the HyDE claim should be dropped.
-`[evidence_level: device_verified, confidence: high_for_the_ordering_unverified_for_intent]`
+**F-1 — RETRACTED. MMR before context expansion is correct.**
+The original claim was that expanding to sibling chunks after MMR discards MMR's
+diversity guarantee, because siblings are adjacent text and redundant by
+construction. That is wrong on two counts. First, `MMR → expand` is the standard
+small-to-big / parent-document pattern: diversity is enforced at *selection* so
+the anchors cover distinct topics, and expansion then restores local context
+around each anchor. Sibling chunks do not compete for anchor slots. Second,
+`ParentDocumentService.expandWithSiblings` already applies its own redundancy
+control — `includedChunkIds: Set<UUID>` prevents duplicate chunks, and
+`checkJaccardRedundancy(threshold: 0.8)` rejects near-duplicate text against both
+the already-expanded set and pending insertions. The engine therefore runs two
+redundancy mechanisms at two levels, each matched to its purpose: embedding-space
+diversity for topic selection, literal-text Jaccard for context assembly. That is
+correct design. The related claim about Maximum's quality filter falls with it:
+the chunks added after filtering are siblings of chunks that already passed, and
+sibling context is not meant to independently clear a relevance threshold.
+`[evidence_level: code_verified, confidence: exact, evidence_source: ParentDocumentService.swift:158-205]`
+
+**F-2 — RETRACTED. Query expansion does precede embedding.**
+The original claim was that the dense arm searches an unexpanded query because
+`Embedding` is emitted at +013602ms and `Query expansion` at +013841ms. Reading
+the full trace shows the multi-query expansion runs *first*, at +013493ms
+(`Planning: searching with N query variations`), and each resulting variant is
+then embedded individually. The later event is per-variant fusion-weight
+selection (`Intent: balanced → Vector 50% / Keyword 50%`) plus lexical synonym
+addition for the BM25 arm — neither requires re-embedding. Ordering is correct.
+`[evidence_level: device_verified, confidence: exact, evidence_source: full trace sequence, RAGService.swift:8765]`
 
 **F-3 — The "23-step query loop" figure is unenumerated.**
 `Docs/ARCHITECTURE.md` and `Docs/README.md` both cite a 23-step query loop, and
@@ -403,8 +417,9 @@ stage events, so the figure is plausible, but no document lists them.
 
 ### Verdict
 
-The ordering follows current published practice on every axis that matters most:
-hybrid retrieval, rank fusion, cross-encoder reranking after fusion, and
-position-aware packing applied last. F-1 is a genuine inversion with a
-measurable cost in context budget rather than a correctness bug; F-2 is a
-design question; F-3 is documentation drift.
+The ordering follows current published practice on every axis that matters:
+multi-query expansion before embedding, hybrid dense + sparse retrieval, RRF
+fusion, cross-encoder reranking after fusion, MMR diversity at selection,
+small-to-big expansion with independent Jaccard dedup, and Lost-in-the-Middle
+position packing applied last. **No ordering defect was found.** The only
+surviving finding, F-3, is documentation drift and does not affect behavior.
