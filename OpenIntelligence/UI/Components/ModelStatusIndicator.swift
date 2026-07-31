@@ -105,6 +105,12 @@ struct ModelStatusIndicator: View {
             Text(settings.fmPreference.pickerDisplayName)
                 .font(.system(size: 10, weight: .bold))
                 .foregroundColor(.primary)
+            // Only the live route appears here. The static "what this setting means"
+            // line was removed: Hybrid, On-Device, and PCC explain themselves, and
+            // the pill is too narrow for a sentence — all three descriptions
+            // ellipsized ("Chooses the best route pe…"). The selector above is a
+            // native Menu/Picker, which renders Labels only, so there is nowhere a
+            // subtitle would fit; `pickerDetail` was deleted rather than left unused.
             if modelResolution.isProcessing {
                 HStack(spacing: 3) {
                     Text(modelResolution.currentState.executionPath.emoji)
@@ -112,12 +118,9 @@ struct ModelStatusIndicator: View {
                     Text("Using \(modelResolution.currentState.executionPath.displayName)")
                         .font(.system(size: 8.5, weight: .semibold))
                         .foregroundColor(.secondary)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
                 }
-            } else {
-                Text(settings.fmPreference.pickerDetail)
-                    .font(.system(size: 8.5, weight: .semibold))
-                    .foregroundColor(.secondary)
-                    .lineLimit(1)
             }
         }
     }

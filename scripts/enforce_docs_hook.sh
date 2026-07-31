@@ -47,7 +47,7 @@ if [ "$swift_changed" = true ]; then
         added_lines=$(git diff --cached CHANGELOG.md | grep "^+")
         
         # Valid tags based on OpenIntelligence architecture
-        if ! echo "$added_lines" | grep -qE "\[Ingestion\]|\[Chunking\]|\[Indexing\]|\[Retrieval\]|\[Orchestration\]|\[Shortcuts\]"; then
+        if ! echo "$added_lines" | grep -qE "\[Ingestion\]|\[Chunking\]|\[Indexing\]|\[Retrieval\]|\[Orchestration\]|\[Shortcuts\]|\[UI\]|\[General\]|\[Infrastructure\]"; then
             echo "======================================================================"
             echo "❌ PRE-COMMIT HOOK FAILED: Missing Architecture Tag"
             echo "======================================================================"
@@ -55,7 +55,8 @@ if [ "$swift_changed" = true ]; then
             echo "core OpenIntelligence architectural component."
             echo ""
             echo "Valid tags required on new bullet points:"
-            echo "  [Ingestion], [Chunking], [Indexing], [Retrieval], [Orchestration], [Shortcuts]"
+            echo "  [Ingestion], [Chunking], [Indexing], [Retrieval], [Orchestration],
+  [Shortcuts], [UI], [General], [Infrastructure]"
             echo "======================================================================"
             exit 1
         fi
