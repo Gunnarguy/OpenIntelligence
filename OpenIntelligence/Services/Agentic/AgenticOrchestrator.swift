@@ -4123,9 +4123,45 @@ extension AgenticOrchestrator {
                         continue
                     }
 
-                    // Non-recoverable error or max retries exceeded - use what we have
+                    // A transient decode failure from the on-device model, seen on
+                    // device as `ParsingError` / "Session ended without producing a
+                    // response". It is the same failure that hits MultiQuery
+                    // expansion and SmartReply intermittently, and it is more likely
+                    // immediately after a rate-limit backoff. Nothing about the
+                    // prompt is wrong, so retry it unchanged rather than shrinking
+                    // it — the overflow path above would reduce a prompt that was
+                    // never too large. Matching on the SDK type as well as the text
+                    // because `localizedDescription` collapses to the same generic
+                    // "Failed to parse generated content" for several causes.
+                    let errorDetail = String(describing: error).lowercased()
+                    let isTransientGenerationFailure =
+                        errorDetail.contains("parsingerror")
+                        || errorDetail.contains("without producing a response")
+                        || errorDesc.contains("failed to parse generated content")
+                        || errorDesc.contains("rate limit")
+                        || errorDesc.contains("rate-limited")
+
+                    if isTransientGenerationFailure && retryCount < maxRetries {
+                        Log.warning(
+                            "[ReasoningChain] Session \(sessionNum) transient generation failure "
+                                + "(\(type(of: error))), retry \(retryCount + 1)/\(maxRetries) with the "
+                                + "same prompt after a short backoff",
+                            category: .llm
+                        )
+                        try? await Task.sleep(nanoseconds: 1_500_000_000)
+                        continue
+                    }
+
+                    // Out of retries for this session. Leave `response` nil and let
+                    // the guard below decide whether the chain can carry on; a dead
+                    // session is not necessarily a dead query.
                     if chainInsights.isEmpty {
-                        throw error // Can't recover without any insights
+                        Log.warning(
+                            "[ReasoningChain] Session \(sessionNum) failed with no insights yet: "
+                                + "\(type(of: error)) — \(error.localizedDescription)",
+                            category: .llm
+                        )
+                        break
                     }
                     Log.warning("[ReasoningChain] Session \(sessionNum) failed, terminating chain early: \(error)", category: .llm)
                     // Return result with what we've accumulated so far
@@ -4143,7 +4179,32 @@ extension AgenticOrchestrator {
             // If we exhausted retries without success, use what we have
             guard let successResponse = response else {
                 if chainInsights.isEmpty {
-                    throw LLMError.contextWindowExceeded
+                    // One dead session must not destroy the query. Each session reads
+                    // a *different* rotating window of the same retrieved evidence, so
+                    // a later one can succeed where this one did not.
+                    //
+                    // Before this, a single transient `ParsingError` on session 1 threw
+                    // the whole query away and the user got "Failed to parse generated
+                    // content" with no answer — observed on device, with seven untried
+                    // context windows still available and retrieval having succeeded.
+                    if sessionIndex < effectiveMaxSessions - 1 {
+                        Log.warning(
+                            "[ReasoningChain] Session \(sessionNum) produced nothing; advancing to the "
+                                + "next context window (\(effectiveMaxSessions - sessionNum) remaining)",
+                            category: .llm
+                        )
+                        continue
+                    }
+                    // Every session failed. `contextWindowExceeded` was misleading here
+                    // — the last failure was usually a decode error, not an overflow.
+                    Log.error(
+                        "[ReasoningChain] All \(effectiveMaxSessions) sessions failed to produce an insight",
+                        category: .llm
+                    )
+                    throw LLMError.generationFailed(
+                        "The on-device model did not return a usable response across "
+                            + "\(effectiveMaxSessions) reasoning sessions."
+                    )
                 }
                 Log.warning("[ReasoningChain] Session \(sessionNum) exhausted retries, using accumulated insights", category: .llm)
                 return ReasoningChainResult(
