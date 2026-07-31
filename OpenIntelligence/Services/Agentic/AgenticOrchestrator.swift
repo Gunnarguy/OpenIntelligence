@@ -35,12 +35,31 @@ struct ThinkingStep: Identifiable, Sendable {
         var displayName: String { rawValue }
 
         /// Map to ThinkingEvent.Kind for UI integration
+        /// Every step type here maps to the kind that describes what it actually
+        /// does. It previously collapsed eight step types onto four kinds, and two
+        /// of those collapses were wrong in a user-visible way:
+        ///
+        ///   - `.analyzing` is a multi-session reasoning pass, and it mapped to
+        ///     `.rerank`. Device traces and the live UI therefore showed
+        ///     "RE-RANKING · Session 6/50" for work that never touched the reranker,
+        ///     fifteen or twenty rows in a row.
+        ///   - `.verifying` is the verification gate, and it mapped to `.rerank` too,
+        ///     which is why `.verification` never appeared in any trace despite the
+        ///     gates running on every query.
+        ///
+        /// `.reformulating` and `.expanding` were also folded into plain `.retrieval`,
+        /// hiding query rewriting and iterative expansion as undifferentiated
+        /// "Retrieval". Each now reports itself.
         var thinkingKind: ThinkingEvent.Kind {
             switch self {
             case .planning: return .planning
-            case .searching, .reformulating, .expanding: return .retrieval
-            case .analyzing, .verifying: return .rerank
-            case .synthesizing, .refining: return .generation
+            case .searching: return .retrieval
+            case .reformulating: return .queryRewrite
+            case .expanding: return .iterative
+            case .analyzing: return .reasoning
+            case .verifying: return .verification
+            case .synthesizing: return .generation
+            case .refining: return .selfRag
             }
         }
     }
