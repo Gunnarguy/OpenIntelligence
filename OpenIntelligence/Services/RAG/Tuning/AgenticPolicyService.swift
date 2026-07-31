@@ -48,6 +48,13 @@ struct AgenticReasoningPolicy: Sendable {
     let noveltyExhaustionStreakThreshold: Int
     let saturationScoreThreshold: Float
     let saturationStreakThreshold: Int
+    /// Floor before convergence may end the run.
+    ///
+    /// `noveltyExhausted` uses two-session streaks, which can trip on a cold start:
+    /// sessions 1 and 2 legitimately produce little novelty relative to an empty
+    /// fact bank. This keeps early sessions from being mistaken for exhaustion,
+    /// without weakening the streak thresholds that make the rule responsive later.
+    let minimumSessionsBeforeConvergence: Int
     let sourceCoverageStopThreshold: Float
     let repetitionCheckStartSession: Int
     let repetitionSimilarityThreshold: Float
@@ -221,6 +228,7 @@ enum AgenticPolicyService {
             noveltyExhaustionStreakThreshold: 2,
             saturationScoreThreshold: 0.85,
             saturationStreakThreshold: 2,
+            minimumSessionsBeforeConvergence: 4,
             sourceCoverageStopThreshold: 0.85,
             repetitionCheckStartSession: isUnlimitedMode ? 8 : 4,
             repetitionSimilarityThreshold: isUnlimitedMode ? 0.65 : 0.50,
@@ -251,6 +259,7 @@ enum AgenticPolicyService {
             noveltyExhaustionStreakThreshold: 2,
             saturationScoreThreshold: 0.85,
             saturationStreakThreshold: 3,
+            minimumSessionsBeforeConvergence: 6,
             sourceCoverageStopThreshold: 1.0,
             repetitionCheckStartSession: 8,
             repetitionSimilarityThreshold: 0.65,

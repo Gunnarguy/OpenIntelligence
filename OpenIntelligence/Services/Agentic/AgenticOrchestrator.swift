@@ -5243,9 +5243,31 @@ extension AgenticOrchestrator {
             throw AgenticError.serviceUnavailable
         }
 
+        // Scale the ceiling to the evidence actually retrieved rather than always
+        // allowing 50. Each session reads 3 chunks and prefers unseen ones, so a pool
+        // of N chunks is fully covered in about N/3 sessions; 1.5x leaves room to
+        // revisit and connect. A one-document library therefore gets roughly a dozen
+        // sessions and a large corpus still gets the full budget.
+        //
+        // This is a backstop, not the mechanism — the convergence rule below is what
+        // should normally end a run. It exists so that a pathological case cannot
+        // spend 26 minutes re-reading 65 chunks, which is what a device trace showed
+        // when the stop condition was unreachable.
+        let chunksPerSession = 3
+        let coveragePasses = Int(ceil(Double(allChunks.count) / Double(chunksPerSession)))
+        let evidenceScaledCeiling = max(8, Int(Double(coveragePasses) * 1.5))
+        let effectiveMaxSessions = min(maxSessions, evidenceScaledCeiling)
+        if effectiveMaxSessions < maxSessions {
+            Log.info(
+                "[Unlimited] Session ceiling scaled to evidence: \(effectiveMaxSessions) "
+                    + "(pool=\(allChunks.count) chunks, requested max=\(maxSessions))",
+                category: .llm
+            )
+        }
+
         let unlimitedPolicy = AgenticPolicyService.unlimitedReasoningPolicy(
             targetConfidence: targetConfidence,
-            maxSessions: maxSessions
+            maxSessions: effectiveMaxSessions
         )
 
         let startTime = Date()
@@ -5281,12 +5303,12 @@ extension AgenticOrchestrator {
         var sortedChunks = allChunks.sorted { $0.similarityScore > $1.similarityScore }
         var usedChunkIds = Set<UUID>() // Track which chunks we've already processed
 
-        Log.info("[Unlimited] Starting TRUE unlimited reasoning: target=\(Int(targetConfidence * 100))%, max=\(maxSessions) sessions, chunks=\(sortedChunks.count)", category: .llm)
+        Log.info("[Unlimited] Starting TRUE unlimited reasoning: target=\(Int(targetConfidence * 100))%, max=\(effectiveMaxSessions) sessions, chunks=\(sortedChunks.count)", category: .llm)
 
         // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
         // THE UNLIMITED LOOP - runs until confidence OR exhaustion
         // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-        for sessionNum in 1...maxSessions {
+        for sessionNum in 1...effectiveMaxSessions {
             let evidenceCoverageTarget = unlimitedPolicy.evidenceCoverageTarget(
                 for: factBank.subQuestions.count
             )
@@ -5297,11 +5319,30 @@ extension AgenticOrchestrator {
                 sourceCoverage: sourceCoverage
             )
 
-            // Stop only when confidence, evidence coverage, and novelty exhaustion all line up.
-            if confidence >= targetConfidence,
-               factBank.subQuestionConfidence >= evidenceCoverageTarget,
-               noveltyExhausted
-            {
+            // Two independent reasons to stop, not one conjunction of three.
+            //
+            // The old condition required confidence >= 0.98 AND coverage AND novelty
+            // exhaustion simultaneously, and 0.98 is unreachable: `sessionProgress`
+            // caps at 0.68, and the rest has to come from coverage and novelty terms
+            // minus a saturation penalty that grows as the chain matures. High novelty
+            // late means you have not saturated; low novelty means the penalty eats
+            // the gain. Device runs peaked at 89% and therefore always ran the full
+            // 50 sessions, even with novelty at 50% and saturation at 90% — the chain
+            // knew it was finished and kept going.
+            //
+            // `noveltyExhausted` is already a correct marginal-gain stopping rule
+            // (streak-based patience over low novelty, high saturation, or 85% source
+            // coverage). It was simply gated behind a number it could never reach.
+            //
+            //   completed  — the question is answered to target confidence
+            //   converged  — nothing new is being learned, and enough of the evidence
+            //                has been seen that this is exhaustion rather than a
+            //                cold start
+            let completed = confidence >= targetConfidence
+                && factBank.subQuestionConfidence >= evidenceCoverageTarget
+            let converged = noveltyExhausted
+                && sessionNum >= unlimitedPolicy.minimumSessionsBeforeConvergence
+            if completed || converged {
                 terminationReason = .confidenceReached
                 Log.info(
                     "[Unlimited] Session \(sessionNum): confidence=\(Int(confidence * 100))%, coverage=\(Int(factBank.subQuestionConfidence * 100))%, lowNoveltyStreak=\(lowNoveltyStreak) - STOPPING",
@@ -5596,7 +5637,7 @@ extension AgenticOrchestrator {
             let step = ThinkingStep(
                 id: UUID(),
                 type: stepType,
-                input: "Session \(sessionNum)/\(maxSessions)",
+                input: "Session \(sessionNum)/\(effectiveMaxSessions)",
                 output: String(insight.prefix(500)) + (insight.count > 500 ? "..." : ""),
                 tokensUsed: response.tokensGenerated,
                 duration: sessionDuration,
