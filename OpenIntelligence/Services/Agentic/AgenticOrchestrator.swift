@@ -4757,6 +4757,15 @@ extension AgenticOrchestrator {
         let evidenceKind: EvidenceKind
         var relevanceScore: Float  // 0-1, higher = more relevant to query
         let sessionAdded: Int      // When it was added (for recency bonus)
+        /// Source markers ([S1], [S2] …) captured from the originating sentence.
+        ///
+        /// Held separately rather than left inline in `content`, because every
+        /// extracted sentence is truncated to 150 characters (200 for conceptual
+        /// queries) and a citation almost always sits at the end of its sentence —
+        /// so the truncation silently ate the attribution. That is why every
+        /// Maximum device run reported `citations=0/0` while Deep Think, which
+        /// passes untruncated insight text straight through, verified 13–17.
+        let sources: [String]
 
         enum EvidenceKind: String {
             case numeric
@@ -4935,7 +4944,7 @@ extension AgenticOrchestrator {
             var addedFacts = 0
             var noveltyScores: [Float] = []
 
-            for factContent in newFacts {
+            for (factContent, factSources) in newFacts {
                 let normalizedKey = normalizedFactKey(factContent)
                 guard !normalizedKey.isEmpty, !existingKeys.contains(normalizedKey) else { continue }
 
@@ -4948,7 +4957,8 @@ extension AgenticOrchestrator {
                     supportTerms: supportTerms(for: factContent),
                     evidenceKind: evidenceKind(for: factContent),
                     relevanceScore: score,
-                    sessionAdded: currentSession
+                    sessionAdded: currentSession,
+                    sources: factSources
                 ))
                 addedFacts += 1
 
@@ -4995,15 +5005,34 @@ extension AgenticOrchestrator {
                         supportTerms: fact.supportTerms,
                         evidenceKind: fact.evidenceKind,
                         relevanceScore: fact.relevanceScore,
-                        sessionAdded: fact.sessionAdded
+                        sessionAdded: fact.sessionAdded,
+                        // Attribution survives this pass deliberately: content is cut
+                        // to 100 characters here, which would destroy any marker left
+                        // inline, so `sources` being a separate field is what keeps
+                        // the claim citable after compression.
+                        sources: fact.sources
                     )
                 }
             }
         }
 
         /// Extract content from prose insight based on query intent
-        private func extractFactsFromInsight(_ insight: String) -> [String] {
-            var extracted: [String] = []
+        /// Pull the `[S#]` markers out of a sentence before it is truncated.
+        private func sourceMarkers(in sentence: String) -> [String] {
+            guard let regex = try? NSRegularExpression(pattern: "\\[S\\d+\\]") else { return [] }
+            let range = NSRange(sentence.startIndex..., in: sentence)
+            var found: [String] = []
+            for m in regex.matches(in: sentence, range: range) {
+                if let r = Range(m.range, in: sentence) {
+                    let marker = String(sentence[r])
+                    if !found.contains(marker) { found.append(marker) }
+                }
+            }
+            return found
+        }
+
+        private func extractFactsFromInsight(_ insight: String) -> [(text: String, sources: [String])] {
+            var extracted: [(text: String, sources: [String])] = []
             let sentences = insight.components(separatedBy: CharacterSet(charactersIn: ".!?"))
                 .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
                 .filter { $0.count > 20 }
@@ -5046,14 +5075,15 @@ extension AgenticOrchestrator {
 
                 if shouldKeep {
                     let maxLen = queryIntent == .conceptual ? 200 : 150
-                    extracted.append(String(sentence.prefix(maxLen)))
+                    // Capture attribution from the *full* sentence before truncating.
+                    extracted.append((String(sentence.prefix(maxLen)), sourceMarkers(in: sentence)))
                 }
             }
 
             // Fallback if nothing extracted
             if extracted.isEmpty && !insight.isEmpty {
                 let fallbackLen = queryIntent == .conceptual ? 250 : 150
-                extracted.append(String(insight.prefix(fallbackLen)))
+                extracted.append((String(insight.prefix(fallbackLen)), sourceMarkers(in: insight)))
             }
 
             return extracted
@@ -5135,7 +5165,10 @@ extension AgenticOrchestrator {
             let sorted = scoredFacts.sorted { $0.relevanceScore > $1.relevanceScore }
             return "CLAIM BANK:\n" + sorted.map { fact in
                 let termSummary = fact.supportTerms.isEmpty ? "" : "; terms=" + fact.supportTerms.joined(separator: ",")
-                return "• claim=\(fact.content); kind=\(fact.evidenceKind.rawValue)\(termSummary)"
+                // Attribution travels with the claim. Without it the final synthesis
+                // has nothing to cite, which is why Self-RAG scored Maximum 0/0.
+                let sourceSummary = fact.sources.isEmpty ? "" : " " + fact.sources.joined(separator: " ")
+                return "• claim=\(fact.content)\(sourceSummary); kind=\(fact.evidenceKind.rawValue)\(termSummary)"
             }.joined(separator: "\n")
         }
 
@@ -5794,7 +5827,15 @@ extension AgenticOrchestrator {
         // Gather supplementary context from recent insights (non-overlapping with FactBank)
         let supplementary: String
         if allInsights.count > 3 {
-            let recent = allInsights.suffix(3).map { String($0.prefix(300)) }
+            // Was suffix(3) × prefix(300): on a 50-session run, 47 sessions reached
+            // synthesis only as compressed FactBank summary, and one device trace
+            // produced a 236-character answer from 22,962 generated tokens. A caveat
+            // the model correctly found in session 4 was absent from the answer for
+            // exactly this reason. Widen the window, and scale the per-insight budget
+            // down as the count grows so the block stays bounded.
+            let keep = min(8, max(3, allInsights.count / 4))
+            let perInsight = allInsights.count > 20 ? 220 : 320
+            let recent = allInsights.suffix(keep).map { String($0.prefix(perInsight)) }
             supplementary = "\n\nSUPPLEMENTARY FINDINGS:\n" + recent.joined(separator: "\n")
         } else {
             supplementary = ""
@@ -5817,6 +5858,10 @@ extension AgenticOrchestrator {
         - Do NOT invent facts, statistics, or research claims not in the findings
         - Do NOT add "research perspective" or "future research" sections
         - Every statement must trace back to the document findings
+        - Carry through the [S1], [S2] markers attached to each claim above. Cite only
+          markers that appear in the findings; never invent one.
+        - Preserve any uncertainty the findings express. If a finding questions a term
+          or notes a possible source error, keep that qualification.
         Never repeat the same information twice.
         """
 
