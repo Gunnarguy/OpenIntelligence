@@ -1,7 +1,21 @@
-This update makes OpenIntelligence more precise about what it tells you.
+Deep Think and Maximum were not wired up correctly in previous releases. This release connects them.
 
-- Labels now say exactly where each answer ran: on your device, or Apple Private Cloud Compute with your permission. Nothing claims more than the system can verify.
-- The key ideas pulled from your documents now come out the same every time, for steadier search and more reliable connections across files.
-- New internal checks make sure every answer's recorded route matches what actually ran.
+• Deep Think and Maximum Now Reason Over Retrieved Evidence: Both modes run several reasoning passes across your documents, each building on the one before it. The handoff between retrieval and the reasoning step was never connected, so every pass concluded there was nothing to work with.
 
-Same goal as always: ask hard questions of your own files, see exactly where every answer came from, and trust what you can verify, not what you're told.
+• Retrieval Was Never the Problem: Documents were being found, ranked, and prepared correctly the entire time. The evidence simply never reached the step that decides how to answer.
+
+• Reasoning Passes Now Build on Each Other: With evidence connected, later passes can challenge and refine what earlier passes concluded, checked against your sources.
+
+• Resolved "The selected model isn't available right now": That message appeared when the reasoning step found nothing to plan against. It was never a model or hardware problem.
+
+• Model Picker Now Governs Deep Think and Maximum: The On-Device, Hybrid, and Private Cloud Compute selection reached Standard correctly but was dropped in the two agentic modes, which fell back to the default policy instead.
+
+• On-Device Now Covers the Entire Query: If Private Cloud Compute had been allowed previously and the picker was later set to On-Device, Deep Think could still send evidence to Apple's Private Cloud Compute. No data reached a third party, an explicit denial always blocked cloud execution, and Standard always honored the selection. On-Device now applies through final synthesis.
+
+• Document Import on Mac: The macOS file picker was a placeholder reading "Document picker is unavailable on this platform." It is now a native picker supporting the same formats as iOS, including PDFs, Office and iWork files, text, code, images, audio, and video.
+
+• Deep Think Stops When Finished: Its internal confidence target could not be reached mathematically, so every query ran the maximum number of passes regardless of whether further passes surfaced anything new. Queries that resolve early now end early.
+
+• Resilient Reasoning Passes: A single transient generation failure no longer discards an entire query. Failed passes retry, and the chain continues across its remaining evidence windows.
+
+• Grounded Answers Are No Longer Discarded: An answer that correctly noted a gap in your documents was being treated as a retrieval failure and replaced with raw source excerpts. Answers that cite their sources are now preserved.
