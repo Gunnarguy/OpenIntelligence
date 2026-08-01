@@ -4346,15 +4346,7 @@ extension AgenticOrchestrator {
 
             // Filter out "no new information" responses — they pollute the chain
             // and cause synthesis to include garbage like "No new information found."
-            let insightTrimmed = insight.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-            let isEmptyInsight = insightTrimmed.count < 30 ||
-                insightTrimmed.contains("no new information") ||
-                // A session that fabricated a tool call usually reports its "result"
-                // in this phrasing once the JSON wrapper is stripped.
-                insightTrimmed.contains("no new details") ||
-                insightTrimmed.contains("i can't assist") ||
-                insightTrimmed.contains("i cannot assist") ||
-                insightTrimmed.hasPrefix("i'm sorry")
+            let isEmptyInsight = isUnusableInsight(insight)
             if isEmptyInsight && !isFinalSession {
                 Log.debug("[ReasoningChain] Session \(sessionNum) returned empty/refusal insight — skipping", category: .llm)
                 continue
@@ -4751,7 +4743,10 @@ extension AgenticOrchestrator {
         let terminationReason: TerminationReason
 
         enum TerminationReason: String, Sendable {
-            case confidenceReached = "98% confidence achieved"
+            /// Deliberately not "98% confidence achieved": the string is shown beside
+            /// the live confidence value, and a device screenshot read
+            /// "98% confidence achieved - Confidence: 78%" in a single row.
+            case confidenceReached = "Confidence target reached"
             case contentSaturated = "No new insights (content saturated)"
             /// Sub-question coverage stopped improving: the chain kept finding new
             /// text but none of it answered more of the question, which means the
@@ -5608,7 +5603,14 @@ extension AgenticOrchestrator {
             // CRITICAL: Detect model failures (0 tokens = ANE/PCC failure)
             // Don't count empty responses toward confidence or session count
             // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-            let isEmpty = response.tokensGenerated == 0 || responseTextLength == 0 || insightLength == 0
+            // `tokensGenerated == 0` alone was the entire test here, so a session that
+            // answered "Please provide additional context" counted as a finding: it has
+            // tokens. Route unusable text into the same three-strike counter as an
+            // empty response — three in a row means the model is stuck, not thinking.
+            let isEmpty = response.tokensGenerated == 0
+                || responseTextLength == 0
+                || insightLength == 0
+                || isUnusableInsight(insight)
 
             if isEmpty {
                 consecutiveFailures += 1
@@ -7080,6 +7082,38 @@ extension AgenticOrchestrator {
         let inputTokens = max(0, window - outputReserveTokens - serviceOverheadTokens)
         let inputChars = Int(Double(inputTokens) * Double(FoundationModelTokenBudget.onDeviceCharsPerToken))
         return max(0, inputChars - factContextChars - queryChars - instructionChars)
+    }
+
+    /// True when a session produced text that cannot serve as a reasoning insight.
+    ///
+    /// Shared by both reasoning loops on purpose. This check previously existed only
+    /// in `executeReasoningChain`, so Maximum's loop — which tested nothing beyond
+    /// `tokensGenerated == 0` — happily stored non-answers as findings.
+    ///
+    /// The request-for-input cases are the ones worth naming. A device run recorded
+    /// sessions 16 and 17 as *"I need additional context to determine what specific
+    /// controls or mechanisms are mentioned... Please provide"* and *"Could you
+    /// please"*. There is no human in this loop to answer. The model has slipped into
+    /// conversational mode, and its question then enters the fact bank as a finding.
+    private func isUnusableInsight(_ insight: String) -> Bool {
+        let text = insight.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        if text.count < 30 { return true }
+
+        // Nothing learned.
+        let nonAnswers = [
+            "no new information", "no new details", "no additional information",
+            "i can't assist", "i cannot assist", "no relevant information",
+        ]
+        // Addressed to a user who is not there.
+        let requestsForInput = [
+            "please provide", "could you please", "can you provide",
+            "i need additional context", "additional context is needed",
+            "please share", "please specify", "let me know if",
+        ]
+        if nonAnswers.contains(where: { text.contains($0) }) { return true }
+        if requestsForInput.contains(where: { text.contains($0) }) { return true }
+        if text.hasPrefix("i'm sorry") || text.hasPrefix("i am sorry") { return true }
+        return false
     }
 
     /// Truncate at the last sentence boundary at or before `limit`.
