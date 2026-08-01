@@ -84,20 +84,19 @@ actor SmartReplyService {
             return []
         }
 
-        // Strategy 1: Extract key entities/topics from response for deep-dive questions
-        let responseEntities = extractKeyTerms(from: analysisText)
         let queryTerms = Set(extractKeyTerms(from: query).map { $0.lowercased() })
 
-        // Find entities in response NOT already in the query (new topics introduced)
-        let newTopics = responseEntities.filter { !queryTerms.contains($0.lowercased()) }
-
-        for topic in newTopics.prefix(2) {
-            suggestions.append(SmartReply(
-                text: "Tell me more about \(topic)",
-                category: .deepDive,
-                confidence: 0.8
-            ))
-        }
+        // Strategy 1: read the answer's own structure.
+        //
+        // `extractKeyTerms` uses NLTagger's `.nameType` scheme and keeps anything not
+        // tagged `.otherWord`, which spuriously admits ordinary words — a device run
+        // offered "Tell me more about affects" and "Tell me more about mention". The
+        // signals below come from choices the model made while writing, so they are
+        // salient by construction and carry no domain assumptions.
+        suggestions.append(contentsOf: followUpsFromAnswerShape(
+            answer: analysisText,
+            queryTerms: queryTerms
+        ))
 
         if let groundedConditional = extractConditionalFollowUp(
             query: query,
@@ -188,6 +187,70 @@ actor SmartReplyService {
     // MARK: - NLP Analysis
 
     /// Extract key terms (nouns, proper nouns, technical terms) from text
+    /// Follow-ups derived from how the answer was written, not from what it is about.
+    ///
+    /// Three signals, each a decision the model made and therefore meaningful in any
+    /// domain:
+    ///
+    /// 1. **Quoted phrases.** The model quotes what it considers load-bearing. An
+    ///    answer containing `"learning and stress"` and `"feeding behavior"` is
+    ///    pointing at exactly the phrases worth pulling on.
+    /// 2. **Section headers.** Where the model chose to divide the answer marks a
+    ///    theme substantial enough to expand.
+    /// 3. **Stated gaps.** "does not specify", "not mention" and similar mean the
+    ///    corpus fell short, and the useful next move is about the library rather
+    ///    than the topic.
+    private func followUpsFromAnswerShape(answer: String, queryTerms: Set<String>) -> [SmartReply] {
+        var out: [SmartReply] = []
+        var used: Set<String> = []
+
+        func add(_ text: String, _ category: SmartReplyCategory, _ confidence: Double) {
+            let key = text.lowercased()
+            guard !used.contains(key) else { return }
+            used.insert(key)
+            out.append(SmartReply(text: text, category: category, confidence: confidence))
+        }
+
+        // 1. Quoted phrases the model chose to highlight.
+        if let quoted = try? NSRegularExpression(pattern: "[\u{201C}\"]([^\u{201D}\"\n]{4,60})[\u{201D}\"]") {
+            let range = NSRange(answer.startIndex..., in: answer)
+            for match in quoted.matches(in: answer, range: range).prefix(4) {
+                guard let r = Range(match.range(at: 1), in: answer) else { continue }
+                let phrase = String(answer[r]).trimmingCharacters(in: .whitespacesAndNewlines)
+                guard phrase.count >= 4, !queryTerms.contains(phrase.lowercased()) else { continue }
+                add("What do the documents say about \(phrase)?", .deepDive, 0.88)
+            }
+        }
+
+        // 2. Section headers, which mark themes the model thought worth separating.
+        for line in answer.components(separatedBy: .newlines) {
+            let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+            var heading: String?
+            if trimmed.hasPrefix("**"), trimmed.hasSuffix("**"), trimmed.count > 6 {
+                heading = String(trimmed.dropFirst(2).dropLast(2))
+            } else if trimmed.hasPrefix("#") {
+                heading = trimmed.drop(while: { $0 == "#" }).trimmingCharacters(in: .whitespaces)
+            }
+            if let h = heading, h.count >= 4, h.count <= 60, !queryTerms.contains(h.lowercased()) {
+                add("Go deeper on \(h.lowercased())", .related, 0.82)
+            }
+        }
+
+        // 3. The answer reported a gap. Point at the library, not the topic.
+        let lowered = answer.lowercased()
+        let gapPhrases = [
+            "does not specify", "do not specify", "does not mention", "do not mention",
+            "not explicitly", "no new facts", "does not provide", "do not provide",
+            "couldn't find", "could not find",
+        ]
+        if gapPhrases.contains(where: { lowered.contains($0) }) {
+            add("What would I need to add to answer this fully?", .clarify, 0.9)
+            add("Search my other libraries for this", .broader, 0.78)
+        }
+
+        return Array(out.prefix(4))
+    }
+
     private func extractKeyTerms(from text: String) -> [String] {
         var terms: [String] = []
 
