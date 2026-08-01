@@ -5528,6 +5528,20 @@ extension AgenticOrchestrator {
             let context = extraction.context
             Log.debug("[Unlimited] Session \(sessionNum): \(extraction.sentencesIncluded) sentences from \(extraction.sourcesUsed) sources (\(context.count) chars)", category: .retrieval)
 
+            // Asking the model to reason over nothing produces a request for context,
+            // not a finding. `executeReasoningChain` has skipped empty windows for a
+            // while; this loop did not, and a device trace shows the consequence:
+            // "Session 7: 0 sentences from 0 sources (0 chars)" was sent anyway, came
+            // back as 385 characters of the model asking for input, and tripped the
+            // third strike that ended the run with "model unavailable".
+            if context.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                Log.debug(
+                    "[Unlimited] Session \(sessionNum) skipped — empty context window",
+                    category: .retrieval
+                )
+                continue
+            }
+
             // Build prompt based on session stage
             let (prompt, systemPrompt) = buildUnlimitedSessionPrompt(
                 sessionNum: sessionNum,
@@ -5617,14 +5631,31 @@ extension AgenticOrchestrator {
             // CRITICAL: Detect model failures (0 tokens = ANE/PCC failure)
             // Don't count empty responses toward confidence or session count
             // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-            // `tokensGenerated == 0` alone was the entire test here, so a session that
-            // answered "Please provide additional context" counted as a finding: it has
-            // tokens. Route unusable text into the same three-strike counter as an
-            // empty response — three in a row means the model is stuck, not thinking.
-            let isEmpty = response.tokensGenerated == 0
+            // Two different things, deliberately not sharing a counter.
+            //
+            // A hard failure means the model produced nothing: no tokens, no text.
+            // Three of those in a row genuinely means it is unavailable.
+            //
+            // Unusable content means the model worked and said something that cannot
+            // serve as a finding. Folding that into the same counter killed a run: a
+            // device trace logged "EMPTY RESPONSE DETECTED (failure 3/3) - tokens=59,
+            // rawLen=385, cleanLen=385" and stopped with "model unavailable", while
+            // the model went on to generate the synthesis three seconds later. It had
+            // been handed an empty context window and said so.
+            let hardFailure = response.tokensGenerated == 0
                 || responseTextLength == 0
                 || insightLength == 0
-                || isUnusableInsight(insight)
+            let unusable = !hardFailure && isUnusableInsight(insight)
+            let isEmpty = hardFailure
+
+            if unusable {
+                Log.debug(
+                    "[Unlimited] Session \(sessionNum): produced no usable finding "
+                        + "(\(insightLength) chars) — skipping, not counted as a failure",
+                    category: .llm
+                )
+                continue
+            }
 
             if isEmpty {
                 consecutiveFailures += 1
