@@ -5197,12 +5197,18 @@ extension AgenticOrchestrator {
         func asContext() -> String {
             if scoredFacts.isEmpty { return "" }
             let sorted = scoredFacts.sorted { $0.relevanceScore > $1.relevanceScore }
+            // Only the claim and its attribution. `evidenceKind` and `supportTerms`
+            // are internal scoring artifacts whose sole consumer was this string —
+            // nothing dedupes or ranks on them downstream — so they cost roughly 55
+            // characters per claim of context the synthesizer has to read past.
+            //
+            // That is not free. This block shares a fixed budget with the recent
+            // findings, and a device run with 13 claims squeezed the findings from
+            // 1622 characters to 430, producing a 258-character answer covering two
+            // of the neurotransmitters when the evidence supported more.
             return "CLAIM BANK:\n" + sorted.map { fact in
-                let termSummary = fact.supportTerms.isEmpty ? "" : "; terms=" + fact.supportTerms.joined(separator: ",")
-                // Attribution travels with the claim. Without it the final synthesis
-                // has nothing to cite, which is why Self-RAG scored Maximum 0/0.
                 let sourceSummary = fact.sources.isEmpty ? "" : " " + fact.sources.joined(separator: " ")
-                return "• claim=\(fact.content)\(sourceSummary); kind=\(fact.evidenceKind.rawValue)\(termSummary)"
+                return "• \(fact.content)\(sourceSummary)"
             }.joined(separator: "\n")
         }
 
