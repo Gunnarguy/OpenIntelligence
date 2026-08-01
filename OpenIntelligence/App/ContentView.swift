@@ -150,11 +150,14 @@ struct ContentView: View {
         // Proactively refresh StoreKit products once the root view appears.
         // In production this fetches App Store Connect products; in DEBUG/simulator,
         // this will emit a single warning if no StoreKit configuration is present.
-        .sheet(item: $whatsNewStore.pendingRelease) { release in
-            WhatsNewView(release: release) {
-                whatsNewStore.markSeen()
-            }
-            .interactiveDismissDisabled(false)
+        // `onDismiss` rather than a callback from the Done button: a sheet can also be
+        // swiped away, which is how most people close one, and that path never invoked
+        // the button's action — so the sheet would return on the next launch. Marking
+        // seen here covers every route out.
+        .sheet(item: $whatsNewStore.pendingRelease, onDismiss: {
+            whatsNewStore.markSeen()
+        }) { release in
+            WhatsNewView(release: release)
         }
         .task {
             // Screenshot runs wipe their defaults suite on launch, which would read as

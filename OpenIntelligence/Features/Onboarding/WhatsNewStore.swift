@@ -105,33 +105,28 @@ final class WhatsNewStore: ObservableObject {
             items: [
                 .init(
                     symbol: "brain",
-                    title: "Deep Think and Maximum now reason over your evidence",
-                    detail: "Both modes run several reasoning passes across your documents, each building on the last. The handoff between retrieval and the reasoning step was never connected, so every pass concluded there was nothing to work with."
+                    title: "Deep Think and Maximum actually reason now",
+                    detail: "Previously they returned Standard quality answers after a much longer wait."
                 ),
                 .init(
-                    symbol: "magnifyingglass",
-                    title: "Retrieval was never the problem",
-                    detail: "Your documents were being found, ranked, and prepared correctly the entire time. The evidence simply never reached the step that decides how to answer."
+                    symbol: "quote.opening",
+                    title: "Answers cite their sources in every mode",
+                    detail: "Maximum produced none at all."
                 ),
                 .init(
-                    symbol: "checkmark.shield",
-                    title: "Resolved \"The selected model isn't available right now\"",
-                    detail: "That message appeared when the reasoning step found nothing to plan against. It was never a model or hardware problem."
+                    symbol: "iphone",
+                    title: "On-Device covers the entire query",
+                    detail: "Including the final answer. The model picker now governs every mode, not just Standard."
                 ),
                 .init(
-                    symbol: "arrow.triangle.branch",
-                    title: "The model picker now governs every mode",
-                    detail: "On-Device, Hybrid, and Private Cloud Compute reached Standard correctly but were dropped in the two agentic modes. On-Device now applies to the entire query, including the final answer."
+                    symbol: "gauge.with.dots.needle.33percent",
+                    title: "Both modes stop when they're finished",
+                    detail: "Typically halving the time Maximum takes."
                 ),
                 .init(
                     symbol: "doc.badge.plus",
                     title: "Document import works on Mac",
-                    detail: "The macOS file picker was a placeholder. It is now a native picker supporting the same formats as iOS."
-                ),
-                .init(
-                    symbol: "gauge.with.dots.needle.33percent",
-                    title: "Deep Think stops when it's finished",
-                    detail: "Its internal confidence target couldn't be reached mathematically, so every query ran the maximum number of passes whether or not it was still learning anything."
+                    detail: "The file picker there was a placeholder."
                 ),
             ]
         )

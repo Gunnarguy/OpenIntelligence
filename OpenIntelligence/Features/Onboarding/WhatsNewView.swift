@@ -9,7 +9,6 @@ import SwiftUI
 
 struct WhatsNewView: View {
     let release: WhatsNewRelease
-    let onDismiss: () -> Void
 
     @Environment(\.dismiss) private var dismiss
 
@@ -41,10 +40,7 @@ struct WhatsNewView: View {
             #endif
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Done") {
-                        onDismiss()
-                        dismiss()
-                    }
+                    Button("Done") { dismiss() }
                     .fontWeight(.semibold)
                 }
             }
@@ -87,8 +83,5 @@ struct WhatsNewView: View {
 }
 
 #Preview {
-    WhatsNewView(
-        release: WhatsNewStore.releases["4.8"]!,
-        onDismiss: {}
-    )
+    WhatsNewView(release: WhatsNewStore.releases["4.8"]!)
 }

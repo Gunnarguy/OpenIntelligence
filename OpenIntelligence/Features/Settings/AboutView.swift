@@ -73,25 +73,28 @@ struct AboutView: View {
 
                     SurfaceCard {
                         SectionHeader(icon: "sparkles.rectangle.stack", title: "Latest Update")
+                        // Rendered from `WhatsNewStore.releases`, the same source as the
+                        // sheet shown after an update. These three highlights used to be
+                        // hardcoded here and had gone stale: they described an older
+                        // release ("Quality modes are easier to scan") while the app was
+                        // on 4.8. Two places holding release copy is two places to drift,
+                        // and this one already had. It also gives the update sheet a
+                        // permanent home, so dismissing it does not lose the content.
                         VStack(alignment: .leading, spacing: 10) {
-                            releaseHighlight(
-                                icon: "bolt.fill",
-                                tint: .orange,
-                                title: "Quality modes are easier to scan",
-                                detail: "Standard, Deep Think, and Maximum now have clearer labels and stronger visual separation in chat."
-                            )
-                            releaseHighlight(
-                                icon: "paintbrush.pointed.fill",
-                                tint: .purple,
-                                title: "Settings and About are cleaner",
-                                detail: "Plan messaging, update summaries, and key product links now read more clearly inside the app."
-                            )
-                            releaseHighlight(
-                                icon: "list.bullet.rectangle.portrait.fill",
-                                tint: .blue,
-                                title: "Feedback is easier to send",
-                                detail: "The app keeps direct paths to feedback, support, the App Store, and the public codebase without the broken update pages."
-                            )
+                            if let release = WhatsNewStore().releaseForCurrentVersion() {
+                                ForEach(release.items) { item in
+                                    releaseHighlight(
+                                        icon: item.symbol,
+                                        tint: .accentColor,
+                                        title: item.title,
+                                        detail: item.detail
+                                    )
+                                }
+                            } else {
+                                Text("Release notes for this version aren't available in the app. The App Store listing has the full list.")
+                                    .font(.footnote)
+                                    .foregroundStyle(.secondary)
+                            }
                         }
                     }
 
