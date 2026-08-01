@@ -17,6 +17,7 @@ struct ContentView: View {
     @StateObject private var settingsStore: SettingsStore
     @StateObject private var modelResolutionService: ModelResolutionService
     @StateObject private var onboardingStore: OnboardingStateStore
+    @StateObject private var whatsNewStore: WhatsNewStore
     @StateObject private var entitlementStore: EntitlementStore
     @State private var selectedTab: Tab = .chat
     @State private var previousScenePhase: ScenePhase = .inactive
@@ -49,8 +50,10 @@ struct ContentView: View {
             let defaults = UserDefaults(suiteName: suite) ?? .standard
             defaults.removePersistentDomain(forName: suite)
             _onboardingStore = StateObject(wrappedValue: OnboardingStateStore(defaults: defaults))
+            _whatsNewStore = StateObject(wrappedValue: WhatsNewStore(defaults: defaults))
         } else {
             _onboardingStore = StateObject(wrappedValue: OnboardingStateStore())
+            _whatsNewStore = StateObject(wrappedValue: WhatsNewStore())
         }
         _entitlementStore = StateObject(wrappedValue: entitlementStore)
 
@@ -147,7 +150,18 @@ struct ContentView: View {
         // Proactively refresh StoreKit products once the root view appears.
         // In production this fetches App Store Connect products; in DEBUG/simulator,
         // this will emit a single warning if no StoreKit configuration is present.
+        .sheet(item: $whatsNewStore.pendingRelease) { release in
+            WhatsNewView(release: release) {
+                whatsNewStore.markSeen()
+            }
+            .interactiveDismissDisabled(false)
+        }
         .task {
+            // Screenshot runs wipe their defaults suite on launch, which would read as
+            // a fresh install and stay silent anyway; skipping keeps captures clean.
+            if !screenshotMode.isEnabled {
+                whatsNewStore.evaluateOnLaunch()
+            }
             #if DEBUG
             let environment = ProcessInfo.processInfo.environment
             let arguments = ProcessInfo.processInfo.arguments
