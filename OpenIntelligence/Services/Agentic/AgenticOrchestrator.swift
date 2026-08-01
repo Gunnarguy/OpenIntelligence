@@ -3338,8 +3338,14 @@ final class AgenticOrchestrator: Sendable {
 
     /// Verify that citations [S1], [S2], etc. actually reference content from sources
     private func verifyCitations(answer: String, sources: [RetrievedChunk]) -> CitationVerificationResult {
-        // Extract citation markers from answer
-        let citationPattern = #"\[S(\d+)\]"#
+        // Extract citation markers from answer.
+        //
+        // Both bracket and parenthesis forms. The prompts ask for [S1], but models
+        // routinely write (S1) instead, and a device run produced an answer carrying
+        // five (S1)/(S2) markers that this check scored `citations=0/0` — reporting an
+        // answer as uncited when every claim in it was attributed. The distinction is
+        // a punctuation preference, not a difference in grounding.
+        let citationPattern = #"[\[(]S(\d+)[\])]"#
         guard let regex = try? NSRegularExpression(pattern: citationPattern, options: []) else {
             return CitationVerificationResult(verified: 0, totalCitations: 0, groundingScore: 1.0, details: [])
         }
