@@ -8,21 +8,32 @@ This document provides a chronological history of user-facing changes, highlight
 ---
 
 ## v4.8 - July 31, 2026
+Deep Think and Maximum were not wired up correctly in previous releases. This release fixes that, and everything it uncovered.
 
-*   **Deep Think and Maximum Now Reason Over Retrieved Evidence:** Both modes run several reasoning passes across your documents, each building on the one before it. The handoff between retrieval and the reasoning step was never connected, so every pass concluded there was nothing to work with. Maximum needed a second, separate fix for the same defect in its own loop.
-*   **Retrieval Was Never the Problem:** Documents were being found, ranked, and prepared correctly the entire time. The evidence simply never reached the step that decides how to answer.
-*   **Answers Cite Their Sources in Every Mode:** Maximum previously produced answers carrying no citations at all, because source markers were lost while findings were compressed between passes. Attribution now survives that compression.
-*   **Resolved "The selected model isn't available right now":** That message appeared when the reasoning step found nothing to plan against. It was never a model or hardware problem.
-*   **Model Picker Now Governs Every Mode:** On-Device, Hybrid, and Private Cloud Compute reached Standard correctly but were dropped in Deep Think and Maximum, which fell back to a default. On-Device now applies to the entire query, including the final answer.
-*   **Deep Think and Maximum Stop When Finished:** Both had internal confidence targets that could not mathematically be reached, so every query ran the maximum number of passes whether or not it was still learning anything. Maximum now ends once it stops finding new material, typically halving the time it takes.
-*   **Reasoning Output Stays Readable:** Reasoning passes sometimes emitted raw model markup instead of prose, and that text could reach the final answer. It is now removed before being used or shown.
-*   **The Pipeline Shows What Is Actually Running:** Reasoning passes were labeled "Re-ranking", and several stages were grouped under one name, so the live view did not match the work. Each stage now reports itself, including verification and query rewriting, which were never shown at all. Passes skipped for having no relevant text say so instead of leaving gaps in the sequence.
-*   **Reasoning Detail Is No Longer Cut Off:** Live reasoning text was truncated to a single line, removing the part that explained what a step had found. It now wraps.
-*   **Follow-Up Suggestions Are Drawn From the Answer:** Suggestions were built from stray words and often read as nonsense. They now come from the phrases the answer quotes, the sections it defines, and the gaps it reports.
-*   **Grounded Answers Are No Longer Discarded:** An answer correctly reporting that the documents did not cover something was being replaced with generic help text. That answer is now kept, because it is the honest one and it cites its sources.
-*   **A Failed Pass No Longer Ends the Query:** A single transient model error used to discard an entire query. Passes now retry, the run continues across its remaining evidence, and a pass returning something unusable no longer counts as the model being unavailable.
-*   **Document Import on Mac:** The macOS file picker was a placeholder. It is now a native picker supporting the same formats as iOS, including PDFs, Office and iWork files, text, code, images, audio, and video.
-*   **What Changed, After Every Update:** Opening the app after an update now shows a short summary of what is new.
+
+### Deep Think And Maximum
+
+*   Both modes now reason across your documents. Previously they returned Standard quality answers after a much longer wait.
+*   Answers cite their sources in every mode. Maximum produced none at all.
+*   Both stop once they stop finding new material, typically halving Maximum's run time.
+*   A single failed pass no longer ends a query.
+*   Resolved "The selected model isn't available right now."
+### Privacy And Routing
+
+*   On-Device now covers the entire query, including the final answer.
+*   The model picker governs every mode. It previously reached Standard only, so Deep Think and Maximum fell back to a default.
+### What You See
+
+*   The live pipeline names each stage correctly, including verification and query rewriting.
+*   Reasoning detail wraps instead of cutting off mid-sentence.
+*   Follow-up suggestions come from the answer rather than stray words.
+*   Raw model output no longer appears in answers.
+*   Passes skipped for having no relevant text are shown instead of leaving gaps.
+*   An answer reporting that your documents do not cover something is kept, not replaced with generic help text.
+### Also
+
+*   Document import works on Mac. The file picker there was a placeholder.
+*   Opening the app after an update now shows what changed.
 
 ## v4.7 - July 28, 2026
 
