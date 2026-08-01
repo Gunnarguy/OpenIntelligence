@@ -5539,6 +5539,24 @@ extension AgenticOrchestrator {
                     "[Unlimited] Session \(sessionNum) skipped — empty context window",
                     category: .retrieval
                 )
+                // Report the skip rather than vanishing. Skipping is correct — the
+                // window held no query-relevant sentences, so generating against it
+                // would waste ~25s and produce a request for context — but emitting
+                // nothing left the live list jumping 4 → 7 → 8 → 17 → 19, which reads
+                // as a broken pipeline rather than a working one. Tagged `.searching`
+                // because an empty window is a retrieval-side outcome.
+                let skipStep = ThinkingStep(
+                    id: UUID(),
+                    type: .searching,
+                    input: "Session \(sessionNum)/\(effectiveMaxSessions)",
+                    output: "Skipped — no query-relevant text in this window",
+                    tokensUsed: 0,
+                    duration: 0,
+                    timestamp: Date(),
+                    confidence: confidence
+                )
+                steps.append(skipStep)
+                await onStep?(skipStep)
                 continue
             }
 
@@ -5654,6 +5672,18 @@ extension AgenticOrchestrator {
                         + "(\(insightLength) chars) — skipping, not counted as a failure",
                     category: .llm
                 )
+                let skipStep = ThinkingStep(
+                    id: UUID(),
+                    type: .analyzing,
+                    input: "Session \(sessionNum)/\(effectiveMaxSessions)",
+                    output: "No usable finding in this window",
+                    tokensUsed: response.tokensGenerated,
+                    duration: sessionDuration,
+                    timestamp: Date(),
+                    confidence: confidence
+                )
+                steps.append(skipStep)
+                await onStep?(skipStep)
                 continue
             }
 
