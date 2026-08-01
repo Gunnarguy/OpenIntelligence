@@ -5378,22 +5378,35 @@ extension AgenticOrchestrator {
                 && factBank.subQuestionConfidence >= evidenceCoverageTarget
             let converged = noveltyExhausted
                 && sessionNum >= unlimitedPolicy.minimumSessionsBeforeConvergence
-            // Coverage has not moved for several sessions while the chain kept
-            // reading. Whatever is still unanswered is not in this corpus, and more
-            // sessions cannot change that.
-            let answerNotInCorpus = coveragePlateauStreak >= unlimitedPolicy.coveragePlateauStreakThreshold
-                && sessionNum >= unlimitedPolicy.minimumSessionsBeforeConvergence
-            if completed || converged || answerNotInCorpus {
-                if answerNotInCorpus && !completed && !converged {
-                    terminationReason = .answerNotInCorpus
-                    Log.info(
-                        "[Unlimited] Session \(sessionNum): coverage flat at "
-                            + "\(Int(bestCoverage * 100))% for \(coveragePlateauStreak) sessions "
-                            + "— the remaining "
-                            + "sub-questions are not in these documents. STOPPING",
-                        category: .llm
-                    )
-                }
+            // A flat coverage streak is *observed and logged, but not acted on*.
+            //
+            // It was briefly a stop condition and that was a mistake, measured on the
+            // same corpus and question across three runs:
+            //
+            //   ceiling 50, no convergence   50 sessions   48 chars, 0 citations
+            //   saturation convergence       23 sessions  209 chars, 1/2 verified, accept
+            //   coverage plateau              8 sessions   67 chars, 0/1 verified, retry
+            //
+            // Coverage measures *breadth* — which sub-questions are answered — and it
+            // was flat from session 1 because the last one was never in the document.
+            // Novelty stayed at 61–86% because the chain was still accumulating
+            // *depth*: more supporting evidence for the sub-questions already covered.
+            // That depth is what let synthesis produce a citation the verifier could
+            // check. Stopping on breadth alone cut it off and produced a shorter,
+            // more confident, *less supported* answer — the worst direction to move.
+            //
+            // Saturation-based convergence is the empirically better proxy. Keep the
+            // plateau visible for diagnosis; do not let it end a run.
+            if coveragePlateauStreak == unlimitedPolicy.coveragePlateauStreakThreshold {
+                Log.info(
+                    "[Unlimited] Session \(sessionNum): sub-question coverage flat at "
+                        + "\(Int(bestCoverage * 100))% for \(coveragePlateauStreak) sessions — "
+                        + "remaining sub-questions look absent from this corpus. Continuing: "
+                        + "later sessions still add supporting depth.",
+                    category: .llm
+                )
+            }
+            if completed || converged {
                 terminationReason = .confidenceReached
                 Log.info(
                     "[Unlimited] Session \(sessionNum): confidence=\(Int(confidence * 100))%, coverage=\(Int(factBank.subQuestionConfidence * 100))%, lowNoveltyStreak=\(lowNoveltyStreak) - STOPPING",
