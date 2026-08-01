@@ -7274,21 +7274,32 @@ extension AgenticOrchestrator {
         // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
         // Handle "NOT FOUND" responses gracefully
         // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        // A model that reports it could not find something has *answered*. That answer
+        // is grounded in the documents, often carries citations, and is exactly the
+        // behaviour this app promises. Replacing it with boilerplate destroys all of
+        // that, and a device run showed the cost precisely:
+        //
+        //     [Synthesis] Final answer: 385 chars from 20 insights
+        //     user received: 216 chars of template
+        //
+        // A real synthesis built from 20 insights and 11 claims was discarded for text
+        // that asserted the information "may be in an image, diagram, or table" —
+        // a cause nobody established, and wrong for a text-indexed corpus — and which
+        // read "about about" because `extractQueryContext` returns a phrase already
+        // beginning with "about".
+        //
+        // So: never replace. Append a short suggestion only when the model's own
+        // answer is too thin to stand on its own, and say nothing about why the
+        // information is missing, because that is not known.
         let upperText = result.uppercased()
-        if isFinalAnswer,
-           upperText.contains("NOT FOUND IN DOCUMENTS") ||
-           upperText.contains("DOCUMENTS DO NOT CONTAIN") ||
-           upperText.contains("COULDN'T FIND") ||
-           upperText.contains("COULD NOT FIND") ||
-           upperText.contains("NO INFORMATION FOUND") ||
-           upperText.contains("NOT AVAILABLE IN") {
-            // Extract what the user was looking for if possible
-            let query = extractQueryContext(from: text)
-            if !query.isEmpty {
-                return "I searched through your documents but couldn't find specific information about \(query). This information may be in an image, diagram, or table that wasn't extracted as text. You could try:\n\n• Checking the original document directly\n• Rephrasing your question with different keywords\n• Uploading additional documentation that covers this topic"
-            } else {
-                return "I searched through your documents but couldn't find the specific information you're looking for. This may be because:\n\n• The information is in an image or diagram that wasn't extracted as text\n• The document uses different terminology\n• This topic isn't covered in the uploaded documents\n\nTry rephrasing your question or checking the original document directly."
-            }
+        let reportsNotFound = upperText.contains("NOT FOUND IN DOCUMENTS")
+            || upperText.contains("DOCUMENTS DO NOT CONTAIN")
+            || upperText.contains("COULDN'T FIND")
+            || upperText.contains("COULD NOT FIND")
+            || upperText.contains("NO INFORMATION FOUND")
+            || upperText.contains("NOT AVAILABLE IN")
+        if isFinalAnswer, reportsNotFound, result.count < 160 {
+            return result + "\n\nYou could try rephrasing the question, checking the original document directly, or adding a document that covers this topic."
         }
 
         // Handle refusal/ethics responses that snuck through
