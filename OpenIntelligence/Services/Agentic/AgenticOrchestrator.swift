@@ -5053,6 +5053,16 @@ extension AgenticOrchestrator {
 
         private func extractFactsFromInsight(_ insight: String) -> [(text: String, sources: [String])] {
             var extracted: [(text: String, sources: [String])] = []
+            // Sessions cite once, at the top: "[S1] REVIEW ARTICLE — (Psychiatry Clin
+            // Neurosci - 2019 …" followed by the reasoning. Splitting into sentences
+            // therefore leaves the marker on the *first* fragment and every substantive
+            // claim after it with no attribution — and those later claims are the ones
+            // that reach the answer. A device run carried [S#] in 14 places and still
+            // reported citations=0/0 for exactly this reason.
+            //
+            // An insight prefixed [S1] is derived from S1 throughout, so a sentence
+            // with no marker of its own inherits the insight's.
+            let insightSources = sourceMarkers(in: insight)
             let sentences = insight.components(separatedBy: CharacterSet(charactersIn: ".!?"))
                 .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
                 .filter { $0.count > 20 }
@@ -5096,14 +5106,18 @@ extension AgenticOrchestrator {
                 if shouldKeep {
                     let maxLen = queryIntent == .conceptual ? 200 : 150
                     // Capture attribution from the *full* sentence before truncating.
-                    extracted.append((String(sentence.prefix(maxLen)), sourceMarkers(in: sentence)))
+                    let ownSources = sourceMarkers(in: sentence)
+                    extracted.append((
+                        String(sentence.prefix(maxLen)),
+                        ownSources.isEmpty ? insightSources : ownSources
+                    ))
                 }
             }
 
             // Fallback if nothing extracted
             if extracted.isEmpty && !insight.isEmpty {
                 let fallbackLen = queryIntent == .conceptual ? 250 : 150
-                extracted.append((String(insight.prefix(fallbackLen)), sourceMarkers(in: insight)))
+                extracted.append((String(insight.prefix(fallbackLen)), insightSources))
             }
 
             return extracted
