@@ -6104,7 +6104,7 @@ extension AgenticOrchestrator {
             prompt: synthesisPrompt,
             context: "",
             systemPrompt: "Document analyst. Answer using ONLY the provided findings. Never fabricate facts or statistics. Use **bold** sparingly for key terms only. Never repeat content. Reply in plain prose only — never JSON, key-value pairs, or field names.",
-            maxTokens: 1500,
+            maxTokens: Self.synthesisOutputTokenReserve,  // must match supplementaryCharBudget
             disableTools: true,
             sourceChunks: sourceChunks
             )
@@ -6151,7 +6151,7 @@ extension AgenticOrchestrator {
                 prompt: refinementPrompt,
                 context: "",
                 systemPrompt: "Editor. Only include facts from the FACT BANK. Remove repetition. Remove unsupported claims. Reply in plain prose only — never JSON, key-value pairs, or field names.",
-                maxTokens: 1500,
+                maxTokens: Self.synthesisOutputTokenReserve,  // must match supplementaryCharBudget
                 disableTools: true,
                 sourceChunks: sourceChunks
             )
@@ -7148,9 +7148,22 @@ extension AgenticOrchestrator {
     /// Budgeted against the **on-device** window even when synthesis may escalate to
     /// PCC. Under-using a 32K window costs nothing; over-filling a 4096 one costs the
     /// entire answer, and an On-Device selection makes the small window mandatory.
+    /// Output tokens reserved for the final synthesis, and passed as `maxTokens`.
+    ///
+    /// Was 1500, which starved the input it was protecting. A device run reserved
+    /// 1500 and the model used ~362, while the reservation squeezed the supplementary
+    /// findings from 1554 characters down to 166 — 32 sessions' worth of insight
+    /// compressed into two sentences. The answer showed it: Dopamine, Glutamate and
+    /// GABA were written out fully and Serotonin got "Document [S2] mentions
+    /// serotonin." before stopping, because there was nothing left to write from.
+    ///
+    /// 1000 tokens is ~1400 characters, comfortably above every answer observed
+    /// (507, 599, 793), and returns ~700 characters to the evidence.
+    static let synthesisOutputTokenReserve = 1000
+
     private func supplementaryCharBudget(factContextChars: Int, queryChars: Int) -> Int {
         let window = FoundationModelTokenBudget.contextSize(isAppleFMOnDevice: true)
-        let outputReserveTokens = 1500          // maxTokens requested for the answer
+        let outputReserveTokens = Self.synthesisOutputTokenReserve
         let serviceOverheadTokens = 200         // system prompt + LLMService wrapper
         let instructionChars = 900              // the fixed instruction text below the findings
 
