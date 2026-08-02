@@ -5061,6 +5061,13 @@ class RAGService: ObservableObject {
                 category: .ingestion
             )
 
+            // The user asked for this file. If a previous deletion tombstoned this id,
+            // skipping here without clearing it would leave the record to be erased by
+            // the next sync, with nothing left to recreate it.
+            await MainActor.run {
+                self.clearDeletionTombstones(for: [existingDocument.id])
+            }
+
             await MainActor.run {
                 if let trackingId {
                     self.updateIngestionItem(
@@ -6571,6 +6578,46 @@ class RAGService: ObservableObject {
         // Keep prefix concise - embeddings have limited context windows
         // Format: "[Document: Filename]" - simple but effective
         return "[\(baseName)]"
+    }
+
+    /// Clear deletion tombstones for documents the user is deliberately importing.
+    ///
+    /// `deleted_documents.json` was written in two places and cleared in none, so a
+    /// document id that entered it stayed there permanently — and `WorkspaceSyncService`
+    /// filters every tombstoned id out of the library on each sync. Combined with
+    /// ingestion skipping a file it recognises as already imported, that formed a trap
+    /// with no exit:
+    ///
+    ///   1. a document is deleted, or its queued item is discarded, and its id is
+    ///      tombstoned
+    ///   2. re-importing finds the surviving record and logs "Skipping already imported
+    ///      document", creating no new record and no new id
+    ///   3. the next sync applies the tombstone and erases the record
+    ///   4. back to step 2, forever
+    ///
+    /// Deliberately importing a file is an un-delete. Reported as: import completes,
+    /// wait, reopen, and the documents are gone again.
+    private func clearDeletionTombstones(for ids: [UUID]) {
+        guard !ids.isEmpty else { return }
+        let deletedDocsURL = AppSupportPaths.baseDir().appendingPathComponent("deleted_documents.json")
+        let fm = FileManager.default
+        guard fm.fileExists(atPath: deletedDocsURL.path),
+              let data = try? Data(contentsOf: deletedDocsURL),
+              var deletedDocIDs = try? JSONDecoder().decode([String].self, from: data)
+        else { return }
+
+        let removing = Set(ids.map(\.uuidString))
+        let before = deletedDocIDs.count
+        deletedDocIDs.removeAll { removing.contains($0) }
+        guard deletedDocIDs.count != before else { return }
+
+        if let encoded = try? JSONEncoder().encode(deletedDocIDs) {
+            try? encoded.write(to: deletedDocsURL, options: .atomic)
+            Log.info(
+                "[RAGService] Cleared \(before - deletedDocIDs.count) deletion tombstone(s) for re-imported document(s)",
+                category: .ingestion
+            )
+        }
     }
 
     private func registerDeletedDocuments(_ docs: [Document]) {
