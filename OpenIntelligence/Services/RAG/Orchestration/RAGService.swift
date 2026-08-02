@@ -1089,17 +1089,39 @@ class RAGService: ObservableObject {
                        storageRelativePath: item.storageRelativePath,
                        fileHash: item.documentHash
                    ) {
-                    let database = self.vectorRouter.db(for: container)
-
-                    // `try?` collapsed a failed read and a genuinely empty database into
-                    // the same `[]`, and this branch treats `[]` as "never ingested" and
-                    // resurrects the item. A device log shows why that matters: four
-                    // lines of "[BNNS] Loaded 182 chunks" immediately precede this guard
-                    // reporting the chunks missing. Nothing was deleted; the lookup came
-                    // back empty while the store demonstrably held the data.
+                    // Ask the metadata, not the vector store.
                     //
-                    // A read failure is not evidence of a missing document, so it must
-                    // not resurrect a completed ingestion.
+                    // `Document.totalChunks` is written when ingestion completes and is
+                    // loaded synchronously at launch — it is the same figure the startup
+                    // log reports as "Loaded 2 documents (196 chunks)". The vector store
+                    // is loaded lazily per container, so querying it during queue restore
+                    // asks a store that may not be open yet, and an unopened store answers
+                    // "empty" without raising an error.
+                    //
+                    // A device log shows exactly that sequence:
+                    //
+                    //     16:  [RAGService] Loaded 2 documents (196 chunks)
+                    //     60:  [BNNS] Loaded 182 chunks          (one container only)
+                    //    106:  Retaining ... chunks are missing  (the guard, too early)
+                    //    400:  [BNNS] Persisted 13 chunks        (the document's own chunks)
+                    //
+                    // The ingestion had completed. The store simply had not been opened
+                    // for that container when the guard ran, so every relaunch resurrected
+                    // a finished import and asked the user to resume it.
+                    if existingDoc.totalChunks > 0 {
+                        Log.info(
+                            "[RAGService] Dropping persisted ingestion item for already imported document: "
+                                + "\(item.url.lastPathComponent) (\(existingDoc.totalChunks) chunks recorded)",
+                            category: .ingestion
+                        )
+                        continue
+                    }
+
+                    // Metadata itself reports zero chunks, which is the ambiguous case:
+                    // either the ingestion truly did not finish, or the record predates
+                    // chunk counting. Consult the store, and treat a read failure as
+                    // "not proven missing" rather than as evidence to re-ingest.
+                    let database = self.vectorRouter.db(for: container)
                     let allChunks: [DocumentChunk]
                     do {
                         allChunks = try await database.allChunks()
