@@ -1090,7 +1090,29 @@ class RAGService: ObservableObject {
                        fileHash: item.documentHash
                    ) {
                     let database = self.vectorRouter.db(for: container)
-                    let allChunks = (try? await database.allChunks()) ?? []
+
+                    // `try?` collapsed a failed read and a genuinely empty database into
+                    // the same `[]`, and this branch treats `[]` as "never ingested" and
+                    // resurrects the item. A device log shows why that matters: four
+                    // lines of "[BNNS] Loaded 182 chunks" immediately precede this guard
+                    // reporting the chunks missing. Nothing was deleted; the lookup came
+                    // back empty while the store demonstrably held the data.
+                    //
+                    // A read failure is not evidence of a missing document, so it must
+                    // not resurrect a completed ingestion.
+                    let allChunks: [DocumentChunk]
+                    do {
+                        allChunks = try await database.allChunks()
+                    } catch {
+                        Log.error(
+                            "[RAGService] Vector store read failed while checking '\(item.url.lastPathComponent)' "
+                                + "(container \(resolvedContainerId)): \(type(of: error)) — \(error.localizedDescription). "
+                                + "Dropping the queued item rather than re-ingesting a document that may already be complete.",
+                            category: .ingestion
+                        )
+                        continue
+                    }
+
                     let documentChunks = allChunks.filter { $0.documentId == existingDoc.id }
 
                     if !documentChunks.isEmpty {
@@ -1100,8 +1122,19 @@ class RAGService: ObservableObject {
                         )
                         continue
                     } else {
+                        // Name what was actually inspected. Zero matches out of a store
+                        // holding thousands of chunks means the lookup missed, not that
+                        // the document is absent -- most likely the wrong container's
+                        // database, or a document record whose id no longer matches the
+                        // id its chunks carry.
+                        let distinctDocs = Set(allChunks.map(\.documentId)).count
                         Log.warning(
-                            "[RAGService] Retaining interrupted ingestion item for '\(item.url.lastPathComponent)' because its vector database chunks are missing.",
+                            "[RAGService] Retaining interrupted ingestion item for '\(item.url.lastPathComponent)': "
+                                + "0 chunks matched document \(existingDoc.id) in container \(resolvedContainerId), "
+                                + "which holds \(allChunks.count) chunks across \(distinctDocs) document(s). "
+                                + (allChunks.isEmpty
+                                    ? "The store is empty, so this ingestion genuinely did not complete."
+                                    : "The store is NOT empty, so this is an id or container mismatch rather than a missing document."),
                             category: .ingestion
                         )
                     }
