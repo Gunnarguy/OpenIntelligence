@@ -312,11 +312,45 @@ final class AgenticOrchestrator: Sendable {
         logStepTokens("Query Generation", 50)
 
         // Execute multi-query search with RRF fusion
-        let (multiQueryStep, initialChunks) = try await executeMultiQuerySearch(
+        var (multiQueryStep, initialChunks) = try await executeMultiQuerySearch(
             queries: searchQueries,
             ragService: ragService,
             onDetailedEvent: detailedForwarder
         )
+
+        // A rewrite that finds nothing is a statement about the rewrite, not
+        // about the library. Retry with what the user actually typed before any
+        // downstream gate is allowed to conclude the documents don't cover it.
+        //
+        // Device log 2026-08-03: "Can you steam these scopes?" was rewritten to
+        // "steam scopes", which fused 0 chunks, and the loop hard-exited with
+        // "Retrieved content is irrelevant" after 2 of 8 sessions. A tool call in
+        // the same session searched the same corpus for a related phrase and got
+        // 45 chunks back — the document covers steam sterilisation in detail. The
+        // planner's paraphrase lost the question, and the user was told their
+        // document didn't mention it.
+        if initialChunks.isEmpty, !searchQueries.contains(query) {
+            Log.warning(
+                "[Agentic] Query expansion \(searchQueries) returned 0 chunks. Retrying with the original query before judging relevance.",
+                category: .retrieval
+            )
+            await detailedForwarder?(.retrieval, "Retrying", "Expansion found nothing — searching your original wording")
+
+            let (retryStep, retryChunks) = try await executeMultiQuerySearch(
+                queries: [query],
+                ragService: ragService,
+                onDetailedEvent: detailedForwarder
+            )
+
+            if !retryChunks.isEmpty {
+                Log.info(
+                    "[Agentic] Original query recovered \(retryChunks.count) chunk(s) the expansion missed.",
+                    category: .retrieval
+                )
+                multiQueryStep = retryStep
+                initialChunks = retryChunks
+            }
+        }
         steps.append(multiQueryStep)
         logStepTokens("Multi-Query Search", multiQueryStep.tokensUsed)
         allRetrievedChunks.append(contentsOf: initialChunks)
