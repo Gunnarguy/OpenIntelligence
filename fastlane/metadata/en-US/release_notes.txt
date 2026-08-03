@@ -26,8 +26,9 @@ WHAT YOU SEE
 • An answer reporting that your documents do not cover something is kept, not replaced with generic help text.
 
 
-ICLOUD LIBRARIES
+YOUR LIBRARIES
 
+• Fixed documents disappearing shortly after import. A document that finished importing while the app was saving your library could be dropped from the list, even though it had imported correctly.
 • Documents processed on one device no longer need re-importing on another.
 • Libraries no longer appear to lose documents while iCloud is still catching up.
 

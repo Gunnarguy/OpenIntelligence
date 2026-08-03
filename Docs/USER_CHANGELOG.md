@@ -8,10 +8,11 @@ This document provides a chronological history of user-facing changes, highlight
 ---
 
 ## v4.9 - August 2, 2026
-iCloud libraries now carry their work between devices instead of asking you to redo it.
+Documents no longer disappear after importing, and libraries carry their work between devices instead of asking you to redo it.
 
-### iCloud Libraries
+### Your Libraries
 
+*   Fixed documents disappearing shortly after import. A document that finished importing while the app was saving your library could be dropped from the list, even though it had imported correctly. This affected a single device as well as several, and it is what made the sample documents unreliable.
 *   Documents processed on one device no longer need re-importing on another.
 *   Libraries no longer appear to lose documents while iCloud is still catching up.
 

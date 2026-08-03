@@ -1142,8 +1142,56 @@ final class WorkspaceSyncService: ObservableObject {
 
         try enforceLibraryLimit(for: finalLocalContainers)
 
+        // Everything above was computed from `localInventory`, a snapshot taken at
+        // the start of this pass. Between that snapshot and this write we merged
+        // containers, resolved aliases, and — in
+        // `ensureSourcedDocumentsAvailableLocally` — awaited iCloud downloads. An
+        // ingestion that finishes inside that window writes its own
+        // documents_metadata.json, and this write then lands on top of it with a
+        // set computed before that document existed. The document is left fully
+        // present on disk (chunks, embeddings, FTS5, Spotlight) with no metadata
+        // row pointing at it, so it simply disappears from the app, and because
+        // the ingestion completed there is no queue item left to offer a resume.
+        //
+        // Commit under a single coordination claim that spans the re-read and the
+        // write, and fold in anything that landed mid-pass instead of discarding
+        // it. Aborting here would also work, but it throws away a completed merge
+        // and — because the throw unwinds to `activateLocalWorkspace` — makes sync
+        // report itself as off every time a user imports while a pass is running.
+        // Merging converges on the first try instead.
+        let localDocumentsURL = localRoot.appendingPathComponent("documents_metadata.json")
+        let tombstoned = consolidatedDeletedDocIDs
+
+        try Self.coordinatedMergeData(at: localDocumentsURL) { existing in
+            var result = finalLocalDocuments
+
+            if let existing {
+                let computedIDs = Set(finalLocalDocuments.map(\.id))
+                let onDisk = (try? JSONDecoder().decode([Document].self, from: existing)) ?? []
+                let arrivedDuringPass = onDisk.filter { document in
+                    !computedIDs.contains(document.id) && !tombstoned.contains(document.id.uuidString)
+                }
+
+                if !arrivedDuringPass.isEmpty {
+                    Log.warning(
+                        """
+                        [WorkspaceSync] \(arrivedDuringPass.count) document(s) finished importing while \
+                        this sync pass was running and were absent from the \(finalLocalDocuments.count) \
+                        it computed. Folding them into the write instead of overwriting them. \
+                        Kept: \(arrivedDuringPass.map { "\($0.id.uuidString) in \($0.containerId?.uuidString ?? "default")" }.joined(separator: ", ")).
+                        """,
+                        category: .vectorDB
+                    )
+                    result = deduplicatedDocuments(result + arrivedDuringPass)
+                }
+            }
+
+            let encoder = JSONEncoder()
+            encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+            return try encoder.encode(result)
+        }
+
         try Self.writeJSON(finalLocalContainers, to: localRoot.appendingPathComponent("containers.json"))
-        try Self.writeJSON(finalLocalDocuments, to: localRoot.appendingPathComponent("documents_metadata.json"))
 
         let sharedContainersURL = sharedRoot.appendingPathComponent("containers.json")
         let sharedDocumentsURL = sharedRoot.appendingPathComponent("documents_metadata.json")
@@ -1157,7 +1205,33 @@ final class WorkspaceSyncService: ObservableObject {
         if finalSharedDocuments.isEmpty {
             try? Self.coordinatedRemoveItem(at: sharedDocumentsURL)
         } else {
-            try Self.writeJSON(finalSharedDocuments, to: sharedDocumentsURL)
+            // Same race, across devices rather than across tasks. Another device
+            // can publish a document into the shared root while this pass is
+            // computing, and a plain write would erase it from iCloud for
+            // everyone. Fold it in under one write claim instead.
+            try Self.coordinatedMergeData(at: sharedDocumentsURL) { existing in
+                var result = finalSharedDocuments
+
+                if let existing {
+                    let computedIDs = Set(finalSharedDocuments.map(\.id))
+                    let onDisk = (try? JSONDecoder().decode([Document].self, from: existing)) ?? []
+                    let publishedByAnotherDevice = onDisk.filter {
+                        !computedIDs.contains($0.id) && !tombstoned.contains($0.id.uuidString)
+                    }
+
+                    if !publishedByAnotherDevice.isEmpty {
+                        Log.warning(
+                            "[WorkspaceSync] Keeping \(publishedByAnotherDevice.count) shared document(s) published while this pass ran, rather than overwriting them.",
+                            category: .vectorDB
+                        )
+                        result = deduplicatedDocuments(result + publishedByAnotherDevice)
+                    }
+                }
+
+                let encoder = JSONEncoder()
+                encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+                return try encoder.encode(result)
+            }
         }
 
         try synchronizeIngestionQueue(
@@ -3196,6 +3270,57 @@ final class WorkspaceSyncService: ObservableObject {
         if let writeError {
             throw writeError
         }
+
+        if url.path.hasPrefix(OpenIntelligenceRuntimePaths.applicationSupportRoot().path),
+           !WorkspaceSyncService.isSyncWriteInProgress {
+            NotificationCenter.default.post(name: .localWorkspaceDidChange, object: nil)
+        }
+    }
+
+    /// Read, transform and write a file under a **single** `NSFileCoordinator`
+    /// write claim, so no other reader or writer can land between the read and
+    /// the write.
+    ///
+    /// This is the piece the workspace was missing. `coordinatedReadData` and
+    /// `coordinatedWriteData` each coordinate their own access, which makes an
+    /// individual read or write atomic — but a read-modify-write built from the
+    /// two is not. A sync pass read the document list, spent seconds merging
+    /// containers and awaiting iCloud downloads, then wrote back a set computed
+    /// before a concurrent ingestion had finished. Both accesses were correctly
+    /// coordinated; the data was destroyed anyway, because the *sequence* was
+    /// never atomic.
+    ///
+    /// `.forMerging` is the documented option for exactly this shape: it tells
+    /// the coordinator (and any file presenter, including the iCloud daemon)
+    /// that the accessor intends to read the current contents and write a
+    /// combined result.
+    ///
+    /// Keep `transform` cheap and free of I/O or `await`. Anything slow belongs
+    /// outside, computed optimistically and reconciled here.
+    nonisolated static func coordinatedMergeData(
+        at url: URL,
+        transform: (Data?) throws -> Data
+    ) throws {
+        try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+
+        let coordinator = NSFileCoordinator(filePresenter: nil)
+        var coordinationError: NSError?
+        var accessorError: Error?
+
+        coordinator.coordinate(writingItemAt: url, options: .forMerging, error: &coordinationError) { coordinatedURL in
+            do {
+                let existing = FileManager.default.fileExists(atPath: coordinatedURL.path)
+                    ? try Data(contentsOf: coordinatedURL)
+                    : nil
+                let merged = try transform(existing)
+                try merged.write(to: coordinatedURL, options: .atomic)
+            } catch {
+                accessorError = error
+            }
+        }
+
+        if let coordinationError { throw coordinationError }
+        if let accessorError { throw accessorError }
 
         if url.path.hasPrefix(OpenIntelligenceRuntimePaths.applicationSupportRoot().path),
            !WorkspaceSyncService.isSyncWriteInProgress {

@@ -3620,11 +3620,48 @@ class RAGService: ObservableObject {
             return self.documents
         }
 
+        // Merge rather than overwrite. This is the mirror of the sync-side race:
+        // a sync pass can fold in a document that arrived from another device
+        // between this snapshot being taken and this write landing, and a blind
+        // write of the in-memory list would erase it — the same disappearance,
+        // in the opposite direction. `coordinatedMergeData` holds one write claim
+        // across the read and the write so nothing can land in between.
+        //
+        // A document present on disk but absent from the snapshot is only dropped
+        // when it has actually been tombstoned; otherwise it is newer than what
+        // this process knows about and is kept.
+        let deletedDocsURL = AppSupportPaths.baseDir().appendingPathComponent("deleted_documents.json")
+        let tombstoned: Set<String> = {
+            guard let data = try? Data(contentsOf: deletedDocsURL),
+                  let ids = try? JSONDecoder().decode([String].self, from: data)
+            else { return [] }
+            return Set(ids)
+        }()
+
         do {
-            let encoder = JSONEncoder()
-            encoder.outputFormatting = .prettyPrinted
-            let data = try encoder.encode(snapshot)
-            try WorkspaceSyncService.coordinatedWriteData(data, to: documentsStorageURL)
+            try WorkspaceSyncService.coordinatedMergeData(at: documentsStorageURL) { existing in
+                var result = snapshot
+
+                if let existing {
+                    let snapshotIDs = Set(snapshot.map(\.id))
+                    let onDisk = (try? JSONDecoder().decode([Document].self, from: existing)) ?? []
+                    let unknownToThisProcess = onDisk.filter {
+                        !snapshotIDs.contains($0.id) && !tombstoned.contains($0.id.uuidString)
+                    }
+
+                    if !unknownToThisProcess.isEmpty {
+                        Log.warning(
+                            "[RAGService] Keeping \(unknownToThisProcess.count) document(s) present on disk but absent from this snapshot — they arrived after it was taken and are not tombstoned.",
+                            category: .ingestion
+                        )
+                        result += unknownToThisProcess
+                    }
+                }
+
+                let encoder = JSONEncoder()
+                encoder.outputFormatting = .prettyPrinted
+                return try encoder.encode(result)
+            }
             Log.debug(" [RAGService] Saved \(snapshot.count) documents metadata")
         } catch {
             Log.error("[RAGService] Failed to save documents metadata: \(error.localizedDescription)")
