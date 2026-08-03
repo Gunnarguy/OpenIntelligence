@@ -83,5 +83,5 @@ struct WhatsNewView: View {
 }
 
 #Preview {
-    WhatsNewView(release: WhatsNewStore.releases["4.8"]!)
+    WhatsNewView(release: WhatsNewStore.releases["4.9"]!)
 }

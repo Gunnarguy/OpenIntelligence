@@ -1,4 +1,4 @@
-> **Documentation status:** Source-verified for OpenIntelligence v4.8 on July 30, 2026. Deep Think's reasoning chain, the model picker, and early stopping are device-verified; the remaining v4.8 fixes are build- and test-verified only.
+> **Documentation status:** Source-verified for OpenIntelligence v4.9 on August 2, 2026. Deep Think's reasoning chain, the model picker, and early stopping are device-verified; the remaining v4.8 fixes are build- and test-verified only.
 
 
 # OpenIntelligence User-Facing Changelog
@@ -6,6 +6,16 @@
 This document provides a chronological history of user-facing changes, highlighting how OpenIntelligence continuously improves transparency, speed, and reliability.
 
 ---
+
+## v4.9 - August 2, 2026
+iCloud libraries now carry their work between devices instead of asking you to redo it.
+
+### iCloud Libraries
+
+*   Documents processed on one device no longer need re-importing on another.
+*   Libraries no longer appear to lose documents while iCloud is still catching up.
+
+> iPhone and iPad are coming from v4.7, so everything under v4.8 below ships here too. On Mac, v4.8 was already released, so only this section is new.
 
 ## v4.8 - July 31, 2026
 Deep Think and Maximum were not wired up correctly in previous releases. This release fixes that, and everything it uncovered.
@@ -32,7 +42,6 @@ Deep Think and Maximum were not wired up correctly in previous releases. This re
 *   An answer reporting that your documents do not cover something is kept, not replaced with generic help text.
 ### Also
 
-*   iCloud libraries no longer ask you to re-import documents another device already processed, and a library's search index is no longer removed while iCloud is still catching up.
 *   Document import works on Mac. The file picker there was a placeholder.
 *   Opening the app after an update now shows what changed.
 

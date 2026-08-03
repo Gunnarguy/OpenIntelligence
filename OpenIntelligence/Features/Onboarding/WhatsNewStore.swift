@@ -99,8 +99,12 @@ final class WhatsNewStore: ObservableObject {
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
     static let releases: [String: WhatsNewRelease] = [
-        "4.8": WhatsNewRelease(
-            version: "4.8",
+        // iOS 4.8 was developer-rejected and never shipped, so an iPhone coming
+        // from 4.7 sees all of this for the first time. macOS 4.8 was approved,
+        // so a Mac coming from it only finds the iCloud item new. One list
+        // serves both; the alternative is a per-platform key for one bullet.
+        "4.9": WhatsNewRelease(
+            version: "4.9",
             headline: "Deep Think and Maximum weren't wired up correctly. This release connects them.",
             items: [
                 .init(
