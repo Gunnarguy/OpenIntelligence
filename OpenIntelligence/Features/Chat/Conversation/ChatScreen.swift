@@ -3191,6 +3191,10 @@ struct ChatScreen: View {
                 return "Retrieval failed. Please try again."
             case .modelNotAvailable:
                 return "The selected model isn't available right now."
+            case .routingAbstained:
+                // Deliberately does not blame the model. The planner declined to
+                // route; the model is usually fine.
+                return "I couldn't work out how to answer that from what your documents returned. Try rephrasing."
             case let .maximumModeQuotaReached(limit):
                 return "Maximum is capped at \(limit) uses per day on Free. Switch modes or upgrade for unlimited Maximum."
             case .cloudConsentDenied:

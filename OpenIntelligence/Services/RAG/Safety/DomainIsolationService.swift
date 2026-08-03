@@ -187,16 +187,37 @@ enum DomainIsolationService {
             && dominantDomain != queryClassification.domain.family
             && (weightedScores[dominantDomain] ?? 0) >= max(allowedWeight, 0.3)
 
+        // Cross-domain mixing is a claim about combining *sources*. When every
+        // chunk comes from one document, there are no sources to mix: the domain
+        // terms are the author's own, in one voice, in one document the user
+        // deliberately imported.
+        //
+        // Device evidence 2026-08-03: a query about cleaning a laparoscope was
+        // blocked with "mixed evidence across incompatible domains: IN VITRO vs
+        // IN VIVO" when all three chunks were `[S1/S2/S3: Autoclavable
+        // Laparoscopes IFU.pdf]`. A surgical IFU naturally uses both phrases. The
+        // answer was discarded and the user got raw chunk text instead.
+        //
+        // Only the mixing clause is relaxed. Query mismatch, top-chunk mismatch,
+        // and coverage are relevance judgements that stay meaningful for a single
+        // document.
+        let distinctSourceDocuments = Set(classifiedChunks.map(\.chunk.chunk.documentId))
+        let isSingleSourceDocument = distinctSourceDocuments.count <= 1
+
+        let blocksMixedDomains = !permitsCrossDomainSynthesis
+            && topDomains.count >= 2
+            && !isSingleSourceDocument
+
         let shouldAbstain = classifiedChunks.isEmpty
             || allowedCoverage < 0.55
             || topChunkMismatch
             || queryMismatch
-            || (!permitsCrossDomainSynthesis && topDomains.count >= 2)
+            || blocksMixedDomains
 
         let reason: String?
         if classifiedChunks.isEmpty {
             reason = "Domain isolation could not evaluate any retrieved evidence."
-        } else if topDomains.count >= 2, !permitsCrossDomainSynthesis {
+        } else if blocksMixedDomains {
             let mixed = topDomains.map(\.rawValue).sorted().joined(separator: " vs ")
             reason = "Domain isolation blocked mixed evidence across incompatible domains: \(mixed)."
         } else if queryMismatch {

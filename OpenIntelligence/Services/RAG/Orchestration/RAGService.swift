@@ -6634,6 +6634,43 @@ class RAGService: ObservableObject {
     ///
     /// Deliberately importing a file is an un-delete. Reported as: import completes,
     /// wait, reopen, and the documents are gone again.
+    /// Clean a raw chunk excerpt before showing it to a user verbatim.
+    ///
+    /// The extractive fallback prints retrieved chunk text directly, so any
+    /// chunk-boundary artefact is shown as-is. Device log 2026-08-03 produced a
+    /// bullet reading ", Inspection, and Testing" — a chunk that began partway
+    /// through "Maintenance, Inspection, and Testing" — and another beginning
+    /// "d Laparoscopes", a word cut in half.
+    ///
+    /// This trims the visible symptom. It does not fix the chunker, which is
+    /// tracked separately; a chunk should not start mid-word in the first place.
+    nonisolated static func tidiedExcerpt(_ raw: String) -> String {
+        var text = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty else { return "" }
+
+        // Drop leading punctuation and separators left by a mid-phrase cut.
+        while let first = text.first, first.isPunctuation || first.isWhitespace {
+            text.removeFirst()
+            text = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        guard !text.isEmpty else { return "" }
+
+        // A lowercase opening token shorter than three characters is almost
+        // always a severed word ("d Laparoscopes"). Drop it and start at the
+        // next token. Longer lowercase openings are kept — plenty of legitimate
+        // sentences start mid-clause and are still readable.
+        let parts = text.split(separator: " ", maxSplits: 1, omittingEmptySubsequences: false)
+        if let head = parts.first,
+           head.count <= 2,
+           let initial = head.first,
+           initial.isLowercase,
+           parts.count == 2 {
+            text = String(parts[1]).trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+
+        return text
+    }
+
     private func clearDeletionTombstones(for ids: [UUID]) {
         guard !ids.isEmpty else { return }
         let deletedDocsURL = AppSupportPaths.baseDir().appendingPathComponent("deleted_documents.json")
@@ -12227,7 +12264,25 @@ class RAGService: ObservableObject {
                         }
                         genConfig.executionContext = .onDeviceOnly
                     case .abstain:
-                        throw RAGServiceError.modelNotAvailable
+                        // The planner declined to route. That is not the same as
+                        // the model being unavailable, and reporting it that way
+                        // has now sent two separate debugging sessions after a
+                        // model that was working. Device log 2026-08-03: this
+                        // fired, then on-device generation completed 32 words
+                        // 4 seconds later.
+                        //
+                        // Log what the planner actually saw so the next
+                        // occurrence names its own cause instead of blaming the
+                        // model, and surface a truthful error.
+                        Log.warning(
+                            """
+                            [RAGService] Planner abstained with \(generationChunks.count) chunk(s) available \
+                            (top score \(String(format: "%.2f", orderedCandidates.first?.similarityScore ?? 0))). \
+                            This is a routing decision, not model unavailability.
+                            """,
+                            category: .pipeline
+                        )
+                        throw RAGServiceError.routingAbstained
                     }
 
                     TelemetryCenter.emit(
@@ -13737,14 +13792,17 @@ class RAGService: ObservableObject {
         }
 
         let terms = extractQueryTerms(question)
-        let snippetBullets = usedRetrieved.prefix(6).enumerated().map { idx, retrieved in
+        let snippetBullets = usedRetrieved.prefix(6).enumerated().compactMap { idx, retrieved -> String? in
             let sectionLabel = retrieved.chunk.metadata.sectionTitle.flatMap { $0.isEmpty ? nil : "**\($0)**: " } ?? ""
             let sourceName = retrieved.sourceDocument.isEmpty ? "Document" : retrieved.sourceDocument
-            let snippet = extractSnippet(
-                from: retrieved.chunk.content,
-                queryTerms: terms,
-                maxChars: 500
+            let snippet = Self.tidiedExcerpt(
+                extractSnippet(
+                    from: retrieved.chunk.content,
+                    queryTerms: terms,
+                    maxChars: 500
+                )
             )
+            guard !snippet.isEmpty else { return nil }
             return "• \(sectionLabel)\(snippet) [S\(idx + 1): \(sourceName)]"
         }
         let responseText: String
@@ -17282,6 +17340,10 @@ enum RAGServiceError: LocalizedError {
     case noDocumentsAvailable
     case retrievalFailed
     case modelNotAvailable
+    /// The execution planner declined to route this query. Distinct from the
+    /// model being unavailable — the model may be perfectly healthy.
+    case routingAbstained
+
     case noRelevantContext
     case maximumModeQuotaReached(limit: Int)
     case cloudConsentDenied(provider: CloudProvider)
@@ -17299,6 +17361,8 @@ enum RAGServiceError: LocalizedError {
             return "Failed to retrieve relevant chunks"
         case .modelNotAvailable:
             return "The selected LLM model is not available"
+        case .routingAbstained:
+            return "Could not route this query to a model with the evidence retrieved"
         case let .maximumModeQuotaReached(limit):
             return "Maximum mode is limited to \(limit) uses per day on the free tier"
         case let .cloudConsentDenied(provider):
