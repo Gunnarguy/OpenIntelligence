@@ -6577,6 +6577,10 @@ class RAGService: ObservableObject {
                         "[RAGService] Self-healing rebuild completed successfully for container \(containerId)",
                         category: .ingestion
                     )
+                    // Repaired — take the banner down.
+                    await MainActor.run {
+                        self.librariesNeedingIndexRebuild.remove(containerId)
+                    }
                 }
             } catch is CancellationError {
                 Log.info(
@@ -6617,6 +6621,18 @@ class RAGService: ObservableObject {
                     let containerId = container.id
                     Log.info("[RAGService] Queuing single-flight self-healing rebuild for container \(containerId)...", category: .ingestion)
                     await MainActor.run {
+                        // Surface it in the library the moment it is detected,
+                        // whether or not the automatic rebuild is allowed to run.
+                        // This is the point that reliably fires — device log
+                        // 2026-08-03 shows it firing and the rebuild succeeding —
+                        // so the banner belongs here rather than only inside
+                        // `enqueueSelfHealingRebuild`, which is skipped entirely
+                        // when self-healing is suppressed.
+                        //
+                        // `enqueueSelfHealingRebuild` clears the flag again on
+                        // success, so a library that repairs itself shows the
+                        // banner only briefly, and one that cannot keeps it.
+                        self.librariesNeedingIndexRebuild.insert(containerId)
                         self.enqueueSelfHealingRebuild(for: containerId)
                     }
                     continue
