@@ -124,6 +124,11 @@ final class WhatsNewStore: ObservableObject {
                     detail: "Typically halving the time Maximum takes."
                 ),
                 .init(
+                    symbol: "icloud",
+                    title: "iCloud libraries stop asking you to re-import",
+                    detail: "Documents processed on one device now carry over to your others."
+                ),
+                .init(
                     symbol: "doc.badge.plus",
                     title: "Document import works on Mac",
                     detail: "The file picker there was a placeholder."

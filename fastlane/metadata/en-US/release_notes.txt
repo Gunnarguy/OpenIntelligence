@@ -28,5 +28,6 @@ WHAT YOU SEE
 
 ALSO
 
+• iCloud libraries no longer ask you to re-import documents another device already processed, and a library's search index is no longer removed while iCloud is still catching up.
 • Document import works on Mac. The file picker there was a placeholder.
 • Opening the app after an update now shows what changed.

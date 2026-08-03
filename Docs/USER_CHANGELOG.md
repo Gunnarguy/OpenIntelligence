@@ -32,6 +32,7 @@ Deep Think and Maximum were not wired up correctly in previous releases. This re
 *   An answer reporting that your documents do not cover something is kept, not replaced with generic help text.
 ### Also
 
+*   iCloud libraries no longer ask you to re-import documents another device already processed, and a library's search index is no longer removed while iCloud is still catching up.
 *   Document import works on Mac. The file picker there was a placeholder.
 *   Opening the app after an update now shows what changed.
 
