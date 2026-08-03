@@ -2172,11 +2172,50 @@ final class WorkspaceSyncService: ObservableObject {
             // Deleting here is what turned a slow download into missing documents
             // and a phantom "resume interrupted import?" prompt. Leave both stores
             // alone; a stale index is recoverable, a deleted one is not.
+            //
+            // Three very different situations reach this point and they were all
+            // reported the same way, which made the log unactionable. Separate
+            // them, because only one is a defect:
+            //
+            //   1. Nothing is indexed yet. Benign — ingestion has not run.
+            //   2. Stores exist but read as empty. A read failure; keep them.
+            //   3. Chunks loaded but none belong to this library's documents.
+            //      The index is orphaned from the metadata, so re-ingesting is
+            //      genuinely required. Still not ours to delete.
             guard allowedDocumentIds.isEmpty else {
-                Log.error(
-                    "[WorkspaceSync] Resolved 0 chunks for container \(container.id) which still has \(allowedDocumentIds.count) document(s). Leaving vector stores untouched rather than deleting them.",
-                    category: .vectorDB
-                )
+                let loadedChunkCount = localChunks.count + sharedChunks.count
+                let anyStoreExists = sourceContainerIDs.contains {
+                    vectorStoreExists(for: $0, in: localRoot) || vectorStoreExists(for: $0, in: sharedRoot)
+                }
+
+                if loadedChunkCount > 0 {
+                    // Case 3. Name the mismatch so the next device log identifies
+                    // which documents the orphaned chunks actually belong to.
+                    let chunkDocumentIDs = Set((localChunks + sharedChunks).map(\.documentId))
+                    Log.error(
+                        """
+                        [WorkspaceSync] Orphaned index for container \(container.id): \
+                        loaded \(loadedChunkCount) chunk(s) spanning \(chunkDocumentIDs.count) document id(s), \
+                        none of which are among this library's \(allowedDocumentIds.count) document(s). \
+                        Chunk docs: \(chunkDocumentIDs.map(\.uuidString).sorted().prefix(5).joined(separator: ", ")). \
+                        Library docs: \(allowedDocumentIds.map(\.uuidString).sorted().prefix(5).joined(separator: ", ")). \
+                        Leaving both stores untouched.
+                        """,
+                        category: .vectorDB
+                    )
+                } else if anyStoreExists {
+                    // Case 2.
+                    Log.error(
+                        "[WorkspaceSync] Vector store for container \(container.id) exists but read as empty while the library still has \(allowedDocumentIds.count) document(s). Treating as a failed read and leaving it untouched.",
+                        category: .vectorDB
+                    )
+                } else {
+                    // Case 1 — not a defect, and not worth an error every sync pass.
+                    Log.debug(
+                        "[WorkspaceSync] Container \(container.id) has \(allowedDocumentIds.count) document(s) and no vector store yet; nothing to merge.",
+                        category: .vectorDB
+                    )
+                }
                 return
             }
 
