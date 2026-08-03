@@ -1191,7 +1191,62 @@ final class WorkspaceSyncService: ObservableObject {
             return try encoder.encode(result)
         }
 
-        try Self.writeJSON(finalLocalContainers, to: localRoot.appendingPathComponent("containers.json"))
+        // Libraries get the same treatment as documents, with one extra
+        // constraint: `enforceLibraryLimit` throws rather than truncating, and it
+        // used to run against the computed set only. Folding a library in after
+        // that check could carry a workspace past its tier limit, which is why
+        // this write was left alone in the first pass.
+        //
+        // Resolved by enforcing against the *merged* set inside the accessor. If
+        // the fold would exceed the limit we throw without writing, which leaves
+        // the newly created library intact on disk for the next pass to adopt
+        // through the normal path. Nothing is deleted to satisfy a quota.
+        //
+        // Alias-aware: a container id absent from the computed set may still be a
+        // pre-merge source for one that is present, so folding on id alone would
+        // resurrect a duplicate the merge had just collapsed.
+        let localContainersURL = localRoot.appendingPathComponent("containers.json")
+        let localLimit = EntitlementStore.currentLibraryLimit(defaults: defaults)
+        let containerAliases = mergeResult.sourceToCanonical
+
+        try Self.coordinatedMergeData(at: localContainersURL) { existing in
+            var result = finalLocalContainers
+
+            if let existing {
+                let computedIDs = Set(finalLocalContainers.map(\.id))
+                let onDisk = (try? JSONDecoder().decode([KnowledgeContainer].self, from: existing)) ?? []
+                let arrivedDuringPass = onDisk.filter { container in
+                    let canonical = containerAliases[container.id] ?? container.id
+                    return !computedIDs.contains(container.id)
+                        && !computedIDs.contains(canonical)
+                        && !deletedContainerIDs.contains(container.id)
+                }
+
+                if !arrivedDuringPass.isEmpty {
+                    guard result.count + arrivedDuringPass.count <= localLimit else {
+                        Log.error(
+                            "[WorkspaceSync] \(arrivedDuringPass.count) library(s) were created while this sync pass ran, and folding them in would exceed the \(localLimit)-library limit. Leaving containers.json untouched so nothing is lost; the next pass will reconcile them.",
+                            category: .vectorDB
+                        )
+                        throw LibraryQuotaError(
+                            limit: localLimit,
+                            attemptedCount: result.count + arrivedDuringPass.count,
+                            tier: EntitlementStore.currentEffectiveTier(defaults: defaults)
+                        )
+                    }
+
+                    Log.warning(
+                        "[WorkspaceSync] Keeping \(arrivedDuringPass.count) library(s) created while this pass ran, rather than overwriting them: \(arrivedDuringPass.map(\.name).joined(separator: ", ")).",
+                        category: .vectorDB
+                    )
+                    result = sortedContainers(result + arrivedDuringPass)
+                }
+            }
+
+            let encoder = JSONEncoder()
+            encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+            return try encoder.encode(result)
+        }
 
         let sharedContainersURL = sharedRoot.appendingPathComponent("containers.json")
         let sharedDocumentsURL = sharedRoot.appendingPathComponent("documents_metadata.json")
@@ -1199,7 +1254,37 @@ final class WorkspaceSyncService: ObservableObject {
         if finalSyncedContainers.isEmpty {
             try? Self.coordinatedRemoveItem(at: sharedContainersURL)
         } else {
-            try Self.writeJSON(finalSyncedContainers, to: sharedContainersURL)
+            // Cross-device equivalent: another device can publish a library into
+            // the shared root while this pass computes. No tier check here — the
+            // limit is a per-workspace rule enforced on the local write above, and
+            // refusing to record a library that already exists in iCloud would
+            // only hide it from this device.
+            try Self.coordinatedMergeData(at: sharedContainersURL) { existing in
+                var result = finalSyncedContainers
+
+                if let existing {
+                    let computedIDs = Set(finalSyncedContainers.map(\.id))
+                    let onDisk = (try? JSONDecoder().decode([KnowledgeContainer].self, from: existing)) ?? []
+                    let publishedByAnotherDevice = onDisk.filter { container in
+                        let canonical = containerAliases[container.id] ?? container.id
+                        return !computedIDs.contains(container.id)
+                            && !computedIDs.contains(canonical)
+                            && !deletedContainerIDs.contains(container.id)
+                    }
+
+                    if !publishedByAnotherDevice.isEmpty {
+                        Log.warning(
+                            "[WorkspaceSync] Keeping \(publishedByAnotherDevice.count) shared library(s) published while this pass ran, rather than overwriting them.",
+                            category: .vectorDB
+                        )
+                        result = sortedContainers(result + publishedByAnotherDevice)
+                    }
+                }
+
+                let encoder = JSONEncoder()
+                encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+                return try encoder.encode(result)
+            }
         }
 
         if finalSharedDocuments.isEmpty {
