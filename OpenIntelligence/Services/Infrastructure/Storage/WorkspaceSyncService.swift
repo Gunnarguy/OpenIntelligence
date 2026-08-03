@@ -31,6 +31,26 @@ enum SyncResolutionStrategy: Sendable, Equatable {
     }
 }
 
+/// Failures that must abort a sync pass rather than be absorbed into a merge.
+///
+/// The merge in `synchronizeVectorStore` is destructive by design: whatever it
+/// resolves to becomes the new truth on both roots, and an empty resolution
+/// deletes the stores. That is only safe when every input was genuinely read.
+/// A shared store that exists in iCloud but has not been materialized on this
+/// device reads as zero chunks, which is indistinguishable from "the library is
+/// empty" unless we refuse to continue — so we refuse.
+enum WorkspaceSyncError: LocalizedError {
+    /// A shared vector store exists in iCloud but its contents did not download in time.
+    case sharedVectorStoreUnavailable(containerIDs: [UUID])
+
+    var errorDescription: String? {
+        switch self {
+        case let .sharedVectorStoreUnavailable(containerIDs):
+            return "iCloud has not finished downloading the search index for \(containerIDs.count) library(s). Sync was stopped so the existing index is not overwritten."
+        }
+    }
+}
+
 struct SyncPendingBootstrapConflict: Sendable {
     let localLibraryCount: Int
     let localDocumentCount: Int
@@ -804,17 +824,25 @@ final class WorkspaceSyncService: ObservableObject {
 
     nonisolated static func ensureItemAvailableLocally(at url: URL, timeout: TimeInterval = 20) async throws {
         let fileManager = FileManager.default
-        guard fileManager.isUbiquitousItem(at: url) else { return }
+        let placeholder = url.deletingLastPathComponent()
+            .appendingPathComponent(".\(url.lastPathComponent).icloud")
+        let hasPlaceholder = fileManager.fileExists(atPath: placeholder.path)
+
+        // An evicted item is not reported as ubiquitous at its own path, because
+        // nothing is there — only the placeholder beside it. Treat either signal
+        // as "this item exists in iCloud and may need downloading".
+        guard hasPlaceholder || fileManager.isUbiquitousItem(at: url) else { return }
 
         try? fileManager.startDownloadingUbiquitousItem(at: url)
         let deadline = Date().addingTimeInterval(timeout)
 
         while Date() < deadline {
-            let values = try url.resourceValues(forKeys: [
+            // `resourceValues` throws while the item is still a placeholder, which
+            // is the normal state for most of this loop. Keep polling instead of
+            // surfacing that as the failure.
+            if let values = try? url.resourceValues(forKeys: [
                 .ubiquitousItemDownloadingStatusKey
-            ])
-
-            if values.ubiquitousItemDownloadingStatus == .current {
+            ]), values.ubiquitousItemDownloadingStatus == .current {
                 return
             }
 
@@ -2105,6 +2133,22 @@ final class WorkspaceSyncService: ObservableObject {
         let sharedArtifactURLs = sourceContainerIDs.flatMap { vectorStoreArtifactURLs(for: $0, in: sharedRoot) }
         await ensureItemsAvailableLocally(sharedArtifactURLs)
 
+        // Fail closed. Everything below merges the shared and local stores and
+        // writes the result over both, deleting them outright when the merge is
+        // empty. A shared store we could not download reads as zero chunks, so
+        // continuing here would delete another device's index and tell the user
+        // to re-import documents that were never lost.
+        let unmaterialized = sourceContainerIDs
+            .filter { vectorStoreIsUnmaterialized(for: $0, in: sharedRoot) }
+            .sorted { $0.uuidString < $1.uuidString }
+        if !unmaterialized.isEmpty {
+            Log.warning(
+                "[WorkspaceSync] Shared vector store not downloaded for \(unmaterialized.count) container(s); aborting merge to avoid destroying it. Containers: \(unmaterialized.map(\.uuidString).joined(separator: ", "))",
+                category: .vectorDB
+            )
+            throw WorkspaceSyncError.sharedVectorStoreUnavailable(containerIDs: unmaterialized)
+        }
+
         var sharedChunks: [DocumentChunk] = []
         for sourceContainerID in sourceContainerIDs where vectorStoreExists(for: sourceContainerID, in: sharedRoot) {
             sharedChunks += try await loadVectorChunks(
@@ -2123,10 +2167,21 @@ final class WorkspaceSyncService: ObservableObject {
         }
 
         if resolvedChunks.isEmpty {
-            removeVectorStoreArtifacts(for: container.id, in: sharedRoot)
-            if allowedDocumentIds.isEmpty {
-                removeVectorStoreArtifacts(for: container.id, in: localRoot)
+            // An empty resolution for a library that still has documents means we
+            // failed to read an index, not that the index should not exist.
+            // Deleting here is what turned a slow download into missing documents
+            // and a phantom "resume interrupted import?" prompt. Leave both stores
+            // alone; a stale index is recoverable, a deleted one is not.
+            guard allowedDocumentIds.isEmpty else {
+                Log.error(
+                    "[WorkspaceSync] Resolved 0 chunks for container \(container.id) which still has \(allowedDocumentIds.count) document(s). Leaving vector stores untouched rather than deleting them.",
+                    category: .vectorDB
+                )
+                return
             }
+
+            removeVectorStoreArtifacts(for: container.id, in: sharedRoot)
+            removeVectorStoreArtifacts(for: container.id, in: localRoot)
             for sourceContainerID in sourceContainerIDs where sourceContainerID != container.id {
                 removeVectorStoreArtifacts(for: sourceContainerID, in: localRoot)
                 removeVectorStoreArtifacts(for: sourceContainerID, in: sharedRoot)
@@ -2293,9 +2348,18 @@ final class WorkspaceSyncService: ObservableObject {
         BNNSVectorDatabase.binaryFileURLs(from: vectorStoreBaseURL(for: containerId, in: root))
     }
 
+    /// True when a vector store exists at `root`, including one that lives in
+    /// iCloud but has not been downloaded to this device yet.
     nonisolated private func vectorStoreExists(for containerId: UUID, in root: URL) -> Bool {
         vectorStoreArtifactURLs(for: containerId, in: root)
-            .contains { fileManager.fileExists(atPath: $0.path) }
+            .contains { ubiquitousItemExists(at: $0) }
+    }
+
+    /// True when a vector store exists but its bytes are not on this device, so
+    /// reading it would report zero chunks for a library that is not empty.
+    nonisolated private func vectorStoreIsUnmaterialized(for containerId: UUID, in root: URL) -> Bool {
+        vectorStoreArtifactURLs(for: containerId, in: root)
+            .contains { ubiquitousPlaceholderExists(for: $0) }
     }
 
     nonisolated private func removeVectorStoreArtifacts(for containerId: UUID, in root: URL) {
@@ -2503,29 +2567,76 @@ final class WorkspaceSyncService: ObservableObject {
         (try? url.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? .distantPast
     }
 
-    nonisolated private func ensureItemsAvailableLocally(_ urls: [URL], timeout: TimeInterval = 20) async {
+    /// Materialize iCloud items, returning the ones that exist in iCloud but could not be downloaded.
+    ///
+    /// The previous implementation guarded on `fileExists` before doing anything,
+    /// which skipped precisely the files that needed downloading: an evicted or
+    /// not-yet-downloaded iCloud item is represented on disk by a
+    /// `.<name>.icloud` placeholder, so `fileExists` at the item's own path is
+    /// `false`. Nothing was ever requested, and callers then read the item as
+    /// missing. Callers that treat "missing" as "empty" must inspect the return
+    /// value rather than assume success.
+    @discardableResult
+    nonisolated private func ensureItemsAvailableLocally(_ urls: [URL], timeout: TimeInterval = 20) async -> [URL] {
         var seenPaths: Set<String> = []
         var urlsToDownload: [URL] = []
 
         for url in urls {
             let standardizedURL = url.standardizedFileURL
             guard seenPaths.insert(standardizedURL.path).inserted else { continue }
-            guard fileManager.fileExists(atPath: standardizedURL.path) else { continue }
-            guard fileManager.isUbiquitousItem(at: standardizedURL) else { continue }
+            guard ubiquitousItemExists(at: standardizedURL) else { continue }
+
+            // Already materialized and current: nothing to wait on.
+            if fileManager.fileExists(atPath: standardizedURL.path),
+               !ubiquitousPlaceholderExists(for: standardizedURL),
+               let values = try? standardizedURL.resourceValues(forKeys: [.ubiquitousItemDownloadingStatusKey]),
+               values.ubiquitousItemDownloadingStatus == .current {
+                continue
+            }
 
             try? fileManager.startDownloadingUbiquitousItem(at: standardizedURL)
             urlsToDownload.append(standardizedURL)
         }
 
-        guard !urlsToDownload.isEmpty else { return }
+        guard !urlsToDownload.isEmpty else { return [] }
 
-        await withTaskGroup(of: Void.self) { group in
+        return await withTaskGroup(of: URL?.self) { group in
             for url in urlsToDownload {
                 group.addTask {
-                    try? await Self.ensureItemAvailableLocally(at: url, timeout: timeout)
+                    do {
+                        try await Self.ensureItemAvailableLocally(at: url, timeout: timeout)
+                        return nil
+                    } catch {
+                        return url
+                    }
                 }
             }
+
+            var unavailable: [URL] = []
+            for await failure in group {
+                if let failure { unavailable.append(failure) }
+            }
+            return unavailable
         }
+    }
+
+    /// The placeholder iCloud leaves in place of an evicted file's contents.
+    nonisolated private func ubiquitousPlaceholderURL(for url: URL) -> URL {
+        url.deletingLastPathComponent()
+            .appendingPathComponent(".\(url.lastPathComponent).icloud")
+    }
+
+    nonisolated private func ubiquitousPlaceholderExists(for url: URL) -> Bool {
+        fileManager.fileExists(atPath: ubiquitousPlaceholderURL(for: url).path)
+    }
+
+    /// True when the item exists in iCloud, whether or not its contents are on this device.
+    ///
+    /// `FileManager.fileExists` alone answers "are the bytes here", which is a
+    /// different question and the wrong one for deciding whether data exists.
+    nonisolated private func ubiquitousItemExists(at url: URL) -> Bool {
+        if ubiquitousPlaceholderExists(for: url) { return true }
+        return fileManager.fileExists(atPath: url.path)
     }
 
     nonisolated private func ensureSourcedDocumentsAvailableLocally(_ sourcedDocuments: [SourcedDocument]) async {

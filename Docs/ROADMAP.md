@@ -60,6 +60,20 @@ The owner-directed next arc: make the app's central claim — that Standard, Dee
 
 ---
 
+## 2.5 Third-Party Local Models on macOS (Proposed, v5.0)
+
+- **Bring-your-own local model on Mac (Proposed; not started):** run synthesis against a user-supplied local model on macOS instead of `SystemLanguageModel.default`, so a Mac with headroom can use a larger model than the on-device Apple Foundation Model. Requested by a Reddit user (`u/<handle>`) on 2026-08-02, who asked whether the app "can work with other, bigger local models (on mac)."
+
+  Open design questions, none answered yet:
+  - **Host.** MLX (Apple-native, Silicon-only) versus a llama.cpp/GGUF bridge versus an HTTP client for a model the user already runs locally (Ollama, LM Studio). The HTTP-client route is the cheapest to build and the weakest privacy claim, because "local" then depends on a process the app does not control.
+  - **Privacy claim boundary.** The current App Store copy asserts every answer is produced on-device or on PCC. A third-party model host is neither, and the routing badge, `ModelExecutionReceipt`, and `PRIVACY_AND_ROUTING.md` would all need a fourth route with its own attestation, or the claim narrows.
+  - **Structured output.** The agentic loop depends on Foundation Models' guided generation for plan and fact extraction. An arbitrary GGUF model has no equivalent, so either the loop degrades to prompt-and-parse on that route or the route is synthesis-only with Apple models still owning planning.
+  - **Scope.** macOS only. iOS has neither the memory headroom nor a sanctioned way to load third-party weights.
+
+  `[evidence_level: none, confidence: proposal_only, evidence_source: user request 2026-08-02]`
+
+---
+
 ## 3. Platform Integration & Monetization (v4.4 Completed)
 
 - **Pro Annual Subscription Pricing:** Calibrated Pro Annual pricing to $29.99/year (a 58% savings vs monthly) and integrated a 7-day free trial introductory offer.
