@@ -1766,6 +1766,11 @@ class RAGService: ObservableObject {
                     // Restore transcript for the new container
                     self.restoreSessionTranscript(for: newContainerId)
 
+                    // Check the library can actually answer before the user asks.
+                    Task { @MainActor [weak self] in
+                        await self?.evaluateSemanticIndexHealth(for: newContainerId)
+                    }
+
                     // Update tracking
                     self.previousContainerId = newContainerId
                 }
@@ -6440,6 +6445,63 @@ class RAGService: ObservableObject {
                 return "\(document.id.uuidString)|\(containerComponent)|\(document.totalChunks)|\(pathComponent)|\(hashComponent)|\(addedAtComponent)"
             }
             .joined(separator: ";")
+    }
+
+    /// Decide whether a library can answer semantically, and surface it if not.
+    ///
+    /// A library holding documents whose vector store has no chunks cannot do
+    /// semantic retrieval at all. Keyword search still works, so the failure is
+    /// invisible: the library lists its documents and the app answers "I couldn't
+    /// find information about that in your documents" for topics the document
+    /// plainly covers.
+    ///
+    /// This runs on container switch because that is where the truth is cheaply
+    /// available and where the user is about to ask something. The previous
+    /// surfacing hung off `enqueueSelfHealingRebuild`, which is only reached when
+    /// ingestion-time detection fires — so a library that arrived in this state by
+    /// any other route stayed silent. Device evidence 2026-08-03: Library 3 sat
+    /// with 239 chunks in FTS5 and no vector store across an entire session, and
+    /// `enqueueSelfHealingRebuild` was never called once.
+    @MainActor
+    func evaluateSemanticIndexHealth(for containerId: UUID) async {
+        let documentCount = documentsForContainer(containerId).count
+        guard documentCount > 0 else {
+            librariesNeedingIndexRebuild.remove(containerId)
+            return
+        }
+
+        guard let container = containerService.containers.first(where: { $0.id == containerId }) else {
+            return
+        }
+
+        // Read the store rather than the container's cached `totalChunks`. The
+        // cached figure is what said 420 while the vector store held none — it
+        // counts what was ingested, not what is searchable.
+        //
+        // A read failure is treated as "not proven missing", the same rule the
+        // ingestion check uses. Claiming a library is broken because a read threw
+        // would be the third variant today of trusting a failed read as evidence.
+        let indexedChunkCount: Int
+        do {
+            indexedChunkCount = try await vectorRouter.db(for: container).count()
+        } catch {
+            Log.warning(
+                "[RAGService] Could not read the vector store for library \(containerId) while checking index health: \(error.localizedDescription). Not flagging it.",
+                category: .vectorDB
+            )
+            return
+        }
+
+        if indexedChunkCount == 0 {
+            guard !librariesNeedingIndexRebuild.contains(containerId) else { return }
+            Log.warning(
+                "[RAGService] Library \(containerId) holds \(documentCount) document(s) but its vector store has 0 chunks. Semantic retrieval cannot work here; surfacing a rebuild.",
+                category: .vectorDB
+            )
+            librariesNeedingIndexRebuild.insert(containerId)
+        } else {
+            librariesNeedingIndexRebuild.remove(containerId)
+        }
     }
 
     /// Rebuild a library's semantic index and re-arm automatic repair for it.
