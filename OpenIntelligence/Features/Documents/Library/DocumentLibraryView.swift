@@ -967,7 +967,55 @@ struct DocumentLibraryView: View {
     }
 
     var body: some View {
-        libraryAlertView
+        VStack(spacing: 0) {
+            indexRebuildBanner
+            libraryAlertView
+        }
+    }
+
+    /// Shown when the active library holds documents but cannot answer
+    /// semantically, because its vector store is missing and automatic repair was
+    /// suppressed by an earlier dismissal.
+    ///
+    /// This state was previously invisible. The library listed its documents,
+    /// keyword search kept working, and semantic retrieval silently returned
+    /// nothing — so the app answered "I couldn't find information about that in
+    /// your documents" for topics the document plainly covered. The rebuild
+    /// regenerates embeddings from chunks already on disk: no re-import, no
+    /// re-OCR, and no need to recreate the library.
+    @ViewBuilder
+    private var indexRebuildBanner: some View {
+        let containerId = containerService.activeContainerId
+        if ragService.librariesNeedingIndexRebuild.contains(containerId) {
+            HStack(alignment: .top, spacing: DSSpacing.sm) {
+                Image(systemName: "exclamationmark.arrow.triangle.2.circlepath")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(.orange)
+                    .padding(.top, 2)
+
+                VStack(alignment: .leading, spacing: DSSpacing.xxs) {
+                    Text("This library needs its search index rebuilt")
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundStyle(DSColors.primaryText)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Text("Your documents are intact. Answers here can miss information until the index is rebuilt, which takes a moment and does not re-import anything.")
+                        .font(DSTypography.caption)
+                        .foregroundStyle(DSColors.secondaryText)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                Spacer(minLength: DSSpacing.xs)
+
+                Button("Rebuild") {
+                    ragService.rebuildSemanticIndex(for: containerId)
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.small)
+            }
+            .padding(DSSpacing.md)
+            .background(Color.orange.opacity(0.12))
+            .accessibilityElement(children: .combine)
+        }
     }
 
     private var libraryAlertView: some View {

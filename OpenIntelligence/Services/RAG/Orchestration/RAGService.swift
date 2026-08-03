@@ -1343,6 +1343,15 @@ class RAGService: ObservableObject {
     @MainActor @Published var activeThreadId: UUID? = nil
     @MainActor @Published private(set) var activeThreadIds: [UUID: UUID] = [:]
     @MainActor @Published var thinkingEvents: [ThinkingEvent] = []
+
+    /// Libraries that hold documents but cannot answer semantically, because
+    /// their vector store is missing or empty and automatic repair is suppressed.
+    ///
+    /// Drives a visible rebuild action. Without this the state is invisible: the
+    /// library lists its documents, keyword search still works, and semantic
+    /// retrieval silently returns nothing — which reads to the user as "the app
+    /// says my document doesn't mention this."
+    @MainActor @Published var librariesNeedingIndexRebuild: Set<UUID> = []
     @MainActor @Published private(set) var lastAuditSnapshot: RAGAuditSnapshot?
     @MainActor @Published private(set) var lastVectorAudit: VectorStoreAudit?
 
@@ -6433,13 +6442,43 @@ class RAGService: ObservableObject {
             .joined(separator: ";")
     }
 
+    /// Rebuild a library's semantic index and re-arm automatic repair for it.
+    ///
+    /// Deliberately clears suppression first. A user asking for a rebuild is
+    /// unambiguously asking for this library to be repaired, which also revokes
+    /// whatever earlier dismissal disarmed it — otherwise the library would fall
+    /// back into the same silent state the next time its vectors went missing.
+    @MainActor
+    func rebuildSemanticIndex(for containerId: UUID) {
+        clearSelfHealingSuppression(for: containerId)
+        librariesNeedingIndexRebuild.remove(containerId)
+        Log.info(
+            "[RAGService] Manual index rebuild requested for container \(containerId); automatic self-healing re-armed.",
+            category: .ingestion
+        )
+        enqueueSelfHealingRebuild(for: containerId)
+    }
+
     @MainActor
     private func enqueueSelfHealingRebuild(for containerId: UUID) {
         guard !isSelfHealingSuppressed(for: containerId) else {
-            Log.info(
-                "[RAGService] Automatic self-healing remains suppressed for container \(containerId) after user dismissal.",
+            // Suppressed, and previously that meant silently giving up: the
+            // library kept its documents, kept its text index, and permanently
+            // lost semantic retrieval with nothing surfaced to the user.
+            //
+            // Suppression is set by declining a queue prompt (discard, stop,
+            // pause, cancel). While the phantom "resume interrupted import?"
+            // prompts were firing, every correct dismissal silently disarmed the
+            // repair for that library. Device evidence 2026-08-03: Library 3 had
+            // 239 chunks in FTS5, no vector store, and answered "your documents
+            // don't cover this" for a topic its own tool call found 45 chunks of.
+            //
+            // Publish it instead so the library can show a rebuild action.
+            Log.warning(
+                "[RAGService] Container \(containerId) needs an index rebuild but automatic self-healing is suppressed after a user dismissal. Surfacing a manual rebuild instead of giving up silently.",
                 category: .ingestion
             )
+            librariesNeedingIndexRebuild.insert(containerId)
             return
         }
         guard !pendingSelfHealingContainerIds.contains(containerId) else { return }
