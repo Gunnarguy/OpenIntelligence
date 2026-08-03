@@ -1033,7 +1033,29 @@ actor VerificationGateService {
 
         let evidenceTexts = chunks.map { evidenceText(for: $0) }
         let combinedEvidence = evidenceTexts.joined(separator: " ")
-        let maxCoverage = evidenceTexts.map { termCoverage(queryTerms, in: $0) }.max() ?? 0.0
+
+        // Coverage is measured against the evidence set as a whole, not the best
+        // single chunk.
+        //
+        // This previously took `.max()` over per-chunk coverage, which asks "does
+        // any one chunk contain 55% of the query's terms?" — a requirement that
+        // rejects exactly the answers retrieval exists to produce. Synthesising
+        // across chunks is the point; demanding one chunk carry the whole query
+        // penalises correct multi-chunk answers.
+        //
+        // Device log 2026-08-03: "What cleaning technique addresses stubborn
+        // deposits?" scored 3/5 anchor terms across the evidence (60%) but only
+        // 40% in the best single chunk, because "cleaning" and "deposits" sat in
+        // different chunks. Gate E failed, the correct answer was discarded, and
+        // the user was shown raw chunk text.
+        //
+        // The per-chunk maximum is kept and the better of the two wins, so a
+        // single chunk that does carry the query still passes as before. The
+        // anchor and section-term checks below already used `combinedEvidence`;
+        // this only makes coverage consistent with them.
+        let bestSingleChunkCoverage = evidenceTexts.map { termCoverage(queryTerms, in: $0) }.max() ?? 0.0
+        let combinedCoverage = termCoverage(queryTerms, in: combinedEvidence)
+        let maxCoverage = max(bestSingleChunkCoverage, combinedCoverage)
 
         let strongAnchors = extractStrongQueryAnchors(from: query)
         let missingStrongAnchors = strongAnchors.filter { !combinedEvidence.contains($0) }
@@ -1044,7 +1066,10 @@ actor VerificationGateService {
             return (false, nil)
         }
 
-        var detailParts: [String] = ["query coverage \(formatFloat0(maxCoverage * 100))% < 55%"]
+        var detailParts: [String] = [
+            "query coverage \(formatFloat0(maxCoverage * 100))% < 55% "
+                + "(combined \(formatFloat0(combinedCoverage * 100))%, best chunk \(formatFloat0(bestSingleChunkCoverage * 100))%)"
+        ]
         if !missingStrongAnchors.isEmpty {
             detailParts.append("missing strong anchors: \(missingStrongAnchors.joined(separator: ", "))")
         }
