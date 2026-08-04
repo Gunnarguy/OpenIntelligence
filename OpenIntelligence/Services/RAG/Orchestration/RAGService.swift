@@ -14688,7 +14688,23 @@ class RAGService: ObservableObject {
         /// retrieved perfectly good sources.
         hasRenderedEvidence: Bool = false
     ) async -> (plan: ModelExecutionPlan, localBudget: ContextBudgetSnapshot) {
-        let topScore = chunks.first?.similarityScore ?? (hasRenderedEvidence ? 1.0 : 0)
+        // The strongest evidence in the set, not whatever sits in slot zero.
+        //
+        // By the time the planner sees these, the array has been through MMR,
+        // cross-reference expansion, the spec sniper, corrective lexical/page
+        // retrieval — which appends chunks carrying no vector score at all — and
+        // finally Lost-in-the-Middle position reordering, which rearranges for
+        // attention placement. `chunks.first` is therefore not the best chunk and
+        // has no reason to be.
+        //
+        // Device log 2026-08-03: 21 chunks whose confidence gate reported
+        // `top 1.16` were handed to the planner as `top score 0.01`.
+        // `PostRetrievalEvidence.isSufficient` requires `topScore >= 0.20`, so the
+        // planner abstained on excellent evidence, the reliability fallback
+        // engaged, and the user got raw excerpts. This is the cause of the
+        // abstentions instrumented in the previous release; the fix is to ask the
+        // set for its maximum rather than its head.
+        let topScore = chunks.map(\.similarityScore).max() ?? (hasRenderedEvidence ? 1.0 : 0)
         let meanScore = chunks.isEmpty
             ? (hasRenderedEvidence ? 1.0 : 0)
             : chunks.map(\.similarityScore).reduce(0, +) / Float(chunks.count)
