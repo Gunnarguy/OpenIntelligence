@@ -242,3 +242,10 @@ Benchmarks/temp_sportage_manifest.json
 
 # Local attic for one-off artifacts moved out of the repo root (untracked, not iCloud-synced)
 .attic.nosync/
+
+# Raw device log dumps pasted into the repo root during debugging. These are the
+# source evidence behind several 4.8/4.9 fixes, but they are large, unreviewed,
+# and may carry device identifiers, so they stay out of history.
+/Maximum.txt
+/PCC763.txt
+/DocumentIngestion&iCloudthing.txt
