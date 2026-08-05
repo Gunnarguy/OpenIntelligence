@@ -110,8 +110,8 @@ The plan structure is about scale and organization. The core product idea stays 
 
 OpenIntelligence uses a two-tier context window strategy based on query complexity and quality settings:
 
-- **On-device (4K tokens):** Standard queries run locally on Apple Silicon using FoundationModels. Fast, private, and zero-latency.
-- **Private Cloud Compute (32K tokens):** Complex reasoning, heavy synthesis, or deep comparisons escalate to Apple's PCC enclaves. This offers a larger context window while maintaining zero-retention, end-to-end encrypted privacy.
+- **On-device:** Standard queries run locally on Apple Silicon using FoundationModels. Private, and never leaves the device. Measured on an iPhone A18 Pro: roughly 27 tokens/second, with time-to-first-token between 2.2 and 3.2 seconds. Routing escalates above a 4,096-token local budget.
+- **Private Cloud Compute:** Complex reasoning, heavy synthesis, or deep comparisons escalate to Apple's PCC enclaves, which offer a larger context window than the device while maintaining zero-retention, end-to-end encrypted privacy. Measured on the same device: roughly 86 tokens/second, time-to-first-token 2.2 to 2.5 seconds. The exact PCC context size is reported by the system at runtime rather than fixed by this app.
 
 Routing is automatic based on the complexity of your prompt, the selected quality mode, and your token requirements.
 
@@ -124,7 +124,7 @@ If you paste an entire manual into a model prompt:
 2. Important evidence gets buried.
 3. Reliability drops.
 
-RAG solves this by retrieving only the relevant snippets of your document set. This is effective whether using the 4K on-device window or the 32K PCC window.
+RAG solves this by retrieving only the relevant snippets of your document set. This is effective whether using the 4K on-device window or the larger PCC window.
 
 ---
 
@@ -145,7 +145,7 @@ We combine:
 - **BM25 keyword retrieval:** Finding exact terms and identifiers.
 
 ### 5. Re-rank and Pack
-The system scores, removes redundancies, and selects the most relevant evidence to fit into the active token window (4K or 32K).
+The system scores, removes redundancies, and selects the most relevant evidence to fit into the active token window, whether that is the 4K on-device budget or the larger one PCC reports.
 
 ### 6. Generate and Verify
 The answer is generated from evidence. A verification gate confirms the model's assertions against the source material before the answer appears in the Liquid Glass UI.
@@ -164,7 +164,7 @@ The answer is generated from evidence. A verification gate confirms the model's 
 
 Tap the status indicator during any query to open the Telemetry HUD. It shows:
 - **Active Route:** On-Device vs. PCC.
-- **Token Budget:** 4K vs. 32K usage.
+- **Token Budget:** on-device vs. PCC usage against the active window.
 - **Pathway:** Resolved execution steps.
 - **Silicon Telemetry:** Live utilization stats.
 """#
@@ -206,7 +206,7 @@ Key properties of PCC:
 - No data retention after inference completes
 - End-to-end encryption between device and enclave
 - No developer access to user queries or responses
-- 32K-token context window for complex reasoning
+- A larger context window than the device allows, for complex reasoning
 
 ---
 

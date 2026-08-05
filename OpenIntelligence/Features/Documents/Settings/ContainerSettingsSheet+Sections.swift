@@ -1578,7 +1578,7 @@ extension ContainerSettingsSheet {
                     }()
                     
                     if canUseNativePCC && self.settings.applePCCConsent == .allowed {
-                        Text("Native PCC (PT-MoE 32K)")
+                        Text("Native PCC (Apple Intelligence)")
                             .font(.caption.weight(.bold))
                             .foregroundColor(.blue)
                     } else {

@@ -83,7 +83,11 @@ extension LLMModelType {
     var displayName: String {
         switch self {
         case .appleIntelligence:
-            return "AFM 3 Core Advanced"
+            // Not "Core Advanced". The public SDK exposes no tier selector, and
+            // `SystemLanguageModel.default` is what executes on every device, so
+            // naming a tier here claims a model the app can neither pick nor observe.
+            // Same correction as the 3B/20B capability-card removal in 4.7.
+            return "Apple Intelligence"
         case .onDeviceAnalysis:
             return "On-Device Analysis"
         }
@@ -215,8 +219,8 @@ extension LLMModelType {
                     .init(icon: "wand.and.stars", label: "Actions", detail: "App tools", tone: .success),
                 ],
                 stats: [
-                    .init(icon: "bolt.fill", label: "Latency", value: "< 0.8 s", detail: "Median TTFT", accent: .success),
-                    .init(icon: "gauge", label: "Throughput", value: "≈65 tok/s", detail: "Neural Engine streaming", accent: .accent),
+                    .init(icon: "bolt.fill", label: "Latency", value: "2-3 s", detail: "Measured TTFT, A18 Pro", accent: .success),
+                    .init(icon: "gauge", label: "Throughput", value: "27-86 tok/s", detail: "On-device to PCC, A18 Pro", accent: .accent),
                     .init(icon: "square.stack.3d.down.right.fill", label: "Context", value: "4K+", detail: "On-device, more via PCC", accent: .info),
                     .init(icon: "lock.shield.fill", label: "Privacy", value: "Zero-retention", detail: "Encrypted PCC hops", accent: .success),
                     .init(icon: "hammer", label: "Tools", value: "App Intents", detail: "Auto tool routing", accent: .accent),

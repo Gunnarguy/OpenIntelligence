@@ -1,6 +1,6 @@
-# Docs/ARCHITECTURE.md — OpenIntelligence v4.1
+# Docs/ARCHITECTURE.md — historical, written at v4.1
 
-> **Documentation status:** [Superseded]. This document has been superseded by `Docs/OPENINTELLIGENCE_ARCHITECTURE_ATLAS.md`. Do not use as the source of truth for OpenIntelligence v4.3.
+> **Documentation status:** [Superseded]. Superseded by `Docs/OPENINTELLIGENCE_ARCHITECTURE_ATLAS.md`, and below that by `Docs/CANONICAL_OPENINTELLIGENCE_SOURCE_OF_TRUTH.md`, which wins over both. This file describes the v4.1 architecture and is kept for history. The shipped version is 4.9. Do not use it as the source of truth for any version. `[evidence_level: historical, confidence: superseded]`
 
 OpenIntelligence is an Apple-native document intelligence application built around a SwiftUI app shell and a retrieval-oriented document engine.
 

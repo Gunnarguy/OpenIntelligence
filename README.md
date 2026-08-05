@@ -30,6 +30,16 @@ write the final answer — and only after you have seen exactly which excerpts
 would be sent. Every answer carries a badge showing where it actually ran, read
 from an execution receipt rather than from what was requested.
 
+<p align="center">
+  <img src=".github/assets/screenshots/openintelligence-cited-answer.png" alt="An answer with inline citations linking back to source excerpts" width="24%">
+  <img src=".github/assets/screenshots/openintelligence-answer-inspection.png" alt="Inspecting an answer's supporting evidence" width="24%">
+  <img src=".github/assets/screenshots/openintelligence-ingestion-pipeline.png" alt="The live ingestion pipeline naming each stage as it runs" width="24%">
+  <img src=".github/assets/screenshots/openintelligence-library.png" alt="The document library" width="24%">
+</p>
+<p align="center">
+  <em>A cited answer · inspecting the evidence behind it · the live pipeline · the library</em>
+</p>
+
 ## Why it exists
 
 Most document AI asks you to upload your files somewhere first. If those files
@@ -143,8 +153,10 @@ repository work through canonical evidence, safe edit boundaries, and required t
 
 ## Building
 
-**Requirements:** macOS Tahoe 26.x with Xcode 26+, iOS 26.0+ SDK, Apple Silicon
-(M1+ / A17 Pro+) for usable Neural Engine throughput.
+**Requirements:** macOS 26 or later with Xcode 26+, iOS 26.0 deployment target,
+Apple Silicon (M1+ / A17 Pro+) for usable Neural Engine throughput. Xcode 27 is
+needed for the iOS/macOS 27 paths — Core AI embeddings and native Private Cloud
+Compute — which compile out below that SDK.
 
 ```bash
 # iCloud sets extended attributes that break codesign — clear them first
@@ -185,4 +197,4 @@ unverified, and tracked as open items rather than quietly assumed.
 
 ## License
 
-Open source. See [LICENSE](LICENSE).
+MIT. See [LICENSE](LICENSE).

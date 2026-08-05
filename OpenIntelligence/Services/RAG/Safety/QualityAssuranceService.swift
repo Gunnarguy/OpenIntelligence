@@ -287,14 +287,14 @@ actor QualityAssuranceService {
             answerType: .factoid,
             difficulty: .easy
         ),
-        QATestCase(
-            id: "pcc_token_window",
-            query: "What is the Private Cloud Compute context window?",
-            expectedAnswer: "32K tokens",
-            expectedDocumentIds: ["ragtechnicalarchitecture"],
-            answerType: .factoid,
-            difficulty: .easy
-        ),
+        // Removed: `pcc_token_window`, which asserted "32K tokens" as the correct
+        // answer and sourced it from the app's own sample document. The figure is a
+        // hardcoded fallback, not a measured or SDK-reported value, so this case
+        // graded the engine on repeating an unverified claim back to the user, and
+        // would now fail against the corrected sample text. Testing the engine
+        // against the app's own documentation cannot separate "answered badly" from
+        // "faithfully repeated a stale document"; replace with fixtures that have
+        // external ground truth.
         QATestCase(
             id: "quality_modes_list",
             query: "What are the three quality modes?",

@@ -38,7 +38,8 @@ Database ID: `37f49a74-d54f-81b7-9424-dae1288c0043`; its data source ID is `37f4
 - `Status`: `To Do` | `In Progress` | `Completed` — there is NO "Shipped" option.
 - `Component`: `Ingestion` | `Chunking` | `Indexing` | `Retrieval` | `Orchestration` | `Shortcuts` | `General` | `UI` | `Infrastructure`
 - `Priority`: `High` | `Medium` | `Low`
-- `Target Release`: `v4.0`–`v4.4`, `v4.5 (Phase 2B)`, `v4.6`, `Future Backlog`
+- `Target Release`: `v4.0`, `v4.1`, `v4.2`, `v4.3`, `v4.3.1`, `v4.4`, `v4.5 (Phase 2B)`, `v4.6`, `v4.7 (iOS) / v3.0 (macOS)`, `v4.8 (iOS)`, `v4.9`, `v5.0`, `Future Backlog`. Read off the live data source 2026-08-05. Note the two split-numbering options are historical: from 4.9 onward both platforms share one version, so new rows use `v4.9` or `v5.0`, never a split label.
+- `Target OS`: `All (26.5 & 27)` | `iOS/macOS 26.5 Only` | `iOS/macOS 27+ Only`. **This property was missing from this file entirely** and is part of the schema.
 - Dates: `Added`, `Completed` (ISO dates).
 
 ## Verification before ending any code-modifying turn

@@ -1,8 +1,53 @@
-> **Documentation status:** Source-verified and simulator-compiled for OpenIntelligence v4.7 (iOS) / v3.0 (macOS) on July 28, 2026. Native PCC execution is owner-confirmed on a physical device; PCC edge scenarios and signed-distribution validation remain pending.
+> **Documentation status:** Updated for OpenIntelligence v4.9 (iOS and macOS) on August 5, 2026. iOS 4.9 is live; macOS 4.9 is in review. Both platforms share one version number now. The 4.7–4.9 entries below are drawn from `Docs/USER_CHANGELOG.md` and the in-app What's New sheet (`WhatsNewStore.swift`), which this file had fallen three releases behind. Native PCC execution is owner-confirmed on a physical device; PCC edge scenarios and signed-distribution validation remain pending.
 
 # What's New
 
 Public release highlights for OpenIntelligence.
+
+## 4.9
+
+Documents no longer disappear after importing, and libraries carry their work between devices instead of asking you to redo it.
+
+> iPhone and iPad arrive here from 4.7, because 4.8 was withdrawn before it shipped on iOS — so everything under 4.8 below is new to you too. On Mac, 4.8 was already released, so only this section is new.
+
+### Your Libraries
+- **Documents stop disappearing after import:** a document that finished importing while the app was saving your library could be dropped from the list even though it had imported correctly. This affected a single device as well as several, and it is what made the sample documents unreliable.
+- **No more re-importing on your other devices:** documents processed on one device now carry over.
+- **Libraries no longer appear to lose documents** while iCloud is still catching up.
+
+## 4.8
+
+Deep Think and Maximum were not wired up correctly in previous releases. This release fixes that, and everything it uncovered.
+
+### Deep Think & Maximum
+- **Both modes now reason across your documents.** Previously they returned Standard quality answers after a much longer wait.
+- **Answers cite their sources in every mode.** Maximum produced none at all.
+- **Both stop once they stop finding new material,** typically halving Maximum's run time.
+- **A single failed pass no longer ends a query.**
+- **Resolved "The selected model isn't available right now."**
+
+### Privacy & Routing
+- **On-Device now covers the entire query,** including the final answer.
+- **The model picker governs every mode.** It previously reached Standard only, so Deep Think and Maximum fell back to a default.
+
+### What You See
+- The live pipeline names each stage correctly, including verification and query rewriting.
+- Reasoning detail wraps instead of cutting off mid-sentence.
+- Follow-up suggestions come from the answer rather than stray words.
+- Raw model output no longer appears in answers.
+- Passes skipped for having no relevant text are shown instead of leaving gaps.
+- An answer reporting that your documents do not cover something is kept, not replaced with generic help text.
+
+### Also
+- **Document import works on Mac.** The file picker there was a placeholder.
+- Opening the app after an update now shows what changed.
+
+## 4.7
+
+- **Honest route labels:** labels now say exactly where each answer ran — on your device, or Apple Private Cloud Compute with your permission. Nothing claims more than the system can verify.
+- **Steadier document understanding:** the key ideas pulled from your documents now come out the same every time, for more consistent search and more reliable connections across files.
+- **Route verification:** new internal checks confirm that every answer's recorded route matches what actually ran.
+- **Removed unsupported model claims:** Settings no longer advertises selectable 3B or 20B on-device models, or a parameter-count capability chip. (Correction to earlier releases: the public SDK exposes no such selector. Apple's larger on-device model is real and managed by the operating system, but no app can choose or observe it.)
 
 ## 4.6
 

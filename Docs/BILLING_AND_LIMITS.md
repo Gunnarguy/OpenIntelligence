@@ -1,9 +1,10 @@
-# Docs/BILLING_AND_LIMITS.md — OpenIntelligence v4.4 (working on v4.5)
+# Docs/BILLING_AND_LIMITS.md — verified at v4.4, shipped tree is v4.9
 
-> **Documentation status:** Verified for OpenIntelligence v4.4 on 2026-06-30.
+> **Documentation status:** Verified for OpenIntelligence v4.4 on 2026-06-30. Product identifiers and the Document Pack status re-checked against source on 2026-08-05; the quota and grandfathering sections were **not** re-verified.
+> **Document Pack Add-On is no longer sold (see §3).** `doc_pack_addon` is absent from `OpenIntelligence/Resources/StoreKit/StoreKitConfiguration.storekit` and has no paywall UI. The `BillingProduct.documentPackAddOn` case, the cap logic, and the `legacyDocumentPackOwner` protection state are deliberately retained so existing owners keep their capacity. `StoreKitBillingService` still requests the id via `BillingProduct.allCases`, and StoreKit simply omits an unavailable product from the result, so nothing fails. `[evidence_level: code_verified, confidence: exact, evidence_source: StoreKitConfiguration.storekit, BillingProduct.swift, PlanUpgradeSheet.swift, StoreKitBillingService.swift:42]`
 > **Source of truth:** Codebase audit in `Docs/AUDIT/`.
 
-This document describes the billing tiers, StoreKit 2 product identifiers, and resource quota boundaries defined and enforced in the OpenIntelligence v4.4 codebase.
+This document describes the billing tiers, StoreKit 2 product identifiers, and resource quota boundaries as audited in the OpenIntelligence v4.4 codebase.
 
 ---
 
@@ -16,7 +17,7 @@ These StoreKit product IDs are defined centrally in [BillingProduct.swift](file:
 | Pro Monthly | `"pro_monthly"` | Subscription | Pro | Grants monthly access to Pro features. |
 | Pro Annual | `"pro_annual"` | Subscription | Pro | Grants annual access to Pro features. |
 | Lifetime Cohort | `"lifetime_cohort"` | Non-Consumable | Lifetime | One-time purchase for permanent Lifetime access. |
-| Document Pack Add-On | `"doc_pack_addon"` | Consumable | None | Grants 10 extra document slots per pack. |
+| Document Pack Add-On | `"doc_pack_addon"` | Consumable | None | **Discontinued — not sold.** Granted 10 extra document slots per pack. Enum case and entitlement logic retained for existing owners only. |
 
 ---
 
@@ -36,8 +37,11 @@ Enforcement logic is defined in [QuotaPolicy.swift](file:///Users/gunnarhostetle
 
 ---
 
-## 3. Document Pack Add-On Mechanics
-- **Allowance:** Purchasing `"doc_pack_addon"` appends a ledger entry containing 10 credits to `documentPacks`.
+## 3. Document Pack Add-On Mechanics (discontinued product, retained for existing owners)
+
+> The pack was withdrawn from sale in v4.4. Nothing below describes a purchase a new user can make; it describes how the app continues to honour packs bought before the withdrawal. Read every "purchase" below as "a historical purchase being re-validated."
+
+- **Allowance:** A `"doc_pack_addon"` transaction appends a ledger entry containing 10 credits to `documentPacks`.
 - **Enforcement Cap:** Users are capped at a maximum of **3 active document packs** simultaneously (yielding a maximum bonus of +30 documents). The property `hasReachedDocumentPackCap` in [EntitlementStore.swift](file:///Users/gunnarhostetler/Documents/GitHub/OpenIntelligence/OpenIntelligence/Services/Billing/EntitlementStore.swift#L48) gates purchases if `addOnPacks >= 3`.
 - **Expiration:** Consumable packs are verified against transaction expiration dates. Expired packs are pruned on app launch via `pruneExpiredDocumentPacksIfNeeded()`.
 

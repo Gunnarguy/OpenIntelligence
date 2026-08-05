@@ -1,7 +1,15 @@
 # OpenIntelligence Hard Limits and Claim Constraints
 
 **Purpose**: Single source of truth for current technical constraints and the claim boundaries they create.
-**Last Verified**: April 25, 2026
+**Last Verified**: partially re-verified 2026-08-05 against the shipped 4.9 tree.
+
+> **What that date covers.** The LLM-constraints table, the routing-literal note, the measured-throughput
+> section, and the claim lists below were re-checked against source on 2026-08-05: `onDeviceLimit = 4096`
+> still stands at `FoundationModelRoutePolicy.swift:60`, `32768` is still a hardcoded fallback at
+> `FoundationModelTokenBudget.swift:39`, and `AppleFMEmbeddingProvider.swift` is still a scaffold.
+> The embedding, chunking, context-packing, and infrastructure tables still carry their April 25, 2026
+> verification and were **not** re-measured. Treat those four tables as the older figure until someone
+> re-runs them. `[evidence_level: code_verified_for_the_re-checked_rows, confidence: exact_for_those_rows_stale_for_the_rest]`
 
 ## Current Status
 
@@ -29,7 +37,7 @@ Important current implementation notes:
 
 ### Measured generation throughput (physical device, 2026-07-30)
 
-First real numbers, from an iPhone A18 Pro. These supersede the unbacked `< 0.8 s` TTFT and `≈65 tok/s` figures asserted in the Settings capability card.
+First real numbers, from an iPhone A18 Pro. These superseded the unbacked `< 0.8 s` TTFT and `≈65 tok/s` figures that the Settings capability card asserted until 2026-08-05. The card now reads `2-3 s` and `27-86 tok/s`, both labelled `A18 Pro`, so the shipped copy and this table no longer disagree.
 
 | Path | Throughput | TTFT | Sample |
 | :--- | ---: | ---: | :--- |
@@ -85,7 +93,7 @@ Important current implementation note:
 - full-text plus vector retrieval
 - source review and verification-oriented answer flow
 - Apple-native generation path (On-Device and PCC) where available
-- Dynamic secure routing to Private Cloud Compute (32K context) for reasoning-heavy queries
+- Dynamic secure routing to Private Cloud Compute for reasoning-heavy queries — **without naming a context size**, because the 32,768 figure above is an unverified hardcoded fallback and this list previously contradicted its own table by citing it
 
 ### Claim only with caveats
 

@@ -1,10 +1,11 @@
-# Ingestion Pipeline — OpenIntelligence v4.6
+# Ingestion Pipeline — source-verified at v4.6, shipped tree is v4.9
 
-> **Documentation status:** Source-verified on 2026-07-15. PCC Dynamic Routing does not change ingestion; indexed content remains local until a later query explicitly selects and consents to a minimized PCC synthesis envelope.
-> **Source of truth:** Codebase audit in `Docs/AUDIT/`.
+> **Documentation status:** Source-verified on 2026-07-15 against v4.6. **Not re-verified since.** iOS/macOS 4.9 is the shipped version. PCC Dynamic Routing does not change ingestion; indexed content remains local until a later query explicitly selects and consents to a minimized PCC synthesis envelope.
+> **Known drift as of 2026-08-05** — in `CHANGELOG.md` under 4.9 but not yet described below: all five workspace metadata writes are now atomic read-modify-writes through `coordinatedMergeData(at:transform:)`, closing the race where an ingestion completing mid-sync-pass left a fully intact document on disk with no metadata row pointing at it. `WorkspaceSyncService` also no longer deletes an index for a library that still has documents.
+> **Source of truth:** Codebase audit in `Docs/AUDIT/`, plus `CHANGELOG.md` 4.8–4.9 for ingestion and sync.
 > **Scope:** Describes shipped behavior unless explicitly labeled experimental, developer-only, or scaffolded.
 
-This document describes the design and implementation of the import-time document ingestion pipeline in OpenIntelligence v4.5.
+This document describes the design and implementation of the import-time document ingestion pipeline, as audited at v4.6.
 
 ---
 

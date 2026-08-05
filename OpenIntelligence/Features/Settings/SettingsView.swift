@@ -479,7 +479,7 @@ Text(label)
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Private Cloud Compute")
                         .font(.headline)
-                    Text("Expanded 32K context window")
+                    Text("Larger context window than the device")
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
@@ -1750,10 +1750,14 @@ Text(deviceService.chipName)
         // Deep Think + Maximum shared
         if settings.ragQualityMode.usesAgenticOrchestrator {
             items.append(.divider(id: "div-agentic"))
-            items.append(.init(id: "dynamic-profiles", icon: "arrow.up.and.down.circle.fill", label: "Dynamic Profiles", desc: "Mid-session model swapping for planning, grounding, and execution", color: .purple))
-            items.append(.init(id: "pcc-escalation", icon: "cloud.lock.fill", label: "Private Cloud Compute", desc: "Context-heavy queries escalate to secure 32K token enclaves", color: .purple))
-            items.append(.init(id: "model-judges", icon: "checkmark.seal.fill", label: "Model Judges", desc: "Cloud Pro evaluates Core Advanced outputs for maximum accuracy", color: .purple))
-            items.append(.init(id: "native-spotlight", icon: "magnifyingglass", label: "Native Spotlight Integration", desc: "Hooks directly into Apple Core Spotlight for OS-level retrieval", color: .purple))
+            // "Dynamic Profiles" and "Model Judges" were listed here but neither
+            // exists: `FoundationModelDynamicProfileRegistry` has zero call sites,
+            // and there is no judge implementation anywhere in `Services/`. This
+            // list is shown to users as what the active mode is doing, so an
+            // unimplemented row is a false claim, not a roadmap teaser. Both are
+            // tracked on the roadmap; re-add each one when it actually runs.
+            items.append(.init(id: "pcc-escalation", icon: "cloud.lock.fill", label: "Private Cloud Compute", desc: "Context-heavy queries escalate to Apple's secure enclaves", color: .purple))
+            items.append(.init(id: "native-spotlight", icon: "magnifyingglass", label: "Spotlight Indexing", desc: "Your documents are indexed into Apple Core Spotlight", color: .purple))
             items.append(.init(id: "intent-route", icon: "signpost.right.and.left", label: "Intent Routing", desc: "Classifies query as lookup/procedure/compare/summarize", color: .purple))
             items.append(.init(id: "multi-query", icon: "magnifyingglass.circle.fill", label: "Multi-Query Expansion", desc: "LLM generates diverse search queries for broader retrieval", color: .purple))
             items.append(.init(id: "graph-expand", icon: "point.3.connected.trianglepath.dotted", label: "2-Hop Graph Expansion", desc: "Entity-based traversal finds related chunks", color: .purple))

@@ -76,7 +76,7 @@ OpenIntelligence is a local-first, privacy-preserving retrieval-augmented genera
 - Implementation phases strictly define a limited blast radius of allowed files (e.g., `EvidenceThread.swift`).
 
 ## 14. Known Unresolved Risks
-- Signed physical-device, archive/TestFlight entitlement propagation, native PCC execution, quota exhaustion, and network-transition behavior remain unverified.
+- **Native PCC execution is owner-confirmed on a physical device (2026-07-28, on v4.6)** and is no longer listed as unverified. `[evidence_level: user_confirmed, confidence: high_for_execution_path, evidence_source: owner device testing]` Still unverified: signed physical-device installation, archive/TestFlight entitlement propagation, quota exhaustion, and network-transition behavior. Owner confirmation covered the execution path only and did not state coverage for those edge scenarios.
 - The background/App Intent consent deadlock has a source-level prevention path and focused policy tests, but still requires physical-device/manual validation.
 - iCloud Sync behavior for imported physical documents.
 - `BNNSVectorDatabase` memory mapping limits.

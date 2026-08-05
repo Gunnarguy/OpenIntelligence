@@ -1,7 +1,12 @@
-# Retrieval Pipeline — OpenIntelligence v4.6
+# Retrieval Pipeline — source-verified at v4.6, shipped tree is v4.9
 
-> **Documentation status:** Source-verified on 2026-07-15; PCC device/distribution validation remains pending.
-> **Source of truth:** Codebase audit in `Docs/AUDIT/`.
+> **Documentation status:** Source-verified on 2026-07-15 against v4.6. **Not re-verified since.** iOS/macOS 4.9 is the shipped version, and 4.8–4.9 changed retrieval behavior in ways this document does not yet describe. PCC device/distribution validation remains pending.
+> **Known drift as of 2026-08-05** — each of these is in `CHANGELOG.md` under 4.9 but not yet reflected below:
+> - Gate E measures query coverage as the better of combined-evidence and best-single-chunk, not the per-chunk maximum.
+> - `DomainIsolationService` relaxes only the cross-domain-mixing clause when the retrieved chunks all come from one `documentId`.
+> - `executeReasoningChain` retries the user's original wording when a rewrite fuses zero chunks, before any downstream relevance gate judges the library.
+> - `makePostRetrievalModelPlan` takes the maximum similarity over the chunk set rather than reading `chunks.first`, which is not the best chunk after MMR, expansion, and Lost-in-the-Middle reordering.
+> **Source of truth:** Codebase audit in `Docs/AUDIT/`, plus `CHANGELOG.md` 4.8–4.9 for anything retrieval-related.
 > **Scope:** Describes shipped behavior unless explicitly labeled experimental, developer-only, or scaffolded.
 
 ---
