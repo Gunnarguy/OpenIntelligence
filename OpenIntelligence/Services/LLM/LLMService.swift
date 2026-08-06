@@ -572,9 +572,21 @@ struct LLMResponse {
                 disableTools: config.disableTools
             )
 
-            // Estimate token count for routing decisions
+            // Estimate token count for routing decisions.
+            //
+            // `isAppleFMOnDevice` selects the chars/token ratio: true gives the
+            // on-device 1.4, false gives the cloud 2.5. This was previously passed
+            // `!config.allowPrivateCloudCompute`, which inverted the meaning of the
+            // resulting number. `determineRoute` compares it against the *on-device*
+            // context limit to decide whether the prompt is too big to stay local, so
+            // the estimate has to be in on-device tokens no matter where it ends up
+            // running. Passing the cloud ratio whenever PCC was allowed produced an
+            // estimate ~44% low and compared it against an on-device limit, so the
+            // escalation check was least likely to fire in exactly the case where
+            // escalation was available. Always estimate on-device here; the decision
+            // being made is "does this fit locally", not "where will this run".
             _ = fullPrompt.count
-            let estimatedTokens = FoundationModelTokenBudget.estimateTokens(for: fullPrompt, isAppleFMOnDevice: !config.allowPrivateCloudCompute)
+            let estimatedTokens = FoundationModelTokenBudget.estimateTokens(for: fullPrompt, isAppleFMOnDevice: true)
             Log.debug("Generation: ~\(estimatedTokens) tokens, exec=\(config.executionContext)", category: .llm)
 
             // Route policy
@@ -916,7 +928,10 @@ struct LLMResponse {
             var structuredConfig = config
             structuredConfig.disableTools = true
             
-            let estimatedTokens = FoundationModelTokenBudget.estimateTokens(for: prompt + context, isAppleFMOnDevice: !config.allowPrivateCloudCompute)
+            // On-device ratio unconditionally, for the reason documented at the
+            // streaming call site above: this number is compared against the
+            // on-device context limit, so it must be in on-device tokens.
+            let estimatedTokens = FoundationModelTokenBudget.estimateTokens(for: prompt + context, isAppleFMOnDevice: true)
             let queryType: FoundationModelRoutePolicy.QueryType
             switch config.qualityMode.canonical {
             case .standard: queryType = .standard

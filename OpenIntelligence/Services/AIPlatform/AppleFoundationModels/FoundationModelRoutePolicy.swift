@@ -57,7 +57,18 @@ struct FoundationModelRoutePolicy {
         }
         
         let pccAllowed = config.allowPrivateCloudCompute
-        let onDeviceLimit = 4096
+
+        // Read the real on-device window rather than assuming 4096. This path is only
+        // reached when no `ModelExecutionPlan` is attached; when one is, the switch
+        // above returns from the plan, which is built with exact `model.tokenCount(for:)`
+        // budgets. `contextSize(isAppleFMOnDevice:)` returns
+        // `SystemLanguageModel.default.contextSize` on iOS/macOS 26+ and falls back to
+        // the same 4096 this used to hardcode, so the fallback behavior is unchanged
+        // and a device reporting a larger window now gets to use it.
+        //
+        // Callers must estimate `estimatedContextTokens` with the on-device chars/token
+        // ratio, since this compares against an on-device limit. See `LLMService`.
+        let onDeviceLimit = FoundationModelTokenBudget.contextSize(isAppleFMOnDevice: true)
         
         switch queryType {
         case .exactLookup:
