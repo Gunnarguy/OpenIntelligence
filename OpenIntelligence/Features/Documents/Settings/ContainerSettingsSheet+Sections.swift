@@ -41,7 +41,14 @@ extension ContainerSettingsSheet {
     @ViewBuilder
     var chunkingSection: some View {
         Section(header: Text("Semantic chunking — topic-aware splitting")) {
-            Text("Documents are split using embedding-based boundary detection (Late Chunking). Topic shifts are detected via cosine similarity drops between adjacent sentences, producing semantically coherent chunks.")
+            // Dropped the "(Late Chunking)" label. That names a specific technique the
+            // app does not implement: late chunking embeds the whole document with a
+            // long-context model and mean-pools token vectors per chunk, so each chunk
+            // vector carries full-document context. `SemanticChunker` embeds individual
+            // sentences to locate boundaries and returns positions, then chunks are
+            // embedded independently. The rest of this sentence describes what actually
+            // runs and is unchanged. Real late chunking is tracked on the roadmap.
+            Text("Documents are split using embedding-based boundary detection. Topic shifts are detected via cosine similarity drops between adjacent sentences, producing semantically coherent chunks.")
                 .font(.caption)
                 .foregroundColor(.secondary)
 

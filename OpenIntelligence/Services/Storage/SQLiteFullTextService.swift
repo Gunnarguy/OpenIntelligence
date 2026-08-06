@@ -1438,27 +1438,37 @@ actor SQLiteFullTextService {
 
         func executeChunkSearch(escapedQuery: String) -> [ChunkSearchResult] {
             // BM25 weights: section_title(10.0), section_path(5.0), content(1.0)
-            // This heavily boosts matches in section headings — "engine oil" matching
+            // This heavily boosts matches in section headings: "engine oil" matching
             // a sectionTitle="Engine Oil" gets 10x the score of matching in body text.
+            //
+            // The weight vector must carry exactly one entry per column of `chunks`, in
+            // declaration order, or every weight silently lands on the wrong column:
+            //   chunk_id, document_id, container_id, chunk_index, page_number,
+            //   section_title, section_path, structure_type, content
+            // That is 9 columns, so 9 weights. This previously passed 8, which shifted
+            // the whole vector one slot left: section_path took the 0 meant for
+            // structure_type and dropped out of ranking entirely, while section_title
+            // took the 5.0 meant for section_path. Keep this list in sync with the
+            // CREATE VIRTUAL TABLE above.
             let sql: String
             if containerId != nil {
                 sql = """
                     SELECT chunk_id, document_id, container_id, chunk_index, page_number,
                            section_title, section_path, content,
-                           bm25(chunks, 0, 0, 0, 0, 10.0, 5.0, 0, 1.0) as score
+                           bm25(chunks, 0, 0, 0, 0, 0, 10.0, 5.0, 0, 1.0) as score
                     FROM chunks
                     WHERE chunks MATCH ? AND container_id = ?
-                    ORDER BY bm25(chunks, 0, 0, 0, 0, 10.0, 5.0, 0, 1.0)
+                    ORDER BY bm25(chunks, 0, 0, 0, 0, 0, 10.0, 5.0, 0, 1.0)
                     LIMIT ?
                 """
             } else {
                 sql = """
                     SELECT chunk_id, document_id, container_id, chunk_index, page_number,
                            section_title, section_path, content,
-                           bm25(chunks, 0, 0, 0, 0, 10.0, 5.0, 0, 1.0) as score
+                           bm25(chunks, 0, 0, 0, 0, 0, 10.0, 5.0, 0, 1.0) as score
                     FROM chunks
                     WHERE chunks MATCH ?
-                    ORDER BY bm25(chunks, 0, 0, 0, 0, 10.0, 5.0, 0, 1.0)
+                    ORDER BY bm25(chunks, 0, 0, 0, 0, 0, 10.0, 5.0, 0, 1.0)
                     LIMIT ?
                 """
             }

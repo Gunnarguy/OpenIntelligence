@@ -1728,7 +1728,10 @@ Text(deviceService.chipName)
         var items: [FeatureItem] = []
 
         // Common features (all modes)
-        items.append(.init(id: "fast-dedup", icon: "bolt.fill", label: "O(N) Fast Deduplication", desc: "1,000x faster evidence retrieval for massive libraries", color: .green))
+        // "1,000x faster" was an unmeasured multiplier with no benchmark behind it, the
+        // same class of claim as the `≈65 tok/s` figure removed from the capability card.
+        // The algorithmic change is real; the number was never measured.
+        items.append(.init(id: "fast-dedup", icon: "bolt.fill", label: "O(N) Fast Deduplication", desc: "Linear-time evidence dedup, so large libraries stay fast", color: .green))
         items.append(.init(id: "native-embed", icon: "cpu.fill", label: "Native Embeddings", desc: "CoreAISentenceEmbeddingProvider hardware acceleration", color: .green))
         items.append(.init(id: "contextual-embed", icon: "doc.badge.gearshape", label: "Contextual Embeddings", desc: "Document title + section baked into every vector", color: .green))
         items.append(.init(id: "table-extract", icon: "tablecells", label: "Smart Table Extraction", desc: "iOS 26 Vision API preserves tables with captions", color: .green))
@@ -1736,7 +1739,10 @@ Text(deviceService.chipName)
         items.append(.init(id: "parent-doc", icon: "doc.on.doc", label: "Parent Document Retrieval", desc: "Expands chunk window ±5 for full paragraph context", color: .green))
         items.append(.init(id: "query-understand", icon: "lightbulb", label: "Query Understanding", desc: "NLTagger resolves pronouns, NER extracts key entities", color: .green))
         items.append(.init(id: "hybrid-rrf", icon: "arrow.triangle.merge", label: "Hybrid Search + RRF", desc: "Vector + BM25 keyword search with Reciprocal Rank Fusion", color: .green))
-        items.append(.init(id: "cross-encoder", icon: "arrow.up.arrow.down", label: "Cross-Encoder Reranking", desc: "TinyBERT reranker scores query-document relevance", color: .green))
+        // Does not name an architecture. The bundled `ReRankerModel.mlpackage` declares no
+        // model family in its manifest, so "TinyBERT" was not something the app could
+        // verify about its own asset.
+        items.append(.init(id: "cross-encoder", icon: "arrow.up.arrow.down", label: "Cross-Encoder Reranking", desc: "A cross-encoder scores query-document relevance", color: .green))
         items.append(.init(id: "mmr", icon: "shuffle", label: "MMR Diversification", desc: "Maximal Marginal Relevance for diverse results", color: .green))
         items.append(.init(id: "lost-middle", icon: "arrow.left.arrow.right", label: "Lost-in-Middle Mitigation", desc: "Best evidence at start AND end of context window", color: .green))
         items.append(.init(id: "raptor", icon: "tree", label: "RAPTOR-lite Summaries", desc: "Document-level summaries route overview queries", color: .green))
@@ -1767,7 +1773,13 @@ Text(deviceService.chipName)
             items.append(.init(id: "extract-summary", icon: "text.line.first.and.arrowtriangle.forward", label: "Extractive Summarization", desc: "Sentence selection via bi-encoder for summarize intent", color: .purple))
             items.append(.init(id: "graph-pack", icon: "rectangle.compress.vertical", label: "Graph Context Packing", desc: "Optimal token budget allocation across evidence", color: .purple))
             items.append(.init(id: "orchestrator", icon: "brain.head.profile", label: "Agentic Orchestrator", desc: "\(max(4, DeviceCapabilityService.shared.optimizedAgenticConfig().maxSteps - 2))–\(DeviceCapabilityService.shared.optimizedAgenticConfig().maxSteps) sessions targeting \(Int(DeviceCapabilityService.shared.optimizedAgenticConfig().confidenceThreshold * 100))% confidence", color: .purple))
-            items.append(.init(id: "tool-funcs", icon: "hammer.fill", label: "8 Tool Functions", desc: "SearchDocs, ListDocs, GetSummary, CountPattern, ExactSearch, Stats, Related, Compare", color: .purple))
+            // Named from `FoundationModelToolRegistry.createTools`, which is the only
+            // place tools are handed to a session. It registers these four. The eight
+            // previously listed here (SearchDocs, ListDocs, GetSummary, CountPattern,
+            // ExactSearch, Stats, Related, Compare) are declared in the same file but
+            // registered nowhere, so the UI was naming the dead set and none of the live
+            // one. Keep this list in sync with `createTools`, not with the struct count.
+            items.append(.init(id: "tool-funcs", icon: "hammer.fill", label: "4 Tool Functions", desc: "RetrieveCorpusEvidence, InspectDocument, CompareTopicAcrossDocuments, GetLibraryOverview", color: .purple))
             items.append(.init(id: "iterative-ret", icon: "arrow.trianglehead.2.clockwise.rotate.90", label: "Iterative Retrieval", desc: "Retrieve → assess gaps → refine query → retrieve more", color: .purple))
         }
 
@@ -1780,7 +1792,13 @@ Text(deviceService.chipName)
                 items.append(.init(id: "maximum-access", icon: "calendar", label: "Maximum on Free", desc: "\(entitlementStore.maximumModeRemainingUses) of \(QuotaPolicy.freeMaximumModeDailyLimit) uses left today", color: .orange))
             }
             items.append(.init(id: "exhaustive", icon: "wand.and.stars", label: "Exhaustive Synthesis", desc: "Final pass synthesizes all session insights", color: .orange))
-            items.append(.init(id: "token-budget", icon: "cpu", label: "200K+ Token Budget", desc: "50 sessions × 4K = deep exploration", color: .orange))
+            // Was "200K+ Token Budget — 50 sessions × 4K". That multiplies out to a number
+            // that reads like a context window and is not one: Maximum runs up to 50
+            // *separate* 4K windows, it never holds 200K at once. The 50 is also a ceiling
+            // rather than a typical run — `AgenticConfig.unlimited`'s own comment says
+            // thermal will stop it first, and 4.9 added convergence stopping specifically
+            // so it exits once it stops learning. Describe the mechanism, not a product.
+            items.append(.init(id: "token-budget", icon: "cpu", label: "Up to 50 Sessions", desc: "Each gets a fresh 4K window; stops early once it converges", color: .orange))
             items.append(.warning(id: "max-warning", text: "Can take several minutes. Use for complex research tasks."))
         } else if !settings.ragQualityMode.usesAgenticOrchestrator {
             items.append(.init(id: "conv-memory", icon: "brain.head.profile", label: "Conversation Memory", desc: "Remembers context across turns", color: .green))

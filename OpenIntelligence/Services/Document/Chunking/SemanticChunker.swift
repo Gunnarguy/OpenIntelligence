@@ -4,7 +4,7 @@
 //
 //  Advanced semantic chunking with topic detection and metadata enrichment.
 //
-//  ## Semantic Boundary Detection (Late Chunking)
+//  ## Semantic Boundary Detection
 //
 //  This chunker implements research-paper-level semantic boundary detection:
 //  1. **Embedding-Based Topic Detection**: Computes sentence embeddings and detects
@@ -12,9 +12,20 @@
 //  2. **Linguistic Cue Detection**: Uses transition phrases as secondary boundary signals.
 //  3. **Section Header Detection**: Recognizes markdown headers, numbered sections, etc.
 //
-//  The embedding approach (sometimes called "Late Chunking" in RAG literature) provides
-//  semantically coherent chunks that align with actual topic boundaries rather than
-//  arbitrary word counts.
+//  The embedding approach provides semantically coherent chunks that align with actual
+//  topic boundaries rather than arbitrary word counts.
+//
+//  ## This is not "late chunking"
+//
+//  Earlier revisions of this file, and the container settings UI, called the above
+//  "Late Chunking". That names a different technique. Late chunking (Günther et al.)
+//  embeds the *entire document* through a long-context model and then mean-pools the
+//  resulting token vectors within each chunk span, so every chunk vector is computed
+//  with full-document context in the attention window. What runs here embeds individual
+//  sentences to decide *where to cut* and returns boundary positions; the chunks are
+//  then embedded independently and carry no cross-chunk context. The two are not
+//  interchangeable, and conflating them overstates what the retrieval stack does.
+//  Real late chunking is tracked as its own roadmap row.
 //
 //  See also:
 //  - https://developer.apple.com/documentation/naturallanguage
@@ -51,7 +62,7 @@ class SemanticChunker {
     private let languageRecognizer = NLLanguageRecognizer()
     private(set) var lastDiagnostics: ChunkingDiagnostics?
 
-    /// Optional embedding service for semantic boundary detection (Late Chunking)
+    /// Optional embedding service for semantic boundary detection
     /// When set, topic boundaries are detected via sentence embedding similarity
     var embeddingService: EmbeddingService?
 
@@ -544,7 +555,7 @@ class SemanticChunker {
         return finalChunks
     }
 
-    // MARK: - Async Chunking with Embedding Boundaries (Late Chunking)
+    // MARK: - Async Chunking with Embedding Boundaries
 
     /// Chunk text with semantic boundaries detected via sentence embeddings.
     ///
@@ -552,7 +563,7 @@ class SemanticChunker {
     /// It combines three levels of semantic boundary detection:
     /// 1. Section headers (markdown, numbered, ALL CAPS)
     /// 2. Linguistic transition phrases (However, Moreover, etc.)
-    /// 3. **Embedding similarity drops** (Late Chunking - research-paper level)
+    /// 3. **Embedding similarity drops** (research-paper level)
     ///
     /// The embedding approach identifies genuine topic shifts by comparing
     /// sentence embeddings and detecting where cosine similarity drops below
@@ -1090,11 +1101,11 @@ class SemanticChunker {
         return boundaries.sorted()
     }
 
-    // MARK: - Embedding-Based Semantic Boundary Detection (Late Chunking)
+    // MARK: - Embedding-Based Semantic Boundary Detection
 
     /// Detects topic boundaries using sentence embeddings and cosine similarity.
     ///
-    /// Algorithm (based on Late Chunking research):
+    /// Algorithm (semantic breakpoint detection, not late chunking; see file header):
     /// 1. Split text into sentences using NLTokenizer
     /// 2. Generate embeddings for each sentence (batched for efficiency)
     /// 3. Compute cosine similarity between adjacent sentence pairs
