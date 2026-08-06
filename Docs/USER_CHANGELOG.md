@@ -81,7 +81,7 @@ Deep Think and Maximum were not wired up correctly in previous releases. This re
 
 ## v4.5 - July 2026
 
-*   **Rust-Backed Tokenizer Engine:** Replaced the legacy pure-Swift tokenizer with a highly optimized Rust-backed `swift-tokenizers` engine. This delivers microsecond-level document tokenization (a 100x speedup) and exact byte-level character offset tracking for citations.
+*   **Rust-Backed Tokenizer Engine:** Replaced the legacy pure-Swift tokenizer with a highly optimized Rust-backed `swift-tokenizers` engine. This delivers much faster document tokenization and exact byte-level character offset tracking for citations. *(A "100x speedup" was quoted here originally; it was never measured and was withdrawn 2026-08-06.)*
 *   **Ingestion Pipeline Stability:** Fixed FTS5 index corruption and page offset mapping bugs during streamed ingestion of large documents. Large files are now fully searchable.
 *   **Core AI Diagnostic Options**: Stabilized Silicon-native Core AI sentence embeddings on iOS 27+ / macOS 27+ with robust model readiness indicators and detailed build/OS error diagnostics in settings.
 *   **CI/CD Pipeline Upgrades**: Updated cloud build environments to `macos-26` to natively support Xcode 27+ and Swift 6.2+.
@@ -104,8 +104,8 @@ Deep Think and Maximum were not wired up correctly in previous releases. This re
 
 *   **Transparent Verification Engine**: When the AI abstains from answering due to lack of evidence, it will now gracefully provide its drafted reasoning with a prominent `[Needs Verification]` warning, rather than hiding the drafted answer entirely.
 *   **Accurate Telemetry Status**: Fixed a minor UI bug that caused the Verification Gates status panel to incorrectly light up red (as "Failed") during perfectly healthy standard queries.
-*   **Instant Library Scrolling**: Fixed a massive scroll-lag issue when browsing large libraries. Scrolling through your documents is now 240x smoother.
-*   **Faster Answer Generation**: Rebuilt the context aggregation math, reducing the time it takes the app to deduplicate massive datasets by 1000x. Answers generate substantially faster.
+*   **Instant Library Scrolling**: Fixed a scroll-lag issue when browsing large libraries, by caching row identifiers instead of recomputing them on every row draw.
+*   **Faster Answer Generation**: Rebuilt the context aggregation math so deduplicating large evidence sets no longer slows down as the library grows. Answers generate substantially faster.
 *   **Enhanced Reliability**: Simplified the underlying AI routing engine to be exclusively reliant on native Apple Intelligence, resulting in fewer context errors.
 
 ---
@@ -150,7 +150,7 @@ WWDC26 shifted the platform architecture by pushing core AI capabilities into sy
 *   **Model Routing Visibility:** The status pill in the header shows you exactly where your query is targeted to run: **On-Device** (standard questions) or **Private Cloud Compute** (complex or long-context questions, falling back locally if the build lacks the required cloud entitlement).
 *   **Live Reasoning Telemetry**: You can watch the model's active thinking loop in real-time inside the bottom metrics bar as it organizes thoughts, resolves routing, and writes answers.
 *   **Lag-Free Visual Transitions**: The processing dashboard and overlays transition smoothly using GPU-accelerated effects, eliminating visual stutter during document imports.
-*   **4x Faster Local Vector Search**: Local vector similarity calculations run on Apple Silicon hardware accelerators using custom Metal pipelines, reducing RAG search latency by 4x.
+*   **GPU-Accelerated Local Vector Search**: Local vector similarity calculations run on Apple Silicon hardware accelerators using custom Metal pipelines. *(A "4x" figure was quoted here originally; it was never measured and was withdrawn 2026-08-06.)*
 *   **Clean Discarding & Deletion**: Canceling or deleting an in-progress import now triggers a cascading purge that completely removes file fragments, database records, and Spotlight search indexes, ensuring no orphaned data is left behind.
 *   **Grammatically Correct Suggested Questions**: Suggested follow-up questions are grammatically clean and diverse across different sections of your library.
 
