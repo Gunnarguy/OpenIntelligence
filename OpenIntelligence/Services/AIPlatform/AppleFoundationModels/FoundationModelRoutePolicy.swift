@@ -69,7 +69,21 @@ struct FoundationModelRoutePolicy {
         // Callers must estimate `estimatedContextTokens` with the on-device chars/token
         // ratio, since this compares against an on-device limit. See `LLMService`.
         let onDeviceLimit = FoundationModelTokenBudget.contextSize(isAppleFMOnDevice: true)
-        
+
+        // The planless branch is otherwise invisible on device: `planID: "direct"` is posted in
+        // the `ActiveModelRouteResolved` userInfo but every observer drops it, and `onDeviceLimit`
+        // is never emitted. Without both, a device log showing an estimate next to a PCC route
+        // cannot be attributed to this branch or checked against the threshold it actually
+        // compared with, which is why the 4521-against-4096 log was inconclusive.
+        //
+        // Note `DeveloperDiagnosticsHubView` probes this function with a synthetic 1000 tokens and
+        // a nil plan, so lines reading `type=maximum est=1000` come from that view, not a query.
+        Log.debug(
+            "Route (no plan): type=\(queryType) est=\(estimatedContextTokens) "
+            + "onDeviceLimit=\(onDeviceLimit) pccAllowed=\(pccAllowed)",
+            category: .llm
+        )
+
         switch queryType {
         case .exactLookup:
             return .onDevice

@@ -130,7 +130,7 @@ To support local-first AI on Apple Silicon, the Core AI framework layer has been
 
 *   **Production Local Embeddings (`CoreMLSentenceEmbeddingProvider`)**: The live local vector processing pipeline is powered by the highly optimized Core ML engine (`CoreMLSentenceEmbeddingProvider`) on older OS targets.
 *   **Core AI Integration (`CoreAISentenceEmbeddingProvider`)**: Fully integrated and enabled Silicon-native zero-copy sentence embeddings on iOS 27+ / macOS 27+. It is registered as a selectable option in library settings, with dynamic auto-tuning automatically upgrading compatible containers to this high-performance backend.
-*   **`CoreAIModelRegistry` / Backends**: Staged registries and execution/embedding backend scaffolding (`CoreAIExecutionBackend`, `CoreAIEmbeddingBackend` under `OpenIntelligence/Services/AIPlatform/CoreAI/`) to support running custom models directly on Apple Silicon.
+*   ~~**`CoreAIModelRegistry` / Backends**: Staged registries and execution/embedding backend scaffolding (`CoreAIExecutionBackend`, `CoreAIEmbeddingBackend` under `OpenIntelligence/Services/AIPlatform/CoreAI/`) to support running custom models directly on Apple Silicon.~~ **Withdrawn 2026-08-07 and deleted.** These three files never imported Apple's `CoreAI` framework and never had a caller. `generateEmbedding` returned `[]`, `execute` returned `[:]`, and the registry's `registerModel` was never invoked, so it was permanently empty. Listing them beside the working `CoreAISentenceEmbeddingProvider` under a heading reading "fully enabled and integrated" implied a capability that did not exist. The real Core AI integration is the provider entry directly above this one, which is unaffected.
 
 ---
 
