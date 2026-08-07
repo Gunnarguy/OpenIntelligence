@@ -98,11 +98,27 @@ restored the word "TinyBERT" to a Settings label. No model asset, no reranker co
 code. TinyBERT was already what shipped and always had been. The label was accurate; the model is
 dated. Two different problems, and only the first was addressed.
 
-**The Notion row "Migrate to Native Evaluations Framework" was wrongly corrected.** The same
-session rewrote its body because it named Swift Testing and a Model-as-Judge pattern, on the
-grounds that the repo uses XCTest and a grep for `ModelJudge` returned zero. Both grounds were
-invalid for a migration row. Apple's framework uses Swift Testing and ships
-`ModelJudgeEvaluator`. Restoring it is task #1. See `.claude/skills/oi-claim-audit/SKILL.md`.
+**The Notion Evaluations row was correctly corrected. An earlier draft of this ledger said
+otherwise and was wrong.** Recorded because the wrong version was acted on.
+
+The row is [RAG evaluation suite (XCTest, deterministic scoring)](https://app.notion.com/38049a74d54f81429589e271d7bf613d).
+It is a **Completed v4.1** row (Added 2026-06-15, Completed 2026-06-29) describing the eval suite
+that shipped, not a To Do migration row. Its old body claimed Swift Testing and a Model-as-Judge
+pattern as *shipped capabilities*, and both were false about this repo. The 2026-08-06 correction
+was legitimate, and it correctly traced the "Model Judges" Settings copy back to this row as its
+origin.
+
+The claim that it was wrongly corrected came from reading the previous handoff's summary of the
+row rather than the row itself. That is precisely the failure
+`.claude/skills/oi-claim-audit/SKILL.md` exists to prevent, committed three turns after the skill
+was written. **Read the artifact, not the summary of the artifact.**
+
+What was genuinely wrong is narrower: the corrected body says "there is no Apple 'Evaluations
+framework' import either", which reads as though none exists to import. One does, new in Xcode 27,
+postdating that row. Fixed 2026-08-07 with a dated addendum bounding that sentence; the row keeps
+Completed and no property changed. The adoption work had no tracking at all, so it now has its own
+row: [Adopt Apple's Evaluations framework for answer-quality grading](https://app.notion.com/p/3b549a74d54f814cbb06fa629417b657)
+(To Do / Orchestration / High / v5.0).
 
 ---
 
