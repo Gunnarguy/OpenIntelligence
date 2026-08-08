@@ -257,7 +257,13 @@ class ImageUnderstandingService {
                     observation.topCandidates(1).first?.string
                 }
 
-                let combinedText = textLines.joined(separator: " ")
+                // Newline, not space. These are the OCR lines of a page in reading order, and
+                // joining them with a space destroys every row, column and paragraph boundary in
+                // one step: a photographed invoice's line items, dates and amounts become a single
+                // unbroken sentence. The chunker then sees one paragraph, the embedding averages
+                // the whole page, and no downstream stage can recover the structure because the
+                // information is gone before chunking runs.
+                let combinedText = textLines.joined(separator: "\n")
                     .trimmingCharacters(in: .whitespacesAndNewlines)
 
                 if combinedText.isEmpty {
@@ -951,11 +957,15 @@ class ImageUnderstandingService {
 
         // OCR text (critical for labels, product names, etc.)
         if let text = extractedText, !text.isEmpty {
+            // Line structure is preserved here too. This used to collapse newlines to spaces a
+            // second time, so even if OCR line breaks survived the join above they were destroyed
+            // on the way into the chunk text. Runs of spaces are still squeezed, and blank lines
+            // collapsed, because those carry no structure; single newlines do.
             let cleanedText = text
-                .replacingOccurrences(of: "\n", with: " ")
-                .replacingOccurrences(of: "  ", with: " ")
+                .replacingOccurrences(of: "[ \\t]+", with: " ", options: .regularExpression)
+                .replacingOccurrences(of: "\n{3,}", with: "\n\n", options: .regularExpression)
                 .trimmingCharacters(in: .whitespacesAndNewlines)
-            textParts.append("Text: \"\(cleanedText)\"")
+            textParts.append("Text:\n\(cleanedText)")
         }
 
         // AI description (most valuable for semantic understanding)

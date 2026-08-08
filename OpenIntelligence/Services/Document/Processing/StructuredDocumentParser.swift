@@ -497,13 +497,54 @@ struct StructuredPageContent: Sendable {
         }
     }
 
-    /// Use structured elements if quality is good, otherwise fall back to raw text
+    /// Structured elements, repaired with recovered raw text when the structured parse was thin.
+    ///
+    /// Merges rather than chooses. The previous version returned raw text ONLY when the parse found
+    /// no table or list, so a low-quality page that happened to capture one table kept the table and
+    /// silently discarded everything else — including the fallback text the parser had already gone
+    /// to the trouble of re-OCRing at `performTextRecognitionFallback`.
+    ///
+    /// That fires on exactly the highest-value pages. A scanned datasheet where the parse nails one
+    /// table but transcribes a fifth of the surrounding prose shipped with four fifths of the page
+    /// missing from chunks, from FTS5 and from the vector index, and the only trace was a warning
+    /// in the log. Now the structured elements are kept AND the recovered prose is appended, minus
+    /// anything the elements already cover.
     nonisolated var effectiveContent: [StructuredElement] {
-        // If structured parsing captured less than 50% of raw text, use raw text instead
-        if qualityScore < 0.5 && !rawText.isEmpty && !hasStructuredContent {
+        guard qualityScore < 0.5, !rawText.isEmpty else { return elements }
+
+        if !hasStructuredContent {
             return [.paragraph(text: rawText, pageNumber: pageNumber)]
         }
-        return elements
+
+        // Keep the structure, add back what the structured parse missed.
+        let covered = Self.normalizedForCoverage(
+            elements.map(Self.plainText(of:)).joined(separator: " ")
+        )
+        let recovered = rawText
+            .components(separatedBy: .newlines)
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { line in
+                guard line.count > 2 else { return false }
+                return !covered.contains(Self.normalizedForCoverage(line))
+            }
+
+        guard !recovered.isEmpty else { return elements }
+        return elements + [.paragraph(text: recovered.joined(separator: "\n"), pageNumber: pageNumber)]
+    }
+
+    /// Lowercased alphanumerics only, so a coverage check is not defeated by whitespace or
+    /// punctuation differences between the structured serialisation and the raw OCR text.
+    nonisolated static func normalizedForCoverage(_ text: String) -> String {
+        text.lowercased().filter { $0.isLetter || $0.isNumber }
+    }
+
+    /// The text carried by an element, for coverage comparison only.
+    nonisolated static func plainText(of element: StructuredElement) -> String {
+        switch element {
+        case let .paragraph(text, _): return text
+        case let .title(text, _): return text
+        default: return String(describing: element)
+        }
     }
 }
 

@@ -4930,7 +4930,14 @@ class DocumentProcessor {
             text: fullText,
             pageInfo: pageInfo,
             structuredElements: allElements,
-            usedStructuredParsing: pagesWithStructure > 0
+            // True when structured extraction produced anything usable, not only when it found a
+            // table or a list. `pagesWithStructure` counts tables and lists alone, so a document
+            // full of diagrams and headings but containing no table reported `false` here, took the
+            // flat-text branch at the call site, and threw away every structured element — titles,
+            // figure descriptions, and the embedded-image analysis chunks appended just above.
+            // The Neural Engine time to OCR the labels inside each figure was spent and the result
+            // discarded before indexing, while the ingestion HUD reported success.
+            usedStructuredParsing: pagesWithStructure > 0 || !allElements.isEmpty
         )
     }
 
@@ -7334,6 +7341,39 @@ class DocumentProcessor {
         Log.debug("[DocumentProcessor] - Classifications: \(analysis.classifications.count)", category: .ingestion)
         Log.debug("[DocumentProcessor] - OCR: \(analysis.extractedText?.count ?? 0) chars", category: .ingestion)
         Log.debug("[DocumentProcessor] - AI description: \(analysis.aiDescription != nil ? "yes" : "no")", category: .ingestion)
+
+        // Prefer Vision's document understanding when the image is a document.
+        //
+        // `RecognizeDocumentsRequest` returns cell-level table structure; the OCR inside
+        // `analyzeStandaloneImage` uses `VNRecognizeTextRequest`, which returns text lines in
+        // reading order and cannot express that a value belongs to a row and a column. Until now
+        // this path was the only one that never got the structured parser, so the same table gave
+        // cell structure inside a PDF and flat lines when photographed or screenshotted — same
+        // content, opposite quality, with nothing in the UI to explain the difference.
+        //
+        // The classification and AI description from `analyzeStandaloneImage` are still worth
+        // keeping, so the structured text is prepended to them rather than replacing them. Any
+        // failure falls straight back to the previous behaviour: this can add structure, never
+        // remove it.
+        if let structured = try? await StructuredDocumentParser.shared.parsePageImage(
+            image,
+            pageNumber: 1,
+            customWords: []
+        ) {
+            let structuredText = structured.effectiveContent
+                .map(StructuredPageContent.plainText(of:))
+                .filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+                .joined(separator: "\n\n")
+
+            if !structuredText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                Log.debug(
+                    "[DocumentProcessor] - Structured parse: \(structured.elements.count) element(s), "
+                        + "\(structuredText.count) chars (quality \(String(format: "%.2f", structured.qualityScore)))",
+                    category: .ingestion
+                )
+                return structuredText + "\n\n" + analysis.structuredText
+            }
+        }
 
         // Return the structured text which includes all visual understanding
         return analysis.structuredText
