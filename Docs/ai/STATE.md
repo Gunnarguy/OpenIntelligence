@@ -2,7 +2,7 @@
 
 Updated: 2026-08-08
 Branch/worktree: main, primary checkout
-Last verified commit: 408032f
+Last verified commit: 493d577
 
 ## Objective
 
@@ -79,12 +79,24 @@ claims and this repository has been burned by collapsing them before.
 
 ## Blockers / Unknowns
 
-**No retrieval number exists yet, and producing one needs a corpus.** The harness scores whatever it
-retrieves, but `Benchmarks/rag_eval_v1.jsonl`'s `expectedCitations` name documents that must actually
-be ingested and indexed for a run to mean anything. `Docs/TestDocuments/` is six small ingestion edge
-cases and tests no answer quality, and `rag_validation_sample.json` points at a gitignored PDF.
-Verify: pick a container, confirm the 18 cited filenames resolve to indexed documents in it, and only
-then run the harness.
+**`RAGEvalRunner` has zero call sites. It is unreachable, so it cannot be run at all.**
+`grep -rn RAGEvalRunner --include=*.swift OpenIntelligence/ OpenIntelligenceTests/` returns only
+comments. The type is correct, built and tested, and nothing invokes it. This is the real blocker on
+producing a retrieval number, and it is a missing entry point rather than missing data.
+
+**Correction, 2026-08-08:** an earlier version of this file said a number was "blocked on corpus"
+because the cited documents were not committed. That was wrong. The corpus is committed at
+`Benchmarks/ResearchFixtures/tiny_research_suite/fixtures/`, 29 files, and all **18 of 18**
+`expectedCitations` filenames resolve to real fixture files. `rag_eval_v1.jsonl` is generated from
+that suite's `manifest.json` by `scripts/build_eval_dataset.py`, as its own header states. The
+`Docs/TestDocuments/` and gitignored-PDF observations were about unrelated fixtures.
+
+**The harness that works is a different mechanism, and it does not measure retrieval.**
+`OpenIntelligence/App/DebugRAGValidationHarness.swift` runs headlessly, ingests the fixture corpus,
+runs the cases and prints a text report; `scripts/run_quality_matrix.py` drives a built **macOS**
+binary and parses that output. It has produced 27 runs under `BenchmarkRuns/`. The most recent,
+`20260730-091821-matrix`, measured answer accuracy per quality mode, not retrieval recall, and
+recorded that deep-think and maximum produced no answer on most cases headlessly.
 
 **Unverified on device.** Everything above is simulator-verified. Foundation Models needs real
 hardware with Apple Intelligence, so any quality-mode comparison from a simulator run describes
@@ -92,12 +104,18 @@ retrieval only, not generation.
 
 ## Exact Next Action
 
-Produce the first measured retrieval number, or decide explicitly not to yet.
+Give `RAGEvalRunner` an entry point, then run it. It has no caller, so there is nothing to invoke.
 
-Concretely: ingest a container whose documents cover the 18 `expectedCitations` filenames in
-`Benchmarks/rag_eval_v1.jsonl`, run `RAGEvalRunner.run(dataset:ragService:)` against it, then call
-`RAGEvalRunner.aggregateStageMetrics(_:)` on the results and read recall@5 per stage in pipeline
-order.
+The cheapest correct route reuses what already works rather than building a second harness:
+`DebugRAGValidationHarness` already runs headlessly, already ingests
+`Benchmarks/ResearchFixtures/tiny_research_suite/fixtures/`, and already prints a report that
+`scripts/run_quality_matrix.py` parses. Attach a `RetrievalTraceCollector` there, score it with
+`RetrievalStageEvaluator`, emit a `STAGE METRICS` block beside the existing `ANSWER` block, and
+teach the Python side to parse it.
+
+Note the run needs a **macOS** Debug build, not the simulator: that is what the 27 existing runs in
+`BenchmarkRuns/` used, and Foundation Models needs real hardware for generation. Retrieval stages are
+measurable regardless of whether generation succeeds, which is the point of scoring them separately.
 
 What the shape of that output tells you, which is the point of the whole exercise: if recall is
 already low at `vector` and `lexical`, first-stage retrieval is the problem and no amount of
