@@ -440,7 +440,11 @@ class CameraManager: NSObject, ObservableObject {
                 return box1.minX < box2.minX
             }
 
-            recognizedText = sorted.compactMap { $0.topCandidates(1).first?.string }.joined(separator: " ")
+            // Newline, not space. These observations were just sorted into reading order, and
+            // joining them with a space discards every line, row and paragraph boundary that
+            // ordering established — a photographed table arrives as one unbroken sentence. Same
+            // defect as the standalone-image path, fixed alongside it.
+            recognizedText = sorted.compactMap { $0.topCandidates(1).first?.string }.joined(separator: "\n")
         }
         textRequest.recognitionLevel = .accurate
         textRequest.usesLanguageCorrection = true
@@ -523,6 +527,41 @@ class CameraManager: NSObject, ObservableObject {
                     try requestHandler.perform([textRequest, classifyRequest, animalRequest])
                 } catch {
                     Log.error("[CameraManager] Capture analysis failed: \(error.localizedDescription)", category: .ingestion)
+                }
+            }
+        }
+
+        // Prefer Vision's document understanding for document captures.
+        //
+        // `VNRecognizeTextRequest` above returns text lines in reading order and cannot express
+        // that a value belongs to a row and a column. `RecognizeDocumentsRequest` parses the table
+        // and groups cells into rows for you (WWDC25, "Read documents using the Vision framework").
+        // Until now that API was reachable only from PDF and, as of today, standalone image import,
+        // so photographing a spec sheet produced flat text while importing the same page as a PDF
+        // produced cell structure — same content, opposite quality, with nothing in the UI to
+        // explain the difference.
+        //
+        // Document captures only: a photo of a pet or a landscape has no document structure to
+        // find, and this would be wasted work. Failure or an empty parse leaves `recognizedText`
+        // exactly as the request above produced it, so this can add structure and never remove it.
+        if isDocumentCapture {
+            if let structured = try? await StructuredDocumentParser.shared.parsePageImage(
+                ciImage,
+                pageNumber: 1,
+                customWords: []
+            ) {
+                let structuredText = structured.effectiveContent
+                    .map(StructuredPageContent.plainText(of:))
+                    .filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+                    .joined(separator: "\n\n")
+
+                if !structuredText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    Log.info(
+                        "[CameraManager] Structured capture parse: \(structured.elements.count) element(s), "
+                            + "\(structuredText.count) chars (was \(recognizedText.count) flat)",
+                        category: .ingestion
+                    )
+                    recognizedText = structuredText
                 }
             }
         }
