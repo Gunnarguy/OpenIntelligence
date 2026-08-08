@@ -1,10 +1,4 @@
 {
-  "permissions": {
-    "deny": [
-      "mcp__b31b8875-1712-42eb-9c02-1cc478fa694e",
-      "mcp__9ee579cb-760f-4a83-b619-acd1c29dd6e9"
-    ]
-  },
   "hooks": {
     "SessionStart": [
       {

@@ -24,8 +24,10 @@ quality gate could never pass. This repository has never measured its own retrie
 - `RetrievalTraceCollector.swift` (new, untracked). Six canonical stages: `vector`, `lexical`,
   `fusion`, `boosted`, `rerank`, `final`. `NSLock`-guarded, one instance per query, explicitly not a
   singleton or task-local because retrieval runs concurrent child tasks.
-- `HybridSearchService`: `trace: RetrievalTraceCollector? = nil` added to `search` (line 202) and
-  `searchWithFTS5` (line 881), and forwarded between them (line 207).
+- `HybridSearchService`: `trace:` threaded into both `search` (line 202) and `searchWithFTS5`
+  (line 881), forwarded between them, and **five of the six stages recorded in each path** —
+  `.vector`, `.lexical`, `.fusion`, `.boosted`, `.final`. Ten record calls total, lines 283-295 and
+  1075-1079. Both paths are instrumented, not just the fallback.
 - `RetrievalStageMetrics.swift`: `RetrievalStageTrace` moved out to the new file, with a comment
   explaining the target-membership reason. `RetrievalStageEvaluator.score(traces:expectedSources:)`
   scores a query's stages and rolls them up.
@@ -48,7 +50,8 @@ quality gate could never pass. This repository has never measured its own retrie
   as a release and reported `v0.5` at `confidence: exact`, so every preflight's changelog,
   release-notes and Notion targets were wrong. Now derived from `CHANGELOG.md` alone and reported as
   `version` + `state` + `last_shipped`, with a `<!-- next-version: 5.0 -->` marker naming the target.
-- Supabase and Docusign MCP connectors denied for this repository in `.claude/settings.json`.
+- Supabase and Docusign MCP connectors denied for this repository in `.claude/settings.local.json`,
+  which is machine-local and gitignored so the connector ids are not published.
 - `notion-roadmap` skill added. Claude Code never loads `.agents/workflows/`, so the roadmap recipe
   had been unreachable from Claude Code entirely; the version in `.agents/` also described the wrong
   call shape for the connected server, which takes SQL rather than filter objects.
@@ -96,10 +99,11 @@ quality gate could never pass. This repository has never measured its own retrie
 
 ## Blockers / Unknowns
 
-**Unknown: how many stages the FTS5 path can record without restructuring.** `searchWithFTS5`
-accepts `trace:` and records nothing at all. Its vector, FTS5-keyword, and structured-row tasks run
-concurrently, so the recording points may not sit where they do in the legacy path.
-Verify: read `searchWithFTS5` from line 873 and locate the equivalent of each canonical stage.
+**Correction, 2026-08-07:** an earlier version of this file claimed `searchWithFTS5` recorded
+nothing and that only `.final` was captured. That was wrong, produced by grepping the literal string
+`trace?.record`, which misses the `trace.record` calls inside `if let trace {` blocks. Both paths
+record five of six stages. Grep for `trace\??\.record` instead. The real gap is `.rerank` plus the
+`queryWithAudit` threading.
 
 **Unknown: whether the Swift suite still passes.** `CHANGELOG.md` records `suite 173/173`
 test-verified on 2026-08-07 across 22 test files, but that predates the uncommitted retrieval
@@ -108,16 +112,22 @@ Verify: run the test command in [RUNBOOK.md](RUNBOOK.md).
 
 ## Exact Next Action
 
-Record the five unrecorded stages in `HybridSearchService`. Right now exactly one
-`trace?.record` call exists in the entire file: `.final` at line 295, in the legacy `search` path.
-`vector`, `lexical`, `fusion`, `boosted`, and `rerank` are recorded nowhere, and `searchWithFTS5`
-records nothing at all, so any trace collected today is a single-stage trace and
-`RetrievalStageEvaluator` has nothing to compare across stages.
+Record the `.rerank` stage in both search paths. It is the one canonical stage of the six that is
+recorded nowhere, and it is the stage the whole exercise exists to measure: reranking cannot recover
+a chunk the first stage never returned, so a per-stage report without it cannot attribute a
+regression to the reranker.
 
-Start with `searchWithFTS5` (line 873), because that is the accelerated path that actually runs. For
-each stage, record the rank-ordered results at the point the stage produces them, best-first, without
-sorting or deduplicating, since ordering is exactly what the ranking metrics exist to detect. Both
-paths must record `.lexical` for their respective keyword results so a report has stable columns.
+In `search` the block at lines 283-286 records `.vector`, `.lexical`, `.fusion` and `.boosted`;
+add `.rerank` with the cross-encoder's output. Same for `searchWithFTS5` at lines 1075-1079.
 
-Then thread the collector through `RAGService.queryWithAudit` so `RAGEvalRunner` can construct one
-per case and pass the stages to `RetrievalStageEvaluator.score`. Then build.
+Then thread the collector through `RAGService.queryWithAudit`
+(`Services/RAG/Orchestration/RAGService.swift:8402`), which currently takes no `trace` parameter and
+returns `(RAGResponse, RAGAuditSnapshot?)`. That is the only remaining break in the chain:
+`RAGEvalRunner` calls `queryWithAudit` and so has no way to receive a collector it constructs.
+
+Then have `RAGEvalRunner.evaluate` build one collector per case, pass it down, and score
+`collector.stages(inOrder:)` through `RetrievalStageEvaluator.score(traces:expectedSources:)`.
+
+Then build (`bash scripts/build_simulator_smoke.sh`) and run the suite. Route
+`retrieval_tuning_change` also requires `Docs/RETRIEVAL_PIPELINE.md` and a `**[Retrieval]**`
+CHANGELOG entry in the same turn.

@@ -248,8 +248,10 @@ oversight; a future session should read this before "adding the missing piece".
 | `/init`, `/import` | Available, not used. `/init` is interactive and `/import` would have bulk-appended the whole of `AGENTS.md`, which is the thing `DECISIONS.md` records declining. |
 | MCP servers | Notion is in use, through the `notion-roadmap` skill. Supabase and Docusign are denied for this repository in `.claude/settings.json` (see below). `MCP_DOCKER` is configured in `~/.claude.json` and was failing `-32000: Connection closed` on 2026-08-07; unused here either way. |
 
-**Denied connectors.** `.claude/settings.json` denies two whole servers by id, because connector
-tools carry no human-readable server name:
+**Denied connectors.** `.claude/settings.local.json`, which is machine-local and gitignored, denies
+two whole servers by id. Connector tools carry no human-readable server name, so the rules name
+opaque per-install ids; keeping them out of the tracked file avoids publishing which connectors are
+installed on a given machine, and the ids would be meaningless to anyone else anyway.
 
 | Denied id | Connector |
 |---|---|
