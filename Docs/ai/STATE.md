@@ -2,7 +2,7 @@
 
 Updated: 2026-08-07
 Branch/worktree: main, primary checkout
-Last verified commit: a8af8cf
+Last verified commit: c8f9c5a
 
 ## Objective
 
@@ -18,6 +18,12 @@ Why this matters: `retrievalRecallAt5` has reported exactly `0.0` on every run r
 retrieval quality, because every case in `Benchmarks/rag_eval_v1.jsonl` carries
 `groundTruthChunkIds: null` and the runner only scored recall when those were present. The `>= 0.85`
 quality gate could never pass. This repository has never measured its own retrieval.
+
+**Correction, 2026-08-07:** an earlier version of this file claimed `searchWithFTS5` recorded
+nothing and that only `.final` was captured. That was wrong, produced by grepping the literal string
+`trace?.record`, which misses the `trace.record` calls inside `if let trace {` blocks. Both paths
+record five of six stages. Grep for `trace\??\.record` instead. The real gap is `.rerank` plus the
+`queryWithAudit` threading.
 
 ## Completed
 
@@ -98,12 +104,6 @@ quality gate could never pass. This repository has never measured its own retrie
 - `.claude/hooks/session-start.sh` -> prints the brief, exits 0. Run 2026-08-07.
 
 ## Blockers / Unknowns
-
-**Correction, 2026-08-07:** an earlier version of this file claimed `searchWithFTS5` recorded
-nothing and that only `.final` was captured. That was wrong, produced by grepping the literal string
-`trace?.record`, which misses the `trace.record` calls inside `if let trace {` blocks. Both paths
-record five of six stages. Grep for `trace\??\.record` instead. The real gap is `.rerank` plus the
-`queryWithAudit` threading.
 
 **Unknown: whether the Swift suite still passes.** `CHANGELOG.md` records `suite 173/173`
 test-verified on 2026-08-07 across 22 test files, but that predates the uncommitted retrieval

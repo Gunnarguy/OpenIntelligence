@@ -82,7 +82,10 @@ Last verified commit: <short sha>
 ```
 
 `Last verified commit:` must be the short SHA on its own, because the SessionStart hook parses that
-line to detect drift.
+line to detect drift. Set it to `git rev-parse --short HEAD` **at the moment you write the file**.
+A file cannot name the commit that contains it, so committing the handoff leaves it exactly one
+behind; the hook allows for that and only warns past one. If you write the handoff and then make
+two more commits without touching it, the warning fires and it is correct to.
 
 ## Do not
 
