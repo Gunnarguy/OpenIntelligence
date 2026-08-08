@@ -8384,7 +8384,8 @@ class RAGService: ObservableObject {
         containerId: UUID? = nil,
         qualityModeOverride: RAGQualityMode? = nil,
         externalEvidence: [EvidenceSource]? = nil,
-        streamHandler: LLMStreamHandler? = nil
+        streamHandler: LLMStreamHandler? = nil,
+        trace: RetrievalTraceCollector? = nil
     ) async throws -> RAGResponse {
         resetThinkingTimeline()
         return try await LLMStreamingContext.$handler.withValue(streamHandler) {
@@ -8394,11 +8395,17 @@ class RAGService: ObservableObject {
                 config: config,
                 containerId: containerId,
                 qualityModeOverride: qualityModeOverride,
-                externalEvidence: externalEvidence
+                externalEvidence: externalEvidence,
+                trace: trace
             )
         }
     }
 
+    /// - Parameter trace: optional per-query stage recorder for the retrieval benchmark. Nil
+    ///   everywhere except the evaluation harness, where the only cost is a nil check per stage.
+    ///   This overload owns the `.final` stage because it is the boundary at which retrieval's
+    ///   output becomes the response; `HybridSearchService` records the stages up to `.candidates`
+    ///   and `queryInternal` records `.rerank`.
     func queryWithAudit(
         _ question: String,
         topK: Int = 3,
@@ -8406,7 +8413,8 @@ class RAGService: ObservableObject {
         containerId: UUID? = nil,
         qualityModeOverride: RAGQualityMode? = nil,
         externalEvidence: [EvidenceSource]? = nil,
-        streamHandler: LLMStreamHandler? = nil
+        streamHandler: LLMStreamHandler? = nil,
+        trace: RetrievalTraceCollector? = nil
     ) async throws -> (response: RAGResponse, auditSnapshot: RAGAuditSnapshot?) {
         let response = try await query(
             question,
@@ -8415,8 +8423,10 @@ class RAGService: ObservableObject {
             containerId: containerId,
             qualityModeOverride: qualityModeOverride,
             externalEvidence: externalEvidence,
-            streamHandler: streamHandler
+            streamHandler: streamHandler,
+            trace: trace
         )
+        trace?.record(.final, results: response.retrievedChunks)
         return (response, lastAuditSnapshot)
     }
 
@@ -8426,7 +8436,8 @@ class RAGService: ObservableObject {
         config: InferenceConfig?,
         containerId: UUID?,
         qualityModeOverride: RAGQualityMode?,
-        externalEvidence: [EvidenceSource]? = nil
+        externalEvidence: [EvidenceSource]? = nil,
+        trace: RetrievalTraceCollector? = nil
     ) async throws -> RAGResponse {
         // Mark query start in trace file for pipeline debugging
         Log.traceQueryStart(question)
@@ -9446,7 +9457,8 @@ class RAGService: ObservableObject {
                         topK: effectiveTopK * 3,
                         cachedChunks: filteredCachedChunks,
                         containerId: selectedId,
-                        isOverviewQuery: answerIntent == .summarize
+                        isOverviewQuery: answerIntent == .summarize,
+                        trace: trace
                     )
 
                     // UNIVERSAL FIX 9: Multi-vector supplementary retrieval.
@@ -9878,6 +9890,14 @@ class RAGService: ObservableObject {
                         detail: "Quality mode: \(qualityModeDisplayName)"
                     )
                 }
+
+                // Stage capture for the retrieval benchmark. Recorded after the if/else so it
+                // covers both branches: when the quality mode skips the cross-encoder,
+                // `rerankedChunks` is a score-sorted passthrough and the stage still describes what
+                // the pipeline handed onward. Recording only inside the reranking branch would make
+                // the stage silently absent for Standard mode, which is the mode with the measured
+                // baseline and therefore the one most likely to be benchmarked.
+                trace?.record(.rerank, results: rerankedChunks)
 
                 let cascadeTopSim = rerankedChunks.first?.similarityScore ?? 0
                 let cascadeAvgTop5: Float = {

@@ -136,4 +136,12 @@ struct RAGEvalResult: Codable, Identifiable, Sendable {
 
     /// Timestamp of evaluation
     let timestamp: Date
+
+    /// Per-stage retrieval metrics for this case, in pipeline order.
+    ///
+    /// `nil` when no trace collector was attached, which is every path except the evaluation
+    /// harness. Declared `var` with a default so the synthesised memberwise initialiser keeps a
+    /// default for it and existing call sites are unaffected; a `let` with an initial value would
+    /// be excluded from that initialiser and pinned to `nil` forever.
+    var stageMetrics: [RetrievalStageMetrics]? = nil
 }

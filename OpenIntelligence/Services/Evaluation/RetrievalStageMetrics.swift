@@ -260,18 +260,13 @@ struct AggregateStageMetrics: Codable, Sendable, Equatable {
     }
 }
 
-// MARK: - Stage capture
+// MARK: - Stage scoring
 
-/// Rank-ordered output of one named retrieval stage for one query.
-struct RetrievalStageTrace: Sendable {
-    let stage: String
-    let results: [RetrievedChunk]
-
-    init(stage: String, results: [RetrievedChunk]) {
-        self.stage = stage
-        self.results = results
-    }
-}
+// `RetrievalStageTrace` and `RetrievalTraceCollector` deliberately live in
+// `Services/RAG/Retrieval/RetrievalTraceCollector.swift` rather than here. `OpenIntelligenceEngine`
+// is a separate target whose synchronized root groups include `Services/RAG` but not
+// `Services/Evaluation`, so a type referenced by `HybridSearchService` cannot live in this folder.
+// The split also matches the right layering: retrieval reports what it did, evaluation grades it.
 
 /// Scores a full multi-stage retrieval trace for one query, then rolls traces up across queries.
 ///

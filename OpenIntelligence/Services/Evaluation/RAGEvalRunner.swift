@@ -35,7 +35,15 @@ final class RAGEvalRunner: Sendable {
         
         return results
     }
-    
+
+    /// Roll the per-case stage metrics up into one aggregate per pipeline stage.
+    ///
+    /// Cases with no stage metrics are skipped rather than counted as zero, so abstention cases
+    /// and failed runs cannot drag a stage's recall down without ever having been retrieved for.
+    static func aggregateStageMetrics(_ results: [RAGEvalResult]) -> [AggregateStageMetrics] {
+        RetrievalStageEvaluator.aggregate(perQuery: results.compactMap(\.stageMetrics))
+    }
+
     /// Evaluates a single test case.
     func evaluate(
         case evalCase: RAGEvalCase,
@@ -53,11 +61,17 @@ final class RAGEvalRunner: Sendable {
             }
         }
         
+        // One collector per case. Reusing one across cases would interleave their stages with no
+        // way to separate them afterwards, which is the attribution loss the type exists to
+        // prevent.
+        let trace = RetrievalTraceCollector()
+
         do {
             let (response, _) = try await ragService.queryWithAudit(
                 evalCase.query,
                 containerId: containerUUID,
-                qualityModeOverride: qualityMode
+                qualityModeOverride: qualityMode,
+                trace: trace
             )
             
             let latency = Date().timeIntervalSince(startTime)
@@ -76,6 +90,17 @@ final class RAGEvalRunner: Sendable {
             }
             
             // 2. Retrieval Recall
+            //
+            // This previously scored only when `groundTruthChunkIds` was non-empty, matching those
+            // against `chunk.id.uuidString`. Every case in the committed `rag_eval_v1.jsonl` carries
+            // `groundTruthChunkIds: null` and holds ground truth in `expectedCitations` as a
+            // filename, so recall was `nil` for every case, `RAGEvalMetrics.compute` compactMapped
+            // an empty array, and `retrievalRecallAt5` reported exactly 0.0 on every run regardless
+            // of retrieval quality. The `>= 0.85` gate could never pass.
+            //
+            // Chunk IDs are still honoured when a case supplies them, since they are the more
+            // precise ground truth. Filenames are the documented fallback, matched through
+            // `RetrievalRelevanceJudge` so normalisation matches the per-stage metrics.
             var recall: Double? = nil
             if let gtIds = evalCase.groundTruthChunkIds, !gtIds.isEmpty {
                 let retrievedIds = response.retrievedChunks.map { $0.chunk.id.uuidString.lowercased() }
@@ -83,20 +108,48 @@ final class RAGEvalRunner: Sendable {
                     retrievedIds.contains(gtId.lowercased())
                 }.count
                 recall = Double(matched) / Double(gtIds.count)
-            }
-            
-            // 3. Citation Precision
-            var precision: Double? = nil
-            if let expectedCits = evalCase.expectedCitations, !expectedCits.isEmpty {
-                let responseText = generatedAnswer.lowercased()
-                let citedCount = expectedCits.filter { cit in
-                    responseText.contains(cit.lowercased())
+            } else if let expectedSources = evalCase.expectedCitations, !expectedSources.isEmpty {
+                let matched = expectedSources.filter { expected in
+                    response.retrievedChunks.contains { chunk in
+                        RetrievalRelevanceJudge.matches(chunk, expected: expected)
+                    }
                 }.count
-                precision = Double(citedCount) / Double(expectedCits.count)
-            } else if response.retrievedChunks.isEmpty {
-                precision = 1.0
-            } else {
-                precision = 1.0
+                recall = Double(matched) / Double(expectedSources.count)
+            }
+
+            // 3. Citation Precision
+            //
+            // Precision is "of the sources this answer rests on, how many are the right ones".
+            // This previously asked whether the generated *prose* literally contained the string
+            // `vehicle_specs.md`, which measures whether the model typed a filename rather than
+            // whether it used the right source, and then returned a hardcoded 1.0 in both remaining
+            // branches, so it could essentially never report a failure.
+            //
+            // Now computed over the distinct source documents actually retrieved. Cases with no
+            // expected citations, which are the abstention cases, are left unscored rather than
+            // awarded 1.0, so they neither inflate nor deflate the aggregate.
+            var precision: Double? = nil
+            if let expectedSources = evalCase.expectedCitations, !expectedSources.isEmpty {
+                let distinctSources = Set(
+                    response.retrievedChunks
+                        .map { RetrievalRelevanceJudge.normalize($0.sourceDocument) }
+                        .filter { !$0.isEmpty }
+                )
+
+                if distinctSources.isEmpty {
+                    // Retrieval returned nothing usable. That is a miss, not a perfect score.
+                    precision = 0.0
+                } else {
+                    let correct = Set(
+                        response.retrievedChunks
+                            .filter { chunk in
+                                expectedSources.contains { RetrievalRelevanceJudge.matches(chunk, expected: $0) }
+                            }
+                            .map { RetrievalRelevanceJudge.normalize($0.sourceDocument) }
+                            .filter { !$0.isEmpty }
+                    )
+                    precision = Double(correct.count) / Double(distinctSources.count)
+                }
             }
             
             // 4. Abstention Correctness
@@ -129,6 +182,20 @@ final class RAGEvalRunner: Sendable {
                 }
             }
             
+            // 7. Per-stage retrieval metrics.
+            //
+            // Scored against the same expected sources recall uses, through the same
+            // `RetrievalRelevanceJudge`, so a stage number and the case's recall cannot disagree
+            // about what counts as relevant. Nil rather than an empty array when the case has no
+            // expected sources (the abstention cases) or nothing was recorded, so an unscored case
+            // is distinguishable from one that scored zero.
+            let stageMetrics: [RetrievalStageMetrics]? = {
+                guard let expectedSources = evalCase.expectedCitations, !expectedSources.isEmpty else { return nil }
+                let traces = trace.stages(inOrder: RetrievalTraceCollector.Stage.allCases)
+                guard !traces.isEmpty else { return nil }
+                return RetrievalStageEvaluator.score(traces: traces, expectedSources: expectedSources)
+            }()
+
             return RAGEvalResult(
                 id: evalCase.id,
                 query: evalCase.query,
@@ -143,7 +210,8 @@ final class RAGEvalRunner: Sendable {
                 contextOverflow: contextOverflow,
                 usedVisualEvidence: usedVisualEvidence,
                 warnings: response.qualityWarnings,
-                timestamp: Date()
+                timestamp: Date(),
+                stageMetrics: stageMetrics
             )
             
         } catch {

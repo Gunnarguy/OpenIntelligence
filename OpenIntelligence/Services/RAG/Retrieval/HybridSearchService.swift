@@ -196,12 +196,15 @@ class HybridSearchService {
     ///   - topK: Number of top results to return
     ///   - cachedChunks: Optional pre-fetched chunks to avoid re-loading allChunks() for lexical recall
     ///   - containerId: Optional container ID to enable FTS5-accelerated BM25 scoring
-    func search(query: String, originalQuery: String? = nil, embedding: [Float], topK: Int, cachedChunks: [DocumentChunk]? = nil, containerId: UUID? = nil, isOverviewQuery: Bool = false) async throws -> [RetrievedChunk] {
+    /// - Parameter trace: optional per-query stage recorder used by the retrieval benchmark. Nil in
+    ///   production, where the only cost is one nil check per stage. See `RetrievalTraceCollector`
+    ///   for why this is a parameter rather than a wider return type or a shared sink.
+    func search(query: String, originalQuery: String? = nil, embedding: [Float], topK: Int, cachedChunks: [DocumentChunk]? = nil, containerId: UUID? = nil, isOverviewQuery: Bool = false, trace: RetrievalTraceCollector? = nil) async throws -> [RetrievedChunk] {
         let boostQuery = originalQuery ?? query
         // Auto-select FTS5 path if containerId provided and FTS5 data available
         if let cid = containerId, await isFTS5Available(containerId: cid) {
             Log.debug("[Hybrid] Using FTS5-accelerated BM25 for container \(cid)", category: .pipeline)
-            return try await searchWithFTS5(query: query, originalQuery: boostQuery, embedding: embedding, topK: topK, containerId: cid, cachedChunks: cachedChunks, isOverviewQuery: isOverviewQuery)
+            return try await searchWithFTS5(query: query, originalQuery: boostQuery, embedding: embedding, topK: topK, containerId: cid, cachedChunks: cachedChunks, isOverviewQuery: isOverviewQuery, trace: trace)
         }
 
         Log.debug("Hybrid search starting (vector: \(vectorWeight), keyword: \(keywordWeight))", category: .pipeline)
@@ -272,12 +275,30 @@ class HybridSearchService {
         // 6. Take top K from boosted results and re-rank index
         let topResults = Array(structureBoostedResults.prefix(topK))
 
+        // Stage capture for the retrieval benchmark. Recorded here rather than at each stage
+        // because every stage's output is still in scope, which keeps the instrumentation to one
+        // place instead of six scattered call sites. Order of `record` calls is irrelevant;
+        // `RetrievalTraceCollector.stages(inOrder:)` sorts into pipeline order on read.
+        //
+        // This service does not record `.rerank` or `.final`, because it does neither: reranking
+        // runs afterwards in `RAGService`, and what this returns is the reranker's input. Recording
+        // its own output as `.final` would report a number for a stage the pipeline has not
+        // reached, and would collide with the real one.
+        if let trace {
+            trace.record(.vector, results: vectorResultsFiltered)
+            trace.record(.lexical, results: keywordResults.map(\.chunk))
+            trace.record(.fusion, results: fusedResults)
+            trace.record(.boosted, results: structureBoostedResults)
+        }
+
         Log.debug(
             "Hybrid fusion: \(topResults.count) results from \(vectorResults.count) vector + \(keywordResults.count) BM25",
             category: .pipeline
         )
 
-        return sanitizeRetrievedChunks(reindex(topResults))
+        let finalResults = sanitizeRetrievedChunks(reindex(topResults))
+        trace?.record(.candidates, results: finalResults)
+        return finalResults
     }
 
     /// Boost chunks that contain EXACT matches of important query keywords.
@@ -861,7 +882,8 @@ class HybridSearchService {
         topK: Int,
         containerId: UUID,
         cachedChunks: [DocumentChunk]? = nil,
-        isOverviewQuery: Bool = false
+        isOverviewQuery: Bool = false,
+        trace: RetrievalTraceCollector? = nil
     ) async throws -> [RetrievedChunk] {
         let __spHybridSearch = PipelineSignposts.query.beginInterval("HybridSearch")
         defer { PipelineSignposts.query.endInterval("HybridSearch", __spHybridSearch) }
@@ -1049,7 +1071,22 @@ class HybridSearchService {
             category: .pipeline
         )
 
-        return sanitizeRetrievedChunks(reindex(Array(anchorAdjustedResults.prefix(topK))))
+        // Stage capture for the retrieval benchmark. This is the path that runs in production
+        // whenever a container has FTS5 data, so instrumenting only the fallback `search` above
+        // would report numbers for a path users do not hit. Recorded here because every stage's
+        // output is still in scope.
+        //
+        // `.candidates`, not `.final`: reranking runs afterwards in `RAGService`, so what this
+        // returns is the reranker's input. See the same note in `search` above.
+        let candidateResults = sanitizeRetrievedChunks(reindex(Array(anchorAdjustedResults.prefix(topK))))
+        if let trace {
+            trace.record(.vector, results: vectorResultsFiltered)
+            trace.record(.lexical, results: fts5KeywordResults.map(\.chunk))
+            trace.record(.fusion, results: fusedResults)
+            trace.record(.boosted, results: anchorAdjustedResults)
+            trace.record(.candidates, results: candidateResults)
+        }
+        return candidateResults
     }
 
     private func applyStateLookupAnchorBoost(query: String, results: [RetrievedChunk]) -> [RetrievedChunk] {
