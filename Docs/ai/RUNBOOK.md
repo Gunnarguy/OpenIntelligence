@@ -1,0 +1,274 @@
+# Runbook
+
+Every command below is labelled. **Verified** means it was run in this repository and its output
+read, with the date. **Recorded** means it comes from repository evidence but has not been re-run
+recently. Do not promote a recorded command to verified without running it.
+
+## Before anything else: the iCloud check
+
+The repository lives in iCloud-synced `~/Documents`. When a build fails in a way that makes no sense
+(duplicate symbols, invalid redeclaration, a type declared twice, a codesign "resource fork, Finder
+information, or similar detritus not allowed" error, or git reporting a broken ref name), run this
+**before** debugging code:
+
+```bash
+scripts/check_icloud_conflicts.sh --fix
+```
+
+*Recorded.* Read the script's header for what it repairs. `--quiet` reports only on damage and is
+what `build_simulator_smoke.sh` calls; plain invocation reports and exits 1 if damaged.
+
+`.git` is a file containing `gitdir: .git.nosync`. That is deliberate. Do not convert it back.
+
+## Setup, from a fresh clone
+
+*Recorded, not run from a clean machine.* The steps that are not obvious:
+
+1. **Clone outside `~/Documents`.** The existing checkout is inside it, which is the source of most
+   failures on this list, and `DECISIONS.md` records that as a live problem rather than a choice.
+   A new clone should not repeat it.
+2. **Xcode 27.** The existing machine has it at `/Applications/Xcode-beta.app`. The iOS deployment
+   target is 26.0 and the tests need an iOS 27 simulator runtime, which is a separate download in
+   Xcode's Platforms pane.
+3. **SwiftPM resolves on first build.** The only dependency is vendored in-tree at
+   `OpenIntelligence/swift-transformers`, so there is no network fetch to fail.
+4. **Fastlane needs Ruby.** `Gemfile` and `Gemfile.lock` are tracked; `bundle install` if you are
+   doing release work. Credentials come from `.env.appstore`, which is not in the repository.
+
+## Route the task
+
+```bash
+python3 .codex/skills/route-openintelligence-work/scripts/repoos_router.py preflight --task "<request>" --path <path>
+```
+
+*Verified 2026-08-07.* Prints the matched route, risk, approval mode, allowed and forbidden edit
+paths, required tests, and required doc updates. All binding.
+
+It reports the release as three facts, not one: `version` (what new work targets), `state`
+(`shipped` or `in_development`), and `last_shipped`. When `[Unreleased]` holds entries the state is
+`in_development` and `version` comes from the `<!-- next-version: X -->` marker beside the
+`[Unreleased]` heading in `CHANGELOG.md`. Move that marker when the target changes. If it reports
+`unreleased`, the next version has not been named: name it rather than guessing.
+
+## Build
+
+```bash
+bash scripts/build_simulator_smoke.sh
+```
+
+*Recorded.* The reliable path, and what the RepoOS routes require before ending a code-modifying
+turn. It runs the iCloud conflict check first, builds the `OpenIntelligence` scheme against
+`platform=iOS Simulator,name=iPhone 17 Pro`, writes DerivedData to `.simulator-smoke.nosync/`, then
+copies the `.app` to `/tmp`, strips extended attributes with `xattr -cr`, ad-hoc signs it there, and
+copies it back. Override the destination with `OPENINTELLIGENCE_SIMULATOR_DESTINATION`.
+
+Full log lands in `.simulator-smoke.nosync/xcodebuild.log`.
+
+## Run the app
+
+`build_simulator_smoke.sh` builds, strips, and codesigns, and then stops. It never installs or
+launches, so it proves the tree compiles and signs and nothing about runtime behavior.
+
+**Xcode is the supported path:** open `OpenIntelligence.xcodeproj`, pick an iOS 27 simulator, Run.
+
+To drive it headlessly from the built product, *unverified*, after a smoke build:
+
+```bash
+xcrun simctl install booted .simulator-smoke.nosync/DerivedData/Build/Products/Debug-iphonesimulator/OpenIntelligence.app
+```
+
+Foundation Models needs a real device with Apple Intelligence, so on-device generation and Private
+Cloud Compute routing cannot be exercised in the simulator at all. Anything claiming to verify
+routing behavior from a simulator run is wrong.
+
+## Test
+
+Scheme `OpenIntelligence`, test target `OpenIntelligenceTests`, Xcode 27 at
+`/Applications/Xcode-beta.app`.
+
+```bash
+xcodebuild test -scheme OpenIntelligence -destination "platform=iOS Simulator,id=<UDID>" -derivedDataPath /private/tmp/oi-build
+```
+
+*Recorded.* Two things are required and neither is the default:
+
+1. **Target an iOS 27 simulator explicitly.** The default and first-listed simulators are iOS 18.x
+   and fail destination resolution against the iOS 26.0 deployment target. A previously working
+   UDID was `8FA2B3CE-5EB0-4339-8629-F40684EDCE2D` (iPhone 17 Pro, iOS 27.0). UDIDs change when
+   runtimes are reinstalled, so query for a current one:
+
+   ```bash
+   DEVELOPER_DIR=/Applications/Xcode-beta.app/Contents/Developer xcrun simctl list devices available
+   ```
+
+   Plain `xcrun simctl` uses the wrong Xcode and hides the iOS 27 runtime.
+
+2. **Keep DerivedData outside `~/Documents`,** or `codesign` fails on the swift-tokenizers and
+   swift-transformers bundles.
+
+Single suites:
+
+```bash
+xcodebuild test -scheme OpenIntelligence -only-testing:OpenIntelligenceTests/HybridSearchServiceTests -derivedDataPath /private/tmp/oi-build -destination "platform=iOS Simulator,id=<UDID>"
+```
+
+## Lint
+
+There is no lint gate, and this matters mainly so you do not mistake one for existing.
+
+`.swift-format` is tracked at the repository root. The binary resolves inside the Xcode 27
+toolchain at
+`/Applications/Xcode-beta.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swift-format`.
+Nothing in `.github/workflows/` or `scripts/` invokes it.
+
+*Verified 2026-08-07:* the tree does not currently pass. 20 of 25 sampled files under
+`OpenIntelligence/` emit warnings, mostly `[Indentation]`.
+
+```bash
+/Applications/Xcode-beta.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swift-format lint --configuration .swift-format <file>
+```
+
+So do not run `swift-format --in-place` across the tree as a tidy-up. It would reformat hundreds of
+files, bury the actual change in the diff, and touch hard-boundary files.
+
+## Migrations
+
+There is no operator-invoked migration command. Migrations run inside the app at startup:
+`SQLiteFullTextService` tracks `PRAGMA user_version`, adds columns through `ensureColumnExists`, and
+carries `migrateFromFileStorage` and `migrateRowToContentTable` for older stores.
+`[evidence_level: code_verified, confidence: high, evidence_source: SQLiteFullTextService.swift:2211, :2296, :3007, :3126]`
+
+The operational consequence is the constraint, not a command: a change to the FTS5 schema, the
+`BNNSVectorDatabase` on-disk format, or the embedding dimensionality forces every existing user to
+reindex their entire library. Those files are hard-boundary for exactly this reason. Any such change
+lands additively first, then swaps, never in place.
+
+## Parallel work
+
+*Verified 2026-08-07 against this repository's `.git.nosync` layout.*
+
+```bash
+git worktree add --detach /private/tmp/oi-wt <ref>
+```
+
+```bash
+git worktree remove --force /private/tmp/oi-wt
+```
+
+`git worktree list` reports the main worktree as `.git.nosync`, which is correct and not damage.
+
+Three things to get right:
+
+- **Create the worktree outside `~/Documents`.** A worktree inside it inherits every iCloud failure
+  mode in this runbook, which is the entire reason the git directory was moved in the first place.
+- **One writer per checkout.** Two write-capable sessions in the same working tree will overwrite
+  each other. Use a worktree per writer, or one writer.
+- Claude Code 2.1.220 has `claude --worktree [name]` (`-w`), plus `--tmux`, which does this for you.
+  Note it inherits the same location caveat.
+
+Until `.claude/` and `CLAUDE.md` are committed, a fresh worktree will not contain them, so a session
+started there gets no rules, skills, or hooks.
+
+## Governance checks
+
+```bash
+python3 .codex/skills/route-openintelligence-work/scripts/test_repoos_router.py
+```
+
+*Verified 2026-08-07: passes, 24 of 24.* This suite was red at 3 of 14 earlier the same day, on a
+version-derivation defect and on three tests that asserted a literal version against the live
+working tree. Both are fixed; see [DECISIONS.md](DECISIONS.md). If it goes red again, read the
+failure before assuming it is the fixture: a permanently failing test here hid a real defect for
+three releases.
+
+```bash
+python3 scripts/secret_scan.py
+```
+
+*Verified 2026-08-07: passes.* Prints `secret_scan: no sensitive tokens discovered`.
+
+The `repoos_workspace_automation` route also names
+`python3 ~/.codex/skills/.system/skill-creator/scripts/quick_validate.py .codex/skills/route-openintelligence-work`.
+*Unverified:* that path is outside the repository and may not exist on a given machine.
+
+## Release
+
+Version is derived, not set by hand. `ci_scripts/ci_post_clone.sh` stamps `MARKETING_VERSION` for
+both iOS and macOS from the first `## <number>` heading in `CHANGELOG.md` during the Xcode Cloud
+build. Editing that heading changes what ships.
+
+Fastlane lanes in `fastlane/Fastfile`, all *recorded*, none run from here:
+
+| Lane | Does |
+|---|---|
+| `push_metadata` | Metadata only, to a version already in App Store Connect. Editable while Waiting for Review. |
+| `upload_release_metadata` | Upload release metadata for the App Store version. |
+| `upload_release_build` | Build and upload to App Store Connect. |
+| `submit_latest` | Push metadata and submit using the newest build ASC has already processed. Xcode Cloud is the builder. |
+| `release_to_review` | Metadata, upload, and submit. `release` is an alias. |
+
+Each takes `platform: ios` (default) or `osx`. Credentials come from `.env.appstore`; never commit
+values, only the variable names.
+
+CI is `.github/workflows/ci.yml`, building on `macos-26` on push and PR to `main`, selecting the
+highest installed Xcode.
+
+## Claude context system
+
+```bash
+.claude/hooks/session-start.sh < /dev/null
+```
+
+*Verified 2026-08-07.* Prints the startup brief. All three hooks read a JSON object on stdin and
+exit 0 on every failure path, so an empty stdin is a safe smoke test. Runtime state lives in
+`.claude/.state/`, which is gitignored and safe to delete.
+
+Registered in `.claude/settings.json`: `session-start.sh` on SessionStart
+(`startup|resume|clear|compact|fork`), `pre-compact.sh` on PreCompact, `stop-handoff.sh` on Stop.
+`.claude/settings.local.json` holds the machine-local permission allowlist and is separate.
+
+### What this system uses, and what it deliberately does not
+
+Detected against Claude Code **2.1.220** on 2026-08-07. Anything marked unused is a choice, not an
+oversight; a future session should read this before "adding the missing piece".
+
+| Capability | Status |
+|---|---|
+| Project `CLAUDE.md` | Used. Root, always loaded. |
+| `.claude/rules/` with `paths` frontmatter | Used, six rules, all scoped so none costs startup context. |
+| `CLAUDE.local.md` | Available, gitignored, not created. Yours to add. |
+| Skills | Used, five including the pre-existing `oi-claim-audit`: `project-orient`, `project-handoff`, `project-context-audit`, `notion-roadmap`, `oi-claim-audit`. |
+| Hooks: SessionStart, PreCompact, Stop | Used. |
+| Hook: PostCompact | Unused. SessionStart fires with `source: compact` and replays the checkpoint, so a second event adds nothing. |
+| Hook: PreToolUse | Unused deliberately, see `DECISIONS.md`. |
+| Auto memory | On by default, in use, machine-local at `~/.claude/projects/<project>/memory/`. |
+| Subagents and Explore | Available. |
+| Agent Teams | Not used, see `DECISIONS.md`. |
+| `claude --worktree` / `-w` / `--tmux` | Available. See Parallel work above. |
+| `/init`, `/import` | Available, not used. `/init` is interactive and `/import` would have bulk-appended the whole of `AGENTS.md`, which is the thing `DECISIONS.md` records declining. |
+| MCP servers | Notion is in use, through the `notion-roadmap` skill. Supabase and Docusign are denied for this repository in `.claude/settings.json` (see below). `MCP_DOCKER` is configured in `~/.claude.json` and was failing `-32000: Connection closed` on 2026-08-07; unused here either way. |
+
+**Denied connectors.** `.claude/settings.json` denies two whole servers by id, because connector
+tools carry no human-readable server name:
+
+| Denied id | Connector |
+|---|---|
+| `mcp__b31b8875-1712-42eb-9c02-1cc478fa694e` | Supabase, including `execute_sql` and `apply_migration` |
+| `mcp__9ee579cb-760f-4a83-b619-acd1c29dd6e9` | Docusign, including `createEnvelope` |
+
+These ids are per-install and will rot if a connector is removed and re-added. A deny rule matching
+no known tool is inert and, because these contain `_`, produces no startup warning either, so the
+failure mode is silent: the connector comes back with a new id and the deny stops applying. If you
+re-add either connector, re-derive the id from a tool name in the session's tool list and update the
+table above with it. Notion is deliberately not denied.
+
+## Recovery
+
+| Symptom | First move |
+|---|---|
+| Nonsensical build failure, duplicate symbols | `scripts/check_icloud_conflicts.sh --fix` |
+| `codesign` rejects "resource fork / Finder information" | DerivedData is inside `~/Documents`; move it |
+| `git fsck` fails, broken ref name | iCloud damage; run the conflict check, do not rebuild `.git` |
+| Destination resolution failure | Wrong simulator; target iOS 27 explicitly |
+| Preflight reports a version that looks wrong | It is. Read `CHANGELOG.md`. |
+| Stop hook keeps asking for a handoff | It fires at most once per session; check `.claude/.state/handoff-<id>.done` |

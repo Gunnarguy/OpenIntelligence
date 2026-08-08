@@ -1,0 +1,48 @@
+{
+  "permissions": {
+    "deny": [
+      "mcp__b31b8875-1712-42eb-9c02-1cc478fa694e",
+      "mcp__9ee579cb-760f-4a83-b619-acd1c29dd6e9"
+    ]
+  },
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup|resume|clear|compact|fork",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PROJECT_DIR}/.claude/hooks/session-start.sh",
+            "timeout": 20,
+            "statusMessage": "Loading project state"
+          }
+        ]
+      }
+    ],
+    "PreCompact": [
+      {
+        "matcher": "manual|auto",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PROJECT_DIR}/.claude/hooks/pre-compact.sh",
+            "timeout": 20,
+            "statusMessage": "Checkpointing project state"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PROJECT_DIR}/.claude/hooks/stop-handoff.sh",
+            "timeout": 20,
+            "statusMessage": "Checking handoff state"
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -249,3 +249,14 @@ Benchmarks/temp_sportage_manifest.json
 /Maximum.txt
 /PCC763.txt
 /DocumentIngestion&iCloudthing.txt
+
+# Claude Code machine-local state. Session baselines and pre-compaction checkpoints written by
+# .claude/hooks/*. Regenerated on demand and safe to delete; nothing here belongs in history.
+.claude/.state/
+
+# Personal project instructions loaded alongside CLAUDE.md. Machine-local by design.
+CLAUDE.local.md
+
+# Machine-local Claude Code permission grants. Ignored by the author's global gitignore too, but
+# that does not travel with the repository, so anyone else cloning would see it as committable.
+.claude/settings.local.json
