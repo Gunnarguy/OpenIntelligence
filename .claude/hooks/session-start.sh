@@ -92,8 +92,11 @@ if [ -f "$STATE_MD" ]; then
       echo "  STALE: STATE.md names commit $STATE_COMMIT, which is not in this repository."
     elif [ "$RESOLVED" != "$CURRENT" ]; then
       BEHIND="$(git rev-list --count "$RESOLVED..HEAD" 2>/dev/null)"
-      [ -n "$BEHIND" ] && [ "$BEHIND" != "0" ] &&
-        echo "  STALE: HEAD has moved $BEHIND commit(s) since STATE.md was written. Trust git over STATE.md."
+      # One commit behind is the normal resting state, not drift: STATE.md cannot record the sha of
+      # the commit that contains it, so committing a handoff always leaves it exactly one behind.
+      # Warning at 1 would mean warning on every well-maintained repository, every session.
+      [ -n "$BEHIND" ] && [ "$BEHIND" -gt 1 ] 2>/dev/null &&
+        echo "  STALE: HEAD has moved $BEHIND commits since STATE.md was written. Trust git over STATE.md."
     fi
   fi
   awk '/^## Objective/{f=1;next} /^## /{f=0} f && NF' "$STATE_MD" 2>/dev/null | head -3 | sed 's/^/  Objective: /'

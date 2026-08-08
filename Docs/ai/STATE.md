@@ -1,8 +1,8 @@
 # Current State
 
 Updated: 2026-08-07
-Branch/worktree: main, primary checkout
-Last verified commit: 0f0f1e0
+Branch/worktree: context-os-and-router-fix, primary checkout
+Last verified commit: d702d41
 
 ## Objective
 
@@ -34,16 +34,15 @@ quality gate could never pass. This repository has never measured its own retrie
   score over the distinct source documents actually retrieved, instead of asking whether the
   generated prose literally contained a filename and then returning a hardcoded `1.0` in both
   remaining branches. Abstention cases are left unscored rather than awarded `1.0`.
-- Separately, and unrelated to the retrieval work: the Claude context system was installed today
-  (`CLAUDE.md`, `.claude/rules/`, `.claude/skills/`, `.claude/hooks/`, `.claude/settings.json`,
-  `Docs/ai/`), then audited against its specification and repaired. Also uncommitted. Four defects
-  it shipped with are fixed and re-tested: a clean-tree shell bug that made the SessionStart brief
-  print garbage and disarmed its own comparison, a missing `fork` matcher that left forked sessions
-  with no handoff net, a change-detection hash blind to edits of already-dirty files, and a
-  fingerprint that depended on one `.gitignore` line. Also corrected outside the new files:
-  `.agents/workflows/sync-notion.md` named Notion MCP tools that the connected server does not
-  expose and carried a `Target Release` list two releases stale, and
-  `Docs/RepoOS/00_REPO_COMMAND_CENTER.md` said `AGENTS.md` has 15 rules when it has 18. See
+- Separately, and unrelated to the retrieval work: the Claude context system was installed,
+  audited against its specification twice by independent agents, repaired, and **committed**
+  (`ce01ccd`, `d702d41`, `cd3dd73`). The first audit checked 350 requirements and found 37 real
+  gaps; the second tried to prove the repairs were overstated and found 25 more, including four
+  blocking ones. All are closed. The defects worth remembering, because they are the shape of
+  mistake this system is supposed to prevent: a clean-tree shell bug invisible to anyone testing on
+  a dirty tree; a change-detection hash blind to rewrites of untracked files, which is every file
+  the system itself ships as; SessionStart erasing its own baseline when compaction re-fired it;
+  and a marker regex that read this changelog's own prose describing the marker. See
   [DECISIONS.md](DECISIONS.md).
 - `repoos_router.py` version derivation fixed. It read `Docs/ROADMAP.md`'s outline heading `## 0.5`
   as a release and reported `v0.5` at `confidence: exact`, so every preflight's changelog,
