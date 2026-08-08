@@ -33,12 +33,43 @@ RULE_14_DOCS = [
     "Docs/CANONICAL_OPENINTELLIGENCE_SOURCE_OF_TRUTH.md",
     "Docs/ROADMAP.md",
 ]
-RELEASE_SOURCE_DOCS = [
-    "Docs/ROADMAP.md",
-    "README.md",
-    "Docs/RELEASE_NOTES.md",
-    "CHANGELOG.md",
-]
+# Version derivation. CHANGELOG.md is the only authority, because it is the only version marker the
+# build actually reads: ci_scripts/ci_post_clone.sh stamps MARKETING_VERSION for both platforms from
+# `grep -m 1 "^## [0-9]" CHANGELOG.md`.
+#
+# Docs/ROADMAP.md was previously first in a list of candidate sources, matched with a loose
+# `^##\s+(\d+\.\d+)` pattern. That pattern hit the roadmap's *outline* numbering (`## 0.`, `## 0.5`,
+# `## 1.`, `## 2.5`) and the router reported `v0.5` as the active release with `confidence: exact`,
+# so every task's changelog and release-notes targets were wrong. A document that numbers its
+# sections is not a version marker, and no such fallback is used any more.
+CHANGELOG_PATH = "CHANGELOG.md"
+SHIPPED_HEADING = re.compile(r"^##\s+(\d[0-9.]*)\b", re.MULTILINE)
+# These two deliberately mirror ci_post_clone.sh's awk exactly: `/^## \[Unreleased\]/` and `/^## /`,
+# case-sensitive, single space. Loosening either (`\s+`, IGNORECASE) makes the router disagree with
+# the build about where the block ends, which is the disagreement this whole function exists to
+# prevent.
+UNRELEASED_HEADING = re.compile(r"^## \[Unreleased\]", re.MULTILINE)
+NEXT_HEADING = re.compile(r"^## ", re.MULTILINE)
+# A changelog entry is a bullet or a "###" subsection. Same definition as ci_post_clone.sh's
+# `grep -E '^[[:space:]]*(-|###)'`.
+#
+# Known shared quirk, not fixed here on purpose: a line consisting of just `-->` also starts with
+# `-`, so an HTML comment closed on its own line counts as an entry in BOTH implementations. The
+# router could strip comment spans, but then it would disagree with the build, which is worse than
+# agreeing on a documented quirk. The rule is: close comments in CHANGELOG.md inline, not with a
+# bare `-->` on its own line. The placeholder comment beside [Unreleased] already does.
+CHANGELOG_ENTRY = re.compile(r"^[ \t]*(?:-|###)", re.MULTILINE)
+# Anchored to a whole line, and only ever searched inside the [Unreleased] block.
+#
+# Both constraints are load-bearing. An unanchored whole-file search matched this repository's own
+# changelog bullet describing the marker, so deleting the real marker still produced a version at
+# `confidence: exact` — the same "read prose as data" defect this function was written to fix, one
+# file over. And when [Unreleased] is promoted to a numbered heading, a marker left below it lands
+# inside the shipped section, where it must no longer be read.
+NEXT_VERSION_MARKER = re.compile(
+    r"^[ \t]*<!--\s*next-version:\s*(v?\d[0-9A-Za-z.\-]*)\s*-->[ \t]*$",
+    re.IGNORECASE | re.MULTILINE,
+)
 HARD_BOUNDARY_NAMES = {
     "project.pbxproj",
     "storekitconfiguration.storekit",
@@ -226,53 +257,124 @@ def notion_relevance(task: str, intent: str, task_type: str | None) -> str:
     return "usually_not_required"
 
 
+def unreleased_block(content: str) -> str:
+    """The text under `## [Unreleased]`, up to the next `## ` heading."""
+    heading = UNRELEASED_HEADING.search(content)
+    if not heading:
+        return ""
+    rest = content[heading.end() :]
+    following = NEXT_HEADING.search(rest)
+    return rest[: following.start()] if following else rest
+
+
+def unreleased_entry_count(content: str) -> int:
+    """Count entries under `## [Unreleased]`, matching ci_post_clone.sh's definition."""
+    return len(CHANGELOG_ENTRY.findall(unreleased_block(content)))
+
+
 def detect_active_release(repo: Path) -> dict[str, str]:
-    """Derive the active release from current repository documentation."""
-    patterns = (
-        re.compile(r"working on\s+(v\d+\.\d+(?:\.\d+)?)", re.IGNORECASE),
-        re.compile(r"documentation status:.*?\b(v\d+\.\d+(?:\.\d+)?)\b", re.IGNORECASE),
-        re.compile(r"^##\s+(v\d+\.\d+(?:\.\d+)?)\b", re.IGNORECASE | re.MULTILINE),
-        re.compile(r"^##\s+(\d+\.\d+(?:\.\d+)?)\b", re.MULTILINE),
-    )
-    for relative_path in RELEASE_SOURCE_DOCS:
-        path = repo / relative_path
-        if not path.is_file():
-            continue
-        content = path.read_text(encoding="utf-8")
-        for pattern in patterns:
-            match = pattern.search(content)
-            if match:
-                version = match.group(1)
-                if not version.lower().startswith("v"):
-                    version = f"v{version}"
-                return {
-                    "version": version,
-                    "source": relative_path,
-                    "matched_text": match.group(0).strip(),
-                    "evidence_level": "artifact_derived",
-                    "confidence": "exact",
-                }
+    """Derive the release that new work targets, from CHANGELOG.md alone.
+
+    Reporting the first numbered heading is not enough on its own. `ci_post_clone.sh` encodes the
+    reason: when `[Unreleased]` holds entries, that heading describes a version already cut, and
+    treating it as the target is what made CI stamp an already-released 4.6 and got the build
+    rejected by App Store Connect on 2026-07-28. So the two states are reported separately:
+
+      * `[Unreleased]` empty      -> the numbered heading is the target. state="shipped".
+      * `[Unreleased]` non-empty  -> the target is the *next* version, which the numbered heading
+                                     does not name. state="in_development", and the number comes
+                                     from a `<!-- next-version: X -->` marker beside the
+                                     `[Unreleased]` heading. Without that marker the honest answer
+                                     is "unreleased" with confidence "unknown", never a guess.
+
+    `last_shipped` is always reported so a caller can tell the two apart without re-parsing.
+    """
+    path = repo / CHANGELOG_PATH
+    if not path.is_file():
+        return {
+            "version": "unknown",
+            "last_shipped": "unknown",
+            "state": "unknown",
+            "unreleased_entries": "0",
+            "source": "none",
+            "matched_text": f"{CHANGELOG_PATH} not found",
+            "evidence_level": "artifact_derived",
+            "confidence": "unknown",
+        }
+
+    content = path.read_text(encoding="utf-8")
+    shipped = SHIPPED_HEADING.search(content)
+    last_shipped = f"v{shipped.group(1)}" if shipped else "unknown"
+    pending = unreleased_entry_count(content)
+
+    if pending == 0:
+        return {
+            "version": last_shipped,
+            "last_shipped": last_shipped,
+            "state": "shipped",
+            "unreleased_entries": "0",
+            "source": CHANGELOG_PATH,
+            "matched_text": shipped.group(0).strip() if shipped else "no numbered heading",
+            "evidence_level": "artifact_derived",
+            "confidence": "exact" if shipped else "unknown",
+        }
+
+    # Searched inside the [Unreleased] block only, never the whole file.
+    marker = NEXT_VERSION_MARKER.search(unreleased_block(content))
+    if marker:
+        version = marker.group(1)
+        if not version.lower().startswith("v"):
+            version = f"v{version}"
+        # A marker naming the version that already shipped is a marker nobody updated when the
+        # release was cut. Reporting it would hand back the shipped version as the target, which is
+        # exactly the failure this function exists to prevent, so treat it as no marker at all.
+        if version.lower() != last_shipped.lower():
+            return {
+                "version": version,
+                "last_shipped": last_shipped,
+                "state": "in_development",
+                "unreleased_entries": str(pending),
+                "source": f"{CHANGELOG_PATH} next-version marker",
+                "matched_text": marker.group(0).strip(),
+                "evidence_level": "artifact_derived",
+                "confidence": "exact",
+            }
+
     return {
-        "version": "unknown",
-        "source": "none",
-        "matched_text": "none",
+        "version": "unreleased",
+        "last_shipped": last_shipped,
+        "state": "in_development",
+        "unreleased_entries": str(pending),
+        "source": CHANGELOG_PATH,
+        "matched_text": (
+            f"[Unreleased] has {pending} entrie(s) and no <!-- next-version: X --> marker; "
+            f"{last_shipped} is already shipped"
+        ),
         "evidence_level": "artifact_derived",
         "confidence": "unknown",
     }
 
 
-def release_notes_section(repo: Path, version: str) -> str:
-    if version == "unknown":
-        return "unknown"
+def release_notes_section(repo: Path, release: dict[str, str]) -> str:
+    version = release.get("version", "unknown")
+    if version in {"unknown", "unreleased"}:
+        return "none — do not create a release-notes section until the next version is named"
     path = repo / "Docs/RELEASE_NOTES.md"
     if path.is_file():
+        # Anchor on the version token and take the rest of the heading line. The previous pattern
+        # required the heading to be the bare version optionally followed by " - ...", which does
+        # not match this file's actual dual-platform style, e.g.
+        # `## v4.7 (iOS) / v3.0 (macOS) - July 2026` or `## v4.8 (iOS) - in progress`. It therefore
+        # reported existing sections as nonexistent and would have had an agent append a duplicate.
         pattern = re.compile(
-            rf"^##\s+({re.escape(version)}(?:\s+-[^\n]*)?)$",
+            rf"^##\s+({re.escape(version)}\b[^\n]*)$",
             re.IGNORECASE | re.MULTILINE,
         )
         match = pattern.search(path.read_text(encoding="utf-8"))
         if match:
             return match.group(1).strip()
+    if release.get("state") == "in_development":
+        return f"{version} (section does not exist yet; create it when the release is cut)"
     return version
 
 
@@ -358,10 +460,12 @@ def build_report(repo: Path, task: str, paths: list[str], preflight: bool) -> di
         "documentation_targets": {
             "effective_required_docs": effective_required_docs(route, intent),
             "changelog_section": "[Unreleased]",
-            "release_notes_section": release_notes_section(
-                repo, active_release["version"]
+            "release_notes_section": release_notes_section(repo, active_release),
+            "notion_target_release": (
+                active_release["version"]
+                if active_release["version"] not in {"unknown", "unreleased"}
+                else "unassigned — name the next version before writing a Notion Target Release"
             ),
-            "notion_target_release": active_release["version"],
         },
         "evidence": {
             "evidence_level": "artifact_derived",
@@ -388,9 +492,13 @@ def markdown_report(report: dict[str, Any]) -> str:
         f"- Risk: `{route.get('risk_level', 'unknown')}`",
         f"- Approval: `{route.get('approval_required', 'config-risk stop')}`",
         f"- Notion: `{report['notion_relevance']}`",
-        f"- Active release: `{report['active_release']['version']}`",
+        f"- Active release: `{report['active_release']['version']}`"
+        f" ({report['active_release']['state']}, last shipped"
+        f" `{report['active_release']['last_shipped']}`,"
+        f" {report['active_release']['unreleased_entries']} unreleased entries)",
         f"- Changelog target: `{report['documentation_targets']['changelog_section']}`",
         f"- Release notes target: `{report['documentation_targets']['release_notes_section']}`",
+        f"- Notion Target Release: `{report['documentation_targets']['notion_target_release']}`",
         f"- Implementation gate: `{'required' if report['implementation_gate'] else 'not triggered'}`",
     ]
     if report.get("hard_boundary_paths"):

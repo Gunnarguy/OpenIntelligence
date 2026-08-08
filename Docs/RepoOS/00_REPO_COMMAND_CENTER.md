@@ -6,7 +6,7 @@ One-page operational overview for any agent entering the OpenIntelligence reposi
 OpenIntelligence is a local-first, privacy-preserving RAG application for Apple platforms (iOS/macOS/watchOS surfaces), ~270 Swift components across 30 subsystems. `[evidence: artifact_derived, high, Docs/OPENINTELLIGENCE_ARCHITECTURE_ATLAS.md]`
 
 ## Canonical documents (read in this order)
-1. `AGENTS.md` — universal agent directives (rules 1–15; rule 14 mandates doc + Notion roadmap updates on every feature change).
+1. `AGENTS.md` — universal agent directives (rules 1–18; rule 14 mandates doc + Notion roadmap updates on every feature change, and rules 17–18 make RepoOS routing and the workspace preflight mandatory). Claude Code does not read `AGENTS.md`; `CLAUDE.md` at the repository root carries the operative subset for it and routes into `Docs/ai/`.
 2. `Docs/AgentPlaybooks/00_SUPERSEDING_EVIDENCE_PROTOCOL.md` — overrides everything; evidence_level/confidence tagging is mandatory.
 3. `Docs/CANONICAL_OPENINTELLIGENCE_SOURCE_OF_TRUTH.md` — absolute ground truth; any contradicting doc is stale by definition (§1).
 4. `Docs/OPENINTELLIGENCE_ARCHITECTURE_ATLAS.md` — subsystem map, boundaries, flows.
@@ -15,6 +15,9 @@ OpenIntelligence is a local-first, privacy-preserving RAG application for Apple 
 7. `GEMINI.md` — only if running in Gemini/Antigravity.
 
 Do NOT use as source of truth: `Docs/FULL_REPO_*`, `Docs/PRODUCT_POSITIONING_*`, interim delta-repair reports, or raw generated CSVs unless referenced by canonical docs (`Docs/AuditArtifacts/FinalReview/final_canonical_file_index.md` §5).
+
+## Agent context system (Claude Code)
+`CLAUDE.md` is the always-loaded control plane and stays under 200 lines. `Docs/ai/` is the durable knowledge plane: `STATE.md` is the cross-session handoff carrying the current objective, what has been verified, and one exact next action, alongside `PROJECT.md`, `ARCHITECTURE.md`, `DECISIONS.md`, and `RUNBOOK.md`. Path-scoped rules in `.claude/rules/` restate this layer's obligations only for the files being edited, so they cost nothing at startup. `.claude/skills/` holds `project-orient`, `project-handoff`, `project-context-audit`, `notion-roadmap`, and `oi-claim-audit`. `.claude/hooks/` injects the startup brief, checkpoints before compaction, and asks for one handoff pass on Stop. Route `repoos_workspace_automation` covers `.claude/**`, `CLAUDE.md`, and `Docs/ai/**`. Installed 2026-08-07 from `Docs/ai/bootstrap/CLAUDE_CONTEXT_OS_V2.md`. `[evidence: code_verified, exact, file existence + hook smoke test + preflight re-run 2026-08-07]`
 
 ## Current high-risk subsystems
 Per `Docs/OPENINTELLIGENCE_ARCHITECTURE_ATLAS.md` §14 and `Docs/AuditArtifacts/ArchitectureAtlas/subsystem_map.md` (risk = HIGH):
