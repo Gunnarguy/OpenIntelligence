@@ -2,48 +2,54 @@
 
 Updated: 2026-08-08
 Branch/worktree: main, primary checkout
-Last verified commit: 493d577
+Last verified commit: 6e18a3e
 
 ## Objective
 
-None active. The previous objective, wiring per-stage retrieval metrics into `RAGEvalRunner`, is
-complete, built and tested. A candidate next objective is under Exact Next Action; it has not been
-started or agreed.
+None active. Retrieval measurement is wired, correct and committed. The next arc is ingestion, which
+is where the evidence now points and where nothing is measured.
 
 ## Status
 
-The measurement chain is connected end to end and green. What does **not** exist is a measurement:
-no eval run has been executed against an indexed corpus, so there is still no number for this
-repository's retrieval quality. The instrument works; nothing has been measured. Those are different
-claims and this repository has been burned by collapsing them before.
+18/20 on the committed fixture, `final` R@5 1.00, MRR@10 0.94, 0 hallucinations on 2 negative
+controls. **That number describes 25 markdown files and nothing else.** The app claims 20 formats and
+the benchmark exercises one, so PDF parsing, OCR, Office/iWork extraction and A/V transcription have
+no automated coverage at all.
 
 ## Completed
 
-- **Per-stage retrieval metrics are wired in.** Seven stages in pipeline order: `vector`, `lexical`,
-  `fusion`, `boosted`, `candidates`, `rerank`, `final`.
-- **The pipeline model the instrument was built against was wrong, and is corrected.**
-  `RetrievalTraceCollector.Stage` assumed all six original stages were produced inside
-  `HybridSearchService`, including `rerank`. That service does not rerank at all; its only mention
-  of the reranker is a comment about a score cap. `RAGEngine.rerank` runs later, called from
-  `RAGService`. The stages span two layers.
-- **A seventh stage, `candidates`, was added**: what hybrid search hands the reranker, after top-K
-  truncation and sanitising. Distinct from `boosted` because the truncation between them can drop
-  the relevant chunk, and distinct from `final` because reranking reorders what survives. The
-  instrument previously recorded its own output as `final`, naming a stage the pipeline had not
-  reached and colliding with the real one.
-- Ownership follows where the work happens: `HybridSearchService` records the first five in **both**
-  search paths; `RAGService` records `rerank` after the rerank block, deliberately outside the
-  `if/else` so the stage is still present when a quality mode skips the cross-encoder;
-  `queryWithAudit` records `final` from the response's chunks.
-- `trace:` threaded `RAGEvalRunner` -> `queryWithAudit` -> `query` -> `queryInternal` ->
-  `hybridSearch.search` as a defaulted optional. No existing call site changed.
-- `RAGEvalResult.stageMetrics` added as `var` with a default so the synthesised memberwise
-  initialiser stays source-compatible. `RAGEvalRunner.aggregateStageMetrics(_:)` rolls up across
-  cases, skipping unscored cases rather than counting them as zero.
-- `Docs/RETRIEVAL_PIPELINE.md`: Mermaid updated with the capture points, and a false claim withdrawn
-  in place with a dated note. It asserted evaluation was "verified against quality targets (e.g.
-  Recall@5 >= 0.85) using the native Evaluations harness". That gate was never once met, and
-  `AppleEvaluationsBridge.swift` imports only `Foundation` and `FoundationModels`.
+- Per-stage retrieval instrumentation, 7 stages, wired from `RAGEvalRunner` through
+  `queryWithAudit` to `HybridSearchService`, and emitted by the headless harness as a
+  `STAGE METRICS` block plus a `STAGE SOURCES` block so any figure can be recomputed by hand.
+- Seven metric defects fixed. The two that produced impossible numbers: chunk-level relevance scored
+  against document-level ground truth made nDCG@5 report **2.131** on a metric bounded at 1, and a
+  `min(1.0, ...)` clamp hid the same unit mismatch in recall. Also: precision now divides by `k`
+  (trec_eval `P`, not `set_P`), MRR is cut at 10 so stages of different lengths compare, and
+  `retrievalRecallAt5` is scored at depth 5 rather than over every retrieved chunk.
+- Determinism: score ties now break on chunk id at six sites. `sorted(by:)` is unstable and several
+  lists come from a `Dictionary` with per-process randomised order, so ranks moved between identical
+  runs. The 27 runs in `BenchmarkRuns/` predate this and are not comparable to each other.
+- Three grader defects fixed, all of which scored correct behaviour as failure: the verification
+  banner "could not be strictly verified" tripped the abstention regex; "not stated" was missing from
+  that regex, scoring a correct refusal on a negative control as a hallucination; and accuracy
+  divided by cases that answered rather than cases attempted.
+- Negative controls are no longer retrieval-scored; abstention is reported as its own count.
+- Provenance per run: commit, dirty flag, dataset and corpus hashes, OS/Xcode/hardware, launch
+  context, and PCC availability captured from stderr.
+- `RAGService` extraction fallback: sentence extraction that matches nothing no longer discards the
+  retrieved chunks. `exact_capex` had the strongest retrieval in the run (topSim 1.317, correct
+  document at rank 1 in all five slots) and received **zero characters of context**, then fell back
+  to direct LLM chat with no RAG at all. That fallback is the more dangerous half: it answers from
+  model priors while the user believes the app is reading their documents.
+
+## Reverted, deliberately
+
+A rewrite of `buildSemanticTableSummary` that reordered the table summary chunk to lead with data.
+The diagnosis was right — the chunk opened with "…describes table." and the model echoed it — but the
+remedy made the summary a near-duplicate of the real `TABLE:` chunk, so MMR dropped the table as
+redundant. Table documents lost **70%** of retrieved chunk text and one case moved from echoing the
+preamble to fabricating "7 days" against a ground truth of 7,500 miles. Caught by the owner noticing
+character counts in the running app, not by the benchmark, which read 16/20 before and after.
 
 ## Active Constraints
 

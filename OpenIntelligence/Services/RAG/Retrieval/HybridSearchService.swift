@@ -169,6 +169,21 @@ class HybridSearchService {
     private let vectorWeight: Float
     private let keywordWeight: Float
 
+    /// Deterministic total order: score descending, then chunk id ascending.
+    ///
+    /// `sorted(by:)` is not stable in Swift, and equal scores are routine — RRF collides by
+    /// construction, and BM25 ties constantly on a small corpus. Worse, several of these lists are
+    /// built from a `Dictionary`, whose iteration order is randomised per process. Together that
+    /// means the rank of tied chunks differs between two runs of the same binary on the same data,
+    /// which moves `recall@1` and MRR and makes any benchmark number irreproducible.
+    ///
+    /// The id tiebreak is arbitrary. The point is that it is the *same* arbitrary every run.
+    static func byScoreThenId(_ lhs: RetrievedChunk, _ rhs: RetrievedChunk) -> Bool {
+        lhs.similarityScore != rhs.similarityScore
+            ? lhs.similarityScore > rhs.similarityScore
+            : lhs.chunk.id.uuidString < rhs.chunk.id.uuidString
+    }
+
     init(vectorDatabase: VectorDatabase, vectorWeight: Float = 0.7, keywordWeight: Float = 0.3) {
         self.vectorDatabase = vectorDatabase
         self.vectorWeight = vectorWeight
@@ -242,7 +257,7 @@ class HybridSearchService {
         }
 
         let vectorRanked = reindex(
-            candidatePool.sorted { $0.similarityScore > $1.similarityScore }
+            candidatePool.sorted(by: Self.byScoreThenId)
         )
 
         // 2. BM25 keyword search (off-main via RAGEngine)
@@ -647,7 +662,7 @@ class HybridSearchService {
             )
         }
 
-        let ranked = results.sorted { $0.similarityScore > $1.similarityScore }
+        let ranked = results.sorted(by: Self.byScoreThenId)
         return reindex(ranked)
     }
 
@@ -1033,7 +1048,11 @@ class HybridSearchService {
             }
 
             fts5KeywordResults = lexicalHitsByChunkId.values
-                .sorted { $0.score > $1.score }
+                .sorted {
+                    $0.score != $1.score
+                        ? $0.score > $1.score
+                        : $0.chunk.chunk.id.uuidString < $1.chunk.chunk.id.uuidString
+                }
                 .map { ($0.chunk, $0.score) }
 
             if fts5OnlyCount > 0 {
@@ -1048,7 +1067,7 @@ class HybridSearchService {
         // Two independent ranked lists → fused via Reciprocal Rank Fusion.
         // vectorResults sorted by similarity score, fts5KeywordResults sorted by BM25 score.
         // RRF handles the UNION — chunks found by only one method still get ranked.
-        let vectorRanked = reindex(vectorResults.sorted { $0.similarityScore > $1.similarityScore })
+        let vectorRanked = reindex(vectorResults.sorted(by: Self.byScoreThenId))
 
         let fusedResults = await engine.reciprocalRankFusion(
             vectorResults: vectorRanked,
@@ -1108,7 +1127,7 @@ class HybridSearchService {
             )
         }
 
-        return adjusted.sorted { $0.similarityScore > $1.similarityScore }
+        return adjusted.sorted(by: Self.byScoreThenId)
     }
 
 }

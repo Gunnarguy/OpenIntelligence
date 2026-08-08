@@ -51,10 +51,13 @@ final class RetrievalStageMetricsTests: XCTestCase {
         XCTAssertEqual(RankedRelevance.precision(at: 5, relevance: relevance), 0.4, accuracy: accuracy)
     }
 
-    /// A stage that returned only 3 results is scored against 3, not against k.
-    func testPrecisionDoesNotPenaliseShortResultSets() {
+    /// A short result list is scored against `k`, not against its own length, matching
+    /// trec_eval's `P`: unretrieved positions are assumed nonrelevant. 2 relevant in 3 results
+    /// at k=5 is 2/5, not 2/3. Dividing by the list length is trec_eval's `set_P`, a different
+    /// measure, and it inflated the late stages here because they return fewer results.
+    func testPrecisionAssumesUnretrievedPositionsAreNonrelevant() {
         let relevance = [true, false, true]
-        XCTAssertEqual(RankedRelevance.precision(at: 5, relevance: relevance), 2.0 / 3.0, accuracy: accuracy)
+        XCTAssertEqual(RankedRelevance.precision(at: 5, relevance: relevance), 0.4, accuracy: accuracy)
     }
 
     func testPrecisionOfEmptyResultsIsZero() {
@@ -147,6 +150,38 @@ final class RetrievalStageMetricsTests: XCTestCase {
         XCTAssertTrue(RetrievalRelevanceJudge.matches(chunk, expected: documentId.uuidString))
     }
 
+    /// Ingestion assigns a unique filename, so the fixture `vehicle_specs.md` is stored as
+    /// `vehicle_specs-6.md`. Plain normalisation gives `vehiclespecsmd` and `vehiclespecs6md`,
+    /// neither containing the other. Observed on a real run: every stage of every case reported
+    /// 0.0000 while the answers were verifiably correct.
+    func testMatchesAcrossAnIngestionAssignedSuffix() {
+        let chunk = Self.makeChunk(sourceDocument: "vehicle_specs-6.md")
+        XCTAssertTrue(RetrievalRelevanceJudge.matches(chunk, expected: "vehicle_specs.md"))
+        XCTAssertFalse(RetrievalRelevanceJudge.matches(chunk, expected: "finance_cash_flow.md"))
+    }
+
+    /// Only a *trailing* hyphen-digits group is stripped, so a fixture whose name legitimately
+    /// carries digits keeps them and does not collide with its siblings.
+    func testStemStrippingDoesNotCollapseLegitimateDigits() {
+        XCTAssertEqual(RetrievalRelevanceJudge.documentStem("case_1_part_a.md"), "case1parta")
+        XCTAssertEqual(RetrievalRelevanceJudge.documentStem("vehicle_specs-6.md"), "vehiclespecs")
+
+        let partA = Self.makeChunk(sourceDocument: "case_1_part_a-2.md")
+        XCTAssertTrue(RetrievalRelevanceJudge.matches(partA, expected: "case_1_part_a.md"))
+        XCTAssertFalse(RetrievalRelevanceJudge.matches(partA, expected: "case_1_part_b.md"))
+    }
+
+    /// Before reranking, `sourceDocument` is empty because `RAGService` attaches it only after
+    /// hybrid search returns. Those stages are judged by document identifier instead, which is why
+    /// the harness resolves expected filenames to UUIDs before scoring.
+    func testMatchesByDocumentIdWhenTheFilenameIsNotYetAttached() {
+        let documentId = UUID()
+        let earlyStageChunk = Self.makeChunk(sourceDocument: "", documentId: documentId)
+
+        XCTAssertTrue(RetrievalRelevanceJudge.matches(earlyStageChunk, expected: documentId.uuidString))
+        XCTAssertFalse(RetrievalRelevanceJudge.matches(earlyStageChunk, expected: "vehicle_specs.md"))
+    }
+
     func testEmptyExpectedSourceNeverMatches() {
         let chunk = Self.makeChunk(sourceDocument: "vehicle_specs.md")
         XCTAssertFalse(RetrievalRelevanceJudge.matches(chunk, expected: ""))
@@ -186,6 +221,108 @@ final class RetrievalStageMetricsTests: XCTestCase {
         XCTAssertEqual(metrics.reciprocalRank, 0.0)
         XCTAssertEqual(metrics.ndcgAt5, 0.0)
         XCTAssertEqual(metrics.resultCount, 0)
+    }
+
+    // MARK: - Document-credited relevance (regressions)
+    //
+    // Ground truth is a set of FILENAMES while retrieval returns CHUNKS, and a document routinely
+    // contributes several chunks to the top-k. Crediting every one of them counts chunks in the
+    // numerator against documents in the denominator. Both failures below were reproduced against
+    // the previous implementation before this was fixed.
+
+    /// Two expected documents, five retrieved chunks, all from the first one.
+    ///
+    /// True document recall is 1 of 2 = 0.5. The previous implementation counted five chunk hits
+    /// over a denominator of two, got 2.5, and clamped it to a confident, wrong `1.0` — reporting
+    /// perfect recall for a query whose second document was never retrieved.
+    func testRecallCreditsEachDocumentOnceNotEachChunk() {
+        let results = (0 ..< 5).map { _ in Self.makeChunk(sourceDocument: "case_1_part_a.md") }
+
+        let metrics = RetrievalStageMetrics.score(
+            stage: "vector",
+            results: results,
+            expectedSources: ["case_1_part_a.md", "case_1_part_b.md"]
+        )
+
+        XCTAssertEqual(metrics.recallAt5, 0.5, accuracy: accuracy)
+        XCTAssertEqual(metrics.relevantCount, 2)
+    }
+
+    /// One expected document, three of its chunks in the top five.
+    ///
+    /// nDCG is defined on [0, 1]. The previous implementation summed a gain for each of the three
+    /// chunks over an ideal DCG built from a single relevant document, and reported **2.131**.
+    ///
+    /// Credited, only the rank-1 chunk earns gain, so DCG = 1/log2(2) = 1.0, ideal = 1.0, nDCG = 1.0.
+    func testNDCGCannotExceedOneWhenOneDocumentSuppliesManyChunks() {
+        let results = [
+            Self.makeChunk(sourceDocument: "vehicle_specs.md"),
+            Self.makeChunk(sourceDocument: "vehicle_specs.md"),
+            Self.makeChunk(sourceDocument: "vehicle_specs.md"),
+            Self.makeChunk(sourceDocument: "unrelated.md"),
+            Self.makeChunk(sourceDocument: "unrelated.md"),
+        ]
+
+        let metrics = RetrievalStageMetrics.score(
+            stage: "rerank",
+            results: results,
+            expectedSources: ["vehicle_specs.md"]
+        )
+
+        XCTAssertEqual(metrics.ndcgAt5, 1.0, accuracy: accuracy)
+        XCTAssertLessThanOrEqual(metrics.ndcgAt5, 1.0)
+        XCTAssertLessThanOrEqual(metrics.ndcgAt10, 1.0)
+        XCTAssertLessThanOrEqual(metrics.recallAt5, 1.0)
+    }
+
+    /// Precision keeps chunk-level semantics: its denominator is chunks, so all three chunks from
+    /// the relevant document genuinely are relevant results. 3 of 5 = 0.6.
+    func testPrecisionStaysChunkLevelWhileRecallGoesDocumentLevel() {
+        let results = [
+            Self.makeChunk(sourceDocument: "vehicle_specs.md"),
+            Self.makeChunk(sourceDocument: "vehicle_specs.md"),
+            Self.makeChunk(sourceDocument: "vehicle_specs.md"),
+            Self.makeChunk(sourceDocument: "unrelated.md"),
+            Self.makeChunk(sourceDocument: "unrelated.md"),
+        ]
+
+        let metrics = RetrievalStageMetrics.score(
+            stage: "fusion",
+            results: results,
+            expectedSources: ["vehicle_specs.md"]
+        )
+
+        XCTAssertEqual(metrics.precisionAt5, 0.6, accuracy: accuracy)
+        XCTAssertEqual(metrics.recallAt5, 1.0, accuracy: accuracy)
+    }
+
+    /// MRR uses the first credited rank, which is the first chunk of the first relevant document.
+    func testReciprocalRankUsesFirstDocumentOccurrence() {
+        let results = [
+            Self.makeChunk(sourceDocument: "unrelated.md"),
+            Self.makeChunk(sourceDocument: "vehicle_specs.md"),
+            Self.makeChunk(sourceDocument: "vehicle_specs.md"),
+        ]
+
+        let metrics = RetrievalStageMetrics.score(
+            stage: "vector",
+            results: results,
+            expectedSources: ["vehicle_specs.md"]
+        )
+
+        XCTAssertEqual(metrics.reciprocalRank, 0.5, accuracy: accuracy)
+    }
+
+    /// A fixture naming the same source twice must not inflate the denominator.
+    func testDuplicateExpectedSourcesCollapseToOneDocument() {
+        let metrics = RetrievalStageMetrics.score(
+            stage: "vector",
+            results: [Self.makeChunk(sourceDocument: "vehicle_specs.md")],
+            expectedSources: ["vehicle_specs.md", "Vehicle_Specs.md"]
+        )
+
+        XCTAssertEqual(metrics.relevantCount, 1)
+        XCTAssertEqual(metrics.recallAt5, 1.0, accuracy: accuracy)
     }
 
     // MARK: - Aggregation

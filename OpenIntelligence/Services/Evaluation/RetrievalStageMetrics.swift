@@ -35,28 +35,53 @@ enum RankedRelevance {
     ///   - totalRelevant: size of the full relevant set, including items that were never
     ///     retrieved. This is the denominator, so it must come from ground truth rather than
     ///     from `relevance`, otherwise unretrieved items silently vanish and recall reads 1.0.
+    ///
+    /// `relevance` must be **document-credited** (see `creditedRelevanceVector`), not raw per-chunk
+    /// flags. Ground truth here is a set of documents while retrieval returns chunks, so raw flags
+    /// let one document score repeatedly against a denominator of one.
+    ///
+    /// Note for reporting: on the committed fixture 18 of 20 cases name exactly one source, so
+    /// `totalRelevant == 1` and this is numerically identical to Success@k / hit rate. It carries
+    /// no information beyond "did a chunk from the right file appear". MRR@10 and nDCG are the
+    /// metrics that actually discriminate between stages on this corpus.
     static func recall(at k: Int, relevance: [Bool], totalRelevant: Int) -> Double {
         guard k > 0, totalRelevant > 0 else { return 0 }
         let hits = relevance.prefix(k).filter { $0 }.count
-        return min(1.0, Double(hits) / Double(totalRelevant))
+        // Deliberately unclamped. With a credited vector each relevant document contributes at most
+        // once, so this cannot exceed 1.0; if it ever does, the caller passed raw chunk flags and
+        // the number is wrong. A `min(1.0, ...)` here previously hid exactly that: five chunks from
+        // one of two expected documents reported recall 1.0 while the other was never retrieved.
+        return Double(hits) / Double(totalRelevant)
     }
 
-    /// Precision@k: what fraction of the top `k` returned results are relevant.
+    /// Precision@k: what fraction of the top `k` positions hold a relevant result.
     ///
-    /// The denominator is the number of results actually present, capped at `k`, so a stage that
-    /// returned only 3 results is not penalised against a `k` of 5.
+    /// The denominator is `k`, matching `trec_eval`'s `P`, whose own source states the rule: "If
+    /// the cutoff is larger than the number of docs retrieved, then it is assumed nonrelevant docs
+    /// fill in the rest. Eg, if a method retrieves 15 docs of which 4 are relevant, then P20 is 0.2
+    /// (4/20)."
+    ///
+    /// This previously divided by `min(k, results.count)` so that a short result list was "not
+    /// penalised". That is `trec_eval`'s `set_P`, a different measure with a different name, and
+    /// here it actively broke the thing this instrumentation exists for: `candidates`, `rerank` and
+    /// `final` return fewer than `k` results after top-K truncation, so their precision was
+    /// systematically inflated against `vector` and `lexical`, making the per-stage comparison
+    /// misleading in a consistent direction.
     static func precision(at k: Int, relevance: [Bool]) -> Double {
         guard k > 0 else { return 0 }
-        let window = relevance.prefix(k)
-        guard !window.isEmpty else { return 0 }
-        return Double(window.filter { $0 }.count) / Double(window.count)
+        return Double(relevance.prefix(k).filter { $0 }.count) / Double(k)
     }
 
-    /// Reciprocal rank: `1 / rank` of the first relevant result, or 0 if none is relevant.
+    /// Reciprocal rank at a cutoff: `1 / rank` of the first relevant result within the top `k`,
+    /// or 0 if none is. Averaging across queries gives MRR@k.
     ///
-    /// Averaging this across queries gives MRR.
-    static func reciprocalRank(_ relevance: [Bool]) -> Double {
-        guard let index = relevance.firstIndex(of: true) else { return 0 }
+    /// The cutoff is not optional here. `trec_eval`'s `recip_rank` is uncapped, but it scores one
+    /// list per query; this compares seven stages of very different lengths side by side. Uncapped,
+    /// a relevant chunk at rank 30 contributes 0.033 to `vector`, which returns 30+ candidates, and
+    /// exactly 0 to `final`, which returns 10 — a difference produced by list length rather than by
+    /// ranking quality. BEIR caps for the same reason.
+    static func reciprocalRank(at k: Int = 10, _ relevance: [Bool]) -> Double {
+        guard k > 0, let index = relevance.prefix(k).firstIndex(of: true) else { return 0 }
         return 1.0 / Double(index + 1)
     }
 
@@ -114,30 +139,97 @@ enum RetrievalRelevanceJudge {
         key.lowercased().filter { $0.isLetter || $0.isNumber }
     }
 
+    /// Normalised document stem: extension removed, and a trailing `-<digits>` disambiguator
+    /// removed before normalising.
+    ///
+    /// Ingestion assigns a unique filename, so the fixture `vehicle_specs.md` is stored as
+    /// `vehicle_specs-6.md`. Plain normalisation turns those into `vehiclespecsmd` and
+    /// `vehiclespecs6md`, and neither contains the other, so a correct retrieval scored zero.
+    /// Measured on a real run before this existed: every stage of every case reported `0.0000`
+    /// while the answers were verifiably correct.
+    ///
+    /// Only a trailing hyphen-digits group is stripped, so fixtures whose names legitimately end in
+    /// a digit-bearing token, such as `case_1_part_a.md`, are untouched.
+    static func documentStem(_ key: String) -> String {
+        var stem = (key as NSString).deletingPathExtension
+        while let range = stem.range(of: "-[0-9]+$", options: .regularExpression) {
+            stem.removeSubrange(range)
+        }
+        return normalize(stem)
+    }
+
     /// True when `chunk` came from a document the ground truth names.
     ///
     /// Compares against both the document UUID and the citation filename, in both containment
     /// directions, because fixtures may name a bare stem while the pipeline reports a full
     /// filename with extension.
+    /// Matching runs against the document identifier first and the filename second.
+    ///
+    /// The identifier path is not a fallback, it is the only thing that works before reranking.
+    /// `RAGService` attaches `sourceDocument` by looking `documentId` up in a documents snapshot
+    /// *after* `HybridSearchService` returns, so chunks flowing through the `vector`, `lexical`,
+    /// `fusion`, `boosted` and `candidates` stages carry an empty filename. Judging those stages by
+    /// filename alone scores them zero no matter how good retrieval was; the harness therefore
+    /// resolves the expected filenames to document UUIDs and passes both.
     static func matches(_ chunk: RetrievedChunk, expected: String) -> Bool {
         let target = normalize(expected)
         guard !target.isEmpty else { return false }
 
-        let documentId = normalize(chunk.chunk.documentId.uuidString)
-        let documentName = normalize(chunk.sourceDocument)
+        if normalize(chunk.chunk.documentId.uuidString) == target { return true }
 
-        if documentId.contains(target) { return true }
-        if documentName.isEmpty { return false }
-        return documentName.contains(target) || target.contains(documentName)
+        let documentName = chunk.sourceDocument
+        guard !normalize(documentName).isEmpty else { return false }
+
+        // Compare stems so an ingestion-assigned `-N` disambiguator does not defeat the match.
+        let expectedStem = documentStem(expected)
+        let actualStem = documentStem(documentName)
+        guard !expectedStem.isEmpty, !actualStem.isEmpty else { return false }
+        return actualStem == expectedStem
+            || actualStem.contains(expectedStem)
+            || expectedStem.contains(actualStem)
     }
 
-    /// Rank-ordered relevance flags for one stage's output.
+    /// Rank-ordered relevance flags for one stage's output, one entry per retrieved chunk.
+    ///
+    /// Every chunk from a ground-truth document is flagged. Correct for **precision**, whose
+    /// denominator is chunks. Wrong for recall, MRR and nDCG, whose denominators are documents:
+    /// use `creditedRelevanceVector` for those.
     static func relevanceVector(
         results: [RetrievedChunk],
         expectedSources: [String]
     ) -> [Bool] {
         results.map { result in
             expectedSources.contains { matches(result, expected: $0) }
+        }
+    }
+
+    /// Rank-ordered relevance flags where each ground-truth **document** earns credit exactly once,
+    /// at the rank of its first matching chunk.
+    ///
+    /// This is the vector that recall, MRR and nDCG require, and it exists because ground truth in
+    /// `Benchmarks/rag_eval_v1.jsonl` is a list of filenames while retrieval returns chunks. A
+    /// document routinely contributes several chunks to the top-k; crediting each of them makes the
+    /// numerator count chunks against a denominator counting documents. Measured consequences of
+    /// the uncredited version, both reproduced before this was fixed:
+    ///
+    /// - Two expected documents, five retrieved chunks all from the first: recall@5 reported `1.0`
+    ///   while the second document was never retrieved at all.
+    /// - One expected document, three of its chunks in the top five: **nDCG@5 reported `2.131`**,
+    ///   for a metric defined on `[0, 1]`.
+    ///
+    /// `k` still counts chunks, which is the operationally meaningful cutoff because chunks are
+    /// what reach the model. Only the relevance credit is deduplicated.
+    static func creditedRelevanceVector(
+        results: [RetrievedChunk],
+        expectedSources: [String]
+    ) -> [Bool] {
+        var credited = Set<String>()
+        return results.map { result in
+            guard let matched = expectedSources.first(where: { matches(result, expected: $0) }) else {
+                return false
+            }
+            // `insert` reports `inserted: false` for a document already credited at a better rank.
+            return credited.insert(normalize(matched)).inserted
         }
     }
 }
@@ -155,7 +247,8 @@ struct RetrievalStageMetrics: Codable, Sendable, Equatable {
     let recallAt5: Double
     let recallAt10: Double
 
-    /// Reciprocal rank for this query. Average across queries to get MRR.
+    /// Reciprocal rank for this query, **cut off at rank 10**. Average across queries for MRR@10.
+    /// The cutoff keeps stages of different lengths comparable; see `RankedRelevance.reciprocalRank`.
     let reciprocalRank: Double
 
     let ndcgAt5: Double
@@ -178,22 +271,31 @@ struct RetrievalStageMetrics: Codable, Sendable, Equatable {
         results: [RetrievedChunk],
         expectedSources: [String]
     ) -> RetrievalStageMetrics {
-        let relevance = RetrievalRelevanceJudge.relevanceVector(
+        // Two vectors, deliberately. Recall, MRR and nDCG have document-shaped denominators and use
+        // the credited vector; precision has a chunk-shaped denominator and uses the raw one.
+        // Using one vector for all of them is the defect that let nDCG@5 report 2.131.
+        let credited = RetrievalRelevanceJudge.creditedRelevanceVector(
             results: results,
             expectedSources: expectedSources
         )
-        let total = expectedSources.count
+        let perChunk = RetrievalRelevanceJudge.relevanceVector(
+            results: results,
+            expectedSources: expectedSources
+        )
+        // Distinct expected documents, not the raw array count, so a fixture that names the same
+        // source twice cannot inflate the denominator and depress recall.
+        let total = Set(expectedSources.map(RetrievalRelevanceJudge.normalize)).filter { !$0.isEmpty }.count
 
         return RetrievalStageMetrics(
             stage: stage,
-            recallAt1: RankedRelevance.recall(at: 1, relevance: relevance, totalRelevant: total),
-            recallAt3: RankedRelevance.recall(at: 3, relevance: relevance, totalRelevant: total),
-            recallAt5: RankedRelevance.recall(at: 5, relevance: relevance, totalRelevant: total),
-            recallAt10: RankedRelevance.recall(at: 10, relevance: relevance, totalRelevant: total),
-            reciprocalRank: RankedRelevance.reciprocalRank(relevance),
-            ndcgAt5: RankedRelevance.ndcg(at: 5, relevance: relevance, totalRelevant: total),
-            ndcgAt10: RankedRelevance.ndcg(at: 10, relevance: relevance, totalRelevant: total),
-            precisionAt5: RankedRelevance.precision(at: 5, relevance: relevance),
+            recallAt1: RankedRelevance.recall(at: 1, relevance: credited, totalRelevant: total),
+            recallAt3: RankedRelevance.recall(at: 3, relevance: credited, totalRelevant: total),
+            recallAt5: RankedRelevance.recall(at: 5, relevance: credited, totalRelevant: total),
+            recallAt10: RankedRelevance.recall(at: 10, relevance: credited, totalRelevant: total),
+            reciprocalRank: RankedRelevance.reciprocalRank(at: 10, credited),
+            ndcgAt5: RankedRelevance.ndcg(at: 5, relevance: credited, totalRelevant: total),
+            ndcgAt10: RankedRelevance.ndcg(at: 10, relevance: credited, totalRelevant: total),
+            precisionAt5: RankedRelevance.precision(at: 5, relevance: perChunk),
             resultCount: results.count,
             relevantCount: total
         )

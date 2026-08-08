@@ -109,12 +109,17 @@ final class RAGEvalRunner: Sendable {
                 }.count
                 recall = Double(matched) / Double(gtIds.count)
             } else if let expectedSources = evalCase.expectedCitations, !expectedSources.isEmpty {
-                let matched = expectedSources.filter { expected in
-                    response.retrievedChunks.contains { chunk in
-                        RetrievalRelevanceJudge.matches(chunk, expected: expected)
-                    }
-                }.count
-                recall = Double(matched) / Double(expectedSources.count)
+                // Scored at the cutoff the field name claims. This previously searched the whole of
+                // `response.retrievedChunks` with no cutoff at all, and the result was stored as
+                // `RAGEvalMetrics.retrievalRecallAt5` and gated at `>= 0.85`: a pipeline returning
+                // 40 chunks was being scored at depth 40 under a name asserting depth 5. Routing it
+                // through `RetrievalStageMetrics` also means one metric implementation rather than
+                // two, so this figure and the per-stage table can never disagree.
+                recall = RetrievalStageMetrics.score(
+                    stage: "final",
+                    results: response.retrievedChunks,
+                    expectedSources: expectedSources
+                ).recallAt5
             }
 
             // 3. Citation Precision

@@ -39,7 +39,11 @@ from __future__ import annotations
 
 import argparse
 import datetime as dt
+import hashlib
 import json
+import math
+import os
+import random
 import re
 import shutil
 import statistics
@@ -89,9 +93,233 @@ def parse_report(text: str) -> dict:
     return out
 
 
+STAGE_HEADER = "stage\tresults\trelevant\tr1\tr3\tr5\tr10\tmrr\tndcg5\tndcg10\tp5"
+
+
+def parse_stage_metrics(text: str) -> list[dict]:
+    """Pull the STAGE METRICS block out of the harness report.
+
+    The metrics themselves are computed in Swift by RetrievalStageEvaluator, which is unit-tested,
+    and are only transported here. They are deliberately NOT recomputed in Python: two
+    implementations of the same metric drift, and the one that drifts silently is the one nobody
+    is testing. The STAGE SOURCES block in the same report carries the ranked source documents, so
+    any number below can be re-derived by hand without trusting either implementation.
+    """
+    if STAGE_HEADER not in text:
+        return []
+    # lstrip the newline the header itself ends with. Without this the first splitlines() entry is
+    # the empty remainder of the header line, the blank-line terminator fires immediately, and the
+    # parser silently returns no stages at all — which reads exactly like a run that produced none.
+    block = text.split(STAGE_HEADER, 1)[1].lstrip("\n")
+    rows: list[dict] = []
+    for line in block.splitlines():
+        line = line.rstrip()
+        if not line.strip():
+            break
+        parts = line.split("\t")
+        if len(parts) != 11:
+            break
+        try:
+            rows.append({
+                "stage": parts[0],
+                "results": int(parts[1]),
+                "relevant": int(parts[2]),
+                "r1": float(parts[3]), "r3": float(parts[4]),
+                "r5": float(parts[5]), "r10": float(parts[6]),
+                "mrr": float(parts[7]),
+                "ndcg5": float(parts[8]), "ndcg10": float(parts[9]),
+                "p5": float(parts[10]),
+            })
+        except ValueError:
+            break
+    return rows
+
+
+def wilson_interval(successes: float, n: int, z: float = 1.96) -> tuple[float, float]:
+    """95% Wilson score interval for a proportion.
+
+    Not the normal approximation. At n=18 with a proportion near 0 or 1 — which is exactly where
+    retrieval recall lands — the normal approximation produces bounds outside [0, 1] and is known
+    to under-cover. Wilson stays inside the unit interval and behaves at the extremes, which is why
+    it is the standard recommendation for small samples.
+
+    `successes` may be fractional because per-query recall is itself a fraction when a case has
+    several expected documents. That makes this an approximation rather than an exact binomial
+    interval, and it is reported as such.
+    """
+    if n <= 0:
+        return (0.0, 0.0)
+    p = successes / n
+    denom = 1 + z * z / n
+    centre = (p + z * z / (2 * n)) / denom
+    margin = (z / denom) * math.sqrt(p * (1 - p) / n + z * z / (4 * n * n))
+    return (max(0.0, centre - margin), min(1.0, centre + margin))
+
+
+def _cmd(*args: str, merge_stderr: bool = False) -> str:
+    """Run a probe and return its output. Never raises; a missing tool records as empty.
+
+    `merge_stderr` exists for `fm available`, which prints "System model available" to stdout and
+    the far more important "Private Cloud Compute is not available in this context" to stderr.
+    Capturing stdout alone records the reassuring half and drops the caveat, which would defeat the
+    entire point of probing.
+    """
+    try:
+        p = subprocess.run(args, capture_output=True, text=True, timeout=15)
+        out = p.stdout.strip()
+        if merge_stderr and p.stderr.strip():
+            # Strip ANSI colour so the recorded provenance is plain text.
+            err = re.sub(r"\x1b\[[0-9;]*m", "", p.stderr).strip()
+            out = f"{out} | stderr: {err}" if out else f"stderr: {err}"
+        return out
+    except Exception:
+        return ""
+
+
+def collect_provenance(argv: list[str]) -> dict:
+    """Everything needed to say whether two runs are comparable.
+
+    A benchmark number without this is an assertion. The dirty-tree flag matters most: a result
+    produced from uncommitted work cannot be reproduced from the recorded commit, and saying so is
+    the difference between a measurement and a story.
+
+    `pcc_context` is load-bearing on this machine specifically: `fm available` reports "Private
+    Cloud Compute is not available in this context. Please use the Terminal app." from a
+    non-Terminal shell, so a run recorded as PCC from an agent-spawned shell is silently measuring
+    the on-device model instead. Record it rather than trusting the flag that was requested.
+    """
+    dataset = REPO_ROOT / "Benchmarks/rag_eval_v1.jsonl"
+    fixtures = sorted((REPO_ROOT / "Benchmarks/ResearchFixtures/tiny_research_suite/fixtures").rglob("*"))
+    h = hashlib.sha256()
+    for f in fixtures:
+        if f.is_file():
+            h.update(f.name.encode())
+            h.update(f.read_bytes())
+
+    dirty = _cmd("git", "-C", str(REPO_ROOT), "status", "--porcelain")
+    return {
+        "commit": _cmd("git", "-C", str(REPO_ROOT), "rev-parse", "HEAD"),
+        "tree_dirty": bool(dirty),
+        "tree_dirty_files": len([l for l in dirty.splitlines() if l.strip()]),
+        "dataset_sha256": hashlib.sha256(dataset.read_bytes()).hexdigest() if dataset.exists() else None,
+        "fixture_corpus_sha256": h.hexdigest(),
+        "fixture_file_count": sum(1 for f in fixtures if f.is_file()),
+        "os_build": _cmd("sw_vers", "-buildVersion"),
+        "os_version": _cmd("sw_vers", "-productVersion"),
+        "hardware": _cmd("sysctl", "-n", "machdep.cpu.brand_string"),
+        "xcode": _cmd("xcodebuild", "-version").replace("\n", " "),
+        "launch_context": _cmd("launchctl", "managername"),
+        "pcc_context": _cmd("fm", "available", merge_stderr=True) or "unknown",
+        "swift_deterministic_hashing": os.environ.get("SWIFT_DETERMINISTIC_HASHING", "unset"),
+        "argv": " ".join(argv),
+    }
+
+
+def bootstrap_ci(values: list[float], iterations: int = 2000, seed: int = 20260808) -> tuple[float, float]:
+    """95% bootstrap percentile interval for a mean.
+
+    Wilson is only valid for proportions, so nDCG and MRR — which are means of bounded continuous
+    per-query scores — need a different interval rather than being reported as bare means.
+    Seeded so the interval is reproducible; an unseeded interval changes between runs of the same
+    data, which is the same reproducibility failure as an unstable sort.
+    """
+    if not values:
+        return (0.0, 0.0)
+    rng = random.Random(seed)
+    n = len(values)
+    means = sorted(sum(rng.choices(values, k=n)) / n for _ in range(iterations))
+    return (means[int(0.025 * iterations)], means[int(0.975 * iterations) - 1])
+
+
+def minimum_detectable_effect(n: int) -> str:
+    """Plain statement of what this sample size can and cannot resolve.
+
+    Reported next to every recall figure because a flat result at n=18 reads as "no regression"
+    when it actually means "no regression large enough to see".
+    """
+    if n <= 0:
+        return "no scored cases"
+    return (f"at n={n}, a paired comparison needs roughly 6 discordant cases all favouring one "
+            f"side to reach p<0.05; differences below about 25 points are not resolvable")
+
+
+def summarize_stages(rows: list[dict], mode: str) -> list[dict]:
+    """Aggregate per-stage retrieval metrics across every case for one mode.
+
+    Deliberately includes runs where generation produced no answer. Retrieval ran on those cases
+    regardless of whether the model later said anything, and excluding them would throw away most
+    of the deep-think and maximum samples for no reason. This is the whole argument for measuring
+    retrieval separately from generation.
+    """
+    per_stage: dict[str, list[dict]] = {}
+    order: list[str] = []
+    for row in rows:
+        if row["mode"] != mode:
+            continue
+        for metric in (row["run"].get("stage_metrics") or []):
+            if metric["stage"] not in per_stage:
+                per_stage[metric["stage"]] = []
+                order.append(metric["stage"])
+            per_stage[metric["stage"]].append(metric)
+
+    out = []
+    for stage in order:
+        entries = per_stage[stage]
+        n = len(entries)
+        def mean(key): return sum(e[key] for e in entries) / n if n else 0.0
+        lo, hi = wilson_interval(sum(e["r5"] for e in entries), n)
+        ndcg5_ci = bootstrap_ci([e["ndcg5"] for e in entries])
+        ndcg10_ci = bootstrap_ci([e["ndcg10"] for e in entries])
+        mrr_ci = bootstrap_ci([e["mrr"] for e in entries])
+        out.append({
+            "stage": stage, "n": n,
+            "r1": mean("r1"), "r3": mean("r3"), "r5": mean("r5"), "r10": mean("r10"),
+            "mrr": mean("mrr"), "ndcg5": mean("ndcg5"), "ndcg10": mean("ndcg10"),
+            "p5": mean("p5"),
+            "r5_ci": [lo, hi],
+            "ndcg5_ci": list(ndcg5_ci), "ndcg10_ci": list(ndcg10_ci), "mrr_ci": list(mrr_ci),
+            # Every case on this fixture names exactly one source, so recall degenerates to a hit
+            # rate. Recorded so a future fixture with multi-source cases invalidates the note
+            # rather than silently keeping it.
+            "all_single_source": all(e["relevant"] == 1 for e in entries),
+            "mean_results": mean("results"),
+        })
+    return out
+
+
+VERIFICATION_BANNER = re.compile(
+    r"^\s*⚠️\s*\*\*\[Needs Verification\]\*\*[^\n]*\n+(.*?)(?:\n+\*\(Reason:[^\n]*\)\*\s*)?$",
+    re.S,
+)
+
+
+def strip_verification_banner(answer: str) -> tuple[str, bool]:
+    """Separate the engine's verification wrapper from the answer it wraps.
+
+    `SourceOnlyAnswerService.swift:349` prepends "⚠️ **[Needs Verification]** This answer was
+    drafted but could not be strictly verified against the retrieved evidence:" to an otherwise
+    complete answer, and appends a reason. The answer is still there and may be entirely correct.
+
+    This function exists because grading the wrapper instead of the answer cost 15 points of
+    measured accuracy. The banner contains the words "could not", the abstention regex below matches
+    "could not", so every wrapped answer was classified as a refusal and every refusal on an
+    answer-case scores wrong. Verified on the 2026-08-08 run: `multi_hop_project_m2`, `m3` and `m5`
+    each hit 2 of 2 required patterns and were all scored incorrect. Real accuracy was 17/20, not
+    14/20.
+
+    Returns the inner answer and whether the banner was present. The flag is kept rather than
+    discarded: "answered correctly but the verification gate was not satisfied" is a genuinely
+    different outcome from "answered correctly", and it is worth reporting on its own.
+    """
+    m = VERIFICATION_BANNER.match(answer or "")
+    if not m:
+        return (answer or ""), False
+    return m.group(1).strip(), True
+
+
 def score(case: dict, parsed: dict) -> dict:
     """Score one run against the manifest's ground truth."""
-    answer = parsed.get("answer", "")
+    answer, verification_flagged = strip_verification_banner(parsed.get("answer", ""))
     # Abstention phrasing varies more than expected. An early version missed
     # "I do not have access to confidential pricing information" and scored a
     # correct refusal as a hallucination -- the worst possible direction for
@@ -103,12 +331,17 @@ def score(case: dict, parsed: dict) -> dict:
         r"does not (?:contain|include|provide|specify|mention)|"
         r"(?:do|does) not have access|don't have access|no access to|"
         r"no (?:information|evidence|mention|details)|not disclosed|"
-        r"isn't (?:in|available)|not (?:found|available|provided|specified))\b",
+        # "not stated" was missing and cost a correct refusal on 2026-08-08:
+        # missing_unreleased_battery answered "…is not stated in the document", a textbook
+        # abstention, and was scored as a hallucination on a negative control — the single worst
+        # direction for this metric to be wrong in, and exactly what the note above warns about.
+        r"isn't (?:in|available)|not (?:found|available|provided|specified|stated|mentioned|listed|given))\b",
         answer, re.I,
     ))
 
     if case["expected_behavior"] == "abstain":
-        return {"expected": "abstain", "abstained": abstained, "correct": abstained}
+        return {"expected": "abstain", "abstained": abstained, "correct": abstained,
+                "verification_flagged": verification_flagged}
 
     patterns = case.get("expected_answer_patterns") or []
     hits = [p for p in patterns if re.search(p, answer)]
@@ -119,6 +352,9 @@ def score(case: dict, parsed: dict) -> dict:
         "patterns_hit": len(hits),
         # Every required pattern must appear, and abstaining is a miss.
         "correct": bool(patterns) and len(hits) == len(patterns) and not abstained,
+        # Reported separately: a correct answer the verification gate would not certify is a
+        # different outcome from a correct answer, and worth seeing.
+        "verification_flagged": verification_flagged,
     }
 
 
@@ -151,6 +387,19 @@ def run_one(
         "--rag-validation-pcc-consent", pcc,
         "--rag-validation-entitlement", "lifetime",
     ]
+    # Ground truth for the retrieval metrics. The negative-control cases have no expected source by
+    # construction; passing nothing makes the harness emit no STAGE METRICS block at all, so those
+    # cases stay unscored rather than contributing a meaningless 0.0 to the aggregate.
+    # Negative controls are NOT retrieval-scored, even though the manifest gives them an
+    # `expected_source`. For an abstention case the correct pipeline behaviour is to retrieve
+    # nothing usable and refuse, so scoring it as retrieval counts a working relevance gate as a
+    # retrieval failure. Observed on 2026-08-08: `missing_confidential_price` correctly abstained
+    # and was recorded as `rerank R@5=1.00 -> final R@5=0.00`, dragging the aggregate `final` recall
+    # down by a stage doing exactly its job. Abstention correctness is reported separately, as its
+    # own count, and never folded into a retrieval rate.
+    expected_source = (case.get("expected_source") or {}).get("filename")
+    if expected_source and case.get("expected_behavior") != "abstain":
+        cmd += ["--rag-validation-expected-sources", expected_source]
     if not ingest:
         cmd.append("--rag-validation-skip-ingest")
 
@@ -170,13 +419,23 @@ def run_one(
         # miss would slander the mode. Observed on 2026-07-30: Deep Think and
         # Maximum hit this on every case that engages the agentic loop, while
         # cases that shortcut to Direct Source Extraction complete normally.
+        # Retrieval metrics are attached on BOTH paths. A run with no answer is unmeasured for
+        # ANSWER QUALITY only: retrieval still executed, and its stages were still recorded. The
+        # 2026-07-30 matrix discarded 31 such runs wholesale and so measured deep-think on 5 of 20
+        # cases; those runs had retrieval data all along and nobody could see it.
+        stage_metrics = parse_stage_metrics(report)
+
         if not (parsed.get("answer") or "").strip():
             return {
                 "ok": False, "seconds": elapsed, "report": report,
                 "error": "no answer produced (agentic path did not complete headlessly)",
                 "model": parsed.get("model"), "unmeasured": True,
+                "stage_metrics": stage_metrics,
             }
-        return {"ok": True, "seconds": elapsed, "ingested": ingest, "report": report, **parsed}
+        return {
+            "ok": True, "seconds": elapsed, "ingested": ingest, "report": report,
+            "stage_metrics": stage_metrics, **parsed,
+        }
     except subprocess.TimeoutExpired:
         return {"ok": False, "seconds": timeout, "error": f"timeout after {timeout}s"}
 
@@ -207,7 +466,15 @@ def summarize(rows: list[dict], mode: str) -> dict:
         "unmeasured": len(unmeasured),
         "failed": len(mine) - len(ok) - len(unmeasured),
         "correct": len(correct),
-        "accuracy": round(len(correct) / len(scored), 3) if scored else None,
+        # Denominator is every attempted run, not just the ones that answered. A system that
+        # returns nothing scores 0 on that topic; it is not excused from it. trec_eval ships `-c`
+        # for exactly this and the canonical shared-task invocation uses it. The 2026-07-30 report
+        # quoting deep-think accuracy over 5 of 20 cases is this bug: a mode that failed 15 times
+        # was credited with 80% because the failures were removed from the denominator.
+        "accuracy": round(len(correct) / len(mine), 3) if mine else None,
+        # Kept as clearly secondary. Useful for asking "when it did answer, was it right", never
+        # for a headline. Must not reach CHANGELOG or Settings.
+        "accuracy_completed_only": round(len(correct) / len(scored), 3) if scored else None,
         "answer_accuracy": round(len(answer_ok) / len(answer_cases), 3) if answer_cases else None,
         "abstention_rate": round(len(abstain_ok) / len(abstain_cases), 3) if abstain_cases else None,
         "hallucinated_on_negative_control": len(hallucinated),
@@ -219,7 +486,8 @@ def summarize(rows: list[dict], mode: str) -> dict:
     }
 
 
-def render_markdown(summaries: list[dict], rows: list[dict], meta: dict) -> str:
+def render_markdown(summaries: list[dict], rows: list[dict], meta: dict,
+                    stage_summaries: dict[str, list[dict]] | None = None) -> str:
     L: list[str] = []
     L.append("# Quality-Mode Matrix")
     L.append("")
@@ -249,6 +517,95 @@ def render_markdown(summaries: list[dict], rows: list[dict], meta: dict) -> str:
              "that could not run is not a mode that answered badly. Accuracy is over measured "
              "runs only, so a low Measured count means the number beside it is weak evidence.")
     L.append("")
+
+    if stage_summaries and any(stage_summaries.values()):
+        L.append("## Retrieval, per stage")
+        L.append("")
+        L.append("Where in the pipeline the right document is found, or lost. Unlike the table "
+                 "above, these include runs where generation produced nothing: retrieval still "
+                 "ran on those cases, and that is the point of scoring it separately.")
+        L.append("")
+        L.append("Ground truth is document-level (the manifest's `expected_source.filename`), so "
+                 "each expected document is credited once, at the rank of its first matching "
+                 "chunk. `k` still counts chunks, because chunks are what reach the model.")
+        L.append("")
+        for mode, stages in stage_summaries.items():
+            if not stages:
+                continue
+            L.append(f"### {mode}")
+            L.append("")
+            L.append("| Stage | n | R@1 | R@3 | R@5 | R@5 95% CI | R@10 | MRR@10 | nDCG@5 | P@5 | Mean results |")
+            L.append("| :--- | ---: | ---: | ---: | ---: | :---: | ---: | ---: | ---: | ---: | ---: |")
+            for s in stages:
+                lo, hi = s["r5_ci"]
+                L.append(
+                    f"| {s['stage']} | {s['n']} | {s['r1']:.2f} | {s['r3']:.2f} | "
+                    f"**{s['r5']:.2f}** | [{lo:.2f}, {hi:.2f}] | {s['r10']:.2f} | "
+                    f"{s['mrr']:.2f} | {s['ndcg5']:.2f} | {s['p5']:.2f} | {s['mean_results']:.0f} |"
+                )
+            L.append("")
+
+        L.append("**Reading it.** Recall should be flat or falling left to right; a stage that "
+                 "drops it is where the right document is being lost. `boosted` to `candidates` "
+                 "is top-K truncation. `candidates` to `rerank` is the cross-encoder demoting the "
+                 "right chunk. Reranking cannot recover a document the first stage never returned, "
+                 "so a low `vector`/`lexical` number caps everything downstream.")
+        L.append("")
+        L.append("**The interval is not decoration.** With this sample size the 95% Wilson "
+                 "interval on R@5 is wide, so two stages whose intervals overlap have not been "
+                 "shown to differ. Use these to find where recall collapses, not to defend a "
+                 "two-point difference. Per-case numbers are in `results.json`, and each case "
+                 "report under `reports/` carries a STAGE SOURCES block so any figure here can be "
+                 "recomputed by hand.")
+        L.append("")
+
+        any_stage = next((s for stages in stage_summaries.values() for s in stages), None)
+        if any_stage and any_stage.get("all_single_source"):
+            L.append("**Recall here is a hit rate.** Every scored case names exactly one expected "
+                     "source, so `totalRelevant == 1` and recall@k is numerically identical to "
+                     "Success@k: it only answers \"did a chunk from the right file appear in the "
+                     "top k\". It carries no information beyond that. **MRR@10 and nDCG are the "
+                     "only metrics here that discriminate between stages**, because they are "
+                     "sensitive to *where* in the ranking the right document landed.")
+            L.append("")
+
+        n = any_stage["n"] if any_stage else 0
+        L.append("### What this number can and cannot support")
+        L.append("")
+        L.append("> These are fixture-corpus figures, not a quality claim about the app. The cases "
+                 "are drawn from a single synthetic corpus that was authored alongside the "
+                 "questions, so every chunk not from a named file is implicitly judged "
+                 "non-relevant — defensible only because the corpus is closed and small, and false "
+                 "the day this points at real user documents. The numbers do not generalise.")
+        L.append("")
+        L.append(f"**Statistical power:** {minimum_detectable_effect(n)}. When a run shows no "
+                 "movement, the correct wording is *\"no change larger than roughly 25 points "
+                 "would have been detected\"* — never *\"no regression\"*. At this sample size "
+                 "the risk is not only missing a regression but reporting one as an apparent "
+                 "improvement.")
+        L.append("")
+        L.append("**Never ship a retrieval change on a delta from this table alone.** Require a "
+                 "mechanism-level explanation for the movement. These cases have also been tuned "
+                 "against repeatedly, which is adaptive reuse of a holdout and voids the nominal "
+                 "coverage of any interval computed on them.")
+        L.append("")
+
+        prov_keys = ["commit", "tree_dirty", "dataset_sha256", "fixture_corpus_sha256",
+                     "os_version", "os_build", "hardware", "xcode", "launch_context",
+                     "pcc_context", "swift_deterministic_hashing"]
+        if any(k in meta for k in prov_keys):
+            L.append("### Provenance")
+            L.append("")
+            L.append("Two runs are comparable only if these match.")
+            L.append("")
+            for k in prov_keys:
+                if k in meta:
+                    v = meta[k]
+                    if k == "tree_dirty" and v:
+                        v = f"**yes ({meta.get('tree_dirty_files', '?')} files)** — this result "
+                        v += "cannot be reproduced from the recorded commit alone"
+                    L.append(f"- `{k}`: {v}")
+            L.append("")
     L.append("**Hallucinated** counts negative-control cases that produced a confident "
              "answer instead of abstaining. That column mattering more than accuracy is "
              "the whole premise of the verification gates.")
@@ -349,9 +706,11 @@ def main() -> int:
 
     wall = (dt.datetime.now() - started).total_seconds()
     summaries = [summarize(rows, m) for m in modes]
+    stage_summaries = {m: summarize_stages(rows, m) for m in modes}
     meta = {
         "run_id": run_id, "app": str(app_bin), "cases": len(cases),
         "modes": modes, "pcc": args.pcc, "wall_seconds": round(wall, 1),
+        **collect_provenance(argv=sys.argv),
     }
 
     # Keep full reports out of the JSON index; write them beside it instead.
@@ -362,8 +721,9 @@ def main() -> int:
             (reports_dir / f"{r['case_id']}--{r['mode']}.txt").write_text(r["run"].pop("report"))
 
     (out_dir / "results.json").write_text(json.dumps(
-        {"meta": meta, "summaries": summaries, "rows": rows}, indent=2))
-    md = render_markdown(summaries, rows, meta)
+        {"meta": meta, "summaries": summaries, "stage_summaries": stage_summaries,
+         "rows": rows}, indent=2))
+    md = render_markdown(summaries, rows, meta, stage_summaries)
     (out_dir / "report.md").write_text(md)
 
     print("\n" + md)

@@ -11578,9 +11578,45 @@ class RAGService: ObservableObject {
                         compact: useCompactMode,
                         isExtractiveFirst: answerIntentIsExtractive
                     )
-                    context = extractionResult.context
-                    actualChunksUsed = extractionResult.sourcesUsed
-                    Log.info("[RAG] Sentence extraction: \(extractionResult.sentencesIncluded) sentences from \(extractionResult.sourcesUsed) sources (\(context.count) chars)", category: .retrieval)
+
+                    // Sentence extraction is a narrowing filter, and a filter that matches nothing
+                    // must not be allowed to discard the evidence retrieval just found.
+                    //
+                    // Measured on 2026-08-08, case `exact_capex` ("What was the FY2018 capital
+                    // expenditure amount?"): retrieval was the strongest in the whole run —
+                    // topSim 1.317, the correct document at rank 1 in all five slots, MMR selecting
+                    // 5 of 5 with nothing dropped. Extraction then matched zero sentences, returned
+                    // 0 chars from 4 chunks, and the pipeline logged "Empty context after assembly"
+                    // and fell back to *direct LLM chat with no RAG at all*. The model, correctly,
+                    // said the information was not in the provided context, because by then there
+                    // was no context.
+                    //
+                    // That fallback is also the more dangerous failure than the wrong answer it
+                    // produced here: answering from model priors while the user believes the app is
+                    // reading their documents is exactly the ungrounded behaviour the verification
+                    // gates exist to prevent. Whole-chunk assembly is always available and always
+                    // better than nothing, so use it.
+                    if extractionResult.context.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+                       !orderedCandidates.isEmpty {
+                        let assembled = await engine.assembleContext(
+                            chunks: orderedCandidates,
+                            maxChars: maxContextChars,
+                            compact: useCompactMode,
+                            useLostInMiddleMitigation: useLostInMiddleMitigation
+                        )
+                        context = assembled.context
+                        actualChunksUsed = assembled.used
+                        Log.warning(
+                            "[RAG] Sentence extraction matched nothing across \(orderedCandidates.count) candidate(s); "
+                                + "falling back to whole-chunk assembly (\(assembled.used) chunks, \(assembled.context.count) chars) "
+                                + "rather than returning an empty context",
+                            category: .retrieval
+                        )
+                    } else {
+                        context = extractionResult.context
+                        actualChunksUsed = extractionResult.sourcesUsed
+                        Log.info("[RAG] Sentence extraction: \(extractionResult.sentencesIncluded) sentences from \(extractionResult.sourcesUsed) sources (\(context.count) chars)", category: .retrieval)
+                    }
                 } else {
                     let assembled = await engine.assembleContext(
                         chunks: orderedCandidates,

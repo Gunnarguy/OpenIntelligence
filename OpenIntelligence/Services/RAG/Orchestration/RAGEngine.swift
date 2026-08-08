@@ -921,7 +921,12 @@ actor RAGEngine {
         }
 
         // Keyword ranks (sort desc by BM25 score)
-        let sortedKeyword = keywordResults.sorted { $0.score > $1.score }
+        let sortedKeyword = keywordResults.sorted {
+            // Deterministic total order; see HybridSearchService.byScoreThenId.
+            $0.score != $1.score
+                ? $0.score > $1.score
+                : $0.chunk.chunk.id.uuidString < $1.chunk.chunk.id.uuidString
+        }
         for (rank, pair) in sortedKeyword.enumerated() {
             scores[pair.chunk.chunk.id, default: 0] += keywordWeight / Float(k + rank + 1)
         }
