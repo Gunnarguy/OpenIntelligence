@@ -2,130 +2,143 @@
 
 Updated: 2026-08-08
 Branch/worktree: main, primary checkout
-Last verified commit: 6e18a3e
+Last verified commit: 0bced4c
 
 ## Objective
 
-None active. Retrieval measurement is wired, correct and committed. The next arc is ingestion, which
-is where the evidence now points and where nothing is measured.
+None active. The retrieval measurement arc and the ingestion defect sweep are both complete,
+committed and pushed. The next objective is under Exact Next Action; it has not been started.
 
 ## Status
 
-18/20 on the committed fixture, `final` R@5 1.00, MRR@10 0.94, 0 hallucinations on 2 negative
-controls. **That number describes 25 markdown files and nothing else.** The app claims 20 formats and
-the benchmark exercises one, so PDF parsing, OCR, Office/iWork extraction and A/V transcription have
-no automated coverage at all.
+Two things landed today and they point in opposite directions.
+
+**Retrieval is strong and now genuinely measured.** 18/20 on the committed fixture, `final` R@5
+1.00, MRR@10 0.94, 0 hallucinations on 2 negative controls. Dense retrieval returns the correct
+document at rank 1 on every answerable case.
+
+**Ingestion had five silent-corruption defects, now fixed but unmeasured.** Each let extraction do
+its work and then discarded the result while reporting success. None was visible to any test,
+because the benchmark corpus is 25 markdown files against 20 advertised formats.
+
+The honest summary: the instrument is correct, retrieval is good on easy input, and the input path
+customers actually use has no coverage at all.
 
 ## Completed
 
-- Per-stage retrieval instrumentation, 7 stages, wired from `RAGEvalRunner` through
-  `queryWithAudit` to `HybridSearchService`, and emitted by the headless harness as a
-  `STAGE METRICS` block plus a `STAGE SOURCES` block so any figure can be recomputed by hand.
+**Measurement — commits `493d577`, `6e18a3e`, `6e5937e`**
+- Seven-stage instrumentation: `vector`, `lexical`, `fusion`, `boosted`, `candidates`, `rerank`,
+  `final`. Threaded from `RAGEvalRunner` through `queryWithAudit` to `HybridSearchService`. The
+  harness emits `STAGE METRICS` and `STAGE SOURCES` blocks so any figure can be recomputed by hand.
 - Seven metric defects fixed. The two that produced impossible numbers: chunk-level relevance scored
-  against document-level ground truth made nDCG@5 report **2.131** on a metric bounded at 1, and a
-  `min(1.0, ...)` clamp hid the same unit mismatch in recall. Also: precision now divides by `k`
-  (trec_eval `P`, not `set_P`), MRR is cut at 10 so stages of different lengths compare, and
-  `retrievalRecallAt5` is scored at depth 5 rather than over every retrieved chunk.
-- Determinism: score ties now break on chunk id at six sites. `sorted(by:)` is unstable and several
-  lists come from a `Dictionary` with per-process randomised order, so ranks moved between identical
-  runs. The 27 runs in `BenchmarkRuns/` predate this and are not comparable to each other.
-- Three grader defects fixed, all of which scored correct behaviour as failure: the verification
-  banner "could not be strictly verified" tripped the abstention regex; "not stated" was missing from
-  that regex, scoring a correct refusal on a negative control as a hallucination; and accuracy
-  divided by cases that answered rather than cases attempted.
-- Negative controls are no longer retrieval-scored; abstention is reported as its own count.
-- Provenance per run: commit, dirty flag, dataset and corpus hashes, OS/Xcode/hardware, launch
-  context, and PCC availability captured from stderr.
-- `RAGService` extraction fallback: sentence extraction that matches nothing no longer discards the
-  retrieved chunks. `exact_capex` had the strongest retrieval in the run (topSim 1.317, correct
-  document at rank 1 in all five slots) and received **zero characters of context**, then fell back
-  to direct LLM chat with no RAG at all. That fallback is the more dangerous half: it answers from
-  model priors while the user believes the app is reading their documents.
+  against document-level ground truth made **nDCG@5 report 2.131** on a metric bounded at 1, and a
+  `min(1.0, ...)` clamp hid the same unit mismatch in recall. Precision now divides by `k`
+  (`trec_eval`'s `P`, not `set_P`), MRR is cut at 10, `retrievalRecallAt5` is scored at depth 5.
+- Determinism: score ties break on chunk id at six sites. `sorted(by:)` is unstable and several
+  lists come from a `Dictionary` with per-process randomised order.
+- Three grader defects fixed, all of which scored correct behaviour as failure.
+- Provenance per run: commit, dirty flag, corpus hashes, OS/Xcode/hardware, PCC availability.
+- `RAGService` extraction fallback: extraction matching nothing no longer discards the retrieved
+  chunks and falls through to no-RAG chat.
 
-## Reverted, deliberately
+**Ingestion — commits `924a910`, `0bced4c`**
+- Images and camera captures no longer collapse to a single line. Both joined OCR lines with a
+  space; the camera did it immediately after sorting into reading order.
+- `effectiveContent` merges instead of choosing. A low-quality page that captured one table kept the
+  table and discarded the recovered prose the parser had already re-OCR'd for that purpose.
+- `usedStructuredParsing` reflects whether structured extraction produced anything, not just tables
+  and lists. A diagram-heavy PDF was discarding every figure chunk after paying ANE time for it.
+- **All three lanes now use `RecognizeDocumentsRequest`**: PDF import
+  (`DocumentProcessor.swift:4335`), image import (`:7358`), camera capture
+  (`CameraManager.swift:548`). Previously PDF only.
+- API currency verified against Apple docs rather than assumed: `RecognizeDocumentsRequest` is
+  current as of WWDC25 / iOS 26, nothing supersedes it. Remaining `VNRecognizeTextRequest` usages
+  are the documented no-document fallback plus Siri paths, and are correct rather than debt.
 
-A rewrite of `buildSemanticTableSummary` that reordered the table summary chunk to lead with data.
-The diagnosis was right — the chunk opened with "…describes table." and the model echoed it — but the
-remedy made the summary a near-duplicate of the real `TABLE:` chunk, so MMR dropped the table as
-redundant. Table documents lost **70%** of retrieved chunk text and one case moved from echoing the
-preamble to fabricating "7 days" against a ground truth of 7,500 miles. Caught by the owner noticing
-character counts in the running app, not by the benchmark, which read 16/20 before and after.
+**Reverted deliberately:** a rewrite of `buildSemanticTableSummary`. Right diagnosis, wrong remedy —
+it made the summary a near-duplicate of the real `TABLE:` chunk, MMR then dropped the table as
+redundant, table documents lost **70%** of retrieved text, and one case went from echoing a preamble
+to fabricating "7 days" against a ground truth of 7,500 miles. The benchmark read 16/20 before and
+after. It was caught only because the owner noticed character counts in the running app.
 
 ## Active Constraints
 
+- **Do not change chunk shape without format-diverse fixtures.** See the revert above. This is the
+  most important line in this file.
+- Route `retrieval_tuning_change` or `ingestion_ocr_change`. `Docs/RETRIEVAL_PIPELINE.md` or
+  `Docs/INGESTION_PIPELINE.md` plus a tagged `CHANGELOG.md` entry are part of the task, not a
+  follow-up.
 - `RetrievalTraceCollector` must stay in `Services/RAG/Retrieval/`: `OpenIntelligenceEngine`'s
-  synchronized groups include `Services/RAG` but not `Services/Evaluation`. See
-  [DECISIONS.md](DECISIONS.md).
-- One collector per query. It is explicitly not a shared sink; retrieval runs concurrent child tasks.
-- Route `retrieval_tuning_change`. `Docs/RETRIEVAL_PIPELINE.md` and a `**[Retrieval]**` CHANGELOG
-  entry are part of any retrieval task, not a follow-up.
+  synchronized groups include `Services/RAG` but not `Services/Evaluation`.
+- The benchmark needs a **macOS Debug** build and an Aqua session. PCC is unavailable from an
+  agent-spawned shell, so only `--pcc deny` runs are valid there. See `Docs/ai/RUNBOOK.md`.
 
 ## Working Set
 
-- `OpenIntelligence/Services/RAG/Retrieval/RetrievalTraceCollector.swift`: the collector and `Stage`.
-- `OpenIntelligence/Services/RAG/Retrieval/HybridSearchService.swift:283-300, 1075-1090`: capture.
-- `OpenIntelligence/Services/RAG/Orchestration/RAGService.swift:8380-8445` threaded signatures,
-  `:9453` the search call, `:9900` the `rerank` capture.
-- `OpenIntelligence/Services/Evaluation/RAGEvalRunner.swift`: collector construction and scoring.
-- `OpenIntelligence/Services/Evaluation/RetrievalStageMetrics.swift`: `RetrievalStageEvaluator`.
-- `Benchmarks/rag_eval_v1.jsonl`: 20 cases, 18 with `expectedCitations`, all with
-  `groundTruthChunkIds: null`.
+- `Docs/ai/RUNBOOK.md` — how to build and run the benchmark, with the environment traps.
+- `scripts/run_quality_matrix.py` — harness driver, grader, aggregation, provenance.
+- `OpenIntelligence/Services/Evaluation/RetrievalStageMetrics.swift` — metric math and relevance
+  judge. 29 unit tests.
+- `OpenIntelligence/Services/Document/Processing/DocumentProcessor.swift` — extraction dispatch;
+  `extractTextFromImage` ~7319, structured PDF result ~4933.
+- `OpenIntelligence/Services/Document/Processing/StructuredDocumentParser.swift` — `parsePageImage`
+  at 601, `effectiveContent` ~500.
+- `Benchmarks/ResearchFixtures/tiny_research_suite/` — the 25 markdown fixtures and `manifest.json`.
+- `BenchmarkRuns/20260808-retrieval-stages/` — the run these numbers come from.
 
 ## Verification
 
-- `bash scripts/build_simulator_smoke.sh` -> **BUILD SUCCEEDED**, 0 errors, codesigned. 2026-08-08.
-- `xcodebuild test -scheme OpenIntelligence -destination "platform=iOS Simulator,id=8FA2B3CE-5EB0-4339-8629-F40684EDCE2D" -derivedDataPath /private/tmp/oi-build`
-  -> **173 tests, 0 failures**, `** TEST SUCCEEDED **`. 2026-08-08.
-- That simulator UDID is confirmed present and available, so the RUNBOOK entry is verified rather
-  than recorded.
-- The two compiler warnings in `RAGService.swift` are at lines 1770 and 6581, outside every region
-  touched here, and predate this work.
+- `bash scripts/build_simulator_smoke.sh` -> BUILD SUCCEEDED. macOS Debug also clean.
+- iOS suite -> **181 tests, 0 failures**. 2026-08-08.
 - `python3 .codex/skills/route-openintelligence-work/scripts/test_repoos_router.py` -> 24 of 24.
 - `python3 scripts/secret_scan.py` -> clean.
+- Benchmark, 20 cases, standard, PCC denied -> 18/20; `final` R@5 1.00, MRR@10 0.94.
+- **Not verified:** all five ingestion fixes. Correct on inspection and the build passes, but no
+  automated run exercises them.
 
 ## Blockers / Unknowns
 
-**`RAGEvalRunner` has zero call sites. It is unreachable, so it cannot be run at all.**
-`grep -rn RAGEvalRunner --include=*.swift OpenIntelligence/ OpenIntelligenceTests/` returns only
-comments. The type is correct, built and tested, and nothing invokes it. This is the real blocker on
-producing a retrieval number, and it is a missing entry point rather than missing data.
+**The benchmark exercises 1 of 20 advertised formats.** Every fixture is markdown, so PDF parsing,
+OCR, Office and iWork extraction and A/V transcription have no coverage. Not theoretical: today a
+plausible ingestion change destroyed 70% of retrieved table text while the score held at 16/20.
+Notion row: *The benchmark exercises 1 of 20 advertised formats*.
 
-**Correction, 2026-08-08:** an earlier version of this file said a number was "blocked on corpus"
-because the cited documents were not committed. That was wrong. The corpus is committed at
-`Benchmarks/ResearchFixtures/tiny_research_suite/fixtures/`, 29 files, and all **18 of 18**
-`expectedCitations` filenames resolve to real fixture files. `rag_eval_v1.jsonl` is generated from
-that suite's `manifest.json` by `scripts/build_eval_dataset.py`, as its own header states. The
-`Docs/TestDocuments/` and gitignored-PDF observations were about unrelated fixtures.
+**Unknown: whether iWork and A/V extraction work at all.** `pages`, `numbers`, `key`, `mp3`, `wav`,
+`mp4`, `mov` are advertised. Nobody has confirmed the extractors produce usable text rather than
+failing silently or falling through to a generic reader.
+Verify: ingest one file of each type and read the extracted text.
 
-**The harness that works is a different mechanism, and it does not measure retrieval.**
-`OpenIntelligence/App/DebugRAGValidationHarness.swift` runs headlessly, ingests the fixture corpus,
-runs the cases and prints a text report; `scripts/run_quality_matrix.py` drives a built **macOS**
-binary and parses that output. It has produced 27 runs under `BenchmarkRuns/`. The most recent,
-`20260730-091821-matrix`, measured answer accuracy per quality mode, not retrieval recall, and
-recorded that deep-think and maximum produced no answer on most cases headlessly.
+**Unknown: what 2026 offers that this pipeline lacks.** A survey of document parsing, chunking,
+lexical retrieval and agentic RAG was started and killed to save budget. The chunker is still
+sentence-similarity boundary detection, a 2023-era technique. `structure_type` reaches FTS5 as
+`UNINDEXED`, so chunk modality is computed and then unsearchable.
 
-**Unverified on device.** Everything above is simulator-verified. Foundation Models needs real
-hardware with Apple Intelligence, so any quality-mode comparison from a simulator run describes
-retrieval only, not generation.
+**Unconfirmed:** `multi_hop_project_m5` moved 2/2 required patterns to 1/2 during the table-summary
+experiment. That change was reverted, so it should be gone, but nobody re-checked after the revert.
+Verify: rerun the suite and compare that case against `BenchmarkRuns/20260808-retrieval-stages`.
 
 ## Exact Next Action
 
-Give `RAGEvalRunner` an entry point, then run it. It has no caller, so there is nothing to invoke.
+Build the format-diverse ingestion fixture set. It gates every other ingestion change and it is the
+only thing that would have caught today's 70% loss.
 
-The cheapest correct route reuses what already works rather than building a second harness:
-`DebugRAGValidationHarness` already runs headlessly, already ingests
-`Benchmarks/ResearchFixtures/tiny_research_suite/fixtures/`, and already prints a report that
-`scripts/run_quality_matrix.py` parses. Attach a `RetrievalTraceCollector` there, score it with
-`RetrievalStageEvaluator`, emit a `STAGE METRICS` block beside the existing `ANSWER` block, and
-teach the Python side to parse it.
+Add to `Benchmarks/` a small committed set with known-correct expected extraction, and assert on
+**extraction** rather than on answers: does row/column association survive, does the character count
+land within tolerance. That runs in seconds as a unit test, not as a benchmark.
 
-Note the run needs a **macOS** Debug build, not the simulator: that is what the 27 existing runs in
-`BenchmarkRuns/` used, and Foundation Models needs real hardware for generation. Retrieval stages are
-measurable regardless of whether generation succeeds, which is the point of scoring them separately.
+| Fixture | Catches |
+|---|---|
+| Text-layer PDF with a table | table structure through the PDFKit path |
+| Scanned PDF with a table | the OCR path and `RecognizeDocumentsRequest` |
+| PDF with figures, no tables | the `usedStructuredParsing` defect fixed today |
+| Partially-legible scan | the `effectiveContent` merge fixed today |
+| PNG photo of a table | the image lane and the one-line collapse fixed today |
+| `.docx` with a table, `.xlsx`, `.csv` | Office extraction |
+| `.pages` or `.numbers` | iWork — may prove impossible, which is itself worth knowing |
 
-What the shape of that output tells you, which is the point of the whole exercise: if recall is
-already low at `vector` and `lexical`, first-stage retrieval is the problem and no amount of
-reranking will fix it. If it holds through `boosted` and drops at `candidates`, top-K truncation is
-too tight. If it survives to `candidates` and drops at `rerank`, the cross-encoder is demoting the
-right chunk. A single end-of-pipeline number cannot tell these apart, which is how
-`retrievalRecallAt5` reporting exactly `0.0` for its entire existence went unnoticed.
+Then rerun the 20-case suite to confirm no retrieval regression. **Expect that number not to move**;
+it is all markdown, which is the entire point.
+
+After that, and not before: the real evaluation corpus (WixQA MIT, QASPER CC BY 4.0,
+LegalBench-RAG-mini — roughly 1,000 queries, all commercially licensed) and the FTS5
+`structure_type` indexing fix. Both are Notion rows.
