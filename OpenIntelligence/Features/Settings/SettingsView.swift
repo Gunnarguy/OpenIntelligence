@@ -241,12 +241,35 @@ struct SettingsView: View {
                 if !entries.isEmpty {
                     Section(group.title) {
                         ForEach(entries) { entry in
-                            NavigationLink {
-                                destination(for: entry)
-                                    .navigationTitle(entry.title)
-                                    .navigationBarTitleDisplayMode(.inline)
-                            } label: {
-                                settingsRow(entry)
+                            if entry.id == .advanced {
+                                // Advanced opens the parameters directly. Pushing a screen
+                                // whose only content was a button that opened this sheet
+                                // made it two taps to reach the one thing behind the row.
+                                Button {
+                                    DSHaptics.selection()
+                                    showModelConfiguration = true
+                                } label: {
+                                    HStack {
+                                        settingsRow(entry)
+                                        Spacer(minLength: 0)
+                                        // A `Button` row gets no disclosure indicator of
+                                        // its own, so without this it sits between two
+                                        // NavigationLink rows looking inert.
+                                        Image(systemName: "chevron.right")
+                                            .font(.footnote.weight(.semibold))
+                                            .foregroundStyle(.tertiary)
+                                    }
+                                    .contentShape(Rectangle())
+                                }
+                                .buttonStyle(.plain)
+                            } else {
+                                NavigationLink {
+                                    destination(for: entry)
+                                        .navigationTitle(entry.title)
+                                        .navigationBarTitleDisplayMode(.inline)
+                                } label: {
+                                    settingsRow(entry)
+                                }
                             }
                         }
                     }
@@ -263,6 +286,9 @@ struct SettingsView: View {
             }
         }
         .searchable(text: $settingsSearch, prompt: "Search settings")
+        .sheet(isPresented: $showModelConfiguration) {
+            ModelConfigurationSheet()
+        }
         .overlay {
             if !trimmedSearch.isEmpty, SettingsGroup.allCases.allSatisfy({ visibleEntries(in: $0).isEmpty }) {
                 ContentUnavailableView.search(text: trimmedSearch)
@@ -270,60 +296,9 @@ struct SettingsView: View {
         }
     }
 
-    /// Entry point to the generation parameters.
-    ///
-    /// `ModelConfigurationSheet` is 614 finished lines binding temperature, maxTokens,
-    /// topP, contextLength and the three penalties to `SettingsStore` — and until now it
-    /// had no call site anywhere except its own `#Preview`, so none of it was reachable.
-    /// Meanwhile the "Generation Tuning" card promised "Customize how the AI responds"
-    /// and contained one text field.
-    ///
-    /// It stays a sheet rather than becoming a pushed screen because it is built around
-    /// Cancel/Apply, which needs modal dismissal to mean anything; changing that would be
-    /// a rewrite rather than a wiring job.
-    @ViewBuilder
-    private var modelParametersCard: some View {
-        VStack(alignment: .leading, spacing: DSSpacing.md) {
-            SectionHeader(icon: "dial.medium", title: "Model Parameters")
-
-            // Careful with this copy. Temperature and the response-token limit genuinely
-            // reach Apple Intelligence, on-device and on Private Cloud Compute alike,
-            // because `GenerationOptions` takes exactly `samplingMode`, `temperature`,
-            // `maximumResponseTokens` and `toolCallingMode`. The penalty sliders in that
-            // sheet do not — "penalty" does not appear anywhere in the FoundationModels
-            // interface — so this must not claim they apply to every answer.
-            Text("Temperature and response length reach Apple Intelligence directly, on this device and on Private Cloud Compute. The sheet marks which of the remaining controls apply only to a self-hosted model.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-
-            Button {
-                DSHaptics.selection()
-                showModelConfiguration = true
-            } label: {
-                HStack {
-                    Text("Open Model Parameters")
-                        .fontWeight(.semibold)
-                    Spacer()
-                    Image(systemName: "chevron.right")
-                        .font(.caption.weight(.bold))
-                }
-                .foregroundStyle(DSColors.accent)
-                .padding(.vertical, DSSpacing.sm)
-                .padding(.horizontal, DSSpacing.md)
-                .background(
-                    RoundedRectangle(cornerRadius: DSCorners.control, style: .continuous)
-                        .fill(DSColors.accent.opacity(0.12))
-                )
-            }
-            .buttonStyle(.plain)
-            .accessibilityHint("Adjust temperature, token limits and sampling")
-        }
-        .padding()
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(DSColors.surface)
-        .clipShape(RoundedRectangle(cornerRadius: DSCorners.bubble, style: .continuous))
-    }
+    // `modelParametersCard` was removed when the Advanced row began presenting
+    // `ModelConfigurationSheet` directly. It existed only to hold the button that
+    // opened the sheet, which was the second of the two taps.
 
     /// Compact identity row at the top of the index.
     ///
@@ -428,12 +403,11 @@ struct SettingsView: View {
                 shortcutsAutomationCard
             }
         case .advanced:
-            // `generationTuningCard` is deliberately not here. Its entire content was one
-            // inline `TextField` bound to `settings.systemPrompt`, and Model Parameters
-            // already owns the system prompt with a proper full-screen editor writing the
-            // same `llmSystemPrompt` key. Two controls for one value on one screen is how
-            // they drift apart.
-            detailScroll { modelParametersCard }
+            // Unreachable: the Advanced row presents `ModelConfigurationSheet` directly
+            // rather than pushing a screen. Kept so the switch stays exhaustive over
+            // `SettingsEntryID`, which is what makes adding an entry a compile error until
+            // it has a destination.
+            EmptyView()
             .sheet(isPresented: $showModelConfiguration) {
                 ModelConfigurationSheet()
             }
