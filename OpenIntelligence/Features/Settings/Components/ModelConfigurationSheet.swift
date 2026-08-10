@@ -239,15 +239,45 @@ struct ModelConfigurationSheet: View {
                 }
                 .pickerStyle(.segmented)
 
-                Text("Maximum conversation context (model dependent)")
+                // The old caption hardcoded "Apple Foundation Models use a 4,096 token
+                // context window", which is the fallback rather than the truth: the real
+                // figure comes from `SystemLanguageModel.default.contextSize` and Private
+                // Cloud Compute reports a larger one. More importantly, the picker offers
+                // sizes far above what this device can accept, and choosing one is not
+                // free — the context budget is what the packing stage fills, so setting
+                // 32K on a 4K device builds a prompt the model then rejects. That is the
+                // shape of the "4521 tokens against a 4096 window" report.
+                Text("How much conversation and document context to pack into each request.")
                     .font(.caption2)
                     .foregroundStyle(.tertiary)
-                Text("Apple Foundation Models use a 4,096 token context window.")
+                Text(contextGuidance)
                     .font(.caption2)
-                    .foregroundStyle(.tertiary)
+                    .foregroundStyle(contextLength > onDeviceContextWindow ? Color.orange : Color.secondary)
             }
             .padding(.vertical, 4)
 
+        } header: {
+            Text("Context")
+        } footer: {
+            Text("How much conversation the model is given to work with.")
+        }
+
+        // The three sliders below are split into their own section on purpose.
+        //
+        // They do not affect Apple Intelligence, and the previous single-section
+        // footer ("These parameters affect token sampling behavior") said they did.
+        // `GenerationOptions` in the iOS 27 SDK exposes exactly `sampling`/
+        // `samplingMode`, `temperature`, `maximumResponseTokens` and `toolCallingMode`
+        // — the string "penalty" does not occur anywhere in the FoundationModels
+        // interface. So on-device and Private Cloud Compute answers ignore all three.
+        //
+        // They are NOT deleted, because their only consumer,
+        // `LocalOpenAIServerLLMService`, is scaffolding for the roadmap row "Bring-
+        // your-own local model on Mac (third-party model host)", which targets v5.0.
+        // Zero call sites is what an open roadmap row means; deleting the controls
+        // would delete a planned feature's UI. `repetitionPenalty` reaches nothing at
+        // all even there, and is marked as such rather than removed.
+        Section {
             // Frequency Penalty
             VStack(alignment: .leading, spacing: 8) {
                 HStack {
@@ -367,6 +397,25 @@ struct ModelConfigurationSheet: View {
         presencePenalty = settings.presencePenalty
         repetitionPenalty = settings.repetitionPenalty
         systemPrompt = settings.systemPrompt
+    }
+
+    /// The real on-device context window, not the historical 4,096 fallback.
+    private var onDeviceContextWindow: Int {
+        FoundationModelTokenBudget.contextSize(isAppleFMOnDevice: true)
+    }
+
+    /// Says what the chosen context size actually means on this device.
+    ///
+    /// Answers the reasonable question "can I just max these out?" with a no: the context
+    /// budget is what the packing stage fills, so a size above the device's window
+    /// produces a prompt the model rejects. Above the window the app must escalate to
+    /// Private Cloud Compute, which is a routing consequence rather than a free upgrade.
+    private var contextGuidance: String {
+        let window = onDeviceContextWindow
+        if contextLength <= window {
+            return "Fits on this device (\(window.formatted()) tokens on-device)."
+        }
+        return "Above this device's \(window.formatted())-token window. Requests this large can only run on Private Cloud Compute, and will fail if it is unavailable or you have chosen On-Device."
     }
 
     private func applySettings() {

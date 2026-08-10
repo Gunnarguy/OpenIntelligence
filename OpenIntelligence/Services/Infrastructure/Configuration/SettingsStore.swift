@@ -1005,7 +1005,13 @@ extension SettingsStore {
         case .appleIntelligence:
             switch executionContext {
             case .automatic:
-                return "Reliability-first auto routing (prefers PCC for library queries; falls back on-device)"
+                // Was "prefers PCC for library queries; falls back on-device", which had
+                // the direction backwards. `FoundationModelRoutePolicy.determineRoute`
+                // returns `.onDevice` on every branch of the `.automatic` path unless the
+                // estimated context *exceeds* the on-device window AND PCC is both allowed
+                // and available; `.exactLookup` is unconditionally on-device. So the device
+                // is the default and PCC is the escalation, not the preference.
+                return "On-device first; escalates to Private Cloud Compute only when a question is too large to fit on this device"
             case .onDeviceOnly:
                 return "On-device only (may fail for complex queries)"
             case .preferCloud:

@@ -127,7 +127,9 @@ struct ModelInfoCard: View {
             }
             return [
                 "Apple Intelligence platform",
-                "Reliability-first routing (prefers PCC for library queries)",
+                // See the note in SettingsStore.executionSummary: routing is on-device
+                // first, with PCC as the escalation for prompts that do not fit.
+                "On-device first, escalating to PCC only when a prompt is too large",
                 "Zero data retention (PCC)",
                 "No API key needed",
                 "Private and secure",

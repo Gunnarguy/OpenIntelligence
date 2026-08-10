@@ -193,9 +193,9 @@ struct SettingsView: View {
             .init(
                 id: .advanced, group: .system,
                 title: "Advanced",
-                subtitle: "System prompt and generation tuning",
+                subtitle: "Temperature, response length, system prompt",
                 icon: "slider.horizontal.3", tint: .purple,
-                keywords: ["system prompt", "temperature", "max tokens", "top p", "penalty", "generation", "tuning", "context length"]
+                keywords: ["system prompt", "instructions", "temperature", "max tokens", "response length", "top p", "top k", "sampling", "penalty", "generation", "tuning", "context length", "context window"]
             ),
             .init(
                 id: .developer, group: .system,
@@ -286,7 +286,13 @@ struct SettingsView: View {
         VStack(alignment: .leading, spacing: DSSpacing.md) {
             SectionHeader(icon: "dial.medium", title: "Model Parameters")
 
-            Text("Temperature, token limits, nucleus sampling and the repetition penalties applied to every generated answer.")
+            // Careful with this copy. Temperature and the response-token limit genuinely
+            // reach Apple Intelligence, on-device and on Private Cloud Compute alike,
+            // because `GenerationOptions` takes exactly `samplingMode`, `temperature`,
+            // `maximumResponseTokens` and `toolCallingMode`. The penalty sliders in that
+            // sheet do not — "penalty" does not appear anywhere in the FoundationModels
+            // interface — so this must not claim they apply to every answer.
+            Text("Temperature and response length reach Apple Intelligence directly, on this device and on Private Cloud Compute. The sheet marks which of the remaining controls apply only to a self-hosted model.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -422,10 +428,12 @@ struct SettingsView: View {
                 shortcutsAutomationCard
             }
         case .advanced:
-            detailScroll {
-                generationTuningCard
-                modelParametersCard
-            }
+            // `generationTuningCard` is deliberately not here. Its entire content was one
+            // inline `TextField` bound to `settings.systemPrompt`, and Model Parameters
+            // already owns the system prompt with a proper full-screen editor writing the
+            // same `llmSystemPrompt` key. Two controls for one value on one screen is how
+            // they drift apart.
+            detailScroll { modelParametersCard }
             .sheet(isPresented: $showModelConfiguration) {
                 ModelConfigurationSheet()
             }
