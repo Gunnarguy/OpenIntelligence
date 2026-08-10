@@ -26,6 +26,12 @@ Importing a document was quietly losing parts of it. This release finds the plac
 *   **Evidence that retrieval had already found is no longer discarded** when sentence extraction matches nothing.
 *   **Long questions can now reach Private Cloud Compute.** They were being kept on device precisely when they were too big for it.
 
+### Settings
+
+*   **Settings is a list you can search instead of one very long scroll.** It was fifteen stacked panels with everything shouting at the same volume — your plan sat level with the GPU profile. It's now about ten rows grouped into sections, each opening its own screen, with a search field at the top. Nothing was removed; you type "temperature" and land on it without knowing which screen owns it.
+*   **The generation controls are reachable.** Temperature, token limits, sampling and the repetition penalties were fully built and had no way in. They're under Settings → Advanced → Model Parameters.
+*   **Five switches that did nothing are no longer switches.** Writing Tools, Speech Analysis, Translation, Screen Awareness and Image Playground are real and always on; the toggles never controlled them. They now say so instead of pretending to be a choice.
+
 ### Things The App Was Claiming That Weren't True
 
 Settings describes what the app is doing while it answers you. Several of those lines described

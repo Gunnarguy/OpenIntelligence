@@ -24,6 +24,8 @@ struct SettingsView: View {
 
     @State private var deviceCapabilities = DeviceCapabilities()
     @State private var pipelineStages: [ModelPipelineStage] = []
+    @State private var settingsSearch = ""
+    @State private var showModelConfiguration = false
     @State private var showPlanSheet = false
     @State private var planEntryPoint: PlanUpgradeEntryPoint = .settings
     @State private var showAdvancedGeneration = false
@@ -59,57 +61,7 @@ struct SettingsView: View {
 
     var body: some View {
         ZStack {
-            ScrollView(.vertical, showsIndicators: true) {
-                VStack(spacing: 16) {
-                    // Hero & Core Experience
-                    heroCard
-                    modelSelectionCard
-
-                    // Private Cloud Compute & Execution
-                    privateCloudComputeCard
-
-                    // Shared Workspace Sync
-                    sharedWorkspaceCard
-
-                    // Subscription
-                    billingCard
-
-                    // Intelligence Mode (Standard vs Deep Think)
-                    retrievalCard
-
-                    // Apple Intelligence Features
-                    appleIntelligenceFeaturesCard
-
-                    // Siri Voice Integration
-                    siriIntegrationCard
-
-                    // Shortcuts Actions & Automation
-                    shortcutsAutomationCard
-
-                    // Generation Tuning (exposed hidden settings)
-                    generationTuningCard
-
-                    // Context & Performance
-                    contextWindowCard
-
-                    // More
-                    appearanceCard
-                    supportCard
-                    developerCard
-                    aboutCard
-                }
-                .padding()
-                .frame(maxWidth: .infinity)
-            }
-            .scrollBounceBehavior(.basedOnSize)
-            .background(
-                LinearGradient(
-                    colors: [DSColors.background, DSColors.surface.opacity(0.3)],
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
-                .ignoresSafeArea()
-            )
+            settingsList
 
             // Motherboard HUD - Full-screen X-ray overlay
             // Shows glowing borders at the ACTUAL physical locations where
@@ -125,15 +77,385 @@ struct SettingsView: View {
 .sheet(isPresented: $showPlanSheet) {
             PlanUpgradeSheet(entryPoint: planEntryPoint)
         }
-.onAppear {
-    deviceCapabilities = RAGService.checkDeviceCapabilities()
-    entitlementStore.refreshTransientState()
-    updatePipelineStages()
-}
-.task { await refreshPCCCapability() }
-.onChange(of: settings.selectedModel) { _, _ in
-    updatePipelineStages()
-}
+        .onAppear {
+            deviceCapabilities = RAGService.checkDeviceCapabilities()
+            entitlementStore.refreshTransientState()
+            updatePipelineStages()
+        }
+        .task { await refreshPCCCapability() }
+        .onChange(of: settings.selectedModel) { _, _ in
+            updatePipelineStages()
+        }
+    }
+
+    // MARK: - Settings index
+
+    /// Top-level grouping of the settings tree.
+    private enum SettingsGroup: String, CaseIterable, Identifiable {
+        case intelligence
+        case library
+        case device
+        case account
+        case system
+
+        var id: String { rawValue }
+
+        var title: String {
+            switch self {
+            case .intelligence: return "Intelligence"
+            case .library: return "Libraries"
+            case .device: return "This Device"
+            case .account: return "Account"
+            case .system: return "System"
+            }
+        }
+    }
+
+    private enum SettingsEntryID: String {
+        case intelligenceMode, appleIntelligence, privateCloudCompute
+        case librariesSync
+        case devicePerformance, appearance
+        case plan, siriShortcuts
+        case advanced, developer, about
+    }
+
+    /// One navigable destination, plus the words that should find it.
+    ///
+    /// `keywords` is what makes the tree searchable by the name a knob has in the code
+    /// rather than by the screen it happens to sit on, which is the whole point of
+    /// pushing depth behind navigation instead of stacking it on one scroll.
+    private struct SettingsEntry: Identifiable {
+        let id: SettingsEntryID
+        let group: SettingsGroup
+        let title: String
+        let subtitle: String
+        let icon: String
+        let tint: Color
+        let keywords: [String]
+
+        static let all: [SettingsEntry] = [
+            .init(
+                id: .intelligenceMode, group: .intelligence,
+                title: "Intelligence Mode",
+                subtitle: "Standard, Deep Think, or Maximum",
+                icon: "sparkles", tint: .blue,
+                keywords: ["standard", "deep think", "maximum", "quality", "reasoning", "verification", "gates", "agentic"]
+            ),
+            .init(
+                id: .appleIntelligence, group: .intelligence,
+                title: "Apple Intelligence",
+                subtitle: "On-device features and the active model",
+                icon: "apple.logo", tint: .primary,
+                keywords: ["smart replies", "content tagging", "spotlight", "writing tools", "speech", "translation", "model", "foundation models"]
+            ),
+            .init(
+                id: .privateCloudCompute, group: .intelligence,
+                title: "Private Cloud Compute",
+                subtitle: "When a question may leave this device",
+                icon: "cloud", tint: .blue,
+                keywords: ["pcc", "cloud", "privacy", "consent", "routing", "context window", "quota"]
+            ),
+            .init(
+                id: .librariesSync, group: .library,
+                title: "Libraries & iCloud",
+                subtitle: "Sharing your libraries between devices",
+                icon: "icloud", tint: .cyan,
+                keywords: ["icloud", "sync", "workspace", "shared", "libraries", "containers"]
+            ),
+            .init(
+                id: .devicePerformance, group: .device,
+                title: "Device & Performance",
+                subtitle: "Chip, memory, GPU profile, and limits",
+                icon: "cpu", tint: .orange,
+                keywords: ["chip", "neural engine", "tops", "gpu", "metal", "memory", "ram", "thermal", "context window", "batch", "languages"]
+            ),
+            .init(
+                id: .appearance, group: .device,
+                title: "Appearance",
+                subtitle: "Accent colour and the hardware HUD",
+                icon: "paintbrush", tint: .pink,
+                keywords: ["accent", "colour", "color", "theme", "hud", "silicon", "telemetry", "glow", "haptics"]
+            ),
+            .init(
+                id: .plan, group: .account,
+                title: "Plan & Usage",
+                subtitle: "Documents, libraries, and Maximum runs",
+                icon: "creditcard", tint: .green,
+                keywords: ["plan", "billing", "subscription", "pro", "lifetime", "quota", "limit", "upgrade", "purchase"]
+            ),
+            .init(
+                id: .siriShortcuts, group: .account,
+                title: "Siri & Shortcuts",
+                subtitle: "Voice commands and automation actions",
+                icon: "mic", tint: .indigo,
+                keywords: ["siri", "shortcuts", "app intents", "automation", "voice"]
+            ),
+            .init(
+                id: .advanced, group: .system,
+                title: "Advanced",
+                subtitle: "System prompt and generation tuning",
+                icon: "slider.horizontal.3", tint: .purple,
+                keywords: ["system prompt", "temperature", "max tokens", "top p", "penalty", "generation", "tuning", "context length"]
+            ),
+            .init(
+                id: .developer, group: .system,
+                title: "Developer & Diagnostics",
+                subtitle: "RAG audit, chunk inspector, telemetry",
+                icon: "wrench.and.screwdriver", tint: .orange,
+                keywords: ["developer", "diagnostics", "debug", "logging", "telemetry", "chunk", "audit", "validation", "benchmark"]
+            ),
+            .init(
+                id: .about, group: .system,
+                title: "About",
+                subtitle: "Version, device, and what's new",
+                icon: "info.circle", tint: .blue,
+                keywords: ["about", "version", "release notes", "what's new", "support", "feedback", "privacy policy", "terms"]
+            ),
+        ]
+    }
+
+    // MARK: - Root list
+
+    // Settings was a single ScrollView of fifteen hand-built cards, ~2800 lines, every
+    // card at the same visual altitude — your plan sat level with the GPU execution
+    // profile. That is a depth problem rather than a styling one, and converting the
+    // cards to Form sections would not have touched it.
+    //
+    // The cards themselves are unchanged and still live on this type; only the root
+    // changed. Each is now reached through a `NavigationLink`, so the top level is a
+    // dozen rows instead of fifteen stacked panels, and `.searchable` means the depth
+    // costs nothing to reach — you can type "temperature" without knowing which screen
+    // owns it. That combination is what lets the surface stay calm without removing any
+    // of the complexity.
+    //
+    // A native `List` also brings correct Dynamic Type row layout, platform insets, and
+    // `Section` footers for copy that was previously loose `Text` inside tinted panels.
+    private var settingsList: some View {
+        List {
+            Section {
+                heroSummaryRow
+            }
+
+            ForEach(SettingsGroup.allCases) { group in
+                let entries = visibleEntries(in: group)
+                if !entries.isEmpty {
+                    Section(group.title) {
+                        ForEach(entries) { entry in
+                            NavigationLink {
+                                destination(for: entry)
+                                    .navigationTitle(entry.title)
+                                    .navigationBarTitleDisplayMode(.inline)
+                            } label: {
+                                settingsRow(entry)
+                            }
+                        }
+                    }
+                }
+            }
+
+            if trimmedSearch.isEmpty {
+                Section {
+                    supportCard
+                        .listRowInsets(EdgeInsets())
+                        .listRowBackground(Color.clear)
+                        .listRowSeparator(.hidden)
+                }
+            }
+        }
+        .searchable(text: $settingsSearch, prompt: "Search settings")
+        .overlay {
+            if !trimmedSearch.isEmpty, SettingsGroup.allCases.allSatisfy({ visibleEntries(in: $0).isEmpty }) {
+                ContentUnavailableView.search(text: trimmedSearch)
+            }
+        }
+    }
+
+    /// Entry point to the generation parameters.
+    ///
+    /// `ModelConfigurationSheet` is 614 finished lines binding temperature, maxTokens,
+    /// topP, contextLength and the three penalties to `SettingsStore` — and until now it
+    /// had no call site anywhere except its own `#Preview`, so none of it was reachable.
+    /// Meanwhile the "Generation Tuning" card promised "Customize how the AI responds"
+    /// and contained one text field.
+    ///
+    /// It stays a sheet rather than becoming a pushed screen because it is built around
+    /// Cancel/Apply, which needs modal dismissal to mean anything; changing that would be
+    /// a rewrite rather than a wiring job.
+    @ViewBuilder
+    private var modelParametersCard: some View {
+        VStack(alignment: .leading, spacing: DSSpacing.md) {
+            SectionHeader(icon: "dial.medium", title: "Model Parameters")
+
+            Text("Temperature, token limits, nucleus sampling and the repetition penalties applied to every generated answer.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            Button {
+                DSHaptics.selection()
+                showModelConfiguration = true
+            } label: {
+                HStack {
+                    Text("Open Model Parameters")
+                        .fontWeight(.semibold)
+                    Spacer()
+                    Image(systemName: "chevron.right")
+                        .font(.caption.weight(.bold))
+                }
+                .foregroundStyle(DSColors.accent)
+                .padding(.vertical, DSSpacing.sm)
+                .padding(.horizontal, DSSpacing.md)
+                .background(
+                    RoundedRectangle(cornerRadius: DSCorners.control, style: .continuous)
+                        .fill(DSColors.accent.opacity(0.12))
+                )
+            }
+            .buttonStyle(.plain)
+            .accessibilityHint("Adjust temperature, token limits and sampling")
+        }
+        .padding()
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(DSColors.surface)
+        .clipShape(RoundedRectangle(cornerRadius: DSCorners.bubble, style: .continuous))
+    }
+
+    /// Compact identity row at the top of the index.
+    ///
+    /// The full `heroCard` is a ~500pt tall centred panel — a reasonable opening for a
+    /// single long scroll, and far too much for the first row of a navigation index,
+    /// where it pushed the first real section most of a screen down. Settings.app makes
+    /// the same trade: the Apple Account card is a compact row, not a hero. The status
+    /// text and both pills survive, laid out horizontally.
+    private var heroSummaryRow: some View {
+        HStack(spacing: DSSpacing.md) {
+            Image(systemName: "brain.head.profile")
+                .font(.title2)
+                .foregroundStyle(DSColors.accent)
+                .frame(width: 44, height: 44)
+                .background(DSColors.accent.opacity(0.12), in: Circle())
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text("OpenIntelligence")
+                    .font(.headline)
+                Text(statusText)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
+                HStack(spacing: DSSpacing.xs) {
+                    statusPill(
+                        icon: "checkmark.shield.fill",
+                        text: "On-Device First",
+                        active: true
+                    )
+                    if deviceCapabilities.supportsPrivateCloudCompute, settings.applePCCConsent != .denied {
+                        statusPill(icon: "cloud.fill", text: "PCC Available", active: true)
+                    }
+                }
+                .padding(.top, 2)
+            }
+        }
+        .padding(.vertical, DSSpacing.xs)
+        .accessibilityElement(children: .combine)
+    }
+
+    private var trimmedSearch: String {
+        settingsSearch.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    /// Entries in `group` that match the current search.
+    ///
+    /// Matching includes each entry's `keywords`, so a knob can be found by the name it
+    /// has in the code ("temperature", "top-k", "chunk overlap") and not only by the
+    /// screen it happens to live on. That is the difference between a deep settings tree
+    /// and a hostile one.
+    private func visibleEntries(in group: SettingsGroup) -> [SettingsEntry] {
+        let entries = SettingsEntry.all.filter { $0.group == group }
+        let query = trimmedSearch.lowercased()
+        guard !query.isEmpty else { return entries }
+        return entries.filter { entry in
+            entry.title.lowercased().contains(query)
+                || entry.subtitle.lowercased().contains(query)
+                || entry.keywords.contains { $0.contains(query) }
+        }
+    }
+
+    @ViewBuilder
+    private func settingsRow(_ entry: SettingsEntry) -> some View {
+        Label {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(entry.title)
+                Text(entry.subtitle)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        } icon: {
+            Image(systemName: entry.icon)
+                .foregroundStyle(entry.tint)
+        }
+        .accessibilityLabel(entry.title)
+        .accessibilityHint(entry.subtitle)
+    }
+
+    @ViewBuilder
+    private func destination(for entry: SettingsEntry) -> some View {
+        switch entry.id {
+        case .intelligenceMode:
+            detailScroll { retrievalCard }
+        case .appleIntelligence:
+            detailScroll {
+                modelSelectionCard
+                appleIntelligenceFeaturesCard
+            }
+        case .privateCloudCompute:
+            detailScroll { privateCloudComputeCard }
+        case .librariesSync:
+            detailScroll { sharedWorkspaceCard }
+        case .devicePerformance:
+            detailScroll { contextWindowCard }
+        case .appearance:
+            detailScroll { appearanceCard }
+        case .plan:
+            detailScroll { billingCard }
+        case .siriShortcuts:
+            detailScroll {
+                siriIntegrationCard
+                shortcutsAutomationCard
+            }
+        case .advanced:
+            detailScroll {
+                generationTuningCard
+                modelParametersCard
+            }
+            .sheet(isPresented: $showModelConfiguration) {
+                ModelConfigurationSheet()
+            }
+        case .developer:
+            DeveloperDiagnosticsHubView(ragService: ragService)
+        case .about:
+            AboutView()
+        }
+    }
+
+    /// Shared chrome for a pushed detail screen, so every one of them scrolls, pads and
+    /// tints the same way instead of each card carrying its own container.
+    @ViewBuilder
+    private func detailScroll<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
+        ScrollView(.vertical, showsIndicators: true) {
+            VStack(spacing: DSSpacing.lg) {
+                content()
+            }
+            .padding()
+            .frame(maxWidth: .infinity)
+        }
+        .scrollBounceBehavior(.basedOnSize)
+        .background(
+            LinearGradient(
+                colors: [DSColors.background, DSColors.surface.opacity(0.3)],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            .ignoresSafeArea()
+        )
     }
 
     // MARK: - Hero Card
@@ -1954,17 +2276,22 @@ Text(deviceService.chipName)
     // MARK: - Apple Intelligence Features Card
 
     /// Count of currently enabled Apple Intelligence features.
+    /// Number of the toggleable Apple Intelligence features currently on.
+    ///
+    /// Counts four, not seven. `enableWritingTools`, `enableSpeechAnalysis` and
+    /// `enableTranslation` used to be in this list, so the badge was reporting three
+    /// switches that gated nothing as if they were live capability. These four are the
+    /// ones with real consumers, and they are the four that still render as switches.
     private var activeAIFeatureCount: Int {
         [
             settings.enableSmartReplies,
             settings.enableContentTagging,
             settings.enableSpotlightIndexing,
             settings.enableBackgroundMaintenance,
-            settings.enableWritingTools,
-            settings.enableSpeechAnalysis,
-            settings.enableTranslation,
         ].filter { $0 }.count
     }
+
+    private var totalAIFeatureCount: Int { 4 }
 
     @ViewBuilder
     private var appleIntelligenceFeaturesCard: some View {
@@ -1994,12 +2321,12 @@ Text(deviceService.chipName)
                 Text("Apple Intelligence")
                     .font(.headline)
                 Spacer()
-                Text("\(activeAIFeatureCount)/7")
+                Text("\(activeAIFeatureCount)/\(totalAIFeatureCount)")
                     .font(.caption.weight(.semibold).monospacedDigit())
                     .foregroundColor(.white)
-                    .padding(.horizontal, 8)
+                    .padding(.horizontal, DSSpacing.sm)
                     .padding(.vertical, 3)
-                    .background(activeAIFeatureCount == 7 ? Color.green : Color.orange)
+                    .background(activeAIFeatureCount == totalAIFeatureCount ? Color.green : Color.orange)
                     .clipShape(Capsule())
             }
             .padding()
@@ -2040,28 +2367,37 @@ Text(deviceService.chipName)
                     isOn: $settings.enableBackgroundMaintenance
                 )
 
-                aiFeatureToggleRow(
+                // These three were switches bound to `enableWritingTools`,
+                // `enableSpeechAnalysis` and `enableTranslation`. Each key persisted to
+                // UserDefaults and had **zero consumers** anywhere in the app, tests or
+                // the extension — so flipping them changed nothing at all.
+                //
+                // The features themselves are real and always on, which is why these are
+                // status rows now rather than deletions: Writing Tools ships through
+                // `.writingToolsBehavior(.complete)` on the chat composer,
+                // `SpeechAnalyzerService` runs inside `DocumentProcessor` for audio and
+                // video, and `TranslationService` has live call sites. Removing the claim
+                // would have withdrawn something true; removing the control removes
+                // something false.
+                aiFeatureInfoRow(
                     icon: "pencil.and.outline",
                     color: .indigo,
                     title: "Writing Tools",
-                    subtitle: "Summarize, rewrite, proofread",
-                    isOn: $settings.enableWritingTools
+                    subtitle: "Summarize, rewrite, proofread"
                 )
 
-                aiFeatureToggleRow(
+                aiFeatureInfoRow(
                     icon: "waveform",
                     color: .green,
                     title: "Speech Analysis",
-                    subtitle: "Audio transcription & voice input",
-                    isOn: $settings.enableSpeechAnalysis
+                    subtitle: "Audio transcription & voice input"
                 )
 
-                aiFeatureToggleRow(
+                aiFeatureInfoRow(
                     icon: "character.book.closed.fill",
                     color: .purple,
                     title: "Translation",
-                    subtitle: "Multilingual document analysis",
-                    isOn: $settings.enableTranslation
+                    subtitle: "Multilingual document analysis"
                 )
 
                 Divider().padding(.horizontal)
@@ -2092,21 +2428,21 @@ Text(deviceService.chipName)
 
                 Divider().padding(.horizontal)
 
-                // Bound Toggles
-                aiFeatureToggleRow(
+                // Same as the three above: `enableScreenAwareness` and
+                // `enableADM3Visuals` had no consumers, while the App Intents and the
+                // Image Playground path they describe are registered and live.
+                aiFeatureInfoRow(
                     icon: "rectangle.inset.filled.and.person.filled",
                     color: .blue,
                     title: "Screen Awareness",
-                    subtitle: "Seamless AppIntents integration via Shortcuts",
-                    isOn: $settings.enableScreenAwareness
+                    subtitle: "Seamless AppIntents integration via Shortcuts"
                 )
 
-                aiFeatureToggleRow(
+                aiFeatureInfoRow(
                     icon: "photo.on.rectangle.angled",
                     color: .mint,
                     title: "Image Playground",
-                    subtitle: "Interactive ADM 3 image creation from document content",
-                    isOn: $settings.enableADM3Visuals
+                    subtitle: "Interactive ADM 3 image creation from document content"
                 )
 
                 aiFeatureInfoRow(
@@ -2535,42 +2871,9 @@ Text(deviceService.chipName)
         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
     }
 
-    // MARK: - Developer Card
-
-    @ViewBuilder
-    private var developerCard: some View {
-        NavigationLink {
-            DeveloperDiagnosticsHubView(ragService: ragService)
-        } label: {
-            HStack(spacing: 12) {
-                ZStack {
-                    Circle()
-                        .fill(Color.orange.opacity(0.15))
-                        .frame(width: 36, height: 36)
-                    Image(systemName: "wrench.and.screwdriver.fill")
-                        .foregroundColor(.orange)
-                }
-
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Developer & Diagnostics")
-.font(.subheadline.weight(.medium))
-Text("RAG audit, diagnostics, advanced tuning")
-    .font(.caption)
-    .foregroundColor(.secondary)
-                }
-
-                Spacer()
-
-                Image(systemName: "chevron.right")
-.font(.caption.weight(.semibold))
-                    .foregroundColor(.secondary)
-            }
-.padding()
-    .background(DSColors.surface)
-    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-        }
-.buttonStyle(.plain)
-    }
+    // `developerCard` and `aboutCard` were removed with the Settings restructure.
+    // Both were NavigationLink-in-a-card wrappers; the same destinations are now
+    // reached from `SettingsEntry.all` like every other screen.
 
     // MARK: - Support Card
 
@@ -2720,43 +3023,6 @@ Text("RAG audit, diagnostics, advanced tuning")
             picker.show(relativeTo: .zero, of: contentView, preferredEdge: .minY)
         }
         #endif
-    }
-
-    // MARK: - About Card
-
-    @ViewBuilder
-    private var aboutCard: some View {
-        NavigationLink {
-            AboutView()
-        } label: {
-            HStack(spacing: 12) {
-                ZStack {
-                    Circle()
-                        .fill(Color.blue.opacity(0.15))
-                        .frame(width: 36, height: 36)
-                    Image(systemName: "info.circle.fill")
-                        .foregroundColor(.blue)
-                }
-
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("About")
-.font(.subheadline.weight(.medium))
-Text("Version \(Bundle.main.appVersion)")
-    .font(.caption)
-    .foregroundColor(.secondary)
-                }
-
-                Spacer()
-
-                Image(systemName: "chevron.right")
-.font(.caption.weight(.semibold))
-                    .foregroundColor(.secondary)
-            }
-.padding()
-    .background(DSColors.surface)
-    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-        }
-.buttonStyle(.plain)
     }
 
     // MARK: - Helpers

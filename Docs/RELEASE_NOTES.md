@@ -1,11 +1,12 @@
 > **Documentation status:** Source-verified and simulator-compiled for OpenIntelligence v5.0 on
-> August 10, 2026. The suite runs **202 tests, 1 skipped, 1 failure** on iOS 27.0 (iPhone 17 Pro
-> simulator). The one failure is `testSilentAudio_FailsLoudlyInsteadOfProducingAnEmptyDocument`,
-> which times out at 60s waiting on `processDocument(silence.wav)`; it was confirmed to fail
-> identically on clean `436e150` in a separate worktree with none of the v5.0 changes present, and
-> the run log is full of `com.apple.modelcatalog` "no underlying assets" errors, so it is the
-> simulator lacking speech assets rather than a code defect. Audio transcription therefore remains
-> **unverified on real speech**, as it was at v4.9. Native PCC execution is owner-confirmed on a
+> August 10, 2026. The final suite run is **202 tests, 0 failures** on iOS 27.0 (iPhone 17 Pro
+> simulator). Two earlier runs the same day reported one failure,
+> `testSilentAudio_FailsLoudlyInsteadOfProducingAnEmptyDocument`, timing out at 60s waiting on
+> `processDocument(silence.wav)`. That test is **flaky in this environment, not broken**: it was
+> reproduced on clean `436e150` in a separate worktree with none of the v5.0 changes present, it
+> then passed unchanged, and every run log carries `com.apple.modelcatalog` "no underlying assets"
+> errors — the simulator has no speech assets, so the transcription path's timing is not
+> deterministic here. Audio transcription remains **unverified on real speech**, as it was at v4.9. Native PCC execution is owner-confirmed on a
 > physical iOS 27 device; PCC edge scenarios (quota exhaustion, network transition, background
 > consent) and Archive/TestFlight distribution validation remain pending. The v5.0 interface work is
 > simulator-verified by screenshot; the `.ready` state of the model pill and the Neural Engine
@@ -21,7 +22,7 @@ This document provides a comprehensive, version-by-version breakdown of major ar
 
 ## v5.0 - August 10, 2026
 
-43 entries — 15 `[General]`, 10 `[UI]`, 9 `[Ingestion]`, 5 `[Retrieval]`, 3 `[Orchestration]`,
+46 entries — 15 `[General]`, 13 `[UI]`, 9 `[Ingestion]`, 5 `[Retrieval]`, 3 `[Orchestration]`,
 1 `[Chunking]`. Two themes run through nearly all of them. The first is **loss that was invisible from
 the outside**: ingestion reported success on documents whose tables, figures and layout had already
 been discarded, and the evaluation harness structurally could not catch it because it scored answers
@@ -121,6 +122,21 @@ not support.
     Apple Intelligence is available, two different heights.
 *   **Stopping a generation left the HUD's Neural Engine indicator lit for the rest of the session,**
     and token generation never moved it at all — `reportLLMToken` had no call sites anywhere.
+*   **Settings was fifteen cards on one plane, all at the same volume.** 2805 lines, six corner
+    radii, your billing plan level with the GPU execution profile. The root is now a native `List`
+    of about ten `NavigationLink` rows across five sections, each pushing to a detail screen that
+    renders the same cards untouched, plus `.searchable` over a keyword index so a knob is findable
+    by the name it has in the code rather than by the screen it sits on. The diagnosis that matters:
+    this was a **depth** problem, not a styling one — fifteen `Form` sections would have changed
+    nothing.
+*   **Five switches in the Apple Intelligence card controlled nothing,** and three of them were
+    counted toward an "active capability" badge. The features are real and always on, so these are
+    status rows now rather than deletions — removing the claim would have withdrawn something true,
+    removing the control removes something false.
+*   **614 finished lines of generation controls had no way in.** `ModelConfigurationSheet` binds
+    temperature, maxTokens, topP and the three penalties, and its only reference was its own
+    `#Preview`, while the card promising "Customize how the AI responds" held one text field. It is
+    now reachable from Settings -> Advanced.
 *   **Design-system foundation.** `DSSpacing` moved to the 4pt grid the code actually uses; three of
     its four commonest values previously had no token, which is why adoption had stalled near 5%.
     All 392 `RoundedRectangle` sites now pass `style: .continuous`, up from 144. The modifiers named

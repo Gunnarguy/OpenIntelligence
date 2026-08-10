@@ -19,6 +19,11 @@ Importing a document was quietly losing parts of it. This release finds the plac
 - **Search ranks section headings again.** A weighting mistake had dropped section paths out of ranking entirely.
 - **Long questions can reach Private Cloud Compute** instead of being kept on device precisely when they were too big for it.
 
+### Settings
+- **Settings is a searchable list instead of one very long scroll.** It was fifteen stacked panels with everything at the same volume. It's now about ten rows in sections, each opening its own screen, with search at the top. Nothing was removed — type "temperature" and you land on it.
+- **The generation controls are reachable.** Temperature, token limits, sampling and the repetition penalties were fully built with no way in. They're under Settings → Advanced → Model Parameters.
+- **Five switches that did nothing are no longer switches.** Writing Tools, Speech Analysis, Translation, Screen Awareness and Image Playground are real and always on; the toggles never controlled them.
+
 ### Things The App Was Claiming That Weren't True
 Settings describes what the app is doing while it answers you, and several of those lines described things the code does not do.
 - **It listed eight agentic tools, and all eight were the wrong ones.** Four are actually wired up; those four are what it names now.
