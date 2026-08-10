@@ -66,6 +66,8 @@ final class SettingsStore: ObservableObject {
         static let maxTokens = "llmMaxTokens" // Int
         static let contextLength = "llmContextLength" // Int
         static let topP = "llmTopP" // Double
+        static let samplingStrategy = "llmSamplingStrategy" // SamplingStrategy.rawValue
+        static let seed = "llmSamplingSeed" // Int, negative or absent = non-deterministic
         static let frequencyPenalty = "llmFrequencyPenalty" // Double
         static let presencePenalty = "llmPresencePenalty" // Double
         static let repetitionPenalty = "llmRepetitionPenalty" // Double
@@ -155,6 +157,10 @@ final class SettingsStore: ObservableObject {
     @Published var contextLength: Int
     /// Nucleus sampling probability.
     @Published var topP: Double
+    /// Which of Apple's three sampling modes to use. See `SamplingStrategy`.
+    @Published var samplingStrategy: SamplingStrategy
+    /// Seed for reproducible generation. `nil` means non-deterministic.
+    @Published var seed: UInt64?
     /// Frequency penalty (0.0 - 2.0).
     @Published var frequencyPenalty: Double
     /// Presence penalty (0.0 - 2.0).
@@ -444,6 +450,14 @@ final class SettingsStore: ObservableObject {
         maxTokens = (defaults.object(forKey: Keys.maxTokens) as? Int) ?? 2048
         contextLength = (defaults.object(forKey: Keys.contextLength) as? Int) ?? 4096
         topP = (defaults.object(forKey: Keys.topP) as? Double) ?? 0.9
+        // Defaults to .topK so behaviour is unchanged for anyone upgrading: the old
+        // inference path always resolved to `.random(top: 40)` for chat queries.
+        samplingStrategy = SamplingStrategy(rawValue: defaults.string(forKey: Keys.samplingStrategy) ?? "") ?? .topK
+        if let stored = defaults.object(forKey: Keys.seed) as? Int, stored >= 0 {
+            seed = UInt64(stored)
+        } else {
+            seed = nil
+        }
         frequencyPenalty = (defaults.object(forKey: Keys.frequencyPenalty) as? Double) ?? 0.0
         presencePenalty = (defaults.object(forKey: Keys.presencePenalty) as? Double) ?? 0.0
         repetitionPenalty = (defaults.object(forKey: Keys.repetitionPenalty) as? Double) ?? 1.0
@@ -818,6 +832,12 @@ final class SettingsStore: ObservableObject {
         defaults.set(maxTokens, forKey: Keys.maxTokens)
         defaults.set(contextLength, forKey: Keys.contextLength)
         defaults.set(topP, forKey: Keys.topP)
+        defaults.set(samplingStrategy.rawValue, forKey: Keys.samplingStrategy)
+        if let seed, seed <= UInt64(Int.max) {
+            defaults.set(Int(seed), forKey: Keys.seed)
+        } else {
+            defaults.removeObject(forKey: Keys.seed)
+        }
         defaults.set(frequencyPenalty, forKey: Keys.frequencyPenalty)
         defaults.set(presencePenalty, forKey: Keys.presencePenalty)
         defaults.set(repetitionPenalty, forKey: Keys.repetitionPenalty)

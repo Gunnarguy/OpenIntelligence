@@ -59,19 +59,72 @@ enum InferencePathway {
     case ggufDirect        // Pathway B2: Direct GGUF execution via llama.cpp
 }
 
+/// How tokens are chosen during generation.
+///
+/// One-to-one with `GenerationOptions.SamplingMode`, which offers exactly these three
+/// and no way to combine them. Modelling it as an explicit choice removes the previous
+/// guess-from-`topK` heuristic in `LLMService`.
+enum SamplingStrategy: String, CaseIterable, Sendable, Codable, Identifiable {
+    /// Always take the highest-probability token. Deterministic on its own, no seed needed.
+    case greedy
+    /// Sample from the `topK` most likely tokens.
+    case topK
+    /// Sample from the smallest set whose probability mass reaches `topP` (nucleus).
+    case topP
+
+    var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .greedy: return "Greedy"
+        case .topK: return "Top-K"
+        case .topP: return "Top-P"
+        }
+    }
+
+    var explanation: String {
+        switch self {
+        case .greedy:
+            return "Always picks the most likely next word. The same question gives the same answer every time."
+        case .topK:
+            return "Picks from a fixed number of the most likely next words."
+        case .topP:
+            return "Picks from however many words it takes to reach a share of the probability. Adapts to how certain the model is."
+        }
+    }
+}
+
 /// Configuration for model inference performance
 ///
 /// **Parameter Support Notes (Apple FM):**
 /// - `maxTokens` maps to `maximumResponseTokens`
 /// - `temperature` maps to sampling temperature
-/// - `topP` maps to `SamplingMode.random(probabilityThreshold:)`
-/// - `topK` maps to `SamplingMode.random(top:)`
+/// - `samplingStrategy` + `topP`/`topK`/`seed` map to `SamplingMode`
 struct InferenceConfig {
     // MARK: - Universal Parameters
     var maxTokens: Int = 512
     var temperature: Float = 0.7
     var topP: Float = 0.9
     var topK: Int = 40
+
+    /// Which of Apple's three sampling modes to build.
+    ///
+    /// `GenerationOptions.SamplingMode` offers exactly `greedy`, `random(top:seed:)`
+    /// and `random(probabilityThreshold:seed:)` — they are alternatives, not layers.
+    /// Before this existed, `LLMService` inferred the choice from whether `topK` fell
+    /// in `(0, 100)`, and every chat query passed a hardcoded `topK: 40`, so the
+    /// `topP` branch was unreachable and the user's Top-P value was read, threaded
+    /// through this struct, and then discarded. Making the choice explicit is what
+    /// makes Top-P mean anything, and it exposes `greedy`, which was unreachable too.
+    var samplingStrategy: SamplingStrategy = .topK
+
+    /// Seed for the two random sampling modes. `nil` means non-deterministic.
+    ///
+    /// Apple takes a seed on both `random` modes and the app never passed one, so
+    /// identical inputs could not produce identical answers. For a tool whose whole
+    /// claim is grounded, auditable answers, reproducibility is worth exposing.
+    var seed: UInt64?
+
     var qualityMode: RAGQualityMode = .standard
     var fmPreference: FoundationModelPreference = .automatic
 

@@ -297,6 +297,10 @@ struct ChatScreen: View {
     @AppStorage("llmTemperature") private var temperature: Double = 0.7
     @AppStorage("llmMaxTokens") private var maxTokens: Int = 512
     @AppStorage("llmTopP") private var topP: Double = 0.9
+    // Defaults to "topK" so an upgrading user keeps the previous behaviour: the old
+    // inference path in LLMService always resolved to .random(top: 40) for chat.
+    @AppStorage("llmSamplingStrategy") private var samplingStrategyRaw: String = SamplingStrategy.topK.rawValue
+    @AppStorage("llmSamplingSeed") private var seedStorage: Int = -1
     @AppStorage("llmFrequencyPenalty") private var frequencyPenalty: Double = 0.0
     @AppStorage("llmPresencePenalty") private var presencePenalty: Double = 0.0
     @AppStorage("llmRepetitionPenalty") private var repetitionPenalty: Double = 1.0
@@ -2516,6 +2520,8 @@ struct ChatScreen: View {
         let capturedMaxTokens = maxTokens
         let capturedTemperature = temperature
         let capturedTopP = topP
+        let capturedSamplingStrategy = SamplingStrategy(rawValue: samplingStrategyRaw) ?? .topK
+        let capturedSeed: UInt64? = seedStorage >= 0 ? UInt64(seedStorage) : nil
         let capturedFrequencyPenalty = frequencyPenalty
         let capturedPresencePenalty = presencePenalty
         let capturedRepetitionPenalty = repetitionPenalty
@@ -2623,6 +2629,8 @@ struct ChatScreen: View {
                     temperature: Float(capturedTemperature),
                     topP: Float(capturedTopP),
                     topK: 40,
+                    samplingStrategy: capturedSamplingStrategy,
+                    seed: capturedSeed,
                     fmPreference: capturedFmPreference,
                     useKVCache: true,
                     systemPrompt: capturedSystemPrompt,

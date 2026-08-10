@@ -669,13 +669,28 @@ struct LLMResponse {
                 actualExecutionLocation = "Unknown"
             }
 
+            // Build the sampling mode from the user's explicit choice.
+            //
+            // This used to infer it: `if topK > 0 && topK < 100` won, otherwise `topP`,
+            // otherwise nil. Every chat query passes `topK: 40` (ChatScreen), so the
+            // first branch always matched and the Top-P slider in Settings was read,
+            // threaded all the way through `InferenceConfig`, and then silently
+            // discarded. `greedy` was unreachable by the same logic.
+            //
+            // The seed is passed through on both random modes. Apple accepts one and the
+            // app never sent it, so identical inputs could not reproduce an answer.
             let samplingMode: GenerationOptions.SamplingMode?
-            if config.topK > 0, config.topK < 100 {
-                samplingMode = .random(top: config.topK)
-            } else if config.topP < 1.0, config.topP > 0.0 {
-                samplingMode = .random(probabilityThreshold: Double(config.topP))
-            } else {
-                samplingMode = nil
+            switch config.samplingStrategy {
+            case .greedy:
+                samplingMode = .greedy
+            case .topK:
+                samplingMode = config.topK > 0
+                    ? .random(top: config.topK, seed: config.seed)
+                    : nil
+            case .topP:
+                samplingMode = (config.topP > 0.0 && config.topP < 1.0)
+                    ? .random(probabilityThreshold: Double(config.topP), seed: config.seed)
+                    : nil
             }
 
             #if compiler(>=6.4)

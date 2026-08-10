@@ -16,6 +16,10 @@ struct ModelConfigurationSheet: View {
     @State private var temperature: Double
     @State private var maxTokens: Int
     @State private var topP: Double
+    @State private var topK: Int
+    @State private var samplingStrategy: SamplingStrategy
+    @State private var useFixedSeed: Bool
+    @State private var seedValue: Int
     @State private var contextLength: Int
     @State private var frequencyPenalty: Double
     @State private var presencePenalty: Double
@@ -30,6 +34,10 @@ struct ModelConfigurationSheet: View {
         _temperature = State(initialValue: 0.7)
         _maxTokens = State(initialValue: 512)
         _topP = State(initialValue: 0.9)
+        _topK = State(initialValue: 40)
+        _samplingStrategy = State(initialValue: .topK)
+        _useFixedSeed = State(initialValue: false)
+        _seedValue = State(initialValue: 42)
         _contextLength = State(initialValue: 2048)
         _frequencyPenalty = State(initialValue: 0.0)
         _presencePenalty = State(initialValue: 0.0)
@@ -192,27 +200,91 @@ struct ModelConfigurationSheet: View {
             }
             .padding(.vertical, 4)
 
-            // Top P
-            VStack(alignment: .leading, spacing: 8) {
-                HStack {
-                    Label("Top P (Nucleus)", systemImage: "chart.bar")
-                    Spacer()
-                    Text(String(format: "%.2f", topP))
-                        .monospacedDigit()
-                        .foregroundStyle(.secondary)
-                }
-
-                Slider(value: $topP, in: 0 ... 1, step: 0.05) {
-                    Text("Top P")
-                }
-
-                Text("Probability mass to sample from (1.0 = all tokens)")
-                    .font(.caption2)
-                    .foregroundStyle(.tertiary)
-            }
-            .padding(.vertical, 4)
         } header: {
             Text("Core Parameters")
+        } footer: {
+            Text("Both reach Apple Intelligence directly, on this device and on Private Cloud Compute.")
+        }
+
+        // Sampling used to be inferred rather than chosen: `LLMService` took top-K
+        // whenever it was in (0,100), and every chat query passed a hardcoded 40, so the
+        // Top-P slider below was read, threaded through `InferenceConfig`, and discarded.
+        // `greedy` was unreachable for the same reason. The three modes are alternatives
+        // in Apple's API, so they are a picker rather than three independent sliders.
+        Section {
+            Picker("Strategy", selection: $samplingStrategy) {
+                ForEach(SamplingStrategy.allCases) { strategy in
+                    Text(strategy.displayName).tag(strategy)
+                }
+            }
+            .pickerStyle(.segmented)
+
+            Text(samplingStrategy.explanation)
+                .font(.caption2)
+                .foregroundStyle(.tertiary)
+
+            if samplingStrategy == .topK {
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack {
+                        Label("Top-K", systemImage: "list.number")
+                        Spacer()
+                        Text("\(topK)").monospacedDigit().foregroundStyle(.secondary)
+                    }
+                    Slider(
+                        value: Binding(get: { Double(topK) }, set: { topK = Int($0) }),
+                        in: 1 ... 100,
+                        step: 1
+                    ) { Text("Top-K") }
+                    Text("Choose from the \(topK) most likely next words.")
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                }
+                .padding(.vertical, 4)
+            }
+
+            if samplingStrategy == .topP {
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack {
+                        Label("Top-P (Nucleus)", systemImage: "chart.bar")
+                        Spacer()
+                        Text(String(format: "%.2f", topP)).monospacedDigit().foregroundStyle(.secondary)
+                    }
+                    Slider(value: $topP, in: 0.05 ... 0.99, step: 0.05) { Text("Top-P") }
+                    Text("Probability mass to sample from. Lower is more focused.")
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                }
+                .padding(.vertical, 4)
+            }
+
+            // Apple accepts a seed on both random modes and the app never sent one, so
+            // the same question could not reproduce the same answer. Greedy is already
+            // deterministic, so the control is meaningless there and is hidden.
+            if samplingStrategy != .greedy {
+                Toggle(isOn: $useFixedSeed) {
+                    Label("Reproducible answers", systemImage: "lock.rotation")
+                }
+                if useFixedSeed {
+                    Stepper(value: $seedValue, in: 0 ... 9999) {
+                        HStack {
+                            Text("Seed")
+                            Spacer()
+                            Text("\(seedValue)").monospacedDigit().foregroundStyle(.secondary)
+                        }
+                    }
+                }
+                Text(
+                    useFixedSeed
+                        ? "The same question against the same library returns the same answer."
+                        : "Answers vary slightly between runs."
+                )
+                .font(.caption2)
+                .foregroundStyle(.tertiary)
+            }
+        } header: {
+            Text("Sampling")
+        } footer: {
+            Text("How the model picks each next word. These are alternatives — Apple's API takes one at a time.")
         }
     }
 
@@ -392,6 +464,9 @@ struct ModelConfigurationSheet: View {
         temperature = settings.temperature
         maxTokens = settings.maxTokens
         topP = settings.topP
+        samplingStrategy = settings.samplingStrategy
+        useFixedSeed = settings.seed != nil
+        seedValue = settings.seed.map { Int($0 % 10000) } ?? 42
         contextLength = settings.contextLength
         frequencyPenalty = settings.frequencyPenalty
         presencePenalty = settings.presencePenalty
@@ -422,6 +497,8 @@ struct ModelConfigurationSheet: View {
         settings.temperature = temperature
         settings.maxTokens = maxTokens
         settings.topP = topP
+        settings.samplingStrategy = samplingStrategy
+        settings.seed = useFixedSeed ? UInt64(seedValue) : nil
         settings.contextLength = contextLength
         settings.frequencyPenalty = frequencyPenalty
         settings.presencePenalty = presencePenalty
