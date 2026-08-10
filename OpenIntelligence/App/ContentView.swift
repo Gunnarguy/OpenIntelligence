@@ -97,8 +97,7 @@ struct ContentView: View {
                 .zIndex(1)
             }
         }
-.tint(appAccentColor)
-        .glassTabBar()
+        .tint(appAccentColor)
         .onContinueUserActivity(CSSearchableItemActionType) { activity in
             // Handle Spotlight search result tap — navigate to the document's container
             if activity.userInfo?[CSSearchableItemActivityIdentifier] is String {

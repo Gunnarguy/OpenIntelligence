@@ -17328,8 +17328,17 @@ extension RAGService {
     private static func determineDeviceTier(
         chip: DeviceChip, hasAppleIntelligence: Bool, hasEmbeddings: Bool
     ) -> DeviceCapabilities.DeviceTier {
-        if hasAppleIntelligence && chip.supportsAppleIntelligence {
-            return .high // A17 Pro+ or M-series with full Apple Intelligence
+        // `hasAppleIntelligence` is derived from `SystemLanguageModel.default.availability`,
+        // which is authoritative. It used to be ANDed with `chip.supportsAppleIntelligence`,
+        // a lookup in the local `DeviceChip` table — and that table returns `.older` for
+        // every iPhone newer than the iPhone 16 line, so an iPhone 17 Pro with Apple
+        // Intelligence reporting `.available` was still demoted from `.high` to `.medium`.
+        //
+        // The `chip` parameter is now unused. It stays in the signature only so this
+        // change is reviewable on its own; it goes when `DeviceChip` is retired in
+        // favour of `DeviceCapabilityService`.
+        if hasAppleIntelligence {
+            return .high // Apple Intelligence is available on this device, per the system
         } else if hasEmbeddings {
             return .medium // A13+ with embedding support
         } else {

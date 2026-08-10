@@ -29,6 +29,11 @@ struct AboutView: View {
     @Environment(\.openURL) private var openURL
     @State private var deviceCapabilities = DeviceCapabilities()
 
+    /// Single source of truth for hardware identity. `deviceCapabilities` is still used
+    /// for the OS version and the Apple Intelligence availability rows, both of which it
+    /// gets from live system APIs rather than from its own chip table.
+    private let deviceService = DeviceCapabilityService.shared
+
     /// Human-readable name for the active embedding provider
     private var embeddingDisplayName: String {
         switch settings.defaultEmbeddingProvider {
@@ -102,10 +107,28 @@ struct AboutView: View {
                     SurfaceCard {
                         SectionHeader(icon: "cpu", title: "Your Device")
                         VStack(alignment: .leading, spacing: 8) {
-                            LabeledContent("Device Chip", value: deviceCapabilities.deviceChip.rawValue)
+                            // Read the chip from DeviceCapabilityService, not from
+                            // `deviceCapabilities.deviceChip`.
+                            //
+                            // `RAGService.detectDeviceChip()` switches on the iPhone
+                            // identifier family and stops at "iPhone17" (the iPhone 16
+                            // line), so every iPhone 17 and newer fell to `default:
+                            // return .older` — whose rawValue is the literal string
+                            // "A12 or Older", with performanceRating "Limited". Those
+                            // two strings were rendered right here, so the newest iPhone
+                            // Apple sells reported itself as a 2018 chip, directly above
+                            // an "Apple Intelligence ✓" row that reads the live
+                            // availability API and was therefore correct.
+                            //
+                            // DeviceCapabilityService keys iPhones off the major version
+                            // number and Macs off the CPU brand string, so it already
+                            // resolves A19/A20 and M5 and does not need a new table for
+                            // hardware that has not shipped yet.
+                            LabeledContent("Device Chip", value: deviceService.chipName)
                             LabeledContent("iOS Version", value: deviceCapabilities.iOSVersion)
-                            LabeledContent("Performance", value: deviceCapabilities.deviceChip.performanceRating)
-                            LabeledContent("AI Tier", value: deviceCapabilities.deviceTier.description)
+                            LabeledContent("Neural Engine", value: "\(deviceService.npuTops) TOPS")
+                            LabeledContent("Memory", value: String(format: "%.0f GB", deviceService.memoryGB))
+                            LabeledContent("AI Tier", value: deviceService.tier.displayName)
                         }
                     }
 

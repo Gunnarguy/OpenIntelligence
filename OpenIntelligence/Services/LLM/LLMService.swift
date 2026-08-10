@@ -722,8 +722,20 @@ struct LLMResponse {
             var guardrailViolation = false
             var unsupportedLanguage = false
 
-            // Report Neural Engine activity - LLM inference starting
+            // Report Neural Engine activity - LLM inference starting.
+            //
+            // The explicit `sustain(false)` calls below still switch the indicator off
+            // as soon as streaming ends, which matters because this function can go on
+            // to run a continuation pass. The `defer` is a backstop for the paths they
+            // miss: the `catch` on this `do` only matches
+            // `LanguageModelSession.GenerationError`, so a cancellation thrown out of
+            // `for try await` — exactly what the composer's Stop button produces —
+            // reached neither, and left the HUD's Neural Engine indicator lit for the
+            // rest of the session. `sustain` is idempotent, so the double call is safe.
             HardwareTelemetryReporter.reportLLMInference(active: true)
+            defer { HardwareTelemetryReporter.sustain(.llmInference, active: false) }
+
+            var lastTokenTimestamp = Date()
 
             do {
                 for try await snapshot in responseStream {
@@ -765,6 +777,21 @@ struct LLMResponse {
                     let newTokens = currentTokenEstimate - tokenCount
                     if newTokens > 0 {
                         tokenCount = currentTokenEstimate
+
+                        // Drive the Silicon HUD from real generation. The token reporter
+                        // had no call sites anywhere, so `totalLLMTokensGenerated` and
+                        // `lastLLMTokenLatencyMs` were permanently zero and the Neural
+                        // Engine bar never moved while an answer was being written.
+                        //
+                        // Reported once per snapshot with a count, never once per token:
+                        // the reporter is `nonisolated static` and hops to the main actor
+                        // through its own `Task(priority: .high)`, so a per-token call
+                        // would enqueue one high-priority main-actor task per token, each
+                        // running a `withAnimation`.
+                        let now = Date()
+                        let perTokenMs = now.timeIntervalSince(lastTokenTimestamp) * 1000 / Double(newTokens)
+                        lastTokenTimestamp = now
+                        HardwareTelemetryReporter.reportLLMTokens(count: newTokens, tokenLatencyMs: perTokenMs)
                     }
 
                     // Subtle haptic tick

@@ -171,7 +171,7 @@ struct LibraryColorPicker: View {
                     }
                     .padding(16)
                     .background(DSColors.surfaceElevated)
-                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                     .padding(.horizontal, 16)
                     .padding(.bottom, 16)
                 }

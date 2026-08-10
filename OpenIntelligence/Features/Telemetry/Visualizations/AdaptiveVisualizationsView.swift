@@ -1371,7 +1371,7 @@ struct SimilarityHeatmapPreview: View {
                         .aspectRatio(1, contentMode: .fit)
                 }
             }
-            .clipShape(RoundedRectangle(cornerRadius: 8))
+            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
 
             Text("Similarity matrix across \(chunkCount) chunks")
                 .font(.caption)

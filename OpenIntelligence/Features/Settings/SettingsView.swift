@@ -190,7 +190,7 @@ struct SettingsView: View {
 .frame(maxWidth: .infinity)
 .padding(.vertical, 24)
     .background(DSColors.surface)
-.clipShape(RoundedRectangle(cornerRadius: 20))
+.clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
     }
 
     @ViewBuilder
@@ -257,7 +257,7 @@ struct SettingsView: View {
     .padding(.horizontal, 14)
     .background(entitlementStore.effectiveTier == .free ? Color.accentColor : Color.accentColor.opacity(0.1))
     .foregroundColor(entitlementStore.effectiveTier == .free ? .white : .accentColor)
-    .clipShape(RoundedRectangle(cornerRadius: 10))
+    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
             }
             .buttonStyle(.plain)
 
@@ -287,7 +287,7 @@ struct SettingsView: View {
         }
 .padding()
     .background(DSColors.surface)
-    .clipShape(RoundedRectangle(cornerRadius: 16))
+    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
     }
 
     private var subscriptionStatusText: String {
@@ -379,7 +379,7 @@ Text(label)
         }
         .padding(12)
         .background(Color.orange.opacity(0.08))
-        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
 
     // MARK: - Model Selection Card
@@ -432,7 +432,7 @@ Text(label)
             }
             .padding(12)
 .background(Color.accentColor.opacity(0.08))
-    .clipShape(RoundedRectangle(cornerRadius: 12))
+    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
 
             // Model capabilities
             HStack(spacing: 12) {
@@ -443,7 +443,7 @@ Text(label)
         }
 .padding()
     .background(DSColors.surface)
-    .clipShape(RoundedRectangle(cornerRadius: 16))
+    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
     }
 
     @ViewBuilder
@@ -516,7 +516,7 @@ Text(label)
             }
             .padding(10)
             .background(Color.accentColor.opacity(0.06))
-            .clipShape(RoundedRectangle(cornerRadius: 10))
+            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
 
             #if canImport(FoundationModels)
             if #available(iOS 26.0, macOS 26.0, *) {
@@ -561,7 +561,7 @@ Text(label)
         }
         .padding()
         .background(DSColors.surface)
-        .clipShape(RoundedRectangle(cornerRadius: 16))
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
     }
 
     private func refreshPCCCapability() async {
@@ -609,7 +609,7 @@ Text(label)
                     .padding(10)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .background(Color.orange.opacity(0.08))
-                    .clipShape(RoundedRectangle(cornerRadius: 10))
+                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                     .fixedSize(horizontal: false, vertical: true)
             }
 
@@ -695,7 +695,7 @@ Text(label)
                 }
                 .padding(12)
                 .background(Color.accentColor.opacity(0.06))
-                .clipShape(RoundedRectangle(cornerRadius: 12))
+                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
             }
 
             if !workspaceSyncService.requiresBootstrapDecision {
@@ -756,7 +756,7 @@ Text(label)
         }
         .padding()
         .background(DSColors.surface)
-        .clipShape(RoundedRectangle(cornerRadius: 16))
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
     }
 
     private var syncActivitySummary: String? {
@@ -918,7 +918,7 @@ Text(label)
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(8)
         .background(isActive ? Color.accentColor.opacity(0.08) : Color.clear)
-        .clipShape(RoundedRectangle(cornerRadius: 8))
+        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
     }
 
     // MARK: - Context Window Card
@@ -970,7 +970,7 @@ Text(deviceService.chipName)
             }
 .padding(10)
 .background(Color.purple.opacity(0.08))
-    .clipShape(RoundedRectangle(cornerRadius: 10))
+    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
 
             Divider()
 
@@ -1019,7 +1019,7 @@ Text(deviceService.chipName)
             }
             .padding(10)
             .background(Color.orange.opacity(0.08))
-            .clipShape(RoundedRectangle(cornerRadius: 10))
+            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
             .animation(.easeInOut(duration: 0.2), value: settings.ragQualityMode)
 
             Divider()
@@ -1064,11 +1064,11 @@ Text(deviceService.chipName)
             }
 .padding(10)
     .background(Color.blue.opacity(0.08))
-    .clipShape(RoundedRectangle(cornerRadius: 10))
+    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
         }
 .padding()
     .background(DSColors.surface)
-    .clipShape(RoundedRectangle(cornerRadius: 16))
+    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
     }
 
     private func tierColor(for tier: DeviceCapabilityTier) -> Color {
@@ -1147,7 +1147,7 @@ Text(deviceService.chipName)
                 }
                 .padding(12)
                 .background(Color.indigo.opacity(0.08))
-                .clipShape(RoundedRectangle(cornerRadius: 12))
+                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
             }
 
             @ViewBuilder
@@ -1270,7 +1270,7 @@ Text(deviceService.chipName)
         }
         .padding(12)
         .background(Color.cyan.opacity(0.08))
-        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
 
     @ViewBuilder
@@ -1346,7 +1346,7 @@ Text(deviceService.chipName)
                 }
                 .padding(8)
                 .background(Color.orange.opacity(0.08))
-                .clipShape(RoundedRectangle(cornerRadius: 8))
+                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
             }
 
             // Discrete profiles avoid implying a precise GPU percentage that Core ML cannot promise.
@@ -1378,7 +1378,7 @@ Text(deviceService.chipName)
             }
             .padding(10)
             .background(Color.green.opacity(0.08))
-            .clipShape(RoundedRectangle(cornerRadius: 10))
+            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
             .animation(.easeInOut(duration: 0.15), value: gpuProfile)
 
             Divider()
@@ -1404,7 +1404,7 @@ Text(deviceService.chipName)
             }
             .padding(10)
             .background(Color.orange.opacity(0.08))
-            .clipShape(RoundedRectangle(cornerRadius: 10))
+            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
 
             // Current policy derived from the same profile the execution paths consult.
             VStack(alignment: .leading, spacing: 6) {
@@ -1482,12 +1482,12 @@ Text(deviceService.chipName)
                 }
                 .padding(8)
                 .background(Color.orange.opacity(0.1))
-                .clipShape(RoundedRectangle(cornerRadius: 8))
+                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
             }
         }
         .padding(12)
         .background(Color.green.opacity(0.08))
-        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         .onAppear {
             gpuProfile = DeviceCapabilityService.shared.gpuExecutionProfile
         }
@@ -1595,7 +1595,7 @@ Text(deviceService.chipName)
         }
         .padding()
         .background(DSColors.surface)
-        .clipShape(RoundedRectangle(cornerRadius: 16))
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
     }
 
     // MARK: - Retrieval Card Helpers
@@ -1695,12 +1695,12 @@ Text(deviceService.chipName)
             }
             .padding(10)
             .background(modeAccentColor.opacity(0.08))
-            .clipShape(RoundedRectangle(cornerRadius: 10))
+            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
             .animation(.easeInOut(duration: 0.25), value: settings.ragQualityMode)
         }
 .padding()
     .background(DSColors.surface)
-    .clipShape(RoundedRectangle(cornerRadius: 16))
+    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
     }
 
     // MARK: - Feature List Data Model
@@ -1863,10 +1863,10 @@ Text(deviceService.chipName)
         }
         .padding(14)
         .background(
-            RoundedRectangle(cornerRadius: 14)
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
                 .fill(isSelected ? accent.opacity(0.08) : Color.secondary.opacity(0.05))
                 .overlay(
-                    RoundedRectangle(cornerRadius: 14)
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
                         .stroke(isSelected ? accent.opacity(0.35) : Color.secondary.opacity(0.08), lineWidth: 1)
                 )
         )
@@ -2126,7 +2126,7 @@ Text(deviceService.chipName)
             .padding(.vertical, 4)
         }
         .background(DSColors.surface)
-        .clipShape(RoundedRectangle(cornerRadius: 16))
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
      }
 
     private var siriIntegrationCard: some View {
@@ -2202,7 +2202,7 @@ Text(deviceService.chipName)
             }
         }
         .background(DSColors.surface)
-        .clipShape(RoundedRectangle(cornerRadius: 16))
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
     }
 
     private var shortcutsAutomationCard: some View {
@@ -2278,7 +2278,7 @@ Text(deviceService.chipName)
             }
         }
         .background(DSColors.surface)
-        .clipShape(RoundedRectangle(cornerRadius: 16))
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
     }
 
     private func shortcutsActionGroup(title: String, actions: [String: String]) -> some View {
@@ -2532,7 +2532,7 @@ Text(deviceService.chipName)
             }
         }
         .background(DSColors.surface)
-        .clipShape(RoundedRectangle(cornerRadius: 16))
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
     }
 
     // MARK: - Developer Card
@@ -2567,7 +2567,7 @@ Text("RAG audit, diagnostics, advanced tuning")
             }
 .padding()
     .background(DSColors.surface)
-    .clipShape(RoundedRectangle(cornerRadius: 16))
+    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
         }
 .buttonStyle(.plain)
     }
@@ -2688,7 +2688,7 @@ Text("RAG audit, diagnostics, advanced tuning")
             .buttonStyle(.plain)
         }
         .background(DSColors.surface)
-        .clipShape(RoundedRectangle(cornerRadius: 16))
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
     }
 
     private func shareApp() {
@@ -2754,7 +2754,7 @@ Text("Version \(Bundle.main.appVersion)")
             }
 .padding()
     .background(DSColors.surface)
-    .clipShape(RoundedRectangle(cornerRadius: 16))
+    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
         }
 .buttonStyle(.plain)
     }

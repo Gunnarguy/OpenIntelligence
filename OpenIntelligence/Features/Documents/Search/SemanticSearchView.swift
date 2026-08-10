@@ -160,7 +160,7 @@ struct SemanticSearchView: View {
     }
 
     private var cardBackground: some View {
-        RoundedRectangle(cornerRadius: 18)
+        RoundedRectangle(cornerRadius: 18, style: .continuous)
             .fill(DSColors.surface)
             .shadow(color: .black.opacity(0.06), radius: 10, x: 0, y: 4)
     }
@@ -241,7 +241,7 @@ private struct SemanticResultCard: View {
         }
         .padding()
         .background(
-            RoundedRectangle(cornerRadius: 16)
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
                 .fill(DSColors.surfaceElevated)
         )
     }
@@ -314,7 +314,7 @@ private struct StatusBanner: View {
         .padding()
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
-            RoundedRectangle(cornerRadius: 14)
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
                 .fill(DSColors.surface)
         )
     }

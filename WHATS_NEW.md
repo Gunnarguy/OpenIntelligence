@@ -4,6 +4,32 @@
 
 Public release highlights for OpenIntelligence.
 
+## 5.0
+
+Importing a document was quietly losing parts of it. This release finds the places that happened.
+
+### Your Documents
+- **Tables in Word documents were being thrown away:** each one was read into rows and then dropped, so a document could import looking fine with all of its numbers missing.
+- **Images keep their layout:** every image became one unbroken line of text before anything downstream could read it.
+- **Photographing a page now matches importing it:** camera captures came out as flat text where the same page imported as table cells.
+- **Scanned pages report their scanning honestly:** a fully scanned PDF used to tell you it had scanned zero pages.
+- **Pages, Numbers and Keynote files now fail clearly.** They were never actually readable, so importing one no longer looks like it worked.
+
+### Answers
+- **Search ranks section headings again.** A weighting mistake had dropped section paths out of ranking entirely.
+- **Long questions can reach Private Cloud Compute** instead of being kept on device precisely when they were too big for it.
+
+### Things The App Was Claiming That Weren't True
+Settings describes what the app is doing while it answers you, and several of those lines described things the code does not do.
+- **It listed eight agentic tools, and all eight were the wrong ones.** Four are actually wired up; those four are what it names now.
+- **Two advertised features did not exist,** and the model picker listed a tier the app cannot select. Both gone.
+- **Speed figures that were never measured have been removed,** including from the sample documents the app reads back to you as fact.
+
+### The App Itself
+- **Your device is identified correctly.** iPhone 17 and M5 hardware reported itself as "A12 or Older".
+- **The first screen no longer cuts off its own text.**
+- **The chat controls match each other,** and the mode menu shows which mode is active and how many Maximum runs are left.
+
 ## 4.9
 
 Documents no longer disappear after importing, and libraries carry their work between devices instead of asking you to redo it.

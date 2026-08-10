@@ -1212,12 +1212,19 @@ final class DeviceCapabilityService: @unchecked Sendable {
             return (.advanced, "M3", .iPadAir, 18)
 
         case 16:
+            // iPad16,1 and iPad16,2 are the iPad mini 7, which runs an A17 Pro — not an
+            // M4 iPad Pro. This case returned the Pro unconditionally, so a mini 7
+            // reported "M4" and an iPad Pro form factor, and every batch size and
+            // concurrency ceiling downstream was sized for the wrong chip.
+            if minor <= 2 {
+                return (.baseline, "A17 Pro", .iPadMini, 35)
+            }
             // iPad Pro M4 (2024) - OLED models - 38 TOPS
             return (.ultraAdvanced, "M4", .iPadPro, 38)
 
-            case 17:
-                // iPad Pro M5 (2026) - projected ~45 TOPS
-                return (.ultraAdvanced, "M5", .iPadPro, 45)
+        case 17:
+            // iPad Pro M5 (2026) - projected ~45 TOPS
+            return (.ultraAdvanced, "M5", .iPadPro, 45)
 
         case 18...:
             // Future iPads - assume Pro tier with increasing TOPS

@@ -237,14 +237,14 @@ struct AttachmentPreviewChip: View {
                     .resizable()
                     .aspectRatio(contentMode: .fill)
                     .frame(width: 28, height: 28)
-                    .clipShape(RoundedRectangle(cornerRadius: 6))
+                    .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
             } else {
                 Image(systemName: attachment.type.icon)
                     .font(.system(size: 14, weight: .medium))
                     .foregroundStyle(DSColors.accent)
                     .frame(width: 28, height: 28)
                     .background(DSColors.accent.opacity(0.15))
-                    .clipShape(RoundedRectangle(cornerRadius: 6))
+                    .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
             }
             #else
             if let thumbnail = attachment.thumbnail {
@@ -252,14 +252,14 @@ struct AttachmentPreviewChip: View {
                     .resizable()
                     .aspectRatio(contentMode: .fill)
                     .frame(width: 28, height: 28)
-                    .clipShape(RoundedRectangle(cornerRadius: 6))
+                    .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
             } else {
                 Image(systemName: attachment.type.icon)
                     .font(.system(size: 14, weight: .medium))
                     .foregroundStyle(DSColors.accent)
                     .frame(width: 28, height: 28)
                     .background(DSColors.accent.opacity(0.15))
-                    .clipShape(RoundedRectangle(cornerRadius: 6))
+                    .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
             }
             #endif
 

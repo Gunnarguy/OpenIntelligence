@@ -284,7 +284,7 @@ extension ContainerSettingsSheet {
         }
         .padding(12)
         .background(Color.cyan.opacity(0.08))
-        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
 
     @ViewBuilder
@@ -424,10 +424,10 @@ extension ContainerSettingsSheet {
         }
         .padding(12)
         .background(
-            RoundedRectangle(cornerRadius: 12)
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
                 .fill(Color.purple.opacity(0.08))
                 .overlay(
-                    RoundedRectangle(cornerRadius: 12)
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
                         .stroke(Color.purple.opacity(0.2), lineWidth: 1)
                 )
         )
@@ -450,7 +450,7 @@ extension ContainerSettingsSheet {
         }
         .padding(8)
         .background(color.opacity(0.08))
-        .clipShape(RoundedRectangle(cornerRadius: 8))
+        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
     }
 
     @ViewBuilder
@@ -504,7 +504,7 @@ extension ContainerSettingsSheet {
                         .foregroundColor(.secondary)
                     HStack(spacing: 4) {
                         GeometryReader { geo in
-                            RoundedRectangle(cornerRadius: 3)
+                            RoundedRectangle(cornerRadius: 3, style: .continuous)
                                 .fill(Color.blue)
                                 .frame(width: geo.size.width * report.retrieval.vectorWeight)
                         }
@@ -521,7 +521,7 @@ extension ContainerSettingsSheet {
                         .foregroundColor(.secondary)
                     HStack(spacing: 4) {
                         GeometryReader { geo in
-                            RoundedRectangle(cornerRadius: 3)
+                            RoundedRectangle(cornerRadius: 3, style: .continuous)
                                 .fill(Color.orange)
                                 .frame(width: geo.size.width * report.retrieval.lexicalWeight)
                         }
@@ -563,7 +563,7 @@ extension ContainerSettingsSheet {
         }
         .padding(12)
         .background(Color.teal.opacity(0.08))
-        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
 
     // MARK: - Retrieval Style Section (User-Friendly Presets)
@@ -630,7 +630,7 @@ extension ContainerSettingsSheet {
                 }
                 .padding(10)
                 .background(Color.orange.opacity(0.1))
-                .clipShape(RoundedRectangle(cornerRadius: 8))
+                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
             }
         }
     }
@@ -695,11 +695,11 @@ extension ContainerSettingsSheet {
             }
             .padding(12)
             .background(
-                RoundedRectangle(cornerRadius: 12)
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
                     .fill(isSelected ? Color.accentColor.opacity(0.08) : DSColors.surface)
             )
             .overlay(
-                RoundedRectangle(cornerRadius: 12)
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
                     .stroke(isSelected ? Color.accentColor.opacity(0.3) : Color.clear, lineWidth: 1)
             )
         }
@@ -961,7 +961,7 @@ extension ContainerSettingsSheet {
         }
         .padding(12)
         .background(Color.indigo.opacity(0.08))
-        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
 
     @ViewBuilder
@@ -1052,7 +1052,7 @@ extension ContainerSettingsSheet {
             }
             .padding(12)
             .background(Color.accentColor.opacity(0.08))
-            .clipShape(RoundedRectangle(cornerRadius: 12))
+            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         }
     }
 
@@ -1233,7 +1233,7 @@ extension ContainerSettingsSheet {
         }
         .padding(12)
         .background(Color.pink.opacity(0.06))
-        .clipShape(RoundedRectangle(cornerRadius: 10))
+        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
     }
 
     @ViewBuilder
@@ -1287,7 +1287,7 @@ extension ContainerSettingsSheet {
             }
             .padding(12)
             .background(Color.cyan.opacity(0.06))
-            .clipShape(RoundedRectangle(cornerRadius: 10))
+            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
         }
     }
 
@@ -1327,7 +1327,7 @@ extension ContainerSettingsSheet {
         }
         .padding(12)
         .background(Color.green.opacity(0.06))
-        .clipShape(RoundedRectangle(cornerRadius: 10))
+        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
     }
 
     @ViewBuilder
@@ -1343,7 +1343,7 @@ extension ContainerSettingsSheet {
             HStack(alignment: .bottom, spacing: 2) {
                 ForEach(sortedBySize.prefix(10), id: \.id) { doc in
                     let height = CGFloat(doc.characterCount) / CGFloat(maxSize) * 24
-                    RoundedRectangle(cornerRadius: 2)
+                    RoundedRectangle(cornerRadius: 2, style: .continuous)
                         .fill(Color.green.opacity(0.6))
                         .frame(width: 8, height: max(4, height))
                 }
@@ -1396,7 +1396,7 @@ extension ContainerSettingsSheet {
         }
         .padding(12)
         .background(Color.orange.opacity(0.06))
-        .clipShape(RoundedRectangle(cornerRadius: 10))
+        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
     }
 
     @ViewBuilder
@@ -1435,7 +1435,7 @@ extension ContainerSettingsSheet {
         }
         .padding(12)
         .background(Color.indigo.opacity(0.06))
-        .clipShape(RoundedRectangle(cornerRadius: 10))
+        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
     }
 
     @ViewBuilder
@@ -1745,7 +1745,7 @@ extension ContainerSettingsSheet {
         }
         .padding(12)
         .background(Color.gray.opacity(0.06))
-        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
 }
 
@@ -1784,7 +1784,7 @@ struct ChunkingPreview: View {
                 HStack(spacing: -overlapWidth) {
                     ForEach(0 ..< 3, id: \.self) { index in
                         VStack(spacing: 2) {
-                            RoundedRectangle(cornerRadius: 4)
+                            RoundedRectangle(cornerRadius: 4, style: .continuous)
                                 .fill(chunkColor(for: index))
 .frame(width: chunkWidth, height: 20)
     .overlay(
@@ -1845,7 +1845,7 @@ struct ChunkingPreview: View {
         }
         .padding(12)
         .background(Color.gray.opacity(0.08))
-        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
 
     @ViewBuilder

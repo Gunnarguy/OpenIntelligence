@@ -129,17 +129,20 @@ enum DeviceComponentLayout {
         }
     }
 
+    /// The chip label shown in the HUD.
+    ///
+    /// This deliberately does **not** come from the layout table above. That table is an
+    /// exact-identifier map and exists to place the SoC glow at the right physical spot
+    /// on each board, which genuinely needs per-model data. Using it for the *name* meant
+    /// the HUD carried a third, independently-maintained chip table — and it had already
+    /// drifted: every `.iPadPro` reported "Apple M4", so an M5 iPad Pro was mislabelled,
+    /// and the non-Pro iPhone 17 and iPhone Air were absent from the map entirely and so
+    /// fell through to "Apple Silicon".
+    ///
+    /// `DeviceCapabilityService` keys iPhones off the major identifier number and Macs off
+    /// the CPU brand string, so it resolves hardware this table has never heard of.
     var chipName: String {
-        switch self {
-        case .iPhone15Pro, .iPhone15ProMax: return "A17 Pro"
-        case .iPhone16, .iPhone16Plus: return "A18"
-        case .iPhone16Pro, .iPhone16ProMax: return "A18 Pro"
-        case .iPhone17Pro, .iPhone17ProMax: return "A19 Pro"
-        case .iPadMini: return "A17 Pro"
-        case .iPadAir: return "Apple M2"
-        case .iPadPro: return "Apple M4"
-        case .unknown: return "Apple Silicon"
-        }
+        DeviceCapabilityService.shared.chipName
     }
 
     // MARK: - SoC Position (ONE chip, ONE location)
@@ -535,20 +538,20 @@ private struct GlowingSoCBorder: View {
     var body: some View {
         ZStack {
             // Single soft glow layer (not 3 separate ones)
-            RoundedRectangle(cornerRadius: 8)
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
                 .strokeBorder(color.opacity(baseOpacity * 0.3), lineWidth: borderWidth + 2)
                 .blur(radius: glowRadius)
                 .frame(width: frame.width, height: frame.height)
                 .position(x: frame.midX, y: frame.midY)
 
             // Main border - more visible
-            RoundedRectangle(cornerRadius: 8)
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
                 .strokeBorder(color.opacity(baseOpacity), lineWidth: borderWidth)
                 .frame(width: frame.width, height: frame.height)
                 .position(x: frame.midX, y: frame.midY)
 
             // Inner tint - more visible fill
-            RoundedRectangle(cornerRadius: 8)
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
                 .fill(color.opacity(0.05 * intensity))
                 .frame(width: frame.width, height: frame.height)
                 .position(x: frame.midX, y: frame.midY)
@@ -598,20 +601,20 @@ private struct GlowingTapticBorder: View {
     var body: some View {
         ZStack {
             // Single soft glow
-            RoundedRectangle(cornerRadius: 4)
+            RoundedRectangle(cornerRadius: 4, style: .continuous)
                 .strokeBorder(hapticColor.opacity(baseOpacity * 0.5), lineWidth: borderWidth + 2)
                 .blur(radius: glowRadius)
                 .frame(width: frame.width, height: frame.height)
                 .position(x: frame.midX, y: frame.midY)
 
             // Main border - thin
-            RoundedRectangle(cornerRadius: 4)
+            RoundedRectangle(cornerRadius: 4, style: .continuous)
                 .strokeBorder(hapticColor.opacity(baseOpacity), lineWidth: borderWidth)
                 .frame(width: frame.width, height: frame.height)
                 .position(x: frame.midX, y: frame.midY)
 
             // Inner fill — visible flash on fire
-            RoundedRectangle(cornerRadius: 4)
+            RoundedRectangle(cornerRadius: 4, style: .continuous)
                 .fill(hapticColor.opacity(0.08 * intensity))
                 .frame(width: frame.width, height: frame.height)
                 .position(x: frame.midX, y: frame.midY)
@@ -710,12 +713,12 @@ private struct SiliconLegend: View {
                         GeometryReader { geo in
                             ZStack(alignment: .leading) {
                                 // Track
-                                RoundedRectangle(cornerRadius: 1)
+                                RoundedRectangle(cornerRadius: 1, style: .continuous)
                                     .fill(Color.white.opacity(0.06))
                                     .frame(height: 2)
 
                                 // Fill
-                                RoundedRectangle(cornerRadius: 1)
+                                RoundedRectangle(cornerRadius: 1, style: .continuous)
                                     .fill(componentColor(activity.color).opacity(activity.isActive ? 0.65 : 0.35))
                                     .frame(width: max(1, geo.size.width * CGFloat(activity.percentage / 100.0)), height: 2)
                             }
@@ -765,7 +768,7 @@ private struct SiliconLegend: View {
         .padding(.horizontal, 4)
         .padding(.vertical, 3)
         .background(
-            RoundedRectangle(cornerRadius: 3)
+            RoundedRectangle(cornerRadius: 3, style: .continuous)
                 .fill(Color.black.opacity(0.25))
         )
         // Only animate structural changes (new rows appearing), not every tick

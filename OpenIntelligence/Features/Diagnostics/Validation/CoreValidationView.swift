@@ -431,7 +431,7 @@ struct ModernStatusCard: View {
         .padding()
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
-            RoundedRectangle(cornerRadius: 16)
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
                 .fill(DSColors.surface)
                 .shadow(color: .black.opacity(0.05), radius: 8, x: 0, y: 2)
         )
@@ -616,7 +616,7 @@ struct ModernTestResultCard: View {
         }
         .padding()
         .background(
-            RoundedRectangle(cornerRadius: 12)
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
                 .fill(DSColors.surface)
                 .shadow(color: .black.opacity(0.03), radius: 4, x: 0, y: 2)
         )
@@ -664,7 +664,7 @@ struct ModernTestInfoSection: View {
         }
         .padding()
         .background(
-            RoundedRectangle(cornerRadius: 16)
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
                 .fill(DSColors.surface)
                 .shadow(color: .black.opacity(0.05), radius: 8, x: 0, y: 2)
         )
@@ -679,7 +679,7 @@ struct ModernTestInfoItem: View {
     var body: some View {
         HStack(spacing: 12) {
             ZStack {
-                RoundedRectangle(cornerRadius: 8)
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
                     .fill(color.opacity(0.2))
                     .frame(width: 36, height: 36)
 

@@ -959,11 +959,11 @@ struct SelectableOptionCard: View {
             }
             .padding(12)
             .background(
-                RoundedRectangle(cornerRadius: 12)
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
                     .fill(backgroundColor)
             )
             .overlay(
-                RoundedRectangle(cornerRadius: 12)
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
                     .stroke(borderColor, lineWidth: 1)
             )
         }
@@ -1159,7 +1159,7 @@ struct AutoIntelligencePanel: View {
                     }
                 }
                 .padding(10)
-                .background(RoundedRectangle(cornerRadius: 10).fill(Color.orange.opacity(0.08)))
+                .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Color.orange.opacity(0.08)))
             }
         }
         .padding()

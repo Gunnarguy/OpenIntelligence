@@ -171,7 +171,7 @@ struct DocumentDetailsView: View {
                     .background(Color.accentColor.opacity(0.1))
                     .cornerRadius(8)
                     .overlay(
-                        RoundedRectangle(cornerRadius: 8)
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
                             .stroke(Color.accentColor.opacity(0.3), lineWidth: 1)
                     )
                 

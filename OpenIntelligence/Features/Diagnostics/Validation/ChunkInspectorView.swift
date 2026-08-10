@@ -130,7 +130,7 @@ struct ChunkInspectorView: View {
             }
             .padding(12)
             .background(DSColors.secondarySystemGroupedBackground)
-            .clipShape(RoundedRectangle(cornerRadius: 10))
+            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
             .padding(.horizontal)
 
             if searchQuery.isEmpty {
@@ -173,7 +173,7 @@ struct ChunkInspectorView: View {
         }
         .padding(10)
         .background(v.found ? Color.green.opacity(0.1) : Color.red.opacity(0.1))
-        .clipShape(RoundedRectangle(cornerRadius: 8))
+        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
         .padding(.horizontal)
     }
 
@@ -504,7 +504,7 @@ struct ChunkDetailSheet: View {
         }
         .padding()
         .background(DSColors.secondarySystemGroupedBackground)
-        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
 
     private func metadataItem(_ label: String, value: String) -> some View {
@@ -527,11 +527,11 @@ struct ChunkDetailSheet: View {
                 .padding()
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .background(DSColors.tertiarySystemGroupedBackground)
-                .clipShape(RoundedRectangle(cornerRadius: 8))
+                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
         }
         .padding()
         .background(DSColors.secondarySystemGroupedBackground)
-        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
 
     private func prefixCard(_ prefix: String) -> some View {
@@ -543,11 +543,11 @@ struct ChunkDetailSheet: View {
                 .padding()
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .background(Color.blue.opacity(0.1))
-                .clipShape(RoundedRectangle(cornerRadius: 8))
+                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
         }
         .padding()
         .background(DSColors.secondarySystemGroupedBackground)
-        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
 
     private func sectionPathCard(_ path: [String]) -> some View {
@@ -571,7 +571,7 @@ struct ChunkDetailSheet: View {
         }
         .padding()
         .background(DSColors.secondarySystemGroupedBackground)
-        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
 
     private var entitiesCard: some View {
@@ -591,7 +591,7 @@ struct ChunkDetailSheet: View {
         }
         .padding()
         .background(DSColors.secondarySystemGroupedBackground)
-        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
 
     private var keywordsCard: some View {
@@ -611,7 +611,7 @@ struct ChunkDetailSheet: View {
         }
         .padding()
         .background(DSColors.secondarySystemGroupedBackground)
-        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
 
     private var technicalCard: some View {
@@ -628,7 +628,7 @@ struct ChunkDetailSheet: View {
         }
         .padding()
         .background(DSColors.secondarySystemGroupedBackground)
-        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
 }
 

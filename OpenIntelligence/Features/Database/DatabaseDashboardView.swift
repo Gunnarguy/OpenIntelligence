@@ -2108,7 +2108,7 @@ struct LibraryIntelligenceCard: View {
         .background(DSColors.surface)
         .cornerRadius(12)
         .overlay(
-            RoundedRectangle(cornerRadius: 12)
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
                 .stroke(container.autoAdaptDimension ? Color.purple.opacity(0.3) : Color.clear, lineWidth: 1)
         )
     }
@@ -2304,7 +2304,7 @@ struct DocumentPreviewSheet: View {
                                 .background(DSColors.background)
                                 .cornerRadius(8)
                                 .overlay(
-                                    RoundedRectangle(cornerRadius: 8)
+                                    RoundedRectangle(cornerRadius: 8, style: .continuous)
                                         .stroke(Color.secondary.opacity(0.2), lineWidth: 1)
                                 )
                         }

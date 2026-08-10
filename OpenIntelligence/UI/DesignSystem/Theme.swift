@@ -133,32 +133,58 @@ public enum DSColors {
 
 // MARK: - Typography
 
+/// Every token here is a Dynamic Type text style, not a fixed point size.
+///
+/// These were `.system(size: 14/11/10/10/12)` until v5.0, which froze them against
+/// the user's text-size setting. Because this is the design system, it was the single
+/// largest source of non-scaling type in the app. The replacements land within ~1pt of
+/// the old sizes at the default setting and scale from there.
 public enum DSTypography {
     public static var title: Font { .headline }
-    public static var body: Font { .system(size: 14) }
-    public static var caption: Font { .system(size: 11) }
-    public static var meta: Font { .system(size: 10) }
-    public static var chip: Font { .system(size: 10, weight: .semibold) }
-    public static var code: Font { .system(size: 12, design: .monospaced) }
+    public static var body: Font { .subheadline }
+    public static var caption: Font { .caption }
+    public static var meta: Font { .caption2 }
+    public static var chip: Font { .caption2.weight(.semibold) }
+    public static var code: Font { .system(.caption, design: .monospaced) }
 }
 
 // MARK: - Spacing
 
+/// A 4-point grid, matching the values the app actually reaches for.
+///
+/// The previous scale was 2/6/10/14/20/28. Counted against the codebase, the seven
+/// most common spacing literals were 8 (295 uses), 4 (264), 12 (237), 6 (186), 2 (166),
+/// 10 (125) and 16 (103) — so the three most-used values had no token at all, while
+/// `xl = 28` had zero matching literals. That mismatch is why adoption stalled around
+/// 5%: a developer opening the scale did not find their number, so they typed it.
+/// Every rung below moved by at most 4pt and now sits on the grid.
 public enum DSSpacing {
     public static let xxs: CGFloat = 2
-    public static let xs: CGFloat = 6
-    public static let sm: CGFloat = 10
-    public static let md: CGFloat = 14
-    public static let lg: CGFloat = 20
-    public static let xl: CGFloat = 28
+    public static let xs: CGFloat = 4
+    public static let sm: CGFloat = 8
+    public static let md: CGFloat = 12
+    public static let lg: CGFloat = 16
+    public static let xl: CGFloat = 24
+    public static let xxl: CGFloat = 32
 }
 
 // MARK: - Corners
 
+/// Radii in use across the app, in ascending order.
+///
+/// `pill` and `panel` are additive: radius 8 (69 hand-written uses) and 14 (33) were
+/// the two commonest values with no token, so they were always typed as literals.
+/// Nothing that already referenced this enum changes value.
+///
+/// Always pair these with `style: .continuous`. iOS system chrome is entirely
+/// continuous, so a circular corner sitting next to a continuous one of the same
+/// radius is a visible mismatch even though the number matches.
 public enum DSCorners {
     public static let chip: CGFloat = 6
+    public static let pill: CGFloat = 8
     public static let control: CGFloat = 10
     public static let card: CGFloat = 12
+    public static let panel: CGFloat = 14
     public static let bubble: CGFloat = 16
     public static let sheet: CGFloat = 20
 }
@@ -237,29 +263,22 @@ public extension View {
     }
 }
 
-// MARK: - Liquid Glass (iOS 26+)
+// MARK: - Glass
 
-/// Liquid Glass design system integration for iOS 26
-/// Applies translucent glass effects to surfaces, toolbars, and cards
-public enum DSGlass {
-    /// Apply glass effect to a navigation bar or toolbar
-    @available(iOS 26.0, *)
-    public static func toolbarMaterial() -> some ShapeStyle {
-        .regularMaterial
-    }
+// What used to live here was named "Liquid Glass" and was not Liquid Glass.
+//
+// `DSGlass`, `GlassCardModifier`, `GlassToolbarModifier` and `GlassTabBarModifier` all
+// returned `.ultraThinMaterial` / `.thinMaterial` / `.regularMaterial` — the material
+// system that predates Liquid Glass. Two of them were worse than merely mislabelled:
+// `.toolbarBackground(.ultraThinMaterial, for: .navigationBar / .tabBar)` opts a bar
+// *out* of the system's Liquid Glass treatment and paints a flat material instead, so
+// adopting them would have moved the app backwards. They are removed rather than
+// renamed; the system already does the right thing when nothing overrides it.
+//
+// The real Liquid Glass API is `glassEffect(_:in:)`, used by the helpers below. The
+// deployment target is iOS 26.0, so it is available unconditionally.
 
-    /// Glass card background for elevated content
-    public static var cardBackground: some ShapeStyle {
-        .ultraThinMaterial
-    }
-
-    /// Glass surface for floating panels
-    public static var panelBackground: some ShapeStyle {
-        .thinMaterial
-    }
-}
-
-/// View modifier that applies Liquid Glass styling to a card/surface
+/// Applies the real Liquid Glass material to a card surface.
 public struct GlassCardModifier: ViewModifier {
     let cornerRadius: CGFloat
 
@@ -270,33 +289,7 @@ public struct GlassCardModifier: ViewModifier {
     public func body(content: Content) -> some View {
         content
             .padding(DSSpacing.md)
-            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: cornerRadius))
-    }
-}
-
-/// View modifier for glass-style toolbar appearance
-public struct GlassToolbarModifier: ViewModifier {
-    public func body(content: Content) -> some View {
-        #if os(iOS)
-        content
-            .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
-            .toolbarBackground(.visible, for: .navigationBar)
-        #else
-        content
-        #endif
-    }
-}
-
-/// View modifier for glass-style tab bar
-public struct GlassTabBarModifier: ViewModifier {
-    public func body(content: Content) -> some View {
-        #if os(iOS)
-        content
-            .toolbarBackground(.ultraThinMaterial, for: .tabBar)
-            .toolbarBackground(.visible, for: .tabBar)
-        #else
-        content
-        #endif
+            .glassEffect(.regular, in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
     }
 }
 
@@ -321,16 +314,6 @@ public extension View {
     /// Apply Liquid Glass card styling
     func glassCard(cornerRadius: CGFloat = DSCorners.card) -> some View {
         modifier(GlassCardModifier(cornerRadius: cornerRadius))
-    }
-
-    /// Apply Liquid Glass toolbar styling
-    func glassToolbar() -> some View {
-        modifier(GlassToolbarModifier())
-    }
-
-    /// Apply Liquid Glass tab bar styling
-    func glassTabBar() -> some View {
-        modifier(GlassTabBarModifier())
     }
 
     /// Apply Liquid Glass pill styling for iOS 26+

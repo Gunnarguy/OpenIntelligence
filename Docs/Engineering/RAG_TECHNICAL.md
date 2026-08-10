@@ -20,6 +20,27 @@ This document provides the technical formulas, algorithms, and deep dive specifi
 
 ## Pipeline Overview (29 Steps)
 
+**How the 29 is counted** *(documented 2026-08-10; the rule was always applied, never written
+down).* Ingestion contributes 6. The query loop contributes **23: Steps 1 through 9 inclusive**,
+which is the query-to-response transformation proper. `Step 0` and `Step 10` are enumerated below
+but are **not** counted in the 23, because neither is part of that transformation: Step 0 loads a
+container vocabulary cache before any query exists, and Step 10 renders an answer that is already
+final. The enumerated list therefore holds 25 entries while the figure is 23, and both are correct.
+
+Count it yourself:
+
+```bash
+grep -cE '^  Step [0-9]' Docs/Engineering/RAG_TECHNICAL.md          # -> 25 enumerated
+grep -oE '^  Step ([0-9.]+):' Docs/Engineering/RAG_TECHNICAL.md \
+  | grep -vE 'Step (0|10):' | wc -l                                  # -> 23 counted
+```
+
+This is recorded because the missing rule has now caused two independent miscounts. The
+`RESEARCH_PAPERS_REFERENCE_SHEET.md` F-3 finding of 2026-07-31 concluded the figure was
+unenumerated, and a 2026-08-10 review concluded the correct total was 31. Both compared the raw
+enumeration against the stated figure, found 25 against 23, and inferred an error in the figure.
+The figure was right both times. `[evidence_level: code_verified, confidence: exact, evidence_source: the enumerated list below, git history of this file showing label 23 and enumeration 25 co-existing unchanged since 4e24bbb 2026-05-12]`
+
 ```
 INGESTION (6 steps):
   1. Parse (PDFKit/Vision OCR, adaptive 5x-6x render scale/Office ZIP)
@@ -29,24 +50,29 @@ INGESTION (6 steps):
   5. Embedding (384-dim MiniLM)
   6. Store (per-container vector store + SQLite FTS5 + metadata)
 
-QUERY → RESPONSE (23 steps):
+QUERY → RESPONSE (23 specified; 28 present in code, 27 active — see note below):
   Step 0:   Corpus Analysis (vocabulary cache)
   Step 1:   Query Understanding (pronoun resolution, NER)
   Step 1.5: Query Expansion (corpus + container vocab)
+  Step 1.5b:Per-Container Vocabulary Expansion                    [UNSPECIFIED]
+  Step 1.5c:Gazetteer Domain Vocabulary Enrichment                [UNSPECIFIED]
   Step 1.6: Intent Classification (lookup/procedure/compare/summarize)
   Step 2:   Query Embedding (384-dim)
   Step 2.5: RAPTOR-lite Routing (overview → L1 summaries)
   Step 3:   Hybrid Search (Vector + BM25 + RRF) or Iterative Retrieval
+  Step 3.5: Section Metadata Boost                                [UNSPECIFIED]
   Step 4:   Cross-Encoder Rerank (TinyBERT)
   Step 4.3: Low-Confidence Filtering
   Step 4.4: Multi-Document Representation (source diversity)
   Step 4.5: MMR Diversification (λ=0.6)
   Step 4.6: Parent Document Retrieval (±5 siblings)
+  Step 4.6b:Cross-Reference Resolution                            [UNSPECIFIED]
+  Step 4.8: Targeted Spec Retrieval ("Spec Table Sniper")         [UNSPECIFIED]
   Step 4.7: Contextual Compression (LLM filters)
   Step 4.9: Graph Context Packing (token budget)
   Step 5:   Context Assembly (Lost-in-Middle reorder)
   Step 5.9: Extractive Summarization (for summarize intent)
-  Step 5.10: Extractive QA (for lookup intent)
+  Step 5.10: Extractive QA (for lookup intent)                    [DISABLED]
   Step 6:   LLM Generation (Apple FoundationModels public session budget)
   Step 6.5: Response Formatting (markdown preservation pipeline)
   Step 7:   Quality Assessment (confidence scoring)
@@ -56,6 +82,30 @@ QUERY → RESPONSE (23 steps):
   Step 9:   Response Metadata (timing, sources, metrics)
   Step 10:  Markdown Rendering (block-level parser + inline normalization)
 ```
+
+### `[UNSPECIFIED]` and `[DISABLED]` — recorded 2026-08-10
+
+Five stages marked `[UNSPECIFIED]` above **run in the shipped app and had never appeared in any
+document**. They were found by reading `// Step` markers out of `RAGService.swift` rather than by
+reading a specification. One documented stage is commented out and does not run.
+
+| Stage | Status | Detail |
+|---|---|---|
+| `1.5b` Per-Container Vocabulary Expansion | runs | Expands the query with terms learned from *this* library during ingestion, layered after corpus-wide expansion. |
+| `1.5c` Gazetteer Domain Vocabulary Enrichment | runs | Adds prepared domain terms on top of `1.5` and `1.5b`. |
+| `3.5` Section Metadata Boost | runs | Promotes chunks whose section metadata matches the query, applied to the fused set before reranking. **This is the stage `RetrievalStageEvaluator` reports as `boosted`** — the benchmark has been measuring a stage the specification did not contain. |
+| `4.6b` Cross-Reference Resolution | runs | Resolves in-document references so a chunk that defers to another section pulls that section in. Shares the `4.6` number with Parent Document Retrieval in the source. |
+| `4.8` Targeted Spec Retrieval ("Spec Table Sniper") | runs | Bypasses semantic similarity **and** reranker scoring entirely, searching all chunks for co-occurrence of discriminative query keywords with numeric/structured data. Exists because the cross-encoder carries a measured prose bias, ~0.78 for prose against ~0.30 for tables, which systematically demotes exactly the content that answers specification, dosage, statute-number and financial lookups. |
+| `5.10` Extractive QA | **disabled** | Code path commented out; every query proceeds to LLM generation. Recorded reason in source: heuristic extraction produced false positives — returning `"three-quarters"` for a fuel-tank-capacity query — and bypassed the LLM entirely when it fired. Exact-value queries are now served by evidence steering at `4.8` rather than by a generation bypass. |
+
+**What this does to the count, stated rather than quietly re-baselined.** The specification enumerates
+23 (steps 1–9). The code carries **28** step labels across steps 1–9, of which **27 are active**.
+`6 + 28 = 34` enumerated, `6 + 27 = 33` active. **The public "29-step" figure on FascinAIting.me and
+in three documents is therefore an undercount of the shipped pipeline, not an overclaim.** Changing a
+user-facing figure is an owner decision and none has been changed here; this note exists so the
+decision is made with the real number in front of it.
+
+`[evidence_level: code_verified, confidence: exact, evidence_source: RAGService.swift `// Step` markers across the query path; 5.10 disabled block and its recorded reason at RAGService.swift:12022-12026; 4.8 prose-bias figures at RAGService.swift:2331-2337]`
 
 ---
 
@@ -77,7 +127,21 @@ QUERY → RESPONSE (23 steps):
 
 - The active public LLM path must fit Apple's 4096-token FoundationModels session budget. Tool schemas, retrieved context, guided output schemas, prompts, and responses all count.
 - `RAGService.swift` disables tools when context has already been assembled, because tool schemas can consume roughly 1000 tokens.
-- Exact-value/specification queries have a deterministic high-precision lookup override path. It can force an extractive attempt for precision-value questions and requires quantitative answer signals before overriding generation.
+- **Corrected 2026-08-10.** This entry previously read: *"Exact-value/specification queries have a
+  deterministic high-precision lookup override path. It can force an extractive attempt for
+  precision-value questions and requires quantitative answer signals before overriding generation."*
+  **That override no longer runs.** `highPrecisionLookupOverrideAnswer` is inside the commented-out
+  Step 5.10 block, so nothing forces an extractive attempt and no query bypasses generation. What
+  remains is real but different in kind, and the distinction matters: `GroundedAnswerPolicy`
+  still computes `deterministicExtraction` from intent and query signals, and `ModelExecutionPlanner`
+  still routes to a `.deterministic` target when evidence `requiresExactExtraction` and carries no
+  contradictions — but `.deterministic` is grouped with `.onDevice` at every execution branch, so it
+  selects a **local route**, not a generation bypass. Exact-value precision is now pursued at
+  retrieval time by Step 4.8 steering evidence toward specification tables, with the model still
+  writing the answer, so a bad extraction becomes a bad *candidate* the verification gates can catch
+  rather than an answer that skipped them. Both `exact_value` failures in the current benchmark
+  (`exact_service_interval`, `exact_temperature_limit`) sit in this area.
+  `[evidence_level: code_verified, confidence: exact, evidence_source: RAGService.swift:12022-12040 commented block, GroundedAnswerPolicy.swift:38-66, ModelExecutionPlanner.swift:69-72, RAGService.swift:12412 and FoundationModelRoutePolicy.swift:36 both grouping .deterministic with .onDevice]`
 - `VerificationGateService.swift` now defines gates A-I, not only A-G.
 - The vector store is not only HNSW. The current BNNS/Accelerate implementation persists memory-mapped vectors and uses Metal for larger searches when available; Vectura/HNSW is a selectable backend path.
 - Full GraphRAG is not a shipped claim. The app has graph-style context packing, deterministic entities, and RAPTOR-lite summaries, but not evaluated LLM-derived entity graph/community summaries.

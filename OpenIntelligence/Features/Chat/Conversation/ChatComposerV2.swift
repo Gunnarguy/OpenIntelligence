@@ -133,7 +133,7 @@ struct ChatComposerV2: View {
 
                         if isProcessing {
                             // Stop icon
-                            RoundedRectangle(cornerRadius: 3)
+                            RoundedRectangle(cornerRadius: 3, style: .continuous)
                                 .fill(.white)
                                 .frame(width: 14, height: 14)
                         } else {

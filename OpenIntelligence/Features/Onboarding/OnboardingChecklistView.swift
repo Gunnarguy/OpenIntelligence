@@ -204,9 +204,29 @@ struct OnboardingChecklistView: View {
 
     // MARK: - Page 1: Welcome
 
+    // The content below used to live in a bare `VStack` inside the paged `TabView`, which
+    // gives its pages a fixed height. On a 402pt-wide iPhone the content overflowed that
+    // height, and SwiftUI resolves overflow by compressing `Text` — so the two-line
+    // headline rendered as "Your documents...." with "Clear answers." missing entirely,
+    // and all three use-case questions truncated mid-word despite `lineLimit(2)`.
+    //
+    // Wrapping in a `ScrollView` whose content carries `minHeight: proxy.size.height`
+    // keeps the centred layout whenever there is room (the spacers still do their job)
+    // and scrolls instead of compressing when there is not. That also makes the page
+    // survive large Dynamic Type sizes and smaller devices.
     private var welcomePage: some View {
+        GeometryReader { proxy in
+            ScrollView {
+                welcomePageContent
+                    .frame(minHeight: proxy.size.height)
+            }
+            .scrollBounceBehavior(.basedOnSize)
+        }
+    }
+
+    private var welcomePageContent: some View {
         VStack(spacing: 0) {
-            Spacer()
+            Spacer(minLength: 0)
 
             Text("Built for Your Files")
                 .font(.caption.weight(.semibold))
@@ -243,6 +263,7 @@ struct OnboardingChecklistView: View {
                     .font(.title.bold())
                     .foregroundStyle(.white)
                     .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
                     .opacity(showHeadline ? 1 : 0)
                     .offset(y: showHeadline ? 0 : 15)
 
@@ -250,6 +271,7 @@ struct OnboardingChecklistView: View {
                     .font(.subheadline)
                     .foregroundStyle(.white.opacity(0.75))
                     .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
                     .padding(.horizontal, 36)
                     .opacity(showSubtitle ? 1 : 0)
                     .offset(y: showSubtitle ? 0 : 10)
@@ -267,9 +289,10 @@ struct OnboardingChecklistView: View {
             }
             .padding(.horizontal, 28)
 
-            Spacer()
-            Spacer()
+            Spacer(minLength: 0)
+            Spacer(minLength: 0)
         }
+        .frame(maxWidth: .infinity)
     }
 
     // MARK: - Page 2: Pipeline Theater

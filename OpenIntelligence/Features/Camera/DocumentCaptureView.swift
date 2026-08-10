@@ -714,7 +714,7 @@ struct SmartOverlay: View {
                     height: bounds.height * geometry.size.height
                 )
 
-                RoundedRectangle(cornerRadius: 12)
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
                     .stroke(
                         isStable ? Color.green : Color.yellow,
                         style: StrokeStyle(lineWidth: 3, lineCap: .round)

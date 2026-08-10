@@ -270,6 +270,25 @@ This defines how imported physical files and digital assets are processed into i
 ## Part 9: The Query & Retrieval Pipeline (23 Steps)
 This outlines the execution stages from user input query down to SwiftUI rendering.
 
+> **The code runs five stages this list does not contain, and one listed stage is switched off**
+> *(recorded 2026-08-10)*. `1.5b` Per-Container Vocabulary Expansion, `1.5c` Gazetteer Domain
+> Enrichment, `3.5` Section Metadata Boost, `4.6b` Cross-Reference Resolution and `4.8` Targeted Spec
+> Retrieval all run and appear in no specification; `5.10` Extractive QA is commented out and does
+> not run. The full table, each stage's purpose, and what it does to the published figure are in
+> `Docs/Engineering/RAG_TECHNICAL.md`. Two are worth knowing here because they bear on this
+> document's own citations: `3.5` is the stage the benchmark reports as `boosted`, and `4.8` exists
+> because the cross-encoder of §Part 1.3 carries a measured prose bias (~0.78 prose against ~0.30
+> tables) that systematically demotes the tables §9 (TableRAG) exists to preserve.
+> `[evidence_level: code_verified, confidence: exact, evidence_source: RAGService.swift step markers, :2331-2337, :12022-12026]`
+
+> **How the 23 is counted** *(documented 2026-08-10)*. The 23 is **Steps 1 through 9 inclusive**,
+> the query-to-response transformation proper. `Step 0` and `Step 10` are listed below for
+> completeness but are not counted: Step 0 warms a container vocabulary cache before any query
+> exists, and Step 10 renders an answer that is already final. So this list holds 25 entries and
+> the figure is 23, and both are correct. The counting rule and a shell one-liner that reproduces
+> both numbers are in `Docs/Engineering/RAG_TECHNICAL.md`.
+> `[evidence_level: code_verified, confidence: exact, evidence_source: the enumeration below]`
+
 *   **Step 0: Corpus Analysis**
     - Pre-loads vocabulary caches and metadata stats from the selected active container workspace.
 *   **Step 1: Query Understanding**
@@ -327,11 +346,30 @@ This outlines the execution stages from user input query down to SwiftUI renderi
 All local relational metadata and lexical indexes are stored in a single shared SQLite file optimized for Apple Silicon hardware storage constraints.
 
 ### 1. Database Schema Tables
+
+> **Corrected 2026-08-10.** This list held five tables; the schema creates **nine**. The four added
+> below were read from the `CREATE` statements in `SQLiteFullTextService.swift` and had never been
+> documented. `[evidence_level: code_verified, confidence: exact, evidence_source: SQLiteFullTextService.swift:191-345, 2170]`
+
 *   `documents` (FTS5 virtual table): Stores document contents for full-text lexical indexing.
 *   `document_meta` (Standard table): Tracks document counts, modification dates, size, and container isolation.
 *   `document_content` (Standard table): Fast raw text database used for direct extractive overrides.
-*   `chunks` (FTS5 virtual table): Stores segment-level FTS5 lexical indexes for local lookups.
+*   `chunks` (FTS5 virtual table): Segment-level lexical index. **Nine columns**, of which six are
+    `UNINDEXED` (`chunk_id`, `document_id`, `container_id`, `chunk_index`, `page_number`,
+    `structure_type`) and only three are searchable (`section_title`, `section_path`, `content`).
+    Declared `columnsize=0`. The column count is load-bearing: BM25 ranking passes a positional
+    weight vector with one entry per declared column, and a vector of the wrong length silently
+    shifts every weight one column left. See `.claude/rules/retrieval.md`.
+*   `chunk_structured` (Standard table) — **newly documented**: structured elements recovered from a
+    chunk, kept alongside the chunk rather than flattened into its text.
+*   `chunk_table_rows` (Standard table) — **newly documented**: table rows stored individually. This
+    is the storage half of the atomic-table guarantee; §9 (TableRAG) describes preserving tables
+    through parsing and chunking, and this is where that survives to disk.
 *   `document_pages` (FTS5 virtual table): Page-isolated indexes for context bounds tracking.
+*   `semantic_query_cache` (Standard table) — **newly documented**: previously embedded queries, which
+    is what allows Step 2 to be skipped on an exact cache hit.
+*   `documents_vocab` (`fts5vocab` virtual table over `documents`) — **newly documented**: the
+    corpus vocabulary that Steps 1.5 / 1.5b draw on for query expansion.
 
 ### 2. SQLite Performance Optimization Parameters (PRAGMAs)
 *   `PRAGMA journal_mode = WAL`
@@ -408,12 +446,37 @@ selection (`Intent: balanced → Vector 50% / Keyword 50%`) plus lexical synonym
 addition for the BM25 arm — neither requires re-embedding. Ordering is correct.
 `[evidence_level: device_verified, confidence: exact, evidence_source: full trace sequence, RAGService.swift:8765]`
 
-**F-3 — The "23-step query loop" figure is unenumerated.**
-`Docs/ARCHITECTURE.md` and `Docs/README.md` both cite a 23-step query loop, and
-`README.md` cites 29 steps total. `Docs/RETRIEVAL_PIPELINE.md`, labelled the
-active specification, enumerates 11. Device traces show roughly 23 distinct
-stage events, so the figure is plausible, but no document lists them.
-`[evidence_level: code_verified, confidence: exact]`
+**F-3 — RETRACTED 2026-08-10. The figure was enumerated, and it is correct.**
+
+> The original finding read: *"The '23-step query loop' figure is unenumerated.
+> `Docs/ARCHITECTURE.md` and `Docs/README.md` both cite a 23-step query loop, and
+> `README.md` cites 29 steps total. `Docs/RETRIEVAL_PIPELINE.md`, labelled the
+> active specification, enumerates 11. Device traces show roughly 23 distinct
+> stage events, so the figure is plausible, but no document lists them."*
+
+Two errors, and the second one matters more than the first.
+
+**The enumeration existed.** Part 9 of *this file* enumerates the query pipeline
+and has done since `0bf7c9c`, 2026-06-30 — a month before F-3 was written into
+the same document on 2026-07-31. `Docs/Engineering/RAG_TECHNICAL.md` carries the
+identical list. "No document lists them" was false at the time of writing, and
+checkable by scrolling up.
+
+**The figure is right.** 23 counts Steps 1 through 9 inclusive, the
+query-to-response transformation proper. Step 0 warms a vocabulary cache before a
+query exists and Step 10 renders an already-final answer, so neither is part of
+that transformation and neither is counted. The list holds 25 entries, the figure
+is 23, and `6 + 23 = 29` holds. The rule was never written down, which is the
+actual defect and is now fixed at the top of Part 9 and in `RAG_TECHNICAL.md`.
+
+**The reasoning error, which is the reusable part.** A 2026-08-10 review
+independently repeated it and concluded the true total was 31. Both passes counted
+the raw enumeration, compared it against the stated figure, found 25 against 23,
+and inferred the figure was wrong. Neither asked what the figure was counting.
+That is the same shape as F-1 and F-2 above: an artifact was judged against an
+assumed definition rather than its actual one. When a stated count disagrees with a
+list, the count may be selecting from the list rather than summing it.
+`[evidence_level: code_verified, confidence: exact, evidence_source: Part 9 enumeration, git log -S on this file dating Part 9 to 0bf7c9c 2026-06-30 and F-3 to a11da04 2026-07-31, RAG_TECHNICAL.md counting rule]`
 
 ### Verdict
 
@@ -421,5 +484,12 @@ The ordering follows current published practice on every axis that matters:
 multi-query expansion before embedding, hybrid dense + sparse retrieval, RRF
 fusion, cross-encoder reranking after fusion, MMR diversity at selection,
 small-to-big expansion with independent Jaccard dedup, and Lost-in-the-Middle
-position packing applied last. **No ordering defect was found.** The only
-surviving finding, F-3, is documentation drift and does not affect behavior.
+position packing applied last. **No ordering defect was found.**
+
+**All three findings are now retracted** — F-1 and F-2 on the day of the review,
+F-3 on 2026-08-10. This review produced no valid finding at all, and that is worth
+stating plainly rather than quietly leaving three struck-through items behind. Its
+value is entirely in the retractions: three separate ways of judging a system
+against an assumed definition instead of its real one. The pipeline order, the
+redundancy design, and the step count were all correct before the review started.
+`[evidence_level: code_verified, confidence: exact, evidence_source: F-1, F-2 and F-3 retractions above]`

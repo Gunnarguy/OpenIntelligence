@@ -101,7 +101,7 @@ struct VerificationGatesOverlayView: View {
         .background(.ultraThinMaterial)
         .cornerRadius(12)
         .overlay(
-            RoundedRectangle(cornerRadius: 12)
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
                 .stroke(DSColors.accent.opacity(0.3), lineWidth: 1)
         )
         .onChange(of: events.count) { _, _ in

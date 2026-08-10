@@ -94,7 +94,7 @@ struct ModelConfigurationSheet: View {
                     .foregroundStyle(.accent)
                     .frame(width: 40, height: 40)
                     .background(Color.accentColor.opacity(0.15))
-                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
 
                 VStack(alignment: .leading, spacing: 4) {
                     Text(settings.selectedModel.displayName)
@@ -509,11 +509,11 @@ private struct PresetCard: View {
             .padding(.vertical, 12)
             .padding(.horizontal, 8)
             .background(
-                RoundedRectangle(cornerRadius: 12)
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
                     .fill(isSelected ? preset.color : preset.color.opacity(0.1))
             )
             .overlay(
-                RoundedRectangle(cornerRadius: 12)
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
                     .stroke(isSelected ? Color.clear : preset.color.opacity(0.3), lineWidth: 1)
             )
         }

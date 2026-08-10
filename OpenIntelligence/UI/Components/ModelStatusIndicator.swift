@@ -37,16 +37,36 @@ struct ModelStatusIndicator: View {
                 }
             }
         } label: {
-            HStack(spacing: 10) {
-                statusDot
+            // Structurally identical to `QualityModeQuickPicker`'s label: a 20pt circled
+            // icon, a two-line VStack, then a chevron, at the same spacing and padding.
+            //
+            // Matching only the capsule was not enough. On a device where Apple
+            // Intelligence is available the status is `.ready`, the second line was
+            // omitted, and this pill collapsed to one line while the quality pill beside
+            // it stayed at two — so the two controls were visibly different heights. The
+            // simulator hid that, because there the status is always `.unavailable` and
+            // the second line was always present.
+            HStack(spacing: DSSpacing.xs) {
+                statusIcon
                 modelLabel
+                // This control opened a menu with nothing to say so, while the quality
+                // pill beside it carried a chevron. Two adjacent controls, one of which
+                // looked tappable.
+                Image(systemName: "chevron.down")
+                    .font(.caption2.weight(.bold))
             }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 6)
-            .background(backgroundColor)
-            .clipShape(RoundedRectangle(cornerRadius: 8))
+            .foregroundStyle(statusColor)
+            .padding(.horizontal, DSSpacing.sm)
+            .padding(.vertical, DSSpacing.xs)
+            // Matches the quality pill: same capsule, same material, same padding scale,
+            // same muted tint strength. This was a RoundedRectangle(8) with 14/6 padding
+            // and a flat tint next to a Capsule with 10/6 padding and a stroke.
+            .glassEffect(.regular.tint(statusColor.opacity(0.18)).interactive(), in: Capsule())
         }
         .buttonStyle(.plain)
+        .accessibilityLabel("Model routing")
+        .accessibilityValue("\(settings.fmPreference.pickerDisplayName), \(statusText)")
+        .accessibilityHint("Choose whether answers run on device, in Private Cloud Compute, or automatically")
     }
 
     private func pickerLabel(for preference: FoundationModelPreference) -> some View {
@@ -86,41 +106,70 @@ struct ModelStatusIndicator: View {
         }
     }
 
+    /// The quality pill's circled-glyph treatment, so the two controls are the same
+    /// height and read as one family. Replaces an 8pt dot, which was both a different
+    /// shape from its neighbour and — before `statusText` existed — the only encoding of
+    /// state on the control.
     @ViewBuilder
-    private var statusDot: some View {
-        Circle()
-            .fill(statusColor)
-            .frame(width: 8, height: 8)
-            .scaleEffect(modelResolution.isProcessing ? pulseScale : 1.0)
-            .onAppear {
-                withAnimation(Animation.easeInOut(duration: 1.0).repeatForever(autoreverses: true)) {
-                    pulseScale = 1.4
-                }
+    private var statusIcon: some View {
+        ZStack {
+            Circle()
+                .fill(statusColor.opacity(0.14))
+                .frame(width: 20, height: 20)
+            Image(systemName: preferenceIcon(for: settings.fmPreference))
+                .font(.system(size: 10, weight: .semibold))
+        }
+        .scaleEffect(modelResolution.isProcessing ? pulseScale : 1.0)
+        .onAppear {
+            withAnimation(Animation.easeInOut(duration: 1.0).repeatForever(autoreverses: true)) {
+                pulseScale = 1.15
             }
+        }
     }
 
     @ViewBuilder
     private var modelLabel: some View {
-        VStack(alignment: .leading, spacing: 2) {
+        VStack(alignment: .leading, spacing: 0) {
             Text(settings.fmPreference.pickerDisplayName)
-                .font(.system(size: 10, weight: .bold))
+                .font(.caption.weight(.semibold))
                 .foregroundColor(.primary)
-            // Only the live route appears here. The static "what this setting means"
-            // line was removed: Hybrid, On-Device, and PCC explain themselves, and
-            // the pill is too narrow for a sentence — all three descriptions
-            // ellipsized ("Chooses the best route pe…"). The selector above is a
-            // native Menu/Picker, which renders Labels only, so there is nowhere a
-            // subtitle would fit; `pickerDetail` was deleted rather than left unused.
+            // The second line is unconditional. It carries the live route while a query
+            // runs, and otherwise a short description of where this preference sends
+            // work. Making it conditional is what let the pill collapse to one line and
+            // stop matching the quality pill beside it.
+            //
+            // It also gives `statusColor` a non-colour rendering. A dot alone said
+            // something was wrong without saying what, and said nothing at all to anyone
+            // who cannot separate red from green, because the label above names the
+            // selected *preference*, never the *status*.
             if modelResolution.isProcessing {
-                HStack(spacing: 3) {
-                    Text(modelResolution.currentState.executionPath.emoji)
-                        .font(.system(size: 8.5))
-                    Text("Using \(modelResolution.currentState.executionPath.displayName)")
-                        .font(.system(size: 8.5, weight: .semibold))
-                        .foregroundColor(.secondary)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.8)
-                }
+                Text("Using \(modelResolution.currentState.executionPath.displayName)")
+                    .font(.caption2)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+            } else {
+                Text(statusText)
+                    .font(.caption2)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+            }
+        }
+    }
+
+    /// The pill's second line when no query is running.
+    ///
+    /// `.ready` is the common case on a capable device, so it needs a caption that is
+    /// worth reading rather than a redundant "Ready" — these describe where each
+    /// preference actually sends work, which is the thing the one-word names elide.
+    private var statusText: String {
+        switch modelResolution.currentState.status {
+        case .loading: return "Preparing"
+        case .unavailable: return "Unavailable"
+        case .ready:
+            switch settings.fmPreference.canonical {
+            case .automatic: return "Auto-routed"
+            case .core3B, .advanced20B: return "Local only"
+            case .privateCloudCompute: return "Larger context"
             }
         }
     }
@@ -158,9 +207,8 @@ struct ModelStatusIndicator: View {
         }
     }
 
-    private var backgroundColor: Color {
-        statusColor.opacity(modelResolution.isProcessing ? 0.25 : 0.15)
-    }
+    // `backgroundColor` was removed with the flat RoundedRectangle fill; the glass
+    // treatment takes `statusColor` as a tint directly.
 }
 
 /// Expanded model selector with quick actions
@@ -189,7 +237,7 @@ struct ModelQuickSelector: View {
             }
             .padding(12)
             .background(DSColors.surface)
-            .clipShape(RoundedRectangle(cornerRadius: 12))
+            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         }
         .buttonStyle(.plain)
         .sheet(isPresented: $showSelector) {
@@ -204,7 +252,7 @@ struct ModelQuickSelector: View {
             .foregroundColor(iconColor)
             .frame(width: 40, height: 40)
             .background(iconColor.opacity(0.15))
-            .clipShape(RoundedRectangle(cornerRadius: 10))
+            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
     }
 
     private var iconColor: Color {

@@ -503,7 +503,7 @@ struct EmbeddingSpacePlaceholder: View {
         VStack(spacing: 20) {
             // Chart placeholder
             ZStack {
-                RoundedRectangle(cornerRadius: 16)
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
                     .fill(DSColors.background)
                     .shadow(color: .black.opacity(0.05), radius: 8, x: 0, y: 2)
 
@@ -628,7 +628,7 @@ struct ChunkDistributionView: View {
                 .frame(height: CGFloat(documents.count * 50))
                 .padding()
                 .background(
-                    RoundedRectangle(cornerRadius: 16)
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
                         .fill(DSColors.background)
                         .shadow(color: .black.opacity(0.05), radius: 8, x: 0, y: 2)
                 )
@@ -1107,9 +1107,9 @@ private struct QualityIndicatorRow: View {
 
             GeometryReader { geo in
                 ZStack(alignment: .leading) {
-                    RoundedRectangle(cornerRadius: 3)
+                    RoundedRectangle(cornerRadius: 3, style: .continuous)
                         .fill(Color.gray.opacity(0.2))
-                    RoundedRectangle(cornerRadius: 3)
+                    RoundedRectangle(cornerRadius: 3, style: .continuous)
                         .fill(scoreColor)
                         .frame(width: geo.size.width * CGFloat(score))
                 }
@@ -1174,7 +1174,7 @@ struct EmptyAnalyticsView: View {
         .frame(maxWidth: .infinity)
         .padding(.vertical, 40)
         .background(
-            RoundedRectangle(cornerRadius: 16)
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
                 .fill(DSColors.background)
                 .shadow(color: .black.opacity(0.05), radius: 8, x: 0, y: 2)
         )
@@ -1741,7 +1741,7 @@ struct PipelineStagesCard: View {
         }
         .padding()
         .background(
-            RoundedRectangle(cornerRadius: 16)
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
                 .fill(DSColors.surface)
                 .shadow(color: .black.opacity(0.05), radius: 8, x: 0, y: 2)
         )
@@ -1851,7 +1851,7 @@ struct StatCard: View {
         .frame(maxWidth: .infinity)
         .padding()
         .background(
-            RoundedRectangle(cornerRadius: 12)
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
                 .fill(DSColors.surface)
                 .shadow(color: .black.opacity(0.03), radius: 4, x: 0, y: 2)
         )
@@ -1969,7 +1969,7 @@ struct VisualizationInfoSection<Content: View>: View {
         }
         .padding()
         .background(
-            RoundedRectangle(cornerRadius: 12)
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
                 .fill(Color.blue.opacity(0.1))
         )
     }
@@ -3328,9 +3328,9 @@ struct FTS5StorageView: View {
 
                 GeometryReader { geo in
                     ZStack(alignment: .leading) {
-                        RoundedRectangle(cornerRadius: 4)
+                        RoundedRectangle(cornerRadius: 4, style: .continuous)
                             .fill(Color.gray.opacity(0.2))
-                        RoundedRectangle(cornerRadius: 4)
+                        RoundedRectangle(cornerRadius: 4, style: .continuous)
                             .fill(compressionColor(indexInfo.compressionRatio))
                             .frame(width: geo.size.width * min(1, CGFloat(indexInfo.compressionRatio)))
                     }
@@ -3432,7 +3432,7 @@ struct FTS5StorageView: View {
                         let maxChars = documentStats.map(\.characterCount).max() ?? 1
                         let width = geo.size.width * CGFloat(doc.characterCount) / CGFloat(maxChars)
 
-                        RoundedRectangle(cornerRadius: 3)
+                        RoundedRectangle(cornerRadius: 3, style: .continuous)
                             .fill(
                                 LinearGradient(
                                     colors: [.blue, .purple],

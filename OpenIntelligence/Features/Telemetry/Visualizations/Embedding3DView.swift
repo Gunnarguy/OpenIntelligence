@@ -468,9 +468,9 @@ struct EmbeddingSpaceRenderer: View {
                             .foregroundColor(.secondary)
                         GeometryReader { geo in
                             ZStack(alignment: .leading) {
-                                RoundedRectangle(cornerRadius: 4)
+                                RoundedRectangle(cornerRadius: 4, style: .continuous)
                                     .fill(Color.secondary.opacity(0.2))
-                                RoundedRectangle(cornerRadius: 4)
+                                RoundedRectangle(cornerRadius: 4, style: .continuous)
                                     .fill(balanceColor(balanceScore))
                                     .frame(width: geo.size.width * CGFloat(balanceScore))
                             }
@@ -956,7 +956,7 @@ struct EmbeddingSpaceRenderer: View {
                     let width = range.upperBound - range.lowerBound
                     let normalized = min(1, max(0.1, CGFloat(width)))
 
-                    RoundedRectangle(cornerRadius: 3)
+                    RoundedRectangle(cornerRadius: 3, style: .continuous)
                         .fill(
                             LinearGradient(
                                 colors: [color.opacity(0.3), color.opacity(0.7)],
@@ -978,7 +978,7 @@ struct EmbeddingSpaceRenderer: View {
 
     private var loadingCard: some View {
         ZStack {
-            RoundedRectangle(cornerRadius: 16)
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
                 .fill(DSColors.background)
                 .shadow(color: .black.opacity(0.05), radius: 8, x: 0, y: 2)
             VStack(spacing: 12) {
@@ -994,7 +994,7 @@ struct EmbeddingSpaceRenderer: View {
 
     private var emptyStateCard: some View {
         ZStack {
-            RoundedRectangle(cornerRadius: 16)
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
                 .fill(DSColors.background)
                 .shadow(color: .black.opacity(0.05), radius: 8, x: 0, y: 2)
             VStack(spacing: 8) {
@@ -1255,7 +1255,7 @@ struct EmbeddingSpaceRenderer: View {
         .padding()
         .frame(width: 280)
         .background(
-            RoundedRectangle(cornerRadius: 16)
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
                 .fill(.regularMaterial)
                 .shadow(color: .black.opacity(0.2), radius: 12, x: 0, y: 4)
         )
@@ -2209,10 +2209,10 @@ struct EmbeddingSpaceRenderer: View {
             .padding(.horizontal, 10)
             .padding(.vertical, 8)
             .background(
-                RoundedRectangle(cornerRadius: 8)
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
                     .fill(color.opacity(0.08))
                     .overlay(
-                        RoundedRectangle(cornerRadius: 8)
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
                             .strokeBorder(color.opacity(0.2), lineWidth: 0.5)
                     )
             )
@@ -2251,7 +2251,7 @@ struct EmbeddingSpaceRenderer: View {
                 HStack(spacing: 1) {
                     ForEach(Array(values.enumerated()), id: \.offset) { index, value in
                         let height = maxValue > 0 ? (value / maxValue) * geometry.size.height : 0
-                        RoundedRectangle(cornerRadius: 1)
+                        RoundedRectangle(cornerRadius: 1, style: .continuous)
                             .fill(color.opacity(0.3 + 0.7 * (value / max(maxValue, 1))))
                             .frame(width: max(2, geometry.size.width / CGFloat(values.count) - 1), height: height)
                             .offset(y: geometry.size.height - height)
@@ -2279,9 +2279,9 @@ struct EmbeddingSpaceRenderer: View {
                             .foregroundColor(.secondary)
                         GeometryReader { geo in
                             ZStack(alignment: .leading) {
-                                RoundedRectangle(cornerRadius: 2)
+                                RoundedRectangle(cornerRadius: 2, style: .continuous)
                                     .fill(Color.gray.opacity(0.2))
-                                RoundedRectangle(cornerRadius: 2)
+                                RoundedRectangle(cornerRadius: 2, style: .continuous)
                                     .fill(coverageColor)
                                     .frame(width: geo.size.width * coverage)
                             }
@@ -2298,9 +2298,9 @@ struct EmbeddingSpaceRenderer: View {
                             .foregroundColor(.secondary)
                         GeometryReader { geo in
                             ZStack(alignment: .leading) {
-                                RoundedRectangle(cornerRadius: 2)
+                                RoundedRectangle(cornerRadius: 2, style: .continuous)
                                     .fill(Color.gray.opacity(0.2))
-                                RoundedRectangle(cornerRadius: 2)
+                                RoundedRectangle(cornerRadius: 2, style: .continuous)
                                     .fill(densityColor)
                                     .frame(width: geo.size.width * (1 - sparsity))
                             }
@@ -2411,7 +2411,7 @@ struct EmbeddingSpaceRenderer: View {
             .padding(.horizontal, 8)
             .background(DSColors.surface.opacity(selected ? 0.9 : 0.4))
             .overlay(
-                RoundedRectangle(cornerRadius: 20)
+                RoundedRectangle(cornerRadius: 20, style: .continuous)
                     .stroke(selected ? Color.blue.opacity(0.6) : Color.clear, lineWidth: 1)
             )
             .clipShape(Capsule())
@@ -3383,7 +3383,7 @@ struct Embedding3DSceneView: View {
             onPointTapped: onPointTapped
         )
         .background(DSColors.background)
-        .clipShape(RoundedRectangle(cornerRadius: 16))
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
     }
 }
 
@@ -4842,7 +4842,7 @@ struct EmbeddingSpaceRenderer: View {
     var body: some View {
         VStack(spacing: 12) {
             ZStack {
-                RoundedRectangle(cornerRadius: 16)
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
                     .fill(DSColors.background)
                     .shadow(color: .black.opacity(0.05), radius: 8, x: 0, y: 2)
                 VStack(spacing: 8) {

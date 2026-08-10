@@ -1,4 +1,16 @@
-> **Documentation status:** Source-verified and simulator-compiled for OpenIntelligence v4.7 (iOS) / v3.0 (macOS) on July 28, 2026. The full repository suite is **147/147 green** on iOS 27.0 (iPhone 17 Pro simulator), including the route-evidence gates and eval-dataset schema tests. The previously reported 109/110 was an order-dependent SemanticChunker assertion, now root-caused and fixed. Native PCC execution is owner-confirmed on a physical iOS 27 device; PCC edge scenarios (quota exhaustion, network transition, background consent) and Archive/TestFlight distribution validation remain pending.
+> **Documentation status:** Source-verified and simulator-compiled for OpenIntelligence v5.0 on
+> August 10, 2026. The suite runs **202 tests, 1 skipped, 1 failure** on iOS 27.0 (iPhone 17 Pro
+> simulator). The one failure is `testSilentAudio_FailsLoudlyInsteadOfProducingAnEmptyDocument`,
+> which times out at 60s waiting on `processDocument(silence.wav)`; it was confirmed to fail
+> identically on clean `436e150` in a separate worktree with none of the v5.0 changes present, and
+> the run log is full of `com.apple.modelcatalog` "no underlying assets" errors, so it is the
+> simulator lacking speech assets rather than a code defect. Audio transcription therefore remains
+> **unverified on real speech**, as it was at v4.9. Native PCC execution is owner-confirmed on a
+> physical iOS 27 device; PCC edge scenarios (quota exhaustion, network transition, background
+> consent) and Archive/TestFlight distribution validation remain pending. The v5.0 interface work is
+> simulator-verified by screenshot; the `.ready` state of the model pill and the Neural Engine
+> telemetry during generation are **build-verified only**, because Foundation Models do not run in
+> the simulator.
 
 
 # OpenIntelligence Release Notes
@@ -6,6 +18,139 @@
 This document provides a comprehensive, version-by-version breakdown of major architectural and feature updates to the OpenIntelligence Apple Intelligence-native evidence system.
 
 ---
+
+## v5.0 - August 10, 2026
+
+43 entries — 15 `[General]`, 10 `[UI]`, 9 `[Ingestion]`, 5 `[Retrieval]`, 3 `[Orchestration]`,
+1 `[Chunking]`. Two themes run through nearly all of them. The first is **loss that was invisible from
+the outside**: ingestion reported success on documents whose tables, figures and layout had already
+been discarded, and the evaluation harness structurally could not catch it because it scored answers
+rather than extraction. The second is **claims the app was making about itself that were not true**,
+withdrawn here with the mechanism described in place of the figure.
+
+### Ingestion
+
+*   **Format coverage, asserted on extraction rather than on answers.** The automated corpus was 25
+    markdown files against 20 advertised formats, so PDF parsing, OCR, Office extraction, iWork and
+    A/V had none. `IngestionFormatCoverageTests` drives real files through `processDocument` across
+    8 formats. Fixtures are synthesised in Swift at test time, so no binary enters this
+    iCloud-synced repository and hard-boundary `project.pbxproj` is untouched. This is what found
+    the six defects below. `[evidence_level: test_verified, confidence: exact]`
+*   **Every table in every Word document was parsed into rows and then dropped.** A `<w:tbl>` is a
+    sibling of `<w:p>`, never nested inside one, so the marker left in its place sat outside every
+    paragraph match and the re-insertion pass found nothing to replace.
+*   **Every ingested image became one unbroken line of text.** Both joins now preserve line breaks.
+*   **Photographing a document produced flat text where importing the same page produced table cells.**
+*   **A page the parser knew it had read badly was repaired, and the repair was then thrown away.**
+*   **A PDF with figures but no tables lost every figure chunk** after paying to produce them.
+*   **Vision's document understanding ran on imported PDFs only,** never on imported images or
+    camera captures.
+*   **A fully scanned PDF reported that it had used OCR on zero pages.** `usedOCR` was hardcoded
+    `false` on the primary structured path, so the documents where recognition did all the work were
+    exactly the ones that under-reported it.
+*   **iWork extraction is recorded as non-functional rather than fixed.** It cannot reach content in
+    any file current iWork produces; it fails loudly and two tests pin both shapes. `.pages`,
+    `.numbers` and `.keynote` are unsupported-but-honest.
+    `[evidence_level: code_verified+test_verified, confidence: exact]`
+
+### Retrieval and its measurement
+
+*   **The shipped evaluation harness had never measured retrieval.** Every committed eval case
+    carries `groundTruthChunkIds: null`, so `retrievalRecallAt5` reported exactly `0.0` on every run
+    and the `>= 0.85` quality gate could never pass. Per-stage recall@k, MRR, nDCG and precision now
+    exist, are wired into the harness, and judge relevance by source document rather than chunk UUID.
+*   **The retrieval measurement itself was wrong in seven ways before it measured anything.**
+*   **`Docs/RETRIEVAL_PIPELINE.md` claimed a recall gate that had never once been met, and a harness
+    that does not exist.**
+*   **BM25 column weights were shifted one slot left,** dropping `section_path` out of ranking
+    entirely and reducing the documented 10x heading boost to 5x. Reproduced in `sqlite3` against a
+    copy of the real schema before anything was changed.
+    `[evidence_level: code_verified+reproduced, confidence: exact]`
+*   **Sentence extraction that matched nothing discarded the evidence retrieval had just found.**
+*   **The chunker stopped calling itself "Late Chunking",** which is a different published technique
+    it does not implement. The sentence describing the actual mechanism was already accurate and is
+    unchanged.
+
+### Orchestration
+
+*   **Oversized prompts stayed on-device precisely when they could have escalated to Private Cloud
+    Compute.** The token estimate selected its chars-per-token ratio from the assumed destination,
+    so allowing PCC produced a count ~44% below the on-device figure and then compared it against an
+    on-device limit. `[evidence_level: code_verified, confidence: exact_for_the_defect, unverified_on_device]`
+*   **The planless routing branch now logs the decision it makes,** so the change above can be
+    confirmed on a device rather than inferred.
+*   **Deep Think's unreachable stop threshold confirmed fixed and correctly wired.**
+
+### Claims the app withdrew or corrected
+
+This is the group most worth reading. Each is a statement the app made to users that the code did
+not support.
+
+*   **Settings named eight agentic tools, and all eight were the unregistered ones.** A tool declared
+    in the registry file but not returned by `createTools` does not run. Corrected to the four that
+    are actually registered.
+*   **The app no longer advertises two features it does not have.**
+*   **The model picker stops naming a model tier the app cannot select.**
+*   **Unmeasured performance figures no longer ship,** including inside the sample corpus the app
+    ingests and cites back to users as sourced fact.
+*   **Two unmeasured multipliers removed from the public-facing history** (`1000x` dedup, `240x`
+    scrolling). Both underlying changes are real and are now described by mechanism. Historical
+    entries were corrected in place with a dated note rather than deleted.
+*   **Every remaining claim in the Settings mode-capability list was audited** against call sites.
+*   **"TinyBERT" was restored, having been removed on a false premise.** A Core ML `.mlpackage`
+    manifest is a packaging descriptor and never carries the source architecture, so its silence
+    proved nothing; `THIRD_PARTY_NOTICES.md` bound the model by exact path the whole time. Absence
+    of evidence in one artifact is not evidence of absence.
+*   **The QA suite stopped grading the engine on repeating an unverified claim.**
+
+### Interface, and the design-system foundation
+
+*   **The About screen told an iPhone 17 Pro it was running "A12 or Older" with "Limited"
+    performance.** `RAGService.detectDeviceChip()` stops at the iPhone 16 line, so every newer
+    identifier fell to `default: return .older`. That value was rendered directly, and ANDed into
+    the device tier, demoting capable hardware. Four independent chip-detection implementations
+    collapsed to one; the M5 iPad Pro and iPad mini 7 were also mislabelled.
+    `[evidence_level: code_verified+simulator_verified, confidence: exact]`
+*   **The first screen a new user sees dropped half its headline and truncated all three of its
+    examples mid-word.** The welcome page overflowed its paged `TabView`, and SwiftUI resolves
+    overflow by compressing `Text`.
+*   **The quality-mode menu showed three bare words,** no selection state, and hid its billing limit
+    until you tapped it. Note the mode descriptions still cannot be rendered in a native menu on this
+    OS — three label forms were tried and photographed, and the source records all three.
+*   **The two chat header controls were built to two different designs** and, on a device where
+    Apple Intelligence is available, two different heights.
+*   **Stopping a generation left the HUD's Neural Engine indicator lit for the rest of the session,**
+    and token generation never moved it at all — `reportLLMToken` had no call sites anywhere.
+*   **Design-system foundation.** `DSSpacing` moved to the 4pt grid the code actually uses; three of
+    its four commonest values previously had no token, which is why adoption had stalled near 5%.
+    All 392 `RoundedRectangle` sites now pass `style: .continuous`, up from 144. The modifiers named
+    "Liquid Glass" returned `.ultraThinMaterial`, and one of them opted the tab bar *out* of the
+    system treatment; they are removed.
+    `[evidence_level: code_verified+build_verified+simulator_verified, confidence: exact]`
+
+### Repository, agents and documentation
+
+Not user-facing, recorded because they change how the project is maintained.
+
+*   **Claude Code sessions could not see this repository's agent directives at all,** and now have a
+    control plane, routed rules and a cross-session handoff.
+*   **The task router read a roadmap section number as the app's version** and told every agent to
+    write releases against it.
+*   **The mandated Notion roadmap workflow named tools that do not exist,** and Claude Code could not
+    have read it anyway.
+*   **The benchmark graded the verifier's explanation instead of the model's answer, for the second
+    time.** Re-scoring saved runs with the fixed grader moves 2026-08-09 from 17/20 to 18/20 and
+    reproduces an independently recorded 14/20 -> 17/20 regrade of the baseline exactly, which is
+    what shows the change corrects rather than inflates. **The app-side defect is untouched and users
+    still see the malformed banner.**
+*   **All 144 Notion roadmap rows swept against the code.**
+*   **Wrote down how the pipeline's "29 steps" are counted,** and retracted the finding that said the
+    figure was wrong.
+*   **Reconciled the documentation set and the roadmap against the shipped 4.9 tree.**
+*   **Scoped this repository's MCP surface** to what it actually uses.
+*   **Deleted three Core AI files that were scaffolding, not integration.**
+*   Pipeline and evaluation docs carry explicit "verified at vX, not re-verified since" headers
+    rather than being restamped as current.
 
 ## v4.8 (iOS) - in progress
 

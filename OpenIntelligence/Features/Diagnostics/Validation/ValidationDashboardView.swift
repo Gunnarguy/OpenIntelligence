@@ -79,7 +79,7 @@ struct ValidationDashboardView: View {
             #endif
             .cornerRadius(8)
             .overlay(
-                RoundedRectangle(cornerRadius: 8)
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
                     .stroke(Color.secondary.opacity(0.3), lineWidth: 1)
             )
         }

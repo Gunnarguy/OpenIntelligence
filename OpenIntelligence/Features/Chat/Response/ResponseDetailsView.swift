@@ -121,7 +121,7 @@ struct ChatResponseDetailsView: View {
             }
             .padding(DSSpacing.sm)
             .background(DSColors.accent.opacity(0.05))
-            .clipShape(RoundedRectangle(cornerRadius: 8))
+            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
 
             VStack(alignment: .leading, spacing: 4) {
                 Text("Decision Logic")
@@ -160,7 +160,7 @@ struct ChatResponseDetailsView: View {
                     }
                 }
                 .frame(height: 24)
-                .clipShape(RoundedRectangle(cornerRadius: 6))
+                .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
 
                 HStack {
                     Text("0")
@@ -203,7 +203,7 @@ struct ChatResponseDetailsView: View {
 
     private func tokenBudgetStat(label: String, value: Int, color: Color) -> some View {
         HStack(spacing: 8) {
-            RoundedRectangle(cornerRadius: 3)
+            RoundedRectangle(cornerRadius: 3, style: .continuous)
                 .fill(color)
                 .frame(width: 4, height: 24)
             
@@ -630,11 +630,11 @@ struct ChatResponseDetailsView: View {
                 GeometryReader { geo in
                     HStack(spacing: 2) {
                         if retrievalTime > 0 {
-                            RoundedRectangle(cornerRadius: 4)
+                            RoundedRectangle(cornerRadius: 4, style: .continuous)
                                 .fill(Color.blue)
                                 .frame(width: max(geo.size.width * CGFloat(retrievalTime / total), 4))
                         }
-                        RoundedRectangle(cornerRadius: 4)
+                        RoundedRectangle(cornerRadius: 4, style: .continuous)
                             .fill(Color.green)
                             .frame(width: max(geo.size.width * CGFloat(genTime / total), 4))
                     }
@@ -900,9 +900,9 @@ private struct SourceCard: View {
             // Score bar
             GeometryReader { geo in
                 ZStack(alignment: .leading) {
-                    RoundedRectangle(cornerRadius: 3)
+                    RoundedRectangle(cornerRadius: 3, style: .continuous)
                         .fill(Color.secondary.opacity(0.12))
-                    RoundedRectangle(cornerRadius: 3)
+                    RoundedRectangle(cornerRadius: 3, style: .continuous)
                         .fill(scoreColor.opacity(0.7))
                         .frame(width: geo.size.width * score)
                 }

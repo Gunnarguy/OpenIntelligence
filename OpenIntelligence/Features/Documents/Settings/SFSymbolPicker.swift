@@ -178,7 +178,7 @@ struct SFSymbolPicker: View {
                 .padding(.horizontal, 12)
                 .padding(.vertical, 8)
                 .background(DSColors.surfaceElevated)
-                .clipShape(RoundedRectangle(cornerRadius: 10))
+                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                 .padding(.horizontal, 16)
                 .padding(.vertical, 8)
 
@@ -231,7 +231,7 @@ struct SFSymbolPicker: View {
                         .foregroundColor(.accentColor)
                         .frame(width: 50, height: 50)
                         .background(Color.accentColor.opacity(0.1))
-                        .clipShape(RoundedRectangle(cornerRadius: 10))
+                        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
 
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Selected")
@@ -305,7 +305,7 @@ struct SFSymbolPicker: View {
                             ? Color.accentColor
                             : DSColors.surfaceElevated
                     )
-                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
             }
         }
         .buttonStyle(.plain)
@@ -372,7 +372,7 @@ struct SFSymbolPickerButton: View {
                     .foregroundColor(.accentColor)
                     .frame(width: 36, height: 36)
                     .background(Color.accentColor.opacity(0.12))
-                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Icon")

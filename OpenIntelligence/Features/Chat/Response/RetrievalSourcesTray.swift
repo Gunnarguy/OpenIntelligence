@@ -127,10 +127,10 @@ struct RetrievalSourcesTray: View {
         }
         .background(
             .ultraThinMaterial,
-            in: RoundedRectangle(cornerRadius: DSCorners.card)
+            in: RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous)
         )
         .overlay(
-            RoundedRectangle(cornerRadius: DSCorners.card)
+            RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous)
                 .strokeBorder(DSColors.border.opacity(0.5), lineWidth: 0.5)
         )
         .shadow(color: .black.opacity(0.06), radius: 8, x: 0, y: 2)

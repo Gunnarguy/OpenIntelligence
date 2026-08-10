@@ -61,7 +61,7 @@ struct IngestionConsoleView: View {
                 .padding(.horizontal, 6)
                 .padding(.vertical, 4)
                 .background(Color.black.opacity(0.1))
-                .clipShape(RoundedRectangle(cornerRadius: 4))
+                .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
             }
             .buttonStyle(.plain)
 
@@ -961,7 +961,7 @@ private struct IngestionQueueRow: View {
         }
         .padding(10)
         .background(DSColors.surface.opacity(0.6))
-        .clipShape(RoundedRectangle(cornerRadius: 10))
+        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
     }
 
     // MARK: - Pipeline Detail Sections (broken up for compiler)
@@ -1030,7 +1030,7 @@ private struct IngestionQueueRow: View {
         .padding(.horizontal, 8)
         .padding(.vertical, 4)
         .background((m.usedStructuredParsing ? Color.green : Color.orange).opacity(0.1))
-        .clipShape(RoundedRectangle(cornerRadius: 6))
+        .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
     }
 
     @ViewBuilder
@@ -1070,7 +1070,7 @@ private struct IngestionQueueRow: View {
             }
             .padding(6)
             .background(Color.cyan.opacity(0.08))
-            .clipShape(RoundedRectangle(cornerRadius: 6))
+            .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
         }
     }
 
@@ -1149,7 +1149,7 @@ private struct IngestionQueueRow: View {
             }
             .padding(6)
             .background(DSColors.accent.opacity(0.05))
-            .clipShape(RoundedRectangle(cornerRadius: 6))
+            .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
         }
     }
 
@@ -1188,7 +1188,7 @@ private struct IngestionQueueRow: View {
             }
             .padding(6)
             .background(DSColors.surface)
-            .clipShape(RoundedRectangle(cornerRadius: 6))
+            .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
         }
 
         // Content categories as topic chips
@@ -1227,10 +1227,10 @@ private struct IngestionQueueRow: View {
                         .foregroundStyle(m.extractionCoverage > 0.9 ? .green : m.extractionCoverage > 0.7 ? .yellow : .red)
                 }
                 ZStack(alignment: .leading) {
-                    RoundedRectangle(cornerRadius: 2)
+                    RoundedRectangle(cornerRadius: 2, style: .continuous)
                         .fill(Color.gray.opacity(0.2))
                         .frame(height: 3)
-                    RoundedRectangle(cornerRadius: 2)
+                    RoundedRectangle(cornerRadius: 2, style: .continuous)
                         .fill(m.extractionCoverage > 0.9 ? .green : m.extractionCoverage > 0.7 ? .yellow : .red)
                         .frame(width: max(4, 80 * min(1, m.extractionCoverage)), height: 3)
                 }
@@ -1283,7 +1283,7 @@ private struct IngestionQueueRow: View {
             }
             .padding(6)
             .background(Color.cyan.opacity(0.08))
-            .clipShape(RoundedRectangle(cornerRadius: 6))
+            .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
         }
     }
 
@@ -1339,7 +1339,7 @@ private struct IngestionQueueRow: View {
             .padding(.horizontal, 8)
             .padding(.vertical, 4)
             .background(Color.orange.opacity(0.1))
-            .clipShape(RoundedRectangle(cornerRadius: 6))
+            .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
         }
     }
 
@@ -1436,10 +1436,10 @@ private struct IngestionQueueRow: View {
     private func metricGauge(label: String, value: Double, color: Color) -> some View {
         VStack(spacing: 3) {
             ZStack(alignment: .leading) {
-                RoundedRectangle(cornerRadius: 2)
+                RoundedRectangle(cornerRadius: 2, style: .continuous)
                     .fill(color.opacity(0.2))
                     .frame(width: 40, height: 4)
-                RoundedRectangle(cornerRadius: 2)
+                RoundedRectangle(cornerRadius: 2, style: .continuous)
                     .fill(color)
                     .frame(width: 40 * min(1, value), height: 4)
             }
@@ -1497,9 +1497,9 @@ private struct IngestionQueueRow: View {
 
             GeometryReader { geo in
                 ZStack(alignment: .leading) {
-                    RoundedRectangle(cornerRadius: 2)
+                    RoundedRectangle(cornerRadius: 2, style: .continuous)
                         .fill(color.opacity(0.2))
-                    RoundedRectangle(cornerRadius: 2)
+                    RoundedRectangle(cornerRadius: 2, style: .continuous)
                         .fill(color)
                         .frame(width: geo.size.width * pct)
                 }
@@ -1564,10 +1564,10 @@ private struct CustomProgressBar: View {
     var body: some View {
         GeometryReader { geo in
             ZStack(alignment: .leading) {
-                RoundedRectangle(cornerRadius: 2)
+                RoundedRectangle(cornerRadius: 2, style: .continuous)
                     .fill(color.opacity(0.1))
                 
-                RoundedRectangle(cornerRadius: 2)
+                RoundedRectangle(cornerRadius: 2, style: .continuous)
                     .fill(
                         LinearGradient(
                             colors: [color, color.opacity(0.7)],

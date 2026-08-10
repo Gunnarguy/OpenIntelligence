@@ -3450,16 +3450,24 @@ struct QualityModeQuickPicker: View {
                         onModeChange?(previousMode, mode)
                     }
                 } label: {
-                    Label {
-                        VStack(alignment: .leading) {
-                            Text(mode.displayName)
-                            Text(mode.description)
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                        }
-                    } icon: {
-                        Image(systemName: mode.icon)
-                    }
+                    // A native menu row on this OS renders a title and an icon, and
+                    // nothing else. `RAGQualityMode.description` cannot be shown here.
+                    //
+                    // The original code nested a `VStack` of two `Text`s in the `Label`'s
+                    // title slot, so the rows read "Standard", "Deep Think", "Maximum"
+                    // and nothing more, and every `description` string was dead copy.
+                    // Two documented subtitle forms were then tried and photographed on
+                    // iPhone 17 Pro / iOS 27, and neither rendered: three siblings
+                    // (`Text`/`Text`/`Image`), and a `Label` with a sibling subtitle
+                    // `Text`. SwiftUI mirrors a menu button's label to extract the parts,
+                    // and iOS 26 changed that component's behaviour.
+                    //
+                    // So the distinction goes in the title, which does render. The full
+                    // descriptions still reach users in Settings -> Intelligence Mode,
+                    // where all three are shown in full alongside their capability lists.
+                    // Do not reintroduce a subtitle `Text` here without photographing the
+                    // open menu first.
+                    Label(menuTitle(for: mode), systemImage: isActive(mode) ? "checkmark" : mode.icon)
                 }
             }
         } label: {
@@ -3474,30 +3482,66 @@ struct QualityModeQuickPicker: View {
 
                 VStack(alignment: .leading, spacing: 0) {
                     Text(selectedMode.canonical.displayName)
-                        .font(.system(size: 11, weight: .semibold))
+                        .font(.caption.weight(.semibold))
                     Text(modeTagline)
-                        .font(.system(size: 8, weight: .medium))
+                        .font(.caption2)
                         .foregroundStyle(modeColor.opacity(0.85))
                 }
 
                 Image(systemName: "chevron.down")
-                    .font(.system(size: 8, weight: .bold))
+                    .font(.caption2.weight(.bold))
             }
             .foregroundStyle(modeColor)
-            .padding(.horizontal, 10)
-            .padding(.vertical, 6)
-            .background(
-                Capsule()
-                    .fill(modeColor.opacity(0.12))
-                    .overlay(
-                        Capsule()
-                            .stroke(modeColor.opacity(0.22), lineWidth: 1)
-                    )
-            )
+            .padding(.horizontal, DSSpacing.sm)
+            .padding(.vertical, DSSpacing.xs)
+            // Shared shape and material with the model pill beside it. These two sat
+            // next to each other as a tinted Capsule and an untinted
+            // RoundedRectangle(8) with different padding, which is the single most
+            // visible styling mismatch on the primary screen.
+            //
+            // The tint is applied here rather than through `glassEffectHelper`, whose
+            // `isSelected: true` path tints at full strength — on a red or blue status
+            // that produces a solid, shouting capsule. These are ambient status
+            // indicators, so the colour belongs mostly in the content.
+            .glassEffect(.regular.tint(modeColor.opacity(0.18)).interactive(), in: Capsule())
         }
         .menuStyle(.borderlessButton)
         .buttonStyle(.plain)
         .fixedSize()
+        .accessibilityLabel("Answer quality")
+        .accessibilityValue("\(selectedMode.canonical.displayName), \(modeTagline)")
+        .accessibilityHint("Choose how much reasoning to spend on each question")
+    }
+
+    private func isActive(_ mode: RAGQualityMode) -> Bool {
+        selectedMode.canonical == mode.canonical
+    }
+
+    /// Title for a row in the open menu, carrying the one-word distinction the row
+    /// cannot show as a subtitle.
+    ///
+    /// Maximum is gated by billing rather than by hardware, and the only signal for that
+    /// used to be the 8pt tagline on the *collapsed* pill — visible after the mode is
+    /// already selected, so a user out of runs learned about the limit by tapping and
+    /// receiving a paywall. The row stays tappable on purpose, because the paywall is the
+    /// useful destination, but it now says why beforehand.
+    private func menuTitle(for mode: RAGQualityMode) -> String {
+        switch mode.canonical {
+        case .standard:
+            return "Standard · Single pass"
+        case .deepThink:
+            return "Deep Think · Iterative"
+        case .maximum:
+            if entitlementStore.hasUnlimitedMaximumMode {
+                return "Maximum · Deepest search"
+            }
+            let remaining = entitlementStore.maximumModeRemainingUses
+            return remaining <= 0
+                ? "Maximum · Limit reached"
+                : "Maximum · \(remaining) left today"
+        default:
+            return mode.displayName
+        }
     }
 
     private var modeTagline: String {

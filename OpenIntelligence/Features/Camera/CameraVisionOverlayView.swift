@@ -286,7 +286,7 @@ struct CameraVisionOverlayView: View {
         }
         .padding(.vertical, 8)
         .background(
-            RoundedRectangle(cornerRadius: 12)
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
                 .fill(.ultraThinMaterial)
         )
         .padding(.horizontal)
@@ -391,7 +391,7 @@ struct CameraVisionOverlayView: View {
         }
         .padding()
         .background(
-            RoundedRectangle(cornerRadius: 12)
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
                 .fill(.ultraThinMaterial)
         )
         .padding(.horizontal)
@@ -420,7 +420,7 @@ struct CameraVisionOverlayView: View {
         }
         .padding()
         .background(
-            RoundedRectangle(cornerRadius: 12)
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
                 .fill(.ultraThinMaterial)
         )
         .padding(.horizontal)
@@ -1106,7 +1106,7 @@ struct RegionBoundingBox: View {
     var body: some View {
         ZStack(alignment: .topLeading) {
             // Bounding box with animated stroke - smoothed with animation
-            RoundedRectangle(cornerRadius: cornerRadius)
+            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
                 .stroke(
                     region.type.color,
                     style: StrokeStyle(
@@ -1117,7 +1117,7 @@ struct RegionBoundingBox: View {
                     )
                 )
                 .background(
-                    RoundedRectangle(cornerRadius: cornerRadius)
+                    RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
                         .fill(region.type.color.opacity(0.05))
                 )
                 .shadow(color: region.type.color.opacity(0.4), radius: 3)

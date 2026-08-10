@@ -99,6 +99,52 @@ final class WhatsNewStore: ObservableObject {
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
     static let releases: [String: WhatsNewRelease] = [
+        "5.0": WhatsNewRelease(
+            version: "5.0",
+            headline: "Importing a document was quietly losing parts of it. This release finds the places that happened.",
+            items: [
+                .init(
+                    symbol: "tablecells",
+                    title: "Tables in Word documents were being thrown away",
+                    detail: "Each one was read into rows and then dropped, so a document could import looking fine with all of its numbers missing."
+                ),
+                .init(
+                    symbol: "photo",
+                    title: "Images keep their layout",
+                    detail: "Every image became one unbroken line of text before anything downstream could read it."
+                ),
+                .init(
+                    symbol: "camera.viewfinder",
+                    title: "Photographing a page now matches importing it",
+                    detail: "Camera captures came out as flat text where the same page imported as table cells."
+                ),
+                .init(
+                    symbol: "doc.viewfinder",
+                    title: "Scanned pages report their scanning honestly",
+                    detail: "A fully scanned PDF used to tell you it had scanned zero pages."
+                ),
+                .init(
+                    symbol: "magnifyingglass",
+                    title: "Search ranks section headings again",
+                    detail: "A weighting mistake had dropped section paths out of ranking entirely."
+                ),
+                .init(
+                    symbol: "cpu",
+                    title: "Your device is identified correctly",
+                    detail: "iPhone 17 and M5 hardware reported itself as \"A12 or Older\" with limited performance."
+                ),
+                .init(
+                    symbol: "slider.horizontal.3",
+                    title: "The chat controls match, and the mode menu explains itself",
+                    detail: "It also shows which mode is active and how many Maximum runs you have left before you pick it."
+                ),
+                .init(
+                    symbol: "exclamationmark.triangle",
+                    title: "Pages, Numbers and Keynote files now fail clearly",
+                    detail: "They were never actually readable. Importing one no longer looks like it worked."
+                ),
+            ]
+        ),
         // iOS 4.8 was developer-rejected and never shipped, so an iPhone coming
         // from 4.7 sees all of this for the first time. macOS 4.8 was approved,
         // so a Mac coming from it only finds the iCloud item new. One list

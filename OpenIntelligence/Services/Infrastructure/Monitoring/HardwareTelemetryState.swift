@@ -643,11 +643,18 @@ final class HardwareTelemetryState {
         }
     }
 
-    /// Report LLM token generation with stats
-    func reportLLMToken(tokenLatencyMs: Double) {
-        totalLLMTokensGenerated += 1
+    /// Report LLM token generation with stats.
+    ///
+    /// Takes a `count` rather than being called once per token. Every `nonisolated
+    /// static` reporter below hops to the main actor via its own `Task(priority: .high)`,
+    /// so a per-token call site would enqueue one high-priority main-actor task per
+    /// token — each running a `withAnimation` — and flood the main thread for the length
+    /// of an answer. Callers report once per stream snapshot instead.
+    func reportLLMTokens(count: Int, tokenLatencyMs: Double) {
+        guard count > 0 else { return }
+        totalLLMTokensGenerated += count
         lastLLMTokenLatencyMs = tokenLatencyMs
-        // Light pulse for each token — no counter increment per token
+        // One light pulse per snapshot, not per token.
         pulse(.llmInference, intensity: 0.7, duration: 0.08)
     }
 
@@ -995,10 +1002,12 @@ enum HardwareTelemetryReporter {
         }
     }
 
-    /// Report LLM token with latency from any thread - HIGH PRIORITY
-    nonisolated static func reportLLMToken(tokenLatencyMs: Double) {
+    /// Report LLM tokens with latency from any thread - HIGH PRIORITY.
+    /// Batched per stream snapshot; see `reportLLMTokens(count:tokenLatencyMs:)`.
+    nonisolated static func reportLLMTokens(count: Int, tokenLatencyMs: Double) {
+        guard count > 0 else { return }
         Task(priority: .high) { @MainActor in
-            HardwareTelemetryState.shared.reportLLMToken(tokenLatencyMs: tokenLatencyMs)
+            HardwareTelemetryState.shared.reportLLMTokens(count: count, tokenLatencyMs: tokenLatencyMs)
         }
     }
 

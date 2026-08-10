@@ -145,7 +145,7 @@ private struct ModernTelemetryCard: View {
             HStack(alignment: .top) {
                 // Category icon
                 ZStack {
-                    RoundedRectangle(cornerRadius: 10)
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
                         .fill(categoryColor.opacity(0.2))
                         .frame(width: 44, height: 44)
 
@@ -209,7 +209,7 @@ private struct ModernTelemetryCard: View {
         }
         .padding()
         .background(
-            RoundedRectangle(cornerRadius: 16)
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
                 .fill(DSColors.background)
                 .shadow(color: .black.opacity(0.05), radius: 8, x: 0, y: 2)
         )

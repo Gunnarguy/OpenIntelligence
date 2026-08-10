@@ -587,11 +587,11 @@ struct DocumentLibraryView: View {
             }
             .padding(12)
             .background(
-                RoundedRectangle(cornerRadius: 14)
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
                     .fill(DSColors.surface)
             )
             .overlay(
-                RoundedRectangle(cornerRadius: 14)
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
                     .stroke(Color.accentColor.opacity(0.16), lineWidth: 1)
             )
         } else if shouldShowCompactSharedWorkspaceBanner {
@@ -630,11 +630,11 @@ struct DocumentLibraryView: View {
             }
             .padding(12)
             .background(
-                RoundedRectangle(cornerRadius: 14)
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
                     .fill(DSColors.surface)
             )
             .overlay(
-                RoundedRectangle(cornerRadius: 14)
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
                     .stroke(compactSharedWorkspaceBannerIconColor.opacity(0.16), lineWidth: 1)
             )
         }

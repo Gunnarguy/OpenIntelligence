@@ -255,7 +255,7 @@ struct AnswerIntelligenceView: View {
                         .padding(.horizontal, DSSpacing.sm)
                         .padding(.vertical, DSSpacing.xs)
                         .background(
-                            RoundedRectangle(cornerRadius: DSCorners.control)
+                            RoundedRectangle(cornerRadius: DSCorners.control, style: .continuous)
                                 .fill(selectedSection == section ? DSColors.accent.opacity(0.15) : Color.clear)
                         )
                 }
@@ -343,7 +343,7 @@ struct AnswerIntelligenceView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(DSSpacing.sm)
         .background(
-            RoundedRectangle(cornerRadius: DSCorners.control)
+            RoundedRectangle(cornerRadius: DSCorners.control, style: .continuous)
                 .fill(DSColors.surface)
         )
     }
@@ -390,7 +390,7 @@ struct AnswerIntelligenceView: View {
         }
         .padding(DSSpacing.sm)
         .background(
-            RoundedRectangle(cornerRadius: DSCorners.control)
+            RoundedRectangle(cornerRadius: DSCorners.control, style: .continuous)
                 .fill(gate.passed ? DSColors.surface : Color.red.opacity(0.05))
         )
     }
@@ -456,7 +456,7 @@ struct AnswerIntelligenceView: View {
         }
         .padding(DSSpacing.sm)
         .background(
-            RoundedRectangle(cornerRadius: DSCorners.control)
+            RoundedRectangle(cornerRadius: DSCorners.control, style: .continuous)
                 .fill(DSColors.surface)
         )
     }
@@ -484,7 +484,7 @@ struct AnswerIntelligenceView: View {
             .padding(DSSpacing.sm)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(
-                RoundedRectangle(cornerRadius: DSCorners.control)
+                RoundedRectangle(cornerRadius: DSCorners.control, style: .continuous)
                     .fill(reasoningModeColor.opacity(0.1))
             )
 

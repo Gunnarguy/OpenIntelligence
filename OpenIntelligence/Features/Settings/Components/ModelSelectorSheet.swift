@@ -90,7 +90,7 @@ struct ModelSelectorSheet: View {
         Button { activateModel(.appleIntelligence) } label: { 
             HStack(spacing: 16) { 
                 ZStack {
-                    RoundedRectangle(cornerRadius: 12)
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
 .fill(LinearGradient(colors: [.blue, .purple], startPoint: .topLeading, endPoint: .bottomTrailing).opacity(0.2))
                         .frame(width: 56, height: 56)
                     Image(systemName: "brain.head.profile")
@@ -118,8 +118,8 @@ struct ModelSelectorSheet: View {
             }
             .padding(16)
             .background(isActive ? Color.blue.opacity(0.05) : DSColors.surface)
-            .clipShape(RoundedRectangle(cornerRadius: 16))
-.overlay(RoundedRectangle(cornerRadius: 16).stroke(isActive ? Color.blue.opacity(0.3) : .clear, lineWidth: 2))
+            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+.overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).stroke(isActive ? Color.blue.opacity(0.3) : .clear, lineWidth: 2))
         }
         .buttonStyle(.plain)
         .disabled(!deviceCapabilities.supportsFoundationModels)
@@ -131,7 +131,7 @@ struct ModelSelectorSheet: View {
         Button { activateModel(.onDeviceAnalysis) } label: { 
             HStack(spacing: 16) {
                 ZStack {
-                    RoundedRectangle(cornerRadius: 12).fill(Color.orange.opacity(0.15)).frame(width: 56, height: 56)
+                    RoundedRectangle(cornerRadius: 12, style: .continuous).fill(Color.orange.opacity(0.15)).frame(width: 56, height: 56)
                     Image(systemName: "doc.text.magnifyingglass").font(.title2).foregroundColor(.orange)
                 }
                 VStack(alignment: .leading, spacing: 6) {
@@ -151,8 +151,8 @@ struct ModelSelectorSheet: View {
             }
             .padding(16)
             .background(isActive ? Color.orange.opacity(0.05) : DSColors.surface)
-            .clipShape(RoundedRectangle(cornerRadius: 16))
-.overlay(RoundedRectangle(cornerRadius: 16).stroke(isActive ? Color.orange.opacity(0.3) : .clear, lineWidth: 2))
+            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+.overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).stroke(isActive ? Color.orange.opacity(0.3) : .clear, lineWidth: 2))
         }
         .buttonStyle(.plain)
     }
@@ -175,7 +175,7 @@ struct ModelSelectorSheet: View {
                         specRow("Privacy", modelType.privacyLevel)
                         specRow("Network", modelType.requiresNetwork ? "Required" : "Optional")
                         specRow("Context", modelType.contextDescription)
-                    } .padding(20).background(DSColors.surface).clipShape(RoundedRectangle(cornerRadius: 16))
+                    } .padding(20).background(DSColors.surface).clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
 
                     VStack(alignment: .leading, spacing: 16) {
                         Text("Capabilities").font(.headline)
@@ -186,7 +186,7 @@ struct ModelSelectorSheet: View {
                                 Spacer()
                             }
                         }
-                    } .padding(20).background(DSColors.surface).clipShape(RoundedRectangle(cornerRadius: 16))
+                    } .padding(20).background(DSColors.surface).clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
 
                     Button { activateModel(modelType); previewModel = nil } label: { 
                         Label("Activate This Model", systemImage: "arrow.right.circle.fill")

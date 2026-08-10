@@ -140,7 +140,7 @@ struct LiveSystemMonitorWrapper: View {
                 .padding(10)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .background(Color.orange.opacity(0.1))
-                .clipShape(RoundedRectangle(cornerRadius: 8))
+                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
             } else {
                 HStack(spacing: 6) {
                     Image(systemName: "checkmark.circle.fill")
@@ -164,7 +164,7 @@ struct LiveSystemMonitorWrapper: View {
         }
         .padding(12)
         .background(Color.green.opacity(0.08))
-        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
 
     // MARK: - Helper Views
@@ -197,7 +197,7 @@ struct LiveSystemMonitorWrapper: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(10)
         .background(color.opacity(0.1))
-        .clipShape(RoundedRectangle(cornerRadius: 8))
+        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
     }
 
     // MARK: - Helper Functions

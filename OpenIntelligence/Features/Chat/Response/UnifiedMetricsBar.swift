@@ -1826,7 +1826,7 @@ struct UnifiedMetricsBar: View {
             }
             .padding(10)
             .background(Color.teal.opacity(0.08))
-            .clipShape(RoundedRectangle(cornerRadius: 8))
+            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
         }
     }
 
@@ -1935,7 +1935,7 @@ struct UnifiedMetricsBar: View {
             }
             .padding(10)
             .background(Color.cyan.opacity(0.06))
-            .clipShape(RoundedRectangle(cornerRadius: 8))
+            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
         }
     }
 
@@ -1959,7 +1959,7 @@ struct UnifiedMetricsBar: View {
                 .frame(width: 90, alignment: .leading)
 
             GeometryReader { geo in
-                RoundedRectangle(cornerRadius: 3)
+                RoundedRectangle(cornerRadius: 3, style: .continuous)
                     .fill(color.opacity(isHighlighted ? 1.0 : 0.6))
                     .frame(width: max(4, geo.size.width * min(1.0, max(0.1, widthRatio))))
             }
@@ -2005,7 +2005,7 @@ struct UnifiedMetricsBar: View {
             }
             .padding(10)
             .background(Color.mint.opacity(0.06))
-            .clipShape(RoundedRectangle(cornerRadius: 8))
+            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
         }
     }
 
@@ -2117,7 +2117,7 @@ struct UnifiedMetricsBar: View {
             }
             .padding(10)
             .background(Color.yellow.opacity(0.06))
-            .clipShape(RoundedRectangle(cornerRadius: 8))
+            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
         }
     }
 
@@ -2157,25 +2157,25 @@ struct UnifiedMetricsBar: View {
                     GeometryReader { geo in
                         HStack(spacing: 1) {
                             if embeddingElapsed > 0 {
-                                RoundedRectangle(cornerRadius: 2)
+                                RoundedRectangle(cornerRadius: 2, style: .continuous)
                                     .fill(Color.blue)
                                     .frame(width: geo.size.width * CGFloat(embeddingElapsed / total))
                             }
                             if searchElapsed > 0 {
-                                RoundedRectangle(cornerRadius: 2)
+                                RoundedRectangle(cornerRadius: 2, style: .continuous)
                                     .fill(Color.purple)
                                     .frame(width: geo.size.width * CGFloat(searchElapsed / total))
                             }
                             let genTime = max(generationElapsed, elapsedTime)
                             if genTime > 0 {
-                                RoundedRectangle(cornerRadius: 2)
+                                RoundedRectangle(cornerRadius: 2, style: .continuous)
                                     .fill(Color.green)
                                     .frame(width: geo.size.width * CGFloat(genTime / total))
                             }
                         }
                     }
                     .frame(height: 8)
-                    .background(Color.gray.opacity(0.2), in: RoundedRectangle(cornerRadius: 2))
+                    .background(Color.gray.opacity(0.2), in: RoundedRectangle(cornerRadius: 2, style: .continuous))
                 }
 
                 // Legend
@@ -2223,7 +2223,7 @@ struct UnifiedMetricsBar: View {
             }
             .padding(10)
             .background(Color.pink.opacity(0.06))
-            .clipShape(RoundedRectangle(cornerRadius: 8))
+            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
         }
     }
 
@@ -2299,7 +2299,7 @@ struct UnifiedMetricsBar: View {
         }
         .padding(12)
         .background(Color.blue.opacity(0.06))
-        .clipShape(RoundedRectangle(cornerRadius: 10))
+        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
     }
 
     private var deepThinkReasoningSection: some View {
@@ -2374,7 +2374,7 @@ struct UnifiedMetricsBar: View {
         }
         .padding(12)
         .background(Color.purple.opacity(0.06))
-        .clipShape(RoundedRectangle(cornerRadius: 10))
+        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
     }
 
     private var maximumModeReasoningSection: some View {
@@ -2453,7 +2453,7 @@ struct UnifiedMetricsBar: View {
         .background(
             LinearGradient(colors: [.orange.opacity(0.08), .yellow.opacity(0.04)], startPoint: .topLeading, endPoint: .bottomTrailing)
         )
-        .clipShape(RoundedRectangle(cornerRadius: 10))
+        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
     }
 
     private func techniquePill(icon: String, text: String, color: Color) -> some View {
@@ -2542,7 +2542,7 @@ struct UnifiedMetricsBar: View {
         }
         .padding(12)
         .background(Color.green.opacity(0.06))
-        .clipShape(RoundedRectangle(cornerRadius: 10))
+        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
     }
 
     private func formatDuration(_ seconds: TimeInterval) -> String {
@@ -2614,7 +2614,7 @@ struct UnifiedMetricsBar: View {
                 }
                 .padding(8)
                 .background(Color.green.opacity(0.08))
-                .clipShape(RoundedRectangle(cornerRadius: 8))
+                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
             }
 
             // Extracted keywords & intent
@@ -2668,7 +2668,7 @@ struct UnifiedMetricsBar: View {
         }
         .padding(12)
         .background(Color.indigo.opacity(0.06))
-        .clipShape(RoundedRectangle(cornerRadius: 10))
+        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
     }
 
     // MARK: - Section: Search Results
@@ -2730,7 +2730,7 @@ struct UnifiedMetricsBar: View {
                 }
                 .padding(10)
                 .background(matchScoreColor(topMatchScore).opacity(0.08))
-                .clipShape(RoundedRectangle(cornerRadius: 8))
+                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
             }
 
             // Stats grid
@@ -2791,7 +2791,7 @@ struct UnifiedMetricsBar: View {
         }
         .padding(12)
         .background(Color.blue.opacity(0.06))
-        .clipShape(RoundedRectangle(cornerRadius: 10))
+        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
     }
 
     // MARK: - Section: Search Strategy
@@ -2841,12 +2841,12 @@ struct UnifiedMetricsBar: View {
 
                     HStack(spacing: 8) {
                         GeometryReader { geo in
-                            RoundedRectangle(cornerRadius: 4)
+                            RoundedRectangle(cornerRadius: 4, style: .continuous)
                                 .fill(Color.blue)
                                 .frame(width: geo.size.width * vectorWeight)
                         }
                         .frame(height: 8)
-                        .background(Color.blue.opacity(0.2), in: RoundedRectangle(cornerRadius: 4))
+                        .background(Color.blue.opacity(0.2), in: RoundedRectangle(cornerRadius: 4, style: .continuous))
 
                         Text("\(Int(vectorWeight * 100))%")
                             .font(.system(size: 12, weight: .bold, design: .monospaced))
@@ -2871,12 +2871,12 @@ struct UnifiedMetricsBar: View {
 
                     HStack(spacing: 8) {
                         GeometryReader { geo in
-                            RoundedRectangle(cornerRadius: 4)
+                            RoundedRectangle(cornerRadius: 4, style: .continuous)
                                 .fill(Color.orange)
                                 .frame(width: geo.size.width * lexicalWeight)
                         }
                         .frame(height: 8)
-                        .background(Color.orange.opacity(0.2), in: RoundedRectangle(cornerRadius: 4))
+                        .background(Color.orange.opacity(0.2), in: RoundedRectangle(cornerRadius: 4, style: .continuous))
 
                         Text("\(Int(lexicalWeight * 100))%")
                             .font(.system(size: 12, weight: .bold, design: .monospaced))
@@ -2916,7 +2916,7 @@ struct UnifiedMetricsBar: View {
         }
         .padding(12)
         .background(Color.purple.opacity(0.06))
-        .clipShape(RoundedRectangle(cornerRadius: 10))
+        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
     }
 
     // MARK: - Advanced RAG Features (FullBlownUpgrade)
@@ -3142,10 +3142,10 @@ struct UnifiedMetricsBar: View {
 
                             HStack(spacing: 6) {
                                 ZStack(alignment: .leading) {
-                                    RoundedRectangle(cornerRadius: 4)
+                                    RoundedRectangle(cornerRadius: 4, style: .continuous)
                                         .fill(Color.secondary.opacity(0.2))
                                         .frame(width: 70, height: 8)
-                                    RoundedRectangle(cornerRadius: 4)
+                                    RoundedRectangle(cornerRadius: 4, style: .continuous)
                                         .fill(contextColor)
                                         .frame(width: 70 * contextUsageRatio, height: 8)
                                 }
@@ -3176,7 +3176,7 @@ struct UnifiedMetricsBar: View {
         }
         .padding(12)
         .background(execution.color.opacity(0.08))
-        .clipShape(RoundedRectangle(cornerRadius: 10))
+        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
     }
 
     private var executionExplanationFull: String {
@@ -3280,7 +3280,7 @@ struct UnifiedMetricsBar: View {
         }
         .padding(12)
         .background(Color.purple.opacity(0.08))
-        .clipShape(RoundedRectangle(cornerRadius: 10))
+        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
     }
 
     // MARK: - Section: How Smart It's Being
@@ -3314,12 +3314,12 @@ struct UnifiedMetricsBar: View {
 
                     // Visual bar
                     GeometryReader { geo in
-                        RoundedRectangle(cornerRadius: 3)
+                        RoundedRectangle(cornerRadius: 3, style: .continuous)
                             .fill(Color.blue)
                             .frame(width: geo.size.width * vectorWeight)
                     }
                     .frame(height: 6)
-                    .background(Color.blue.opacity(0.2), in: RoundedRectangle(cornerRadius: 3))
+                    .background(Color.blue.opacity(0.2), in: RoundedRectangle(cornerRadius: 3, style: .continuous))
 
                     Text("\(Int(vectorWeight * 100))% weight")
                         .font(.system(size: 10, weight: .medium, design: .monospaced))
@@ -3342,12 +3342,12 @@ struct UnifiedMetricsBar: View {
 
                     // Visual bar
                     GeometryReader { geo in
-                        RoundedRectangle(cornerRadius: 3)
+                        RoundedRectangle(cornerRadius: 3, style: .continuous)
                             .fill(Color.orange)
                             .frame(width: geo.size.width * lexicalWeight)
                     }
                     .frame(height: 6)
-                    .background(Color.orange.opacity(0.2), in: RoundedRectangle(cornerRadius: 3))
+                    .background(Color.orange.opacity(0.2), in: RoundedRectangle(cornerRadius: 3, style: .continuous))
 
                     Text("\(Int(lexicalWeight * 100))% weight")
                         .font(.system(size: 10, weight: .medium, design: .monospaced))
@@ -3382,7 +3382,7 @@ struct UnifiedMetricsBar: View {
         }
         .padding(12)
         .background(Color.purple.opacity(0.06))
-        .clipShape(RoundedRectangle(cornerRadius: 10))
+        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
     }
 
     private var diversityDescription: String {
@@ -3463,7 +3463,7 @@ struct UnifiedMetricsBar: View {
         }
         .padding(12)
         .background(Color.blue.opacity(0.06))
-        .clipShape(RoundedRectangle(cornerRadius: 10))
+        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
     }
 
     // MARK: - Section: Device Health
@@ -3546,7 +3546,7 @@ struct UnifiedMetricsBar: View {
         }
         .padding(12)
         .background(DSColors.surfaceElevated)
-        .clipShape(RoundedRectangle(cornerRadius: 10))
+        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
     }
 
     private func thermalSubtitle(_ state: ProcessInfo.ThermalState) -> String {
@@ -3586,7 +3586,7 @@ struct UnifiedMetricsBar: View {
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
         .background(color.opacity(0.1))
-        .clipShape(RoundedRectangle(cornerRadius: 8))
+        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
     }
 
     private func warningChip(icon: String, text: String, color: Color) -> some View {
@@ -3639,9 +3639,9 @@ struct UnifiedMetricsBar: View {
                 // Mini progress bar
                 GeometryReader { geo in
                     ZStack(alignment: .leading) {
-                        RoundedRectangle(cornerRadius: 2)
+                        RoundedRectangle(cornerRadius: 2, style: .continuous)
                             .fill(Color.secondary.opacity(0.2))
-                        RoundedRectangle(cornerRadius: 2)
+                        RoundedRectangle(cornerRadius: 2, style: .continuous)
                             .fill(contextColor)
                             .frame(width: geo.size.width * contextUsageRatio)
                     }
@@ -3713,7 +3713,7 @@ struct UnifiedMetricsBar: View {
         .padding(.vertical, 4)
         .padding(.horizontal, 8)
         .background(DSColors.surfaceElevated)
-        .clipShape(RoundedRectangle(cornerRadius: 6))
+        .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
     }
 
     // MARK: - Compact Row: RAG Pipeline
@@ -3781,7 +3781,7 @@ struct UnifiedMetricsBar: View {
         .padding(.vertical, 4)
             .padding(.horizontal, 8)
             .background(Color.purple.opacity(0.08))
-            .clipShape(RoundedRectangle(cornerRadius: 6))
+            .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
     }
 
     // MARK: - Compact Row: Coverage
@@ -3997,12 +3997,12 @@ struct UnifiedMetricsBar: View {
                 .padding(10)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .background(Color.orange.opacity(0.1))
-                .clipShape(RoundedRectangle(cornerRadius: 8))
+                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
             }
         }
         .padding(12)
         .background(DSColors.surfaceElevated)
-        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
 
     // MARK: - RAG Intelligence Card
@@ -4078,10 +4078,10 @@ struct UnifiedMetricsBar: View {
                 // Vector bar
                 GeometryReader { geo in
                     HStack(spacing: 0) {
-                        RoundedRectangle(cornerRadius: 3)
+                        RoundedRectangle(cornerRadius: 3, style: .continuous)
                             .fill(Color.blue)
                             .frame(width: geo.size.width * vectorWeight)
-                        RoundedRectangle(cornerRadius: 3)
+                        RoundedRectangle(cornerRadius: 3, style: .continuous)
                             .fill(Color.orange)
                             .frame(width: geo.size.width * lexicalWeight)
                     }
@@ -4106,7 +4106,7 @@ struct UnifiedMetricsBar: View {
         }
         .padding(12)
         .background(DSColors.surfaceElevated)
-        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
 
     private var retrievalModeDetail: String {
@@ -4140,7 +4140,7 @@ struct UnifiedMetricsBar: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(8)
         .background(color.opacity(0.08))
-        .clipShape(RoundedRectangle(cornerRadius: 8))
+        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
     }
 
     @ViewBuilder
@@ -4184,7 +4184,7 @@ struct UnifiedMetricsBar: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(10)
         .background(color.opacity(0.08))
-        .clipShape(RoundedRectangle(cornerRadius: 8))
+        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
     }
 
     @ViewBuilder
@@ -4318,7 +4318,7 @@ struct UnifiedMetricsBar: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(10)
         .background(DSColors.surfaceElevated)
-        .clipShape(RoundedRectangle(cornerRadius: 10))
+        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
     }
 
     // executionExplanation defined earlier in file
@@ -4341,7 +4341,7 @@ struct UnifiedMetricsBar: View {
         .padding(10)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(tint.opacity(0.08))
-        .clipShape(RoundedRectangle(cornerRadius: 8))
+        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
     }
 
     private var coverageDetailCard: some View {
@@ -4379,7 +4379,7 @@ struct UnifiedMetricsBar: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(10)
         .background(DSColors.surfaceElevated)
-        .clipShape(RoundedRectangle(cornerRadius: 10))
+        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
     }
 
     private var routingDetailCard: some View {
@@ -4404,7 +4404,7 @@ struct UnifiedMetricsBar: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(10)
         .background(DSColors.surfaceElevated)
-        .clipShape(RoundedRectangle(cornerRadius: 10))
+        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
     }
 
     private var routingTitle: String {
@@ -4466,7 +4466,7 @@ struct UnifiedMetricsBar: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(10)
         .background(DSColors.surfaceElevated)
-        .clipShape(RoundedRectangle(cornerRadius: 10))
+        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
     }
 
     private var contextExplanation: String {
@@ -4499,7 +4499,7 @@ struct UnifiedMetricsBar: View {
         .padding(10)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Color.purple.opacity(0.08))
-        .clipShape(RoundedRectangle(cornerRadius: 8))
+        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
     }
 
     // MARK: - Helpers

@@ -7,6 +7,43 @@ This document provides a chronological history of user-facing changes, highlight
 
 ---
 
+## v5.0 - August 10, 2026
+Importing a document was quietly losing parts of it. This release finds the places that happened.
+
+### Your Documents
+
+*   **Tables in Word documents were being thrown away.** Each one was read into rows and then dropped, so a document could import looking fine with all of its numbers missing.
+*   **Images keep their layout.** Every image became one unbroken line of text before anything downstream could read it.
+*   **Photographing a page now matches importing it.** Camera captures came out as flat text where the same page imported as table cells.
+*   **Scanned pages report their scanning honestly.** A fully scanned PDF used to tell you it had scanned zero pages.
+*   **A page the parser knew it had read badly is no longer repaired and then discarded.**
+*   **PDFs with figures but no tables keep their figures.**
+*   **Pages, Numbers and Keynote files now fail clearly.** They were never actually readable; importing one no longer looks like it worked.
+
+### Answers
+
+*   **Search ranks section headings again.** A weighting mistake had dropped section paths out of ranking entirely.
+*   **Evidence that retrieval had already found is no longer discarded** when sentence extraction matches nothing.
+*   **Long questions can now reach Private Cloud Compute.** They were being kept on device precisely when they were too big for it.
+
+### Things The App Was Claiming That Weren't True
+
+Settings describes what the app is doing while it answers you. Several of those lines described
+things the code does not do, so they are gone or corrected.
+
+*   **Settings listed eight agentic tools, and all eight were the wrong ones.** Four tools are actually wired up. Those four are now what it names.
+*   **Two advertised features did not exist,** and are no longer advertised.
+*   **The model picker listed a tier the app cannot select.**
+*   **Speed figures that were never measured have been removed,** including from the sample documents the app reads back to you as fact. Where the underlying work was real, it is now described by what it does instead of by a number.
+*   **Every remaining capability line was checked against the code that would have to run it.**
+
+### The App Itself
+
+*   **Your device is identified correctly.** iPhone 17 and M5 hardware reported itself as "A12 or Older" with limited performance.
+*   **The first screen no longer cuts off its own text.** Half the headline and all three example questions were being truncated.
+*   **The chat controls match each other, and the mode menu explains itself.** It also shows which mode is active, and how many Maximum runs you have left before you pick it.
+*   **The hardware readout follows a live answer** and no longer stays lit after you stop one.
+
 ## v4.9 - August 2, 2026
 Documents no longer disappear after importing, and libraries carry their work between devices instead of asking you to redo it.
 

@@ -78,7 +78,7 @@ struct VisualEvidenceCard: View {
         .background(Material.thin)
         .cornerRadius(12)
         .overlay(
-            RoundedRectangle(cornerRadius: 12)
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
                 .stroke(Color.primary.opacity(0.15), lineWidth: 1)
         )
         .padding(.horizontal)

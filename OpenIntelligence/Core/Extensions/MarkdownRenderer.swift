@@ -543,7 +543,7 @@ private struct MarkdownBlockView: View {
                         )
                     )
                     .frame(height: level == 1 ? 2 : 1)
-                    .clipShape(RoundedRectangle(cornerRadius: 1))
+                    .clipShape(RoundedRectangle(cornerRadius: 1, style: .continuous))
             }
         }
         .padding(.top, level <= 2 ? 8 : 4)
@@ -589,7 +589,7 @@ private struct MarkdownBlockView: View {
     @ViewBuilder
     private func blockQuoteView(text: String) -> some View {
         HStack(spacing: 0) {
-            RoundedRectangle(cornerRadius: 2)
+            RoundedRectangle(cornerRadius: 2, style: .continuous)
                 .fill(DSColors.accent.opacity(0.6))
                 .frame(width: 3)
 
