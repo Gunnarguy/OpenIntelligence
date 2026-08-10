@@ -4626,12 +4626,21 @@ class DocumentProcessor {
                                 ]
                             )
 
+                            // A page used OCR when recognition is the only reason it has any text.
+                            // The structured path renders and recognises a page image whether or not
+                            // the PDF carries a text layer, so "Vision ran" is not the signal; "there
+                            // was no usable native text" is. Hardcoding false here meant a scan that
+                            // `RecognizeDocumentsRequest` read cleanly reported zero OCR pages, while
+                            // one that fell through to the rescue path below reported one — backwards
+                            // from what "OCR: N pages scanned" tells the user in Document Details.
+                            let pageNeededOCR = isGarbled || (bestAvailableText?.isEmpty ?? true)
+
                             return PageParseResult(
                                 pageIndex: pageIndex,
                                 elements: elements,
                                 pageText: pageTextOutput,
                                 hasStructure: structuredContent.hasStructuredContent || pageTablesCount > 0 || pageListsCount > 0,
-                                usedOCR: false,
+                                usedOCR: pageNeededOCR,
                                 tablesFound: pageTablesCount,
                                 listsFound: pageListsCount,
                                 headersFound: pageHeadersCount
@@ -8609,16 +8618,35 @@ class DocumentProcessor {
             tableRegex.enumerateMatches(in: xml, options: [], range: range) { match, _, _ in
                 if let match = match { matches.append(match) }
             }
-            // Process in reverse to preserve indices
-            for match in matches.reversed() {
+
+            // The placeholder is wrapped in a `<w:p>` rather than left as bare text.
+            //
+            // Every table in every .docx was previously extracted and then silently discarded. STEP 2
+            // below builds `result` exclusively from `<w:p>...</w:p>` matches, and in OOXML a `<w:tbl>`
+            // is a *sibling* of `<w:p>` inside `<w:body>`, never nested inside one. So a bare
+            // "[[TABLE_0]]" written where the table used to be sat outside every paragraph match, never
+            // entered `result`, and STEP 3's substitution then found nothing to replace. The table text
+            // was computed, held in `tableTexts`, and dropped on the floor. Wrapping the placeholder in
+            // a paragraph puts it back in the one stream STEP 2 actually reads, and keeps it at the
+            // table's original position in the document.
+            //
+            // Matches are replaced back-to-front so earlier ranges stay valid. Indexing by document
+            // order rather than by append order is a readability change, not a second fix: numbering
+            // by `tableTexts.count` while walking in reverse labelled the last table 0, but it also
+            // stored that table's text at index 0, so the pairing was reversed and self-consistent.
+            // Document order is worth having anyway, because the placeholder number now matches the
+            // table's position on the page when this has to be debugged from a log.
+            var orderedTableTexts = [String](repeating: "", count: matches.count)
+            for (reverseOffset, match) in matches.reversed().enumerated() {
+                let documentIndex = matches.count - 1 - reverseOffset
                 if let matchRange = Range(match.range, in: processedXML) {
                     let tableXML = String(processedXML[matchRange])
-                    let tableText = extractTableFromWordXML(tableXML)
-                    let placeholder = "\n[[TABLE_\(tableTexts.count)]]\n"
-                    tableTexts.append(tableText)
+                    orderedTableTexts[documentIndex] = extractTableFromWordXML(tableXML)
+                    let placeholder = "\n<w:p><w:r><w:t>[[TABLE_\(documentIndex)]]</w:t></w:r></w:p>\n"
                     processedXML.replaceSubrange(matchRange, with: placeholder)
                 }
             }
+            tableTexts = orderedTableTexts
         }
 
         // STEP 2: Extract paragraphs with run-level text joining

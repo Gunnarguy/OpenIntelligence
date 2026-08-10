@@ -306,3 +306,39 @@ anyway, but git would then track the path with a lowercase prefix and produce tw
 directory in the index. One spelling avoids that.
 
 `[evidence_source: `ls -la docs` returns the contents of `Docs`, verified 2026-08-07]`
+
+---
+
+## 2026-08-09 — Ingestion fixtures are synthesised in Swift, not committed as binaries
+
+**Context.** The ingestion fixture set needs a text-layer PDF, an image-only PDF, a figures-only
+PDF, a degraded scan, a PNG of a table, CSV, `.docx` and `.xlsx`. The obvious approach is to commit
+eight small files.
+
+**Decision.** Committed as *code* that draws them at test time, in
+`OpenIntelligenceTests/Services/Document/Processing/IngestionFixtureFactory.swift` and
+`IngestionOfficeFixtures.swift`. No binary fixture is checked in. `.docx` and `.xlsx` are built by a
+store-only ZIP writer in the test target, which works because `DocumentProcessor`'s ZIP reader
+accepts `compressionMethod == 0`.
+
+**Alternatives.** (a) Commit binaries and load them as bundle resources — needs the files added to
+the test target's resources build phase, and `project.pbxproj` is a hard-boundary file. (b) Commit
+binaries and locate them via `#filePath` — avoids the pbxproj question but still puts binaries in
+the repository. (c) Generate them with `soffice`, which is installed on this machine — makes the
+suite depend on LibreOffice being present wherever it runs.
+
+**Rationale.** Three things fall out at once. The expectations and the bytes derive from the same
+`TableSpec`, so there is no hand-transcribed ground truth to drift out of sync with the fixture. No
+binary enters a repository that lives in iCloud, which duplicates and re-stamps binary files and has
+broken builds here before. And nothing about the test target's file membership changes, so the
+hard-boundary `project.pbxproj` stays untouched.
+
+**Consequences, stated plainly.** A rasterised page rendered from vector text is cleaner than
+anything a real scanner produces. These fixtures therefore catch *structural* regressions — rows
+collapsing to one line, recovered prose being dropped, figures being discarded, chunk inventory
+changing shape — and they do **not** catch OCR accuracy loss on genuinely noisy input. That is an
+acceptable trade because all five defects fixed on 2026-08-08 were structural, but it means a real
+scanned corpus is still worth acquiring later and this set does not replace it.
+
+**Revisit when** OCR accuracy on noisy input becomes the thing under test, at which point real
+scans are required and the pbxproj question has to be faced.
