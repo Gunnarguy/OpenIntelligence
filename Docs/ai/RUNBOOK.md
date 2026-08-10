@@ -112,6 +112,46 @@ Single suites:
 xcodebuild test -scheme OpenIntelligence -only-testing:OpenIntelligenceTests/HybridSearchServiceTests -derivedDataPath /private/tmp/oi-build -destination "platform=iOS Simulator,id=<UDID>"
 ```
 
+## Retrieval benchmark
+
+The 20-case quality matrix runs the **macOS** app headlessly, once per case, against fixtures in
+`Benchmarks/ResearchFixtures/tiny_research_suite/`. Two things about it are not obvious and cost a
+full session each when rediscovered.
+
+**1. The benchmark app must be built with code signing disabled.** The normal macOS Debug build is
+sandboxed — `OpenIntelligence.entitlements` has carried `com.apple.security.app-sandbox` since
+`98dfa14` on 2026-07-14, with only `files.user-selected.read-only`. A sandboxed app cannot write to
+the per-case storage directory the harness creates under `$TMPDIR`, so ingestion never lands, the run
+falls through to `No documents loaded - using direct LLM chat mode`, and every case answers from
+model priors with `Chunks: 0`. The harness reports this as
+`no answer produced (agentic path did not complete headlessly)`, which points away from the cause.
+The real signal is in each report: `Failed to persist ingestion queue: You don't have permission to
+save the file "ingestion_queue.json"` (curly apostrophe, so grep for `have permission to save`).
+
+```bash
+DEVELOPER_DIR=/Applications/Xcode-beta.app/Contents/Developer xcodebuild -scheme OpenIntelligence -destination "platform=macOS" -configuration Debug -derivedDataPath /private/tmp/oi-mac-nosbx -skipPackagePluginValidation CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO build
+```
+
+*Recorded 2026-08-09.* These are the same flags `scripts/build_simulator_smoke.sh` already uses, and
+they do not touch the hard-boundary `.entitlements` file. Confirm the result before benchmarking —
+`codesign -d --entitlements - <app>` must print no entitlements, and `codesign -dv` should report
+`adhoc, linker-signed`. **An agent cannot run this command**; the permission classifier refuses
+anything altering code signing, so a human runs it.
+
+**2. The first launch of a freshly built binary pays model warm-up, and it is minutes.** Do not lower
+`--timeout` to "fail fast". A cold first case exceeded 240s and was killed; warm cases on the same
+binary run 12–22s, and the harness discards all output on timeout, so a too-short timeout destroys
+the evidence that would explain it. Leave the 600s default.
+
+```bash
+python3 scripts/run_quality_matrix.py --app /private/tmp/oi-mac-nosbx/Build/Products/Debug/OpenIntelligence.app --modes standard --pcc deny
+```
+
+*Verified 2026-08-09.* Writes `BenchmarkRuns/<timestamp>-matrix/` with `report.md`, `results.json`,
+and a per-case report under `reports/`. `BenchmarkRuns/` is gitignored in full, so no run survives a
+fresh clone. Running the instrumented binary from the repository root drops a `default.profraw`;
+delete it rather than committing it.
+
 ## Lint
 
 There is no lint gate, and this matters mainly so you do not mistake one for existing.

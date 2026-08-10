@@ -287,8 +287,12 @@ def summarize_stages(rows: list[dict], mode: str) -> list[dict]:
     return out
 
 
+# The reason block's closing ")*" is OPTIONAL here on purpose, and `.*` runs to the end of the
+# string rather than to the end of the line. Requiring a well-formed `*(Reason: …)*` meant an
+# unterminated reason was not stripped at all, because the whole optional group failed to match and
+# the reason text stayed inside group(1). See `strip_verification_banner` for what that cost.
 VERIFICATION_BANNER = re.compile(
-    r"^\s*⚠️\s*\*\*\[Needs Verification\]\*\*[^\n]*\n+(.*?)(?:\n+\*\(Reason:[^\n]*\)\*\s*)?$",
+    r"^\s*⚠️\s*\*\*\[Needs Verification\]\*\*[^\n]*\n+(.*?)(?:\n+\*\(Reason:.*)?\s*$",
     re.S,
 )
 
@@ -310,6 +314,18 @@ def strip_verification_banner(answer: str) -> tuple[str, bool]:
     Returns the inner answer and whether the banner was present. The flag is kept rather than
     discarded: "answered correctly but the verification gate was not satisfied" is a genuinely
     different outcome from "answered correctly", and it is worth reporting on its own.
+
+    The same bug then recurred in a second form, and the fix is why the closing ")*" is optional in
+    the pattern above. The engine emits reasons that arrive unterminated -- the closing ")*" is a
+    literal at `SourceOnlyAnswerService.swift:349` but is absent from the delivered answer, and the
+    app-side cause of that is still unidentified. A strict pattern failed to match those, so the
+    whole reason survived into the graded answer and the abstention regex below fired on the
+    *verifier's* prose instead of the model's. Verified on the 2026-08-09 run:
+    `multi_hop_project_m1` named the right owner and the right deadline, hit 2 of 2 required
+    patterns, and scored wrong on the phrase "does not specify" inside its own reason.
+    `multi_hop_project_m4` leaked identically and survived only because its reason happened to read
+    "All necessary claims are supported by the evidence." Grading that depends on the wording of a
+    diagnostic is not grading. Real accuracy for that run was 18/20, not 17/20.
     """
     m = VERIFICATION_BANNER.match(answer or "")
     if not m:
