@@ -16,6 +16,13 @@ struct DatabaseDashboardView: View {
     @EnvironmentObject private var settings: SettingsStore
 
     @State private var selectedSection: DatabaseSection = .overview
+    /// Whether the per-library figures cover every library or only the active one.
+    enum DatabaseScope: Hashable {
+        case allLibraries
+        case activeLibrary
+    }
+
+    @State private var databaseScope: DatabaseScope = .activeLibrary
     @State private var stats: SQLiteFullTextService.FTS5Statistics?
     @State private var indexInfo: SQLiteFullTextService.FTS5IndexInfo?
     @State private var documentStats: [SQLiteFullTextService.DocumentStat] = []
@@ -274,14 +281,32 @@ struct DatabaseDashboardView: View {
                 }
             }
 
-            // Quick stats row
+            // Scope control.
+            //
+            // This screen used to render two different scopes side by side with nothing
+            // saying which was which. `getStatistics()` runs
+            // `SELECT COUNT(*) FROM document_meta` with **no WHERE clause**, so the
+            // headline counted every library at once, while the document rows below came
+            // from `getDocumentStats(containerId:)`, which is scoped. A user with six
+            // libraries saw "7 Total Documents" directly above a list belonging to a
+            // library holding one.
+            //
+            // The per-library numbers were already being fetched: `FTS5Statistics`
+            // carries `containerStats`, so scoping needs no new query and no change to
+            // `SQLiteFullTextService`, which is a hard-boundary file.
+            scopePicker
+
+            // Quick stats row, scoped to the selection above.
             if let stats = stats {
                 HStack(spacing: 16) {
-                    QuickStat(value: "\(stats.totalDocuments)", label: "Docs", icon: "doc.fill", color: .blue)
-                    QuickStat(value: formatLargeNumber(stats.totalWords), label: "Words", icon: "textformat", color: .green)
-                    QuickStat(value: formatBytes(stats.databaseSizeBytes), label: "Size", icon: "externaldrive.fill", color: .orange)
+                    QuickStat(value: "\(scopedDocumentCount(stats))", label: "Docs", icon: "doc.fill", color: .blue)
+                    QuickStat(value: formatLargeNumber(scopedWordCount(stats)), label: "Words", icon: "textformat", color: .green)
+                    // Size, terms and every other file-level figure are properties of the
+                    // SQLite file itself and cannot be attributed to one library, so they
+                    // stay whole-database and say so rather than silently implying scope.
+                    QuickStat(value: formatBytes(stats.databaseSizeBytes), label: "Size (all)", icon: "externaldrive.fill", color: .orange)
                     if let indexInfo = indexInfo {
-                        QuickStat(value: formatLargeNumber(indexInfo.uniqueTerms), label: "Terms", icon: "list.bullet", color: .purple)
+                        QuickStat(value: formatLargeNumber(indexInfo.uniqueTerms), label: "Terms (all)", icon: "list.bullet", color: .purple)
                     }
                 }
             }
@@ -289,6 +314,61 @@ struct DatabaseDashboardView: View {
         .padding()
         .background(DSColors.surface)
         .cornerRadius(16)
+    }
+
+    /// Library scope for the per-library figures on this screen.
+    ///
+    /// `nil` means every library, which is what the screen used to show unconditionally.
+    private var scopedContainerId: UUID? {
+        databaseScope == .allLibraries ? nil : containerService.activeContainerId
+    }
+
+    private func scopedDocumentCount(_ stats: SQLiteFullTextService.FTS5Statistics) -> Int {
+        guard let id = scopedContainerId else { return stats.totalDocuments }
+        return stats.containerStats.first { $0.containerId == id }?.documentCount ?? 0
+    }
+
+    private func scopedWordCount(_ stats: SQLiteFullTextService.FTS5Statistics) -> Int {
+        guard let id = scopedContainerId else { return stats.totalWords }
+        return stats.containerStats.first { $0.containerId == id }?.totalWords ?? 0
+    }
+
+    private func scopedCharacterCount(_ stats: SQLiteFullTextService.FTS5Statistics) -> Int {
+        guard let id = scopedContainerId else { return stats.totalCharacters }
+        return stats.containerStats.first { $0.containerId == id }?.totalCharacters ?? 0
+    }
+
+    /// Names the scope on every scoped card, so a number is never ambiguous about
+    /// whether it covers one library or all of them.
+    private var scopeSubtitle: String {
+        scopedContainerId == nil ? "All libraries" : activeLibraryName
+    }
+
+    /// Totals over the documents actually listed on the Documents section, so its
+    /// summary cannot disagree with the rows beneath them.
+    private var listedWordCount: Int {
+        documentStats.reduce(0) { $0 + $1.wordCount }
+    }
+
+    private var listedCharacterCount: Int {
+        documentStats.reduce(0) { $0 + $1.characterCount }
+    }
+
+    @ViewBuilder
+    private var scopePicker: some View {
+        Picker("Scope", selection: $databaseScope) {
+            Text("All Libraries").tag(DatabaseScope.allLibraries)
+            Text(activeLibraryName).tag(DatabaseScope.activeLibrary)
+        }
+        .pickerStyle(.segmented)
+        .accessibilityLabel("Statistics scope")
+        .accessibilityHint("Choose whether the counts cover every library or just the active one")
+    }
+
+    private var activeLibraryName: String {
+        containerService.containers
+            .first { $0.id == containerService.activeContainerId }?
+            .name ?? "This Library"
     }
 
     private var sectionPicker: some View {
@@ -336,29 +416,32 @@ struct DatabaseDashboardView: View {
                     GridItem(.flexible()),
                     GridItem(.flexible())
                 ], spacing: 12) {
+                    // Scoped alongside the headline row. Leaving these reading whole-store
+                    // totals underneath a scoped header would have moved the confusion
+                    // down the page rather than fixed it.
                     DatabaseMetricCard(
                         icon: "doc.text.fill",
-                        title: "Total Documents",
-                        value: "\(stats.totalDocuments)",
-                        subtitle: "Indexed in FTS5",
+                        title: "Documents",
+                        value: "\(scopedDocumentCount(stats))",
+                        subtitle: scopeSubtitle,
                         color: .blue,
                         trend: nil
                     )
 
                     DatabaseMetricCard(
                         icon: "character.cursor.ibeam",
-                        title: "Total Characters",
-                        value: formatLargeNumber(stats.totalCharacters),
-                        subtitle: "Stored text",
+                        title: "Characters",
+                        value: formatLargeNumber(scopedCharacterCount(stats)),
+                        subtitle: scopeSubtitle,
                         color: .purple,
                         trend: nil
                     )
 
                     DatabaseMetricCard(
                         icon: "text.word.spacing",
-                        title: "Total Words",
-                        value: formatLargeNumber(stats.totalWords),
-                        subtitle: "Searchable tokens",
+                        title: "Words",
+                        value: formatLargeNumber(scopedWordCount(stats)),
+                        subtitle: scopeSubtitle,
                         color: .green,
                         trend: nil
                     )
@@ -575,13 +658,22 @@ struct DatabaseDashboardView: View {
                         .foregroundColor(.secondary)
                 }
 
-                // Summary stats
-                if let stats = stats {
-                    HStack(spacing: 12) {
-                        MiniStatCard(label: "Total Words", value: formatLargeNumber(stats.totalWords))
-                        MiniStatCard(label: "Total Chars", value: formatLargeNumber(stats.totalCharacters))
-                        MiniStatCard(label: "Avg Words/Doc", value: documentStats.isEmpty ? "—" : "\(stats.totalWords / max(1, documentStats.count))")
-                    }
+                // Summary computed from `documentStats`, which is the very list below it.
+                //
+                // These read `stats.totalWords` and `stats.totalCharacters` — whole-store
+                // figures — while sitting on top of a document list that
+                // `getDocumentStats(containerId:)` had already scoped to one library. The
+                // averages were worse than merely mismatched: "Avg Words/Doc" divided the
+                // word count of *every* library by the document count of *one*, so with
+                // six libraries it reported a number that described nothing. Deriving all
+                // three from the displayed rows makes the summary true by construction.
+                HStack(spacing: 12) {
+                    MiniStatCard(label: "Words", value: formatLargeNumber(listedWordCount))
+                    MiniStatCard(label: "Characters", value: formatLargeNumber(listedCharacterCount))
+                    MiniStatCard(
+                        label: "Avg Words/Doc",
+                        value: documentStats.isEmpty ? "—" : "\(listedWordCount / max(1, documentStats.count))"
+                    )
                 }
 
                 // Document list

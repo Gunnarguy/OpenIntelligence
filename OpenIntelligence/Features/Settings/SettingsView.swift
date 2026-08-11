@@ -319,6 +319,69 @@ struct SettingsView: View {
     // `ModelConfigurationSheet` directly. It existed only to hold the button that
     // opened the sheet, which was the second of the two taps.
 
+    /// A labelled status row for the iCloud card, replacing loose grey paragraphs.
+    @ViewBuilder
+    private func syncDetailRow(label: String, value: String) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: DSSpacing.md) {
+            Text(label)
+                .font(.caption.weight(.medium))
+                .foregroundStyle(.secondary)
+                .frame(width: 82, alignment: .leading)
+            Text(value)
+                .font(.caption)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .padding(.horizontal, DSSpacing.md)
+        .padding(.vertical, DSSpacing.sm)
+    }
+
+    @ViewBuilder
+    private func pccWindowRow(icon: String, label: String, value: String) -> some View {
+        HStack(spacing: DSSpacing.sm) {
+            Image(systemName: icon)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .frame(width: 18)
+            Text(label)
+                .font(.subheadline)
+            Spacer()
+            Text(value)
+                .font(.subheadline.monospacedDigit())
+                .foregroundStyle(.secondary)
+        }
+        .padding(.horizontal, DSSpacing.md)
+        .padding(.vertical, DSSpacing.sm)
+    }
+
+    /// The PCC context window, read live where the system reports it.
+    ///
+    /// Never a hardcoded 32,768. `FoundationModelTokenBudget` falls back to that figure,
+    /// but the live capability snapshot is authoritative and the two can differ, which is
+    /// how this screen previously managed to show two different numbers at once.
+    private var pccWindowDescription: String {
+        guard deviceCapabilities.supportsPrivateCloudCompute else {
+            return "Unavailable"
+        }
+        if let size = pccCapability?.pccContextSize, size > 0 {
+            return "\(size.formatted()) tokens"
+        }
+        return "\(FoundationModelTokenBudget.contextSize(isAppleFMOnDevice: false).formatted()) tokens"
+    }
+
+    /// The on-device window, preferring the live capability snapshot over the budget
+    /// helper's fallback for the same reason as `pccWindowDescription`.
+    private var onDeviceWindowDescription: String {
+        if let size = pccCapability?.onDeviceContextSize, size > 0 {
+            return "\(size.formatted()) tokens"
+        }
+        // Both the snapshot and `SystemLanguageModel.default.contextSize` report 0 where
+        // Foundation Models are unavailable, which is every simulator. Rendering that as
+        // "0 tokens" reads as a broken device rather than an absent model.
+        let budget = FoundationModelTokenBudget.contextSize(isAppleFMOnDevice: true)
+        return budget > 0 ? "\(budget.formatted()) tokens" : "Unavailable"
+    }
+
     /// Cooling line for the Active Device card.
     ///
     /// This used to read "Active cooling" on every Mac, because the form factor asserted
@@ -841,12 +904,41 @@ Text(label)
                 }
             }
 
-            VStack(alignment: .leading, spacing: 12) {
+            // The paragraph this replaces read "Apple's Private Cloud Compute (PCC) allows
+            // OpenIntelligence to process complex queries with a massive 32,768 token
+            // context window...". Three problems. It framed PCC as the thing that makes
+            // the app work, which is backwards: `FoundationModelRoutePolicy` returns
+            // `.onDevice` on every branch of the automatic path unless a prompt exceeds
+            // the device window. "Massive" is doing work that a number should do. And the
+            // 32,768 was hardcoded directly above a block that renders the *live* figure,
+            // so the same screen could show two different numbers.
+            VStack(alignment: .leading, spacing: DSSpacing.md) {
+                Text("Answers are written on this device. A question reaches Private Cloud Compute only when it needs more room than this device's model has.")
+                    .font(.callout)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                VStack(spacing: 0) {
+                    pccWindowRow(
+                        icon: "iphone",
+                        label: "On this device",
+                        value: onDeviceWindowDescription
+                    )
+                    Divider().padding(.leading, 30)
+                    pccWindowRow(
+                        icon: "cloud",
+                        label: "Private Cloud Compute",
+                        value: pccWindowDescription
+                    )
+                }
+                .padding(.vertical, DSSpacing.xs)
+                .background(DSColors.surfaceElevated)
+                .clipShape(RoundedRectangle(cornerRadius: DSCorners.control, style: .continuous))
+
                 HStack {
-                    Text("PCC Usage")
+                    Text("When to allow it")
                         .font(.subheadline.weight(.medium))
                     Spacer()
-                    Picker("PCC Usage", selection: $settings.pccSetting) {
+                    Picker("When to allow it", selection: $settings.pccSetting) {
                         ForEach(PCCSettings.allCases, id: \.self) { setting in
                             Text(setting.rawValue).tag(setting)
                         }
@@ -854,14 +946,12 @@ Text(label)
                     .pickerStyle(.menu)
                     .disabled(!deviceCapabilities.supportsPrivateCloudCompute)
                 }
-                
-                Text("Apple's Private Cloud Compute (PCC) allows OpenIntelligence to process complex queries with a massive 32,768 token context window, significantly improving multi-document analysis and Deep Think capabilities. OpenIntelligence does not operate its own servers.")
+
+                Text("OpenIntelligence does not operate its own servers. Nothing is sent anywhere else. Reading, indexing and searching your documents all happen here regardless of this setting; only the final answer can ever leave.")
                     .font(.caption)
                     .foregroundColor(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
-            .padding(10)
-            .background(Color.accentColor.opacity(0.06))
-            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
 
             #if canImport(FoundationModels)
             if #available(iOS 26.0, macOS 26.0, *) {
@@ -1066,30 +1156,41 @@ Text(label)
                 }
             }
 
-            if let syncActivitySummary {
-                Text(syncActivitySummary)
-                    .font(.caption)
-                    .foregroundColor(.secondary)
+            // This was four unlabelled grey paragraphs stacked on each other, followed by
+            // a raw container path (/private/var/mobile/Library/Mobile Documents/...)
+            // shown to every user. Nothing said which line was status, which was activity,
+            // or what the path was for. They are labelled rows now, and the path moved
+            // behind a disclosure since it exists for support and debugging rather than
+            // for reading.
+            VStack(spacing: 0) {
+                syncDetailRow(label: "Status", value: workspaceSyncService.statusMessage)
+
+                if let syncActivitySummary {
+                    Divider().padding(.leading, DSSpacing.md)
+                    syncDetailRow(label: "Last synced", value: syncActivitySummary)
+                }
+
+                if let sharedWorkspaceRefreshMessage {
+                    Divider().padding(.leading, DSSpacing.md)
+                    syncDetailRow(label: "Last action", value: sharedWorkspaceRefreshMessage)
+                }
             }
+            .background(DSColors.surfaceElevated)
+            .clipShape(RoundedRectangle(cornerRadius: DSCorners.control, style: .continuous))
 
-            Text(workspaceSyncService.statusMessage)
-                .font(.caption)
-                .foregroundColor(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-
-            if let sharedWorkspaceRefreshMessage {
-                Text(sharedWorkspaceRefreshMessage)
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-
-            if let rootDescription = workspaceSyncService.workspaceRootDescription, workspaceSyncService.isUsingSharedWorkspace {
-                Text(rootDescription)
-                    .font(.caption2)
-                    .foregroundColor(.secondary.opacity(0.8))
-                    .textSelection(.enabled)
-                    .fixedSize(horizontal: false, vertical: true)
+            if let rootDescription = workspaceSyncService.workspaceRootDescription,
+               workspaceSyncService.isUsingSharedWorkspace {
+                DisclosureGroup("Storage location") {
+                    Text(rootDescription)
+                        .font(.caption2.monospaced())
+                        .foregroundColor(.secondary)
+                        .textSelection(.enabled)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.top, DSSpacing.xs)
+                }
+                .font(.caption.weight(.medium))
+                .tint(.secondary)
             }
 
             if let lastErrorMessage = workspaceSyncService.lastErrorMessage {
