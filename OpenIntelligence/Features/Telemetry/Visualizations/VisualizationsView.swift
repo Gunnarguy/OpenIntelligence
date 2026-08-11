@@ -394,6 +394,15 @@ struct EmbeddingSpaceView: View {
         .padding(.horizontal)
     }
 
+    // Uses `embeddingDimension`, the value this view is already handed, rather than a
+    // literal. The copy said "512-number vectors" unconditionally, and five providers ship
+    // with four different dimensions: `AppleFMEmbeddingProvider` 1024, `NLEmbeddingProvider`
+    // and `NLContextualEmbeddingProvider` 512, `CoreMLSentenceEmbeddingProvider` and
+    // `CoreAISentenceEmbeddingProvider` 384. So it was right for a library embedded by
+    // either NL provider and wrong for every MiniLM one. It was never a false claim, only a
+    // hardcoded one, which is why this reads the real value rather than being "corrected"
+    // to 384. `VisualizationsView.embeddingSection` has always passed the container's
+    // `embeddingDim` in through this view's own initialiser.
     private var projectionPicker: some View {
         HStack {
             Picker("Projection", selection: $projectionMethod) {
@@ -405,7 +414,7 @@ struct EmbeddingSpaceView: View {
 
             InfoButtonView(
                 title: "Projection Method",
-                explanation: "We flatten 512-number vectors into something you can see.\n\n• PCA: super fast overview of the biggest themes.\n• t-SNE: highlights tiny topic bubbles.\n• UMAP: balanced layout when your library mixes formats."
+                explanation: "We flatten \(embeddingDimension)-number vectors into something you can see.\n\n• PCA: super fast overview of the biggest themes.\n• t-SNE: highlights tiny topic bubbles.\n• UMAP: balanced layout when your library mixes formats."
             )
         }
         .padding(.horizontal)

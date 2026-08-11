@@ -201,6 +201,16 @@
         "filename": "case_1_part_a.md",
         "page": null
       },
+      "expected_sources": [
+        {
+          "filename": "case_1_part_a.md",
+          "page": null
+        },
+        {
+          "filename": "case_1_part_b.md",
+          "page": null
+        }
+      ],
       "id": "multi_hop_project_m1",
       "input_files": [
         "Benchmarks/ResearchFixtures/tiny_research_suite/fixtures/synthetic/multi_hop/case_1_part_a.md",
@@ -222,6 +232,16 @@
         "filename": "case_2_part_a.md",
         "page": null
       },
+      "expected_sources": [
+        {
+          "filename": "case_2_part_a.md",
+          "page": null
+        },
+        {
+          "filename": "case_2_part_b.md",
+          "page": null
+        }
+      ],
       "id": "multi_hop_project_m2",
       "input_files": [
         "Benchmarks/ResearchFixtures/tiny_research_suite/fixtures/synthetic/multi_hop/case_2_part_a.md",
@@ -243,6 +263,16 @@
         "filename": "case_3_part_a.md",
         "page": null
       },
+      "expected_sources": [
+        {
+          "filename": "case_3_part_a.md",
+          "page": null
+        },
+        {
+          "filename": "case_3_part_b.md",
+          "page": null
+        }
+      ],
       "id": "multi_hop_project_m3",
       "input_files": [
         "Benchmarks/ResearchFixtures/tiny_research_suite/fixtures/synthetic/multi_hop/case_3_part_a.md",
@@ -264,6 +294,16 @@
         "filename": "case_4_part_a.md",
         "page": null
       },
+      "expected_sources": [
+        {
+          "filename": "case_4_part_a.md",
+          "page": null
+        },
+        {
+          "filename": "case_4_part_b.md",
+          "page": null
+        }
+      ],
       "id": "multi_hop_project_m4",
       "input_files": [
         "Benchmarks/ResearchFixtures/tiny_research_suite/fixtures/synthetic/multi_hop/case_4_part_a.md",
@@ -285,6 +325,16 @@
         "filename": "case_5_part_a.md",
         "page": null
       },
+      "expected_sources": [
+        {
+          "filename": "case_5_part_a.md",
+          "page": null
+        },
+        {
+          "filename": "case_5_part_b.md",
+          "page": null
+        }
+      ],
       "id": "multi_hop_project_m5",
       "input_files": [
         "Benchmarks/ResearchFixtures/tiny_research_suite/fixtures/synthetic/multi_hop/case_5_part_a.md",

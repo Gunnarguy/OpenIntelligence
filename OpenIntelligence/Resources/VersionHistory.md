@@ -65,6 +65,8 @@ things the code does not do, so they are gone or corrected.
 *   **The chat controls match each other, and the mode menu explains itself.** It also shows which mode is active, and how many Maximum runs you have left before you pick it.
 *   **The hardware readout follows a live answer** and no longer stays lit after you stop one.
 *   **The screen readers can reach the hardware panel properly.** Its figures used to be read as one long block; each one is now its own element with its own definition.
+*   **Answers that ended in bold or italic text no longer come out broken.** The last two characters were being cut off, which left the formatting unclosed and bled it into the rest of the screen. The clearest case was the notice you get when an answer could not be verified: its closing bracket was always missing.
+*   **The embedding view no longer claims your vectors have 512 numbers when they have 384.** It reads the real number from the library you are looking at, which differs depending on which embedding model that library was built with.
 
 ## v4.9 - August 2, 2026
 Documents no longer disappear after importing, and libraries carry their work between devices instead of asking you to redo it.

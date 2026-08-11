@@ -16255,9 +16255,34 @@ class RAGService: ObservableObject {
         return trimmed
     }
 
-    private nonisolated static func hasResponseTerminalBoundary(_ text: String) -> Bool {
-        guard let last = text.trimmingCharacters(in: .whitespacesAndNewlines).last else { return false }
-        return [".", "!", "?", "]", ")", "}", "\"", "'"] .contains(last)
+    /// Whether `text` ends on something that reads as the end of a thought.
+    ///
+    /// Markdown emphasis is stripped from the tail before the test. Without that, an answer
+    /// ending in bold or italic fails this check, `trimIncompleteResponseTail` concludes the
+    /// model stopped mid-sentence, and `lastCompleteSentenceBoundary` truncates back to the
+    /// previous `.`, amputating the closing markers and shipping unbalanced emphasis.
+    ///
+    /// The reproducible case was the abstention banner. `SourceOnlyAnswerService.swift:349`
+    /// emits a well-formed `*(Reason: …)*`, and users and the benchmark both received it with
+    /// the final `)*` missing. `finalizeResponse` is the single call site and every answer
+    /// path returns through it, so this affected everything, not just the banner: on the
+    /// 2026-08-09 and 2026-08-11 runs, 7 of 7 saved reason blocks had lost exactly those two
+    /// characters. `CHANGELOG.md` recorded the route as "not yet identified"; this was it.
+    ///
+    /// Stripping rather than adding `*` to the accepted set is deliberate. `…evidence.)*`
+    /// now tests as `)` and passes, `…evidence.**` tests as `.` and passes, and a genuinely
+    /// truncated `…and *` still tests as `d` and is still trimmed, which is the behaviour
+    /// this function exists for.
+    ///
+    /// Internal rather than private so `ResponseTailTrimmingTests` can pin it directly, the same
+    /// reason `DeviceCapabilityService.migrateGPUExecutionProfile` is internal. Testing it through
+    /// a full query would need a model, a container and an ingested corpus to assert a two
+    /// character difference.
+    nonisolated static func hasResponseTerminalBoundary(_ text: String) -> Bool {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let last = trimmed.reversed().first(where: { $0 != "*" && $0 != "_" && $0 != "`" })
+        else { return false }
+        return [".", "!", "?", "]", ")", "}", "\"", "'"].contains(last)
     }
 
     private nonisolated static func looksLikeStandaloneValueResponse(_ text: String) -> Bool {

@@ -79,7 +79,27 @@ def convert(case: dict) -> dict:
     manifest_category = case["category"]
     should_abstain = case["expected_behavior"] == "abstain"
 
-    citation = (case.get("expected_source") or {}).get("filename")
+    # Ground truth is plural, because some cases genuinely require more than one document.
+    #
+    # This read only `expected_source.filename` and emitted a one-element list. Every
+    # `multi_hop_project_m*` case asks a two-part question whose halves live in different
+    # fixtures, so crediting one of the two made a correct pipeline look like a broken one: on
+    # the 2026-08-11 run, `rerank` MRR@10 read 0.972 and `final` 0.917 purely because three of
+    # those cases ranked the *other* required document first. The arithmetic closed exactly at
+    # (17 + 0.5)/18 and (15 + 1.5)/18. All five answered correctly.
+    #
+    # `expected_sources` (plural) wins when the manifest carries it. The singular key is kept as
+    # the fallback so the twelve single-source cases are untouched and any consumer not yet
+    # updated still reads something valid.
+    plural = case.get("expected_sources") or []
+    citations = [
+        (entry or {}).get("filename")
+        for entry in plural
+        if (entry or {}).get("filename")
+    ]
+    if not citations:
+        single = (case.get("expected_source") or {}).get("filename")
+        citations = [single] if single else []
     input_files = case.get("input_files", [])
 
     # Ordered so the JSONL reads naturally; key names must match RAGEvalCase.
@@ -89,7 +109,7 @@ def convert(case: dict) -> dict:
         "expectedAnswer": readable_answer(case.get("expected_answer_patterns", [])),
         "category": CATEGORY_MAP[manifest_category],
         "groundTruthChunkIds": None,  # chunk IDs are assigned at ingestion time
-        "expectedCitations": [citation] if citation and not should_abstain else None,
+        "expectedCitations": citations if citations and not should_abstain else None,
         "shouldAbstain": should_abstain,
         "containerId": None,
         "qualityMode": QUALITY_MAP.get(case.get("quality_mode", "standard"), "standard"),

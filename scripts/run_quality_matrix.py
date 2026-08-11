@@ -413,9 +413,23 @@ def run_one(
     # and was recorded as `rerank R@5=1.00 -> final R@5=0.00`, dragging the aggregate `final` recall
     # down by a stage doing exactly its job. Abstention correctness is reported separately, as its
     # own count, and never folded into a retrieval rate.
-    expected_source = (case.get("expected_source") or {}).get("filename")
-    if expected_source and case.get("expected_behavior") != "abstain":
-        cmd += ["--rag-validation-expected-sources", expected_source]
+    # All required documents, not just the first.
+    #
+    # This passed only `expected_source.filename`, so a two-document question was scored against
+    # one document and the pipeline was penalised for ranking the other required one first. That
+    # is where the apparent `rerank` 0.972 and `final` 0.917 on the 2026-08-11 run came from; all
+    # five multi-hop cases answered correctly. The flag is comma-separated and
+    # `DebugRAGValidationHarness` already splits it, so multi-source scoring needed no app change.
+    expected_sources = [
+        (entry or {}).get("filename")
+        for entry in (case.get("expected_sources") or [])
+        if (entry or {}).get("filename")
+    ]
+    if not expected_sources:
+        single = (case.get("expected_source") or {}).get("filename")
+        expected_sources = [single] if single else []
+    if expected_sources and case.get("expected_behavior") != "abstain":
+        cmd += ["--rag-validation-expected-sources", ",".join(expected_sources)]
     if not ingest:
         cmd.append("--rag-validation-skip-ingest")
 
@@ -541,9 +555,12 @@ def render_markdown(summaries: list[dict], rows: list[dict], meta: dict,
                  "above, these include runs where generation produced nothing: retrieval still "
                  "ran on those cases, and that is the point of scoring it separately.")
         L.append("")
-        L.append("Ground truth is document-level (the manifest's `expected_source.filename`), so "
-                 "each expected document is credited once, at the rank of its first matching "
-                 "chunk. `k` still counts chunks, because chunks are what reach the model.")
+        L.append("Ground truth is document-level (the manifest's `expected_sources`, falling back "
+                 "to `expected_source.filename`), so each expected document is credited once, at "
+                 "the rank of its first matching chunk. `k` still counts chunks, because chunks "
+                 "are what reach the model. Multi-document cases credit every document the "
+                 "question requires; crediting only the first made a correct pipeline read as a "
+                 "ranking regression.")
         L.append("")
         for mode, stages in stage_summaries.items():
             if not stages:
