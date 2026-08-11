@@ -33,6 +33,17 @@ Importing a document was quietly losing parts of it. This release finds the plac
 - **The four import stages explain themselves while they run:** Extract, Chunk, Embed and Index are tappable during the import you watch on first launch.
 - **Nothing is buried:** Settings has the full list under Plain English, searchable, including by the technical name if that is the word you know.
 
+### Your Libraries
+- **"Remove Local Copies" is now "Wipe Library":** it never only removed local copies, it deleted those documents from iCloud and your other devices while saying Sync Now could bring them back.
+- **Wiping a library cleans up properly:** documents used to stay in Spotlight search and their files stayed on disk.
+- **Moving a library off iCloud asks first.** One tap used to remove its iCloud copy with no warning.
+- **The Documents toolbar stops hiding buttons off-screen.** Library Settings, Cached Documents, Wipe and Delete are in one visible menu.
+- **Two libraries with the same name can be told apart.**
+
+### Your Database Tab
+- **Pick any library to inspect,** instead of only "All Libraries" or whichever one was active.
+- **"All Libraries" shows all of them,** and the list says which library you are looking at.
+
 ### Things The App Was Claiming That Weren't True
 Settings describes what the app is doing while it answers you, and several of those lines described things the code does not do.
 - **It listed eight agentic tools, and all eight were the wrong ones.** Four are actually wired up; those four are what it names now.

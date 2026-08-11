@@ -16,13 +16,24 @@ struct DatabaseDashboardView: View {
     @EnvironmentObject private var settings: SettingsStore
 
     @State private var selectedSection: DatabaseSection = .overview
-    /// Whether the per-library figures cover every library or only the active one.
+    /// Which library the per-library figures on this screen cover.
+    ///
+    /// `.library(UUID)` rather than `.activeLibrary`. The old pair could not express "a library
+    /// that is not the active one", so this screen was structurally capped at two choices however
+    /// many libraries existed, and inspecting library three of five meant leaving for the
+    /// Documents tab, switching the active library there, and coming back. Carrying the id means
+    /// the selection is independent of which library is active, so looking at a library's index
+    /// no longer changes what the rest of the app is pointed at.
     enum DatabaseScope: Hashable {
         case allLibraries
-        case activeLibrary
+        case library(UUID)
     }
 
-    @State private var databaseScope: DatabaseScope = .activeLibrary
+    // Defaults to the active library so the screen opens on what the rest of the app is
+    // pointed at. Set in `onAppear` because the active id is not known at property-initialiser
+    // time; `.allLibraries` is the honest placeholder until it is.
+    @State private var databaseScope: DatabaseScope = .allLibraries
+    @State private var didSeedScope = false
     @State private var stats: SQLiteFullTextService.FTS5Statistics?
     @State private var indexInfo: SQLiteFullTextService.FTS5IndexInfo?
     @State private var documentStats: [SQLiteFullTextService.DocumentStat] = []
@@ -171,7 +182,16 @@ struct DatabaseDashboardView: View {
             updateMaps()
         }
         .onChange(of: containerService.containers.count) { _, _ in
+            resolveStaleScope()
             updateMaps()
+        }
+        .onChange(of: databaseScope) { _, _ in
+            Task { await loadStatistics() }
+        }
+        .onAppear {
+            guard !didSeedScope else { return }
+            didSeedScope = true
+            databaseScope = .library(containerService.activeContainerId)
         }
         .onChange(of: ragService.documents.count) { _, _ in
             updateMaps()
@@ -210,7 +230,11 @@ struct DatabaseDashboardView: View {
         Log.info("[DatabaseDash] Phase 1: requesting getStatistics()", category: .vectorDB)
         stats = await service.getStatistics()
         Log.info("[DatabaseDash] Phase 1: getStatistics() complete, requesting getDocumentStats()", category: .vectorDB)
-        documentStats = await service.getDocumentStats(containerId: containerService.activeContainerId)
+        // Scoped, not active. Picking "All Libraries" used to leave this list showing only the
+        // active library's documents, with the section header saying nothing about which library
+        // the rows belonged to. `nil` means every library, which is what the parameter already
+        // meant at the service layer.
+        documentStats = await loadDocumentStats(for: scopedContainerId)
         Log.info("[DatabaseDash] Phase 1: getDocumentStats() complete — showing UI", category: .vectorDB)
 
         watchdog.cancel()
@@ -320,7 +344,57 @@ struct DatabaseDashboardView: View {
     ///
     /// `nil` means every library, which is what the screen used to show unconditionally.
     private var scopedContainerId: UUID? {
-        databaseScope == .allLibraries ? nil : containerService.activeContainerId
+        switch databaseScope {
+        case .allLibraries: return nil
+        case .library(let id): return id
+        }
+    }
+
+    /// The scoped library's name, or nil when the scope is every library.
+    ///
+    /// Falls back through to `nil` when the carried id is no longer in `containers`, which happens
+    /// if the selected library is deleted from another screen or another device while this one is
+    /// open. `resolveStaleScope` is what actually repairs the selection; this only keeps labels
+    /// from rendering a stale name in the meantime.
+    private var scopedLibraryName: String? {
+        guard let id = scopedContainerId else { return nil }
+        return containerService.containers.first { $0.id == id }?.name
+    }
+
+    /// Short label for whatever the current scope is, for section captions.
+    private var scopeLabel: String {
+        scopedLibraryName ?? "All Libraries"
+    }
+
+    /// Document rows for the current scope.
+    ///
+    /// `getDocumentStats(containerId:)` takes a non-optional `UUID` and its SQL is
+    /// `WHERE container_id = ?`, so unlike `timedSearch` it has no all-libraries form. Rather
+    /// than add one, which would mean editing `SQLiteFullTextService` and that file is a hard
+    /// boundary, "All Libraries" fans out over `containerService.containers` here and
+    /// concatenates. This screen is opened deliberately and refreshed by hand, so N small
+    /// metadata queries against `document_meta` are not worth a service change to avoid.
+    private func loadDocumentStats(for scope: UUID?) async -> [SQLiteFullTextService.DocumentStat] {
+        let service = SQLiteFullTextService.shared
+        guard let scope else {
+            var merged: [SQLiteFullTextService.DocumentStat] = []
+            for container in containerService.containers {
+                merged.append(contentsOf: await service.getDocumentStats(containerId: container.id))
+            }
+            return merged
+        }
+        return await service.getDocumentStats(containerId: scope)
+    }
+
+    /// Drops a selection whose library no longer exists.
+    ///
+    /// Without this the screen keeps reporting figures for a deleted id, which read as a library
+    /// that still exists with zero documents in it.
+    private func resolveStaleScope() {
+        guard case .library(let id) = databaseScope else { return }
+        if !containerService.containers.contains(where: { $0.id == id }) {
+            databaseScope = .allLibraries
+        }
     }
 
     private func scopedDocumentCount(_ stats: SQLiteFullTextService.FTS5Statistics) -> Int {
@@ -341,7 +415,7 @@ struct DatabaseDashboardView: View {
     /// Names the scope on every scoped card, so a number is never ambiguous about
     /// whether it covers one library or all of them.
     private var scopeSubtitle: String {
-        scopedContainerId == nil ? "All libraries" : activeLibraryName
+        scopedLibraryName ?? "All libraries"
     }
 
     /// Totals over the documents actually listed on the Documents section, so its
@@ -354,21 +428,29 @@ struct DatabaseDashboardView: View {
         documentStats.reduce(0) { $0 + $1.characterCount }
     }
 
+    /// Scope control: every library, or any one of them by name.
+    ///
+    /// A `.menu` Picker rather than `.segmented`. A segmented control divides its width by the
+    /// number of options, so it stops being usable at four or five libraries and cannot scroll;
+    /// a menu holds any number and shows the current selection in its label. The rows are built
+    /// from `containerService.containers`, the same list the Documents tab's chip row uses, so a
+    /// library appears here the moment it exists.
+    ///
+    /// Deliberately not built from `ContainerPill`. That view defaults `canDelete` to `true` and
+    /// carries a long-press dialog with "Make Local Only" and "Delete Library" in it, so reusing
+    /// it would put a data-destroying menu on a read-only statistics screen.
     @ViewBuilder
     private var scopePicker: some View {
         Picker("Scope", selection: $databaseScope) {
             Text("All Libraries").tag(DatabaseScope.allLibraries)
-            Text(activeLibraryName).tag(DatabaseScope.activeLibrary)
-        }
-        .pickerStyle(.segmented)
-        .accessibilityLabel("Statistics scope")
-        .accessibilityHint("Choose whether the counts cover every library or just the active one")
-    }
 
-    private var activeLibraryName: String {
-        containerService.containers
-            .first { $0.id == containerService.activeContainerId }?
-            .name ?? "This Library"
+            ForEach(containerService.containers) { container in
+                Text(container.name).tag(DatabaseScope.library(container.id))
+            }
+        }
+        .pickerStyle(.menu)
+        .accessibilityLabel("Statistics scope")
+        .accessibilityHint("Choose whether the counts cover every library or one library by name")
     }
 
     private var sectionPicker: some View {
@@ -648,10 +730,21 @@ struct DatabaseDashboardView: View {
                 }
                 .padding(40)
             } else {
-                // Document list header
-                HStack {
-                    Text("Indexed Documents")
-                        .font(.headline)
+                // Document list header.
+                //
+                // Names the scope. This read "Indexed Documents" with no library anywhere on it,
+                // while the rows underneath were always the active library's regardless of what
+                // the scope control said, so choosing All Libraries silently showed one library's
+                // documents under a heading that claimed nothing. The rows follow the scope now,
+                // and the heading says which scope produced them.
+                HStack(alignment: .firstTextBaseline) {
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text("Indexed Documents")
+                            .font(.headline)
+                        Text(scopeLabel)
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                    }
                     Spacer()
                     Text("\(documentStats.count) total • Tap to preview")
                         .font(.caption)
@@ -1443,7 +1536,7 @@ struct DatabaseDashboardView: View {
         let service = SQLiteFullTextService.shared
         stats = await service.getStatistics()
         indexInfo = await service.getIndexInfo()
-        documentStats = await service.getDocumentStats(containerId: containerService.activeContainerId)
+        documentStats = await loadDocumentStats(for: scopedContainerId)
         isLoading = false
     }
 
@@ -1455,7 +1548,7 @@ struct DatabaseDashboardView: View {
         // Use timed search to get performance metrics
         let (results, metrics) = await service.timedSearch(
             query: searchQuery,
-            containerId: containerService.activeContainerId,
+            containerId: scopedContainerId,
             limit: 50
         )
         searchResults = results

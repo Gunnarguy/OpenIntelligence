@@ -141,10 +141,17 @@ struct ModernDocumentCard: View {
         }
     }
 
+    // Both modes delete the document everywhere, so neither is labelled as if it were local.
+    //
+    // `.local` runs `removeDocument` alone; `.everywhere` runs
+    // `deleteDocumentFromICloud` first and then `removeDocument`. The difference is that
+    // `.everywhere` removes the shared file immediately while `.local` leaves the tombstone to
+    // do it on the next sync pass. That is a timing difference, not a scope one, and calling
+    // the first "Remove Local Copy" told users the opposite.
     private var alertTitle: String {
         switch deleteMode {
         case .local:
-            return isSharedICloudDocument ? "Remove Local Document?" : "Delete Document?"
+            return "Delete Document?"
         case .everywhere:
             return "Delete from iCloud?"
         }
@@ -153,7 +160,7 @@ struct ModernDocumentCard: View {
     private var confirmButtonTitle: String {
         switch deleteMode {
         case .local:
-            return isSharedICloudDocument ? "Remove Local Copy" : "Delete"
+            return "Delete"
         case .everywhere:
             return "Delete Everywhere"
         }
@@ -163,7 +170,14 @@ struct ModernDocumentCard: View {
         switch deleteMode {
         case .local:
             if isSharedICloudDocument {
-                return "This removes \"\(document.filename)\" from this device's current copy of the shared iCloud library. If the document still exists in iCloud, Sync Now can bring it back."
+                // Was "If the document still exists in iCloud, Sync Now can bring it back."
+                // It cannot. `removeDocument` calls `registerDeletedDocuments` before it does
+                // anything else, and that tombstone is unioned into both workspace roots and
+                // then used to filter the shared inventory, so the next sync pass removes the
+                // document from iCloud and from every other device. Promising recovery on a
+                // path that writes a permanent tombstone is the worst kind of wrong copy,
+                // because it is read at the moment someone decides whether to tap Delete.
+                return "This deletes \"\(document.filename)\" here and in iCloud, on every device signed in to this library. This cannot be undone."
             } else {
                 return "This will remove \"\(document.filename)\" and all its chunks from your knowledge base on this device."
             }

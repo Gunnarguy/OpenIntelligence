@@ -41,6 +41,14 @@ struct DocumentLibraryView: View {
     @State private var showingDeleteConfirmation = false
     @State private var libraryToDelete: KnowledgeContainer?
     @State private var showingClearAllConfirmation = false
+    /// The library waiting on confirmation to become Local Only.
+    ///
+    /// That switch is destructive and had no confirmation anywhere on its most reachable path.
+    /// `handleSetLibrarySyncMode` calls `reconfigureIfNeeded()`, after which the library is
+    /// filtered out of `sharedVisibleContainers` and `cleanupSharedWorkspace` removes its shared
+    /// artifacts and files, so a single tap on a segmented control deleted the library's iCloud
+    /// copy while the toast said only that it "stays on this device".
+    @State private var pendingLocalOnlyLibrary: KnowledgeContainer?
 
     // Vision Capture and Cached Docs
     @State private var showVisionCapture = false
@@ -217,23 +225,52 @@ struct DocumentLibraryView: View {
                 .padding(.horizontal)
 
             documentActionStrip
-                .alert(activeLibrary?.syncMode == .iCloudShared ? "Remove Local Documents?" : "Clear Library?", isPresented: $showingClearAllConfirmation) {
+                // This action empties a library and keeps the library itself, which is exactly
+                // the "wipe" operation the app was missing, so it is named that now.
+                //
+                // Its previous name and copy were not merely unclear, they were false. On an
+                // iCloud library it read "Remove Local Copies" and promised "If those documents
+                // still exist in iCloud Sync, Sync Now can bring them back." They cannot.
+                // `clearAllDocuments` calls `registerDeletedDocuments`, which appends every id to
+                // `deleted_documents.json`; the sync service unions that file into both workspace
+                // roots and then filters those ids out of the shared inventory, so the next pass
+                // removes them from iCloud and from every other device. `BNNSVectorDatabase.clear()`
+                // posts `.localWorkspaceDidChange`, which schedules that pass about two seconds
+                // later. There is no local-only eviction here to describe.
+                //
+                // The wording is now the same for both storage modes, because the outcome is.
+                .alert("Wipe \"\(activeLibrary?.name ?? "this library")\"?", isPresented: $showingClearAllConfirmation) {
                     Button("Cancel", role: .cancel) {}
-                    Button(activeLibrary?.syncMode == .iCloudShared ? "Remove Local Copies" : "Clear All", role: .destructive) {
+                    Button("Wipe Library", role: .destructive) {
                         Task {
                             try? await ragService.clearAllDocuments()
                         }
                     }
                 } message: {
-                    if let activeLibrary {
-                        if activeLibrary.syncMode == .iCloudShared {
-                            Text("This removes the documents currently stored on this device for \"\(activeLibrary.name)\". If those documents still exist in iCloud Sync, Sync Now can bring them back.")
-                        } else {
-                            Text("This permanently deletes every document in \"\(activeLibrary.name)\" on this device. This cannot be undone.")
-                        }
+                    if let activeLibrary, activeLibrary.syncMode == .iCloudShared {
+                        Text("Deletes all \(ragService.documents.filter { $0.containerId == activeLibrary.id }.count) documents in this library, here and in iCloud, on every device signed in to it. The library itself stays. This cannot be undone.")
+                    } else if let activeLibrary {
+                        Text("Deletes all \(ragService.documents.filter { $0.containerId == activeLibrary.id }.count) documents in \"\(activeLibrary.name)\". The library itself stays. This cannot be undone.")
                     } else {
-                        Text("This will remove all documents in the current library.")
+                        Text("Deletes every document in this library. The library itself stays. This cannot be undone.")
                     }
+                }
+                .alert(
+                    "Move \"\(pendingLocalOnlyLibrary?.name ?? "this library")\" off iCloud?",
+                    isPresented: Binding(
+                        get: { pendingLocalOnlyLibrary != nil },
+                        set: { if !$0 { pendingLocalOnlyLibrary = nil } }
+                    )
+                ) {
+                    Button("Cancel", role: .cancel) { pendingLocalOnlyLibrary = nil }
+                    Button("Move Off iCloud", role: .destructive) {
+                        if let pending = pendingLocalOnlyLibrary {
+                            pendingLocalOnlyLibrary = nil
+                            handleSetLibrarySyncMode(pending, .localOnly, confirmed: true)
+                        }
+                    }
+                } message: {
+                    Text("This library's copy in iCloud is removed, and it stops appearing on your other devices. The documents stay on this device. Switching back to iCloud Sync uploads them again.")
                 }
 
             ContainerPickerStrip(
@@ -241,7 +278,13 @@ struct DocumentLibraryView: View {
                 allowsCreation: true,
                 onCreateLibrary: handleNewLibraryTapped,
                 onDeleteLibrary: handleDeleteLibrary,
-                onSetLibraryStorage: handleSetLibrarySyncMode
+                // Wrapped rather than passed by reference. `handleSetLibrarySyncMode` gained a
+                // defaulted `confirmed:` parameter, and Swift does not apply default arguments
+                // when a function is used as a value, so the bare reference no longer matches
+                // the two-parameter closure this expects.
+                onSetLibraryStorage: { container, syncMode in
+                    handleSetLibrarySyncMode(container, syncMode)
+                }
             )
             .alert("New Library", isPresented: $showingNewLibraryPrompt) {
                 TextField("Library name", text: $newLibraryName)
@@ -390,63 +433,85 @@ struct DocumentLibraryView: View {
         return "\(ragService.documents.count) \(documentLabel) in this workspace"
     }
 
+    /// Two everyday actions, then everything else behind one menu.
+    ///
+    /// This was six chips in a horizontal `ScrollView` with `showsIndicators: false`, so at
+    /// iPhone width the last three were off-screen with nothing on the screen suggesting they
+    /// existed. Manage Library is the only route to `ContainerSettingsSheet` and Wipe Library is
+    /// destructive, so both were effectively hidden behind a swipe nobody knew to make.
+    ///
+    /// Add Document and Semantic Search stay as chips because they are what someone comes to this
+    /// screen to do. The rest move into a menu that is always visible at a fixed position.
+    /// Visualize is gone entirely: it called `onViewVisualizations`, whose only implementation in
+    /// `ContentView` sets `selectedTab = .visualizations`, passing no scope and no deep link, and
+    /// that tab renders `AdaptiveVisualizationsView()` which takes no parameters. The chip was a
+    /// second button for the Atlas tab sitting two inches above the Atlas tab.
     private var documentActionStrip: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 12) {
-                DocumentActionChip(
-                    title: "Add Document",
-                    systemImage: "plus.circle.fill"
-                ) {
-                    DSHaptics.light()
-                    presentDocumentPickerOrUpgrade()
-                }
+        HStack(spacing: 12) {
+            DocumentActionChip(
+                title: "Add Document",
+                systemImage: "plus.circle.fill"
+            ) {
+                DSHaptics.light()
+                presentDocumentPickerOrUpgrade()
+            }
 
-                DocumentActionChip(
-                    title: "Semantic Search",
-                    systemImage: "sparkle.magnifyingglass",
-                    isEnabled: !ragService.documents.isEmpty
-                ) {
-                    DSHaptics.selection()
-                    showingSemanticSearch = true
-                }
+            DocumentActionChip(
+                title: "Semantic Search",
+                systemImage: "sparkle.magnifyingglass",
+                isEnabled: !ragService.documents.isEmpty
+            ) {
+                DSHaptics.selection()
+                showingSemanticSearch = true
+            }
 
-                DocumentActionChip(
-                    title: "Cached Docs",
-                    systemImage: "doc.on.doc.fill"
-                ) {
-                    DSHaptics.light()
-                    showCachedDocs = true
-                }
+            Spacer(minLength: 0)
 
-                DocumentActionChip(
-                    title: "Manage Library",
-                    systemImage: "slider.horizontal.3"
-                ) {
+            Menu {
+                Button {
                     DSHaptics.light()
                     showingContainerSettings = true
+                } label: {
+                    Label("Library Settings", systemImage: "slider.horizontal.3")
                 }
 
-                DocumentActionChip(
-                    title: "Visualize",
-                    systemImage: "cube.transparent",
-                    isEnabled: !filteredDocuments.isEmpty && onViewVisualizations != nil
-                ) {
-                    DSHaptics.selection()
-                    onViewVisualizations?()
+                Button {
+                    DSHaptics.light()
+                    showCachedDocs = true
+                } label: {
+                    Label("Cached Documents", systemImage: "doc.on.doc.fill")
                 }
 
-                DocumentActionChip(
-                    title: activeLibrary?.syncMode == .iCloudShared ? "Remove Local Copies" : "Clear All",
-                    systemImage: "trash",
-                    tint: .red,
-                    isEnabled: !ragService.documents.isEmpty
-                ) {
+                Divider()
+
+                // Enabled against `filteredDocuments`, the documents this screen is actually
+                // showing, rather than `ragService.documents`, which is every document in every
+                // library. The old binding left the destructive action live on a library that is
+                // visibly empty, because some other library had documents in it.
+                Button(role: .destructive) {
                     DSHaptics.medium()
                     showingClearAllConfirmation = true
+                } label: {
+                    Label("Wipe Library", systemImage: "trash")
                 }
+                .disabled(filteredDocuments.isEmpty)
+
+                Button(role: .destructive) {
+                    DSHaptics.medium()
+                    if let activeLibrary {
+                        handleDeleteLibrary(activeLibrary)
+                    }
+                } label: {
+                    Label("Delete Library", systemImage: "trash.slash")
+                }
+                .disabled(activeLibrary == nil || containerService.containers.count <= 1)
+            } label: {
+                DocumentActionChipLabel(title: "More", systemImage: "ellipsis.circle")
             }
-            .padding(.horizontal, 16)
+            .accessibilityLabel("More library actions")
+            .accessibilityHint("Library settings, cached documents, wipe or delete this library")
         }
+        .padding(.horizontal, 16)
         .padding(.vertical, 8)
     }
 
@@ -1442,11 +1507,21 @@ struct DocumentLibraryView: View {
     }
 
     @MainActor
-    private func handleSetLibrarySyncMode(_ container: KnowledgeContainer, _ syncMode: LibrarySyncMode) {
+    private func handleSetLibrarySyncMode(
+        _ container: KnowledgeContainer,
+        _ syncMode: LibrarySyncMode,
+        confirmed: Bool = false
+    ) {
         guard container.syncMode != syncMode else { return }
 
         if syncMode == .iCloudShared, !hasICloudSyncAccess {
             presentPlanSheet(for: .iCloudSync)
+            return
+        }
+
+        // Leaving iCloud removes this library's copy from iCloud. Ask first.
+        if syncMode == .localOnly, container.syncMode == .iCloudShared, !confirmed {
+            pendingLocalOnlyLibrary = container
             return
         }
 
@@ -1648,37 +1723,58 @@ struct DocumentLibraryView: View {
     }
 }
 
+    /// The capsule itself, with no button behaviour.
+    ///
+    /// Split out so the overflow `Menu` can use the same shape as the two real chips beside it.
+    /// A `Menu` supplies its own tap handling, so wrapping `DocumentActionChip` inside one would
+    /// nest a `Button` in a `Menu` and the chip would swallow the tap.
+    private struct DocumentActionChipLabel: View {
+        let title: String
+        let systemImage: String
+        var tint: Color = .accentColor
+        var isEnabled: Bool = true
+
+        var body: some View {
+            HStack(spacing: 6) {
+                Image(systemName: systemImage)
+                    .font(.system(size: 11, weight: .bold))
+
+                Text(title)
+                    .font(.system(size: 11, weight: .bold))
+                    .lineLimit(1)
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .background(.ultraThinMaterial)
+            .foregroundStyle(isEnabled ? tint : .secondary)
+            .clipShape(Capsule())
+            .overlay(
+                Capsule()
+                    .strokeBorder(isEnabled ? tint.opacity(0.15) : Color.secondary.opacity(0.1), lineWidth: 1)
+            )
+            .glassEffectHelper(isSelected: false, interactive: isEnabled)
+            .opacity(isEnabled ? 1 : 0.6)
+        }
+    }
+
     private struct DocumentActionChip: View {
         let title: String
         let systemImage: String
         var tint: Color = .accentColor
         var isEnabled: Bool = true
         let action: () -> Void
-    
+
         var body: some View {
             Button(action: action) {
-                HStack(spacing: 6) {
-                    Image(systemName: systemImage)
-                        .font(.system(size: 11, weight: .bold))
-    
-                    Text(title)
-                        .font(.system(size: 11, weight: .bold))
-                        .lineLimit(1)
-                }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
-                .background(.ultraThinMaterial)
-                .foregroundStyle(isEnabled ? tint : .secondary)
-                .clipShape(Capsule())
-                .overlay(
-                    Capsule()
-                        .strokeBorder(isEnabled ? tint.opacity(0.15) : Color.secondary.opacity(0.1), lineWidth: 1)
+                DocumentActionChipLabel(
+                    title: title,
+                    systemImage: systemImage,
+                    tint: tint,
+                    isEnabled: isEnabled
                 )
-                .glassEffectHelper(isSelected: false, interactive: isEnabled)
             }
             .buttonStyle(.plain)
             .disabled(!isEnabled)
-            .opacity(isEnabled ? 1 : 0.6)
         }
     }
 

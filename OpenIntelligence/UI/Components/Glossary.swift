@@ -169,7 +169,17 @@ extension GlossaryTermID {
                 icon: "square.split.2x2",
                 section: .pipeline,
                 plain: "A passage. The app splits each document into pieces small enough to search precisely and large enough to still make sense on their own, then searches the pieces instead of the whole file. A short report might become forty of them.",
-                technical: "Sentence-boundary chunking, with an optional semantic pass that places a break where cosine similarity between adjacent sentences drops below a threshold. Each chunk keeps the section and heading it came from, so a retrieved passage still knows where it sat in the document.",
+                // Corrected 2026-08-11. This said "an optional semantic pass that places a break
+                // where cosine similarity between adjacent sentences drops below a threshold".
+                // That pass exists and never runs: `SemanticChunker.embeddingService` is declared
+                // at line 67 and is assigned nowhere in the repository, so
+                // `detectEmbeddingBoundaries` returns an empty array at its own guard on every
+                // path. The chunker itself records this, emitting the warning "Embedding service
+                // unavailable - using linguistic boundaries only". Writing "optional" implied it
+                // sometimes runs, which is the same shape of claim this glossary was built to
+                // stop making. What actually runs is described below, including that the phrase
+                // list is English only.
+                technical: "Sentence-boundary chunking to a target size, with extra breaks at detected section headings and at ten hardcoded English transition phrases such as \"However,\" and \"In conclusion,\". Each chunk keeps the section and heading it came from. Embedding-based boundary detection is implemented but inactive, because the chunker is never given an embedding service.",
                 seeAlso: [.vector, .index, .extraction],
                 synonyms: ["passage", "segment", "split", "chunking", "chunks"]
             )

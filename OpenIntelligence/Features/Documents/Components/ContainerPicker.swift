@@ -62,11 +62,39 @@ struct ContainerPickerStrip: View {
         }
     }
 
+    /// Names shared by more than one library, so those chips can be told apart.
+    ///
+    /// Duplicates are reachable: the suggested name is positional, so deleting a middle library
+    /// frees its number for the next one, and nothing validates the name a user types.
+    /// Cross-device they are unavoidable by design, because `WorkspaceSyncService` keys library
+    /// identity on the UUID precisely so that two libraries called the same thing stay separate.
+    /// So this cannot be prevented at the model layer without merging libraries that are not the
+    /// same library, and it is solved where it is actually a problem, on screen.
+    private var duplicatedNames: Set<String> {
+        var seen: Set<String> = []
+        var duplicated: Set<String> = []
+        for container in containerService.containers {
+            let key = container.name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+            if !seen.insert(key).inserted { duplicated.insert(key) }
+        }
+        return duplicated
+    }
+
+    private func disambiguatedName(for container: KnowledgeContainer) -> String {
+        let key = container.name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard duplicatedNames.contains(key) else { return container.name }
+        // The first four characters of the id, which is the same value sync uses to tell these
+        // two apart, so the label matches the thing that actually distinguishes them.
+        let suffix = container.id.uuidString.prefix(4)
+        return "\(container.name) (\(suffix))"
+    }
+
     @ViewBuilder
     private var pillList: some View {
         ForEach(containerService.containers) { container in
             ContainerPill(
                 container: container,
+                displayName: disambiguatedName(for: container),
                 isSelected: containerService.activeContainerId == container.id,
                 canDelete: onDeleteLibrary != nil && containerService.containers.count > 1,
                 badgeText: documentCountText(for: container),
@@ -76,8 +104,17 @@ struct ContainerPickerStrip: View {
                         containerService.setActive(container.id)
                     }
                 },
-                onSetLibraryStorage: { syncMode in
-                    onSetLibraryStorage?(container, syncMode)
+                // `.map`, matching `onDelete` directly below, so a nil callback stays nil.
+                //
+                // This was an unconditional closure literal, which is never nil, so
+                // `hasLibraryActions` was always true and the Library Actions dialog opened on
+                // every screen that shows these chips. In Semantic Search, which passes no
+                // callbacks at all, that meant "Make Local Only" and "Make iCloud Sync" were
+                // visible and silently did nothing.
+                onSetLibraryStorage: onSetLibraryStorage.map { setStorage in
+                    { syncMode in
+                        setStorage(container, syncMode)
+                    }
                 },
                 onDelete: onDeleteLibrary.map { deleteLibrary in
                     {
@@ -120,6 +157,10 @@ struct ContainerPickerStrip: View {
 
 struct ContainerPill: View {
     let container: KnowledgeContainer
+    /// What to show on the chip. Defaults to the library's own name; `ContainerPickerStrip`
+    /// passes a disambiguated form when two libraries share a name, which is reachable both on
+    /// one device and across synced devices.
+    var displayName: String? = nil
     let isSelected: Bool
     var canDelete: Bool = true
     var badgeText: String? = nil
@@ -142,7 +183,7 @@ struct ContainerPill: View {
         HStack(spacing: 6) {
             Image(systemName: container.icon)
                 .font(.system(size: 11, weight: .medium))
-            Text(container.name)
+            Text(displayName ?? container.name)
                 .font(.system(size: 13, weight: .medium))
                 .lineLimit(1)
                 .truncationMode(.middle)
@@ -218,7 +259,7 @@ struct ContainerPill: View {
 
             Button("Cancel", role: .cancel) {}
         } message: {
-            Text(container.name)
+            Text(displayName ?? container.name)
         }
 #if targetEnvironment(macCatalyst)
         .contextMenu {

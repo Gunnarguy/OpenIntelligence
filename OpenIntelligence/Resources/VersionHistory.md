@@ -47,6 +47,21 @@ Importing a document was quietly losing parts of it. This release finds the plac
 *   **The four import stages explain themselves while they run.** Extract, Chunk, Embed and Index are all tappable during the import you watch on first launch.
 *   **Nothing is buried.** Settings has the full list under Plain English, searchable, including by the technical name if that happens to be the word you know.
 
+### Your Libraries
+
+*   **"Remove Local Copies" is now "Wipe Library", because that is what it did.** It never only removed local copies. It deleted those documents from iCloud and from your other devices too, while telling you Sync Now could bring them back. It could not. The wording now says what happens.
+*   **Deleting one document said the same untrue thing,** and its button is now just "Delete".
+*   **Wiping a library used to leave things behind.** The documents stayed in Spotlight search, and their files stayed on disk taking up space. Both are cleaned up now.
+*   **Moving a library off iCloud asks first.** One tap used to remove that library's copy from iCloud with no warning at all.
+*   **The Documents toolbar no longer hides half its buttons off the edge of the screen.** Library Settings, Cached Documents, Wipe and Delete now live in one menu you can see. Visualize is gone from that row, because it only switched you to the Atlas tab that is already at the bottom of the screen.
+*   **Two libraries with the same name can be told apart** by a short code on the chip.
+*   **Library chips in Semantic Search no longer show storage buttons that did nothing.**
+
+### Your Database Tab
+
+*   **You can look at any library from here.** It used to offer only "All Libraries" or whichever library happened to be active, so seeing a different one meant going to Documents, switching, and coming back. Every library is now in one menu.
+*   **"All Libraries" actually shows all of them.** The document list underneath used to show only the active library no matter what you picked, and never said which library you were looking at. It says now.
+
 ### Things The App Was Claiming That Weren't True
 
 Settings describes what the app is doing while it answers you. Several of those lines described

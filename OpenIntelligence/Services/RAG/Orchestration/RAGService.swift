@@ -6932,8 +6932,31 @@ class RAGService: ObservableObject {
             await FullTextStorageService.shared.delete(for: doc.id)
         }
 
-        // Remove all documents in this container from Spotlight
+        // Remove all documents in this container from Spotlight.
+        //
+        // `deindexContainer` deletes one identifier, `container-<uuid>`, which is the library's
+        // own Spotlight entry. It does not touch the documents, which are indexed under the
+        // domain `\(domainIdentifier).<containerId>` and removed by `deindexAllDocuments`. Only
+        // the first was called, so wiping a library left every one of its documents searchable
+        // in Spotlight while removing the library they pointed at. `ContainerService`
+        // `deleteContainer` has always called both.
         SpotlightIndexService.shared.deindexContainer(id: activeId)
+        SpotlightIndexService.shared.deindexAllDocuments(in: activeId)
+
+        // Entity index entries, for the same reason `removeDocument` clears them per document:
+        // without this, entities extracted from wiped documents keep resolving.
+        for doc in docsToDelete {
+            await EntityIndexService.shared.removeDocument(doc.id)
+        }
+
+        // The imported copies on disk. `removeDocument` deletes these one at a time under the
+        // same `ImportedDocuments` guard; this function never did, so a wiped library kept its
+        // full disk footprint. The only sweep that would eventually collect them lives inside
+        // `synchronizeConfiguredLibraries`, which never runs for a Local Only library, so on
+        // that path the bytes stayed forever.
+        for doc in docsToDelete where doc.fileURL.path.contains("ImportedDocuments") {
+            try? FileManager.default.removeItem(at: doc.fileURL)
+        }
 
         // Clear suggested questions bank
         await SuggestedQuestionsService.shared.clearQuestionBank(for: activeId)
