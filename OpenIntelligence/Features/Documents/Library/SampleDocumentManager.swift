@@ -112,7 +112,7 @@ The plan structure is about scale and organization. The core product idea stays 
 
 OpenIntelligence uses a two-tier context window strategy based on query complexity and quality settings:
 
-- **On-device:** Standard queries run locally on Apple Silicon using FoundationModels. Private, and never leaves the device. Measured on an iPhone A18 Pro: roughly 27 tokens/second, with time-to-first-token between 2.2 and 3.2 seconds. Routing escalates above a 4,096-token local budget.
+- **On-device:** Standard queries run locally on Apple Silicon using FoundationModels. Private, and never leaves the device. Measured on an iPhone A18 Pro: roughly 27 tokens/second, with time-to-first-token between 2.2 and 3.2 seconds. The app asks the system for the device's actual context window rather than assuming one, and escalates above it. That window is 4,096 tokens on current hardware, which is the figure the rest of this document uses.
 - **Private Cloud Compute:** Complex reasoning, heavy synthesis, or deep comparisons escalate to Apple's PCC enclaves, which offer a larger context window than the device while maintaining zero-retention, end-to-end encrypted privacy. Measured on the same device: roughly 86 tokens/second, time-to-first-token 2.2 to 2.5 seconds. The exact PCC context size is reported by the system at runtime rather than fixed by this app.
 
 Routing is automatic based on the complexity of your prompt, the selected quality mode, and your token requirements.
@@ -133,13 +133,13 @@ RAG solves this by retrieving only the relevant snippets of your document set. T
 ## The RAG Pipeline
 
 ### 1. Parse
-The app reads 50+ formats using Apple-native parsing and Vision OCR.
+The app reads the formats listed in the Product Guide, using Apple-native parsing and Vision OCR.
 
 ### 2. Chunk
 Content is broken into sections, preserving headings and natural boundaries.
 
 ### 3. Embed
-Each chunk is converted into a semantic vector using the Accelerate framework, running on the GPU and Neural Engine.
+Each chunk is converted into a semantic vector by a Core ML sentence model, which runs on the Neural Engine. Comparing those vectors later is a separate job: that is Apple's Accelerate framework (vDSP/BLAS) on the CPU, with Metal shaders taking over the bulk similarity work on capable hardware.
 
 ### 4. Hybrid Search
 We combine:
@@ -162,13 +162,13 @@ The answer is generated from evidence. A verification gate confirms the model's 
 
 ---
 
-## Telemetry HUD
+## Seeing the work
 
-Tap the status indicator during any query to open the Telemetry HUD. It shows:
-- **Active Route:** On-Device vs. PCC.
-- **Token Budget:** on-device vs. PCC usage against the active window.
-- **Pathway:** Resolved execution steps.
-- **Silicon Telemetry:** Live utilization stats.
+Two different surfaces show what happened, and they are easy to confuse.
+
+**Under each answer** is the metrics bar. Expand it for the route the query actually took (on-device or PCC), the token budget it used against the active window, the resolved execution steps, and the passages it retrieved.
+
+**The Silicon HUD** is the small floating readout of live CPU, Neural Engine and GPU activity. It is off by default; turn it on in Settings under Appearance, and drag it wherever you want it. It sits over the place on the board where that silicon physically is.
 """#
         ),
         SampleDocumentDescriptor(
@@ -192,7 +192,7 @@ The core document pipeline always runs locally:
 - document parsing and OCR
 - chunking and indexing
 - semantic and keyword retrieval
-- vector operations (Accelerate framework on GPU/Neural Engine)
+- embedding on the Neural Engine, and vector math through Accelerate on the CPU with Metal shaders for bulk similarity
 - evidence packing
 
 For answer generation, standard queries typically run on the 4K-token on-device model. The app prefers local execution first.
@@ -220,7 +220,7 @@ The app routes to PCC automatically when a query needs it:
 - synthesis that exceeds the 4K on-device token budget
 - Deep Think or Maximum quality modes with heavy context
 
-Routing is determined by query complexity, selected quality mode, and token requirements. You can see the active route in the Telemetry HUD.
+Routing is determined by query complexity, selected quality mode, and token requirements. Every answer carries the route it actually took: expand the metrics bar underneath it.
 
 ---
 
