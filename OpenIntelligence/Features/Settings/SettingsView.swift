@@ -113,6 +113,7 @@ struct SettingsView: View {
     }
 
     private enum SettingsEntryID: String {
+        case howItWorks
         case intelligenceMode, appleIntelligence, privateCloudCompute
         case librariesSync
         case devicePerformance, appearance
@@ -135,6 +136,20 @@ struct SettingsView: View {
         let keywords: [String]
 
         static let all: [SettingsEntry] = [
+            // First row of the first group on purpose. This answers the questions a user
+            // has before they have opinions about retrieval depth, and burying it under
+            // About would defeat the reason it exists.
+            .init(
+                id: .howItWorks, group: .intelligence,
+                title: "How This Works",
+                subtitle: "What happens to a document, and what stays on this device",
+                icon: "questionmark.circle", tint: .teal,
+                keywords: [
+                    "how", "works", "explain", "privacy", "on-device", "on device", "local",
+                    "server", "upload", "cloud", "embedding", "chunk", "index", "retrieval",
+                    "citation", "sources", "vision", "ocr",
+                ]
+            ),
             .init(
                 id: .intelligenceMode, group: .intelligence,
                 title: "Intelligence Mode",
@@ -484,6 +499,8 @@ struct SettingsView: View {
     @ViewBuilder
     private func destination(for entry: SettingsEntry) -> some View {
         switch entry.id {
+        case .howItWorks:
+            HowItWorksView()
         case .intelligenceMode:
             detailScroll { retrievalCard }
         case .appleIntelligence:
