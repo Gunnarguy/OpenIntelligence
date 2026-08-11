@@ -21,7 +21,10 @@ Importing a document was quietly losing parts of it. This release finds the plac
 
 ### Settings
 - **Settings is a searchable list instead of one very long scroll.** It was fifteen stacked panels with everything at the same volume. It's now about ten rows in sections, each opening its own screen, with search at the top. Nothing was removed — type "temperature" and you land on it.
-- **The generation controls are reachable.** Temperature, token limits, sampling and the repetition penalties were fully built with no way in. They're under Settings → Advanced → Model Parameters.
+- **The generation controls are reachable,** in one tap, under Settings → Advanced. Temperature and response length were fully built with no way into them, and both genuinely change how answers are written — on this device and on Private Cloud Compute alike.
+- **You choose how the model picks its words, and Top-P finally does something.** The app decided this for you and always landed on the same setting, so the Top-P control was read and then ignored. Top-K, Top-P and Greedy are now a choice. Existing behaviour is unchanged unless you change it.
+- **Answers can be made reproducible.** Turn on "Reproducible answers" and the same question against the same library returns the same answer every time.
+- **The controls that never affected Apple Intelligence now say so** rather than sitting under a heading claiming they shape every response.
 - **Five switches that did nothing are no longer switches.** Writing Tools, Speech Analysis, Translation, Screen Awareness and Image Playground are real and always on; the toggles never controlled them.
 
 ### Things The App Was Claiming That Weren't True

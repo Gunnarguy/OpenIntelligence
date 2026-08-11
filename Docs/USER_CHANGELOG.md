@@ -29,7 +29,10 @@ Importing a document was quietly losing parts of it. This release finds the plac
 ### Settings
 
 *   **Settings is a list you can search instead of one very long scroll.** It was fifteen stacked panels with everything shouting at the same volume — your plan sat level with the GPU profile. It's now about ten rows grouped into sections, each opening its own screen, with a search field at the top. Nothing was removed; you type "temperature" and land on it without knowing which screen owns it.
-*   **The generation controls are reachable.** Temperature, token limits, sampling and the repetition penalties were fully built and had no way in. They're under Settings → Advanced → Model Parameters.
+*   **The generation controls are reachable.** Temperature and response length were fully built with no way into them. They're under Settings → Advanced, one tap, and both genuinely change how answers are written — on this device and on Private Cloud Compute alike.
+*   **You can choose how the model picks its words, and Top-P finally does something.** The app decided this for you and always landed on the same setting, so the Top-P control was read and then quietly ignored. You can now pick between Top-K, Top-P and Greedy, and the screen only shows the control belonging to your choice. Existing behaviour is unchanged unless you change it.
+*   **Answers can be made reproducible.** Turn on "Reproducible answers" and the same question against the same library returns the same answer every time. Useful if you are checking work, or comparing two libraries fairly.
+*   **The controls that never affected Apple Intelligence now say so.** The three penalty sliders apply to a self-hosted model rather than to on-device or Private Cloud Compute answers, and they are labelled that way instead of sitting under a heading claiming they shape every response.
 *   **Five switches that did nothing are no longer switches.** Writing Tools, Speech Analysis, Translation, Screen Awareness and Image Playground are real and always on; the toggles never controlled them. They now say so instead of pretending to be a choice.
 
 ### Things The App Was Claiming That Weren't True

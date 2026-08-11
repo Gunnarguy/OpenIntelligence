@@ -2,161 +2,152 @@
 
 Updated: 2026-08-10
 Branch/worktree: main, primary checkout
-Last verified commit: 436e150
+Last verified commit: 4f70463
 
 ## Objective
 
-**v5.0 partial UI makeover.** The user was told by a tester that the app "feels vibecoded", and the
-arc is a six-phase pass over every tab, page and subpage. The user chose to **fold the makeover into
-v5.0** rather than cut v5.0 first, so the 39 unreleased CHANGELOG entries and this UI work ship
-together. `PROCEED: IMPLEMENT` was granted for the whole plan on 2026-08-10.
-
-**Nothing is committed.** 43 files are modified in the working tree. Phases 0-2 are done and
-verified; Phases 3-5 and the cleanup pass are not started.
+**v5.0 partial UI makeover, folded into the v5.0 release.** A tester told the owner the app "feels
+vibecoded"; the arc is a pass over every tab, page and subpage. The owner chose to fold the makeover
+into v5.0 rather than cut v5.0 first, so the engine work and the interface work ship together.
+`PROCEED: IMPLEMENT` was granted for the whole plan on 2026-08-10 and is still in force.
 
 ## Status
 
-The six phases, as agreed with the user:
+Five commits landed on `main` today, all building, none pushed:
+
+| Commit | Scope |
+|---|---|
+| `f9fbf6a` | v5.0 cut + Phases 0-2 (tokens, continuous corners, onboarding, HUD, device identity) |
+| `f3ecca8` | Phase 4: Settings restructure |
+| `38c8bff` | Model-parameter honesty + two backwards routing claims |
+| `f1e8b2a` | One-tap Advanced |
+| `4f70463` | Explicit sampling strategy, seed, Top-P fix |
 
 | Phase | Scope | State |
 |---|---|---|
-| 0 | Design tokens, continuous corners, fake glass layer | **Done, build-verified** |
-| 1 | Onboarding truncation, Silicon HUD wiring, tab-bar safe area | **Onboarding + HUD done.** Safe area open (see Blocker 2) |
+| 0 | Design tokens, continuous corners, fake glass layer | **Done** |
+| 1 | Onboarding truncation, Silicon HUD wiring, tab-bar safe area | **Done.** Safe area closed as not-a-bug |
 | 2 | Collapse four chip-detection paths into one | **Done, simulator-verified** |
-| 3 | Unify the two chat pickers | Not started |
-| 4 | Restructure Settings | Not started |
-| 5 | Education layer (TipKit, InfoButtonView, "How this works") | Not started |
-| — | Cleanup: dead UI, decorative toggles, leaked chat timer | Not started |
+| 3 | Unify the two chat pickers | **Done, device-confirmed by owner screenshots** |
+| 4 | Restructure Settings | **Done, simulator-verified** |
+| 5 | Education layer (TipKit, InfoButtonView, "How this works") | **Not started** |
+| — | Cleanup: dead UI, decorative toggles, leaked chat timer | **Partly done** (5 toggles + 3 dead cards); ~6,000 lines of unreachable UI and the chat timer remain |
+
+**CI is armed for 5.0.** `ci_post_clone.sh` refuses to build while `[Unreleased]` has entries and
+derives `MARKETING_VERSION` from the first numbered heading. Both checks were simulated against the
+edited file: it derives `5.0` and the guard passes. `WhatsNewStore` has a `"5.0"` key, without which
+an updating user would see an empty What's New sheet. **Do not add entries under `[Unreleased]`
+while v5.0 is the target — put them in the `## 5.0` section or CI will refuse to build.**
 
 ## Completed
 
-**Phase 0 — design system foundation.** `DSSpacing` moved from 2/6/10/14/20/28 to the 4pt grid
-2/4/8/12/16/24/32. This is the root cause of ~5% token adoption: counted against the codebase the
-seven commonest spacing literals are 8 (295 uses), 4 (264), 12 (237), 6 (186), 2 (166), 10 (125),
-16 (103), so three of the top four had no token while `xl = 28` matched nothing. `DSCorners` gained
-`pill` (8) and `panel` (14) additively. `DSTypography` converted from five fixed `.system(size:)`
-values to Dynamic Type styles.
+Beyond the phase table, three findings worth not rediscovering:
 
-All 392 `RoundedRectangle(cornerRadius:)` sites now pass `style: .continuous`; it was 144/392.
-Done with a paren-aware Python script (see Working Set), which reported zero multi-line cases.
+**The design system was abandoned because its scale was wrong.** `DSSpacing` was 2/6/10/14/20/28
+while the seven commonest spacing literals in the app are 8 (295 uses), 4 (264), 12 (237), 6, 2, 10,
+16. Three of the top four had no token; `xl = 28` matched nothing. Now on the 4pt grid.
 
-`DSGlass`, `GlassToolbarModifier` and `GlassTabBarModifier` deleted: all three returned
-`.ultraThinMaterial`, not Liquid Glass, and `.toolbarBackground(.ultraThinMaterial, for: .tabBar)`
-opts a bar **out** of the iOS 26 system treatment. `ContentView` was calling `.glassTabBar()`; that
-call is removed. `glassCard()` now uses the real `glassEffect`.
+**Everything named "Liquid Glass" returned `.ultraThinMaterial`,** and `.glassTabBar()` was actively
+opting the tab bar *out* of the system treatment. Removed.
 
-**Phase 1 — onboarding.** `welcomePage` content sat in a bare `VStack` inside a paged `TabView`,
-which fixes page height; the content overflowed and SwiftUI compressed `Text`, so the headline
-rendered "Your documents...." with "Clear answers." missing and all three use-case questions
-truncated mid-word despite `lineLimit(2)`. Now a `ScrollView` whose content takes
-`minHeight: proxy.size.height`. Verified with before/after screenshots on iPhone 17 Pro / iOS 27.
-
-**Phase 1 — Silicon HUD.** The user explicitly wants this trustworthy and is keeping it. Two
-defects fixed in `LLMService.swift`: `reportLLMToken(tokenLatencyMs:)` had zero call sites in the
-whole repository, so the Neural Engine bar never moved during generation and
-`totalLLMTokensGenerated`/`lastLLMTokenLatencyMs` were permanently zero; and the `catch` around the
-stream matches only `LanguageModelSession.GenerationError`, so a cancellation from the Stop button
-skipped both `sustain(false)` calls and left the indicator lit for the session. A `defer` now
-backstops them; the explicit calls are retained deliberately because they release at end-of-stream
-rather than end-of-function, and that function can run a continuation pass. The embedding path was
-already correctly instrumented and was not touched.
-
-**Phase 2 — device identity.** `RAGService.detectDeviceChip()` stops at `case "iPhone17"` (the
-iPhone 16 line), so `iPhone18,x` and newer hit `default: return .older`, rawValue `"A12 or Older"`,
-performanceRating `"Limited"` — rendered directly in About. `AboutView` now reads
-`DeviceCapabilityService`. `determineDeviceTier` no longer ANDs live availability with that table
-(it was demoting capable iPhone 17s from `.high` to `.medium`); its `chip` parameter is now unused
-and is documented as such. `DeviceCapabilityService` iPad `case 16` now returns A17 Pro / `.iPadMini`
-for `minor <= 2` instead of an M4 iPad Pro. `MotherboardHUDView.chipName` now delegates to the
-service; it keeps its exact-identifier table for SoC *position* only.
+**Four chip-detection implementations disagreed.** `RAGService.detectDeviceChip()` stops at the
+iPhone 16 line, so every newer identifier resolved to the literal string "A12 or Older" with
+"Limited" performance — rendered in About and ANDed into the device tier. All routed through
+`DeviceCapabilityService` now.
 
 ## Active Constraints
 
-- **Hard-boundary files still need the user to name them.** None have been touched. Phase 4 must
-  not touch `QuotaPolicy.swift` or `EntitlementStore.swift` when it surfaces plan limits.
-- **`.claude/rules/user-facing-copy.md` governs Phase 4.** The five decorative toggles are
-  **not** false claims: the features are real and always-on (Writing Tools ships via
-  `.writingToolsBehavior(.complete)` on the composer; `SpeechAnalyzerService` runs in
-  `DocumentProcessor`). The switches are what is broken. Fix the control or convert it to a status
-  row; do **not** delete the capability claim. Run `oi-claim-audit` before removing any.
-- Build with `-derivedDataPath` outside `~/Documents`; `scripts/build_simulator_smoke.sh` handles it.
-- A full build takes 8-12 minutes here, most of it before the first compile. It is not hung; check
-  `pgrep -f "xcodebuild -scheme"` before concluding otherwise.
+- **`oi-claim-audit` earned its keep today and must be run before removing any capability claim.**
+  It stopped the deletion of the frequency/presence/repetition penalty sliders. Their only consumer,
+  `LocalOpenAIServerLLMService`, has zero call sites — which looks like dead code until you notice
+  the Notion row "Bring-your-own local model on Mac" targets v5.0. **Zero call sites is what an open
+  roadmap row means.** The same pattern applies to `FoundationModelDynamicProfileRegistry` (Notion
+  row "Dynamic Profiles", v5.0). Do not delete either.
+- **Never stack builds.** Five concurrent `xcodebuild` processes against one DerivedData spent ~30
+  minutes blocking each other on locks, with almost no compilation. Run one, detached via `nohup` so
+  a tool timeout cannot orphan it, and wait.
+- Touching a type in `Core/Models/` (e.g. `InferenceConfig`) forces a near-full rebuild of 188k
+  lines. Batch those edits and build once.
+- Hard-boundary files remain untouched and still require the owner to name them in an approval.
 
 ## Working Set
 
-- `OpenIntelligence/UI/DesignSystem/Theme.swift` — the retuned tokens. Read before any styling work.
-- `OpenIntelligence/Features/Chat/Conversation/ChatScreen.swift:3430` — `QualityModeQuickPicker`,
-  the start of Phase 3. `:3453-3462` is the suspected hidden-subtitle bug: a `VStack` of two `Text`s
-  in a `Label`'s title slot inside a native `Menu`.
-- `OpenIntelligence/UI/Components/ModelStatusIndicator.swift:11-50` — the model pill. Different
-  shape, radius and colour language from the quality pill; `:108-113` records why `pickerDetail` was
-  removed.
-- `OpenIntelligence/Features/Settings/SettingsView.swift` — 2805 lines, 15 flat cards. Phase 4.
-  `:2011-2110` holds the ten Apple Intelligence toggles, five of which bind nothing.
-- `OpenIntelligence/Features/Settings/Components/ModelConfigurationSheet.swift` — 614 complete,
-  unreachable lines binding temperature/maxTokens/topP/penalties. Phase 4 gives it a destination.
+- `OpenIntelligence/Features/Settings/SettingsView.swift` — `SettingsEntry.all` is the index that
+  drives both the rows and `.searchable`. Adding an entry is a compile error until it has a
+  destination, which is deliberate.
+- `OpenIntelligence/Features/Settings/Components/ModelConfigurationSheet.swift` — the Sampling
+  section and the honest scope footers.
+- `OpenIntelligence/Services/LLM/LLMService.swift:672` — explicit `SamplingMode` construction.
+- `OpenIntelligence/Core/Models/LLMModel.swift` — `SamplingStrategy`, `InferenceConfig.seed`.
 - `OpenIntelligence/Services/Infrastructure/Tips/AppTips.swift` — five TipKit tips with copy and
-  rules, configured at launch, **zero rendering call sites**. Phase 5 wires these.
-- `OpenIntelligence/UI/Components/InfoButtonView.swift` — `(title, explanation)` popover, only three
-  call sites, all in Atlas. Phase 5 spreads it.
-- `/private/tmp/claude-501/-Users-gunnarhostetler-Documents-GitHub-OpenIntelligence/e5871f68-e5fe-43c4-9537-c96266d07b7f/scratchpad/continuous.py`
-  — the paren-aware corner script, if a similar sweep is needed. Scratchpad, not durable.
+  rules, configured at launch, **zero rendering call sites**. Phase 5 starts here.
+- `OpenIntelligence/UI/Components/InfoButtonView.swift` — `(title, explanation)` popover, three call
+  sites, all in Atlas.
+- `Docs/Engineering/V5_EMBEDDING_ARC_LEDGER.md` — read before any model-swap conversation.
 
 ## Verification
 
-Every line below was run in this session and its output read.
+Run this session and output read:
 
-- `bash scripts/build_simulator_smoke.sh` -> **BUILD SUCCEEDED**, 0 errors. Run twice: after Phase 0
-  plus onboarding, and again after Phases 1-2.
-- `xcrun simctl getenv booted SIMULATOR_MODEL_IDENTIFIER` -> `iPhone18,1`, which is precisely the
-  identifier that used to produce "A12 or Older".
-- Simulator screenshots on iPhone 17 Pro / iOS 27, before and after: headline renders both lines,
-  all three use-case questions readable, HUD reads **A19 Pro** where it previously read A18 Pro.
-- `grep` count of `RoundedRectangle(cornerRadius:` -> 392 total, 392 with `.continuous`, 0 missing.
-- `python3 scripts/secret_scan.py` -> `no sensitive tokens discovered`.
-- `scripts/check_icloud_conflicts.sh` -> `OK: no iCloud damage found`.
+- `xcodebuild test` -> **202 tests, 0 failures** on iOS 27.0 (iPhone 17 Pro simulator), after the
+  Settings restructure. Two earlier runs reported one failure,
+  `testSilentAudio_FailsLoudlyInsteadOfProducingAnEmptyDocument`; it was reproduced on clean
+  `436e150` in a throwaway worktree with none of these changes present, then passed unchanged. It is
+  **flaky in this environment** (no simulator speech assets, `com.apple.modelcatalog` "no underlying
+  assets" in every log), not a defect.
+- `build_simulator_smoke.sh` -> succeeded, repeatedly, including after every commit above.
+- Simulator screenshots on iPhone 17 Pro / iOS 27 for: onboarding before/after, the chat pills, the
+  open quality menu across three label forms, the Settings index, a pushed detail screen, the list
+  bottom clearing the tab bar, and Model Parameters in one tap.
+- Owner screenshots on a physical A18 Pro device confirmed the menu titles and checkmarks, and
+  caught the pill height mismatch that the simulator structurally could not show.
+- `python3 scripts/secret_scan.py` -> clean. `scripts/check_icloud_conflicts.sh` -> clean.
+- CI guard simulated against `CHANGELOG.md` -> derives `5.0`, `[Unreleased]` empty.
 
-**Not run this session:** `xcodebuild test`. The full suite has not been run against any of these
-changes. Do this before committing — `Theme.swift` token values changed and 43 files were edited.
+**Not verified:** Settings `.searchable` input (the simulator's hardware keyboard does not reach the
+field, so the filter is code-verified only), and the Neural Engine telemetry during generation plus
+the model pill's `.ready` state (Foundation Models do not run in the simulator).
 
 ## Blockers / Unknowns
 
-**1. The full test suite has not been run against this working tree.** 202 tests passed two sessions
-ago against different source. Run the `xcodebuild test` invocation in `Docs/ai/RUNBOOK.md` with an
-explicit iOS 27 destination before committing anything here.
+**1. Nothing is pushed.** Five commits sit on local `main`.
 
-**2. Whether Settings genuinely clips behind the floating tab bar is unresolved.** A screenshot
-showed "PCC Quota Status" behind the bar, but on iOS 26 content is *meant* to scroll under a
-floating tab bar. Verify by scrolling `SettingsView` to the very bottom in the simulator and
-checking whether the last card (`aboutCard`) fully clears the bar. If it does, there is no bug and
-task 5 should be closed rather than "fixed".
+**2. Two device checks would close every open verification item at once.** On a physical device:
+open Settings and type in the search field; and run one query with the Silicon HUD visible and watch
+whether the Neural Engine bar moves while the answer streams.
 
-**3. The HUD's generation half is build-verified only.** The simulator cannot run Foundation Models,
-so the `reportLLMToken` wiring was never observed moving the bar. Needs a physical device.
+**3. The retrieval eval set is saturated and cannot score a model change.** The last benchmark
+measured R@5 = 1.00 at every stage but `lexical` 0.94, 0 hallucinated, abstention 100%. A comment in
+`RetrievalStageMetrics.swift:45` states that recall@5 "gives no information beyond 'did a chunk from
+the right file appear'. MRR@10 and nDCG are the metrics that actually discriminate between stages on
+this corpus." **Read MRR@10 and nDCG before any embedder or reranker decision.** The Notion row
+"Build quality fixtures with external ground truth" (v5.0, High) is the real gate.
 
-**4. `mode.description` may never reach users.** `ChatScreen.swift:3456` puts a two-`Text` `VStack`
-in a `Label` title slot inside a native `Menu`. A web fetch of Apple's `Menu` docs returned no
-usable content, so this is unconfirmed. Verify by opening the quality picker in the simulator and
-looking for the second line before rewriting it.
+**4. Licensing changes the embedder recommendation.** The shipped stack (MiniLM-L6-v2,
+`ms-marco-TinyBERT-L2-v2`) is Apache 2.0: commercial use, attribution preserved in
+`THIRD_PARTY_NOTICES.md`, no obligation flowing to end users. **EmbeddingGemma is not Apache 2.0** —
+it ships under the Gemma Terms of Use, whose §3.1 requires the use restrictions to be an enforceable
+provision in the agreement with *your* users, and §3.2 binds them to a Prohibited Use Policy Google
+can update. For a paid App Store app that is a real compliance burden. Jina's v2 reranker weights
+are reported CC-BY-NC and would be disqualified outright; **verify before relying on that.** Not
+legal advice.
 
-**5. Blockers carried from 2026-08-09, untouched.** The malformed `[Needs Verification]` block
-(`SourceOnlyAnswerService.swift:349`) still reaches users. The verification gate still hedges
-correct answers. Neither was in scope for this arc.
+**5. Carried from 2026-08-09, untouched.** The malformed `[Needs Verification]` block still reaches
+users (`SourceOnlyAnswerService.swift:349`). The verification gate still hedges correct answers.
 
 ## Exact Next Action
 
-**Start Phase 3: unify the two chat pickers.** Open
-`OpenIntelligence/Features/Chat/Conversation/ChatScreen.swift:3430` (`QualityModeQuickPicker`) and
-`OpenIntelligence/UI/Components/ModelStatusIndicator.swift:11`. The user chose "two matching glass
-pills, fix the hidden subtitles". Concretely: give both controls one capsule shape via
-`glassEffectHelper`, give the model pill a `chevron.down` so it reads as tappable, add a text status
-beside its coloured dot so state is not colour-only, and visually disable the Maximum row when
-`entitlementStore.canUseMaximumModeNow` is false instead of letting a tap open the paywall
-(`ChatScreen.swift:3525`). Before changing the menu labels, resolve Blocker 4 by looking at the open
-menu in the simulator.
+**Start Phase 5, the education layer, at
+`OpenIntelligence/Services/Infrastructure/Tips/AppTips.swift`.** Five TipKit tips exist with written
+copy and event rules, `AppTipConfiguration.configure()` already runs at launch
+(`OpenIntelligenceApp.swift:32`), and there are **zero rendering call sites** — no `InlineTipView`,
+no `popoverTip`, and the events (`queryPerformed`, `documentIngested`) are never donated, so every
+rule evaluates true forever. Settings advertises this as shipping: "App Tips — Contextual guidance &
+onboarding". Render the five tips at their natural moments and donate their events; then spread
+`InfoButtonView` beyond Atlas into Chat, Documents and Settings; then add the reachable "How this
+works" screen and wire up `OnboardingStateStore.resetAllOnboarding()`, which has zero call sites so
+onboarding currently cannot be replayed.
 
-Docs owed for work already done: `WHATS_NEW.md` and `Docs/USER_CHANGELOG.md` have **not** been
-updated. `CHANGELOG.md` has three `[UI]` entries under `[Unreleased]`. The user-facing pair was
-deliberately deferred to the end of the arc rather than written in fragments; it is owed before any
-commit.
+The owner's standing instruction on copy for this: state the mechanism plainly, name the one
+exception honestly, and do not oversell. The register that works is
+`Docs/USER_CHANGELOG.md`, not marketing copy.

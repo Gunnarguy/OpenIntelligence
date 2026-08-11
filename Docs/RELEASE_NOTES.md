@@ -137,6 +137,15 @@ not support.
     temperature, maxTokens, topP and the three penalties, and its only reference was its own
     `#Preview`, while the card promising "Customize how the AI responds" held one text field. It is
     now reachable from Settings -> Advanced.
+*   **Sampling was inferred rather than chosen, so Top-P was unreachable and greedy decoding was
+    impossible.** `LLMService` picked `.random(top:)` whenever `topK` fell in `(0,100)`, and every
+    chat query passes a hardcoded `topK: 40`, so the Top-P slider was read, persisted, threaded
+    through `InferenceConfig` and then discarded. `InferenceConfig` now carries an explicit
+    `SamplingStrategy`; the default is `.topK`, so upgrading changes nothing until the user chooses
+    otherwise. Two capabilities become reachable: greedy decoding, and `seed` — both random modes
+    accept one, the app never sent it, and without it the same question could not reproduce the same
+    answer. Verified against the SDK interface, not assumed.
+    `[evidence_level: code_verified+build_verified+sdk_verified, confidence: exact, unverified_on_device]`
 *   **Design-system foundation.** `DSSpacing` moved to the 4pt grid the code actually uses; three of
     its four commonest values previously had no token, which is why adoption had stalled near 5%.
     All 392 `RoundedRectangle` sites now pass `style: .continuous`, up from 144. The modifiers named
