@@ -2,151 +2,148 @@
 
 Updated: 2026-08-10
 Branch/worktree: main, primary checkout
-Last verified commit: a0e4224
-Push state: pushed through `9b73148`; `a0e4224` is local-only.
+Last verified commit: e7d26cf
 
 ## Objective
 
 **v5.0 partial UI makeover, folded into the v5.0 release.** A tester told the owner the app "feels
-vibecoded"; the arc is a pass over every tab, page and subpage. The owner chose to fold the makeover
-into v5.0 rather than cut v5.0 first, so the engine work and the interface work ship together.
+vibecoded", so the arc is a pass over every tab, page and subpage. The owner chose to fold the
+makeover into v5.0 rather than cut v5.0 first, so engine work and interface work ship together.
 `PROCEED: IMPLEMENT` was granted for the whole plan on 2026-08-10 and is still in force.
 
 ## Status
 
-Five commits landed on `main` today, all building, none pushed:
+14 commits on `main` since `436e150`. **Pushed through `322d6a3`; `e7d26cf` is local-only.**
+`CHANGELOG.md` has a numbered `## 5.0` heading with 52 entries and an empty `[Unreleased]`, so
+`ci_scripts/ci_post_clone.sh` derives `MARKETING_VERSION = 5.0` and its guard passes. Before this
+session it would have refused to build, and would have stamped the already-shipped 4.9.
 
-| Commit | Scope |
-|---|---|
-| `f9fbf6a` | v5.0 cut + Phases 0-2 (tokens, continuous corners, onboarding, HUD, device identity) |
-| `f3ecca8` | Phase 4: Settings restructure |
-| `38c8bff` | Model-parameter honesty + two backwards routing claims |
-| `f1e8b2a` | One-tap Advanced |
-| `4f70463` | Explicit sampling strategy, seed, Top-P fix |
-
-| Phase | Scope | State |
-|---|---|---|
-| 0 | Design tokens, continuous corners, fake glass layer | **Done** |
-| 1 | Onboarding truncation, Silicon HUD wiring, tab-bar safe area | **Done.** Safe area closed as not-a-bug |
-| 2 | Collapse four chip-detection paths into one | **Done, simulator-verified** |
-| 3 | Unify the two chat pickers | **Done, device-confirmed by owner screenshots** |
-| 4 | Restructure Settings | **Done, simulator-verified** |
-| 5 | Education layer (TipKit, InfoButtonView, "How this works") | **Not started** |
-| — | Cleanup: dead UI, decorative toggles, leaked chat timer | **Partly done** (5 toggles + 3 dead cards); ~6,000 lines of unreachable UI and the chat timer remain |
-
-**CI is armed for 5.0.** `ci_post_clone.sh` refuses to build while `[Unreleased]` has entries and
-derives `MARKETING_VERSION` from the first numbered heading. Both checks were simulated against the
-edited file: it derives `5.0` and the guard passes. `WhatsNewStore` has a `"5.0"` key, without which
-an updating user would see an empty What's New sheet. **Do not add entries under `[Unreleased]`
-while v5.0 is the target — put them in the `## 5.0` section or CI will refuse to build.**
+Ingestion of the three onboarding samples went from **1.3 minutes to 7.8 seconds** on an A18 Pro
+after `.onboarding` stopped paying for two language-model enrichment calls per document.
 
 ## Completed
 
-Beyond the phase table, three findings worth not rediscovering:
+**Foundation.** `DSSpacing` moved to the 4pt grid the code actually uses; three of its four
+commonest values previously had no token, which is why adoption sat near 5%. `DSTypography` is
+Dynamic Type instead of five fixed point sizes. All 392 `RoundedRectangle` sites pass
+`style: .continuous`, up from 144. The modifiers named "Liquid Glass" returned `.ultraThinMaterial`
+and one opted the tab bar *out* of the system treatment; removed.
 
-**The design system was abandoned because its scale was wrong.** `DSSpacing` was 2/6/10/14/20/28
-while the seven commonest spacing literals in the app are 8 (295 uses), 4 (264), 12 (237), 6, 2, 10,
-16. Three of the top four had no token; `xl = 28` matched nothing. Now on the 4pt grid.
+**Settings.** Root is a native `List` of ~10 `NavigationLink` rows across five sections plus
+`.searchable` over a keyword index, replacing 15 flat cards on one plane. `ModelConfigurationSheet`
+(614 lines, previously reachable only from its own `#Preview`) opens from Advanced in one tap. Five
+switches that gated nothing became status rows; the features are real and always-on, so removing the
+claim would have withdrawn something true. Database tab scopes to the selected library. Libraries &
+iCloud and Private Cloud Compute rewritten.
 
-**Everything named "Liquid Glass" returned `.ultraThinMaterial`,** and `.glassTabBar()` was actively
-opting the tab bar *out* of the system treatment. Removed.
+**Model parameters.** Sampling is a real choice (Predictable / Balanced / Adaptive) rather than
+inferred. `LLMService` switches on `samplingStrategy`, and `llmTopK` now carries the shortlist size
+end to end — it previously wrote to no key at all while `ChatScreen` passed a hardcoded 40. Seed
+support added. Established from the SDK: `GenerationOptions` exposes only `sampling`/`samplingMode`,
+`temperature`, `maximumResponseTokens`, `toolCallingMode`, and the string "penalty" does not occur
+anywhere in FoundationModels, so the three penalty sliders cannot affect Apple Intelligence and now
+say so. They were **not** deleted; see Active Constraints.
 
-**Four chip-detection implementations disagreed.** `RAGService.detectDeviceChip()` stops at the
-iPhone 16 line, so every newer identifier resolved to the literal string "A12 or Older" with
-"Limited" performance — rendered in About and ANDed into the device tier. All routed through
-`DeviceCapabilityService` now.
+**Device identity.** Four chip-detection implementations collapsed to one. About no longer reports
+"A12 or Older" on an iPhone 17. Three Mac defects fixed: every Mac was assumed actively cooled
+(MacBook Air is fanless), base M4/M5 were tiered as `.ultraAdvanced` alongside M5 Ultra, and the
+sysctl fallback inferred chip class from installed RAM.
+
+**Education layer.** Two TipKit tips render — the first this app has ever shown. A "How This Works"
+screen exists and is reachable from Settings. Onboarding gained an on-device panel on the completion
+card and can be replayed via `resetAllOnboarding`, which previously had zero call sites.
+
+**Correctness.** The 5 Hz chat timer no longer leaks one connection per query.
+`ContainerScopingSelfTestsView` (347 lines of working tests) is linked from the Developer hub.
 
 ## Active Constraints
 
-- **`oi-claim-audit` earned its keep today and must be run before removing any capability claim.**
-  It stopped the deletion of the frequency/presence/repetition penalty sliders. Their only consumer,
-  `LocalOpenAIServerLLMService`, has zero call sites — which looks like dead code until you notice
-  the Notion row "Bring-your-own local model on Mac" targets v5.0. **Zero call sites is what an open
-  roadmap row means.** The same pattern applies to `FoundationModelDynamicProfileRegistry` (Notion
-  row "Dynamic Profiles", v5.0). Do not delete either.
-- **Never stack builds.** Five concurrent `xcodebuild` processes against one DerivedData spent ~30
-  minutes blocking each other on locks, with almost no compilation. Run one, detached via `nohup` so
-  a tool timeout cannot orphan it, and wait.
-- Touching a type in `Core/Models/` (e.g. `InferenceConfig`) forces a near-full rebuild of 188k
-  lines. Batch those edits and build once.
-- Hard-boundary files remain untouched and still require the owner to name them in an approval.
+- **Zero call sites is not dead code.** Twice this session that assumption would have destroyed
+  something: `LocalOpenAIServerLLMService` is scaffolding for the Notion row "Bring-your-own local
+  model on Mac", so the penalty sliders it consumes were kept; and `VisualizationsView.swift` holds
+  33 structs of which Atlas uses `EmbeddingSpaceView`, so deleting the file for its one orphaned
+  top-level struct would have broken a shipping tab. Run `oi-claim-audit` before any removal.
+- **`[Unreleased]` must stay empty.** New entries go under `## 5.0` until 5.0 ships, or Xcode Cloud
+  refuses to build.
+- Hard-boundary files still need the user to name them in an approval.
+- `testSilentAudio_FailsLoudlyInsteadOfProducingAnEmptyDocument` is **flaky in this environment**,
+  not broken. Reproduced on clean `436e150` in a throwaway worktree, then passed unchanged. Every
+  run log carries `com.apple.modelcatalog` "no underlying assets"; the simulator has no speech
+  assets.
 
 ## Working Set
 
-- `OpenIntelligence/Features/Settings/SettingsView.swift` — `SettingsEntry.all` is the index that
-  drives both the rows and `.searchable`. Adding an entry is a compile error until it has a
-  destination, which is deliberate.
-- `OpenIntelligence/Features/Settings/Components/ModelConfigurationSheet.swift` — the Sampling
-  section and the honest scope footers.
-- `OpenIntelligence/Services/LLM/LLMService.swift:672` — explicit `SamplingMode` construction.
-- `OpenIntelligence/Core/Models/LLMModel.swift` — `SamplingStrategy`, `InferenceConfig.seed`.
-- `OpenIntelligence/Services/Infrastructure/Tips/AppTips.swift` — five TipKit tips with copy and
-  rules, configured at launch, **zero rendering call sites**. Phase 5 starts here.
-- `OpenIntelligence/UI/Components/InfoButtonView.swift` — `(title, explanation)` popover, three call
-  sites, all in Atlas.
-- `Docs/Engineering/V5_EMBEDDING_ARC_LEDGER.md` — read before any model-swap conversation.
+- `OpenIntelligence/Features/Settings/SettingsView.swift` — the settings index, `SettingsEntry.all`
+  keyword table, and the destination switch.
+- `OpenIntelligence/Features/Settings/Components/ModelConfigurationSheet.swift` — sampling section
+  and the scope-labelled penalty section.
+- `OpenIntelligence/Features/Onboarding/OnboardingChecklistView.swift` — both pages now wrapped in
+  `ScrollView` with `minHeight`, and `logTickerView`.
+- `OpenIntelligence/Features/Onboarding/WhatsNewStore.swift` — the `"5.0"` release entry, currently
+  **8 items with no deep links**. See Blocker 3.
+- `OpenIntelligence/Services/Infrastructure/Monitoring/DeviceCapabilityService.swift` — the single
+  chip/tier/ceiling source.
+- `OpenIntelligence/Features/Telemetry/Dashboard/MotherboardHUDView.swift` — `SiliconLegend` and its
+  one-time drag hint.
 
 ## Verification
 
-Run this session and output read:
+Every line below was run in this session and its output read.
 
-- `xcodebuild test` -> **202 tests, 0 failures** on iOS 27.0 (iPhone 17 Pro simulator), after the
-  Settings restructure. Two earlier runs reported one failure,
-  `testSilentAudio_FailsLoudlyInsteadOfProducingAnEmptyDocument`; it was reproduced on clean
-  `436e150` in a throwaway worktree with none of these changes present, then passed unchanged. It is
-  **flaky in this environment** (no simulator speech assets, `com.apple.modelcatalog` "no underlying
-  assets" in every log), not a defect.
-- `build_simulator_smoke.sh` -> succeeded, repeatedly, including after every commit above.
-- Simulator screenshots on iPhone 17 Pro / iOS 27 for: onboarding before/after, the chat pills, the
-  open quality menu across three label forms, the Settings index, a pushed detail screen, the list
-  bottom clearing the tab bar, and Model Parameters in one tap.
-- Owner screenshots on a physical A18 Pro device confirmed the menu titles and checkmarks, and
-  caught the pill height mismatch that the simulator structurally could not show.
+- `bash scripts/build_simulator_smoke.sh` -> **BUILD SUCCEEDED**, on `e7d26cf`.
+- `xcodebuild test` on iPhone 17 Pro / iOS 27.0 -> **202 tests, 1 skipped, 1 failure**. The failure
+  is the flaky audio test above. An earlier run the same day was 202/0 failures.
+- CI guard simulated against `CHANGELOG.md` -> derives `5.0`, `[Unreleased]` count 0.
 - `python3 scripts/secret_scan.py` -> clean. `scripts/check_icloud_conflicts.sh` -> clean.
-- CI guard simulated against `CHANGELOG.md` -> derives `5.0`, `[Unreleased]` empty.
+- Screenshots on iPhone 17 Pro / iOS 27 for: the Settings index, a pushed detail screen, the list
+  bottom clearing the tab bar, both TipKit tips rendering, and the quality menu across three label
+  forms.
+- SDK ground truth read from
+  `iPhoneOS.sdk/.../FoundationModels.swiftinterface` -> `GenerationOptions` has four properties and
+  zero occurrences of "penalty".
 
 **Not verified:** Settings `.searchable` input (the simulator's hardware keyboard does not reach the
-field, so the filter is code-verified only), and the Neural Engine telemetry during generation plus
-the model pill's `.ready` state (Foundation Models do not run in the simulator).
+field, so the filter is code-verified only); Neural Engine telemetry during generation and the model
+pill's `.ready` state (Foundation Models do not run in the simulator); every Mac fix (no Mac
+hardware was used).
 
 ## Blockers / Unknowns
 
-**1. Two device checks would close every open verification item at once.** On a physical device:
-open Settings and type in the search field; and run one query with the Silicon HUD visible and watch
+**1. Two device checks close every open verification item at once.** On a physical device: open
+Settings and type in the search field; and run one query with the Silicon HUD visible and watch
 whether the Neural Engine bar moves while the answer streams.
 
 **2. The retrieval eval set is saturated and cannot score a model change.** The last benchmark
-measured R@5 = 1.00 at every stage but `lexical` 0.94, 0 hallucinated, abstention 100%. A comment in
+measured R@5 = 1.00 at every stage but `lexical` 0.94, 0 hallucinated, abstention 100%.
 `RetrievalStageMetrics.swift:45` states that recall@5 "gives no information beyond 'did a chunk from
 the right file appear'. MRR@10 and nDCG are the metrics that actually discriminate between stages on
-this corpus." **Read MRR@10 and nDCG before any embedder or reranker decision.** The Notion row
-"Build quality fixtures with external ground truth" (v5.0, High) is the real gate.
+this corpus." **Read MRR@10 and nDCG before any embedder or reranker decision.** If MRR is also at
+ceiling, retrieval is not the bottleneck; if MRR is mediocre while R@5 is 1.00, the right chunks are
+being found and ranked badly, which is a **reranker** problem and the cheap Apache-licensed swap.
 
-**3. Licensing changes the embedder recommendation.** The shipped stack (MiniLM-L6-v2,
-`ms-marco-TinyBERT-L2-v2`) is Apache 2.0: commercial use, attribution preserved in
-`THIRD_PARTY_NOTICES.md`, no obligation flowing to end users. **EmbeddingGemma is not Apache 2.0** —
-it ships under the Gemma Terms of Use, whose §3.1 requires the use restrictions to be an enforceable
-provision in the agreement with *your* users, and §3.2 binds them to a Prohibited Use Policy Google
-can update. For a paid App Store app that is a real compliance burden. Jina's v2 reranker weights
-are reported CC-BY-NC and would be disqualified outright; **verify before relying on that.** Not
-legal advice.
+**3. The v5.0 What's New sheet is a changelog, not a splash.** `WhatsNewStore` is well built — keyed
+by version, correctly silent on fresh install, re-reachable from About — but the `"5.0"` entry has
+**8 items and no deep links**, and `WhatsNewView` has no tappable rows (only a Done button). Cutting
+to 3-4 items and making them navigate would be the improvement.
 
-**4. Carried from 2026-08-09, untouched.** The malformed `[Needs Verification]` block still reaches
+**4. Licensing shapes the embedder decision.** The shipped stack (MiniLM-L6-v2,
+`ms-marco-TinyBERT-L2-v2`) is Apache 2.0. **EmbeddingGemma is not** — it ships under the Gemma Terms
+of Use, whose §3.1 requires the use restrictions to be enforceable against *your* users. Jina's v2
+reranker weights are reported CC-BY-NC; **verify before relying on that.** Not legal advice.
+
+**5. Carried from 2026-08-09, untouched.** The malformed `[Needs Verification]` block still reaches
 users (`SourceOnlyAnswerService.swift:349`). The verification gate still hedges correct answers.
+
+**6. Notion roadmap was not touched this session.** "Liquid Glass UI Refresh" (In Progress, v5.0) is
+substantially delivered and its row has not been updated. Several other v5.0 rows are now affected.
 
 ## Exact Next Action
 
-**Start Phase 5, the education layer, at
-`OpenIntelligence/Services/Infrastructure/Tips/AppTips.swift`.** Five TipKit tips exist with written
-copy and event rules, `AppTipConfiguration.configure()` already runs at launch
-(`OpenIntelligenceApp.swift:32`), and there are **zero rendering call sites** — no `InlineTipView`,
-no `popoverTip`, and the events (`queryPerformed`, `documentIngested`) are never donated, so every
-rule evaluates true forever. Settings advertises this as shipping: "App Tips — Contextual guidance &
-onboarding". Render the five tips at their natural moments and donate their events; then spread
-`InfoButtonView` beyond Atlas into Chat, Documents and Settings; then add the reachable "How this
-works" screen and wire up `OnboardingStateStore.resetAllOnboarding()`, which has zero call sites so
-onboarding currently cannot be replayed.
+**Push `e7d26cf`, then update the Notion roadmap via the `notion-roadmap` skill** — at minimum set
+"Liquid Glass UI Refresh" to reflect what shipped, and sweep the other v5.0 rows this session
+touched. That is repo-required work (`.agents/rules/01-docs-and-notion-sync.md`) that was deferred
+and is the only outstanding obligation from the makeover arc.
 
-The owner's standing instruction on copy for this: state the mechanism plainly, name the one
-exception honestly, and do not oversell. The register that works is
-`Docs/USER_CHANGELOG.md`, not marketing copy.
+After that the makeover is done and the next v5.0 objective is the owner's call. The two candidates
+already scoped are Blocker 2 (read MRR@10 and nDCG to decide whether an embedder or reranker change
+is justified at all) and Blocker 3 (the What's New splash).
