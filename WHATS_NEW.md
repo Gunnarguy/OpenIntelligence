@@ -44,6 +44,11 @@ Importing a document was quietly losing parts of it. This release finds the plac
 - **Pick any library to inspect,** instead of only "All Libraries" or whichever one was active.
 - **"All Libraries" shows all of them,** and the list says which library you are looking at.
 
+### Library Settings
+- **Changing the embedding model no longer wipes your vectors before you agree to rebuild them.** Choosing "Later" used to leave a library holding documents it could not search.
+- **The chunk size sliders stop where the app actually stops:** they offered up to 600 words and 200 overlap while importing capped them at 260 and 50.
+- **Two untrue descriptions corrected:** chunks are not split by comparing meaning between sentences, and the storage format described is no longer the one in use.
+
 ### Things The App Was Claiming That Weren't True
 Settings describes what the app is doing while it answers you, and several of those lines described things the code does not do.
 - **It listed eight agentic tools, and all eight were the wrong ones.** Four are actually wired up; those four are what it names now.

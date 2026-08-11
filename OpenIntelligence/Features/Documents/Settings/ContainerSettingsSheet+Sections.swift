@@ -97,6 +97,41 @@ extension ContainerSettingsSheet {
                 // Silicon-Native optimization info
                 siliconNativeChunkingInfo
             } else {
+                // Says plainly that this section is optional and that the default is already
+                // per-file-type, because the failure mode here is a user changing it, getting
+                // worse retrieval, and concluding the app is bad.
+                //
+                // The claim is checkable: `ChunkingConfig.recommended(for:)` switches on
+                // `DocumentType` and returns `.code` (180 words, 35 overlap, topic detection off,
+                // because source files have no prose transitions) for source files,
+                // `.technicalReference` (240/45) for PDFs, scans and CSV, `.narrative` for Office
+                // files and transcripts, and the balanced default for markdown and plain text.
+                // `DocumentProcessor` uses `chunkOverride?.targetWordWindow ?? baseConfig.targetSize`,
+                // so setting a value here replaces that per-type choice with one fixed number for
+                // every file type in this library. That is the actual cost, and it is what this
+                // copy describes. `ChunkingLimitsTests.testPerFileTypeDefaultsRemainDistinct`
+                // fails if those presets ever collapse into one, which would make this untrue.
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack(spacing: 6) {
+                        Image(systemName: "wrench.and.screwdriver")
+                            .font(.caption2)
+                        Text("ADVANCED. YOU DO NOT NEED TO CHANGE THIS")
+                            .font(.caption2.weight(.semibold))
+                            .tracking(0.5)
+                    }
+                    .foregroundColor(.orange)
+
+                    Text("Left alone, the app already picks a chunk size from the kind of file you imported: smaller for code, larger for reports and transcripts, and it skips prose based splitting on source files entirely. Setting a value here replaces that with one size for every file type in this library, which usually makes results worse rather than better. Changing it also re-chunks and re-indexes every document in the library.")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .padding(10)
+                .background(Color.orange.opacity(0.08))
+                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .padding(.bottom, 4)
+                .accessibilityElement(children: .combine)
+
                 // Strategy picker
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Strategy")
@@ -126,12 +161,19 @@ extension ContainerSettingsSheet {
                             .foregroundColor(.accentColor)
                     }
 
+                    // Bounded by the ceiling the pipeline enforces, read from the same constant
+                    // `DocumentProcessor` clamps to. This ran to 600 while ingestion applied
+                    // `min(value, 260)`, so more than half the track did nothing and the app
+                    // reported a setting it was discarding.
                     Slider(value: Binding(
                         get: { Double(targetWordWindow) },
                         set: { targetWordWindow = Int($0) }
-                    ), in: 100 ... 600, step: 20)
+                    ),
+                    in: Double(SemanticChunker.ChunkingConfig.minTargetSize)
+                        ... Double(SemanticChunker.ChunkingConfig.maxTargetSize),
+                    step: 20)
 
-                    Text("Smaller = more precise matches, larger = more context per chunk. 200-400 is typical.")
+                    Text("Smaller = more precise matches, larger = more context per chunk. \(SemanticChunker.ChunkingConfig.maxTargetSize) words is the most the embedding model can take with room for its prefix.")
                         .font(.caption2)
                         .foregroundColor(.secondary)
                 }
@@ -148,10 +190,14 @@ extension ContainerSettingsSheet {
                             .foregroundColor(.accentColor)
                     }
 
+                    // Same reason as the target slider: this ran to 200 against an enforced
+                    // `min(value, 50)`.
                     Slider(value: Binding(
                         get: { Double(overlapWords) },
                         set: { overlapWords = Int($0) }
-                    ), in: 0 ... 200, step: 10)
+                    ),
+                    in: 0 ... Double(SemanticChunker.ChunkingConfig.maxOverlap),
+                    step: 5)
 
                     Text("How many words to repeat between chunks. More overlap = better context continuity, but more storage.")
                         .font(.caption2)
@@ -165,14 +211,23 @@ extension ContainerSettingsSheet {
         }
     }
 
+    /// What each strategy actually does.
+    ///
+    /// Two of these were wrong. "elastic" claimed "embedding similarity", and
+    /// `SemanticChunker.embeddingService` is declared at line 67 and assigned nowhere in the
+    /// repository, so `detectEmbeddingBoundaries` returns an empty array at its own guard on
+    /// every path; the chunker logs "Embedding service unavailable - using linguistic boundaries
+    /// only" and `detectTopicBoundaries` is ten hardcoded English phrases. The default promised a
+    /// "280-400 word target" that `DocumentProcessor` clamps to `maxTargetSize`, making the whole
+    /// range unreachable. The target is read from the constant now so it cannot drift again.
     private var chunkingStrategyDescription: String {
         switch chunkingStrategy {
         case "densePrecision":
             return "150-200 word chunks for code, formulas, or dense technical content. Higher precision, more granular retrieval."
         case "elastic":
-            return "Dynamically sizes chunks to paragraph/section boundaries. Uses NLTokenizer sentence detection + embedding similarity."
+            return "Sizes chunks to paragraph and section boundaries, using Apple's sentence detection plus a fixed list of ten English transition phrases. It does not compare meaning between sentences, so the boundaries it finds are structural rather than semantic, and the phrase list is English only."
         default:
-            return "280-400 word target with 17% overlap. Balances semantic coherence with retrieval granularity."
+            return "Up to a \(SemanticChunker.ChunkingConfig.maxTargetSize) word target with \(SemanticChunker.ChunkingConfig.maxOverlap) words of overlap. Balances how much context a chunk carries against how precisely it can be matched."
         }
     }
 
@@ -812,7 +867,13 @@ extension ContainerSettingsSheet {
     @ViewBuilder
     var accuracyDefaultsSection: some View {
         Section(header: Text("Balanced defaults")) {
-            Text("Apply the recommended configuration: CoreML sentence embeddings (all-MiniLM-L6-v2), persistent JSON storage, and auto-tuned semantic chunking.")
+            // "persistent JSON storage" described a format this store no longer uses.
+            // `VectorDBKind.persistentJSON` routes to `BNNSVectorDatabase`, which writes
+            // `_meta.json` for chunk metadata alongside `_vectors.bin` and `_norms.bin`, memory
+            // maps the vectors, and deletes the legacy single-JSON file after migrating it. The
+            // metadata even stores `embedding: []`, because the numbers live in the binary. The
+            // enum case name is the leftover; the wording no longer repeats it.
+            Text("Apply the recommended configuration: on-device sentence embeddings (all-MiniLM-L6-v2), vectors stored on disk and memory mapped for search, and chunk sizes tuned to each document.")
                 .font(.caption)
                 .foregroundColor(.secondary)
 

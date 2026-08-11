@@ -93,13 +93,26 @@ final class SemanticChunkerTests: XCTestCase {
         XCTAssertTrue(chunks.isEmpty || (chunks.count == 1 && chunks.first?.content.isEmpty == true), "Async chunking an empty string should return an empty array or a single empty chunk.")
     }
 
+    /// The preset values, as literals.
+    ///
+    /// `narrative.targetSize` was asserted here as 280 and is now 260. The preset genuinely
+    /// declared 280, and `DocumentProcessor` has always built its config as
+    /// `min(activeWindow, maxTargetSize)`, so Word, Excel, PowerPoint, audio and video were
+    /// already being chunked at 260. This assertion passed the whole time while pinning a number
+    /// that never reached ingestion, which is the limit of comparing a constant to a literal: it
+    /// catches a typo, not a value the pipeline refuses.
+    ///
+    /// `ChunkingLimitsTests.testEveryPresetSurvivesTheClampUnchanged` is the check that would
+    /// have caught it, because it asserts every preset against the enforced ceiling rather than
+    /// against a number written next to it. Keep both: this one pins the intended shape of each
+    /// preset, that one pins that the shape is achievable.
     func testChunkingConfig_presets() {
         let techConfig = SemanticChunker.ChunkingConfig.technicalReference
         XCTAssertEqual(techConfig.targetSize, 240)
         XCTAssertEqual(techConfig.maxSize, 310)
 
         let narrativeConfig = SemanticChunker.ChunkingConfig.narrative
-        XCTAssertEqual(narrativeConfig.targetSize, 280)
+        XCTAssertEqual(narrativeConfig.targetSize, 260)
         XCTAssertEqual(narrativeConfig.maxSize, 310)
 
         let codeConfig = SemanticChunker.ChunkingConfig.code

@@ -653,11 +653,24 @@ struct ContainerSettingsSheet: View {
             Log.info("[ContainerSettings] User manually configured \(manualChanges.joined(separator: " • "))", category: .ingestion)
         }
 
-        // CRITICAL: Invalidate cached vector store BEFORE updating container
-        // This ensures the router will create a fresh database with correct dimensions
+        // CRITICAL: Invalidate the cached vector store BEFORE updating the container, so the
+        // router builds a fresh database with the correct dimensions.
+        //
+        // `clearStorage` is deliberately false here. It was `dimensionChanged || providerChanged`,
+        // which reaches `VectorStoreRouter.invalidateAndClearStorage` and unlinks `_meta.json`,
+        // `_vectors.bin` and `_norms.bin`. That ran roughly fifty lines before the "Rebuild
+        // embeddings now?" dialog was even shown, and that dialog's "Later" button only
+        // dismisses, so answering Later left the library holding documents with no vectors.
+        // Recovery then depended on the self-healing rebuild, which is skipped whenever
+        // `isSelfHealingSuppressed` is set for the container, and five separate dismissal paths
+        // set it.
+        //
+        // Dropping the cache is not destructive and still has to happen now. Deleting the vectors
+        // is destructive and now happens in `startReembedding`, after the user has agreed to
+        // rebuild them.
         if dimensionChanged || providerChanged || dbKindChanged {
             Log.info("[ContainerSettings] Config changed - invalidating vector store cache for container \(container.id)", category: .vectorDB)
-            ragService.invalidateVectorStore(for: container.id, clearStorage: dimensionChanged || providerChanged)
+            ragService.invalidateVectorStore(for: container.id, clearStorage: false)
         }
 
         containerService.updateContainer(container)
@@ -784,6 +797,13 @@ struct ContainerSettingsSheet: View {
         showingReembedConfirmation = false
         isReembedding = true
         reembedProgress = ReembedProgress(completed: 0, total: context.documentCount, currentFilename: "")
+
+        // Delete the old vectors here, not in `handleSave`.
+        //
+        // They are unusable once the provider or dimension has changed, so they do have to go,
+        // but only once the user has chosen to rebuild them. Doing it in `handleSave` meant
+        // "Later" left the library with documents and no vectors.
+        ragService.invalidateVectorStore(for: context.containerId, clearStorage: true)
 
         Task {
             do {

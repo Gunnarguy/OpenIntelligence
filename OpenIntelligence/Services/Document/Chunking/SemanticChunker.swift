@@ -142,10 +142,30 @@ class SemanticChunker {
         // BUT: RAGService adds contextual prefix (~20 words) during embedding
         // ACTUAL LIMIT: 340 - 30 = 310 words to leave room for prefix
 
-        var targetSize: Int = 260 // Target ~260 words ≈ 380 tokens (safe margin)
+        // The ceilings the ingestion pipeline actually enforces, named so that anything
+        // presenting them to a user can read them instead of restating them.
+        //
+        // `DocumentProcessor` clamps every request to these before chunking, so a preference
+        // above them is silently discarded. The Library Settings sliders used to run to 600 and
+        // 200 against these 260 and 50, and its Balanced caption promised a "280-400 word
+        // target" that the clamp made unreachable. Both were literals typed beside the real
+        // values rather than derived from them, which is the failure this exists to prevent.
+
+        /// Hard ceiling on a chunk. 310 words plus the roughly 30 word contextual prefix the
+        /// embedding step prepends lands near the Core ML model's 510 token limit.
+        static let safeMaxSize = 310
+        /// Highest target size the pipeline will honour, leaving room for variance under
+        /// `safeMaxSize`.
+        static let maxTargetSize = safeMaxSize - 50
+        /// Highest overlap the pipeline will honour, capped to prevent index bloat.
+        static let maxOverlap = 50
+        /// Lowest target size offered, below which chunks stop carrying usable context.
+        static let minTargetSize = 100
+
+        var targetSize: Int = maxTargetSize // 260 words ≈ 380 tokens (safe margin)
         var minSize: Int = 80 // Prevent tiny fragments
-        var maxSize: Int = 310 // HARD LIMIT: 310 words + ~30 word prefix = 340 total
-        var overlap: Int = 50 // ~17% overlap for continuity
+        var maxSize: Int = safeMaxSize // HARD LIMIT: plus a ~30 word prefix = ~340 total
+        var overlap: Int = maxOverlap // ~17% overlap for continuity
         var useTopicDetection: Bool = true
         var preserveStructure: Bool = true
         /// Parent window size in characters for hierarchical context
@@ -168,11 +188,16 @@ class SemanticChunker {
 
         /// For narrative content (books, articles, reports - longer chunks for coherence)
         /// Still respects 310 word max (leaves room for contextual prefix)
+        // 280/55 declared here previously, and `DocumentProcessor` clamps every request to
+        // `maxTargetSize` (260) and `maxOverlap` (50), so this preset asked for two values it
+        // never received. Office documents and transcripts were already being chunked at 260/50.
+        // Set to the real ceilings so the declaration matches what runs; `ChunkingLimitsTests`
+        // now asserts that for every preset.
         static let narrative = ChunkingConfig(
-            targetSize: 280,
+            targetSize: maxTargetSize,
             minSize: 100,
-            maxSize: 310,  // HARD LIMIT: leaves room for ~30 word contextual prefix
-            overlap: 55,
+            maxSize: safeMaxSize,  // HARD LIMIT: leaves room for ~30 word contextual prefix
+            overlap: maxOverlap,
             useTopicDetection: true,
             preserveStructure: true
         )

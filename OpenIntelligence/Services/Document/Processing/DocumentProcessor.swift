@@ -802,17 +802,21 @@ class DocumentProcessor {
         let activeWindow = chunkOverride?.targetWordWindow ?? baseConfig.targetSize
         let activeOverlap = chunkOverride?.overlapWords ?? baseConfig.overlap
 
-        // CRITICAL: maxSize is capped at 310 words to prevent token truncation during embedding
-        // CoreML model has 510 token limit; 340 words ≈ 500 tokens
-        // BUT RAGService adds ~30 word contextual prefix during embedding
-        // ACTUAL SAFE LIMIT: 310 words + 30 prefix = 340 total ≈ 500 tokens
-        let safeMaxSize = 310
+        // CRITICAL: maxSize is capped to prevent token truncation during embedding.
+        // CoreML model has a 510 token limit and RAGService prepends a ~30 word contextual
+        // prefix, so the ceiling is 310 words + 30 prefix = 340 total ≈ 500 tokens.
+        //
+        // The numbers now live on `SemanticChunker.ChunkingConfig` so the Library Settings
+        // sliders can bound themselves by the same constants this clamps to. They were
+        // duplicated as literals in both places and had drifted: the sliders offered 600 and
+        // 200 against these 260 and 50.
+        let safeMaxSize = SemanticChunker.ChunkingConfig.safeMaxSize
 
         let chunkerConfig = SemanticChunker.ChunkingConfig(
-            targetSize: min(activeWindow, safeMaxSize - 50),  // Target must leave room for variance
+            targetSize: min(activeWindow, SemanticChunker.ChunkingConfig.maxTargetSize),
             minSize: max(baseConfig.minSize, 60),
-            maxSize: safeMaxSize,  // HARD LIMIT: Never exceed 310 words (leaves room for prefix)
-            overlap: min(activeOverlap, 50),  // Cap overlap to prevent bloat
+            maxSize: safeMaxSize,  // HARD LIMIT: leaves room for the embedding prefix
+            overlap: min(activeOverlap, SemanticChunker.ChunkingConfig.maxOverlap),
             useTopicDetection: baseConfig.useTopicDetection,
             preserveStructure: baseConfig.preserveStructure
         )

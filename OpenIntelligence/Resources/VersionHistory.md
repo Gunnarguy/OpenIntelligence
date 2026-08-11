@@ -62,6 +62,13 @@ Importing a document was quietly losing parts of it. This release finds the plac
 *   **You can look at any library from here.** It used to offer only "All Libraries" or whichever library happened to be active, so seeing a different one meant going to Documents, switching, and coming back. Every library is now in one menu.
 *   **"All Libraries" actually shows all of them.** The document list underneath used to show only the active library no matter what you picked, and never said which library you were looking at. It says now.
 
+### Library Settings
+
+*   **Changing the embedding model no longer wipes your vectors before you agree to rebuild them.** It deleted them at Save, then asked, and choosing "Later" left the library holding documents it could not search.
+*   **The chunk size sliders now stop where the app actually stops.** They went up to 600 words and 200 overlap while importing quietly capped them at 260 and 50, so over half of each slider did nothing. If you had set 400, you were already getting 260.
+*   **The chunk size controls now say you should not touch them.** The app already picks a chunk size from the kind of file you imported, smaller for code, larger for reports and transcripts. Setting these by hand replaces that with one size for everything in the library.
+*   **Two descriptions on that screen were not true.** One said chunks are split by comparing meaning between sentences; that never runs. It splits on section headings and a fixed list of ten English phrases, and the screen says so now, including that the list is English only. The other described the storage format the app stopped using.
+
 ### Things The App Was Claiming That Weren't True
 
 Settings describes what the app is doing while it answers you. Several of those lines described
