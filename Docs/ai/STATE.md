@@ -202,11 +202,46 @@ dated progress note, is correctly `In Progress`, and lists what remains: sheet p
 navigation bars, remaining feature screens, and migration off the pre-iOS-18 `.tabItem` API. Do not
 mark it Completed.
 
-**7. The retrieval eval set is saturated and cannot score a model change.** R@5 = 1.00 at every stage
-but `lexical` 0.94. `RetrievalStageMetrics.swift:45` states recall@5 "gives no information beyond 'did
-a chunk from the right file appear'". **Read MRR@10 and nDCG before any embedder or reranker
-decision.** If MRR is also at ceiling, retrieval is not the bottleneck; if MRR is poor while R@5 is
-1.00, it is a reranker problem, which is the cheap Apache-licensed swap rather than a re-embed.
+**7. ANSWERED 2026-08-11. The embedder swap is not justified by evidence, and cannot be decided until
+the fixture's ground truth is fixed.** The previous instruction here was to read MRR@10 and nDCG before
+any embedder or reranker decision. That was done. Run `BenchmarkRuns/20260811-133233-matrix`, 20 cases,
+`--modes standard --pcc deny`, `SWIFT_DETERMINISTIC_HASHING=1`, macOS Debug. Mean per stage over the 18
+cases carrying stage metrics:
+
+| stage | R@5 | MRR@10 | nDCG@5 | nDCG@10 | P@5 |
+|---|---|---|---|---|---|
+| vector | 1.000 | **1.000** | **1.000** | **1.000** | 0.633 |
+| lexical | 0.944 | 0.806 | 0.842 | 0.842 | 0.267 |
+| fusion / boosted / candidates | 1.000 | 1.000 | 1.000 | 1.000 | 0.633 |
+| rerank | 1.000 | 0.972 | 0.979 | 0.979 | 0.633 |
+| final | 1.000 | 0.917 | 0.938 | 0.938 | 0.456 |
+
+**The vector stage is at ceiling on every discriminating metric**, so this fixture has no headroom in
+which a better embedder could show a gain. Accuracy was 18/20; both misses are `exact_value`
+(`exact_service_interval`, `exact_temperature_limit`). Every stage figure reproduces the 2026-08-09 run
+exactly except `final` (0.935 to 0.917), which confirms determinism held.
+
+**The apparent rerank and final degradation is a metric artifact, not a pipeline regression.** Do not
+act on it as if the reranker were broken. It is driven entirely by three multi-hop cases, and the
+arithmetic closes exactly: rerank `(17x1.0 + 0.5)/18 = 0.9722`, final `(15x1.0 + 3x0.5)/18 = 0.9167`.
+Those cases score 0.5 because the correct document was demoted from rank 1 to rank 2 by a document that
+the question genuinely needs but that ground truth does not credit. All five multi-hop cases produced
+**correct answers**.
+
+**Root cause, and the actual fix.** `scripts/build_eval_dataset.py:92` emits
+`"expectedCitations": [citation]`, a single filename taken from the manifest's singular
+`expected_source`, while the same builder writes `input_files` listing every document the case is built
+from. All five `multi_hop_project_m*` cases name **two** fixtures in `notes` and credit **one** in
+`expectedCitations`. The two `missing_evidence` cases correctly carry zero, because they should abstain.
+So five of twenty cases have under-specified ground truth, and they are exactly the cases that measure
+multi-document ranking.
+
+**Consequence for sequencing.** The eval set is the blocker, not the model. Fixing the manifest to
+carry plural expected sources for multi-document cases, then re-running, is the prerequisite for any
+embedder or reranker decision. That work is the existing Notion row "Build quality fixtures with
+external ground truth" (To Do, High, v5.0), which now has a measured justification, and it gates
+"Benchmark three embedders and replace MiniLM-L6-v2 if warranted". Nothing in this run supports
+starting the re-embed.
 
 **8. Licensing shapes the embedder decision.** The shipped stack (MiniLM-L6-v2,
 `ms-marco-TinyBERT-L2-v2`) is Apache 2.0. **EmbeddingGemma is not**; it ships under the Gemma Terms of
