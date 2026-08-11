@@ -74,22 +74,40 @@ enum SamplingStrategy: String, CaseIterable, Sendable, Codable, Identifiable {
 
     var id: String { rawValue }
 
+    /// Segment label. Deliberately plain rather than the technical term.
+    ///
+    /// These read "Greedy", "Top-K" and "Top-P" until v5.0, which told a user nothing
+    /// about what would change if they picked one. The technical names still appear on
+    /// the sliders below the picker, so the terms stay recognisable to anyone looking
+    /// for them; the segment says what the choice does.
     var displayName: String {
         switch self {
-        case .greedy: return "Greedy"
-        case .topK: return "Top-K"
-        case .topP: return "Top-P"
+        case .greedy: return "Predictable"
+        case .topK: return "Balanced"
+        case .topP: return "Adaptive"
         }
     }
 
+    /// The industry term, kept so the setting remains searchable and recognisable.
+    var technicalName: String {
+        switch self {
+        case .greedy: return "Greedy"
+        case .topK: return "Top-K"
+        case .topP: return "Top-P (nucleus)"
+        }
+    }
+
+    /// What changes for the user, including the cost. Each names a trade-off rather than
+    /// describing the sampler, because "picks from the top K tokens" is not a reason to
+    /// choose anything.
     var explanation: String {
         switch self {
         case .greedy:
-            return "Always picks the most likely next word. The same question gives the same answer every time."
+            return "Always takes the single most likely next word. The same question returns the same answer every time, which is what you want when looking a fact up. Long answers can start repeating themselves."
         case .topK:
-            return "Picks from a fixed number of the most likely next words."
+            return "Picks at random from a shortlist of the most likely next words. A longer shortlist reads more naturally and varies more. A shorter one stays closer to the wording in your documents."
         case .topP:
-            return "Picks from however many words it takes to reach a share of the probability. Adapts to how certain the model is."
+            return "Uses a shortlist that resizes itself: short where the model is confident, longer where it is not. A reasonable choice when you are not sure which of the other two you want."
         }
     }
 }

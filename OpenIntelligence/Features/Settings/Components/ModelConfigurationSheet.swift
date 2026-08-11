@@ -219,9 +219,16 @@ struct ModelConfigurationSheet: View {
             }
             .pickerStyle(.segmented)
 
-            Text(samplingStrategy.explanation)
-                .font(.caption2)
-                .foregroundStyle(.tertiary)
+            VStack(alignment: .leading, spacing: 4) {
+                Text(samplingStrategy.technicalName)
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                Text(samplingStrategy.explanation)
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
 
             if samplingStrategy == .topK {
                 VStack(alignment: .leading, spacing: 8) {
@@ -284,7 +291,7 @@ struct ModelConfigurationSheet: View {
         } header: {
             Text("Sampling")
         } footer: {
-            Text("How the model picks each next word. These are alternatives — Apple's API takes one at a time.")
+            Text("How the model chooses each next word. Apple's API takes one strategy at a time, so picking one replaces the other two.")
         }
     }
 

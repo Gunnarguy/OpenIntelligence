@@ -2,7 +2,8 @@
 
 Updated: 2026-08-10
 Branch/worktree: main, primary checkout
-Last verified commit: 9b73148 — **pushed**, `origin/main` matches, tree clean
+Last verified commit: a0e4224
+Push state: pushed through `9b73148`; `a0e4224` is local-only.
 
 ## Objective
 

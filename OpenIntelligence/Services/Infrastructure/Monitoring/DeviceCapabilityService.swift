@@ -118,9 +118,22 @@ enum DeviceFormFactor: String, Sendable {
     case mac // MacBook Air, MacBook Pro, Mac mini, iMac, Mac Studio, Mac Pro
     case unknown
 
-    /// Whether device has active cooling
-    var hasActiveCooling: Bool {
-        self == .iPadPro || self == .mac
+    /// Whether the chassis is known to be actively cooled.
+    ///
+    /// `nil` for Mac, deliberately. This returned `true` for every Mac, which is wrong for
+    /// the fanless MacBook Air, and there is no public API that reports fan presence. The
+    /// form factor cannot answer the question, so it no longer pretends to; the one caller
+    /// falls back to the live `ProcessInfo.thermalState` the app already monitors, which is
+    /// both measured and more useful than a claim about the enclosure.
+    ///
+    /// iPad and iPhone are safe to state: no iPhone or iPad has a fan, and the iPad Pro's
+    /// vapour chamber is the closest thing, which is why it reads `true` here.
+    var hasActiveCooling: Bool? {
+        switch self {
+        case .iPadPro: return true
+        case .iPhone, .iPadMini, .iPadAir: return false
+        case .mac, .unknown: return nil
+        }
     }
 
     /// Recommended max concurrent operations
@@ -999,20 +1012,25 @@ final class DeviceCapabilityService: @unchecked Sendable {
             #if arch(arm64)
                 // We're on Apple Silicon but can't determine exact chip
                 // Use ProcessInfo to get some hints
+                // This branch only runs when `machdep.cpu.brand_string` is unreadable, so
+                // the chip is genuinely unknown. It used to name one anyway, inferring the
+                // *class* from installed RAM: >=128GB became "M-series Ultra", >=64 "Max",
+                // >=32 "Pro". RAM does not determine chip class. A 32GB MacBook Air would
+                // report itself as an M-series Pro, and the label would then appear in
+                // About and the Silicon HUD as though it had been detected.
+                //
+                // Reporting "Apple Silicon" is the honest answer to a question this code
+                // cannot answer. RAM still scales the ceilings that genuinely depend on it,
+                // through `cachedMemoryGB`, which is measured rather than inferred.
                 let physicalMemory = ProcessInfo.processInfo.physicalMemory
                 let memoryGB = Double(physicalMemory) / (1024 * 1024 * 1024)
 
-                // Estimate chip based on memory (rough heuristic)
-                if memoryGB >= 128 {
-                    return (.ultraAdvanced, "M-series Ultra", 45)
-                } else if memoryGB >= 64 {
-                    return (.ultraAdvanced, "M-series Max", 38)
-                } else if memoryGB >= 32 {
-                    return (.ultraAdvanced, "M-series Pro", 18)
+                if memoryGB >= 32 {
+                    return (.ultraAdvanced, "Apple Silicon", 38)
                 } else if memoryGB >= 16 {
-                    return (.advanced, "M-series", 18)
+                    return (.advanced, "Apple Silicon", 18)
                 } else {
-                    return (.enhanced, "M-series", 16)
+                    return (.enhanced, "Apple Silicon", 16)
                 }
             #else
                 // Intel Mac - not Apple Intelligence capable
@@ -1045,7 +1063,12 @@ final class DeviceCapabilityService: @unchecked Sendable {
             } else if cpuBrand.contains("M5 Pro") {
                 return (.ultraAdvanced, "M5 Pro", 45)
             } else if cpuBrand.contains("M5") {
-                return (.ultraAdvanced, "M5", 45)
+                // Base M5 is `.advanced`, not `.ultraAdvanced`. Tier drives concurrency
+                // and batch ceilings, and returning the top tier here gave a fanless
+                // MacBook Air the same ceilings as a Mac Studio Ultra. Base M3 below is
+                // already `.advanced`; M4 and M5 had drifted from that precedent. TOPS
+                // still separates the variants (90 Ultra against 45 here).
+                return (.advanced, "M5", 45)
             } else if cpuBrand.contains("M4 Ultra") {
                 return (.ultraAdvanced, "M4 Ultra", 76)
             } else if cpuBrand.contains("M4 Max") {
@@ -1053,7 +1076,8 @@ final class DeviceCapabilityService: @unchecked Sendable {
             } else if cpuBrand.contains("M4 Pro") {
                 return (.ultraAdvanced, "M4 Pro", 38)
             } else if cpuBrand.contains("M4") {
-                return (.ultraAdvanced, "M4", 38)
+                // See the M5 note above: base variants sit at `.advanced`.
+                return (.advanced, "M4", 38)
             } else if cpuBrand.contains("M3 Ultra") {
                 return (.ultraAdvanced, "M3 Ultra", 36)
             } else if cpuBrand.contains("M3 Max") {

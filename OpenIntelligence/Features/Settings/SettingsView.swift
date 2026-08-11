@@ -319,6 +319,28 @@ struct SettingsView: View {
     // `ModelConfigurationSheet` directly. It existed only to hold the button that
     // opened the sheet, which was the second of the two taps.
 
+    /// Cooling line for the Active Device card.
+    ///
+    /// This used to read "Active cooling" on every Mac, because the form factor asserted
+    /// it. The MacBook Air is fanless and no public API reports fan presence, so on Mac
+    /// the app now reports the live `ProcessInfo.thermalState` it already monitors instead
+    /// of a claim about the enclosure. Measured beats guessed, and it is the more useful
+    /// number anyway.
+    private var coolingDescription: String {
+        switch DeviceCapabilityService.shared.formFactor.hasActiveCooling {
+        case .some(true): return "Active cooling"
+        case .some(false): return "Passive cooling"
+        case .none:
+            switch ProcessInfo.processInfo.thermalState {
+            case .nominal: return "Thermals nominal"
+            case .fair: return "Thermals fair"
+            case .serious: return "Thermals serious"
+            case .critical: return "Thermals critical"
+            @unknown default: return "Thermals unknown"
+            }
+        }
+    }
+
     /// Compact identity row at the top of the index.
     ///
     /// The full `heroCard` is a ~500pt tall centred panel — a reasonable opening for a
@@ -1282,7 +1304,7 @@ Text(deviceService.chipName)
                         .foregroundColor(.secondary)
                 }
 
-                Text("Neural Engine: \(deviceService.npuTops) TOPS • \(deviceService.formFactor.hasActiveCooling ? "Active cooling" : "Passive cooling")")
+                Text("Neural Engine: \(deviceService.npuTops) TOPS • \(coolingDescription)")
                     .font(.caption)
                     .foregroundColor(.secondary)
 
