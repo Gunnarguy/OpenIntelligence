@@ -21,6 +21,9 @@ import SwiftUI
 
 /// Read-only explanation of the pipeline and the on-device boundary.
 struct HowItWorksView: View {
+    @EnvironmentObject private var onboardingStore: OnboardingStateStore
+    @State private var didRequestReplay = false
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: DSSpacing.lg) {
@@ -28,6 +31,7 @@ struct HowItWorksView: View {
                 importCard
                 askCard
                 leavingCard
+                replayCard
             }
             .padding()
             .frame(maxWidth: .infinity)
@@ -128,6 +132,55 @@ struct HowItWorksView: View {
         }
     }
 
+    // MARK: - Replay
+
+    /// Puts the first-run walkthrough back.
+    ///
+    /// `OnboardingStateStore.resetAllOnboarding()` was written with the rest of the
+    /// onboarding state machine and had **zero call sites**, so once a user had finished
+    /// or skipped the introduction there was no way to see it again short of deleting the
+    /// app. This is its first caller. It lives here because someone reading how the app
+    /// works is exactly the person who would want the guided version.
+    private var replayCard: some View {
+        SurfaceCard {
+            SectionHeader(icon: "arrow.counterclockwise", title: "Show the introduction again")
+            Text("Replays the first-run walkthrough, including the import you can watch happen. Your libraries and documents are not touched.")
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            Button {
+                DSHaptics.selection()
+                didRequestReplay = true
+                onboardingStore.resetAllOnboarding()
+            } label: {
+                HStack {
+                    Text("Replay Introduction")
+                        .fontWeight(.semibold)
+                    Spacer()
+                    Image(systemName: "arrow.counterclockwise")
+                        .font(.caption.weight(.bold))
+                }
+                .foregroundStyle(DSColors.accent)
+                .padding(.vertical, DSSpacing.sm)
+                .padding(.horizontal, DSSpacing.md)
+                .background(
+                    RoundedRectangle(cornerRadius: DSCorners.control, style: .continuous)
+                        .fill(DSColors.accent.opacity(0.12))
+                )
+            }
+            .buttonStyle(.plain)
+            .disabled(didRequestReplay)
+            .accessibilityHint("Shows the first-run walkthrough again without changing your documents")
+
+            if didRequestReplay {
+                Text("The introduction is open behind this screen.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+
     // MARK: - Helpers
 
     @ViewBuilder
@@ -157,4 +210,5 @@ struct HowItWorksView: View {
     NavigationStack {
         HowItWorksView()
     }
+    .environmentObject(OnboardingStateStore())
 }

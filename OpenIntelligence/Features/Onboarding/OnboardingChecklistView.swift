@@ -101,7 +101,7 @@ struct OnboardingChecklistView: View {
                 bottomNavigation
             }
         }
-        .onAppear { animateEntrance() }
+        .task { await animateEntrance() }
         .onChange(of: ragService.ingestionItems) { _, newItems in
             if !newItems.isEmpty {
                 localIngestionItems = newItems
@@ -590,6 +590,13 @@ struct OnboardingChecklistView: View {
                 }
             }
 
+            // Placed here on purpose, not on the welcome page. The claim lands hardest
+            // immediately after the user has watched the pipeline run and while the
+            // counts above are still on screen: proof first, then the statement. Every
+            // previous attempt at this copy read as a privacy banner, which is exactly
+            // what it must not be. It states mechanism and names the single exception.
+            onDevicePanel
+
             Rectangle().fill(Color.white.opacity(0.08)).frame(height: 1).padding(.horizontal, 16)
 
             VStack(spacing: 10) {
@@ -602,6 +609,79 @@ struct OnboardingChecklistView: View {
                 }
             }
         }
+    }
+
+    // MARK: - On-Device Panel
+
+    /// Live hardware identity, from the same service the Device & Performance card reads.
+    private var deviceService: DeviceCapabilityService { .shared }
+
+    @ViewBuilder
+    private func deviceChip(icon: String, text: String) -> some View {
+        HStack(spacing: 4) {
+            Image(systemName: icon)
+                .font(.system(size: 9, weight: .semibold))
+            Text(text)
+                .font(.system(size: 10, weight: .semibold))
+        }
+        .foregroundStyle(.green.opacity(0.9))
+        .padding(.horizontal, 8)
+        .padding(.vertical, 4)
+        .background(
+            Capsule(style: .continuous)
+                .fill(Color.green.opacity(0.12))
+        )
+    }
+
+    /// States where the work just happened, immediately after the user watched it happen.
+    private var onDevicePanel: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 8) {
+                Image(systemName: "iphone")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.green)
+                Text("That all ran here")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.white)
+            }
+
+            Text("Reading those files, splitting them up and building the search index happened on this device. No account, no upload, no server.")
+                .font(.caption)
+                .foregroundStyle(.white.opacity(0.7))
+                .fixedSize(horizontal: false, vertical: true)
+
+            // Naming the actual silicon makes the claim concrete rather than reassuring.
+            // "This ran on your A19 Pro" is checkable; "your data stays private" is not.
+            // Every value is read live from `DeviceCapabilityService`, the same source the
+            // Device & Performance screen uses, so this cannot drift from that card.
+            HStack(spacing: 6) {
+                deviceChip(icon: "cpu", text: deviceService.chipName)
+                if deviceService.npuTops > 0 {
+                    deviceChip(icon: "sparkles", text: "\(deviceService.npuTops) TOPS")
+                }
+                if deviceService.memoryGB >= 1 {
+                    deviceChip(icon: "memorychip", text: "\(Int(deviceService.memoryGB)) GB")
+                }
+            }
+            .padding(.top, 2)
+
+            Text("The only thing that can ever leave is a question you approve, and only to Apple's Private Cloud Compute.")
+                .font(.caption)
+                .foregroundStyle(.white.opacity(0.45))
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(14)
+        .background(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(Color.white.opacity(0.06))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .stroke(Color.green.opacity(0.22), lineWidth: 1)
+                )
+        )
+        .padding(.horizontal, 16)
+        .accessibilityElement(children: .combine)
     }
 
     // MARK: - Log Diffing Engine
@@ -777,16 +857,38 @@ struct OnboardingChecklistView: View {
 
     // MARK: - Animations
 
-    private func animateEntrance() {
+    /// Reveals the welcome page in sequence.
+    ///
+    /// Driven by `await` rather than by five `withAnimation(_:).delay(_:)` calls.
+    ///
+    /// The delayed form worked on a cold launch and failed when onboarding was replayed
+    /// from Settings: the headline, subtitle and all three cards stayed at opacity 0
+    /// permanently, leaving a page containing nothing but Skip, the page dots and the two
+    /// buttons. The difference between the two paths is that a replay inserts this view
+    /// while `ContentView` is running its own `.transition` and `.animation` on
+    /// `isChecklistVisible`, and delayed animations scheduled from `onAppear` inside that
+    /// window do not reliably deliver their final values.
+    ///
+    /// Sleeping between discrete `withAnimation` calls removes the dependency entirely:
+    /// each step sets its own state after the previous one has finished, so the terminal
+    /// state is reached whether or not a parent transition is in flight.
+    private func animateEntrance() async {
         if reduceMotion {
-            showHeadline = true; showSubtitle = true; cardsRevealed = 3
+            showHeadline = true
+            showSubtitle = true
+            cardsRevealed = 3
             return
         }
-        withAnimation(.easeOut(duration: 0.5).delay(0.2)) { showHeadline = true }
-        withAnimation(.easeOut(duration: 0.5).delay(0.5)) { showSubtitle = true }
-        withAnimation(.easeOut(duration: 0.5).delay(0.7)) { cardsRevealed = 1 }
-        withAnimation(.easeOut(duration: 0.5).delay(0.9)) { cardsRevealed = 2 }
-        withAnimation(.easeOut(duration: 0.5).delay(1.1)) { cardsRevealed = 3 }
+        try? await Task.sleep(for: .milliseconds(200))
+        withAnimation(.easeOut(duration: 0.5)) { showHeadline = true }
+        try? await Task.sleep(for: .milliseconds(300))
+        withAnimation(.easeOut(duration: 0.5)) { showSubtitle = true }
+        try? await Task.sleep(for: .milliseconds(200))
+        withAnimation(.easeOut(duration: 0.5)) { cardsRevealed = 1 }
+        try? await Task.sleep(for: .milliseconds(200))
+        withAnimation(.easeOut(duration: 0.5)) { cardsRevealed = 2 }
+        try? await Task.sleep(for: .milliseconds(200))
+        withAnimation(.easeOut(duration: 0.5)) { cardsRevealed = 3 }
     }
 
     // MARK: - Computed Properties
