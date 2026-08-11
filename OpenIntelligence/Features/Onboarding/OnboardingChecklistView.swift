@@ -60,6 +60,10 @@ struct OnboardingChecklistView: View {
     @State private var logEntries: [PipelineLogEntry] = []
     @State private var lastSnapshotPerItem: [UUID: MetricsSnapshot] = [:]
 
+    // The full vocabulary index, reachable from the completion card. Individual figures
+    // open their own definition directly; this is for the user who wants all of them.
+    @State private var showingGlossary = false
+
     private let timerPublisher = Timer.publish(every: 0.05, on: .main, in: .common).autoconnect()
 
     var body: some View {
@@ -113,6 +117,16 @@ struct OnboardingChecklistView: View {
             if let startTime = processingStartTime {
                 let elapsed = Date().timeIntervalSince(startTime)
                 smoothTimeMs = Int(elapsed * 1000)
+            }
+        }
+        .sheet(isPresented: $showingGlossary) {
+            NavigationStack {
+                GlossaryView()
+                    .toolbar {
+                        ToolbarItem(placement: .confirmationAction) {
+                            Button("Done") { showingGlossary = false }
+                        }
+                    }
             }
         }
         .accessibilityElement(children: .contain)
@@ -391,13 +405,13 @@ struct OnboardingChecklistView: View {
         let timeMs = (isProcessing || processingComplete || processingFailed) ? smoothTimeMs : items.reduce(0) { $0 + $1.metrics.totalTimeMs }
 
         return HStack(spacing: 0) {
-            dashCounter(value: fmtNumber(words), label: "Words", icon: "textformat", color: .orange)
+            dashCounter(value: fmtNumber(words), label: "Words", icon: "textformat", color: .orange, term: .words)
             Rectangle().fill(Color.white.opacity(0.08)).frame(width: 1, height: 28)
-            dashCounter(value: fmtNumber(chunks), label: "Chunks", icon: "square.split.2x2", color: .purple)
+            dashCounter(value: fmtNumber(chunks), label: "Chunks", icon: "square.split.2x2", color: .purple, term: .chunk)
             Rectangle().fill(Color.white.opacity(0.08)).frame(width: 1, height: 28)
-            dashCounter(value: fmtNumber(vectors), label: "Vectors", icon: "brain.head.profile", color: .green)
+            dashCounter(value: fmtNumber(vectors), label: "Vectors", icon: "brain.head.profile", color: .green, term: .vector)
             Rectangle().fill(Color.white.opacity(0.08)).frame(width: 1, height: 28)
-            dashCounter(value: timeMs > 0 ? fmtMs(timeMs) : "\u{2014}", label: "Time", icon: "clock", color: .cyan)
+            dashCounter(value: timeMs > 0 ? fmtMs(timeMs) : "0s", label: "Time", icon: "clock", color: .cyan, term: .importTime)
         }
         .padding(.vertical, 8)
         .background(
@@ -410,8 +424,14 @@ struct OnboardingChecklistView: View {
         )
     }
 
+    /// One live counter, and the definition of the word under it.
+    ///
+    /// "Chunks" and "Vectors" are the two words on this screen most likely to lose a
+    /// non-technical user, and they arrive while the counts are still climbing, which is
+    /// the moment someone is most curious about them and least likely to go looking in
+    /// Settings. So the label carries its own definition rather than pointing anywhere.
     @ViewBuilder
-    private func dashCounter(value: String, label: String, icon: String, color: Color) -> some View {
+    private func dashCounter(value: String, label: String, icon: String, color: Color, term: GlossaryTermID) -> some View {
         VStack(spacing: 2) {
             HStack(spacing: 3) {
                 Image(systemName: icon)
@@ -426,26 +446,32 @@ struct OnboardingChecklistView: View {
             Text(label)
                 .font(.system(size: 8, weight: .medium))
                 .foregroundStyle(.white.opacity(0.4))
+                .definitionUnderline(.white.opacity(0.28))
         }
         .frame(maxWidth: .infinity)
+        .contentShape(Rectangle())
+        .definedTerm(term)
     }
 
     // MARK: - Compact Pipeline Strip
 
     private var pipelineProgressStrip: some View {
         HStack(spacing: 3) {
-            pipelineCapsule("Extract", icon: "doc.text", phase: .extract)
+            pipelineCapsule("Extract", icon: "doc.text", phase: .extract, term: .extraction)
             chevronDot
-            pipelineCapsule("Chunk", icon: "rectangle.split.3x1", phase: .chunk)
+            pipelineCapsule("Chunk", icon: "rectangle.split.3x1", phase: .chunk, term: .chunk)
             chevronDot
-            pipelineCapsule("Embed", icon: "brain.head.profile", phase: .embed)
+            pipelineCapsule("Embed", icon: "brain.head.profile", phase: .embed, term: .vector)
             chevronDot
-            pipelineCapsule("Index", icon: "magnifyingglass", phase: .index)
+            pipelineCapsule("Index", icon: "magnifyingglass", phase: .index, term: .index)
         }
     }
 
+    // Each stage explains itself while it is the one running. These four words are the
+    // whole vocabulary of the pipeline, and this strip is the only place a user sees them
+    // in order, next to a progress state that tells them which one is happening now.
     @ViewBuilder
-    private func pipelineCapsule(_ label: String, icon: String, phase: PipelinePhase) -> some View {
+    private func pipelineCapsule(_ label: String, icon: String, phase: PipelinePhase, term: GlossaryTermID) -> some View {
         let isActive = currentPipelinePhase == phase
         let isComplete = isPipelinePhaseComplete(phase)
         let pulse = isActive && !reduceMotion
@@ -478,6 +504,8 @@ struct OnboardingChecklistView: View {
         }
         .animation(.easeInOut(duration: 0.3), value: isActive)
         .animation(.easeInOut(duration: 0.3), value: isComplete)
+        .contentShape(Capsule())
+        .definedTerm(term)
     }
 
     private var chevronDot: some View {
@@ -513,7 +541,7 @@ struct OnboardingChecklistView: View {
                         .foregroundStyle(.white.opacity(item.stage.isTerminal ? 0.5 : 0.9))
                         .lineLimit(1)
                     if !item.stage.isTerminal {
-                        Text("\u{2014} \(item.stage.displayName)")
+                        Text("\u{00b7} \(item.stage.displayName)")
                             .font(.system(size: 10))
                             .foregroundStyle(.white.opacity(0.4))
                         if let detail = compactDetail(for: item) {
@@ -648,7 +676,7 @@ struct OnboardingChecklistView: View {
     private var deviceService: DeviceCapabilityService { .shared }
 
     @ViewBuilder
-    private func deviceChip(icon: String, text: String) -> some View {
+    private func deviceChip(icon: String, text: String, term: GlossaryTermID) -> some View {
         HStack(spacing: 4) {
             Image(systemName: icon)
                 .font(.system(size: 9, weight: .semibold))
@@ -661,7 +689,13 @@ struct OnboardingChecklistView: View {
         .background(
             Capsule(style: .continuous)
                 .fill(Color.green.opacity(0.12))
+                .overlay(
+                    Capsule(style: .continuous)
+                        .strokeBorder(Color.green.opacity(0.28), style: StrokeStyle(lineWidth: 1, dash: [1.5, 2]))
+                )
         )
+        .contentShape(Capsule())
+        .definedTerm(term)
     }
 
     /// States where the work just happened, immediately after the user watched it happen.
@@ -687,12 +721,12 @@ struct OnboardingChecklistView: View {
             // Device & Performance screen uses, so this cannot drift from that card.
             VStack(alignment: .leading, spacing: 6) {
                 HStack(spacing: 6) {
-                    deviceChip(icon: "cpu", text: deviceService.chipName)
+                    deviceChip(icon: "cpu", text: deviceService.chipName, term: .chip)
                     if deviceService.npuTops > 0 {
-                        deviceChip(icon: "sparkles", text: "\(deviceService.npuTops) TOPS")
+                        deviceChip(icon: "sparkles", text: "\(deviceService.npuTops) TOPS", term: .tops)
                     }
                     if deviceService.memoryGB >= 1 {
-                        deviceChip(icon: "memorychip", text: "\(Int(deviceService.memoryGB)) GB")
+                        deviceChip(icon: "memorychip", text: "\(Int(deviceService.memoryGB)) GB", term: .unifiedMemory)
                     }
                 }
 
@@ -703,24 +737,29 @@ struct OnboardingChecklistView: View {
                 // `DeviceCapabilityService`, which scales them from measured RAM and the
                 // resolved tier.
                 HStack(spacing: 6) {
-                    deviceChip(icon: "square.grid.3x3", text: "\(deviceService.embeddingBatchSize)/batch")
-                    deviceChip(icon: "magnifyingglass", text: "\(deviceService.vectorBatchSize) search")
+                    deviceChip(icon: "square.grid.3x3", text: "\(deviceService.embeddingBatchSize)/batch", term: .embedBatch)
+                    deviceChip(icon: "magnifyingglass", text: "\(deviceService.vectorBatchSize) search", term: .searchBatch)
                     if deviceService.tier.neuralEngineCores > 0 {
-                        deviceChip(icon: "cpu.fill", text: "\(deviceService.tier.neuralEngineCores)-core ANE")
+                        deviceChip(icon: "cpu.fill", text: "\(deviceService.tier.neuralEngineCores)-core ANE", term: .neuralEngine)
                     }
                 }
             }
             .padding(.top, 2)
 
-            Text("Those batch sizes were chosen for this device, not defaults.")
-                .font(.system(size: 10))
-                .foregroundStyle(.white.opacity(0.35))
-                .fixedSize(horizontal: false, vertical: true)
+            // The figures above are the reason this panel works and the reason it can
+            // backfire. "38 TOPS" and "768 search" are checkable in a way "your data stays
+            // private" is not, which is the point, but unexplained they read as a wall to
+            // anyone who has not met the words. So every chip is tappable, and this line
+            // says so rather than leaving it to be discovered.
+            hardwareTranslation
 
             Text("The only thing that can ever leave is a question you approve, and only to Apple's Private Cloud Compute.")
                 .font(.caption)
                 .foregroundStyle(.white.opacity(0.45))
                 .fixedSize(horizontal: false, vertical: true)
+                .definitionUnderline(.white.opacity(0.22))
+                .contentShape(Rectangle())
+                .definedTerm(.privateCloudCompute)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(14)
@@ -733,7 +772,56 @@ struct OnboardingChecklistView: View {
                 )
         )
         .padding(.horizontal, 16)
-        .accessibilityElement(children: .combine)
+        // `.combine` here made the whole panel one VoiceOver element, which was correct
+        // while it was static text. Every chip is now a button, and combining swallows
+        // them, so the definitions would be reachable by touch and not by VoiceOver.
+        .accessibilityElement(children: .contain)
+    }
+
+    /// Turns the rated figures above into the measured outcome they produced.
+    ///
+    /// TOPS is a lookup from a table keyed by chip, not a measurement, and the definition
+    /// behind that chip says so. This line is the measured counterpart: the word count and
+    /// the elapsed time both came from this import on this device. No comparison is drawn
+    /// against other hardware or against a previous version, because no such measurement
+    /// exists in the repository and the app has withdrawn three invented multipliers
+    /// already.
+    private var hardwareTranslation: some View {
+        let totalWords = localIngestionItems.reduce(0) { $0 + $1.metrics.totalWords }
+
+        return VStack(alignment: .leading, spacing: 4) {
+            if totalWords > 0, smoothTimeMs > 0 {
+                Text("\(totalWords.formatted()) words read, split and made searchable in \(fmtMs(smoothTimeMs)), on this device.")
+                    .font(.system(size: 10))
+                    .foregroundStyle(.white.opacity(0.4))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Text("Those batch sizes were chosen for this device, not defaults.")
+                .font(.system(size: 10))
+                .foregroundStyle(.white.opacity(0.35))
+                .fixedSize(horizontal: false, vertical: true)
+
+            Button {
+                DSHaptics.selection()
+                showingGlossary = true
+            } label: {
+                HStack(spacing: 4) {
+                    Image(systemName: "hand.tap")
+                        .font(.system(size: 9, weight: .semibold))
+                    Text("Tap any figure above for what it means, or see every word")
+                        .font(.system(size: 10, weight: .medium))
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 7, weight: .bold))
+                }
+                .foregroundStyle(.green.opacity(0.75))
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .padding(.top, 2)
+            .accessibilityLabel("Explain these words")
+            .accessibilityHint("Opens plain language definitions for everything on this screen")
+        }
     }
 
     // MARK: - Log Diffing Engine
@@ -1012,7 +1100,7 @@ struct OnboardingChecklistView: View {
 
             } catch {
                 Log.error("Sample import failed: \(error)", category: .initialization)
-                processingStatus = "Import failed \u{2014} tap Retry"
+                processingStatus = "Import failed. Tap Retry."
                 DSHaptics.error()
                 withAnimation(.easeInOut(duration: 0.3)) {
                     isProcessing = false

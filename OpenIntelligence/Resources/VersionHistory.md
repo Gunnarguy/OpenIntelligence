@@ -40,6 +40,13 @@ Importing a document was quietly losing parts of it. This release finds the plac
 *   **Controls that never affected Apple Intelligence now say so.** The three penalty sliders apply to a self-hosted model, not to on-device or Private Cloud Compute answers.
 *   **Five switches that did nothing are no longer switches.** Writing Tools, Speech Analysis, Translation, Screen Awareness and Image Playground are real and always on. The toggles never controlled them.
 
+### Every Word, Explained Where You Read It
+
+*   **Tap any figure the app shows you and it tells you what it means.** "38 TOPS", "32/batch", "768 search", "Chunks", "Vectors". Where they already are, without leaving the screen.
+*   **Two explanations for each, not one.** A plain one first, and the mechanism underneath if you want it. Turn the technical version on once and it stays on everywhere.
+*   **The four import stages explain themselves while they run.** Extract, Chunk, Embed and Index are all tappable during the import you watch on first launch.
+*   **Nothing is buried.** Settings has the full list under Plain English, searchable, including by the technical name if that happens to be the word you know.
+
 ### Things The App Was Claiming That Weren't True
 
 Settings describes what the app is doing while it answers you. Several of those lines described
@@ -57,6 +64,7 @@ things the code does not do, so they are gone or corrected.
 *   **The first screen no longer cuts off its own text.** Half the headline and all three example questions were being truncated.
 *   **The chat controls match each other, and the mode menu explains itself.** It also shows which mode is active, and how many Maximum runs you have left before you pick it.
 *   **The hardware readout follows a live answer** and no longer stays lit after you stop one.
+*   **The screen readers can reach the hardware panel properly.** Its figures used to be read as one long block; each one is now its own element with its own definition.
 
 ## v4.9 - August 2, 2026
 Documents no longer disappear after importing, and libraries carry their work between devices instead of asking you to redo it.

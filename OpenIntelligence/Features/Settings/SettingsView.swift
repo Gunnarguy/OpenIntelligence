@@ -113,7 +113,7 @@ struct SettingsView: View {
     }
 
     private enum SettingsEntryID: String {
-        case howItWorks
+        case howItWorks, glossary
         case intelligenceMode, appleIntelligence, privateCloudCompute
         case librariesSync
         case devicePerformance, appearance
@@ -148,6 +148,21 @@ struct SettingsView: View {
                     "how", "works", "explain", "privacy", "on-device", "on device", "local",
                     "server", "upload", "cloud", "embedding", "chunk", "index", "retrieval",
                     "citation", "sources", "vision", "ocr",
+                ]
+            ),
+            // Second row, immediately after the narrative explanation. The two answer
+            // different questions: How This Works explains the pipeline in order, this
+            // defines a single word you did not recognise while reading it.
+            .init(
+                id: .glossary, group: .intelligence,
+                title: "Plain English",
+                subtitle: "Every word this app uses, defined twice",
+                icon: "character.book.closed", tint: .mint,
+                keywords: [
+                    "glossary", "plain", "english", "definition", "definitions", "meaning",
+                    "jargon", "vocabulary", "terms", "what does", "explain", "chunk",
+                    "vector", "embedding", "token", "tops", "neural engine", "ane", "batch",
+                    "rag", "rerank", "bm25", "context window", "temperature", "ocr",
                 ]
             ),
             .init(
@@ -508,6 +523,8 @@ struct SettingsView: View {
         switch entry.id {
         case .howItWorks:
             HowItWorksView()
+        case .glossary:
+            GlossaryView()
         case .intelligenceMode:
             detailScroll { retrievalCard }
         case .appleIntelligence:
@@ -1431,9 +1448,17 @@ Text(deviceService.chipName)
                         .foregroundColor(.secondary)
                 }
 
-                Text("Neural Engine: \(deviceService.npuTops) TOPS • \(coolingDescription)")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
+                // The first figure a curious user meets in Settings, and the one most
+                // likely to be mistaken for a live measurement. Its definition says
+                // plainly that it is a per-chip lookup rather than something the app
+                // measured here.
+                HStack(spacing: 6) {
+                    Text("Neural Engine: \(deviceService.npuTops) TOPS • \(coolingDescription)")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    GlossaryInfoButton(termID: .tops, size: .caption2)
+                    Spacer(minLength: 0)
+                }
 
                 HStack(spacing: 12) {
                     deviceCapabilityPill(icon: "brain.head.profile", label: "Deep Think", value: "\(deviceService.optimizedAgenticConfig().maxSteps) max sessions")
@@ -1604,17 +1629,22 @@ Text(deviceService.chipName)
                         .font(.caption)
                         .foregroundColor(.secondary)
 
+                    // This is the densest jargon in the app, and it is reached by anyone
+                    // curious enough to open Device & Performance rather than only by
+                    // developers. The rows that name a concept carry its definition; the
+                    // rows that report a raw system value do not, because there is nothing
+                    // to define about a Metal device name.
                     VStack(alignment: .leading, spacing: 6) {
-                        hardwareLimitRow(icon: "number", label: "Device ID", value: envelope.deviceIdentifier)
+                        hardwareLimitRow(icon: "number", label: "Device ID", value: envelope.deviceIdentifier, term: .chip)
                         hardwareLimitRow(icon: "memorychip", label: "Metal Device", value: envelope.metal.deviceName)
-                        hardwareLimitRow(icon: "square.stack.3d.up", label: "Unified Memory", value: "\(envelope.metal.hasUnifiedMemory ? "Yes" : "No") • \(envelope.metal.workingSetDescription) working set")
+                        hardwareLimitRow(icon: "square.stack.3d.up", label: "Unified Memory", value: "\(envelope.metal.hasUnifiedMemory ? "Yes" : "No") • \(envelope.metal.workingSetDescription) working set", term: .unifiedMemory)
                         hardwareLimitRow(icon: "square.grid.3x3.fill", label: "Threadgroup Ceiling", value: "\(envelope.metal.maxThreadsPerThreadgroup) threads • \(envelope.metal.maxThreadgroupMemoryKB) KB shared")
-                        hardwareLimitRow(icon: "gauge.with.needle", label: "GPU Ceiling", value: gpuCeilingText)
-                        hardwareLimitRow(icon: "cpu", label: "CoreML Route", value: envelope.coreMLRoute)
-                        hardwareLimitRow(icon: "text.badge.checkmark", label: "Embedding Route", value: envelope.embeddingRoute)
-                        hardwareLimitRow(icon: "eye.fill", label: "Vision / ADM 3 Ceiling", value: "\(envelope.visionOperationConcurrency) ops • \(envelope.visionCooldownMilliseconds) ms cooldown")
-                        hardwareLimitRow(icon: "photo.stack", label: "Adaptive PDF Budget", value: imageBudgetText)
-                        hardwareLimitRow(icon: "function", label: "Vector Search Ceiling", value: "\(envelope.vectorBatchSize) batch • matrix @ \(envelope.batchMatrixMultiplyThreshold)+")
+                        hardwareLimitRow(icon: "gauge.with.needle", label: "GPU Ceiling", value: gpuCeilingText, term: .gpuProfile)
+                        hardwareLimitRow(icon: "cpu", label: "CoreML Route", value: envelope.coreMLRoute, term: .neuralEngine)
+                        hardwareLimitRow(icon: "text.badge.checkmark", label: "Embedding Route", value: envelope.embeddingRoute, term: .vector)
+                        hardwareLimitRow(icon: "eye.fill", label: "Vision / ADM 3 Ceiling", value: "\(envelope.visionOperationConcurrency) ops • \(envelope.visionCooldownMilliseconds) ms cooldown", term: .ocr)
+                        hardwareLimitRow(icon: "photo.stack", label: "Adaptive PDF Budget", value: imageBudgetText, term: .ocr)
+                        hardwareLimitRow(icon: "function", label: "Vector Search Ceiling", value: "\(envelope.vectorBatchSize) batch • matrix @ \(envelope.batchMatrixMultiplyThreshold)+", term: .searchBatch)
                     }
                 }
                 .padding(12)
@@ -1623,7 +1653,7 @@ Text(deviceService.chipName)
             }
 
             @ViewBuilder
-            private func hardwareLimitRow(icon: String, label: String, value: String) -> some View {
+            private func hardwareLimitRow(icon: String, label: String, value: String, term: GlossaryTermID? = nil) -> some View {
                 HStack(spacing: 8) {
                     Image(systemName: icon)
                         .font(.caption2)
@@ -1631,6 +1661,9 @@ Text(deviceService.chipName)
                         .frame(width: 16)
                     Text(label)
                         .font(.caption.weight(.medium))
+                    if let term {
+                        GlossaryInfoButton(termID: term, size: .caption2)
+                    }
                     Spacer()
                     Text(value)
                         .font(.caption2)
@@ -1726,12 +1759,14 @@ Text(deviceService.chipName)
                 siliconInfoPill(
                     icon: "square.stack.3d.up",
                     label: "Vector Batch",
-                    value: "\(deviceService.vectorBatchSize)"
+                    value: "\(deviceService.vectorBatchSize)",
+                    term: .searchBatch
                 )
                 siliconInfoPill(
                     icon: "text.badge.checkmark",
                     label: "Embed Batch",
-                    value: "\(deviceService.embeddingBatchSize)"
+                    value: "\(deviceService.embeddingBatchSize)",
+                    term: .embedBatch
                 )
                 siliconInfoPill(
                     icon: "square.grid.3x3.fill",
@@ -1762,8 +1797,8 @@ Text(deviceService.chipName)
     }
 
     @ViewBuilder
-    private func siliconInfoPill(icon: String, label: String, value: String) -> some View {
-        HStack(spacing: 4) {
+    private func siliconInfoPill(icon: String, label: String, value: String, term: GlossaryTermID? = nil) -> some View {
+        let pill = HStack(spacing: 4) {
             Image(systemName: icon)
                 .font(.caption2)
             Text(label)
@@ -1776,6 +1811,14 @@ Text(deviceService.chipName)
         .padding(.vertical, 4)
         .background(Color.cyan.opacity(0.15))
         .clipShape(Capsule())
+
+        if let term {
+            pill
+                .contentShape(Capsule())
+                .definedTerm(term)
+        } else {
+            pill
+        }
     }
 
     // MARK: - GPU Acceleration Section

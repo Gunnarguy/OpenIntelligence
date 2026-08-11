@@ -342,3 +342,53 @@ scanned corpus is still worth acquiring later and this set does not replace it.
 
 **Revisit when** OCR accuracy on noisy input becomes the thing under test, at which point real
 scans are required and the pbxproj question has to be faced.
+
+---
+
+## 2026-08-11 - Explain the vocabulary in two registers rather than simplifying the screens
+
+**Context.** A tester said the app "feels vibecoded". The interface pass that followed closed most of
+it, but the onboarding completion card stayed a problem of a different kind. It shows a chip name, a
+TOPS rating, an embedding batch size, a vector search batch size, a Neural Engine core count, and
+counters labelled Words, Chunks, Vectors and Time, all read live from `DeviceCapabilityService`,
+roughly ninety seconds after install. Those figures are the strongest thing the product can say: "this
+ran on your A19 Pro at 32 passages per batch" is checkable in a way "your data stays private" is not.
+They are also a wall to a reader who has met none of the words, so the one screen built to earn trust
+was the most likely in the app to lose it.
+
+**Decision.** Keep every figure and make each one answer for itself where it already sits. One
+registry, `UI/Components/Glossary.swift`, defines 24 terms twice: a `plain` register that uses no code
+identifier, model name or framework name, and a `technical` register that names them freely. The
+technical register is collapsed behind a disclosure bound to a single `AppStorage` key, so opening it
+once opens it for every definition in the app. Definitions are returned from one exhaustive `switch`
+over a `GlossaryTermID` enum, not from a dictionary keyed by string.
+
+**Alternatives.**
+
+- *Remove or soften the figures.* Rejected. They are true, measured where claimed, and are the
+  differentiator. This repository's expensive mistake has been withdrawing true claims, not making
+  false ones, and "38 TOPS" being unfamiliar is not the same defect as it being wrong.
+- *One middle register, pitched between the two audiences.* Rejected. A single register that avoids
+  jargon while gesturing at mechanism serves neither reader: too vague to be useful to an engineer,
+  still opaque to everyone else. The shared toggle is what makes two registers cheaper than one
+  compromise, because each reader configures the whole app once.
+- *A glossary screen in Settings only.* Rejected, and the owner ruled it out explicitly. The moment a
+  user needs a definition is the moment the unexplained figure is in front of them; a definition
+  behind two taps in Settings is one nobody reads.
+- *Extend `InfoButtonView`, which already existed.* Rejected as the primary shape. It takes
+  `(title, explanation)` as free strings, typed separately at each of its three call sites, which is
+  the exact mechanism by which one word acquires two definitions. The enum-plus-`switch` design makes
+  a missing definition a compile error and an unknown term unrepresentable.
+
+**Consequences.** Adding a term costs an enum case and both registers, enforced by the compiler.
+Adding a definition to a new surface costs `.definedTerm(_:)` and nothing else. `GlossaryTests` fails
+the suite if a plain definition acquires a code identifier or a backtick, which is the real long-term
+risk: nothing renders differently as a plain definition drifts into a second technical one, so without
+a test the regression is invisible. Two definitions have their hedges pinned by named tests because
+those hedges are load-bearing and would otherwise read as measurements: `tops` must keep saying the
+figure is a per-chip lookup, since `npuTops` reads a table keyed by device identifier with projections
+for unreleased silicon and Apple exposes no live Neural Engine occupancy API; `neuralEngine` must keep
+crediting Core ML with the final scheduling decision.
+
+**Revisit when** a second language ships. The registry is Swift string literals with no
+`LocalizedStringKey`, so localisation is the change that forces this design to be reopened.

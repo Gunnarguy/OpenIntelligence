@@ -27,6 +27,12 @@ Importing a document was quietly losing parts of it. This release finds the plac
 - **The controls that never affected Apple Intelligence now say so** rather than sitting under a heading claiming they shape every response.
 - **Five switches that did nothing are no longer switches.** Writing Tools, Speech Analysis, Translation, Screen Awareness and Image Playground are real and always on; the toggles never controlled them.
 
+### Every Word, Explained Where You Read It
+- **Tap any figure the app shows you and it tells you what it means:** "38 TOPS", "32/batch", "768 search", "Chunks", "Vectors", where they already are.
+- **Two explanations for each, not one:** a plain one first, and the mechanism underneath if you want it. Turn the technical version on once and it stays on everywhere.
+- **The four import stages explain themselves while they run:** Extract, Chunk, Embed and Index are tappable during the import you watch on first launch.
+- **Nothing is buried:** Settings has the full list under Plain English, searchable, including by the technical name if that is the word you know.
+
 ### Things The App Was Claiming That Weren't True
 Settings describes what the app is doing while it answers you, and several of those lines described things the code does not do.
 - **It listed eight agentic tools, and all eight were the wrong ones.** Four are actually wired up; those four are what it names now.

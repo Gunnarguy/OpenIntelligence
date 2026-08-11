@@ -22,12 +22,20 @@ This document provides a comprehensive, version-by-version breakdown of major ar
 
 ## v5.0 - August 10, 2026
 
-46 entries, 15 `[General]`, 13 `[UI]`, 9 `[Ingestion]`, 5 `[Retrieval]`, 3 `[Orchestration]`,
-1 `[Chunking]`. Two themes run through nearly all of them. The first is **loss that was invisible from
-the outside**: ingestion reported success on documents whose tables, figures and layout had already
-been discarded, and the evaluation harness structurally could not catch it because it scored answers
+74 entries, 32 `[UI]`, 16 `[General]`, 15 `[Ingestion]`, 5 `[Retrieval]`, 5 `[Orchestration]`,
+1 `[Chunking]`. Counted from `CHANGELOG.md` on 2026-08-11; the previous figure here read 46 and had
+gone stale across the interface pass, which roughly tripled the `[UI]` count on its own.
+
+Three themes run through nearly all of them. The first is **loss that was invisible from the
+outside**: ingestion reported success on documents whose tables, figures and layout had already been
+discarded, and the evaluation harness structurally could not catch it because it scored answers
 rather than extraction. The second is **claims the app was making about itself that were not true**,
-withdrawn here with the mechanism described in place of the figure.
+withdrawn here with the mechanism described in place of the figure. The third arrived last and is the
+inverse of the second: **claims that were true and checkable, and still cost trust because nobody
+outside the project could read them.** A completion card reading `38 TOPS` and `768 search` is
+verifiable in a way a privacy banner is not, which is exactly why it is there, and is also a wall to
+a reader who has met neither term. That is a vocabulary problem rather than a claims problem, and it
+is fixed by explaining rather than by deleting.
 
 ### Ingestion
 
@@ -152,6 +160,43 @@ not support.
     "Liquid Glass" returned `.ultraThinMaterial`, and one of them opted the tab bar *out* of the
     system treatment; they are removed.
     `[evidence_level: code_verified+build_verified+simulator_verified, confidence: exact]`
+
+### Vocabulary, in both registers
+
+The onboarding completion card is the app's best argument and was its most alienating screen. It shows
+`38 TOPS`, `32/batch`, `768 search`, `16-core ANE`, `Chunks` and `Vectors` about ninety seconds after
+install, and every one of those is read live from `DeviceCapabilityService` rather than printed, which
+is the point: "this ran on your A19 Pro at 32 passages per batch" can be checked, and "your data stays
+private" cannot. A reader who has met none of the words concludes the app is not for them.
+
+`Glossary.swift` defines **24 terms twice**. The `plain` register uses no code identifier, model name or
+framework name. The `technical` register names `MiniLM-L6-v2`, `vDSP_mmul`, `ms-marco-TinyBERT-L2-v2`
+and Apple TN3193 freely. Definitions are returned from one exhaustive `switch` over `GlossaryTermID`
+rather than looked up in a string-keyed dictionary, so a call site cannot name a term that does not
+exist, lookup returns no optional, and adding a term is a compile error until both registers are
+written. The predecessor is instructive: `InfoButtonView` took `(title, explanation)` as free strings
+typed at each of its three call sites, which is the mechanism by which one word acquires two
+definitions.
+
+The technical register sits behind a disclosure bound to a single `AppStorage` key, so opening it once
+opens it everywhere. That is what lets both registers occupy one screen without either becoming noise:
+a technical reader configures the entire app with one tap, and a non-technical reader is never shown
+jargon.
+
+Placement is the substance of the change. Definitions attach where the word already is, because a
+definition in Settings is a definition nobody reads at the moment they need it. The four pipeline
+capsules explain themselves while the stage they name is the one running. The Words, Chunks, Vectors
+and Time counters each carry their own. All six device chips are tappable. `Settings > Device &
+Performance` annotates the Hardware Envelope, which is the densest jargon in the app.
+`Settings > Plain English` is the index for looking a word up by name, not the way in.
+
+Two definitions are pinned by tests because their hedges are load-bearing. **TOPS must keep saying it
+is a per-chip lookup rather than a measurement**: `npuTops` reads a table keyed by device identifier,
+several entries are explicitly projections for unreleased silicon, and Apple exposes no live Neural
+Engine occupancy API, so an implied measurement would be the same class of claim as the `65 tok/s`
+figure this release withdrew. **Neural Engine must keep saying Core ML makes the final scheduling
+decision**, the hedge `HowItWorksView` already carries, because the glossary must not be the more
+confident of the two documents.
 
 ### Repository, agents and documentation
 

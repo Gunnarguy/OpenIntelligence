@@ -31,6 +31,7 @@ struct HowItWorksView: View {
                 importCard
                 askCard
                 leavingCard
+                vocabularyCard
                 replayCard
             }
             .padding()
@@ -73,12 +74,14 @@ struct HowItWorksView: View {
                 stage(
                     number: "1",
                     title: "Extract",
-                    detail: "The text comes out of the file. A PDF with a text layer is read directly. Scans, photos and screenshots go through Apple's Vision framework, which reads a page as a document rather than as loose words, so a table arrives as rows instead of a paragraph."
+                    detail: "The text comes out of the file. A PDF with a text layer is read directly. Scans, photos and screenshots go through Apple's Vision framework, which reads a page as a document rather than as loose words, so a table arrives as rows instead of a paragraph.",
+                    term: .extraction
                 )
                 stage(
                     number: "2",
                     title: "Chunk",
-                    detail: "The text is split into passages small enough to search precisely and large enough to still mean something on their own."
+                    detail: "The text is split into passages small enough to search precisely and large enough to still mean something on their own.",
+                    term: .chunk
                 )
                 stage(
                     number: "3",
@@ -86,14 +89,55 @@ struct HowItWorksView: View {
                     // app expresses a preference through `preferredComputeUnits`; it cannot
                     // guarantee the Neural Engine ran. "Where available" is the honest form.
                     title: "Embed",
-                    detail: "Each passage is turned into a list of numbers representing what it is about. This runs on this device's Neural Engine where available."
+                    detail: "Each passage is turned into a list of numbers representing what it is about. This runs on this device's Neural Engine where available.",
+                    term: .vector
                 )
                 stage(
                     number: "4",
                     title: "Index",
-                    detail: "Both the numbers and the words are stored, because the two find different things. Numbers find \"what is the warranty policy\". Words find \"SKU 4417-B\"."
+                    detail: "Both the numbers and the words are stored, because the two find different things. Numbers find \"what is the warranty policy\". Words find \"SKU 4417-B\".",
+                    term: .index
                 )
             }
+        }
+    }
+
+    // MARK: - Vocabulary
+
+    /// Points at the word-by-word reference without restating any of it.
+    ///
+    /// This screen and `GlossaryView` divide the work rather than overlapping: this one
+    /// explains the pipeline in order and in prose, that one defines single words out of
+    /// order and in two registers. Copying definitions down here is what would put the two
+    /// out of step, so each stage above links to its term instead.
+    private var vocabularyCard: some View {
+        SurfaceCard {
+            SectionHeader(icon: "character.book.closed", title: "If a word here is unfamiliar")
+            Text("Every term this app puts on screen has a plain definition and a technical one. Tap the information button beside any stage above, or open the full list.")
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            NavigationLink {
+                GlossaryView()
+            } label: {
+                HStack {
+                    Text("Plain English")
+                        .fontWeight(.semibold)
+                    Spacer()
+                    Image(systemName: "chevron.right")
+                        .font(.caption.weight(.bold))
+                }
+                .foregroundStyle(DSColors.accent)
+                .padding(.vertical, DSSpacing.sm)
+                .padding(.horizontal, DSSpacing.md)
+                .background(
+                    RoundedRectangle(cornerRadius: DSCorners.control, style: .continuous)
+                        .fill(DSColors.accent.opacity(0.12))
+                )
+            }
+            .buttonStyle(.plain)
+            .accessibilityHint("Opens definitions for every word the app uses")
         }
     }
 
@@ -184,7 +228,7 @@ struct HowItWorksView: View {
     // MARK: - Helpers
 
     @ViewBuilder
-    private func stage(number: String, title: String, detail: String) -> some View {
+    private func stage(number: String, title: String, detail: String, term: GlossaryTermID) -> some View {
         HStack(alignment: .top, spacing: DSSpacing.md) {
             Text(number)
                 .font(.caption.weight(.bold).monospacedDigit())
@@ -194,15 +238,21 @@ struct HowItWorksView: View {
                 .accessibilityHidden(true)
 
             VStack(alignment: .leading, spacing: 3) {
-                Text(title)
-                    .font(.subheadline.weight(.semibold))
+                HStack(spacing: DSSpacing.sm) {
+                    Text(title)
+                        .font(.subheadline.weight(.semibold))
+                    GlossaryInfoButton(termID: term, size: .caption)
+                    Spacer(minLength: 0)
+                }
                 Text(detail)
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
-        .accessibilityElement(children: .combine)
+        // `.combine` would swallow the information button, leaving the definition
+        // unreachable to VoiceOver while remaining tappable by touch.
+        .accessibilityElement(children: .contain)
     }
 }
 

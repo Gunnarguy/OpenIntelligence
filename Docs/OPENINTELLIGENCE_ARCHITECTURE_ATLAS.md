@@ -55,6 +55,21 @@ The OpenIntelligence Architecture Atlas is the canonical representation of the r
 ## 5. View/ViewModel Map
 - SwiftUI Views use `@EnvironmentObject` and `@AppStorage` heavily for dependency injection and state sharing.
 - `EvidenceThreadDebugView`: Standalone SwiftUI view for Evidence Threads local store diagnostics.
+- **User-facing vocabulary is single-sourced in `UI/Components/Glossary.swift`.** 24 terms, each defined in a
+  `plain` and a `technical` register, keyed by `GlossaryTermID` with definitions returned from one exhaustive
+  `switch`, so lookup is compile-time total and returns no optional. Consumers attach a definition rather than
+  restating one: `.definedTerm(_:)` on any view, `GlossaryInfoButton` on list rows, and `GlossaryView` as the
+  searchable index. Wired at `OnboardingChecklistView` (pipeline capsules, metric strip, device chips),
+  `HowItWorksView` (the four pipeline stages), and `SettingsView` (Hardware Envelope rows, Silicon RAG batch
+  pills, the Neural Engine TOPS line, and the `Plain English` entry). The technical register's expansion state
+  is one shared `AppStorage` key, so it is a per-user preference rather than per-popover state.
+  `GlossaryTests` enforces that a plain definition contains no code identifier, model name, framework name or
+  backtick, and pins the two hedges that must not be edited out: TOPS as a per-chip lookup rather than a
+  measurement, and Core ML rather than the app deciding whether the Neural Engine runs.
+  `[evidence_level: code_verified+test_verified, confidence: exact, evidence_source: Glossary.swift, GlossaryTests.swift]`
+- `HowItWorksView` narrates the pipeline in order; `GlossaryView` defines single words out of order. They are
+  deliberately not copies of each other, and each stage in the former links to the latter rather than
+  restating a definition.
 
 ## 6. Model/Persistence Map
 - `ChatMessage`: JSON serialized and stored locally.
