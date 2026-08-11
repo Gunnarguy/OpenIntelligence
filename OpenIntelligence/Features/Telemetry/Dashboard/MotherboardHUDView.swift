@@ -680,6 +680,9 @@ private struct SiliconLegend: View {
     let metricsSummary: String
     var activities: [HardwareTelemetryState.ComponentActivity] = []
 
+    /// Set the first time the legend is dragged, so the hint never returns.
+    @AppStorage("hudHasBeenDragged") private var hasDraggedLegend: Bool = false
+
     private var opacity: Double { 0.45 + 0.15 * min(intensity, 1.0) }
 
     var body: some View {
@@ -773,6 +776,40 @@ private struct SiliconLegend: View {
         )
         // Only animate structural changes (new rows appearing), not every tick
         .animation(.easeOut(duration: 0.4), value: activities.count)
+        // Attached to the legend rather than placed on the screen, so it travels with it
+        // when dragged and cannot end up pointing at empty space. Retires permanently on
+        // the first drag, which is the action it is asking for.
+        .overlay(alignment: .topLeading) {
+            if !hasDraggedLegend {
+                dragHint
+                    .offset(y: -26)
+                    .transition(.opacity)
+            }
+        }
+    }
+
+    /// One-time nudge explaining what the floating readout is and that it can be moved.
+    ///
+    /// The HUD reads as decoration until someone tells you it is live silicon telemetry,
+    /// and it starts life over the navigation bar, so "it can be moved" is the first
+    /// useful thing to know about it.
+    @ViewBuilder
+    private var dragHint: some View {
+        HStack(spacing: 4) {
+            Image(systemName: "hand.draw")
+                .font(.system(size: 8, weight: .semibold))
+            Text("Drag me. This is your chip working.")
+                .font(.system(size: 8, weight: .semibold))
+                .fixedSize()
+        }
+        .foregroundStyle(.white.opacity(0.9))
+        .padding(.horizontal, 7)
+        .padding(.vertical, 4)
+        .background(
+            Capsule(style: .continuous)
+                .fill(Color.accentColor.opacity(0.85))
+        )
+        .shadow(color: .black.opacity(0.35), radius: 4, y: 2)
     }
 
     private func componentColor(_ name: String) -> Color {
@@ -924,6 +961,9 @@ final class FloatingLegendWindowManager: NSObject {
         w.frame = f
         UserDefaults.standard.set(Double(f.midX), forKey: "hudLegendPosX")
         UserDefaults.standard.set(Double(f.midY), forKey: "hudLegendPosY")
+        // Retires the one-time "Drag me" hint. Set here rather than on gesture start so
+        // it only counts once the legend has actually moved and been placed.
+        UserDefaults.standard.set(true, forKey: "hudHasBeenDragged")
     }
 }
 

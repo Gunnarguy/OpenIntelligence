@@ -297,14 +297,32 @@ struct OnboardingChecklistView: View {
 
     // MARK: - Page 2: Pipeline Theater
 
+    // Same treatment page 1 already got, and for the same reason: a paged `TabView`
+    // gives its pages a fixed height, and this page overflowed it, so the title was
+    // clipped at the top and the completion card's last example question was clipped at
+    // the bottom. Wrapping in a `ScrollView` whose content takes `minHeight` keeps the
+    // layout identical whenever it fits and scrolls when it does not.
     private var pipelineTheaterPage: some View {
+        GeometryReader { proxy in
+            ScrollView {
+                pipelineTheaterContent
+                    .frame(minHeight: proxy.size.height)
+            }
+            .scrollBounceBehavior(.basedOnSize)
+        }
+    }
+
+    private var pipelineTheaterContent: some View {
         VStack(spacing: 0) {
             // Compact header
             VStack(spacing: 4) {
-                Text("Watch your library come online")
+                // Was "Watch your library come online", which describes a loading screen
+                // rather than what is happening. This says what the user is looking at.
+                Text(processingComplete ? "Your library is ready" : "Building your library")
                     .font(.title3.bold())
                     .foregroundStyle(.white)
                     .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
                 Text(stageExplainer)
                     .font(.caption)
                     .foregroundStyle(.white.opacity(0.6))
@@ -541,12 +559,26 @@ struct OnboardingChecklistView: View {
             .padding(.bottom, 3)
 
             ZStack(alignment: .top) {
+                // No per-row transition, and no animation on the container.
+                //
+                // `visible` is a sliding six-row window over a list that only grows, so
+                // every append changes which ids are on screen: one row leaves the top as
+                // another enters the bottom. Inside a plain `VStack` a departing row and
+                // an arriving row animate through the same space, which is why the log
+                // rendered as text drawn on top of text. Ingestion now finishes in under
+                // ten seconds instead of eighty, so entries arrive in bursts and several
+                // rows were mid-transition at once, which made it far worse than it
+                // looked when each stage crawled.
+                //
+                // A log ticker does not need animated reflow. `clipped()` guarantees a
+                // row can never paint outside the panel even mid-update.
                 VStack(alignment: .leading, spacing: 1) {
                     ForEach(visible) { entry in
                         PipelineLogRow(entry: entry)
-                            .transition(.opacity.combined(with: .move(edge: .bottom)))
                     }
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .clipped()
 
                 if logEntries.count > 6 {
                     LinearGradient(
@@ -563,7 +595,6 @@ struct OnboardingChecklistView: View {
             RoundedRectangle(cornerRadius: 8, style: .continuous)
                 .fill(Color.white.opacity(0.03))
         )
-        .animation(.easeOut(duration: 0.2), value: logEntries.count)
     }
 
     // MARK: - Completion View
