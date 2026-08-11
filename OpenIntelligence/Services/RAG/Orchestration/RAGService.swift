@@ -6080,7 +6080,20 @@ class RAGService: ObservableObject {
             // Step 4.5: Generate document summary (RAPTOR-lite)
             // Creates a level-1 summary chunk for efficient overview queries
             // Controlled by settings.enableDocumentSummaries
+            // Skipped for onboarding samples. This is a language-model call with a 12s
+            // timeout (`DocumentSummaryService.summaryGenerationTimeoutSeconds`) and it
+            // runs once per document. Together with content tagging below, it was the
+            // reason importing three small curated markdown files took **1.3 minutes** on
+            // an A18 Pro: 3,168 words and 38 chunks, of which the embedding work is a
+            // fraction of a second and the enrichment is up to 20s per document.
+            //
+            // The samples exist to demonstrate the pipeline, and the theater the user is
+            // watching shows Extract, Chunk, Embed and Index. An auto-generated overview
+            // of a document the app itself wrote adds nothing to that, and a first
+            // impression that takes over a minute costs more than the summary is worth.
+            // Anything the user imports themselves is unaffected.
             let summariesEnabled = await MainActor.run { self.settingsStore?.enableDocumentSummaries ?? true }
+                && context != .onboarding
 
             if summariesEnabled {
                 await MainActor.run {
@@ -6149,7 +6162,10 @@ class RAGService: ObservableObject {
             }
 
             var generatedContentTags: [String]?
+            // Skipped for onboarding samples, same reasoning as the summary above: this is
+            // a language-model call with an 8s timeout, once per document.
             let contentTaggingEnabled = await contentTaggingEnabled(for: container)
+                && context != .onboarding
             if #available(iOS 26.0, *), contentTaggingEnabled {
                 let taggingService = ContentTaggingService.shared
                 if taggingService.isAvailable {

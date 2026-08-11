@@ -654,16 +654,37 @@ struct OnboardingChecklistView: View {
             // "This ran on your A19 Pro" is checkable; "your data stays private" is not.
             // Every value is read live from `DeviceCapabilityService`, the same source the
             // Device & Performance screen uses, so this cannot drift from that card.
-            HStack(spacing: 6) {
-                deviceChip(icon: "cpu", text: deviceService.chipName)
-                if deviceService.npuTops > 0 {
-                    deviceChip(icon: "sparkles", text: "\(deviceService.npuTops) TOPS")
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(spacing: 6) {
+                    deviceChip(icon: "cpu", text: deviceService.chipName)
+                    if deviceService.npuTops > 0 {
+                        deviceChip(icon: "sparkles", text: "\(deviceService.npuTops) TOPS")
+                    }
+                    if deviceService.memoryGB >= 1 {
+                        deviceChip(icon: "memorychip", text: "\(Int(deviceService.memoryGB)) GB")
+                    }
                 }
-                if deviceService.memoryGB >= 1 {
-                    deviceChip(icon: "memorychip", text: "\(Int(deviceService.memoryGB)) GB")
+
+                // The second row is the point of the first. Anyone can print a chip name;
+                // these are numbers the app derived from this specific device and is
+                // actually running with, so the "catered to your hardware" claim is
+                // checkable rather than decorative. All four come from
+                // `DeviceCapabilityService`, which scales them from measured RAM and the
+                // resolved tier.
+                HStack(spacing: 6) {
+                    deviceChip(icon: "square.grid.3x3", text: "\(deviceService.embeddingBatchSize)/batch")
+                    deviceChip(icon: "magnifyingglass", text: "\(deviceService.vectorBatchSize) search")
+                    if deviceService.tier.neuralEngineCores > 0 {
+                        deviceChip(icon: "cpu.fill", text: "\(deviceService.tier.neuralEngineCores)-core ANE")
+                    }
                 }
             }
             .padding(.top, 2)
+
+            Text("Those batch sizes were chosen for this device, not defaults.")
+                .font(.system(size: 10))
+                .foregroundStyle(.white.opacity(0.35))
+                .fixedSize(horizontal: false, vertical: true)
 
             Text("The only thing that can ever leave is a question you approve, and only to Apple's Private Cloud Compute.")
                 .font(.caption)

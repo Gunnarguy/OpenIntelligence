@@ -256,7 +256,31 @@ OpenIntelligence does not send your documents to a developer-operated backend.
         // Suppress reembed kicks during the entire batch import
         await MainActor.run { ragService.beginOnboardingBatch() }
 
-        let urls = try writeSamplesToDocumentsDirectory()
+        let allURLs = try writeSamplesToDocumentsDirectory()
+
+        // Skip samples already in the library.
+        //
+        // `RAGService` does have a duplicate check, but it compares the *managed* storage
+        // path and cannot fire here: importing copies the file into managed storage first,
+        // and `WorkspaceSyncService` uniquifies that copy against existing files by
+        // appending "-2", "-3" and so on. By the time the check runs, the path no longer
+        // matches the stored one, so the sample is admitted as a new document. That was
+        // invisible until onboarding became replayable; replaying three times produced
+        // nine sample documents, named `OpenIntelligence-Product-Guide-2.md` and upward.
+        //
+        // Matching on filename rather than hash is deliberate: these three files are
+        // written by this app from string literals, so the name is a reliable identity,
+        // and a user who renamed one should keep their copy rather than have it doubled.
+        let existingNames = await MainActor.run {
+            Set(ragService.documents.map { $0.filename })
+        }
+        let urls = allURLs.filter { !existingNames.contains($0.lastPathComponent) }
+
+        guard !urls.isEmpty else {
+            onProgress?(allURLs.count, allURLs.count, "Already imported")
+            await MainActor.run { ragService.clearPendingReembeds() }
+            return
+        }
 
         // Use queue-based ingestion so ragService.ingestionItems gets populated
         // This allows the UI to observe real-time pipeline stage updates
