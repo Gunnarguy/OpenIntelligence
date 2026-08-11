@@ -38,13 +38,15 @@ The short version: OpenIntelligence combines grounded retrieval, visible evidenc
 
 ## What files can OpenIntelligence accept?
 
-OpenIntelligence supports 50+ file formats across five categories:
+OpenIntelligence reads these formats:
 
-- **Documents:** PDF, DOCX, XLSX, PPTX, Pages, Numbers, Keynote, Markdown, CSV, RTF, TXT, HTML, JSON, XML, YAML
+- **Documents:** PDF, DOCX, XLSX, PPTX, Markdown, CSV, RTF, TXT, HTML, JSON, XML, YAML
 - **Code:** Swift, Python, JavaScript, TypeScript, Java, C, C++, C#, Go, Rust, Ruby, PHP, CSS, SQL, Shell, R, Kotlin, Dart, Lua, Perl, TOML, INI, and more
 - **Audio:** M4A, MP3, WAV, AIFF — on-device transcription up to 2 hours per file
 - **Video:** MP4, MOV — audio extraction with local transcription
 - **Images:** JPEG, PNG, HEIC, TIFF, GIF, BMP, WebP — Vision OCR text extraction
+
+**Pages, Numbers and Keynote are not readable.** The file picker still lets you select one, and the import will fail with an error rather than adding an empty document to your library. Export to PDF or a Word/Excel/PowerPoint format first.
 
 If a file is messy or uses a legacy format, exporting it to PDF or a modern Office format usually improves results.
 

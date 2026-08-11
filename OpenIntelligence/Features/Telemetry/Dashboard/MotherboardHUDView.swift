@@ -295,6 +295,24 @@ struct HardwareXRayOverlay: View {
     @EnvironmentObject private var settings: SettingsStore
 
     private let layout = DeviceComponentLayout.current
+
+    /// Orientation the component outlines are currently drawn for.
+    ///
+    /// This has to be `@State`. `orientRect` used to call a computed property that read
+    /// `scene.effectiveGeometry.interfaceOrientation` directly, which gave SwiftUI no
+    /// dependency to invalidate on, so nothing re-rendered the overlay when the device
+    /// turned. The outlines stayed glued to the interface's coordinate system and turned
+    /// with it, when their entire purpose is to sit over the spot on the board where the
+    /// silicon physically is — a fixed place that does not move when the UI rotates.
+    ///
+    /// It is refreshed from `geometry.size` changes rather than from
+    /// `UIDevice.orientationDidChangeNotification`: the size change lands after the
+    /// rotation transition settles, which is when `effectiveGeometry` is correct, and it
+    /// needs no `beginGeneratingDeviceOrientationNotifications` bookkeeping.
+    #if canImport(UIKit)
+    @State private var renderedOrientation: UIInterfaceOrientation = .portrait
+    #endif
+
     var showDeviceInfo: Bool = false
     var showSidebar: Bool = false
 
@@ -338,8 +356,15 @@ struct HardwareXRayOverlay: View {
     }
 
     #if canImport(UIKit)
-    private var currentOrientation: UIInterfaceOrientation {
-        guard let scene = UIApplication.shared.connectedScenes.first(where: { $0.activationState == .foregroundActive }) as? UIWindowScene ?? UIApplication.shared.connectedScenes.first as? UIWindowScene else {
+    /// Reads the settled interface orientation from the active scene.
+    ///
+    /// Static, and called only from `onAppear`/`onChange`, so the value lands in
+    /// `renderedOrientation` where SwiftUI can depend on it. Reading this straight from
+    /// `body` is what stopped the overlay re-rendering on rotation.
+    static func resolveInterfaceOrientation() -> UIInterfaceOrientation {
+        guard let scene = UIApplication.shared.connectedScenes.first(where: { $0.activationState == .foregroundActive }) as? UIWindowScene
+            ?? UIApplication.shared.connectedScenes.first as? UIWindowScene
+        else {
             return .portrait
         }
         return scene.effectiveGeometry.interfaceOrientation
@@ -348,7 +373,7 @@ struct HardwareXRayOverlay: View {
 
     private func orientRect(_ rect: CGRect) -> CGRect {
         #if canImport(UIKit)
-        let orientation = currentOrientation
+        let orientation = renderedOrientation
         switch orientation {
         case .landscapeLeft:
             return CGRect(
@@ -487,6 +512,15 @@ struct HardwareXRayOverlay: View {
                 }
             }
             .ignoresSafeArea()
+            #if canImport(UIKit)
+            // Re-read the orientation once the rotation has actually landed. On rotation
+            // the reader's width and height swap, so this fires exactly when the new
+            // geometry is real and `effectiveGeometry` reports the settled orientation.
+            .onAppear { renderedOrientation = Self.resolveInterfaceOrientation() }
+            .onChange(of: geometry.size) { _, _ in
+                renderedOrientation = Self.resolveInterfaceOrientation()
+            }
+            #endif
         }
         // The GeometryReader itself must ignore ALL safe areas (container AND
         // keyboard), not just its content: geometry.size feeds rectToScreen's
