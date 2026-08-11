@@ -472,6 +472,7 @@ struct ModelConfigurationSheet: View {
         maxTokens = settings.maxTokens
         topP = settings.topP
         samplingStrategy = settings.samplingStrategy
+        topK = settings.topK
         useFixedSeed = settings.seed != nil
         seedValue = settings.seed.map { Int($0 % 10000) } ?? 42
         contextLength = settings.contextLength
@@ -505,6 +506,7 @@ struct ModelConfigurationSheet: View {
         settings.maxTokens = maxTokens
         settings.topP = topP
         settings.samplingStrategy = samplingStrategy
+        settings.topK = topK
         settings.seed = useFixedSeed ? UInt64(seedValue) : nil
         settings.contextLength = contextLength
         settings.frequencyPenalty = frequencyPenalty

@@ -161,6 +161,16 @@ struct DeveloperDiagnosticsHubView: View {
                 } label: {
                     Label("Chunk Inspector", systemImage: "doc.text.magnifyingglass")
                 }
+                // 347 lines of finished, working test runner that nothing linked to. It
+                // validates per-message container override and agentic tool scoping,
+                // which is arguably the most valuable correctness check in this folder,
+                // and it was reachable only from its own `#Preview`. Linked rather than
+                // deleted for exactly that reason.
+                NavigationLink {
+                    ContainerScopingSelfTestsView(ragService: ragService)
+                } label: {
+                    Label("Container Scoping Tests", systemImage: "checklist")
+                }
                 NavigationLink {
                     CoreValidationView(ragService: ragService)
                 } label: {

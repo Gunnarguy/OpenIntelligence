@@ -67,6 +67,7 @@ final class SettingsStore: ObservableObject {
         static let contextLength = "llmContextLength" // Int
         static let topP = "llmTopP" // Double
         static let samplingStrategy = "llmSamplingStrategy" // SamplingStrategy.rawValue
+        static let topK = "llmTopK" // Int, sampling shortlist size. NOT retrieval top-K.
         static let seed = "llmSamplingSeed" // Int, negative or absent = non-deterministic
         static let frequencyPenalty = "llmFrequencyPenalty" // Double
         static let presencePenalty = "llmPresencePenalty" // Double
@@ -159,6 +160,13 @@ final class SettingsStore: ObservableObject {
     @Published var topP: Double
     /// Which of Apple's three sampling modes to use. See `SamplingStrategy`.
     @Published var samplingStrategy: SamplingStrategy
+    /// Sampling shortlist size for `.topK`.
+    ///
+    /// Not to be confused with retrieval top-K, which is how many chunks come back from
+    /// search and is a completely separate number. The two share a name and sit in the
+    /// same `query(_:topK:config:)` call, which is how the sampling one ended up hardcoded
+    /// at 40 in `ChatScreen` while its slider wrote to nothing at all.
+    @Published var topK: Int
     /// Seed for reproducible generation. `nil` means non-deterministic.
     @Published var seed: UInt64?
     /// Frequency penalty (0.0 - 2.0).
@@ -453,6 +461,9 @@ final class SettingsStore: ObservableObject {
         // Defaults to .topK so behaviour is unchanged for anyone upgrading: the old
         // inference path always resolved to `.random(top: 40)` for chat queries.
         samplingStrategy = SamplingStrategy(rawValue: defaults.string(forKey: Keys.samplingStrategy) ?? "") ?? .topK
+        // 40 matches the value `ChatScreen` used to hardcode, so an upgrading user's
+        // generation behaviour is unchanged until they move the slider.
+        topK = (defaults.object(forKey: Keys.topK) as? Int) ?? 40
         if let stored = defaults.object(forKey: Keys.seed) as? Int, stored >= 0 {
             seed = UInt64(stored)
         } else {
@@ -833,6 +844,7 @@ final class SettingsStore: ObservableObject {
         defaults.set(contextLength, forKey: Keys.contextLength)
         defaults.set(topP, forKey: Keys.topP)
         defaults.set(samplingStrategy.rawValue, forKey: Keys.samplingStrategy)
+        defaults.set(topK, forKey: Keys.topK)
         if let seed, seed <= UInt64(Int.max) {
             defaults.set(Int(seed), forKey: Keys.seed)
         } else {

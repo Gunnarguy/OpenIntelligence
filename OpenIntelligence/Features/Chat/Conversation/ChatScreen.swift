@@ -219,6 +219,14 @@ struct ChatScreen: View {
     // Live clock tick to drive elapsed UI — only connected during processing to save battery
     @State private var nowTick: Date = Date()
     @State private var processingClock = Timer.publish(every: 0.2, on: .main, in: .common)
+    /// Handle for the connection above, so it can actually be cancelled.
+    ///
+    /// Without this there is nothing to call `cancel()` on: `connect()` returns the
+    /// cancellable and the old code discarded it with `_ =`, so every query started a new
+    /// 5 Hz timer and none of them ever stopped. After N queries the run loop was waking
+    /// 5N times a second for the life of the session, under a comment claiming the timer
+    /// was stopped to save battery.
+    @State private var processingClockConnection: Cancellable?
     // Ephemeral UI and retrieval
     @StateObject private var toastManager = ToastManager()
     @State private var currentRetrievedChunks: [RetrievedChunk] = []
@@ -300,6 +308,8 @@ struct ChatScreen: View {
     // Defaults to "topK" so an upgrading user keeps the previous behaviour: the old
     // inference path in LLMService always resolved to .random(top: 40) for chat.
     @AppStorage("llmSamplingStrategy") private var samplingStrategyRaw: String = SamplingStrategy.topK.rawValue
+    /// Sampling shortlist size. Distinct from the retrieval top-K passed to `query(_:topK:)`.
+    @AppStorage("llmTopK") private var samplingTopK: Int = 40
     @AppStorage("llmSamplingSeed") private var seedStorage: Int = -1
     @AppStorage("llmFrequencyPenalty") private var frequencyPenalty: Double = 0.0
     @AppStorage("llmPresencePenalty") private var presencePenalty: Double = 0.0
@@ -563,12 +573,21 @@ struct ChatScreen: View {
                 nowTick = Date()
             }
         }
-        // Start/stop the 5 Hz timer based on processing state — saves battery when idle
+        // Start/stop the 5 Hz timer based on processing state. The comment always said
+        // this saved battery when idle; it now does, because the `false` branch exists.
         .onChange(of: isProcessing) { _, newValue in
             if newValue {
+                processingClockConnection?.cancel()
                 processingClock = Timer.publish(every: 0.2, on: .main, in: .common)
-                _ = processingClock.connect()
+                processingClockConnection = processingClock.connect()
+            } else {
+                processingClockConnection?.cancel()
+                processingClockConnection = nil
             }
+        }
+        .onDisappear {
+            processingClockConnection?.cancel()
+            processingClockConnection = nil
         }
         .onChange(of: scenePhase) { _, newPhase in
             continuedQueryCoordinator.handleScenePhaseChange(newPhase, isProcessing: isProcessing)
@@ -2521,6 +2540,7 @@ struct ChatScreen: View {
         let capturedTemperature = temperature
         let capturedTopP = topP
         let capturedSamplingStrategy = SamplingStrategy(rawValue: samplingStrategyRaw) ?? .topK
+        let capturedSamplingTopK = samplingTopK
         let capturedSeed: UInt64? = seedStorage >= 0 ? UInt64(seedStorage) : nil
         let capturedFrequencyPenalty = frequencyPenalty
         let capturedPresencePenalty = presencePenalty
@@ -2628,7 +2648,10 @@ struct ChatScreen: View {
                     maxTokens: capturedMaxTokens,
                     temperature: Float(capturedTemperature),
                     topP: Float(capturedTopP),
-                    topK: 40,
+                    // Was hardcoded 40. The Top-K slider in Model Parameters wrote to no
+                    // key at all, so moving it changed nothing, and this value could not
+                    // be influenced from the UI even after sampling became selectable.
+                    topK: capturedSamplingTopK,
                     samplingStrategy: capturedSamplingStrategy,
                     seed: capturedSeed,
                     fmPreference: capturedFmPreference,
