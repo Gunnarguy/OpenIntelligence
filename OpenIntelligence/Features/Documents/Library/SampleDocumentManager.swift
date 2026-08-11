@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 
 /// Describes a built-in sample file packaged for onboarding.
@@ -5,6 +6,18 @@ struct SampleDocumentDescriptor {
     let filename: String
     let `extension`: String
     let body: String
+
+    /// Filename as it lands on disk and in the library, spaces hyphenated.
+    var storageFilename: String {
+        filename.replacingOccurrences(of: " ", with: "-") + "." + `extension`
+    }
+
+    /// Fingerprint of the body text, used to notice when a shipped sample has been
+    /// rewritten between app versions.
+    var contentHash: String {
+        let digest = SHA256.hash(data: Data(body.utf8))
+        return digest.map { String(format: "%02x", $0) }.joined()
+    }
 }
 
 /// Handles authoring and importing curated sample documents for a better first-run experience.
@@ -288,6 +301,10 @@ OpenIntelligence does not send your documents to a developer-operated backend.
         // This allows the UI to observe real-time pipeline stage updates
         let result = await ragService.ingestDocuments(urls, context: .onboarding)
 
+        // Stamp what was ingested. Without this a fresh install would immediately report
+        // its brand-new samples as stale, because no hash would have been recorded.
+        recordImportedHashes(for: samples)
+
         // Report final progress
         onProgress?(urls.count, urls.count, "Complete")
 
@@ -305,6 +322,86 @@ OpenIntelligence does not send your documents to a developer-operated backend.
     }
 
     /// Persists each sample document in the app's Documents directory (permanent storage).
+    // MARK: - Keeping imported samples current
+
+    /// UserDefaults key holding the content hash last ingested for a given sample.
+    private func importedHashKey(for sample: SampleDocumentDescriptor) -> String {
+        "samples.importedHash.\(sample.storageFilename)"
+    }
+
+    /// Samples whose shipped text differs from what is actually sitting in the library.
+    ///
+    /// This exists because editing a sample's Swift literal updates the file on disk but
+    /// does nothing to a library that already ingested the old text: the chunks and
+    /// vectors are built at import time. Between v4.9 and v5.0 the samples were corrected
+    /// in five places — they claimed Pages/Numbers/Keynote support the app does not have,
+    /// attributed embedding to the wrong framework, and documented a "Telemetry HUD"
+    /// screen that does not exist. Anyone who onboarded before v5.0 is still being told
+    /// those things by their own library, and being told them as sourced fact.
+    func staleImportedSamples(in ragService: RAGService) -> [SampleDocumentDescriptor] {
+        let defaults = UserDefaults.standard
+        let importedNames = Set(ragService.documents.map(\.filename))
+
+        return samples.filter { sample in
+            // Only offer to refresh a sample the user actually has. Never re-add one
+            // they deleted on purpose.
+            guard importedNames.contains(sample.storageFilename) else { return false }
+            let recorded = defaults.string(forKey: importedHashKey(for: sample))
+            return recorded != sample.contentHash
+        }
+    }
+
+    /// Records what was ingested, so a later build can tell whether it has drifted.
+    private func recordImportedHashes(for descriptors: [SampleDocumentDescriptor]) {
+        let defaults = UserDefaults.standard
+        for sample in descriptors {
+            defaults.set(sample.contentHash, forKey: importedHashKey(for: sample))
+        }
+    }
+
+    /// Replaces stale sample documents in place.
+    ///
+    /// Removes the old document first and then re-imports, rather than importing
+    /// alongside. Managed storage uniquifies a colliding filename by appending `-2`
+    /// (`WorkspaceSyncService`, counter starting at 2), and that rename happens *before*
+    /// the duplicate check compares paths — so importing over the top produces
+    /// "OpenIntelligence-Product-Guide-2.md" sitting next to the original rather than
+    /// replacing it.
+    ///
+    /// - Returns: the display names refreshed, for the notice shown to the user.
+    @discardableResult
+    func refreshStaleSamples(in ragService: RAGService) async -> [String] {
+        let stale = staleImportedSamples(in: ragService)
+        guard !stale.isEmpty else { return [] }
+
+        let staleFilenames = Set(stale.map(\.storageFilename))
+        let doomed = ragService.documents.filter { staleFilenames.contains($0.filename) }
+
+        for document in doomed {
+            do {
+                try await ragService.removeDocument(document)
+            } catch {
+                Log.error(
+                    "[SampleDocumentManager] Could not remove stale sample '\(document.filename)': \(error.localizedDescription)",
+                    category: .ingestion
+                )
+                return []
+            }
+        }
+
+        do {
+            try await importSamples(into: ragService)
+            recordImportedHashes(for: stale)
+            return stale.map(\.filename)
+        } catch {
+            Log.error(
+                "[SampleDocumentManager] Re-import of refreshed samples failed: \(error.localizedDescription)",
+                category: .ingestion
+            )
+            return []
+        }
+    }
+
     private func writeSamplesToDocumentsDirectory() throws -> [URL] {
         guard let documentsDir = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else {
             throw NSError(domain: "SampleDocumentManager", code: -1, userInfo: [NSLocalizedDescriptionKey: "Documents directory unavailable"])

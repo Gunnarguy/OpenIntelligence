@@ -26,6 +26,11 @@ Importing a document was quietly losing parts of it. This release finds the plac
 *   **Evidence that retrieval had already found is no longer discarded** when sentence extraction matches nothing.
 *   **Long questions can now reach Private Cloud Compute.** They were being kept on device precisely when they were too big for it.
 
+### Your Sample Documents
+
+*   **The three sample documents were describing things the app cannot do.** They listed Pages, Numbers and Keynote as supported, credited the wrong Apple framework for building the search index, and documented a "Telemetry HUD" screen that does not exist. Because the app answers questions *out of* those documents, a wrong sentence in one became a wrong answer.
+*   **If you already had them, they update themselves once.** You will see a short re-import the first time you open Documents, and a notice explaining it. Nothing you imported yourself is touched, and samples you deleted stay deleted.
+
 ### Settings
 
 *   **Settings is a list you can search instead of one very long scroll.** It was fifteen stacked panels with everything shouting at the same volume — your plan sat level with the GPU profile. It's now about ten rows grouped into sections, each opening its own screen, with a search field at the top. Nothing was removed; you type "temperature" and land on it without knowing which screen owns it.

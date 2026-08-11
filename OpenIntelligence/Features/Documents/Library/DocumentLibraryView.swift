@@ -22,6 +22,9 @@ struct DocumentLibraryView: View {
     @State private var showingContainerSettings = false
     @State private var showingSemanticSearch = false
     @State private var isImportingSamples = false
+    /// Display names of samples just refreshed automatically, driving the explanatory
+    /// banner. `nil` once dismissed.
+    @State private var refreshedSampleNames: [String]?
     @State private var sampleImportError: String?
     @State private var sampleImportStatusMessage: String?
     @State private var showingPlanSheet = false
@@ -969,7 +972,19 @@ struct DocumentLibraryView: View {
     var body: some View {
         VStack(spacing: 0) {
             indexRebuildBanner
+            sampleRefreshBanner
             libraryAlertView
+        }
+        // Runs once per appearance and returns immediately when nothing has drifted:
+        // `staleImportedSamples` compares a recorded hash per sample and exits on the
+        // first mismatch check. Deliberately not run during onboarding, which is
+        // importing these same files at that moment.
+        .task {
+            guard !onboardingStore.isChecklistVisible else { return }
+            let refreshed = await SampleDocumentManager.shared.refreshStaleSamples(in: ragService)
+            if !refreshed.isEmpty {
+                withAnimation { refreshedSampleNames = refreshed }
+            }
         }
     }
 
@@ -1014,6 +1029,46 @@ struct DocumentLibraryView: View {
             }
             .padding(DSSpacing.md)
             .background(Color.orange.opacity(0.12))
+            .accessibilityElement(children: .combine)
+        }
+    }
+
+    /// Explains an automatic sample refresh after the fact.
+    ///
+    /// Without this the user watches three documents they did not touch disappear and
+    /// reappear, with the ingestion theater running, for no stated reason. That reads as a
+    /// bug, and it looks worst on the documents the app itself shipped. The notice names
+    /// what changed and why, and stays until dismissed.
+    @ViewBuilder
+    private var sampleRefreshBanner: some View {
+        if let names = refreshedSampleNames, !names.isEmpty {
+            HStack(alignment: .top, spacing: DSSpacing.sm) {
+                Image(systemName: "checkmark.seal")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(.blue)
+                    .padding(.top, 2)
+
+                VStack(alignment: .leading, spacing: DSSpacing.xxs) {
+                    Text(names.count == 1 ? "Updated a sample document" : "Updated \(names.count) sample documents")
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundStyle(DSColors.primaryText)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Text("\(names.joined(separator: ", ")) described things this app does not actually do. Because the app answers questions out of these documents, a wrong sentence in one becomes a wrong answer. They were re-imported with the corrections. Nothing you imported yourself was touched.")
+                        .font(DSTypography.caption)
+                        .foregroundStyle(DSColors.secondaryText)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                Spacer(minLength: DSSpacing.xs)
+
+                Button("OK") {
+                    withAnimation { refreshedSampleNames = nil }
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+            }
+            .padding(DSSpacing.md)
+            .background(Color.blue.opacity(0.12))
             .accessibilityElement(children: .combine)
         }
     }
