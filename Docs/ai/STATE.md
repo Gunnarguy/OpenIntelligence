@@ -2,7 +2,7 @@
 
 Updated: 2026-08-11
 Branch/worktree: main, primary checkout
-Last verified commit: e60fa7f
+Last verified commit: 8b30ae5
 
 ## Objective
 
@@ -19,9 +19,13 @@ The implementation is **complete, building and test-verified**. See Verification
 
 ## Status
 
-**Everything below is uncommitted.** 16 paths: 12 modified, 4 new. Nothing has been committed or
-pushed this session, so `git log` still ends at `e60fa7f` and the working tree is the only copy of all
-of it. Committing is the Exact Next Action for that reason alone.
+**Committed as `8b30ae5`**, 16 files, 1757 insertions. **Not pushed.** `origin/main` is still at
+`e60fa7f`, so this work exists only in this local checkout.
+
+The owner asked on 2026-08-11 that commits stop carrying a `Co-Authored-By: Claude` trailer, because on
+a public repository it reads as the work being entirely generated. `includeCoAuthoredBy: false` is now
+set in `~/.claude/settings.json`, and `8b30ae5` is the amended, trailer-free version of the original
+commit. **Do not add that trailer by hand.** 152 already-pushed commits still carry it; see Blockers.
 
 Suite is **219 tests, 0 failures** on iOS 27.0, up from a 205-test baseline. The 14 added cases are all
 `GlossaryTests`.
@@ -105,7 +109,7 @@ before changing the structure of `Glossary.swift`.
 
 ## Working Set
 
-All four new files are untracked and exist only in this working tree.
+All of these are committed in `8b30ae5`, which is not pushed.
 
 - `OpenIntelligence/UI/Components/Glossary.swift`, the single source of every definition. Change copy
   here and nowhere else.
@@ -160,8 +164,15 @@ fair check of everything except appearance and VoiceOver.
 
 ## Blockers / Unknowns
 
-**1. Nothing is committed.** All 16 paths exist only in this working tree. This is the only thing
-standing between verified work and a durable record of it, and it is the Exact Next Action.
+**1. `8b30ae5` is not pushed**, and `origin/main` is at `e60fa7f`. The work exists in one local
+checkout inside iCloud-synced `~/Documents`, which is the least durable place it could be.
+
+**1b. 152 pushed commits carry a `Co-Authored-By: Claude` trailer the owner wants gone.** Removing it
+from history means `git filter-branch` or `git filter-repo` over the whole range plus a force-push to
+`origin/main`, which rewrites published history and changes every SHA from the root. **Do not do this
+without him asking for it explicitly**, and if he does, note that every SHA referenced in
+`CHANGELOG.md`, `Docs/RELEASE_NOTES.md` and past handoffs becomes wrong. Leaving history alone and only
+preventing new trailers is the low-cost option and is what is in force.
 
 **2. Four device checks close every open verification item, carried from 2026-08-10.** On a physical
 device: type in Settings search; run a query with the HUD visible and watch the Neural Engine bar;
