@@ -4391,9 +4391,17 @@ class RAGService: ObservableObject {
 
     @MainActor
     @discardableResult
-    func enqueueDocuments(_ urls: [URL], context: IngestionContext = .userInitiated) -> [UUID] {
+    /// - Parameter containerId: library to ingest into. Defaults to the active one, which
+    ///   is right for a user-initiated import and wrong for anything the app decides to
+    ///   import on its own: an automatic sample refresh fired while "Library 2" happened
+    ///   to be selected would drop the samples into Library 2.
+    func enqueueDocuments(
+        _ urls: [URL],
+        context: IngestionContext = .userInitiated,
+        containerId: UUID? = nil
+    ) -> [UUID] {
         guard !urls.isEmpty else { return [] }
-        let activeContainerId = containerService.activeContainerId
+        let activeContainerId = containerId ?? containerService.activeContainerId
         if context == .userInitiated {
             clearSelfHealingSuppression(for: activeContainerId)
         }
@@ -4427,11 +4435,15 @@ class RAGService: ObservableObject {
         return newItems.map { $0.id }
     }
 
+    /// - Parameter containerId: library to ingest into. `nil` uses the active library.
     func ingestDocuments(
         _ urls: [URL],
-        context: IngestionContext = .userInitiated
+        context: IngestionContext = .userInitiated,
+        containerId: UUID? = nil
     ) async -> IngestionBatchResult {
-        let ids = await MainActor.run { enqueueDocuments(urls, context: context) }
+        let ids = await MainActor.run {
+            enqueueDocuments(urls, context: context, containerId: containerId)
+        }
         return await waitForIngestionCompletion(ids: ids)
     }
 

@@ -264,8 +264,13 @@ OpenIntelligence does not send your documents to a developer-operated backend.
     /// Writes curated samples to disk and ingests them into the active RAG pipeline.
     /// Uses `.onboarding` context to prevent self-tuning rebuilds during initial setup.
     /// Now uses the ingestion queue so UI can observe progress via `ragService.ingestionItems`.
+    /// - Parameter containerId: library to import into. `nil` uses the active library,
+    ///   which is correct when the user pressed the button. The automatic refresh passes
+    ///   an explicit id instead, because it fires on whatever screen the user happens to
+    ///   be on and must not deposit samples into a library they were merely looking at.
     func importSamples(
         into ragService: RAGService,
+        containerId: UUID? = nil,
         onProgress: ((Int, Int, String) -> Void)? = nil
     ) async throws {
         // Suppress reembed kicks during the entire batch import
@@ -299,7 +304,11 @@ OpenIntelligence does not send your documents to a developer-operated backend.
 
         // Use queue-based ingestion so ragService.ingestionItems gets populated
         // This allows the UI to observe real-time pipeline stage updates
-        let result = await ragService.ingestDocuments(urls, context: .onboarding)
+        let result = await ragService.ingestDocuments(
+            urls,
+            context: .onboarding,
+            containerId: containerId
+        )
 
         // Stamp what was ingested. Without this a fresh install would immediately report
         // its brand-new samples as stale, because no hash would have been recorded.
@@ -377,6 +386,19 @@ OpenIntelligence does not send your documents to a developer-operated backend.
         let staleFilenames = Set(stale.map(\.storageFilename))
         let doomed = ragService.documents.filter { staleFilenames.contains($0.filename) }
 
+        // Put them back where they were, never into whatever library is on screen.
+        //
+        // `ragService.documents` spans every container, so the samples are found no
+        // matter which library is selected — but `enqueueDocuments` stamps the *active*
+        // container onto each item. Opening Documents with "Library 2" selected would
+        // therefore delete the samples from General and re-import them into Library 2.
+        //
+        // A document with a `nil` containerId belongs to the default library, which is
+        // the same rule `documentsForContainer` applies, so `nil` resolves to
+        // `containers.first` rather than to the active one.
+        let defaultContainerId = ragService.containerService.containers.first?.id
+        let targetContainerId = doomed.compactMap(\.containerId).first ?? defaultContainerId
+
         for document in doomed {
             do {
                 try await ragService.removeDocument(document)
@@ -390,7 +412,7 @@ OpenIntelligence does not send your documents to a developer-operated backend.
         }
 
         do {
-            try await importSamples(into: ragService)
+            try await importSamples(into: ragService, containerId: targetContainerId)
             recordImportedHashes(for: stale)
             return stale.map(\.filename)
         } catch {
