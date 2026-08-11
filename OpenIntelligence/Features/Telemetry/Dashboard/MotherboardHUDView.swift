@@ -832,7 +832,7 @@ private struct SiliconLegend: View {
         HStack(spacing: 4) {
             Image(systemName: "hand.draw")
                 .font(.system(size: 8, weight: .semibold))
-            Text("Drag me. This is your chip working.")
+            Text("Drag me - This is your Device's Hardware X-Ray.")
                 .font(.system(size: 8, weight: .semibold))
                 .fixedSize()
         }

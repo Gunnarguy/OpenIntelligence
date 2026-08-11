@@ -118,7 +118,7 @@ struct SettingsView: View {
         case librariesSync
         case devicePerformance, appearance
         case plan, siriShortcuts
-        case advanced, developer, about
+        case advanced, developer, about, versionHistory
     }
 
     /// One navigable destination, plus the words that should find it.
@@ -226,6 +226,13 @@ struct SettingsView: View {
                 subtitle: "Version, device, and what's new",
                 icon: "info.circle", tint: .blue,
                 keywords: ["about", "version", "release notes", "what's new", "support", "feedback", "privacy policy", "terms"]
+            ),
+            .init(
+                id: .versionHistory, group: .system,
+                title: "Version History",
+                subtitle: "Every release, and what changed in it",
+                icon: "clock.arrow.circlepath", tint: .gray,
+                keywords: ["version", "history", "changelog", "release notes", "updates", "what's new", "previous"]
             ),
         ]
     }
@@ -536,6 +543,8 @@ struct SettingsView: View {
             DeveloperDiagnosticsHubView(ragService: ragService)
         case .about:
             AboutView()
+        case .versionHistory:
+            VersionHistoryView()
         }
     }
 

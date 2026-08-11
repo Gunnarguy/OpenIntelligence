@@ -38,7 +38,7 @@ iCloud and Private Cloud Compute rewritten.
 
 **Model parameters.** Sampling is a real choice (Predictable / Balanced / Adaptive) rather than
 inferred. `LLMService` switches on `samplingStrategy`, and `llmTopK` now carries the shortlist size
-end to end — it previously wrote to no key at all while `ChatScreen` passed a hardcoded 40. Seed
+end to end, it previously wrote to no key at all while `ChatScreen` passed a hardcoded 40. Seed
 support added. Established from the SDK: `GenerationOptions` exposes only `sampling`/`samplingMode`,
 `temperature`, `maximumResponseTokens`, `toolCallingMode`, and the string "penalty" does not occur
 anywhere in FoundationModels, so the three penalty sliders cannot affect Apple Intelligence and now
@@ -49,7 +49,7 @@ say so. They were **not** deleted; see Active Constraints.
 (MacBook Air is fanless), base M4/M5 were tiered as `.ultraAdvanced` alongside M5 Ultra, and the
 sysctl fallback inferred chip class from installed RAM.
 
-**Education layer.** Two TipKit tips render — the first this app has ever shown. A "How This Works"
+**Education layer.** Two TipKit tips render, the first this app has ever shown. A "How This Works"
 screen exists and is reachable from Settings. Onboarding gained an on-device panel on the completion
 card and can be replayed via `resetAllOnboarding`, which previously had zero call sites.
 
@@ -73,17 +73,17 @@ card and can be replayed via `resetAllOnboarding`, which previously had zero cal
 
 ## Working Set
 
-- `OpenIntelligence/Features/Settings/SettingsView.swift` — the settings index, `SettingsEntry.all`
+- `OpenIntelligence/Features/Settings/SettingsView.swift`, the settings index, `SettingsEntry.all`
   keyword table, and the destination switch.
-- `OpenIntelligence/Features/Settings/Components/ModelConfigurationSheet.swift` — sampling section
+- `OpenIntelligence/Features/Settings/Components/ModelConfigurationSheet.swift`, sampling section
   and the scope-labelled penalty section.
-- `OpenIntelligence/Features/Onboarding/OnboardingChecklistView.swift` — both pages now wrapped in
+- `OpenIntelligence/Features/Onboarding/OnboardingChecklistView.swift`, both pages now wrapped in
   `ScrollView` with `minHeight`, and `logTickerView`.
-- `OpenIntelligence/Features/Onboarding/WhatsNewStore.swift` — the `"5.0"` release entry, currently
+- `OpenIntelligence/Features/Onboarding/WhatsNewStore.swift`, the `"5.0"` release entry, currently
   **8 items with no deep links**. See Blocker 3.
-- `OpenIntelligence/Services/Infrastructure/Monitoring/DeviceCapabilityService.swift` — the single
+- `OpenIntelligence/Services/Infrastructure/Monitoring/DeviceCapabilityService.swift`, the single
   chip/tier/ceiling source.
-- `OpenIntelligence/Features/Telemetry/Dashboard/MotherboardHUDView.swift` — `SiliconLegend` and its
+- `OpenIntelligence/Features/Telemetry/Dashboard/MotherboardHUDView.swift`, `SiliconLegend` and its
   one-time drag hint.
 
 ## Verification
@@ -121,13 +121,13 @@ this corpus." **Read MRR@10 and nDCG before any embedder or reranker decision.**
 ceiling, retrieval is not the bottleneck; if MRR is mediocre while R@5 is 1.00, the right chunks are
 being found and ranked badly, which is a **reranker** problem and the cheap Apache-licensed swap.
 
-**3. The v5.0 What's New sheet is a changelog, not a splash.** `WhatsNewStore` is well built — keyed
-by version, correctly silent on fresh install, re-reachable from About — but the `"5.0"` entry has
+**3. The v5.0 What's New sheet is a changelog, not a splash.** `WhatsNewStore` is well built, keyed
+by version, correctly silent on fresh install, re-reachable from About, but the `"5.0"` entry has
 **8 items and no deep links**, and `WhatsNewView` has no tappable rows (only a Done button). Cutting
 to 3-4 items and making them navigate would be the improvement.
 
 **4. Licensing shapes the embedder decision.** The shipped stack (MiniLM-L6-v2,
-`ms-marco-TinyBERT-L2-v2`) is Apache 2.0. **EmbeddingGemma is not** — it ships under the Gemma Terms
+`ms-marco-TinyBERT-L2-v2`) is Apache 2.0. **EmbeddingGemma is not**, it ships under the Gemma Terms
 of Use, whose §3.1 requires the use restrictions to be enforceable against *your* users. Jina's v2
 reranker weights are reported CC-BY-NC; **verify before relying on that.** Not legal advice.
 
@@ -139,7 +139,7 @@ substantially delivered and its row has not been updated. Several other v5.0 row
 
 ## Exact Next Action
 
-**Push `e7d26cf`, then update the Notion roadmap via the `notion-roadmap` skill** — at minimum set
+**Push `e7d26cf`, then update the Notion roadmap via the `notion-roadmap` skill**, at minimum set
 "Liquid Glass UI Refresh" to reflect what shipped, and sweep the other v5.0 rows this session
 touched. That is repo-required work (`.agents/rules/01-docs-and-notion-sync.md`) that was deferred
 and is the only outstanding obligation from the makeover arc.

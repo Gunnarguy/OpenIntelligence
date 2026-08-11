@@ -20,8 +20,8 @@ Importing a document was quietly losing parts of it. This release finds the plac
 - **Long questions can reach Private Cloud Compute** instead of being kept on device precisely when they were too big for it.
 
 ### Settings
-- **Settings is a searchable list instead of one very long scroll.** It was fifteen stacked panels with everything at the same volume. It's now about ten rows in sections, each opening its own screen, with search at the top. Nothing was removed — type "temperature" and you land on it.
-- **The generation controls are reachable,** in one tap, under Settings → Advanced. Temperature and response length were fully built with no way into them, and both genuinely change how answers are written — on this device and on Private Cloud Compute alike.
+- **Settings is a searchable list instead of one very long scroll.** It was fifteen stacked panels with everything at the same volume. It's now about ten rows in sections, each opening its own screen, with search at the top. Nothing was removed, type "temperature" and you land on it.
+- **The generation controls are reachable,** in one tap, under Settings → Advanced. Temperature and response length were fully built with no way into them, and both genuinely change how answers are written, on this device and on Private Cloud Compute alike.
 - **You choose how the model picks its words, and Top-P finally does something.** The app decided this for you and always landed on the same setting, so the Top-P control was read and then ignored. Top-K, Top-P and Greedy are now a choice. Existing behaviour is unchanged unless you change it.
 - **Answers can be made reproducible.** Turn on "Reproducible answers" and the same question against the same library returns the same answer every time.
 - **The controls that never affected Apple Intelligence now say so** rather than sitting under a heading claiming they shape every response.
@@ -42,7 +42,7 @@ Settings describes what the app is doing while it answers you, and several of th
 
 Documents no longer disappear after importing, and libraries carry their work between devices instead of asking you to redo it.
 
-> iPhone and iPad arrive here from 4.7, because 4.8 was withdrawn before it shipped on iOS — so everything under 4.8 below is new to you too. On Mac, 4.8 was already released, so only this section is new.
+> iPhone and iPad arrive here from 4.7, because 4.8 was withdrawn before it shipped on iOS, so everything under 4.8 below is new to you too. On Mac, 4.8 was already released, so only this section is new.
 
 ### Your Libraries
 - **Documents stop disappearing after import:** a document that finished importing while the app was saving your library could be dropped from the list even though it had imported correctly. This affected a single device as well as several, and it is what made the sample documents unreliable.
@@ -78,7 +78,7 @@ Deep Think and Maximum were not wired up correctly in previous releases. This re
 
 ## 4.7
 
-- **Honest route labels:** labels now say exactly where each answer ran — on your device, or Apple Private Cloud Compute with your permission. Nothing claims more than the system can verify.
+- **Honest route labels:** labels now say exactly where each answer ran, on your device, or Apple Private Cloud Compute with your permission. Nothing claims more than the system can verify.
 - **Steadier document understanding:** the key ideas pulled from your documents now come out the same every time, for more consistent search and more reliable connections across files.
 - **Route verification:** new internal checks confirm that every answer's recorded route matches what actually ran.
 - **Removed unsupported model claims:** Settings no longer advertises selectable 3B or 20B on-device models, or a parameter-count capability chip. (Correction to earlier releases: the public SDK exposes no such selector. Apple's larger on-device model is real and managed by the operating system, but no app can choose or observe it.)
@@ -93,7 +93,7 @@ Deep Think and Maximum were not wired up correctly in previous releases. This re
 - **Safe cloud fallback:** If consent, network availability, entitlement, quota, or PCC availability prevents cloud execution, Hybrid and explicit PCC requests fall back locally before meaningful streaming. Cloud and local partial responses are never mixed.
 - **Consent that stays remembered:** Always Allow and Never Allow now survive relaunches even if an older PCC setting is stale. OpenIntelligence no longer asks at startup; it asks only when an actual evidence package is ready for PCC.
 - **GPU controls that describe reality:** The percentage slider is now four execution profiles. They coordinate the app's PDF, model-compute, large vector-search, and background-GPU policies without pretending to dictate exact GPU utilization.
-- **Truthful model-route reporting:** The "Advanced" on-device model preference now correctly reports the standard on-device model in telemetry and diagnostics. (Apple's 20B AFM 3 Core Advanced is real but OS-managed — the public SDK exposes no way for an app to select it or observe whether it ran, so earlier releases could display a model tier the app never actually controlled.)
+- **Truthful model-route reporting:** The "Advanced" on-device model preference now correctly reports the standard on-device model in telemetry and diagnostics. (Apple's 20B AFM 3 Core Advanced is real but OS-managed, the public SDK exposes no way for an app to select it or observe whether it ran, so earlier releases could display a model tier the app never actually controlled.)
 - **Apple-approved PCC capability enabled:** The source entitlement is active and the app verifies the signed process entitlement before constructing Apple's PCC model. Native PCC execution is owner-confirmed on a physical iOS 27 device; Archive/TestFlight distribution signatures and PCC edge scenarios (quota exhaustion, network transition, background consent) remain the open validation items.
 - **Hardened knowledge-index migrations:** Database schema migrations are now driven by a fixed, code-owned migration catalog, eliminating a class of malformed-schema risk.
 - **An ingestion Stop button that actually stops:** Closing or discarding the queue prevents those exact jobs from returning after iCloud reload. Automatic repair jobs run one at a time and stay off for that library on the device where you dismissed them until you explicitly import or rebuild again.
