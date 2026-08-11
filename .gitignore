@@ -260,3 +260,7 @@ CLAUDE.local.md
 # Machine-local Claude Code permission grants. Ignored by the author's global gitignore too, but
 # that does not travel with the repository, so anyone else cloning would see it as committable.
 .claude/settings.local.json
+
+# LLVM coverage artifact dropped in the repo root by `xcodebuild test`.
+default.profraw
+*.profraw
