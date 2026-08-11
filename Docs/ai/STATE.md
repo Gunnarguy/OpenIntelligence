@@ -2,7 +2,7 @@
 
 Updated: 2026-08-10
 Branch/worktree: main, primary checkout
-Last verified commit: 4f70463
+Last verified commit: 9b73148 — **pushed**, `origin/main` matches, tree clean
 
 ## Objective
 
@@ -110,20 +110,18 @@ the model pill's `.ready` state (Foundation Models do not run in the simulator).
 
 ## Blockers / Unknowns
 
-**1. Nothing is pushed.** Five commits sit on local `main`.
-
-**2. Two device checks would close every open verification item at once.** On a physical device:
+**1. Two device checks would close every open verification item at once.** On a physical device:
 open Settings and type in the search field; and run one query with the Silicon HUD visible and watch
 whether the Neural Engine bar moves while the answer streams.
 
-**3. The retrieval eval set is saturated and cannot score a model change.** The last benchmark
+**2. The retrieval eval set is saturated and cannot score a model change.** The last benchmark
 measured R@5 = 1.00 at every stage but `lexical` 0.94, 0 hallucinated, abstention 100%. A comment in
 `RetrievalStageMetrics.swift:45` states that recall@5 "gives no information beyond 'did a chunk from
 the right file appear'. MRR@10 and nDCG are the metrics that actually discriminate between stages on
 this corpus." **Read MRR@10 and nDCG before any embedder or reranker decision.** The Notion row
 "Build quality fixtures with external ground truth" (v5.0, High) is the real gate.
 
-**4. Licensing changes the embedder recommendation.** The shipped stack (MiniLM-L6-v2,
+**3. Licensing changes the embedder recommendation.** The shipped stack (MiniLM-L6-v2,
 `ms-marco-TinyBERT-L2-v2`) is Apache 2.0: commercial use, attribution preserved in
 `THIRD_PARTY_NOTICES.md`, no obligation flowing to end users. **EmbeddingGemma is not Apache 2.0** —
 it ships under the Gemma Terms of Use, whose §3.1 requires the use restrictions to be an enforceable
@@ -132,7 +130,7 @@ can update. For a paid App Store app that is a real compliance burden. Jina's v2
 are reported CC-BY-NC and would be disqualified outright; **verify before relying on that.** Not
 legal advice.
 
-**5. Carried from 2026-08-09, untouched.** The malformed `[Needs Verification]` block still reaches
+**4. Carried from 2026-08-09, untouched.** The malformed `[Needs Verification]` block still reaches
 users (`SourceOnlyAnswerService.swift:349`). The verification gate still hedges correct answers.
 
 ## Exact Next Action

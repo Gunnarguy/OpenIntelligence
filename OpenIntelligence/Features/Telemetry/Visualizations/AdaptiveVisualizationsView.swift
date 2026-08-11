@@ -8,6 +8,7 @@
 import Charts
 import SceneKit
 import SwiftUI
+import TipKit
 
 // MARK: - Main View
 
@@ -102,6 +103,16 @@ struct AdaptiveVisualizationsView: View {
     var body: some View {
         ScrollView {
             LazyVStack(spacing: 20) {
+                // Atlas is the least self-explanatory tab in the app: it had no
+                // `InfoButtonView`, no empty-state copy explaining what a cluster or an
+                // embedding is, and nothing telling a new user why they would open it.
+                //
+                // The tip retires itself once the user actually explores — the
+                // `atlasViewed` event is donated on opening the fullscreen atlas or
+                // expanding a view, not on appearance, so it does not flash once and
+                // vanish before it has been read.
+                InlineTipView(tip: AtlasTip())
+
                 // HERO: 3D Atlas (always visible for libraries with content)
                 if let profile = engine.currentProfile, profile.chunkCount >= 10 {
                     hero3DAtlasSection(profile: profile)
@@ -177,10 +188,18 @@ struct AdaptiveVisualizationsView: View {
         }
         .onChange(of: show3DFullscreen) { _, entering in
             if entering {
+                // Retires `AtlasTip`. Donated on real exploration rather than on appear,
+                // so the tip survives until it has done its job.
+                Task { await AtlasTip.atlasViewed.donate() }
                 #if os(iOS)
                 let generator = UIImpactFeedbackGenerator(style: .medium)
                 generator.impactOccurred()
                 #endif
+            }
+        }
+        .onChange(of: expandedView) { _, expanded in
+            if expanded != nil {
+                Task { await AtlasTip.atlasViewed.donate() }
             }
         }
         .task {

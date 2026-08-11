@@ -7,6 +7,7 @@
 //
 
 import SwiftUI
+import TipKit
 
 #if canImport(AppKit)
 import AppKit
@@ -236,6 +237,22 @@ struct SettingsView: View {
                 heroSummaryRow
             }
 
+            // `ModelConfigTip` promises "Tune retrieval depth, temperature, and context
+            // window". That was aspirational until this release: the sheet holding those
+            // controls had no call site, so a tip pointing at them would have pointed at
+            // nothing. It is wired now because Advanced actually reaches them.
+            //
+            // Retired by opening Advanced, not by opening Settings, so it persists until
+            // the user has been where it is sending them.
+            if trimmedSearch.isEmpty {
+                Section {
+                    InlineTipView(tip: ModelConfigTip())
+                        .listRowInsets(EdgeInsets())
+                        .listRowBackground(Color.clear)
+                        .listRowSeparator(.hidden)
+                }
+            }
+
             ForEach(SettingsGroup.allCases) { group in
                 let entries = visibleEntries(in: group)
                 if !entries.isEmpty {
@@ -247,6 +264,8 @@ struct SettingsView: View {
                                 // made it two taps to reach the one thing behind the row.
                                 Button {
                                     DSHaptics.selection()
+                                    // Retires `ModelConfigTip`, which points here.
+                                    Task { await ModelConfigTip.settingsVisited.donate() }
                                     showModelConfiguration = true
                                 } label: {
                                     HStack {
