@@ -34,10 +34,10 @@ Importing a document was quietly losing parts of it. This release finds the plac
 - **Nothing is buried:** Settings has the full list under Plain English, searchable, including by the technical name if that is the word you know.
 
 ### Your Libraries
-- **"Remove Local Copies" is now "Wipe Library":** it never only removed local copies, it deleted those documents from iCloud and your other devices while saying Sync Now could bring them back.
-- **Wiping a library cleans up properly:** documents used to stay in Spotlight search and their files stayed on disk.
+- **"Remove Local Copies" is now "Remove All Documents":** it never only removed local copies, it deleted those documents from iCloud and your other devices while saying Sync Now could bring them back.
+- **Emptying a library cleans up properly:** documents used to stay in Spotlight search and their files stayed on disk.
 - **Moving a library off iCloud asks first.** One tap used to remove its iCloud copy with no warning.
-- **The Documents toolbar stops hiding buttons off-screen.** Library Settings, Cached Documents, Wipe and Delete are in one visible menu.
+- **The Documents toolbar stops hiding buttons off-screen.** Library Settings and the two destructive actions are in one visible menu.
 - **Two libraries with the same name can be told apart.**
 
 ### Your Database Tab
@@ -50,6 +50,9 @@ Importing a document was quietly losing parts of it. This release finds the plac
 - **Two untrue descriptions corrected:** chunks are not split by comparing meaning between sentences, and the storage format described is no longer the one in use.
 
 - **Deleting a library from its settings screen no longer half-works:** if iCloud refused, it removed the library locally anyway and the next sync brought it back. It now stops and says why.
+
+- **The two destructive actions no longer look like the same button:** one empties a library, the other removes it, and they now say which is which.
+- **"Cached Documents" is hidden until there is something in it.** It was always empty because nothing fills it yet.
 
 ### Things The App Was Claiming That Weren't True
 Settings describes what the app is doing while it answers you, and several of those lines described things the code does not do.

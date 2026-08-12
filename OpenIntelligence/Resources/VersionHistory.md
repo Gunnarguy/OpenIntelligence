@@ -49,11 +49,11 @@ Importing a document was quietly losing parts of it. This release finds the plac
 
 ### Your Libraries
 
-*   **"Remove Local Copies" is now "Wipe Library", because that is what it did.** It never only removed local copies. It deleted those documents from iCloud and from your other devices too, while telling you Sync Now could bring them back. It could not. The wording now says what happens.
+*   **"Remove Local Copies" is now "Remove All Documents", because that is what it did.** It never only removed local copies. It deleted those documents from iCloud and from your other devices too, while telling you Sync Now could bring them back. It could not. The wording now says what happens, and names the library it applies to.
 *   **Deleting one document said the same untrue thing,** and its button is now just "Delete".
-*   **Wiping a library used to leave things behind.** The documents stayed in Spotlight search, and their files stayed on disk taking up space. Both are cleaned up now.
+*   **Emptying a library used to leave things behind.** The documents stayed in Spotlight search, and their files stayed on disk taking up space. Both are cleaned up now.
 *   **Moving a library off iCloud asks first.** One tap used to remove that library's copy from iCloud with no warning at all.
-*   **The Documents toolbar no longer hides half its buttons off the edge of the screen.** Library Settings, Cached Documents, Wipe and Delete now live in one menu you can see. Visualize is gone from that row, because it only switched you to the Atlas tab that is already at the bottom of the screen.
+*   **The Documents toolbar no longer hides half its buttons off the edge of the screen.** Library Settings, and the two destructive actions, now live in one menu you can see. Visualize is gone from that row, because it only switched you to the Atlas tab that is already at the bottom of the screen.
 *   **Two libraries with the same name can be told apart** by a short code on the chip.
 *   **Library chips in Semantic Search no longer show storage buttons that did nothing.**
 
@@ -70,6 +70,9 @@ Importing a document was quietly losing parts of it. This release finds the plac
 *   **Two descriptions on that screen were not true.** One said chunks are split by comparing meaning between sentences; that never runs. It splits on section headings and a fixed list of ten English phrases, and the screen says so now, including that the list is English only. The other described the storage format the app stopped using.
 
 *   **Deleting a library from its settings screen no longer half-works.** If iCloud refused the delete, that screen used to remove the library from this device anyway, so the next sync brought it back and you were left thinking it was gone. It now stops, keeps the library, and tells you why.
+
+*   **The two destructive actions no longer look like the same button.** They sat next to each other, both red, both a bin icon, and one empties a library while the other removes it. They are now "Remove All Documents from X" and "Delete the X Library", with different icons and a divider between them.
+*   **"Cached Documents" is hidden until there is something in it.** It was always empty, because the feature that would fill it has not been built yet.
 
 ### Things The App Was Claiming That Weren't True
 

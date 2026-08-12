@@ -53,6 +53,11 @@ struct DocumentLibraryView: View {
     // Vision Capture and Cached Docs
     @State private var showVisionCapture = false
     @State private var showCachedDocs = false
+    /// How many documents the documentation cache holds.
+    ///
+    /// Drives whether the Cached Documents entry appears at all. `DocumentationCacheService` is an
+    /// `actor`, so this cannot be read synchronously from the menu body and is refreshed instead.
+    @State private var cachedDocumentCount = 0
     @State private var pendingImportURLs: [URL] = []
     @State private var pendingImportReview: DocumentImportReview?
     @State private var showingImportReview = false
@@ -239,9 +244,9 @@ struct DocumentLibraryView: View {
                 // later. There is no local-only eviction here to describe.
                 //
                 // The wording is now the same for both storage modes, because the outcome is.
-                .alert("Wipe \"\(activeLibrary?.name ?? "this library")\"?", isPresented: $showingClearAllConfirmation) {
+                .alert("Remove all documents from \"\(activeLibrary?.name ?? "this library")\"?", isPresented: $showingClearAllConfirmation) {
                     Button("Cancel", role: .cancel) {}
-                    Button("Wipe Library", role: .destructive) {
+                    Button("Remove All Documents", role: .destructive) {
                         Task {
                             try? await ragService.clearAllDocuments()
                         }
@@ -312,7 +317,10 @@ struct DocumentLibraryView: View {
             } message: {
                 Text("Local Only keeps the library only on this device. iCloud Sync makes iCloud the shared copy for that library across your devices.")
             }
-            .alert("Delete Library?", isPresented: $showingDeleteConfirmation) {
+            // Names the library, matching the remove-all-documents alert above, so the two
+            // destructive confirmations read as clearly different actions rather than as two
+            // similar red dialogs.
+            .alert("Delete the \"\(libraryToDelete?.name ?? "selected")\" library?", isPresented: $showingDeleteConfirmation) {
                 Button("Cancel", role: .cancel) {
                     libraryToDelete = nil
                 }
@@ -475,15 +483,38 @@ struct DocumentLibraryView: View {
                     Label("Library Settings", systemImage: "slider.horizontal.3")
                 }
 
-                Button {
-                    DSHaptics.light()
-                    showCachedDocs = true
-                } label: {
-                    Label("Cached Documents", systemImage: "doc.on.doc.fill")
+                // Shown only when the cache can actually contain something.
+                //
+                // `DocumentationCacheService.cache(...)` is its only writer and has no call sites
+                // anywhere in the app, so nothing populates this and the screen was permanently
+                // empty. That is not dead code: the producer is the open roadmap row "Web Clipper
+                // / Share Extension", and the service, its expiry, pruning and ingestion export
+                // are all built and waiting for it. Deleting them would repeat a mistake this
+                // repository has already made twice.
+                //
+                // Gating on content rather than removing the entry means the door disappears
+                // while the room is empty and comes back on its own the day something fills it,
+                // with no future cleanup to remember.
+                if cachedDocumentCount > 0 {
+                    Button {
+                        DSHaptics.light()
+                        showCachedDocs = true
+                    } label: {
+                        Label("Cached Documents (\(cachedDocumentCount))", systemImage: "doc.on.doc.fill")
+                    }
                 }
 
                 Divider()
 
+                // These two were "Wipe Library" and "Delete Library", both red, both a trash
+                // icon, stacked adjacent. They are not the same action and most people would not
+                // have been able to tell which was which: one empties a library and keeps it, the
+                // other removes the library itself.
+                //
+                // Both now name the library and say what survives, the icons no longer rhyme, and
+                // the destructive pair is separated so the nuclear one is not the neighbour of the
+                // merely severe one.
+                //
                 // Enabled against `filteredDocuments`, the documents this screen is actually
                 // showing, rather than `ragService.documents`, which is every document in every
                 // library. The old binding left the destructive action live on a library that is
@@ -492,9 +523,14 @@ struct DocumentLibraryView: View {
                     DSHaptics.medium()
                     showingClearAllConfirmation = true
                 } label: {
-                    Label("Wipe Library", systemImage: "trash")
+                    Label(
+                        activeLibrary.map { "Remove All Documents from \($0.name)" } ?? "Remove All Documents",
+                        systemImage: "doc.badge.ellipsis"
+                    )
                 }
                 .disabled(filteredDocuments.isEmpty)
+
+                Divider()
 
                 Button(role: .destructive) {
                     DSHaptics.medium()
@@ -502,14 +538,17 @@ struct DocumentLibraryView: View {
                         handleDeleteLibrary(activeLibrary)
                     }
                 } label: {
-                    Label("Delete Library", systemImage: "trash.slash")
+                    Label(
+                        activeLibrary.map { "Delete the \($0.name) Library" } ?? "Delete Library",
+                        systemImage: "folder.badge.minus"
+                    )
                 }
                 .disabled(activeLibrary == nil || containerService.containers.count <= 1)
             } label: {
                 DocumentActionChipLabel(title: "More", systemImage: "ellipsis.circle")
             }
             .accessibilityLabel("More library actions")
-            .accessibilityHint("Library settings, cached documents, wipe or delete this library")
+            .accessibilityHint("Library settings, and options to remove this library's documents or delete the library itself")
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 8)
@@ -1045,6 +1084,7 @@ struct DocumentLibraryView: View {
         // first mismatch check. Deliberately not run during onboarding, which is
         // importing these same files at that moment.
         .task {
+            await refreshCachedDocumentCount()
             guard !onboardingStore.isChecklistVisible else { return }
             let refreshed = await SampleDocumentManager.shared.refreshStaleSamples(in: ragService)
             if !refreshed.isEmpty {
@@ -1243,6 +1283,11 @@ struct DocumentLibraryView: View {
             }
             .sheet(isPresented: $showCachedDocs) {
                 CachedDocsView(ragService: ragService)
+            }
+            .onChange(of: showCachedDocs) { _, isShowing in
+                // Recount on dismiss, so emptying the cache from that screen also removes the
+                // entry that leads to it.
+                if !isShowing { Task { await refreshCachedDocumentCount() } }
             }
     }
 
@@ -1610,6 +1655,14 @@ struct DocumentLibraryView: View {
                     : "Deleted the libraries removed from iCloud on this device too."
             }
         }
+    }
+
+    /// Reads the documentation cache size.
+    ///
+    /// `statistics()` returns the count directly, so this does not materialise the whole index
+    /// just to ask whether it is empty.
+    private func refreshCachedDocumentCount() async {
+        cachedDocumentCount = await DocumentationCacheService.shared.statistics().count
     }
 
     @MainActor
