@@ -2,7 +2,7 @@
 
 Updated: 2026-08-11
 Branch/worktree: main, primary checkout
-Last verified commit: 561dcd3
+Last verified commit: 5cf54b4
 
 ## Objective
 
@@ -14,7 +14,7 @@ Pick the next objective from Blockers below, from the Notion roadmap, or from th
 
 ## Status
 
-`origin/main` and local `main` are both at `561dcd3`. 11 commits since `e60fa7f`, all pushed.
+`origin/main` and local `main` are both at `5cf54b4`. 14 commits since `e60fa7f`, all pushed.
 Suite is **230 tests, 0 failures** on iPhone 17 Pro / iOS 27.0, up from 205 at the start of the day.
 
 One file is modified and uncommitted, `OpenIntelligence/Features/Telemetry/Dashboard/MotherboardHUDView.swift`,
@@ -26,6 +26,10 @@ left out of every commit. Commit it or discard it; nothing depends on it.
 Eleven commits, newest first. The last two in this list are the previous objective; everything
 above them was found while verifying it. Three doc-only commits are omitted.
 
+- `5cf54b4` Three documentation-status banners asserted verification state that was wrong:
+  `RELEASE_NOTES.md` claimed 202 tests against 230, and `USER_CHANGELOG.md` and `WHATS_NEW.md` both
+  still said v4.9. The RUNBOOK gained the more dangerous omission, that stage figures either side of
+  2026-08-11 are not comparable because the eval ground truth changed rather than the pipeline.
 - `fd5af3a`, `561dcd3` Closed three gaps a final audit found: `RELEASE_NOTES.md` had no coverage of
   the correctness pass and its entry count read 74 against an actual 87, the Atlas did not record
   `LibraryDeletion`, and Notion was missing a row for it. The count had gone stale twice in one day,
