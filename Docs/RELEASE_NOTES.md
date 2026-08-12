@@ -22,9 +22,13 @@ This document provides a comprehensive, version-by-version breakdown of major ar
 
 ## v5.0 - August 10, 2026
 
-74 entries, 32 `[UI]`, 16 `[General]`, 15 `[Ingestion]`, 5 `[Retrieval]`, 5 `[Orchestration]`,
-1 `[Chunking]`. Counted from `CHANGELOG.md` on 2026-08-11; the previous figure here read 46 and had
-gone stale across the interface pass, which roughly tripled the `[UI]` count on its own.
+87 entries, 43 `[UI]`, 16 `[General]`, 15 `[Ingestion]`, 6 `[Retrieval]`, 6 `[Orchestration]`, 1 `[Chunking]`. Counted from `CHANGELOG.md` on 2026-08-11. This figure has now gone stale twice in one day: it read
+46 before the interface pass and 74 before the correctness pass that followed, because it is a typed
+number describing a countable fact. Recount it rather than trusting it, with:
+
+```bash
+awk '/^## 5\.0/{f=1;next} /^## 4\./{f=0} f' CHANGELOG.md | grep -c '^- \*\*\['
+```
 
 Three themes run through nearly all of them. The first is **loss that was invisible from the
 outside**: ingestion reported success on documents whose tables, figures and layout had already been
@@ -197,6 +201,42 @@ Engine occupancy API, so an implied measurement would be the same class of claim
 figure this release withdrew. **Neural Engine must keep saying Core ML makes the final scheduling
 decision**, the hedge `HowItWorksView` already carries, because the glossary must not be the more
 confident of the two documents.
+
+### The library surfaces, and what verifying the vocabulary work turned up
+
+The vocabulary pass above was meant to be the end of the interface work. Checking its claims against
+code instead opened a second arc, because the screens that manage libraries were making the same
+kind of statement and, in two cases, destroying data while making it.
+
+**Two controls deleted data and told users they had not.** "Remove Local Copies" was never local:
+`clearAllDocuments` writes a tombstone that the sync service unions into both workspace roots and
+then uses to filter the shared inventory, so the next pass removes those documents from iCloud and
+from every other device. The alert promised "Sync Now can bring them back". The per-document card
+carried the same promise, and its "Remove Local Copy" button also always deleted everywhere. That
+action is, incidentally, the wipe the app had been missing, so it is named **Wipe Library** now and
+states the real outcome. Separately, flipping a library to Local Only deletes its iCloud copy, and
+the most reachable path to that was a segmented control in the header with no confirmation at all.
+
+**Deleting a library existed twice and the copies had diverged.** Given an iCloud library whose
+shared copy fails to delete, one path aborted and reported while the other logged the error and
+deleted locally anyway, leaving the shared copy to restore the library on the next sync. One
+implementation now, and it aborts.
+
+**Library Settings described a pipeline that does not exist.** Its chunking sliders offered more
+than twice the range ingestion honours, its "elastic" strategy claimed embedding similarity between
+sentences that never runs, and its storage description named a format the vector store had stopped
+using. Saving a model change also deleted the library's vectors *before* asking whether to rebuild
+them, so answering "Later" left documents that could not be searched.
+
+**A fix in this release had already drifted by the end of the day.** The glossary shipped saying
+chunks are split where cosine similarity between sentences drops. That pass is implemented and never
+runs, because the chunker is never given an embedding service. Corrected in the same release, by the
+audit the glossary exists to make possible.
+
+The through-line is the same one the vocabulary work started: **a value written into copy drifts, a
+value read from code cannot.** Five separate defects here were a typed number sitting next to the
+real one. The projection tooltip, the device chips, the wipe count and both chunking sliders now
+read theirs.
 
 ### Repository, agents and documentation
 

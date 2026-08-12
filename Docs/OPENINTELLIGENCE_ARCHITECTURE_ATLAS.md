@@ -70,6 +70,25 @@ The OpenIntelligence Architecture Atlas is the canonical representation of the r
 - `HowItWorksView` narrates the pipeline in order; `GlossaryView` defines single words out of order. They are
   deliberately not copies of each other, and each stage in the former links to the latter rather than
   restating a definition.
+- **Deleting a library goes through one function, `LibraryDeletion.delete` in
+  `Features/Documents/Library/LibraryDeletion.swift`.** It removes the container, its documents,
+  chunks, vectors, Spotlight entries and entity-index rows, and its iCloud copy where it has one, and
+  it **aborts before touching anything local if the iCloud delete fails**, because deleting locally
+  while the shared copy survives means the next sync restores the library. `DocumentLibraryView` and
+  `ContainerSettingsSheet` both call it; the latter defers its `dismiss()` until the outcome is
+  `.deleted` so a refusal has somewhere to report. Two lookalikes are deliberately outside it:
+  `deleteConflictedLocalLibraries` handles libraries iCloud has already dropped and ends with a
+  `reconfigureIfNeeded` pass, and `OpenIntelligenceEngine.deleteLibrary` calls
+  `containerService.deleteContainer` alone, leaving documents behind, because it is `public` and
+  synchronous and cannot adopt an async path without breaking the SDK.
+  `[evidence_level: code_verified+build_verified, confidence: exact, evidence_source: LibraryDeletion.swift]`
+- **File placement under `OpenIntelligence/Services/` is a target decision, not just organisation.**
+  The `OpenIntelligenceEngine` framework synchronises eighteen folders, including
+  `Services/Infrastructure/Integration`, and excludes `Services/Infrastructure/Presentation` and all
+  of `Features/`. A new file in an included folder is compiled into the SDK as well, so one that
+  references a `Presentation` or `Features` type builds fine in the app and fails **only** the test
+  build, with a scope error indistinguishable from stale DerivedData. `LibraryDeletion.swift` lives
+  under `Features/` for this reason. `[evidence_level: code_verified, confidence: exact, evidence_source: project.pbxproj fileSystemSynchronizedGroups per target]`
 
 ## 6. Model/Persistence Map
 - `ChatMessage`: JSON serialized and stored locally.
