@@ -35,6 +35,11 @@ struct ContainerSettingsSheet: View {
     @State var pendingDBChange: VectorDBKind?
     @State private var showingPlanSheet = false
     @State var showingDeleteConfirmation = false
+    /// Why a delete did not happen, shown in an alert.
+    ///
+    /// Needed because this sheet no longer dismisses before the work runs, so a refusal from
+    /// iCloud now has a surface to report on instead of being logged and ignored.
+    @State var deleteError: String?
 
     // Retrieval configuration
     @State var retrievalConfig: RetrievalConfig = .default
@@ -337,6 +342,16 @@ struct ContainerSettingsSheet: View {
             .sheet(isPresented: $showingPlanSheet) {
                 PlanUpgradeSheet(entryPoint: .iCloudSync)
                     .environmentObject(entitlementStore)
+            }
+            .alert("Library not deleted", isPresented: Binding(
+                get: { deleteError != nil },
+                set: { if !$0 { deleteError = nil } }
+            )) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                if let deleteError {
+                    Text(deleteError)
+                }
             }
             .alert("Delete Library?", isPresented: $showingDeleteConfirmation) {
                 Button("Cancel", role: .cancel) {}
@@ -725,50 +740,37 @@ struct ContainerSettingsSheet: View {
     }
 
     @MainActor
+    /// Deletes through `LibraryDeletion`, and dismisses only once it has actually happened.
+    ///
+    /// Two behaviours changed here, and both were required before this could share the Documents
+    /// screen's implementation.
+    ///
+    /// It used to `dismiss()` immediately, before the work started. That was survivable only
+    /// because it also swallowed an iCloud failure with a `Log.error` and deleted locally anyway,
+    /// so from the user's side something always appeared to happen. The shared path aborts
+    /// instead, since deleting locally while the shared copy survives means the next sync brings
+    /// the library back. An aborted delete needs somewhere to say so, and a sheet that has
+    /// already dismissed has nowhere, so the dismiss now waits for a `.deleted` outcome.
     private func confirmDeleteLibrary() {
         guard let container = activeContainer else { return }
-        guard containerService.containers.count > 1 else { return }
 
         DSHaptics.delete()
-        dismiss()
 
         Task {
-            if container.syncMode == .iCloudShared {
-                do {
-                    try await workspaceSyncService.deleteSharedLibrary(container)
-                } catch {
-                    Log.error("[ContainerSettings] Failed to delete shared library from iCloud: \(error.localizedDescription)", category: .vectorDB)
-                }
-            }
+            let outcome = await LibraryDeletion.delete(
+                container,
+                ragService: ragService,
+                containerService: containerService,
+                workspaceSyncService: workspaceSyncService
+            )
 
-            let localContainerIDsToDelete: Set<UUID> = [container.id]
-
-            for containerId in localContainerIDsToDelete {
-                await ragService.cancelAndPurgeIngestion(for: containerId)
-            }
-
-            let docsToRemove = await MainActor.run {
-                ragService.documents.filter { document in
-                    guard let containerId = document.containerId else { return false }
-                    return localContainerIDsToDelete.contains(containerId)
-                }
-            }
-
-            for doc in docsToRemove {
-                try? await ragService.removeDocument(doc)
-            }
-
-            await MainActor.run {
-                for containerId in localContainerIDsToDelete {
-                    containerService.deleteContainer(id: containerId)
-                    LibraryVisualizationEngine.shared.invalidateCache(for: containerId)
-                }
-                containerService.reloadFromDisk()
-                ragService.reloadWorkspaceData()
-            }
-
-            for containerId in localContainerIDsToDelete {
-                await EntityIndexService.shared.removeContainer(containerId)
+            switch outcome {
+            case .deleted:
+                dismiss()
+            case .iCloudDeleteFailed(let message):
+                deleteError = "\(container.name) was not deleted, because iCloud refused: \(message)"
+            case .refusedLastLibrary:
+                deleteError = "\(container.name) is your only library, so it was not deleted."
             }
         }
     }

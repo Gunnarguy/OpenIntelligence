@@ -1621,6 +1621,13 @@ struct DocumentLibraryView: View {
     }
 
     @MainActor
+    /// Deletes through `LibraryDeletion` and reports the outcome in this screen's status line.
+    ///
+    /// The teardown itself used to live here in full, with a near-identical copy in
+    /// `ContainerSettingsSheet`. This screen's behaviour is the one that survived, including
+    /// aborting when iCloud refuses. `resolvedLocalDeletionContainerIDs` and
+    /// `containerDeletionMergeKey` went with it: the first's fallback compared a UUID string to
+    /// itself, so it could only match the id the early return already handled.
     private func confirmDeleteLibrary() {
         guard let container = libraryToDelete else { return }
 
@@ -1629,87 +1636,31 @@ struct DocumentLibraryView: View {
         libraryToDelete = nil
 
         Task {
-            if container.syncMode == .iCloudShared {
-                await MainActor.run {
-                    isRefreshingSharedWorkspace = true
-                    sharedWorkspaceRefreshMessage = nil
-                }
-
-                do {
-                    try await workspaceSyncService.deleteSharedLibrary(container)
-                } catch {
-                    await MainActor.run {
-                        isRefreshingSharedWorkspace = false
-                        sharedWorkspaceRefreshMessage = error.localizedDescription
-                    }
-                    return
-                }
+            let isShared = container.syncMode == .iCloudShared
+            if isShared {
+                isRefreshingSharedWorkspace = true
+                sharedWorkspaceRefreshMessage = nil
             }
 
-            let localContainerIDsToDelete = await MainActor.run {
-                resolvedLocalDeletionContainerIDs(for: container)
-            }
+            let outcome = await LibraryDeletion.delete(
+                container,
+                ragService: ragService,
+                containerService: containerService,
+                workspaceSyncService: workspaceSyncService
+            )
 
-            for containerId in localContainerIDsToDelete {
-                await ragService.cancelAndPurgeIngestion(for: containerId)
-            }
-
-            let docsToRemove = await MainActor.run {
-                ragService.documents.filter { document in
-                    guard let containerId = document.containerId else { return false }
-                    return localContainerIDsToDelete.contains(containerId)
-                }
-            }
-
-            for doc in docsToRemove {
-                try? await ragService.removeDocument(doc)
-            }
-
-            await MainActor.run {
-                for containerId in localContainerIDsToDelete {
-                    containerService.deleteContainer(id: containerId)
-                    LibraryVisualizationEngine.shared.invalidateCache(for: containerId)
-                }
-                containerService.reloadFromDisk()
-                ragService.reloadWorkspaceData()
-                if container.syncMode == .iCloudShared {
-                    isRefreshingSharedWorkspace = false
-                    sharedWorkspaceRefreshMessage = "\(container.name) was removed from this device and iCloud Sync."
-                }
-            }
-
-            for containerId in localContainerIDsToDelete {
-                await EntityIndexService.shared.removeContainer(containerId)
+            isRefreshingSharedWorkspace = false
+            switch outcome {
+            case .deleted:
+                sharedWorkspaceRefreshMessage = isShared
+                    ? "\(container.name) was removed from this device and iCloud Sync."
+                    : nil
+            case .iCloudDeleteFailed(let message):
+                sharedWorkspaceRefreshMessage = message
+            case .refusedLastLibrary:
+                sharedWorkspaceRefreshMessage = "\(container.name) is your only library, so it was not deleted."
             }
         }
-    }
-
-    @MainActor
-    private func resolvedLocalDeletionContainerIDs(for targetContainer: KnowledgeContainer) -> Set<UUID> {
-        let currentContainers = containerService.containers
-
-        if currentContainers.contains(where: { $0.id == targetContainer.id }) {
-            return [targetContainer.id]
-        }
-
-        guard targetContainer.syncMode == .iCloudShared,
-              let targetMergeKey = containerDeletionMergeKey(for: targetContainer)
-        else {
-            return []
-        }
-
-        let matchingIDs = currentContainers.compactMap { container -> UUID? in
-            guard container.syncMode == .iCloudShared else { return nil }
-            return containerDeletionMergeKey(for: container) == targetMergeKey ? container.id : nil
-        }
-
-        return Set(matchingIDs)
-    }
-
-    private func containerDeletionMergeKey(for container: KnowledgeContainer) -> String? {
-        guard container.syncMode == .iCloudShared else { return nil }
-
-        return container.id.uuidString.lowercased()
     }
 
     @MainActor

@@ -69,6 +69,8 @@ Importing a document was quietly losing parts of it. This release finds the plac
 *   **The chunk size controls now say you should not touch them.** The app already picks a chunk size from the kind of file you imported, smaller for code, larger for reports and transcripts. Setting these by hand replaces that with one size for everything in the library.
 *   **Two descriptions on that screen were not true.** One said chunks are split by comparing meaning between sentences; that never runs. It splits on section headings and a fixed list of ten English phrases, and the screen says so now, including that the list is English only. The other described the storage format the app stopped using.
 
+*   **Deleting a library from its settings screen no longer half-works.** If iCloud refused the delete, that screen used to remove the library from this device anyway, so the next sync brought it back and you were left thinking it was gone. It now stops, keeps the library, and tells you why.
+
 ### Things The App Was Claiming That Weren't True
 
 Settings describes what the app is doing while it answers you. Several of those lines described

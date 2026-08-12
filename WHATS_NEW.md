@@ -49,6 +49,8 @@ Importing a document was quietly losing parts of it. This release finds the plac
 - **The chunk size sliders stop where the app actually stops:** they offered up to 600 words and 200 overlap while importing capped them at 260 and 50.
 - **Two untrue descriptions corrected:** chunks are not split by comparing meaning between sentences, and the storage format described is no longer the one in use.
 
+- **Deleting a library from its settings screen no longer half-works:** if iCloud refused, it removed the library locally anyway and the next sync brought it back. It now stops and says why.
+
 ### Things The App Was Claiming That Weren't True
 Settings describes what the app is doing while it answers you, and several of those lines described things the code does not do.
 - **It listed eight agentic tools, and all eight were the wrong ones.** Four are actually wired up; those four are what it names now.
