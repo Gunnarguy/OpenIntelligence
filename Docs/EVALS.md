@@ -49,30 +49,79 @@ Evaluation datasets are represented as JSON Lines files, with one JSON object pe
 
 ---
 
-## The Dataset
+## The Datasets
 
-`Benchmarks/rag_eval_v1.jsonl` — **20 cases** over committed synthetic fixtures. No private content, so it is reproducible by anyone with the repository.
+Two packs, measuring different things. Both are generated, not hand-written, and both are
+reproducible by anyone with the repository.
 
-It is **generated**, not hand-written. Ground truth lives in `Benchmarks/ResearchFixtures/tiny_research_suite/manifest.json`, which the in-app validation harness already consumed in its own schema. `scripts/build_eval_dataset.py` converts that manifest into the `RAGEvalCase` JSONL this framework loads, so the two evaluation systems cannot drift apart:
+| Dataset | Cases | Ground truth | Corpus per case |
+| :--- | ---: | :--- | :--- |
+| `Benchmarks/rag_eval_v1.jsonl` | 20 | authored in this repo | only the files the case names |
+| `Benchmarks/rag_eval_qasper_v1.jsonl` | 83 | QASPER, CC BY 4.0 | a shared 40-paper pool |
+
+**Use the QASPER pack for any question about whether a change helped.** The synthetic pack
+ingests only the documents a case names, so its index contains nothing that is not the answer.
+On the 2026-08-11 run that left the vector stage ranking between two and five candidates, all
+of them correct, which pins `R@5` and `MRR@10` at 1.000 as a matter of arithmetic rather than
+pipeline quality. It can still catch a regression, and it stays as the fast smoke pack.
+
+The QASPER pack declares a shared `pool` in its manifest that is ingested for every case, so
+each question is asked against 39 distractor papers and retrieval is able to fail. Its ground
+truth also came from outside: readers wrote the questions from title and abstract alone, and
+separate annotators answered them against the full text. Cases are kept only where at least
+two annotators agreed, and the count is recorded per case.
+
+`[evidence_level: run_artifact_verified, confidence: exact, evidence_source: BenchmarkRuns/20260811-150328-matrix/reports/*.txt STAGE METRICS results column; run_quality_matrix.py:391 and :720]`
+
+Ground truth lives in the pack manifests, which the in-app validation harness already consumed
+in its own schema. `scripts/build_eval_dataset.py` converts each manifest into the `RAGEvalCase`
+JSONL this framework loads, so the two evaluation systems cannot drift apart:
 
 ```bash
-python3 scripts/build_eval_dataset.py          # regenerate
-python3 scripts/build_eval_dataset.py --check  # fail if stale vs. the manifest
+python3 scripts/build_eval_dataset.py          # regenerate every pack
+python3 scripts/build_eval_dataset.py --check  # fail if stale vs. the manifests
 ```
 
-Never edit the JSONL by hand — edit the manifest and regenerate.
+The QASPER corpus itself is rebuilt and verified separately, and `--check` needs no network:
+
+```bash
+python3 scripts/build_external_fixtures.py          # rebuild from Hugging Face
+python3 scripts/build_external_fixtures.py --check  # verify against fixtures.lock.json
+```
+
+Never edit a JSONL by hand. Edit the manifest, or rebuild the pack, and regenerate.
+
+**Figures from the two packs are not comparable.** Different corpus, different ground truth,
+different difficulty; a delta between them measures the fixture rather than the app.
 
 ### Coverage
+
+`rag_eval_v1.jsonl`, synthetic:
 
 | Cases | Category | Exercises |
 | :--- | :--- | :--- |
 | 5 | `exact_value` | Precise figure lookup from tables and prose |
 | 5 | `factual` (retrieval-only) | Single-document grounded recall |
-| 3 | `factual` (lost-in-middle) | Answer position sensitivity — start, middle, end of context |
+| 3 | `factual` (lost-in-middle) | Answer position sensitivity: start, middle, end of context |
 | 5 | `multi_document` | Two-hop synthesis across paired documents |
 | 2 | `abstention` | Negative controls: the answer is genuinely absent and the app must abstain |
 
-The original manifest category is preserved in each case's `tags`, so `lost_in_middle` and `retrieval_only` subsets stay selectable even though both map onto `EvalCategory.factual`.
+`rag_eval_qasper_v1.jsonl`, external:
+
+| Cases | Category | Exercises |
+| :--- | :--- | :--- |
+| 55 | `exact_value` | Extractive spans from a research paper, agreed by 2+ annotators |
+| 22 | `factual` (retrieval-only) | Free-form and yes/no answers grounded in one paper |
+| 6 | `abstention` | Questions a majority of annotators judged unanswerable from the paper |
+
+The original manifest category is preserved in each case's `tags`, so `lost_in_middle` and
+`retrieval_only` subsets stay selectable even though both map onto `EvalCategory.factual`.
+
+The QASPER pack has no `multi_document` cases on purpose. Every QASPER question is answered
+inside a single paper, so labelling one that way would assert a second required document that
+does not exist. Questions whose supporting evidence spans several sections are real
+multi-chunk synthesis, which is a different property; those carry the `multi_paragraph` tag
+instead, and `expected_evidence` in the manifest records the sections involved.
 
 The two abstention cases matter most. They are the only cases that catch confident fabrication, which is the failure mode this project's verification gates exist to prevent.
 

@@ -162,13 +162,40 @@ With the correct ground truth every stage reads 1.000. **Do not read that as a p
 and do not diff a pre-08-11 run against a post-08-11 one at the stage level.** Accuracy, abstention
 and hallucination counts are unaffected and remain comparable.
 
-**4. The fixture cannot currently score a model change.** Every stage is at ceiling on R@5 and
-MRR@10, so the harness can detect a regression and cannot demonstrate an improvement. The corpus is
-also self-authored (`manifest.json` says "Generated locally by OpenIntelligence fixture script", and
-the tags read `synthetic_financebench_style`, meaning the style rather than the dataset), ground
-truth is document-level while retrieval returns chunks, and n=18, where the harness prints its own
-warning that differences below roughly 25 points are not resolvable. Treat a green run as "no
-regression detected", never as evidence that a change helped.
+**4. The synthetic fixture cannot score a model change, and the reason is the corpus, not the
+sample size.** `run_quality_matrix.py` creates a fresh store per (case, mode) and ingests only that
+case's `input_files`, so each case is scored against an index holding nothing but its own expected
+documents. On the 2026-08-11 run the vector stage saw two to five candidates per case, every one of
+them correct. `R@5` asks whether the right document is in the top five when there are at most five
+candidates and all are relevant, so the 1.000s were arithmetic. External data and a larger `n` do
+not move that on their own. Treat a green run on this pack as "no regression detected", never as
+evidence that a change helped.
+`[evidence_level: run_artifact_verified, confidence: exact, evidence_source: BenchmarkRuns/20260811-150328-matrix/reports/*.txt STAGE METRICS; run_quality_matrix.py:391, :720]`
+
+**5. Use the QASPER pack to measure anything.** `Benchmarks/ResearchFixtures/qasper_external_v1/`
+carries 83 cases whose questions, answers and evidence come from QASPER (CC BY 4.0), and declares a
+shared 40-paper `pool` that is ingested for every case, so each question is asked against 39
+distractor papers.
+
+```bash
+python3 scripts/run_quality_matrix.py --app /private/tmp/oi-mac-nosbx/Build/Products/Debug/OpenIntelligence.app --manifest Benchmarks/ResearchFixtures/qasper_external_v1/manifest.json --modes standard --pcc deny
+```
+
+Ingestion is much heavier than the synthetic pack: every case ingests the whole pool, roughly
+135,000 words, because the harness cannot share one index across cases without losing the
+document-name mapping (see the note in `run_one`). Budget accordingly and do not lower `--timeout`.
+
+Rebuild or verify the corpus with `scripts/build_external_fixtures.py`; `--check` is offline and
+compares against `fixtures.lock.json`.
+
+**6. The harness overstated its own sensitivity until 2026-08-12.**
+`minimum_detectable_effect(n)` interpolated the sample size into a sentence whose threshold was a
+hardcoded constant, so it printed "differences below about 25 points are not resolvable" at every
+`n`. Under the exact two-sided sign test the function describes, `2 * 0.5**d < 0.05` first holds at
+d=6, and the smallest difference that reaches it is `6/n`. That is **33 points at n=18, not 25**.
+Every report in `BenchmarkRuns/` dated before 2026-08-12 carries the constant; read those power
+statements as `6/n` instead. At n=83 the current figure is about 7 points.
+`[evidence_level: computed_verified, confidence: exact, evidence_source: exact binomial sign test; scripts/run_quality_matrix.py minimum_detectable_effect]`
 
 ## Lint
 

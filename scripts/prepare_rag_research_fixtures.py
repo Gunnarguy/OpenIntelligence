@@ -740,8 +740,24 @@ def prepare_requested_sources(args: argparse.Namespace, pack_dir: Path) -> list[
         source, path = item.split("=", 1)
         input_map[source.strip()] = Path(path).expanduser()
 
+    # This repository is public and backs a paid application, so a non-commercial dataset cannot
+    # be committed to it. These sources stay reachable for local experiments and are refused as a
+    # silent side effect of `--download`, which is how NC content would otherwise land in the tree.
+    NON_COMMERCIAL = {
+        "financebench": "CC BY-NC 4.0",
+        "docvqa": "official portal terms, redistribution not granted",
+    }
+
     cases: list[PreparedCase] = []
     for source in args.source:
+        licence = NON_COMMERCIAL.get(source)
+        if licence and not args.accept_non_commercial:
+            raise FixturePrepError(
+                f"'{source}' is {licence} and must not be committed to this repository. "
+                f"For a local-only experiment, pass --accept-non-commercial and keep the output "
+                f"out of git. For a committed pack use scripts/build_external_fixtures.py, which "
+                f"draws on QASPER (CC BY 4.0)."
+            )
         if source == "financebench":
             cases.extend(FinanceBenchAdapter().prepare(pack_dir, input_map.get(source), args.download, args.limit))
         elif source == "open-ragbench":
@@ -822,6 +838,12 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--input", action="append", help="Local source input as source=/path/to/file_or_dir")
     parser.add_argument("--download", action="store_true", help="Allow small built-in downloads for supported sources")
+    parser.add_argument(
+        "--accept-non-commercial",
+        action="store_true",
+        help="Permit non-commercial sources (financebench, docvqa) for a local-only run. Their "
+             "output must not be committed to this repository.",
+    )
     parser.add_argument("--limit", type=int, default=5, help="Max cases per non-synthetic source")
     parser.add_argument("--beir-name", default="nfcorpus", choices=sorted(BEIR_DOWNLOADS))
     return parser.parse_args()

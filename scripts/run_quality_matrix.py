@@ -14,9 +14,16 @@ constructs its own RAGService, ingests the named files, runs one query, prints
 a report, and exits. This script drives that entry point once per
 (case x mode) pair and parses the reports into a comparison.
 
-Ground truth comes from the tiny_research_suite manifest -- the same source
-`build_eval_dataset.py` uses -- so scoring uses the manifest's
+Ground truth comes from the manifest named by `--manifest`, the same source
+`build_eval_dataset.py` uses, so scoring uses the manifest's
 `expected_answer_patterns` regexes rather than the prose rendering in the JSONL.
+
+Two packs exist and they measure different things. `tiny_research_suite` is
+synthetic and self-authored, and every case is ingested alone, so its retrieval
+stages sit at a ceiling by construction. `qasper_external_v1` carries external
+ground truth and a shared `pool` of distractor documents that is ingested for
+every case, which is what allows retrieval to fail and therefore to improve.
+Figures from the two are not comparable.
 
 Local-only by default
 ---------------------
@@ -53,7 +60,7 @@ import tempfile
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-MANIFEST = REPO_ROOT / "Benchmarks/ResearchFixtures/tiny_research_suite/manifest.json"
+DEFAULT_MANIFEST = REPO_ROOT / "Benchmarks/ResearchFixtures/tiny_research_suite/manifest.json"
 ALL_MODES = ["standard", "deep-think", "maximum"]
 
 # Report lines the harness prints, mapped to the fields we care about.
@@ -176,7 +183,7 @@ def _cmd(*args: str, merge_stderr: bool = False) -> str:
         return ""
 
 
-def collect_provenance(argv: list[str]) -> dict:
+def collect_provenance(argv: list[str], manifest: Path) -> dict:
     """Everything needed to say whether two runs are comparable.
 
     A benchmark number without this is an assertion. The dirty-tree flag matters most: a result
@@ -189,7 +196,9 @@ def collect_provenance(argv: list[str]) -> dict:
     the on-device model instead. Record it rather than trusting the flag that was requested.
     """
     dataset = REPO_ROOT / "Benchmarks/rag_eval_v1.jsonl"
-    fixtures = sorted((REPO_ROOT / "Benchmarks/ResearchFixtures/tiny_research_suite/fixtures").rglob("*"))
+    # Derived from the manifest in use rather than hardcoded, so a run against a different pack
+    # records that pack's corpus hash instead of silently stamping the synthetic suite's.
+    fixtures = sorted((Path(manifest).parent / "fixtures").rglob("*"))
     h = hashlib.sha256()
     for f in fixtures:
         if f.is_file():
@@ -231,16 +240,36 @@ def bootstrap_ci(values: list[float], iterations: int = 2000, seed: int = 202608
     return (means[int(0.025 * iterations)], means[int(0.975 * iterations) - 1])
 
 
+DISCORDANT_FOR_SIGNIFICANCE = 6
+
+
 def minimum_detectable_effect(n: int) -> str:
     """Plain statement of what this sample size can and cannot resolve.
 
     Reported next to every recall figure because a flat result at n=18 reads as "no regression"
     when it actually means "no regression large enough to see".
+
+    Corrected 2026-08-12. This returned a fixed "differences below about 25 points are not
+    resolvable" for every `n`: the sentence interpolated the sample size but the threshold was
+    a constant, so it printed the same power claim at n=18 and n=150. Every archived report in
+    `BenchmarkRuns/` carries the constant, and it was quoted as measured in `Docs/ai/RUNBOOK.md`,
+    `Docs/ai/STATE.md` and the Notion row that tracks this fixture work.
+
+    What is actually true. Under the exact two-sided sign test this sentence describes,
+    `2 * 0.5**d < 0.05` first holds at d=6, so six discordant pairs all favouring one side is
+    the significance threshold, and that part was right and is genuinely independent of `n`.
+    The smallest *difference* that can reach it is b=6, c=0, which is `6/n`. That is 33 points
+    at n=18, not 25, so the old figure overstated the harness's sensitivity by a third.
     """
     if n <= 0:
         return "no scored cases"
-    return (f"at n={n}, a paired comparison needs roughly 6 discordant cases all favouring one "
-            f"side to reach p<0.05; differences below about 25 points are not resolvable")
+    d = DISCORDANT_FOR_SIGNIFICANCE
+    if n < d:
+        return (f"at n={n}, no difference is resolvable: the exact sign test needs {d} discordant "
+                f"cases to reach p<0.05 and there are only {n} cases in total")
+    return (f"at n={n}, a paired comparison needs {d} discordant cases all favouring one side to "
+            f"reach p<0.05, so the smallest resolvable difference is {d}/{n}, about "
+            f"{d / n * 100:.0f} points")
 
 
 def summarize_stages(rows: list[dict], mode: str) -> list[dict]:
@@ -376,7 +405,7 @@ def score(case: dict, parsed: dict) -> dict:
 
 def run_one(
     app_bin: Path, case: dict, mode: str, pcc: str, timeout: int,
-    storage: Path, ingest: bool,
+    storage: Path, ingest: bool, pool: list[str] | None = None,
 ) -> dict:
     """Launch the app headlessly for a single (case, mode) pair.
 
@@ -388,10 +417,16 @@ def run_one(
     real cost was never ingestion anyway -- it is first-run model warm-up,
     which the OS amortizes across subsequent launches.
     """
-    inputs = [str(REPO_ROOT / p) for p in case["input_files"]]
+    # The shared pool is ingested alongside the case's own files, so the index holds documents
+    # that are *not* the answer. Without it every case was scored against an index containing
+    # only its own expected file: the 2026-08-11 run gave the vector stage two to five candidates
+    # per case, all of them correct, which forced R@5 and MRR@10 to 1.000 arithmetically. A
+    # fixture with no distractors can register a regression but can never show an improvement.
+    ordered = list(dict.fromkeys(list(pool or []) + list(case["input_files"])))
+    inputs = [str(REPO_ROOT / p) for p in ordered]
     missing = [p for p in inputs if not Path(p).exists()]
     if missing:
-        return {"ok": False, "error": f"missing fixtures: {missing}"}
+        return {"ok": False, "error": f"missing fixtures: {missing[:3]}"}
 
     cmd = [
         str(app_bin),
@@ -611,11 +646,13 @@ def render_markdown(summaries: list[dict], rows: list[dict], meta: dict,
                  "non-relevant — defensible only because the corpus is closed and small, and false "
                  "the day this points at real user documents. The numbers do not generalise.")
         L.append("")
+        floor = (DISCORDANT_FOR_SIGNIFICANCE / n * 100) if n >= DISCORDANT_FOR_SIGNIFICANCE else None
         L.append(f"**Statistical power:** {minimum_detectable_effect(n)}. When a run shows no "
-                 "movement, the correct wording is *\"no change larger than roughly 25 points "
-                 "would have been detected\"* — never *\"no regression\"*. At this sample size "
-                 "the risk is not only missing a regression but reporting one as an apparent "
-                 "improvement.")
+                 "movement, the correct wording is " + (
+                     f"*\"no change larger than about {floor:.0f} points would have been "
+                     "detected\"*" if floor else "*\"nothing would have been detected\"*") +
+                 ", never *\"no regression\"*. The risk at this sample size is not only missing "
+                 "a regression but reporting one as an apparent improvement.")
         L.append("")
         L.append("**Never ship a retrieval change on a delta from this table alone.** Require a "
                  "mechanism-level explanation for the movement. These cases have also been tuned "
@@ -684,6 +721,11 @@ def main() -> int:
     ap.add_argument("--limit", type=int, default=0, help="run only the first N cases (smoke test)")
     ap.add_argument("--timeout", type=int, default=600, help="per-run timeout in seconds")
     ap.add_argument("--output-dir", default="")
+    ap.add_argument("--manifest", default=str(DEFAULT_MANIFEST.relative_to(REPO_ROOT)),
+                    help="fixture manifest to run. A pack may declare a top-level `pool`, which "
+                         "is ingested for every case so retrieval has distractors. For external "
+                         "ground truth: "
+                         "Benchmarks/ResearchFixtures/qasper_external_v1/manifest.json")
     args = ap.parse_args()
 
     app = Path(args.app).expanduser().resolve()
@@ -698,7 +740,12 @@ def main() -> int:
         print(f"error: unknown mode(s) {bad}; choose from {ALL_MODES}", file=sys.stderr)
         return 2
 
-    cases = json.loads(MANIFEST.read_text())["cases"]
+    manifest_path = Path(args.manifest)
+    if not manifest_path.is_absolute():
+        manifest_path = REPO_ROOT / manifest_path
+    manifest = json.loads(manifest_path.read_text())
+    cases = manifest["cases"]
+    pool = manifest.get("pool", [])
     if args.limit:
         cases = cases[: args.limit]
 
@@ -723,7 +770,7 @@ def main() -> int:
                 print(f"[{n}/{total}] {mode:11} {case['id']}", end=" ", flush=True)
                 run = run_one(
                     app_bin, case, mode, args.pcc, args.timeout,
-                    storage=storage, ingest=True,
+                    storage=storage, ingest=True, pool=pool,
                 )
                 row = {"case_id": case["id"], "category": case["category"], "mode": mode, "run": run}
                 if run.get("ok"):
@@ -743,7 +790,9 @@ def main() -> int:
     meta = {
         "run_id": run_id, "app": str(app_bin), "cases": len(cases),
         "modes": modes, "pcc": args.pcc, "wall_seconds": round(wall, 1),
-        **collect_provenance(argv=sys.argv),
+        "manifest": str(manifest_path.relative_to(REPO_ROOT)),
+        "pool_documents": len(pool),
+        **collect_provenance(argv=sys.argv, manifest=manifest_path),
     }
 
     # Keep full reports out of the JSON index; write them beside it instead.

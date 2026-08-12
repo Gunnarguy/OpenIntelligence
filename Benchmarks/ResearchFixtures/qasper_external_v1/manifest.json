@@ -1,0 +1,3518 @@
+{
+  "cases": [
+    {
+      "annotator_agreement": 3,
+      "answer_kind": "extractive",
+      "category": "exact_value",
+      "evidence_sections": [
+        "Datasets ::: AntiScam Dataset"
+      ],
+      "expected_answer_patterns": [
+        "(?i)220\\s+human\\-human\\s+dialogs"
+      ],
+      "expected_behavior": "answer",
+      "expected_evidence": [
+        {
+          "excerpt": "To enrich available non-collaborative task datasets, we created a corpus of human-human anti-scam dialogs in order to learn human elicitation strategies. We cho",
+          "section": "Datasets ::: AntiScam Dataset"
+        }
+      ],
+      "expected_source": {
+        "filename": "1911.10742.md",
+        "page": null
+      },
+      "expected_sources": [
+        {
+          "filename": "1911.10742.md",
+          "page": null
+        }
+      ],
+      "id": "qasper_1911.10742_397a1e85",
+      "input_files": [],
+      "license_note": "QASPER (Dasigi et al., NAACL 2021), CC BY 4.0. Adapted locally: paper full text rendered to Markdown; questions, answers and evidence taken from the dataset unchanged.",
+      "paper_id": "1911.10742",
+      "quality_mode": "standard",
+      "query": "How big is the ANTISCAM dataset?",
+      "question_id": "397a1e851aab41c455c2b284f5e4947500d797f0",
+      "source_dataset": "QASPER",
+      "tags": []
+    },
+    {
+      "annotator_agreement": 4,
+      "answer_kind": "extractive",
+      "category": "exact_value",
+      "evidence_sections": [
+        "Results and Analysis",
+        "Introduction",
+        "Experiments ::: Baseline Models"
+      ],
+      "expected_answer_patterns": [
+        "(?i)TransferTransfo"
+      ],
+      "expected_behavior": "answer",
+      "expected_evidence": [
+        {
+          "excerpt": "Table TABREF19 presents the main experiment results on AntiScam dataset, for both automatic evaluation metrics and human evaluation metrics. The experiment resu",
+          "section": "Results and Analysis"
+        },
+        {
+          "excerpt": "Previous studies use template-based methods to maintain sentence coherence. However, rigid templates lead to limited diversity, causing the user losing engageme",
+          "section": "Introduction"
+        },
+        {
+          "excerpt": "We compare MISSA mainly with two baseline models:",
+          "section": "Experiments ::: Baseline Models"
+        },
+        {
+          "excerpt": "TransferTransfo The vanilla TransferTransfo framework is compared with MISSA to show the impact and necessity of adding the intent and slot classifiers. We foll",
+          "section": "Experiments ::: Baseline Models"
+        }
+      ],
+      "expected_source": {
+        "filename": "1911.10742.md",
+        "page": null
+      },
+      "expected_sources": [
+        {
+          "filename": "1911.10742.md",
+          "page": null
+        }
+      ],
+      "id": "qasper_1911.10742_f7662b11",
+      "input_files": [],
+      "license_note": "QASPER (Dasigi et al., NAACL 2021), CC BY 4.0. Adapted locally: paper full text rendered to Markdown; questions, answers and evidence taken from the dataset unchanged.",
+      "paper_id": "1911.10742",
+      "quality_mode": "standard",
+      "query": "What are the baselines outperformed by this work?",
+      "question_id": "f7662b11e87c1e051e13799413f3db459ac3e19c",
+      "source_dataset": "QASPER",
+      "tags": [
+        "multi_paragraph"
+      ]
+    },
+    {
+      "annotator_agreement": 2,
+      "answer_kind": "extractive",
+      "category": "exact_value",
+      "evidence_sections": [
+        "Experiments ::: Automatic Evaluation Metrics",
+        "Experiments ::: Human Evaluation Metrics"
+      ],
+      "expected_answer_patterns": [
+        "(?i)Fluency"
+      ],
+      "expected_behavior": "answer",
+      "expected_evidence": [
+        {
+          "excerpt": "Experiments ::: Automatic Evaluation Metrics",
+          "section": null
+        },
+        {
+          "excerpt": "Perplexity Since the canonical measure of a good language model is perplexity, which indicates the error rate of the expected word. We choose perplexity to eval",
+          "section": "Experiments ::: Automatic Evaluation Metrics"
+        },
+        {
+          "excerpt": "Response-Intent Prediction (RIP) $\\&$ Response-Slot Prediction (RSP) Different from open-domain dialog systems, we care about the intents of the system response",
+          "section": "Experiments ::: Automatic Evaluation Metrics"
+        },
+        {
+          "excerpt": "Extended Response-Intent Prediction (ERIP) $\\&$ Extended Response-Slot Prediction (ERSP) With Response-Intent Prediction, we verify the predicted intents to eva",
+          "section": "Experiments ::: Automatic Evaluation Metrics"
+        }
+      ],
+      "expected_source": {
+        "filename": "1911.10742.md",
+        "page": null
+      },
+      "expected_sources": [
+        {
+          "filename": "1911.10742.md",
+          "page": null
+        }
+      ],
+      "id": "qasper_1911.10742_b5847396",
+      "input_files": [],
+      "license_note": "QASPER (Dasigi et al., NAACL 2021), CC BY 4.0. Adapted locally: paper full text rendered to Markdown; questions, answers and evidence taken from the dataset unchanged.",
+      "paper_id": "1911.10742",
+      "quality_mode": "standard",
+      "query": "What are the evaluation metrics and criteria used to evaluate the model performance?",
+      "question_id": "b584739622d0c53830e60430b13fd3ae6ff43669",
+      "source_dataset": "QASPER",
+      "tags": [
+        "multi_paragraph"
+      ]
+    },
+    {
+      "annotator_agreement": 2,
+      "answer_kind": "extractive",
+      "category": "exact_value",
+      "evidence_sections": [
+        "Rumour detection effectiveness"
+      ],
+      "expected_answer_patterns": [
+        "(?i)Liu\\s+et\\.\\s+al\\s+\\(2015\\)"
+      ],
+      "expected_behavior": "answer",
+      "expected_evidence": [
+        {
+          "excerpt": "To evaluate our new features for rumour detection, we compare them with two state-of-the-art early rumour detection baselines Liu et. al (2015) and Yang et. al ",
+          "section": "Rumour detection effectiveness"
+        }
+      ],
+      "expected_source": {
+        "filename": "1611.06322.md",
+        "page": null
+      },
+      "expected_sources": [
+        {
+          "filename": "1611.06322.md",
+          "page": null
+        }
+      ],
+      "id": "qasper_1611.06322_1a615618",
+      "input_files": [],
+      "license_note": "QASPER (Dasigi et al., NAACL 2021), CC BY 4.0. Adapted locally: paper full text rendered to Markdown; questions, answers and evidence taken from the dataset unchanged.",
+      "paper_id": "1611.06322",
+      "quality_mode": "standard",
+      "query": "What previous methods do they compare against?",
+      "question_id": "1a6156189297b2fe17f174ef55cbd20341bb7dbf",
+      "source_dataset": "QASPER",
+      "tags": []
+    },
+    {
+      "annotator_agreement": 2,
+      "answer_kind": "extractive",
+      "category": "exact_value",
+      "evidence_sections": [
+        "Evaluation metrics"
+      ],
+      "expected_answer_patterns": [
+        "(?i)throughput\\s+per\\s+second"
+      ],
+      "expected_behavior": "answer",
+      "expected_evidence": [
+        {
+          "excerpt": "We report accuracy to evaluate effectiveness, as is usual in the literature (Zhou et. al, 2015). Additionally we use the standard TDT evaluation procedure (Alla",
+          "section": "Evaluation metrics"
+        }
+      ],
+      "expected_source": {
+        "filename": "1611.06322.md",
+        "page": null
+      },
+      "expected_sources": [
+        {
+          "filename": "1611.06322.md",
+          "page": null
+        }
+      ],
+      "id": "qasper_1611.06322_3319d565",
+      "input_files": [],
+      "license_note": "QASPER (Dasigi et al., NAACL 2021), CC BY 4.0. Adapted locally: paper full text rendered to Markdown; questions, answers and evidence taken from the dataset unchanged.",
+      "paper_id": "1611.06322",
+      "quality_mode": "standard",
+      "query": "What is their evaluation metric?",
+      "question_id": "3319d56556ae1597a86384057db0831e32774b90",
+      "source_dataset": "QASPER",
+      "tags": []
+    },
+    {
+      "annotator_agreement": 4,
+      "answer_kind": "yes_no",
+      "category": "retrieval_only",
+      "evidence_sections": [
+        "Data set"
+      ],
+      "expected_answer_patterns": [
+        "(?i)Yes"
+      ],
+      "expected_behavior": "answer",
+      "expected_evidence": [
+        {
+          "excerpt": "trusted resources: We randomly collected 200 news articles about broad topics commonly reported by news wires over our target time period. These range from news",
+          "section": "Data set"
+        },
+        {
+          "excerpt": "rumours: Sina Weibo offers an official rumour debunking service, operated by trained human professionals. Following Yang et. al (2012) and Zhou et. al (2015), w",
+          "section": "Data set"
+        },
+        {
+          "excerpt": "Rumour detection on social media is a novel research field without official data sets. Since licences agreements forbid redistribution of data, no data sets fro",
+          "section": "Data set"
+        },
+        {
+          "excerpt": "For our social media stream, we chose Sina Weibo, a Chinese social media service with more than 200 million active users. Micro-blogs from Sina Weibo are denote",
+          "section": "Data set"
+        }
+      ],
+      "expected_source": {
+        "filename": "1611.06322.md",
+        "page": null
+      },
+      "expected_sources": [
+        {
+          "filename": "1611.06322.md",
+          "page": null
+        }
+      ],
+      "id": "qasper_1611.06322_85e41723",
+      "input_files": [],
+      "license_note": "QASPER (Dasigi et al., NAACL 2021), CC BY 4.0. Adapted locally: paper full text rendered to Markdown; questions, answers and evidence taken from the dataset unchanged.",
+      "paper_id": "1611.06322",
+      "quality_mode": "standard",
+      "query": "Do they build a dataset of rumors?",
+      "question_id": "85e417231a4bbb6691f7a89bd81710525f8fec4c",
+      "source_dataset": "QASPER",
+      "tags": []
+    },
+    {
+      "annotator_agreement": 2,
+      "answer_kind": "extractive",
+      "category": "exact_value",
+      "evidence_sections": [
+        "Data set"
+      ],
+      "expected_answer_patterns": [
+        "(?i)Chinese"
+      ],
+      "expected_behavior": "answer",
+      "expected_evidence": [
+        {
+          "excerpt": "trusted resources: We randomly collected 200 news articles about broad topics commonly reported by news wires over our target time period. These range from news",
+          "section": "Data set"
+        },
+        {
+          "excerpt": "For our social media stream, we chose Sina Weibo, a Chinese social media service with more than 200 million active users. Micro-blogs from Sina Weibo are denote",
+          "section": "Data set"
+        }
+      ],
+      "expected_source": {
+        "filename": "1611.06322.md",
+        "page": null
+      },
+      "expected_sources": [
+        {
+          "filename": "1611.06322.md",
+          "page": null
+        }
+      ],
+      "id": "qasper_1611.06322_57ee20f4",
+      "input_files": [],
+      "license_note": "QASPER (Dasigi et al., NAACL 2021), CC BY 4.0. Adapted locally: paper full text rendered to Markdown; questions, answers and evidence taken from the dataset unchanged.",
+      "paper_id": "1611.06322",
+      "quality_mode": "standard",
+      "query": "What languages do they evaluate their methods on?",
+      "question_id": "57ee20f494d8ce3fae46028c3f3551d180dba3e0",
+      "source_dataset": "QASPER",
+      "tags": []
+    },
+    {
+      "annotator_agreement": 2,
+      "answer_kind": "extractive",
+      "category": "exact_value",
+      "evidence_sections": [
+        "Quantitative Results",
+        "Introduction"
+      ],
+      "expected_answer_patterns": [
+        "(?i)LDA"
+      ],
+      "expected_behavior": "answer",
+      "expected_evidence": [
+        {
+          "excerpt": "The following baselines were used in our experiments:",
+          "section": "Quantitative Results"
+        },
+        {
+          "excerpt": "LDA BIBREF2 . LDA is the classic topic model, and we used GibbsLDA++ for its implementation.",
+          "section": "Quantitative Results"
+        },
+        {
+          "excerpt": "Doc-NADE BIBREF24 . Doc-NADE is a representative neural network based topic model. We used the open-source code provided by the authors.",
+          "section": "Quantitative Results"
+        },
+        {
+          "excerpt": "HTMM BIBREF9 . HTMM models consider the sentence level Markov transitions. Similar to Doc-NADE, the implementation was provided by the authors.",
+          "section": "Quantitative Results"
+        }
+      ],
+      "expected_source": {
+        "filename": "1604.02038.md",
+        "page": null
+      },
+      "expected_sources": [
+        {
+          "filename": "1604.02038.md",
+          "page": null
+        }
+      ],
+      "id": "qasper_1604.02038_bc8526d4",
+      "input_files": [],
+      "license_note": "QASPER (Dasigi et al., NAACL 2021), CC BY 4.0. Adapted locally: paper full text rendered to Markdown; questions, answers and evidence taken from the dataset unchanged.",
+      "paper_id": "1604.02038",
+      "quality_mode": "standard",
+      "query": "What baselines did they compare with?",
+      "question_id": "bc8526d4805e2554adb2e9c01736d3f3a3b19895",
+      "source_dataset": "QASPER",
+      "tags": [
+        "multi_paragraph"
+      ]
+    },
+    {
+      "annotator_agreement": 2,
+      "answer_kind": "extractive",
+      "category": "exact_value",
+      "evidence_sections": [
+        "Introduction"
+      ],
+      "expected_answer_patterns": [
+        "(?i)document\\s+classification"
+      ],
+      "expected_behavior": "answer",
+      "expected_evidence": [
+        {
+          "excerpt": "We propose Sentence Level Recurrent Topic Model (SLRTM) to tackle the limitations of the aforementioned works. In the new model, we assume the words in the same",
+          "section": "Introduction"
+        },
+        {
+          "excerpt": "We have conducted experiments to compare SLRTM with several strong topic model baselines on two tasks: generative model evaluation (i.e. test set perplexity) an",
+          "section": "Introduction"
+        }
+      ],
+      "expected_source": {
+        "filename": "1604.02038.md",
+        "page": null
+      },
+      "expected_sources": [
+        {
+          "filename": "1604.02038.md",
+          "page": null
+        }
+      ],
+      "id": "qasper_1604.02038_a0fd0c0f",
+      "input_files": [],
+      "license_note": "QASPER (Dasigi et al., NAACL 2021), CC BY 4.0. Adapted locally: paper full text rendered to Markdown; questions, answers and evidence taken from the dataset unchanged.",
+      "paper_id": "1604.02038",
+      "quality_mode": "standard",
+      "query": "Which tasks are explored in this paper?",
+      "question_id": "a0fd0c0fe042ad045b8d5095c81643ef3a352b81",
+      "source_dataset": "QASPER",
+      "tags": []
+    },
+    {
+      "annotator_agreement": 4,
+      "answer_kind": "extractive",
+      "category": "exact_value",
+      "evidence_sections": [
+        "Experiment ::: Data",
+        "Introduction"
+      ],
+      "expected_answer_patterns": [
+        "(?i)CoNLL2003"
+      ],
+      "expected_behavior": "answer",
+      "expected_evidence": [
+        {
+          "excerpt": "We evaluate our model in two English NER datasets and four Chinese NER datasets.",
+          "section": "Experiment ::: Data"
+        },
+        {
+          "excerpt": "(1) CoNLL2003 is one of the most evaluated English NER datasets, which contains four different named entities: PERSON, LOCATION, ORGANIZATION, and MISC BIBREF34",
+          "section": "Experiment ::: Data"
+        },
+        {
+          "excerpt": "(2) OntoNotes 5.0 is an English NER dataset whose corpus comes from different domains, such as telephone conversation, newswire. We exclude the New Testaments p",
+          "section": "Experiment ::: Data"
+        },
+        {
+          "excerpt": "(3) BIBREF35 released OntoNotes 4.0. In this paper, we use the Chinese part. We adopted the same pre-process as BIBREF36.",
+          "section": "Experiment ::: Data"
+        }
+      ],
+      "expected_source": {
+        "filename": "1911.04474.md",
+        "page": null
+      },
+      "expected_sources": [
+        {
+          "filename": "1911.04474.md",
+          "page": null
+        }
+      ],
+      "id": "qasper_1911.04474_6e040e80",
+      "input_files": [],
+      "license_note": "QASPER (Dasigi et al., NAACL 2021), CC BY 4.0. Adapted locally: paper full text rendered to Markdown; questions, answers and evidence taken from the dataset unchanged.",
+      "paper_id": "1911.04474",
+      "quality_mode": "standard",
+      "query": "Which NER dataset do they use?",
+      "question_id": "6e040e80f2da69d50386a90a38ed6d2fa4f77bbd",
+      "source_dataset": "QASPER",
+      "tags": [
+        "multi_paragraph"
+      ]
+    },
+    {
+      "annotator_agreement": 2,
+      "answer_kind": "yes_no",
+      "category": "retrieval_only",
+      "evidence_sections": [
+        "Conclusion",
+        "Introduction"
+      ],
+      "expected_answer_patterns": [
+        "(?i)Yes"
+      ],
+      "expected_behavior": "answer",
+      "expected_evidence": [
+        {
+          "excerpt": "In this paper, we propose TENER, a model adopting Transformer Encoder with specific customizations for the NER task. Transformer Encoder has a powerful ability ",
+          "section": "Conclusion"
+        },
+        {
+          "excerpt": "In summary, to improve the performance of the Transformer-based model in the NER task, we explicitly utilize the directional relative positional encoding, reduc",
+          "section": "Introduction"
+        }
+      ],
+      "expected_source": {
+        "filename": "1911.04474.md",
+        "page": null
+      },
+      "expected_sources": [
+        {
+          "filename": "1911.04474.md",
+          "page": null
+        }
+      ],
+      "id": "qasper_1911.04474_cb4086ad",
+      "input_files": [],
+      "license_note": "QASPER (Dasigi et al., NAACL 2021), CC BY 4.0. Adapted locally: paper full text rendered to Markdown; questions, answers and evidence taken from the dataset unchanged.",
+      "paper_id": "1911.04474",
+      "quality_mode": "standard",
+      "query": "Do they outperform current NER state-of-the-art models?",
+      "question_id": "cb4086ad022197da79f28dc609d0de90108c4543",
+      "source_dataset": "QASPER",
+      "tags": [
+        "multi_paragraph"
+      ]
+    },
+    {
+      "annotator_agreement": 3,
+      "answer_kind": "extractive",
+      "category": "exact_value",
+      "evidence_sections": [
+        "Evaluations",
+        "Conclusions",
+        "Introduction"
+      ],
+      "expected_answer_patterns": [
+        "(?i)SLING"
+      ],
+      "expected_behavior": "answer",
+      "expected_evidence": [
+        {
+          "excerpt": "This section provides a summary of the evaluation of KALM and KALM-QA, where KALM is evaluated for knowledge authoring and KALM-QA is evaluated for question ans",
+          "section": "Evaluations"
+        },
+        {
+          "excerpt": "This thesis proposal provides an overview of KALM, a system for knowledge authoring. In addition, it introduces KALM-QA, the question answering part of KALM. Ex",
+          "section": "Conclusions"
+        },
+        {
+          "excerpt": "In this thesis proposal, I will present KALM BIBREF5 , BIBREF6 , a system for knowledge authoring and question answering. KALM is superior to the current CNL sy",
+          "section": "Introduction"
+        }
+      ],
+      "expected_source": {
+        "filename": "1905.00840.md",
+        "page": null
+      },
+      "expected_sources": [
+        {
+          "filename": "1905.00840.md",
+          "page": null
+        }
+      ],
+      "id": "qasper_1905.00840_fe52b093",
+      "input_files": [],
+      "license_note": "QASPER (Dasigi et al., NAACL 2021), CC BY 4.0. Adapted locally: paper full text rendered to Markdown; questions, answers and evidence taken from the dataset unchanged.",
+      "paper_id": "1905.00840",
+      "quality_mode": "standard",
+      "query": "What are the state-of-the-art systems?",
+      "question_id": "fe52b093735bb456d7e699aa9a2b806d2b498ba0",
+      "source_dataset": "QASPER",
+      "tags": [
+        "multi_paragraph"
+      ]
+    },
+    {
+      "annotator_agreement": 2,
+      "answer_kind": "extractive",
+      "category": "exact_value",
+      "evidence_sections": [
+        "Introduction"
+      ],
+      "expected_answer_patterns": [
+        "(?i)a\\s+comparison\\s+against\\s+a\\s+state\\-of\\-the\\-art\\s+discrete\\s+classifier"
+      ],
+      "expected_behavior": "answer",
+      "expected_evidence": [
+        {
+          "excerpt": "Since the EVENTI campaign, there has been a lack of further research, especially in the application of deep learning models to this task in Italian. The contrib",
+          "section": "Introduction"
+        }
+      ],
+      "expected_source": {
+        "filename": "1810.02229.md",
+        "page": null
+      },
+      "expected_sources": [
+        {
+          "filename": "1810.02229.md",
+          "page": null
+        }
+      ],
+      "id": "qasper_1810.02229_c97306c1",
+      "input_files": [],
+      "license_note": "QASPER (Dasigi et al., NAACL 2021), CC BY 4.0. Adapted locally: paper full text rendered to Markdown; questions, answers and evidence taken from the dataset unchanged.",
+      "paper_id": "1810.02229",
+      "quality_mode": "standard",
+      "query": "What are the contributions of this paper?",
+      "question_id": "c97306c1be5d59cf27b1054adfa8f1da47d292ce",
+      "source_dataset": "QASPER",
+      "tags": []
+    },
+    {
+      "annotator_agreement": 2,
+      "answer_kind": "extractive",
+      "category": "exact_value",
+      "evidence_sections": [
+        "Results and Analysis"
+      ],
+      "expected_answer_patterns": [
+        "(?i)agglutinative\\s+and\\s+fusional\\s+languages"
+      ],
+      "expected_behavior": "answer",
+      "expected_evidence": [
+        {
+          "excerpt": "The biggest improvement over the word baseline is achieved by the models that have access to morphology for all languages (except for English) as expected. Char",
+          "section": "Results and Analysis"
+        }
+      ],
+      "expected_source": {
+        "filename": "1805.11937.md",
+        "page": null
+      },
+      "expected_sources": [
+        {
+          "filename": "1805.11937.md",
+          "page": null
+        }
+      ],
+      "id": "qasper_1805.11937_230ff86b",
+      "input_files": [],
+      "license_note": "QASPER (Dasigi et al., NAACL 2021), CC BY 4.0. Adapted locally: paper full text rendered to Markdown; questions, answers and evidence taken from the dataset unchanged.",
+      "paper_id": "1805.11937",
+      "quality_mode": "standard",
+      "query": "What morphological typologies are considered?",
+      "question_id": "230ff86b7b90b87c33c53014bb1e9c582dfc107f",
+      "source_dataset": "QASPER",
+      "tags": []
+    },
+    {
+      "annotator_agreement": 4,
+      "answer_kind": "yes_no",
+      "category": "retrieval_only",
+      "evidence_sections": [
+        "Experimental Setup"
+      ],
+      "expected_answer_patterns": [
+        "(?i)Yes"
+      ],
+      "expected_behavior": "answer",
+      "expected_evidence": [
+        {
+          "excerpt": "Words are splitted from derivational boundaries in the original dataset, where each inflectional group is represented as a separate token. We first merge bounda",
+          "section": "Experimental Setup"
+        }
+      ],
+      "expected_source": {
+        "filename": "1805.11937.md",
+        "page": null
+      },
+      "expected_sources": [
+        {
+          "filename": "1805.11937.md",
+          "page": null
+        }
+      ],
+      "id": "qasper_1805.11937_dc23006d",
+      "input_files": [],
+      "license_note": "QASPER (Dasigi et al., NAACL 2021), CC BY 4.0. Adapted locally: paper full text rendered to Markdown; questions, answers and evidence taken from the dataset unchanged.",
+      "paper_id": "1805.11937",
+      "quality_mode": "standard",
+      "query": "Does the model consider both derivational and inflectional morphology?",
+      "question_id": "dc23006d67f20f430f1483398de4a89c0be4efe2",
+      "source_dataset": "QASPER",
+      "tags": []
+    },
+    {
+      "annotator_agreement": 4,
+      "answer_kind": "extractive",
+      "category": "exact_value",
+      "evidence_sections": [
+        "Results and Discussion ::: Datasets"
+      ],
+      "expected_answer_patterns": [
+        "(?i)Springer\\s+Nature's\\s+SciGraph"
+      ],
+      "expected_behavior": "answer",
+      "expected_evidence": [
+        {
+          "excerpt": "Results and Discussion ::: Datasets",
+          "section": null
+        },
+        {
+          "excerpt": "We have used the following datasets for training and evaluation:",
+          "section": "Results and Discussion ::: Datasets"
+        },
+        {
+          "excerpt": "The Semantic Scholar corpus BIBREF21 (SemScholar) is a large dataset of scientific publications made available by AI2. From its 39M articles, we downloaded 3,3M",
+          "section": "Results and Discussion ::: Datasets"
+        },
+        {
+          "excerpt": "Springer Nature's SciGraph contains 7M scientific publications organized in 22 scientific fields or categories. Since SciGraph does not provide a link to the PD",
+          "section": "Results and Discussion ::: Datasets"
+        }
+      ],
+      "expected_source": {
+        "filename": "1909.09070.md",
+        "page": null
+      },
+      "expected_sources": [
+        {
+          "filename": "1909.09070.md",
+          "page": null
+        }
+      ],
+      "id": "qasper_1909.09070_b8a3ab21",
+      "input_files": [],
+      "license_note": "QASPER (Dasigi et al., NAACL 2021), CC BY 4.0. Adapted locally: paper full text rendered to Markdown; questions, answers and evidence taken from the dataset unchanged.",
+      "paper_id": "1909.09070",
+      "quality_mode": "standard",
+      "query": "What datasets are used in this paper?",
+      "question_id": "b8a3ab219be6c1e6893fe80e1fbf14f0c0c3c97c",
+      "source_dataset": "QASPER",
+      "tags": []
+    },
+    {
+      "annotator_agreement": 2,
+      "answer_kind": "extractive",
+      "category": "exact_value",
+      "evidence_sections": [
+        "Results and Discussion ::: Figure-Caption Correspondence"
+      ],
+      "expected_answer_patterns": [
+        "(?i)direct\\s+combination\\s+baseline"
+      ],
+      "expected_behavior": "answer",
+      "expected_evidence": [
+        {
+          "excerpt": "We evaluate our method in the task it was trained to solve: determining whether a figure and a caption correspond. We also compare the performance of the FCC ta",
+          "section": "Results and Discussion ::: Figure-Caption Correspondence"
+        },
+        {
+          "excerpt": "The direct combination baseline computes the figure-caption correspondence through the scalar product between the softmax outputs of both networks. If it exceed",
+          "section": "Results and Discussion ::: Figure-Caption Correspondence"
+        }
+      ],
+      "expected_source": {
+        "filename": "1909.09070.md",
+        "page": null
+      },
+      "expected_sources": [
+        {
+          "filename": "1909.09070.md",
+          "page": null
+        }
+      ],
+      "id": "qasper_1909.09070_91336f12",
+      "input_files": [],
+      "license_note": "QASPER (Dasigi et al., NAACL 2021), CC BY 4.0. Adapted locally: paper full text rendered to Markdown; questions, answers and evidence taken from the dataset unchanged.",
+      "paper_id": "1909.09070",
+      "quality_mode": "standard",
+      "query": "What supervised baselines did they compare with?",
+      "question_id": "91336f12ab94a844b66b607f8621eb8bbd209f32",
+      "source_dataset": "QASPER",
+      "tags": []
+    },
+    {
+      "annotator_agreement": 3,
+      "answer_kind": "yes_no",
+      "category": "retrieval_only",
+      "evidence_sections": [
+        "Results and Discussion ::: Datasets"
+      ],
+      "expected_answer_patterns": [
+        "(?i)No"
+      ],
+      "expected_behavior": "answer",
+      "expected_evidence": [
+        {
+          "excerpt": "The Semantic Scholar corpus BIBREF21 (SemScholar) is a large dataset of scientific publications made available by AI2. From its 39M articles, we downloaded 3,3M",
+          "section": "Results and Discussion ::: Datasets"
+        },
+        {
+          "excerpt": "Springer Nature's SciGraph contains 7M scientific publications organized in 22 scientific fields or categories. Since SciGraph does not provide a link to the PD",
+          "section": "Results and Discussion ::: Datasets"
+        },
+        {
+          "excerpt": "The Textbook Question Answering corpus BIBREF23 includes 1,076 lessons and 26,260 multi-modal test questions from middle school science curricula. Its complexit",
+          "section": "Results and Discussion ::: Datasets"
+        },
+        {
+          "excerpt": "Wikipedia. We used the January 2018 English Wikipedia dataset as one of the corpora on which to train Vecsigrafo. As opposed to SciGraph or SemScholar, specific",
+          "section": "Results and Discussion ::: Datasets"
+        }
+      ],
+      "expected_source": {
+        "filename": "1909.09070.md",
+        "page": null
+      },
+      "expected_sources": [
+        {
+          "filename": "1909.09070.md",
+          "page": null
+        }
+      ],
+      "id": "qasper_1909.09070_c5221bb2",
+      "input_files": [],
+      "license_note": "QASPER (Dasigi et al., NAACL 2021), CC BY 4.0. Adapted locally: paper full text rendered to Markdown; questions, answers and evidence taken from the dataset unchanged.",
+      "paper_id": "1909.09070",
+      "quality_mode": "standard",
+      "query": "Is the data specific to a domain?",
+      "question_id": "c5221bb28e58a4f13cf2eccce0e1b1bec7dd3c13",
+      "source_dataset": "QASPER",
+      "tags": []
+    },
+    {
+      "annotator_agreement": 4,
+      "answer_kind": "unanswerable",
+      "category": "missing_evidence",
+      "evidence_sections": [],
+      "expected_answer_patterns": [],
+      "expected_behavior": "abstain",
+      "expected_evidence": [],
+      "expected_source": {
+        "filename": null,
+        "page": null
+      },
+      "expected_sources": [],
+      "id": "qasper_1708.05521_622efbec",
+      "input_files": [],
+      "license_note": "QASPER (Dasigi et al., NAACL 2021), CC BY 4.0. Adapted locally: paper full text rendered to Markdown; questions, answers and evidence taken from the dataset unchanged.",
+      "paper_id": "1708.05521",
+      "quality_mode": "standard",
+      "query": "did the top teams experiment with lexicons?",
+      "question_id": "622efbecd9350a0f4487bdff2b8b362ef2541f3c",
+      "source_dataset": "QASPER",
+      "tags": []
+    },
+    {
+      "annotator_agreement": 2,
+      "answer_kind": "yes_no",
+      "category": "retrieval_only",
+      "evidence_sections": [
+        "Introduction",
+        "Results and Discussion",
+        "Experimental Setup"
+      ],
+      "expected_answer_patterns": [
+        "(?i)No"
+      ],
+      "expected_behavior": "answer",
+      "expected_evidence": [
+        {
+          "excerpt": "The task is specially challenging since tweets contain informal language, spelling errors and text referring to external content. Given the 140 character limit ",
+          "section": "Introduction"
+        },
+        {
+          "excerpt": "In this section we report the results of the experiments we performed to test our proposed model. In general, as Table TABREF13 shows, our intra-sentence attent",
+          "section": "Results and Discussion"
+        },
+        {
+          "excerpt": "While the structure of our introduced model allows us to easily include more linguistic features that could potentially improve our predictive power, such as le",
+          "section": "Experimental Setup"
+        }
+      ],
+      "expected_source": {
+        "filename": "1708.05521.md",
+        "page": null
+      },
+      "expected_sources": [
+        {
+          "filename": "1708.05521.md",
+          "page": null
+        }
+      ],
+      "id": "qasper_1708.05521_f54e19f7",
+      "input_files": [],
+      "license_note": "QASPER (Dasigi et al., NAACL 2021), CC BY 4.0. Adapted locally: paper full text rendered to Markdown; questions, answers and evidence taken from the dataset unchanged.",
+      "paper_id": "1708.05521",
+      "quality_mode": "standard",
+      "query": "did they experiment with lexicons?",
+      "question_id": "f54e19f7ecece1bb0ef3171403ae322ad572ff00",
+      "source_dataset": "QASPER",
+      "tags": [
+        "multi_paragraph"
+      ]
+    },
+    {
+      "annotator_agreement": 3,
+      "answer_kind": "extractive",
+      "category": "exact_value",
+      "evidence_sections": [
+        "Results and Discussion"
+      ],
+      "expected_answer_patterns": [
+        "(?i)Weka\\s+baseline\\s+BIBREF5"
+      ],
+      "expected_behavior": "answer",
+      "expected_evidence": [
+        {
+          "excerpt": "In this section we report the results of the experiments we performed to test our proposed model. In general, as Table TABREF13 shows, our intra-sentence attent",
+          "section": "Results and Discussion"
+        }
+      ],
+      "expected_source": {
+        "filename": "1708.05521.md",
+        "page": null
+      },
+      "expected_sources": [
+        {
+          "filename": "1708.05521.md",
+          "page": null
+        }
+      ],
+      "id": "qasper_1708.05521_4137a82d",
+      "input_files": [],
+      "license_note": "QASPER (Dasigi et al., NAACL 2021), CC BY 4.0. Adapted locally: paper full text rendered to Markdown; questions, answers and evidence taken from the dataset unchanged.",
+      "paper_id": "1708.05521",
+      "quality_mode": "standard",
+      "query": "what was the baseline?",
+      "question_id": "4137a82d7752be7a6c142ceb48ce784fd475fb06",
+      "source_dataset": "QASPER",
+      "tags": []
+    },
+    {
+      "annotator_agreement": 3,
+      "answer_kind": "extractive",
+      "category": "exact_value",
+      "evidence_sections": [
+        "Related Work",
+        "Dataset ::: Final Dataset"
+      ],
+      "expected_answer_patterns": [
+        "(?i)Arabic"
+      ],
+      "expected_behavior": "answer",
+      "expected_evidence": [
+        {
+          "excerpt": "Our dataset is the first trilingual dataset comprising English, French, and Arabic tweets that encompasses various targets and hostility types. Additionally, to",
+          "section": "Related Work"
+        },
+        {
+          "excerpt": "The final dataset is composed of a pilot corpus of 100 tweets per language, and comparable corpora of 5,647 English tweets, 4,014 French tweets, and 3,353 Arabi",
+          "section": "Dataset ::: Final Dataset"
+        }
+      ],
+      "expected_source": {
+        "filename": "1908.11049.md",
+        "page": null
+      },
+      "expected_sources": [
+        {
+          "filename": "1908.11049.md",
+          "page": null
+        }
+      ],
+      "id": "qasper_1908.11049_d9e76330",
+      "input_files": [],
+      "license_note": "QASPER (Dasigi et al., NAACL 2021), CC BY 4.0. Adapted locally: paper full text rendered to Markdown; questions, answers and evidence taken from the dataset unchanged.",
+      "paper_id": "1908.11049",
+      "quality_mode": "standard",
+      "query": "What languages does the new dataset contain?",
+      "question_id": "d9e7633004ed1bc1ee45be58409bcc1fa6db59b2",
+      "source_dataset": "QASPER",
+      "tags": [
+        "multi_paragraph"
+      ]
+    },
+    {
+      "annotator_agreement": 2,
+      "answer_kind": "extractive",
+      "category": "exact_value",
+      "evidence_sections": [
+        "Dataset ::: Final Dataset"
+      ],
+      "expected_answer_patterns": [
+        "(?i)5,647\\s+English\\s+tweets,\\s+4,014\\s+French\\s+tweets,\\s+and\\s+3,353\\s+Arabic\\s+tweets"
+      ],
+      "expected_behavior": "answer",
+      "expected_evidence": [
+        {
+          "excerpt": "The final dataset is composed of a pilot corpus of 100 tweets per language, and comparable corpora of 5,647 English tweets, 4,014 French tweets, and 3,353 Arabi",
+          "section": "Dataset ::: Final Dataset"
+        }
+      ],
+      "expected_source": {
+        "filename": "1908.11049.md",
+        "page": null
+      },
+      "expected_sources": [
+        {
+          "filename": "1908.11049.md",
+          "page": null
+        }
+      ],
+      "id": "qasper_1908.11049_9ef0d236",
+      "input_files": [],
+      "license_note": "QASPER (Dasigi et al., NAACL 2021), CC BY 4.0. Adapted locally: paper full text rendered to Markdown; questions, answers and evidence taken from the dataset unchanged.",
+      "paper_id": "1908.11049",
+      "quality_mode": "standard",
+      "query": "How big is their dataset?",
+      "question_id": "9ef0d2365bde0d18054511fbb53cec5fa2cda5ee",
+      "source_dataset": "QASPER",
+      "tags": []
+    },
+    {
+      "annotator_agreement": 3,
+      "answer_kind": "extractive",
+      "category": "exact_value",
+      "evidence_sections": [
+        "Suggestions and Possible Directions using SW"
+      ],
+      "expected_answer_patterns": [
+        "(?i)Disambiguation"
+      ],
+      "expected_behavior": "answer",
+      "expected_evidence": [
+        {
+          "excerpt": "SW has already shown its capability for semantic disambiguation of polysemous and homonymous words. However, SWT were applied in two ways to support the semanti",
+          "section": "Suggestions and Possible Directions using SW"
+        },
+        {
+          "excerpt": "Named Entities. Most NERD approaches link recognized entities with database entries or websites. This method helps to categorize and summarize text, but also co",
+          "section": "Suggestions and Possible Directions using SW"
+        },
+        {
+          "excerpt": "Non-standard speech. The non-standard language problem is a rather important one in the MT field. Many people use the colloquial form to speak and write to each",
+          "section": "Suggestions and Possible Directions using SW"
+        },
+        {
+          "excerpt": "Translating KBs. According to our research, it is clear that SWT may be used for translating KBs in order to be applied in MT systems. For instance, some conten",
+          "section": "Suggestions and Possible Directions using SW"
+        }
+      ],
+      "expected_source": {
+        "filename": "1907.10676.md",
+        "page": null
+      },
+      "expected_sources": [
+        {
+          "filename": "1907.10676.md",
+          "page": null
+        }
+      ],
+      "id": "qasper_1907.10676_cbb3c1c1",
+      "input_files": [],
+      "license_note": "QASPER (Dasigi et al., NAACL 2021), CC BY 4.0. Adapted locally: paper full text rendered to Markdown; questions, answers and evidence taken from the dataset unchanged.",
+      "paper_id": "1907.10676",
+      "quality_mode": "standard",
+      "query": "What are the opportunities presented by the use of Semantic Web technologies in Machine Translation?",
+      "question_id": "cbb3c1c1e6e1818b6480f929f1c299eaa5ffd07a",
+      "source_dataset": "QASPER",
+      "tags": []
+    },
+    {
+      "annotator_agreement": 2,
+      "answer_kind": "extractive",
+      "category": "exact_value",
+      "evidence_sections": [
+        "Introduction"
+      ],
+      "expected_answer_patterns": [
+        "(?i)reordering\\s+errors"
+      ],
+      "expected_behavior": "answer",
+      "expected_evidence": [
+        {
+          "excerpt": "Although MT systems are now popular on the Web, they still generate a large number of incorrect translations. Recently, Popovi\u0107 BIBREF3 has classified five type",
+          "section": "Introduction"
+        }
+      ],
+      "expected_source": {
+        "filename": "1907.10676.md",
+        "page": null
+      },
+      "expected_sources": [
+        {
+          "filename": "1907.10676.md",
+          "page": null
+        }
+      ],
+      "id": "qasper_1907.10676_7c2c15ea",
+      "input_files": [],
+      "license_note": "QASPER (Dasigi et al., NAACL 2021), CC BY 4.0. Adapted locally: paper full text rendered to Markdown; questions, answers and evidence taken from the dataset unchanged.",
+      "paper_id": "1907.10676",
+      "quality_mode": "standard",
+      "query": "What are the other obstacles to automatic translations which are not mentioned in the abstract?",
+      "question_id": "7c2c15ea3f1b1375b8aaef1103a001069d9915bb",
+      "source_dataset": "QASPER",
+      "tags": []
+    },
+    {
+      "annotator_agreement": 2,
+      "answer_kind": "extractive",
+      "category": "exact_value",
+      "evidence_sections": [
+        "EEG and Speech feature extraction details"
+      ],
+      "expected_answer_patterns": [
+        "(?i)kurtosis"
+      ],
+      "expected_behavior": "answer",
+      "expected_evidence": [
+        {
+          "excerpt": "EEG signals were sampled at 1000Hz and a fourth order IIR band pass filter with cut off frequencies 0.1Hz and 70Hz was applied. A notch filter with cut off freq",
+          "section": "EEG and Speech feature extraction details"
+        }
+      ],
+      "expected_source": {
+        "filename": "1906.08871.md",
+        "page": null
+      },
+      "expected_sources": [
+        {
+          "filename": "1906.08871.md",
+          "page": null
+        }
+      ],
+      "id": "qasper_1906.08871_a77d3842",
+      "input_files": [],
+      "license_note": "QASPER (Dasigi et al., NAACL 2021), CC BY 4.0. Adapted locally: paper full text rendered to Markdown; questions, answers and evidence taken from the dataset unchanged.",
+      "paper_id": "1906.08871",
+      "quality_mode": "standard",
+      "query": "what eeg features were used?",
+      "question_id": "a77d38427639d54461ae308f3045434f81e497d0",
+      "source_dataset": "QASPER",
+      "tags": []
+    },
+    {
+      "annotator_agreement": 3,
+      "answer_kind": "unanswerable",
+      "category": "missing_evidence",
+      "evidence_sections": [],
+      "expected_answer_patterns": [],
+      "expected_behavior": "abstain",
+      "expected_evidence": [],
+      "expected_source": {
+        "filename": null,
+        "page": null
+      },
+      "expected_sources": [],
+      "id": "qasper_1906.08871_010fd156",
+      "input_files": [],
+      "license_note": "QASPER (Dasigi et al., NAACL 2021), CC BY 4.0. Adapted locally: paper full text rendered to Markdown; questions, answers and evidence taken from the dataset unchanged.",
+      "paper_id": "1906.08871",
+      "quality_mode": "standard",
+      "query": "what were the baselines?",
+      "question_id": "010fd15696580d9924ac0275a4ff269005e5808d",
+      "source_dataset": "QASPER",
+      "tags": []
+    },
+    {
+      "annotator_agreement": 3,
+      "answer_kind": "yes_no",
+      "category": "retrieval_only",
+      "evidence_sections": [
+        "Lightweight Adaptation of BERT ::: Overview",
+        "Experiments ::: Performance Comparison"
+      ],
+      "expected_answer_patterns": [
+        "(?i)No"
+      ],
+      "expected_behavior": "answer",
+      "expected_evidence": [
+        {
+          "excerpt": "The overall pipeline of LadaBERT (Lightweight Adaptation of BERT) is illustrated in Figure FIGREF8. As shown in the figure, the pre-trained BERT model (e.g., BE",
+          "section": "Lightweight Adaptation of BERT ::: Overview"
+        },
+        {
+          "excerpt": "The evaluation results of LadaBERT and state-of-the-art approaches are listed in Table TABREF40, where the models are ranked by parameter sizes for feasible com",
+          "section": "Experiments ::: Performance Comparison"
+        },
+        {
+          "excerpt": "FLOAT SELECTED: Table 3: Performance comparison on various model sizes",
+          "section": null
+        }
+      ],
+      "expected_source": {
+        "filename": "2004.04124.md",
+        "page": null
+      },
+      "expected_sources": [
+        {
+          "filename": "2004.04124.md",
+          "page": null
+        }
+      ],
+      "id": "qasper_2004.04124_5ed02ae6",
+      "input_files": [],
+      "license_note": "QASPER (Dasigi et al., NAACL 2021), CC BY 4.0. Adapted locally: paper full text rendered to Markdown; questions, answers and evidence taken from the dataset unchanged.",
+      "paper_id": "2004.04124",
+      "quality_mode": "standard",
+      "query": "Does LadaBERT ever outperform its knowledge destilation teacher in terms of accuracy on some problems?",
+      "question_id": "5ed02ae6c534cd49d405489990f0e4ba0330ff1b",
+      "source_dataset": "QASPER",
+      "tags": [
+        "multi_paragraph"
+      ]
+    },
+    {
+      "annotator_agreement": 3,
+      "answer_kind": "yes_no",
+      "category": "retrieval_only",
+      "evidence_sections": [
+        "Experiments ::: Effect of low-rank + sparsity",
+        "Experiments ::: Performance Comparison"
+      ],
+      "expected_answer_patterns": [
+        "(?i)Yes"
+      ],
+      "expected_behavior": "answer",
+      "expected_evidence": [
+        {
+          "excerpt": "In this paper, we demonstrate that a combination of matrix factorization and weight pruning is better than single solutions for BERT-oriented model compression.",
+          "section": "Experiments ::: Effect of low-rank + sparsity"
+        },
+        {
+          "excerpt": "The evaluation results of LadaBERT and state-of-the-art approaches are listed in Table TABREF40, where the models are ranked by parameter sizes for feasible com",
+          "section": "Experiments ::: Performance Comparison"
+        },
+        {
+          "excerpt": "With model size of $2.5\\times $ reduction, LadaBERT-1 performs significantly better than BERT-PKD, boosting the performance by relative 8.9, 8.1, 6.1, 3.8 and 5",
+          "section": "Experiments ::: Performance Comparison"
+        },
+        {
+          "excerpt": "FLOAT SELECTED: Figure 5: Distribution of pruning errors",
+          "section": null
+        }
+      ],
+      "expected_source": {
+        "filename": "2004.04124.md",
+        "page": null
+      },
+      "expected_sources": [
+        {
+          "filename": "2004.04124.md",
+          "page": null
+        }
+      ],
+      "id": "qasper_2004.04124_f6346828",
+      "input_files": [],
+      "license_note": "QASPER (Dasigi et al., NAACL 2021), CC BY 4.0. Adapted locally: paper full text rendered to Markdown; questions, answers and evidence taken from the dataset unchanged.",
+      "paper_id": "2004.04124",
+      "quality_mode": "standard",
+      "query": "Do they evaluate which compression method yields the most gains?",
+      "question_id": "f6346828c2f44529dc307abf04dd246bfeb4a9b2",
+      "source_dataset": "QASPER",
+      "tags": [
+        "multi_paragraph"
+      ]
+    },
+    {
+      "annotator_agreement": 2,
+      "answer_kind": "extractive",
+      "category": "exact_value",
+      "evidence_sections": [
+        "Introduction"
+      ],
+      "expected_answer_patterns": [
+        "(?i)news"
+      ],
+      "expected_behavior": "answer",
+      "expected_evidence": [
+        {
+          "excerpt": "We evaluate our models both automatically (in terms of Rouge) and by humans on two datasets: the benchmark DUC 2002 document summarization corpus and our own Da",
+          "section": "Introduction"
+        }
+      ],
+      "expected_source": {
+        "filename": "1603.07252.md",
+        "page": null
+      },
+      "expected_sources": [
+        {
+          "filename": "1603.07252.md",
+          "page": null
+        }
+      ],
+      "id": "qasper_1603.07252_f2bcfdbe",
+      "input_files": [],
+      "license_note": "QASPER (Dasigi et al., NAACL 2021), CC BY 4.0. Adapted locally: paper full text rendered to Markdown; questions, answers and evidence taken from the dataset unchanged.",
+      "paper_id": "1603.07252",
+      "quality_mode": "standard",
+      "query": "What domain of text are they working with?",
+      "question_id": "f2bcfdbebb418e7da165c19b8c7167719432ee48",
+      "source_dataset": "QASPER",
+      "tags": []
+    },
+    {
+      "annotator_agreement": 2,
+      "answer_kind": "extractive",
+      "category": "exact_value",
+      "evidence_sections": [
+        "Training Data for Summarization",
+        "Introduction"
+      ],
+      "expected_answer_patterns": [
+        "(?i)our\\s+own\\s+DailyMail\\s+news\\s+highlights\\s+corpus"
+      ],
+      "expected_behavior": "answer",
+      "expected_evidence": [
+        {
+          "excerpt": "Data-driven neural summarization models require a large training corpus of documents with labels indicating which sentences (or words) should be in the summary.",
+          "section": "Training Data for Summarization"
+        },
+        {
+          "excerpt": "In a nutshell, we retrieved hundreds of thousands of news articles and their corresponding highlights from DailyMail (see Figure 1 for an example). The highligh",
+          "section": "Training Data for Summarization"
+        },
+        {
+          "excerpt": "We evaluate our models both automatically (in terms of Rouge) and by humans on two datasets: the benchmark DUC 2002 document summarization corpus and our own Da",
+          "section": "Introduction"
+        }
+      ],
+      "expected_source": {
+        "filename": "1603.07252.md",
+        "page": null
+      },
+      "expected_sources": [
+        {
+          "filename": "1603.07252.md",
+          "page": null
+        }
+      ],
+      "id": "qasper_1603.07252_0fe49431",
+      "input_files": [],
+      "license_note": "QASPER (Dasigi et al., NAACL 2021), CC BY 4.0. Adapted locally: paper full text rendered to Markdown; questions, answers and evidence taken from the dataset unchanged.",
+      "paper_id": "1603.07252",
+      "quality_mode": "standard",
+      "query": "What dataset do they use?",
+      "question_id": "0fe49431db5ffaa24372919daf24d8f84117bfda",
+      "source_dataset": "QASPER",
+      "tags": [
+        "multi_paragraph"
+      ]
+    },
+    {
+      "annotator_agreement": 3,
+      "answer_kind": "yes_no",
+      "category": "retrieval_only",
+      "evidence_sections": [
+        "Results",
+        "Problem Formulation"
+      ],
+      "expected_answer_patterns": [
+        "(?i)Yes"
+      ],
+      "expected_behavior": "answer",
+      "expected_evidence": [
+        {
+          "excerpt": "Table 1 (upper half) summarizes our results on the DUC 2002 test dataset using Rouge. nn-se represents our neural sentence extraction model, nn-we our word extr",
+          "section": "Results"
+        },
+        {
+          "excerpt": "Rouge scores for the word extraction model are less promising. This is somewhat expected given that Rouge is $n$ -gram based and not very well suited to measuri",
+          "section": "Results"
+        },
+        {
+          "excerpt": "Although extractive methods yield naturally grammatical summaries and require relatively little linguistic analysis, the selected sentences make for long summar",
+          "section": "Problem Formulation"
+        }
+      ],
+      "expected_source": {
+        "filename": "1603.07252.md",
+        "page": null
+      },
+      "expected_sources": [
+        {
+          "filename": "1603.07252.md",
+          "page": null
+        }
+      ],
+      "id": "qasper_1603.07252_0f9c1586",
+      "input_files": [],
+      "license_note": "QASPER (Dasigi et al., NAACL 2021), CC BY 4.0. Adapted locally: paper full text rendered to Markdown; questions, answers and evidence taken from the dataset unchanged.",
+      "paper_id": "1603.07252",
+      "quality_mode": "standard",
+      "query": "Do they compare to abstractive summarization methods?",
+      "question_id": "0f9c1586f1b4b531fa4fd113e767d06af90b1ae8",
+      "source_dataset": "QASPER",
+      "tags": [
+        "multi_paragraph"
+      ]
+    },
+    {
+      "annotator_agreement": 3,
+      "answer_kind": "yes_no",
+      "category": "retrieval_only",
+      "evidence_sections": [
+        "Linguistic Features",
+        "Models"
+      ],
+      "expected_answer_patterns": [
+        "(?i)Yes"
+      ],
+      "expected_behavior": "answer",
+      "expected_evidence": [
+        {
+          "excerpt": "We use two sources of sentiment features: manually constructed lexica, and pre-trained sentiment embeddings. When available, manually constructed lexica are a u",
+          "section": "Linguistic Features"
+        },
+        {
+          "excerpt": "Neural networks have been shown to capture specific task related subtleties which can complement the manually constructed sentiment lexica described in the prev",
+          "section": "Linguistic Features"
+        },
+        {
+          "excerpt": "Two types of targeted sentiment are evaluated for the task: those expressed towards either a situation frame or those towards an entity. To identify sentiment e",
+          "section": "Models"
+        },
+        {
+          "excerpt": "We now describe the models used for this work. Our models can be broken down into two groups: our first approach explores state-of-the-art models in targeted an",
+          "section": "Models"
+        }
+      ],
+      "expected_source": {
+        "filename": "1905.00472.md",
+        "page": null
+      },
+      "expected_sources": [
+        {
+          "filename": "1905.00472.md",
+          "page": null
+        }
+      ],
+      "id": "qasper_1905.00472_9c2cacf7",
+      "input_files": [],
+      "license_note": "QASPER (Dasigi et al., NAACL 2021), CC BY 4.0. Adapted locally: paper full text rendered to Markdown; questions, answers and evidence taken from the dataset unchanged.",
+      "paper_id": "1905.00472",
+      "quality_mode": "standard",
+      "query": "Did they pre-train on existing sentiment corpora?",
+      "question_id": "9c2cacf77041e02d38f92a4c490df1e04552f96f",
+      "source_dataset": "QASPER",
+      "tags": [
+        "multi_paragraph"
+      ]
+    },
+    {
+      "annotator_agreement": 3,
+      "answer_kind": "unanswerable",
+      "category": "missing_evidence",
+      "evidence_sections": [],
+      "expected_answer_patterns": [],
+      "expected_behavior": "abstain",
+      "expected_evidence": [],
+      "expected_source": {
+        "filename": null,
+        "page": null
+      },
+      "expected_sources": [],
+      "id": "qasper_1905.00472_04914917",
+      "input_files": [],
+      "license_note": "QASPER (Dasigi et al., NAACL 2021), CC BY 4.0. Adapted locally: paper full text rendered to Markdown; questions, answers and evidence taken from the dataset unchanged.",
+      "paper_id": "1905.00472",
+      "quality_mode": "standard",
+      "query": "Did the system perform well on low-resource languages?",
+      "question_id": "04914917d01c9cd8718cd551dc253eb3827915d8",
+      "source_dataset": "QASPER",
+      "tags": []
+    },
+    {
+      "annotator_agreement": 3,
+      "answer_kind": "extractive",
+      "category": "exact_value",
+      "evidence_sections": [
+        "Data ::: Crowd-sourced Annotations from AI2D"
+      ],
+      "expected_answer_patterns": [
+        "(?i)Amazon\\s+Mechanical\\s+Turk"
+      ],
+      "expected_behavior": "answer",
+      "expected_evidence": [
+        {
+          "excerpt": "The AI2D annotation schema models four types of diagram elements: text, graphics, arrows and arrowheads, whereas the semantic relations that hold between these ",
+          "section": "Data ::: Crowd-sourced Annotations from AI2D"
+        }
+      ],
+      "expected_source": {
+        "filename": "1912.02866.md",
+        "page": null
+      },
+      "expected_sources": [
+        {
+          "filename": "1912.02866.md",
+          "page": null
+        }
+      ],
+      "id": "qasper_1912.02866_6e37f43f",
+      "input_files": [],
+      "license_note": "QASPER (Dasigi et al., NAACL 2021), CC BY 4.0. Adapted locally: paper full text rendered to Markdown; questions, answers and evidence taken from the dataset unchanged.",
+      "paper_id": "1912.02866",
+      "quality_mode": "standard",
+      "query": "What platform do the crowd-sourced workers come from?",
+      "question_id": "6e37f43f4f54ffc77c785d60c6058fbad2147922",
+      "source_dataset": "QASPER",
+      "tags": []
+    },
+    {
+      "annotator_agreement": 2,
+      "answer_kind": "extractive",
+      "category": "exact_value",
+      "evidence_sections": [
+        "Methods",
+        "Datasets and evaluation"
+      ],
+      "expected_answer_patterns": [
+        "(?i)Clueweb09\\s+derived\\s+dataset"
+      ],
+      "expected_behavior": "answer",
+      "expected_evidence": [
+        {
+          "excerpt": "We explore the potential of RNNs and CNNs for controversy detection using both the HAN BIBREF10 and the CNN BIBREF11 model. Similar to BIBREF10 , each bi-direct",
+          "section": "Methods"
+        },
+        {
+          "excerpt": "We use the Clueweb09 derived dataset of BIBREF0 for baseline comparison. For cross-temporal, cross-topic and cross-domain training & evaluation, we generate a n",
+          "section": "Datasets and evaluation"
+        }
+      ],
+      "expected_source": {
+        "filename": "1812.00382.md",
+        "page": null
+      },
+      "expected_sources": [
+        {
+          "filename": "1812.00382.md",
+          "page": null
+        }
+      ],
+      "id": "qasper_1812.00382_1ecbbb60",
+      "input_files": [],
+      "license_note": "QASPER (Dasigi et al., NAACL 2021), CC BY 4.0. Adapted locally: paper full text rendered to Markdown; questions, answers and evidence taken from the dataset unchanged.",
+      "paper_id": "1812.00382",
+      "quality_mode": "standard",
+      "query": "Which dataset do they use?",
+      "question_id": "1ecbbb60dc44a701e9c57c22167dd412711bb0be",
+      "source_dataset": "QASPER",
+      "tags": [
+        "multi_paragraph"
+      ]
+    },
+    {
+      "annotator_agreement": 3,
+      "answer_kind": "unanswerable",
+      "category": "missing_evidence",
+      "evidence_sections": [],
+      "expected_answer_patterns": [],
+      "expected_behavior": "abstain",
+      "expected_evidence": [],
+      "expected_source": {
+        "filename": null,
+        "page": null
+      },
+      "expected_sources": [],
+      "id": "qasper_1812.00382_592df983",
+      "input_files": [],
+      "license_note": "QASPER (Dasigi et al., NAACL 2021), CC BY 4.0. Adapted locally: paper full text rendered to Markdown; questions, answers and evidence taken from the dataset unchanged.",
+      "paper_id": "1812.00382",
+      "quality_mode": "standard",
+      "query": "Which setup shows proves to be the hardest: cross-topic, cross-domain, cross-temporal, or across annotators?",
+      "question_id": "592df9831692b8fde213257ed1894344da3e0594",
+      "source_dataset": "QASPER",
+      "tags": []
+    },
+    {
+      "annotator_agreement": 4,
+      "answer_kind": "yes_no",
+      "category": "retrieval_only",
+      "evidence_sections": [
+        "Comparison of results with previous work",
+        "Baseline models",
+        "Robustness of the model across time"
+      ],
+      "expected_answer_patterns": [
+        "(?i)Yes"
+      ],
+      "expected_behavior": "answer",
+      "expected_evidence": [
+        {
+          "excerpt": "Table TABREF13 shows the relative performance of the neural models compared to previous controversy detection methods, evaluated on the Clueweb09 derived datase",
+          "section": "Comparison of results with previous work"
+        },
+        {
+          "excerpt": "To compare the results of neural approaches to prior work we implemented the previous state-of-the-art controversy detection method: the language model from BIB",
+          "section": "Baseline models"
+        },
+        {
+          "excerpt": "Within year, the hierarchical attention model (HAN) outperforms all other models on Recall, F1 and AUC, losing Precision to the CNN and SVM models. However, our",
+          "section": "Robustness of the model across time"
+        },
+        {
+          "excerpt": "FLOAT SELECTED: Figure 1: Average F1 and AUC score of aggregated results for all lexical and neural models.",
+          "section": null
+        }
+      ],
+      "expected_source": {
+        "filename": "1812.00382.md",
+        "page": null
+      },
+      "expected_sources": [
+        {
+          "filename": "1812.00382.md",
+          "page": null
+        }
+      ],
+      "id": "qasper_1812.00382_60e6296c",
+      "input_files": [],
+      "license_note": "QASPER (Dasigi et al., NAACL 2021), CC BY 4.0. Adapted locally: paper full text rendered to Markdown; questions, answers and evidence taken from the dataset unchanged.",
+      "paper_id": "1812.00382",
+      "quality_mode": "standard",
+      "query": "Do they compare their semantic feature approach to lexical approaches?",
+      "question_id": "60e6296ca2a697892bd67558a21a83ef01a38177",
+      "source_dataset": "QASPER",
+      "tags": [
+        "multi_paragraph"
+      ]
+    },
+    {
+      "annotator_agreement": 2,
+      "answer_kind": "extractive",
+      "category": "exact_value",
+      "evidence_sections": [
+        "Data and Experimental Setup"
+      ],
+      "expected_answer_patterns": [
+        "(?i)64M\\s+segments\\s+from\\s+YouTube\\s+videos"
+      ],
+      "expected_behavior": "answer",
+      "expected_evidence": [
+        {
+          "excerpt": "Our training data consist of about 64M segments from YouTube videos comprising a total of INLINEFORM0 B tokens BIBREF14 . We tokenize the training data using a ",
+          "section": "Data and Experimental Setup"
+        }
+      ],
+      "expected_source": {
+        "filename": "1903.02930.md",
+        "page": null
+      },
+      "expected_sources": [
+        {
+          "filename": "1903.02930.md",
+          "page": null
+        }
+      ],
+      "id": "qasper_1903.02930_9b868c7d",
+      "input_files": [],
+      "license_note": "QASPER (Dasigi et al., NAACL 2021), CC BY 4.0. Adapted locally: paper full text rendered to Markdown; questions, answers and evidence taken from the dataset unchanged.",
+      "paper_id": "1903.02930",
+      "quality_mode": "standard",
+      "query": "what dataset was used for training?",
+      "question_id": "9b868c7d17852f46a8fe725f24cb9548fdbd2b05",
+      "source_dataset": "QASPER",
+      "tags": []
+    },
+    {
+      "annotator_agreement": 4,
+      "answer_kind": "yes_no",
+      "category": "retrieval_only",
+      "evidence_sections": [
+        "Experiments"
+      ],
+      "expected_answer_patterns": [
+        "(?i)Yes"
+      ],
+      "expected_behavior": "answer",
+      "expected_evidence": [
+        {
+          "excerpt": "After a small grid search we decided to inherit most of the hyperparameters of the model from the best results achieved in BIBREF3 where -to-Mizar translation i",
+          "section": "Experiments"
+        },
+        {
+          "excerpt": "For experiments with both data sets we used an established NMT architecture BIBREF10 based on LSTMs (long short-term memory cells) and implementing the attentio",
+          "section": "Experiments"
+        }
+      ],
+      "expected_source": {
+        "filename": "1911.04873.md",
+        "page": null
+      },
+      "expected_sources": [
+        {
+          "filename": "1911.04873.md",
+          "page": null
+        }
+      ],
+      "id": "qasper_1911.04873_84765903",
+      "input_files": [],
+      "license_note": "QASPER (Dasigi et al., NAACL 2021), CC BY 4.0. Adapted locally: paper full text rendered to Markdown; questions, answers and evidence taken from the dataset unchanged.",
+      "paper_id": "1911.04873",
+      "quality_mode": "standard",
+      "query": "Do any of the models use attention?",
+      "question_id": "84765903b8c7234ca2919d0a40e3c6a5bcedf45d",
+      "source_dataset": "QASPER",
+      "tags": []
+    },
+    {
+      "annotator_agreement": 4,
+      "answer_kind": "extractive",
+      "category": "exact_value",
+      "evidence_sections": [
+        "Results and Discussion"
+      ],
+      "expected_answer_patterns": [
+        "(?i)20\\s+Newsgroups"
+      ],
+      "expected_behavior": "answer",
+      "expected_evidence": [
+        {
+          "excerpt": "To demonstrate the utility of Anchored CorEx, we run experiments on two document collections: 20 Newsgroups and the i2b2 2008 Obesity Challenge BIBREF22 data se",
+          "section": "Results and Discussion"
+        }
+      ],
+      "expected_source": {
+        "filename": "1606.07043.md",
+        "page": null
+      },
+      "expected_sources": [
+        {
+          "filename": "1606.07043.md",
+          "page": null
+        }
+      ],
+      "id": "qasper_1606.07043_a67a2d9a",
+      "input_files": [],
+      "license_note": "QASPER (Dasigi et al., NAACL 2021), CC BY 4.0. Adapted locally: paper full text rendered to Markdown; questions, answers and evidence taken from the dataset unchanged.",
+      "paper_id": "1606.07043",
+      "quality_mode": "standard",
+      "query": "On which corpora do they evaluate on?",
+      "question_id": "a67a2d9acad1787b636ca2681330f4c29a0b0254",
+      "source_dataset": "QASPER",
+      "tags": []
+    },
+    {
+      "annotator_agreement": 3,
+      "answer_kind": "yes_no",
+      "category": "retrieval_only",
+      "evidence_sections": [
+        "Anchored CorEx for Discriminative Tasks"
+      ],
+      "expected_answer_patterns": [
+        "(?i)No"
+      ],
+      "expected_behavior": "answer",
+      "expected_evidence": [
+        {
+          "excerpt": "tab:obesity:class shows the Macro-AUC and F1 scores (averaged across all diseases) on the Obesity Challenge data for the final anchored CorEx model and a Naive ",
+          "section": "Anchored CorEx for Discriminative Tasks"
+        }
+      ],
+      "expected_source": {
+        "filename": "1606.07043.md",
+        "page": null
+      },
+      "expected_sources": [
+        {
+          "filename": "1606.07043.md",
+          "page": null
+        }
+      ],
+      "id": "qasper_1606.07043_1efaf3bc",
+      "input_files": [],
+      "license_note": "QASPER (Dasigi et al., NAACL 2021), CC BY 4.0. Adapted locally: paper full text rendered to Markdown; questions, answers and evidence taken from the dataset unchanged.",
+      "paper_id": "1606.07043",
+      "quality_mode": "standard",
+      "query": "Do they compare against popular topic models, such as LDA?",
+      "question_id": "1efaf3bcd66d1b6bdfb124f0cec0cfeee27e6124",
+      "source_dataset": "QASPER",
+      "tags": []
+    },
+    {
+      "annotator_agreement": 3,
+      "answer_kind": "extractive",
+      "category": "exact_value",
+      "evidence_sections": [
+        "Results and Analysis"
+      ],
+      "expected_answer_patterns": [
+        "(?i)Peng\\s+and\\s+Dredze\\s+peng\\-dredze:2016:P16\\-2"
+      ],
+      "expected_behavior": "answer",
+      "expected_evidence": [
+        {
+          "excerpt": "Table TABREF23 shows results for NER on test sets. In the Table TABREF23 , we also show micro F1-score (Overall) and out-of-vocabulary entities (OOV) recall. Pe",
+          "section": "Results and Analysis"
+        }
+      ],
+      "expected_source": {
+        "filename": "1611.04234.md",
+        "page": null
+      },
+      "expected_sources": [
+        {
+          "filename": "1611.04234.md",
+          "page": null
+        }
+      ],
+      "id": "qasper_1611.04234_2e468820",
+      "input_files": [],
+      "license_note": "QASPER (Dasigi et al., NAACL 2021), CC BY 4.0. Adapted locally: paper full text rendered to Markdown; questions, answers and evidence taken from the dataset unchanged.",
+      "paper_id": "1611.04234",
+      "quality_mode": "standard",
+      "query": "What is the state-of-the-art?",
+      "question_id": "2e4688205c8e344cded7a053b6014cce04ef1bd5",
+      "source_dataset": "QASPER",
+      "tags": []
+    },
+    {
+      "annotator_agreement": 2,
+      "answer_kind": "extractive",
+      "category": "exact_value",
+      "evidence_sections": [
+        "Datasets"
+      ],
+      "expected_answer_patterns": [
+        "(?i)Peng\\s+and\\s+Dredze\\s+peng\\-dredze:2016:P16\\-2"
+      ],
+      "expected_behavior": "answer",
+      "expected_evidence": [
+        {
+          "excerpt": "We use a modified labelled corpus as Peng and Dredze peng-dredze:2016:P16-2 for NER in Chinese social media. Details of the data are listed in Table TABREF19 . ",
+          "section": "Datasets"
+        }
+      ],
+      "expected_source": {
+        "filename": "1611.04234.md",
+        "page": null
+      },
+      "expected_sources": [
+        {
+          "filename": "1611.04234.md",
+          "page": null
+        }
+      ],
+      "id": "qasper_1611.04234_a71fb012",
+      "input_files": [],
+      "license_note": "QASPER (Dasigi et al., NAACL 2021), CC BY 4.0. Adapted locally: paper full text rendered to Markdown; questions, answers and evidence taken from the dataset unchanged.",
+      "paper_id": "1611.04234",
+      "quality_mode": "standard",
+      "query": "What dataset did they use?",
+      "question_id": "a71fb012631e6a8854d5945b6d0ab2ab8e7b7ee6",
+      "source_dataset": "QASPER",
+      "tags": []
+    },
+    {
+      "annotator_agreement": 3,
+      "answer_kind": "extractive",
+      "category": "exact_value",
+      "evidence_sections": [
+        "Experiments and Results"
+      ],
+      "expected_answer_patterns": [
+        "(?i)NER"
+      ],
+      "expected_behavior": "answer",
+      "expected_evidence": [
+        {
+          "excerpt": "As stated earlier, we use MMTE to perform downstream cross-lingual transfer on 5 NLP tasks. These include 3 classification tasks: NLI (XNLI dataset), document c",
+          "section": "Experiments and Results"
+        }
+      ],
+      "expected_source": {
+        "filename": "1909.00437.md",
+        "page": null
+      },
+      "expected_sources": [
+        {
+          "filename": "1909.00437.md",
+          "page": null
+        }
+      ],
+      "id": "qasper_1909.00437_b70e4c49",
+      "input_files": [],
+      "license_note": "QASPER (Dasigi et al., NAACL 2021), CC BY 4.0. Adapted locally: paper full text rendered to Markdown; questions, answers and evidence taken from the dataset unchanged.",
+      "paper_id": "1909.00437",
+      "quality_mode": "standard",
+      "query": "What are the five downstream tasks?",
+      "question_id": "b70e4c49300dc3eab18e907ab903afd2a0c6075a",
+      "source_dataset": "QASPER",
+      "tags": []
+    },
+    {
+      "annotator_agreement": 3,
+      "answer_kind": "yes_no",
+      "category": "retrieval_only",
+      "evidence_sections": [
+        "Massively Multilingual Neural Machine Translation Model ::: Pre-training ::: Model quality",
+        "Experiments and Results ::: POS Tagging",
+        "Experiments and Results ::: XNLI: Cross-lingual NLI"
+      ],
+      "expected_answer_patterns": [
+        "(?i)Yes"
+      ],
+      "expected_behavior": "answer",
+      "expected_evidence": [
+        {
+          "excerpt": "We use BLEU score BIBREF15 to evaluate the quality of our translation model(s). Our mNMT model performs worse than the bilingual baseline on high resource langu",
+          "section": "Massively Multilingual Neural Machine Translation Model ::: Pre-training ::: Model quality"
+        },
+        {
+          "excerpt": "While mBERT outperforms MMTE on in-language training by a small margin of 0.16 points, MMTE beats mBERT by nearly 0.6 points in the zero-shot setting. Similar t",
+          "section": "Experiments and Results ::: POS Tagging"
+        },
+        {
+          "excerpt": "MMTE outperforms mBERT on 9 out of 15 languages and by 1.2 points on average. BERT achieves excellent results on English, outperforming our system by 2.5 points",
+          "section": "Experiments and Results ::: XNLI: Cross-lingual NLI"
+        }
+      ],
+      "expected_source": {
+        "filename": "1909.00437.md",
+        "page": null
+      },
+      "expected_sources": [
+        {
+          "filename": "1909.00437.md",
+          "page": null
+        }
+      ],
+      "id": "qasper_1909.00437_088d42ec",
+      "input_files": [],
+      "license_note": "QASPER (Dasigi et al., NAACL 2021), CC BY 4.0. Adapted locally: paper full text rendered to Markdown; questions, answers and evidence taken from the dataset unchanged.",
+      "paper_id": "1909.00437",
+      "quality_mode": "standard",
+      "query": "Is this more effective for low-resource than high-resource languages?",
+      "question_id": "088d42ecb1e15515f6a97a0da2fed81b61d61a23",
+      "source_dataset": "QASPER",
+      "tags": [
+        "multi_paragraph"
+      ]
+    },
+    {
+      "annotator_agreement": 3,
+      "answer_kind": "extractive",
+      "category": "exact_value",
+      "evidence_sections": [
+        "Introduction",
+        "Data Collection"
+      ],
+      "expected_answer_patterns": [
+        "(?i)French"
+      ],
+      "expected_behavior": "answer",
+      "expected_evidence": [
+        {
+          "excerpt": "To evaluate the aforementioned systems, we propose a dataset called Multilingual Persona-Chat, or XPersona, by extending the Persona-Chat corpora BIBREF1 to six",
+          "section": "Introduction"
+        },
+        {
+          "excerpt": "Personalized dialogue agents have been shown efficient in conducting human-like conversation. This progress has been catalyzed thanks to existing conversational",
+          "section": "Introduction"
+        },
+        {
+          "excerpt": "The proposed XPersona dataset is an extension of the persona-chat dataset BIBREF0, BIBREF1. Specifically, we extend the ConvAI2 BIBREF1 to six languages: Chines",
+          "section": "Data Collection"
+        }
+      ],
+      "expected_source": {
+        "filename": "2003.07568.md",
+        "page": null
+      },
+      "expected_sources": [
+        {
+          "filename": "2003.07568.md",
+          "page": null
+        }
+      ],
+      "id": "qasper_2003.07568_43729be0",
+      "input_files": [],
+      "license_note": "QASPER (Dasigi et al., NAACL 2021), CC BY 4.0. Adapted locally: paper full text rendered to Markdown; questions, answers and evidence taken from the dataset unchanged.",
+      "paper_id": "2003.07568",
+      "quality_mode": "standard",
+      "query": "Which languages does their newly created dataset contain?",
+      "question_id": "43729be0effb5defc62bae930ceacf7219934f1e",
+      "source_dataset": "QASPER",
+      "tags": [
+        "multi_paragraph"
+      ]
+    },
+    {
+      "annotator_agreement": 2,
+      "answer_kind": "yes_no",
+      "category": "retrieval_only",
+      "evidence_sections": [
+        "Test set with contrastive examples",
+        "Automatic extraction of contrastive examples from corpora",
+        "Introduction"
+      ],
+      "expected_answer_patterns": [
+        "(?i)Yes"
+      ],
+      "expected_behavior": "answer",
+      "expected_evidence": [
+        {
+          "excerpt": "Contrastive evaluation requires a large set of suitable examples that involve the translation of pronouns. As additional goals, our test set is designed to 1) f",
+          "section": "Test set with contrastive examples"
+        },
+        {
+          "excerpt": "We automatically create a test set from the OpenSubtitles corpus BIBREF22 . The goal is to provide a large number of difficult test cases where an English prono",
+          "section": "Automatic extraction of contrastive examples from corpora"
+        },
+        {
+          "excerpt": "To address this issue, we present an alternative way of evaluating larger-context models on a test set that allows to specifically measure a model's capability ",
+          "section": "Introduction"
+        }
+      ],
+      "expected_source": {
+        "filename": "1810.02268.md",
+        "page": null
+      },
+      "expected_sources": [
+        {
+          "filename": "1810.02268.md",
+          "page": null
+        }
+      ],
+      "id": "qasper_1810.02268_ae2142ee",
+      "input_files": [],
+      "license_note": "QASPER (Dasigi et al., NAACL 2021), CC BY 4.0. Adapted locally: paper full text rendered to Markdown; questions, answers and evidence taken from the dataset unchanged.",
+      "paper_id": "1810.02268",
+      "quality_mode": "standard",
+      "query": "did they collect their own contrastive test set?",
+      "question_id": "ae2142ee9e093ce485025168f4bcb3da4602739d",
+      "source_dataset": "QASPER",
+      "tags": [
+        "multi_paragraph"
+      ]
+    },
+    {
+      "annotator_agreement": 2,
+      "answer_kind": "extractive",
+      "category": "exact_value",
+      "evidence_sections": [
+        "Recurrent Models",
+        "Transformer Models"
+      ],
+      "expected_answer_patterns": [
+        "(?i)concat21"
+      ],
+      "expected_behavior": "answer",
+      "expected_evidence": [
+        {
+          "excerpt": "We consider the following recurrent baselines:",
+          "section": "Recurrent Models"
+        },
+        {
+          "excerpt": "baseline Our baseline model is a standard bidirectional RNN model with attention, trained with Nematus. It operates on the sentence level and does not see any a",
+          "section": "Recurrent Models"
+        },
+        {
+          "excerpt": "concat22 We concatenate each sentence with one preceding sentence, for both the source and target side of the corpus. Then we train on this new data set without",
+          "section": "Recurrent Models"
+        },
+        {
+          "excerpt": "s-hier A multi-encoder architecture with hierarchical attention. This model has access to one additional context: the previous source sentence. It is read by a ",
+          "section": "Recurrent Models"
+        }
+      ],
+      "expected_source": {
+        "filename": "1810.02268.md",
+        "page": null
+      },
+      "expected_sources": [
+        {
+          "filename": "1810.02268.md",
+          "page": null
+        }
+      ],
+      "id": "qasper_1810.02268_ebe1084a",
+      "input_files": [],
+      "license_note": "QASPER (Dasigi et al., NAACL 2021), CC BY 4.0. Adapted locally: paper full text rendered to Markdown; questions, answers and evidence taken from the dataset unchanged.",
+      "paper_id": "1810.02268",
+      "quality_mode": "standard",
+      "query": "what are the baselines?",
+      "question_id": "ebe1084a06abdabefffc66f029eeb0b69f114fd9",
+      "source_dataset": "QASPER",
+      "tags": [
+        "multi_paragraph"
+      ]
+    },
+    {
+      "annotator_agreement": 3,
+      "answer_kind": "extractive",
+      "category": "exact_value",
+      "evidence_sections": [
+        "Recurrent Models",
+        "Transformer Models",
+        "Introduction",
+        "Context-Aware NMT Models"
+      ],
+      "expected_answer_patterns": [
+        "(?i)s\\-hier"
+      ],
+      "expected_behavior": "answer",
+      "expected_evidence": [
+        {
+          "excerpt": "We consider the following recurrent baselines:",
+          "section": "Recurrent Models"
+        },
+        {
+          "excerpt": "baseline Our baseline model is a standard bidirectional RNN model with attention, trained with Nematus. It operates on the sentence level and does not see any a",
+          "section": "Recurrent Models"
+        },
+        {
+          "excerpt": "concat22 We concatenate each sentence with one preceding sentence, for both the source and target side of the corpus. Then we train on this new data set without",
+          "section": "Recurrent Models"
+        },
+        {
+          "excerpt": "s-hier A multi-encoder architecture with hierarchical attention. This model has access to one additional context: the previous source sentence. It is read by a ",
+          "section": "Recurrent Models"
+        }
+      ],
+      "expected_source": {
+        "filename": "1810.02268.md",
+        "page": null
+      },
+      "expected_sources": [
+        {
+          "filename": "1810.02268.md",
+          "page": null
+        }
+      ],
+      "id": "qasper_1810.02268_cfdd583d",
+      "input_files": [],
+      "license_note": "QASPER (Dasigi et al., NAACL 2021), CC BY 4.0. Adapted locally: paper full text rendered to Markdown; questions, answers and evidence taken from the dataset unchanged.",
+      "paper_id": "1810.02268",
+      "quality_mode": "standard",
+      "query": "what context aware models were experimented?",
+      "question_id": "cfdd583d01abaca923f5c466bb20e1d4b8c749ff",
+      "source_dataset": "QASPER",
+      "tags": [
+        "multi_paragraph"
+      ]
+    },
+    {
+      "annotator_agreement": 3,
+      "answer_kind": "extractive",
+      "category": "exact_value",
+      "evidence_sections": [
+        "Experiments",
+        "Automatic extraction of contrastive examples from corpora"
+      ],
+      "expected_answer_patterns": [
+        "(?i)German"
+      ],
+      "expected_behavior": "answer",
+      "expected_evidence": [
+        {
+          "excerpt": "We train all models on the data from the WMT 2017 English INLINEFORM0 German news translation shared task ( INLINEFORM1 5.8 million sentence pairs). These corpo",
+          "section": "Experiments"
+        },
+        {
+          "excerpt": "We automatically create a test set from the OpenSubtitles corpus BIBREF22 . The goal is to provide a large number of difficult test cases where an English prono",
+          "section": "Automatic extraction of contrastive examples from corpora"
+        }
+      ],
+      "expected_source": {
+        "filename": "1810.02268.md",
+        "page": null
+      },
+      "expected_sources": [
+        {
+          "filename": "1810.02268.md",
+          "page": null
+        }
+      ],
+      "id": "qasper_1810.02268_554d798e",
+      "input_files": [],
+      "license_note": "QASPER (Dasigi et al., NAACL 2021), CC BY 4.0. Adapted locally: paper full text rendered to Markdown; questions, answers and evidence taken from the dataset unchanged.",
+      "paper_id": "1810.02268",
+      "quality_mode": "standard",
+      "query": "what languages did they experiment on?",
+      "question_id": "554d798e4ce58fd30820200c474d7e796dc8ba89",
+      "source_dataset": "QASPER",
+      "tags": [
+        "multi_paragraph"
+      ]
+    },
+    {
+      "annotator_agreement": 2,
+      "answer_kind": "extractive",
+      "category": "exact_value",
+      "evidence_sections": [
+        "Experiments ::: Setup"
+      ],
+      "expected_answer_patterns": [
+        "(?i)BBN"
+      ],
+      "expected_behavior": "answer",
+      "expected_evidence": [
+        {
+          "excerpt": "We use two datasets: FIGER (GOLD) BIBREF0 and BBN BIBREF5. The sizes of their tag sets are 113 and 47, respectively. FIGER (GOLD) allows mentions to have multip",
+          "section": "Experiments ::: Setup"
+        }
+      ],
+      "expected_source": {
+        "filename": "1909.12079.md",
+        "page": null
+      },
+      "expected_sources": [
+        {
+          "filename": "1909.12079.md",
+          "page": null
+        }
+      ],
+      "id": "qasper_1909.12079_3f717e6e",
+      "input_files": [],
+      "license_note": "QASPER (Dasigi et al., NAACL 2021), CC BY 4.0. Adapted locally: paper full text rendered to Markdown; questions, answers and evidence taken from the dataset unchanged.",
+      "paper_id": "1909.12079",
+      "quality_mode": "standard",
+      "query": "Which datasets do they evaluate on?",
+      "question_id": "3f717e6eceab0a066af65ddf782c1ebc502c28c0",
+      "source_dataset": "QASPER",
+      "tags": []
+    },
+    {
+      "annotator_agreement": 2,
+      "answer_kind": "extractive",
+      "category": "exact_value",
+      "evidence_sections": [
+        "CONCEPT RECOGNITION ::: Fine tuning with BERT"
+      ],
+      "expected_answer_patterns": [
+        "(?i)F1\\-score\\s+of\\s+\\$0\\.89\\$"
+      ],
+      "expected_behavior": "answer",
+      "expected_evidence": [
+        {
+          "excerpt": "In the hand-labelled dataset, each word gets a label. The idea is to perform multi-class classification using BERT's pre-trained cased language model. We use py",
+          "section": "CONCEPT RECOGNITION ::: Fine tuning with BERT"
+        }
+      ],
+      "expected_source": {
+        "filename": "2003.11687.md",
+        "page": null
+      },
+      "expected_sources": [
+        {
+          "filename": "2003.11687.md",
+          "page": null
+        }
+      ],
+      "id": "qasper_2003.11687_77c34165",
+      "input_files": [],
+      "license_note": "QASPER (Dasigi et al., NAACL 2021), CC BY 4.0. Adapted locally: paper full text rendered to Markdown; questions, answers and evidence taken from the dataset unchanged.",
+      "paper_id": "2003.11687",
+      "quality_mode": "standard",
+      "query": "What is the performance of fine tuned model on this dataset?",
+      "question_id": "77c3416578b52994227bae7f2529600f02183e12",
+      "source_dataset": "QASPER",
+      "tags": []
+    },
+    {
+      "annotator_agreement": 3,
+      "answer_kind": "yes_no",
+      "category": "retrieval_only",
+      "evidence_sections": [
+        "INTRODUCTION"
+      ],
+      "expected_answer_patterns": [
+        "(?i)Yes"
+      ],
+      "expected_behavior": "answer",
+      "expected_evidence": [
+        {
+          "excerpt": "The Systems Engineer's Virtual Assistant (SEVA) BIBREF0 was introduced with the goal to assist systems engineers (SE) in their problem-solving abilities by keep",
+          "section": "INTRODUCTION"
+        }
+      ],
+      "expected_source": {
+        "filename": "2003.11687.md",
+        "page": null
+      },
+      "expected_sources": [
+        {
+          "filename": "2003.11687.md",
+          "page": null
+        }
+      ],
+      "id": "qasper_2003.11687_2abcff4f",
+      "input_files": [],
+      "license_note": "QASPER (Dasigi et al., NAACL 2021), CC BY 4.0. Adapted locally: paper full text rendered to Markdown; questions, answers and evidence taken from the dataset unchanged.",
+      "paper_id": "2003.11687",
+      "quality_mode": "standard",
+      "query": "Are constructed datasets open sourced?",
+      "question_id": "2abcff4fdedf9b17f76875cc338ba4ab8d1eccd3",
+      "source_dataset": "QASPER",
+      "tags": []
+    },
+    {
+      "annotator_agreement": 3,
+      "answer_kind": "extractive",
+      "category": "exact_value",
+      "evidence_sections": [
+        "CONCEPT RECOGNITION ::: Fine tuning with BERT"
+      ],
+      "expected_answer_patterns": [
+        "(?i)BERT"
+      ],
+      "expected_behavior": "answer",
+      "expected_evidence": [
+        {
+          "excerpt": "Any language model can be used for the purpose of customizing an NER problem to CR. We choose to go with BERT BIBREF16 because of its general-purpose nature and",
+          "section": "CONCEPT RECOGNITION ::: Fine tuning with BERT"
+        }
+      ],
+      "expected_source": {
+        "filename": "2003.11687.md",
+        "page": null
+      },
+      "expected_sources": [
+        {
+          "filename": "2003.11687.md",
+          "page": null
+        }
+      ],
+      "id": "qasper_2003.11687_b39b278a",
+      "input_files": [],
+      "license_note": "QASPER (Dasigi et al., NAACL 2021), CC BY 4.0. Adapted locally: paper full text rendered to Markdown; questions, answers and evidence taken from the dataset unchanged.",
+      "paper_id": "2003.11687",
+      "quality_mode": "standard",
+      "query": "What pretrained language model is used?",
+      "question_id": "b39b278aa1cf2f87ad4159725dff77b387f2df84",
+      "source_dataset": "QASPER",
+      "tags": []
+    },
+    {
+      "annotator_agreement": 2,
+      "answer_kind": "extractive",
+      "category": "exact_value",
+      "evidence_sections": [
+        "CONCEPT RECOGNITION ::: CR Dataset Construction and Pre-processing"
+      ],
+      "expected_answer_patterns": [
+        "(?i)3700\\s+sentences"
+      ],
+      "expected_behavior": "answer",
+      "expected_evidence": [
+        {
+          "excerpt": "Using python tools such as PyPDF2, NLTK, and RegEx we build a pipeline to convert PDF to raw text along with extensive pre-processing which includes joining sen",
+          "section": "CONCEPT RECOGNITION ::: CR Dataset Construction and Pre-processing"
+        }
+      ],
+      "expected_source": {
+        "filename": "2003.11687.md",
+        "page": null
+      },
+      "expected_sources": [
+        {
+          "filename": "2003.11687.md",
+          "page": null
+        }
+      ],
+      "id": "qasper_2003.11687_814e9456",
+      "input_files": [],
+      "license_note": "QASPER (Dasigi et al., NAACL 2021), CC BY 4.0. Adapted locally: paper full text rendered to Markdown; questions, answers and evidence taken from the dataset unchanged.",
+      "paper_id": "2003.11687",
+      "quality_mode": "standard",
+      "query": "How big is constructed dataset?",
+      "question_id": "814e945668e2b6f31b088918758b120fb00ada7d",
+      "source_dataset": "QASPER",
+      "tags": []
+    },
+    {
+      "annotator_agreement": 2,
+      "answer_kind": "extractive",
+      "category": "exact_value",
+      "evidence_sections": [
+        "Models",
+        "Training strategy"
+      ],
+      "expected_answer_patterns": [
+        "(?i)word2vec"
+      ],
+      "expected_behavior": "answer",
+      "expected_evidence": [
+        {
+          "excerpt": "The third model is constructed for the purpose of improving classification results for a certain category. In this study specifically, the optimization task was",
+          "section": "Models"
+        },
+        {
+          "excerpt": "To compare the three models effectiveness on the AZ task, the three models on a same ACL dataset (introduced int he dataset section) were trained. The word2vec ",
+          "section": "Training strategy"
+        },
+        {
+          "excerpt": "The first model, averaging word vectors ( INLINEFORM0 ), is to average the vectors in word sequence INLINEFORM1 . The main process in this model is to learn the",
+          "section": "Models"
+        },
+        {
+          "excerpt": "INLINEFORM0 INLINEFORM1 INLINEFORM2 INLINEFORM3 (4)",
+          "section": "Models"
+        }
+      ],
+      "expected_source": {
+        "filename": "1703.10152.md",
+        "page": null
+      },
+      "expected_sources": [
+        {
+          "filename": "1703.10152.md",
+          "page": null
+        }
+      ],
+      "id": "qasper_1703.10152_31e6062b",
+      "input_files": [],
+      "license_note": "QASPER (Dasigi et al., NAACL 2021), CC BY 4.0. Adapted locally: paper full text rendered to Markdown; questions, answers and evidence taken from the dataset unchanged.",
+      "paper_id": "1703.10152",
+      "quality_mode": "standard",
+      "query": "What word embeddings are used?",
+      "question_id": "31e6062ba45d8956791e1b86bad7efcb6d1b191a",
+      "source_dataset": "QASPER",
+      "tags": [
+        "multi_paragraph"
+      ]
+    },
+    {
+      "annotator_agreement": 3,
+      "answer_kind": "yes_no",
+      "category": "retrieval_only",
+      "evidence_sections": [
+        "Test Dataset",
+        "Training Dataset"
+      ],
+      "expected_answer_patterns": [
+        "(?i)No"
+      ],
+      "expected_behavior": "answer",
+      "expected_evidence": [
+        {
+          "excerpt": "Argumentative Zoning Corpus ( INLINEFORM0 corpus) consists of 80 AZ INLINEFORM1 annotated conference articles in computational linguistics, originally drawn fro",
+          "section": "Test Dataset"
+        },
+        {
+          "excerpt": "Training Dataset",
+          "section": null
+        },
+        {
+          "excerpt": "INLINEFORM0 collection. ACL Anthology Reference Corpus contains the canonical 10,921 computational linguistics papers, from which 622,144 sentences were generat",
+          "section": "Training Dataset"
+        },
+        {
+          "excerpt": "INLINEFORM0 collection contains 6,778 sentences, extracted from the titles and abstracts of publications provided by WEB OF SCIENCE .",
+          "section": "Training Dataset"
+        }
+      ],
+      "expected_source": {
+        "filename": "1703.10152.md",
+        "page": null
+      },
+      "expected_sources": [
+        {
+          "filename": "1703.10152.md",
+          "page": null
+        }
+      ],
+      "id": "qasper_1703.10152_38b29b0d",
+      "input_files": [],
+      "license_note": "QASPER (Dasigi et al., NAACL 2021), CC BY 4.0. Adapted locally: paper full text rendered to Markdown; questions, answers and evidence taken from the dataset unchanged.",
+      "paper_id": "1703.10152",
+      "quality_mode": "standard",
+      "query": "Do they annotate their own dataset?",
+      "question_id": "38b29b0dcb87868680f9934af71ef245ebb122e4",
+      "source_dataset": "QASPER",
+      "tags": [
+        "multi_paragraph"
+      ]
+    },
+    {
+      "annotator_agreement": 2,
+      "answer_kind": "extractive",
+      "category": "exact_value",
+      "evidence_sections": [
+        "Data Collection"
+      ],
+      "expected_answer_patterns": [
+        "(?i)Credit\\-based\\s+Freemium\\s+services"
+      ],
+      "expected_behavior": "answer",
+      "expected_evidence": [
+        {
+          "excerpt": "We collected data from Credit-based Freemium services because their service model is easy to understand. We crawled two blackmarket sites \u2013 YouLikeHits and Like",
+          "section": "Data Collection"
+        }
+      ],
+      "expected_source": {
+        "filename": "1907.04072.md",
+        "page": null
+      },
+      "expected_sources": [
+        {
+          "filename": "1907.04072.md",
+          "page": null
+        }
+      ],
+      "id": "qasper_1907.04072_46d051b8",
+      "input_files": [],
+      "license_note": "QASPER (Dasigi et al., NAACL 2021), CC BY 4.0. Adapted locally: paper full text rendered to Markdown; questions, answers and evidence taken from the dataset unchanged.",
+      "paper_id": "1907.04072",
+      "quality_mode": "standard",
+      "query": "What blackmarket services do they look at?",
+      "question_id": "46d051b8924ad0ef8cfba9c7b5b84707ee72f26a",
+      "source_dataset": "QASPER",
+      "tags": []
+    },
+    {
+      "annotator_agreement": 2,
+      "answer_kind": "extractive",
+      "category": "exact_value",
+      "evidence_sections": [
+        "Experiments ::: Training Details ::: Pre-Training"
+      ],
+      "expected_answer_patterns": [
+        "(?i)French"
+      ],
+      "expected_behavior": "answer",
+      "expected_evidence": [
+        {
+          "excerpt": "We use a pre-trained Xnlg with a 10-layer encoder and a 6-layer decoder. For every Transformer layer, we use 1024 hidden units, 8 attention heads, and GELU acti",
+          "section": "Experiments ::: Training Details ::: Pre-Training"
+        }
+      ],
+      "expected_source": {
+        "filename": "1909.10481.md",
+        "page": null
+      },
+      "expected_sources": [
+        {
+          "filename": "1909.10481.md",
+          "page": null
+        }
+      ],
+      "id": "qasper_1909.10481_dae2f135",
+      "input_files": [],
+      "license_note": "QASPER (Dasigi et al., NAACL 2021), CC BY 4.0. Adapted locally: paper full text rendered to Markdown; questions, answers and evidence taken from the dataset unchanged.",
+      "paper_id": "1909.10481",
+      "quality_mode": "standard",
+      "query": "What languages do they use during pretraining?",
+      "question_id": "dae2f135e50d77867c3f57fc3cb0427b2443e126",
+      "source_dataset": "QASPER",
+      "tags": []
+    },
+    {
+      "annotator_agreement": 2,
+      "answer_kind": "extractive",
+      "category": "exact_value",
+      "evidence_sections": [
+        "Experiments ::: Question Generation ::: English-English Question Generation",
+        "Experiments ::: Question Generation ::: Chinese-Chinese Question Generation"
+      ],
+      "expected_answer_patterns": [
+        "(?i)Xlm\\s+BIBREF5"
+      ],
+      "expected_behavior": "answer",
+      "expected_evidence": [
+        {
+          "excerpt": "We first conduct experiments on the supervised English-English QG setting. We compare our model to the following baselines:",
+          "section": "Experiments ::: Question Generation ::: English-English Question Generation"
+        },
+        {
+          "excerpt": "CorefNqg BIBREF33 A sequence-to-sequence model with attention mechanism and a feature-rich encoder.",
+          "section": "Experiments ::: Question Generation ::: English-English Question Generation"
+        },
+        {
+          "excerpt": "Mp-Gsn BIBREF31 A sequence-to-sequence model with gated self-attention and maxout pointer mechanism.",
+          "section": "Experiments ::: Question Generation ::: English-English Question Generation"
+        },
+        {
+          "excerpt": "Xlm BIBREF5 The current state-of-the-art cross-lingual pre-training model. We initialize the Transformer-based sequence-to-sequence model with pre-trained XLM.",
+          "section": "Experiments ::: Question Generation ::: English-English Question Generation"
+        }
+      ],
+      "expected_source": {
+        "filename": "1909.10481.md",
+        "page": null
+      },
+      "expected_sources": [
+        {
+          "filename": "1909.10481.md",
+          "page": null
+        }
+      ],
+      "id": "qasper_1909.10481_c0355afc",
+      "input_files": [],
+      "license_note": "QASPER (Dasigi et al., NAACL 2021), CC BY 4.0. Adapted locally: paper full text rendered to Markdown; questions, answers and evidence taken from the dataset unchanged.",
+      "paper_id": "1909.10481",
+      "quality_mode": "standard",
+      "query": "What is their baseline?",
+      "question_id": "c0355afc7871bf2e12260592873ffdb5c0c4c919",
+      "source_dataset": "QASPER",
+      "tags": [
+        "multi_paragraph"
+      ]
+    },
+    {
+      "annotator_agreement": 3,
+      "answer_kind": "extractive",
+      "category": "exact_value",
+      "evidence_sections": [
+        "Evaluation"
+      ],
+      "expected_answer_patterns": [
+        "(?i)prompt\\s+ranking\\s+accuracy"
+      ],
+      "expected_behavior": "answer",
+      "expected_evidence": [
+        {
+          "excerpt": "For automatic evaluation, we measure model perplexity on the test set and prompt ranking accuracy. Perplexity is commonly used to evaluate the quality of langua",
+          "section": "Evaluation"
+        }
+      ],
+      "expected_source": {
+        "filename": "1805.04833.md",
+        "page": null
+      },
+      "expected_sources": [
+        {
+          "filename": "1805.04833.md",
+          "page": null
+        }
+      ],
+      "id": "qasper_1805.04833_cc3dd701",
+      "input_files": [],
+      "license_note": "QASPER (Dasigi et al., NAACL 2021), CC BY 4.0. Adapted locally: paper full text rendered to Markdown; questions, answers and evidence taken from the dataset unchanged.",
+      "paper_id": "1805.04833",
+      "quality_mode": "standard",
+      "query": "Which automated evaluation metrics are used?",
+      "question_id": "cc3dd701f3a674618de95a4196e9c7f4c8fbf1e5",
+      "source_dataset": "QASPER",
+      "tags": []
+    },
+    {
+      "annotator_agreement": 2,
+      "answer_kind": "extractive",
+      "category": "exact_value",
+      "evidence_sections": [
+        "Baselines"
+      ],
+      "expected_answer_patterns": [
+        "(?i)KNN\\s+model"
+      ],
+      "expected_behavior": "answer",
+      "expected_evidence": [
+        {
+          "excerpt": "We evaluate a number of baselines:",
+          "section": "Baselines"
+        },
+        {
+          "excerpt": "(1) Language Models: Non-hierarchical models for story generation, which do not condition on the prompt. We use both the gated convolutional language (GCNN) mod",
+          "section": "Baselines"
+        },
+        {
+          "excerpt": "(2) seq2seq: using LSTMs and convolutional seq2seq architectures, and Conv seq2seq with decoder self-attention.",
+          "section": "Baselines"
+        },
+        {
+          "excerpt": "(3) Ensemble: an ensemble of two Conv seq2seq with self-attention models.",
+          "section": "Baselines"
+        }
+      ],
+      "expected_source": {
+        "filename": "1805.04833.md",
+        "page": null
+      },
+      "expected_sources": [
+        {
+          "filename": "1805.04833.md",
+          "page": null
+        }
+      ],
+      "id": "qasper_1805.04833_d66550f6",
+      "input_files": [],
+      "license_note": "QASPER (Dasigi et al., NAACL 2021), CC BY 4.0. Adapted locally: paper full text rendered to Markdown; questions, answers and evidence taken from the dataset unchanged.",
+      "paper_id": "1805.04833",
+      "quality_mode": "standard",
+      "query": "What baselines do they compare against?",
+      "question_id": "d66550f65484696c1284903708b87809ea705786",
+      "source_dataset": "QASPER",
+      "tags": []
+    },
+    {
+      "annotator_agreement": 2,
+      "answer_kind": "yes_no",
+      "category": "retrieval_only",
+      "evidence_sections": [],
+      "expected_answer_patterns": [
+        "(?i)No"
+      ],
+      "expected_behavior": "answer",
+      "expected_evidence": [],
+      "expected_source": {
+        "filename": "1805.04833.md",
+        "page": null
+      },
+      "expected_sources": [
+        {
+          "filename": "1805.04833.md",
+          "page": null
+        }
+      ],
+      "id": "qasper_1805.04833_29ba93bc",
+      "input_files": [],
+      "license_note": "QASPER (Dasigi et al., NAACL 2021), CC BY 4.0. Adapted locally: paper full text rendered to Markdown; questions, answers and evidence taken from the dataset unchanged.",
+      "paper_id": "1805.04833",
+      "quality_mode": "standard",
+      "query": "Do they use pre-trained embeddings like BERT?",
+      "question_id": "29ba93bcd99c2323d04d4692d3672967cca4915e",
+      "source_dataset": "QASPER",
+      "tags": []
+    },
+    {
+      "annotator_agreement": 2,
+      "answer_kind": "extractive",
+      "category": "exact_value",
+      "evidence_sections": [
+        "Hierarchical Story Generation"
+      ],
+      "expected_answer_patterns": [
+        "(?i)convolutional\\s+language\\s+model\\s+from\\s+BIBREF4"
+      ],
+      "expected_behavior": "answer",
+      "expected_evidence": [
+        {
+          "excerpt": "High-level structure is integral to good stories, but language models generate on a strictly-word-by-word basis and so cannot explicitly make high-level plans. ",
+          "section": "Hierarchical Story Generation"
+        }
+      ],
+      "expected_source": {
+        "filename": "1805.04833.md",
+        "page": null
+      },
+      "expected_sources": [
+        {
+          "filename": "1805.04833.md",
+          "page": null
+        }
+      ],
+      "id": "qasper_1805.04833_804bf5ad",
+      "input_files": [],
+      "license_note": "QASPER (Dasigi et al., NAACL 2021), CC BY 4.0. Adapted locally: paper full text rendered to Markdown; questions, answers and evidence taken from the dataset unchanged.",
+      "paper_id": "1805.04833",
+      "quality_mode": "standard",
+      "query": "What model is used to generate the premise?",
+      "question_id": "804bf5adc6dc5dd52f8079cf041ed3a710e03f8a",
+      "source_dataset": "QASPER",
+      "tags": []
+    },
+    {
+      "annotator_agreement": 2,
+      "answer_kind": "yes_no",
+      "category": "retrieval_only",
+      "evidence_sections": [
+        "Evaluation"
+      ],
+      "expected_answer_patterns": [
+        "(?i)No"
+      ],
+      "expected_behavior": "answer",
+      "expected_evidence": [
+        {
+          "excerpt": "We propose a number of evaluation metrics to quantify the performance of our models. Many commonly used metrics, such as BLEU for machine translation or ROUGE f",
+          "section": "Evaluation"
+        }
+      ],
+      "expected_source": {
+        "filename": "1805.04833.md",
+        "page": null
+      },
+      "expected_sources": [
+        {
+          "filename": "1805.04833.md",
+          "page": null
+        }
+      ],
+      "id": "qasper_1805.04833_f2dba5bf",
+      "input_files": [],
+      "license_note": "QASPER (Dasigi et al., NAACL 2021), CC BY 4.0. Adapted locally: paper full text rendered to Markdown; questions, answers and evidence taken from the dataset unchanged.",
+      "paper_id": "1805.04833",
+      "quality_mode": "standard",
+      "query": "Are the stories in the dataset fictional stories?",
+      "question_id": "f2dba5bf75967407cce5d0a9c2618269225081f5",
+      "source_dataset": "QASPER",
+      "tags": []
+    },
+    {
+      "annotator_agreement": 3,
+      "answer_kind": "extractive",
+      "category": "exact_value",
+      "evidence_sections": [
+        "Pre-trained word embeddings"
+      ],
+      "expected_answer_patterns": [
+        "(?i)GloVe"
+      ],
+      "expected_behavior": "answer",
+      "expected_evidence": [
+        {
+          "excerpt": "We study five pre-trained word embeddings for our model:",
+          "section": "Pre-trained word embeddings"
+        },
+        {
+          "excerpt": "word2vec is trained on Google News dataset (100 billion tokens). The model contains 300-dimensional vectors for 3 million words and phrases.",
+          "section": "Pre-trained word embeddings"
+        },
+        {
+          "excerpt": "fastText is learned via skip-gram with subword information on Wikipedia text. The embedding representations in fastText are 300-dimensional vectors.",
+          "section": "Pre-trained word embeddings"
+        },
+        {
+          "excerpt": "GloVe is a 300-dimensional word embedding model learned on aggregated global word-word co-occurrence statistics from Common Crawl (840 billion tokens).",
+          "section": "Pre-trained word embeddings"
+        }
+      ],
+      "expected_source": {
+        "filename": "1805.07882.md",
+        "page": null
+      },
+      "expected_sources": [
+        {
+          "filename": "1805.07882.md",
+          "page": null
+        }
+      ],
+      "id": "qasper_1805.07882_3eb107f3",
+      "input_files": [],
+      "license_note": "QASPER (Dasigi et al., NAACL 2021), CC BY 4.0. Adapted locally: paper full text rendered to Markdown; questions, answers and evidence taken from the dataset unchanged.",
+      "paper_id": "1805.07882",
+      "quality_mode": "standard",
+      "query": "which pretrained embeddings were experimented with?",
+      "question_id": "3eb107f35f4f5f5f527a93ffb487aa2e3fe51efd",
+      "source_dataset": "QASPER",
+      "tags": []
+    },
+    {
+      "annotator_agreement": 2,
+      "answer_kind": "extractive",
+      "category": "exact_value",
+      "evidence_sections": [
+        "Overall evaluation",
+        "Evaluation of exploiting multiple pre-trained word embeddings"
+      ],
+      "expected_answer_patterns": [
+        "(?i)MRPC"
+      ],
+      "expected_behavior": "answer",
+      "expected_evidence": [
+        {
+          "excerpt": "We report the results of these methods in Table TABREF49 . Overall, our M-MaxLSTM-CNN shows competitive performances in these tasks. Especially in the STS task,",
+          "section": "Overall evaluation"
+        },
+        {
+          "excerpt": "In STSB and MRPC, as employing the five pre-trained embeddings, the INLINEFORM0 is increased. This factor limits the number of random values when initializing w",
+          "section": "Evaluation of exploiting multiple pre-trained word embeddings"
+        },
+        {
+          "excerpt": "In this section, we evaluate the efficiency of using multiple pre-trained word embeddings. We compare our multiple pre-trained word embeddings model against mod",
+          "section": "Evaluation of exploiting multiple pre-trained word embeddings"
+        }
+      ],
+      "expected_source": {
+        "filename": "1805.07882.md",
+        "page": null
+      },
+      "expected_sources": [
+        {
+          "filename": "1805.07882.md",
+          "page": null
+        }
+      ],
+      "id": "qasper_1805.07882_47d54a6d",
+      "input_files": [],
+      "license_note": "QASPER (Dasigi et al., NAACL 2021), CC BY 4.0. Adapted locally: paper full text rendered to Markdown; questions, answers and evidence taken from the dataset unchanged.",
+      "paper_id": "1805.07882",
+      "quality_mode": "standard",
+      "query": "what datasets where used?",
+      "question_id": "47d54a6dd50cab8dab64bfa1f9a1947a8190080c",
+      "source_dataset": "QASPER",
+      "tags": [
+        "multi_paragraph"
+      ]
+    },
+    {
+      "annotator_agreement": 2,
+      "answer_kind": "extractive",
+      "category": "exact_value",
+      "evidence_sections": [
+        "Evaluation of exploiting multiple pre-trained word embeddings",
+        "Introduction"
+      ],
+      "expected_answer_patterns": [
+        "(?i)HCTI\\s+BIBREF5"
+      ],
+      "expected_behavior": "answer",
+      "expected_evidence": [
+        {
+          "excerpt": "We observed that no word embedding has strong results on all the tasks. Although trained on the paraphrase database and having the highest INLINEFORM0 , the SL9",
+          "section": "Evaluation of exploiting multiple pre-trained word embeddings"
+        },
+        {
+          "excerpt": "We evaluate our M-MaxLSTM-CNN model on three tasks: STS, textual entailment recognition, paraphrase identification. The advantages of M-MaxLSTM-CNN are: i) simp",
+          "section": "Introduction"
+        }
+      ],
+      "expected_source": {
+        "filename": "1805.07882.md",
+        "page": null
+      },
+      "expected_sources": [
+        {
+          "filename": "1805.07882.md",
+          "page": null
+        }
+      ],
+      "id": "qasper_1805.07882_67cb001f",
+      "input_files": [],
+      "license_note": "QASPER (Dasigi et al., NAACL 2021), CC BY 4.0. Adapted locally: paper full text rendered to Markdown; questions, answers and evidence taken from the dataset unchanged.",
+      "paper_id": "1805.07882",
+      "quality_mode": "standard",
+      "query": "what are the state of the art methods they compare with?",
+      "question_id": "67cb001f8ca122ea859724804b41529fea5faeef",
+      "source_dataset": "QASPER",
+      "tags": [
+        "multi_paragraph"
+      ]
+    },
+    {
+      "annotator_agreement": 3,
+      "answer_kind": "extractive",
+      "category": "exact_value",
+      "evidence_sections": [
+        "Curating a Comprehensive Cyberbullying Dataset ::: Annotation Task"
+      ],
+      "expected_answer_patterns": [
+        "(?i)Fleiss's\\s+Kappa"
+      ],
+      "expected_behavior": "answer",
+      "expected_evidence": [
+        {
+          "excerpt": "We successfully recruited 170 workers to label all 6,897 available threads in our dataset. They labeled an average of 121.7 threads and a median of 7 threads ea",
+          "section": "Curating a Comprehensive Cyberbullying Dataset ::: Annotation Task"
+        }
+      ],
+      "expected_source": {
+        "filename": "2004.01820.md",
+        "page": null
+      },
+      "expected_sources": [
+        {
+          "filename": "2004.01820.md",
+          "page": null
+        }
+      ],
+      "id": "qasper_2004.01820_42eb7c53",
+      "input_files": [],
+      "license_note": "QASPER (Dasigi et al., NAACL 2021), CC BY 4.0. Adapted locally: paper full text rendered to Markdown; questions, answers and evidence taken from the dataset unchanged.",
+      "paper_id": "2004.01820",
+      "quality_mode": "standard",
+      "query": "What agreement measure is used?",
+      "question_id": "42eb7c5311fc1ac0344f0b38d3184ccd4faad3be",
+      "source_dataset": "QASPER",
+      "tags": []
+    },
+    {
+      "annotator_agreement": 3,
+      "answer_kind": "yes_no",
+      "category": "retrieval_only",
+      "evidence_sections": [
+        "Discussion ::: Limitations",
+        "Curating a Comprehensive Cyberbullying Dataset ::: Annotation Task"
+      ],
+      "expected_answer_patterns": [
+        "(?i)Yes"
+      ],
+      "expected_behavior": "answer",
+      "expected_evidence": [
+        {
+          "excerpt": "Our study focuses on the Twitter ecosystem and a small part of its network. The initial sampling of tweets was based on a machine learning classifier of aggress",
+          "section": "Discussion ::: Limitations"
+        },
+        {
+          "excerpt": "FLOAT SELECTED: Table 1: Datasets built from different related definitions of cyberbullying. For each dataset, we report the size, positive class balance, inter",
+          "section": null
+        },
+        {
+          "excerpt": "We successfully recruited 170 workers to label all 6,897 available threads in our dataset. They labeled an average of 121.7 threads and a median of 7 threads ea",
+          "section": "Curating a Comprehensive Cyberbullying Dataset ::: Annotation Task"
+        }
+      ],
+      "expected_source": {
+        "filename": "2004.01820.md",
+        "page": null
+      },
+      "expected_sources": [
+        {
+          "filename": "2004.01820.md",
+          "page": null
+        }
+      ],
+      "id": "qasper_2004.01820_8d14dd9c",
+      "input_files": [],
+      "license_note": "QASPER (Dasigi et al., NAACL 2021), CC BY 4.0. Adapted locally: paper full text rendered to Markdown; questions, answers and evidence taken from the dataset unchanged.",
+      "paper_id": "2004.01820",
+      "quality_mode": "standard",
+      "query": "Do they report the annotation agreement?",
+      "question_id": "8d14dd9c67d71494b4468000ff9683afdd11af7e",
+      "source_dataset": "QASPER",
+      "tags": [
+        "multi_paragraph"
+      ]
+    },
+    {
+      "annotator_agreement": 3,
+      "answer_kind": "extractive",
+      "category": "exact_value",
+      "evidence_sections": [
+        "Curating a Comprehensive Cyberbullying Dataset ::: Annotation Task"
+      ],
+      "expected_answer_patterns": [
+        "(?i)Repetition"
+      ],
+      "expected_behavior": "answer",
+      "expected_evidence": [
+        {
+          "excerpt": "We asked our annotators to consider the full message thread for each tweet as displayed on Twitter's web interface. We also gave them a list of up to 15 recent ",
+          "section": "Curating a Comprehensive Cyberbullying Dataset ::: Annotation Task"
+        },
+        {
+          "excerpt": "Aggressive language: (aggr) Regardless of the author's intent, the language of the tweet could be seen as aggressive. The user either addresses a group or indiv",
+          "section": "Curating a Comprehensive Cyberbullying Dataset ::: Annotation Task"
+        },
+        {
+          "excerpt": "Repetition: (rep) The target user has received at least two aggressive messages in total (either from the author or from another user in the visible thread).",
+          "section": "Curating a Comprehensive Cyberbullying Dataset ::: Annotation Task"
+        },
+        {
+          "excerpt": "Harmful intent: (harm) The tweet was designed to tear down or disadvantage the target user by causing them distress or by harming their public image. The target",
+          "section": "Curating a Comprehensive Cyberbullying Dataset ::: Annotation Task"
+        }
+      ],
+      "expected_source": {
+        "filename": "2004.01820.md",
+        "page": null
+      },
+      "expected_sources": [
+        {
+          "filename": "2004.01820.md",
+          "page": null
+        }
+      ],
+      "id": "qasper_2004.01820_235c7c7c",
+      "input_files": [],
+      "license_note": "QASPER (Dasigi et al., NAACL 2021), CC BY 4.0. Adapted locally: paper full text rendered to Markdown; questions, answers and evidence taken from the dataset unchanged.",
+      "paper_id": "2004.01820",
+      "quality_mode": "standard",
+      "query": "What are the five factors considered?",
+      "question_id": "235c7c7ca719068136928b18e19f9661e0f72806",
+      "source_dataset": "QASPER",
+      "tags": []
+    },
+    {
+      "annotator_agreement": 2,
+      "answer_kind": "extractive",
+      "category": "exact_value",
+      "evidence_sections": [
+        "Dataset"
+      ],
+      "expected_answer_patterns": [
+        "(?i)CrowdTruth"
+      ],
+      "expected_behavior": "answer",
+      "expected_evidence": [
+        {
+          "excerpt": "Our training data consists of jokes, quotes, and tweets from different sources. We combined multiple sources and de-duplicated them to arrive at a large corpus ",
+          "section": "Dataset"
+        }
+      ],
+      "expected_source": {
+        "filename": "1806.04387.md",
+        "page": null
+      },
+      "expected_sources": [
+        {
+          "filename": "1806.04387.md",
+          "page": null
+        }
+      ],
+      "id": "qasper_1806.04387_9f1d81b2",
+      "input_files": [],
+      "license_note": "QASPER (Dasigi et al., NAACL 2021), CC BY 4.0. Adapted locally: paper full text rendered to Markdown; questions, answers and evidence taken from the dataset unchanged.",
+      "paper_id": "1806.04387",
+      "quality_mode": "standard",
+      "query": "Where did the joke data come from?",
+      "question_id": "9f1d81b2a6fe6835042a5229690e1951b97ff671",
+      "source_dataset": "QASPER",
+      "tags": []
+    },
+    {
+      "annotator_agreement": 3,
+      "answer_kind": "yes_no",
+      "category": "retrieval_only",
+      "evidence_sections": [
+        "Overview"
+      ],
+      "expected_answer_patterns": [
+        "(?i)No"
+      ],
+      "expected_behavior": "answer",
+      "expected_evidence": [
+        {
+          "excerpt": "We perform three different experiments to test our hypotheses. First, we perform a named entity recognition tasks, by adding a bi-LSTM on top of the BERT model.",
+          "section": "Overview"
+        },
+        {
+          "excerpt": "Under the strategy finetune-only, we use only single BERT.In order to adapt to different tasks, we will add a fully connected layer upon BERT. In the sequence l",
+          "section": "Overview"
+        }
+      ],
+      "expected_source": {
+        "filename": "1907.05338.md",
+        "page": null
+      },
+      "expected_sources": [
+        {
+          "filename": "1907.05338.md",
+          "page": null
+        }
+      ],
+      "id": "qasper_1907.05338_79e61134",
+      "input_files": [],
+      "license_note": "QASPER (Dasigi et al., NAACL 2021), CC BY 4.0. Adapted locally: paper full text rendered to Markdown; questions, answers and evidence taken from the dataset unchanged.",
+      "paper_id": "1907.05338",
+      "quality_mode": "standard",
+      "query": "did they test with other pretrained models besides bert?",
+      "question_id": "79e61134a6e29141cd19252571ffc92a0b4bc97f",
+      "source_dataset": "QASPER",
+      "tags": []
+    },
+    {
+      "annotator_agreement": 3,
+      "answer_kind": "extractive",
+      "category": "exact_value",
+      "evidence_sections": [
+        "Experiment A: Sequence Labeling",
+        "Experiment B: Text Classification",
+        "Experiment C: Semantic Similarity Tasks"
+      ],
+      "expected_answer_patterns": [
+        "(?i)Yahoo\\s+Answer\\s+Classification\\s+Dataset"
+      ],
+      "expected_behavior": "answer",
+      "expected_evidence": [
+        {
+          "excerpt": "In the sequence labeling task,we explore sub-task named entity recognition using CoNLL03 dataset BIBREF5 , which is a public available used in many studies to t",
+          "section": "Experiment A: Sequence Labeling"
+        },
+        {
+          "excerpt": "In the task of text categorization, we used Yahoo Answer Classification Dataset. The Dataset is consists of 10 classes, but due to the huge amount of the datase",
+          "section": "Experiment B: Text Classification"
+        },
+        {
+          "excerpt": "We use \u201cQuora-Question-Pair\u201d dataset 1. This is a commonly used dataset containing 400k question pairs, annotated manually to be semantically equivalent or not.",
+          "section": "Experiment C: Semantic Similarity Tasks"
+        }
+      ],
+      "expected_source": {
+        "filename": "1907.05338.md",
+        "page": null
+      },
+      "expected_sources": [
+        {
+          "filename": "1907.05338.md",
+          "page": null
+        }
+      ],
+      "id": "qasper_1907.05338_5d3e8793",
+      "input_files": [],
+      "license_note": "QASPER (Dasigi et al., NAACL 2021), CC BY 4.0. Adapted locally: paper full text rendered to Markdown; questions, answers and evidence taken from the dataset unchanged.",
+      "paper_id": "1907.05338",
+      "quality_mode": "standard",
+      "query": "what datasets were used for testing?",
+      "question_id": "5d3e87937ecebf0695bece08eccefb2f88ad4a0f",
+      "source_dataset": "QASPER",
+      "tags": [
+        "multi_paragraph"
+      ]
+    },
+    {
+      "annotator_agreement": 2,
+      "answer_kind": "extractive",
+      "category": "exact_value",
+      "evidence_sections": [
+        "Corpus Analysis"
+      ],
+      "expected_answer_patterns": [
+        "(?i)933\\s+manually\\s+identified\\s+adpositions"
+      ],
+      "expected_behavior": "answer",
+      "expected_evidence": [
+        {
+          "excerpt": "Our corpus contains 933 manually identified adpositions. Of these, 70 distinct adpositions, 28 distinct scene roles, 26 distinct functions, and 41 distinct full",
+          "section": "Corpus Analysis"
+        }
+      ],
+      "expected_source": {
+        "filename": "2003.08437.md",
+        "page": null
+      },
+      "expected_sources": [
+        {
+          "filename": "2003.08437.md",
+          "page": null
+        }
+      ],
+      "id": "qasper_2003.08437_2694a679",
+      "input_files": [],
+      "license_note": "QASPER (Dasigi et al., NAACL 2021), CC BY 4.0. Adapted locally: paper full text rendered to Markdown; questions, answers and evidence taken from the dataset unchanged.",
+      "paper_id": "2003.08437",
+      "quality_mode": "standard",
+      "query": "What is the size of the corpus?",
+      "question_id": "2694a679a703ccd6139897e4d9ff8e053dabd0f2",
+      "source_dataset": "QASPER",
+      "tags": []
+    },
+    {
+      "annotator_agreement": 2,
+      "answer_kind": "extractive",
+      "category": "exact_value",
+      "evidence_sections": [
+        "Methods ::: Fine-tuning",
+        "Methods ::: Fine-tuning ::: Artificial Neural Network (ANN)",
+        "Methods ::: Fine-tuning ::: Long Short Term Memory networks (LSTMs)",
+        "Methods ::: Fine-tuning ::: Random Forest",
+        "Methods ::: Fine-tuning ::: Logistic Regression",
+        "Methods ::: Fine-tuning ::: Support Vector Machine (SVM)",
+        "Introduction"
+      ],
+      "expected_answer_patterns": [
+        "(?i)Random\\s+Forest"
+      ],
+      "expected_behavior": "answer",
+      "expected_evidence": [
+        {
+          "excerpt": "Once the representations of text are pre-trained from previous unsupervised learning, the representations are then fed into 5 different models to perform superv",
+          "section": "Methods ::: Fine-tuning"
+        },
+        {
+          "excerpt": "Methods ::: Fine-tuning ::: Artificial Neural Network (ANN)",
+          "section": null
+        },
+        {
+          "excerpt": "We trained simple Artificial Neural Networks which contains an input layer, particular number of output layers (specified by a hyperparameter) in which each hid",
+          "section": "Methods ::: Fine-tuning ::: Artificial Neural Network (ANN)"
+        },
+        {
+          "excerpt": "Due to the limitation of computing resource, the grid search for Neural Networks is divided into three sequential steps. Instead of performing grid search on al",
+          "section": "Methods ::: Fine-tuning ::: Artificial Neural Network (ANN)"
+        }
+      ],
+      "expected_source": {
+        "filename": "2003.04978.md",
+        "page": null
+      },
+      "expected_sources": [
+        {
+          "filename": "2003.04978.md",
+          "page": null
+        }
+      ],
+      "id": "qasper_2003.04978_f8264609",
+      "input_files": [],
+      "license_note": "QASPER (Dasigi et al., NAACL 2021), CC BY 4.0. Adapted locally: paper full text rendered to Markdown; questions, answers and evidence taken from the dataset unchanged.",
+      "paper_id": "2003.04978",
+      "quality_mode": "standard",
+      "query": "What models are explored in this paper?",
+      "question_id": "f8264609a44f059b74168995ffee150182a0c14f",
+      "source_dataset": "QASPER",
+      "tags": [
+        "multi_paragraph"
+      ]
+    },
+    {
+      "annotator_agreement": 2,
+      "answer_kind": "extractive",
+      "category": "exact_value",
+      "evidence_sections": [
+        "Model Selection and Evaluation"
+      ],
+      "expected_answer_patterns": [
+        "(?i)gradient\\s+boosted\\s+trees"
+      ],
+      "expected_behavior": "answer",
+      "expected_evidence": [
+        {
+          "excerpt": "As the class distribution in the training data is not balanced, I have used stratified cross-validation for validation purposes and for hyper-parameter selectio",
+          "section": "Model Selection and Evaluation"
+        }
+      ],
+      "expected_source": {
+        "filename": "1809.08935.md",
+        "page": null
+      },
+      "expected_sources": [
+        {
+          "filename": "1809.08935.md",
+          "page": null
+        }
+      ],
+      "id": "qasper_1809.08935_46e660be",
+      "input_files": [],
+      "license_note": "QASPER (Dasigi et al., NAACL 2021), CC BY 4.0. Adapted locally: paper full text rendered to Markdown; questions, answers and evidence taken from the dataset unchanged.",
+      "paper_id": "1809.08935",
+      "quality_mode": "standard",
+      "query": "what model is used?",
+      "question_id": "46e660becd727c994a2a35c6587e15ea8bf8272d",
+      "source_dataset": "QASPER",
+      "tags": []
+    },
+    {
+      "annotator_agreement": 3,
+      "answer_kind": "unanswerable",
+      "category": "missing_evidence",
+      "evidence_sections": [],
+      "expected_answer_patterns": [],
+      "expected_behavior": "abstain",
+      "expected_evidence": [],
+      "expected_source": {
+        "filename": null,
+        "page": null
+      },
+      "expected_sources": [],
+      "id": "qasper_1809.08935_7fba6142",
+      "input_files": [],
+      "license_note": "QASPER (Dasigi et al., NAACL 2021), CC BY 4.0. Adapted locally: paper full text rendered to Markdown; questions, answers and evidence taken from the dataset unchanged.",
+      "paper_id": "1809.08935",
+      "quality_mode": "standard",
+      "query": "what was the baseline?",
+      "question_id": "7fba61426737394304e307cdc7537225f6253150",
+      "source_dataset": "QASPER",
+      "tags": []
+    },
+    {
+      "annotator_agreement": 3,
+      "answer_kind": "yes_no",
+      "category": "retrieval_only",
+      "evidence_sections": [
+        "Experiments ::: Case Study",
+        "Introduction"
+      ],
+      "expected_answer_patterns": [
+        "(?i)Yes"
+      ],
+      "expected_behavior": "answer",
+      "expected_evidence": [
+        {
+          "excerpt": "In this section, we conduct a case study to qualitatively analyze the effects of entity-aware embedding and self-attention enhanced selective gate. The case stu",
+          "section": "Experiments ::: Case Study"
+        },
+        {
+          "excerpt": "First, comparing Bag 1 and 2, we find that, without the support of the self-attention enhanced selective gate, the model will misclassify both bags into NA, lea",
+          "section": "Experiments ::: Case Study"
+        },
+        {
+          "excerpt": "Then, to further consider the necessity of entity-aware embedding, we show two error cases for SeG w/o Ent whose labels are /location/location/contains and NA r",
+          "section": "Experiments ::: Case Study"
+        },
+        {
+          "excerpt": "FLOAT SELECTED: Table 6: A case study where each bag contains one sentence. SeG w/o GSA is an abbreviation of SeG w/o Gate w/o Self-Attn.",
+          "section": null
+        }
+      ],
+      "expected_source": {
+        "filename": "1911.11899.md",
+        "page": null
+      },
+      "expected_sources": [
+        {
+          "filename": "1911.11899.md",
+          "page": null
+        }
+      ],
+      "id": "qasper_1911.11899_0d42bd75",
+      "input_files": [],
+      "license_note": "QASPER (Dasigi et al., NAACL 2021), CC BY 4.0. Adapted locally: paper full text rendered to Markdown; questions, answers and evidence taken from the dataset unchanged.",
+      "paper_id": "1911.11899",
+      "quality_mode": "standard",
+      "query": "Do they show examples where only one sentence appears in a bag and their method works, as opposed to using selective attention?",
+      "question_id": "0d42bd759c84cbf3a293ab58283a3d0d5e27d290",
+      "source_dataset": "QASPER",
+      "tags": [
+        "multi_paragraph"
+      ]
+    },
+    {
+      "annotator_agreement": 3,
+      "answer_kind": "extractive",
+      "category": "exact_value",
+      "evidence_sections": [
+        "Experiments"
+      ],
+      "expected_answer_patterns": [
+        "(?i)SICK\\s+\\(Sentences\\s+Involving\\s+Compositional\\s+Knowledge\\)\\s+dataset"
+      ],
+      "expected_behavior": "answer",
+      "expected_evidence": [
+        {
+          "excerpt": "We selected two related sentence relation modeling tasks: semantic relatedness task, which measures the degree of semantic relatedness of a sentence pair by ass",
+          "section": "Experiments"
+        }
+      ],
+      "expected_source": {
+        "filename": "1603.09405.md",
+        "page": null
+      },
+      "expected_sources": [
+        {
+          "filename": "1603.09405.md",
+          "page": null
+        }
+      ],
+      "id": "qasper_1603.09405_42086279",
+      "input_files": [],
+      "license_note": "QASPER (Dasigi et al., NAACL 2021), CC BY 4.0. Adapted locally: paper full text rendered to Markdown; questions, answers and evidence taken from the dataset unchanged.",
+      "paper_id": "1603.09405",
+      "quality_mode": "standard",
+      "query": "Which datasets do they evaluate on?",
+      "question_id": "420862798054f736128a6f0c4393c7f9cc648b40",
+      "source_dataset": "QASPER",
+      "tags": []
+    },
+    {
+      "annotator_agreement": 2,
+      "answer_kind": "yes_no",
+      "category": "retrieval_only",
+      "evidence_sections": [],
+      "expected_answer_patterns": [
+        "(?i)No"
+      ],
+      "expected_behavior": "answer",
+      "expected_evidence": [],
+      "expected_source": {
+        "filename": "1603.09405.md",
+        "page": null
+      },
+      "expected_sources": [
+        {
+          "filename": "1603.09405.md",
+          "page": null
+        }
+      ],
+      "id": "qasper_1603.09405_ad8411ed",
+      "input_files": [],
+      "license_note": "QASPER (Dasigi et al., NAACL 2021), CC BY 4.0. Adapted locally: paper full text rendered to Markdown; questions, answers and evidence taken from the dataset unchanged.",
+      "paper_id": "1603.09405",
+      "quality_mode": "standard",
+      "query": "Do they separately evaluate performance of their learned representations (before forwarding them to the CNN layer)?",
+      "question_id": "ad8411edf11d3429c9bdd08b3e07ee671464d73c",
+      "source_dataset": "QASPER",
+      "tags": []
+    },
+    {
+      "annotator_agreement": 3,
+      "answer_kind": "unanswerable",
+      "category": "missing_evidence",
+      "evidence_sections": [],
+      "expected_answer_patterns": [],
+      "expected_behavior": "abstain",
+      "expected_evidence": [],
+      "expected_source": {
+        "filename": null,
+        "page": null
+      },
+      "expected_sources": [],
+      "id": "qasper_1912.11585_11360385",
+      "input_files": [],
+      "license_note": "QASPER (Dasigi et al., NAACL 2021), CC BY 4.0. Adapted locally: paper full text rendered to Markdown; questions, answers and evidence taken from the dataset unchanged.",
+      "paper_id": "1912.11585",
+      "quality_mode": "standard",
+      "query": "What was the baseline?",
+      "question_id": "11360385dff0a9d7b8f4b106ba2b7fe15ca90d7c",
+      "source_dataset": "QASPER",
+      "tags": []
+    }
+  ],
+  "defaults": {
+    "quality_mode": "standard",
+    "timeout_seconds": 420
+  },
+  "description": "Evaluation pack with external ground truth. Questions, answers and evidence come from QASPER; this project authored none of them. Every case is scored against the shared `pool`, so retrieval must rank the right paper above the others.",
+  "fixture_sources": [
+    {
+      "license": "CC BY 4.0",
+      "name": "QASPER",
+      "status": "downloaded, revision fdc9d8214fbab5dd782958601db4d678e6934a54",
+      "url": "https://huggingface.co/datasets/allenai/qasper"
+    }
+  ],
+  "name": "qasper_external_v1",
+  "pool": [
+    "Benchmarks/ResearchFixtures/qasper_external_v1/fixtures/1603.07252.md",
+    "Benchmarks/ResearchFixtures/qasper_external_v1/fixtures/1603.09405.md",
+    "Benchmarks/ResearchFixtures/qasper_external_v1/fixtures/1604.02038.md",
+    "Benchmarks/ResearchFixtures/qasper_external_v1/fixtures/1606.07043.md",
+    "Benchmarks/ResearchFixtures/qasper_external_v1/fixtures/1611.04234.md",
+    "Benchmarks/ResearchFixtures/qasper_external_v1/fixtures/1611.06322.md",
+    "Benchmarks/ResearchFixtures/qasper_external_v1/fixtures/1703.10152.md",
+    "Benchmarks/ResearchFixtures/qasper_external_v1/fixtures/1708.05521.md",
+    "Benchmarks/ResearchFixtures/qasper_external_v1/fixtures/1805.04833.md",
+    "Benchmarks/ResearchFixtures/qasper_external_v1/fixtures/1805.07882.md",
+    "Benchmarks/ResearchFixtures/qasper_external_v1/fixtures/1805.11937.md",
+    "Benchmarks/ResearchFixtures/qasper_external_v1/fixtures/1806.04387.md",
+    "Benchmarks/ResearchFixtures/qasper_external_v1/fixtures/1809.08935.md",
+    "Benchmarks/ResearchFixtures/qasper_external_v1/fixtures/1810.02229.md",
+    "Benchmarks/ResearchFixtures/qasper_external_v1/fixtures/1810.02268.md",
+    "Benchmarks/ResearchFixtures/qasper_external_v1/fixtures/1812.00382.md",
+    "Benchmarks/ResearchFixtures/qasper_external_v1/fixtures/1903.02930.md",
+    "Benchmarks/ResearchFixtures/qasper_external_v1/fixtures/1905.00472.md",
+    "Benchmarks/ResearchFixtures/qasper_external_v1/fixtures/1905.00840.md",
+    "Benchmarks/ResearchFixtures/qasper_external_v1/fixtures/1906.08871.md",
+    "Benchmarks/ResearchFixtures/qasper_external_v1/fixtures/1907.04072.md",
+    "Benchmarks/ResearchFixtures/qasper_external_v1/fixtures/1907.05338.md",
+    "Benchmarks/ResearchFixtures/qasper_external_v1/fixtures/1907.10676.md",
+    "Benchmarks/ResearchFixtures/qasper_external_v1/fixtures/1908.11049.md",
+    "Benchmarks/ResearchFixtures/qasper_external_v1/fixtures/1909.00437.md",
+    "Benchmarks/ResearchFixtures/qasper_external_v1/fixtures/1909.09070.md",
+    "Benchmarks/ResearchFixtures/qasper_external_v1/fixtures/1909.10481.md",
+    "Benchmarks/ResearchFixtures/qasper_external_v1/fixtures/1909.12079.md",
+    "Benchmarks/ResearchFixtures/qasper_external_v1/fixtures/1911.04474.md",
+    "Benchmarks/ResearchFixtures/qasper_external_v1/fixtures/1911.04873.md",
+    "Benchmarks/ResearchFixtures/qasper_external_v1/fixtures/1911.10742.md",
+    "Benchmarks/ResearchFixtures/qasper_external_v1/fixtures/1911.11899.md",
+    "Benchmarks/ResearchFixtures/qasper_external_v1/fixtures/1912.02866.md",
+    "Benchmarks/ResearchFixtures/qasper_external_v1/fixtures/1912.11585.md",
+    "Benchmarks/ResearchFixtures/qasper_external_v1/fixtures/2003.04978.md",
+    "Benchmarks/ResearchFixtures/qasper_external_v1/fixtures/2003.07568.md",
+    "Benchmarks/ResearchFixtures/qasper_external_v1/fixtures/2003.08437.md",
+    "Benchmarks/ResearchFixtures/qasper_external_v1/fixtures/2003.11687.md",
+    "Benchmarks/ResearchFixtures/qasper_external_v1/fixtures/2004.01820.md",
+    "Benchmarks/ResearchFixtures/qasper_external_v1/fixtures/2004.04124.md"
+  ],
+  "version": 1
+}

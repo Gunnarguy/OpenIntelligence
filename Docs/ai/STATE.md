@@ -1,25 +1,72 @@
 # Current State
 
-Updated: 2026-08-11
+Updated: 2026-08-12
 Branch/worktree: main, primary checkout
-Last verified commit: 0e7458a
+Last verified commit: 3c09f01, which carries this session's work. **Committed, not pushed.**
 
 ## Objective
 
-**None active.** The vocabulary objective from the previous handoff is finished, verified and
-pushed. What followed was an unplanned correctness pass across the library surfaces, also finished
-and pushed. Nothing is half-done in the working tree.
+**Build the eval fixture set with external ground truth.** Notion row of the same name, v5.0, High,
+now `In Progress`. The pack is built, committed and verified. **It has not been run.**
 
-Pick the next objective from Blockers below, from the Notion roadmap, or from the owner.
+The single remaining step is one command, and it needs the owner because an agent cannot run it on
+this machine. See Blockers 1.
 
 ## Status
 
-`origin/main` and local `main` are both at `0e7458a`. 19 commits since `e60fa7f`, all pushed.
-Suite is **236 tests, 0 failures** on iPhone 17 Pro / iOS 27.0, up from 205 at the start of the day.
+The tree carries the fixture work described below. Everything that can be verified without
+`xcodebuild` has been verified and its output read.
 
-**The working tree is clean.** Nothing is uncommitted and nothing is unpushed.
+**`xcodebuild` cannot build anything from an agent shell in this environment.** `-version` and
+`-list` work; `build`, `test` and even `-showBuildSettings` hang at the "Command line invocation"
+header, never spawn `XCBBuildService`, and produce no DerivedData. This was tested with the
+DerivedData cache cleared, with Xcode quit, and with the tool sandbox disabled. All three still
+hang. `-list` works only because it does not need the build service. So **no test-suite number and
+no benchmark run come from this session**, and the last known suite figure remains 236 / 0 from
+2026-08-11 against unchanged Swift.
 
-## Completed
+**No Swift source was touched.** The changes are Python, docs, and new fixture data only.
+
+## Completed this session (2026-08-12)
+
+- **`Benchmarks/ResearchFixtures/qasper_external_v1/`**, 83 cases over 40 papers from QASPER
+  (Dasigi et al., NAACL 2021, CC BY 4.0), built by `scripts/build_external_fixtures.py`. Questions
+  were written by readers shown only a title and abstract, and answered by separate annotators
+  against full text. A case survives only where two or more annotators agreed; `annotator_agreement`
+  records the count. Six abstention controls come from genuinely unanswerable questions, replacing
+  two the project invented for itself. `fixtures.lock.json` pins the dataset revision, the selected
+  papers and questions, and a corpus SHA-256. **Two independent rebuilds produced a byte-identical
+  tree**, and `--check` verifies it offline.
+- **The shared distractor pool**, which is the change that actually matters. A manifest may now
+  declare a top-level `pool`, and `run_quality_matrix.py` ingests it for every case, so each
+  question is asked against 39 papers that are not the answer.
+- **`minimum_detectable_effect` now computes its own claim.** It previously interpolated `n` into a
+  sentence whose threshold was hardcoded. See Blockers 3.
+- **Non-commercial datasets can no longer be pulled into the tree by accident.**
+  `prepare_rag_research_fixtures.py` refuses `financebench` and `docvqa` unless
+  `--accept-non-commercial` is passed for a local-only run.
+- **`build_eval_dataset.py` renders every known pack**, so `Benchmarks/rag_eval_qasper_v1.jsonl`
+  reaches the in-app `RAGEvalCase` framework the same way the synthetic set does. The only change to
+  the pre-existing `rag_eval_v1.jsonl` is two header comment lines; every case line is byte-identical.
+
+Notion: the fixtures row is `In Progress` with a dated note, the harness row has a dated note, and
+two new Completed rows cover the power-calculation defect and the licensing gate.
+
+## Why the ceiling was never about sample size
+
+This is the finding that reframed the row, and it is worth not rediscovering.
+
+`run_quality_matrix.py` created a fresh store per (case, mode) and ingested only that case's
+`input_files`. **Every case was therefore scored against an index containing nothing but its own
+expected documents.** The 2026-08-11 reports show the vector stage seeing two to five candidate
+chunks per case, all of them from the expected file. `R@5` asks whether the right document is in the
+top five when there are at most five candidates and every one is relevant, so `MRR@10 1.000` and
+`R@5 1.000` were arithmetic, not pipeline quality. Real external data at n=300 would not have moved
+them. The corpus was the defect; externality and `n` were real but secondary.
+
+`[evidence_level: run_artifact_verified, confidence: exact, evidence_source: BenchmarkRuns/20260811-150328-matrix/reports/*.txt STAGE METRICS results column; run_quality_matrix.py:391, :720]`
+
+## Completed 2026-08-11
 
 Newest first. The last two in this list are the previous objective; everything above them was found
 while verifying it. Doc-only commits are omitted.
@@ -114,28 +161,55 @@ measure.
 
 ## Verification
 
-Every line was run this session and its output read.
+Run on 2026-08-12 and the output read:
 
-- `xcodebuild test` on iPhone 17 Pro / iOS 27.0 -> **230 tests, 0 failures**. The log contains
-  `error:` lines from `BiomeStorage` and `com.apple.modelcatalog`; those are simulator noise,
-  expected because Foundation Models do not run there.
-- `bash scripts/build_simulator_smoke.sh` -> **BUILD SUCCEEDED**.
-- Retrieval benchmark, macOS Debug, `SWIFT_DETERMINISTIC_HASHING=1`, `--modes standard --pcc deny`,
-  run twice. Final run `BenchmarkRuns/20260811-150328-matrix` (gitignored, local only): every stage
-  at **MRR@10 1.000 and R@5 1.000**, accuracy 18/20, 0 hallucinated, abstentions 100% correct.
-- `python3 scripts/build_eval_dataset.py --check` -> up to date, 20 cases.
+- `python3 scripts/build_external_fixtures.py --check` -> OK, 83 cases, 40 papers,
+  `allenai/qasper @ fdc9d8214fba`.
+- Two full rebuilds of the pack from separate downloads produced the **same
+  `fixtures_sha256`**, `4a470066...`, which is the determinism claim actually tested rather than
+  asserted.
+- `python3 scripts/build_eval_dataset.py --check` -> OK, 20 cases and 83 cases.
 - `python3 scripts/secret_scan.py` -> clean. `scripts/check_icloud_conflicts.sh` -> clean.
-- All ten `file:line` citations added to `CHANGELOG.md` today re-checked to resolve to what they
-  claim.
+- `python3 .codex/skills/route-openintelligence-work/scripts/test_repoos_router.py` -> 24 tests, OK.
+- `minimum_detectable_effect` re-derived numerically against the exact binomial sign test before the
+  claim was changed, and the old figure checked against three readings (paired 33 pts, Wilson 21 pts,
+  unpaired 47 pts) to confirm 25 matched none of them.
 
-**Not verified: anything the UI does.** Zero test files touch `DocumentLibraryView`,
-`ContainerPicker`, `DatabaseDashboardView`, `ContainerSettingsSheet`, `LibraryDeletion` or
-`clearAllDocuments`. Green means the tested code still passes, not that today's screens work. Also
-unverified: every on-device behaviour, and every Mac path.
+**Not run this session, and not runnable here:** `xcodebuild test`, the simulator smoke build, and
+the retrieval benchmark. See Status for why. The last known figures are 236 / 0 and the 2026-08-11
+matrix run, both against Swift that this session did not touch.
+
+Carried forward from 2026-08-11 and still true: **nothing verifies what the UI does.** Zero test
+files touch `DocumentLibraryView`, `ContainerPicker`, `DatabaseDashboardView`,
+`ContainerSettingsSheet`, `LibraryDeletion` or `clearAllDocuments`. Every on-device behaviour and
+every Mac path is also unverified.
 
 ## Blockers / Unknowns
 
-**1. Five device checks gate confidence in everything shipped today.** Four carried from
+**1. The benchmark run is the whole remaining task, and an agent cannot do it here.** Build the
+macOS app, then run the matrix against the new pack:
+
+```bash
+DEVELOPER_DIR=/Applications/Xcode-beta.app/Contents/Developer xcodebuild -scheme OpenIntelligence -destination "platform=macOS" -configuration Debug -derivedDataPath /private/tmp/oi-mac-nosbx -skipPackagePluginValidation CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO build
+```
+
+```bash
+python3 scripts/run_quality_matrix.py --app /private/tmp/oi-mac-nosbx/Build/Products/Debug/OpenIntelligence.app --manifest Benchmarks/ResearchFixtures/qasper_external_v1/manifest.json --modes standard --pcc deny
+```
+
+The owner asked for the full 83-case run, standard mode only. **Expect it to be slow**: every case
+ingests the whole 40-paper pool, roughly 135,000 words, because the harness cannot share one index
+across cases without losing the document-name mapping and degrading citations to `[Unknown, p.1]`
+(the reasoning is in `run_one`). The old 20-case run took 412 seconds against near-empty indexes, so
+budget well over an hour and do not lower `--timeout`.
+
+**What the run is for:** to see whether any stage comes off 1.000 now that retrieval has
+distractors. If stages still read 1.000 against 39 distractor papers, that is a real and surprising
+result about the pipeline rather than an artifact, and it should be investigated before it is
+believed. If they drop, the fixture can finally show an improvement and the embedder comparison is
+unblocked.
+
+**2. Five device checks gate confidence in everything shipped 2026-08-11.** Four carried from
 2026-08-10: type in Settings search; run a query with the HUD visible and watch the Neural Engine
 bar; rotate with the HUD on; update from a pre-v5.0 build to see the sample refresh banner. New and
 most important: **open Library Settings, change the embedding model, and press "Later"** on the
@@ -143,38 +217,46 @@ rebuild prompt. That is the data-loss path reordered in `cc49ce2`, and nothing a
 Also worth a look: wipe a library, delete one document, flip a library off iCloud, and tap a device
 chip on the onboarding completion card with VoiceOver on.
 
-**2. The v5.0 embedding arc is blocked on the eval set, not the model.** The benchmark now reports
-every stage at ceiling, so it can detect a regression and cannot demonstrate an improvement. The
-corpus is also self-authored (`manifest.json` says "Generated locally by OpenIntelligence fixture
-script", tags read `synthetic_financebench_style`), ground truth is document-level while retrieval
-returns chunks, and n=18, where the harness itself warns that differences below roughly 25 points
-are not resolvable. **Nothing measured supports starting the re-embed.** The prerequisite is the
-Notion row "Build quality fixtures with external ground truth", which now gates "Benchmark three
-embedders and replace MiniLM-L6-v2 if warranted" for a measured reason.
+**3. The harness had been overstating its own sensitivity, and the old figure is quoted widely.**
+`minimum_detectable_effect(n)` interpolated the sample size into a sentence whose threshold was a
+hardcoded constant, so it printed "differences below about 25 points are not resolvable" at every
+`n`. Under the exact two-sided sign test it describes, `2 * 0.5**d < 0.05` first holds at d=6, and
+the smallest difference that reaches it is `6/n`: **33 points at n=18, not 25**. Fixed, and run
+through `oi-claim-audit` first because it is a claim correction. **Every report under
+`BenchmarkRuns/` dated before 2026-08-12 carries the constant**; read those power statements as
+`6/n`. At n=83 the figure is about 7 points, which clears the row's 10-point acceptance criterion.
+This is the third scoring or reporting defect in this harness after the seven metric bugs of
+2026-08-08 and the single-source ground-truth bug of 2026-08-11, so keep assuming more.
+`[evidence_level: computed_verified, confidence: exact, evidence_source: exact binomial sign test]`
 
-**3. 44 verified findings remain on the library surfaces**, in the audit file named in Working Set:
+**4. The embedding arc is no longer blocked on the fixture, only on the run.** The prerequisite row
+is built. Once Blockers 1 produces numbers, "Benchmark three embedders and replace MiniLM-L6-v2 if
+warranted" can start against a fixture that is able to show an improvement. **Do not start the
+re-embed before that run exists**; nothing is measured yet.
+
+**5. 44 verified findings remain on the library surfaces**, in the audit file named in Working Set:
 3 high, 18 medium, 13 low, 10 the verifier could not reproduce. The three high ones are worth
 reading first.
 
-**4. `OpenIntelligenceEngine.deleteLibrary` leaks everything.** It calls
+**6. `OpenIntelligenceEngine.deleteLibrary` leaks everything.** It calls
 `containerService.deleteContainer` alone, leaving documents, chunks, vectors and Spotlight entries
 behind. It is `public` and synchronous, so routing it through `LibraryDeletion.delete` would break
 the SDK signature. Deliberately untouched; decide the API question before fixing it.
 
-**5. `README.md` claims iWork support the app does not have.** Tracked in Notion as
+**7. `README.md` claims iWork support the app does not have.** Tracked in Notion as
 "iWork import is advertised but cannot read any file iWork produces" (To Do, v5.0). It is a claim
 removal, so use `oi-claim-audit` first.
 
-**6. `OnboardingChecklistView` logs "Generating BM25 dictionary + HNSW vectors".** `BNNSVectorDatabase`
+**8. `OnboardingChecklistView` logs "Generating BM25 dictionary + HNSW vectors".** `BNNSVectorDatabase`
 is a flat store searched by batched `vDSP_mmul`, not an HNSW graph. Verify by reading that file for
 any graph construction; if there is none, the log names an algorithm the app does not use.
 
-**7. Licensing shapes the embedder decision.** The shipped stack (MiniLM-L6-v2,
+**9. Licensing shapes the embedder decision.** The shipped stack (MiniLM-L6-v2,
 `ms-marco-TinyBERT-L2-v2`) is Apache 2.0. **EmbeddingGemma is not**; it ships under the Gemma Terms
 of Use, whose §3.1 requires the use restrictions to be enforceable against *your* users. Jina's v2
 reranker weights are reported CC-BY-NC; verify before relying on that. Not legal advice.
 
-**8. The What's New sheet is a changelog, not a splash.** The `"5.0"` entry has 8 items and no deep
+**10. The What's New sheet is a changelog, not a splash.** The `"5.0"` entry has 8 items and no deep
 links, and `WhatsNewView` has one button, "Done". Cutting to 3-4 and making rows navigate is the
 improvement.
 
@@ -219,26 +301,26 @@ R06/R07 cite the wrong files for the consent guard.
 
 ## Exact Next Action
 
-**Build the eval fixture set with external ground truth.** Notion row "Build quality fixtures with
-external ground truth", v5.0, High. It is the measured prerequisite for the owner's stated top v5.0
-goal and now blocks three other rows: the embedder benchmark, the `EPIC v5.0` parent, and the
-three-mode quality matrix.
+**Run the benchmark against `qasper_external_v1` and read what the stages do.** The two commands are
+in Blockers 1. The owner has already chosen the scope: all 83 cases, `--modes standard --pcc deny`.
 
-Why it is the right first move rather than a preference: every retrieval stage now reads MRR@10 1.000
-and R@5 1.000, so the fixture can detect a regression and cannot demonstrate an improvement. Until
-that changes, no embedder decision is defensible, and running one would produce a number that cannot
-mean anything.
+The fixture work itself is done, so this is no longer a building task. It is a measuring task, and
+until the measurement exists the row stays `In Progress` and the embedder comparison stays parked.
 
-Concretely: replace or supplement `Benchmarks/ResearchFixtures/tiny_research_suite/manifest.json`
-with cases drawn from real published datasets rather than the current self-authored corpus, which
-`manifest.json` itself labels "Generated locally by OpenIntelligence fixture script" and tags
-`synthetic_financebench_style`. Keep the plural `expected_sources` shape added on 2026-08-11. Aim for
-enough cases that a 10-point difference is resolvable, since `run_quality_matrix.py` warns that at
-n=18 nothing below roughly 25 points is. Then re-run and see whether any stage comes off the ceiling.
+**Record the result honestly, whichever way it goes.** The interesting outcome is not "the numbers
+improved". It is whether retrieval can now fail at all. If stages still read 1.000 against 39
+distractor papers, do not celebrate it and do not assume the pool is working: check
+`pool_documents` and `fixture_corpus_sha256` in the run's provenance, and check the `results` column
+in a per-case `STAGE METRICS` block, which should now be in the hundreds rather than 2 to 5.
 
-Ask the owner before starting if he wants something else. The alternative that needs no hardware is
-the three high-severity findings in
-`Docs/AuditArtifacts/Verification/LIBRARY_SURFACES_AUDIT_2026-08-11.md`. The two defects the
-reconciliation found are no longer available as work; both shipped in `0e7458a`.
+**Do not compare any number from this run to a `tiny_research_suite` run.** Different corpus,
+different ground truth, different difficulty. A delta between the two packs measures the fixture.
 
-Do not treat Blocker 1 as session work: those five checks need the owner's physical device.
+If an agent picks this up and `xcodebuild` hangs at the invocation header with no DerivedData, that
+is the environment failure in Status, not a code problem. Hand the build to the owner rather than
+spending the session on it; that cost most of an hour on 2026-08-12.
+
+The alternative that needs neither hardware nor a build is the three high-severity findings in
+`Docs/AuditArtifacts/Verification/LIBRARY_SURFACES_AUDIT_2026-08-11.md`.
+
+Do not treat Blockers 2 as session work: those five checks need the owner's physical device.
