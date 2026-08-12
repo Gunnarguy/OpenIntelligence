@@ -74,6 +74,9 @@ Importing a document was quietly losing parts of it. This release finds the plac
 *   **The two destructive actions no longer look like the same button.** They sat next to each other, both red, both a bin icon, and one empties a library while the other removes it. They are now "Remove All Documents from X" and "Delete the X Library", with different icons and a divider between them.
 *   **"Cached Documents" is hidden until there is something in it.** It was always empty, because the feature that would fill it has not been built yet.
 
+*   **On a Mac, a Shortcut running in the background could send a question to Apple's Private Cloud Compute with nobody there to approve it.** The check that requires you to be looking at the app was only ever running on iPhone and iPad. It runs on Mac now.
+*   **A question is no longer sent to the cloud when the app cannot tell how much cloud quota is left.** It now answers on this device instead of guessing.
+
 ### Things The App Was Claiming That Weren't True
 
 Settings describes what the app is doing while it answers you. Several of those lines described

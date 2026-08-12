@@ -12,6 +12,10 @@ import NaturalLanguage
 import PDFKit
 #if canImport(UIKit)
 import UIKit
+#elseif canImport(AppKit)
+// For `NSApplication.isActive`, the AppKit equivalent of the foreground check that gates
+// Private Cloud Compute. Without it the macOS branch had no foreground check at all.
+import AppKit
 #endif
 
 #if canImport(FoundationModels)
@@ -14831,12 +14835,30 @@ class RAGService: ObservableObject {
             requiresMultiDocumentSynthesis: requiresMultiDocumentSynthesis
         )
 
+        // Foreground state, on every platform the app ships to.
+        //
+        // The `#else` branch hardcoded `true`, so on macOS this check did not exist. That is the
+        // input `ModelExecutionPlanner` gates PCC on: it permits cloud only when
+        // `isForegroundInteractive || consentGranted`. Hardcoding `true` means a Mac App Intent or
+        // Shortcut running with the app backgrounded reported itself as foreground-interactive and
+        // could reach Private Cloud Compute without the user present to answer the consent sheet,
+        // which is the exact case the guard exists to prevent. iOS was covered; macOS was not.
+        //
+        // `NSApplication.isActive` is the AppKit equivalent of `UIApplication.applicationState ==
+        // .active`. Both are main-actor state, hence the hop.
         #if canImport(UIKit)
         let isForegroundInteractive = await MainActor.run {
             UIApplication.shared.applicationState == .active
         }
+        #elseif canImport(AppKit)
+        let isForegroundInteractive = await MainActor.run {
+            NSApplication.shared.isActive
+        }
         #else
-        let isForegroundInteractive = true
+        // No UI framework at all, so there is no foreground to be in. Fail closed and let
+        // remembered consent be the only thing that authorises cloud, rather than assuming a user
+        // is watching.
+        let isForegroundInteractive = false
         #endif
         let transientConsentGranted = await MainActor.run {
             transientConsentGrants.contains(.applePCC)

@@ -54,6 +54,9 @@ Importing a document was quietly losing parts of it. This release finds the plac
 - **The two destructive actions no longer look like the same button:** one empties a library, the other removes it, and they now say which is which.
 - **"Cached Documents" is hidden until there is something in it.** It was always empty because nothing fills it yet.
 
+- **On a Mac, a backgrounded Shortcut could reach Private Cloud Compute with nobody present to approve it:** the foreground check only ran on iPhone and iPad.
+- **No cloud request when the app cannot read your remaining quota:** it answers on device instead of guessing.
+
 ### Things The App Was Claiming That Weren't True
 Settings describes what the app is doing while it answers you, and several of those lines described things the code does not do.
 - **It listed eight agentic tools, and all eight were the wrong ones.** Four are actually wired up; those four are what it names now.

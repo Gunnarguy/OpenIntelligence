@@ -36,12 +36,44 @@ enum ModelPrivacyBoundary: String, Codable, Sendable, Equatable {
     case pccProhibited
 }
 
-enum PCCQuotaState: String, Codable, Sendable, Equatable {
+// `CaseIterable` so `ModelExecutionReceipt.nonAuthorizingQuotaStates` can derive itself from
+// `authorizesCloudExecution` instead of keeping a second hardcoded copy of the same rule.
+enum PCCQuotaState: String, Codable, Sendable, Equatable, CaseIterable {
     case unsupported
     case unknown
     case belowLimit
     case approachingLimit
     case limitReached
+}
+
+extension PCCQuotaState {
+    /// Whether this quota state permits a cloud attempt.
+    ///
+    /// `RouteEvalMetrics.RouteInvariant.quotaFailClosed` states the contract: "`.limitReached`,
+    /// `.unsupported`, and `.unknown` are all fail-closed states. None of them may be accompanied
+    /// by a PCC attempt." The planner did not implement it. `canUsePCC` tested only
+    /// `pccQuota != .limitReached`, so `.unknown` permitted a cloud attempt while the scorer
+    /// counted that same attempt as an `unauthorizedCloudAttempts` violation. The planner was
+    /// fail-open on exactly the state the gate was written to catch, and the first route-gate run
+    /// would have reported it, correctly.
+    ///
+    /// `.unknown` is reachable in production, not only in tests: `FoundationModelCapabilityProvider`
+    /// maps `pcc.quotaUsage.status` through an `@unknown default`, so any quota status a future SDK
+    /// adds lands here while `hasPCCEntitlement` and `pccAvailable` are both true. Failing closed
+    /// there means an unrecognised quota routes on-device instead of gambling a cloud call, which is
+    /// the conservative reading and the one the invariant already asserts.
+    ///
+    /// Exhaustive on purpose rather than a `!=` chain: a new case cannot be added without deciding
+    /// which side it falls on. Both the planner and the scorer read this, so they cannot drift apart
+    /// again.
+    var authorizesCloudExecution: Bool {
+        switch self {
+        case .belowLimit, .approachingLimit:
+            return true
+        case .limitReached, .unsupported, .unknown:
+            return false
+        }
+    }
 }
 
 enum CapabilityEvidenceSource: String, Codable, Sendable, Equatable {
@@ -112,7 +144,7 @@ struct FoundationModelCapabilitySnapshot: Codable, Sendable, Equatable {
     let unavailabilityReason: String?
 
     var canUsePCC: Bool {
-        supportsPCC && hasPCCEntitlement && pccAvailable && pccQuota != .limitReached
+        supportsPCC && hasPCCEntitlement && pccAvailable && pccQuota.authorizesCloudExecution
     }
 }
 

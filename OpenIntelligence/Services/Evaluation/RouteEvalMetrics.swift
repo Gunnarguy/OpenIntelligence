@@ -186,8 +186,14 @@ extension ModelExecutionReceipt {
     ///
     /// `.unknown` is included deliberately: unrecognized SDK quota values map to
     /// `.unknown` and must fail closed rather than optimistically allow PCC.
+    ///
+    /// Derived from `PCCQuotaState.authorizesCloudExecution` rather than restating the membership,
+    /// because the two had already drifted: this set was correct and the planner's `canUsePCC`
+    /// tested only `!= .limitReached`, so the planner permitted a cloud attempt on `.unknown` that
+    /// this scorer would then record as an `unauthorizedCloudAttempts` violation. A hardcoded second
+    /// copy of a rule is how that happened, so there is now one copy and both sides read it.
     static var nonAuthorizingQuotaStates: Set<PCCQuotaState> {
-        [.limitReached, .unsupported, .unknown]
+        Set(PCCQuotaState.allCases.filter { !$0.authorizesCloudExecution })
     }
 
     /// Compact rendering of the attempt chain for violation messages.
