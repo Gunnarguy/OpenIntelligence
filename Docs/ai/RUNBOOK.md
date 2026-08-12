@@ -147,10 +147,28 @@ the evidence that would explain it. Leave the 600s default.
 python3 scripts/run_quality_matrix.py --app /private/tmp/oi-mac-nosbx/Build/Products/Debug/OpenIntelligence.app --modes standard --pcc deny
 ```
 
-*Verified 2026-08-09.* Writes `BenchmarkRuns/<timestamp>-matrix/` with `report.md`, `results.json`,
-and a per-case report under `reports/`. `BenchmarkRuns/` is gitignored in full, so no run survives a
-fresh clone. Running the instrumented binary from the repository root drops a `default.profraw`;
-delete it rather than committing it.
+*Verified 2026-08-09, re-run twice on 2026-08-11.* Writes `BenchmarkRuns/<timestamp>-matrix/` with
+`report.md`, `results.json`, and a per-case report under `reports/`. `BenchmarkRuns/` is gitignored
+in full, so no run survives a fresh clone. Running the instrumented binary from the repository root
+drops a `default.profraw`, now gitignored.
+
+**3. Stage figures from before 2026-08-11 are not comparable to anything after it.** The ground
+truth changed, not the pipeline. Every `multi_hop_project_m*` case credited one of the two documents
+its question requires, because `build_eval_dataset.py` read the manifest's singular `expected_source`
+and `run_quality_matrix.py` passed that one filename to the harness. Ranking the *other* required
+document first therefore scored as a demotion, which is where `rerank` MRR@10 0.972 and `final` 0.917
+came from against a `vector` stage at 1.000. Both scripts now prefer a plural `expected_sources`.
+With the correct ground truth every stage reads 1.000. **Do not read that as a pipeline improvement,
+and do not diff a pre-08-11 run against a post-08-11 one at the stage level.** Accuracy, abstention
+and hallucination counts are unaffected and remain comparable.
+
+**4. The fixture cannot currently score a model change.** Every stage is at ceiling on R@5 and
+MRR@10, so the harness can detect a regression and cannot demonstrate an improvement. The corpus is
+also self-authored (`manifest.json` says "Generated locally by OpenIntelligence fixture script", and
+the tags read `synthetic_financebench_style`, meaning the style rather than the dataset), ground
+truth is document-level while retrieval returns chunks, and n=18, where the harness prints its own
+warning that differences below roughly 25 points are not resolvable. Treat a green run as "no
+regression detected", never as evidence that a change helped.
 
 ## Lint
 

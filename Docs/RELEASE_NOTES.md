@@ -1,6 +1,8 @@
 > **Documentation status:** Source-verified and simulator-compiled for OpenIntelligence v5.0 on
-> August 10, 2026. The final suite run is **202 tests, 0 failures** on iOS 27.0 (iPhone 17 Pro
-> simulator). Two earlier runs the same day reported one failure,
+> August 11, 2026. The final suite run is **230 tests, 0 failures** on iOS 27.0 (iPhone 17 Pro
+> simulator). It read 202 until 2026-08-11; the vocabulary and correctness passes added 28 cases.
+> **No test covers the library management screens**, so the interface work of 2026-08-11 is
+> build-verified and simulator-screenshot-verified only. Two earlier runs the same day reported one failure,
 > `testSilentAudio_FailsLoudlyInsteadOfProducingAnEmptyDocument`, timing out at 60s waiting on
 > `processDocument(silence.wav)`. That test is **flaky in this environment, not broken**: it was
 > reproduced on clean `436e150` in a separate worktree with none of the v5.0 changes present, it

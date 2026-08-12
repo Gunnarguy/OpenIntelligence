@@ -1,4 +1,4 @@
-> **Documentation status:** Source-verified for OpenIntelligence v4.9 on August 2, 2026. Deep Think's reasoning chain, the model picker, and early stopping are device-verified; the remaining v4.8 fixes are build- and test-verified only.
+> **Documentation status:** Source-verified for OpenIntelligence v5.0 on August 11, 2026. The v5.0 entries below were each checked against the code that implements them. Anything device-only, including Private Cloud Compute behaviour and the library management screens added late in v5.0, is build-verified rather than device-verified and is called out where it matters.
 
 
 # OpenIntelligence User-Facing Changelog

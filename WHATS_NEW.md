@@ -1,4 +1,4 @@
-> **Documentation status:** Updated for OpenIntelligence v4.9 (iOS and macOS) on August 5, 2026. iOS 4.9 is live; macOS 4.9 is in review. Both platforms share one version number now. The 4.7–4.9 entries below are drawn from `Docs/USER_CHANGELOG.md` and the in-app What's New sheet (`WhatsNewStore.swift`), which this file had fallen three releases behind. Native PCC execution is owner-confirmed on a physical device; PCC edge scenarios and signed-distribution validation remain pending.
+> **Documentation status:** Updated for OpenIntelligence v5.0 on August 11, 2026. Entries are drawn from `Docs/USER_CHANGELOG.md`, which is the source this file follows.
 
 # What's New
 
