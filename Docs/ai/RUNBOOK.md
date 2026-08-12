@@ -133,10 +133,38 @@ DEVELOPER_DIR=/Applications/Xcode-beta.app/Contents/Developer xcodebuild -scheme
 ```
 
 *Recorded 2026-08-09.* These are the same flags `scripts/build_simulator_smoke.sh` already uses, and
-they do not touch the hard-boundary `.entitlements` file. Confirm the result before benchmarking —
-`codesign -d --entitlements - <app>` must print no entitlements, and `codesign -dv` should report
-`adhoc, linker-signed`. **An agent cannot run this command**; the permission classifier refuses
-anything altering code signing, so a human runs it.
+they do not touch the hard-boundary `.entitlements` file. Confirm the result before benchmarking:
+`codesign -d --entitlements - <app>` must print no entitlements.
+
+**Corrected 2026-08-12.** This paragraph used to say an agent could not run the command because the
+permission classifier refuses anything altering code signing. That is wrong on both counts: the
+command runs fine, and what actually blocks it is the repository's iCloud location, not signing. See
+the next item.
+
+**1b. `xcodebuild` deadlocks on this repository's path, and the fix is to build from a copy.**
+Anything that opens the project (`build`, `test`, even `-showBuildSettings`) can hang forever at the
+"Command line invocation" header, spawning no `XCBBuildService` and creating no DerivedData, while
+`xcodebuild -version` and `-list` still work. Sampling the hung process shows the blocked thread in
+`-[DVTFilePath performCoordinatedReadRecursively:]` under `Xcode3Project initWithFilePath:`, parked
+in `semaphore_wait_trap`. That is **NSFileCoordinator**: a coordinated recursive read against
+iCloud-synced `~/Documents` never returns, even though plain `ls -R` on the same path is instant and
+no file is dataless.
+
+```bash
+rsync -a --exclude 'BenchmarkRuns/' --exclude '.simulator-smoke.nosync/' --exclude 'Benchmarks/run/' ./ /private/tmp/oi-src/
+```
+
+Then run the build above from `/private/tmp/oi-src`. Verified 2026-08-12 by direct A/B: the same
+`-showBuildSettings` invocation hangs indefinitely in `~/Documents/GitHub/OpenIntelligence` and
+returns instantly from the copy. Keep `.git.nosync` in the copy so build phases that shell out to
+git resolve the right commit.
+
+**Diagnose by sampling, not by guessing.** `sample <pid> 3 -mayDie` answered this in one shot.
+Clearing `com.apple.DeveloperTools`, quitting Xcode, `DVTEnableCoreDevice=disabled`,
+`-destination-timeout`, `-target` instead of `-scheme`, and restarting the CoreDevice XPC services
+all failed, and clearing the cache is actively misleading because it makes `-list` succeed while the
+next build still hangs.
+`[evidence_level: measured, confidence: exact, evidence_source: sample(1) of the hung xcodebuild; A/B of identical invocations in ~/Documents vs /private/tmp/oi-src]`
 
 **2. The first launch of a freshly built binary pays model warm-up, and it is minutes.** Do not lower
 `--timeout` to "fail fast". A cold first case exceeded 240s and was killed; warm cases on the same

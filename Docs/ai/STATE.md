@@ -17,13 +17,18 @@ this machine. See Blockers 1.
 The tree carries the fixture work described below. Everything that can be verified without
 `xcodebuild` has been verified and its output read.
 
-**`xcodebuild` cannot build anything from an agent shell in this environment.** `-version` and
-`-list` work; `build`, `test` and even `-showBuildSettings` hang at the "Command line invocation"
-header, never spawn `XCBBuildService`, and produce no DerivedData. This was tested with the
-DerivedData cache cleared, with Xcode quit, and with the tool sandbox disabled. All three still
-hang. `-list` works only because it does not need the build service. So **no test-suite number and
-no benchmark run come from this session**, and the last known suite figure remains 236 / 0 from
-2026-08-11 against unchanged Swift.
+**`xcodebuild` deadlocks on this repository's own path, and the workaround is a copy.** Anything
+that opens the project hangs forever at the "Command line invocation" header with no
+`XCBBuildService` and no DerivedData, while `-version` and `-list` still work. `sample` of the hung
+process shows the blocked thread in `-[DVTFilePath performCoordinatedReadRecursively:]`, parked in
+`semaphore_wait_trap`: an **NSFileCoordinator** coordinated read against iCloud-synced `~/Documents`
+that never returns. Plain `ls -R` on the same path is instant and no file is dataless, so this does
+not look like an iCloud problem until you sample it.
+
+Build from `rsync`'d copy at `/private/tmp/oi-src` instead. Verified by A/B on the identical
+command: hangs in `~/Documents`, `exit=0` instantly from the copy. Full recipe in `RUNBOOK.md`
+item 1b. **This is not a signing, sandbox, or permission-classifier problem**, and the RUNBOOK's
+previous claim that an agent could not run the build has been corrected in place.
 
 **No Swift source was touched.** The changes are Python, docs, and new fixture data only.
 
