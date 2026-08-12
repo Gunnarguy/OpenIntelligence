@@ -403,9 +403,51 @@ def score(case: dict, parsed: dict) -> dict:
     }
 
 
+# The four documents in the shared library that are not benchmark output. Everything else there
+# was put there by a benchmark run, verified 2026-08-12 against filename and containerId.
+REAL_LIBRARY_DOCUMENTS = {
+    "Apple-Intelligence-&-Private-Cloud-Compute.md",
+    "OpenIntelligence-Product-Guide.md",
+    "RAG-Technical-Architecture.md",
+    "ingestion4.5.1.txt",
+}
+
+
+def reset_shared_library() -> None:
+    """Clear benchmark residue from the app's shared library between cases.
+
+    `WorkspaceSyncService` resolves its root with `OpenIntelligenceRuntimePaths.applicationSupportRoot()`
+    rather than `baseDirectory()`, and only the latter honours the `--rag-validation-storage`
+    override. Ingested documents therefore land in the user's real library no matter what storage
+    the harness was given. Left alone they accumulate across cases: a run that started against a
+    library holding 241 stale documents spent longer than the 600s timeout on its first case and
+    produced no report at all.
+
+    This removes only what a benchmark put there and never touches transcripts, chat history,
+    conversation memory, containers.json, Gazetteers, LocalCache or FullText.
+    """
+    library = Path.home() / "Library/Application Support/OpenIntelligence"
+    if not library.exists():
+        return
+    imported = library / "ImportedDocuments"
+    if imported.exists():
+        for path in imported.iterdir():
+            if path.name not in REAL_LIBRARY_DOCUMENTS and path.is_file():
+                path.unlink(missing_ok=True)
+    try:
+        live = {c["id"] for c in json.loads((library / "containers.json").read_text())}
+    except Exception:
+        live = set()
+    for path in library.glob("vector_database_*"):
+        if not any(path.name.startswith(f"vector_database_{cid}") for cid in live):
+            path.unlink(missing_ok=True)
+    (library / "documents_metadata.json").write_text("[]")
+    (library / "ingestion_queue.json").write_text("[]")
+
+
 def run_one(
     app_bin: Path, case: dict, mode: str, pcc: str, timeout: int,
-    storage: Path, ingest: bool, pool: list[str] | None = None,
+    storage: Path, ingest: bool, pool: list[str] | None = None, pool_limit: int = 0,
 ) -> dict:
     """Launch the app headlessly for a single (case, mode) pair.
 
@@ -422,7 +464,27 @@ def run_one(
     # only its own expected file: the 2026-08-11 run gave the vector stage two to five candidates
     # per case, all of them correct, which forced R@5 and MRR@10 to 1.000 arithmetically. A
     # fixture with no distractors can register a regression but can never show an improvement.
-    ordered = list(dict.fromkeys(list(pool or []) + list(case["input_files"])))
+    #
+    # `pool_limit` trades distractors against wall clock. Ingestion measured 2026-08-12 at roughly
+    # 15s per paper, so the full 40-paper pool is about 10 minutes per case and 14 hours for 83
+    # cases. Reusing one index instead would be far faster and does not work: the vector store
+    # follows `--rag-validation-storage` while document metadata does not, so a reused index
+    # resolves every source name to `Unknown` and scores 0.000 across the board. See the Notion
+    # row "Benchmark runs write their fixtures into the real on-device document library".
+    #
+    # The case's own expected documents are always included, and the rest of the slots are filled
+    # in manifest order, so the selection is deterministic and reproducible from the run metadata.
+    selected_pool = list(pool or [])
+    if pool_limit and pool_limit > 0:
+        own = set(case["input_files"]) | {
+            p for p in selected_pool
+            if Path(p).name in {(e or {}).get("filename") for e in (case.get("expected_sources") or [])}
+        }
+        keep = [p for p in selected_pool if p in own]
+        keep += [p for p in selected_pool if p not in own][: max(0, pool_limit - len(keep))]
+        selected_pool = keep
+
+    ordered = list(dict.fromkeys(selected_pool + list(case["input_files"])))
     inputs = [str(REPO_ROOT / p) for p in ordered]
     missing = [p for p in inputs if not Path(p).exists()]
     if missing:
@@ -721,6 +783,15 @@ def main() -> int:
     ap.add_argument("--limit", type=int, default=0, help="run only the first N cases (smoke test)")
     ap.add_argument("--timeout", type=int, default=600, help="per-run timeout in seconds")
     ap.add_argument("--output-dir", default="")
+    ap.add_argument("--pool-limit", type=int, default=0,
+                    help="ingest at most N pool documents per case, always including the "
+                         "case's own expected sources. 0 uses the whole pool. Ingestion is "
+                         "roughly 15s per document, so this is the wall-clock dial.")
+    ap.add_argument("--reset-shared-library", action="store_true",
+                    help="clear the app's shared document library before each case. The app "
+                         "writes ingested documents there regardless of "
+                         "--rag-validation-storage, so without this every case is slower than "
+                         "the last and later cases time out.")
     ap.add_argument("--manifest", default=str(DEFAULT_MANIFEST.relative_to(REPO_ROOT)),
                     help="fixture manifest to run. A pack may declare a top-level `pool`, which "
                          "is ingested for every case so retrieval has distractors. For external "
@@ -764,13 +835,15 @@ def main() -> int:
     n = 0
     for case in cases:
         for mode in modes:
+            if args.reset_shared_library:
+                reset_shared_library()
             storage = Path(tempfile.mkdtemp(prefix=f"matrix-{case['id']}-{mode}-"))
             try:
                 n += 1
                 print(f"[{n}/{total}] {mode:11} {case['id']}", end=" ", flush=True)
                 run = run_one(
                     app_bin, case, mode, args.pcc, args.timeout,
-                    storage=storage, ingest=True, pool=pool,
+                    storage=storage, ingest=True, pool=pool, pool_limit=args.pool_limit,
                 )
                 row = {"case_id": case["id"], "category": case["category"], "mode": mode, "run": run}
                 if run.get("ok"):
@@ -792,6 +865,7 @@ def main() -> int:
         "modes": modes, "pcc": args.pcc, "wall_seconds": round(wall, 1),
         "manifest": str(manifest_path.relative_to(REPO_ROOT)),
         "pool_documents": len(pool),
+        "pool_limit": args.pool_limit,
         **collect_provenance(argv=sys.argv, manifest=manifest_path),
     }
 
