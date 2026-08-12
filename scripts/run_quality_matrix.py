@@ -783,6 +783,9 @@ def main() -> int:
     ap.add_argument("--limit", type=int, default=0, help="run only the first N cases (smoke test)")
     ap.add_argument("--timeout", type=int, default=600, help="per-run timeout in seconds")
     ap.add_argument("--output-dir", default="")
+    ap.add_argument("--resume", default="",
+                    help="continue a previous run directory, skipping (case, mode) pairs "
+                         "already recorded in its results.jsonl checkpoint")
     ap.add_argument("--pool-limit", type=int, default=0,
                     help="ingest at most N pool documents per case, always including the "
                          "case's own expected sources. 0 uses the whole pool. Ingestion is "
@@ -820,26 +823,52 @@ def main() -> int:
     if args.limit:
         cases = cases[: args.limit]
 
-    run_id = dt.datetime.now().strftime("%Y%m%d-%H%M%S") + "-matrix"
-    out_dir = Path(args.output_dir) if args.output_dir else REPO_ROOT / "BenchmarkRuns" / run_id
+    if args.resume:
+        out_dir = Path(args.resume)
+        if not out_dir.is_absolute():
+            out_dir = REPO_ROOT / out_dir
+        run_id = out_dir.name
+    else:
+        run_id = dt.datetime.now().strftime("%Y%m%d-%H%M%S") + "-matrix"
+        out_dir = Path(args.output_dir) if args.output_dir else REPO_ROOT / "BenchmarkRuns" / run_id
     out_dir.mkdir(parents=True, exist_ok=True)
+
+    # Checkpoint file, one JSON row per completed (case, mode). Written as each case finishes.
+    #
+    # This exists because `results.json` is only written after the whole loop, so the run of
+    # 2026-08-12 lost 27 completed cases, about 1.4 hours of compute, when the machine slept
+    # mid-run. At roughly three minutes per case a full pack is a multi-hour job on a laptop, and
+    # a job that long must survive a closed lid.
+    checkpoint = out_dir / "results.jsonl"
+    rows: list[dict] = []
+    done: set[tuple[str, str]] = set()
+    if checkpoint.exists():
+        for line in checkpoint.read_text().splitlines():
+            if line.strip():
+                row = json.loads(line)
+                rows.append(row)
+                done.add((row["case_id"], row["mode"]))
 
     total = len(cases) * len(modes)
     print(f"Quality-mode matrix: {len(cases)} cases x {len(modes)} modes = {total} runs")
     print(f"App: {app_bin}")
     print(f"PCC consent: {args.pcc}  ·  timeout: {args.timeout}s/run")
-    print(f"Output: {out_dir}\n", flush=True)
+    print(f"Output: {out_dir}")
+    if done:
+        print(f"Resuming: {len(done)} of {total} already complete, skipping those")
+    print(flush=True)
 
-    rows: list[dict] = []
     started = dt.datetime.now()
     n = 0
     for case in cases:
         for mode in modes:
+            n += 1
+            if (case["id"], mode) in done:
+                continue
             if args.reset_shared_library:
                 reset_shared_library()
             storage = Path(tempfile.mkdtemp(prefix=f"matrix-{case['id']}-{mode}-"))
             try:
-                n += 1
                 print(f"[{n}/{total}] {mode:11} {case['id']}", end=" ", flush=True)
                 run = run_one(
                     app_bin, case, mode, args.pcc, args.timeout,
@@ -854,6 +883,8 @@ def main() -> int:
                 else:
                     print(f"ERROR: {run.get('error')}", flush=True)
                 rows.append(row)
+                with checkpoint.open("a") as fh:
+                    fh.write(json.dumps(row) + "\n")
             finally:
                 shutil.rmtree(storage, ignore_errors=True)
 

@@ -2,7 +2,10 @@
 
 Updated: 2026-08-12
 Branch/worktree: main, primary checkout
-Last verified commit: 3c09f01, which carries this session's work. **Committed, not pushed.**
+Last verified commit: ad541f5
+
+Four commits carry this session's work and **none are pushed**: `1fa32c2` the external fixture pack,
+`d153579` the iCloud build diagnosis, `ec03364` this file, `ad541f5` the runner changes.
 
 ## Objective
 
