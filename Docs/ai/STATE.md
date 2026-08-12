@@ -191,11 +191,29 @@ every Mac path is also unverified.
 
 ## Blockers / Unknowns
 
-**1. The benchmark run is the whole remaining task, and an agent cannot do it here.** Build the
-macOS app, then run the matrix against the new pack:
+**1. The benchmark is blocked by library pollution, not by the build.** The build is solved: it
+succeeds from a non-iCloud copy (see Status). What stops the run is that the app's real library had
+accumulated 241 benchmark documents and a stale ingestion queue, so every case stalled at
+`waiting for resume decision` and blew past the 600s timeout without producing a report.
+
+Tracked in Notion as "Benchmark runs write their fixtures into the real on-device document
+library", v5.0, High. **The mechanism is not yet established**; that row records which two obvious
+explanations were checked and ruled out, so start with a focused repro rather than a fix.
+
+A backup of the library is at `/private/tmp/oi-library-backup-20260812` (144 MB, 1556 files), and a
+reviewed cleanup script that keeps the four real documents is at
+`<scratchpad>/clean_benchmark_library.py`. It dry-runs by default. **The owner approved running it;
+it had not been run as of this handoff** because bulk deletion under `~/Library` is blocked at the
+tool layer.
+
+Once the library is clean, rebuild and run:
 
 ```bash
-DEVELOPER_DIR=/Applications/Xcode-beta.app/Contents/Developer xcodebuild -scheme OpenIntelligence -destination "platform=macOS" -configuration Debug -derivedDataPath /private/tmp/oi-mac-nosbx -skipPackagePluginValidation CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO build
+rsync -a --exclude 'BenchmarkRuns/' --exclude '.simulator-smoke.nosync/' --exclude 'Benchmarks/run/' ./ /private/tmp/oi-src/
+```
+
+```bash
+cd /private/tmp/oi-src && DEVELOPER_DIR=/Applications/Xcode-beta.app/Contents/Developer xcodebuild -scheme OpenIntelligence -destination "platform=macOS" -configuration Debug -derivedDataPath /private/tmp/oi-mac-nosbx -skipPackagePluginValidation CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO build
 ```
 
 ```bash
@@ -306,8 +324,9 @@ R06/R07 cite the wrong files for the consent guard.
 
 ## Exact Next Action
 
-**Run the benchmark against `qasper_external_v1` and read what the stages do.** The two commands are
-in Blockers 1. The owner has already chosen the scope: all 83 cases, `--modes standard --pcc deny`.
+**Clean the app library, then run the benchmark against `qasper_external_v1`.** Order matters: the
+run cannot complete until the stale ingestion queue is gone. Commands and the cleanup script are in
+Blockers 1. The owner has already chosen the scope: all 83 cases, `--modes standard --pcc deny`.
 
 The fixture work itself is done, so this is no longer a building task. It is a measuring task, and
 until the measurement exists the row stays `In Progress` and the embedder comparison stays parked.
