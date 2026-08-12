@@ -2,7 +2,7 @@
 
 Updated: 2026-08-11
 Branch/worktree: main, primary checkout
-Last verified commit: bca92c0
+Last verified commit: 9ee0fa9
 
 ## Objective
 
@@ -178,15 +178,64 @@ reranker weights are reported CC-BY-NC; verify before relying on that. Not legal
 links, and `WhatsNewView` has one button, "Done". Cutting to 3-4 and making rows navigate is the
 improvement.
 
+## v5.0 roadmap, reconciled against code 2026-08-11
+
+All 27 open v5.0 rows were checked against the code, each verdict challenged by a second pass told to
+refute it. **19 open, 7 partial, 1 needs hardware. Nothing was found already shipped and unmarked**,
+so the roadmap was not stale in the direction of overstating what is left; it was stale in
+understating what has landed inside seven rows. Every partial now carries a dated note in Notion
+saying which half is real, so tomorrow does not rebuild it.
+
+**Three rows were retitled** because all three began "Validate: PCC" and read as *PCC does not work*.
+It does: the entitlement is `true` in `OpenIntelligence.entitlements` (read via plistlib) and
+`PrivateCloudComputeLanguageModel` is wired at `FoundationModelCapabilityProvider.swift:54`,
+`FoundationModelSessionFactory.swift:92` and `FoundationModelRoutePolicy.swift:127`. Row titles
+publish to the public roadmap page, so the old wording told every reader the same wrong thing.
+
+**PCC cannot be exercised from an agent shell.** Tested directly: `fm available` prints `System model
+available` on stdout and `Private Cloud Compute is not available in this context. Please use the
+Terminal app.` on stderr. Local builds carry no entitlements at all because the smoke and benchmark
+builds pass `CODE_SIGNING_ALLOWED=NO`. No run in `BenchmarkRuns/` records a PCC route. Those rows need
+the owner's device, and that is a hard limit rather than an unattempted check.
+
+**Two defects surfaced that were not on the roadmap and deserve their own rows:**
+
+1. **The planner and the route gate disagree about `pccQuota == .unknown`.** `canUsePCC` in
+   `ModelExecutionPlan.swift` tests `pccQuota != .limitReached`, so `.unknown` permits a cloud
+   attempt, while `RouteEvalMetrics` treats `.unknown` as non-authorizing. The planner is fail-open on
+   exactly the state the scorer flags as a violation, so the first real gate run would correctly
+   report an unauthorized cloud attempt.
+2. **The macOS App Intent path has no foreground check.** The guard is inside `#if canImport(UIKit)`
+   and the non-UIKit branch hardcodes `isForegroundInteractive = true`. Implementable now, no device
+   needed.
+
+**Also found:** `RAGEvalRunner` has zero call sites repo-wide, so the in-app half of evaluation cannot
+be invoked at all; every measurement goes through `scripts/run_quality_matrix.py` plus
+`DebugRAGValidationHarness`. And `Docs/RepoOS/04_RELEASE_READINESS_DASHBOARD.md` row 7 and risks
+R06/R07 cite the wrong files for the consent guard.
+
 ## Exact Next Action
 
-None. The previous objective is complete, verified and pushed. There is no active objective.
+**Build the eval fixture set with external ground truth.** Notion row "Build quality fixtures with
+external ground truth", v5.0, High. It is the measured prerequisite for the owner's stated top v5.0
+goal and now blocks three other rows: the embedder benchmark, the `EPIC v5.0` parent, and the
+three-mode quality matrix.
 
-Ask the owner what to pick up. If he has no preference, the two highest-value candidates are
-**Blocker 2**, building an eval fixture set with external ground truth, which is the measured
-prerequisite for his stated top v5.0 goal and is currently the only thing standing between the app
-and a defensible embedder decision; and **Blocker 3**, working the three high-severity findings in
-`Docs/AuditArtifacts/Verification/LIBRARY_SURFACES_AUDIT_2026-08-11.md`.
+Why it is the right first move rather than a preference: every retrieval stage now reads MRR@10 1.000
+and R@5 1.000, so the fixture can detect a regression and cannot demonstrate an improvement. Until
+that changes, no embedder decision is defensible, and running one would produce a number that cannot
+mean anything.
 
-Do not start either without asking, and do not treat Blocker 1 as work a session can do: those five
-checks need the owner's physical device.
+Concretely: replace or supplement `Benchmarks/ResearchFixtures/tiny_research_suite/manifest.json`
+with cases drawn from real published datasets rather than the current self-authored corpus, which
+`manifest.json` itself labels "Generated locally by OpenIntelligence fixture script" and tags
+`synthetic_financebench_style`. Keep the plural `expected_sources` shape added on 2026-08-11. Aim for
+enough cases that a 10-point difference is resolvable, since `run_quality_matrix.py` warns that at
+n=18 nothing below roughly 25 points is. Then re-run and see whether any stage comes off the ceiling.
+
+Ask the owner before starting if he wants something else; two alternatives are the three
+high-severity findings in `Docs/AuditArtifacts/Verification/LIBRARY_SURFACES_AUDIT_2026-08-11.md`, and
+the two newly found defects listed in the reconciliation section above, of which the macOS foreground
+check needs no hardware.
+
+Do not treat Blocker 1 as session work: those five checks need the owner's physical device.
