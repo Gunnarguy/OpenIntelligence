@@ -2,7 +2,7 @@
 
 Updated: 2026-08-11
 Branch/worktree: main, primary checkout
-Last verified commit: 9ee0fa9
+Last verified commit: 0e7458a
 
 ## Objective
 
@@ -14,8 +14,8 @@ Pick the next objective from Blockers below, from the Notion roadmap, or from th
 
 ## Status
 
-`origin/main` and local `main` are both at `bca92c0`. 17 commits since `e60fa7f`, all pushed.
-Suite is **230 tests, 0 failures** on iPhone 17 Pro / iOS 27.0, up from 205 at the start of the day.
+`origin/main` and local `main` are both at `0e7458a`. 19 commits since `e60fa7f`, all pushed.
+Suite is **236 tests, 0 failures** on iPhone 17 Pro / iOS 27.0, up from 205 at the start of the day.
 
 **The working tree is clean.** Nothing is uncommitted and nothing is unpushed.
 
@@ -198,16 +198,19 @@ Terminal app.` on stderr. Local builds carry no entitlements at all because the 
 builds pass `CODE_SIGNING_ALLOWED=NO`. No run in `BenchmarkRuns/` records a PCC route. Those rows need
 the owner's device, and that is a hard limit rather than an unattempted check.
 
-**Two defects surfaced that were not on the roadmap and deserve their own rows:**
+**Two defects surfaced that were not on the roadmap. Both are now fixed in `0e7458a`.**
 
-1. **The planner and the route gate disagree about `pccQuota == .unknown`.** `canUsePCC` in
-   `ModelExecutionPlan.swift` tests `pccQuota != .limitReached`, so `.unknown` permits a cloud
-   attempt, while `RouteEvalMetrics` treats `.unknown` as non-authorizing. The planner is fail-open on
-   exactly the state the scorer flags as a violation, so the first real gate run would correctly
-   report an unauthorized cloud attempt.
-2. **The macOS App Intent path has no foreground check.** The guard is inside `#if canImport(UIKit)`
-   and the non-UIKit branch hardcodes `isForegroundInteractive = true`. Implementable now, no device
-   needed.
+1. **The planner attempted PCC on a quota state its own route gate scores as unauthorized.** Three
+   places already asserted fail-closed on `.unknown`: `RouteEvalMetrics.RouteInvariant.quotaFailClosed`,
+   `Docs/PRIVACY_AND_ROUTING.md` in prose, and `ModelExecutionReceipt.nonAuthorizingQuotaStates`. Only
+   `canUsePCC` disagreed, testing `!= .limitReached` alone, and it is the one that decides. The rule
+   now lives once as `PCCQuotaState.authorizesCloudExecution`, exhaustive over the enum, and both
+   sides derive from it. That doc sentence had been false for as long as it was written and is now
+   annotated as corrected. `PCCQuotaAuthorizationTests`, 6 cases.
+2. **macOS had no foreground check at all**, so a backgrounded Shortcut reported itself
+   foreground-interactive and could reach PCC unattended. It reads `NSApplication.shared.isActive`
+   now, and a platform with neither UIKit nor AppKit falls closed. **The Notion row stays open**: it
+   also asks for the backgrounded Shortcuts path to be exercised, which needs the owner's device.
 
 **Also found:** `RAGEvalRunner` has zero call sites repo-wide, so the in-app half of evaluation cannot
 be invoked at all; every measurement goes through `scripts/run_quality_matrix.py` plus
@@ -233,9 +236,9 @@ with cases drawn from real published datasets rather than the current self-autho
 enough cases that a 10-point difference is resolvable, since `run_quality_matrix.py` warns that at
 n=18 nothing below roughly 25 points is. Then re-run and see whether any stage comes off the ceiling.
 
-Ask the owner before starting if he wants something else; two alternatives are the three
-high-severity findings in `Docs/AuditArtifacts/Verification/LIBRARY_SURFACES_AUDIT_2026-08-11.md`, and
-the two newly found defects listed in the reconciliation section above, of which the macOS foreground
-check needs no hardware.
+Ask the owner before starting if he wants something else. The alternative that needs no hardware is
+the three high-severity findings in
+`Docs/AuditArtifacts/Verification/LIBRARY_SURFACES_AUDIT_2026-08-11.md`. The two defects the
+reconciliation found are no longer available as work; both shipped in `0e7458a`.
 
 Do not treat Blocker 1 as session work: those five checks need the owner's physical device.
