@@ -177,6 +177,14 @@ measure.
 
 ## Verification
 
+- **`xcodebuild test` -> 236 tests, 0 failures**, iPhone 17 Pro / iOS 27.0, run 2026-08-12 from the
+  non-iCloud copy at `/private/tmp/oi-src`. The app is healthy.
+- The app library was restored and verified: 4 real documents, 0 stray registrations, empty
+  ingestion queue, original container `0D979768`.
+- The **iCloud container was checked and is clean**: 7 files, all the owner's, no benchmark content
+  from today or from the July-30-onward leakage, newest mtime May 23. Nothing this session did
+  reached iCloud or the phone.
+
 Run on 2026-08-12 and the output read:
 
 - `python3 scripts/build_external_fixtures.py --check` -> OK, 83 cases, 40 papers,
@@ -339,6 +347,31 @@ the owner's device, and that is a hard limit rather than an unattempted check.
 be invoked at all; every measurement goes through `scripts/run_quality_matrix.py` plus
 `DebugRAGValidationHarness`. And `Docs/RepoOS/04_RELEASE_READINESS_DASHBOARD.md` row 7 and risks
 R06/R07 cite the wrong files for the consent guard.
+
+## The benchmark should move to the iOS Simulator, and that dissolves most of Blockers 1
+
+The owner's suggestion on 2026-08-12, and it is the right call for two reasons.
+
+**It ends the isolation problem outright.** A simulator has its own filesystem container, so the
+app's application-support directory lives inside the simulator rather than in the owner's real
+`~/Library`. `WorkspaceSyncService` can go on resolving `applicationSupportRoot()` and it no longer
+matters: there is nothing of the owner's to pollute, no cleanup script, no reset between cases, and
+no risk of repeating the 2026-08-12 incident. Every mitigation in `run_quality_matrix.py` exists
+only to work around a problem the simulator does not have.
+
+**It measures the platform the app is for.** This ships primarily for iPhone and iPad; benchmarking
+the Mac build measures the least representative target.
+
+**Foundation Models are available in the simulator**, which the previous note in this file denied.
+Apple documents the framework as working in iOS 26+ simulators when the host Mac supports Apple
+Intelligence and has it enabled. This host qualifies: macOS 27.0, Apple M3 Pro. So the old comment
+that `com.apple.modelcatalog` errors are "expected because Foundation Models do not run there" is
+withdrawn.
+`[evidence_level: vendor_documented+host_verified, confidence: medium, evidence_source: developer.apple.com FoundationModels documentation; sw_vers 27.0, M3 Pro. NOT yet verified by running the framework in this simulator.]`
+
+**What it needs:** `run_quality_matrix.py` drives the app by executing the macOS binary directly. A
+simulator run instead needs `xcrun simctl launch --console-pty <udid> <bundle-id> --args ...` and
+the same stdout parsing. That is a contained change to one function, `run_one`.
 
 ## Exact Next Action
 
