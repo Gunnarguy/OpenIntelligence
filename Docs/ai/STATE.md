@@ -23,9 +23,14 @@ left out of every commit. Commit it or discard it; nothing depends on it.
 
 ## Completed
 
-Nine commits, newest first. The first two are the previous objective; the rest were found while
-verifying it.
+Eleven commits, newest first. The last two in this list are the previous objective; everything
+above them was found while verifying it. Three doc-only commits are omitted.
 
+- `fd5af3a`, `561dcd3` Closed three gaps a final audit found: `RELEASE_NOTES.md` had no coverage of
+  the correctness pass and its entry count read 74 against an actual 87, the Atlas did not record
+  `LibraryDeletion`, and Notion was missing a row for it. The count had gone stale twice in one day,
+  46 to 74 to 87, so the recount command is now recorded beside it instead of the number being
+  retyped again.
 - `b464378` **One delete-library implementation.** `DocumentLibraryView` and `ContainerSettingsSheet`
   had near-identical copies that had diverged: on an iCloud library whose shared copy fails to
   delete, the first aborted and reported, the second logged and deleted locally anyway, so the next
