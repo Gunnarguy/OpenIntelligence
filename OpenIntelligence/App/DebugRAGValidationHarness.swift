@@ -157,6 +157,10 @@ enum DebugRAGValidationHarness {
 
             Log.flushTraceLog()
             let copiedTraceURL = copyTraceLog(into: configuration.outputDirectory)
+            // Read after the query so anything ingested this launch is included. These resolve
+            // expected filenames to document ids without relying on `sourceDocument`, which only
+            // the same-launch ingestion path fills in.
+            let knownDocuments = await MainActor.run { ragService.documents }
             let report = buildReport(
                 configuration: configuration,
                 containerId: containerId,
@@ -165,7 +169,8 @@ enum DebugRAGValidationHarness {
                 response: response,
                 auditSnapshot: auditSnapshot,
                 copiedTraceURL: copiedTraceURL,
-                trace: trace
+                trace: trace,
+                knownDocuments: knownDocuments
             )
             Self.lastReport = report
             try report.write(to: reportURL, atomically: true, encoding: .utf8)
@@ -202,10 +207,32 @@ enum DebugRAGValidationHarness {
     /// Nothing is emitted when there are no expected sources. The two negative-control cases have
     /// none by construction, and scoring them would report a meaningless 0.0 that would then be
     /// averaged into the aggregate.
+    /// Filename to document id, for the documents the service currently holds.
+    ///
+    /// Resolution below prefers this over scanning retrieved chunks, because `sourceDocument` is
+    /// only populated for documents ingested in the same launch. With
+    /// `--rag-validation-skip-ingest` every chunk carries an empty name, so a chunk-only lookup
+    /// resolved nothing, every expected filename stayed a filename, and the run scored 0.0000 at
+    /// every stage while retrieval was in fact working. That made index reuse unusable and forced
+    /// each case to re-ingest the whole distractor pool: 83 cases at roughly three minutes each,
+    /// against about fifteen minutes for the same pack over one shared index.
+    private static func documentIdsByName(_ documents: [Document]) -> [String: UUID] {
+        var map: [String: UUID] = [:]
+        for document in documents {
+            let stem = RetrievalRelevanceJudge.documentStem(document.filename)
+            guard !stem.isEmpty else { continue }
+            // First writer wins, so a later `-N` duplicate of the same source cannot displace the
+            // original. Ingesting the same file twice is normal here and must not change scoring.
+            if map[stem] == nil { map[stem] = document.id }
+        }
+        return map
+    }
+
     private static func stageMetricsLines(
         trace: RetrievalTraceCollector?,
         expectedSources: [String],
-        response: RAGResponse
+        response: RAGResponse,
+        knownDocuments: [Document] = []
     ) -> [String] {
         guard let trace, !expectedSources.isEmpty else { return [] }
         let traces = trace.stages(inOrder: RetrievalTraceCollector.Stage.allCases)
@@ -229,7 +256,13 @@ enum DebugRAGValidationHarness {
         // that retrieval worked and a later filter threw the result away. The late stages carry
         // names, the early ones carry ids, and every stage carries the same `documentId`.
         let allChunks = traces.flatMap(\.results) + response.retrievedChunks
+        let byName = documentIdsByName(knownDocuments)
         let groundTruth: [String] = expectedSources.map { expected in
+            // Persisted metadata first: it is available whether or not this launch did the
+            // ingesting, which is what makes a reused index scorable.
+            if let id = byName[RetrievalRelevanceJudge.documentStem(expected)] {
+                return id.uuidString
+            }
             let resolved = allChunks.first { RetrievalRelevanceJudge.matches($0, expected: expected) }
             return resolved?.chunk.documentId.uuidString ?? expected
         }
@@ -275,7 +308,8 @@ enum DebugRAGValidationHarness {
         response: RAGResponse,
         auditSnapshot: RAGAuditSnapshot?,
         copiedTraceURL: URL?,
-        trace: RetrievalTraceCollector? = nil
+        trace: RetrievalTraceCollector? = nil,
+        knownDocuments: [Document] = []
     ) -> String {
         var lines: [String] = []
         lines.append("OPENINTELLIGENCE RAG VALIDATION")
@@ -323,7 +357,8 @@ enum DebugRAGValidationHarness {
         lines.append(contentsOf: stageMetricsLines(
             trace: trace,
             expectedSources: configuration.expectedSources,
-            response: response
+            response: response,
+            knownDocuments: knownDocuments
         ))
 
         lines.append("RETRIEVED CHUNKS")
