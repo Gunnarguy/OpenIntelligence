@@ -2,7 +2,7 @@
 
 Updated: 2026-08-11
 Branch/worktree: main, primary checkout
-Last verified commit: 5cf54b4
+Last verified commit: bca92c0
 
 ## Objective
 
@@ -14,17 +14,24 @@ Pick the next objective from Blockers below, from the Notion roadmap, or from th
 
 ## Status
 
-`origin/main` and local `main` are both at `5cf54b4`. 14 commits since `e60fa7f`, all pushed.
+`origin/main` and local `main` are both at `bca92c0`. 17 commits since `e60fa7f`, all pushed.
 Suite is **230 tests, 0 failures** on iPhone 17 Pro / iOS 27.0, up from 205 at the start of the day.
 
-One file is modified and uncommitted, `OpenIntelligence/Features/Telemetry/Dashboard/MotherboardHUDView.swift`,
-a one-character capitalisation edit made by the owner in Xcode. It is not mine and was deliberately
-left out of every commit. Commit it or discard it; nothing depends on it.
+**The working tree is clean.** Nothing is uncommitted and nothing is unpushed.
 
 ## Completed
 
-Eleven commits, newest first. The last two in this list are the previous objective; everything
-above them was found while verifying it. Three doc-only commits are omitted.
+Newest first. The last two in this list are the previous objective; everything above them was found
+while verifying it. Doc-only commits are omitted.
+
+- `bca92c0` The owner's own one-character HUD capitalisation edit, committed on its own rather than
+  folded into an unrelated change.
+- `ba05818` **The two destructive library actions were indistinguishable, and one menu entry led to a
+  screen that could never hold anything.** "Wipe Library" and "Delete Library" sat adjacent, both
+  destructive, on `trash` and `trash.slash`. They are now "Remove All Documents from X" and "Delete
+  the X Library", different icon families, divider between them. Cached Documents is gated on the
+  cache holding something: `DocumentationCacheService.cache(...)` has zero call sites, but it is
+  scaffolding for the open roadmap row "Web Clipper / Share Extension", not dead code.
 
 - `5cf54b4` Three documentation-status banners asserted verification state that was wrong:
   `RELEASE_NOTES.md` claimed 202 tests against 230, and `USER_CHANGELOG.md` and `WHATS_NEW.md` both
