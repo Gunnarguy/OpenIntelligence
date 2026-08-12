@@ -9,11 +9,19 @@ Four commits carry this session's work and **none are pushed**: `1fa32c2` the ex
 
 ## Objective
 
-**Build the eval fixture set with external ground truth.** Notion row of the same name, v5.0, High,
-now `In Progress`. The pack is built, committed and verified. **It has not been run.**
+**None active.** The external fixture pack is built, committed and verified. What remains is a
+measurement, not construction, and it is described in Blockers 1.
 
-The single remaining step is one command, and it needs the owner because an agent cannot run it on
-this machine. See Blockers 1.
+**Nothing found on 2026-08-12 is a defect in the shipping app.** Every fix this session landed in
+benchmark tooling: two Python scripts, and `DebugRAGValidationHarness.swift`, whose entire contents
+sit inside `#if DEBUG`. The app was not changed. If the next session is looking for user-facing
+work, this is not it; go to Blockers 5 or the Notion roadmap.
+
+The one caveat worth carrying: `WorkspaceSyncService` resolves its root with
+`OpenIntelligenceRuntimePaths.applicationSupportRoot()` rather than `baseDirectory()`, so it ignores
+a configured storage override. That is invisible to a normal user, who never sets one, but
+`OpenIntelligenceEngine.swift:389` does set one from `configuration.storageURL`, so an SDK consumer
+with a custom storage location would find sync writing somewhere else. Tracked in Notion.
 
 ## Status
 
@@ -194,22 +202,29 @@ every Mac path is also unverified.
 
 ## Blockers / Unknowns
 
-**1. The benchmark is blocked by library pollution, not by the build.** The build is solved: it
-succeeds from a non-iCloud copy (see Status). What stops the run is that the app's real library had
-accumulated 241 benchmark documents and a stale ingestion queue, so every case stalled at
-`waiting for resume decision` and blew past the 600s timeout without producing a report.
+**1. The 83-case run has still not produced a report, and the blocker is benchmark isolation.**
+The build is solved (see Status). What is not solved is that the harness cannot isolate itself from
+the live app library: `WorkspaceSyncService` writes ingested documents to the real
+application-support root no matter what storage the harness was given. Runs therefore pollute the
+owner's library, and the accumulation slows each case until later ones exceed the timeout.
 
-Tracked in Notion as "Benchmark runs write their fixtures into the real on-device document
-library", v5.0, High. **The mechanism is not yet established**; that row records which two obvious
-explanations were checked and ruled out, so start with a focused repro rather than a fix.
+Mitigations already in the runner: `--reset-shared-library` clears benchmark residue between cases,
+and `--pool-limit N` caps documents per case. With `--pool-limit 10` a case takes ~170s, so the pack
+is about four hours. `99fcdaf` should cut that to roughly fifteen minutes by making a reused index
+scorable, **but that is unverified** because the run proving it was interrupted.
 
-A backup of the library is at `/private/tmp/oi-library-backup-20260812` (144 MB, 1556 files), and a
-reviewed cleanup script that keeps the four real documents is at
-`<scratchpad>/clean_benchmark_library.py`. It dry-runs by default. **The owner approved running it;
-it had not been run as of this handoff** because bulk deletion under `~/Library` is blocked at the
-tool layer.
+**Do not point `--rag-validation-storage` at the real library.** That was tried on 2026-08-12 to test
+co-location and it ingested 40 papers straight into the owner's app, replaced his container in
+`containers.json`, and surfaced 43 documents as pending in his UI. It was fully reverted, and the
+iCloud container was verified untouched (7 files, none from any benchmark, newest mtime May 23), but
+it cost a session and it is the single worst thing to repeat here.
 
-Once the library is clean, rebuild and run:
+Recovery assets: full library backup at `/private/tmp/oi-library-backup-20260812`, and
+`/private/tmp/clean_benchmark_library.py`, which dry-runs by default and preserves the four real
+documents. Deletions written by that script leave **no tombstones** in `deleted_documents.json`, so
+they cannot propagate a delete to iCloud; that was checked rather than assumed.
+
+Rebuild and run:
 
 ```bash
 rsync -a --exclude 'BenchmarkRuns/' --exclude '.simulator-smoke.nosync/' --exclude 'Benchmarks/run/' ./ /private/tmp/oi-src/
