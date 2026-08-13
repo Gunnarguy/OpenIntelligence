@@ -49,6 +49,77 @@ Evaluation datasets are represented as JSON Lines files, with one JSON object pe
 
 ---
 
+## What has actually been measured, as of 2026-08-12
+
+This section exists because this document described a framework and recorded no results, while
+`BenchmarkRuns/` is gitignored so no run survives a clone. Anyone asking "how accurate is this
+engine" had nothing to read. These are the real numbers with what each one is worth.
+
+| Measurement | Result | n | What it actually measures |
+| :--- | :--- | ---: | :--- |
+| Synthetic pack, 2026-08-11, standard | 18/20 correct, 0 hallucinated | 20 | reading one correct document and restating it |
+| QASPER external, 2026-08-12, standard | 11/27 correct, 14 miss, 2 hallucinated | 27 of 83 | answering externally-authored questions against 9 distractor papers |
+| Retrieval stages, smoke | `vector` MRR@10 **0.11**, `lexical` 1.00, `rerank` 0.83, `final` 0.57 | 3 | where the right chunk ranks among ~180 candidates |
+| Unit suite | 236 pass, 0 fail | 236 | that units behave; no end-to-end coverage of routing, gates, sync or retrieval |
+
+**The 90% does not mean what it looks like.** Every case in that run was scored against an index
+containing only its own answer, so retrieval was arithmetically incapable of failing. The corpus was
+written by this project and the answers chosen by this project.
+
+**The 41% is a partial run and was scored strictly**, by regex against the exact span two annotators
+agreed on, so a correct paraphrase counts as a miss.
+
+### The misses are retrieval failures, not scoring artifacts
+
+Worth recording because the opposite was assumed first and inspection disproved it. Two misses from
+the smoke run, read directly:
+
+- *"How big is the ANTISCAM dataset?"* expected `220 human-human dialogs`. Answered **"the exact
+  size of the dataset is not provided in the excerpts"**. The sentence is in the paper; it never
+  reached the context. Note the engine did **not** invent a number.
+- *"What are the baselines outperformed by this work?"* expected `TransferTransfo`. Answered that
+  the work "outperforms multiple baselines ... as stated in the abstract". It retrieved the
+  **abstract** instead of the results section: enough to gesture, not enough to name.
+
+Both failures are upstream of generation, and both are consistent with `vector` scoring MRR@10 0.11
+while `lexical` scores 1.00. Dense retrieval is contributing little on this content and BM25 is
+carrying it; when exact-term matching does not fire, the wrong passage is what reaches the model.
+**This is the measured argument for the embedder work**, and it is the first evidence this project
+has had for it.
+
+### Abstention behaves differently on external questions
+
+The synthetic pack reports abstention 2/2 correct. The 2026-08-12 partial run encountered exactly
+two externally-authored unanswerable questions and **hallucinated on both, 0/2**.
+
+`n=2`. That concludes nothing on its own. It is recorded because it points the opposite way from the
+synthetic result, and because the synthetic controls were questions this project invented to be
+unanswerable, which is a much easier test than a real reader's question that the paper happens not
+to answer. Anti-hallucination is a headline differentiator and had never been tested against
+externally-authored unanswerable questions before this date.
+
+### What is not measured at all
+
+- **Accuracy on real user documents.** Everything above is self-authored or NLP papers.
+- **Deep Think and Maximum.** Both failed on most cases in the 2026-07-30 matrix run; both were
+  fixed the same day in `665da0a` and `b271ecf` and device-verified over four iPhone runs. **Neither
+  has been benchmark-measured since.** The fix closed the defect, not the question of whether the
+  extra compute buys correctness.
+- **iPhone.** Every benchmark figure is from the macOS build.
+- **Regression over time.** No run is committed, so there is no series to compare against.
+- **Seven pipeline stages** that ship and run, listed `[UNSPECIFIED]` in `Docs/Engineering/RAG_TECHNICAL.md`.
+
+`[evidence_level: measured, confidence: exact_for_the_numbers_stated, evidence_source: BenchmarkRuns/20260811-150328-matrix/results.json; interrupted 2026-08-12 QASPER run; per-case reports read directly for the two misses quoted]`
+
+### An open claim that needs an audit
+
+Two user-facing strings advertise **extractive QA**: the Standard quality-mode description
+("Full pipeline with verification gates, graph context & extractive QA") and `AboutView`
+("Apple Foundation Models or extractive QA"). Step 5.10 Extractive QA is disabled in code, and
+`ExtractiveQAService` has no call sites outside its own file. That looks conclusive, and it is
+deliberately **not** being changed here: this repository has already deleted one true claim on
+exactly that reasoning. Run `oi-claim-audit` before touching either string.
+
 ## The Datasets
 
 Two packs, measuring different things. Both are generated, not hand-written, and both are
