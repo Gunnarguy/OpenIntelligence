@@ -74,10 +74,12 @@ enum DebugRAGValidationHarness {
             let settingsStore = SettingsStore(ragService: ragService)
 
             do {
-                let report = try await runIfNeeded(
+                // Only the caller that actually ran may terminate the process. Exiting on `nil`
+                // would kill the run the other path is in the middle of.
+                guard let report = try await runIfNeeded(
                     ragService: ragService,
                     settingsStore: settingsStore
-                )
+                ) else { return }
                 print(report)
                 fflush(stdout)
                 exit(0)
@@ -93,11 +95,21 @@ enum DebugRAGValidationHarness {
         }
     }
 
+    /// Runs the validation once, or returns `nil` if another caller already owns this run.
+    ///
+    /// The `nil` is load-bearing and used to be a plain string, which killed every run on iOS.
+    /// Two paths call this: `runHeadlessIfNeeded` from `App.init`, and `ContentView` once its
+    /// task starts. Only one can claim the gate. The loser used to receive
+    /// `"No configuration or already running."`, and `runHeadlessIfNeeded` could not tell that
+    /// apart from a finished report, so it printed the sentence and called `exit(0)` while the
+    /// winner was still working. On macOS the headless path happens to claim first and the bug
+    /// stays hidden; on the simulator `ContentView` claims first, so the app terminated a few
+    /// seconds in with `ValidationOutput/` created and no report ever written.
     static func runIfNeeded(
         ragService: RAGService,
         settingsStore: SettingsStore
-    ) async throws -> String {
-        guard let configuration = cachedConfiguration, runGate.claim() else { return "No configuration or already running." }
+    ) async throws -> String? {
+        guard let configuration = cachedConfiguration, runGate.claim() else { return nil }
         return try await run(configuration: configuration, ragService: ragService, settingsStore: settingsStore)
     }
 

@@ -196,10 +196,20 @@ struct ContentView: View {
                         }
                     }
                 } else {
-                    let _ = try? await DebugRAGValidationHarness.runIfNeeded(
+                    // Whichever path wins the run gate is the one that must print and exit.
+                    // `runHeadlessIfNeeded` in `App.init` does the same, and on macOS it is
+                    // usually the winner. On the simulator this task claims the gate first, so
+                    // without the exit here the process would finish the validation and then sit
+                    // there forever, which is indistinguishable from a hung run to the caller
+                    // driving it through `simctl launch`.
+                    if let report = try? await DebugRAGValidationHarness.runIfNeeded(
                         ragService: ragService,
                         settingsStore: settingsStore
-                    )
+                    ) {
+                        print(report)
+                        fflush(stdout)
+                        exit(0)
+                    }
                     return
                 }
             }
