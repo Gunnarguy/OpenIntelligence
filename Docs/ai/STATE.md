@@ -2,10 +2,13 @@
 
 Updated: 2026-08-12
 Branch/worktree: main, primary checkout
-Last verified commit: ad541f5
+Last verified commit: c640a8a
 
-Four commits carry this session's work and **none are pushed**: `1fa32c2` the external fixture pack,
-`d153579` the iCloud build diagnosis, `ec03364` this file, `ad541f5` the runner changes.
+All of this session's work is **committed and pushed**; `origin/main` and local `main` agree and the
+tree is clean. Only three Swift files were touched all day: `DebugRAGValidationHarness.swift` and
+`ContentView.swift`, both `#if DEBUG` and additionally gated on `--rag-validation-query` so they are
+inert in a normal build, and `OnboardingChecklistView.swift` for one line of copy. Everything else
+was Python, documentation, and fixture data.
 
 ## Objective
 
@@ -348,9 +351,59 @@ be invoked at all; every measurement goes through `scripts/run_quality_matrix.py
 `DebugRAGValidationHarness`. And `Docs/RepoOS/04_RELEASE_READINESS_DASHBOARD.md` row 7 and risks
 R06/R07 cite the wrong files for the consent guard.
 
-## The benchmark should move to the iOS Simulator, and that dissolves most of Blockers 1
+## Do not move the benchmark to the iOS Simulator yet. Measured 2026-08-12.
 
-The owner's suggestion on 2026-08-12, and it is the right call for two reasons.
+**The reasoning below was sound and the conclusion was wrong.** Keep the reasoning, because it
+becomes correct the moment one thing changes, and re-deriving it wastes a session.
+
+**What was measured.** One case at `--pool-limit 10` on iPhone 17 Pro / iOS 27.0 **exceeded ten
+minutes and then failed**, against 170s on macOS. Ingestion and retrieval were fine. Generation was
+not:
+
+```
+[ReasoningChain] All 8 sessions failed to produce an insight
+[Agentic] Failed: The on-device model did not return a usable response across 8 reasoning sessions
+[RAGValidation] Validation failed
+```
+
+Apple Intelligence cannot generate in the Simulator on this machine, and the agentic path retries
+eight reasoning sessions before giving up. That retry loop is the ten minutes. At 83 cases that is
+**14+ hours in which every case fails**, against 4 hours of real answers on macOS.
+
+Note the trap: with a single document and a simple query it falls back to extractive quickly and
+looks fine. The escalation only appears at a realistic pool size, so a one-document smoke test will
+mislead you here.
+
+**Why generation fails.** The framework loads and reports `availability: available`; generation dies
+in Apple's `ModelManagerError 1026`. Verified with a bare probe with no app code involved: the same
+probe on the host Mac reports available **and generates real text**, so the machine is capable and
+provisioned. Ruled out: locale (`en_US` on both sides), a wedged model catalog (erasing the
+simulator removed those errors entirely), and the app's own guards (failure reproduces with them
+removed). Apple's forums document this exact error pair and the remedy is to toggle Apple
+Intelligence off, restart the Mac, and turn it back on. **The owner has declined to do that**, which
+is reasonable: this is developer convenience, not something the shipping app depends on.
+
+`[evidence_level: measured, confidence: exact, evidence_source: bare FoundationModels probe on host vs iOS 27 simulator; one full case at --pool-limit 10 on each target]`
+
+**The three simulator guards are therefore correct in outcome and stale in wording.**
+`LLMService.AppleFoundationLLMService.isAvailable` and `RAGService.checkDeviceCapabilities` both
+hardcode unavailability under `#if targetEnvironment(simulator)`, with reasons like "Foundation
+Models not available in Simulator". Availability is actually reported *available*, so the reason is
+wrong, but the behaviour they produce is right: without them the app attempts generation, fails,
+and is slower and noisier for it. They were removed and reverted twice on 2026-08-12. **Leave them
+until AFM generates in the Simulator**, then remove all three together.
+
+This is also the whole answer to "why does the chat header say `Hybrid - Unavailable`". That pill
+reads `supportsFoundationModels` from `checkDeviceCapabilities`, so on a simulator it is reporting a
+compile-time constant rather than anything about the machine. On a real device it should read
+available.
+
+**Re-check trigger:** any Xcode or macOS update. Re-run the probe; if it generates, the move below
+becomes correct and worth doing immediately.
+
+## Why the Simulator is still the right destination once generation works
+
+The owner's suggestion on 2026-08-12, and the reasoning holds.
 
 **It ends the isolation problem outright.** A simulator has its own filesystem container, so the
 app's application-support directory lives inside the simulator rather than in the owner's real
@@ -362,12 +415,11 @@ only to work around a problem the simulator does not have.
 **It measures the platform the app is for.** This ships primarily for iPhone and iPad; benchmarking
 the Mac build measures the least representative target.
 
-**Foundation Models are available in the simulator**, which the previous note in this file denied.
-Apple documents the framework as working in iOS 26+ simulators when the host Mac supports Apple
-Intelligence and has it enabled. This host qualifies: macOS 27.0, Apple M3 Pro. So the old comment
-that `com.apple.modelcatalog` errors are "expected because Foundation Models do not run there" is
-withdrawn.
-`[evidence_level: vendor_documented+host_verified, confidence: medium, evidence_source: developer.apple.com FoundationModels documentation; sw_vers 27.0, M3 Pro. NOT yet verified by running the framework in this simulator.]`
+**Foundation Models load in the simulator but cannot generate there.** Corrected the same day it was
+written: this section first claimed they were available, on the strength of Apple's documentation
+and a capable host. Measurement disagrees, and the detail is in the section above. Availability is
+reported `available`; generation fails. Treat "available" from `SystemLanguageModel` as necessary
+and not sufficient.
 
 **What it needs:** `run_quality_matrix.py` drives the app by executing the macOS binary directly. A
 simulator run instead needs `xcrun simctl launch --console-pty <udid> <bundle-id> --args ...` and

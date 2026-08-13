@@ -216,6 +216,34 @@ document-name mapping (see the note in `run_one`). Budget accordingly and do not
 Rebuild or verify the corpus with `scripts/build_external_fixtures.py`; `--check` is offline and
 compares against `fixtures.lock.json`.
 
+**5b. Do not run the benchmark on the iOS Simulator. Measured 2026-08-12.** It is the obviously
+right destination on paper: a simulator has its own filesystem container, so it cannot pollute the
+real app library, and it is the platform this app ships on. It does not work, because **Apple
+Intelligence cannot generate in the Simulator on this machine**. One case at `--pool-limit 10`
+exceeded ten minutes and then failed, against 170s on macOS:
+
+```
+[ReasoningChain] All 8 sessions failed to produce an insight
+[Agentic] Failed: The on-device model did not return a usable response across 8 reasoning sessions
+```
+
+Ingestion and retrieval are fine; the agentic path retries eight reasoning sessions before giving
+up, and that loop is the ten minutes. At 83 cases: 14+ hours in which every case fails.
+
+**The trap:** with one document and a simple query it falls back to extractive quickly and looks
+healthy. The escalation only appears at a realistic pool size, so a small smoke test will tell you
+it works.
+
+The framework itself loads and reports `availability: available`; generation dies in
+`ModelManagerError 1026`. A bare probe with no app code involved reproduces it, and the same probe
+on the host Mac generates real text, so the machine is capable. Locale is `en_US` on both sides and
+erasing the simulator cleared the unrelated `com.apple.modelcatalog` errors. Apple's forums document
+this error pair; the remedy is toggling Apple Intelligence off, restarting the Mac, and turning it
+back on, which the owner has declined. **Re-check after any Xcode or macOS update**: if the probe
+generates, move the benchmark to the Simulator, and remove the three `#if targetEnvironment(simulator)`
+guards in `LLMService` and `RAGService` at the same time.
+`[evidence_level: measured, confidence: exact, evidence_source: bare FoundationModels probe host vs simulator; one full case per target]`
+
 **6. The harness overstated its own sensitivity until 2026-08-12.**
 `minimum_detectable_effect(n)` interpolated the sample size into a sentence whose threshold was a
 hardcoded constant, so it printed "differences below about 25 points are not resolvable" at every
