@@ -1,8 +1,8 @@
 # Current State
 
-Updated: 2026-08-12
+Updated: 2026-08-13
 Branch/worktree: main, primary checkout
-Last verified commit: c640a8a
+Last verified commit: af978c5
 
 All of this session's work is **committed and pushed**; `origin/main` and local `main` agree and the
 tree is clean. Only three Swift files were touched all day: `DebugRAGValidationHarness.swift` and
@@ -12,8 +12,26 @@ was Python, documentation, and fixture data.
 
 ## Objective
 
-**None active.** The external fixture pack is built, committed and verified. What remains is a
-measurement, not construction, and it is described in Blockers 1.
+**None active. The measurement is done.** The 83-case run against `qasper_external_v1` completed on
+2026-08-12 in 4.8 hours, clean tree, commit `9c634938`, and its summary is committed at
+`Docs/AuditArtifacts/Benchmarks/20260812-215108-matrix.md`. Findings are in `Docs/EVALS.md` under
+"What has actually been measured". The v5.0 embedding arc is unblocked.
+
+**Two results decide what happens next.**
+
+1. **RRF fusion is measurably worse than BM25 alone.** `lexical` MRR@10 0.65 falls to `fusion` 0.51.
+   Tested per-case rather than on means: over 72 paired cases lexical won 26, fusion won 6, 40 tied,
+   exact two-sided sign test **p = 0.0005**. Blending a weak dense ranking into a strong lexical one
+   costs rank quality, and the cross-encoder then spends its effort climbing back to 0.63. This is
+   architectural, it is the cheapest thing to act on, and it was invisible before this fixture
+   existed.
+2. **Dense retrieval is the weakest stage.** `vector` MRR@10 0.28 against `lexical` 0.65, over 72
+   cases where 8 points is resolvable. That is the measured basis for replacing MiniLM-L6-v2, which
+   this project wanted to do for a year without evidence.
+
+Accuracy was **34/77 (44%)**, scored by exact-span regex so read it as a floor. Abstention was
+**2/5** on externally-authored unanswerable questions against 2/2 on the self-authored controls.
+**Six cases produced no result at all** and that is unexplained; see Blockers 1.
 
 **Nothing found on 2026-08-12 is a defect in the shipping app.** Every fix this session landed in
 benchmark tooling: two Python scripts, and `DebugRAGValidationHarness.swift`, whose entire contents
@@ -213,16 +231,24 @@ every Mac path is also unverified.
 
 ## Blockers / Unknowns
 
-**1. The 83-case run has still not produced a report, and the blocker is benchmark isolation.**
-The build is solved (see Status). What is not solved is that the harness cannot isolate itself from
-the live app library: `WorkspaceSyncService` writes ingested documents to the real
-application-support root no matter what storage the harness was given. Runs therefore pollute the
-owner's library, and the accumulation slows each case until later ones exceed the timeout.
+**1. Six of 83 cases produced no result, and nothing explains why.** Four timed out at 600s and two
+returned no report: `qasper_1905.00472_04914917`, `qasper_1805.04833_f2dba5bf`,
+`qasper_1805.07882_67cb001f`, `qasper_1806.04387_9f1d81b2` timed out;
+`qasper_1611.06322_3319d565` and `qasper_1909.12079_3f717e6e` returned nothing. That is 7% of the
+run unmeasured, and 7% is enough to move a 44% accuracy figure.
 
-Mitigations already in the runner: `--reset-shared-library` clears benchmark residue between cases,
-and `--pool-limit N` caps documents per case. With `--pool-limit 10` a case takes ~170s, so the pack
-is about four hours. `99fcdaf` should cut that to roughly fifteen minutes by making a reused index
-scorable, **but that is unverified** because the run proving it was interrupted.
+**The likely lead:** a case on 2026-08-12 took 4173s, 22x the 168s median, before returning. In the
+Simulator the same shape appeared explicitly as `All 8 sessions failed to produce an insight`, which
+is the agentic reasoning chain retrying. A 600s timeout may be that loop, not a slow query. Start by
+reading the per-case reports under `BenchmarkRuns/qasper-overnight/reports/` for those six ids.
+
+**Benchmark isolation is a known limitation, now mitigated rather than solved.**
+`WorkspaceSyncService` writes ingested documents to the real application-support root no matter what
+storage the harness was given, so runs pollute the owner's library and the accumulation slows later
+cases. `--reset-shared-library` clears residue between cases and `--pool-limit N` caps documents per
+case; with `--pool-limit 10` a case takes ~170s and the pack is 4.8 hours. That combination carried
+83/83 to completion, so it works. `99fcdaf` should cut the run to roughly fifteen minutes by making
+a reused index scorable, **still unverified**.
 
 **Do not point `--rag-validation-storage` at the real library.** That was tried on 2026-08-12 to test
 co-location and it ingested 40 papers straight into the owner's app, replaced his container in
@@ -427,27 +453,45 @@ the same stdout parsing. That is a contained change to one function, `run_one`.
 
 ## Exact Next Action
 
-**Clean the app library, then run the benchmark against `qasper_external_v1`.** Order matters: the
-run cannot complete until the stale ingestion queue is gone. Commands and the cleanup script are in
-Blockers 1. The owner has already chosen the scope: all 83 cases, `--modes standard --pcc deny`.
+**Act on the fusion result. It is the cheapest measured win available and it does not need another
+four-hour run to justify.**
 
-The fixture work itself is done, so this is no longer a building task. It is a measuring task, and
-until the measurement exists the row stays `In Progress` and the embedder comparison stays parked.
+`lexical` MRR@10 0.65 falls to `fusion` 0.51, and per-case that is 26 wins to 6 with p=0.0005. RRF is
+combining a strong lexical ranking with a weak dense one at equal weight. Two candidate changes,
+both small, and the fixture can now tell you which works:
 
-**Record the result honestly, whichever way it goes.** The interesting outcome is not "the numbers
-improved". It is whether retrieval can now fail at all. If stages still read 1.000 against 39
-distractor papers, do not celebrate it and do not assume the pool is working: check
-`pool_documents` and `fixture_corpus_sha256` in the run's provenance, and check the `results` column
-in a per-case `STAGE METRICS` block, which should now be in the hundreds rather than 2 to 5.
+1. Weight the RRF arms by measured stage quality instead of equally.
+2. Gate or downweight the vector arm when the lexical arm is confident.
+
+Re-run afterwards with the same command and compare against
+`Docs/AuditArtifacts/Benchmarks/20260812-215108-matrix.md`. At n=77 a change smaller than ~8 points
+is not resolvable, so do not claim one.
+
+**Then the embedder.** Notion row "Benchmark three embedders and replace MiniLM-L6-v2 if warranted"
+is now unblocked with evidence behind it: `vector` MRR@10 0.28. Additive-then-swap, per the owner's
+standing preference.
+
+**Do not fix these two at once.** They both move the same numbers and a combined change cannot be
+attributed. Fusion first, because it is a scoring-weight change rather than a re-embed.
+
+Rerun command, unchanged and verified end to end:
+
+```bash
+caffeinate -is env SWIFT_DETERMINISTIC_HASHING=1 python3 scripts/run_quality_matrix.py --app /private/tmp/oi-mac-nosbx/Build/Products/Debug/OpenIntelligence.app --manifest Benchmarks/ResearchFixtures/qasper_external_v1/manifest.json --modes standard --pcc deny --pool-limit 10 --reset-shared-library --output-dir BenchmarkRuns/<name>
+```
+
+```bash
+python3 scripts/save_benchmark_summary.py BenchmarkRuns/<name>
+```
+
+**Always save the summary and commit it.** `BenchmarkRuns/` is gitignored, so a run that is not
+summarised did not happen as far as the next session is concerned. That was true of every run this
+project made before 2026-08-12.
 
 **Do not compare any number from this run to a `tiny_research_suite` run.** Different corpus,
 different ground truth, different difficulty. A delta between the two packs measures the fixture.
 
-If an agent picks this up and `xcodebuild` hangs at the invocation header with no DerivedData, that
-is the environment failure in Status, not a code problem. Hand the build to the owner rather than
-spending the session on it; that cost most of an hour on 2026-08-12.
-
-The alternative that needs neither hardware nor a build is the three high-severity findings in
+The alternative that needs neither hardware nor a long run is the three high-severity findings in
 `Docs/AuditArtifacts/Verification/LIBRARY_SURFACES_AUDIT_2026-08-11.md`.
 
-Do not treat Blockers 2 as session work: those five checks need the owner's physical device.
+Do not treat the device checks as session work: those need the owner's physical device.
