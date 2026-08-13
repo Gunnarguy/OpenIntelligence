@@ -2,49 +2,41 @@
 
 Updated: 2026-08-13
 Branch/worktree: main, primary checkout
-Last verified commit: af978c5
+Last verified commit: e29fee0. **Everything is committed and pushed. Tree clean. Only `main` exists.**
 
-All of this session's work is **committed and pushed**; `origin/main` and local `main` agree and the
-tree is clean. Only three Swift files were touched all day: `DebugRAGValidationHarness.swift` and
-`ContentView.swift`, both `#if DEBUG` and additionally gated on `--rag-validation-query` so they are
-inert in a normal build, and `OnboardingChecklistView.swift` for one line of copy. Everything else
-was Python, documentation, and fixture data.
+## Read this first
 
-## Objective
+The engine now has a real quality measurement for the first time. That is the headline, and
+everything below follows from it.
 
-**None active. The measurement is done.** The 83-case run against `qasper_external_v1` completed on
-2026-08-12 in 4.8 hours, clean tree, commit `9c634938`, and its summary is committed at
-`Docs/AuditArtifacts/Benchmarks/20260812-215108-matrix.md`. Findings are in `Docs/EVALS.md` under
-"What has actually been measured". The v5.0 embedding arc is unblocked.
+**`Docs/EVALS.md` is the single entry point for anything about measurement.** It opens with a
+"Start here" section: the numbers, what each is worth, which file owns which part, and the two
+comparisons that will mislead you. Do not re-derive any of this from run artifacts.
 
-**Two results decide what happens next.**
+### The four numbers that matter
 
-1. **RRF fusion is measurably worse than BM25 alone.** `lexical` MRR@10 0.65 falls to `fusion` 0.51.
-   Tested per-case rather than on means: over 72 paired cases lexical won 26, fusion won 6, 40 tied,
-   exact two-sided sign test **p = 0.0005**. Blending a weak dense ranking into a strong lexical one
-   costs rank quality, and the cross-encoder then spends its effort climbing back to 0.63. This is
-   architectural, it is the cheapest thing to act on, and it was invisible before this fixture
-   existed.
-2. **Dense retrieval is the weakest stage.** `vector` MRR@10 0.28 against `lexical` 0.65, over 72
-   cases where 8 points is resolvable. That is the measured basis for replacing MiniLM-L6-v2, which
-   this project wanted to do for a year without evidence.
+| | |
+| :--- | :--- |
+| Accuracy | **44% exact match, 46% gold recall**, 72 answerable external questions |
+| Dense retrieval | `vector` MRR@10 **0.28** |
+| Lexical retrieval | `lexical` MRR@10 **0.65** |
+| Where it loses | right document reaches final ranking on **75% of missed cases** |
 
-Accuracy was **34/77 (44%)**, scored by exact-span regex so read it as a floor. Abstention was
-**2/5** on externally-authored unanswerable questions against 2/2 on the self-authored controls.
-**Six cases produced no result at all** and that is unexplained; see Blockers 1.
+Read that last row carefully. **The failure is not "cannot find the paper". It is "finds the paper,
+picks the wrong paragraph".** Every lever below follows from it.
 
-**Nothing found on 2026-08-12 is a defect in the shipping app.** Every fix this session landed in
-benchmark tooling: two Python scripts, and `DebugRAGValidationHarness.swift`, whose entire contents
-sit inside `#if DEBUG`. The app was not changed. If the next session is looking for user-facing
-work, this is not it; go to Blockers 5 or the Notion roadmap.
+### The finding worth acting on
 
-The one caveat worth carrying: `WorkspaceSyncService` resolves its root with
-`OpenIntelligenceRuntimePaths.applicationSupportRoot()` rather than `baseDirectory()`, so it ignores
-a configured storage override. That is invisible to a normal user, who never sets one, but
-`OpenIntelligenceEngine.swift:389` does set one from `configuration.storageURL`, so an SDK consumer
-with a custom storage location would find sync writing somewhere else. Tracked in Notion.
+**RRF fusion scores worse than the lexical arm alone**, 26 wins to 6 over 72 paired cases, exact
+two-sided sign test **p = 0.0005**. The mechanism is in the code, not the theory:
+`QueryProfile.adjustedHybridWeights` clamps both arms to `max(0.35, min(0.65, ...))`, guaranteeing
+the weak dense arm at least 35% of the fusion. That is a sound default for two comparable arms,
+which is what the RRF literature assumes; these arms are not comparable.
+
+**A run testing a 0.3/0.7 rebalance is paused at 36/83 and is resumable.** See Blockers 1.
 
 ## Status
+
 
 The tree carries the fixture work described below. Everything that can be verified without
 `xcodebuild` has been verified and its output read.
@@ -231,112 +223,65 @@ every Mac path is also unverified.
 
 ## Blockers / Unknowns
 
-**1. Six of 83 cases produced no result, and nothing explains why.** Four timed out at 600s and two
-returned no report: `qasper_1905.00472_04914917`, `qasper_1805.04833_f2dba5bf`,
-`qasper_1805.07882_67cb001f`, `qasper_1806.04387_9f1d81b2` timed out;
-`qasper_1611.06322_3319d565` and `qasper_1909.12079_3f717e6e` returned nothing. That is 7% of the
-run unmeasured, and 7% is enough to move a 44% accuracy figure.
+**1. A benchmark run is paused at 36/83 and resumes with one command.** Testing whether rebalancing
+the fusion weights to 0.3 dense / 0.7 lexical improves anything. Interim on the 33 scored was 48%
+against the 44% baseline, which at n=27 means nothing yet. **A run costs ~4.7 hours and pins the
+machine**, so ask before starting one.
 
-**The likely lead:** a case on 2026-08-12 took 4173s, 22x the 168s median, before returning. In the
-Simulator the same shape appeared explicitly as `All 8 sessions failed to produce an insight`, which
-is the agentic reasoning chain retrying. A 600s timeout may be that loop, not a slow query. Start by
-reading the per-case reports under `BenchmarkRuns/qasper-overnight/reports/` for those six ids.
+```bash
+caffeinate -is env SWIFT_DETERMINISTIC_HASHING=1 python3 scripts/run_quality_matrix.py --app /private/tmp/oi-mac-nosbx/Build/Products/Debug/OpenIntelligence.app --manifest Benchmarks/ResearchFixtures/qasper_external_v1/manifest.json --modes standard --pcc deny --pool-limit 10 --reset-shared-library --vector-weight 0.3 --resume BenchmarkRuns/qasper-vw30
+```
 
-**Benchmark isolation is a known limitation, now mitigated rather than solved.**
-`WorkspaceSyncService` writes ingested documents to the real application-support root no matter what
-storage the harness was given, so runs pollute the owner's library and the accumulation slows later
-cases. `--reset-shared-library` clears residue between cases and `--pool-limit N` caps documents per
-case; with `--pool-limit 10` a case takes ~170s and the pack is 4.8 hours. That combination carried
-83/83 to completion, so it works. `99fcdaf` should cut the run to roughly fifteen minutes by making
-a reused index scorable, **still unverified**.
+Then **always** `python3 scripts/save_benchmark_summary.py <run-dir>` and commit it. `BenchmarkRuns/`
+is gitignored; an unsummarised run did not happen.
 
-**Do not point `--rag-validation-storage` at the real library.** That was tried on 2026-08-12 to test
-co-location and it ingested 40 papers straight into the owner's app, replaced his container in
-`containers.json`, and surfaced 43 documents as pending in his UI. It was fully reverted, and the
-iCloud container was verified untouched (7 files, none from any benchmark, newest mtime May 23), but
-it cost a session and it is the single worst thing to repeat here.
+**Before any run:** `python3 /private/tmp/clean_benchmark_library.py --apply`. The app writes
+ingested documents into the real library regardless of `--rag-validation-storage`, and accumulation
+makes later cases time out. Backup at `/private/tmp/oi-library-backup-20260812`.
 
-Recovery assets: full library backup at `/private/tmp/oi-library-backup-20260812`, and
-`/private/tmp/clean_benchmark_library.py`, which dry-runs by default and preserves the four real
-documents. Deletions written by that script leave **no tombstones** in `deleted_documents.json`, so
-they cannot propagate a delete to iCloud; that was checked rather than assumed.
+**2. There is no shortcut to a faster run, and two attempts failed.** Index reuse would cut a run to
+~15 minutes and **does not work**: retrieval succeeds but every source resolves to `Unknown` and
+scores 0.0000, because `WorkspaceSyncService` writes document records to the real library while
+vectors go to the storage dir, so their IDs never line up. Both `documentIdsByName` (commit
+`99fcdaf`, whose changelog claim of "four hours against fifteen minutes" is **withdrawn**) and
+co-locating storage with the real library were tried and failed. Do not re-attempt without a new
+idea. The real fix is the `WorkspaceSyncService` root path, which is a **hard-boundary file needing
+the owner to name it**.
 
-Rebuild and run:
+**3. Six of 83 cases produce no result and it is unexplained.** Four timed out at 600s, two returned
+no report: `qasper_1905.00472_04914917`, `qasper_1805.04833_f2dba5bf`, `qasper_1805.07882_67cb001f`,
+`qasper_1806.04387_9f1d81b2`, `qasper_1611.06322_3319d565`, `qasper_1909.12079_3f717e6e`. Lead: one
+case took 4173s against a 168s median, and the Simulator showed the same shape as
+`All 8 sessions failed to produce an insight`, which is the agentic retry loop. Read the per-case
+reports under `BenchmarkRuns/qasper-overnight/reports/`.
+
+**4. Apple Intelligence cannot generate in the iOS Simulator on this machine.** The framework loads
+and reports `available`; generation dies in `ModelManagerError 1026`. A bare probe on the host Mac
+generates real text, so the machine is capable. Ruled out: locale, model catalog, the app's own
+guards. The documented remedy is toggling Apple Intelligence off, restarting the Mac, and back on;
+**the owner has declined**, reasonably, since this is developer convenience. Do not spend a session
+on it. The three simulator guards in `LLMService` and `RAGService` are stale in wording and correct
+in outcome; leave them until AFM generates there.
+
+**5. `xcodebuild` deadlocks on this repository's path.** Anything that opens the project hangs
+forever with no DerivedData while `-version` and `-list` work. `sample` shows
+`-[DVTFilePath performCoordinatedReadRecursively:]` parked in `semaphore_wait_trap`: an
+NSFileCoordinator read against iCloud-synced `~/Documents` that never returns. **Build from a copy:**
 
 ```bash
 rsync -a --exclude 'BenchmarkRuns/' --exclude '.simulator-smoke.nosync/' --exclude 'Benchmarks/run/' ./ /private/tmp/oi-src/
 ```
 
-```bash
-cd /private/tmp/oi-src && DEVELOPER_DIR=/Applications/Xcode-beta.app/Contents/Developer xcodebuild -scheme OpenIntelligence -destination "platform=macOS" -configuration Debug -derivedDataPath /private/tmp/oi-mac-nosbx -skipPackagePluginValidation CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO build
-```
+Then build from `/private/tmp/oi-src`. Full recipe in `RUNBOOK.md` item 1b. Diagnose by sampling,
+never by guessing; clearing `com.apple.DeveloperTools` is actively misleading because it makes
+`-list` succeed while the next build still hangs.
 
-```bash
-python3 scripts/run_quality_matrix.py --app /private/tmp/oi-mac-nosbx/Build/Products/Debug/OpenIntelligence.app --manifest Benchmarks/ResearchFixtures/qasper_external_v1/manifest.json --modes standard --pcc deny
-```
+**6. Five device checks still gate confidence in the 2026-08-11 library work.** They need the
+owner's physical device. Not session work.
 
-The owner asked for the full 83-case run, standard mode only. **Expect it to be slow**: every case
-ingests the whole 40-paper pool, roughly 135,000 words, because the harness cannot share one index
-across cases without losing the document-name mapping and degrading citations to `[Unknown, p.1]`
-(the reasoning is in `run_one`). The old 20-case run took 412 seconds against near-empty indexes, so
-budget well over an hour and do not lower `--timeout`.
-
-**What the run is for:** to see whether any stage comes off 1.000 now that retrieval has
-distractors. If stages still read 1.000 against 39 distractor papers, that is a real and surprising
-result about the pipeline rather than an artifact, and it should be investigated before it is
-believed. If they drop, the fixture can finally show an improvement and the embedder comparison is
-unblocked.
-
-**2. Five device checks gate confidence in everything shipped 2026-08-11.** Four carried from
-2026-08-10: type in Settings search; run a query with the HUD visible and watch the Neural Engine
-bar; rotate with the HUD on; update from a pre-v5.0 build to see the sample refresh banner. New and
-most important: **open Library Settings, change the embedding model, and press "Later"** on the
-rebuild prompt. That is the data-loss path reordered in `cc49ce2`, and nothing automated covers it.
-Also worth a look: wipe a library, delete one document, flip a library off iCloud, and tap a device
-chip on the onboarding completion card with VoiceOver on.
-
-**3. The harness had been overstating its own sensitivity, and the old figure is quoted widely.**
-`minimum_detectable_effect(n)` interpolated the sample size into a sentence whose threshold was a
-hardcoded constant, so it printed "differences below about 25 points are not resolvable" at every
-`n`. Under the exact two-sided sign test it describes, `2 * 0.5**d < 0.05` first holds at d=6, and
-the smallest difference that reaches it is `6/n`: **33 points at n=18, not 25**. Fixed, and run
-through `oi-claim-audit` first because it is a claim correction. **Every report under
-`BenchmarkRuns/` dated before 2026-08-12 carries the constant**; read those power statements as
-`6/n`. At n=83 the figure is about 7 points, which clears the row's 10-point acceptance criterion.
-This is the third scoring or reporting defect in this harness after the seven metric bugs of
-2026-08-08 and the single-source ground-truth bug of 2026-08-11, so keep assuming more.
-`[evidence_level: computed_verified, confidence: exact, evidence_source: exact binomial sign test]`
-
-**4. The embedding arc is no longer blocked on the fixture, only on the run.** The prerequisite row
-is built. Once Blockers 1 produces numbers, "Benchmark three embedders and replace MiniLM-L6-v2 if
-warranted" can start against a fixture that is able to show an improvement. **Do not start the
-re-embed before that run exists**; nothing is measured yet.
-
-**5. 44 verified findings remain on the library surfaces**, in the audit file named in Working Set:
-3 high, 18 medium, 13 low, 10 the verifier could not reproduce. The three high ones are worth
-reading first.
-
-**6. `OpenIntelligenceEngine.deleteLibrary` leaks everything.** It calls
-`containerService.deleteContainer` alone, leaving documents, chunks, vectors and Spotlight entries
-behind. It is `public` and synchronous, so routing it through `LibraryDeletion.delete` would break
-the SDK signature. Deliberately untouched; decide the API question before fixing it.
-
-**7. `README.md` claims iWork support the app does not have.** Tracked in Notion as
-"iWork import is advertised but cannot read any file iWork produces" (To Do, v5.0). It is a claim
-removal, so use `oi-claim-audit` first.
-
-**8. `OnboardingChecklistView` logs "Generating BM25 dictionary + HNSW vectors".** `BNNSVectorDatabase`
-is a flat store searched by batched `vDSP_mmul`, not an HNSW graph. Verify by reading that file for
-any graph construction; if there is none, the log names an algorithm the app does not use.
-
-**9. Licensing shapes the embedder decision.** The shipped stack (MiniLM-L6-v2,
-`ms-marco-TinyBERT-L2-v2`) is Apache 2.0. **EmbeddingGemma is not**; it ships under the Gemma Terms
-of Use, whose §3.1 requires the use restrictions to be enforceable against *your* users. Jina's v2
-reranker weights are reported CC-BY-NC; verify before relying on that. Not legal advice.
-
-**10. The What's New sheet is a changelog, not a splash.** The `"5.0"` entry has 8 items and no deep
-links, and `WhatsNewView` has one button, "Done". Cutting to 3-4 and making rows navigate is the
-improvement.
+**7. 44 verified findings remain on the library surfaces**, in
+`Docs/AuditArtifacts/Verification/LIBRARY_SURFACES_AUDIT_2026-08-11.md`: 3 high, 18 medium, 13 low.
+The three high ones are worth reading first, and none needs a build or a device.
 
 ## v5.0 roadmap, reconciled against code 2026-08-11
 
@@ -453,45 +398,52 @@ the same stdout parsing. That is a contained change to one function, `run_one`.
 
 ## Exact Next Action
 
-**Act on the fusion result. It is the cheapest measured win available and it does not need another
-four-hour run to justify.**
+**Ask the owner first.** He was clear on 2026-08-13 that benchmark runs pin the machine and he needs
+it. Do not start one unprompted.
 
-`lexical` MRR@10 0.65 falls to `fusion` 0.51, and per-case that is 26 wins to 6 with p=0.0005. RRF is
-combining a strong lexical ranking with a weak dense one at equal weight. Two candidate changes,
-both small, and the fixture can now tell you which works:
+### If he wants measurable progress without a run
 
-1. Weight the RRF arms by measured stage quality instead of equally.
-2. Gate or downweight the vector arm when the lexical arm is confident.
+**FTS5: weight bm25 columns and add a trigram index for identifiers.** Notion row, v5.0, Medium.
+This is the recommendation because the measurement points at it: the lexical arm is carrying
+retrieval at MRR 0.65 while the dense arm sits at 0.28. Strengthening the arm that already works
+beats swapping the embedder, needs no model conversion, no benchmark to begin, and a trigram index
+directly serves the extractive fact-lookup category that scored worst at 19/51.
 
-Re-run afterwards with the same command and compare against
-`Docs/AuditArtifacts/Benchmarks/20260812-215108-matrix.md`. At n=77 a change smaller than ~8 points
-is not resolvable, so do not claim one.
+Other no-run, no-device options, all open v5.0 rows:
 
-**Then the embedder.** Notion row "Benchmark three embedders and replace MiniLM-L6-v2 if warranted"
-is now unblocked with evidence behind it: `vector` MRR@10 0.28. Additive-then-swap, per the owner's
-standing preference.
+- **`iWork import is advertised but cannot read any file iWork produces`**, a false claim in
+  `README.md`. Claim removal, so run `oi-claim-audit` first.
+- **`SmartReplyService fails to parse generated content on every run`**. "Every run" means
+  deterministic.
+- **`Chunk boundaries land mid-word and mid-phrase`**, contained in `SemanticChunker`.
+- **The three high-severity findings** in the library surfaces audit, see Blockers 7.
 
-**Do not fix these two at once.** They both move the same numbers and a combined change cannot be
-attributed. Fusion first, because it is a scoring-weight change rather than a re-embed.
+### If he wants the benchmark finished
 
-Rerun command, unchanged and verified end to end:
+Resume per Blockers 1. ~4.7 hours.
 
-```bash
-caffeinate -is env SWIFT_DETERMINISTIC_HASHING=1 python3 scripts/run_quality_matrix.py --app /private/tmp/oi-mac-nosbx/Build/Products/Debug/OpenIntelligence.app --manifest Benchmarks/ResearchFixtures/qasper_external_v1/manifest.json --modes standard --pcc deny --pool-limit 10 --reset-shared-library --output-dir BenchmarkRuns/<name>
-```
+### The two follow-ups this session created
 
-```bash
-python3 scripts/save_benchmark_summary.py BenchmarkRuns/<name>
-```
+1. **`count_pattern` and `search_exact_pattern` were registered in `e29fee0`** and their benefit is
+   **unmeasured**. Re-run `qasper_external_v1` and compare the **`exact_value` category**
+   specifically, not headline accuracy, against
+   `Docs/AuditArtifacts/Benchmarks/20260812-215108-matrix.md`.
+2. **The embedder swap is unblocked and has a candidate.**
+   `granite-embedding-small-english-r2`: Apache 2.0, **384 dimensions matching what ships** so
+   `BNNSVectorDatabase.swift` needs no change, 8192-token context against MiniLM's 256, BEIR 50.9.
+   The risk is Core ML conversion, not quality, since it is a ModernBERT; the conventional-BERT
+   `granite-embedding-30m-english` at the same dimension is the fallback. Neither is converted.
+   Details in `Docs/Research/EMBEDDING_AND_INGESTION_UPGRADE_2026-08.md`.
 
-**Always save the summary and commit it.** `BenchmarkRuns/` is gitignored, so a run that is not
-summarised did not happen as far as the next session is concerned. That was true of every run this
-project made before 2026-08-12.
+### Standing rules that bit repeatedly
 
-**Do not compare any number from this run to a `tiny_research_suite` run.** Different corpus,
-different ground truth, different difficulty. A delta between the two packs measures the fixture.
-
-The alternative that needs neither hardware nor a long run is the three high-severity findings in
-`Docs/AuditArtifacts/Verification/LIBRARY_SURFACES_AUDIT_2026-08-11.md`.
-
-Do not treat the device checks as session work: those need the owner's physical device.
+- **Do not point `--rag-validation-storage` at the real library.** Doing so on 2026-08-12 ingested 40
+  papers into the owner's actual app and replaced his container.
+- **Do not compare a `tiny_research_suite` figure to a `qasper_external_v1` figure**, or a stage
+  figure from before 2026-08-11 to one after.
+- **Docs move in the same turn as code.** A `.swift` change without a doc update fails the
+  pre-commit hook.
+- **No em-dashes anywhere.**
+- **Verify before claiming.** Three claims were withdrawn on 2026-08-12 alone: that 44% beat the
+  published QASPER baseline (different metrics), that 44% was a large undercount (recall says 46%),
+  and that index reuse would cut runs to 15 minutes (it does not work).
