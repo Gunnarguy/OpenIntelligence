@@ -58,16 +58,56 @@ engine" had nothing to read. These are the real numbers with what each one is wo
 | Measurement | Result | n | What it actually measures |
 | :--- | :--- | ---: | :--- |
 | Synthetic pack, 2026-08-11, standard | 18/20 correct, 0 hallucinated | 20 | reading one correct document and restating it |
-| QASPER external, 2026-08-12, standard | 11/27 correct, 14 miss, 2 hallucinated | 27 of 83 | answering externally-authored questions against 9 distractor papers |
-| Retrieval stages, smoke | `vector` MRR@10 **0.11**, `lexical` 1.00, `rerank` 0.83, `final` 0.57 | 3 | where the right chunk ranks among ~180 candidates |
+| **QASPER external, 2026-08-12, standard, complete** | **34/77 correct (44%)**, 40 miss, 3 hallucinated, 6 error | 83 attempted | answering externally-authored questions against 9 distractor papers |
 | Unit suite | 236 pass, 0 fail | 236 | that units behave; no end-to-end coverage of routing, gates, sync or retrieval |
+
+### The first run that could fail: 2026-08-12, 83 cases, 4.8 hours
+
+Full summary in `Docs/AuditArtifacts/Benchmarks/20260812-215108-matrix.md`. Commit `9c634938`, clean
+tree, `--pool-limit 10`, PCC denied.
+
+| Stage | R@1 | R@5 | MRR@10 | Mean candidates |
+| :--- | ---: | ---: | ---: | ---: |
+| `vector` | 0.18 | 0.40 | **0.28** | 180 |
+| `lexical` | 0.58 | 0.69 | **0.65** | 35 |
+| `fusion` | 0.40 | 0.65 | **0.51** | 191 |
+| `boosted` | 0.42 | 0.64 | 0.51 | 191 |
+| `candidates` | 0.42 | 0.64 | 0.51 | 90 |
+| `rerank` | 0.54 | 0.74 | **0.63** | 90 |
+| `final` | 0.43 | 0.72 | 0.55 | 8 |
+
+At n=77 the smallest resolvable difference is about 8 points, so the gaps below are real.
+
+**1. Dense retrieval is the weakest stage by a wide margin.** `vector` MRR@10 **0.28** against
+`lexical` **0.65**. MiniLM-L6-v2 is 384 dimensions and from 2021, and on this content BM25 is
+carrying retrieval nearly alone. This is the measured basis for the embedder work; it did not exist
+before this run.
+
+**2. RRF fusion makes retrieval worse than BM25 alone, and this is significant.** `lexical` MRR 0.65
+falls to `fusion` 0.51. Tested per-case rather than on the means: across 72 paired cases lexical beat
+fusion on **26**, fusion beat lexical on **6**, 40 tied. Exact two-sided sign test on 32 discordant
+pairs, **p = 0.0005**. Blending a weak dense ranking into a strong lexical one is actively costing
+rank quality. That is an architectural finding, not a tuning one, and it is the most actionable
+result here.
+
+**3. The cross-encoder earns its place.** `rerank` lifts MRR from 0.51 to 0.63 and R@5 from 0.64 to
+0.74. It is repairing much of the damage fusion does.
+
+**4. The final cut loses ground.** `rerank` 0.74 R@5 to `final` 0.72, MRR 0.63 to 0.55, as the set
+narrows to 8 chunks. Small, but it is the top-K truncation trading rank quality for context budget.
+
+**5. Six cases produced nothing.** Four timed out at 600s and two returned no report. That is 7% of
+the run yielding no measurement at all, and it is not yet explained.
+
+`[evidence_level: measured, confidence: exact, evidence_source: BenchmarkRuns/qasper-overnight, summarised at Docs/AuditArtifacts/Benchmarks/20260812-215108-matrix.md; sign test computed over per-case stage_metrics]`
 
 **The 90% does not mean what it looks like.** Every case in that run was scored against an index
 containing only its own answer, so retrieval was arithmetically incapable of failing. The corpus was
 written by this project and the answers chosen by this project.
 
-**The 41% is a partial run and was scored strictly**, by regex against the exact span two annotators
-agreed on, so a correct paraphrase counts as a miss.
+**The 44% was scored strictly**, by regex against the exact span two annotators agreed on, so a
+correct paraphrase counts as a miss. Read it as a floor rather than a reading. Six cases produced no
+result at all and are excluded from the denominator.
 
 ### The misses are retrieval failures, not scoring artifacts
 
@@ -81,22 +121,24 @@ the smoke run, read directly:
   the work "outperforms multiple baselines ... as stated in the abstract". It retrieved the
   **abstract** instead of the results section: enough to gesture, not enough to name.
 
-Both failures are upstream of generation, and both are consistent with `vector` scoring MRR@10 0.11
-while `lexical` scores 1.00. Dense retrieval is contributing little on this content and BM25 is
-carrying it; when exact-term matching does not fire, the wrong passage is what reaches the model.
-**This is the measured argument for the embedder work**, and it is the first evidence this project
-has had for it.
+Both failures are upstream of generation, and the completed run bears the pattern out at scale:
+`vector` MRR@10 **0.28** against `lexical` **0.65** over 72 cases. Dense retrieval contributes little
+on this content and BM25 carries it; when exact-term matching does not fire, the wrong passage is
+what reaches the model. **This is the measured argument for the embedder work**, and it is the first
+evidence this project has had for it.
 
 ### Abstention behaves differently on external questions
 
-The synthetic pack reports abstention 2/2 correct. The 2026-08-12 partial run encountered exactly
-two externally-authored unanswerable questions and **hallucinated on both, 0/2**.
+The synthetic pack reports abstention **2/2** correct. The completed 2026-08-12 run scored
+**2/5** on externally-authored unanswerable questions: it answered three questions the paper does
+not answer. A sixth abstention case errored and was not scored.
 
-`n=2`. That concludes nothing on its own. It is recorded because it points the opposite way from the
-synthetic result, and because the synthetic controls were questions this project invented to be
-unanswerable, which is a much easier test than a real reader's question that the paper happens not
-to answer. Anti-hallucination is a headline differentiator and had never been tested against
-externally-authored unanswerable questions before this date.
+`n=5` is still small, and the earlier partial run's 0/2 was pessimistic. But the direction holds:
+the synthetic controls were questions this project invented to be unanswerable, which is a far
+easier test than a real reader's question that the paper happens not to answer. **Anti-hallucination
+is a headline differentiator and it fails more than half the time on external unanswerable
+questions.** That gap between 2/2 and 2/5 is the clearest example in this document of why a
+self-authored fixture flatters the thing it measures.
 
 ### What is not measured at all
 
