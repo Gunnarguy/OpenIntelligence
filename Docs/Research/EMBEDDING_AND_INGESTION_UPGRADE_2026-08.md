@@ -252,3 +252,87 @@ Apple-authored and free to test, since the provider already exists.
 - [Reproducibility and Insights into Visual Document Retrieval with Late Interaction — arXiv 2505.07730](https://arxiv.org/pdf/2505.07730)
 
 `[evidence_level: code_verified for §1, web_research for §2-4, confidence: high_for_survey_unmeasured_for_recommendations, evidence_source: v4.9 tree survey + web research 2026-08-03]`
+
+---
+
+## Literature review, 2026-08-13
+
+Prompted by a fair question: if the research already answers these questions, why measure anything?
+The answer is that it answers some of them, and the parts it answers should be taken rather than
+rediscovered. What follows is what current sources say, and specifically where it agrees or
+disagrees with what this repository already does.
+
+### 1. The fusion weighting this project just changed is what the literature recommends
+
+The 2026-08-12 benchmark found RRF fusion scoring *worse* than the lexical arm alone
+(`lexical` MRR@10 0.65 to `fusion` 0.51, 26 wins to 6 over 72 paired cases, sign test p=0.0005), and
+reading `QueryProfile.adjustedHybridWeights` gave the mechanism: both arms are clamped to
+`max(0.35, min(0.65, ...))`, so the dense arm is guaranteed 35% of the fusion however badly it
+scores.
+
+Current guidance says the same thing independently: **RRF benefits from per-retriever weight tuning,
+with a suggested starting point of BM25 0.7 / dense 0.3 for lexical-heavy content.** That is exactly
+the configuration now under test. This was arrived at from the measurement before the source was
+read, which is the more reassuring order.
+
+Also worth knowing and **not** currently implemented: **Convex Combination with α=0.5 has been
+reported to outperform RRF** on some benchmarks. RRF discards score magnitude by design, using only
+rank. When both retrievers are well calibrated, keeping the scores can beat throwing them away. This
+is a candidate experiment after the weighting question is settled, not a replacement for it.
+
+`[evidence_level: literature, confidence: medium, evidence_source: hybrid-search guidance surveys, 2026]`
+
+### 2. There is now an Apache-2.0, 384-dimension embedder that is a drop-in replacement
+
+**This removes the licensing blocker recorded in `Docs/ai/STATE.md`**, which noted that
+EmbeddingGemma ships under the Gemma Terms of Use rather than Apache 2.0 and therefore could not be
+adopted here.
+
+| Model | Params | Dim | Max tokens | Licence | BEIR |
+| :--- | ---: | ---: | ---: | :--- | ---: |
+| `all-MiniLM-L6-v2` (shipped) | 22M | **384** | 256 | Apache 2.0 | not verified here |
+| `granite-embedding-30m-english` | 30M | **384** | 512 | **Apache 2.0** | 49.1 |
+| **`granite-embedding-small-english-r2`** | 47M | **384** | **8192** | **Apache 2.0** | **50.9** |
+
+Three properties matter more than the score:
+
+1. **384 dimensions, matching what ships.** `BNNSVectorDatabase.swift` format is a hard-boundary
+   file, and a dimension change would require touching it plus a full re-index. A same-dimension
+   swap avoids both.
+2. **Apache 2.0**, so the concern that parked EmbeddingGemma does not apply.
+3. **8192-token context against MiniLM's 256.** That is a 32x increase and it is the prerequisite
+   for the "Late chunking: embed full document, pool per chunk" roadmap row, which cannot be done
+   with a 256-token encoder.
+
+**The risk is conversion, not quality.** `granite-embedding-small-english-r2` is a **ModernBERT**
+architecture: alternating attention lengths, rotary position embeddings, Flash Attention 2.0. None
+of that is guaranteed to convert cleanly to Core ML or to run on the ANE, and the shipped stack
+depends on `CoreMLSentenceEmbeddingProvider`. The r1 `granite-embedding-30m-english` is a
+conventional BERT encoder at the same 384 dimensions with a 512-token limit, so it is the safer
+first attempt if r2 will not convert. **Neither has been converted or measured here.**
+
+`[evidence_level: literature, confidence: high_for_specs_unverified_for_conversion, evidence_source: ibm-granite model cards on Hugging Face, read 2026-08-13]`
+
+### 3. Late chunking is the right frame for the failure this benchmark actually found
+
+The 2026-08-12 run showed the right document reaching the final ranking on **75% of missed cases**:
+the correct paper arrives and the wrong passage is selected from it. That is precisely the problem
+late chunking addresses, by embedding the full document first and pooling per chunk so each chunk
+embedding carries document context instead of standing alone.
+
+It requires a long-context encoder, which is the second reason the 8192-token Granite r2 matters and
+the reason this cannot be attempted on MiniLM at all.
+
+ColBERT-style late interaction scores higher again by comparing every query token against every
+document token, but multiplies storage per chunk and is a poor fit for an on-device store.
+
+`[evidence_level: literature, confidence: medium, evidence_source: late chunking and late interaction surveys, 2026; failure mode from BenchmarkRuns/qasper-overnight]`
+
+### What to do with this
+
+1. Finish the fusion-weight run. It is cheap, already running, and the literature agrees with the
+   direction.
+2. Then attempt Core ML conversion of `granite-embedding-small-english-r2`, falling back to
+   `granite-embedding-30m-english` if ModernBERT will not convert. Additive-then-swap.
+3. Late chunking only after a long-context encoder is actually running on device.
+4. Convex Combination against RRF is a later experiment, once the arms are weighted sensibly.
