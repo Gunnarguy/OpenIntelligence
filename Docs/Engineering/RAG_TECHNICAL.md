@@ -12,34 +12,56 @@ This document provides the technical formulas, algorithms, and deep dive specifi
 
 > **Full Architecture**: See [ARCHITECTURE.md](../ARCHITECTURE.md). The current repo contains 107 Swift service files under `OpenIntelligence/Services`.
 
-> **Current State**: See [CURRENT_STATE_AND_GAPS.md](./CURRENT_STATE_AND_GAPS.md). The repo currently has 107 Swift service files under `OpenIntelligence/Services`. The 29-step pipeline below is a logical/audit view; the implementation is adaptive and does not run every step for every query.
+> **Current State**: See [CURRENT_STATE_AND_GAPS.md](./CURRENT_STATE_AND_GAPS.md). The repo currently has 107 Swift service files under `OpenIntelligence/Services`. The 31-step pipeline below is a logical/audit view; the implementation is adaptive and does not run every step for every query.
 
 > **Research Links**: See [Docs/Research/RAG_AND_RETRIEVAL_2024_2026.md](./Research/RAG_AND_RETRIEVAL_2024_2026.md) and [Docs/Research/CAG_AND_CONTEXT_ENGINEERING_2024_2026.md](./Research/CAG_AND_CONTEXT_ENGINEERING_2024_2026.md).
 
 ---
 
-## Pipeline Overview (29 Steps)
+## Pipeline Overview (31 Steps)
 
-**How the 29 is counted** *(documented 2026-08-10; the rule was always applied, never written
-down).* Ingestion contributes 6. The query loop contributes **23: Steps 1 through 9 inclusive**,
-which is the query-to-response transformation proper. `Step 0` and `Step 10` are enumerated below
-but are **not** counted in the 23, because neither is part of that transformation: Step 0 loads a
-container vocabulary cache before any query exists, and Step 10 renders an answer that is already
-final. The enumerated list therefore holds 25 entries while the figure is 23, and both are correct.
+**How the 31 is counted** *(rule documented 2026-08-10; figures corrected 2026-08-12).* Ingestion
+contributes 6. The query loop contributes **25: Steps 1 through 9 inclusive**, which is the
+query-to-response transformation proper. `Step 0` and `Step 10` are enumerated below but are **not**
+counted, because neither is part of that transformation: Step 0 loads a container vocabulary cache
+before any query exists, and Step 10 renders an answer that is already final. The enumerated list
+holds 30 entries while the counted figure is 25, and both are correct.
 
-Count it yourself:
+**Corrected 2026-08-12.** This note previously read "23" counted and "25" enumerated, against a
+stated total of 29. Those were right when written and the enumeration has grown since; nobody
+updated the prose. Re-counted directly against the list below: **30 enumerated, 25 counted, total
+31.** The counting *rule* was never wrong, only its arithmetic.
+
+This also retracts the retraction. The note below records a 2026-08-10 review that "concluded the
+correct total was 31" and dismisses it as the third instance of a recurring miscount. **That review
+was reading the current list correctly**; the figure it was compared against had drifted. Left in
+place rather than deleted so the record shows what was claimed and when it was withdrawn.
+
+Count it yourself. Bound the range to the enumeration block, because a bare file-wide grep matches
+prose elsewhere in this document and reports 31 rather than 30, and that false positive is how a fourth
+miscount nearly happened:
 
 ```bash
-grep -cE '^  Step [0-9]' Docs/Engineering/RAG_TECHNICAL.md          # -> 25 enumerated
-grep -oE '^  Step ([0-9.]+):' Docs/Engineering/RAG_TECHNICAL.md \
-  | grep -vE 'Step (0|10):' | wc -l                                  # -> 23 counted
+START=$(grep -n '^QUERY → RESPONSE' Docs/Engineering/RAG_TECHNICAL.md | cut -d: -f1)
+END=$(awk -v s="$START" 'NR>s && /^```/{print NR; exit}' Docs/Engineering/RAG_TECHNICAL.md)
+sed -n "${START},${END}p" Docs/Engineering/RAG_TECHNICAL.md \
+  | grep -cE '^  Step [0-9]'                                         # -> 30 enumerated
+sed -n "${START},${END}p" Docs/Engineering/RAG_TECHNICAL.md \
+  | grep -oE '^  Step ([0-9.]+):' | grep -vE 'Step (0|10):' | wc -l  # -> 25 counted
 ```
+
+`[evidence_level: code_verified, confidence: exact, evidence_source: direct count of the enumeration block in this file, bounded to lines 53-84]`
+
+> **Superseded 2026-08-12, kept for the record.** The paragraph below was written on 2026-08-10 and
+> its final sentence is now wrong. Read it as history, not as guidance.
 
 This is recorded because the missing rule has now caused two independent miscounts. The
 `RESEARCH_PAPERS_REFERENCE_SHEET.md` F-3 finding of 2026-07-31 concluded the figure was
 unenumerated, and a 2026-08-10 review concluded the correct total was 31. Both compared the raw
 enumeration against the stated figure, found 25 against 23, and inferred an error in the figure.
-The figure was right both times. `[evidence_level: code_verified, confidence: exact, evidence_source: the enumerated list below, git history of this file showing label 23 and enumeration 25 co-existing unchanged since 4e24bbb 2026-05-12]`
+~~The figure was right both times.~~ **The 2026-08-10 review was right: the total is 31.** The F-3
+finding of 2026-07-31 was still wrong on its own terms, because the figure *was* enumerated.
+`[evidence_level: code_verified, confidence: exact, evidence_source: the enumerated list below, git history of this file showing label 23 and enumeration 25 co-existing unchanged since 4e24bbb 2026-05-12]`
 
 ```
 INGESTION (6 steps):
@@ -50,7 +72,7 @@ INGESTION (6 steps):
   5. Embedding (384-dim MiniLM)
   6. Store (per-container vector store + SQLite FTS5 + metadata)
 
-QUERY → RESPONSE (23 specified; 28 present in code, 27 active — see note below):
+QUERY → RESPONSE (25 specified; 28 present in code, 27 active — see note below):
   Step 0:   Corpus Analysis (vocabulary cache)
   Step 1:   Query Understanding (pronoun resolution, NER)
   Step 1.5: Query Expansion (corpus + container vocab)
@@ -99,11 +121,27 @@ reading a specification. One documented stage is commented out and does not run.
 | `5.10` Extractive QA | **disabled** | Code path commented out; every query proceeds to LLM generation. Recorded reason in source: heuristic extraction produced false positives — returning `"three-quarters"` for a fuel-tank-capacity query — and bypassed the LLM entirely when it fired. Exact-value queries are now served by evidence steering at `4.8` rather than by a generation bypass. |
 
 **What this does to the count, stated rather than quietly re-baselined.** The specification enumerates
-23 (steps 1–9). The code carries **28** step labels across steps 1–9, of which **27 are active**.
+25 (steps 1-9), corrected from 23 on 2026-08-12. The code carries **28** step labels across steps 1–9, of which **27 are active**.
 `6 + 28 = 34` enumerated, `6 + 27 = 33` active. **The public "29-step" figure on FascinAIting.me and
 in three documents is therefore an undercount of the shipped pipeline, not an overclaim.** Changing a
 user-facing figure is an owner decision and none has been changed here; this note exists so the
 decision is made with the real number in front of it.
+
+**Updated 2026-08-12.** The specification count moved from 23 to 25, so this document's own total is
+now **31**, not 29. That widens rather than closes the gap the paragraph above describes: the
+shipped pipeline still carries 33 active steps. **The public figure has deliberately not been
+touched.** These remain the owner's to choose between, and they answer different questions:
+
+| Figure | Total | What it counts |
+| :--- | ---: | :--- |
+| `29` | 6 + 23 | the specification as written before 2026-08-12. **Now stale.** |
+| **`31`** | 6 + 25 | the specification as enumerated in this document today |
+| `33` | 6 + 27 | step labels that actually execute in `RAGService.swift` |
+| `34` | 6 + 28 | every step label present, including the one that is disabled |
+
+`29` is the only one of these that is no longer defensible, because the list it described has
+changed. Anywhere the public figure is updated, `README.md`, `Docs/AppleIntelligenceTransitionPlan.md`
+and the website all carry it and must move together.
 
 `[evidence_level: code_verified, confidence: exact, evidence_source: RAGService.swift `// Step` markers across the query path; 5.10 disabled block and its recorded reason at RAGService.swift:12022-12026; 4.8 prose-bias figures at RAGService.swift:2331-2337]`
 
