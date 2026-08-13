@@ -64,6 +64,23 @@ enum DebugRAGValidationHarness {
         AppSupportPaths.configureBaseDir(configuration.storageDirectory)
         seedPCCConsentIfNeeded(configuration.pccConsent)
         seedBenchmarkEntitlementIfNeeded(configuration.benchmarkEntitlement)
+        seedHybridWeightIfNeeded()
+    }
+
+    /// Seed the fusion-weight override before any query builds a profile.
+    ///
+    /// Written to UserDefaults rather than threaded through `Configuration` because
+    /// `QueryProfileService` computes weights deep inside retrieval and does not see the harness.
+    /// Removed when the flag is absent, so a stale value from an earlier run cannot silently
+    /// change a later one.
+    private static func seedHybridWeightIfNeeded() {
+        guard let raw = LaunchArguments.valueEither(for: "rag-validation-vector-weight"),
+              let value = Double(raw), value >= 0, value <= 1
+        else {
+            UserDefaults.standard.removeObject(forKey: "benchmarkVectorWeight")
+            return
+        }
+        UserDefaults.standard.set(value, forKey: "benchmarkVectorWeight")
     }
 
     static func runHeadlessIfNeeded() {
@@ -344,6 +361,9 @@ enum DebugRAGValidationHarness {
         lines.append("Storage: \(configuration.storageDirectory.path)")
         lines.append("Quality Mode: \(response.metadata.qualityModeName ?? configuration.qualityMode?.displayName ?? "Unknown")")
         lines.append("Retrieval TopK: \(configuration.retrievalTopK ?? 3)")
+        if let w = UserDefaults.standard.object(forKey: "benchmarkVectorWeight") as? Double {
+            lines.append("Fusion Weights: vector \(w) / lexical \(1 - w)")
+        }
         if let pccConsent = configuration.pccConsent {
             lines.append("Benchmark PCC Consent: \(pccConsent)")
         }

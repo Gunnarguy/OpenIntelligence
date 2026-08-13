@@ -26,7 +26,26 @@ struct QueryProfile: Sendable {
     }
 
     /// Apply the shared hybrid-weight policy once per query.
+    ///
+    /// The 0.35 floor is the interesting number here. It guarantees the dense arm at least 35% of
+    /// the fusion no matter how badly it is performing. That is a sound default when both arms are
+    /// comparable, which is what the RRF literature assumes. On the 2026-08-12 benchmark they were
+    /// not comparable: `vector` scored MRR@10 0.28 against `lexical` 0.65, and fusion came out
+    /// measurably *worse* than the lexical arm alone (26 wins to 6 over 72 paired cases, exact sign
+    /// test p=0.0005). The floor is what prevents the policy from correcting for that.
+    ///
+    /// Changing the floor is a product decision and is deliberately not made here. The benchmark
+    /// override below exists so the question can be answered with a measurement first.
     func adjustedHybridWeights(from retrievalConfig: RetrievalConfig) -> (vectorWeight: Float, keywordWeight: Float) {
+        #if DEBUG
+        // Benchmark-only override, seeded by DebugRAGValidationHarness from
+        // --rag-validation-vector-weight. Absent in every normal run, including the test suite,
+        // because nothing else writes this key. Bypasses the clamp on purpose: the clamp is the
+        // hypothesis under test.
+        if let override = BenchmarkHybridWeightOverride.current {
+            return (override, 1 - override)
+        }
+        #endif
         let adjustment = searchIntent.weightAdjustment
         let vectorWeight = max(0.35, min(0.65, retrievalConfig.vectorWeight + adjustment.vectorDelta))
         let keywordWeight = max(0.35, min(0.65, retrievalConfig.lexicalWeight + adjustment.keywordDelta))
@@ -113,3 +132,20 @@ final class QueryProfileService {
         return trivialSet.contains(lower)
     }
 }
+
+
+#if DEBUG
+/// Reads the benchmark's fusion-weight override once.
+///
+/// Separate from the harness so `QueryProfileService` does not depend on it, and cached so the
+/// lookup does not repeat per query. `nil` unless a benchmark run set it, which means shipped
+/// behaviour is unchanged and the value cannot leak into a normal launch.
+enum BenchmarkHybridWeightOverride {
+    static let current: Float? = {
+        guard UserDefaults.standard.object(forKey: "benchmarkVectorWeight") != nil else { return nil }
+        let value = Float(UserDefaults.standard.double(forKey: "benchmarkVectorWeight"))
+        guard value >= 0, value <= 1 else { return nil }
+        return value
+    }()
+}
+#endif

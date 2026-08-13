@@ -503,7 +503,7 @@ def reset_shared_library() -> None:
 def run_one(
     app_bin: Path, case: dict, mode: str, pcc: str, timeout: int,
     storage: Path, ingest: bool, pool: list[str] | None = None, pool_limit: int = 0,
-    top_k: int = 0,
+    top_k: int = 0, vector_weight: float | None = None,
 ) -> dict:
     """Launch the app headlessly for a single (case, mode) pair.
 
@@ -588,6 +588,10 @@ def run_one(
     # default are both 3.
     if top_k:
         cmd += ["--rag-validation-topk", str(top_k)]
+    # Fusion weight for the dense arm; lexical gets the remainder. Omitted unless swept, so a
+    # default run keeps the shipped clamped policy.
+    if vector_weight is not None:
+        cmd += ["--rag-validation-vector-weight", str(vector_weight)]
     if not ingest:
         cmd.append("--rag-validation-skip-ingest")
 
@@ -844,6 +848,11 @@ def main() -> int:
     ap.add_argument("--limit", type=int, default=0, help="run only the first N cases (smoke test)")
     ap.add_argument("--timeout", type=int, default=600, help="per-run timeout in seconds")
     ap.add_argument("--output-dir", default="")
+    ap.add_argument("--vector-weight", type=float, default=None,
+                    help="dense-arm weight in RRF fusion; lexical gets 1-w. Bypasses the shipped "
+                         "0.35-0.65 clamp, which is the hypothesis under test: on 2026-08-12 "
+                         "fusion scored worse than the lexical arm alone at p=0.0005 while the "
+                         "clamp guaranteed the weaker dense arm at least 35%%.")
     ap.add_argument("--top-k", type=int, default=0,
                     help="final retrieval breadth handed to queryWithAudit. 0 leaves the "
                          "shipped default of 3, which the chat UI also uses. Set it to sweep: "
@@ -939,7 +948,7 @@ def main() -> int:
                 run = run_one(
                     app_bin, case, mode, args.pcc, args.timeout,
                     storage=storage, ingest=True, pool=pool, pool_limit=args.pool_limit,
-                    top_k=args.top_k,
+                    top_k=args.top_k, vector_weight=args.vector_weight,
                 )
                 row = {"case_id": case["id"], "category": case["category"], "mode": mode, "run": run}
                 if run.get("ok"):
@@ -965,6 +974,7 @@ def main() -> int:
         "pool_documents": len(pool),
         "pool_limit": args.pool_limit,
         "top_k": args.top_k or 3,
+        "vector_weight": args.vector_weight,
         **collect_provenance(argv=sys.argv, manifest=manifest_path),
     }
 
