@@ -1,4 +1,4 @@
-> **Documentation status:** Verified for OpenIntelligence v4.4 on 2026-06-30. **Not re-verified since.** iOS/macOS 4.9 is the shipped version.
+> **Documentation status:** Measurement sections re-verified 2026-08-13 against the completed 83-case run. The framework sections below still date from v4.4 on 2026-06-30. **4.9 is the App Store version; 5.0 is being prepared.** See `Docs/SHIPPED_VERSION.json`.
 > **Read this before trusting any mode comparison.** Two defects invalidated quality-mode benchmark runs made before they were fixed, and both are in the measurement path this document describes:
 > 1. Until 2026-07-30 the Deep Think and Maximum reasoning chain abstained on every session, so every prior mode comparison measured Standard against a broken path (fixed in `665da0a`).
 > 2. Until 4.9 the post-retrieval planner read `chunks.first`'s similarity score rather than the maximum over the set, which triggered abstentions from a number that never described the evidence (fixed in `acfbfbd`).
@@ -8,6 +8,60 @@
 > **Scope:** Describes shipped behavior unless explicitly labeled experimental, developer-only, or scaffolded.
 
 # OpenIntelligence RAG Pipeline Evaluations
+
+## Start here
+
+**This file is the single entry point for "how good is this engine, and how do we know".** Nothing
+about measurement should live anywhere else without being linked from here.
+
+If you read one thing, read [What has actually been measured](#what-has-actually-been-measured-as-of-2026-08-12).
+The short version as of 2026-08-13:
+
+| Question | Answer |
+| :--- | :--- |
+| How accurate is it? | **44% exact match, 46% gold recall**, on 72 answerable external questions |
+| Is that good? | Unknown. It cannot be honestly compared to published QASPER scores. See [Token-F1](#what-has-actually-been-measured-as-of-2026-08-12) |
+| Where does it lose? | Retrieval truncation. The right document reaches final ranking on **75% of missed cases** |
+| What is the biggest lever? | Final retrieval breadth (`--top-k`), then RRF fusion weighting, then the embedder |
+| What is untested? | Deep Think, Maximum, iPhone, real user documents, 7 shipping pipeline stages |
+
+### Where everything lives
+
+| What | Where |
+| :--- | :--- |
+| Measured results, findings, caveats | **this file** |
+| One committed summary per run | `Docs/AuditArtifacts/Benchmarks/` |
+| Full run artifacts, per-case reports | `BenchmarkRuns/`, **gitignored**, local only |
+| How to build and run a benchmark | `Docs/ai/RUNBOOK.md`, "Retrieval benchmark" |
+| Current state and next action | `Docs/ai/STATE.md` |
+| The 31-step pipeline being measured | `Docs/Engineering/RAG_TECHNICAL.md` |
+| Quality-mode defect history | `Docs/AUDIT/QUALITY_MODE_VERIFICATION_2026-07-30.md` |
+| The fixture corpora | `Benchmarks/ResearchFixtures/`, one README per pack |
+| Roadmap rows for outstanding work | Notion, via the `notion-roadmap` skill |
+
+### The three scripts
+
+```bash
+python3 scripts/build_external_fixtures.py --check    # verify the external corpus, offline
+python3 scripts/build_eval_dataset.py --check         # verify the JSONL matches the manifests
+python3 scripts/run_quality_matrix.py --app <app> ... # run a benchmark
+python3 scripts/save_benchmark_summary.py <run-dir>   # commit the result so it survives
+```
+
+**Always run `save_benchmark_summary.py` and commit its output.** `BenchmarkRuns/` is gitignored, so
+a run that is not summarised did not happen as far as the next person is concerned. That was true of
+every run this project made before 2026-08-12.
+
+### Two things that will mislead you
+
+1. **Never compare a `tiny_research_suite` number to a `qasper_external_v1` number.** The synthetic
+   pack ingests only the documents a case names, so retrieval cannot fail and its stage figures are
+   arithmetic. A delta between the packs measures the fixture, not the app.
+2. **Never compare a stage figure from before 2026-08-11 to one after.** The ground truth changed,
+   not the pipeline.
+
+---
+
 
 This document describes the formal evaluations framework implemented in OpenIntelligence. This framework is designed to validate the RAG pipeline's behavior, latency, and quality against the target quality gates defined in [WWDC26.md](file:///Users/gunnarhostetler/Documents/GitHub/OpenIntelligence/WWDC26.md).
 
@@ -50,6 +104,7 @@ Evaluation datasets are represented as JSON Lines files, with one JSON object pe
 ---
 
 ## What has actually been measured, as of 2026-08-12
+<a id="what-has-actually-been-measured-as-of-2026-08-12"></a>
 
 This section exists because this document described a framework and recorded no results, while
 `BenchmarkRuns/` is gitignored so no run survives a clone. Anyone asking "how accurate is this
