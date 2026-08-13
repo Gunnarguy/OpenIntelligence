@@ -106,8 +106,22 @@ containing only its own answer, so retrieval was arithmetically incapable of fai
 written by this project and the answers chosen by this project.
 
 **The 44% was scored strictly**, by regex against the exact span two annotators agreed on, so a
-correct paraphrase counts as a miss. Read it as a floor rather than a reading. Six cases produced no
-result at all and are excluded from the denominator.
+correct paraphrase counts as a miss. Six cases produced no result at all and are excluded from the
+denominator.
+
+**It was assumed to be a large undercount. It is not.** Adding gold-token recall, which is blind to
+phrasing and to verbosity, gives **46%** against exact match's 44% over the same 72 answerable
+cases. Exact match is a floor and recall a ceiling, and the two-point gap between them means the
+expected answer is genuinely absent from the response about 54% of the time. This is not a scoring
+artefact, and no change to the metric will improve it.
+
+**Token-F1 is deliberately not reported**, though it is what every published QASPER figure uses.
+Implemented naively it returns 3.3 here, because F1 divides by prediction length and the median
+generated answer is 59 tokens against a median gold span of 1. That also retracts a comparison made
+earlier on 2026-08-12: the published numbers (Longformer 39.4, CoLT5 XL 53.9, RAPTOR+GPT-4 55.7) are
+F1 over **span-extraction** output, and this app generates prose. **44% here is not on the same
+scale as 39.4 there**, and the claim that this app beats that baseline was withdrawn. Comparing
+properly would require constraining generation to a span, which would change the product.
 
 ### The misses are retrieval failures, not scoring artifacts
 

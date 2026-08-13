@@ -45,6 +45,7 @@ BenchmarkRuns/<timestamp>-matrix/, which is gitignored).
 from __future__ import annotations
 
 import argparse
+import collections
 import datetime as dt
 import hashlib
 import json
@@ -362,6 +363,57 @@ def strip_verification_banner(answer: str) -> tuple[str, bool]:
     return m.group(1).strip(), True
 
 
+def plain_answer(pattern: str) -> str:
+    """Recover the literal text a manifest answer-regex was built from.
+
+    The manifest stores answers as case-insensitive regexes because the harness pattern-matches.
+    Token-F1 needs the plain string. Mirrors `readable_answer` in build_eval_dataset.py.
+    """
+    text = re.sub(r"^\(\?[a-z]+\)", "", pattern)
+    text = text.replace(r"\s+", " ").replace(r"\s", " ")
+    text = re.sub(r"\\([.\-$,()\[\]{}+*?^|])", r"\1", text)
+    return re.sub(r"\s+", " ", text).strip()
+
+
+def _normalize(text: str) -> list[str]:
+    """SQuAD-style normalisation: lowercase, drop articles and punctuation, split on whitespace."""
+    text = text.lower()
+    text = re.sub(r"\b(a|an|the)\b", " ", text)
+    text = re.sub(r"[^a-z0-9 ]", " ", text)
+    return text.split()
+
+
+def gold_recall(predicted: str, gold: str) -> float:
+    """Fraction of the gold answer's tokens that appear in the generated answer.
+
+    NOT token-F1, and deliberately so. F1 was implemented here first and produced 3.3 against a
+    44% exact-match rate, which is a broken metric rather than a bad system: on the 2026-08-12
+    run the median generated answer is 59 tokens and the median gold span is 1. F1 divides by
+    the prediction length, so a correct answer wrapped in an explanatory sentence scores near
+    zero on precision.
+
+    That mismatch also retracts a comparison made earlier the same day. Published QASPER
+    figures (Longformer 39.4, CoLT5 XL 53.9, RAPTOR+GPT-4 55.7) are token-F1 over
+    SPAN-EXTRACTION output. This app generates prose. **Those numbers and this app's are not on
+    the same scale in either direction**, and claiming this app beats the baseline because
+    44 > 39.4 was wrong. Comparing properly would mean constraining generation to a span, which
+    would change the product.
+
+    Recall answers the question that actually matters here: did the expected answer make it into
+    the response at all. It is blind to verbosity, which is the correct behaviour when the app is
+    designed to explain rather than to emit a span. It is generous where exact match is strict,
+    so the pair brackets the truth: exact match is a floor, recall is a ceiling.
+    """
+    pred_tokens = _normalize(predicted)
+    gold_tokens = _normalize(gold)
+    if not pred_tokens or not gold_tokens:
+        return float(pred_tokens == gold_tokens)
+
+    common = collections.Counter(pred_tokens) & collections.Counter(gold_tokens)
+    overlap = sum(common.values())
+    return overlap / len(gold_tokens) if gold_tokens else 0.0
+
+
 def score(case: dict, parsed: dict) -> dict:
     """Score one run against the manifest's ground truth."""
     answer, verification_flagged = strip_verification_banner(parsed.get("answer", ""))
@@ -397,6 +449,9 @@ def score(case: dict, parsed: dict) -> dict:
         "patterns_hit": len(hits),
         # Every required pattern must appear, and abstaining is a miss.
         "correct": bool(patterns) and len(hits) == len(patterns) and not abstained,
+        # Gold-token recall alongside the exact match. Exact match is a floor and recall a
+        # ceiling; see `gold_recall` for why F1 is not used here.
+        "gold_recall": (sum(gold_recall(answer, plain_answer(p)) for p in patterns) / len(patterns)) if patterns else 0.0,
         # Reported separately: a correct answer the verification gate would not certify is a
         # different outcome from a correct answer, and worth seeing.
         "verification_flagged": verification_flagged,
