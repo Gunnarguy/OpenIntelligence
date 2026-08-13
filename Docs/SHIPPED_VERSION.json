@@ -1,0 +1,22 @@
+{
+  "_comment": [
+    "What is live on the App Store, versus what is being prepared.",
+    "",
+    "This file exists because the three public websites had no way to tell those apart.",
+    "CHANGELOG.md's first numbered heading is the release being PREPARED, not the one that",
+    "shipped: ci_post_clone.sh reads it to stamp MARKETING_VERSION for the build. Gunzino's",
+    "version workflow read that same heading and labelled it 'Shipped version', so on",
+    "2026-08-13 gunzino.me advertised 5.0 while App Store Connect download data showed 4.9 as",
+    "the newest version any user had. Docs/ai/STATE.md and the RepoOS router made the same",
+    "conflation.",
+    "",
+    "Update app_store when a build actually goes live, not when it is submitted.",
+    "Update preparing when a new numbered heading is added to CHANGELOG.md.",
+    "Both values must match a '## <version>' heading in CHANGELOG.md; the sync workflows fail",
+    "loudly if they do not, rather than publishing a guess."
+  ],
+  "app_store": "4.9",
+  "preparing": "5.0",
+  "updated": "2026-08-13",
+  "verified_against": "App Store Connect download data, newest app_version 4.9 last seen 2026-08-06"
+}
