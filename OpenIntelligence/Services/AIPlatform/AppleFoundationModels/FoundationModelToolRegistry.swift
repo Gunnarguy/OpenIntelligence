@@ -441,6 +441,34 @@ struct FoundationModelToolRegistry {
         overviewTool.ragService = ragService
         tools.append(overviewTool)
 
+        // The two exact-lexical tools. Registered 2026-08-13 because the benchmark argues for
+        // them, and deliberately without the other six declared in this file, which duplicate a
+        // tool already above: search_documents and find_related_documents are covered by
+        // retrieve_corpus_evidence, list_documents and get_corpus_stats by get_library_overview,
+        // get_document_summary by inspect_document, compare_documents by
+        // compare_topic_across_documents. Handing the model six near-duplicates costs context
+        // budget every turn and degrades selection; HARD_LIMITS puts the useful ceiling around
+        // five. Six live tools stays near that.
+        //
+        // Why these two specifically. On the 2026-08-12 external benchmark the lexical arm scored
+        // MRR@10 0.65 against the dense arm's 0.28, so exact matching is what this pipeline is
+        // currently good at, and nothing registered exposed it to the model directly. Extractive
+        // fact-lookup was the weakest category at 19/51 correct, which is exactly the "what number
+        // does the paper give" question these serve. `Step 4.8 Targeted Spec Retrieval` already
+        // exists in the pipeline for the same reason: the cross-encoder carries a measured prose
+        // bias, roughly 0.78 for prose against 0.30 for tables.
+        //
+        // This is a hypothesis, not a finding. Re-run qasper_external_v1 and compare the
+        // exact_value category against Docs/AuditArtifacts/Benchmarks/20260812-215108-matrix.md
+        // before concluding it helped.
+        var countTool = CountPatternTool()
+        countTool.ragService = ragService
+        tools.append(countTool)
+
+        var exactTool = SearchExactPatternTool()
+        exactTool.ragService = ragService
+        tools.append(exactTool)
+
         Log.debug("Initialized \(tools.count) engine-native tools for agentic RAG", category: .llm)
         return tools
     }
