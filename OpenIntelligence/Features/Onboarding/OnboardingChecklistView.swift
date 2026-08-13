@@ -809,7 +809,12 @@ struct OnboardingChecklistView: View {
                 HStack(spacing: 4) {
                     Image(systemName: "hand.tap")
                         .font(.system(size: 9, weight: .semibold))
-                    Text("Tap any figure above for what it means, or see every word")
+                    // Names the two things a reader can do, in the order they can do them: tap one
+                    // figure, or open the whole glossary. "Figure or spec" rather than "word",
+                    // because what is tappable above is `A19 Pro`, `45 TOPS`, `48/batch` and the
+                    // rest, and the previous wording ("see every word") described the destination
+                    // rather than telling anyone the chips themselves were interactive.
+                    Text("Tap any figure or spec for its definition, or open the full glossary")
                         .font(.system(size: 10, weight: .medium))
                     Image(systemName: "chevron.right")
                         .font(.system(size: 7, weight: .bold))
@@ -819,8 +824,8 @@ struct OnboardingChecklistView: View {
             }
             .buttonStyle(.plain)
             .padding(.top, 2)
-            .accessibilityLabel("Explain these words")
-            .accessibilityHint("Opens plain language definitions for everything on this screen")
+            .accessibilityLabel("Open the full glossary")
+            .accessibilityHint("Plain language definitions for every figure and spec on this screen. Each figure above can also be tapped on its own.")
         }
     }
 
