@@ -503,6 +503,7 @@ def reset_shared_library() -> None:
 def run_one(
     app_bin: Path, case: dict, mode: str, pcc: str, timeout: int,
     storage: Path, ingest: bool, pool: list[str] | None = None, pool_limit: int = 0,
+    top_k: int = 0,
 ) -> dict:
     """Launch the app headlessly for a single (case, mode) pair.
 
@@ -582,6 +583,11 @@ def run_one(
         expected_sources = [single] if single else []
     if expected_sources and case.get("expected_behavior") != "abstain":
         cmd += ["--rag-validation-expected-sources", ",".join(expected_sources)]
+    # Final retrieval breadth. Omitted unless swept, so a default run measures shipped
+    # behaviour: the chat UI's `retrievalTopK` AppStorage default and `queryWithAudit`'s own
+    # default are both 3.
+    if top_k:
+        cmd += ["--rag-validation-topk", str(top_k)]
     if not ingest:
         cmd.append("--rag-validation-skip-ingest")
 
@@ -838,6 +844,11 @@ def main() -> int:
     ap.add_argument("--limit", type=int, default=0, help="run only the first N cases (smoke test)")
     ap.add_argument("--timeout", type=int, default=600, help="per-run timeout in seconds")
     ap.add_argument("--output-dir", default="")
+    ap.add_argument("--top-k", type=int, default=0,
+                    help="final retrieval breadth handed to queryWithAudit. 0 leaves the "
+                         "shipped default of 3, which the chat UI also uses. Set it to sweep: "
+                         "on 2026-08-12 the right document reached the final ranking on 75%% of "
+                         "MISSED cases, so answers are arriving and being truncated away.")
     ap.add_argument("--resume", default="",
                     help="continue a previous run directory, skipping (case, mode) pairs "
                          "already recorded in its results.jsonl checkpoint")
@@ -928,6 +939,7 @@ def main() -> int:
                 run = run_one(
                     app_bin, case, mode, args.pcc, args.timeout,
                     storage=storage, ingest=True, pool=pool, pool_limit=args.pool_limit,
+                    top_k=args.top_k,
                 )
                 row = {"case_id": case["id"], "category": case["category"], "mode": mode, "run": run}
                 if run.get("ok"):
@@ -952,6 +964,7 @@ def main() -> int:
         "manifest": str(manifest_path.relative_to(REPO_ROOT)),
         "pool_documents": len(pool),
         "pool_limit": args.pool_limit,
+        "top_k": args.top_k or 3,
         **collect_provenance(argv=sys.argv, manifest=manifest_path),
     }
 

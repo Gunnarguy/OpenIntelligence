@@ -35,6 +35,16 @@ enum DebugRAGValidationHarness {
         /// parameter would break them. A `let` with an initial value would instead be dropped from
         /// the initialiser and pinned empty forever, silently disabling stage metrics.
         var expectedSources: [String] = []
+
+        /// Final retrieval breadth, the `topK` handed to `queryWithAudit`.
+        ///
+        /// Defaults to nil, which leaves `queryWithAudit`'s own default of 3 in place. That
+        /// default is also what the chat UI uses (`@AppStorage("retrievalTopK") = 3`), so an
+        /// unflagged benchmark run measures shipped behaviour rather than a benchmark-only
+        /// setting. This exists to sweep that value: the 2026-08-12 run showed the right document
+        /// reaching the final ranking on 75% of *missed* cases, so the answer is arriving and
+        /// being truncated away.
+        var retrievalTopK: Int? = nil
     }
 
     static let cachedConfiguration: Configuration? = makeConfiguration()
@@ -161,8 +171,11 @@ enum DebugRAGValidationHarness {
             // deep-think or maximum at all because no answer came back, yet retrieval had run on
             // every one of those cases and was simply never observed.
             let trace = RetrievalTraceCollector()
+            // `topK` is passed only when the flag supplied one, so an unflagged run keeps
+            // `queryWithAudit`'s own default of 3 and therefore measures shipped behaviour.
             let (response, auditSnapshot) = try await ragService.queryWithAudit(
                 configuration.query,
+                topK: configuration.retrievalTopK ?? 3,
                 containerId: containerId,
                 trace: trace
             )
@@ -330,6 +343,7 @@ enum DebugRAGValidationHarness {
         lines.append("Container: \(containerName) [\(containerId.uuidString)]")
         lines.append("Storage: \(configuration.storageDirectory.path)")
         lines.append("Quality Mode: \(response.metadata.qualityModeName ?? configuration.qualityMode?.displayName ?? "Unknown")")
+        lines.append("Retrieval TopK: \(configuration.retrievalTopK ?? 3)")
         if let pccConsent = configuration.pccConsent {
             lines.append("Benchmark PCC Consent: \(pccConsent)")
         }
@@ -513,6 +527,13 @@ enum DebugRAGValidationHarness {
                 .appendingPathComponent(runId, isDirectory: true)
         }()
 
+        let retrievalTopK: Int? = {
+            guard let raw = LaunchArguments.valueEither(for: "rag-validation-topk"),
+                  let value = Int(raw), value > 0
+            else { return nil }
+            return value
+        }()
+
         let outputDirectory = storageDirectory.appendingPathComponent("ValidationOutput", isDirectory: true)
         let inputURLs = parseInputURLs()
         let qualityMode = parseQualityMode(LaunchArguments.valueEither(for: "rag-validation-quality"))
@@ -533,7 +554,8 @@ enum DebugRAGValidationHarness {
             shouldIngest: shouldIngest,
             pccConsent: pccConsent,
             benchmarkEntitlement: benchmarkEntitlement,
-            expectedSources: expectedSources
+            expectedSources: expectedSources,
+            retrievalTopK: retrievalTopK
         )
     }
 
