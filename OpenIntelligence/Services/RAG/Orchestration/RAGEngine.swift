@@ -617,6 +617,19 @@ actor RAGEngine {
             }
         }
 
+        // State the citation range the model was actually given.
+        //
+        // About thirty characters against a 4096 token window, and it closes the one gap that made
+        // a citation like [S6] possible from a four source prompt: the model could see labels but
+        // never the bound, so a source it inferred was indistinguishable to it from one it had read.
+        // Semantic labels would also close it and cost roughly two hundred characters, which is 5%
+        // of a Deep Think session's entire evidence budget. At this context size the cheap fix wins.
+        if used == 1 {
+            builder += "\n\nCite only source S1."
+        } else if used > 1 {
+            builder += "\n\nCite only sources S1 to S\(used)."
+        }
+
         return (builder, used, usedSources)
     }
 

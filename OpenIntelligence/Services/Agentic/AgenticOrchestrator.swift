@@ -4033,13 +4033,21 @@ extension AgenticOrchestrator {
         // queries), ALL sessions reason over irrelevant content and the actual
         // answer chunk is never seen.
         //
-        // New approach: Session N sees chunks [N*stride..N*stride+perSession]
-        // with stride=2 for overlap. Session 1 gets [0..3], Session 2 gets [2..5],
-        // Session 3 gets [4..7], etc. This covers more of the top-20 chunks
-        // while maintaining partial overlap for continuity.
-        // The multi-session value is BOTH depth AND breadth.
+        // New approach: Session N sees chunks [N*stride..N*stride+perSession].
+        //
+        // The stride was `chunksPerSession / 2`, a deliberate 50% overlap "for continuity". That
+        // is cheap in a large context window and expensive in a 4096 token one. A Deep Think
+        // session gets 3500 characters, so half-overlap spends ~1750 of them re-reading text the
+        // previous session already read: across eight sessions, roughly four entire session budgets
+        // returned to material already seen. With 20 chunks and 4 per session, half-overlap covers
+        // 18 of them in eight sessions and reads each twice; disjoint covers all 20 in five.
+        //
+        // Continuity is supposed to come from the carried state, which is what PRIOR FINDINGS and
+        // the FactBank are for, not from re-reading raw text. Windows are disjoint now. The
+        // wrap-around below still repeats windows once the pool is exhausted, which is the correct
+        // behaviour: at that point every chunk has been seen and depth is all that is left.
         let chunksPerSession = min(maxChunksPerSession, chunks.count)
-        let stride = max(1, chunksPerSession / 2)  // 50% overlap between sessions
+        let stride = max(1, chunksPerSession)
 
         // Use dynamic max for Deep Think mode (can go up to 8 sessions)
         let effectiveMaxSessions = reasoningPolicy.isDeepThinkMode ? reasoningPolicy.maxSessionsForMode : config.sessionCount
@@ -4237,7 +4245,8 @@ extension AgenticOrchestrator {
                 context: sessionContext,
                 previousInsights: insightsForPrompt,
                 maxInsightLength: reasoningPolicy.isUnlimitedMode ? 600 : (reasoningPolicy.isDeepThinkMode ? 800 : config.maxInsightLength),
-                sessionObjective: sessionObjective
+                sessionObjective: sessionObjective,
+                evidenceState: evidenceStateLine(evidenceTracker)
             )
 
             // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -6961,6 +6970,26 @@ extension AgenticOrchestrator {
     ///   Available for prompt: ~3486 tokens ≈ 4880 chars
     ///   Session 1 (no insights): context ≤ 4000 chars, prompt text ~300 chars
     ///   Session 2+ (with insights): context ≤ 2000 chars + insights ≤ 1500 chars + prompt ~300 chars
+
+    /// One compact line naming what the chain still has not answered.
+    ///
+    /// Carried into each session prompt beside PRIOR FINDINGS. The prose summary says what was
+    /// found and costs up to 1200 characters of a 3500 character budget; this says what is still
+    /// missing and costs about eighty. It is the difference between telling a session what has been
+    /// read and telling it what to go and look for.
+    ///
+    /// Returns nil when the decomposition produced nothing or everything is answered, so no budget
+    /// is spent saying "nothing outstanding".
+    private func evidenceStateLine(_ factBank: FactBank) -> String? {
+        let total = factBank.subQuestions.count
+        guard total > 0 else { return nil }
+        let open = factBank.unansweredQuestions
+        guard !open.isEmpty else { return nil }
+        let answered = total - open.count
+        let listed = open.prefix(3).joined(separator: "; ")
+        return "STILL UNANSWERED (\(answered)/\(total) covered): \(listed)"
+    }
+
     private func buildChainPrompt(
         sessionIndex: Int,
         sessionCount: Int,
@@ -6968,7 +6997,8 @@ extension AgenticOrchestrator {
         context: String,
         previousInsights: [String],
         maxInsightLength: Int,
-        sessionObjective: String? = nil
+        sessionObjective: String? = nil,
+        evidenceState: String? = nil
     ) -> (prompt: String, systemPrompt: String) {
         // FIXED: Reduced insight budget from 2500 to 1200 chars.
         // With context doubling fix, real budget is:
@@ -6994,6 +7024,15 @@ extension AgenticOrchestrator {
                 insightSummary = rawSummary
             }
         }
+
+        // A structured statement of what is still open, carried alongside the prose.
+        //
+        // PRIOR FINDINGS is free text and it degrades: device captures show it decaying into
+        // "[S1] contains a section titled" and, twice, into the session's own system prompt. It
+        // also costs up to 1200 of a 3500 character budget. The FactBank already knows precisely
+        // which sub-questions remain unanswered, and saying so costs about eighty characters and
+        // cannot rot into filler. It tells the session what to hunt rather than what was found.
+        let evidenceStateBlock = evidenceState.map { "\($0)\n" } ?? ""
 
         let objectiveBlock = sessionObjective.map { """
         SESSION OBJECTIVE:
@@ -7032,7 +7071,7 @@ extension AgenticOrchestrator {
             let prompt = """
             QUESTION: \(query)
 
-            \(insightSummary)
+            \(evidenceStateBlock)\(insightSummary)
             \(objectiveBlock)ADDITIONAL DOCUMENTS:
             \(contextForPrompt)
 
@@ -7049,7 +7088,7 @@ extension AgenticOrchestrator {
             let prompt = """
             QUESTION: \(query)
 
-            \(insightSummary)
+            \(evidenceStateBlock)\(insightSummary)
             \(objectiveBlock)DOCUMENTS:
             \(contextForPrompt)
 
@@ -7077,7 +7116,7 @@ extension AgenticOrchestrator {
             let prompt = """
             QUESTION: \(query)
 
-            \(insightSummary)
+            \(evidenceStateBlock)\(insightSummary)
             \(objectiveBlock)ADDITIONAL DOCUMENTS:
             \(contextForPrompt)
 
