@@ -47,8 +47,17 @@ identical prompt.
 ## Active Constraints
 
 - **No em-dashes anywhere**, including Swift string literals. `USER_CHANGELOG.md` renders in the app.
-- **New `CHANGELOG.md` entries go under `[Unreleased]`.** v5.0 shipped 2026-08-10 and the file
-  carries `<!-- next-version: 5.1 -->`.
+- **`[Unreleased]` in `CHANGELOG.md` stays empty. New entries go under `## 5.0`.** **v5.0 has NOT
+  shipped.** The App Store is on 4.9, confirmed by `Docs/SHIPPED_VERSION.json`
+  (`app_store: 4.9`, `preparing: 5.0`, verified against App Store Connect download data) and by a
+  device capture reporting `appVersion=4.9, buildNumber=150`. The first numbered heading in
+  `CHANGELOG.md` is the release being **prepared**: `ci_post_clone.sh` reads it to stamp
+  `MARKETING_VERSION`. A date on that heading does not mean it shipped.
+  **The preflight router gets this wrong** and reports `v5.1 (in_development, last shipped v5.0)`.
+  `SHIPPED_VERSION.json` names the router and this file as having made exactly that conflation
+  before. On 2026-08-14 this rule was "corrected" to the opposite on the router's say-so and the
+  entries were moved into `[Unreleased]`; both were reverted the same day. Trust
+  `SHIPPED_VERSION.json` over the router, and run `oi-claim-audit` before overturning a rule here.
 - **Do not do heavy file work while a benchmark is measuring.** Per-case wall clock moved 40% in one
   run purely from this session's own file copying. See `Docs/EVALS.md`.
 - **`Docs/USER_CHANGELOG.md` and `OpenIntelligence/Resources/VersionHistory.md` must stay byte
@@ -96,9 +105,9 @@ from 2026-08-12, against Swift this session has since changed. **This is the lar
    session's own file copying had the machine at 461s per case. Machine load is the leading
    explanation and is unproven. The secondary hypothesis is the per-subline `headingStems` cost
    added in `7ac2618`; verify by profiling `sentenceScore` or by rerunning on an idle machine.
-4. **Notion `Target Release` is unset on two new rows.** The preflight router reports the target as
-   `v5.1` and that option does not exist in the database, whose list ends at the shipped `v5.0`.
-   Adding it changes the public roadmap page, so it needs the owner.
+4. **Notion `Target Release` is `v5.0` on the new rows.** Not v5.1. All of this work is part of the
+   release being prepared, and 5.0 has not shipped. The router's `v5.1` is wrong; see the changelog
+   constraint above.
 5. **Apple Intelligence cannot generate in the iOS Simulator on this machine.** Documented in
    `DECISIONS.md`; the owner has declined the remedy. Do not spend a session on it.
 6. **44 verified findings remain on the library surfaces**, in
