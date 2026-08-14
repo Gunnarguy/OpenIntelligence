@@ -2,7 +2,7 @@
 
 Updated: 2026-08-14
 Branch/worktree: main, primary checkout
-Last verified commit: d6897de
+Last verified commit: dcea8b5
 
 <!-- Keep the line above as the bare short SHA and nothing else. The SessionStart hook parses it
      with `sed` then strips all whitespace, so prose appended after the SHA is swallowed into it and
@@ -29,6 +29,9 @@ Tree clean at `03e4fa9`, nine commits landed on 2026-08-14, none pushed. Only `m
 - `03e4fa9` one citation namespace, and cited sources the response can resolve
 - `a412d45` handoff records the passing suite
 - `d6897de` **citations pointed at the wrong document on most queries**
+- `4482da7` handoff records that defect
+- `4de83d0` stop spending most of a 4096 token window on already-read text
+- `dcea8b5` **the model chooses what to read before it reads anything**
 
 ## Completed
 
@@ -69,6 +72,24 @@ the model read, so no guard and no gate could detect it. Five call sites carried
 assumption independently. `assembleContext` now returns `sources` in label order and every caller
 uses it, making the invariant structural. Found while scoping semantic citation labels, which
 remain the better end state and are now a one-field change.
+
+**Most of a 4096 token session window was going to something other than new evidence.** A Deep
+Think session gets 3500 characters. Windows overlapped 50% "for continuity", spending ~1750 of them
+re-reading the previous session's text, which across eight sessions is roughly four whole session
+budgets. Windows are disjoint now. Each session prompt also carries one ~80 character line naming
+what the chain still has not answered, drawn from the `FactBank` decomposition that already existed
+and was being discarded; prose `PRIOR FINDINGS` costs up to 1200 characters and degrades, and this
+cannot. `assembleContext` additionally states its citation range ("Cite only sources S1 to Sn"),
+about thirty characters against the ~200 semantic labels would cost.
+
+**The chain chose what to read by cosine similarity, before reading anything.** It now opens with a
+routing turn, `routeChunksByTitle`: a menu of section titles, one line per candidate, and the model
+picks. A title costs ~50 characters against several hundred for body text, so twenty titles fit in
+one window where three chunks do not, and one 64 token generation buys an informed ordering for
+every session after it. **It reorders and never drops**, the menu is capped at 1800 characters, and
+every failure path returns the input untouched, so the worst case is the ordering the chain already
+had plus one generation. Still one retrieval and still no tools mid-session, so this is narrower
+than agency: the model picks from what it was given rather than asking for more.
 
 **An answer also cited sources that did not exist.** A device trace shows "[S6] and [S5] state that..."
 against four retrieved chunks. `assembleContext` labels packed chunks `[S1]...[S{used}]` and Needle
