@@ -617,11 +617,52 @@ final class AgenticOrchestrator: Sendable {
             // FALLBACK: If reasoning chain indicates retrieval miss, try recursive research
             // This catches cases where initial retrieval grabbed wrong content (e.g., "oil pressure" vs "oil type")
             // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-            if answerIndicatesRetrievalMiss(chainResult.finalAnswer) {
-                Log.info("[Agentic] Answer indicates retrieval miss - falling back to recursive research", category: .llm)
+            // Decide from what the chain measured, not from how its answer reads.
+            //
+            // This was `answerIndicatesRetrievalMiss(chainResult.finalAnswer)` alone: a string
+            // heuristic scanning the prose for hedging like "do not specify". It has two failure
+            // modes and both were observed. A confidently wrong answer contains no hedging, so the
+            // loop never ran when it was most needed. And a grounded synthesis that correctly notes
+            // a gap does contain hedging, so a 91% confidence answer was discarded in favour of a
+            // raw evidence dump, which is why the guard below this call exists at all.
+            //
+            // Meanwhile `FactBank` had already decomposed the query into sub-questions, tracked
+            // which ones the evidence answered, and compared that against the coverage target the
+            // chain uses for its own early-stop decision. All of it was computed and thrown away.
+            // Finishing below your own coverage target is the definition of not having finished,
+            // and it is a measurement rather than an inference about wording.
+            //
+            // The prose heuristic is kept as an additional trigger rather than replaced, because it
+            // catches a real case the coverage figure cannot see: retrieval that confidently
+            // returned the wrong subject entirely, where every sub-question reads as answered.
+            let coverageShortfall = chainResult.evidenceCoverage < chainResult.evidenceCoverageTarget
+            let hasGaps = !chainResult.unansweredQuestions.isEmpty
+            let proseSuggestsMiss = answerIndicatesRetrievalMiss(chainResult.finalAnswer)
+
+            if coverageShortfall || proseSuggestsMiss {
+                Log.info(
+                    "[Agentic] Researching further: coverage \(Int(chainResult.evidenceCoverage * 100))% "
+                        + "against a \(Int(chainResult.evidenceCoverageTarget * 100))% target, "
+                        + "\(chainResult.unansweredQuestions.count) sub-question(s) unanswered, "
+                        + "prose-miss=\(proseSuggestsMiss)",
+                    category: .llm
+                )
+
+                // Search the gaps, not the original question. Re-running `query` looks for what was
+                // already found; the unanswered sub-questions are the only part still missing, and
+                // the chain has just told us exactly what they are. Capped at three so the decision
+                // prompt stays readable, and falls back to the original query when the decomposition
+                // produced nothing to aim at.
+                let researchQuery: String
+                if hasGaps {
+                    let gaps = chainResult.unansweredQuestions.prefix(3).joined(separator: "; ")
+                    researchQuery = "\(query)\n\nStill unanswered: \(gaps)"
+                } else {
+                    researchQuery = query
+                }
 
                 let recursiveResult = try await executeRecursiveResearch(
-                    query: query,
+                    query: researchQuery,
                     maxIterations: 5,
                     onStep: onStep
                 )
@@ -3875,6 +3916,26 @@ struct ReasoningChainResult: Sendable {
     let sessionCount: Int
     let confidence: Float
     let sources: [String]
+
+    /// Fraction of the query's sub-questions the chain actually answered, from `FactBank`.
+    ///
+    /// Carried out of the chain because the decision about whether to research further was being
+    /// made by reading the final answer's prose for phrases like "do not specify", while this
+    /// measured figure was computed, used for the chain's own early-stop check, and then discarded.
+    let evidenceCoverage: Float
+
+    /// The coverage the chain was aiming for, from `AgenticPolicyService.evidenceCoverageTarget`.
+    ///
+    /// Carried alongside the achieved figure so the comparison needs no second threshold. Finishing
+    /// below your own target is the definition of not having finished, and it is a measurement
+    /// rather than a guess about wording.
+    let evidenceCoverageTarget: Float
+
+    /// Sub-questions still unanswered when the chain stopped.
+    ///
+    /// These are what recursive research should go and look for. Re-running the original query
+    /// searches for what was already found; searching the gaps searches for what is missing.
+    let unansweredQuestions: [String]
 }
 
 extension AgenticOrchestrator {
@@ -4308,7 +4369,12 @@ extension AgenticOrchestrator {
                         totalTokens: totalTokens,
                         sessionCount: sessionNum - 1,
                         confidence: cumulativeConfidence,
-                        sources: Array(allSources)
+                        sources: Array(allSources),
+                        evidenceCoverage: evidenceTracker.subQuestionConfidence,
+                        evidenceCoverageTarget: reasoningPolicy.evidenceCoverageTarget(
+                            for: evidenceTracker.subQuestions.count
+                        ),
+                        unansweredQuestions: evidenceTracker.unansweredQuestions
                     )
                 }
             }
@@ -4350,7 +4416,12 @@ extension AgenticOrchestrator {
                     totalTokens: totalTokens,
                     sessionCount: sessionNum - 1,
                     confidence: cumulativeConfidence,
-                    sources: Array(allSources)
+                    sources: Array(allSources),
+                    evidenceCoverage: evidenceTracker.subQuestionConfidence,
+                    evidenceCoverageTarget: reasoningPolicy.evidenceCoverageTarget(
+                        for: evidenceTracker.subQuestions.count
+                    ),
+                    unansweredQuestions: evidenceTracker.unansweredQuestions
                 )
             }
 
@@ -4775,8 +4846,13 @@ extension AgenticOrchestrator {
             chainInsights: chainInsights,
             totalTokens: totalTokens,
             sessionCount: actualSessionCount,
-            confidence: cumulativeConfidence,  // Don't artificially floor — report honestly
-            sources: Array(allSources)
+            confidence: cumulativeConfidence,  // Don't artificially floor, report honestly
+            sources: Array(allSources),
+            evidenceCoverage: evidenceTracker.subQuestionConfidence,
+            evidenceCoverageTarget: reasoningPolicy.evidenceCoverageTarget(
+                for: evidenceTracker.subQuestions.count
+            ),
+            unansweredQuestions: evidenceTracker.unansweredQuestions
         )
     }
 

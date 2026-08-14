@@ -323,13 +323,23 @@ supposed to be agentic.
   session and cannot request anything. The registered exact-match tools (`count_pattern`,
   `search_exact_pattern`) are therefore unreachable from a reasoning session.
   `[evidence: code_verified, exact, AgenticOrchestrator.swift:4195 and the sessionContexts loop preceding it]`
-- **The one genuine loop is a fallback.** `executeRecursiveResearch` does implement the real thing:
-  it asks the model to decide, parses `.answer` or `.search(query)`, and re-retrieves on demand. It
-  has exactly one call site, reached only in an agentic mode, only after the full chain has
-  finished, and only when `answerIndicatesRetrievalMiss(chainResult.finalAnswer)` returns true. That
-  is a string heuristic over the answer text, and it has already been patched once for discarding a
-  91% confidence synthesis and preferring a raw evidence dump. A confidently wrong answer never
-  reaches the loop. `[evidence: code_verified, exact, AgenticOrchestrator.swift:620-627, :2418, :2748]`
+- **The one genuine loop is a fallback, now gated on measurement rather than prose.**
+  `executeRecursiveResearch` implements the real thing: it asks the model to decide, parses
+  `.answer` or `.search(query)`, and re-retrieves on demand. It still has exactly one call site,
+  reached only in an agentic mode and only after the chain has finished.
+  **Changed 2026-08-14:** that call was gated solely on
+  `answerIndicatesRetrievalMiss(chainResult.finalAnswer)`, a string heuristic scanning the answer
+  for hedging. It fails in both directions: a confidently wrong answer contains no hedging so the
+  loop never ran, and a grounded synthesis that correctly notes a gap does, which is how a 91%
+  confidence answer came to be discarded in favour of a raw evidence dump. Meanwhile `FactBank` had
+  already decomposed the query into sub-questions, tracked which the evidence answered, and compared
+  that to the coverage target the chain uses for its own early stop. All of it was computed and
+  discarded. `ReasoningChainResult` now carries `evidenceCoverage`, `evidenceCoverageTarget` and
+  `unansweredQuestions`, and the gate fires when the chain finished below its own target. The prose
+  heuristic is retained as an additional trigger, because it catches a case coverage cannot see:
+  retrieval that confidently returned the wrong subject, where every sub-question reads as answered.
+  Research is now aimed at the unanswered sub-questions rather than re-running the original query.
+  `[evidence: code_verified, exact, AgenticOrchestrator.swift ReasoningChainResult and the recursive-research gate; FactBank.subQuestionConfidence]`
 
 **The gap, stated precisely.** In Deep Think and Maximum, the modes that exist specifically to buy
 more compute, the extra compute is spent re-reading fixed slices of one retrieval rather than acting
