@@ -90,6 +90,22 @@ struct FoundationModelStructuredGenerator {
         let structuredClaims: [StructuredRAGClaim]
         let confidence: Int
 
+        // Guided generation can fail in a way that is not transient, and the pipeline had no way to
+        // express that. Device evidence 2026-08-14: in one run fifteen reasoning sessions generated
+        // successfully in prose and all six final syntheses failed with "Failed to parse generated
+        // content", which is what `session.respond(to:generating:)` throws when the model cannot
+        // produce output conforming to the @Generable schema. Before failing, the pipeline had
+        // already reduced the prompt twice (2927, then 2491, then 1565 estimated tokens) and an
+        // escalating 19 second backoff retried the same constrained call three more times. Every one
+        // of those remedies assumes the failure is transient or a size problem. It was neither: it
+        // was deterministic, and the user lost a query whose evidence had been fully gathered.
+        //
+        // So a schema failure now degrades instead of terminating. Prose is a genuine loss: no
+        // per-claim citations, no model confidence, no matched terms, and `structuredRAGGeneration`
+        // is nil so downstream treats it as unstructured. It is still strictly better than nothing,
+        // and inline [Sn] markers are recovered from the text so the citations the model did write
+        // still resolve.
+        do {
         switch mode {
         case .reasoned:
             let response = try await respondStructured(to: fullPrompt, generating: RAGAnswer.self)
@@ -127,6 +143,35 @@ struct FoundationModelStructuredGenerator {
                 )
             }
             confidence = response.content.confidence
+        }
+        } catch {
+            Log.warning(
+                "[FM] Structured generation failed (\(type(of: error))): \(error.localizedDescription). "
+                    + "Falling back to prose rather than losing the query.",
+                category: .llm
+            )
+            let prose = try await session.respond(to: fullPrompt)
+            let text = prose.content.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines)
+            // If prose fails too, the original schema error is the more informative one to surface.
+            guard !text.isEmpty else { throw error }
+
+            let recovered = normalizeStructuredCitations([text], maxSourceCount: sourceCount)
+            let totalTime = Date().timeIntervalSince(startTime)
+            LLMStreamingContext.emit(text: text, isFinal: false)
+            LLMStreamingContext.emit(text: "", isFinal: true)
+            Log.info(
+                "[FM] Prose fallback produced \(text.count) chars, \(recovered.count) citation(s) recovered",
+                category: .llm
+            )
+            return LLMResponse(
+                text: text,
+                tokensGenerated: max(1, Int(ceil(Double(text.count) / 1.4))),
+                timeToFirstToken: nil,
+                totalTime: totalTime,
+                modelName: "\(modelName) (Prose fallback)",
+                toolCallsMade: 0,
+                structuredRAGGeneration: nil
+            )
         }
 
         guard !answerText.isEmpty else {
