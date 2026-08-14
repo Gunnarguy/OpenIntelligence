@@ -2,7 +2,7 @@
 
 Updated: 2026-08-14
 Branch/worktree: main, primary checkout
-Last verified commit: 03e4fa9
+Last verified commit: d6897de
 
 <!-- Keep the line above as the bare short SHA and nothing else. The SessionStart hook parses it
      with `sed` then strips all whitespace, so prose appended after the SHA is swallowed into it and
@@ -27,6 +27,8 @@ Tree clean at `03e4fa9`, nine commits landed on 2026-08-14, none pushed. Only `m
 - `02fb12d` what the agentic modes actually do inside them
 - `540558a` research-further decided from measurement, not prose
 - `03e4fa9` one citation namespace, and cited sources the response can resolve
+- `a412d45` handoff records the passing suite
+- `d6897de` **citations pointed at the wrong document on most queries**
 
 ## Completed
 
@@ -57,7 +59,18 @@ carries `evidenceCoverage`, `evidenceCoverageTarget` and `unansweredQuestions`; 
 the chain finished below its own target, and research is aimed at the unanswered sub-questions
 rather than at re-running the original query. Standard remains single-shot by design.
 
-**An answer cited sources that did not exist.** A device trace shows "[S6] and [S5] state that..."
+**Citations resolved to the wrong document on most queries, and nothing could see it.**
+`RAGEngine.assembleContext` applies Lost-in-the-Middle reordering *before* numbering sources, so
+`[S1]`...`[Sn]` label `front + back.reversed()`: four chunks `[A,B,C,D]` are shown as `[A,C,D,B]`.
+Every caller rebuilt the citation list as `prefix(used)` of its own pre-reordering array, so a model
+citing `[S2]` meant C while the response resolved it to B. Only the first position matched, by
+coincidence. Every index was in range and every citation resolved to a real chunk, just not the one
+the model read, so no guard and no gate could detect it. Five call sites carried the same wrong
+assumption independently. `assembleContext` now returns `sources` in label order and every caller
+uses it, making the invariant structural. Found while scoping semantic citation labels, which
+remain the better end state and are now a one-field change.
+
+**An answer also cited sources that did not exist.** A device trace shows "[S6] and [S5] state that..."
 against four retrieved chunks. `assembleContext` labels packed chunks `[S1]...[S{used}]` and Needle
 Rescue then appended sentences from the *dropped* chunks to the same prompt while numbering them
 from `[S1]` again, so the model was shown six sources and cited the last two. Rescue now continues
