@@ -417,7 +417,7 @@ actor RAGEngine {
         maxChars: Int,
         compact: Bool = false,
         useLostInMiddleMitigation: Bool = true
-    ) async -> (context: String, used: Int) {
+    ) async -> (context: String, used: Int, sources: [RetrievedChunk]) {
         let __spAssembleContext = PipelineSignposts.query.beginInterval("AssembleContext")
         defer { PipelineSignposts.query.endInterval("AssembleContext", __spAssembleContext) }
         // Report CPU activity for context assembly
@@ -431,7 +431,7 @@ actor RAGEngine {
             os_signpost(.begin, log: log, name: "assembleContext", signpostID: spid)
             defer { os_signpost(.end, log: log, name: "assembleContext", signpostID: spid) }
         #endif
-        guard !chunks.isEmpty else { return ("", 0) }
+        guard !chunks.isEmpty else { return ("", 0, []) }
 
         // "Lost in the Middle" mitigation (Liu et al., 2023):
         // LLMs attend strongly to the beginning and end of context, but poorly to the middle.
@@ -447,6 +447,18 @@ actor RAGEngine {
         var builder = String()
         builder.reserveCapacity(min(maxChars, 4096))
         var used = 0
+
+        // The chunks that actually reached the prompt, in the order their `[Sn]` labels were
+        // assigned. This must be returned rather than recomputed by the caller.
+        //
+        // Labels are numbered over `orderedChunks`, which is `chunks` after Lost-in-the-Middle
+        // reordering. Every caller was rebuilding the citation list as `prefix(used)` of its OWN
+        // pre-reordering array, so for any query with four or more chunks the two disagreed:
+        // reordering emits `front + back.reversed()`, so [A,B,C,D] is shown as [A,C,D,B] and a
+        // model citing [S2] meant C while the response resolved it to B. Three of four citations
+        // pointed at the wrong document, silently, and nothing downstream could detect it because
+        // the indices were all in range.
+        var usedSources: [RetrievedChunk] = []
 
         // ── Abbreviation Glossary Injection ──────────────────────────────────
         // Collect all abbreviation→expansion mappings from retrieved chunks.
@@ -576,6 +588,7 @@ actor RAGEngine {
             if builder.count + block.count <= maxChars || used == 0 {
                 builder += block
                 used += 1
+                usedSources.append(r)
                 usedWordSets.append(contentWords)
             } else if used < minChunksTarget && remainingBudget > 300 {
                 // Force-fit truncated version if we haven't hit minimum chunks yet
@@ -594,6 +607,7 @@ actor RAGEngine {
                     }
                     builder += forceBlock
                     used += 1
+                    usedSources.append(r)
                     usedWordSets.append(contentWords)
                 } else {
                     break
@@ -603,7 +617,7 @@ actor RAGEngine {
             }
         }
 
-        return (builder, used)
+        return (builder, used, usedSources)
     }
 
     /// Truncate text at a sentence boundary, preferring to keep complete sentences

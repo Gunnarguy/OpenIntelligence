@@ -11699,6 +11699,10 @@ class RAGService: ObservableObject {
                 // gives them citation labels and a label the response cannot resolve is a dead
                 // reference in front of the user.
                 var rescuedChunks: [RetrievedChunk] = []
+                // The chunks the prompt actually labelled, in label order. Every branch below sets
+                // this rather than letting the caller recompute `prefix(actualChunksUsed)`, which
+                // is what silently mismatched labels against sources.
+                var promptSources: [RetrievedChunk] = []
 
                 if answerIntentIsExtractive && !isProceduralQuery {
                     let extractionResult = await extractRelevantSentences(
@@ -11736,6 +11740,7 @@ class RAGService: ObservableObject {
                         )
                         context = assembled.context
                         actualChunksUsed = assembled.used
+                        promptSources = assembled.sources
                         Log.warning(
                             "[RAG] Sentence extraction matched nothing across \(orderedCandidates.count) candidate(s); "
                                 + "falling back to whole-chunk assembly (\(assembled.used) chunks, \(assembled.context.count) chars) "
@@ -11745,6 +11750,9 @@ class RAGService: ObservableObject {
                     } else {
                         context = extractionResult.context
                         actualChunksUsed = extractionResult.sourcesUsed
+                        promptSources = extractionResult.usedSourceIndices.compactMap {
+                            orderedCandidates.indices.contains($0) ? orderedCandidates[$0] : nil
+                        }
                         Log.info("[RAG] Sentence extraction: \(extractionResult.sentencesIncluded) sentences from \(extractionResult.sourcesUsed) sources (\(context.count) chars)", category: .retrieval)
                     }
                 } else {
@@ -11756,6 +11764,7 @@ class RAGService: ObservableObject {
                     )
                     var assembledContext = assembled.context
                     actualChunksUsed = assembled.used
+                    promptSources = assembled.sources
 
                     // UNIVERSAL FIX 10: Needle rescue from dropped chunks.
                     // When assembleContext runs out of budget, chunks at positions 4+ are dropped
@@ -11823,8 +11832,7 @@ class RAGService: ObservableObject {
                 // The packed prefix plus anything needle rescue contributed. Appending in this
                 // order is what makes the labels correct: rescue labels start at `assembled.used`,
                 // which is exactly where the prefix ends.
-                let includedRetrievedChunks =
-                    Array(orderedCandidates.prefix(actualChunksUsed)) + rescuedChunks
+                let includedRetrievedChunks = promptSources + rescuedChunks
                 // let precisionLookupCandidates = buildPrecisionLookupCandidates(
                 //     included: includedRetrievedChunks,
                 //     ordered: orderedCandidates,
@@ -12540,9 +12548,8 @@ class RAGService: ObservableObject {
                                     useLostInMiddleMitigation: useLostInMiddleMitigation
                                 )
                                 generationContext = localAssembly.context
-                                generationRetrievedChunks = Array(
-                                    orderedCandidates.prefix(localAssembly.used)
-                                )
+                                // Label order, not input order. See assembleContext.
+                                generationRetrievedChunks = localAssembly.sources
                                 generationChunks = generationRetrievedChunks.map(\.chunk)
                                 genConfig.executionContext = .onDeviceOnly
                                 genConfig.allowPrivateCloudCompute = false
@@ -12575,9 +12582,8 @@ class RAGService: ObservableObject {
                                 useLostInMiddleMitigation: useLostInMiddleMitigation
                             )
                             generationContext = localAssembly.context
-                            generationRetrievedChunks = Array(
-                                orderedCandidates.prefix(localAssembly.used)
-                            )
+                            // Label order, not input order. See assembleContext.
+                            generationRetrievedChunks = localAssembly.sources
                             generationChunks = generationRetrievedChunks.map(\.chunk)
                         }
                         genConfig.executionContext = .onDeviceOnly
@@ -16737,13 +16743,14 @@ class RAGService: ObservableObject {
         )
 
         let engine = RAGEngine.shared
-        let (context, used) = await engine.assembleContext(
+        let assembled = await engine.assembleContext(
             chunks: trimmed,
             maxChars: maxContextChars,
             compact: true
         )
-        let usedChunks = Array(trimmed.prefix(used))
-        return (context, usedChunks)
+        // `assembled.sources`, not `trimmed.prefix(assembled.used)`: labels are numbered after
+        // Lost-in-the-Middle reordering, so a prefix of the input array is a different set.
+        return (assembled.context, assembled.sources)
     }
 
     private func shouldAttemptCorrectiveRetrieval(
