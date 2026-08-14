@@ -2,7 +2,7 @@
 
 Updated: 2026-08-14
 Branch/worktree: main, primary checkout
-Last verified commit: 3b0e6ca
+Last verified commit: 03e4fa9
 
 <!-- Keep the line above as the bare short SHA and nothing else. The SessionStart hook parses it
      with `sed` then strips all whitespace, so prose appended after the SHA is swallowed into it and
@@ -10,18 +10,23 @@ Last verified commit: 3b0e6ca
 
 ## Objective
 
-None active. The previous objective, **make Deep Think work on a real device**, is complete and
-committed. Pick the next item from the recommendations below, or ask the owner.
+None active. Two objectives finished on 2026-08-14 and both are committed and test-passing: **make
+Deep Think work on a real device**, and **make the agentic modes actually act on what they measure**.
+Pick from the recommendations below, or ask the owner.
 
 ## Status
 
-Tree clean at `3b0e6ca`, four commits landed on 2026-08-14, nothing unpushed except these four.
-Only `main` exists.
+Tree clean at `03e4fa9`, nine commits landed on 2026-08-14, none pushed. Only `main` exists.
 
 - `1127fba` gitignore root-level device log captures
 - `ab0fc6d` benchmark harness records stage identities, plus two new scripts
 - `7ac2618` the Deep Think fixes
 - `3b0e6ca` what the overnight run measured
+- `e66f6ad` handoff rewrite
+- `d5aec62` **revert of a wrong correction**: v5.0 has not shipped, entries belong under `## 5.0`
+- `02fb12d` what the agentic modes actually do inside them
+- `540558a` research-further decided from measurement, not prose
+- `03e4fa9` one citation namespace, and cited sources the response can resolve
 
 ## Completed
 
@@ -43,6 +48,22 @@ identical prompt.
 `RAGService` only attaches after hybrid search returns, so the five pre-rerank stages logged
 `(unnamed)`. It now emits `<chunkId>#<documentId>#<name>` at depth 100, plus a resolved
 `ExpectedSourceIds` line.
+
+**The agentic modes measured what they needed and then ignored it.** `executeRecursiveResearch` is
+the only genuine agentic loop in the app, and its one call site was gated on a string heuristic
+reading the final answer for hedging. `FactBank` had already decomposed the query into sub-questions
+and tracked which were answered, and none of it reached the decision. `ReasoningChainResult` now
+carries `evidenceCoverage`, `evidenceCoverageTarget` and `unansweredQuestions`; the gate fires when
+the chain finished below its own target, and research is aimed at the unanswered sub-questions
+rather than at re-running the original query. Standard remains single-shot by design.
+
+**An answer cited sources that did not exist.** A device trace shows "[S6] and [S5] state that..."
+against four retrieved chunks. `assembleContext` labels packed chunks `[S1]...[S{used}]` and Needle
+Rescue then appended sentences from the *dropped* chunks to the same prompt while numbering them
+from `[S1]` again, so the model was shown six sources and cited the last two. Rescue now continues
+the packed numbering, and the chunks it contributed are attached to the response so a cited label
+resolves. Three layers already discarded the bad citations internally; the answer prose, which is
+the only part a reader sees, was the one thing not validated.
 
 ## Active Constraints
 
@@ -90,14 +111,23 @@ identical prompt.
 - `python3 .codex/skills/route-openintelligence-work/scripts/test_repoos_router.py` -> 24 tests, OK.
 - `python3 scripts/secret_scan.py` -> clean.
 
-**`xcodebuild test` has NOT been run this session.** It was started twice and both runs were killed
-by process teardown during SDK setup, before any Swift compiled. The last known figure is 236 / 0
-from 2026-08-12, against Swift this session has since changed. **This is the largest open risk.**
+**`xcodebuild test` -> 236 tests, 0 failures, `** TEST SUCCEEDED **`, exit 0.** Run 2026-08-14 from
+`/private/tmp/oi-test-src` against the full working tree including every change below. This retires
+what had been the largest open risk.
+
+**One earlier run of the same suite reported a failure and it was machine load, now proven.**
+`IngestionFormatCoverageTests.testSilentAudio_FailsLoudlyInsteadOfProducingAnEmptyDocument` hit its
+60 second timeout while this session was running syntax parses and file copies. The clean re-run
+executed the same 236 tests in **23.3 seconds against the earlier run's 91.3**, a 4x difference with
+no relevant code change. Treat a lone timeout failure in this suite as a load artifact until a quiet
+re-run reproduces it, and see `Docs/EVALS.md`, "Do not do heavy file work while a run is measuring".
 
 ## Blockers / Unknowns
 
-1. **The full test suite is unrun against this session's Swift.** Run it first, from a non-iCloud
-   copy per `RUNBOOK.md` item 1b. `xcodebuild` deadlocks on this repository's own path.
+1. **The agentic gate change is test-passing but not device-confirmed.** Deep Think now decides to
+   research further from evidence coverage rather than answer prose. Nothing has yet exercised it on
+   a real device; the cheapest check is a Deep Think query whose answer the chain cannot fully
+   cover, then reading the log for "[Agentic] Researching further: coverage N% against an M% target".
 2. **The run could not resolve whether the extraction fix helps Standard accuracy.** 44.6% to 38.5%
    paired on 65 cases, p = 0.424, against a minimum detectable effect of about 9 points at that
    sample size. Not evidence of regression, not evidence of neutrality.
