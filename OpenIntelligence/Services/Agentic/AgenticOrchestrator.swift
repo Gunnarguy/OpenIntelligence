@@ -661,21 +661,50 @@ final class AgenticOrchestrator: Sendable {
                     researchQuery = query
                 }
 
-                let recursiveResult = try await executeRecursiveResearch(
-                    query: researchQuery,
-                    maxIterations: 5,
-                    onStep: onStep
-                )
+                // A throw here must not destroy the answer the chain already produced.
+                //
+                // This was `try await` with no catch, so any failure inside recursive research
+                // propagated out and failed the whole query. The block below already handles
+                // "research found nothing better" by falling through to the chain result; only a
+                // *throw* skipped that.
+                //
+                // Device evidence 2026-08-14, and this is the sequence that matters: the reasoning
+                // chain generated eight session insights and a final synthesis successfully, then
+                // recursive research returned an empty response four times, and the user got a
+                // failed query instead of the answer that existed. Recursive research is an
+                // enhancement to an answer that is already in hand. It cannot be allowed to take it
+                // away.
+                //
+                // The gate above now fires on measured coverage rather than on the prose heuristic,
+                // which means this path runs far more often than it used to, so a latent failure in
+                // it became a constant one.
+                var recursiveResult: AgenticResult?
+                do {
+                    recursiveResult = try await executeRecursiveResearch(
+                        query: researchQuery,
+                        maxIterations: 5,
+                        onStep: onStep
+                    )
+                } catch {
+                    Log.warning(
+                        "[Agentic] Recursive research failed (\(type(of: error))): "
+                            + "\(error.localizedDescription). Keeping the chain's answer.",
+                        category: .llm
+                    )
+                    recursiveResult = nil
+                }
 
                 // If recursive research found a better answer, use it
                 // The dump guard matters as much as the miss guard: this branch only
                 // asked whether the replacement was *also* flagged as a miss, never
                 // whether it was actually an answer. A raw evidence dump is flagged
                 // by neither, so it won every time it appeared.
-                let cleanRecursiveAnswer = recursiveResult.finalAnswer.trimmingCharacters(in: .whitespacesAndNewlines)
-                if !cleanRecursiveAnswer.isEmpty
-                    && !answerIndicatesRetrievalMiss(recursiveResult.finalAnswer)
-                    && !looksLikeRawEvidenceDump(cleanRecursiveAnswer) {
+                let cleanRecursiveAnswer = (recursiveResult?.finalAnswer ?? "")
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                if let recursiveResult,
+                    !cleanRecursiveAnswer.isEmpty,
+                    !answerIndicatesRetrievalMiss(recursiveResult.finalAnswer),
+                    !looksLikeRawEvidenceDump(cleanRecursiveAnswer) {
                     Log.info("[Agentic] Recursive research found answer after \(recursiveResult.steps.count) steps", category: .llm)
                     steps.append(contentsOf: recursiveResult.steps)
                     return AgenticResult(
