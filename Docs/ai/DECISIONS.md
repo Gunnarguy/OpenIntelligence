@@ -392,3 +392,57 @@ crediting Core ML with the final scheduling decision.
 
 **Revisit when** a second language ships. The registry is Swift string literals with no
 `LocalizedStringKey`, so localisation is the change that forces this design to be reopened.
+
+## 2026-08-12 - Keep the benchmark on macOS until Apple Intelligence can generate in the Simulator
+
+**Context.** Every mitigation in `scripts/run_quality_matrix.py` exists to stop benchmark runs
+polluting the owner's real document library, because the macOS app resolves
+`applicationSupportRoot()` to his actual container. A simulator has its own filesystem container, so
+moving the benchmark there would delete that entire class of problem at once: no cleanup script, no
+reset between cases, no risk of repeating the 2026-08-12 incident that ingested 40 papers into his
+live library. It would also measure iPhone and iPad, which is what the product primarily ships for,
+instead of the least representative target. The reasoning is sound and the conclusion was still
+wrong, which is why it is recorded rather than discarded.
+
+**Decision.** Stay on macOS. Re-open the moment Apple Intelligence generates in the Simulator on this
+machine.
+
+**Measurement that decided it.** One case at `--pool-limit 10` on iPhone 17 Pro / iOS 27.0 exceeded
+ten minutes and then failed, against 170s on macOS. Ingestion and retrieval were fine; generation was
+not. `[ReasoningChain] All 8 sessions failed to produce an insight`, then
+`[Agentic] Failed: The on-device model did not return a usable response across 8 reasoning sessions`.
+The agentic path retries eight reasoning sessions before giving up, and that retry loop is the ten
+minutes. At 83 cases that is 14+ hours in which every case fails, against roughly 4 hours of real
+answers on macOS.
+
+**Why generation fails.** The framework loads and reports `availability: available`; generation dies
+in Apple's `ModelManagerError 1026`. Verified with a bare `FoundationModels` probe with no app code
+involved: the same probe on the host Mac reports available **and generates real text**, so the machine
+is capable and provisioned. Ruled out: locale (`en_US` both sides), a wedged model catalog (erasing
+the simulator removed those errors entirely), and the app's own guards (the failure reproduces with
+them removed). Apple's forums document this error pair; the remedy is toggling Apple Intelligence off,
+restarting the Mac, and turning it back on. **The owner declined**, reasonably, because this is
+developer convenience and nothing the shipping app depends on. Do not spend a session on it.
+
+**The trap.** With a single document and a simple query the pipeline falls back to extractive quickly
+and looks fine. The escalation only appears at a realistic pool size, so a one-document smoke test
+will tell you the Simulator works.
+
+**Consequence for the three simulator guards.**
+`LLMService.AppleFoundationLLMService.isAvailable` and `RAGService.checkDeviceCapabilities` hardcode
+unavailability under `#if targetEnvironment(simulator)`, with reasons like "Foundation Models not
+available in Simulator". Availability is actually reported *available*, so the stated reason is wrong
+while the behaviour it produces is right: without the guards the app attempts generation, fails, and
+is slower and noisier for it. They were removed and reverted twice on 2026-08-12. Leave them until
+AFM generates in the Simulator, then remove all three together. This is also the whole answer to "why
+does the chat header say `Hybrid - Unavailable`": that pill reads `supportsFoundationModels` from
+`checkDeviceCapabilities`, so on a simulator it reports a compile-time constant rather than anything
+about the machine.
+
+**Revisit when** any Xcode or macOS update lands. Re-run the bare probe; if it generates, moving the
+benchmark to the Simulator becomes correct and worth doing immediately. The change is contained to
+`run_one` in `scripts/run_quality_matrix.py`, which drives the macOS binary directly and would instead
+need `xcrun simctl launch --console-pty <udid> <bundle-id> --args ...` with the same stdout parsing.
+
+`[evidence_level: measured, confidence: exact, evidence_source: bare FoundationModels probe on host vs
+iOS 27 simulator; one full case at --pool-limit 10 on each target]`

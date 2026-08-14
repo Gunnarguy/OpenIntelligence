@@ -39,18 +39,158 @@ The short version as of 2026-08-13:
 | The fixture corpora | `Benchmarks/ResearchFixtures/`, one README per pack |
 | Roadmap rows for outstanding work | Notion, via the `notion-roadmap` skill |
 
-### The three scripts
+### The scripts
 
 ```bash
 python3 scripts/build_external_fixtures.py --check    # verify the external corpus, offline
 python3 scripts/build_eval_dataset.py --check         # verify the JSONL matches the manifests
 python3 scripts/run_quality_matrix.py --app <app> ... # run a benchmark
 python3 scripts/save_benchmark_summary.py <run-dir>   # commit the result so it survives
+python3 scripts/sweep_fusion_weight.py <run-dir>      # re-score other fusion weights, no run
+python3 scripts/compare_runs.py <baseline> <candidate>  # paired case-by-case comparison
 ```
+
+**Compare two runs paired, not as two averages.** These fixtures are a fixed ordered list, so two
+runs over the same manifest answer the same questions. The useful question is not whether the mean
+moved but on how many individual questions the change won and lost, which is an exact sign test on
+the discordant pairs. That is the analysis that produced the only statistically meaningful retrieval
+finding here, RRF fusion losing to the lexical arm 26 to 6 at p = 0.0005. Pairing also rescues an
+interrupted run: 40 of 83 cases cannot be compared to an 83-case average, but is perfectly valid
+against the same 40 baseline cases. `compare_runs.py` reports the cases a change **broke** before
+the ones it fixed, because those are the ones worth reading.
+
+The heading used to carry a count. It was wrong by one before this line was added, which is the
+same drift that took the release-note entry count from 46 to 74 to 87 in a single day. Counts in
+prose go stale; the list below them does not.
 
 **Always run `save_benchmark_summary.py` and commit its output.** `BenchmarkRuns/` is gitignored, so
 a run that is not summarised did not happen as far as the next person is concerned. That was true of
 every run this project made before 2026-08-12.
+
+### Answering a fusion-weight question without spending a run
+
+A run costs about 4.7 hours and pins the machine. The hybrid fusion weight does not need one:
+`RAGEngine.reciprocalRankFusion` is a pure function of the two arms' rank orders, the weight, and
+`k = 60` (both call sites, `HybridSearchService.swift:276` and `:1075`). The harness records both
+arms in rank order, so the fusion can be replayed for any weight in seconds.
+
+```bash
+python3 scripts/sweep_fusion_weight.py BenchmarkRuns/<run> --weights 0.0:1.0:0.05
+```
+
+Three things bound what that can tell you, and all three matter.
+
+**It measures retrieval, not answers.** Accuracy cannot be recomputed offline, because generation
+ran once against one selection of chunks. Use the sweep to choose a weight, then spend a single
+confirming run on that weight instead of one run per candidate.
+
+**It refuses to emit an uncalibrated curve.** Before sweeping, it replays the fusion at the weight
+the run actually used and checks the result against the app's own recorded `fusion` stage twice:
+the rank order chunk by chunk, and the recomputed metrics against the Swift `STAGE METRICS` row.
+Below either threshold it fails loudly instead of printing numbers. This is the answer to the
+objection in `run_quality_matrix.parse_stage_metrics`, which is right that a second metric
+implementation drifts: this one is checked against the first on every invocation.
+
+**Runs recorded before 2026-08-13 cannot be swept at all.** `STAGE SOURCES` emitted display names
+until then, and `sourceDocument` is attached after hybrid search returns, so `vector`, `lexical`,
+`fusion`, `boosted` and `candidates` all recorded `(unnamed)`. Those five stages were unverifiable
+by hand for the same reason. It now emits `<chunkId>#<documentId>#<name>`: chunk identity because
+fusion keys on `chunk.id`, document identity because relevance is judged per document.
+
+`[evidence_level: code_verified, confidence: exact, evidence_source: DebugRAGValidationHarness.swift
+stageMetricsLines; RAGEngine.swift:899-956; sweep_fusion_weight.py --self-test]`
+
+### Which stage actually earns its place, measured 2026-08-14
+
+Every stage transition tested on the **existing** `BenchmarkRuns/qasper-overnight` artifact, 72
+answerable cases, paired, exact two-sided sign test on discordant pairs. **No new run was needed.**
+The answer had been sitting on disk since 2026-08-12; nobody had asked the artifact this question.
+
+| transition | better | worse | p | verdict |
+| :--- | ---: | ---: | ---: | :--- |
+| `lexical` -> `fusion` | 6 | 26 | **0.0005** | fusion significantly hurts |
+| `fusion` -> `boosted` | 22 | 21 | 1.0000 | no effect whatsoever |
+| `boosted` -> `candidates` | 0 | 0 | 1.0000 | pure truncation, reorders nothing |
+| `candidates` -> `rerank` | 29 | 15 | **0.0488** | reranking significantly helps |
+| `rerank` -> `final` | 16 | 25 | 0.2110 | not significant |
+| `lexical` -> `final` | 16 | 21 | 0.5114 | not significant |
+
+**This reproduces the fusion finding independently.** 26 to 6 at p = 0.0005 is the same result
+recorded from the original analysis, arrived at through separate code, which is the first time any
+finding here has been confirmed twice.
+
+**The cross-encoder reranker is the only stage with demonstrated value.** It is also the stage most
+often proposed for removal on latency grounds. Do not remove it.
+
+**The structure and keyword boost stage buys nothing.** It reorders 43 of 72 cases and wins on
+almost exactly half of them. Mean result count is identical either side (190.7), so it is pure
+reordering, and `R@10` actually falls slightly across it, 0.792 to 0.764. It is the cleanest
+deletion candidate in the pipeline, and removing it is measurable rather than a matter of taste.
+
+**Do not read the mean MRR column and conclude `final` is losing what `rerank` gained.** Means say
+0.626 to 0.549 and the paired test says p = 0.211. That conclusion was drawn and withdrawn on
+2026-08-14 within the hour. Truncation is not the mechanism either: `R@10` barely moves, 0.819 to
+0.806, while the list goes from 90 chunks to 8.
+
+`[evidence_level: measured, confidence: exact, evidence_source: BenchmarkRuns/qasper-overnight
+results.jsonl, 83 cases / 72 answerable; scripts/compare_runs.py exact_sign_test]`
+
+### The optimal dense weight is zero, swept 2026-08-14
+
+Offline fusion sweep over the completed `qasper-postfix-20260813` run, 68 of 83 cases sweepable.
+Cost seconds, not the 4.7 hours a second benchmark run would have cost. Run twice, at 58 cases
+mid-run and 68 at completion, and the shape and conclusion were identical both times.
+
+**Calibration passed first:** the effective weight was recovered per case by fitting each recorded
+`fusion` order, giving a median of **0.49** with a range of 0.00 to 0.62, and a median top-10 order
+agreement of **100%**. That the recovered weights land inside the [0.35, 0.65] clamp is independent
+confirmation that the replay models the real fusion rather than approximating it.
+
+| dense weight | MRR@10 | R@1 | R@5 | R@10 |
+| ---: | ---: | ---: | ---: | ---: |
+| **0.00** | **0.6416** | 0.5735 | 0.6912 | 0.8088 |
+| 0.10 | 0.6224 | 0.5441 | 0.7206 | 0.7794 |
+| 0.30 | 0.6128 | 0.5294 | 0.6912 | 0.7794 |
+| 0.50 | 0.5503 | 0.4706 | 0.6618 | 0.7500 |
+| 0.70 | 0.4240 | 0.3382 | 0.5294 | 0.6471 |
+| 1.00 | 0.2798 | 0.1765 | 0.4265 | 0.5441 |
+
+**Monotonic.** Every increase in the dense arm's share makes retrieval worse. Moving from the app's
+effective 0.49 to 0.00 takes MRR@10 from 0.550 to 0.642, a **17% relative gain**. This extends the
+earlier sign-test finding from "fusion loses to lexical" to "no mixture beats lexical alone".
+
+**32 of 68 cases calibrated below 95% order agreement** even though the median was 100%, so the
+replay is not equally faithful everywhere. That is the single biggest reason to confirm this with
+one real run at a pinned `--vector-weight 0.0` before changing the product default.
+
+**Four constraints on that claim, none of them small.**
+
+1. **Retrieval only.** Answer accuracy cannot be recomputed offline, because generation ran once
+   against one selection of chunks. This picks a weight; it does not prove the answer improves.
+2. **27 of 58 cases calibrated below 95% order agreement**, even though the median is 100%. The
+   replay is not equally faithful everywhere, and cases where it is poor contribute noise.
+3. **`w = 0.00` is a special case worth distrusting slightly.** With the dense arm contributing
+   nothing, every vector-only chunk scores exactly zero and ties, which is why the tie count jumps
+   to 121 there. The top ten remain lexically ordered and well defined, and the resulting MRR
+   matches the `lexical` stage figure closely, which is the reassuring cross-check.
+4. **It says nothing about the embedder question.** A dense arm this weak is the argument *for*
+   replacing MiniLM, not against having one. Zeroing the weight banks the gain now; it does not
+   settle whether a better embedder would earn its share back.
+
+`[evidence_level: measured, confidence: high, evidence_source: scripts/sweep_fusion_weight.py over
+BenchmarkRuns/qasper-postfix-20260813, 58 sweepable cases, calibration median 100% order agreement]`
+
+### Do not do heavy file work while a run is measuring
+
+Measured 2026-08-14, unintentionally. Per-case wall clock in one run: **461s for cases 1 to 10, 462s
+for 11 to 20, then 277s for 21 to 30**, against a 209s baseline. Nothing in the code changed. What
+changed is that the agent driving the session stopped making large file copies (a 315 MB library
+backup and two full repository rsyncs) on a machine already syncing `~/Documents` through iCloud.
+
+A 40% swing with no code change is larger than most retrieval work will ever produce. Two
+consequences: treat per-case seconds from a run that shared its machine as unusable for comparing
+code, and keep the machine otherwise idle when latency is the thing being measured. `compare_runs.py`
+prints a warning next to its timing line for exactly this reason.
 
 ### Two things that will mislead you
 
