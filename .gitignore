@@ -169,6 +169,16 @@ test_extension.swift
 *.pdf
 
 # Debug/ingestion log dumps (local debugging only)
+#
+# Root-level .txt only, which is where device console captures get dropped. This replaces the
+# habit of adding each capture by name: the list below grew to two dozen one-off filenames and
+# still missed the next one. Nothing tracked lives at the root as .txt, and documentation is under
+# Docs/, so the pattern cannot swallow anything that matters. If a root .txt ever should be
+# tracked, `git add -f` it deliberately.
+#
+# These captures are worth keeping locally and not committing: they run to several MB, and they
+# carry container UUIDs, the bundle id, and whatever document names were in the library.
+/*.txt
 LOGSFROMINGESTION.TXT
 Latestingestion.txt
 Latestingestion1.txt
