@@ -11833,6 +11833,26 @@ class RAGService: ObservableObject {
                 // order is what makes the labels correct: rescue labels start at `assembled.used`,
                 // which is exactly where the prefix ends.
                 let includedRetrievedChunks = promptSources + rescuedChunks
+
+                // The citation map: which document each [Sn] the model was shown actually resolves
+                // to. Nothing printed this, which is why labels could point at the wrong document
+                // for an unknown length of time while every guard passed: the indices were in
+                // range, the chunks were real, and only the mapping was wrong. With this line a
+                // cited answer can be checked against its sources by reading one log entry.
+                if !includedRetrievedChunks.isEmpty {
+                    let map = includedRetrievedChunks.enumerated().map { index, chunk -> String in
+                        let name = URL(fileURLWithPath: chunk.sourceDocument).lastPathComponent
+                        let page = chunk.pageNumber.map { " p.\($0)" } ?? ""
+                        let section = chunk.chunk.metadata.sectionTitle
+                            .map { " \($0)" } ?? ""
+                        return "S\(index + 1)=\(name.isEmpty ? "?" : name)\(page)\(section)"
+                    }.joined(separator: " | ")
+                    Log.info(
+                        "[RAG] Citation map (\(includedRetrievedChunks.count) sources"
+                            + "\(rescuedChunks.isEmpty ? "" : ", \(rescuedChunks.count) via rescue")): \(map)",
+                        category: .retrieval
+                    )
+                }
                 // let precisionLookupCandidates = buildPrecisionLookupCandidates(
                 //     included: includedRetrievedChunks,
                 //     ordered: orderedCandidates,

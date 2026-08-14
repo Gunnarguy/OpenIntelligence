@@ -1083,10 +1083,31 @@ class HybridSearchService {
         let anchorAdjustedResults = applyStateLookupAnchorBoost(query: originalQuery, results: structureBoostedResults)
 
         let elapsed = CFAbsoluteTimeGetCurrent() - startTime
-        let fts5OnlyHits = fts5KeywordResults.filter { r in !vectorResults.contains(where: { $0.chunk.id == r.chunk.chunk.id }) }.count
-        Log.debug(
-            "[Hybrid] True parallel search completed in \(String(format: "%.1f", elapsed * 1000))ms — " +
-            "\(vectorResults.count) vector + \(fts5ChunkResults.count) FTS5 + \(structuredRowResults.count) row hits (\(fts5OnlyHits) lexical-only)",
+        let fts5ChunkIds = Set(fts5KeywordResults.map { $0.chunk.chunk.id })
+        let vectorChunkIds = Set(vectorResults.map { $0.chunk.id })
+        let fts5OnlyHits = fts5KeywordResults.filter { !vectorChunkIds.contains($0.chunk.chunk.id) }.count
+        // The counterpart to `fts5OnlyHits`, which existed alone and made the fusion weight
+        // impossible to reason about from a device log. Knowing what lexical uniquely found
+        // without knowing what dense uniquely found answers half of one question.
+        //
+        // The two numbers invert between real libraries, which is why a single global weight is
+        // the wrong shape. Captured 2026-08-14 on device: a manuals corpus produced 120 vector +
+        // 60 FTS5 with 57 lexical-only, while a research corpus asked "the role of serotonin
+        // signalling" produced 140 vector + 6 FTS5, because "serotonin" appears in 51% of chunks
+        // and discriminates nothing. Zeroing the dense arm would have been right for the first and
+        // ruinous for the second.
+        let vectorOnlyHits = vectorResults.filter { !fts5ChunkIds.contains($0.chunk.id) }.count
+
+        // Info, not debug. The effective weight is per query (container preset, plus the intent
+        // delta, then the clamp), and it appeared zero times in a 333KB device capture because it
+        // was logged at debug on the way in. A weight you cannot see is a weight you cannot tune.
+        Log.info(
+            "[Hybrid] Search completed in \(String(format: "%.1f", elapsed * 1000))ms: " +
+            "\(vectorResults.count) vector + \(fts5ChunkResults.count) FTS5 + " +
+            "\(structuredRowResults.count) row hits • " +
+            "unique: \(vectorOnlyHits) vector-only, \(fts5OnlyHits) lexical-only • " +
+            "fusion weights: vector \(String(format: "%.2f", vectorWeight)) / " +
+            "lexical \(String(format: "%.2f", keywordWeight))",
             category: .pipeline
         )
 
