@@ -2,7 +2,16 @@
 
 Updated: 2026-08-13
 Branch/worktree: main, primary checkout
-Last verified commit: e29fee0. **Everything is committed and pushed. Tree clean. Only `main` exists.**
+Last verified commit: e83a773
+
+**Everything is committed and pushed. Tree clean. Only `main` exists.**
+
+<!-- Keep the line above as the bare short SHA and nothing else. The SessionStart hook parses it
+     with `sed` then strips all whitespace, so prose appended after the SHA is swallowed into it and
+     the hook reports STATE.md as stale against a commit that does not exist. That false warning
+     fired every session on 2026-08-13. The rule is documented in
+     .claude/skills/project-handoff/SKILL.md. -->
+
 
 ## Read this first
 
