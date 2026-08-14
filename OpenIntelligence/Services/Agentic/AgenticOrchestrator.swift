@@ -4011,11 +4011,22 @@ extension AgenticOrchestrator {
             )
             var ctx = extraction.context
 
-            // FALLBACK: If keyword extraction returned nothing (common when cross-reference
+            // FALLBACK: If keyword extraction returned nothing useful (common when cross-reference
             // chunks don't contain the original query's keywords), use raw chunk content.
             // These chunks were retrieved by the vector/reranker pipeline for relevance,
             // so they're worth including even if keyword matching is too strict.
-            if ctx.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !windowChunks.isEmpty {
+            //
+            // The test is "too small to reason over", not "empty". It was `isEmpty`, and a device
+            // log shows what that let through: extraction returned the section label
+            // `[S1] 4 Reprocessing` followed by the source filename, 67 characters against a
+            // 3000+ character budget, carrying no document content at all. That is not empty, so
+            // this fallback never fired, and Deep Think ran eight sessions over the document's
+            // table of contents. Its insights degenerated to "[S1] contains a section titled" and
+            // the final generation failed to parse. A context that cannot answer anything should
+            // be replaced by raw chunk text for the same reason an empty one is.
+            let trimmedCtx = ctx.trimmingCharacters(in: .whitespacesAndNewlines)
+            let minimumUsefulContext = max(200, contextBudget / 8)
+            if trimmedCtx.count < minimumUsefulContext && !windowChunks.isEmpty {
                 var rawContext = ""
                 for (idx, wc) in windowChunks.enumerated() {
                     let content = wc.chunk.parentContent ?? wc.chunk.content
@@ -4026,7 +4037,7 @@ extension AgenticOrchestrator {
                     }
                 }
                 ctx = rawContext
-                Log.debug("[ReasoningChain] Session \(sessionContexts.count + 1): keyword extraction empty, using raw chunk content (\(ctx.count) chars)", category: .retrieval)
+                Log.debug("[ReasoningChain] Session \(sessionContexts.count + 1): keyword extraction returned \(trimmedCtx.count) chars, below the \(minimumUsefulContext) needed; using raw chunk content (\(ctx.count) chars)", category: .retrieval)
             } else {
                 Log.debug("[ReasoningChain] Session \(sessionContexts.count + 1): \(extraction.sentencesIncluded) sentences from \(extraction.sourcesUsed) sources (\(ctx.count) chars)", category: .retrieval)
             }
@@ -4380,7 +4391,8 @@ extension AgenticOrchestrator {
                 // otherwise a contaminated insight becomes the next session's PRIOR
                 // FINDINGS and teaches the next model to produce the same thing.
                 insight = stripPromptEchoAndToolNoise(
-                    from: extractInsight(from: successResponse.text, maxLength: config.maxInsightLength)
+                    from: extractInsight(from: successResponse.text, maxLength: config.maxInsightLength),
+                    systemPrompt: systemPrompt
                 )
             }
 
@@ -7295,9 +7307,46 @@ extension AgenticOrchestrator {
     /// so salvage it rather than throwing away the session's work. Left unsanitized
     /// it also cascades: a contaminated insight becomes the next session's PRIOR
     /// FINDINGS and teaches the next model the same shape.
-    private func stripPromptEchoAndToolNoise(from text: String) -> String {
+    private func stripPromptEchoAndToolNoise(from text: String, systemPrompt: String? = nil) -> String {
         var result = text.trimmingCharacters(in: .whitespacesAndNewlines)
         var strippedEnvelope = false
+
+        // 0a. Drop a leading echo of this session's own instructions.
+        //
+        // Device evidence, 2026-08-13: two Deep Think sessions recorded
+        //   "You are a document analyst. Describe what these documents add about:"
+        // as their insight. That is the session's own role instruction, not a finding. It
+        // survived every rule below because those hunt JSON, tool calls and markup, and this
+        // came back as ordinary prose. It then became the next session's PRIOR FINDINGS and was
+        // condensed into the final generation prompt, which is the cascade this function exists
+        // to stop.
+        //
+        // Matched by token overlap against the real system prompt rather than by literal prefix,
+        // because what returned was a paraphrase: the prompt says "add beyond the prior findings"
+        // and the echo said "add about". Bounded to two leading sentences and to short ones, so a
+        // genuine finding that happens to reuse the prompt's vocabulary cannot be eaten.
+        if let systemPrompt, !systemPrompt.isEmpty {
+            func meaningfulWords(_ text: String) -> Set<String> {
+                Set(
+                    text.lowercased()
+                        .split(whereSeparator: { !$0.isLetter })
+                        .map(String.init)
+                        .filter { $0.count > 2 }
+                )
+            }
+            let promptWords = meaningfulWords(systemPrompt)
+            var stripped = 0
+            while stripped < 2,
+                  let sentenceEnd = result.firstIndex(where: { $0 == "." || $0 == "\n" }) {
+                let head = meaningfulWords(String(result[..<sentenceEnd]))
+                guard !head.isEmpty, head.count <= 24,
+                      Double(head.intersection(promptWords).count) / Double(head.count) >= 0.7
+                else { break }
+                result = String(result[result.index(after: sentenceEnd)...])
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                stripped += 1
+            }
+        }
 
         // 0. Strip model-markup wrappers before anything else. Device runs showed
         //    eight of twelve Maximum sessions producing an insight that opened with

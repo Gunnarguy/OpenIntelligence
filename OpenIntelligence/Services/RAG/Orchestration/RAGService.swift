@@ -2950,6 +2950,30 @@ class RAGService: ObservableObject {
             return tokens
         }
 
+        /// Crude suffix stripper, applied identically to both sides of every comparison.
+        ///
+        /// This is not linguistics, it is agreement. FTS5 indexes with `porter unicode61`, so
+        /// retrieval matches "reprocessed" and "reprocess" to a query saying "reprocessing".
+        /// Sentence selection below then compared raw substrings, so it discarded the very
+        /// sentences retrieval had just found and kept only lines containing the literal query
+        /// token. On a numbered technical manual the only such line is the section heading, which
+        /// is how an eight-session Deep Think chain came to reason over a table of contents.
+        ///
+        /// Symmetry is what matters here, not correctness: over-stemming "series" to "seri" costs
+        /// nothing as long as the query side is stemmed the same way. The 4-character floor stops
+        /// short words collapsing into each other.
+        func lexicalStem(_ token: String) -> String {
+            var stem = token
+            // Longest first, so "ing" cannot pre-empt "ingly" and "s" cannot pre-empt "ies".
+            for suffix in ["ingly", "edly", "ings", "ing", "ies", "ied", "ed", "es", "s"] {
+                if stem.count - suffix.count >= 4, stem.hasSuffix(suffix) {
+                    stem.removeLast(suffix.count)
+                    break
+                }
+            }
+            return stem
+        }
+
         // Extract discriminative query keywords
         let queryLower = query.lowercased()
         let queryKeywords = queryLower
@@ -2961,6 +2985,8 @@ class RAGService: ObservableObject {
             return .empty
         }
         let queryWordSet = Set(queryKeywords)
+        // Parallel to `queryKeywords` by index, so a keyword can hit on either form.
+        let queryStems = queryKeywords.map(lexicalStem)
 
         func sentenceScore(
             line: String,
@@ -2980,14 +3006,24 @@ class RAGService: ObservableObject {
                 }
             }
 
-            var directHits = 0
-            for keyword in queryKeywords where lineLower.contains(keyword) {
-                directHits += 1
-            }
+            // A keyword hits on the raw substring, which is what this always did, or on a stem
+            // match, which is new. Additive on purpose: every line that scored before still
+            // scores, and lines that previously failed only on inflection now score too. That
+            // asymmetry between a stemmed index and an unstemmed filter is what emptied the
+            // reasoning context on device.
+            let lineStems = Set(lineWords.map(lexicalStem))
+            let headingStems = Set(meaningfulSentenceTokens(from: headingLower).map(lexicalStem))
 
+            var directHits = 0
             var headingHits = 0
-            for keyword in queryKeywords where headingLower.contains(keyword) {
-                headingHits += 1
+            for (index, keyword) in queryKeywords.enumerated() {
+                let stem = queryStems[index]
+                if lineLower.contains(keyword) || lineStems.contains(stem) {
+                    directHits += 1
+                }
+                if headingLower.contains(keyword) || headingStems.contains(stem) {
+                    headingHits += 1
+                }
             }
 
             let totalKeywordHits = directHits + headingHits
@@ -3050,12 +3086,31 @@ class RAGService: ObservableObject {
             // Track the most recent heading-like line for context inheritance.
             // A "heading" is a short line (≤80 chars) without numbers that acts
             // as a section label in spec tables.  Universal across all documents.
-            var currentHeading = ""
+            // Seed from the section the chunker already resolved, rather than starting blank and
+            // hoping a text heuristic rediscovers it. `sectionTitle` is the same field FTS5 ranks
+            // at a bm25 weight of 10.0, so it is already trusted elsewhere in the pipeline; this
+            // function was the one place re-deriving it from raw text. The heuristic below still
+            // runs, and still wins for chunks whose own section is absent or that span sections.
+            var currentHeading = candidate.chunk.metadata.sectionTitle?
+                .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
 
             for (lineIdx, rawLine) in rawLines.enumerated() {
-                // Detect heading lines: short, no trailing numbers, typically labels
+                // Detect heading lines: short labels, not data rows.
+                //
+                // The digit test is applied to the line with any leading section number removed.
+                // Applying it to the whole line rejected every heading in a numbered technical
+                // document: "4 Reprocessing" and "4.5.1 Overview" both contain digits, so neither
+                // became `currentHeading`, and no sentence beneath them could inherit the section's
+                // keywords. That is half of why a query whose answer sat under "4 Reprocessing"
+                // retrieved the section and then passed only its title downstream.
+                let headingBody = rawLine.replacingOccurrences(
+                    of: #"^\d+(?:\.\d+)*[.)]?\s+"#,
+                    with: "",
+                    options: .regularExpression
+                )
                 let isHeading = rawLine.count <= 80
-                    && rawLine.rangeOfCharacter(from: .decimalDigits) == nil
+                    && !headingBody.isEmpty
+                    && headingBody.rangeOfCharacter(from: .decimalDigits) == nil
                     && !rawLine.contains("|")
                     && !rawLine.hasSuffix(".")
 
@@ -15353,15 +15408,57 @@ class RAGService: ObservableObject {
                 isRateLimited = errorDesc.lowercased().contains("rate") || errorDesc.contains("concurrent")
             }
             if isRateLimited {
-                Log.info("[RAG] Primary LLM rate-limited — waiting 2s before retry", category: .llm)
-                try? await Task.sleep(for: .seconds(2))
-                do {
-                    let retryResponse = try await attempt(service: _llmService)
-                    Log.info("[RAG] Primary LLM retry succeeded after rate-limit backoff", category: .llm)
-                    return retryResponse
-                } catch {
-                    Log.warning("[RAG] Primary LLM retry also failed after backoff: \(error.localizedDescription)", category: .llm)
+                // Escalating backoff, because a flat one did not work.
+                //
+                // This was a single retry after 2 seconds, resending an identical prompt. A device
+                // log from 2026-08-13 shows why that fails: Deep Think fired **16 generations** for
+                // one question and Apple FM rate-limited four times. The last generation is the
+                // answer, so the user waited through eight reasoning sessions and then lost the
+                // query with all its evidence already gathered. Two seconds does not clear a
+                // throttle that has not expired, and resending the same prompt at the same
+                // temperature changes nothing about why it was refused.
+                //
+                // Do NOT stop the ladder when a retry fails with something other than a rate-limit
+                // error. The observed retry failure was `ParsingError` carrying "Session ended
+                // without producing a response", which is what a still-throttled on-device session
+                // looks like from the outside, not a malformed prompt. Treating that as a
+                // permanent failure is exactly the bug being fixed. We only reach this branch
+                // because the *original* error was a rate limit, so the ladder runs to completion.
+                //
+                // Worst case adds 19 seconds to a query that already spent minutes in the chain.
+                let backoffSeconds: [Int] = [2, 5, 12]
+                for (index, delay) in backoffSeconds.enumerated() {
+                    Log.info(
+                        "[RAG] Primary LLM rate-limited: waiting \(delay)s before retry "
+                            + "\(index + 1)/\(backoffSeconds.count)",
+                        category: .llm
+                    )
+                    try? await Task.sleep(for: .seconds(delay))
+                    // Explicit, because `try?` above swallows cancellation. At 2 seconds that was
+                    // survivable; across a 19 second ladder a cancelled query would otherwise keep
+                    // issuing generations after the user moved on.
+                    if Task.isCancelled { throw CancellationError() }
+                    do {
+                        let retryResponse = try await attempt(service: _llmService)
+                        Log.info(
+                            "[RAG] Primary LLM retry \(index + 1) succeeded after "
+                                + "\(backoffSeconds.prefix(index + 1).reduce(0, +))s of backoff",
+                            category: .llm
+                        )
+                        return retryResponse
+                    } catch {
+                        Log.warning(
+                            "[RAG] Primary LLM retry \(index + 1)/\(backoffSeconds.count) failed: "
+                                + "\(error.localizedDescription)",
+                            category: .llm
+                        )
+                    }
                 }
+                Log.warning(
+                    "[RAG] Primary LLM still failing after \(backoffSeconds.reduce(0, +))s of "
+                        + "escalating backoff; falling through to fallback services",
+                    category: .llm
+                )
             }
 
             // Check if it's a Jinja template error (common with some GGUF models)
