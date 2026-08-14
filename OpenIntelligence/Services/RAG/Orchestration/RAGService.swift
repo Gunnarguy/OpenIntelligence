@@ -2864,7 +2864,17 @@ class RAGService: ObservableObject {
         let sourcesUsed: Int
         let sentencesIncluded: Int
 
-        nonisolated static let empty = SentenceExtractionResult(context: "", sourcesUsed: 0, sentencesIncluded: 0)
+        /// Indices into the `candidates` array whose sentences actually reached the context.
+        ///
+        /// Needed because a caller that labels these sources `[Sn]` must also be able to attach the
+        /// same chunks to the response. Returning only a count let the needle-rescue path put
+        /// sentences from dropped chunks into the prompt while the response carried none of them,
+        /// so any citation the model made against those sentences resolved to nothing.
+        let usedSourceIndices: [Int]
+
+        nonisolated static let empty = SentenceExtractionResult(
+            context: "", sourcesUsed: 0, sentencesIncluded: 0, usedSourceIndices: []
+        )
     }
 
     /// Extracts query-relevant sentences from ALL candidate chunks and packs them
@@ -2878,7 +2888,8 @@ class RAGService: ObservableObject {
         query: String,
         maxChars: Int,
         compact: Bool,
-        isExtractiveFirst: Bool = false
+        isExtractiveFirst: Bool = false,
+        labelOffset: Int = 0
     ) async -> SentenceExtractionResult {
         let extractionTask = Task.detached(priority: .utility) {
             Self.extractRelevantSentencesOffMain(
@@ -2886,7 +2897,8 @@ class RAGService: ObservableObject {
                 query: query,
                 maxChars: maxChars,
                 compact: compact,
-                isExtractiveFirst: isExtractiveFirst
+                isExtractiveFirst: isExtractiveFirst,
+                labelOffset: labelOffset
             )
         }
 
@@ -2902,7 +2914,8 @@ class RAGService: ObservableObject {
         query: String,
         maxChars: Int,
         compact: Bool,
-        isExtractiveFirst: Bool
+        isExtractiveFirst: Bool,
+        labelOffset: Int = 0
     ) -> SentenceExtractionResult {
         if Task.isCancelled {
             return .empty
@@ -3288,10 +3301,10 @@ class RAGService: ObservableObject {
                 }
                 if compact {
                     let filename = URL(fileURLWithPath: sentence.sourceDoc).lastPathComponent
-                    sourceLabels[sentence.sourceIndex] = "[S\(sentence.sourceIndex + 1)]\(sectionTag) (\(filename))"
+                    sourceLabels[sentence.sourceIndex] = "[S\(sentence.sourceIndex + 1 + labelOffset)]\(sectionTag) (\(filename))"
                 } else {
                     let page = sentence.pageNumber.map { " p.\($0)" } ?? ""
-                    sourceLabels[sentence.sourceIndex] = "[S\(sentence.sourceIndex + 1)]\(sectionTag) \(sentence.sourceDoc)\(page)"
+                    sourceLabels[sentence.sourceIndex] = "[S\(sentence.sourceIndex + 1 + labelOffset)]\(sectionTag) \(sentence.sourceDoc)\(page)"
                 }
             }
             sourceBuffers[sentence.sourceIndex, default: []].append(displayText)
@@ -3354,7 +3367,9 @@ class RAGService: ObservableObject {
         return SentenceExtractionResult(
             context: builder,
             sourcesUsed: sourcesUsed.count,
-            sentencesIncluded: sentenceCount
+            sentencesIncluded: sentenceCount,
+            // Sorted so the order matches the labels, which ascend with the source index.
+            usedSourceIndices: sourcesUsed.sorted()
         )
     }
 
@@ -11679,6 +11694,11 @@ class RAGService: ObservableObject {
                 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
                 let context: String
                 let actualChunksUsed: Int
+                // Chunks whose sentences reached the prompt via needle rescue but which are not in
+                // the packed prefix. They must be attached to the response, because the prompt
+                // gives them citation labels and a label the response cannot resolve is a dead
+                // reference in front of the user.
+                var rescuedChunks: [RetrievedChunk] = []
 
                 if answerIntentIsExtractive && !isProceduralQuery {
                     let extractionResult = await extractRelevantSentences(
@@ -11754,9 +11774,20 @@ class RAGService: ObservableObject {
                             query: question,
                             maxChars: remainingBudget,
                             compact: true,  // Always compact for rescue sentences to maximize density
-                            isExtractiveFirst: answerIntentIsExtractive
+                            isExtractiveFirst: answerIntentIsExtractive,
+                            // Continue the packed block's numbering instead of restarting at [S1].
+                            // Both blocks land in one prompt, so restarting produced two different
+                            // chunks both labelled [S1]. A device trace on 2026-08-14 shows the
+                            // consequence: four packed sources followed by rescue sources numbered
+                            // from one again, and an answer citing [S5] and [S6], which are the
+                            // fifth and sixth sources the model was shown and which resolved to
+                            // nothing downstream.
+                            labelOffset: assembled.used
                         )
                         if rescueResult.sentencesIncluded > 0 {
+                            rescuedChunks = rescueResult.usedSourceIndices.compactMap {
+                                droppedChunks.indices.contains($0) ? droppedChunks[$0] : nil
+                            }
                             assembledContext += "\n---\n" + rescueResult.context
                             Log.info("[RAG] Needle rescue: +\(rescueResult.sentencesIncluded) sentences from \(rescueResult.sourcesUsed) dropped chunks (\(rescueResult.context.count) chars)", category: .retrieval)
                         }
@@ -11789,7 +11820,11 @@ class RAGService: ObservableObject {
                 // BUGFIX: Use orderedCandidates (post-sort) not contextCandidates (pre-sort).
                 // Previously, spec prioritization sorted candidates but the slicing used the
                 // original unsorted array, so fuse-box tables could be selected over oil specs.
-                let includedRetrievedChunks = Array(orderedCandidates.prefix(actualChunksUsed))
+                // The packed prefix plus anything needle rescue contributed. Appending in this
+                // order is what makes the labels correct: rescue labels start at `assembled.used`,
+                // which is exactly where the prefix ends.
+                let includedRetrievedChunks =
+                    Array(orderedCandidates.prefix(actualChunksUsed)) + rescuedChunks
                 // let precisionLookupCandidates = buildPrecisionLookupCandidates(
                 //     included: includedRetrievedChunks,
                 //     ordered: orderedCandidates,
