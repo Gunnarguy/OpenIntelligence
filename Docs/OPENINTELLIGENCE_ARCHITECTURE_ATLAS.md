@@ -304,3 +304,48 @@ The subsystem that measures retrieval, kept separate here because it is the only
 - **Identity is the load-bearing part.** `STAGE SOURCES` carries `<chunkId>#<documentId>#<name>`. Chunk identity is required because `RAGEngine.reciprocalRankFusion` keys on `chunk.id`; document identity is required because relevance is judged per document. Emitting only the display name left the five pre-rerank stages recording `(unnamed)`, since `sourceDocument` is attached by `RAGService` after hybrid search returns, which made those stages unverifiable by hand while the metrics computed from them stayed correct. `[evidence: code_verified, exact, DebugRAGValidationHarness.swift stageMetricsLines; RAGEngine.swift:920]`
 - **Offline replay:** `scripts/sweep_fusion_weight.py` reconstructs weighted RRF from the two arms' recorded rank orders for any weight, so a fusion-weight question costs seconds rather than a 4.7-hour pipeline execution. It calibrates against the app's own recorded `fusion` stage before emitting anything and refuses to print a curve it cannot verify. `[evidence: code_verified, exact, sweep_fusion_weight.py; self-test run 2026-08-13]`
 - **Boundary:** this subsystem is developer tooling on the measurement side, but `RetrievalTraceCollector` and `RetrievalStageMetrics` compile into the app. `RAGEvalRunner` has zero call sites repo-wide, so the in-app half of evaluation cannot currently be invoked; every measurement goes through `run_quality_matrix.py` driving `DebugRAGValidationHarness`. `[evidence: code_verified, exact, repo-wide grep for RAGEvalRunner]`
+
+## 20. Agentic Execution Boundary, as built
+
+Recorded 2026-08-14. The three quality modes are a deliberate compute ladder and the boundary
+between them is by design; what this section records is what happens *inside* the two modes that are
+supposed to be agentic.
+
+- **Standard is single-shot on purpose, and that is correct.** One retrieval, chunks packed into a
+  character budget, one generation, `Agentic: NO`. It is the fast, cheap tier and it is not supposed
+  to reach for tools or re-retrieve. Do not read the items below as an argument for making it
+  agentic. `[evidence: code_verified, exact, device trace 2026-08-14 message D74F98E4; RAGService useAgentic gate]`
+- **Deep Think and Maximum are where the agentic loop is supposed to fire.** The rest of this section
+  is about those two modes only.
+- **The reasoning chain inside them is not agentic.** `executeReasoningChain` builds every session's
+  context **upfront**, in a loop that completes before session 1 runs, as fixed sliding windows over
+  a single retrieval. `disableToolsForSession = true` is hardcoded, so the model has no tools in any
+  session and cannot request anything. The registered exact-match tools (`count_pattern`,
+  `search_exact_pattern`) are therefore unreachable from a reasoning session.
+  `[evidence: code_verified, exact, AgenticOrchestrator.swift:4195 and the sessionContexts loop preceding it]`
+- **The one genuine loop is a fallback.** `executeRecursiveResearch` does implement the real thing:
+  it asks the model to decide, parses `.answer` or `.search(query)`, and re-retrieves on demand. It
+  has exactly one call site, reached only in an agentic mode, only after the full chain has
+  finished, and only when `answerIndicatesRetrievalMiss(chainResult.finalAnswer)` returns true. That
+  is a string heuristic over the answer text, and it has already been patched once for discarding a
+  91% confidence synthesis and preferring a raw evidence dump. A confidently wrong answer never
+  reaches the loop. `[evidence: code_verified, exact, AgenticOrchestrator.swift:620-627, :2418, :2748]`
+
+**The gap, stated precisely.** In Deep Think and Maximum, the modes that exist specifically to buy
+more compute, the extra compute is spent re-reading fixed slices of one retrieval rather than acting
+on it. Eight sessions with no tools over precomputed windows is more inference, not more agency. The
+loop that would make it agency is reachable only after those sessions finish and only if a regex
+over the final answer decides they failed.
+
+**A separate concern, not to be confused with the above.** Standard's context packing has its own
+defects, and they are packing defects rather than agency defects: the budget drops chunks past its
+limit, "Needle Rescue" scavenges sentences from the dropped ones into leftover space, and rescue
+labels its sources `[S1...]` over its own array while the packed chunks already use `[S1...]` over
+theirs. A device trace on 2026-08-14 shows an answer citing `[S5]` and `[S6]` against four attached
+chunks. Fixing that does not require making Standard agentic and should not be bundled with it.
+`Docs/RETRIEVAL_PIPELINE.md` item 13 records the related finding that sentence selection runs
+downstream of every stage the benchmark measures.
+
+**Not a recommendation.** Promoting the loop out of its fallback position, or giving reasoning
+sessions tools, is an architecture change in the highest-risk file in the repository, on a path with
+no test coverage. This section exists so that decision is made against what the code does.
