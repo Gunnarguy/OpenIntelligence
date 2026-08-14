@@ -841,6 +841,30 @@ struct LLMResponse {
                     guardrailViolation = violation
                     unsupportedLanguage = unsupported
                 }
+            } catch {
+                // Anything that is NOT a LanguageModelSession.GenerationError reached this point
+                // with nothing but its localizedDescription intact, and the pre-mapping log above
+                // never ran. That is why "Failed to parse generated content" has been undiagnosable:
+                // the one line designed to reveal Apple's actual reason sits behind a typed catch
+                // that the error does not match. The comment earlier in this function already
+                // records the same class of miss for cancellation thrown out of `for try await`.
+                //
+                // Device evidence 2026-08-14: a plain 64 token prose request (title routing, no
+                // schema, `context: nil`) failed with `ParsingError` / "Failed to parse generated
+                // content", which is the same error the final synthesis fails with. That ruled out
+                // both hypotheses acted on earlier the same day, rate limiting and guided generation
+                // against a @Generable schema, and left nothing behind to replace them.
+                //
+                // Diagnostics only. The error is rethrown unchanged.
+                Log.error(
+                    "[FM] Non-GenerationError escaped generation:\n"
+                        + "     type: \(type(of: error))\n"
+                        + "     case: \(String(describing: error))\n"
+                        + "     desc: \(error.localizedDescription)\n"
+                        + "     estimatedTokens: \(estimatedTokens) maxTokens: \(config.maxTokens)",
+                    category: .llm
+                )
+                throw error
             }
 
             // Stop Neural Engine activity indicator
