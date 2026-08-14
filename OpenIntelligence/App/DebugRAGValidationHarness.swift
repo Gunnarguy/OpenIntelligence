@@ -242,9 +242,16 @@ enum DebugRAGValidationHarness {
     /// Two blocks are emitted on purpose. `STAGE METRICS` is the scored result, computed by
     /// `RetrievalStageEvaluator`, which is the same unit-tested implementation the in-app runner
     /// uses, so there is exactly one metric implementation in the project rather than a Swift one
-    /// and a re-derived Python one that can drift apart. `STAGE SOURCES` lists the ranked source
-    /// documents each stage returned, so any number in the first block can be recomputed by hand
-    /// from the second. A benchmark that cannot be checked is an assertion, not a measurement.
+    /// and a re-derived Python one that can drift apart. `STAGE SOURCES` lists what each stage
+    /// returned, in rank order, as `<chunkId>#<documentId>#<name>`, so any number in the first
+    /// block can be recomputed by hand from the second. A benchmark that cannot be checked is an
+    /// assertion, not a measurement.
+    ///
+    /// The ids are what make that true. Printing the name alone satisfied this comment for rerank
+    /// and final and quietly failed it for the five stages before them, which carry no name yet.
+    /// Recording identity in rank order also makes the two fusion inputs replayable, so a different
+    /// fusion weight can be scored from a finished run instead of costing another one. See the
+    /// comment on the emit itself for why both ids are needed rather than either alone.
     ///
     /// Nothing is emitted when there are no expected sources. The two negative-control cases have
     /// none by construction, and scoring them would report a meaningless 0.0 that would then be
@@ -269,6 +276,15 @@ enum DebugRAGValidationHarness {
         }
         return map
     }
+
+    /// How many candidates per stage `STAGE SOURCES` records.
+    ///
+    /// Re-deriving the metrics in the block above needs only 10, because that is the deepest
+    /// cutoff. Re-deriving a *different* fusion weight from the same run needs more: an item
+    /// ranked below the cap in one arm can be lifted into the top 10 by reweighting, and a list
+    /// truncated above it cannot show that. This was 20, which was correct for the first purpose
+    /// and too shallow for the second.
+    private static let stageSourceDepth = 100
 
     private static func stageMetricsLines(
         trace: RetrievalTraceCollector?,
@@ -315,6 +331,15 @@ enum DebugRAGValidationHarness {
         var lines: [String] = []
         lines.append("STAGE METRICS")
         lines.append("ExpectedSources: \(expectedSources.joined(separator: "|"))")
+        // The resolved form, which is what scoring actually compared against. The line above is the
+        // manifest's filenames, which is what a reader recognises; this is the document id each one
+        // became, and the only form that joins to the ids in STAGE SOURCES below. Emitting the
+        // first alone left the two halves of this report unjoinable.
+        //
+        // An entry still in filename form here did not resolve to any ingested document. That scores
+        // zero at every stage, and it is worth being able to tell that apart from a retrieval miss,
+        // because the cause and the fix are entirely different.
+        lines.append("ExpectedSourceIds: \(groundTruth.joined(separator: "|"))")
         lines.append("stage\tresults\trelevant\tr1\tr3\tr5\tr10\tmrr\tndcg5\tndcg10\tp5")
         for m in metrics {
             lines.append(
@@ -327,13 +352,33 @@ enum DebugRAGValidationHarness {
         }
         lines.append("")
 
-        // Capped at 20 per stage: enough to re-derive every metric above, since the deepest cutoff
-        // is 10, without pasting a whole candidate pool into every report.
+        // Each entry is `<chunkId>#<documentId>#<name>`, split on the first two `#` so a name
+        // containing one cannot corrupt the ids ahead of it.
+        //
+        // Both ids are required and they answer different questions. `RAGEngine.reciprocalRankFusion`
+        // keys on `chunk.id`, so replaying the fusion at a different weight needs chunk identity:
+        // two chunks of one document are separate entities there, and document ids alone cannot say
+        // which vector entry pairs with which lexical entry. Relevance is judged per document, so
+        // scoring needs `documentId`. Emitting one without the other makes the block able to answer
+        // only half of what it is for.
+        //
+        // The ids lead because they are the only fields every stage carries. `sourceDocument` is
+        // attached by `RAGService` after hybrid search returns, so this block previously printed
+        // `(unnamed)` for vector, lexical, fusion, boosted and candidates: the five stages where
+        // every retrieval decision is made. It could therefore verify only rerank and final, the
+        // two stages nobody was questioning, while the doc comment above claimed any figure could
+        // be recomputed from it. The metrics themselves were never affected, because `groundTruth`
+        // is resolved to ids before scoring a few lines up, so this was a hole in the audit trail
+        // rather than in the numbers.
         lines.append("STAGE SOURCES")
         for t in traces {
-            let sources = t.results.prefix(20).map { chunk -> String in
-                let name = chunk.sourceDocument.trimmingCharacters(in: .whitespacesAndNewlines)
-                return name.isEmpty ? "(unnamed)" : name
+            let sources = t.results.prefix(stageSourceDepth).map { result -> String in
+                let name = result.sourceDocument.trimmingCharacters(in: .whitespacesAndNewlines)
+                return [
+                    result.chunk.id.uuidString,
+                    result.chunk.documentId.uuidString,
+                    name.isEmpty ? "-" : name,
+                ].joined(separator: "#")
             }
             lines.append("\(t.stage)\t\(sources.joined(separator: "|"))")
         }

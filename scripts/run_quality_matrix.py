@@ -64,6 +64,21 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_MANIFEST = REPO_ROOT / "Benchmarks/ResearchFixtures/tiny_research_suite/manifest.json"
 ALL_MODES = ["standard", "deep-think", "maximum"]
 
+
+def repo_relative(path: Path) -> str:
+    """Repo-relative where the path is inside the tree, absolute where it is not.
+
+    `Path.relative_to` raises rather than falling back, and a manifest outside the tree is a normal
+    thing to pass: fixture packs get built into scratch directories. The bare call sat in the
+    `results.json` write, which is the last step of a multi-hour run, so an out-of-tree manifest
+    crashed after all the compute had been spent and took the run index down with it.
+    """
+    try:
+        return str(path.relative_to(REPO_ROOT))
+    except ValueError:
+        return str(path)
+
+
 # Report lines the harness prints, mapped to the fields we care about.
 FIELD_PATTERNS = {
     "quality_mode": re.compile(r"^Quality Mode:\s*(.+)$", re.M),
@@ -908,6 +923,42 @@ def main() -> int:
         out_dir = Path(args.output_dir) if args.output_dir else REPO_ROOT / "BenchmarkRuns" / run_id
     out_dir.mkdir(parents=True, exist_ok=True)
 
+    # Run parameters, written at START. `results.json` below records the same things but is only
+    # written after the whole loop finishes, so a run that was paused or killed left the weight it
+    # was testing recorded nowhere except the directory name someone typed by hand.
+    # `sweep_fusion_weight.py` needs that number to calibrate its replay against, and a reader needs
+    # it to know what a half-finished checkpoint actually measured.
+    #
+    # On resume the recorded file wins and a conflicting argument is refused rather than merged.
+    # Resuming with a different --vector-weight would append cases scored under a second
+    # configuration into one results.jsonl, and no downstream reader could tell the halves apart.
+    run_config = {
+        "run_id": run_id,
+        "manifest": repo_relative(manifest_path),
+        "modes": modes,
+        "pcc": args.pcc,
+        "pool_limit": args.pool_limit,
+        "top_k": args.top_k or 3,
+        "vector_weight": args.vector_weight,
+    }
+    config_path = out_dir / "run_config.json"
+    if config_path.exists():
+        previous = json.loads(config_path.read_text())
+        conflicts = {
+            key: (previous.get(key), value)
+            for key, value in run_config.items()
+            if key != "run_id" and previous.get(key) != value
+        }
+        if conflicts:
+            print("error: this run directory was created with different parameters:", file=sys.stderr)
+            for key, (was, now) in conflicts.items():
+                print(f"  {key}: recorded {was!r}, given {now!r}", file=sys.stderr)
+            print("Resuming would mix two configurations into one results.jsonl.", file=sys.stderr)
+            print("Pass the original arguments, or start a new run with --output-dir.", file=sys.stderr)
+            return 2
+    else:
+        config_path.write_text(json.dumps(run_config, indent=2))
+
     # Checkpoint file, one JSON row per completed (case, mode). Written as each case finishes.
     #
     # This exists because `results.json` is only written after the whole loop, so the run of
@@ -970,7 +1021,7 @@ def main() -> int:
     meta = {
         "run_id": run_id, "app": str(app_bin), "cases": len(cases),
         "modes": modes, "pcc": args.pcc, "wall_seconds": round(wall, 1),
-        "manifest": str(manifest_path.relative_to(REPO_ROOT)),
+        "manifest": repo_relative(manifest_path),
         "pool_documents": len(pool),
         "pool_limit": args.pool_limit,
         "top_k": args.top_k or 3,
