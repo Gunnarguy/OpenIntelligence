@@ -8001,6 +8001,33 @@ class RAGService: ObservableObject {
 
     /// Execute a multi-session agentic query for complex reasoning
     /// This bypasses the single-session 4K limit by orchestrating multiple focused LLM calls
+
+    /// Log which document each `[Sn]` label the model was shown actually resolves to.
+    ///
+    /// Nothing printed this, which is why citation labels could point at the wrong document for an
+    /// unknown length of time while every guard passed: the indices were in range, the chunks were
+    /// real, and only the mapping was wrong. With this line a cited answer can be checked against
+    /// its sources by reading one entry.
+    ///
+    /// Shared between the standard and agentic routes on purpose. The first version lived inline in
+    /// the standard path only, and the first device capture after it shipped contained zero citation
+    /// maps, because Deep Think does not take that path. Writing a second copy for the agentic route
+    /// is how five call sites came to independently assume `prefix(used)`; there is one copy.
+    private func logCitationMap(_ chunks: [RetrievedChunk], rescued: Int = 0, route: String) {
+        guard !chunks.isEmpty else { return }
+        let map = chunks.enumerated().map { index, chunk -> String in
+            let name = URL(fileURLWithPath: chunk.sourceDocument).lastPathComponent
+            let page = chunk.pageNumber.map { " p.\($0)" } ?? ""
+            let section = chunk.chunk.metadata.sectionTitle.map { " \($0)" } ?? ""
+            return "S\(index + 1)=\(name.isEmpty ? "?" : name)\(page)\(section)"
+        }.joined(separator: " | ")
+        Log.info(
+            "[RAG] Citation map (\(route), \(chunks.count) sources"
+                + "\(rescued == 0 ? "" : ", \(rescued) via rescue")): \(map)",
+            category: .retrieval
+        )
+    }
+
     private func executeAgenticQuery(
         question: String,
         containerId: UUID,
@@ -8206,6 +8233,7 @@ class RAGService: ObservableObject {
 
             let totalTime = Date().timeIntervalSince(startTime)
 
+            logCitationMap(result.retrievedChunks, route: "agentic")
             Log.info("[Agentic] Complete: \(result.steps.count) steps, \(result.totalTokens) tokens, \(String(format: "%.1f", totalTime))s", category: .pipeline)
 
             // Pipeline Trace: Agentic completion
@@ -11839,20 +11867,7 @@ class RAGService: ObservableObject {
                 // for an unknown length of time while every guard passed: the indices were in
                 // range, the chunks were real, and only the mapping was wrong. With this line a
                 // cited answer can be checked against its sources by reading one log entry.
-                if !includedRetrievedChunks.isEmpty {
-                    let map = includedRetrievedChunks.enumerated().map { index, chunk -> String in
-                        let name = URL(fileURLWithPath: chunk.sourceDocument).lastPathComponent
-                        let page = chunk.pageNumber.map { " p.\($0)" } ?? ""
-                        let section = chunk.chunk.metadata.sectionTitle
-                            .map { " \($0)" } ?? ""
-                        return "S\(index + 1)=\(name.isEmpty ? "?" : name)\(page)\(section)"
-                    }.joined(separator: " | ")
-                    Log.info(
-                        "[RAG] Citation map (\(includedRetrievedChunks.count) sources"
-                            + "\(rescuedChunks.isEmpty ? "" : ", \(rescuedChunks.count) via rescue")): \(map)",
-                        category: .retrieval
-                    )
-                }
+                logCitationMap(includedRetrievedChunks, rescued: rescuedChunks.count, route: "standard")
                 // let precisionLookupCandidates = buildPrecisionLookupCandidates(
                 //     included: includedRetrievedChunks,
                 //     ordered: orderedCandidates,

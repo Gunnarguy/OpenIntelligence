@@ -528,3 +528,24 @@ Alongside the gates, the type reports completion latency by route, PCC→on-devi
 ### Scope
 
 Scoring is computable from receipts alone, so identical scoring applies to simulator, physical-device, and TestFlight runs. **This makes device evidence checkable; it does not substitute for it.** Producing receipts that represent real Private Cloud Compute execution still requires a signed device — see the `Validate:` items in the Notion engineering roadmap and `Docs/AUDIT/PCC_DYNAMIC_ROUTING_TEST_MATRIX.csv`.
+
+### Novelty counts rephrasing as new information
+
+Measured on device 2026-08-14, Deep Think, eight sessions. Sessions 6, 7 and 8 received contexts
+**byte-identical** to sessions 1, 2 and 3, because the chunk pool held only five disjoint windows and
+the session loop wrapped. Novelty on those three repeated sessions was reported as **90%, 79% and
+77%**.
+
+Novelty is computed from facts extracted out of the session's insight text, not from the evidence it
+was shown, so a model restating the same passage in different words registers as new information.
+Saturation, which is measured on content similarity, tracked it correctly over the same run: 0%, 0%,
+18%, 27%, 32%, 44%, 61%, 70%.
+
+This matters because `noveltyExhausted` is a stop condition in both Deep Think and Maximum, via
+`lowNoveltyStreak`. A metric that cannot fall when the input repeats cannot end a chain that is
+repeating. Prefer saturation as the convergence signal, which is what
+`AgenticPolicyService`'s own comment already concluded from three measured runs, and treat a high
+novelty figure late in a chain as unproven rather than as evidence of progress.
+
+`[evidence_level: measured, confidence: high, evidence_source: device capture 2026-08-14, session
+contexts 3329/2476/3300 repeated at sessions 6-8 with novelty 90/79/77]`

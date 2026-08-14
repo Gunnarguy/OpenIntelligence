@@ -4032,11 +4032,22 @@ extension AgenticOrchestrator {
         at most 8, separated by commas. No other text.
         """
 
-        guard let response = try? await ragService.generateWithFreshSession(prompt: prompt, maxTokens: 64),
-              !Task.isCancelled else {
-            Log.debug("[ReasoningChain] Title routing unavailable; keeping retrieval order", category: .llm)
+        // Do NOT swallow the error with `try?`. The first device run of this feature failed and
+        // logged only "unavailable", which named the symptom and hid the cause, so a second run was
+        // needed to learn nothing. A fallback that cannot say why it fell back is a fallback that
+        // never gets fixed.
+        let response: LLMResponse
+        do {
+            response = try await ragService.generateWithFreshSession(prompt: prompt, maxTokens: 64)
+        } catch {
+            Log.warning(
+                "[ReasoningChain] Title routing generation failed (\(type(of: error))): "
+                    + "\(error.localizedDescription). Keeping retrieval order.",
+                category: .llm
+            )
             return chunks
         }
+        guard !Task.isCancelled else { return chunks }
 
         var seen = Set<Int>()
         var selected: [Int] = []
@@ -4047,7 +4058,14 @@ extension AgenticOrchestrator {
             if selected.count >= 8 { break }
         }
         guard !selected.isEmpty else {
-            Log.debug("[ReasoningChain] Title routing returned no usable selection; keeping retrieval order", category: .llm)
+            // Log what it actually said. The parser accepts any digits anywhere, so reaching here
+            // means the reply contained no number in range, and the only way to fix that is to see
+            // the wording that produced it.
+            Log.warning(
+                "[ReasoningChain] Title routing returned no usable selection from "
+                    + "\(listed) options; reply was: \(response.text.prefix(120)). Keeping retrieval order.",
+                category: .llm
+            )
             return chunks
         }
 
