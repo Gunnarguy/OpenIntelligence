@@ -3973,6 +3973,105 @@ extension AgenticOrchestrator {
     ///   - onStep: Callback for streaming thinking steps
     ///   - forceConfidenceReporting: When true, always include confidence in steps (for multi-chain mode)
     /// - Returns: ReasoningChainResult with synthesized answer
+
+    /// Choose which sections to read, before reading any of them.
+    ///
+    /// A section title costs about fifty characters; a chunk of body text costs several hundred.
+    /// Twenty titles therefore fit in one 3500 character session window where three chunks do not,
+    /// which makes a routing turn the cheapest possible first move: show the model the table of
+    /// contents of what retrieval found and let it choose. The alternative, which is what happened
+    /// before, is that cosine similarity chooses on its behalf before anything has been read, and
+    /// the chain then spends its whole budget on that guess.
+    ///
+    /// **This reorders and never drops.** Unselected chunks move behind the selected ones rather
+    /// than disappearing, and every failure path returns the input untouched, so a wrong routing
+    /// decision costs ordering rather than evidence. That matters on a path with no test coverage:
+    /// the only guaranteed cost is one extra generation, and the worst case is the ordering the
+    /// chain already had.
+    private func routeChunksByTitle(
+        query: String,
+        chunks: [RetrievedChunk],
+        onStep: ((ThinkingStep) async -> Void)? = nil
+    ) async -> [RetrievedChunk] {
+        // Below four chunks the windows already cover everything, so routing buys nothing and
+        // still costs a generation.
+        guard chunks.count >= 4, let ragService = ragService, !Task.isCancelled else { return chunks }
+
+        func menuLabel(_ candidate: RetrievedChunk) -> String {
+            if let section = candidate.chunk.metadata.sectionTitle?
+                .trimmingCharacters(in: .whitespacesAndNewlines), !section.isEmpty {
+                return section
+            }
+            // No structured section: the opening of the text is still a better menu entry than an
+            // index, and this is exactly the case the routing turn exists to disambiguate.
+            let body = (candidate.chunk.parentContent ?? candidate.chunk.content)
+                .replacingOccurrences(of: "\n", with: " ")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            return String(body.prefix(60))
+        }
+
+        var menu = ""
+        var listed = 0
+        for (index, candidate) in chunks.enumerated() {
+            let document = URL(fileURLWithPath: candidate.sourceDocument).lastPathComponent
+            let suffix = document.isEmpty ? "" : " (\(document))"
+            let line = "\(index + 1). \(menuLabel(candidate))\(suffix)\n"
+            // Hard ceiling so the menu itself can never overrun the window it is meant to save.
+            if menu.count + line.count > 1800 { break }
+            menu += line
+            listed += 1
+        }
+        guard listed >= 4 else { return chunks }
+
+        let prompt = """
+        QUESTION: \(query)
+
+        SECTIONS AVAILABLE:
+        \(menu)
+        Which sections would answer the question? Reply with their numbers only, most useful first,
+        at most 8, separated by commas. No other text.
+        """
+
+        guard let response = try? await ragService.generateWithFreshSession(prompt: prompt, maxTokens: 64),
+              !Task.isCancelled else {
+            Log.debug("[ReasoningChain] Title routing unavailable; keeping retrieval order", category: .llm)
+            return chunks
+        }
+
+        var seen = Set<Int>()
+        var selected: [Int] = []
+        for token in response.text.split(whereSeparator: { !$0.isNumber }) {
+            guard let value = Int(token), (1...listed).contains(value) else { continue }
+            let index = value - 1
+            if seen.insert(index).inserted { selected.append(index) }
+            if selected.count >= 8 { break }
+        }
+        guard !selected.isEmpty else {
+            Log.debug("[ReasoningChain] Title routing returned no usable selection; keeping retrieval order", category: .llm)
+            return chunks
+        }
+
+        let reordered = selected.map { chunks[$0] } + chunks.enumerated()
+            .filter { !seen.contains($0.offset) }
+            .map(\.element)
+
+        Log.info(
+            "[ReasoningChain] Title routing: model chose \(selected.count) of \(listed) sections "
+                + "(\(selected.map { String($0 + 1) }.joined(separator: ","))); reordered, none dropped",
+            category: .llm
+        )
+        await onStep?(ThinkingStep(
+            id: UUID(),
+            type: .searching,
+            input: "Choosing sections to read",
+            output: "Selected \(selected.count) of \(listed) available sections",
+            tokensUsed: response.tokensGenerated,
+            duration: 0.2,
+            timestamp: Date()
+        ))
+        return reordered
+    }
+
     func executeReasoningChain(
         query: String,
         chunks: [RetrievedChunk],
@@ -4046,7 +4145,12 @@ extension AgenticOrchestrator {
         // the FactBank are for, not from re-reading raw text. Windows are disjoint now. The
         // wrap-around below still repeats windows once the pool is exhausted, which is the correct
         // behaviour: at that point every chunk has been seen and depth is all that is left.
-        let chunksPerSession = min(maxChunksPerSession, chunks.count)
+        // One routing turn before any reading. See `routeChunksByTitle`: it reorders by the model's
+        // own choice of sections and never drops, so the worst case is the retrieval order this
+        // line used to receive unconditionally.
+        let routedChunks = await routeChunksByTitle(query: query, chunks: chunks, onStep: onStep)
+
+        let chunksPerSession = min(maxChunksPerSession, routedChunks.count)
         let stride = max(1, chunksPerSession)
 
         // Use dynamic max for Deep Think mode (can go up to 8 sessions)
@@ -4055,7 +4159,7 @@ extension AgenticOrchestrator {
         // Build ALL session contexts upfront; each session gets a sliding window
         var sessionContexts: [String] = []
         var sessionOffset = 0
-        let totalAvailableChunks = chunks.count
+        let totalAvailableChunks = routedChunks.count
 
         // Generate enough context windows for all possible sessions
         var sessionSourceSets: [Set<String>] = []
@@ -4068,7 +4172,7 @@ extension AgenticOrchestrator {
             // With 3000-3500 char budgets per session, this fits targeted data from
             // ALL chunks in the window instead of truncating at 2-3 whole chunks.
             // Universal across all document types — same extraction as Standard pipeline.
-            let windowChunks = Array(chunks[startIdx..<endIdx])
+            let windowChunks = Array(routedChunks[startIdx..<endIdx])
             for c in windowChunks { allSources.insert(c.sourceDocument) }
             sessionSourceSets.append(Set(windowChunks.map(\.sourceDocument)))
 

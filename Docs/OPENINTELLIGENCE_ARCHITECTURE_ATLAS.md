@@ -320,7 +320,15 @@ supposed to be agentic.
 - **The reasoning chain inside them is not agentic.** `executeReasoningChain` builds every session's
   context **upfront**, in a loop that completes before session 1 runs, as fixed windows over a single
   retrieval. Those windows were 50% overlapping until 2026-08-14 and are disjoint now: at a 3500
-  character session budget the overlap spent roughly four of eight sessions re-reading. `disableToolsForSession = true` is hardcoded, so the model has no tools in any
+  character session budget the overlap spent roughly four of eight sessions re-reading.
+  **Partially corrected 2026-08-14:** the chain now opens with a routing turn
+  (`routeChunksByTitle`) that shows the model the section titles of everything retrieval found and
+  lets it choose what to read. A title costs ~50 characters against several hundred for body text,
+  so twenty titles fit in one window where three chunks do not. The model therefore chooses the
+  reading order, which cosine similarity previously chose on its behalf before anything was read.
+  It reorders and never drops, so a wrong choice costs ordering rather than evidence. It is still
+  one retrieval and still no tools mid-session, so this is narrower than agency: the model picks
+  from what it was given rather than asking for more. `disableToolsForSession = true` is hardcoded, so the model has no tools in any
   session and cannot request anything. The registered exact-match tools (`count_pattern`,
   `search_exact_pattern`) are therefore unreachable from a reasoning session.
   `[evidence: code_verified, exact, AgenticOrchestrator.swift:4195 and the sessionContexts loop preceding it]`
