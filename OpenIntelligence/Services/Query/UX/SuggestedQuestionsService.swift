@@ -2952,6 +2952,38 @@ actor SuggestedQuestionsService {
         return regex.numberOfMatches(in: text, options: [], range: NSRange(text.startIndex..., in: text))
     }
 
+    /// Detect a run of three or more consecutive `Surname AB,` entries with distinct surnames.
+    ///
+    /// The surname test is what separates an author list from a label list. "Phase A, Phase A,
+    /// Phase B," matches the same shape as "Correia PA, Lottem E, Banerjee D," and a plain repeat
+    /// count cannot tell them apart. Real author lists do not repeat a surname three times, while
+    /// "Section A, Section B, Section C" and "Option A, Option B, Option C" are ordinary content in
+    /// manuals, forms and agreements, which is exactly the material this feature must not demote.
+    private func hasAuthorListRun(_ text: String) -> Bool {
+        let entry = #"\b([A-Z][a-z]+)\s+[A-Z]{1,3}\s*,\s*"#
+        guard let regex = try? NSRegularExpression(pattern: entry) else { return false }
+        let full = NSRange(text.startIndex..., in: text)
+
+        var runSurnames: [String] = []
+        var previousEnd = -1
+
+        for match in regex.matches(in: text, options: [], range: full) {
+            guard let surnameRange = Range(match.range(at: 1), in: text) else { continue }
+            // Consecutive means the next entry begins where the previous one ended. Anything else
+            // is two separated mentions in prose rather than one list.
+            if previousEnd >= 0 && match.range.location > previousEnd {
+                runSurnames.removeAll()
+            }
+            runSurnames.append(String(text[surnameRange]))
+            previousEnd = match.range.location + match.range.length
+
+            if runSurnames.count >= 3 && Set(runSurnames).count >= 3 {
+                return true
+            }
+        }
+        return false
+    }
+
     /// Score a chunk on how well it works as raw material for a question, independent of the
     /// question that gets written from it.
     ///
@@ -2975,18 +3007,37 @@ actor SuggestedQuestionsService {
 
         // Bibliography and reference blocks. Any two of these signals together is decisive; the
         // thresholds are set so a body paragraph that cites one or two works in passing survives.
+        // A run of three or more "Surname AB," entries back to back is decisive on its own. It is
+        // the shape of an author list and it does not occur in running prose.
+        //
+        // Two earlier signals were removed after being measured against 5,425 real chunks from the
+        // library, where they hard-demoted ordinary body paragraphs:
+        //
+        //  - A parenthetical year, `\(\d{4}\)`, counted 3 or more times. That is the marker of an
+        //    author-year citation *in running text*, so it fires hardest on the related-work
+        //    paragraph, which is good question material. It is evidence against a bibliography, not
+        //    for one, since a numbered reference list writes "2017;6:e20975" instead.
+        //  - Author initials matched loosely as `[A-Z][a-z]{2,}\s+[A-Z]{1,3}[,.]`. Without requiring
+        //    the entries to be consecutive it matches any capitalised word followed by an acronym,
+        //    so "Detection DET." and "Twitter PHEME," scored as authors. In a paper whose body is
+        //    full of acronyms it fired on nearly every paragraph.
+        let authorRun = hasAuthorListRun(trimmed) ? 1 : 0
+
         var citationSignals = 0
-        if regexMatchCount(#"\(\s*\d{4}[a-z]?\s*\)"#, in: trimmed) >= 3 { citationSignals += 1 }
-        if regexMatchCount(#"\bet al\.?"#, in: trimmed) >= 3 { citationSignals += 1 }
-        // "Correia PA," and "Yagishita S." style author-initial runs.
-        if regexMatchCount(#"\b[A-Z][a-z]{2,}\s+[A-Z]{1,3}\b[,.]"#, in: trimmed) >= 3 { citationSignals += 1 }
-        // Volume(issue):page and year;volume forms.
+        if regexMatchCount(#"\bet al\.?"#, in: trimmed) >= 4 { citationSignals += 1 }
+        // Volume(issue):page and year;volume forms, which appear in journal metadata and not in prose.
         if regexMatchCount(#"\b\d+\s*\(\s*\d+\s*\)\s*:\s*\d+"#, in: trimmed) >= 2 { citationSignals += 1 }
         if regexMatchCount(#"\b\d{4}\s*;\s*\d+"#, in: trimmed) >= 2 { citationSignals += 1 }
         if regexMatchCount(#"\bdoi\s*:|doi\.org/"#, in: trimmed) >= 2 { citationSignals += 1 }
         // Numbered or bracketed citation lists.
         if regexMatchCount(#"(?m)^\s*\[?\d{1,3}[\].]\s+[A-Z]"#, in: trimmed) >= 3 { citationSignals += 1 }
-        if citationSignals >= 2 { penalty += 5 } else if citationSignals == 1 { penalty += 2 }
+        if authorRun >= 1 {
+            penalty += 5
+        } else if citationSignals >= 2 {
+            penalty += 5
+        } else if citationSignals == 1 {
+            penalty += 2
+        }
 
         // Table of contents and index furniture: dot leaders, or many lines that end in a bare
         // page number.
@@ -3015,11 +3066,13 @@ actor SuggestedQuestionsService {
             .components(separatedBy: CharacterSet.whitespacesAndNewlines)
             .map { $0.trimmingCharacters(in: CharacterSet.punctuationCharacters) }
             .filter { $0.count >= 3 && $0.allSatisfy { ch in ch.isLetter } }
-        if words.count >= 8 {
+        if words.count >= 12 {
             let vowelless = words.filter { word in
                 !word.lowercased().contains(where: { "aeiouy".contains($0) })
             }.count
-            if Double(vowelless) / Double(words.count) > 0.2 { penalty += 4 }
+            // 0.2 was measured too tight against the real library: a passage dense with legitimate
+            // acronyms reaches it without being damaged text.
+            if Double(vowelless) / Double(words.count) > 0.28 { penalty += 4 }
         }
 
         // Prose check. Body text has sentences. A list of names, headings, or fragments does not.
