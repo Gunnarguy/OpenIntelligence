@@ -3215,12 +3215,32 @@ final class AgenticOrchestrator: Sendable {
                     break
                 }
 
-                // Try recursive research as backup
-                let recursiveResult = try await executeRecursiveResearch(
-                    query: query,
-                    maxIterations: 3,
-                    onStep: onStep
-                )
+                // Try recursive research as backup.
+                //
+                // A throw here must not destroy `currentAnswer`. The block below already keeps the
+                // previous answer when research returns an *empty* one; only a throw skipped that,
+                // and this call was a bare `try await`.
+                //
+                // This is the second of two call sites and the one that actually fires in Deep
+                // Think. Device captures on 2026-08-14 identify it unambiguously by its iteration
+                // count: the log reads "[RecursiveResearch] Iteration 1/3", and only this site
+                // passes maxIterations: 3. The other site, guarded earlier the same day, passes 5.
+                // Guarding one and not the other left the failure fully intact while looking fixed.
+                let recursiveResult: AgenticResult
+                do {
+                    recursiveResult = try await executeRecursiveResearch(
+                        query: query,
+                        maxIterations: 3,
+                        onStep: onStep
+                    )
+                } catch {
+                    Log.warning(
+                        "[Agentic] Self-RAG: recursive research failed (\(type(of: error))): "
+                            + "\(error.localizedDescription). Keeping the current answer.",
+                        category: .llm
+                    )
+                    break
+                }
 
                 let newAnswer = recursiveResult.finalAnswer
 
