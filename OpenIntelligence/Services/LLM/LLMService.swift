@@ -856,12 +856,25 @@ struct LLMResponse {
                 // against a @Generable schema, and left nothing behind to replace them.
                 //
                 // Diagnostics only. The error is rethrown unchanged.
+                // Log what the stream actually produced before it failed.
+                //
+                // An Instruments capture on 2026-08-14 shows these requests are not empty at the
+                // framework level: Apple records `Error Count: 0`, a non-zero `generatedTokenCount`
+                // of 21 to 49, and `deltasCount: 2`, while the final `Response` in
+                // `ModelInferenceTable` is the empty string. So tokens are emitted and then resolve
+                // to nothing. `responseText` accumulates `snapshot.content` from the stream and is
+                // still in scope here, which means the app has been holding those tokens the whole
+                // time and throwing them away unread. Whatever they are is the remaining unknown in
+                // this failure, and printing them costs nothing.
+                let partial = responseText.trimmingCharacters(in: .whitespacesAndNewlines)
                 Log.error(
                     "[FM] Non-GenerationError escaped generation:\n"
                         + "     type: \(type(of: error))\n"
                         + "     case: \(String(describing: error))\n"
                         + "     desc: \(error.localizedDescription)\n"
-                        + "     estimatedTokens: \(estimatedTokens) maxTokens: \(config.maxTokens)",
+                        + "     estimatedTokens: \(estimatedTokens) maxTokens: \(config.maxTokens)\n"
+                        + "     partialTextChars: \(partial.count)\n"
+                        + "     partialText: \(partial.isEmpty ? "<nothing streamed>" : String(partial.prefix(400)))",
                     category: .llm
                 )
                 throw error
