@@ -101,14 +101,33 @@ against 5,425 real library chunks (99.2% clean, zero false hard-demotions).
    a benchmark-only greedy sampling flag, then re-run. This is the highest-value next task and it
    touches session construction, so treat `FoundationModelSessionFactory.swift` as the hard boundary
    it is.
-2. **One case timed out at 1500s** (`qasper_1911.10742_f7662b11`) after completing in 294.8s the day
+2. **Yesterday's empty-response mystery is solved, and the fix is not yet made.** The app catches
+   `LanguageModelSession.GenerationError` at 3 sites and `LanguageModelError` at **0**. Both are
+   public enums in the iOS 27 SDK (verified in
+   `Xcode-beta.app/.../FoundationModels.swiftinterface`, `LanguageModelError` at the top level and
+   `LanguageModelSession.GenerationError` at line 1278), and the one actually thrown is
+   `LanguageModelError`. So every Foundation Models error falls past its handler to the generic
+   catch, which is why five hypotheses were disproved last session while Apple's own instrument
+   reported `Error Count: 0`. Caught in the wild at `ccc0eeb`:
+   `type: LanguageModelError / case: Response may contain sensitive or unsafe content /
+   partialTextChars: 3588`, on a paper about scam detection. The content was not empty, it was
+   generated and then refused by the guardrail. `LanguageModelError` carries `guardrailViolation`,
+   `refusal`, `contextSizeExceeded`, `rateLimited`, `timeout`, `unsupportedCapability`,
+   `unsupportedTranscriptContent`, `unsupportedGenerationGuide` and `unsupportedLanguageOrLocale`,
+   so **every targeted recovery in this app is currently dead code**: no retry on `rateLimited`, no
+   context reduction on `contextSizeExceeded`. The partial-text fallback does work and returned a
+   3434-character answer, so this is degraded, not broken. **Verification path:** the 3 sites are
+   `grep -rn "as LanguageModelSession.GenerationError" --include=*.swift`. Note the product
+   consequence: documents about security, fraud, abuse or medicine will trip the guardrail
+   legitimately, so guardrail handling needs a user-facing story, not just a log line.
+3. **One case timed out at 1500s** (`qasper_1911.10742_f7662b11`) after completing in 294.8s the day
    before. Unexplained. Possibly the placeholder fix making searches real and therefore expensive,
    possibly noise. One sample. Watch whether it recurs.
-3. **The grounding gate at `AgenticPolicyService:180` is still asymmetric.** The guard stops the bad
+4. **The grounding gate at `AgenticPolicyService:180` is still asymmetric.** The guard stops the bad
    replacement from being accepted but the gate still prefers uncited answers. Fixing the gate itself
    was deliberately deferred until runs are comparable.
-4. **`doc_pack_addon` does not load from StoreKit.** Revenue affecting, untouched.
-5. **The QASPER fixture cannot measure answer quality.** 22 of 76 cases are graded by a bare
+5. **`doc_pack_addon` does not load from StoreKit.** Revenue affecting, untouched.
+6. **The QASPER fixture cannot measure answer quality.** 22 of 76 cases are graded by a bare
    `(?i)Yes` or `(?i)No` substring against a multi-thousand-character essay, matching inside "not"
    and "know". A rubric-scored eval was scoped and not built.
 
