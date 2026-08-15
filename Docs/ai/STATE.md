@@ -2,7 +2,7 @@
 
 Updated: 2026-08-15
 Branch/worktree: main, primary checkout
-Last verified commit: ccc0eeb
+Last verified commit: cdd87a9
 
 <!-- Keep the line above as the bare short SHA and nothing else. The SessionStart hook parses it
      with `sed` then strips all whitespace, so prose appended after the SHA is swallowed into it and
@@ -16,11 +16,15 @@ and the reason it is unanswered is now understood.** See Blocker 1.
 
 ## Status
 
-Tree clean at `ccc0eeb`. **Nine commits unpushed, deliberately.** Do not push without asking; the
-owner asked to stop burning Xcode Cloud minutes until the device work settles.
+Tree clean at `cdd87a9`. **Thirteen commits unpushed, deliberately.** Do not push without asking;
+the owner asked to stop burning Xcode Cloud minutes until the device work settles.
 
-A 6-case smoke is running against `ccc0eeb` in `BenchmarkRuns/smoke-deepthink-ccc0eeb`, verifying
-the citation guard on the case that exposed it. A defect watcher is attached.
+**The answer collapse is fixed, and this is the one result today that is not noise-limited.** On the
+same 6 cases, the pre-fix baseline collapsed 3 of 6 into 136 to 443 character stubs; at `cdd87a9`
+**0 of 6 collapse** and every answer lands between 2993 and 3415 characters with no timeouts. It is
+not noise-limited because the mechanism is understood and guarded at both call sites, not merely
+observed to be absent. The correct count on those 6 moved 0 to 2, which **is** noise at n=6 and must
+not be quoted as a quality gain. See Blocker 1.
 
 ## Completed
 
@@ -47,6 +51,14 @@ skips the check, so the uncited replacement always verified cleaner. Instrumenta
 then the guard: the first case to hit the path logged `2647 chars with 4 citations -> 53 chars with
 0 citations`. The guard forbids taking away an answer's last citation. It is **not** a rule about
 length; that earlier assumption was wrong and was rejected.
+
+**Recursive research had no wall-clock bound.** Bounded by iterations and tokens only, while each
+iteration runs a full retrieval pipeline plus a generation. The citation guard exposed this rather
+than causing it: the case that reaches this loop used to terminate quickly only by accepting a
+59-character uncited answer, and once that was refused it blew a 1500s budget and returned nothing.
+A 180 second ceiling now ends the loop and the caller keeps the chain's answer. The guard is applied
+at **both** `executeRecursiveResearch` call sites; guarding one is a recurring mistake here, since
+the low-confidence site returns before verification and never gets inspected.
 
 **Every Deep Think and Maximum answer showed the user a fabricated 70% match score.** `topSim`,
 `secondSim` and `avgTop5` were hardcoded on the agentic audit snapshot and reach the UI. Now
@@ -84,7 +96,12 @@ against 5,425 real library chunks (99.2% clean, zero false hard-demotions).
 
 - `xcodebuild test` -> **236 tests, 0 failures**, run once per commit from `/private/tmp/oi-test-src`.
   `xcodebuild` deadlocks on this repository's own path; see `RUNBOOK.md` 1b.
-- Placeholder fix confirmed in a 6-case smoke: zero placeholder searches, guard never had to fire.
+- Four 6-case smokes, one per fix, in `BenchmarkRuns/smoke-deepthink-{f6bb4ca,ccc0eeb,184c562,cdd87a9}`.
+  Final run: 6/6 completed, 0 collapses, 0 timeouts, answers 2993 to 3415 chars. Case `85e41723`,
+  which returned 53c then 59c then timed out, returned 3157 chars with `Rejected replacement` in its
+  log and the time budget never needed.
+- Case `3319d565` is the clean demonstration: 106 chunks, entered recursive research, guard fired,
+  kept a 3194-character grounded answer and scored correct. That path previously always collapsed.
 - Citation and telemetry fixes are **code-verified, not quality-verified.** See Blocker 1.
 
 ## Blockers / Unknowns
