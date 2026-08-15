@@ -1155,7 +1155,10 @@ actor SuggestedQuestionsService {
                 // these responses, consistent with a session that never received its model assets.
                 let session = LanguageModelSession(
                     model: SystemLanguageModel.default,
-                    instructions: Instructions("You suggest follow-up questions grounded in the provided text. Be concise.")
+                    instructions: Instructions(
+                        "You write complete, natural questions about the subject matter of documents. "
+                            + "Follow the formatting rules in the request exactly."
+                    )
                 )
                 // @Generable: typed [String] array — eliminates numbered-line regex parsing.
                 // Constrained sampling enforces the declared schema at the token level.
@@ -1310,7 +1313,10 @@ actor SuggestedQuestionsService {
                     // these responses, consistent with a session that never received its model assets.
                     let session = LanguageModelSession(
                         model: SystemLanguageModel.default,
-                        instructions: Instructions("You suggest follow-up questions grounded in the provided text. Be concise.")
+                        instructions: Instructions(
+                        "You write complete, natural questions about the subject matter of documents. "
+                            + "Follow the formatting rules in the request exactly."
+                    )
                     )
                     let response = try await session.respond(to: prompt, generating: SuggestedQuestionList.self)
                     return response.content
