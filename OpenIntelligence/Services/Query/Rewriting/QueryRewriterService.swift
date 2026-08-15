@@ -238,7 +238,18 @@ final class QueryRewriterService: @unchecked Sendable {
             }
 
             if session == nil {
-                session = LanguageModelSession()
+                // Built with an explicit model and instructions, not the bare `LanguageModelSession()`.
+                // Every service that used the bare initialiser failed deterministically with
+                // ParsingError / "Session ended without producing a response", while every path built
+                // through `FoundationModelSessionFactory` (which supplies `model:` and `instructions:`)
+                // succeeded. Confirmed on an empty library with the one-word query "Test" and zero
+                // retrieved chunks, which rules out content, guardrails, context size and token caps.
+                // An Instruments capture of the Foundation Models template shows `assets: ""` on exactly
+                // these responses, consistent with a session that never received its model assets.
+                session = LanguageModelSession(
+                    model: SystemLanguageModel.default,
+                    instructions: Instructions("You rewrite search queries. Reply with the rewritten query only.")
+                )
             }
 
             let prompt = buildClarificationPrompt(
