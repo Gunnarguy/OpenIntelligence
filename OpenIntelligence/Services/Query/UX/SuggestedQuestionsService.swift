@@ -38,7 +38,7 @@ import FoundationModels
 @available(iOS 26.0, *)
 @Generable
 struct SuggestedQuestionList: Sendable {
-    @Guide(description: "Short, natural, grammatically complete questions someone would actually ask after reading these documents. Each question targets a specific fact, concept, or procedure from the text. Sound casual and direct — like texting a coworker. Every question must be a complete, coherent sentence. Never end with fragments like 'that many?' or list unjoined names like 'Piaget Vygotsky?'.")
+    @Guide(description: "Short, natural, grammatically complete questions someone would actually ask after reading these documents. Each question targets a specific fact, concept, or procedure from the text. Sound casual and direct, like texting a coworker. Every question must be a complete, coherent sentence. Never end with fragments like 'that many?' or list unjoined names like 'Piaget Vygotsky?'.")
     var questions: [String]
 }
 #endif
@@ -1111,7 +1111,7 @@ actor SuggestedQuestionsService {
             let listed = avoidTexts.prefix(6).enumerated()
                 .map { "\($0.offset + 1). \($0.element)" }
                 .joined(separator: "\n")
-            avoidClause = "\n\nIMPORTANT: Do NOT repeat these previously shown questions — generate completely different ones:\n\(listed)\n"
+            avoidClause = "\n\nIMPORTANT: Do NOT repeat these previously shown questions. Generate completely different ones:\n\(listed)\n"
         } else {
             avoidClause = ""
         }
@@ -1253,7 +1253,7 @@ actor SuggestedQuestionsService {
             let listed = avoidTexts.prefix(6).enumerated()
                 .map { "\($0.offset + 1). \($0.element)" }
                 .joined(separator: "\n")
-            avoidClause = "\n\nIMPORTANT: Do NOT repeat these previously shown questions — generate completely different ones:\n\(listed)\n"
+            avoidClause = "\n\nIMPORTANT: Do NOT repeat these previously shown questions. Generate completely different ones:\n\(listed)\n"
         } else {
             avoidClause = ""
         }
@@ -1281,12 +1281,13 @@ actor SuggestedQuestionsService {
 
             let prompt = """
             You are generating suggested starter question chips for a document Q&A application.
-            The user has uploaded documents, and we want to show starter questions that explore the key concepts, methodologies, findings, and discussions in the text.
+            The user has uploaded documents, and we want to show starter questions that explore whatever actually matters in the text, whatever kind of document it is.
 
             For each numbered passage below, generate exactly ONE short, natural, and highly insightful question that:
             - Is directly answerable by the text in that passage.
-            - Focuses on the core concepts, methodologies, claims, or outcomes (avoid trivial details, page numbers, or formatting).
-            - Sounds natural, conversational, and direct — like a person asking about the subject matter (e.g., "What is the primary methodology used to...", "What limitations did the study find in...", "What is the main outcome of...").
+            - Focuses on what the passage is actually about: its claims, instructions, obligations, quantities, causes, or outcomes (avoid trivial details, page numbers, or formatting).
+            - Matches the question to the kind of document it came from. A study invites questions about method and result, a manual about how to do something or what to do when something goes wrong, an agreement about obligations, amounts and deadlines, a recipe about quantities and steps, a report about a figure and what drove it, a letter or memo about what is being asked of whom.
+            - Sounds natural, conversational, and direct, the way a person asks about the subject matter rather than about the file.
             - Varies the question words and grammatical structures across the list (mix "How", "Why", "What", "Which", "Does", etc. across the items).
             - Is highly distinct from the other questions in the list.
 
