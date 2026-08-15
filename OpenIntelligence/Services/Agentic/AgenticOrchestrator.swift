@@ -2687,7 +2687,11 @@ final class AgenticOrchestrator: Sendable {
         CONTEXT:
         \(truncatedContext)
 
-        Reply with [ANSWER] (your answer) OR [SEARCH: query] if you need more info.
+        Reply with ONE of these two lines and nothing else:
+        [ANSWER] then the answer itself
+        [SEARCH: the specific words to look up] if the context above is not enough
+
+        Write real search words. Do not reply with the word "query".
         Iteration \(iteration)/7.
         """
 
@@ -2732,6 +2736,29 @@ final class AgenticOrchestrator: Sendable {
         {
             let searchQuery = String(trimmed[queryRange])
                 .trimmingCharacters(in: .whitespacesAndNewlines)
+
+            // The model copying the prompt's own placeholder is not a search request.
+            //
+            // The instruction used to read `[SEARCH: query]`, and the on-device model echoed the
+            // word back: **49 of 59 recursive searches in the 2026-08-15 run looked up the literal
+            // string "query"**, across 16 of the 17 cases that reached this loop. Each one retrieved
+            // nothing useful, the loop burned every iteration, and `executeForcedSynthesis` then
+            // emitted a stub in place of the chain's answer. The prompt above now names a slot
+            // rather than showing a word to copy, and this guard exists because a wording change
+            // alone is not a guarantee on a small model.
+            let placeholders: Set<String> = [
+                "query", "the query", "your query", "search query", "search terms",
+                "the specific words to look up", "keywords", "search"
+            ]
+            if placeholders.contains(searchQuery.lowercased()) {
+                Log.warning(
+                    "[RecursiveResearch] Model echoed the search placeholder (\(searchQuery)) instead of "
+                        + "search terms; treating as thinking rather than running a meaningless retrieval",
+                    category: .llm
+                )
+                return (.thinking(thought: trimmed), trimmed)
+            }
+
             return (.search(query: searchQuery), searchQuery)
         }
 
