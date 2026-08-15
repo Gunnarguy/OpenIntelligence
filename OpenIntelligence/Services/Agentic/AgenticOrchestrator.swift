@@ -2693,7 +2693,12 @@ final class AgenticOrchestrator: Sendable {
             prompt: prompt,
             context: "",
             systemPrompt: "You are a research assistant deciding whether to search or answer.",
-            maxTokens: 600,
+            // This prompt asks for "[ANSWER] (your answer)", so the cap has to cover a whole answer
+            // and 600 tokens does not reliably. Truncation here does not degrade the response, it
+            // erases it: the transcript delta comes back empty and the SDK reports
+            // "Session ended without producing a response". Raised to match the reasoning chain's
+            // headroom, where every generation finished far under a 700 token cap.
+            maxTokens: 900,
             disableTools: true,
             sourceChunks: sourceChunks,
             // A routing decision, not an evidence synthesis. Keep it local.
@@ -4067,7 +4072,21 @@ extension AgenticOrchestrator {
         // never gets fixed.
         let response: LLMResponse
         do {
-            response = try await ragService.generateWithFreshSession(prompt: prompt, maxTokens: 64)
+            // 256, not 64. An Instruments trace of the Foundation Models template on device
+            // (iPhone 16 Pro Max, iOS 27.0) caught this exactly: for this call Apple recorded
+            // `maximumResponseTokens: 64`, `generatedTokenCount: 64`, `deltasCount: 2`,
+            // `assets: ""` and a delta transcript of `{"entries":[]}`. The model ran into the
+            // output cap, the resulting transcript delta was empty, and the SDK surfaced that as
+            // ParsingError / "Session ended without producing a response", which describes the
+            // symptom and hides the cause.
+            //
+            // The reply itself is a dozen characters, but the cap has to cover whatever the model
+            // emits on the way there, and 64 tokens does not. Every generation that succeeded in
+            // the same trace finished well under its cap: 107, 111, 85 and 321 tokens against caps
+            // of 700 and 1500. Input size was never the variable; four earlier hypotheses (rate
+            // limiting, guided generation, prompt size, empty context) were each investigated and
+            // ruled out before the trace made the output cap visible.
+            response = try await ragService.generateWithFreshSession(prompt: prompt, maxTokens: 256)
         } catch {
             Log.warning(
                 "[ReasoningChain] Title routing generation failed (\(type(of: error))): "
