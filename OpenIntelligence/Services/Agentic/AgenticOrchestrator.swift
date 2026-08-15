@@ -701,10 +701,18 @@ final class AgenticOrchestrator: Sendable {
                 // by neither, so it won every time it appeared.
                 let cleanRecursiveAnswer = (recursiveResult?.finalAnswer ?? "")
                     .trimmingCharacters(in: .whitespacesAndNewlines)
+                // The citation guard belongs here for the same reason as the three above it, and this
+                // is the call site that actually reaches the user on a low-confidence query. It
+                // returns immediately, **before** the Deep Think verification loop below, so nothing
+                // downstream inspects what it hands back. A 6-case smoke at `ccc0eeb` proved that:
+                // the guard added to `runVerificationLoop` did not fire here, and the case still
+                // answered "No evidence of a dataset of rumors in the provided context." in 59
+                // characters, from a 2000-character slice, having discarded the chain's synthesis.
                 if let recursiveResult,
                     !cleanRecursiveAnswer.isEmpty,
                     !answerIndicatesRetrievalMiss(recursiveResult.finalAnswer),
-                    !looksLikeRawEvidenceDump(cleanRecursiveAnswer) {
+                    !looksLikeRawEvidenceDump(cleanRecursiveAnswer),
+                    shouldAcceptReplacement(previous: chainResult.finalAnswer, replacement: cleanRecursiveAnswer) {
                     Log.info("[Agentic] Recursive research found answer after \(recursiveResult.steps.count) steps", category: .llm)
                     steps.append(contentsOf: recursiveResult.steps)
                     return AgenticResult(
