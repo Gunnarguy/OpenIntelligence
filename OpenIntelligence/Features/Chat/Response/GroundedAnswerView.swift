@@ -23,9 +23,14 @@ struct GroundedAnswerView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             // Main answer text with interactive citations
+            // `$1`, not `$$1`. In an ICU replacement template the escape for a literal dollar is
+            // `\$`, so `$$1` emits a literal `$` followed by capture group 1: a citation `[3]`
+            // became the link `citation://$3`, which LaunchServices cannot open. Device logs show
+            // it as `Failed to open URL citation://$3` with
+            // `LSApplicationWorkspaceErrorDomain Code=115`, so every citation tap has been a no-op.
             let linkedAnswer = answer.answer.replacingOccurrences(
                 of: "\\[(\\d+)\\]",
-                with: "[[$$1]](citation://$$1)",
+                with: "[[$1]](citation://$1)",
                 options: .regularExpression
             )
             
