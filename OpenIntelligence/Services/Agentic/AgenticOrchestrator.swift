@@ -3202,15 +3202,51 @@ final class AgenticOrchestrator: Sendable {
     /// answer was actually better could not be settled from the artifacts, because only the winner
     /// was ever recorded. Both lengths and the citation counts are the evidence needed to decide
     /// whether this replacement should be guarded at all. Logging only, no behaviour change.
-    private func logAnswerReplacement(previous: String, replacement: String, reason: String) {
-        let citations: (String) -> Int = { text in
-            guard let regex = try? NSRegularExpression(pattern: #"\[S\d+\]"#) else { return 0 }
-            return regex.numberOfMatches(in: text, options: [], range: NSRange(text.startIndex..., in: text))
+    private func citationCount(in text: String) -> Int {
+        guard let regex = try? NSRegularExpression(pattern: #"\[S\d+\]"#) else { return 0 }
+        return regex.numberOfMatches(in: text, options: [], range: NSRange(text.startIndex..., in: text))
+    }
+
+    /// Decide whether the verification loop may overwrite the answer it already has.
+    ///
+    /// The rule is **never trade a grounded answer for an ungrounded one**, and it is deliberately
+    /// not a rule about length. A shorter answer is often the better answer, and an earlier reading
+    /// of this defect that assumed "longer is better" was correctly rejected: 12 of the 18 answers
+    /// discarded in the 2026-08-15 run had themselves failed citation grounding, so length alone
+    /// establishes nothing.
+    ///
+    /// What settled it was recording both sides. The first case to hit this path after the
+    /// instrumentation landed logged `2647 chars with 4 citations -> 53 chars with 0 citations`.
+    /// That is not a length trade, it is the loss of every source the answer had, and this app's
+    /// entire proposition is that its answers are attributable to documents the user owns.
+    ///
+    /// The asymmetry this closes: `AgenticPolicyService` retries when `groundingScore < 0.3 &&
+    /// totalCitations > 0`, while an answer with no citations has its grounding forced to 0.5 and
+    /// skips the check. So an uncited replacement always verifies cleaner than the cited original
+    /// it displaced, and the loop preferred it for precisely that reason.
+    private func shouldAcceptReplacement(previous: String, replacement: String) -> Bool {
+        let previousCitations = citationCount(in: previous)
+        let replacementCitations = citationCount(in: replacement)
+
+        // Nothing to protect: the answer being replaced was never grounded.
+        guard previousCitations > 0 else { return true }
+
+        if replacementCitations == 0 {
+            Log.warning(
+                "[Agentic] Rejected replacement: would trade \(previousCitations) citations for none "
+                    + "(\(previous.count) chars -> \(replacement.count) chars). Keeping the grounded answer.",
+                category: .llm
+            )
+            return false
         }
+        return true
+    }
+
+    private func logAnswerReplacement(previous: String, replacement: String, reason: String) {
         let ratio = replacement.isEmpty ? 0 : Double(previous.count) / Double(max(replacement.count, 1))
         Log.warning(
-            "[Agentic] Answer replaced (\(reason)): \(previous.count) chars with \(citations(previous)) citations "
-                + "-> \(replacement.count) chars with \(citations(replacement)) citations "
+            "[Agentic] Answer replaced (\(reason)): \(previous.count) chars with \(citationCount(in: previous)) citations "
+                + "-> \(replacement.count) chars with \(citationCount(in: replacement)) citations "
                 + "(shrink \(String(format: "%.1f", ratio))x)",
             category: .llm
         )
@@ -3315,16 +3351,20 @@ final class AgenticOrchestrator: Sendable {
                     Log.warning("[Agentic] Self-RAG: Semantic delta too low (\(String(format: "%.4f", delta)) < 0.10). Refusing further retries.", category: .llm)
                     currentSteps.append(contentsOf: recursiveResult.steps)
                     currentTokens += recursiveResult.totalTokens
-                    logAnswerReplacement(previous: currentAnswer, replacement: newAnswer, reason: "semantic delta below 0.10")
-                    currentAnswer = newAnswer
+                    if shouldAcceptReplacement(previous: currentAnswer, replacement: newAnswer) {
+                        logAnswerReplacement(previous: currentAnswer, replacement: newAnswer, reason: "semantic delta below 0.10")
+                        currentAnswer = newAnswer
+                    }
                     break
                 }
 
                 if !answerIndicatesRetrievalMiss(newAnswer) {
                     currentSteps.append(contentsOf: recursiveResult.steps)
                     currentTokens += recursiveResult.totalTokens
-                    logAnswerReplacement(previous: currentAnswer, replacement: newAnswer, reason: "recursive research returned an answer")
-                    currentAnswer = newAnswer
+                    if shouldAcceptReplacement(previous: currentAnswer, replacement: newAnswer) {
+                        logAnswerReplacement(previous: currentAnswer, replacement: newAnswer, reason: "recursive research returned an answer")
+                        currentAnswer = newAnswer
+                    }
                     // Update sources/chunks
                     for chunk in recursiveResult.retrievedChunks {
                         if !currentSources.contains(where: { $0.chunk.id == chunk.chunk.id }) {
