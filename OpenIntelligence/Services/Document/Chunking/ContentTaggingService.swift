@@ -172,7 +172,13 @@ import NaturalLanguage
             Use lowercase, concise tags (1-3 words each).
             """
 
-            session = LanguageModelSession(instructions: instructions)
+            // `model:` is required. Omitting it yields a session that produces no output: an Instruments
+            // capture on 2026-08-15 recorded two such calls returning 0 tokens over 6.5 and 7.1
+            // seconds with an empty Response, while every session built with an explicit model
+            // succeeded in the same run. The bare `LanguageModelSession()` initialiser was fixed at
+            // ten sites on 2026-08-14; these pass instructions but still omitted the model, so they
+            // were missed by a grep for the no-argument form.
+            session = LanguageModelSession(model: SystemLanguageModel.default, instructions: instructions)
 
             guard let session = session else {
                 Log.error("[ContentTagging] Failed to create session", category: .llm)

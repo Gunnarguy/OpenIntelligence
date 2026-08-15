@@ -319,7 +319,13 @@ actor DocumentSummaryService {
         private func generateSummaryWithFoundationModels(prompt: String) async throws -> String {
             try Task.checkCancellation()
 
-            let session = LanguageModelSession(instructions: Instructions(Self.summaryInstructions))
+            // `model:` is required. Omitting it yields a session that produces no output: an Instruments
+            // capture on 2026-08-15 recorded two such calls returning 0 tokens over 6.5 and 7.1
+            // seconds with an empty Response, while every session built with an explicit model
+            // succeeded in the same run. The bare `LanguageModelSession()` initialiser was fixed at
+            // ten sites on 2026-08-14; these pass instructions but still omitted the model, so they
+            // were missed by a grep for the no-argument form.
+            let session = LanguageModelSession(model: SystemLanguageModel.default, instructions: Instructions(Self.summaryInstructions))
 
             return try await withThrowingTaskGroup(of: String.self) { group in
                 group.addTask {
