@@ -2497,6 +2497,14 @@ final class AgenticOrchestrator: Sendable {
     ///   - maxIterations: Maximum number of search iterations (default: 7)
     ///   - onStep: Callback for streaming thinking steps to UI
     /// - Returns: AgenticResult with final answer and all thinking steps
+    /// Wall-clock ceiling for one recursive-research call, in seconds.
+    ///
+    /// Deliberately generous: this is a ceiling that stops a pathological query from hanging, not a
+    /// tuning knob. Healthy cases in the smoke runs complete their whole query in 230 to 370
+    /// seconds, and the cases that reach this loop at all are the minority that retrieved beyond the
+    /// 20-chunk fusion cap.
+    private var researchTimeBudget: TimeInterval { 180 }
+
     func executeRecursiveResearch(
         query: String,
         maxIterations: Int = 7,
@@ -2532,12 +2540,34 @@ final class AgenticOrchestrator: Sendable {
         accumulatedContext = initialStep.output
         await onStep?(initialStep)
 
-        // Recursive loop
+        // Recursive loop.
+        //
+        // The loop is bounded by iterations and tokens but was not bounded by time, and each
+        // iteration runs a full retrieval pipeline plus a generation. That is unbounded work in
+        // practice: a single case in the 184c562 smoke exceeded a 1500 second budget here and
+        // returned nothing at all, where the same case previously escaped quickly only because it
+        // took a bad answer. Removing the bad answer is correct, but it exposed that this loop can
+        // spend arbitrarily long and still have nothing to show.
+        //
+        // The caller always already holds the reasoning chain's answer, so running out of time here
+        // costs an enhancement rather than the response. This bounds the enhancement.
+        let researchDeadline = Date().addingTimeInterval(researchTimeBudget)
+
         while iteration < maxIterations && totalTokens < config.maxTotalTokens {
             iteration += 1
 
             if Task.isCancelled {
                 Log.info("[RecursiveResearch] Task cancelled at iteration \(iteration)", category: .llm)
+                break
+            }
+
+            if Date() >= researchDeadline {
+                Log.warning(
+                    "[RecursiveResearch] Time budget of \(Int(researchTimeBudget))s exhausted at iteration "
+                        + "\(iteration)/\(maxIterations); returning what research has so far and letting the "
+                        + "caller keep the chain's answer",
+                    category: .llm
+                )
                 break
             }
 
