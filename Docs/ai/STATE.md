@@ -2,7 +2,7 @@
 
 Updated: 2026-08-15
 Branch/worktree: main, primary checkout
-Last verified commit: e3fc0ee
+Last verified commit: 067de44
 
 <!-- Keep the line above as the bare short SHA and nothing else. The SessionStart hook parses it
      with `sed` then strips all whitespace, so prose appended after the SHA is swallowed into it and
@@ -10,125 +10,137 @@ Last verified commit: e3fc0ee
 
 ## Objective
 
-None active. The objective changed once during the session and both halves are finished: it began as
-benchmark and fusion-weight work, then became **make Deep Think stop failing on device**, which it
-now does. Pick from the recommendations below, or ask the owner.
+Both halves of the owner's last instruction are addressed: **make the pre-generated suggested
+questions good for any uploaded document**, which is done and committed, and **run a Deep Think
+benchmark**, which is running now and is resumable.
 
 ## Status
 
-Tree clean at `e3fc0ee`. Only `main` exists.
+Tree clean at `067de44`. **Four commits are unpushed, deliberately.** Do not push without asking:
+pushing burns Xcode Cloud minutes and the owner asked for that to stop until the device work
+settles.
 
-Deep Think produces answers on device. The last device capture returned a 3360 character answer with
-a citation map over 20 sources, `Query failed` count 0, and `SmartReply` failure count 0.
+**A Deep Think benchmark is running right now** and will still be running for hours. Do not start a
+build, a test run, or any other heavy job against it without reading the Benchmark section below
+first.
 
 ## Completed
 
-**Ten services built their session with the bare `LanguageModelSession()` initialiser and failed
-deterministically.** That initialiser supplies no model and no instructions; every working path goes
-through `FoundationModelSessionFactory`, which supplies `model: SystemLanguageModel.default`,
-`tools:` and `instructions:`. Fixed at all ten. `SmartReply` had failed on **every run since
-2026-07-30** and is now clean. The experiment that isolated it was an empty library with the
-one-word query "Test" and zero retrieved chunks: the main answer generated normally and SmartReply
-still failed, which ruled out content, guardrails, context size and token caps in a single run.
+**Suggested questions were written from bibliographies, tables of contents and running headers,
+because nothing judged the passage.** `buildGroundedPassages` took `chunks.prefix(limit)` with no
+quality test. All five filters already in `SuggestedQuestionsService` inspect the *generated
+question*, and a reference list defeats every one of them at once: it is grammatical and dense with
+capitalised nouns, so "What is the role of Neurosci Yagishita Transient?" is well formed and no
+question-level test can separate it from a real question. `questionSourcePenalty` now scores the
+source text and **demotes rather than filters**, so a document that is entirely a reference list
+still produces suggestions instead of silently producing none.
 
-**A failure inside recursive research destroyed the answer the chain had already produced.**
-`executeRecursiveResearch` has two call sites, and only the one passing `maxIterations: 5` was
-guarded first. The one that actually fires in Deep Think passes `3`, which every device log states
-plainly as `[RecursiveResearch] Iteration 1/3`. Both are guarded now.
+**The hand-built samples were not enough, and saying so matters more than the fix.** The first
+version passed all nine synthetic cases and still hard-demoted **51 chunks of ordinary body prose**
+out of a 5,425-chunk sample of the real library. Two signals were wrong: a parenthetical year marks
+an author-year citation *in running text* and so fired hardest on the related-work paragraph, and
+loose author-initial matching caught "Detection DET." and "Twitter PHEME,". Author detection now
+requires three consecutive `Surname AB,` entries **with distinct surnames**, which is also what
+makes it safe outside academia, since "Section A, Section B, Section C" is ordinary content in a
+manual or a lease. Final: 99.2% of real chunks score 0, zero falsely hard-demoted.
 
-**Citations resolved to the wrong document on any query with four or more chunks.**
-`assembleContext` numbers sources *after* Lost-in-the-Middle reordering, while five call sites
-rebuilt the citation list as `prefix(used)` of the pre-reordering array. It now returns `sources` in
-label order and callers use it.
+**Every suggestion could share one sentence frame.** `enforceDiversity` spread across documents but
+never across phrasing, so four of seven could open "What is the role of". Capped per two-word frame
+at `max(2, count / 3)`, with a third pass that ignores the cap so the count is still met.
 
-**Every citation tap was inert.** `GroundedAnswerView` built links with an ICU template of `$$1`,
-which emits a literal `$` plus capture group 1, producing `citation://$3`.
-
-**Deep Think reasoned over section headings instead of document text**, fixed by stemming the
-keyword match and reading `chunk.metadata.sectionTitle`. Confirmed on device: session contexts went
-from 67 characters to 855.
-
-Also landed: disjoint session windows, a structured "still unanswered" line carried between
-sessions, a title-routing turn, an evidence-driven research gate, and telemetry for the fusion
-weights, the per-arm unique hit counts, and the citation map.
+**The generation prompt assumed every document was a research paper.** Its worked examples were all
+"methodology", "the study", "limitations", so a lease or a recipe was steered toward questions about
+findings it does not have. It now names document kind as the thing to match. Two em-dashes were also
+removed from prompt string literals, because the model imitates the punctuation of its instructions
+and can put one inside a user-visible question.
 
 ## Active Constraints
 
-- **No em-dashes anywhere**, including Swift string literals.
+- **Do not push.** Four commits are waiting on the owner's word. Xcode Cloud usage.
+- **No em-dashes anywhere**, including Swift string literals. Comments in existing files still carry
+  them; leave those, but never add one.
 - **`[Unreleased]` in `CHANGELOG.md` stays empty. New entries go under `## 5.0`.** v5.0 has **not**
   shipped; the App Store is on 4.9. `Docs/SHIPPED_VERSION.json` is the authority, and the preflight
   router reports this wrong.
-- **A session instruction outranks prompt text.** Adding one to a service whose prompt already
-  specifies a format will fight it. This regressed suggested questions within hours on 2026-08-14.
-- **Do not do heavy file work while a benchmark is measuring, and do not profile heavily while
-  reproducing a bug.** An instrumented run produced 10 memory warnings and 4 drops into efficient
-  mode where a comparable un-instrumented run produced none.
+- **A session instruction outranks prompt text.** This regressed suggested questions on 2026-08-14.
+- **Do not run a build or test suite against a benchmark without checking its timeout first.** Doing
+  exactly that on 2026-08-15 starved case 2 into a 600s timeout; the same case later completed in
+  294.8s untouched.
 - **Commits must not carry a `Co-Authored-By: Claude` trailer.**
 - The pre-commit hook blocks a `.swift` change with no doc update. It is installed and active.
-- Hard-boundary files still need the owner to name them. None were touched.
 
 ## Working Set
 
-- `OpenIntelligence/Services/AIPlatform/AppleFoundationModels/FoundationModelSessionFactory.swift`,
-  the only correct way to build a session. Read only, hard boundary.
-- `OpenIntelligence/Services/LLM/LLMService.swift`, `generate` at line 537. Its generic `catch` logs
-  Apple's real error case and the partial streamed text.
-- `OpenIntelligence/Services/Agentic/AgenticOrchestrator.swift`, both `executeRecursiveResearch`
-  call sites and `getResearchDecision`.
+- `OpenIntelligence/Services/Query/UX/SuggestedQuestionsService.swift`. `hasAuthorListRun`,
+  `questionSourcePenalty`, `rankChunksForQuestionGeneration`, `questionTemplateKey`,
+  `enforceDiversity`, and the generation prompt near line 1282.
+- `BenchmarkRuns/qasper-deepthink-20260815/results.jsonl`, the live checkpoint. One JSON object per
+  case; the fields that matter are nested, `run.ok`, `run.error`, `score.correct`,
+  `score.gold_recall`, `score.abstained`.
+- `/private/tmp/qasper-deepthink2.log`, the running harness output.
+- `/private/tmp/oi-library-backup-20260815-0109`, a 423MB copy of the owner's real library taken
+  before the run. Delete it once the run is finished and the library is confirmed intact.
 - `Docs/EVALS.md`, the single entry point for measurement. Read it before quoting any number.
-- `~/Desktop/Sigh.trace`, three runs of the Foundation Models Instruments template on device. Export
-  with `xcrun xctrace export --input <trace> --xpath '/trace-toc/run[@number="N"]/data/table[@schema="ModelInferenceTable"]'`.
 
 ## Verification
 
-- `xcodebuild test` -> **236 tests, 0 failures, `** TEST SUCCEEDED **`**, run after every commit this
-  session, from `/private/tmp/oi-test-src`. `xcodebuild` deadlocks on this repository's own path; see
+- `xcodebuild test` -> **236 tests, 0 failures, `** TEST SUCCEEDED **`**, run three times, once per
+  commit, from `/private/tmp/oi-test-src`. `xcodebuild` deadlocks on this repository's own path; see
   `RUNBOOK.md` item 1b.
-- Device capture 2026-08-15 -> Deep Think answered: 3360 characters, 2616 tokens, citation map over
-  20 sources, zero failed queries, zero SmartReply failures.
-- Instruments, Foundation Models template, run 3 -> 21 model inferences succeeded; 4 returned an
-  empty `Response` with `assets: ""` and `deltasCount: 2`; `SessionTable` reports `Error Count: 0`
-  for every one of them.
+- `questionSourcePenalty` extracted verbatim from the committed source and run over a stratified
+  5,425-chunk sample of `LocalCache/FTS5/fulltext.sqlite` -> 99.2% score 0, **zero** false hard
+  demotions, while bibliography, numbered references, table of contents, running header and numeric
+  table all still demote hard. Twelve hand-built samples hold their verdicts, including three
+  label-list cases ("Section A, Section B, Section C") that the first version got wrong.
+- The prompt change is **not device-verified**. No document-type spread has been run through it.
 
 ## Blockers / Unknowns
 
-1. **`getResearchDecision` and the title-routing turn still return empty responses, cause unknown.**
-   Contained, not fixed: both log a warning and keep the existing answer, so no query is lost. Apple
-   reports no error, a `generatedTokenCount` of 21 to 49, `deltasCount: 2`, and an empty `Response`.
-   Five hypotheses were tested and disproved: rate limiting, `@Generable` schema, prompt size, empty
-   context, and the output token cap. **Verification path:** commit `2016394` logs the partial
-   streamed text, so run one Deep Think query and read
-   `grep -A7 "Non-GenerationError escaped" <device-log>`. Those 21 to 49 tokens are the last unknown.
-2. **Two of the ten repaired services had never run their LLM path in production.** Repairing the
-   call exposed untested generation, which is what degraded suggested questions.
-   `ImageUnderstandingService`, `ClusterLabelService` and `QueryRewriterService` are in the same
-   position and their output has not been reviewed on device.
-3. **`doc_pack_addon` does not load from StoreKit.** `Missing products: doc_pack_addon` appears in
-   every device capture while the other three products load. Revenue affecting, untouched.
-4. **The fusion weight must not be set to one global value.** The offline sweep favours 0.00 on
-   `qasper_external_v1`, but device telemetry shows the arms inverting between libraries: one query
-   returned 137 vector-only against 3 lexical-only, another 58 against 28. See
-   `Docs/RETRIEVAL_PIPELINE.md` item 16.
+1. **The suggested-question prompt change has never run on device.** Compile-verified and
+   suite-verified only. **Verification path:** upload a non-academic document, a manual or a lease
+   or a recipe, and read the chips. That is the only thing that shows whether removing the
+   paper-shaped exemplars helped or drifted.
+2. **Deep Think scored `miss` on the first four benchmark cases.** Case 1 abstained with
+   `gold_recall 0.5`; case 3 answered with `gold_recall 0.0`. Four cases is not a result, and the
+   scorer's `patterns_hit` definition has not been audited against what Deep Think actually emits.
+   Do not report a Deep Think quality number off this until the run is larger and that definition is
+   checked.
+3. **`getResearchDecision` and the title-routing turn still return empty responses, cause unknown.**
+   Unchanged from the previous session. Contained, not fixed: both log a warning and keep the
+   existing answer. Apple reports no error, `generatedTokenCount` 21 to 49, `deltasCount: 2`.
+   **Verification path:** commit `2016394` logs the partial streamed text, so run one Deep Think
+   query and read `grep -A7 "Non-GenerationError escaped" <device-log>`.
+4. **`doc_pack_addon` does not load from StoreKit.** Revenue affecting, untouched.
+5. **The fusion weight must not be set to one global value.** See `Docs/RETRIEVAL_PIPELINE.md` 16.
+
+## Benchmark in flight
+
+83 QASPER cases, Deep Think only, `--pcc deny --pool-limit 10 --timeout 1500`, against the macOS
+Debug build at `/private/tmp/oi-mac-nosbx`. Cases run 250 to 400 seconds each, so the full set needs
+roughly 8 hours from 01:23. It writes `results.jsonl` incrementally and **is resumable**:
+
+```bash
+python3 scripts/run_quality_matrix.py --app /private/tmp/oi-mac-nosbx/Build/Products/Debug/OpenIntelligence.app --manifest Benchmarks/ResearchFixtures/qasper_external_v1/manifest.json --modes deep-think --pcc deny --pool-limit 10 --reset-shared-library --timeout 1500 --resume BenchmarkRuns/qasper-deepthink-20260815
+```
+
+`--resume` skips any `(case_id, mode)` already in `results.jsonl`, **including rows that failed**, so
+delete a row where `run.ok` is false before resuming or that case is never retried. `--timeout` is
+not recorded in `run_config.json` and so may be changed on resume; every other parameter must match
+or the harness refuses to merge two configurations into one file.
 
 ## Exact Next Action
 
-**Read the partial streamed text from a fresh device capture.** It is the only unanswered question
-left and is now one grep away:
+**Read the benchmark checkpoint and decide whether the run is worth continuing**, before anything
+else, because it is holding the machine:
 
 ```bash
-grep -A7 "Non-GenerationError escaped generation" <device-log>
+python3 -c "import json;rs=[json.loads(l) for l in open('BenchmarkRuns/qasper-deepthink-20260815/results.jsonl')];print(len(rs),'cases;',sum(1 for r in rs if r['score'].get('correct')),'correct;',sum(1 for r in rs if r['score'].get('abstained')),'abstained')"
 ```
 
-Run one Deep Think query against a library that reproduces it (the neuroscience corpus does), using
-the Foundation Models Instruments template **alone**, or no profiling at all. The `partialText` line
-shows what the model emitted before the response resolved to empty. That decides whether this is a
-refusal, a stop-token artefact, or something else, and replaces five disproved hypotheses with an
-observation.
+If Deep Think is still near zero correct after 20 or more cases, stop the run and audit the scorer
+against one full answer before spending the rest of the night on it. `score.gold_recall` above zero
+with `correct` false means retrieval found the evidence and the scorer or the answer is at fault,
+which is a different bug from retrieval missing.
 
-### If the owner wants product work instead
-
-- **Delete the structure and keyword boost stage.** Measured over 72 cases: 22 better, 21 worse,
-  p = 1.0. It reorders 43 of them and buys nothing. See `Docs/EVALS.md`.
-- **Review the on-device output of `ImageUnderstandingService`, `ClusterLabelService` and
-  `QueryRewriterService`.** See Blockers 2.
-- **Fix `doc_pack_addon`.** See Blockers 3.
+Then, when the owner is available, take Blocker 1: put a manual or a lease through the app and look
+at the suggested questions. That is the only part of tonight's work that no test covers.
