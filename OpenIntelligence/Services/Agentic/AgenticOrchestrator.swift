@@ -732,7 +732,9 @@ final class AgenticOrchestrator: Sendable {
                     initialSteps: steps,
                     initialTokens: totalTokens,
                     initialConfidence: chainResult.confidence,
-                    initialSources: allRetrievedChunks,
+                    // The array the chain actually labelled, not the pre-routing order. See
+                    // `ReasoningChainResult.routedChunks`.
+                    initialSources: chainResult.routedChunks,
                     ragService: ragService,
                     startTime: startTime,
                     onStep: onStep
@@ -820,7 +822,9 @@ final class AgenticOrchestrator: Sendable {
                     initialSteps: steps,
                     initialTokens: totalTokens,
                     initialConfidence: chainResult.confidence,
-                    initialSources: allRetrievedChunks,
+                    // The array the chain actually labelled, not the pre-routing order. See
+                    // `ReasoningChainResult.routedChunks`.
+                    initialSources: chainResult.routedChunks,
                     ragService: ragService,
                     startTime: startTime,
                     onStep: onStep
@@ -3990,6 +3994,20 @@ struct ReasoningChainResult: Sendable {
     /// These are what recursive research should go and look for. Re-running the original query
     /// searches for what was already found; searching the gaps searches for what is missing.
     let unansweredQuestions: [String]
+
+    /// The chunks in the exact order the chain labelled them `[S1]...[Sn]`.
+    ///
+    /// Citations were resolved against the wrong array for as long as the chain has existed. The
+    /// chain labels sources over `routeChunksByTitle`'s output, which is a **reordering** of the
+    /// caller's array, and it labels them per rotating window. `runVerificationLoop` then resolved
+    /// `[Sn]` against `allRetrievedChunks`, the pre-sort, pre-routing order. Two independent
+    /// mismatches, so `verifyCitations` graded nearly every citation against an unrelated chunk,
+    /// drove `groundingScore` toward zero, and tripped the retry that discards the answer.
+    ///
+    /// `allRetrievedChunks -> sorted -> routed` are all permutations of one set with nothing
+    /// dropped, so handing this back is a reordering of what the caller already had, not a
+    /// different or smaller set of sources.
+    let routedChunks: [RetrievedChunk]
 }
 
 extension AgenticOrchestrator {
@@ -4262,11 +4280,15 @@ extension AgenticOrchestrator {
             for c in windowChunks { allSources.insert(c.sourceDocument) }
             sessionSourceSets.append(Set(windowChunks.map(\.sourceDocument)))
 
+            // `labelOffset` makes the window's labels global positions in `routedChunks` instead of
+            // restarting at [S1] every session. Without it, session 2's [S1] and session 1's [S1]
+            // name different chunks in the same answer, and `verifyCitations` cannot resolve either.
             let extraction = await ragService.extractRelevantSentences(
                 from: windowChunks,
                 query: query,
                 maxChars: contextBudget,
-                compact: true
+                compact: true,
+                labelOffset: startIdx
             )
             var ctx = extraction.context
 
@@ -4289,7 +4311,8 @@ extension AgenticOrchestrator {
                 var rawContext = ""
                 for (idx, wc) in windowChunks.enumerated() {
                     let content = wc.chunk.parentContent ?? wc.chunk.content
-                    let sourceLabel = "[S\(idx + 1)] (\(wc.sourceDocument))"
+                    // Global position, matching the `labelOffset` on the extraction path above.
+                    let sourceLabel = "[S\(startIdx + idx + 1)] (\(wc.sourceDocument))"
                     let truncated = String(content.prefix(contextBudget / max(windowChunks.count, 1)))
                     if rawContext.count + truncated.count + sourceLabel.count + 10 < contextBudget {
                         rawContext += sourceLabel + "\n" + truncated + "\n\n---\n"
@@ -4573,7 +4596,8 @@ extension AgenticOrchestrator {
                         evidenceCoverageTarget: reasoningPolicy.evidenceCoverageTarget(
                             for: evidenceTracker.subQuestions.count
                         ),
-                        unansweredQuestions: evidenceTracker.unansweredQuestions
+                        unansweredQuestions: evidenceTracker.unansweredQuestions,
+                        routedChunks: routedChunks
                     )
                 }
             }
@@ -4620,7 +4644,8 @@ extension AgenticOrchestrator {
                     evidenceCoverageTarget: reasoningPolicy.evidenceCoverageTarget(
                         for: evidenceTracker.subQuestions.count
                     ),
-                    unansweredQuestions: evidenceTracker.unansweredQuestions
+                    unansweredQuestions: evidenceTracker.unansweredQuestions,
+                    routedChunks: routedChunks
                 )
             }
 
@@ -5051,7 +5076,8 @@ extension AgenticOrchestrator {
             evidenceCoverageTarget: reasoningPolicy.evidenceCoverageTarget(
                 for: evidenceTracker.subQuestions.count
             ),
-            unansweredQuestions: evidenceTracker.unansweredQuestions
+            unansweredQuestions: evidenceTracker.unansweredQuestions,
+            routedChunks: routedChunks
         )
     }
 

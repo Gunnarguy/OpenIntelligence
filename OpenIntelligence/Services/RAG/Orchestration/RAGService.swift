@@ -8266,6 +8266,22 @@ class RAGService: ObservableObject {
                 }
             }.count
 
+            // Similarity telemetry, measured rather than asserted.
+            //
+            // These three were hardcoded to 0.7 / 0.5 / 0.5 on the agentic path, so every Deep Think
+            // and Maximum answer displayed the same constant match score in the UI, and an 83-case
+            // benchmark recorded `top_similarity` of exactly 0.7 on all 82 rows while the standard
+            // path varied between 0.80 and 1.27. A number the user reads as a measurement has to be
+            // one.
+            let agenticSims = result.retrievedChunks
+                .map(\.similarityScore)
+                .sorted(by: >)
+            let agenticTopSim = agenticSims.first ?? 0
+            let agenticSecondSim = agenticSims.count > 1 ? agenticSims[1] : 0
+            let agenticAvgTop5 = agenticSims.isEmpty
+                ? 0
+                : agenticSims.prefix(5).reduce(0, +) / Float(min(5, agenticSims.count))
+
             let agenticAudit = RAGAuditSnapshot(
                 timestamp: Date(),
                 query: question,
@@ -8281,9 +8297,9 @@ class RAGService: ObservableObject {
                 retrievalConfig: selectedRetrievalConfig,
                 lenientRetrieval: true,
                 dynamicMin: 0.3,
-                topSim: 0.7,
-                secondSim: 0.5,
-                avgTop5: 0.5,
+                topSim: agenticTopSim,
+                secondSim: agenticSecondSim,
+                avgTop5: agenticAvgTop5,
                 acceptanceOverride: false,
                 totalStoredChunks: result.retrievedChunks.count,
                 candidatesCount: result.retrievedChunks.count,
