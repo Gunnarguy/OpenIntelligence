@@ -3167,6 +3167,28 @@ final class AgenticOrchestrator: Sendable {
         return 1.0 - jaccardSimilarity
     }
 
+    /// Record what the verification loop is about to discard.
+    ///
+    /// The loop overwrites `currentAnswer` with whatever recursive research returned, and the
+    /// replaced text was never written anywhere. An 83-case run on 2026-08-15 showed 18 answers
+    /// collapsing from a median 3510 characters to 181, and the question of whether the discarded
+    /// answer was actually better could not be settled from the artifacts, because only the winner
+    /// was ever recorded. Both lengths and the citation counts are the evidence needed to decide
+    /// whether this replacement should be guarded at all. Logging only, no behaviour change.
+    private func logAnswerReplacement(previous: String, replacement: String, reason: String) {
+        let citations: (String) -> Int = { text in
+            guard let regex = try? NSRegularExpression(pattern: #"\[S\d+\]"#) else { return 0 }
+            return regex.numberOfMatches(in: text, options: [], range: NSRange(text.startIndex..., in: text))
+        }
+        let ratio = replacement.isEmpty ? 0 : Double(previous.count) / Double(max(replacement.count, 1))
+        Log.warning(
+            "[Agentic] Answer replaced (\(reason)): \(previous.count) chars with \(citations(previous)) citations "
+                + "-> \(replacement.count) chars with \(citations(replacement)) citations "
+                + "(shrink \(String(format: "%.1f", ratio))x)",
+            category: .llm
+        )
+    }
+
     private func runVerificationLoop(
         query: String,
         initialAnswer: String,
@@ -3266,6 +3288,7 @@ final class AgenticOrchestrator: Sendable {
                     Log.warning("[Agentic] Self-RAG: Semantic delta too low (\(String(format: "%.4f", delta)) < 0.10). Refusing further retries.", category: .llm)
                     currentSteps.append(contentsOf: recursiveResult.steps)
                     currentTokens += recursiveResult.totalTokens
+                    logAnswerReplacement(previous: currentAnswer, replacement: newAnswer, reason: "semantic delta below 0.10")
                     currentAnswer = newAnswer
                     break
                 }
@@ -3273,6 +3296,7 @@ final class AgenticOrchestrator: Sendable {
                 if !answerIndicatesRetrievalMiss(newAnswer) {
                     currentSteps.append(contentsOf: recursiveResult.steps)
                     currentTokens += recursiveResult.totalTokens
+                    logAnswerReplacement(previous: currentAnswer, replacement: newAnswer, reason: "recursive research returned an answer")
                     currentAnswer = newAnswer
                     // Update sources/chunks
                     for chunk in recursiveResult.retrievedChunks {
