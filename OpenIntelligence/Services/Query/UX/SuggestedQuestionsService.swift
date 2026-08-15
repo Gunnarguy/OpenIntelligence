@@ -2866,22 +2866,51 @@ actor SuggestedQuestionsService {
             return lhsScore > rhsScore
         }
 
+        // Phrasing cap. Spreading across documents does not stop every slot from being filled with
+        // the same sentence frame, and a set where four of seven questions open "What is the role
+        // of" reads as generated even when each question is individually fine. The cap is applied
+        // as a preference, not a rule: the final pass below ignores it so the requested count is
+        // still met when a library genuinely only supports one frame.
+        var templateCounts: [String: Int] = [:]
+        let templateCap = max(2, count / 3)
+
         // First pass: seed as many different documents as possible with the strongest,
         // most answerable questions instead of forcing one-per-category.
         for question in rankedQuestions {
             let docKey = question.relevantDocuments.first ?? ""
             guard !docsSeeded.contains(docKey) else { continue }
             guard (docCounts[docKey] ?? 0) < perDocCap else { continue }
+            let templateKey = questionTemplateKey(question.text)
+            guard (templateCounts[templateKey] ?? 0) < templateCap else { continue }
 
             result.append(question)
             selectedIds.insert(question.id)
             docsSeeded.insert(docKey)
             docCounts[docKey, default: 0] += 1
+            templateCounts[templateKey, default: 0] += 1
 
             if result.count >= min(count, max(1, uniqueDocs.count)) { break }
         }
 
         // Second pass: fill remaining slots with the best remaining questions.
+        if result.count < count {
+            for question in rankedQuestions {
+                guard !selectedIds.contains(question.id) else { continue }
+                let docKey = question.relevantDocuments.first ?? ""
+                let templateKey = questionTemplateKey(question.text)
+                if (docCounts[docKey] ?? 0) < perDocCap,
+                   (templateCounts[templateKey] ?? 0) < templateCap {
+                    result.append(question)
+                    selectedIds.insert(question.id)
+                    docCounts[docKey, default: 0] += 1
+                    templateCounts[templateKey, default: 0] += 1
+                }
+                if result.count >= count { break }
+            }
+        }
+
+        // Final pass: the phrasing cap must never cost the caller a slot. If variety was not
+        // available, fall back to the document cap alone rather than returning fewer questions.
         if result.count < count {
             for question in rankedQuestions {
                 guard !selectedIds.contains(question.id) else { continue }
@@ -2898,14 +2927,143 @@ actor SuggestedQuestionsService {
         return result
     }
 
+    /// Collapse a question to its sentence frame so `enforceDiversity` can limit repetition.
+    ///
+    /// The first two words carry the frame for the forms this service generates: "What is",
+    /// "How does", "Why did", "What are". Deliberately ignores the topic, because two questions
+    /// about different topics in the same frame are the repetition being limited.
+    private func questionTemplateKey(_ text: String) -> String {
+        let words = text
+            .lowercased()
+            .components(separatedBy: CharacterSet.whitespacesAndNewlines)
+            .map { $0.trimmingCharacters(in: CharacterSet.punctuationCharacters) }
+            .filter { !$0.isEmpty }
+        guard !words.isEmpty else { return "" }
+        return words.prefix(2).joined(separator: " ")
+    }
+
     // MARK: - Grounding Helpers
+
+    private func regexMatchCount(_ pattern: String, in text: String) -> Int {
+        guard let regex = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]) else {
+            return 0
+        }
+        return regex.numberOfMatches(in: text, options: [], range: NSRange(text.startIndex..., in: text))
+    }
+
+    /// Score a chunk on how well it works as raw material for a question, independent of the
+    /// question that gets written from it.
+    ///
+    /// Every filter that already exists in this file inspects the generated *question*:
+    /// `isJunkString`, `sanitizeGeneratedQuestion`, `isUsableLLMGeneratedQuestion`,
+    /// `isStructuralOrMetaQuestion`. That is why a reference list survives all of them. A
+    /// bibliography entry is grammatical, dense with capitalised domain nouns, and yields a
+    /// perfectly well formed question such as "What is the role of Neurosci Yagishita Transient?"
+    /// which no question-level filter can distinguish from a real one. The only place the defect is
+    /// visible is the passage, so this looks at the passage and never at the question.
+    ///
+    /// Returns a penalty. `0` means the text reads as document body. Higher means more furniture.
+    /// The caller demotes rather than deletes, so a document made entirely of one of these forms
+    /// still produces questions.
+    private func questionSourcePenalty(for text: String) -> Int {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed.count >= 40 else { return 6 }
+
+        var penalty = 0
+        let lower = trimmed.lowercased()
+
+        // Bibliography and reference blocks. Any two of these signals together is decisive; the
+        // thresholds are set so a body paragraph that cites one or two works in passing survives.
+        var citationSignals = 0
+        if regexMatchCount(#"\(\s*\d{4}[a-z]?\s*\)"#, in: trimmed) >= 3 { citationSignals += 1 }
+        if regexMatchCount(#"\bet al\.?"#, in: trimmed) >= 3 { citationSignals += 1 }
+        // "Correia PA," and "Yagishita S." style author-initial runs.
+        if regexMatchCount(#"\b[A-Z][a-z]{2,}\s+[A-Z]{1,3}\b[,.]"#, in: trimmed) >= 3 { citationSignals += 1 }
+        // Volume(issue):page and year;volume forms.
+        if regexMatchCount(#"\b\d+\s*\(\s*\d+\s*\)\s*:\s*\d+"#, in: trimmed) >= 2 { citationSignals += 1 }
+        if regexMatchCount(#"\b\d{4}\s*;\s*\d+"#, in: trimmed) >= 2 { citationSignals += 1 }
+        if regexMatchCount(#"\bdoi\s*:|doi\.org/"#, in: trimmed) >= 2 { citationSignals += 1 }
+        // Numbered or bracketed citation lists.
+        if regexMatchCount(#"(?m)^\s*\[?\d{1,3}[\].]\s+[A-Z]"#, in: trimmed) >= 3 { citationSignals += 1 }
+        if citationSignals >= 2 { penalty += 5 } else if citationSignals == 1 { penalty += 2 }
+
+        // Table of contents and index furniture: dot leaders, or many lines that end in a bare
+        // page number.
+        if regexMatchCount(#"\.{4,}"#, in: trimmed) >= 2 { penalty += 5 }
+        if regexMatchCount(#"(?m)\s\d{1,4}\s*$"#, in: trimmed) >= 4 { penalty += 3 }
+
+        // Running headers, copyright lines, and access boilerplate. These are the short strips that
+        // repeat on every page of a PDF.
+        let boilerplate = [
+            "all rights reserved", "downloaded from", "creative commons", "this article is protected",
+            "author manuscript", "available in pmc", "terms and conditions", "wiley online library",
+            "see discussions, stats", "the copyright holder for this preprint", "made available under",
+            "issn", "isbn", "printed in the united states"
+        ]
+        if boilerplate.contains(where: { lower.contains($0) }) { penalty += 4 }
+
+        // Character composition. A table dump or a coordinate list is mostly digits and punctuation,
+        // and yields questions about numbers with no referent.
+        let letters = trimmed.unicodeScalars.filter { CharacterSet.letters.contains($0) }.count
+        let digits = trimmed.unicodeScalars.filter { CharacterSet.decimalDigits.contains($0) }.count
+        if letters > 0, Double(digits) / Double(letters + digits) > 0.35 { penalty += 4 }
+
+        // OCR damage. Vowel-free alphabetic tokens are the reliable tell, and they are what produced
+        // fragments like "-HT" surviving into a question.
+        let words = trimmed
+            .components(separatedBy: CharacterSet.whitespacesAndNewlines)
+            .map { $0.trimmingCharacters(in: CharacterSet.punctuationCharacters) }
+            .filter { $0.count >= 3 && $0.allSatisfy { ch in ch.isLetter } }
+        if words.count >= 8 {
+            let vowelless = words.filter { word in
+                !word.lowercased().contains(where: { "aeiouy".contains($0) })
+            }.count
+            if Double(vowelless) / Double(words.count) > 0.2 { penalty += 4 }
+        }
+
+        // Prose check. Body text has sentences. A list of names, headings, or fragments does not.
+        let sentenceEnders = regexMatchCount(#"[.!?](\s|$)"#, in: trimmed)
+        if sentenceEnders == 0 && trimmed.count > 200 { penalty += 3 }
+
+        return penalty
+    }
+
+    /// Order chunks so that document body outranks document furniture, then take `limit`.
+    ///
+    /// This demotes rather than filters on purpose. A library whose only content is a reference
+    /// list, a table, or a scanned page still needs suggestions, and a hard filter would return an
+    /// empty set and silently disable the feature for exactly those documents.
+    private func rankChunksForQuestionGeneration(
+        _ chunks: [DocumentChunk],
+        limit: Int
+    ) -> [DocumentChunk] {
+        guard chunks.count > limit else {
+            return Array(chunks)
+        }
+
+        let scored = chunks.enumerated().map { index, chunk -> (chunk: DocumentChunk, penalty: Int, index: Int) in
+            (chunk, questionSourcePenalty(for: chunk.parentContent ?? chunk.content), index)
+        }
+
+        let clean = scored.filter { $0.penalty == 0 }
+        if clean.count >= limit {
+            return Array(clean.prefix(limit).map { $0.chunk })
+        }
+
+        // Stable sort by penalty, preserving the retrieval order the caller established within each
+        // penalty band. Retrieval rank is still the primary quality signal among equally clean text.
+        let ordered = scored.sorted { lhs, rhs in
+            lhs.penalty == rhs.penalty ? lhs.index < rhs.index : lhs.penalty < rhs.penalty
+        }
+        return Array(ordered.prefix(limit).map { $0.chunk })
+    }
 
     private func buildGroundedPassages(
         from chunks: [DocumentChunk],
         documents: [Document],
         limit: Int
     ) -> [GroundedPassage] {
-        chunks.prefix(limit).map { chunk in
+        rankChunksForQuestionGeneration(chunks, limit: limit).map { chunk in
             let rawDocName = documents.first(where: { $0.id == chunk.documentId })?.filename ?? "Document"
             let docName = displayDocumentName(rawDocName)
             let sectionName = primarySectionLabel(for: chunk)
