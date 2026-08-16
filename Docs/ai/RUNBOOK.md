@@ -244,6 +244,30 @@ generates, move the benchmark to the Simulator, and remove the three `#if target
 guards in `LLMService` and `RAGService` at the same time.
 `[evidence_level: measured, confidence: exact, evidence_source: bare FoundationModels probe host vs simulator; one full case per target]`
 
+**7. Watch a run for defect shapes, and run six cases before eighty three. Added 2026-08-16.**
+Attach the watcher to any run and it reports per case, the moment a case lands, rather than at the
+end:
+
+```bash
+scripts/watch_benchmark_defects.sh BenchmarkRuns/<run>/results.jsonl <harness-log> 6
+```
+
+It prints a line only for a case carrying a known failure signature, a heartbeat every ten clean
+cases, and every terminal state including a crash or a stall. Silence means healthy. That last part
+is deliberate: a filter matching only the happy path is silent through a crash, and silence then
+looks exactly like progress.
+
+Pair it with `--limit 6`. This is measured, not a preference. On 2026-08-15 a watcher reporting only
+completion left a defect visible in case 1 at minute 4 unread until three cases had burned, and the
+correction cycle was a full run, about three hours, per fix. Watching shapes against a six-case run
+cut that to roughly twenty five minutes and surfaced four separate defects the same afternoon: the
+model echoing the prompt's own `[SEARCH: query]` placeholder, the verification loop replacing a
+cited answer with an uncited one, a guard applied to only one of two call sites, and recursive
+research having no wall-clock bound. Run the full set once the smoke is clean, not before.
+
+Replay it over a finished run to sanity check a signature list before trusting it. Against
+`qasper-deepthink-20260815` it flags the placeholder defect on case 1.
+
 **6. The harness overstated its own sensitivity until 2026-08-12.**
 `minimum_detectable_effect(n)` interpolated the sample size into a sentence whose threshold was a
 hardcoded constant, so it printed "differences below about 25 points are not resolvable" at every
