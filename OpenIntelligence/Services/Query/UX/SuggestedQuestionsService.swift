@@ -1293,6 +1293,7 @@ actor SuggestedQuestionsService {
 
             Rules:
             - Do NOT mention the word "passage", "document", "text", "author", "study", or "table" in the questions (e.g., do NOT ask "According to the passage, what is..."). Keep them entirely about the subject matter.
+            - Only ask "why" when the passage actually gives a reason. Most documents state rules without explaining them: if the text says rent is late after the fifth day but never says why, ask what the rule is, not why it exists.
             - Each question must be a complete, grammatically correct sentence under 15 words.
             - Do not include brackets, quotes, numbering, or bullets.
             \(avoidClause)
@@ -3931,6 +3932,18 @@ actor SuggestedQuestionsService {
             return true
         }
 
+        // A question demanding a reason the passage never gives.
+        //
+        // This lives here, and not in the individual validators, because there are five of them and
+        // two are dead code. Placing it in `isAnswerableSuggestedQuestion` first did nothing at all:
+        // that function has zero call sites. Every live path routes through this one, so this is the
+        // only placement that cannot be half-applied. Measured on a real lease: "Why can't the
+        // Tenant rent out the space?" survived a guard placed in two other functions and reached the
+        // user, against a clause that requires consent and never says why.
+        if asksForAReason(lower) && !passageExplainsCause(passage.content) {
+            return true
+        }
+
         return false
     }
 
@@ -3948,6 +3961,50 @@ actor SuggestedQuestionsService {
             of: #"\b\d+(?:[.,]\d+)?\s*(?:ms|sec|secs|seconds?|s|min|mins|minutes?|hr|hrs|hours?|days?)\b"#,
             options: [.regularExpression, .caseInsensitive]
         ) != nil
+    }
+
+    /// Does the passage actually give a reason, rather than merely state a rule?
+    ///
+    /// A "why" question is only answerable when the text explains itself, and most documents do not.
+    /// A lease says rent is late after the fifth day; it never says why. A manual says do not
+    /// immerse the unit; it rarely says what happens if you do. Asking "Why does rent become late
+    /// after the fifth day?" produces a question that reads well, is clearly on topic, and has no
+    /// answer anywhere in the document, which is the worst kind of suggestion because the user only
+    /// discovers it after tapping.
+    ///
+    /// Same shape as the `how long` rule above it: the question names an answer *type*, and the
+    /// passage has to actually contain that type. Deliberately excludes "since", which is causal
+    /// about as often as it is temporal, and "as", which is mostly neither.
+    private func passageExplainsCause(_ text: String) -> Bool {
+        let lower = text.lowercased()
+        // Markers of an *explanation*, not of causation in general. Three were removed after being
+        // measured against a real lease, where each matched text that explains nothing:
+        // "the purpose" matched the boilerplate "for the purposes of this section", while
+        // "caused by" and "causes" matched "damage caused by the animal", which describes what
+        // damaged what and says nothing about why any rule exists.
+        let causalSignals = [
+            "because", "due to", "owing to", "as a result", "results in",
+            "therefore", "thus", "consequently", "in order to", "so that", "so as to",
+            "to ensure", "to prevent", "to avoid", "to protect", "to reduce", "to maintain",
+            "the reason", "reason for", "reason is", "rationale", "purpose is",
+            "intended to", "designed to", "aims to", "motivated by", "this allows", "which allows",
+            "this enables", "which enables", "explains why"
+        ]
+        return causalSignals.contains(where: { lower.contains($0) })
+    }
+
+    /// Is this question demanding a reason the document may not carry?
+    ///
+    /// Matches the interrogative form only. "Why" anywhere in a sentence is not the same as a
+    /// question asking for a cause, and "What is the reason for X" is, so both are handled here
+    /// rather than by a bare prefix test.
+    private func asksForAReason(_ lowercasedQuestion: String) -> Bool {
+        if lowercasedQuestion.hasPrefix("why ") { return true }
+        let reasonForms = [
+            "what is the reason", "what are the reasons", "for what reason",
+            "what is the rationale", "what is the purpose of requiring"
+        ]
+        return reasonForms.contains(where: { lowercasedQuestion.hasPrefix($0) })
     }
 
     private func passageLooksSafetyCritical(_ text: String) -> Bool {
