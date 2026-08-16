@@ -203,6 +203,41 @@ enum DebugRAGValidationHarness {
             // expected filenames to document ids without relying on `sourceDocument`, which only
             // the same-launch ingestion path fills in.
             let knownDocuments = await MainActor.run { ragService.documents }
+
+            // `--rag-validation-questions` exercises the suggested-question chips headlessly.
+            //
+            // This path had no coverage of any kind. The harness only ever ran queries, so the
+            // questions offered before the user types anything were changed on 2026-08-15 and
+            // verified by compiling. Apple Foundation Models runs on this Mac exactly as it does on
+            // a phone, so "test it on a device" was the wrong framing: what was missing was a way to
+            // invoke the path at all, not different hardware.
+            if LaunchArguments.has("--rag-validation-questions") || LaunchArguments.has("rag-validation-questions") {
+                let sampleChunks = response.retrievedChunks.map(\.chunk)
+                let questions = await SuggestedQuestionsService.shared.generateQuestions(
+                    for: containerId,
+                    documents: knownDocuments,
+                    sampleChunks: sampleChunks,
+                    count: 6,
+                    forceRefresh: true
+                )
+                Log.info(
+                    "[SuggestedQuestionsProbe] \(questions.count) questions from "
+                        + "\(sampleChunks.count) chunks across \(knownDocuments.count) document(s)",
+                    category: .llm
+                )
+                for (index, question) in questions.enumerated() {
+                    Log.info(
+                        "[SuggestedQuestionsProbe] \(index + 1). \(question.text) "
+                            + "[category: \(question.category), llm: \(question.isLLMGenerated), "
+                            + "confidence: \(String(format: "%.2f", question.confidence))]",
+                        category: .llm
+                    )
+                }
+                if questions.isEmpty {
+                    Log.warning("[SuggestedQuestionsProbe] produced NO questions", category: .llm)
+                }
+            }
+
             let report = buildReport(
                 configuration: configuration,
                 containerId: containerId,
