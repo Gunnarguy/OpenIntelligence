@@ -866,6 +866,26 @@ struct LLMResponse {
                 // still in scope here, which means the app has been holding those tokens the whole
                 // time and throwing them away unread. Whatever they are is the remaining unknown in
                 // this failure, and printing them costs nothing.
+                // iOS 27 replaced `GenerationError` with four separate types, and none of them
+                // match the typed catch above. A device capture on 2026-08-16 was 17 of 17
+                // `GeneratedContent.ParsingError`, every one falling to this handler with only its
+                // `localizedDescription` intact. `mapModernError` returns nil for anything that is
+                // not one of the new types, so the original behaviour below is unchanged.
+                if let mapped = FoundationModelErrorMapper.mapModernError(
+                    error,
+                    isStructured: false,
+                    estimatedTokens: estimatedTokens
+                ) {
+                    HardwareTelemetryReporter.sustain(.llmInference, active: false)
+                    switch mapped {
+                    case let .throwError(mappedError):
+                        throw mappedError
+                    case let .setFlags(violation, unsupported):
+                        guardrailViolation = violation
+                        unsupportedLanguage = unsupported
+                    }
+                } else {
+
                 let partial = responseText.trimmingCharacters(in: .whitespacesAndNewlines)
                 Log.error(
                     "[FM] Non-GenerationError escaped generation:\n"
@@ -878,6 +898,7 @@ struct LLMResponse {
                     category: .llm
                 )
                 throw error
+                }
             }
 
             // Stop Neural Engine activity indicator

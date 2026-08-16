@@ -226,6 +226,18 @@ import NaturalLanguage
                 Log.warning("[ContentTagging] \(error.localizedDescription) Using NLTagger fallback for \(documentName ?? "document")", category: .llm)
                 return nlTaggerFallbackTags(for: text)
             } catch {
+                // On iOS 27 a context overflow arrives as `LanguageModelError.contextSizeExceeded`,
+                // which does not match the typed catch above, so the shorten-and-retry recovery was
+                // unreachable and every overflow silently degraded to keyword tagging.
+                //
+                // The length check is not in the original branch and is needed: it retried with
+                // `text.prefix(2000)` unconditionally, so a text already at or under 2000 characters
+                // would recurse on an identical string forever.
+                if FoundationModelErrorMapper.recoveryHint(for: error) == .contextOverflow,
+                   text.count > 2000 {
+                    Log.warning("[ContentTagging] Context overflow, retrying with shorter text", category: .llm)
+                    return try await generateTags(for: String(text.prefix(2000)), documentName: documentName)
+                }
                 Log.warning("[ContentTagging] Unexpected error: \(error), using NLTagger fallback", category: .llm)
                 return nlTaggerFallbackTags(for: text)
             }

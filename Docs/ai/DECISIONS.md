@@ -446,3 +446,37 @@ need `xcrun simctl launch --console-pty <udid> <bundle-id> --args ...` with the 
 
 `[evidence_level: measured, confidence: exact, evidence_source: bare FoundationModels probe on host vs
 iOS 27 simulator; one full case at --pool-limit 10 on each target]`
+
+---
+
+## 2026-08-16: Handle both Foundation Models error taxonomies rather than migrating off the old one
+
+**Context.** iOS 27 deprecates every case of `LanguageModelSession.GenerationError` and splits it
+across four replacement types: `LanguageModelError`, `GeneratedContent.ParsingError`,
+`LanguageModelSession.Error` and `SystemLanguageModel.Error`. The app caught only the old type, at
+three sites, so on iOS 27 every Foundation Models error fell past its handler into a generic catch
+that could print `localizedDescription` and nothing else. Two consequences were paid for weeks. The
+"empty response" failure resisted five separate hypotheses because the type carrying the evidence
+was never caught: a device capture on 2026-08-16 was **17 of 17 `GeneratedContent.ParsingError`**,
+each reported as "Session ended without producing a response". And recovery logic that switched on
+`GenerationError` cases became unreachable, so `ContentTaggingService` stopped shortening text on
+context overflow and silently degraded to keyword tagging.
+
+**Decision.** Add handling for the new types alongside the old, not instead of it.
+`FoundationModelErrorMapper.mapModernError` returns `nil` for anything that is not one of the new
+types, so each call site falls through to its existing behaviour unchanged. A separate
+`recoveryHint(for:)` collapses both taxonomies into the distinction that recovering callers actually
+need, which is context overflow versus filtered content.
+
+**Alternatives.** Replace the old handling outright. Rejected because both taxonomies exist in the
+iOS 27 SDK, the old cases are deprecated rather than removed, and nothing documents which API throws
+which. Deleting the old path would have been an unverifiable bet against paths that currently work.
+Also rejected: typed `catch` clauses per type, which the iOS 26 deployment target forbids since all
+four replacements are iOS 27, so one availability-guarded downcast covers every site instead.
+
+**Consequences.** Rate limiting can use the real `resetDate` instead of the hardcoded `[2, 5, 12]`
+second backoff, and context overflow reports Apple's actual `tokenCount` and `contextSize` instead of
+the app's own estimate. Most importantly `GeneratedContent.ParsingError.rawContent` is now logged,
+which is the model output that failed to parse and the one piece of evidence this failure has never
+yielded. This is expected to be diagnosis rather than cure: if the raw content shows the model
+emitting something unparseable, fixing that is separate work.

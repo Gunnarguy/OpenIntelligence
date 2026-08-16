@@ -80,6 +80,17 @@ struct FoundationModelStructuredGenerator {
                     throw mappedError
                 }
                 throw error
+            } catch {
+                // Guided generation is where `GeneratedContent.ParsingError` actually lands, because
+                // it is thrown when the model's output does not conform to the @Generable schema.
+                // On iOS 27 that no longer matches the typed catch above, so these failures reached
+                // callers as a bare "Failed to parse generated content" with the raw output, which
+                // the error carries, never read.
+                if let mapped = FoundationModelErrorMapper.mapModernError(error, isStructured: true),
+                   case let .throwError(mappedError) = mapped {
+                    throw mappedError
+                }
+                throw error
             }
         }
 
