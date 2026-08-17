@@ -2,7 +2,7 @@
 
 Updated: 2026-08-16
 Branch/worktree: main, primary checkout
-Last verified commit: e8fbd6e
+Last verified commit: fbd6dce
 
 <!-- Keep the line above as the bare short SHA and nothing else. The SessionStart hook parses it
      with `sed` then strips all whitespace, so prose appended after the SHA is swallowed into it and
@@ -10,29 +10,36 @@ Last verified commit: e8fbd6e
 
 ## Objective
 
-None active. The 2026-08-15/16 objective was "make Deep Think measurably better than 4.9". Seven
-defects were found and fixed, every one present in `v4.9.0` and none a 5.0 regression. **The
-comparison itself was never made and cannot be until Blocker 1 is resolved.** Pick from the
-recommendations below, or ask the owner.
+**Decide what v5.0 is. Nothing else should start until this is answered, because it sets the running
+order.** The roadmap's EPIC page says "This is the defining arc of v5.0" about a twelve-item
+embedding, ingestion and retrieval overhaul, and most of that arc is unbuilt. Separately, nine
+defects were fixed on 2026-08-14 to 16, every one already present in `v4.9.0`, which is a shippable
+reliability release on its own.
+
+- **Option A, ship 5.0 as the reliability release.** Nine fixes to citations, grounding,
+  evidence-finding and question quality. Days away. The overhaul becomes 5.1.
+- **Option B, keep 5.0 as the overhaul.** The order is then fixed and non-negotiable: determinism
+  (Blocker 1), then the embedder benchmark, then additive-then-swap migration, then the rest. Weeks,
+  and the migration re-embeds every library, which the EPIC calls the highest blast radius change in
+  the project.
+
+The assistant recommended **A**, on the EPIC's own reasoning: it states "do not start the re-embed on
+present evidence", and that evidence cannot exist until Blocker 1 is fixed. **The owner has not
+decided. Ask before acting.**
 
 ## Status
 
-Tree clean at `e8fbd6e`. Everything pushed. Nothing running.
+Tree clean at `fbd6dce`, everything pushed, **CI green**, nothing running.
 
-The answer collapse is fixed, and it is the one quality result that is not noise-limited: on a fixed
-6-case set the pre-fix baseline stubbed 3 of 6 into 136 to 443 character answers and the current
-build stubs 0 of 6, every answer between 2993 and 3415 characters. It is defensible because the
-mechanism is understood and guarded at both call sites, not because a number moved.
+**Do not push casually.** Every push triggers an Xcode Cloud build and the owner is near his usage
+limit. Nine CI runs fired on 2026-08-16, three for docs-only commits, because `ci.yml` has no
+`paths-ignore`. Commit locally and let the owner batch the push.
 
-**Two housekeeping facts a new session must know:**
-
-1. **Six of the owner's documents were deleted by benchmark runs on 2026-08-16 and restored** from
-   `/private/tmp/oi-library-backup-20260815-0109`. The library holds its original 14 files plus
-   `1911.10742.md`, a benchmark fixture left in place rather than deleted. That backup is the only
-   copy and lives in `/private/tmp`, which does not survive a reboot.
-2. **The FTS5 index holds 4077 distinct document ids for roughly 15 documents.** Runs re-ingest
-   under fresh UUIDs and `--reset-shared-library` does not clean the index, so pollution
-   accumulates. Not shown to affect app behaviour, and not investigated.
+**v5.0 roadmap, verified against Notion 2026-08-16: 29 Completed, 5 In Progress, 23 To Do.** Nine
+completed rows closed in the last three days and **seven of those nine did not exist as rows
+beforehand**, having been found on device and written down afterwards. That is why the open count did
+not fall while the work was happening. Of the 23 open, three are ship blockers and the rest are the
+unbuilt overhaul.
 
 ## Completed
 
@@ -61,6 +68,16 @@ hardcoded on the agentic audit snapshot and reached the UI. Now measured.
 5,425 real library chunks, 99.2% clean), no longer repeat a single sentence frame, no longer assume
 every document is a research paper, and no longer ask "why" about rules a document states without
 justifying. Verified end to end against a residential lease: 6 of 6 grounded, 0 reason-seeking.
+
+**Benchmark runs can no longer damage the owner's library, proven live rather than argued.** Two
+independent holes: `reset_shared_library` deleted anything outside a hardcoded four-entry allowlist,
+which removed six real documents on 2026-08-16, and every write landed in the real library anyway
+because `WorkspaceSyncService.init` calls `configureBaseDir(nil)` during ordinary activation and
+silently voided the `--rag-validation-storage` override. The reset is now additive-only against a
+snapshot and refuses to delete without one, and `pinOverrides` makes the override unclobberable,
+covering the cache directory too. Verified with a full ingesting run: real listing, metadata md5 and
+FTS5 database all byte-identical afterwards, 4 refused clobber attempts logged. **No hard-boundary
+file was edited.**
 
 **iOS 27 error taxonomy.** `LanguageModelSession.GenerationError` is deprecated wholesale and splits
 into four types the app caught none of, so every Foundation Models error fell to a generic handler.
@@ -119,16 +136,22 @@ that kept "Session ended without producing a response" undiagnosable for three d
    for bit. Check Apple's own documentation for whether reproducible embeddings are offered at all;
    this assistant's knowledge cutoff predates the SDK, so do not answer that from memory. If they
    are not reproducible, the fix is removing the threshold cliff rather than chasing determinism.
-2. **Nothing from this session is in the Notion roadmap.** Notion returned 503 on every call on
-   2026-08-16, so none of the 21 commits have a row. Use the `notion-roadmap` skill; never answer a
-   roadmap question from `Docs/ROADMAP.md` or from memory.
-3. **The grounding gate at `AgenticPolicyService:180` is still asymmetric.** The destructive
+2. **The App Store build pins Xcode 26.5, so no iOS 27 API can ship.** `.github/workflows/appstore.yml`
+   selects 26.5, and every iOS 27 type added on 2026-08-16 sits behind `#if compiler(>=6.4)`, so the
+   error-taxonomy work compiles out of the release binary and reaches no user. A decision, not a
+   defect: move the release toolchain, or accept that iOS 27 adoption is deferred. Tracked in Notion.
+3. **`iWork import is advertised but cannot read any file iWork produces`.** Roadmap row, High, not
+   re-verified this session. The only open item with outside-facing risk, because the App Store
+   listing claims a format the app may not open. Verify before shipping anything.
+4. **The grounding gate at `AgenticPolicyService:180` is still asymmetric.** The destructive
    replacement it caused is guarded; the gate preferring uncited answers is not.
-4. **Two dead question validators.** `isAnswerableSuggestedQuestion` and `isUsableGeneratedQuestion`
+5. **Two dead question validators.** `isAnswerableSuggestedQuestion` and `isUsableGeneratedQuestion`
    have zero call sites, and a real fix placed in the first one silently did nothing. The first
-   holds a full answer-intent switch that may be worth wiring up rather than deleting.
-5. **`doc_pack_addon` does not load from StoreKit.** Revenue affecting, untouched all session.
-6. **The QASPER fixture cannot measure answer quality.** 22 of 76 cases are graded by a bare
+   holds a full answer-intent switch that may be worth wiring rather than deleting.
+6. **The real FTS5 index holds roughly 4077 document ids for about 15 documents**, residue from runs
+   before the storage pin landed. New runs no longer add to it; the residue was not cleaned.
+7. **`doc_pack_addon` does not load from StoreKit.** Revenue affecting, untouched all session.
+8. **The QASPER fixture cannot measure answer quality.** 22 of 76 cases are graded by a bare
    `(?i)Yes` or `(?i)No` substring against a multi-thousand-character answer, matching inside "not"
    and "know".
 
