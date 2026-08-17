@@ -1,8 +1,8 @@
 # Current State
 
-Updated: 2026-08-16
+Updated: 2026-08-17
 Branch/worktree: main, primary checkout
-Last verified commit: fbd6dce
+Last verified commit: acb86f5
 
 <!-- Keep the line above as the bare short SHA and nothing else. The SessionStart hook parses it
      with `sed` then strips all whitespace, so prose appended after the SHA is swallowed into it and
@@ -10,22 +10,30 @@ Last verified commit: fbd6dce
 
 ## Objective
 
-**Decide what v5.0 is. Nothing else should start until this is answered, because it sets the running
-order.** The roadmap's EPIC page says "This is the defining arc of v5.0" about a twelve-item
-embedding, ingestion and retrieval overhaul, and most of that arc is unbuilt. Separately, nine
-defects were fixed on 2026-08-14 to 16, every one already present in `v4.9.0`, which is a shippable
-reliability release on its own.
+**Finish the embedding-quality arc.** Three defects were found on 2026-08-17, two fixed and one
+diagnosed but not fixed. The open one is the largest.
 
-- **Option A, ship 5.0 as the reliability release.** Nine fixes to citations, grounding,
-  evidence-finding and question quality. Days away. The overhaul becomes 5.1.
-- **Option B, keep 5.0 as the overhaul.** The order is then fixed and non-negotiable: determinism
-  (Blocker 1), then the embedder benchmark, then additive-then-swap migration, then the rest. Weeks,
-  and the migration re-embeds every library, which the EPIC calls the highest blast radius change in
-  the project.
+**The Core AI embedding export reads the wrong output of the model.** `scripts/compile_core_ai_model.py`
+wraps `all-MiniLM-L6-v2` and returns `last_hidden_state[:, 0, :]`, the CLS token, from a model trained
+for **mean pooling**. It also takes only `input_ids`, so there is no attention mask and the CLS token
+attends across padding. The Core ML provider, by contrast, mean-pools with a mask and is correct.
 
-The assistant recommended **A**, on the EPIC's own reasoning: it states "do not start the re-embed on
-present evidence", and that evidence cannot exist until Blocker 1 is fixed. **The owner has not
-decided. Ask before acting.**
+**Measured consequence, `BenchmarkRuns/coreml-provider` against `cmp-standard`: `vector r@1` moves
+from 0.000 to 0.500 at n=4.** Early, but zero to half is not a subtle shift. **MiniLM is very likely
+not the problem; the export is.**
+
+**Worse: `EmbeddingService` routes iOS/macOS 27+ to the broken Core AI path and everything older to
+the correct Core ML one**, calling the correct one a "fallback". Upgrading the OS silently degrades
+retrieval.
+
+**Next action:** finish the `coreml-provider` run (25 cases, started 12:47), then re-export the Core
+AI model with mean pooling and an attention mask so iOS 27 keeps the new framework **and** correct
+vectors. The owner was explicit that dropping iOS 27 back to Core ML is not acceptable. The toolchain
+is installed at `/private/tmp/oi-export-venv` (torch 2.11, transformers 5.15, coreai-torch 0.4.1), so
+no further downloading is needed; the owner is on a slow connection.
+
+**Do not evaluate bge-small until this is done.** Comparing a candidate against a misconfigured
+incumbent is the confound this whole arc has been avoiding.
 
 ## Status
 
