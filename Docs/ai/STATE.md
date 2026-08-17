@@ -2,7 +2,7 @@
 
 Updated: 2026-08-16
 Branch/worktree: main, primary checkout
-Last verified commit: d3226de
+Last verified commit: e8fbd6e
 
 <!-- Keep the line above as the bare short SHA and nothing else. The SessionStart hook parses it
      with `sed` then strips all whitespace, so prose appended after the SHA is swallowed into it and
@@ -10,166 +10,142 @@ Last verified commit: d3226de
 
 ## Objective
 
-Make Deep Think measurably better than 4.9. Four defects found and fixed today, all of them
-long-standing rather than 5.0 regressions. **Whether the app is better than 4.9 is still unanswered,
-and the reason it is unanswered is now understood.** See Blocker 1.
+None active. The 2026-08-15/16 objective was "make Deep Think measurably better than 4.9". Seven
+defects were found and fixed, every one present in `v4.9.0` and none a 5.0 regression. **The
+comparison itself was never made and cannot be until Blocker 1 is resolved.** Pick from the
+recommendations below, or ask the owner.
 
 ## Status
 
-Tree clean at `cdd87a9`. **Thirteen commits unpushed, deliberately.** Do not push without asking;
-the owner asked to stop burning Xcode Cloud minutes until the device work settles.
+Tree clean at `e8fbd6e`. Everything pushed. Nothing running.
 
-**The answer collapse is fixed, and this is the one result today that is not noise-limited.** On the
-same 6 cases, the pre-fix baseline collapsed 3 of 6 into 136 to 443 character stubs; at `cdd87a9`
-**0 of 6 collapse** and every answer lands between 2993 and 3415 characters with no timeouts. It is
-not noise-limited because the mechanism is understood and guarded at both call sites, not merely
-observed to be absent. The correct count on those 6 moved 0 to 2, which **is** noise at n=6 and must
-not be quoted as a quality gain. See Blocker 1.
+The answer collapse is fixed, and it is the one quality result that is not noise-limited: on a fixed
+6-case set the pre-fix baseline stubbed 3 of 6 into 136 to 443 character answers and the current
+build stubs 0 of 6, every answer between 2993 and 3415 characters. It is defensible because the
+mechanism is understood and guarded at both call sites, not because a number moved.
+
+**Two housekeeping facts a new session must know:**
+
+1. **Six of the owner's documents were deleted by benchmark runs on 2026-08-16 and restored** from
+   `/private/tmp/oi-library-backup-20260815-0109`. The library holds its original 14 files plus
+   `1911.10742.md`, a benchmark fixture left in place rather than deleted. That backup is the only
+   copy and lives in `/private/tmp`, which does not survive a reboot.
+2. **The FTS5 index holds 4077 distinct document ids for roughly 15 documents.** Runs re-ingest
+   under fresh UUIDs and `--reset-shared-library` does not clean the index, so pollution
+   accumulates. Not shown to affect app behaviour, and not investigated.
 
 ## Completed
 
-**Deep Think graded its citations against the wrong array, for its entire existence.** The chain
-labels `[S1]...[Sn]` over `routeChunksByTitle`'s output, which is a **reordering**, and it relabels
-from `[S1]` in every rotating 4-chunk window. `runVerificationLoop` resolved those against
-`allRetrievedChunks`, the pre-sort pre-routing order. Two independent mismatches. Across the 82-case
-run the distinct cited numbers were S1..S4 plus two strays, never spanning the 20 sources.
-`ReasoningChainResult` now carries `routedChunks`, verification uses it, and the window passes
-`labelOffset`. `allRetrievedChunks -> sorted -> routed` were confirmed to be permutations of one set
-with nothing dropped **before** the swap.
+**Deep Think graded its citations against the wrong array, for the reasoning chain's entire life.**
+Labels are built over `routeChunksByTitle`'s output, which reorders, and relabelled from `[S1]` in
+every rotating 4-chunk window, while verification resolved them against the pre-routing array. Two
+independent mismatches. Every citation tap resolved to a wrong source, and the verification loop
+made keep-or-discard decisions from grounding scores computed against unrelated chunks.
 
 **Recursive research searched for the literal word "query" in 83% of its invocations.** The prompt
-read `Reply with [ANSWER] (your answer) OR [SEARCH: query]` and the on-device model copied the
-placeholder back: **49 of 59 searches, across 16 of the 17 cases that reached the loop.** Each
-retrieved nothing, the loop burned every iteration, and forced synthesis replaced the chain's answer
-with a stub. This is the mechanism behind the 49-to-195 character answers. Recursive research fires
-when Deep Think is *least* confident, so it failed hardest where it was needed most.
+read `[SEARCH: query]` and the on-device model copied the placeholder back: 49 of 59 searches across
+16 of the 17 cases that reached the loop. It fires when Deep Think is least confident, so it failed
+hardest where it was needed most.
 
-**The verification loop traded grounded answers for ungrounded ones, and preferred them for the
-reason it should have rejected them.** `AgenticPolicyService:180` retries on
-`groundingScore < 0.3 && totalCitations > 0`, while an uncited answer has grounding forced to 0.5 and
-skips the check, so the uncited replacement always verified cleaner. Instrumentation added first,
-then the guard: the first case to hit the path logged `2647 chars with 4 citations -> 53 chars with
-0 citations`. The guard forbids taking away an answer's last citation. It is **not** a rule about
-length; that earlier assumption was wrong and was rejected.
+**The verification loop replaced grounded answers with ungrounded ones**, and preferred them because
+`AgenticPolicyService:180` retries on `groundingScore < 0.3 && totalCitations > 0` while an uncited
+answer has grounding forced to 0.5 and skips the check entirely. Caught with both sides logged:
+`2647 chars with 4 citations -> 53 chars with 0 citations`. Guarded at **both** call sites.
 
-**Recursive research had no wall-clock bound.** Bounded by iterations and tokens only, while each
-iteration runs a full retrieval pipeline plus a generation. The citation guard exposed this rather
-than causing it: the case that reaches this loop used to terminate quickly only by accepting a
-59-character uncited answer, and once that was refused it blew a 1500s budget and returned nothing.
-A 180 second ceiling now ends the loop and the caller keeps the chain's answer. The guard is applied
-at **both** `executeRecursiveResearch` call sites; guarding one is a recurring mistake here, since
-the low-confidence site returns before verification and never gets inspected.
+**Recursive research had no wall-clock bound.** Now 180 seconds, after a case blew a 1500s budget.
 
-**Every Deep Think and Maximum answer showed the user a fabricated 70% match score.** `topSim`,
-`secondSim` and `avgTop5` were hardcoded on the agentic audit snapshot and reach the UI. Now
-measured.
+**Every Deep Think answer showed a fabricated 70% match score.** `topSim` and its neighbours were
+hardcoded on the agentic audit snapshot and reached the UI. Now measured.
 
-Also: suggested questions no longer generated from bibliographies and running headers, validated
-against 5,425 real library chunks (99.2% clean, zero false hard-demotions).
+**Suggested questions** no longer come from bibliographies or running headers (validated against
+5,425 real library chunks, 99.2% clean), no longer repeat a single sentence frame, no longer assume
+every document is a research paper, and no longer ask "why" about rules a document states without
+justifying. Verified end to end against a residential lease: 6 of 6 grounded, 0 reason-seeking.
+
+**iOS 27 error taxonomy.** `LanguageModelSession.GenerationError` is deprecated wholesale and splits
+into four types the app caught none of, so every Foundation Models error fell to a generic handler.
+`GeneratedContent.ParsingError` carries `rawContent`, the raw model output, which is the evidence
+that kept "Session ended without producing a response" undiagnosable for three days.
 
 ## Active Constraints
 
-- **Do not push.** Nine commits waiting. Xcode Cloud usage.
 - **No em-dashes anywhere**, including Swift string literals.
 - **`[Unreleased]` stays empty. New entries go under `## 5.0`.** v5.0 has not shipped; the App Store
   is on 4.9. `Docs/SHIPPED_VERSION.json` is authoritative and the preflight router reports it wrong.
-- **Never run a build or test suite while a benchmark is measuring.** Doing so starved a case into a
-  600s timeout; the same case later completed in 294.8s untouched.
-- **One benchmark at a time.** Both modes ingest into the same
-  `~/Library/Application Support/OpenIntelligence`, so concurrent runs corrupt each other.
+- **Never build or test while a benchmark is measuring.** It starved a case into a 600s timeout.
+- **One benchmark at a time**, and know that any run with `--reset-shared-library` writes into, and
+  deletes from, the owner's real document library. Back it up first.
 - Commits must not carry a `Co-Authored-By: Claude` trailer. The pre-commit hook blocks a `.swift`
-  change with no doc update, and it is active.
+  change with no doc update and is active.
 
 ## Working Set
 
-- `OpenIntelligence/Services/Agentic/AgenticOrchestrator.swift`. `shouldAcceptReplacement`,
-  `logAnswerReplacement`, `parseResearchDecision`, `executeReasoningChain`, `runVerificationLoop`.
-- `OpenIntelligence/Services/RAG/Tuning/AgenticPolicyService.swift:180`, the grounding gate whose
-  asymmetry the guard closes. Not yet changed.
-- `/private/tmp/defect_watch.sh`, the watcher. Takes `<results.jsonl> <harness log> <expected>` and
-  emits per case **only on a defect signature**, plus terminal states. Validated against the
-  2026-08-15 run, where it flags the placeholder bug on case 1.
+- `OpenIntelligence/Services/RAG/Retrieval/HybridSearchService.swift`, `stableTieBreakKey` and the
+  keyword-boost scoring. Where Blocker 1 lives.
+- `OpenIntelligence/Services/RAG/Tuning/RetrievalPolicyService.swift:107`, the `0.28` floor that
+  amplifies a small scoring difference into 77 dropped chunks.
+- `OpenIntelligence/Services/RAG/Tuning/AgenticPolicyService.swift:180`, the grounding gate that
+  still prefers uncited answers. Guarded downstream, not fixed.
+- `scripts/watch_benchmark_defects.sh`, the defect watcher. `RUNBOOK.md` item 7 explains it.
 - `BenchmarkRuns/qasper-deepthink-20260815/`, the 82-case pre-fix baseline.
-- `/private/tmp/oi-mac-nosbx4/Build/Products/Debug/OpenIntelligence.app`, macOS build at `ccc0eeb`.
+- `BenchmarkRuns/tiefix-1` and `tiefix-2`, the two runs that establish Blocker 1.
 
 ## Verification
 
 - `xcodebuild test` -> **236 tests, 0 failures**, run once per commit from `/private/tmp/oi-test-src`.
   `xcodebuild` deadlocks on this repository's own path; see `RUNBOOK.md` 1b.
-- Four 6-case smokes, one per fix, in `BenchmarkRuns/smoke-deepthink-{f6bb4ca,ccc0eeb,184c562,cdd87a9}`.
-  Final run: 6/6 completed, 0 collapses, 0 timeouts, answers 2993 to 3415 chars. Case `85e41723`,
-  which returned 53c then 59c then timed out, returned 3157 chars with `Rejected replacement` in its
-  log and the time budget never needed.
-- Case `3319d565` is the clean demonstration: 106 chunks, entered recursive research, guard fired,
-  kept a 3194-character grounded answer and scored correct. That path previously always collapsed.
-- Citation and telemetry fixes are **code-verified, not quality-verified.** See Blocker 1.
+- Six 6-case smokes, one per fix. Final run: 6 of 6 completed, 0 collapses, 0 timeouts.
+- Suggested questions verified headlessly against a lease via `--rag-validation-questions`.
+- **Nothing in this session ran on a physical device.** Every fix is compile, suite, and macOS
+  benchmark verified only.
 
 ## Blockers / Unknowns
 
-1. **Retrieval is nondeterministic, and this is the single thing blocking every quality claim.**
-   Two runs of one build over byte-identical documents diverge: keyword hit rate 90% against 91%,
-   the `< 0.28` low-confidence filter dropping 77 chunks in one run and none in the other, MMR
-   selecting 30 against 14, answers 190 against 350 characters. **This is a product defect, not
-   only a measurement one:** re-ingesting a document changes its answers, and two users holding the
-   identical file get different evidence, which contradicts the grounded-and-attributable promise
-   the app exists for.
-   **Ruled out.** Ingestion is deterministic (268 chunks, both runs, all ten documents). The random
-   UUID tie-break was real and was fixed in `d3226de`, and **the divergence survived it**, so it was
-   not the cause.
-   **Where it is.** The keyword hit rate is `hitCount / results.count` over the *candidate set*,
-   computed from chunk text, so byte-identical documents yielding 90% against 91% means the
-   candidate set differs in membership before any tie-break runs. That places the origin in
-   embedding or vector search, amplified by the hard `0.28` floor at
-   `RetrievalPolicyService.swift:107`.
-   **The trap, recorded so it is not repeated.** `--rag-validation-skip-ingest` gives byte-identical
-   output and looks like proof. It is confounded: a reused index holds chunk ids fixed **and** skips
-   re-embedding, controlling two variables while crediting one.
+1. **Retrieval is nondeterministic, and it blocks every quality claim.** Two runs of one build over
+   byte-identical documents diverge: keyword hit rate 90% against 91%, the `< 0.28` filter dropping
+   77 chunks in one run and none in the other, MMR selecting 30 against 14, answers 190 against 350
+   characters. **This is a product defect, not only a measurement one:** re-ingesting a document
+   changes its answers, and two users holding the identical file get different evidence, which
+   contradicts the grounded-and-attributable promise the app exists for.
+   **Ruled out:** ingestion is deterministic (268 chunks in both runs, across all ten documents).
+   The random UUID tie-break was real, was fixed in `d3226de`, and **the divergence survived it.**
+   **Where it is:** the keyword hit rate is `hitCount / results.count` over the *candidate set*,
+   computed from chunk text, so identical documents yielding 90% against 91% means the candidate set
+   differs in membership before any tie-break runs. That places the origin in embedding or vector
+   search, amplified by the `0.28` floor.
+   **The trap:** `--rag-validation-skip-ingest` gives byte-identical output and looks like proof. It
+   is confounded, because a reused index holds chunk ids fixed **and** skips re-embedding.
    **Exact next measurement:** embed one chunk twice in the same process and compare the vectors bit
-   for bit. If they differ, the fix is to remove the threshold cliff that amplifies float noise, not
-   to chase a determinism Apple may not provide. Confirm against Apple's own documentation for the
-   embedding model before concluding, since this assistant's cutoff predates the SDK.
-
-2. **Yesterday's empty-response mystery is solved, and the fix is not yet made.** The app catches
-   `LanguageModelSession.GenerationError` at 3 sites and `LanguageModelError` at **0**. Both are
-   public enums in the iOS 27 SDK (verified in
-   `Xcode-beta.app/.../FoundationModels.swiftinterface`, `LanguageModelError` at the top level and
-   `LanguageModelSession.GenerationError` at line 1278), and the one actually thrown is
-   `LanguageModelError`. So every Foundation Models error falls past its handler to the generic
-   catch, which is why five hypotheses were disproved last session while Apple's own instrument
-   reported `Error Count: 0`. Caught in the wild at `ccc0eeb`:
-   `type: LanguageModelError / case: Response may contain sensitive or unsafe content /
-   partialTextChars: 3588`, on a paper about scam detection. The content was not empty, it was
-   generated and then refused by the guardrail. `LanguageModelError` carries `guardrailViolation`,
-   `refusal`, `contextSizeExceeded`, `rateLimited`, `timeout`, `unsupportedCapability`,
-   `unsupportedTranscriptContent`, `unsupportedGenerationGuide` and `unsupportedLanguageOrLocale`,
-   so **every targeted recovery in this app is currently dead code**: no retry on `rateLimited`, no
-   context reduction on `contextSizeExceeded`. The partial-text fallback does work and returned a
-   3434-character answer, so this is degraded, not broken. **Verification path:** the 3 sites are
-   `grep -rn "as LanguageModelSession.GenerationError" --include=*.swift`. Note the product
-   consequence: documents about security, fraud, abuse or medicine will trip the guardrail
-   legitimately, so guardrail handling needs a user-facing story, not just a log line.
-3. **One case timed out at 1500s** (`qasper_1911.10742_f7662b11`) after completing in 294.8s the day
-   before. Unexplained. Possibly the placeholder fix making searches real and therefore expensive,
-   possibly noise. One sample. Watch whether it recurs.
-4. **The grounding gate at `AgenticPolicyService:180` is still asymmetric.** The guard stops the bad
-   replacement from being accepted but the gate still prefers uncited answers. Fixing the gate itself
-   was deliberately deferred until runs are comparable.
-5. **`doc_pack_addon` does not load from StoreKit.** Revenue affecting, untouched.
+   for bit. Check Apple's own documentation for whether reproducible embeddings are offered at all;
+   this assistant's knowledge cutoff predates the SDK, so do not answer that from memory. If they
+   are not reproducible, the fix is removing the threshold cliff rather than chasing determinism.
+2. **Nothing from this session is in the Notion roadmap.** Notion returned 503 on every call on
+   2026-08-16, so none of the 21 commits have a row. Use the `notion-roadmap` skill; never answer a
+   roadmap question from `Docs/ROADMAP.md` or from memory.
+3. **The grounding gate at `AgenticPolicyService:180` is still asymmetric.** The destructive
+   replacement it caused is guarded; the gate preferring uncited answers is not.
+4. **Two dead question validators.** `isAnswerableSuggestedQuestion` and `isUsableGeneratedQuestion`
+   have zero call sites, and a real fix placed in the first one silently did nothing. The first
+   holds a full answer-intent switch that may be worth wiring up rather than deleting.
+5. **`doc_pack_addon` does not load from StoreKit.** Revenue affecting, untouched all session.
 6. **The QASPER fixture cannot measure answer quality.** 22 of 76 cases are graded by a bare
-   `(?i)Yes` or `(?i)No` substring against a multi-thousand-character essay, matching inside "not"
-   and "know". A rubric-scored eval was scoped and not built.
+   `(?i)Yes` or `(?i)No` substring against a multi-thousand-character answer, matching inside "not"
+   and "know".
 
 ## Exact Next Action
 
-**Read the smoke result and confirm the guard fired.**
+**Put the current build on a physical device and run one Deep Think query against a real document.**
+
+Nothing from this session has run on hardware. Seven fixes are compile-and-benchmark verified only,
+and one of them, the iOS 27 error taxonomy, exists specifically to capture evidence that has only
+ever appeared on device. Capture the log and run:
 
 ```bash
-python3 -c "import json;[print(r['case_id'][-8:], len((r.get('run') or {}).get('answer') or ''), 'REJECTED' if 'Rejected replacement' in ((r.get('run') or {}).get('report') or '') else '') for r in [json.loads(l) for l in open('BenchmarkRuns/smoke-deepthink-ccc0eeb/results.jsonl')]]"
+grep -A6 "GeneratedContent.ParsingError" <device-log>
 ```
 
-Case `85e41723` is the one to look at. At `f6bb4ca` it returned 53 characters after its 2647-character
-4-citation answer was discarded. If the guard works it keeps the grounded answer and the
-`Rejected replacement` warning appears in its report.
+`rawContent` is the raw model output behind "Session ended without producing a response". That
+either closes the three-day question outright or shows the failure is gone.
 
-Then take Blocker 1. Until sampling is pinned, do not run another A/B, because a second
-uncomparable run costs hours and settles nothing.
+Then take Blocker 1. Do not run another A/B before it is resolved: a second uncomparable run costs
+hours and settles nothing.
