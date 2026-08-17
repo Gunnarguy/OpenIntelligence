@@ -281,6 +281,36 @@ graph TD
 Historical note: earlier planning artifacts proposed `LocalCache/EvidenceThreads/` with no sync (Phase 1A local-only design). Phase 1B relocated threads to `Application Support/EvidenceThreads/<containerId>/` with bidirectional iCloud Drive sync. `[evidence: code_verified, exact, Docs/AuditArtifacts/Implementation/phase_1b_1c_1d_post_implementation_verification.md, WorkspaceSyncService.swift]`
 
 ## 17. Core AI Embedding Subsystem Boundary
+
+**The tokenizer is part of this boundary, and it disagreed with the model for the life of the
+feature.** Both compiled models declare input shape `[1, 512]` (`scripts/compile_core_ai_model.py`
+exports `torch.ones((1, 512))`), and both Swift providers pad to `maxSequenceLength` 512 themselves.
+Until 2026-08-17 the bundled `tokenizer.json` files capped `truncation.max_length` at 128 and also
+carried `"padding": {"strategy": {"Fixed": 128}}`.
+
+Three consequences, all from the padding block:
+
+- **55% of library content never reached the embedder.** Median chunk measures 273 tokens against a
+  128 cap; 125 of 139 live chunks were truncated.
+- **`DocumentProcessor.countTokens` returned a constant**, since it reads `encode().count` and a
+  padded encode is always the pad width. Logged `maxTokens=128/430` on 3,910 of 3,910 ingestions.
+- **Mean pooling averaged `[PAD]` into every vector**, because the provider builds its attention mask
+  over already-padded ids.
+
+**The boundary rule this establishes:** three artifacts must agree, and only one of them is Swift.
+The model's declared input shape, the provider's `maxSequenceLength`, and the tokenizer's
+`truncation`/`padding` are a single contract. Changing any one without the others is silent. Read the
+artifact rather than the code that consumes it: the shape lives in the `.mlpackage` protobuf, the
+tokenizer limits in `tokenizer.json`, and neither is visible from Swift.
+
+`DocumentProcessor.verifyTokenizerCounts` now guards the counting half at load. Nothing yet guards
+the shape half; a startup comparison of `MLModel.modelDescription` input shape against the
+tokenizer's limit would close it.
+
+**Dimensionality is unaffected by any of the above.** Vectors remain 384-wide and
+`BNNSVectorDatabase`'s fixed-stride format is untouched. Sequence length and embedding dimension are
+independent, and conflating them would turn a re-embed into a format migration.
+
 - **Core AI Integration**: Silicon-native zero-copy sentence embeddings are generated via `CoreAISentenceEmbeddingProvider.swift` using dynamic `NDArray` and `InferenceFunction.run(inputs:)` graph execution on iOS 27 / macOS 27+ Apple Intelligence SDK. Access and selector selection availability are stabilized via shared instance caching and an awaitable readiness gate in `ContainerSettingsSheet`. The exported PyTorch graph output is explicitly bound to "embeddings" in `compile_core_ai_model.py` and correctly parsed from the MLFeatureProvider dictionary in Swift. `[evidence: code_verified, exact, CoreAISentenceEmbeddingProvider.swift, compile_core_ai_model.py]`
 - **Resource Packaging**: The compiled model is bundled as `EmbeddingModel.bundle` (a raw folder structure bypassing Xcode's build-time `mlassetc` version-gate checks that otherwise block minimum deployment targets below 27.0) and dynamically loaded at runtime. `[evidence: code_verified, exact, Package.swift, CoreAISentenceEmbeddingProvider.swift]`
 - **Adaptive Auto-Tuning**: `SettingsStore` and `RAGService` automatically recommend and switch to the Core AI provider on supported hardware, falling back dynamically to `CoreMLSentenceEmbeddingProvider` on older targets. Ingestion mode scoping is strictly enforced per-document in `RAGService.addDocument()` to bypass global configuration conflicts. `[evidence: code_verified, exact, SettingsStore.swift, RAGService.swift]`
