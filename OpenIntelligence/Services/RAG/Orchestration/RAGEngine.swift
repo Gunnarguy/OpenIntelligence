@@ -45,8 +45,28 @@ actor RAGEngine {
     private var rerankerTokenizer: Tokenizer?
     private var isSetupComplete = false
 
+    /// Handle on the reranker load, so a query can wait for it instead of racing it.
+    ///
+    /// This was a fire-and-forget `Task` with nothing awaiting it, and `rerank` selected its
+    /// algorithm with `if let model = rerankerModel`. A query arriving before the load finished was
+    /// therefore ranked by the heuristic fallback, and one arriving after by the Core ML
+    /// cross-encoder. Two different algorithms, chosen by a race, with no log line distinguishing
+    /// them: the heuristic path was identifiable only by the *absence* of the cross-encoder's
+    /// output.
+    ///
+    /// Measured 2026-08-16. Two runs of one build over byte-identical documents produced
+    /// `Re-ranking complete. Top score: 1.2705` in one and
+    /// `AI Re-ranking: raw -11.52 -> 5.61, normalized 0.10 -> 0.90` in the other. That is the
+    /// upstream cause of the divergence recorded as Blocker 1: different rankings give different
+    /// candidate sets, which move the keyword hit rate, which changes the boost, which pushes
+    /// scores across the confidence floor.
+    ///
+    /// On device the same race decides whether a user's first query after launch is ranked like
+    /// every later one.
+    private var setupTask: Task<Void, Never>?
+
     init() {
-        Task { [weak self] in
+        setupTask = Task { [weak self] in
             await self?.setupReRanker()
         }
     }
@@ -298,6 +318,13 @@ actor RAGEngine {
         let adaptiveCeiling = min(chunks.count, max(100, min(250, topK * 5)))
         let candidateChunks = Array(chunks.prefix(adaptiveCeiling))
 
+        // Wait for the load rather than racing it. `await` releases the actor, so the setup task
+        // is free to run; if the model failed to load, `setupReRanker` swallows the error and the
+        // task still completes, so this cannot hang on a missing asset. The first query after
+        // launch pays the load once, which is the right trade: a consistent ranking is worth more
+        // than a fast arbitrary one in an app whose claim is grounded, attributable answers.
+        await setupTask?.value
+
         #if canImport(CoreML)
             if let model = rerankerModel, let tokenizer = rerankerTokenizer {
                 return await rerankWithCrossEncoder(
@@ -309,6 +336,14 @@ actor RAGEngine {
                 )
             }
         #endif
+
+        // Say which reranker ran, always. The absence of a log line is not a diagnosis, and this
+        // path stayed invisible through several benchmark runs precisely because it was silent.
+        Log.warning(
+            "[RAGEngine] Cross-encoder unavailable, ranking \(candidateChunks.count) candidates with "
+                + "the heuristic fallback. Scores are not comparable to a cross-encoder run.",
+            category: .retrieval
+        )
 
         let queryTerms = tokenize(query).filter { $0.count > 2 }
         let queryTermSet = Set(queryTerms)
@@ -365,7 +400,7 @@ actor RAGEngine {
         if scored.count > 0 {
             // keep debug parity with existing logs
             let top = scored[0]
-            Log.debug("[RAGEngine] Re-ranking complete. Top score: \(String(format: "%.4f", top.score))", category: .retrieval)
+            Log.debug("[RAGEngine] Heuristic re-ranking complete. Top score: \(String(format: "%.4f", top.score))", category: .retrieval)
             Log.debug("[RAGEngine] Score breakdown:", category: .retrieval)
             Log.debug("[RAGEngine] - Semantic: \(String(format: "%.3f", top.chunk.similarityScore))", category: .retrieval)
             Log.debug("[RAGEngine] - Keywords: \(String(format: "%.3f", top.keyword))", category: .retrieval)
