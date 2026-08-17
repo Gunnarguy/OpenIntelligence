@@ -39,6 +39,7 @@ struct FoundationModelErrorMapper {
             default: return .other
             }
         }
+        #if compiler(>=6.4)
         if #available(iOS 27.0, macOS 27.0, *), let modern = error as? LanguageModelError {
             switch modern {
             case .contextSizeExceeded: return .contextOverflow
@@ -46,6 +47,7 @@ struct FoundationModelErrorMapper {
             default: return .other
             }
         }
+        #endif
         return .other
     }
 
@@ -77,6 +79,12 @@ struct FoundationModelErrorMapper {
         isStructured: Bool = false,
         estimatedTokens: Int = 0
     ) -> MappedResult? {
+        // The four iOS 27 replacement types do not exist in the iOS 26 SDK, and CI builds with
+        // Xcode 26. `#if compiler(>=6.4)` is the same gate `FoundationModelRoutePolicy`,
+        // `FoundationModelTokenBudget` and `FoundationModelCapabilityProvider` already use for
+        // SDK-version-dependent Foundation Models API. On an older toolchain this returns nil and
+        // every caller falls through to its existing handling unchanged.
+        #if compiler(>=6.4)
         guard #available(iOS 27.0, macOS 27.0, *) else { return nil }
 
         // Ordered by observed frequency on device, not by taxonomy.
@@ -135,9 +143,12 @@ struct FoundationModelErrorMapper {
             ))
         }
 
+        #endif
+
         return nil
     }
 
+    #if compiler(>=6.4)
     @available(iOS 27.0, macOS 27.0, *)
     private static func mapLanguageModelError(
         _ error: LanguageModelError,
@@ -236,6 +247,7 @@ struct FoundationModelErrorMapper {
             return .throwError(error)
         }
     }
+    #endif
 
     static func mapError(
         _ error: LanguageModelSession.GenerationError,
