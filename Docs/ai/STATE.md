@@ -1,188 +1,115 @@
 # Current State
 
 Updated: 2026-08-17
-Branch/worktree: main, primary checkout
-Last verified commit: acb86f5
-
-<!-- Keep the line above as the bare short SHA and nothing else. The SessionStart hook parses it
-     with `sed` then strips all whitespace, so prose appended after the SHA is swallowed into it and
-     the hook reports the commit as missing from the repository. -->
+Branch/worktree: main
+Last verified commit: 342447d
 
 ## Objective
 
-**Finish the embedding-quality arc.** Three defects were found on 2026-08-17, two fixed and one
-diagnosed but not fixed. The open one is the largest.
+**Fix the two defects that make retrieval quality unreadable, in this order.** Both are single
+functions. Both are measured or code-verified, not suspected.
 
-**The Core AI embedding export reads the wrong output of the model.** `scripts/compile_core_ai_model.py`
-wraps `all-MiniLM-L6-v2` and returns `last_hidden_state[:, 0, :]`, the CLS token, from a model trained
-for **mean pooling**. It also takes only `input_ids`, so there is no attention mask and the CLS token
-attends across padding. The Core ML provider, by contrast, mean-pools with a mask and is correct.
-
-**Measured consequence, `BenchmarkRuns/coreml-provider` against `cmp-standard`: `vector r@1` moves
-from 0.000 to 0.500 at n=4.** Early, but zero to half is not a subtle shift. **MiniLM is very likely
-not the problem; the export is.**
-
-**Worse: `EmbeddingService` routes iOS/macOS 27+ to the broken Core AI path and everything older to
-the correct Core ML one**, calling the correct one a "fallback". Upgrading the OS silently degrades
-retrieval.
-
-**Next action:** finish the `coreml-provider` run (25 cases, started 12:47), then re-export the Core
-AI model with mean pooling and an attention mask so iOS 27 keeps the new framework **and** correct
-vectors. The owner was explicit that dropping iOS 27 back to Core ML is not acceptable. The toolchain
-is installed at `/private/tmp/oi-export-venv` (torch 2.11, transformers 5.15, coreai-torch 0.4.1), so
-no further downloading is needed; the owner is on a slow connection.
-
-**Full instructions, written to be executed cold with no memory of this session:
-`Docs/Engineering/EMBEDDING_MEAN_POOLING_REEXPORT.md`.** It explains what pooling is from first
-principles, gives the exact before/after Python, names the Swift change the new two-input model
-forces, lists four verification steps in order, and states what must not be done first. Read it
-before touching the export; do not re-derive any of it.
-
-**Do not evaluate bge-small until this is done.** Comparing a candidate against a misconfigured
-incumbent is the confound this whole arc has been avoiding.
+1. `AgenticOrchestrator.swift:1215` throws away 96% of retrieved evidence before the model sees it.
+2. The Core AI embedding export reads the wrong output of the embedding model.
 
 ## Status
 
-Tree clean at `fbd6dce`, everything pushed, **CI green**, nothing running.
+The embedding investigation is **finished and answered**. A 25-case benchmark settled it. The device
+run that followed found three new defects, one of which is larger than anything the benchmark
+measured. Nothing is half-edited; the working tree carries only benchmark tooling.
 
-**Do not push casually.** Every push triggers an Xcode Cloud build and the owner is near his usage
-limit. Nine CI runs fired on 2026-08-16, three for docs-only commits, because `ci.yml` has no
-`paths-ignore`. Commit locally and let the owner batch the push.
+## Completed this session
 
-**v5.0 roadmap, verified against Notion 2026-08-16: 29 Completed, 5 In Progress, 23 To Do.** Nine
-completed rows closed in the last three days and **seven of those nine did not exist as rows
-beforehand**, having been found on device and written down afterwards. That is why the open count did
-not fall while the work was happening. Of the 23 open, three are ship blockers and the rest are the
-unbuilt overhaul.
-
-## Completed
-
-**Deep Think graded its citations against the wrong array, for the reasoning chain's entire life.**
-Labels are built over `routeChunksByTitle`'s output, which reorders, and relabelled from `[S1]` in
-every rotating 4-chunk window, while verification resolved them against the pre-routing array. Two
-independent mismatches. Every citation tap resolved to a wrong source, and the verification loop
-made keep-or-discard decisions from grounding scores computed against unrelated chunks.
-
-**Recursive research searched for the literal word "query" in 83% of its invocations.** The prompt
-read `[SEARCH: query]` and the on-device model copied the placeholder back: 49 of 59 searches across
-16 of the 17 cases that reached the loop. It fires when Deep Think is least confident, so it failed
-hardest where it was needed most.
-
-**The verification loop replaced grounded answers with ungrounded ones**, and preferred them because
-`AgenticPolicyService:180` retries on `groundingScore < 0.3 && totalCitations > 0` while an uncited
-answer has grounding forced to 0.5 and skips the check entirely. Caught with both sides logged:
-`2647 chars with 4 citations -> 53 chars with 0 citations`. Guarded at **both** call sites.
-
-**Recursive research had no wall-clock bound.** Now 180 seconds, after a case blew a 1500s budget.
-
-**Every Deep Think answer showed a fabricated 70% match score.** `topSim` and its neighbours were
-hardcoded on the agentic audit snapshot and reached the UI. Now measured.
-
-**Suggested questions** no longer come from bibliographies or running headers (validated against
-5,425 real library chunks, 99.2% clean), no longer repeat a single sentence frame, no longer assume
-every document is a research paper, and no longer ask "why" about rules a document states without
-justifying. Verified end to end against a residential lease: 6 of 6 grounded, 0 reason-seeking.
-
-**Benchmark runs can no longer damage the owner's library, proven live rather than argued.** Two
-independent holes: `reset_shared_library` deleted anything outside a hardcoded four-entry allowlist,
-which removed six real documents on 2026-08-16, and every write landed in the real library anyway
-because `WorkspaceSyncService.init` calls `configureBaseDir(nil)` during ordinary activation and
-silently voided the `--rag-validation-storage` override. The reset is now additive-only against a
-snapshot and refuses to delete without one, and `pinOverrides` makes the override unclobberable,
-covering the cache directory too. Verified with a full ingesting run: real listing, metadata md5 and
-FTS5 database all byte-identical afterwards, 4 refused clobber attempts logged. **No hard-boundary
-file was edited.**
-
-**iOS 27 error taxonomy.** `LanguageModelSession.GenerationError` is deprecated wholesale and splits
-into four types the app caught none of, so every Foundation Models error fell to a generic handler.
-`GeneratedContent.ParsingError` carries `rawContent`, the raw model output, which is the evidence
-that kept "Session ended without producing a response" undiagnosable for three days.
+- **The pooling question is settled.** `BenchmarkRuns/coreml-provider`, 25/25, paired against
+  `tokfix` on 21 comparable cases: `vector r@1` **0.000 → 0.571**, 12 better and 0 worse, exact
+  two-sided sign test **p = 0.0005**. The `lexical` control is identical case for case, so the runs
+  are comparable. **MiniLM was never weak; it was being read at the CLS position by a model trained
+  for mean pooling.** Full verdict and caveats in `BenchmarkRuns/LEDGER.md`.
+- `scripts/compare_benchmark_runs.py` — pairs runs by `case_id`, names excluded cases, prints
+  per-case flips and an exact sign test. Written because comparing each run against its own case set
+  produced a false alarm that the control had moved.
+- Three device-found defects filed in Notion, all `To Do`, `High`, `v5.0`.
+- `MARKETING_VERSION` set to 5.0 so local Xcode builds stop reporting 4.9. **Not a fix** —
+  `ci_scripts/ci_post_clone.sh:79` stamps the version from `CHANGELOG.md` at Xcode Cloud build time,
+  so shipped builds were always correct. Only local builds were stale.
 
 ## Active Constraints
 
-- **No em-dashes anywhere**, including Swift string literals.
-- **`[Unreleased]` stays empty. New entries go under `## 5.0`.** v5.0 has not shipped; the App Store
-  is on 4.9. `Docs/SHIPPED_VERSION.json` is authoritative and the preflight router reports it wrong.
-- **Never build or test while a benchmark is measuring.** It starved a case into a 600s timeout.
-- **One benchmark at a time**, and know that any run with `--reset-shared-library` writes into, and
-  deletes from, the owner's real document library. Back it up first.
-- Commits must not carry a `Co-Authored-By: Claude` trailer. The pre-commit hook blocks a `.swift`
-  change with no doc update and is active.
+- **Never run a build, test suite, or benchmark while another benchmark is measuring.** Doing it
+  cost 20 minutes of misdiagnosis on 2026-08-15 and again today.
+- Compare benchmark runs only with `scripts/compare_benchmark_runs.py`. Raw per-run averages are
+  not comparable.
+- `AgenticOrchestrator.swift` is **not** a hard-boundary file. `FoundationModelRoutePolicy.swift`,
+  `FoundationModelSessionFactory.swift`, `RAGAppIntents.swift` and `EngineSDKCompatibility.swift`
+  are, and none are needed for the work below.
+- The agentic path has no test coverage. Build-verified and suite-verified is not device-verified,
+  and saying so is part of the change.
 
 ## Working Set
 
-- `OpenIntelligence/Services/RAG/Retrieval/HybridSearchService.swift`, `stableTieBreakKey` and the
-  keyword-boost scoring. Where Blocker 1 lives.
-- `OpenIntelligence/Services/RAG/Tuning/RetrievalPolicyService.swift:107`, the `0.28` floor that
-  amplifies a small scoring difference into 77 dropped chunks.
-- `OpenIntelligence/Services/RAG/Tuning/AgenticPolicyService.swift:180`, the grounding gate that
-  still prefers uncited answers. Guarded downstream, not fixed.
-- `scripts/watch_benchmark_defects.sh`, the defect watcher. `RUNBOOK.md` item 7 explains it.
-- `BenchmarkRuns/qasper-deepthink-20260815/`, the 82-case pre-fix baseline.
-- `BenchmarkRuns/tiefix-1` and `tiefix-2`, the two runs that establish Blocker 1.
+| File | Why |
+|---|---|
+| `OpenIntelligence/Services/Agentic/AgenticOrchestrator.swift:1215` | The truncation. Priority 1. |
+| `scripts/compile_core_ai_model.py` | The CLS-vs-mean-pooling export. Priority 2. |
+| `Docs/Engineering/EMBEDDING_MEAN_POOLING_REEXPORT.md` | Complete instructions for priority 2, written to be executed cold. Read it rather than re-deriving. |
+| `OpenIntelligence/Services/Document/Processing/DocumentProcessor.swift:7671` | `extractTextWithSpatialOrdering`, the PDF column defect. Priority 3. |
+| `BenchmarkRuns/LEDGER.md` | Every run, what it tested, what it settled, and where the analysis was wrong. |
+| 5 uncommitted files | Benchmark provider override and queue guard. Build-verified, never committed. Commit or revert deliberately; do not leave them drifting. |
 
 ## Verification
 
-- `xcodebuild test` -> **236 tests, 0 failures**, run once per commit from `/private/tmp/oi-test-src`.
-  `xcodebuild` deadlocks on this repository's own path; see `RUNBOOK.md` 1b.
-- Six 6-case smokes, one per fix. Final run: 6 of 6 completed, 0 collapses, 0 timeouts.
-- Suggested questions verified headlessly against a lease via `--rag-validation-questions`.
-- **Nothing in this session ran on a physical device.** Every fix is compile, suite, and macOS
-  benchmark verified only.
+- `python3 scripts/compare_benchmark_runs.py BenchmarkRuns/tokfix BenchmarkRuns/coreml-provider`
+  → 21 paired, `vector r@1` 0.000 → 0.571, 12 better / 0 worse, p = 0.0005, control identical.
+- `plutil -lint OpenIntelligence.xcodeproj/project.pbxproj` → OK after the version change.
+- Device log `Standard+DeepThink+Xcodeconsole.txt` (gitignored, local only) → `maxTokens=421/430`,
+  so **the tokenizer fix is live on device**; `coreai_sentence_embedding` ×10, so **the device runs
+  the broken CLS embedder**.
+- **Not run this session:** `xcodebuild test`, `scripts/build_simulator_smoke.sh`. The working tree
+  has not been compiled since the version bump.
 
 ## Blockers / Unknowns
 
-1. **Retrieval is nondeterministic, and it blocks every quality claim.** Two runs of one build over
-   byte-identical documents diverge: keyword hit rate 90% against 91%, the `< 0.28` filter dropping
-   77 chunks in one run and none in the other, MMR selecting 30 against 14, answers 190 against 350
-   characters. **This is a product defect, not only a measurement one:** re-ingesting a document
-   changes its answers, and two users holding the identical file get different evidence, which
-   contradicts the grounded-and-attributable promise the app exists for.
-   **Ruled out:** ingestion is deterministic (268 chunks in both runs, across all ten documents).
-   The random UUID tie-break was real, was fixed in `d3226de`, and **the divergence survived it.**
-   **Where it is:** the keyword hit rate is `hitCount / results.count` over the *candidate set*,
-   computed from chunk text, so identical documents yielding 90% against 91% means the candidate set
-   differs in membership before any tie-break runs. That places the origin in embedding or vector
-   search, amplified by the `0.28` floor.
-   **The trap:** `--rag-validation-skip-ingest` gives byte-identical output and looks like proof. It
-   is confounded, because a reused index holds chunk ids fixed **and** skips re-embedding.
-   **Exact next measurement:** embed one chunk twice in the same process and compare the vectors bit
-   for bit. Check Apple's own documentation for whether reproducible embeddings are offered at all;
-   this assistant's knowledge cutoff predates the SDK, so do not answer that from memory. If they
-   are not reproducible, the fix is removing the threshold cliff rather than chasing determinism.
-2. **The App Store build pins Xcode 26.5, so no iOS 27 API can ship.** `.github/workflows/appstore.yml`
-   selects 26.5, and every iOS 27 type added on 2026-08-16 sits behind `#if compiler(>=6.4)`, so the
-   error-taxonomy work compiles out of the release binary and reaches no user. A decision, not a
-   defect: move the release toolchain, or accept that iOS 27 adoption is deferred. Tracked in Notion.
-3. **`iWork import is advertised but cannot read any file iWork produces`.** Roadmap row, High, not
-   re-verified this session. The only open item with outside-facing risk, because the App Store
-   listing claims a format the app may not open. Verify before shipping anything.
-4. **The grounding gate at `AgenticPolicyService:180` is still asymmetric.** The destructive
-   replacement it caused is guarded; the gate preferring uncited answers is not.
-5. **Two dead question validators.** `isAnswerableSuggestedQuestion` and `isUsableGeneratedQuestion`
-   have zero call sites, and a real fix placed in the first one silently did nothing. The first
-   holds a full answer-intent switch that may be worth wiring rather than deleting.
-6. **The real FTS5 index holds roughly 4077 document ids for about 15 documents**, residue from runs
-   before the storage pin landed. New runs no longer add to it; the residue was not cleaned.
-7. **`doc_pack_addon` does not load from StoreKit.** Revenue affecting, untouched all session.
-8. **The QASPER fixture cannot measure answer quality.** 22 of 76 cases are graded by a bare
-   `(?i)Yes` or `(?i)No` substring against a multi-thousand-character answer, matching inside "not"
-   and "know".
+1. **Deep Think discards 96% of its evidence.** `AgenticOrchestrator.swift:1215` is
+   `String(searchResults.prefix(3000))`. The device trace shows `Context expanded │ 18 → 85 chunks`
+   and `85 chunks ready for synthesis`; 85 chunks is roughly 84,000 characters, cut to 3,000, with
+   no log line and no guarantee the highest-ranked chunk survives. **Parent doc expansion actively
+   harms Deep Think** by inflating context 4.7x immediately before a fixed-size cut. This explains
+   the observed inversion: on `How does dopamine affect social behavior?` Deep Think answered "the
+   documents do not provide evidence" in 202.7s while Standard, which assembled `3 chunks • 522
+   words` and fit entirely inside the budget, answered correctly in 6.7s. **Ranking work is
+   largely wasted until this is fixed.**
+2. **Self-RAG verifies citation resolution, not support.** It accepted the above at
+   `relevance=70%, citations=1/1, confidence=88%`. Real Self-RAG critiques whether each claim is
+   *supported* by the cited passage. Minimum viable check: an answer asserting absence while
+   carrying resolved citations retrieved for that topic is a detectable contradiction with no model
+   call.
+3. **`extractTextWithSpatialOrdering` mis-tracks string offsets.**
+   `DocumentProcessor.swift:7720` does `wordIndex += wordString.count + 1`, but
+   `split(whereSeparator:)` collapses runs of whitespace so the `+1` drifts on every double space
+   and newline, and `.count` is Characters against a UTF-16 `NSRange`. `page.selection(for:)` then
+   returns bounds for different text than the word being placed, so columns interleave. Confirmed
+   in the device log: `direct: 2 pages (25%)`, `spatialText: 0 pages`, printed one line after the
+   app announced "Multi-column layouts will be detected and read in proper order". A guard in
+   `PageComplexityAnalyzer` was written, **verified inert, and reverted** — `needsVision` is false
+   for `.directText` and `.spatialText` alike, so reclassifying changes nothing.
+4. **Retrieval is 21% reproducible.** Unchanged. Caps confidence in any single run.
+5. **Existing libraries need re-embedding** after the export fix, and nothing detects it.
+   `KnowledgeContainer` persists only `embeddingProviderId` and `embeddingDim`, neither of which
+   moves.
 
 ## Exact Next Action
 
-**Put the current build on a physical device and run one Deep Think query against a real document.**
+Fix `AgenticOrchestrator.swift:1215`. Replace `String(searchResults.prefix(3000))` with a budget
+computed from real token counts, filled in rank order, that **logs what it dropped**:
 
-Nothing from this session has run on hardware. Seven fixes are compile-and-benchmark verified only,
-and one of them, the iOS 27 error taxonomy, exists specifically to capture evidence that has only
-ever appeared on device. Capture the log and run:
+- Use `DocumentProcessor.countTokens` (now trustworthy — the padding defect was fixed in `2753d15`)
+  rather than a chars-per-token guess.
+- Fill highest-ranked chunk first and stop at the budget, so truncation removes the least relevant
+  evidence rather than whatever sorts last.
+- Emit one line naming how many chunks and tokens were dropped. Silent truncation across fourteen
+  stages is the class of defect this pipeline keeps producing.
+- Then re-run the identical device query, `How does dopamine affect social behavior?`, in both
+  Standard and Deep Think, and compare against the saved trace. **Deep Think must stop asserting the
+  evidence is absent.** If it still does, the cause is not truncation alone and blocker 1 stays open.
 
-```bash
-grep -A6 "GeneratedContent.ParsingError" <device-log>
-```
-
-`rawContent` is the raw model output behind "Session ended without producing a response". That
-either closes the three-day question outright or shows the failure is gone.
-
-Then take Blocker 1. Do not run another A/B before it is resolved: a second uncomparable run costs
-hours and settles nothing.
+Consider whether parent doc expansion should run at all when the budget cannot hold its output.
