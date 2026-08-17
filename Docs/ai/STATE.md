@@ -1,8 +1,8 @@
 # Current State
 
-Updated: 2026-08-15
+Updated: 2026-08-16
 Branch/worktree: main, primary checkout
-Last verified commit: cdd87a9
+Last verified commit: d3226de
 
 <!-- Keep the line above as the bare short SHA and nothing else. The SessionStart hook parses it
      with `sed` then strips all whitespace, so prose appended after the SHA is swallowed into it and
@@ -106,18 +106,29 @@ against 5,425 real library chunks (99.2% clean, zero false hard-demotions).
 
 ## Blockers / Unknowns
 
-1. **Benchmark runs are not comparable to each other, and this invalidates every before/after
-   quality claim made today.** Generation runs at temperature 0.7 with nothing pinning sampling;
-   `SWIFT_DETERMINISTIC_HASHING` seeds Swift hashes, not the model. One case moved 3613 -> 68 -> 3357
-   chars across three runs whose code differences cannot explain it. The audit's "Deep Think is
-   worse than standard" rests on one run per arm with no variance estimate and must not be quoted.
-   **What is still solid** is anything derived from reading code or from aggregates *within* one run:
-   the citation mismatch, the hardcoded 0.7, and 49-of-59 placeholder searches.
-   **Verification path:** the app already models `GenerationOptions.SamplingMode` including `greedy`
-   (`LLMService.swift:697`), but the agentic paths call `session.respond(to:)` with no options. Wire
-   a benchmark-only greedy sampling flag, then re-run. This is the highest-value next task and it
-   touches session construction, so treat `FoundationModelSessionFactory.swift` as the hard boundary
-   it is.
+1. **Retrieval is nondeterministic, and this is the single thing blocking every quality claim.**
+   Two runs of one build over byte-identical documents diverge: keyword hit rate 90% against 91%,
+   the `< 0.28` low-confidence filter dropping 77 chunks in one run and none in the other, MMR
+   selecting 30 against 14, answers 190 against 350 characters. **This is a product defect, not
+   only a measurement one:** re-ingesting a document changes its answers, and two users holding the
+   identical file get different evidence, which contradicts the grounded-and-attributable promise
+   the app exists for.
+   **Ruled out.** Ingestion is deterministic (268 chunks, both runs, all ten documents). The random
+   UUID tie-break was real and was fixed in `d3226de`, and **the divergence survived it**, so it was
+   not the cause.
+   **Where it is.** The keyword hit rate is `hitCount / results.count` over the *candidate set*,
+   computed from chunk text, so byte-identical documents yielding 90% against 91% means the
+   candidate set differs in membership before any tie-break runs. That places the origin in
+   embedding or vector search, amplified by the hard `0.28` floor at
+   `RetrievalPolicyService.swift:107`.
+   **The trap, recorded so it is not repeated.** `--rag-validation-skip-ingest` gives byte-identical
+   output and looks like proof. It is confounded: a reused index holds chunk ids fixed **and** skips
+   re-embedding, controlling two variables while crediting one.
+   **Exact next measurement:** embed one chunk twice in the same process and compare the vectors bit
+   for bit. If they differ, the fix is to remove the threshold cliff that amplifies float noise, not
+   to chase a determinism Apple may not provide. Confirm against Apple's own documentation for the
+   embedding model before concluding, since this assistant's cutoff predates the SDK.
+
 2. **Yesterday's empty-response mystery is solved, and the fix is not yet made.** The app catches
    `LanguageModelSession.GenerationError` at 3 sites and `LanguageModelError` at **0**. Both are
    public enums in the iOS 27 SDK (verified in
