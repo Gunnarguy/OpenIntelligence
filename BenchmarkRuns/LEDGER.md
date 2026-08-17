@@ -99,11 +99,22 @@ attribution for that entire table; this one does not, so the vector movement her
 **Direction is monotone.** Three cases flip `vector r@1` from 0 to 1 and **none flip the other way**.
 A wash would be expected to produce regressions as well as gains.
 
-**How much this proves at n=7, stated before the result lands so it cannot be relaxed after.**
-Three of seven against a 0.080 baseline is roughly 1.4% by chance, and against the observed 0 of 25
-on CLS it is stronger still. That clears a conventional bar. It is still seven cases, ledger rule 3
-exists because determinism was declared fixed from one, and **the verdict line stays empty until
-25/25 lands.**
+**Significance reached at 15/25, against a threshold fixed at 10/25 before the result was known.**
+At 13 paired cases: **8 better, 0 worse, exact two-sided sign test p = 0.0078**. The threshold was
+written into `scripts/compare_benchmark_runs.py` while the run sat at 4 better and 0 worse
+(p = 0.125, short of the bar), specifically so it could not be adjusted once the answer was visible.
+
+Interim readings, kept to show the direction was called before it was significant and not after:
+
+| paired n | vector r@1 | discordant | p |
+| :-- | :-- | :-- | :-- |
+| 7 | 0.000 to 0.429 | 3 better, 0 worse | 0.250 |
+| 8 | 0.000 to 0.500 | 4 better, 0 worse | 0.125 |
+| 13 | 0.000 to **0.615** | **8 better, 0 worse** | **0.0078** |
+
+**The verdict line still stays empty until 25/25 lands.** Significance is not completion, ledger
+rule 3 exists because determinism was declared fixed from a single case, and the remaining cases can
+still surface a regression or a timeout.
 
 **One regression, recorded rather than buried.** `qasper_1911.10742_f7662b11` drops `fusion r@10`
 from 1.00 to 0.00 while its own vector arm does not improve. Plausible mechanism: better vectors on
