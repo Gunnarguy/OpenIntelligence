@@ -519,7 +519,7 @@ def run_one(
     app_bin: Path, case: dict, mode: str, pcc: str, timeout: int,
     storage: Path, ingest: bool, pool: list[str] | None = None, pool_limit: int = 0,
     top_k: int = 0, vector_weight: float | None = None,
-    sampling: str | None = None, temperature: float | None = None,
+    sampling: str | None = None, temperature: float | None = None, seed: int | None = None,
 ) -> dict:
     """Launch the app headlessly for a single (case, mode) pair.
 
@@ -576,6 +576,8 @@ def run_one(
         cmd += ["--rag-validation-sampling", sampling]
     if temperature is not None:
         cmd += ["--rag-validation-temperature", str(temperature)]
+    if seed is not None:
+        cmd += ["--rag-validation-seed", str(seed)]
     # Ground truth for the retrieval metrics. The negative-control cases have no expected source by
     # construction; passing nothing makes the harness emit no STAGE METRICS block at all, so those
     # cases stay unscored rather than contributing a meaningless 0.0 to the aggregate.
@@ -872,6 +874,10 @@ def main() -> int:
                     help="pin the on-device sampling strategy. `greedy` makes two runs of the same "
                          "build comparable; without it samplingStrategy defaults to topK with no "
                          "seed and a single case has swung 3613 -> 68 -> 3357 chars between runs.")
+    ap.add_argument("--seed", type=int, default=None,
+                    help="fixed sampling seed. Required to compare temperatures: greedy ignores "
+                         "temperature entirely, so a controlled temperature A/B needs random "
+                         "sampling with the draws held fixed.")
     ap.add_argument("--temperature", type=float, default=None,
                     help="override generation temperature. The shipped RAG preset is 0.7, labelled "
                          "'balanced creativity'; 0.3 is the 'precise' preset. Separate from "
@@ -958,6 +964,7 @@ def main() -> int:
         # downstream reader could tell the halves apart.
         "sampling": args.sampling,
         "temperature": args.temperature,
+        "seed": args.seed,
     }
     config_path = out_dir / "run_config.json"
     if config_path.exists():
@@ -1018,7 +1025,7 @@ def main() -> int:
                     app_bin, case, mode, args.pcc, args.timeout,
                     storage=storage, ingest=True, pool=pool, pool_limit=args.pool_limit,
                     top_k=args.top_k, vector_weight=args.vector_weight,
-                    sampling=args.sampling, temperature=args.temperature,
+                    sampling=args.sampling, temperature=args.temperature, seed=args.seed,
                 )
                 row = {"case_id": case["id"], "category": case["category"], "mode": mode, "run": run}
                 if run.get("ok"):

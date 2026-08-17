@@ -97,15 +97,26 @@ enum DebugRAGValidationHarness {
     /// point every on-device generation passes through. Both keys are removed when their flag is
     /// absent so a stale value cannot silently change a later run.
     ///
-    /// `--rag-validation-sampling greedy` is the reproducible setting. `--rag-validation-temperature`
-    /// is separate because temperature and sampling strategy answer different questions: one is
-    /// "can I compare two runs", the other is "is a lower temperature better for grounded answers".
+    /// Three flags, answering three different questions:
+    ///   - `--rag-validation-sampling greedy` for maximum reproducibility. Greedy always takes the
+    ///     highest-probability token, so it also **ignores temperature entirely**.
+    ///   - `--rag-validation-seed` for a reproducible *stochastic* run. This is what a temperature
+    ///     comparison needs: greedy would produce identical output in both arms and a null result
+    ///     that means nothing, so the draws are held fixed and only the distribution changes.
+    ///   - `--rag-validation-temperature` for the quality question itself.
     private static func seedSamplingOverridesIfNeeded() {
         if let raw = LaunchArguments.valueEither(for: "rag-validation-sampling")?.lowercased(),
            ["greedy", "topk", "topp"].contains(raw) {
             UserDefaults.standard.set(raw, forKey: "benchmarkSamplingStrategy")
         } else {
             UserDefaults.standard.removeObject(forKey: "benchmarkSamplingStrategy")
+        }
+
+        if let raw = LaunchArguments.valueEither(for: "rag-validation-seed"),
+           let value = UInt64(raw) {
+            UserDefaults.standard.set(NSNumber(value: value), forKey: "benchmarkSamplingSeed")
+        } else {
+            UserDefaults.standard.removeObject(forKey: "benchmarkSamplingSeed")
         }
 
         if let raw = LaunchArguments.valueEither(for: "rag-validation-temperature"),

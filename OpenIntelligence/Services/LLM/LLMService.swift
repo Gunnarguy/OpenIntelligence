@@ -709,6 +709,13 @@ struct LLMResponse {
             // app, where the user's own settings are authoritative.
             let benchmarkSampling = UserDefaults.standard.string(forKey: "benchmarkSamplingStrategy")
             let benchmarkTemperature = UserDefaults.standard.object(forKey: "benchmarkTemperature") as? Double
+            // A seed is what makes a *stochastic* run reproducible. `greedy` needs no seed and
+            // ignores temperature entirely, since it always takes the highest-probability token, so
+            // a temperature comparison run under greedy would produce identical output in both arms
+            // and a null result that means nothing. Comparing temperatures requires random sampling
+            // with the draws held fixed, which is this.
+            let benchmarkSeed = (UserDefaults.standard.object(forKey: "benchmarkSamplingSeed") as? NSNumber)
+                .map { UInt64(truncating: $0) }
 
             var effectiveSampling = samplingMode
             if let benchmarkSampling {
@@ -716,11 +723,14 @@ struct LLMResponse {
                 case "greedy":
                     effectiveSampling = .greedy
                 case "topk":
-                    effectiveSampling = .random(top: config.topK > 0 ? config.topK : 40, seed: config.seed)
+                    effectiveSampling = .random(
+                        top: config.topK > 0 ? config.topK : 40,
+                        seed: benchmarkSeed ?? config.seed
+                    )
                 case "topp":
                     effectiveSampling = .random(
                         probabilityThreshold: Double(config.topP > 0 ? config.topP : 0.9),
-                        seed: config.seed
+                        seed: benchmarkSeed ?? config.seed
                     )
                 default:
                     break
