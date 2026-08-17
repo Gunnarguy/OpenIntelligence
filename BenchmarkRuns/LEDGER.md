@@ -83,13 +83,35 @@ on a case that previously succeeded.
 
 | run | commit | tests | verdict |
 | :-- | :-- | :-- | :-- |
-| `coreml-provider` | `308e4df` + 5 uncommitted (provider override, queue guard) | Same 25 cases, same seed, forced onto `CoreMLSentenceEmbeddingProvider` via the new `benchmarkEmbeddingProvider` default. Isolates **pooling** and nothing else: identical weights, identical corpus, identical tokenizer. | **In progress.** At 5/25: `vector r@1` **0.400**, lexical 0.800, fusion 0.400, rerank 0.800, final 0.800. The CLS path scored `vector r@1` **0.000** across all 25 cases of `tokfix`. |
+| `coreml-provider` | `308e4df` + 5 uncommitted (provider override, queue guard) | Same 25 cases, same seed, forced onto `CoreMLSentenceEmbeddingProvider` via the new `benchmarkEmbeddingProvider` default. Isolates **pooling** and nothing else: identical weights, identical corpus, identical tokenizer. | **In progress.** At 9/25, **paired against `tokfix` on the 7 cases both runs completed**: `vector r@1` **0 of 7 to 3 of 7**, correct **3 of 7 to 5 of 7**, and the `lexical` control is **identical case for case**. |
 
-**How much this proves at n=5, stated before the result lands so it cannot be rationalised after.**
-Two hits in five against the 0.080 baseline occurs by chance roughly 6% of the time. That is
-suggestive and it is not significant. The load-bearing comparison is not 0.400 against 0.080, it is
-0.400 against **0.000 over a full 25**, because ledger rule 3 was written after declaring
-determinism fixed from a single case. **Do not record a verdict here before 25/25 lands.**
+**Read this run paired, never as a raw average.** Two cases in `coreml-provider`
+(`qasper_1611.06322_57ee20f4`, `qasper_1604.02038_a0fd0c0f`) produced no stage metrics in `tokfix`,
+so any mean over "all cases so far" compares different case sets and understates the new run. The
+first interim figure recorded in this row was such an average and has been replaced. **Compare per
+case, on the intersection.**
+
+**The control holds, and that is the load-bearing result.** `lexical r@1` is identical on all 7
+paired cases. BM25 reads full text through FTS5 and cannot be touched by which provider produces
+vectors, so this is what a valid run looks like. The previous arc's control moved and destroyed
+attribution for that entire table; this one does not, so the vector movement here is readable.
+
+**Direction is monotone.** Three cases flip `vector r@1` from 0 to 1 and **none flip the other way**.
+A wash would be expected to produce regressions as well as gains.
+
+**How much this proves at n=7, stated before the result lands so it cannot be relaxed after.**
+Three of seven against a 0.080 baseline is roughly 1.4% by chance, and against the observed 0 of 25
+on CLS it is stronger still. That clears a conventional bar. It is still seven cases, ledger rule 3
+exists because determinism was declared fixed from one, and **the verdict line stays empty until
+25/25 lands.**
+
+**One regression, recorded rather than buried.** `qasper_1911.10742_f7662b11` drops `fusion r@10`
+from 1.00 to 0.00 while its own vector arm does not improve. Plausible mechanism: better vectors on
+competing chunks displace the one fusion previously surfaced. Unverified.
+
+**The `tokfix` hang did not recur.** `qasper_1604.02038_a0fd0c0f` timed out at 0.4% CPU for 25
+minutes in `tokfix`; here it completed with `fusion r@10` 1.00, still not correct. One observation.
+It does not explain the hang and does not close it.
 
 The mechanism is independently established by code reading and does not depend on this run:
 `compile_core_ai_model.py` returns `last_hidden_state[:, 0, :]` from a model whose own card, and
@@ -124,3 +146,9 @@ this number. If it does not, the cause is not only pooling and this row is incom
    at fourteen. `vector r@1 = 0.000` at n=7 is statistically identical to a 0.080 baseline.
 4. **Name the control.** `lexical` reads full text through FTS5 and is untouched by tokenizer changes,
    so if it moves the runs are not comparable and nothing else in the table can be read.
+5. **Compare paired, on the intersection of completed cases.** Runs disagree about which cases
+   produce stage metrics, because timeouts and hangs differ between them. A mean over "all cases in
+   run A" against "all cases in run B" silently compares different corpora and moves numbers in
+   whichever direction the missing cases happened to fall. Use `scripts/compare_benchmark_runs.py`,
+   which intersects by `case_id` and reports per-case flips. An interim average in this ledger was
+   wrong for exactly this reason before it was caught.

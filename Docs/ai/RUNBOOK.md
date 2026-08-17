@@ -257,6 +257,28 @@ cases, and every terminal state including a crash or a stall. Silence means heal
 is deliberate: a filter matching only the happy path is silent through a crash, and silence then
 looks exactly like progress.
 
+### Comparing two runs
+
+Never compare two runs by their own averages. Verified 2026-08-17:
+
+```bash
+python3 scripts/compare_benchmark_runs.py BenchmarkRuns/<baseline> BenchmarkRuns/<candidate>
+```
+
+It intersects on `case_id`, keeps only cases that produced stage metrics in **both** runs, names the
+ones it excluded, prints per-case flips so a mean cannot hide offsetting gains and regressions, and
+states explicitly whether the `lexical` control moved.
+
+The control line is the first thing to read. `lexical` goes through FTS5 over full text, so an
+embedding-provider change must leave it identical case for case. If it moved, the runs are not
+comparable and nothing else in the output means anything.
+
+Runs disagree about which cases finish, because timeouts and hangs differ between them, so a mean
+over each run's own case set compares two different corpora. On 2026-08-17 that made the control
+appear to drop 0.714 to 0.625 when it had not moved at all: two cases present in the candidate and
+absent from the baseline were pulling the candidate's average down. Add `--stage`/`--metric` to
+change which stage the per-case breakdown covers; it defaults to `vector r1`.
+
 Pair it with `--limit 6`. This is measured, not a preference. On 2026-08-15 a watcher reporting only
 completion left a defect visible in case 1 at minute 4 unread until three cases had burned, and the
 correction cycle was a full run, about three hours, per fix. Watching shapes against a six-case run
