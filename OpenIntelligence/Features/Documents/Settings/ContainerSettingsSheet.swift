@@ -414,7 +414,12 @@ struct ContainerSettingsSheet: View {
                 supportedDimensions: [384],
                 metrics: [
                     OptionMetric(icon: "bolt.fill", text: "ANE accelerated", tint: .orange),
-                    OptionMetric(icon: "target", text: "High semantic accuracy"),
+                    // "High semantic accuracy" was an unmeasured superlative, and the first
+                    // measurement contradicts it: over 25 QASPER cases the dense arm ranked
+                    // the gold document first in 8% of cases against BM25's 60%. Replaced
+                    // with the verifiable property rather than deleted outright, since the
+                    // figure is corpus-dependent and QASPER favours lexical matching.
+                    OptionMetric(icon: "target", text: "384-dim mean-pooled"),
                     OptionMetric(icon: "iphone", text: "100% on-device"),
                 ],
                 alert: nil
@@ -423,7 +428,15 @@ struct ContainerSettingsSheet: View {
 
         var coreAISelectable = false
         var coreAIBadge = "⚡ Native"
-        let coreAIDetail = "Apple Intelligence-backed sentence embeddings. Runs zero-copy inference natively on Apple Silicon with 40%+ latency reduction."
+        // Provenance, not marketing. `THIRD_PARTY_NOTICES.md:3-8` binds the bundled
+// `EmbeddingModel.mlpackage` to `sentence-transformers/all-MiniLM-L6-v2`, so this option is
+// the SAME model as the Neural Engine option, recompiled for the Core AI runtime. It was
+// described as "Apple Intelligence-backed sentence embeddings", which reads as an Apple
+// model and is not one. The latency figure was also removed: it traces to
+// `AppleIntelligenceTransitionPlan.md:16`, where "a 40%+ reduction" is stated as a GOAL,
+// and no measurement of it exists in this repository. Flagged unverified by
+// `LIBRARY_SURFACES_AUDIT_2026-08-11.md:196` and resolved here.
+let coreAIDetail = "The same all-MiniLM-L6-v2 weights as the Neural Engine option, recompiled for Apple's Core AI runtime. Runs zero-copy on Apple Silicon, which changes speed rather than accuracy."
         var coreAIAlertMessage: ProviderAvailabilityAlert? = nil
 
         #if canImport(CoreAI)
@@ -465,7 +478,9 @@ struct ContainerSettingsSheet: View {
                 metrics: [
                     OptionMetric(icon: "bolt.fill", text: "Silicon-native ANE", tint: .indigo),
                     OptionMetric(icon: "memorychip", text: "Zero-copy memory"),
-                    OptionMetric(icon: "gauge.with.needle", text: "40%+ faster"),
+                    // Was "40%+ faster". That figure is a goal from
+                    // AppleIntelligenceTransitionPlan.md:16, never measured here.
+                    OptionMetric(icon: "gauge.with.needle", text: "Lower latency"),
                 ],
                 alert: coreAIAlertMessage
             )
