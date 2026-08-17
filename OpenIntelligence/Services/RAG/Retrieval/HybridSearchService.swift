@@ -178,10 +178,31 @@ class HybridSearchService {
     /// which moves `recall@1` and MRR and makes any benchmark number irreproducible.
     ///
     /// The id tiebreak is arbitrary. The point is that it is the *same* arbitrary every run.
+    ///
+    /// That intent was right and the mechanism did not deliver it. `chunk.id` is a fresh UUID
+    /// generated at ingestion, so it is the same arbitrary only *within* one ingestion. Re-ingest
+    /// the same file and every tie resolves differently, which was measured on 2026-08-16: two
+    /// identical runs of the same build over the same documents produced 30 against 14 MMR
+    /// selections, 9457 against 9507 context characters, and 190 against 350 character answers.
+    /// Holding the ids fixed collapsed that to byte-identical output, which is what identified this
+    /// as the cause rather than the model.
+    ///
+    /// One tie at a top-N cutoff is enough to cascade: it changes which candidates survive, which
+    /// moves the keyword hit rate (measured 90% against 91% for the same term over the same corpus),
+    /// which changes the boost, which pushes scores across the 0.28 confidence floor, which dropped
+    /// 77 chunks in one run and none in the other.
+    ///
+    /// `(sourceDocument, chunkIndex)` is stable across re-ingestion, across devices, and across two
+    /// users holding the same document, which the UUID never was.
+    static func stableTieBreakKey(_ chunk: RetrievedChunk) -> String {
+        // Zero-padded so lexical comparison orders the index numerically.
+        "\(chunk.sourceDocument)#\(String(format: "%08d", chunk.chunk.metadata.chunkIndex))"
+    }
+
     static func byScoreThenId(_ lhs: RetrievedChunk, _ rhs: RetrievedChunk) -> Bool {
         lhs.similarityScore != rhs.similarityScore
             ? lhs.similarityScore > rhs.similarityScore
-            : lhs.chunk.id.uuidString < rhs.chunk.id.uuidString
+            : stableTieBreakKey(lhs) < stableTieBreakKey(rhs)
     }
 
     init(vectorDatabase: VectorDatabase, vectorWeight: Float = 0.7, keywordWeight: Float = 0.3) {
@@ -1051,7 +1072,7 @@ class HybridSearchService {
                 .sorted {
                     $0.score != $1.score
                         ? $0.score > $1.score
-                        : $0.chunk.chunk.id.uuidString < $1.chunk.chunk.id.uuidString
+                        : Self.stableTieBreakKey($0.chunk) < Self.stableTieBreakKey($1.chunk)
                 }
                 .map { ($0.chunk, $0.score) }
 

@@ -874,6 +874,11 @@ def main() -> int:
                     help="pin the on-device sampling strategy. `greedy` makes two runs of the same "
                          "build comparable; without it samplingStrategy defaults to topK with no "
                          "seed and a single case has swung 3613 -> 68 -> 3357 chars between runs.")
+    ap.add_argument("--no-ingest", action="store_true",
+                    help="reuse the existing index instead of ingesting. DIAGNOSTIC ONLY: the "
+                         "reused index loses document-name mapping so citations resolve to "
+                         "Unknown and scores go to zero. Its one legitimate use is holding chunk "
+                         "UUIDs fixed to test whether retrieval is reproducible at all.")
     ap.add_argument("--seed", type=int, default=None,
                     help="fixed sampling seed. Required to compare temperatures: greedy ignores "
                          "temperature entirely, so a controlled temperature A/B needs random "
@@ -1023,7 +1028,7 @@ def main() -> int:
                 print(f"[{n}/{total}] {mode:11} {case['id']}", end=" ", flush=True)
                 run = run_one(
                     app_bin, case, mode, args.pcc, args.timeout,
-                    storage=storage, ingest=True, pool=pool, pool_limit=args.pool_limit,
+                    storage=storage, ingest=not args.no_ingest, pool=pool, pool_limit=args.pool_limit,
                     top_k=args.top_k, vector_weight=args.vector_weight,
                     sampling=args.sampling, temperature=args.temperature, seed=args.seed,
                 )
