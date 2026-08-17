@@ -427,6 +427,51 @@ class DocumentProcessor {
         loadTokenizer()
     }
 
+    /// Assert that the tokenizer actually counts, rather than reporting its pad width.
+    ///
+    /// This is the check that would have caught the most expensive defect in this repository on the
+    /// day it shipped. The bundled `tokenizer.json` carried a `padding` block, so
+    /// `tokenizer.encode(...).count` returned the pad width for **every** input. `countTokens`
+    /// therefore returned 128 forever, the `safeTokenLimit` guard at 430 could never fire, and the
+    /// chunker had no working measure of its own output. It logged `maxTokens=128/430` **3,910 times
+    /// out of 3,910** across every recorded benchmark run, and that reads exactly like a working
+    /// measurement. A constant is only suspicious if something asks whether it should vary.
+    ///
+    /// So this asks. Two inputs of obviously different length must produce different counts, and a
+    /// realistic chunk must not measure the same as a single word. Behavioural rather than
+    /// configuration-based on purpose: it holds no matter how a future tokenizer expresses padding,
+    /// and it does not need to parse `tokenizer.json`.
+    ///
+    /// Logs rather than traps. A wrong token count degrades retrieval quality silently; it does not
+    /// corrupt data, and refusing to ingest would be a worse outcome than ingesting with a warning.
+    private func verifyTokenizerCounts() {
+        guard let tokenizer = embeddingTokenizer else { return }
+        let short = "test"
+        let long = String(repeating: "the quick brown fox jumps over the lazy dog ", count: 20)
+        do {
+            let shortCount = try tokenizer.encode(text: short, addSpecialTokens: true).count
+            let longCount = try tokenizer.encode(text: long, addSpecialTokens: true).count
+            guard shortCount != longCount else {
+                Log.error(
+                    "[DocumentProcessor] TOKENIZER IS NOT COUNTING. A 1-word input and a 180-word "
+                        + "input both measured \(shortCount) tokens, which means encode() is padding "
+                        + "to a fixed width. Every token-budget decision downstream is now a constant, "
+                        + "including the \(Self.safeTokenLimit)-token chunk guard. Remove the `padding` "
+                        + "block from embedding_tokenizer.bundle/tokenizer.json; the providers pad "
+                        + "themselves.",
+                    category: .ingestion
+                )
+                return
+            }
+            Log.info(
+                "[DocumentProcessor] Tokenizer count check passed: \(shortCount) vs \(longCount) tokens",
+                category: .ingestion
+            )
+        } catch {
+            Log.warning("[DocumentProcessor] Tokenizer count check could not run: \(error)", category: .ingestion)
+        }
+    }
+
     /// Load Tokenizer from embedding vocab for accurate token counting
     private func loadTokenizer() {
         if let url = OpenIntelligenceResourceBundle.url(forResource: "embedding_tokenizer", withExtension: "bundle") {
@@ -434,6 +479,7 @@ class DocumentProcessor {
                 do {
                     embeddingTokenizer = try await AutoTokenizer.from(directory: url)
                     Log.info("[DocumentProcessor] Loaded Rust-backed Tokenizer for accurate chunk validation", category: .ingestion)
+                    verifyTokenizerCounts()
                 } catch {
                     Log.warning("[DocumentProcessor] Failed to load tokenizer: \(error). Falling back to word estimation.", category: .ingestion)
                 }

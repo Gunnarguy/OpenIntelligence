@@ -209,6 +209,48 @@ Both indexes are isolated by `container_id` to enforce library boundaries.
 
 ---
 
+## 5b. Token counting, and the invariant that guards it
+
+**The token counter must be asked whether it counts.** `DocumentProcessor.countTokens` returns
+`try tokenizer.encode(text:addSpecialTokens:).count`. If the bundled tokenizer carries a `padding`
+block, that call returns the **pad width for every input**, so the counter becomes a constant while
+still looking like a measurement.
+
+That is not hypothetical. Until 2026-08-17 both `embedding_tokenizer.bundle` and
+`reranker_tokenizer.bundle` carried `"padding": {"strategy": {"Fixed": 128}}` alongside
+`"truncation": {"max_length": 128}`, and three defects followed from that one block:
+
+1. **55% of all library content never reached the embedder.** Both compiled models declare input
+   shape `[1, 512]` and both Swift providers pad to 512 themselves, so the tokenizers were the only
+   component capped at 128. Measured with the real WordPiece vocab over 139 live chunks: median
+   chunk **273 tokens**, and **125 of 139 (90%)** truncated.
+2. **The `safeTokenLimit` guard at 430 could never fire**, because `countTokens` always returned 128.
+   The chunker had no working measure of its own output for the entire life of the feature.
+3. **Mean pooling averaged `[PAD]` into every vector**, because the provider builds
+   `attentionMask = Array(repeating: 1, count: inputIds.count)` over already-padded ids, so the mask
+   marks padding as real content.
+
+Deleting the `padding` block fixes all three, because every consumer already pads to its own fixed
+width. Truncation is now 512, matching the models.
+
+**Why it survived so long, and what now guards it.** The logs read
+`maxTokens=128/430` on **3,910 of 3,910** recorded ingestions. A constant that sits inside a
+plausible range looks exactly like a working measurement, and nothing asked whether it should vary.
+`DocumentProcessor.verifyTokenizerCounts` now asks at load: it encodes a one-word string and a
+180-word string and logs an error if they measure the same. The check is **behavioural rather than
+configuration-based**, so it holds however a future tokenizer expresses padding and does not require
+parsing `tokenizer.json`. It logs rather than traps, because a wrong token count degrades retrieval
+silently but does not corrupt data, and refusing to ingest would be the worse failure.
+
+**Existing libraries do not benefit until re-embedded.** Old vectors remain valid 384-dimensional
+MiniLM embeddings of a truncated, padding-diluted input. Nothing detects the change, because
+`KnowledgeContainer` persists only `embeddingProviderId` and `embeddingDim` and neither moves. See
+the Notion row "Existing libraries keep truncated vectors because nothing detects the embedding
+change".
+
+`[evidence_level: measured, confidence: high, evidence_source: real WordPiece tokenization of 139
+live chunks; 3910 constant log lines; BenchmarkRuns/tokfix showing 386 to 430 after the fix]`
+
 ## 6. Predictive Self-Tuning & Dynamic Config Optimization
 
 To prevent wasteful document rebuild loops (re-extraction and re-embedding), the pipeline implements **Predictive Self-Tuning** and **Non-Destructive Adjustments** to optimize the RAG parameters *before* ingestion starts:
