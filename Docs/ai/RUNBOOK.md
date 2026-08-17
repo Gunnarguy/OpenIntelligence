@@ -273,6 +273,13 @@ The control line is the first thing to read. `lexical` goes through FTS5 over fu
 embedding-provider change must leave it identical case for case. If it moved, the runs are not
 comparable and nothing else in the output means anything.
 
+It also prints an **exact two-sided sign test** over the discordant pairs, and when the result falls
+short it says how many one-directional pairs would clear the threshold. Read that before claiming a
+result. Only cases that changed carry information, so the count that matters is discordant pairs and
+not the number of cases run: **4 better and 0 worse is p = 0.125**, which looks overwhelming and is
+not significant. **Six** one-directional pairs is the first point a two-sided test clears 0.05, which
+is where the `6/n` minimum-detectable-effect rule of thumb comes from.
+
 Runs disagree about which cases finish, because timeouts and hangs differ between them, so a mean
 over each run's own case set compares two different corpora. On 2026-08-17 that made the control
 appear to drop 0.714 to 0.625 when it had not moved at all: two cases present in the candidate and

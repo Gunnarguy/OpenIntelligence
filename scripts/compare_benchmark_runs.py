@@ -66,6 +66,35 @@ def mean(values: list[float]) -> float:
     return sum(values) / len(values) if values else float("nan")
 
 
+def sign_test(gained: int, lost: int, alpha: float = 0.05) -> str:
+    """Exact two-sided sign test over discordant pairs, reported in words.
+
+    Only pairs that changed carry information, so `n` here is gained + lost, never the case count.
+    That matters more than it sounds: a run of one-directional flips looks decisive well before it
+    is significant. Four better and zero worse is p = 0.125. Six discordant pairs, all one way, is
+    the first point a two-sided test clears 0.05, which is where 'six' comes from in this repo's
+    minimum-detectable-effect rule of thumb.
+    """
+    n = gained + lost
+    if n == 0:
+        return "sign test: no discordant pairs, nothing to test"
+
+    from math import comb
+
+    extreme = min(gained, lost)
+    # Two-sided: sum both tails at or beyond the observed imbalance.
+    p = min(1.0, 2 * sum(comb(n, k) for k in range(extreme + 1)) / (2 ** n))
+
+    verdict = "SIGNIFICANT" if p < alpha else "not significant"
+    detail = ""
+    if p >= alpha:
+        # Say what it would take, so the run has a stopping rule instead of a vibe.
+        need = next((m for m in range(n + 1, 40) if 2 / (2 ** m) < alpha), None)
+        if need and lost == 0:
+            detail = f"; needs {need} one-directional discordant pairs at this alpha, have {n}"
+    return f"sign test: {gained} better vs {lost} worse, p = {p:.4f}, {verdict} at alpha {alpha}{detail}"
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("baseline", type=Path)
@@ -126,6 +155,12 @@ def main() -> int:
             before = metric(base[case_id], args.stage, args.metric)
             after = metric(cand[case_id], args.stage, args.metric)
             print(f"  {label:6s} {case_id:36s} {before:.2f} -> {after:.2f}")
+
+    # Exact two-sided sign test on the discordant pairs. Printed because a run of one-directional
+    # flips reads as overwhelming long before it is significant: 4 better and 0 worse is p = 0.125,
+    # not the near-certainty it looks like. Ties carry no information and are excluded, which is
+    # why the count that matters is discordant pairs and not total cases.
+    print(f"\n{sign_test(len(gained), len(lost))}")
 
     control_moved = any(
         metric(base[c], CONTROL_STAGE, "r1") != metric(cand[c], CONTROL_STAGE, "r1") for c in paired
