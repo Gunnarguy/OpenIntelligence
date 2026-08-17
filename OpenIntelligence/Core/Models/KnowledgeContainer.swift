@@ -428,6 +428,13 @@ enum AppSupportPaths {
         OpenIntelligenceRuntimePaths.setBaseDirectory(url)
     }
 
+    /// Pin both runtime directories for the life of the process. Later `configureBaseDir` and
+    /// `configureLocalCacheDir` calls are refused, which is what keeps a harness-supplied storage
+    /// override alive across `WorkspaceSyncService`'s workspace activation.
+    nonisolated static func pinRuntimeDirectories(base: URL, localCache: URL) {
+        OpenIntelligenceRuntimePaths.pinOverrides(base: base, localCache: localCache)
+    }
+
     nonisolated static func configureLocalCacheDir(_ url: URL?) {
         OpenIntelligenceRuntimePaths.setLocalCacheDirectory(url)
     }

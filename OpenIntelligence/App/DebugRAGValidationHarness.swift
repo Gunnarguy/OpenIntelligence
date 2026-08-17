@@ -61,7 +61,16 @@ enum DebugRAGValidationHarness {
 
     static func configureStorageIfNeeded() {
         guard let configuration = cachedConfiguration else { return }
-        AppSupportPaths.configureBaseDir(configuration.storageDirectory)
+        // Pinned, not merely configured. `WorkspaceSyncService.init` runs `activateLocalWorkspace`,
+        // which calls `configureBaseDir(nil)` and was silently destroying this override, so every
+        // benchmark write landed in the owner's real library no matter what storage the harness was
+        // given. The pin also aims LocalCache into the sandbox: `localCacheDirectory()` falls back
+        // to the real root rather than to the base override, which is how benchmark FTS5 writes
+        // reached the owner's real index on every run.
+        AppSupportPaths.pinRuntimeDirectories(
+            base: configuration.storageDirectory,
+            localCache: configuration.storageDirectory.appendingPathComponent("LocalCache", isDirectory: true)
+        )
         seedPCCConsentIfNeeded(configuration.pccConsent)
         seedBenchmarkEntitlementIfNeeded(configuration.benchmarkEntitlement)
         seedHybridWeightIfNeeded()
