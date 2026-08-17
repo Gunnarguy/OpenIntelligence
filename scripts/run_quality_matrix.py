@@ -990,8 +990,24 @@ def main() -> int:
     # On resume the recorded file wins and a conflicting argument is refused rather than merged.
     # Resuming with a different --vector-weight would append cases scored under a second
     # configuration into one results.jsonl, and no downstream reader could tell the halves apart.
+    # The commit is recorded because two runs from different commits are not comparable, and a
+    # Deep Think comparison was already invalidated once by 32 commits of drift between its arms.
+    # `run_config.json` previously captured only the flags, so a run directory could not say what
+    # code produced it.
+    try:
+        _commit = subprocess.run(
+            ["git", "rev-parse", "--short", "HEAD"], cwd=REPO_ROOT,
+            capture_output=True, text=True, check=False).stdout.strip() or "unknown"
+        _dirty = bool(subprocess.run(
+            ["git", "status", "--porcelain"], cwd=REPO_ROOT,
+            capture_output=True, text=True, check=False).stdout.strip())
+    except Exception:
+        _commit, _dirty = "unknown", False
+
     run_config = {
         "run_id": run_id,
+        "commit": _commit,
+        "tree_dirty": _dirty,
         "manifest": repo_relative(manifest_path),
         "modes": modes,
         "pcc": args.pcc,

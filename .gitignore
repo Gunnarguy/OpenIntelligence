@@ -30,6 +30,9 @@ Xrays/*.txt
 
 # Local RAG benchmark run artifacts
 BenchmarkRuns/
+# The ledger is the only durable record of what each run tested and settled.
+# Run outputs stay ignored; the reasoning about them is tracked.
+!BenchmarkRuns/LEDGER.md
 
 # Swift Package Manager
 .swiftpm/
