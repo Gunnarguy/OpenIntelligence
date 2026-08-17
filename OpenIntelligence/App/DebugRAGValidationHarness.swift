@@ -65,6 +65,7 @@ enum DebugRAGValidationHarness {
         seedPCCConsentIfNeeded(configuration.pccConsent)
         seedBenchmarkEntitlementIfNeeded(configuration.benchmarkEntitlement)
         seedHybridWeightIfNeeded()
+        seedSamplingOverridesIfNeeded()
     }
 
     /// Seed the fusion-weight override before any query builds a profile.
@@ -81,6 +82,38 @@ enum DebugRAGValidationHarness {
             return
         }
         UserDefaults.standard.set(value, forKey: "benchmarkVectorWeight")
+    }
+
+    /// Seed the sampling override, so two runs of the same build are comparable to each other.
+    ///
+    /// `InferenceConfig.samplingStrategy` defaults to `.topK` with `seed` nil, which means every run
+    /// draws a different sample. Measured consequence: one case returned 3613, then 68, then 3357
+    /// characters across three runs whose code differences cannot account for the swing. That noise
+    /// is larger than most effects worth measuring, so without this an A/B is not imprecise, it is
+    /// unreadable.
+    ///
+    /// Same UserDefaults mechanism as the fusion weight above, and for the same reason: the value is
+    /// consumed deep inside `LLMService` where `GenerationOptions` is built, which is the single
+    /// point every on-device generation passes through. Both keys are removed when their flag is
+    /// absent so a stale value cannot silently change a later run.
+    ///
+    /// `--rag-validation-sampling greedy` is the reproducible setting. `--rag-validation-temperature`
+    /// is separate because temperature and sampling strategy answer different questions: one is
+    /// "can I compare two runs", the other is "is a lower temperature better for grounded answers".
+    private static func seedSamplingOverridesIfNeeded() {
+        if let raw = LaunchArguments.valueEither(for: "rag-validation-sampling")?.lowercased(),
+           ["greedy", "topk", "topp"].contains(raw) {
+            UserDefaults.standard.set(raw, forKey: "benchmarkSamplingStrategy")
+        } else {
+            UserDefaults.standard.removeObject(forKey: "benchmarkSamplingStrategy")
+        }
+
+        if let raw = LaunchArguments.valueEither(for: "rag-validation-temperature"),
+           let value = Double(raw), value >= 0, value <= 2 {
+            UserDefaults.standard.set(value, forKey: "benchmarkTemperature")
+        } else {
+            UserDefaults.standard.removeObject(forKey: "benchmarkTemperature")
+        }
     }
 
     static func runHeadlessIfNeeded() {

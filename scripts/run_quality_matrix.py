@@ -519,6 +519,7 @@ def run_one(
     app_bin: Path, case: dict, mode: str, pcc: str, timeout: int,
     storage: Path, ingest: bool, pool: list[str] | None = None, pool_limit: int = 0,
     top_k: int = 0, vector_weight: float | None = None,
+    sampling: str | None = None, temperature: float | None = None,
 ) -> dict:
     """Launch the app headlessly for a single (case, mode) pair.
 
@@ -571,6 +572,10 @@ def run_one(
         "--rag-validation-pcc-consent", pcc,
         "--rag-validation-entitlement", "lifetime",
     ]
+    if sampling:
+        cmd += ["--rag-validation-sampling", sampling]
+    if temperature is not None:
+        cmd += ["--rag-validation-temperature", str(temperature)]
     # Ground truth for the retrieval metrics. The negative-control cases have no expected source by
     # construction; passing nothing makes the harness emit no STAGE METRICS block at all, so those
     # cases stay unscored rather than contributing a meaningless 0.0 to the aggregate.
@@ -863,6 +868,14 @@ def main() -> int:
     ap.add_argument("--limit", type=int, default=0, help="run only the first N cases (smoke test)")
     ap.add_argument("--timeout", type=int, default=600, help="per-run timeout in seconds")
     ap.add_argument("--output-dir", default="")
+    ap.add_argument("--sampling", default=None, choices=["greedy", "topk", "topp"],
+                    help="pin the on-device sampling strategy. `greedy` makes two runs of the same "
+                         "build comparable; without it samplingStrategy defaults to topK with no "
+                         "seed and a single case has swung 3613 -> 68 -> 3357 chars between runs.")
+    ap.add_argument("--temperature", type=float, default=None,
+                    help="override generation temperature. The shipped RAG preset is 0.7, labelled "
+                         "'balanced creativity'; 0.3 is the 'precise' preset. Separate from "
+                         "--sampling because comparability and quality are different questions.")
     ap.add_argument("--vector-weight", type=float, default=None,
                     help="dense-arm weight in RRF fusion; lexical gets 1-w. Bypasses the shipped "
                          "0.35-0.65 clamp, which is the hypothesis under test: on 2026-08-12 "
@@ -940,6 +953,11 @@ def main() -> int:
         "pool_limit": args.pool_limit,
         "top_k": args.top_k or 3,
         "vector_weight": args.vector_weight,
+        # Recorded for the same reason as vector_weight: resuming a run under different sampling
+        # would append cases drawn from a different distribution into one results.jsonl, and no
+        # downstream reader could tell the halves apart.
+        "sampling": args.sampling,
+        "temperature": args.temperature,
     }
     config_path = out_dir / "run_config.json"
     if config_path.exists():
@@ -1000,6 +1018,7 @@ def main() -> int:
                     app_bin, case, mode, args.pcc, args.timeout,
                     storage=storage, ingest=True, pool=pool, pool_limit=args.pool_limit,
                     top_k=args.top_k, vector_weight=args.vector_weight,
+                    sampling=args.sampling, temperature=args.temperature,
                 )
                 row = {"case_id": case["id"], "category": case["category"], "mode": mode, "run": run}
                 if run.get("ok"):

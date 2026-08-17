@@ -693,16 +693,59 @@ struct LLMResponse {
                     : nil
             }
 
+            // Benchmark determinism override, applied here because this is the only place an
+            // `InferenceConfig` becomes `GenerationOptions` for the on-device model. There are a
+            // dozen `InferenceConfig` construction sites and overriding at each of them is the
+            // mistake this repository keeps making: a rule applied to a subset of call sites is not
+            // applied. Every on-device generation passes through this line.
+            //
+            // Without it, no two benchmark runs are comparable. A single case moved 3613, then 68,
+            // then 3357 characters across three runs whose code differences cannot explain the
+            // swing, because `samplingStrategy` defaults to `.topK` with `seed` nil. That noise is
+            // larger than most effects being measured, so it makes an A/B unreadable rather than
+            // merely imprecise.
+            //
+            // Set only by `DebugRAGValidationHarness` from launch arguments. Absent in a shipped
+            // app, where the user's own settings are authoritative.
+            let benchmarkSampling = UserDefaults.standard.string(forKey: "benchmarkSamplingStrategy")
+            let benchmarkTemperature = UserDefaults.standard.object(forKey: "benchmarkTemperature") as? Double
+
+            var effectiveSampling = samplingMode
+            if let benchmarkSampling {
+                switch benchmarkSampling {
+                case "greedy":
+                    effectiveSampling = .greedy
+                case "topk":
+                    effectiveSampling = .random(top: config.topK > 0 ? config.topK : 40, seed: config.seed)
+                case "topp":
+                    effectiveSampling = .random(
+                        probabilityThreshold: Double(config.topP > 0 ? config.topP : 0.9),
+                        seed: config.seed
+                    )
+                default:
+                    break
+                }
+            }
+            let effectiveTemperature = benchmarkTemperature ?? Double(config.temperature)
+
+            if benchmarkSampling != nil || benchmarkTemperature != nil {
+                Log.debug(
+                    "[FM] Benchmark sampling override: strategy=\(benchmarkSampling ?? "<config>") "
+                        + "temperature=\(effectiveTemperature) (config had \(config.temperature))",
+                    category: .llm
+                )
+            }
+
             #if compiler(>=6.4)
             let options = GenerationOptions(
-                samplingMode: samplingMode,
-                temperature: Double(config.temperature),
+                samplingMode: effectiveSampling,
+                temperature: effectiveTemperature,
                 maximumResponseTokens: config.maxTokens > 0 ? config.maxTokens : nil
             )
             #else
             let options = GenerationOptions(
-                sampling: samplingMode,
-                temperature: Double(config.temperature),
+                sampling: effectiveSampling,
+                temperature: effectiveTemperature,
                 maximumResponseTokens: config.maxTokens > 0 ? config.maxTokens : nil
             )
             #endif
