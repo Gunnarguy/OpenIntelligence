@@ -29,9 +29,10 @@ Xrays/*.log
 Xrays/*.txt
 
 # Local RAG benchmark run artifacts
-BenchmarkRuns/
+# Ignore the run OUTPUTS, not the directory itself. Git cannot re-include a file whose parent
+# directory is excluded, so `BenchmarkRuns/` followed by a negation silently fails.
+BenchmarkRuns/*
 # The ledger is the only durable record of what each run tested and settled.
-# Run outputs stay ignored; the reasoning about them is tracked.
 !BenchmarkRuns/LEDGER.md
 
 # Swift Package Manager
