@@ -1294,6 +1294,8 @@ actor SuggestedQuestionsService {
             Rules:
             - Do NOT mention the word "passage", "document", "text", "author", "study", or "table" in the questions (e.g., do NOT ask "According to the passage, what is..."). Keep them entirely about the subject matter.
             - Only ask "why" when the passage actually gives a reason. Most documents state rules without explaining them: if the text says rent is late after the fifth day but never says why, ask what the rule is, not why it exists.
+            - Name the thing. Never write "certain parts", "a characteristic", "the nature of the damage" or any other stand-in for something the passage names outright. Ask "How does combining the camera head with a third-party control unit affect image latency?", never "How does combining certain parts affect performance?". A question the reader cannot answer without first guessing what you meant is a failed question.
+            - Ask about the subject, not about the document. Never end a question with "described", "highlighted", "mentioned", "discussed" or "listed", because those ask what the text does rather than what is true.
             - Each question must be a complete, grammatically correct sentence under 15 words.
             - Do not include brackets, quotes, numbering, or bullets.
             \(avoidClause)
@@ -3734,17 +3736,22 @@ actor SuggestedQuestionsService {
             return false
         }
 
-        // Looser grounding check for LLM questions: at least 1 overlap token
-        // from the document name, section path, or body to ensure the question is grounded
-        // in this specific chunk rather than a pure hallucination.
+        // Grounding must come from the passage, not from the filename.
+        //
+        // This check previously accepted one overlap token from the document name, the section
+        // path, or the body, counted together. Document-name tokens made it vacuous: a question
+        // sharing nothing but words from the filename passed as "grounded", which is how a library
+        // of surgical IFUs produced questions aligned with titles rather than with what the
+        // documents actually say. The owner's complaint was literal: it cannot just use the
+        // document title. Body and section tokens still count, because section titles carry real
+        // content; the filename no longer does.
         let tokens = meaningfulTokens(from: lower)
         guard !tokens.isEmpty else { return false }
 
-        let overlapCount = tokens.intersection(passage.bodyTokens).count
+        let contentOverlap = tokens.intersection(passage.bodyTokens).count
             + tokens.intersection(passage.sectionTokens).count
-            + tokens.intersection(passage.documentTokens).count
 
-        return overlapCount >= 1
+        return contentOverlap >= 1
     }
 
     private func isUsableGeneratedQuestion(
@@ -3929,6 +3936,35 @@ actor SuggestedQuestionsService {
         }
 
         if isCapabilityQuestionFraming(lower) && (safetyCritical || prohibitive) {
+            return true
+        }
+
+        // A question that gestures at an entity instead of naming it is a riddle, not a question.
+        //
+        // Observed on a device capture of a surgical IFU library, 2026-08-16: "How does combining
+        // certain parts affect performance?" and "What characteristic might affect device
+        // reliability after sterilization?" Each is grammatical, on topic, and unanswerable as
+        // posed, because the entity it asks about is hidden behind a placeholder. The passage names
+        // the parts and the characteristic; a good question repeats them.
+        let placeholderMarkers = [
+            " certain ", "the nature of", "what characteristic might", "what characteristics might",
+            "what aspect might", "what aspects might", "what factor might", "what factors might",
+            "in what way might"
+        ]
+        if placeholderMarkers.contains(where: { lower.contains($0) }) {
+            return true
+        }
+
+        // A question ending in a bare past participle is asking about the text, not the subject:
+        // "What cleaning risks are highlighted?" means highlighted by the document. Matched only at
+        // the end, because the same verbs are legitimate mid-question in this domain: "Which
+        // vessels are highlighted by the fluorescent dye?" must survive.
+        let trailingMetaParticiples = [
+            "described?", "described", "highlighted?", "highlighted", "mentioned?", "mentioned",
+            "discussed?", "discussed", "outlined?", "outlined", "listed?", "listed"
+        ]
+        let trimmedQuestion = lower.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trailingMetaParticiples.contains(where: { trimmedQuestion.hasSuffix($0) }) {
             return true
         }
 
