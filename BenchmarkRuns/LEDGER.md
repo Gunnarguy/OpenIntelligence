@@ -112,9 +112,31 @@ Interim readings, kept to show the direction was called before it was significan
 | 8 | 0.000 to 0.500 | 4 better, 0 worse | 0.125 |
 | 13 | 0.000 to **0.615** | **8 better, 0 worse** | **0.0078** |
 
-**The verdict line still stays empty until 25/25 lands.** Significance is not completion, ledger
-rule 3 exists because determinism was declared fixed from a single case, and the remaining cases can
-still surface a regression or a timeout.
+## VERDICT, 25/25 complete
+
+**The Core AI export reads the wrong output of the embedding model. MiniLM is not the problem.**
+
+21 paired cases, 4 excluded because `tokfix` produced no stage metrics for them:
+
+| stage | r@1 | r@10 | mrr |
+| :-- | :-- | :-- | :-- |
+| `vector` | 0.000 → **0.571** | 0.476 → 0.762 | 0.099 → **0.624** |
+| `lexical` (control) | 0.714 → 0.714 | 0.905 → 0.905 | 0.778 → 0.778 |
+| `fusion` | 0.333 → **0.714** | 0.905 → 0.905 | 0.550 → 0.782 |
+| correct | **9/21 → 12/21** | | |
+
+**`vector r@1`: 12 better, 0 worse, exact two-sided sign test p = 0.0005.** The `lexical` control is
+identical on all 21 cases, so the runs are comparable and the movement is attributable.
+
+**What this settles.** Reading the same weights with mean pooling instead of the CLS token moves the
+dense arm from never ranking the right chunk first to doing it 57% of the time. The embedder was
+never weak; it was being read at a position it was never trained to make meaningful.
+
+**What it does not settle.** This run swaps the whole provider, so it measures pooling together with
+runtime and model artifact. The corrected Core AI export should land near these numbers; if it does
+not, pooling was not the whole cause. End-to-end `correct` moved 9/21 to 12/21, which is **4 better,
+0 worse, p = 0.125, not significant** — retrieval quality is established, the answer-quality effect
+is not. Determinism is still 21%, so a rerun would not reproduce these exact figures.
 
 **One regression, recorded rather than buried.** `qasper_1911.10742_f7662b11` drops `fusion r@10`
 from 1.00 to 0.00 while its own vector arm does not improve. Plausible mechanism: better vectors on
