@@ -32,6 +32,12 @@ vectors. The owner was explicit that dropping iOS 27 back to Core ML is not acce
 is installed at `/private/tmp/oi-export-venv` (torch 2.11, transformers 5.15, coreai-torch 0.4.1), so
 no further downloading is needed; the owner is on a slow connection.
 
+**Full instructions, written to be executed cold with no memory of this session:
+`Docs/Engineering/EMBEDDING_MEAN_POOLING_REEXPORT.md`.** It explains what pooling is from first
+principles, gives the exact before/after Python, names the Swift change the new two-input model
+forces, lists four verification steps in order, and states what must not be done first. Read it
+before touching the export; do not re-derive any of it.
+
 **Do not evaluate bge-small until this is done.** Comparing a candidate against a misconfigured
 incumbent is the confound this whole arc has been avoiding.
 
