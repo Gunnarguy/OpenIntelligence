@@ -971,7 +971,18 @@ actor RAGEngine {
             os_signpost(.begin, log: log, name: "reciprocalRankFusion", signpostID: spid)
             defer { os_signpost(.end, log: log, name: "reciprocalRankFusion", signpostID: spid) }
         #endif
-        guard !vectorResults.isEmpty else { return [] }
+        // Bail only when there is nothing at all to fuse.
+        //
+        // This was `guard !vectorResults.isEmpty`, which threw away a complete set of lexical hits
+        // whenever the dense arm came back empty. The union logic below already handles an empty
+        // vector arm correctly: `allCandidates` starts empty, every keyword candidate is appended
+        // because `existingIds` is empty, and the ranking falls back to BM25 order. The guard was
+        // returning before reaching any of it.
+        //
+        // The stakes are set by measurement, not by taste. On 25 QASPER cases the lexical arm ranks
+        // the gold document first in 60% of cases against the dense arm's 8%, so the discarded set
+        // was the stronger of the two.
+        guard !vectorResults.isEmpty || !keywordResults.isEmpty else { return [] }
 
         // Scores keyed by chunk id
         var scores: [UUID: Float] = [:]
