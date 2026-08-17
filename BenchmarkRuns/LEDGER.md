@@ -36,6 +36,29 @@ in this table by hand.
 - Determinism. Still 21%.
 - Whether Deep Think beats standard. That comparison was abandoned mid-run.
 
+### Open question raised by `tokfix`, not yet diagnosed
+
+**A case that passed at baseline now hangs to timeout.** `qasper_1604.02038_a0fd0c0f` completed in
+`cmp-standard` with a 505-character answer over 13 chunks. Under `tokfix` it sat at **0.4% CPU for 25
+minutes** and hit the 1500s timeout. Two cases have now timed out in this run.
+
+**It is a hang, not slow computation, and not machine contention.** CPU stayed at 0.4% through three
+minutes with the machine otherwise idle. A test suite was running concurrently for part of that
+window, which was a mistake and against a recorded constraint, but it is not the cause: contention
+raises CPU, it does not pin it near zero.
+
+Candidate causes, none verified:
+
+- The `enforceTokenLimitOnChunks` path now genuinely executes for the first time, since `countTokens`
+  finally returns real values and the 430-token guard can fire. That code had never run in production
+  across 3,910 recorded ingestions, so it is unexercised.
+- Something in the split path blocks rather than loops, which would explain near-zero CPU better than
+  an infinite loop would.
+
+**Do not dismiss this as a slow case.** A hang that only appears once the token counter starts
+working is exactly the kind of defect this fix would be expected to expose, and it reached a timeout
+on a case that previously succeeded.
+
 ---
 
 ## Open, not yet run
