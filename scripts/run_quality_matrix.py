@@ -475,12 +475,34 @@ def score(case: dict, parsed: dict) -> dict:
 
 # The four documents in the shared library that are not benchmark output. Everything else there
 # was put there by a benchmark run, verified 2026-08-12 against filename and containerId.
-REAL_LIBRARY_DOCUMENTS = {
-    "Apple-Intelligence-&-Private-Cloud-Compute.md",
-    "OpenIntelligence-Product-Guide.md",
-    "RAG-Technical-Architecture.md",
-    "ingestion4.5.1.txt",
-}
+# Snapshot of the owner's real library, captured once before the first case runs.
+#
+# This replaced a hardcoded four-name allowlist that was last verified 2026-08-12 and had gone
+# stale. The library held fourteen documents, so the allowlist under-protected by ten, and on
+# 2026-08-16 a run **deleted six of the owner's documents**. Four others survived only because they
+# happened to be in the benchmark's own fixture pool and were re-ingested moments later, which is
+# what disguised the loss.
+#
+# A list of names cannot be kept correct by hand against a library the owner adds to. Snapshotting
+# what is actually present cannot go stale, so the rule is now "remove what this run added" rather
+# than "keep what someone remembered to list".
+_PRE_EXISTING_DOCUMENTS: set[str] | None = None
+_PRE_EXISTING_METADATA: str | None = None
+
+
+def real_library_path() -> Path:
+    return Path.home() / "Library/Application Support/OpenIntelligence"
+
+
+def snapshot_real_library() -> None:
+    """Record the library's contents before any case runs, so the reset can be additive-only."""
+    global _PRE_EXISTING_DOCUMENTS, _PRE_EXISTING_METADATA
+    library = real_library_path()
+    imported = library / "ImportedDocuments"
+    _PRE_EXISTING_DOCUMENTS = {p.name for p in imported.iterdir() if p.is_file()} if imported.exists() else set()
+    metadata = library / "documents_metadata.json"
+    _PRE_EXISTING_METADATA = metadata.read_text() if metadata.exists() else None
+    print(f"Protecting {len(_PRE_EXISTING_DOCUMENTS)} pre-existing document(s) in the real library")
 
 
 def reset_shared_library() -> None:
@@ -496,13 +518,18 @@ def reset_shared_library() -> None:
     This removes only what a benchmark put there and never touches transcripts, chat history,
     conversation memory, containers.json, Gazetteers, LocalCache or FullText.
     """
-    library = Path.home() / "Library/Application Support/OpenIntelligence"
+    library = real_library_path()
     if not library.exists():
+        return
+    # Refuse to delete anything if the snapshot was never taken. Without it this function cannot
+    # tell a benchmark fixture from one of the owner's documents, and guessing destroyed six of them.
+    if _PRE_EXISTING_DOCUMENTS is None:
+        print("refusing to reset: snapshot_real_library() was never called", file=sys.stderr)
         return
     imported = library / "ImportedDocuments"
     if imported.exists():
         for path in imported.iterdir():
-            if path.name not in REAL_LIBRARY_DOCUMENTS and path.is_file():
+            if path.name not in _PRE_EXISTING_DOCUMENTS and path.is_file():
                 path.unlink(missing_ok=True)
     try:
         live = {c["id"] for c in json.loads((library / "containers.json").read_text())}
@@ -511,7 +538,14 @@ def reset_shared_library() -> None:
     for path in library.glob("vector_database_*"):
         if not any(path.name.startswith(f"vector_database_{cid}") for cid in live):
             path.unlink(missing_ok=True)
-    (library / "documents_metadata.json").write_text("[]")
+    # Restore the owner's metadata rather than zeroing it. Writing "[]" orphaned every real
+    # document, and the app's own sweep then deleted any file it saw as unreferenced and older than
+    # 900 seconds, which is precisely the owner's documents and never the freshly written fixtures.
+    # Restoring instead leaves the benchmark's own additions unreferenced, so they are still swept.
+    if _PRE_EXISTING_METADATA is not None:
+        (library / "documents_metadata.json").write_text(_PRE_EXISTING_METADATA)
+    else:
+        (library / "documents_metadata.json").write_text("[]")
     (library / "ingestion_queue.json").write_text("[]")
 
 
@@ -1013,6 +1047,10 @@ def main() -> int:
     if done:
         print(f"Resuming: {len(done)} of {total} already complete, skipping those")
     print(flush=True)
+
+    # Must run before the first case. `reset_shared_library` refuses to delete without it, so a
+    # missing snapshot degrades to leaving the library untouched rather than to guessing.
+    snapshot_real_library()
 
     started = dt.datetime.now()
     n = 0
