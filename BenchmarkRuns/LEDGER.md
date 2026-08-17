@@ -20,7 +20,7 @@ in this table by hand.
 | `cmp-deepthink` | `24d3b54` | Deep Think vs standard at one commit. | **Abandoned at 16/30**, stopped deliberately to pursue the tokenizer finding. Resumable with `--resume`. Not a failure, a reprioritisation. |
 | `det-A` / `det-B` | `24d3b54` | Determinism: same 20 cases twice. | **Failed.** 3 of 14 paired cases byte-identical, **21%**. The reranker race fix helped and did not solve it. Cause remains upstream and unidentified. |
 | `tok512` | tokenizer 512 **with** padding block | Raise truncation to 512. | **Catastrophic, and diagnostic.** Case 1 exceeded a 1500s timeout having taken 250s at baseline. Cause: `countTokens` returns `encode().count`, and a padded encode is constant, so `512 > 430` fired for every chunk and ingestion emitted roughly one chunk per word. **This timeout was then misread as quadratic attention cost, which was wrong.** Both models are fixed-shape `[1, 512]` and were always fed 512-wide tensors. |
-| `tokfix` | `2753d15` | Truncation 512, padding block **removed**. | **In progress.** Token counts now vary (386 to 430) where they were a constant 128 across 3,910 prior ingestions. At n=7: rerank r@10 **0.840 to 1.000**, final r@10 **0.760 to 0.857**, but **vector r@1 flat**. Control (lexical) settled at 0.714 against a 0.600 baseline, so the runs are comparable. |
+| `tokfix` | `2753d15` | Truncation 512, padding block **removed**. | **Complete, 25/25. Recall improved at every stage.** final r@10 **0.760 to 0.864**, fusion r@10 **0.760 to 0.909**, vector r@10 **0.360 to 0.455**, rerank r@1 **0.520 to 0.636**. Correct 9/25 to 9/22. **r@1 flat or down at every stage the vector arm feeds** (vector 0.080 to 0.000, fusion 0.360 to 0.318), which is what CLS pooling predicts. Two cases failed, one a 25-minute hang on a case that passed at baseline. Earlier note said **In progress.** Token counts now vary (386 to 430) where they were a constant 128 across 3,910 prior ingestions. At n=7: rerank r@10 **0.840 to 1.000**, final r@10 **0.760 to 0.857**, but **vector r@1 flat**. Control (lexical) settled at 0.714 against a 0.600 baseline, so the runs are comparable. |
 
 ### What this arc settled
 
@@ -35,6 +35,24 @@ in this table by hand.
 - Whether MiniLM is actually weak, because it is being **read wrong** (see below).
 - Determinism. Still 21%.
 - Whether Deep Think beats standard. That comparison was abandoned mid-run.
+
+### The control was not a control, and this limits every number above
+
+`lexical` was designated the control on the reasoning that BM25 reads full text through FTS5 and
+cannot be touched by a tokenizer change. **It moved from 0.600 to 0.682 at r@1 and 0.800 to 0.909 at
+r@10.**
+
+The reasoning was wrong. Fixing `countTokens` also fixed **chunking**: the `safeTokenLimit` guard at
+430 tokens now fires for the first time in the product's life, so chunk boundaries differ, and FTS5
+indexes different text. The tokenizer fix therefore reaches both arms.
+
+**Consequence for reading this run:** the gains are real and they are measured, but they are
+"truncation plus chunking", not truncation alone. No number here isolates the embedding change. A
+clean attribution would need a run with the padding block removed and the 430 guard disabled, which
+has not been done.
+
+Recorded because a stated control that turns out to be coupled is worse than no control: it invites
+attributing an effect to the wrong cause with more confidence than the evidence carries.
 
 ### Open question raised by `tokfix`, not yet diagnosed
 
