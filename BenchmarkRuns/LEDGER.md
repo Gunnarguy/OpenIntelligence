@@ -79,12 +79,38 @@ on a case that previously succeeded.
 
 ---
 
+## 2026-08-17: the pooling arc
+
+| run | commit | tests | verdict |
+| :-- | :-- | :-- | :-- |
+| `coreml-provider` | `308e4df` + 5 uncommitted (provider override, queue guard) | Same 25 cases, same seed, forced onto `CoreMLSentenceEmbeddingProvider` via the new `benchmarkEmbeddingProvider` default. Isolates **pooling** and nothing else: identical weights, identical corpus, identical tokenizer. | **In progress.** At 5/25: `vector r@1` **0.400**, lexical 0.800, fusion 0.400, rerank 0.800, final 0.800. The CLS path scored `vector r@1` **0.000** across all 25 cases of `tokfix`. |
+
+**How much this proves at n=5, stated before the result lands so it cannot be rationalised after.**
+Two hits in five against the 0.080 baseline occurs by chance roughly 6% of the time. That is
+suggestive and it is not significant. The load-bearing comparison is not 0.400 against 0.080, it is
+0.400 against **0.000 over a full 25**, because ledger rule 3 was written after declaring
+determinism fixed from a single case. **Do not record a verdict here before 25/25 lands.**
+
+The mechanism is independently established by code reading and does not depend on this run:
+`compile_core_ai_model.py` returns `last_hidden_state[:, 0, :]` from a model whose own card, and
+this app's own Settings copy, specify mean pooling. The benchmark measures the size of the
+consequence, not whether the defect exists.
+
+**Caveat on attribution.** This run swaps the whole provider, not just the pooling step. Core AI and
+Core ML differ in runtime, model artifact (`main.mlirb` against `.mlpackage`) and input count as
+well as pooling. Pooling is the only difference with a known mechanism for changing vector quality,
+but a clean isolation requires the corrected Core AI export, which is the point of
+`Docs/Engineering/EMBEDDING_MEAN_POOLING_REEXPORT.md`. **A corrected Core AI export should land near
+this number. If it does not, the cause is not only pooling and this row is incomplete.**
+
+---
+
 ## Open, not yet run
 
 | planned run | tests | why it matters |
 | :-- | :-- | :-- |
-| CoreML-provider run | Same 25 cases on `CoreMLSentenceEmbeddingProvider` instead of Core AI. | The two providers are **not** the same. Core AI runs `main.mlirb`, one input, and extracts the **CLS token**; CoreML runs the `.mlpackage`, three inputs including `attention_mask`, and does **mean pooling**. `all-MiniLM-L6-v2` is a mean-pooling model, so the Core AI path reads the wrong output of a model never trained to put meaning there. Every `vector r@1` number recorded above was produced by the Core AI path. **Until this runs, MiniLM's real quality is unknown and no embedder comparison is valid.** |
-| Embedder comparison | bge-small-en-v1.5 (MIT, 384-dim, 512-trained) against a correctly-read MiniLM. | Blocked on the row above. Running it first would compare a candidate against a misconfigured incumbent. |
+| Corrected Core AI export | Same 25 cases on a Core AI model re-exported with mean pooling and an attention mask. | Confirms the fix on the path iOS/macOS 27 actually uses, and isolates pooling from the provider swap above. Instructions: `Docs/Engineering/EMBEDDING_MEAN_POOLING_REEXPORT.md`. |
+| Embedder comparison | bge-small-en-v1.5 (MIT, 384-dim, 512-trained) against a correctly-read MiniLM. | **Blocked.** Running it before the export is corrected would compare a candidate against a misconfigured incumbent, which is the confound this entire arc exists to remove. |
 
 ---
 
