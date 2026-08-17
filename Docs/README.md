@@ -2,7 +2,7 @@
 
 This index organizes the repository's documentation by purpose, lifecycle state, and the code it maps to.
 
-> **Reconciled 2026-08-05 against the shipped 4.9 tree.** Two things were wrong before this pass and are worth naming, because both made this index actively misleading rather than merely stale. Every link was an absolute `file:///Users/...` path, so **every link in the public "Start here" document was broken for everyone except the repository owner**. And `ARCHITECTURE.md` was listed as an Active Reference while its own header marks it Superseded. Links are now relative, and lifecycle states match what each document says about itself.
+> **Reconciled 2026-08-05 against the shipped 4.9 tree, and extended 2026-08-17** to list the seven dated audits that sit at the top level and were previously absent from this index. Two things were wrong before this pass and are worth naming, because both made this index actively misleading rather than merely stale. Every link was an absolute `file:///Users/...` path, so **every link in the public "Start here" document was broken for everyone except the repository owner**. And `ARCHITECTURE.md` was listed as an Active Reference while its own header marks it Superseded. Links are now relative, and lifecycle states match what each document says about itself.
 >
 > Lifecycle state describes the **document**, not the code. A document can be an Active Reference and still be verified at an older version; where that is true, the entry says which version, and the document's own header carries the detail.
 
@@ -105,3 +105,33 @@ Inventories and maps compiled during audit checkpoints. Per the RepoOS Command C
 | Component Inventory | [component_inventory.csv](AuditArtifacts/ArchitectureAtlas/component_inventory.csv) | Swift components, method hashes, database triggers, metrics. |
 | Subsystem Map | [subsystem_map.md](AuditArtifacts/ArchitectureAtlas/subsystem_map.md) | Subsystem divisions mapping features back to files. |
 | Verification Matrix | [document_claim_matrix.csv](AuditArtifacts/Verification/document_claim_matrix.csv) | Maps public claims to codebase logic, to prevent false claims. |
+
+### Dated snapshots that still sit at the top level
+
+These seven live in `Docs/` rather than `AuditArtifacts/` and were previously unlisted here, which is
+the worst combination: they sit beside the canonical documents, look authoritative, and describe a
+tree that has moved. **They are point-in-time records of what was believed on a date. None is a
+source of truth.**
+
+They are deliberately **not** relocated. A move was scoped on 2026-08-17 and rejected: the seven
+carry **48 inbound references** between them, `PCC_Dynamic_Routing_Audit_Spec.md` is cited from
+`CHANGELOG.md` which is history and must not be rewritten, and one of them is load-bearing for the
+live routing system. Listing them here costs nothing and breaks nothing; moving them breaks the
+RepoOS.
+
+| Document | Lifecycle State | Note |
+| :--- | :--- | :--- |
+| [DOCUMENTATION_CONSISTENCY_AUDIT.md](DOCUMENTATION_CONSISTENCY_AUDIT.md) | **Active Directive, not a snapshot** | The exception. Referenced by 20 files including `RepoOS/01_TASK_ROUTER.md`, `02_AGENT_PROMPT_COMPILER.md`, `03_FORBIDDEN_EDIT_BOUNDARIES.md`, `04_RELEASE_READINESS_DASHBOARD.md` and the Atlas. Live governance depends on it. Do not move or delete. |
+| [FULL_REPO_LINE_BY_LINE_AUDIT.md](FULL_REPO_LINE_BY_LINE_AUDIT.md) | *Dated snapshot* | Referenced only from within `AuditArtifacts/` phase documents. |
+| [FULL_REPO_EVIDENCE_THREADS_ARCHITECTURE_AUDIT.md](FULL_REPO_EVIDENCE_THREADS_ARCHITECTURE_AUDIT.md) | *Dated snapshot* | Paired with its verification document below. |
+| [FULL_REPO_EVIDENCE_THREADS_AUDIT_VERIFICATION.md](FULL_REPO_EVIDENCE_THREADS_AUDIT_VERIFICATION.md) | *Dated snapshot* | Verifies the document above. |
+| [PRODUCT_POSITIONING_AND_EVIDENCE_THREADS_AUDIT.md](PRODUCT_POSITIONING_AND_EVIDENCE_THREADS_AUDIT.md) | *Dated snapshot, superseded by V2* | Read V2 instead. |
+| [PRODUCT_POSITIONING_AND_EVIDENCE_THREADS_AUDIT_V2.md](PRODUCT_POSITIONING_AND_EVIDENCE_THREADS_AUDIT_V2.md) | *Dated snapshot* | Positioning as understood at the time of writing. |
+| [PCC_Dynamic_Routing_Audit_Spec.md](PCC_Dynamic_Routing_Audit_Spec.md) | *Dated spec* | Cited from `CHANGELOG.md`. |
+
+**Why dated audits are kept rather than deleted.** They record what was believed and when, which is
+load-bearing more often than it looks. On 2026-08-17 the note in
+`AuditArtifacts/Verification/LIBRARY_SURFACES_AUDIT_2026-08-11.md:196`, which said the "40%+ faster"
+Settings claims were *flagged rather than asserted* and to run `oi-claim-audit` before touching them,
+is what allowed those claims to be resolved correctly instead of guessed at. Deleting an audit
+destroys the reasoning as well as the conclusion.
