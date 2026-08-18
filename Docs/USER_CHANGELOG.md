@@ -10,6 +10,10 @@ This document provides a chronological history of user-facing changes, highlight
 ## v5.0 - August 10, 2026
 Importing a document was quietly losing parts of it. This release finds the places that happened.
 
+### Libraries
+- **Press and hold on a library now behaves like the rest of iOS.** It was using a custom gesture that competed with sideways scrolling, so holding a library sometimes scrolled the row instead and nothing told you which one was about to happen. It now uses the standard press-and-hold menu, with the usual preview and haptic.
+- **Creating a library no longer suggests a name you already have.** The suggested name was based on how many libraries you had rather than what they were called, so after deleting one, the next suggestion could collide with a library still on screen. Accepting it left you with two libraries sharing a name.
+
 ### Your Documents
 
 *   **Tables in Word documents were being thrown away.** Each one was read into rows and then dropped, so a document could import looking fine with all of its numbers missing.

@@ -106,11 +106,11 @@ struct ContainerPickerStrip: View {
                 },
                 // `.map`, matching `onDelete` directly below, so a nil callback stays nil.
                 //
-                // This was an unconditional closure literal, which is never nil, so
-                // `hasLibraryActions` was always true and the Library Actions dialog opened on
-                // every screen that shows these chips. In Semantic Search, which passes no
-                // callbacks at all, that meant "Make Local Only" and "Make iCloud Sync" were
-                // visible and silently did nothing.
+                // This was an unconditional closure literal, which is never nil, so the
+                // storage actions appeared on every screen that shows these chips. In Semantic
+                // Search, which passes no callbacks at all, that meant "Make Local Only" and
+                // "Make iCloud Sync" were visible and silently did nothing. The nil-ness is now
+                // read directly by the context menu, which omits the whole section.
                 onSetLibraryStorage: onSetLibraryStorage.map { setStorage in
                     { syncMode in
                         setStorage(container, syncMode)
@@ -168,15 +168,10 @@ struct ContainerPill: View {
     let onSelect: () -> Void
     var onSetLibraryStorage: ((LibrarySyncMode) -> Void)? = nil
     var onDelete: (() -> Void)?
-    @State private var showingActionDialog = false
 
     /// The container's custom color, or accent color as fallback
     private var containerColor: Color {
         Color(hex: container.colorHex) ?? .accentColor
-    }
-
-    private var hasLibraryActions: Bool {
-        canDelete || onSetLibraryStorage != nil
     }
 
     var body: some View {
@@ -217,51 +212,25 @@ struct ContainerPill: View {
         .onTapGesture {
             onSelect()
         }
-        .onLongPressGesture(minimumDuration: 0.45) {
-            guard hasLibraryActions else { return }
-            showingActionDialog = true
-        }
-        .glassEffectHelper(isSelected: isSelected, tintColor: containerColor, interactive: !hasLibraryActions)
-        .confirmationDialog("Library Actions", isPresented: $showingActionDialog, titleVisibility: .visible) {
-            Button {
-                onSelect()
-            } label: {
-                Label("Select Library", systemImage: "checkmark.circle")
-            }
-
-            if let onSetLibraryStorage {
-                Button {
-                    onSetLibraryStorage(.localOnly)
-                } label: {
-                    Label(
-                        container.syncMode == .localOnly ? "Local Only (Current)" : "Make Local Only",
-                        systemImage: container.syncMode == .localOnly ? "checkmark.circle.fill" : "lock.fill"
-                    )
-                }
-
-                Button {
-                    onSetLibraryStorage(.iCloudShared)
-                } label: {
-                    Label(
-                        container.syncMode == .iCloudShared ? "iCloud Sync (Current)" : "Make iCloud Sync",
-                        systemImage: container.syncMode == .iCloudShared ? "checkmark.circle.fill" : "icloud.fill"
-                    )
-                }
-            }
-
-            if canDelete {
-                Button(role: .destructive) {
-                    onDelete?()
-                } label: {
-                    Label("Delete Library", systemImage: "trash")
-                }
-            }
-
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text(displayName ?? container.name)
-        }
-#if targetEnvironment(macCatalyst)
+        .glassEffectHelper(isSelected: isSelected, tintColor: containerColor, interactive: true)
+        // Press-and-hold is `.contextMenu`, not a manual `onLongPressGesture` plus a
+        // confirmation dialog, and that is a behaviour fix rather than a style preference.
+        //
+        // These chips live in a horizontal ScrollView. An `onLongPressGesture` there competes
+        // directly with the scroll pan: UIKit has no way to arbitrate a SwiftUI long-press
+        // against its own gesture recogniser, so a press that drifts a few points either
+        // scrolls or opens the dialog, unpredictably, with no press affordance to say which is
+        // happening. `.contextMenu` is arbitrated by UIKit itself, so scrolling always wins
+        // until the press resolves, and it brings the preview, the threshold haptic and the
+        // standard animation for free.
+        //
+        // Interactive glass was previously switched off whenever the chip had actions
+        // (`interactive: !hasLibraryActions`), which disabled the pressure response on exactly
+        // the chips a user needs to press. It was presumably suppressing a visual clash with
+        // the manual gesture; with the gesture gone the suppression goes too.
+        //
+        // This block was already the macCatalyst implementation. It is now the only one, so
+        // both platforms present the same actions in the same order.
         .contextMenu {
             Button {
                 onSelect()
@@ -301,7 +270,6 @@ struct ContainerPill: View {
                 }
             }
         }
-#endif
     }
 }
 

@@ -8,6 +8,10 @@ Public release highlights for OpenIntelligence.
 
 Importing a document was quietly losing parts of it. This release finds the places that happened.
 
+### Libraries
+- **Press and hold on a library now behaves like the rest of iOS:** the old custom gesture competed with sideways scrolling, so holding a library sometimes scrolled the row instead.
+- **Creating a library no longer suggests a name you already have:** the suggestion counted your libraries instead of reading their names, so after a deletion it could propose one already in use.
+
 ### Your Documents
 - **Tables in Word documents were being thrown away:** each one was read into rows and then dropped, so a document could import looking fine with all of its numbers missing.
 - **Images keep their layout:** every image became one unbroken line of text before anything downstream could read it.

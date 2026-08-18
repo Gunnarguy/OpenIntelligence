@@ -77,6 +77,39 @@ final class ContainerService: ObservableObject {
         UserDefaults.standard.set(activeContainerId.uuidString, forKey: "activeContainerId")
     }
 
+    /// The next unused default library name.
+    ///
+    /// Counting is not the same as numbering, and the difference is permanent once a library is
+    /// deleted. The previous suggestion was `"Library \(containers.count + 1)"`, so a workspace
+    /// holding General, Library 2, 3, 5 and 6 has a count of 5 and proposed "Library 6" — a name
+    /// already in use, because Library 4 had been deleted. Nothing downstream rejected it, so
+    /// accepting the suggestion produced two libraries with the same name, distinguishable only
+    /// by UUID.
+    ///
+    /// This takes the highest existing `Library N` suffix rather than the count, then scans
+    /// forward until the name is genuinely free, so it stays correct even for names typed by
+    /// hand. Case- and whitespace-insensitive, because "library 6" collides for a reader even
+    /// though it does not collide for `==`.
+    func nextAvailableLibraryName() -> String {
+        let taken = Set(containers.map {
+            $0.name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        })
+
+        var candidate = containers
+            .compactMap { container -> Int? in
+                let name = container.name.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard name.lowercased().hasPrefix("library ") else { return nil }
+                return Int(name.dropFirst("library ".count))
+            }
+            .max()
+            .map { $0 + 1 } ?? (containers.count + 1)
+
+        while taken.contains("library \(candidate)") {
+            candidate += 1
+        }
+        return "Library \(candidate)"
+    }
+
     func createContainer(
         name: String,
         icon: String = "folder.fill",

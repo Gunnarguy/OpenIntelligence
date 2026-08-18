@@ -539,7 +539,7 @@ struct DocumentLibraryView: View {
                     }
                 } label: {
                     Label(
-                        activeLibrary.map { "Delete the \($0.name) Library" } ?? "Delete Library",
+                        activeLibrary.map { "Delete \u{201C}\($0.name)\u{201D}" } ?? "Delete Library",
                         systemImage: "folder.badge.minus"
                     )
                 }
@@ -1498,8 +1498,9 @@ struct DocumentLibraryView: View {
             return
         }
 
-        // Suggest a default name but let user customize
-        newLibraryName = "Library \(currentCount + 1)"
+        // Suggest a default name but let user customize. Ask the service for a name that is
+        // actually free rather than deriving one from the count; see nextAvailableLibraryName.
+        newLibraryName = containerService.nextAvailableLibraryName()
         pendingNewLibraryName = ""
         shouldShowStorageChoiceAfterDismissal = false
         showingNewLibraryPrompt = true
@@ -1516,7 +1517,7 @@ struct DocumentLibraryView: View {
         let trimmedName = pendingNewLibraryName.isEmpty
             ? newLibraryName.trimmingCharacters(in: .whitespacesAndNewlines)
             : pendingNewLibraryName.trimmingCharacters(in: .whitespacesAndNewlines)
-        let libraryName = trimmedName.isEmpty ? "Library \(containerService.containers.count + 1)" : trimmedName
+        let libraryName = trimmedName.isEmpty ? containerService.nextAvailableLibraryName() : trimmedName
 
         let embeddingService = EmbeddingService.forProvider(
             id: settings.defaultEmbeddingProvider,
