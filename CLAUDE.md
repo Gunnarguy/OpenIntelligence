@@ -50,6 +50,20 @@ or documentation pass.
   `oi-claim-audit` skill. Withdrawing a true claim has happened here and costs more than leaving it.
 - Roadmap truth is the Notion database, not `Docs/ROADMAP.md`. Use the `notion-roadmap` skill; never
   answer a roadmap question from memory, and never locate the database by workspace search.
+- **Start substantive work from the roadmap, not from what you just noticed.** Before proposing what
+  to do next, read the active-release rows. Work that is not on the board is work nobody decided to
+  do.
+- **The active release is scope-frozen. New findings default to `Future Backlog`.** A defect only
+  gets the active release if it passes one of three tests, and you must say which in the row:
+  1. It loses or corrupts user data.
+  2. It makes an advertised capability not work.
+  3. It blocks the build from shipping at all.
+  Everything else — quality improvements, performance, features, tooling, test coverage — is
+  `Future Backlog` unless the user explicitly pulls it in. Finding a bug is not the same as
+  scheduling it, and conflating those is what makes a release scope grow every time work gets done.
+- **Fixed is not closed.** A row moves to `Completed` only when its behaviour is verified where the
+  defect appeared, which for this app usually means on device. Suite-green closes nothing. Say what
+  would close a row at the moment you claim it is fixed.
 
 ## Commands
 

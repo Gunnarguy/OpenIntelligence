@@ -47,6 +47,28 @@ Date properties are not queryable under their display name. Use the split column
 `date:Added:start`, `date:Completed:start`. Run `notion-fetch` on the database first if you need the
 schema; it returns the full `CREATE TABLE` definition.
 
+## Release scope is frozen; triage before you file
+
+`CLAUDE.md` governs this and the rule is not advisory. **A new row defaults to `Future Backlog`.**
+It gets the active release only if it passes one of three tests, and the row must name which:
+
+1. **Data loss or corruption.** The user loses work, or the app silently damages what it stored.
+2. **An advertised capability does not work.** Something the App Store listing, onboarding, Settings
+   or the README claims, which does not do what it says.
+3. **It blocks shipping.** The build cannot go out, or cannot go out honestly, until this is done.
+
+Performance, retrieval quality, refactors, features, tooling and test coverage do **not** qualify,
+however valuable. They are real work and they belong on the board — in `Future Backlog`, where they
+do not inflate a release that is trying to close.
+
+If a row is genuinely ambiguous, file it `Future Backlog` and say in the body why it might belong in
+the release. Pulling a row forward is one property change; discovering three months later that the
+release never converged because everything was tagged into it is not recoverable.
+
+**State the closing condition in the body when you file.** "Closes when X is observed on device" is
+the difference between a row that can end and a row that accumulates commentary. A row nobody can
+close is a row that will still be open at the next release.
+
 ## Writing
 
 **Starting** work a row tracks: set `Status` to `In Progress`.
