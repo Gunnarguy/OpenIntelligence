@@ -120,7 +120,16 @@ struct AdaptiveVisualizationsView: View {
 
                 libraryHeader
 
-                if engine.isAnalyzing {
+                // Only show the loading card when there is genuinely nothing to show. `analyze()`
+                // sets `isAnalyzing` before doing any work, so on a re-entry this replaced a
+                // complete, in-memory profile with a spinner: the page collapsed, the scroll
+                // position clamped to the top, and everything reflowed back in once the same
+                // result was re-derived.
+                //
+                // Nothing is hidden by this. The first analysis of a library still shows the
+                // card, because `currentProfile` is nil then. A refresh over existing data now
+                // keeps the old profile on screen until the new one replaces it.
+                if engine.isAnalyzing, engine.currentProfile == nil {
                     analyzeLoadingCard
                 } else if let profile = engine.currentProfile {
                     // Insights row (horizontal scroll for space efficiency)

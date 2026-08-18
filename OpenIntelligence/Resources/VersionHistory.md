@@ -11,6 +11,9 @@ This document provides a chronological history of user-facing changes, highlight
 Importing a document was quietly losing parts of it. This release finds the places that happened.
 
 ### Speed
+- **Leaving the chat tab no longer kills the answer you were waiting for.** Switching to Documents mid-answer and coming back used to cancel it and discard everything written so far, with nothing to tell you why. The answer now keeps going while you look at something else.
+- **The chat no longer loses your place.** Scrolling up to re-read an older answer and switching tabs used to slam you back to the newest message on return. It now stays where you left it, and still follows along automatically when you are reading the latest.
+- **Atlas keeps showing what it already worked out.** Re-opening the tab replaced the whole page with a loading spinner while it recalculated the same result. It now leaves the existing view up until the new one is ready.
 - **Answers stream more smoothly.** While an answer was arriving, the app re-formatted the entire text from scratch up to fifty times a second, on the same thread that draws the screen. Formatting now happens once, when the answer finishes. The finished answer looks exactly the same, and text stops flickering as half-finished bold and code blocks resolve.
 - **Opening the Atlas tab did its work twice.** Two separate triggers were both starting the same analysis. Now one does.
 

@@ -127,7 +127,22 @@ struct MessageListV2: View {
                 .scrollDismissesKeyboard(.interactively)
                 .onAppear {
                     scrollProxy = proxy
-                    scrollToBottom(proxy: proxy, animated: false)
+                    // Jump to the newest message on first open only, and afterwards only if the
+                    // reader was already at the bottom when they left.
+                    //
+                    // This was unconditional, and `.onAppear` fires on every return to the Chat
+                    // tab, so scrolling up to re-read an older answer and glancing at another tab
+                    // threw the position away — with a visible jump, because `animated: false`
+                    // still routes through a 0.12s `withAnimation`. `isPinnedToBottom` is already
+                    // maintained from the bottom-anchor preference for exactly this decision and
+                    // was simply not consulted here.
+                    //
+                    // Streaming auto-follow is untouched: the three `onChange` handlers below do
+                    // that work and already gate on `isPinnedToBottom`.
+                    if !hasPerformedInitialScroll || isPinnedToBottom {
+                        scrollToBottom(proxy: proxy, animated: false)
+                        hasPerformedInitialScroll = true
+                    }
                 }
                 .onChange(of: messages.count) { _, _ in
                     guard isPinnedToBottom else { return }
@@ -170,6 +185,7 @@ struct MessageListV2: View {
         }
     }
 
+    @State private var hasPerformedInitialScroll = false
     @State private var isPinnedToBottom: Bool = true
 }
 

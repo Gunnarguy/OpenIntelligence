@@ -9,6 +9,9 @@ Public release highlights for OpenIntelligence.
 Importing a document was quietly losing parts of it. This release finds the places that happened.
 
 ### Speed
+- **Leaving the chat tab no longer kills the answer you were waiting for:** it used to cancel and discard the partial answer with no explanation.
+- **The chat no longer loses your place:** switching tabs used to slam you back to the newest message.
+- **Atlas keeps showing what it already worked out** instead of replacing the page with a spinner while it recalculates.
 - **Answers stream more smoothly:** the app was re-formatting the whole answer up to fifty times a second while it arrived. It now formats once, at the end, and looks identical.
 - **Opening Atlas did its work twice:** two triggers were starting the same analysis. Now one does.
 

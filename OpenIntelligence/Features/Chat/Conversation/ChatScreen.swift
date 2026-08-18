@@ -601,19 +601,6 @@ struct ChatScreen: View {
             reviewPromptTask?.cancel()
             reviewPromptTask = nil
 
-            // Cancel any in-flight query from the previous library to prevent cross-container bleed
-            continuedQueryCoordinator.cancelCurrentQuery()
-            currentQuerySessionId = nil
-            currentQueryTask?.cancel()
-            currentQueryTask = nil
-
-            // Reset transient generation state for the newly active library
-            if isProcessing {
-                resetStreamingState()
-                isProcessing = false
-                stage = .idle
-            }
-
             // Don't load persisted history in screenshot demo mode - let seedFullDemoContent() handle it
             #if DEBUG
             if didSeedScreenshotDemo { return }
@@ -622,7 +609,32 @@ struct ChatScreen: View {
             let isSameChatContainer = (lastLoadedChatContainerId == activeId)
             let isSameDocsContainer = (lastProcessedContainerId == activeId)
 
+            // The cancellation below used to sit above this guard and therefore ran on every
+            // appearance, not only on a real container change. `.task(id:)` restarts whenever the
+            // view reappears, so switching to Documents and back mid-answer cancelled the query
+            // and called `resetStreamingState()`, discarding the partial text with no message and
+            // no error. The explicit Stop button (`stopGeneration()`) keeps the partial answer, so
+            // the accidental path destroyed more than the deliberate one.
+            //
+            // The comment below names cross-container bleed as the thing being prevented, and a
+            // container change is the only case that can produce it. Everything else in this task
+            // — history reload, suggested-question invalidation, count recalculation — was already
+            // gated on `isSameChatContainer`; only this block was left ungated.
+            //
+            // Scene-phase cancellation and manual stop are untouched.
             if !isSameChatContainer {
+                // Cancel any in-flight query from the previous library to prevent cross-container bleed
+                continuedQueryCoordinator.cancelCurrentQuery()
+                currentQuerySessionId = nil
+                currentQueryTask?.cancel()
+                currentQueryTask = nil
+
+                // Reset transient generation state for the newly active library
+                if isProcessing {
+                    resetStreamingState()
+                    isProcessing = false
+                    stage = .idle
+                }
                 messages = await ragService.preloadChatHistory(for: activeId)
                 guard !Task.isCancelled,
                     ragService.containerService.activeContainerId == activeId
