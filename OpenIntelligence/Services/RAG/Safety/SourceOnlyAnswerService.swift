@@ -241,12 +241,62 @@ final class SourceOnlyAnswerService {
             evidenceRecords,
             verificationMode: verificationMode
         )
+        // Budget the prompt before building it, because this session has no other protection.
+        //
+        // A device capture on 2026-08-18 recorded `Draft generation failed: The session's
+        // transcript exceeded the model's context size` after a 5-session reasoning chain, 11
+        // steps and 132.5 seconds. The stage that was meant to produce the answer failed at the
+        // last moment, and the run continued, so it read from outside as a slow success.
+        //
+        // Every other input here is already bounded: `buildEvidenceRecords` caps at 6 chunks of
+        // 420 characters, and the instructions are a constant. `candidateAnswer` is the one
+        // unbounded input — it is whatever the chain produced, 455 words in that capture and
+        // able to be much longer. So it is trimmed first, and only if the evidence alone still
+        // does not fit are records dropped from the tail, which is the least-relevant end.
+        //
+        // Guided generation reserves context for the `SourceOnlyAnswerDraft` schema on top of the
+        // prompt, hence the schema allowance below. The on-device ratio is used regardless of
+        // where this is allowed to run, so the budget is not loosest exactly when the device is
+        // the destination.
+        let instructionsText = buildExtractionInstructions(for: verificationMode)
+        let contextSize = FoundationModelTokenBudget.contextSize(isAppleFMOnDevice: true)
+        let reserved = FoundationModelTokenBudget.estimateTokens(for: instructionsText, isAppleFMOnDevice: true)
+            + FoundationModelTokenBudget.estimateTokens(for: query, isAppleFMOnDevice: true)
+            + Self.draftOutputReserve
+            + Self.draftSchemaReserve
+            + Self.draftSafetyReserve
+        let promptBudget = max(512, contextSize - reserved)
+
+        var budgetedRecords = evidenceRecords
+        var evidencePromptText = evidencePrompt
+        var droppedRecords = 0
+        while budgetedRecords.count > 1,
+              FoundationModelTokenBudget.estimateTokens(for: evidencePromptText, isAppleFMOnDevice: true) > promptBudget {
+            budgetedRecords.removeLast()
+            droppedRecords += 1
+            evidencePromptText = renderEvidencePrompt(budgetedRecords, verificationMode: verificationMode)
+        }
+
+        let evidenceTokens = FoundationModelTokenBudget.estimateTokens(for: evidencePromptText, isAppleFMOnDevice: true)
+        let candidateBudget = max(0, promptBudget - evidenceTokens)
+        let candidateCharBudget = Int(Double(candidateBudget) * FoundationModelTokenBudget.onDeviceCharsPerToken)
+        let budgetedCandidate = Self.trimmedAtSentenceBoundary(candidateAnswer, limit: candidateCharBudget)
+
+        if droppedRecords > 0 || budgetedCandidate.count < candidateAnswer.count {
+            Log.warning(
+                "[SourceOnly] Extraction prompt trimmed to fit \(promptBudget) tokens: dropped "
+                    + "\(droppedRecords) evidence record(s), candidate answer "
+                    + "\(budgetedCandidate.count)/\(candidateAnswer.count) chars",
+                category: .llm
+            )
+        }
+
         let extractionPrompt = buildExtractionPrompt(
             query: query,
             queryDomain: queryDomain,
-            candidateAnswer: candidateAnswer,
+            candidateAnswer: budgetedCandidate,
             answerIntent: answerIntent,
-            evidencePrompt: evidencePrompt,
+            evidencePrompt: evidencePromptText,
             verificationMode: verificationMode
         )
 
@@ -508,6 +558,27 @@ final class SourceOnlyAnswerService {
                 snippet: snippet
             )
         }
+    }
+
+    /// Output tokens the draft response is allowed to use.
+    private static let draftOutputReserve = 700
+    /// Guided generation reserves context for the response schema on top of the prompt.
+    private static let draftSchemaReserve = 400
+    /// Headroom for the chat template and tokenizer disagreement with our estimate.
+    private static let draftSafetyReserve = 256
+
+    /// Trim at a sentence end, falling back to a word break, so a truncated candidate answer
+    /// never ends mid-word where the model would read it as a token it must account for.
+    private static func trimmedAtSentenceBoundary(_ text: String, limit: Int) -> String {
+        guard text.count > limit, limit > 0 else { return text }
+        let head = String(text.prefix(limit))
+        if let idx = head.lastIndex(where: { ".!?".contains($0) }) {
+            return String(head[...idx])
+        }
+        if let idx = head.lastIndex(of: " ") {
+            return String(head[..<idx])
+        }
+        return head
     }
 
     private func renderEvidencePrompt(
