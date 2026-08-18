@@ -257,6 +257,36 @@ cases, and every terminal state including a crash or a stall. Silence means heal
 is deliberate: a filter matching only the happy path is silent through a crash, and silence then
 looks exactly like progress.
 
+### Deep Think has never been benchmarked
+
+Every run in `BenchmarkRuns/` is `modes: ["standard"]`. There is no baseline and no timing
+history for `deep-think` or `maximum`, which means the mode the 2026-08-18 reasoning-chain
+session cap changes is the one mode nothing has measured.
+
+Standard mode, 25 cases, measured twice: **1h52m** (`tokfix`) and **2h52m** (`coreml-provider`).
+That is roughly 4.5 minutes per case for the *fast* mode, and a large part of it is ingesting the
+document pool rather than answering. Deep Think does 5-8 generations per query where Standard does
+one, so the full-run cost is somewhere between "modestly worse" and "5x worse" depending on whether
+ingestion or generation dominates. Nobody knows which, so get a rate before committing a machine
+to it:
+
+```bash
+scripts/run_deepthink_pilot.sh
+```
+
+*Recorded 2026-08-18, not yet executed.* Three cases, ten pool documents, `deep-think` only. It
+prints a per-case rate and extrapolates both the 25-case and the paired 50-case figures. Override
+with `LIMIT=`, `MODES=`, `POOL=`, `TIMEOUT=`.
+
+The per-run timeout is raised to 1800s. The harness default is 600s, and a single Deep Think query
+took **279s on device**, so the default risks truncating a slow case and under-reporting the very
+number the pilot exists to produce.
+
+To then measure the session cap specifically, run the pilot's full-size equivalent at `e16a2d3`
+and at `e16a2d3~1` and pair them with `compare_benchmark_runs.py`. Retrieval is ~21% reproducible,
+so a single run cannot separate the change from noise; the sign test over paired cases is the only
+readout worth acting on.
+
 ### Comparing two runs
 
 Never compare two runs by their own averages. Verified 2026-08-17:
