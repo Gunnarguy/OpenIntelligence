@@ -9,6 +9,7 @@ Public release highlights for OpenIntelligence.
 Importing a document was quietly losing parts of it. This release finds the places that happened.
 
 ### Speed
+- **Switching libraries during an import no longer splits the document from its index:** the file was filed in one library and the part that makes it searchable in another, so it appeared in the list and answered nothing.
 - **A library that stopped answering questions can now fix itself:** the check only ran when you switched libraries, and the repair reported success even when it had been blocked from doing anything. Deleting the library used to be the only way out.
 - **iCloud sync stopped re-uploading libraries that had not changed:** it rewrote every index on every pass, and each rewrite looked like a change and started another pass. It now compares before writing. Less battery, less data, same sync.
 - **The source chips under an answer scroll properly:** swiping across them sometimes registered as a tap. Same look, no longer fights the scroll.

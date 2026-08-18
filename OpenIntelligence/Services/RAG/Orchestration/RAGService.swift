@@ -3841,6 +3841,36 @@ class RAGService: ObservableObject {
         return containerService.containers.first(where: { $0.id == targetContainerId })?.syncMode ?? .localOnly
     }
 
+    /// Return the vector store for a specific container, by id.
+    ///
+    /// Ingestion must use this rather than `dbForActiveContainer()`. An import captures its target
+    /// container once, at the top of `addDocument`, and then runs for as long as extraction, OCR
+    /// and embedding take — minutes for a large PDF. `dbForActiveContainer()` re-reads
+    /// `containerService.activeContainer` at the moment it is called, so if the user switched
+    /// libraries while the import was running, the document metadata and the FTS5 rows went to the
+    /// library they started in and the vectors went to the one they happened to be looking at.
+    ///
+    /// The result is a library holding a document, its chunk count and its full-text rows with no
+    /// vector store at all: it lists in the Database tab, shows nothing in Atlas, and answers
+    /// nothing in chat. Observed on device 2026-08-18 as
+    /// `Container 009866A3 has 1 document(s) and no vector store yet`.
+    ///
+    /// Falls back to the active container only if the id no longer resolves, which means the
+    /// library was deleted mid-import; there is nowhere better to put the vectors at that point
+    /// and the caller's own container guard will discard them.
+    func dbForContainer(_ containerId: UUID) async -> VectorDatabase {
+        await MainActor.run {
+            guard let container = self.containerService.containers.first(where: { $0.id == containerId }) else {
+                Log.warning(
+                    "[RAGService] Vector store requested for unknown container \(containerId); falling back to the active container. The library was probably deleted mid-import.",
+                    category: .vectorDB
+                )
+                return self.vectorRouter.db(for: self.containerService.activeContainer!)
+            }
+            return self.vectorRouter.db(for: container)
+        }
+    }
+
     func dbForActiveContainer() async -> VectorDatabase {
         return await MainActor.run {
             let container = self.containerService.activeContainer
@@ -6031,9 +6061,14 @@ class RAGService: ObservableObject {
                 duration: chunkingTime
             )
 
-            // Step 4: Store chunks in vector database (per active container)
+            // Step 4: Store chunks in the vector database for the container this import targets.
+            //
+            // `dbForActiveContainer()` here was a live read, while every other write in this
+            // function uses the `activeContainerId` captured at the top. Switching libraries during
+            // a long import therefore split the document: metadata and FTS5 to the captured
+            // container, vectors to whichever one was on screen. See `dbForContainer`.
             try Task.checkCancellation()
-            let db = await dbForActiveContainer()
+            let db = await dbForContainer(activeContainerId)
             try await db.storeBatch(chunks: documentChunks)
             try await db.persist()
             // Invalidate visualization cache for this container after data change
