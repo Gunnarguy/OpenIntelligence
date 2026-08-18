@@ -4683,9 +4683,33 @@ extension AgenticOrchestrator {
             sessionContexts.append(ctx)
             sessionOffset += stride
 
-            // If we've exhausted all chunks, wrap around to top chunks
+            // Stop when the corpus runs out, instead of wrapping and re-reading it.
+            //
+            // This used to reset `sessionOffset` to 0 and keep building until it had
+            // `effectiveMaxSessions` windows. Deep Think asks for 8. A 20-chunk library at 4
+            // chunks per session yields 5 distinct windows, so offsets went 0, 4, 8, 12, 16 and
+            // then 0, 4, 8 again — sessions 6, 7 and 8 were byte-identical rebuilds of 1, 2 and 3.
+            //
+            // A device capture on 2026-08-18 shows it exactly: sessions 6/7/8 logged the same
+            // sentence counts, source counts and character counts as 1/2/3, from the same starting
+            // labels. Three of eight generations at roughly 35 seconds each, re-reading text the
+            // model had already been given, in a query that took 279 seconds.
+            //
+            // Re-reading cannot introduce evidence the model has not already seen, so what those
+            // sessions buy is at most another pass over the same material. That is not worth a
+            // third of the wall clock, and the chain already has a confidence-based early exit for
+            // when it has learned enough. Sessions are now capped at the number of distinct windows
+            // the corpus can actually produce.
             if sessionOffset >= totalAvailableChunks {
-                sessionOffset = 0
+                if sessionContexts.count < effectiveMaxSessions {
+                    Log.info(
+                        "[ReasoningChain] Corpus exhausted after \(sessionContexts.count) distinct window(s); "
+                            + "capping below the \(effectiveMaxSessions) sessions this mode allows rather than "
+                            + "re-reading windows already covered.",
+                        category: .llm
+                    )
+                }
+                break
             }
         }
 
@@ -4699,7 +4723,15 @@ extension AgenticOrchestrator {
             Log.info("[ReasoningChain] DEEP THINK MODE: Dynamic 4-8 sessions, targeting \(Int(reasoningPolicy.confidenceThreshold * 100))% confidence", category: .llm)
         }
 
-        for sessionIndex in 0..<effectiveMaxSessions {
+        // Run one session per distinct window, not one per session the mode allows.
+        //
+        // Capping the window count alone is not enough: this loop ran `effectiveMaxSessions`
+        // times and `contextIndex` clamps with `min(sessionIndex, sessionContexts.count - 1)`, so
+        // any surplus sessions would all re-read the *last* window instead of the first three.
+        // Same wasted generations, different text. The early-exit checks inside the loop still
+        // apply, so a chain that reaches its confidence target still stops sooner than this.
+        let plannedSessions = min(effectiveMaxSessions, max(1, sessionContexts.count))
+        for sessionIndex in 0..<plannedSessions {
             let sessionNum = sessionIndex + 1
             actualSessionCount = sessionNum
 
