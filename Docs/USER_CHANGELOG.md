@@ -11,6 +11,7 @@ This document provides a chronological history of user-facing changes, highlight
 Importing a document was quietly losing parts of it. This release finds the places that happened.
 
 ### Speed
+- **iCloud sync stopped re-uploading libraries that had not changed.** Every sync pass rewrote each library's search index whether or not anything was different, and because rewriting a file looks like a change, that started another pass. One launch could do this six times over, writing hundreds of megabytes and queueing half of it to iCloud, all of it identical to what was already there. Sync now compares before it writes, and skips when nothing differs. Nothing about what gets synced has changed, only how often it is rewritten.
 - **The source chips under an answer scroll properly now.** They used a custom press handler that fought the sideways scroll, so swiping across them sometimes registered as a tap instead. They look and respond exactly the same, they just no longer argue with the scroll.
 - **Leaving the chat tab no longer kills the answer you were waiting for.** Switching to Documents mid-answer and coming back used to cancel it and discard everything written so far, with nothing to tell you why. The answer now keeps going while you look at something else.
 - **The chat no longer loses your place.** Scrolling up to re-read an older answer and switching tabs used to slam you back to the newest message on return. It now stays where you left it, and still follows along automatically when you are reading the latest.

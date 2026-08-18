@@ -9,6 +9,7 @@ Public release highlights for OpenIntelligence.
 Importing a document was quietly losing parts of it. This release finds the places that happened.
 
 ### Speed
+- **iCloud sync stopped re-uploading libraries that had not changed:** it rewrote every index on every pass, and each rewrite looked like a change and started another pass. It now compares before writing. Less battery, less data, same sync.
 - **The source chips under an answer scroll properly:** swiping across them sometimes registered as a tap. Same look, no longer fights the scroll.
 - **Leaving the chat tab no longer kills the answer you were waiting for:** it used to cancel and discard the partial answer with no explanation.
 - **The chat no longer loses your place:** switching tabs used to slam you back to the newest message.

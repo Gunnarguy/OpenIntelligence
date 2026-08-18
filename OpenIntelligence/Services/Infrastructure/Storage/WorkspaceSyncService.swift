@@ -2442,13 +2442,79 @@ final class WorkspaceSyncService: ObservableObject {
             return
         }
 
-        try await persistVectorChunks(resolvedChunks, dimension: container.embeddingDim, to: localVectorURL)
-        try await persistVectorChunks(resolvedChunks, dimension: container.embeddingDim, to: sharedVectorURL)
+        // Skip a write whose destination already holds exactly this content.
+        //
+        // Both stores were just read into `localChunks` and `sharedChunks` a few lines above, so
+        // the comparison is free: no extra I/O, and it is exact rather than a heuristic. A device
+        // capture on 2026-08-18 recorded 96 store opens and 48 rewrites in one boot, ~200 MB
+        // written for zero content change, roughly half of it queued to iCloud as replacement
+        // uploads. Each `persistVectorChunks` call does `clear()` then `storeBatch()` then
+        // `persist()`, so an unchanged pass was deleting and rewriting three real files per store
+        // per destination.
+        //
+        // The predicate is deliberately strict. It compares every field that gets persisted,
+        // including the full embedding, so a re-embed that keeps chunk ids still writes — that is
+        // the case an id-only or count-only check would silently skip, and this subsystem's own
+        // comments record a past incident of exactly that shape. ~557k float comparisons for the
+        // largest store here costs far less than the 4 MB write it avoids.
+        //
+        // Consolidation is excluded outright: when `sourceContainerIDs` names more than this
+        // container, `localChunks` is a union gathered from several stores and is not the content
+        // of `localVectorURL`, so the comparison would not mean what it says. Those passes write
+        // unconditionally, as before.
+        let isSingleSourceMerge = sourceContainerIDs == [container.id]
+
+        let localAlreadyCurrent = isSingleSourceMerge
+            && vectorStoreExists(for: container.id, in: localRoot)
+            && vectorChunksAreIdentical(resolvedChunks, localChunks)
+        if localAlreadyCurrent {
+            Log.debug(
+                "[WorkspaceSyncService] Local vector store already current for \(container.id); skipping rewrite of \(resolvedChunks.count) chunk(s)",
+                category: .vectorDB
+            )
+        } else {
+            try await persistVectorChunks(resolvedChunks, dimension: container.embeddingDim, to: localVectorURL)
+        }
+
+        let sharedAlreadyCurrent = isSingleSourceMerge
+            && vectorStoreExists(for: container.id, in: sharedRoot)
+            && vectorChunksAreIdentical(resolvedChunks, sharedChunks)
+        if sharedAlreadyCurrent {
+            Log.debug(
+                "[WorkspaceSyncService] Shared vector store already current for \(container.id); skipping rewrite of \(resolvedChunks.count) chunk(s)",
+                category: .vectorDB
+            )
+        } else {
+            try await persistVectorChunks(resolvedChunks, dimension: container.embeddingDim, to: sharedVectorURL)
+        }
 
         for sourceContainerID in sourceContainerIDs where sourceContainerID != container.id {
             removeVectorStoreArtifacts(for: sourceContainerID, in: localRoot)
             removeVectorStoreArtifacts(for: sourceContainerID, in: sharedRoot)
         }
+    }
+
+    /// Whether two chunk lists are identical in every field that gets written to disk.
+    ///
+    /// `DocumentChunk` is `Codable` but not `Equatable`, and adding a synthesised conformance
+    /// would compare `metadata` too, which carries timestamps that legitimately differ between
+    /// devices without the vectors differing. This compares exactly what `persistVectorChunks`
+    /// stores, so a true result means the write would be a no-op.
+    ///
+    /// Order matters and is not sorted away: the persisted order is the order supplied, so two
+    /// lists holding the same chunks in a different sequence are genuinely different files.
+    nonisolated private func vectorChunksAreIdentical(_ lhs: [DocumentChunk], _ rhs: [DocumentChunk]) -> Bool {
+        guard lhs.count == rhs.count else { return false }
+        for (a, b) in zip(lhs, rhs) {
+            guard a.id == b.id,
+                  a.documentId == b.documentId,
+                  a.content == b.content,
+                  a.parentContent == b.parentContent,
+                  a.contextualPrefix == b.contextualPrefix,
+                  a.embedding == b.embedding
+            else { return false }
+        }
+        return true
     }
 
     nonisolated private func persistVectorChunks(_ chunks: [DocumentChunk], dimension: Int, to url: URL) async throws {
@@ -3452,13 +3518,32 @@ final class WorkspaceSyncService: ObservableObject {
         var coordinationError: NSError?
         var accessorError: Error?
 
+        var didChangeBytes = false
+
         coordinator.coordinate(writingItemAt: url, options: .forMerging, error: &coordinationError) { coordinatedURL in
             do {
                 let existing = FileManager.default.fileExists(atPath: coordinatedURL.path)
                     ? try Data(contentsOf: coordinatedURL)
                     : nil
                 let merged = try transform(existing)
+
+                // Writing identical bytes is not free here, it is the thing that keeps the sync
+                // running. Every pass rewrote the shared `containers.json` and
+                // `documents_metadata.json` whether or not the merge changed anything, and
+                // `workspaceSignature` hashes `NSMetadataItemFSContentChangeDateKey`, so an
+                // identical-bytes rewrite still moved the content date, still incremented
+                // `observedWorkspaceChangeCount`, and still triggered the next pass. A device
+                // capture on 2026-08-18 shows six full passes from one scene change and zero
+                // container changes.
+                //
+                // Byte equality is the correct predicate rather than a conservative one: all four
+                // transforms serialise with `.prettyPrinted` and `.sortedKeys`, so identical
+                // content really does produce identical bytes and this fires in practice instead
+                // of merely existing. A first write, where `existing` is nil, always proceeds.
+                guard merged != existing else { return }
+
                 try merged.write(to: coordinatedURL, options: .atomic)
+                didChangeBytes = true
             } catch {
                 accessorError = error
             }
@@ -3467,7 +3552,10 @@ final class WorkspaceSyncService: ObservableObject {
         if let coordinationError { throw coordinationError }
         if let accessorError { throw accessorError }
 
-        if url.path.hasPrefix(OpenIntelligenceRuntimePaths.applicationSupportRoot().path),
+        // The notification is gated on the same condition. Announcing a change that did not
+        // happen is the other half of the loop: it feeds the debounced reconfigure directly.
+        if didChangeBytes,
+           url.path.hasPrefix(OpenIntelligenceRuntimePaths.applicationSupportRoot().path),
            !WorkspaceSyncService.isSyncWriteInProgress {
             NotificationCenter.default.post(name: .localWorkspaceDidChange, object: nil)
         }
