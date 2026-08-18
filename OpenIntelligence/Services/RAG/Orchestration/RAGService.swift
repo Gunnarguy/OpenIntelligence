@@ -6689,6 +6689,25 @@ class RAGService: ObservableObject {
                     "[RAGService] Self-healing rebuild cancelled for container \(containerId)",
                     category: .ingestion
                 )
+            } catch let error as RAGServiceError {
+                // A blocked rebuild is not a failure to retry silently and it is not a success.
+                // Put the banner back so the library keeps offering a manual rebuild, which is
+                // the only thing that gets a user out of this state short of deleting the library.
+                if case .rebuildBlockedByQueue(let blocked) = error {
+                    await MainActor.run {
+                        self.librariesNeedingIndexRebuild.insert(containerId)
+                    }
+                    Log.warning(
+                        "[RAGService] Self-healing rebuild for container \(containerId) was vetoed by the "
+                            + "ingestion queue with \(blocked) document(s) present; surfacing a manual rebuild.",
+                        category: .ingestion
+                    )
+                } else {
+                    Log.error(
+                        "[RAGService] Self-healing rebuild failed for container \(containerId): \(error.localizedDescription)",
+                        category: .ingestion
+                    )
+                }
             } catch {
                 Log.error(
                     "[RAGService] Self-healing rebuild failed for container \(containerId): \(error.localizedDescription)",
@@ -7076,12 +7095,23 @@ class RAGService: ObservableObject {
             )
             return
         }
+        // Only *active* queue items may veto a rebuild.
+        //
+        // This set was built from every element of `ingestionItems` with no stage filter, so a
+        // finished `.complete` item vetoed its own document forever. `pruneCompletedIngestionItems`
+        // bails whenever any item is non-terminal, so one stuck `.paused` entry pinned every
+        // completed entry in the array and each pinned entry blocked its document's repair.
+        //
+        // The comment below states the intent — items "already queued or paused" — and terminal
+        // items are neither. There is also an everyday trigger with no stuck item involved:
+        // `pruneCompletedIngestionItems()` defers four seconds while `kickPendingReembedIfNeeded()`
+        // fires immediately after, so freshly imported documents vetoed their own re-embed.
         let documentsToRebuild = await MainActor.run {
             var activeUrls = Set<URL>()
-            for item in self.ingestionItems {
+            for item in self.ingestionItems where !item.stage.isTerminal {
                 activeUrls.insert(item.url)
             }
-            
+
             return self.documents.filter { document in
                 if activeUrls.contains(document.fileURL) {
                     return false // Prevent duplicate extraction pipelines if item is already queued or paused
@@ -7098,6 +7128,25 @@ class RAGService: ObservableObject {
         guard !documentsToRebuild.isEmpty else {
             await MainActor.run {
                 progressHandler?(ReembedProgress(completed: 0, total: 0, currentFilename: ""))
+            }
+
+            // An empty rebuild has two very different causes and they were reported identically.
+            // A library with no documents is a genuine no-op. A library that HAS documents and
+            // still produced nothing was vetoed by the queue filter above, and returning normally
+            // told the caller the repair had succeeded — so it logged success and took the rebuild
+            // banner down having rebuilt nothing, and the next health check re-flagged it. That
+            // cycle does not terminate, and deleting the library was the only way out of it.
+            let libraryDocumentCount = await MainActor.run {
+                self.documentsForContainer(targetContainerId).count
+            }
+            if libraryDocumentCount > 0 {
+                Log.warning(
+                    "[RAGService] Rebuild for container \(targetContainerId) was blocked: all "
+                        + "\(libraryDocumentCount) document(s) are excluded by active ingestion queue items. "
+                        + "Nothing was rebuilt.",
+                    category: .ingestion
+                )
+                throw RAGServiceError.rebuildBlockedByQueue(blocked: libraryDocumentCount)
             }
             return
         }
@@ -17823,6 +17872,11 @@ struct DeviceCapabilities {
 
 enum RAGServiceError: LocalizedError {
     case emptyQuery
+    /// A rebuild was requested for a library that has documents, but every one of them was
+    /// excluded by the active-ingestion-queue filter, so nothing was rebuilt. Distinct from a
+    /// genuinely empty library, which is not an error. Returning normally here is what let a
+    /// library that could not repair itself report that it had.
+    case rebuildBlockedByQueue(blocked: Int)
     case noDocumentsAvailable
     case retrievalFailed
     case modelNotAvailable
@@ -17849,6 +17903,8 @@ enum RAGServiceError: LocalizedError {
             return "The selected LLM model is not available"
         case .routingAbstained:
             return "Could not route this query to a model with the evidence retrieved"
+        case let .rebuildBlockedByQueue(blocked):
+            return "Could not rebuild the search index: \(blocked) document(s) are still being processed. Try again once the import queue is clear."
         case let .maximumModeQuotaReached(limit):
             return "Maximum mode is limited to \(limit) uses per day on the free tier"
         case let .cloudConsentDenied(provider):
@@ -17922,6 +17978,47 @@ extension RAGService: RAGToolHandler {
         minSimilarity: Float? = nil,
         qualityMode: RAGQualityMode? = nil,
         onDetailedEvent: DetailedThinkingCallback? = nil
+    ) async throws -> [RetrievedChunk] {
+        let chunks = try await performFullRetrievalPipeline(
+            query: query,
+            topK: topK,
+            minSimilarity: minSimilarity,
+            qualityMode: qualityMode,
+            onDetailedEvent: onDetailedEvent
+        )
+
+        // An empty retrieval is the moment to check whether this library can answer at all,
+        // because it is the moment the user finds out it cannot.
+        //
+        // `evaluateSemanticIndexHealth` had exactly one caller, gated on the active container
+        // actually *changing*, so a library that lost its vector store while the user was already
+        // in it was never checked. A device capture on 2026-08-18 shows the consequence: FTS5 held
+        // the document, the Database tab listed it, Atlas showed nothing, the query fused "0
+        // results into 0 unique chunks" and hard-exited, and no rebuild banner ever appeared
+        // because nothing evaluated health. Deleting and re-creating the library was the only way
+        // out, and that is what the owner had to do.
+        //
+        // Detached so it cannot slow the query it is reacting to, and gated on an empty result so
+        // it costs a vector-store count only in the case that has already failed.
+        // `evaluateSemanticIndexHealth` treats a read failure as "not proven missing" and flags
+        // only when documents exist and the store genuinely reads zero, so this cannot raise a
+        // banner on a library that is merely slow.
+        if chunks.isEmpty {
+            let containerId = await MainActor.run { self.containerService.activeContainerId }
+            Task { @MainActor [weak self] in
+                await self?.evaluateSemanticIndexHealth(for: containerId)
+            }
+        }
+
+        return chunks
+    }
+
+    private func performFullRetrievalPipeline(
+        query: String,
+        topK: Int,
+        minSimilarity: Float?,
+        qualityMode: RAGQualityMode?,
+        onDetailedEvent: DetailedThinkingCallback?
     ) async throws -> [RetrievedChunk] {
         // Resolve quality mode from parameter or settings
         let mode: RAGQualityMode

@@ -3232,6 +3232,10 @@ struct ChatScreen: View {
                 return "I couldn't find relevant info in your library. Try rephrasing."
             case .retrievalFailed:
                 return "Retrieval failed. Please try again."
+            case .rebuildBlockedByQueue:
+                // Names the reason rather than the failure, because this one is waitable: the
+                // queue drains on its own and the rebuild then succeeds.
+                return "This library's search index needs rebuilding, but some documents are still importing. Try again once the import finishes."
             case .modelNotAvailable:
                 return "The selected model isn't available right now."
             case .routingAbstained:
