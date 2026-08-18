@@ -1802,6 +1802,32 @@ final class WorkspaceSyncService: ObservableObject {
         let documentIdsByContainer = Dictionary(grouping: documents, by: { $0.containerId ?? defaultContainerId })
             .mapValues { Set($0.map(\.id)) }
 
+        // Instrumentation only, added 2026-08-18. No behaviour change.
+        //
+        // A device capture recorded 432 `[BNNS] Loaded` and 210 `[BNNS] Persisted` lines in a
+        // single boot, for three stores holding 26, 182 and 1451 chunks. Each pass of the loop
+        // below opens three databases (two in `loadVectorChunks`, one for the merge) and writes
+        // one, and `BNNSVectorDatabase.init` reads from disk. These constructions bypass
+        // `VectorStoreRouter`, which is the only thing that caches them, so nothing here is
+        // reused across passes.
+        //
+        // This file previously carried three log statements in total, so its absence from a log
+        // was not evidence it had not run. That is the reason the churn went unattributed, and
+        // it is the same silent-stage failure the rest of this pipeline keeps producing.
+        let mergeCandidates = containers.filter { $0.vectorDBKind == .persistentJSON }
+        var storeOpens = 0
+        var storeWrites = 0
+        Log.info(
+            "[WorkspaceSyncService] Vector merge pass starting: \(mergeCandidates.count) candidate container(s)",
+            category: .vectorDB
+        )
+        defer {
+            Log.info(
+                "[WorkspaceSyncService] Vector merge pass complete: \(storeOpens) store open(s), \(storeWrites) write(s)",
+                category: .vectorDB
+            )
+        }
+
         for container in containers where container.vectorDBKind == .persistentJSON {
             let localVectorURL = vectorStoreBaseURL(for: container.id, in: localRoot)
             let sharedVectorURL = vectorStoreBaseURL(for: container.id, in: sharedRoot)
@@ -1817,6 +1843,7 @@ final class WorkspaceSyncService: ObservableObject {
             let canonicalDocumentIds = documentIdsByContainer[container.id] ?? []
             guard !canonicalDocumentIds.isEmpty else { continue }
 
+            storeOpens += 2
             let localChunks = try await loadVectorChunks(from: localVectorURL, dimension: container.embeddingDim)
             let sharedChunks = try await loadVectorChunks(from: sharedVectorURL, dimension: container.embeddingDim)
             let mergedChunks = mergeVectorChunks(
@@ -1825,11 +1852,13 @@ final class WorkspaceSyncService: ObservableObject {
                 allowedDocumentIds: canonicalDocumentIds
             )
 
+            storeOpens += 1
             let mergedDatabase = await MainActor.run {
                 BNNSVectorDatabase(dimension: container.embeddingDim, storageURL: sharedVectorURL)
             }
             try await mergedDatabase.clear()
             if !mergedChunks.isEmpty {
+                storeWrites += 1
                 try await mergedDatabase.storeBatch(chunks: mergedChunks)
                 try await mergedDatabase.persist()
             }
@@ -1837,6 +1866,12 @@ final class WorkspaceSyncService: ObservableObject {
     }
 
     nonisolated private func loadVectorChunks(from storageURL: URL, dimension: Int) async throws -> [DocumentChunk] {
+        // Instrumentation only. Every call constructs a database, and construction reads from
+        // disk; see the note in `mergeVectorStoresIfNeeded`.
+        Log.debug(
+            "[WorkspaceSyncService] loadVectorChunks opening \(storageURL.lastPathComponent)",
+            category: .vectorDB
+        )
         let database = await MainActor.run {
             BNNSVectorDatabase(dimension: dimension, storageURL: storageURL)
         }
@@ -2417,6 +2452,11 @@ final class WorkspaceSyncService: ObservableObject {
     }
 
     nonisolated private func persistVectorChunks(_ chunks: [DocumentChunk], dimension: Int, to url: URL) async throws {
+        // Instrumentation only. Opens a database and writes it; see `mergeVectorStoresIfNeeded`.
+        Log.debug(
+            "[WorkspaceSyncService] persistVectorChunks writing \(chunks.count) chunk(s) to \(url.lastPathComponent)",
+            category: .vectorDB
+        )
         let database = await MainActor.run {
             BNNSVectorDatabase(dimension: dimension, storageURL: url)
         }
