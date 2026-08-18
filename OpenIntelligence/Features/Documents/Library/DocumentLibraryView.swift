@@ -458,7 +458,8 @@ struct DocumentLibraryView: View {
         HStack(spacing: 12) {
             DocumentActionChip(
                 title: "Add Document",
-                systemImage: "plus.circle.fill"
+                systemImage: "plus",
+                iconOnly: true
             ) {
                 DSHaptics.light()
                 presentDocumentPickerOrUpgrade()
@@ -467,7 +468,8 @@ struct DocumentLibraryView: View {
             DocumentActionChip(
                 title: "Semantic Search",
                 systemImage: "sparkle.magnifyingglass",
-                isEnabled: !ragService.documents.isEmpty
+                isEnabled: !ragService.documents.isEmpty,
+                iconOnly: true
             ) {
                 DSHaptics.selection()
                 showingSemanticSearch = true
@@ -545,7 +547,7 @@ struct DocumentLibraryView: View {
                 }
                 .disabled(activeLibrary == nil || containerService.containers.count <= 1)
             } label: {
-                DocumentActionChipLabel(title: "More", systemImage: "ellipsis.circle")
+                DocumentActionChipLabel(title: "More", systemImage: "ellipsis", iconOnly: true)
             }
             .accessibilityLabel("More library actions")
             .accessibilityHint("Library settings, and options to remove this library's documents or delete the library itself")
@@ -1739,17 +1741,27 @@ struct DocumentLibraryView: View {
         var tint: Color = .accentColor
         var isEnabled: Bool = true
 
+        /// Icon-only collapses the chip to a circle. The title is not dropped: it moves to the
+        /// accessibility label and the hover/long-press tooltip, so VoiceOver reads exactly what
+        /// it read before. Only the visual text goes away.
+        var iconOnly: Bool = false
+
         var body: some View {
             HStack(spacing: 6) {
                 Image(systemName: systemImage)
-                    .font(.system(size: 11, weight: .bold))
+                    .font(.system(size: iconOnly ? 15 : 11, weight: .bold))
 
-                Text(title)
-                    .font(.system(size: 11, weight: .bold))
-                    .lineLimit(1)
+                if !iconOnly {
+                    Text(title)
+                        .font(.system(size: 11, weight: .bold))
+                        .lineLimit(1)
+                }
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
+            // 44pt minimum touch target in icon-only form. An unreliable tap reads as a slow
+            // app, so the target stays full size even though the chip looks smaller.
+            .frame(minWidth: iconOnly ? 44 : 0, minHeight: iconOnly ? 44 : 0)
+            .padding(.horizontal, iconOnly ? 0 : 12)
+            .padding(.vertical, iconOnly ? 0 : 8)
             .background(.ultraThinMaterial)
             .foregroundStyle(isEnabled ? tint : .secondary)
             .clipShape(Capsule())
@@ -1767,6 +1779,7 @@ struct DocumentLibraryView: View {
         let systemImage: String
         var tint: Color = .accentColor
         var isEnabled: Bool = true
+        var iconOnly: Bool = false
         let action: () -> Void
 
         var body: some View {
@@ -1775,11 +1788,14 @@ struct DocumentLibraryView: View {
                     title: title,
                     systemImage: systemImage,
                     tint: tint,
-                    isEnabled: isEnabled
+                    isEnabled: isEnabled,
+                    iconOnly: iconOnly
                 )
             }
             .buttonStyle(.plain)
             .disabled(!isEnabled)
+            .accessibilityLabel(title)
+            .help(title)
         }
     }
 

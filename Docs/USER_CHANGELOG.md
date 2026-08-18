@@ -11,6 +11,7 @@ This document provides a chronological history of user-facing changes, highlight
 Importing a document was quietly losing parts of it. This release finds the places that happened.
 
 ### Libraries
+- **The buttons above your documents are now icons, so the row fits without scrolling.** Add, search and the overflow menu each became a single symbol. Nothing was removed, and VoiceOver still reads the full name of every one. The delete actions keep their words, because a picture of a bin does not tell you which library it is about to remove.
 - **Press and hold on a library now behaves like the rest of iOS.** It was using a custom gesture that competed with sideways scrolling, so holding a library sometimes scrolled the row instead and nothing told you which one was about to happen. It now uses the standard press-and-hold menu, with the usual preview and haptic.
 - **Creating a library no longer suggests a name you already have.** The suggested name was based on how many libraries you had rather than what they were called, so after deleting one, the next suggestion could collide with a library still on screen. Accepting it left you with two libraries sharing a name.
 

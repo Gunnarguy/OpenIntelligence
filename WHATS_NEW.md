@@ -9,6 +9,7 @@ Public release highlights for OpenIntelligence.
 Importing a document was quietly losing parts of it. This release finds the places that happened.
 
 ### Libraries
+- **The buttons above your documents are now icons:** the row fits without scrolling. Nothing was removed and VoiceOver still reads every name in full.
 - **Press and hold on a library now behaves like the rest of iOS:** the old custom gesture competed with sideways scrolling, so holding a library sometimes scrolled the row instead.
 - **Creating a library no longer suggests a name you already have:** the suggestion counted your libraries instead of reading their names, so after a deletion it could propose one already in use.
 
