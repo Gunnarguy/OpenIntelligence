@@ -97,6 +97,26 @@ class EmbeddingService {
             return nil // Provider will use its native dimension
         }
 
+        // Benchmark-only provider override.
+        //
+        // The two providers are not interchangeable and the difference is invisible from settings.
+        // Core AI runs `main.mlirb`, which takes `input_ids` only and returns
+        // `last_hidden_state[:, 0, :]`, the CLS token. Core ML runs the `.mlpackage`, which takes
+        // `attention_mask` and is mean-pooled in Swift. `all-MiniLM-L6-v2` is a mean-pooling model,
+        // so the two paths produce genuinely different vectors from identical weights, and every
+        // retrieval number measured before 2026-08-17 came from the CLS path without anyone knowing
+        // which had run.
+        //
+        // Set only by `DebugRAGValidationHarness` from a launch argument. Absent in a shipping app.
+        var id = id
+        if let forced = UserDefaults.standard.string(forKey: "benchmarkEmbeddingProvider"), !forced.isEmpty {
+            Log.warning(
+                "[EmbeddingService] Benchmark override: forcing provider '\(forced)' instead of '\(id)'",
+                category: .embedding
+            )
+            id = forced
+        }
+
         let resolved: EmbeddingService
         switch id {
         case "coreai_sentence_embedding":

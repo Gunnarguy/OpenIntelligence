@@ -115,6 +115,17 @@ The OpenIntelligence Architecture Atlas is the canonical representation of the r
 - **NO CloudKit**: No explicit CloudKit database APIs are in use. `[evidence: code_verified, exact, WorkspaceSyncService.swift]`
 - **NO SQLite Sync**: The `SQLiteFullTextService.swift` is completely local-only. `[evidence: code_verified, exact, SQLiteFullTextService.swift]`
 - **Ingestion Checkpoints**: Saved under `localCacheDir()/IngestionCheckpoints/` to guarantee they are strictly local-only and excluded from iCloud syncing paths. `[evidence: code_verified, exact, DocumentProcessor.swift]`
+- **Benchmark runs stand down from queue merging**: `mergeIngestionQueueIfNeeded` returns early while
+  `OpenIntelligenceRuntimePaths.areOverridesPinned` is set. `localRoot` there resolves through
+  `applicationSupportRoot()`, which does not consult the storage override, so every benchmark run
+  merged its fixture documents into the owner's real ingestion queue; the symptom was a "Resume
+  interrupted upload?" prompt listing fixture files on every launch, which survived being discarded
+  because the next run rewrote it. Fixed at the caller rather than in `applicationSupportRoot()` on
+  purpose: that function is also resolved by four `coordinated*` iCloud primitives and by
+  `BNNSVectorDatabase`, so making it honour the override would silently redirect live iCloud sync
+  into a temporary directory. The pin is only ever engaged by `DebugRAGValidationHarness`, so this
+  cannot fire in a shipping app. `[evidence: code_verified, exact, WorkspaceSyncService.swift
+  mergeIngestionQueueIfNeeded, OpenIntelligenceRuntimePaths.areOverridesPinned]`
 - **BNNS Vector Store**: Persisted vector database files (`_meta.json`, `_vectors.bin`, `_norms.bin`) are stored locally. Loading new or empty databases is gated to skip memory-mapping operations on 0-byte vectors files, resolving startup POSIX/Cocoa Code 260 errors. `[evidence: code_verified, exact, BNNSVectorDatabase.swift]`
 
 ## 10. Routing/PCC Boundaries
@@ -312,6 +323,18 @@ tokenizer's limit would close it.
 independent, and conflating them would turn a re-embed into a format migration.
 
 - **Core AI Integration**: Silicon-native zero-copy sentence embeddings are generated via `CoreAISentenceEmbeddingProvider.swift` using dynamic `NDArray` and `InferenceFunction.run(inputs:)` graph execution on iOS 27 / macOS 27+ Apple Intelligence SDK. Access and selector selection availability are stabilized via shared instance caching and an awaitable readiness gate in `ContainerSettingsSheet`. The exported PyTorch graph output is explicitly bound to "embeddings" in `compile_core_ai_model.py` and correctly parsed from the MLFeatureProvider dictionary in Swift. `[evidence: code_verified, exact, CoreAISentenceEmbeddingProvider.swift, compile_core_ai_model.py]`
+- **The two providers are not interchangeable, and the difference is invisible from settings.**
+  Core AI runs `main.mlirb`, which takes `input_ids` only and returns `last_hidden_state[:, 0, :]`,
+  the CLS position. Core ML runs the `.mlpackage`, which takes `attention_mask` and is mean-pooled
+  in Swift. `all-MiniLM-L6-v2` is trained for mean pooling, so the two paths produce genuinely
+  different vectors from identical weights, and every retrieval figure measured before 2026-08-17
+  came from the CLS path without anyone knowing which had run. A benchmark-only override in
+  `EmbeddingService.forProvider`, keyed on the `benchmarkEmbeddingProvider` user default and set
+  only by `DebugRAGValidationHarness` from a launch argument, makes the two comparable in one run;
+  it is absent in a shipping app. Paired over 21 comparable cases the swap moved `vector r@1` from
+  0.000 to 0.571, 12 better and 0 worse, exact two-sided sign test p = 0.0005.
+  `[evidence: measured+code_verified, exact, BenchmarkRuns/coreml-provider vs tokfix via
+  scripts/compare_benchmark_runs.py; EmbeddingService.swift forProvider]`
 - **Resource Packaging**: The compiled model is bundled as `EmbeddingModel.bundle` (a raw folder structure bypassing Xcode's build-time `mlassetc` version-gate checks that otherwise block minimum deployment targets below 27.0) and dynamically loaded at runtime. `[evidence: code_verified, exact, Package.swift, CoreAISentenceEmbeddingProvider.swift]`
 - **Adaptive Auto-Tuning**: `SettingsStore` and `RAGService` automatically recommend and switch to the Core AI provider on supported hardware, falling back dynamically to `CoreMLSentenceEmbeddingProvider` on older targets. Ingestion mode scoping is strictly enforced per-document in `RAGService.addDocument()` to bypass global configuration conflicts. `[evidence: code_verified, exact, SettingsStore.swift, RAGService.swift]`
 
@@ -379,6 +402,22 @@ supposed to be agentic.
   retrieval that confidently returned the wrong subject, where every sub-question reads as answered.
   Research is now aimed at the unanswered sub-questions rather than re-running the original query.
   `[evidence: code_verified, exact, AgenticOrchestrator.swift ReasoningChainResult and the recursive-research gate; FactBank.subQuestionConfidence]`
+
+- **Synthesis truncation was removing the highest-ranked chunk, and it is now budgeted rather than
+  cut.** `executeDirectSynthesis` and `executeSynthesisStep` each ended in a hardcoded
+  `prefix(3000)`. Because `executeFullRetrievalPipeline` closes with a Lost-in-the-Middle reorder
+  that places rank 0 at the array midpoint, and `executeSearchStepWithChunks` renders only
+  `chunks.prefix(10)`, a large retrieval reached synthesis with its best evidence already gone.
+  Both sites now pack against a budget derived from `FoundationModelTokenBudget` and the actual
+  prompt, fill in score order, and log chunks and tokens dropped. `executeSynthesisStep` also
+  carried a second cut, `prefix(150)` per reasoning step applied before the overall budget was
+  consulted; the per-step allocation is now derived from the budget and trimmed at a sentence
+  boundary. Parent document expansion in `RAGService` step 7.5 is gated on the same budget, so it
+  can no longer inflate a result set immediately before a stage that cannot hold it. Full detail
+  in `Docs/RETRIEVAL_PIPELINE.md` item 18.
+  `[evidence: code_verified, exact, AgenticOrchestrator.assembleBudgetedEvidence, executeDirectSynthesis,
+  executeSynthesisStep; RAGService.swift step 7.5. Build-verified and suite-verified on 2026-08-17;
+  this path has no test coverage and the behavioural claim is not device-verified.]`
 
 **The gap, stated precisely.** In Deep Think and Maximum, the modes that exist specifically to buy
 more compute, the extra compute is spent re-reading fixed slices of one retrieval rather than acting

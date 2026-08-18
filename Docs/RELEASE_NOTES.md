@@ -1,6 +1,10 @@
-> **Documentation status:** Source-verified and simulator-compiled for OpenIntelligence v5.0 on
-> August 11, 2026. The final suite run is **230 tests, 0 failures** on iOS 27.0 (iPhone 17 Pro
-> simulator). It read 202 until 2026-08-11; the vocabulary and correctness passes added 28 cases.
+> **Documentation status:** Source-verified and simulator-compiled for OpenIntelligence v5.0, most
+> recently on August 17, 2026. The latest suite run is **236 tests, 0 failures** on iOS 27.0 (iPhone
+> 17 Pro simulator). It read 202 until 2026-08-11, then 230 after the vocabulary and correctness
+> passes added 28 cases, and 236 since.
+> **The agentic path has no test coverage at all**, so the Deep Think evidence-budget work of
+> 2026-08-17 is build-verified and suite-verified only, and its behavioural claim is unverified
+> until the same query is re-run on a physical device.
 > **No test covers the library management screens**, so the interface work of 2026-08-11 is
 > build-verified and simulator-screenshot-verified only. Two earlier runs the same day reported one failure,
 > `testSilentAudio_FailsLoudlyInsteadOfProducingAnEmptyDocument`, timing out at 60s waiting on
@@ -24,13 +28,29 @@ This document provides a comprehensive, version-by-version breakdown of major ar
 
 ## v5.0 - August 10, 2026
 
-87 entries, 43 `[UI]`, 16 `[General]`, 15 `[Ingestion]`, 6 `[Retrieval]`, 6 `[Orchestration]`, 1 `[Chunking]`. Counted from `CHANGELOG.md` on 2026-08-11. This figure has now gone stale twice in one day: it read
-46 before the interface pass and 74 before the correctness pass that followed, because it is a typed
-number describing a countable fact. Recount it rather than trusting it, with:
+161 entries, 49 `[UI]`, 36 `[Orchestration]`, 31 `[General]`, 23 `[Retrieval]`, 17 `[Ingestion]`, 2 `[Infrastructure]`, 2 `[Indexing]`, 1 `[Chunking]`. Recounted from `CHANGELOG.md` on 2026-08-18. This figure has gone stale four times: it read
+46 before the interface pass, 74 before the correctness pass that followed, and 87 on 2026-08-11,
+because it is a typed number describing a countable fact. Recount it rather than trusting it, with:
 
 ```bash
 awk '/^## 5\.0/{f=1;next} /^## 4\./{f=0} f' CHANGELOG.md | grep -c '^- \*\*\['
 ```
+
+A fourth theme arrived on 2026-08-17 and is the sharpest instance of the first: **two stages that
+were each defensible alone, composing into a defect neither had by itself.** Retrieval ends with a
+Lost-in-the-Middle reorder that places the highest-scoring chunk at the array midpoint; Deep Think's
+synthesis then truncated what it received with a fixed `prefix(3000)`. Neither is unreasonable in
+isolation. Together they guaranteed the best evidence was the first thing discarded on any large
+retrieval, which is exactly inverted from what truncation is for. The visible symptom was a mode
+inversion: Deep Think reported that the documents contained no evidence, in 202.7 seconds, on a
+question Standard answered correctly in 6.7. Synthesis now packs in score order against a budget
+derived from the real prompt, and every assembly logs what it dropped.
+
+**That fix is not verified where it matters.** The agentic path has no test coverage, so a green
+build and a green suite say only that it compiles and broke nothing else. Whether Deep Think stops
+asserting absence can be answered only on hardware, and had not been at the time of writing. It is
+recorded here because the mechanism is code-verified and the measurement it invalidates is
+load-bearing for other work, not because the outcome is known.
 
 Three themes run through nearly all of them. The first is **loss that was invisible from the
 outside**: ingestion reported success on documents whose tables, figures and layout had already been

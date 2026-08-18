@@ -554,6 +554,7 @@ def run_one(
     storage: Path, ingest: bool, pool: list[str] | None = None, pool_limit: int = 0,
     top_k: int = 0, vector_weight: float | None = None,
     sampling: str | None = None, temperature: float | None = None, seed: int | None = None,
+    embedding_provider: str | None = None,
 ) -> dict:
     """Launch the app headlessly for a single (case, mode) pair.
 
@@ -648,6 +649,8 @@ def run_one(
     # default run keeps the shipped clamped policy.
     if vector_weight is not None:
         cmd += ["--rag-validation-vector-weight", str(vector_weight)]
+    if embedding_provider:
+        cmd += ["--rag-validation-embedding-provider", embedding_provider]
     if not ingest:
         cmd.append("--rag-validation-skip-ingest")
 
@@ -908,6 +911,11 @@ def main() -> int:
                     help="pin the on-device sampling strategy. `greedy` makes two runs of the same "
                          "build comparable; without it samplingStrategy defaults to topK with no "
                          "seed and a single case has swung 3613 -> 68 -> 3357 chars between runs.")
+    ap.add_argument("--embedding-provider", default=None,
+                    help="force one embedding provider for the run, e.g. coreml_sentence_embedding "
+                         "or coreai_sentence_embedding. The two are NOT interchangeable: Core AI "
+                         "extracts the CLS token from a single-input model, Core ML mean-pools a "
+                         "three-input model. all-MiniLM-L6-v2 is a mean-pooling model.")
     ap.add_argument("--no-ingest", action="store_true",
                     help="reuse the existing index instead of ingesting. DIAGNOSTIC ONLY: the "
                          "reused index loses document-name mapping so citations resolve to "
@@ -1017,6 +1025,7 @@ def main() -> int:
         # Recorded for the same reason as vector_weight: resuming a run under different sampling
         # would append cases drawn from a different distribution into one results.jsonl, and no
         # downstream reader could tell the halves apart.
+        "embedding_provider": args.embedding_provider,
         "sampling": args.sampling,
         "temperature": args.temperature,
         "seed": args.seed,
@@ -1084,7 +1093,7 @@ def main() -> int:
                     app_bin, case, mode, args.pcc, args.timeout,
                     storage=storage, ingest=not args.no_ingest, pool=pool, pool_limit=args.pool_limit,
                     top_k=args.top_k, vector_weight=args.vector_weight,
-                    sampling=args.sampling, temperature=args.temperature, seed=args.seed,
+                    sampling=args.sampling, embedding_provider=args.embedding_provider, temperature=args.temperature, seed=args.seed,
                 )
                 row = {"case_id": case["id"], "category": case["category"], "mode": mode, "run": run}
                 if run.get("ok"):

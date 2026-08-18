@@ -74,6 +74,7 @@ enum DebugRAGValidationHarness {
         seedPCCConsentIfNeeded(configuration.pccConsent)
         seedBenchmarkEntitlementIfNeeded(configuration.benchmarkEntitlement)
         seedHybridWeightIfNeeded()
+        seedEmbeddingProviderIfNeeded()
         seedSamplingOverridesIfNeeded()
     }
 
@@ -91,6 +92,23 @@ enum DebugRAGValidationHarness {
             return
         }
         UserDefaults.standard.set(value, forKey: "benchmarkVectorWeight")
+    }
+
+    /// `--rag-validation-embedding-provider <id>` forces one embedding provider for a run.
+    ///
+    /// Needed because the two providers are not interchangeable and nothing in the run output said
+    /// which one produced the vectors. Core AI extracts the CLS token from a single-input model;
+    /// Core ML mean-pools a three-input model with an attention mask. `all-MiniLM-L6-v2` is a
+    /// mean-pooling model, so comparing an embedder swap without pinning this would compare two
+    /// different things.
+    private static func seedEmbeddingProviderIfNeeded() {
+        guard let raw = LaunchArguments.valueEither(for: "rag-validation-embedding-provider")?
+            .trimmingCharacters(in: .whitespacesAndNewlines), !raw.isEmpty
+        else {
+            UserDefaults.standard.removeObject(forKey: "benchmarkEmbeddingProvider")
+            return
+        }
+        UserDefaults.standard.set(raw, forKey: "benchmarkEmbeddingProvider")
     }
 
     /// Seed the sampling override, so two runs of the same build are comparable to each other.

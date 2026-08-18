@@ -18124,10 +18124,32 @@ extension RAGService: RAGToolHandler {
             var expandedChunks: [RetrievedChunk] = []
             var seenChunkIds = Set<UUID>()
 
+            // Expansion is only worth what survives into the prompt. Ungated, this stage grew an
+            // 18-chunk result to 85 immediately before synthesis applied a fixed-size cut, so it
+            // actively harmed the answer: none of the added context fit, and the inflated array
+            // displaced the ranked set that did. Siblings are now admitted in parent-rank order
+            // and only while the projected evidence still fits the on-device window.
+            //
+            // The on-device ratio is used regardless of where the query is ultimately allowed to
+            // run. Sizing this against a cloud window would expand most aggressively in exactly
+            // the case the device cannot hold.
+            let expansionTokenBudget = FoundationModelTokenBudget.tokenBudget(isAppleFMOnDevice: true)
+            var projectedTokens = 0
+            var siblingsSkippedForBudget = 0
+
+            func projectedTokenCost(_ chunk: DocumentChunk) -> Int {
+                FoundationModelTokenBudget.estimateTokens(
+                    charsCount: (chunk.parentContent ?? chunk.content).count,
+                    isAppleFMOnDevice: true
+                )
+            }
+
             for chunk in retrievedChunks {
-                // Add the original chunk
+                // Add the original chunk. Primary matches are never gated — the budget governs how
+                // much *extra* context expansion may buy, not whether retrieval's own results survive.
                 if seenChunkIds.insert(chunk.chunk.id).inserted {
                     expandedChunks.append(chunk)
+                    projectedTokens += projectedTokenCost(chunk.chunk)
                 }
 
                 // Find sibling chunks from the same document
@@ -18138,22 +18160,43 @@ extension RAGService: RAGToolHandler {
                 }.sorted { $0.metadata.chunkIndex < $1.metadata.chunkIndex }
 
                 for sibling in siblings {
-                    if seenChunkIds.insert(sibling.id).inserted {
-                        // Siblings get a discounted score
-                        expandedChunks.append(RetrievedChunk(
-                            chunk: sibling,
-                            similarityScore: chunk.similarityScore * 0.85,
-                            rank: expandedChunks.count + 1,
-                            sourceDocument: chunk.sourceDocument,
-                            pageNumber: sibling.metadata.pageNumber
-                        ))
+                    guard !seenChunkIds.contains(sibling.id) else { continue }
+
+                    let cost = projectedTokenCost(sibling)
+                    guard projectedTokens + cost <= expansionTokenBudget else {
+                        siblingsSkippedForBudget += 1
+                        continue
                     }
+
+                    seenChunkIds.insert(sibling.id)
+                    projectedTokens += cost
+                    // Siblings get a discounted score
+                    expandedChunks.append(RetrievedChunk(
+                        chunk: sibling,
+                        similarityScore: chunk.similarityScore * 0.85,
+                        rank: expandedChunks.count + 1,
+                        sourceDocument: chunk.sourceDocument,
+                        pageNumber: sibling.metadata.pageNumber
+                    ))
                 }
             }
 
             if expandedChunks.count > retrievedChunks.count {
                 await onDetailedEvent?(.parentDoc, "Context expanded", "\(retrievedChunks.count) → \(expandedChunks.count) chunks with siblings")
                 retrievedChunks = expandedChunks
+            }
+
+            if siblingsSkippedForBudget > 0 {
+                await onDetailedEvent?(
+                    .parentDoc,
+                    "Expansion capped",
+                    "Skipped \(siblingsSkippedForBudget) siblings at ~\(projectedTokens)/\(expansionTokenBudget) tokens"
+                )
+                Log.info(
+                    "[FullRetrieval] Parent expansion capped by budget: skipped \(siblingsSkippedForBudget) siblings, "
+                        + "projected ~\(projectedTokens)/\(expansionTokenBudget) tokens",
+                    category: .retrieval
+                )
             }
         }
 

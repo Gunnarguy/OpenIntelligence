@@ -1621,6 +1621,26 @@ final class WorkspaceSyncService: ObservableObject {
     }
 
     nonisolated private func mergeIngestionQueueIfNeeded(from localRoot: URL, to sharedRoot: URL) throws {
+        // Stand down entirely while a benchmark holds the runtime directories.
+        //
+        // `localRoot` here resolves through `applicationSupportRoot()`, which does not consult the
+        // storage override, so every benchmark run merged its fixture documents into the owner's
+        // real ingestion queue. The visible symptom was a "Resume interrupted upload?" prompt
+        // listing fixture files on every launch, which survived being discarded because the next
+        // run wrote it again.
+        //
+        // Fixed here rather than in `applicationSupportRoot()` on purpose. That function is also
+        // resolved by four `coordinated*` iCloud primitives and by `BNNSVectorDatabase`, so making
+        // it honour the override would silently redirect live iCloud sync into a temporary
+        // directory. A caller that should not run during a benchmark asks; the path does not lie to
+        // everyone else.
+        //
+        // The pin is only ever engaged by `DebugRAGValidationHarness`, so this cannot fire in a
+        // shipping app.
+        guard !OpenIntelligenceRuntimePaths.areOverridesPinned else {
+            return
+        }
+
         let localQueueURL = localRoot.appendingPathComponent("ingestion_queue.json")
         let sharedQueueURL = sharedRoot.appendingPathComponent("ingestion_queue.json")
         let localQueue = try Self.readJSONIfPresent(PersistedIngestionQueueStateRecord.self, from: localQueueURL)

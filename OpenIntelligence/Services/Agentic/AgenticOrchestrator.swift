@@ -901,6 +901,7 @@ final class AgenticOrchestrator: Sendable {
                     let synthesisStep = try await executeDirectSynthesis(
                         query: query,
                         searchResults: combinedResults,
+                        chunks: allRetrievedChunks,
                         ragService: ragService
                     )
                     steps.append(synthesisStep)
@@ -927,6 +928,7 @@ final class AgenticOrchestrator: Sendable {
             let synthesisStep = try await executeDirectSynthesis(
                 query: query,
                 searchResults: combinedResults,
+                chunks: allRetrievedChunks,
                 ragService: ragService
             )
             steps.append(synthesisStep)
@@ -1020,6 +1022,7 @@ final class AgenticOrchestrator: Sendable {
                 let synthesisStep = try await executeDirectSynthesis(
                     query: query,
                     searchResults: expandedResults,
+                    chunks: allRetrievedChunks,
                     ragService: ragService
                 )
                 steps.append(synthesisStep)
@@ -1193,26 +1196,182 @@ final class AgenticOrchestrator: Sendable {
         return nil
     }
 
+    // MARK: - Evidence Budget
+
+    /// Headroom for the chat template, citation scaffolding, and tokenizer disagreement between
+    /// our estimate and Apple's actual count.
+    private static let evidenceSafetyReserve = 256
+
+    /// Never starve synthesis completely, even if a prompt overruns its own budget.
+    private static let minimumEvidenceTokens = 512
+
+    /// What a budgeted assembly kept, and what it threw away.
+    ///
+    /// The dropped counts exist so truncation cannot be silent. Every prior version of this path
+    /// cut evidence with a bare `prefix(_:)` and logged nothing, so a run that answered from 3.5%
+    /// of what it retrieved produced a trace identical to one that answered from all of it.
+    private struct EvidenceBudget {
+        let context: String
+        /// The chunks actually rendered, in the order they were rendered. Citation resolution is
+        /// positional (`[S1]` resolves to `sourceChunks[0]`), so this must be what travels to
+        /// `generateWithProperConsent`, not the caller's original array.
+        let chunks: [RetrievedChunk]
+        let chunksOffered: Int
+        let tokensIncluded: Int
+        let tokensDropped: Int
+        /// Whether the highest-scoring chunk survived.
+        let keptTopChunk: Bool
+
+        var chunksIncluded: Int { chunks.count }
+        var chunksDropped: Int { max(0, chunksOffered - chunks.count) }
+    }
+
+    /// Evidence tokens available once the system prompt, the query, and the reserved output are
+    /// paid for.
+    ///
+    /// Derived rather than hardcoded. The `prefix(3000)` this replaces was a character count
+    /// justified by a comment describing a system prompt it no longer matched.
+    private func evidenceTokenBudget(
+        systemPrompt: String,
+        query: String,
+        outputReserve: Int
+    ) -> Int {
+        // Ask "does this fit on device" using the on-device ratio regardless of where the query is
+        // ultimately allowed to run. Deriving the ratio from the assumed destination makes the
+        // budget most generous exactly when the device is the destination and least able to hold it.
+        let contextSize = FoundationModelTokenBudget.contextSize(isAppleFMOnDevice: true)
+        let overhead = FoundationModelTokenBudget.estimateTokens(for: systemPrompt, isAppleFMOnDevice: true)
+            + FoundationModelTokenBudget.estimateTokens(for: query, isAppleFMOnDevice: true)
+            + outputReserve
+            + Self.evidenceSafetyReserve
+        return max(Self.minimumEvidenceTokens, contextSize - overhead)
+    }
+
+    /// Render one evidence block in the `[S1]` form the prompts instruct and the citation
+    /// resolver parses (`RAGService.citationRegex` is `\[S\d+\]`).
+    private func renderEvidenceBlock(_ retrieved: RetrievedChunk, label: Int) -> String {
+        var block = "[S\(label)] From \(retrieved.sourceDocument)"
+        if let page = retrieved.pageNumber {
+            block += " (Page \(page))"
+        }
+        block += " (Relevance: \(String(format: "%.1f%%", retrieved.similarityScore * 100))):\n"
+        block += (retrieved.chunk.parentContent ?? retrieved.chunk.content)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        block += "\n\n"
+        return block
+    }
+
+    /// Pack retrieved evidence into `tokenBudget`, highest-scoring chunk first.
+    ///
+    /// Rank order is restored here on purpose. `executeFullRetrievalPipeline` finishes with a
+    /// lost-in-middle reorder that interleaves the ranked set, so the array arriving here holds
+    /// its best chunk near the midpoint — for 85 chunks, at index 42. Packing in array order
+    /// therefore discarded the single most relevant chunk first. Packing in score order discards
+    /// the least relevant one first, which is the only ordering that makes truncation survivable.
+    private func assembleBudgetedEvidence(
+        chunks: [RetrievedChunk],
+        tokenBudget: Int,
+        stage: String
+    ) -> EvidenceBudget {
+        guard !chunks.isEmpty else {
+            return EvidenceBudget(
+                context: "",
+                chunks: [],
+                chunksOffered: 0,
+                tokensIncluded: 0,
+                tokensDropped: 0,
+                keptTopChunk: false
+            )
+        }
+
+        // Score descending, original position as a deterministic tiebreak. Retrieval here is only
+        // ~21% reproducible run to run; an unstable sort would stack a second source of variation
+        // on top of that and make any A/B unreadable.
+        let ranked = chunks.enumerated().sorted { lhs, rhs in
+            if lhs.element.similarityScore != rhs.element.similarityScore {
+                return lhs.element.similarityScore > rhs.element.similarityScore
+            }
+            return lhs.offset < rhs.offset
+        }.map(\.element)
+
+        var context = ""
+        var included: [RetrievedChunk] = []
+        var tokensIncluded = 0
+        var tokensDropped = 0
+        var keptTopChunk = false
+
+        for (position, retrieved) in ranked.enumerated() {
+            let block = renderEvidenceBlock(retrieved, label: included.count + 1)
+            let blockTokens = FoundationModelTokenBudget.estimateTokens(for: block, isAppleFMOnDevice: true)
+            let remaining = tokenBudget - tokensIncluded
+
+            if blockTokens <= remaining {
+                context += block
+                tokensIncluded += blockTokens
+                included.append(retrieved)
+                if position == 0 { keptTopChunk = true }
+                continue
+            }
+
+            // The best chunk is never dropped whole. If it alone overruns the budget, cut it at a
+            // sentence boundary and keep the head; losing part of the top match still beats losing
+            // all of it, which is what the old prefix cut did whenever expansion had run.
+            if position == 0, remaining > Self.minimumEvidenceTokens / 2 {
+                let charBudget = Int(Double(remaining) * FoundationModelTokenBudget.onDeviceCharsPerToken)
+                let trimmed = truncateAtSentenceBoundary(block, limit: charBudget)
+                let trimmedTokens = FoundationModelTokenBudget.estimateTokens(for: trimmed, isAppleFMOnDevice: true)
+                context += trimmed + "\n\n"
+                tokensIncluded += trimmedTokens
+                included.append(retrieved)
+                keptTopChunk = true
+                tokensDropped += max(0, blockTokens - trimmedTokens)
+                Log.warning(
+                    "[Deep Think] \(stage): top-ranked chunk exceeded the whole evidence budget; "
+                        + "kept \(trimmed.count)/\(block.count) chars of it",
+                    category: .llm
+                )
+                continue
+            }
+
+            tokensDropped += blockTokens
+        }
+
+        let outcome = EvidenceBudget(
+            context: context,
+            chunks: included,
+            chunksOffered: chunks.count,
+            tokensIncluded: tokensIncluded,
+            tokensDropped: tokensDropped,
+            keptTopChunk: keptTopChunk
+        )
+
+        // One line, always emitted, naming what was dropped. Silent truncation across fourteen
+        // stages is the defect class this pipeline keeps reproducing.
+        Log.info(
+            "[Deep Think] \(stage) evidence budget: kept \(outcome.chunksIncluded)/\(outcome.chunksOffered) chunks, "
+                + "\(outcome.tokensIncluded)/\(tokenBudget) tokens; dropped \(outcome.chunksDropped) chunks "
+                + "(~\(outcome.tokensDropped) tokens)",
+            category: .llm
+        )
+        if !outcome.keptTopChunk {
+            Log.warning("[Deep Think] \(stage): highest-scoring chunk did not fit the budget", category: .llm)
+        }
+
+        return outcome
+    }
+
     /// Direct synthesis when retrieval confidence is high - comprehensive answer
     /// Uses the SAME formatting and consent flow as Standard mode
     /// CRITICAL: Respects 4096 token limit for Apple Foundation Models
     private func executeDirectSynthesis(
         query: String,
         searchResults: String,
+        chunks: [RetrievedChunk],
         ragService: RAGService
     ) async throws -> ThinkingStep {
         let __spSynthesisDirect = PipelineSignposts.synthesis.beginInterval("SynthesisDirect")
         defer { PipelineSignposts.synthesis.endInterval("SynthesisDirect", __spSynthesisDirect) }
         let startTime = Date()
-
-        // Truncate search results to fit in context budget
-        // System prompt is now ~370 tokens, query ~50, output ~800 = 1220 tokens overhead
-        // Remaining: 4096 - 1220 = 2876 tokens ≈ 4000 chars at 1.4 chars/token
-        // Use 3000 chars for safety margin
-        //
-        // SENTENCE-LEVEL EXTRACTION: When searchResults come from pre-assembled chunks,
-        // they’re already formatted. But we still truncate to budget.
-        let truncatedResults = String(searchResults.prefix(3000))
 
         // Deep Think mode: thorough synthesis with actionable details
         let systemPrompt = """
@@ -1227,6 +1386,42 @@ final class AgenticOrchestrator: Sendable {
         7) ABBREVIATIONS: If an [Abbreviations] glossary appears, use those EXACT expansions. Never expand an abbreviation differently than the glossary defines it.
         """
 
+        let outputReserve = 800
+        let budget = evidenceTokenBudget(
+            systemPrompt: systemPrompt,
+            query: query,
+            outputReserve: outputReserve
+        )
+
+        // Prefer the chunks. `searchResults` arrives pre-rendered by `executeSearchStepWithChunks`,
+        // which itself keeps only `chunks.prefix(10)` of a lost-in-middle-ordered array, so packing
+        // from the string cannot recover the top match once expansion has run.
+        let evidence = assembleBudgetedEvidence(
+            chunks: chunks,
+            tokenBudget: budget,
+            stage: "DirectSynthesis"
+        )
+
+        let context: String
+        let sourceChunks: [RetrievedChunk]
+        if evidence.chunks.isEmpty {
+            // No chunks reached us. Budget the rendered string by tokens rather than a blind
+            // character prefix, and say so, so this fallback is visible in the trace.
+            let charBudget = Int(Double(budget) * FoundationModelTokenBudget.onDeviceCharsPerToken)
+            context = truncateAtSentenceBoundary(searchResults, limit: charBudget)
+            sourceChunks = []
+            if searchResults.count > context.count {
+                Log.warning(
+                    "[Deep Think] DirectSynthesis fell back to string budgeting: kept \(context.count)/"
+                        + "\(searchResults.count) chars, no chunks available for rank-ordered packing",
+                    category: .llm
+                )
+            }
+        } else {
+            context = evidence.context
+            sourceChunks = evidence.chunks
+        }
+
         // Generate using the main RAGService pipeline which handles:
         // - PCC consent prompts
         // - Cloud transmission recording
@@ -1234,10 +1429,13 @@ final class AgenticOrchestrator: Sendable {
         // Use conservative maxTokens to fit in 4096 window
         let response = try await ragService.generateWithProperConsent(
             prompt: query,
-            context: truncatedResults,
+            context: context,
             systemPrompt: systemPrompt,
-            maxTokens: 800, // Conservative to stay within 4096 total
-            disableTools: true
+            maxTokens: outputReserve, // Conservative to stay within 4096 total
+            disableTools: true,
+            // Citations resolve positionally, so the model must be handed the same ordered subset
+            // that was rendered into the prompt.
+            sourceChunks: sourceChunks
         )
 
         return ThinkingStep(
@@ -2377,25 +2575,54 @@ final class AgenticOrchestrator: Sendable {
     ) async throws -> ThinkingStep {
         let startTime = Date()
 
-        // Compress all previous steps into a summary - truncate to fit 4096 token limit
-        let stepSummary = steps.map { step in
-            "\(step.type.rawValue): \(step.output.prefix(150))"
-        } .joined(separator: "\n")
-
-        // Truncate total context
-        let truncatedContext = String(stepSummary.prefix(3000))
-
         let systemPrompt = """
         Synthesize findings into a comprehensive answer. Cite [S1], [S2] when available.
         Format with ### section headers, bullets only for actual lists, **bold** sparingly for key terms.
         Separate sections with blank lines for readability.
         """
 
+        let outputReserve = 800
+        let budget = evidenceTokenBudget(
+            systemPrompt: systemPrompt,
+            query: query,
+            outputReserve: outputReserve
+        )
+
+        // This path summarizes prior reasoning steps rather than ranked chunks, so there is no
+        // relevance order to pack against. It had two stacked cuts instead: a fixed
+        // `prefix(150)` per step, then a `prefix(3000)` over the join. The per-step cut was the
+        // more destructive of the two, since 150 characters truncates most steps mid-sentence
+        // before the overall budget is even consulted.
+        let header = "Research Steps:\n"
+        let headerTokens = FoundationModelTokenBudget.estimateTokens(for: header, isAppleFMOnDevice: true)
+        let bodyBudget = max(Self.minimumEvidenceTokens, budget - headerTokens)
+        let bodyCharBudget = Int(Double(bodyBudget) * FoundationModelTokenBudget.onDeviceCharsPerToken)
+
+        // Share the budget evenly across steps, then let the sentence-boundary trim reclaim what
+        // short steps do not use.
+        let perStepCharBudget = max(200, bodyCharBudget / max(1, steps.count))
+        var droppedChars = 0
+        let stepSummary = steps.map { step -> String in
+            let body = truncateAtSentenceBoundary(step.output, limit: perStepCharBudget)
+            droppedChars += max(0, step.output.count - body.count)
+            return "\(step.type.rawValue): \(body)"
+        }.joined(separator: "\n")
+
+        let fitted = truncateAtSentenceBoundary(stepSummary, limit: bodyCharBudget)
+        droppedChars += max(0, stepSummary.count - fitted.count)
+
+        Log.info(
+            "[Deep Think] SynthesisStep budget: \(steps.count) steps, kept \(fitted.count) chars "
+                + "(~\(FoundationModelTokenBudget.estimateTokens(for: fitted, isAppleFMOnDevice: true))/\(bodyBudget) tokens); "
+                + "dropped ~\(droppedChars) chars",
+            category: .llm
+        )
+
         let response = try await ragService.generateWithProperConsent(
             prompt: query,
-            context: "Research Steps:\n\(truncatedContext)",
+            context: header + fitted,
             systemPrompt: systemPrompt,
-            maxTokens: 800,
+            maxTokens: outputReserve,
             disableTools: true
         )
 

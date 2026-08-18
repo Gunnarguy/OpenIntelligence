@@ -22,6 +22,20 @@ enum OpenIntelligenceRuntimePaths {
     /// A refused mutation prints rather than logs: this file also builds in the engine package,
     /// which has no `Log`, and the pin can only ever be engaged by the DEBUG-only harness, so the
     /// print cannot fire in a shipping app.
+    /// Whether a harness has pinned the runtime directories for this process.
+    ///
+    /// Exposed so workspace sync can decline to touch the owner's real library during a benchmark.
+    /// `applicationSupportRoot()` deliberately does **not** consult the override, because four
+    /// `coordinated*` iCloud primitives and `BNNSVectorDatabase` resolve through it, and redirecting
+    /// those would point live iCloud sync at a temporary directory. The correct fix is for callers
+    /// that should stand down during a benchmark to ask, rather than for the path to lie to
+    /// everybody.
+    nonisolated static var areOverridesPinned: Bool {
+        objc_sync_enter(Self.self)
+        defer { objc_sync_exit(Self.self) }
+        return overridesPinned
+    }
+
     nonisolated static func pinOverrides(base: URL, localCache: URL) {
         objc_sync_enter(Self.self)
         defer { objc_sync_exit(Self.self) }

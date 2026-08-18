@@ -480,3 +480,38 @@ the app's own estimate. Most importantly `GeneratedContent.ParsingError.rawConte
 which is the model output that failed to parse and the one piece of evidence this failure has never
 yielded. This is expected to be diagnosis rather than cure: if the raw content shows the model
 emitting something unparseable, fixing that is separate work.
+
+---
+
+## 2026-08-17: Size the synthesis evidence budget with FoundationModelTokenBudget, not the embedding tokenizer
+
+**Context.** `AgenticOrchestrator` truncated retrieved evidence with a hardcoded
+`String(searchResults.prefix(3000))` before synthesis. `Docs/ai/STATE.md` specified the replacement
+should count tokens with `DocumentProcessor.countTokens`, on the grounds that it became trustworthy
+once the padding defect was fixed in `2753d15`.
+
+**Decision.** Use `FoundationModelTokenBudget` instead, with `isAppleFMOnDevice: true`.
+
+**Alternatives.** `DocumentProcessor.countTokens` as specified. Rejected on two grounds. It is
+`private`, so using it would have meant widening access on a file outside the change. More
+substantially it is the wrong tokenizer for the question being asked: it encodes with the MiniLM
+WordPiece tokenizer used for embedding, while the budget being enforced is an Apple Foundation
+Models prompt window. The two disagree, and a count that is accurate for the wrong model is the kind
+of plausible-looking number that caused the padding defect to survive 3,910 ingestions.
+
+Also considered: deriving the chars-per-token ratio from the query's actual destination, so a
+PCC-bound query would get the cloud ratio. Rejected because it inverts the safety property. The
+budget would be most generous exactly when the device is the destination and least able to hold the
+result, which is the same failure shape `.claude/rules/orchestration-and-routing.md` already records
+for `estimateTokens(..., isAppleFMOnDevice:)`.
+
+**Consequences.** The budget is an estimate, not an exact count, and is deliberately conservative: a
+256-token safety reserve absorbs tokenizer disagreement and chat-template overhead. If a future
+change needs exactness rather than a bound, `FoundationModelTokenBudget.snapshot` already wraps
+Apple's `tokenCount(for:)` on iOS 26.4+ and reports `.sdkExact` versus `.conservativeFallback` as its
+source; that path is async and was not needed here.
+
+A related decision inside the same change: parent document expansion is now gated on this budget,
+but the gate admits every primary retrieval match unconditionally and only withholds siblings.
+Gating primaries would have replaced a silent loss at synthesis with a silent loss at retrieval,
+which is the same defect one stage earlier.
