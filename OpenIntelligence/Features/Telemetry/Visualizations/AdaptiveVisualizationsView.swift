@@ -202,9 +202,14 @@ struct AdaptiveVisualizationsView: View {
                 Task { await AtlasTip.atlasViewed.donate() }
             }
         }
-        .task {
-            await refreshAnalysis()
-        }
+        // One task, not two. A bare `.task` and `.task(id:)` both called `refreshAnalysis()`, so
+        // every Atlas entry built the profile twice. `.task(id:)` already fires on first
+        // appearance as well as on container change, so it covers both cases the pair covered.
+        //
+        // The duplicate could not be cancelled away: `analysisTask?.cancel()` cannot stop the
+        // in-flight copy because neither `buildProfile` nor `analyzeTopics` checks
+        // `Task.isCancelled`, and `LibraryVisualizationEngine` is `@MainActor` throughout, so
+        // full-text tokenisation of every chunk holds the main actor for the duration — twice.
         .task(id: containerService.activeContainerId) {
             await refreshAnalysis()
         }

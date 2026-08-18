@@ -229,11 +229,30 @@ private struct StreamingBubbleV2: View {
             VStack(alignment: .leading, spacing: 8) {
                 // Message content with cursor
                 HStack(alignment: .bottom, spacing: 2) {
-                    MarkdownText(
-                        text,
-                        font: .system(size: 15),
-                        foregroundColor: DSColors.primaryText
-                    )
+                    // Plain `Text` while the answer is still arriving, markdown once it stops.
+                    //
+                    // This view is handed the whole accumulated `streamingText` on every pump
+                    // tick, and `MarkdownText.body` calls `MarkdownParser.parse` as its first
+                    // statement — 14 whole-string ICU substitutions, roughly two regex
+                    // evaluations per line, and an `AttributedString(markdown:)` per paragraph.
+                    // The pump runs at 80ms and tightens to 20ms under backlog, so that is
+                    // 12.5-50Hz of O(length) parsing on the main actor, during the one
+                    // interaction the user watches most closely, and every intermediate result
+                    // is discarded a few milliseconds later.
+                    //
+                    // No functionality is lost: the identical `MarkdownText` renders the moment
+                    // the stream closes and the message becomes a normal history row, so the
+                    // final answer is formatted exactly as before. What changes is that partial
+                    // markdown is no longer rendered mid-stream — which also removes the flicker
+                    // of half-open ** and ``` sequences resolving as tokens arrive.
+                    //
+                    // The per-parse cost is unmeasured; the log this came from carries no
+                    // timings. Confirm with the SwiftUI instrument's Long View Body Updates lane
+                    // on a Release device build before assuming a magnitude.
+                    Text(text)
+                        .font(.system(size: 15))
+                        .foregroundStyle(DSColors.primaryText)
+                        .textSelection(.enabled)
 
                     // Blinking cursor
                     Rectangle()

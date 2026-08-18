@@ -10,6 +10,10 @@ This document provides a chronological history of user-facing changes, highlight
 ## v5.0 - August 10, 2026
 Importing a document was quietly losing parts of it. This release finds the places that happened.
 
+### Speed
+- **Answers stream more smoothly.** While an answer was arriving, the app re-formatted the entire text from scratch up to fifty times a second, on the same thread that draws the screen. Formatting now happens once, when the answer finishes. The finished answer looks exactly the same, and text stops flickering as half-finished bold and code blocks resolve.
+- **Opening the Atlas tab did its work twice.** Two separate triggers were both starting the same analysis. Now one does.
+
 ### Libraries
 - **Every action above your documents is now one tap.** Add, search, library settings, emptying a library and deleting one were two buttons and a three-dot menu hiding the rest. They are now five icons on a single row, nothing hidden. VoiceOver still reads each one's full name, including which library a delete would affect, and both delete actions still ask you to confirm and still tell you exactly what will go.
 - **Press and hold on a library now behaves like the rest of iOS.** It was using a custom gesture that competed with sideways scrolling, so holding a library sometimes scrolled the row instead and nothing told you which one was about to happen. It now uses the standard press-and-hold menu, with the usual preview and haptic.

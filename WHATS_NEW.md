@@ -8,6 +8,10 @@ Public release highlights for OpenIntelligence.
 
 Importing a document was quietly losing parts of it. This release finds the places that happened.
 
+### Speed
+- **Answers stream more smoothly:** the app was re-formatting the whole answer up to fifty times a second while it arrived. It now formats once, at the end, and looks identical.
+- **Opening Atlas did its work twice:** two triggers were starting the same analysis. Now one does.
+
 ### Libraries
 - **Every action above your documents is now one tap:** five icons on a single row instead of two buttons and a three-dot menu. Nothing hidden, nothing removed, and both delete actions still confirm first.
 - **Press and hold on a library now behaves like the rest of iOS:** the old custom gesture competed with sideways scrolling, so holding a library sometimes scrolled the row instead.
