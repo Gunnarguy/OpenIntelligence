@@ -87,7 +87,6 @@ private struct SourceChip: View {
     let chip: ChipData
     let onTap: () -> Void
     
-    @State private var isPressed: Bool = false
     
     var body: some View {
         Button(action: {
@@ -120,15 +119,33 @@ private struct SourceChip: View {
                 Capsule()
                     .strokeBorder(chip.tint.opacity(0.25), lineWidth: 0.5)
             )
-            .scaleEffect(isPressed ? 0.95 : 1.0)
         }
-        .buttonStyle(.plain)
-        .onLongPressGesture(minimumDuration: 0, pressing: { pressing in
-            withAnimation(.easeInOut(duration: 0.1)) {
-                isPressed = pressing
-            }
-        }, perform: {})
+        // Press feedback comes from the ButtonStyle, not from a zero-duration long-press
+        // gesture. These chips sit in a horizontal ScrollView, and a SwiftUI gesture attached
+        // there competes with UIKit's scroll pan with no way to arbitrate between them: a press
+        // that drifts a few points either scrolls or registers, unpredictably. `ButtonStyle`
+        // reads `configuration.isPressed` from the button's own recognizer, which UIKit already
+        // arbitrates against the scroll view, so scrolling wins until the press resolves.
+        //
+        // Same defect and same fix as the library chips in `ContainerPicker`. The visual is
+        // unchanged: identical 0.95 scale and 0.1s easeInOut.
+        .buttonStyle(SourceChipPressStyle())
         .accessibilityLabel("Source \(chip.index), \(chip.quality) match at \(Int(chip.percent * 100)) percent")
+    }
+}
+
+// MARK: - Press Feedback
+
+/// Scale-on-press for the source chips, driven by the button's own recognizer.
+///
+/// Exists so the chips do not need a gesture of their own. See the note at the call site: a
+/// SwiftUI gesture inside a horizontal ScrollView cannot be arbitrated against the scroll pan,
+/// and a ButtonStyle gets that arbitration from UIKit for free.
+private struct SourceChipPressStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.95 : 1.0)
+            .animation(.easeInOut(duration: 0.1), value: configuration.isPressed)
     }
 }
 
