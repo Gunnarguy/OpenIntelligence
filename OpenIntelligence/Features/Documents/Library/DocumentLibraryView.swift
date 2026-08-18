@@ -475,82 +475,80 @@ struct DocumentLibraryView: View {
                 showingSemanticSearch = true
             }
 
+            DocumentActionChip(
+                title: "Library Settings",
+                systemImage: "slider.horizontal.3",
+                iconOnly: true
+            ) {
+                DSHaptics.light()
+                showingContainerSettings = true
+            }
+
+            // Shown only when the cache can actually contain something.
+            //
+            // `DocumentationCacheService.cache(...)` is its only writer and has no call sites
+            // anywhere in the app, so nothing populates this and the screen was permanently
+            // empty. That is not dead code: the producer is the open roadmap row "Web Clipper
+            // / Share Extension", and the service, its expiry, pruning and ingestion export
+            // are all built and waiting for it. Deleting them would repeat a mistake this
+            // repository has already made twice.
+            //
+            // Gating on content rather than removing the entry means the door disappears
+            // while the room is empty and comes back on its own the day something fills it.
+            if cachedDocumentCount > 0 {
+                DocumentActionChip(
+                    title: "Cached Documents (\(cachedDocumentCount))",
+                    systemImage: "doc.on.doc.fill",
+                    iconOnly: true
+                ) {
+                    DSHaptics.light()
+                    showCachedDocs = true
+                }
+            }
+
             Spacer(minLength: 0)
 
-            Menu {
-                Button {
-                    DSHaptics.light()
-                    showingContainerSettings = true
-                } label: {
-                    Label("Library Settings", systemImage: "slider.horizontal.3")
-                }
-
-                // Shown only when the cache can actually contain something.
-                //
-                // `DocumentationCacheService.cache(...)` is its only writer and has no call sites
-                // anywhere in the app, so nothing populates this and the screen was permanently
-                // empty. That is not dead code: the producer is the open roadmap row "Web Clipper
-                // / Share Extension", and the service, its expiry, pruning and ingestion export
-                // are all built and waiting for it. Deleting them would repeat a mistake this
-                // repository has already made twice.
-                //
-                // Gating on content rather than removing the entry means the door disappears
-                // while the room is empty and comes back on its own the day something fills it,
-                // with no future cleanup to remember.
-                if cachedDocumentCount > 0 {
-                    Button {
-                        DSHaptics.light()
-                        showCachedDocs = true
-                    } label: {
-                        Label("Cached Documents (\(cachedDocumentCount))", systemImage: "doc.on.doc.fill")
-                    }
-                }
-
-                Divider()
-
-                // These two were "Wipe Library" and "Delete Library", both red, both a trash
-                // icon, stacked adjacent. They are not the same action and most people would not
-                // have been able to tell which was which: one empties a library and keeps it, the
-                // other removes the library itself.
-                //
-                // Both now name the library and say what survives, the icons no longer rhyme, and
-                // the destructive pair is separated so the nuclear one is not the neighbour of the
-                // merely severe one.
-                //
-                // Enabled against `filteredDocuments`, the documents this screen is actually
-                // showing, rather than `ragService.documents`, which is every document in every
-                // library. The old binding left the destructive action live on a library that is
-                // visibly empty, because some other library had documents in it.
-                Button(role: .destructive) {
-                    DSHaptics.medium()
-                    showingClearAllConfirmation = true
-                } label: {
-                    Label(
-                        activeLibrary.map { "Remove All Documents from \($0.name)" } ?? "Remove All Documents",
-                        systemImage: "doc.badge.ellipsis"
-                    )
-                }
-                .disabled(filteredDocuments.isEmpty)
-
-                Divider()
-
-                Button(role: .destructive) {
-                    DSHaptics.medium()
-                    if let activeLibrary {
-                        handleDeleteLibrary(activeLibrary)
-                    }
-                } label: {
-                    Label(
-                        activeLibrary.map { "Delete \u{201C}\($0.name)\u{201D}" } ?? "Delete Library",
-                        systemImage: "folder.badge.minus"
-                    )
-                }
-                .disabled(activeLibrary == nil || containerService.containers.count <= 1)
-            } label: {
-                DocumentActionChipLabel(title: "More", systemImage: "ellipsis", iconOnly: true)
+            // The two destructive actions are direct buttons rather than items behind an
+            // overflow menu, by explicit request: five buttons, no ellipsis, nothing hidden
+            // behind an extra tap.
+            //
+            // They are not the same action and they must not read as the same action. One
+            // empties a library and keeps it; the other removes the library itself. So the
+            // glyphs deliberately do not rhyme, a Spacer separates them from the constructive
+            // actions, and only the nuclear one is tinted red — a row of identical red icons
+            // is how a user taps the wrong one.
+            //
+            // Losing the text label costs the on-screen indication of *which* library is
+            // affected. That is recovered rather than dropped: both already route through a
+            // confirmation that names the library and states what survives, and the name is
+            // carried here in `accessibilityLabel` so VoiceOver still announces it in full.
+            //
+            // Enabled against `filteredDocuments`, the documents this screen is actually
+            // showing, rather than `ragService.documents`, which is every document in every
+            // library. The old binding left the destructive action live on a library that is
+            // visibly empty, because some other library had documents in it.
+            DocumentActionChip(
+                title: activeLibrary.map { "Remove All Documents from \($0.name)" } ?? "Remove All Documents",
+                systemImage: "doc.badge.ellipsis",
+                isEnabled: !filteredDocuments.isEmpty,
+                iconOnly: true
+            ) {
+                DSHaptics.medium()
+                showingClearAllConfirmation = true
             }
-            .accessibilityLabel("More library actions")
-            .accessibilityHint("Library settings, and options to remove this library's documents or delete the library itself")
+
+            DocumentActionChip(
+                title: activeLibrary.map { "Delete \u{201C}\($0.name)\u{201D}" } ?? "Delete Library",
+                systemImage: "folder.badge.minus",
+                tint: .red,
+                isEnabled: activeLibrary != nil && containerService.containers.count > 1,
+                iconOnly: true
+            ) {
+                DSHaptics.medium()
+                if let activeLibrary {
+                    handleDeleteLibrary(activeLibrary)
+                }
+            }
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 8)
