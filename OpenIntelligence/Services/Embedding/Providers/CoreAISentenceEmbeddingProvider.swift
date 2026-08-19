@@ -19,8 +19,8 @@ final class CoreAISentenceEmbeddingProvider: EmbeddingProvider {
     /// Core ML mean-pools over the attention mask in Swift; Core AI reads `last_hidden_state[:, 0, :]`,
     /// the CLS position. Same weights, different vectors — the difference measured at
     /// `vector r@1` 0.000 to 0.571. Change this string whenever that changes.
-    var poolingRecipe: String { "cls/l2" }
-    var modelRevision: String { "MiniLM-L6-v2/coreai-mlirb" }
+    var poolingRecipe: String { "mean-attention-masked/l2" }
+    var modelRevision: String { "MiniLM-L6-v2/coreai-mlirb-meanpool" }
 
     static let shared = CoreAISentenceEmbeddingProvider()
 
@@ -177,6 +177,10 @@ final class CoreAISentenceEmbeddingProvider: EmbeddingProvider {
             throw EmbeddingError.outputParsingFailed
         }
 
+        // Track how many tokens are real, before padding, so the graph can average over those
+        // and ignore the rest. See the attention mask below.
+        let realTokenCount = min(inputIds.count, maxSequenceLength)
+
         if inputIds.count > maxSequenceLength {
             inputIds = Array(inputIds.prefix(maxSequenceLength))
         } else if inputIds.count < maxSequenceLength {
@@ -187,7 +191,21 @@ final class CoreAISentenceEmbeddingProvider: EmbeddingProvider {
         // Zero-copy input tensor creation using the Swift array directly in unified memory
         let inputTensor = NDArray(scalars: inputIds.map { Int32($0) }, shape: [1, maxSequenceLength])
 
-        var outputs = try await encodeFunction.run(inputs: ["input_ids": inputTensor])
+        // The attention mask is required, not optional, since the mean-pooling re-export.
+        //
+        // The exported graph now averages token embeddings over real tokens rather than reading
+        // the CLS position, because `all-MiniLM-L6-v2` is trained for mean pooling. Every input is
+        // padded to `maxSequenceLength`, so without a mask that average is diluted by up to 511
+        // [PAD] vectors and short texts collapse toward each other. `CoreMLSentenceEmbeddingProvider`
+        // has always built this mask; this provider is now doing the same thing from the same
+        // weights, which is the point.
+        let maskValues = (0..<maxSequenceLength).map { Int32($0 < realTokenCount ? 1 : 0) }
+        let maskTensor = NDArray(scalars: maskValues, shape: [1, maxSequenceLength])
+
+        var outputs = try await encodeFunction.run(inputs: [
+            "input_ids": inputTensor,
+            "attention_mask": maskTensor,
+        ])
         
         let tensorValue = outputs.remove("embeddings") ?? 
                           outputs.remove("output_0") ?? 

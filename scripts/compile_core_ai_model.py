@@ -37,23 +37,43 @@ def main():
             super().__init__()
             self.backbone = AutoModel.from_pretrained("sentence-transformers/all-MiniLM-L6-v2")
             
-        def forward(self, input_ids):
-            # input_ids shape: [1, 512]
-            outputs = self.backbone(input_ids=input_ids)
-            # Extract CLS token embedding at sequence index 0 (shape: [1, 384])
-            embeddings = outputs.last_hidden_state[:, 0, :]
-            return {"embeddings": embeddings}
+        def forward(self, input_ids, attention_mask):
+            # Mean pooling over real tokens, which is what this model was trained with.
+            #
+            # This used to return `last_hidden_state[:, 0, :]` — the CLS token. Neither pooling is
+            # "correct" in general; what matters is which one the model was trained with, because
+            # training is what teaches a position to carry meaning.
+            # `sentence-transformers/all-MiniLM-L6-v2` is trained with mean pooling. Its model card
+            # says so and the app's own Settings copy says so. Reading CLS was using a position the
+            # model was never trained to make meaningful as the entire representation of a chunk.
+            #
+            # The vectors it produced were not garbage — 384-dimensional, normalised and stable, so
+            # every integrity check passed — they simply encoded far less than they should. It
+            # looked like a weak embedder. Measured over 21 paired QASPER cases, correcting this
+            # moved `vector r@1` from 0.000 to 0.571, 12 cases better and 0 worse, exact two-sided
+            # sign test p = 0.0005.
+            #
+            # The mask is load-bearing, not decoration. The provider pads every input to 512, so
+            # without it the average is diluted by up to 384 [PAD] vectors and short inputs converge
+            # toward each other.
+            outputs = self.backbone(input_ids=input_ids, attention_mask=attention_mask)
+            hidden = outputs.last_hidden_state                    # [1, 512, 384]
+            mask = attention_mask.unsqueeze(-1).to(hidden.dtype)  # [1, 512, 1]
+            summed = (hidden * mask).sum(dim=1)                   # [1, 384]
+            counts = mask.sum(dim=1).clamp(min=1e-9)              # never divide by zero
+            return {"embeddings": summed / counts}
 
     model = MiniLMEmbeddingWrapper()
     model.eval()
 
     # Define input shapes for export (batch size 1, sequence length 512)
-    example_input = torch.ones((1, 512), dtype=torch.int32)
+    example_ids = torch.ones((1, 512), dtype=torch.int32)
+    example_mask = torch.ones((1, 512), dtype=torch.int32)
 
     print("Exporting PyTorch model to Core AI intermediate representation...")
     try:
         # Capture the model graph using PyTorch export API
-        exported_program = torch.export.export(model, (example_input,))
+        exported_program = torch.export.export(model, (example_ids, example_mask))
         
         # Run decompositions to lower complex PyTorch operations into primitives
         print("Running decompositions...")

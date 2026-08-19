@@ -1,6 +1,11 @@
 # Re-exporting the Core AI embedding model with mean pooling
 
-**Status: not done. This is the largest known open defect in retrieval quality.**
+**Status: DONE 2026-08-18, code-verified, not yet benchmarked.** The export, the Swift mask and the
+model artifact all landed. What remains is verification steps 2-4 below, which need a device or a
+benchmark run — see "What is still unverified" at the end.
+
+The rest of this document is kept as written, because the reasoning is why the fix looks the way it
+does and a future reader deserves the argument rather than the conclusion.
 
 Written to be executable by someone with no memory of the session that found it.
 
@@ -150,7 +155,16 @@ benchmark is measuring: doing so once cost a 25 minute misdiagnosis.
 ## After it works
 
 **Every existing library must be re-embedded**, because stored vectors were produced by CLS pooling
-and new ones will not be comparable. Nothing in the app detects this: `KnowledgeContainer` persists
+and new ones will not be comparable.
+
+**Superseded 2026-08-18: the app now detects this.** `EmbeddingFingerprint` (commit `3b48c88`) hashes
+the tokenizer bytes, the pooling recipe and the model revision, and `CoreAISentenceEmbeddingProvider`
+now declares `mean-attention-masked/l2` and `MiniLM-L6-v2/coreai-mlirb-meanpool`, so the fingerprint
+moves and the mismatch fires. The response is deliberately a **flag, not a wipe**: old vectors are
+stale rather than incompatible, so the library keeps working and surfaces the rebuild banner instead
+of going offline. The paragraph below was written when none of that existed:
+
+> Nothing in the app detects this: `KnowledgeContainer` persists
 only `embeddingProviderId` and `embeddingDim`, and neither changes. See the Notion row *"Existing
 libraries keep truncated vectors because nothing detects the embedding change"*, which also lists the
 eight display sites that a provider-id bump would break.
@@ -166,3 +180,25 @@ misconfigured incumbent would make the candidate look better than it is and woul
 confound this arc spent a day removing.
 
 `[evidence_level: measured, confidence: high_for_mechanism, confirm_final_numbers_in_LEDGER]`
+
+---
+
+## What is still unverified (added 2026-08-18)
+
+Verification step 1 passed and is conclusive: `strings` on the new `main.mlirb` lists `input_ids`,
+`attention_mask` and `embeddings`, where the previous committed artifact listed only `input_ids` and
+`embeddings`. The graph takes the mask.
+
+Steps 2, 3 and 4 have **not** been done:
+
+- A short string and a long string embedding differently.
+- Cosine similarity against `CoreMLSentenceEmbeddingProvider` on identical text being very high.
+  This is the strongest available check, because both providers should now compute the same thing
+  from the same weights. If they disagree, the pooling still differs.
+- The 25-case benchmark, comparing `vector r@1` against `BenchmarkRuns/coreml-provider`. Correct
+  Core AI should **match** correct Core ML, not merely beat CLS.
+
+Until step 3 or 4 runs, the claim is "the graph accepts a mask and the app passes one", not "the
+vectors are right". Those are different claims and only the second one is the fix.
+
+`[evidence_level: code_verified+artifact_verified, confidence: exact_for_the_graph_shape, vectors_unverified]`
