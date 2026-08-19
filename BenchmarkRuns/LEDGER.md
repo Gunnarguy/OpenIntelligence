@@ -19,9 +19,18 @@ got that far. What it found is worth more.
 
 | run | commit | tests | verdict |
 | :-- | :-- | :-- | :-- |
+> **The `overnight-smoke`, `overnight-paired` and `timing-check` directories were deleted on
+> 2026-08-19 while tidying, before anyone had re-read them.** `BenchmarkRuns/*` is gitignored, so
+> they are not recoverable. The figures in the three rows below are therefore **unauditable**: the
+> conclusions survive, the raw `results.jsonl` behind them does not. Treat the smoke's 1/5 and its
+> three `gold_recall` zeros as reported-once and unverified, especially given this same run was
+> misread twice on the night. Do not delete a run directory until its row cites nothing that would
+> need re-checking.
+
 | `overnight-smoke` | `0eb5d96` | 6 cases, deep-think, pool 40, QASPER. First Deep Think benchmark ever attempted. | **1/5 correct, 1 timeout at 1800s, ~900s/case.** `gold_recall` **0.0 on 3 of 5** — retrieval never surfaced the expected document. Gate aborted the full run, correctly, but **reported 0/6 when the truth was 1/5**: it read `answer_accuracy`/`pass`/`status`, none of which exist. The schema is `score.correct` with `patterns_hit`/`patterns_total`. Right call, wrong arithmetic. |
 | `overnight-paired` | `0eb5d96` | 10 cases x {deep-think, standard}, pool 40. | **Killed at case 2.** Deep Think case 1 timed out at 1800s having taken 1242s in the smoke an hour earlier. Then **standard** timed out too, and standard does one generation, so this was not session-count variance. |
-| `timing-check` | working tree after the fix | 2 standard cases, pool 40, same manifest. | Confirms or refutes the fix below. |
+| `timing-check` | `025b912` | 2 standard cases, pool 40, after the comparison fix. | **925s/case, unchanged.** The fix moved nothing, which is what exposed the premise as wrong rather than the code. |
+| `paired-pool10` | `025b912` | 8 cases x {deep-think, standard}, **pool_limit 10**, matching `tokfix` and `coreml-provider` exactly. | First comparable Deep Think numbers. Case 1 at **256.9s** against 1242s for the same case at pool 40, confirming cost is linear in pool size. |
 
 ### What this arc settled
 

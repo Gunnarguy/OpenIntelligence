@@ -50,6 +50,10 @@ or documentation pass.
   their own machine, is the failure this rule exists to prevent — it happened on 2026-08-18 with the
   Xcode 27 Instruments templates, which took one `find` to enumerate.
 - Never run destructive git commands. Never `git add .`. Never delete docs.
+- **Never delete a benchmark run directory.** `BenchmarkRuns/*` is gitignored, so a deleted run is
+  gone permanently, and its `results.jsonl` is the only auditable evidence behind whatever
+  `LEDGER.md` claims about it. On 2026-08-19 three directories were deleted during tidying and took
+  with them the raw data behind a figure the ledger still cites. Tidy the ledger, never the runs.
 - Never claim a command passed unless you ran it and read the output.
 - Every architecture or documentation claim carries `[evidence_level: ..., confidence: ...]`.
 - Do not present a conceptual relationship as an exact code linkage.
