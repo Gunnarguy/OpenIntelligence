@@ -2,7 +2,8 @@
 
 Updated: 2026-08-19
 Branch/worktree: main, clean, fully pushed (`HEAD` == `origin/main`).
-Last verified commit: ef3fd25
+Last verified commit: ef3fd25 — the last change to code. `6cc5e55` and `cfab566` are docs-only, so
+a resume hook reporting HEAD ahead of this line is expected, not drift.
 
 ## Objective
 
@@ -76,7 +77,7 @@ Then read where deep-think's recall falls off against standard's. That is Blocke
 
 ## Status
 
-`ef3fd25`, clean, pushed. Nothing running. No background tasks or monitors left armed.
+`cfab566`, clean, pushed. Nothing running. No background tasks or monitors left armed.
 
 **Twenty-four commits over two days.** 1,483 insertions across 21 Swift files, plus a regenerated
 `main.mlirb`. Six fixes device-confirmed, two shipped and never once executed (Blocker 5).
