@@ -257,6 +257,63 @@ cases, and every terminal state including a crash or a stall. Silence means heal
 is deliberate: a filter matching only the happy path is silent through a crash, and silence then
 looks exactly like progress.
 
+### Tests on a physical device
+
+*Verified 2026-08-18.* Nothing in this project had ever run on real hardware before that date, and
+the reason was not effort:
+
+```
+Library not loaded: /Library/Frameworks/OpenIntelligenceEngine.framework/OpenIntelligenceEngine
+```
+
+`OpenIntelligenceEngine.framework` is built with an absolute macOS install name and is embedded
+nowhere. The app does not link it so the app runs fine; the test bundle links it and cannot load. In
+the simulator that path resolves, which is why 238 tests pass there and **zero** ran on device.
+
+```bash
+scripts/run_device_tests.sh
+```
+
+`ONLY=OpenIntelligenceTests/EmbeddingProviderAgreementTests scripts/run_device_tests.sh` for one
+suite. The script embeds the framework into `OpenIntelligenceTests.xctest/Frameworks`, where the
+bundle's rpath already points, rewrites both install names to `@rpath`, and re-signs. No project
+change, so it needs no hard-boundary approval. The real fix is `DYLIB_INSTALL_NAME_BASE` in
+`project.pbxproj` and is tracked in Notion.
+
+Three things that will waste time otherwise:
+
+- **USB only.** Wireless fails with `Failed to allocate RSD device` during `enablePersonalizedDDI`.
+  Confirm `Transport Type: wired` in `xcrun devicectl device info details --device <uuid>`.
+- **Two different identifiers for one phone.** `xcodebuild` takes the CoreDevice UUID
+  (`B1483F12-…`), `xctrace` takes the hardware UDID (`00008140-…`). The wrong one gives
+  "No devices found matching".
+- **Never re-sign the `.app` without `--entitlements`.** It strips `application-identifier` and
+  install fails with `_validateApplicationIdentifierForNewBundleSigningInfo` and the message
+  "Please try again later", which describes nothing. Capture them first with
+  `codesign -d --entitlements :- <app>`.
+
+### Profiling with Instruments, headlessly
+
+*Verified 2026-08-18.* `xctrace` drives every Instruments template from the command line, against
+the Mac build or a wired phone, with no GUI. Xcode 27 ships **Core AI**, **Core ML** and
+**Foundation Models** templates; `xcrun xctrace list templates` prints all 30.
+
+```bash
+xcrun xctrace record --template "Foundation Models" --output /private/tmp/x.trace \
+  --time-limit 8m --no-prompt --launch -- <binary> <args>
+
+xcrun xctrace export --input /private/tmp/x.trace \
+  --xpath '/trace-toc/run[@number="1"]/data/table[@schema="os-signpost"]' --output /private/tmp/x.xml
+```
+
+The XML interns repeated values: a `<row>` child carries either a literal with `id=` or a `ref=`
+pointing at an earlier `id`. Resolve the refs or every field reads empty. Useful schemas are
+`os-signpost` for framework intervals and `life-cycle-period` for launch phases.
+
+Measured this way on 2026-08-18: a Deep Think query is **90% generation** (48.7s of 54.2s across 8
+generations), and app launch to first frame on device is **0.69s**, of which 0.547s is initial frame
+rendering. The `Hang detected: 4.5s` lines in console captures are therefore **not** launch cost.
+
 ### Deep Think has never been benchmarked
 
 Every run in `BenchmarkRuns/` is `modes: ["standard"]`. There is no baseline and no timing

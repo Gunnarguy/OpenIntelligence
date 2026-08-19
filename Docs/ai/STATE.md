@@ -1,24 +1,24 @@
 # Current State
 
 Updated: 2026-08-18
-Branch/worktree: main (20 commits ahead of `origin/main`, nothing pushed)
-Last verified commit: 9ebe759
+Branch/worktree: main. `50e4f0e` and everything before it is pushed; later commits are local.
+Last verified commit: 50e4f0e (pushed); local HEAD ahead again
 
 ## Objective
 
 **Get v5.0 shippable.** Two things block it and neither is a code defect; see Blockers 1 and 2.
 Everything else on the board is optional for this release.
 
-The embedding arc that ran all week is **complete in code and unverified in behaviour**. The fix
-with the measured payoff — mean pooling, `vector r@1` 0.000 → 0.571, p = 0.0005 — shipped today in
-`3ea5cd9`, after its two prerequisites.
+The embedding arc that ran all week is **complete and verified on hardware**. Mean pooling
+(`vector r@1` 0.000 → 0.571, p = 0.0005) shipped in `3ea5cd9` after its two prerequisites, and
+`EmbeddingProviderAgreementTests` passed on an iPhone 16 Pro Max. That Notion row is Completed.
 
 ## Status
 
-Twenty commits today, tree clean, **nothing pushed**. `origin/main` is still at `0990a69`.
+Twenty-plus commits today. `0990a69..50e4f0e` is pushed; the rest are local.
 
-Four device captures drove most of it. Two fixes are confirmed on hardware; the rest are
-suite-verified only, and this suite covers none of retrieval, routing, sync or the agentic path.
+Five device captures and, for the first time, **real device tests and Instruments traces**. Six
+fixes are now confirmed on hardware rather than argued from source.
 
 **Existing libraries will prompt for a rebuild on next launch.** That is the fingerprint detecting
 the re-export, working as designed, and the button works.
@@ -65,6 +65,7 @@ Code-verified, not device-verified:
 | `OpenIntelligenceTests/Services/Embedding/EmbeddingProviderAgreementTests.swift` | The check that closes the re-export. Device-only; skips in CI by design. |
 | `Docs/Engineering/V50_PERF_AUDIT.md`, `V50_FLOW_AUDIT.md`, `V50_STAGE1_DIAGNOSIS.md` | Three read-only audits, adversarially verified, refutations recorded. |
 | `scripts/run_deepthink_pilot.sh` | Executed: 31s/case, 3/3 pass. Fixtures too small to exercise the session cap. |
+| `scripts/run_device_tests.sh` | Runs the suite on a wired iPhone. Works around blocker 3. Read its header before touching signing. |
 | `OpenIntelligence/Services/Embedding/EmbeddingFingerprint.swift` | New. What is hashed, and what is deliberately not. |
 
 ## Verification
@@ -81,7 +82,13 @@ Run today, output read:
   committed artifact had only the first and third.
 - `python3 scripts/secret_scan.py` → clean. `scripts/check_icloud_conflicts.sh` → clean.
 
-**Not run:** any 25-case benchmark, any device test of today's code, `build_simulator_smoke.sh`.
+- **On device**, iPhone 16 Pro Max, wired: `EmbeddingProviderAgreementTests` → 2 passed. First
+  device test run in this project's history; see blocker 3 for why.
+- App Launch Instruments trace on device → first frame **0.69s**.
+- Foundation Models Instruments trace on the Mac build → generation is **90%** of a Deep Think
+  query (48.7s of 54.2s across 8 generations).
+
+**Not run:** the 25-case benchmark, `build_simulator_smoke.sh`.
 
 ## Blockers / Unknowns
 
@@ -89,19 +96,39 @@ Run today, output read:
    [Notion](https://app.notion.com/3bf49a74d54f818cb1bde1b11a0a7557)
 2. **PCC entitlement unproven through Archive and TestFlight.** It is advertised, so it has to work
    through the signing path. [Notion](https://app.notion.com/39e49a74d54f81388056f384c4663876)
-3. **The re-exported vectors are unverified.** Graph shape is proven; the numbers are not. Closes
-   with `EmbeddingProviderAgreementTests` on device, or a benchmark where Core AI `vector r@1`
-   **matches** `BenchmarkRuns/coreml-provider` rather than merely beating CLS.
-4. **The session cap is unmeasured.** Pilot fixtures retrieve 3-5 chunks, making 1-2 windows; the
-   bug needed 6+. Measuring it needs `--pool-limit 40`, roughly two hours, paired at `e16a2d3` and
-   `e16a2d3~1` and compared with `compare_benchmark_runs.py`.
+3. **The engine framework has a macOS install name, so no test can run on device unaided.**
+   `otool -D` gives `/Library/Frameworks/OpenIntelligenceEngine.framework/...`, and the framework is
+   embedded nowhere. The app does not link it so the app is fine; the test bundle does. In the
+   simulator that path resolves, which is why 238 tests pass there and **zero had ever run on
+   hardware**. `scripts/run_device_tests.sh` works around it with `install_name_tool`; the real fix
+   is `DYLIB_INSTALL_NAME_BASE` in `project.pbxproj`, a hard-boundary file.
+   [Notion](https://app.notion.com/3c149a74d54f81959f96cef9d1e28dfc)
+4. **The session cap is confirmed on device and unmeasured for quality.** Device capture shows
+   `Corpus exhausted after 5 distinct window(s)`, five sessions, **279.1s → 80.3s** on the same query
+   and library, with a *longer* answer (512 words against 450). What is still unmeasured is whether
+   answer quality moved, which needs the 40-document paired run at `e16a2d3` and `e16a2d3~1`
+   compared with `compare_benchmark_runs.py`.
 5. **The truncation fix has never executed.** Three device runs all took the reasoning-chain branch
    because retrieval was excellent. `executeDirectSynthesis` is reached only at moderate or low
    confidence, so exercising it needs a query the library covers *poorly*.
 6. **Retrieval is ~21% reproducible.** Caps confidence in any single benchmark run, and is why
    paired comparison plus the sign test is the only trustworthy readout.
-7. **Launch is slower than at the start of the day**: 2.94s → 3.75s → 4.31s → 4.06s across captures.
-   `5e81abd` should improve it and has not been measured.
+7. **The `Hang detected: N s` lines are not launch cost. Corrected 2026-08-18.**
+   Measured with the App Launch Instruments template on the device: **first frame at 0.69s**, of
+   which 0.547s is Initial Frame Rendering and everything before it totals 0.145s. The 2.94-4.50s
+   hangs in console captures happen *after* the app is interactive, so anyone chasing them should
+   look at post-launch work, not startup. `5e81abd` is confirmed working by a different signal:
+   `Loaded EmbeddingModel` appears **zero times** in a session where nothing embedded.
+
+## Device-verified on 2026-08-18, after the tests could finally run there
+
+- **Mean-pooling re-export.** `EmbeddingProviderAgreementTests` green on an iPhone 16 Pro Max: Core
+  AI and Core ML agree at cosine > 0.99, and two unrelated short texts stay below 0.95 apart, which
+  is the attention mask specifically. Notion row **Completed**.
+- **Session cap.** 279.1s → 80.3s, five sessions, zero repeats, longer answer.
+- **Lazy model load.** `Loaded EmbeddingModel` absent from a session that never embedded.
+- **Sync short-circuit.** `already current; skipping rewrite` ×70, zero writes.
+- **Launch.** 0.69s to first frame, measured, not inferred.
 
 ## Exact Next Action
 

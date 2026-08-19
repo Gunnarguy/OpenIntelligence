@@ -9,6 +9,7 @@ Public release highlights for OpenIntelligence.
 Importing a document was quietly losing parts of it. This release finds the places that happened.
 
 ### Speed
+- **Deep Think answers roughly three times faster:** the same question went from four and a half minutes to eighty seconds, with a slightly longer answer. It was re-reading the same passages.
 - **The app starts faster:** a 43 MB model loaded on every launch before anything appeared, even if you never asked a question. It now loads when it is first needed.
 - **Deep Think stops when it runs out of new material:** on smaller libraries it repeated its first three reasoning passes word for word, about a third of the total time, learning nothing. It still reads everything it retrieved.
 - **Switching libraries during an import no longer splits the document from its index:** the file was filed in one library and the part that makes it searchable in another, so it appeared in the list and answered nothing.
