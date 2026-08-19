@@ -42,6 +42,13 @@ or documentation pass.
 
 ## Non-negotiables
 
+- **Never answer "I don't know" about something installed on this machine or published on the web.**
+  A knowledge cutoff is a reason to look, not a reason to shrug. Xcode, the SDKs, the simulators and
+  every framework are on disk: `find`, `strings`, `plutil` and `--help` answer questions about them
+  in seconds. For anything Apple ships or documents, check the local install first and
+  `developer.apple.com` second. Telling the user to go look themselves, when the artifact is on
+  their own machine, is the failure this rule exists to prevent — it happened on 2026-08-18 with the
+  Xcode 27 Instruments templates, which took one `find` to enumerate.
 - Never run destructive git commands. Never `git add .`. Never delete docs.
 - Never claim a command passed unless you ran it and read the output.
 - Every architecture or documentation claim carries `[evidence_level: ..., confidence: ...]`.
