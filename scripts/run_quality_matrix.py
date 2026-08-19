@@ -55,6 +55,7 @@ import random
 import re
 import shutil
 import statistics
+import signal
 import subprocess
 import sys
 import tempfile
@@ -503,6 +504,10 @@ def snapshot_real_library() -> None:
     metadata = library / "documents_metadata.json"
     _PRE_EXISTING_METADATA = metadata.read_text() if metadata.exists() else None
     print(f"Protecting {len(_PRE_EXISTING_DOCUMENTS)} pre-existing document(s) in the real library")
+    # A stale app from an earlier run holds the shared library and makes every case here time out.
+    stale = reap_orphan_apps()
+    if stale:
+        print(f"  warning: {stale} app process(es) were already running before this run started")
 
 
 def reset_shared_library() -> None:
@@ -688,7 +693,51 @@ def run_one(
             "stage_metrics": stage_metrics, **parsed,
         }
     except subprocess.TimeoutExpired:
-        return {"ok": False, "seconds": timeout, "error": f"timeout after {timeout}s"}
+        # Reap the app before returning, or every later case in the run is poisoned.
+        #
+        # `subprocess.run(timeout=)` kills the process it started and nothing else. On 2026-08-19 a
+        # paired run completed case 1 in both modes (257s, 197s) and then timed out at 1800s on
+        # every case from 2 onward, standard mode included, which had just answered case 1 in under
+        # 200 seconds. Two `OpenIntelligence` processes were still resident at 0% CPU four and a
+        # half hours later, holding the shared library; each subsequent case blocked on file
+        # coordination, waited out its full timeout, and left another corpse behind it.
+        #
+        # One scored pair survived out of eight. Worse than the lost run: **timing from any run
+        # containing a timeout is suspect**, because a case may be measuring how long it waited for
+        # a predecessor rather than how long its own work took.
+        reaped = reap_orphan_apps()
+        note = f"timeout after {timeout}s"
+        if reaped:
+            note += f"; reaped {reaped} orphaned app process(es)"
+        return {"ok": False, "seconds": timeout, "error": note}
+
+
+def reap_orphan_apps() -> int:
+    """Kill any surviving OpenIntelligence app process. Returns how many were killed.
+
+    Matches `Contents/MacOS/OpenIntelligence`, the app binary itself, and deliberately NOT the
+    build directory. A pattern like `oi-mac-40.*OpenIntelligence` also matches THIS script, whose
+    own command line contains `--app /private/tmp/oi-mac-40/.../OpenIntelligence`. That mistake
+    killed a run at case 11 of 16 on 2026-08-19.
+    """
+    try:
+        found = subprocess.run(
+            ["pgrep", "-f", "Contents/MacOS/OpenIntelligence"],
+            capture_output=True, text=True, timeout=10,
+        )
+    except Exception:
+        return 0
+    pids = [int(x) for x in found.stdout.split() if x.strip().isdigit() and int(x) != os.getpid()]
+    for pid in pids:
+        try:
+            os.kill(pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+        except Exception:
+            pass
+    if pids:
+        print(f"  reaped {len(pids)} orphaned app process(es): {pids}")
+    return len(pids)
 
 
 def summarize(rows: list[dict], mode: str) -> dict:
