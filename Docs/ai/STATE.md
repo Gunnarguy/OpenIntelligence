@@ -1,8 +1,8 @@
 # Current State
 
-Updated: 2026-08-18
-Branch/worktree: main. `50e4f0e` and everything before it is pushed; later commits are local.
-Last verified commit: 50e4f0e (pushed); local HEAD ahead again
+Updated: 2026-08-19
+Branch/worktree: main, clean, fully pushed.
+Last verified commit: 9aed4cf
 
 ## Objective
 
@@ -114,6 +114,11 @@ Run today, output read:
    confidence, so exercising it needs a query the library covers *poorly*.
 6. **Retrieval is ~21% reproducible.** Caps confidence in any single benchmark run, and is why
    paired comparison plus the sign test is the only trustworthy readout.
+8. **Timing from any benchmark run containing a timeout is suspect.** Until `9aed4cf`, a timed-out
+   case left the app resident holding the shared library, so later cases measured how long they
+   waited rather than what they cost. This includes the 925s/case figure that was briefly read as a
+   performance regression and withdrawn for an unrelated reason. Re-measure before trusting any
+   pre-`9aed4cf` timing. [Notion](https://app.notion.com/3c149a74d54f817bb929ec79362f3c0f)
 7. **The `Hang detected: N s` lines are not launch cost. Corrected 2026-08-18.**
    Measured with the App Launch Instruments template on the device: **first frame at 0.69s**, of
    which 0.547s is Initial Frame Rendering and everything before it totals 0.145s. The 2.94-4.50s
@@ -133,23 +138,48 @@ Run today, output read:
 
 ## Exact Next Action
 
-**Install the current tree on device and launch it.** One session answers three open questions and
-needs no benchmark:
-
-1. Does the rebuild banner appear for existing libraries? That is the fingerprint firing after the
-   re-export — expected and correct, not a fault.
-2. Does the launch hang drop below 4.06s, and is `Loaded EmbeddingModel.mlmodelc` absent until
-   something first embeds? That closes blocker 7.
-3. Then run the device-only embedding test, which closes blocker 3:
+**Re-run the paired benchmark. The harness defect that ruined the last attempt is fixed in `9aed4cf`
+and has never been exercised.**
 
 ```bash
-xcodebuild test -scheme OpenIntelligence \
-  -destination 'platform=iOS,id=<device-udid>' \
-  -only-testing:OpenIntelligenceTests/EmbeddingProviderAgreementTests
+python3 scripts/run_quality_matrix.py \
+  --app /private/tmp/oi-mac-40/Build/Products/Debug/OpenIntelligence.app \
+  --manifest Benchmarks/ResearchFixtures/qasper_external_v1/manifest.json \
+  --pcc deny --pool-limit 10 --reset-shared-library --timeout 1800 \
+  --sampling topk --seed 42 --temperature 0.7 \
+  --modes deep-think,standard --limit 8 --output-dir BenchmarkRuns/paired-retry
 ```
 
-`xcrun devicectl list devices` gives the UDID. A wireless attempt on 2026-08-18 failed with
-`Failed to allocate RSD device` during `enablePersonalizedDDI`; use a USB cable and unlock the phone
-first.
+Rebuild the macOS app first if the tree moved. `pool_limit 10` is not optional: it is what `tokfix`
+and `coreml-provider` used, and the standard-mode baselines of 9/25 and 13/25 are only comparable at
+that value.
 
-After that, the 40-document paired benchmark is the overnight job for blocker 4.
+**Success looks like the run completing.** If a case times out, the log should now say
+`reaped N orphaned app process(es)` and the *next* case should still finish in ~250s. If later cases
+still time out after a reap, the leak was not the cause and the ledger entry needs correcting.
+
+Deep Think has no quality baseline at all. That is what this produces.
+
+## Ready to close, needs only a decision
+
+Two rows are confirmed on device and still sit `In Progress`:
+
+- [Self-heal](https://app.notion.com/3c049a74d54f81fd9255edc739959d36) — banner fired on a genuinely
+  empty vector store, manual rebuild succeeded, 196 chunks in 6.8s. The blocked-rebuild path was
+  never exercised, so closing it is a judgement call about whether the visible symptom is enough.
+- [Embedding fingerprint](https://app.notion.com/3bf49a74d54f812597ffd48a165a139f) — fired after the
+  re-export exactly as designed, and the rebuild worked.
+
+## Cheap and unblocked, if the benchmark is running
+
+Three rows need no measurement and no device:
+
+- [iWork import](https://app.notion.com/3b749a74d54f81569b7eda2df6a887bc) — support is zero, not
+  limited. Internal docs are already correct; only outward claims and one error string are wrong.
+  Run `oi-claim-audit` first. Note the route violation recorded on the row.
+- [Eight agentic tools](https://app.notion.com/3b449a74d54f818486feee1dada5554b) — it is six, not
+  eight, and the omissions are deliberate and documented. The real defect is `disableTools`, and the
+  highest-value line in that row is a warning before `FoundationModelToolRegistry.swift:422`.
+- [FTS5 bm25](https://app.notion.com/3b149a74d54f81248feaf48022482a63) — the weighting half was
+  already done on 2026-08-06. Only trigram remains, it needs the `SQLiteFullTextService.swift`
+  schema named in an approval, and it is unmeasurable at 21% reproducibility.
