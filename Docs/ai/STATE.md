@@ -273,7 +273,16 @@ Run and output read, this session:
 
 ## Roadmap
 
-v5.0: **31 Completed, 11 In Progress, 17 To Do**, verified against the database 2026-08-19.
+v5.0: **34 Completed, 8 In Progress, 17 To Do**, verified against the database 2026-08-19.
+
+Three rows closed that day, each against its own stated condition rather than a judgement call:
+[external fixtures](https://app.notion.com/3b349a74d54f81478901c122d923dd17) (the pack was built and
+`paired-retry` ran against it), [retrieval benchmark
+harness](https://app.notion.com/3b149a74d54f813eacd9c035051f553d) (per-stage metrics measured, and
+external ground truth delivered by the row above), and [the harness timeout
+row](https://app.notion.com/3c149a74d54f817bb929ec79362f3c0f) (a timeout run completed cleanly, and
+the pre-run guard was observed reaping and warning about a stale process). That last row's original
+diagnosis is refuted and was left standing in the body rather than deleted.
 
 **Neither of the two "device-confirmed" rows is closeable, and an earlier version of this line said
 they were.** Read the rows, not this summary; both state their own closing conditions and both fail
