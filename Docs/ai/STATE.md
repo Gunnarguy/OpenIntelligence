@@ -227,29 +227,41 @@ Run and output read, this session:
 
 ## Blockers / Unknowns
 
-1. **Blockers 1 and 2 are one question, established 2026-08-19: has PCC ever shipped, and the
-   answer is no.** `.github/workflows/appstore.yml:17` pins Xcode **26.5**. PCC sits behind
-   `#if compiler(>=6.4)` in `FoundationModelSessionFactory.swift`, and Xcode 27 measures as Swift
-   **6.4** locally, so 26.5 is below the gate and the branch compiles to
-   `throw LLMError.modelUnavailable`. Eleven sites across six files share that gate. PCC works on
-   the owner's device because he builds locally with Xcode 27; **no App Store build has ever
-   contained it.**
+1. **What decides whether PCC ships is the Xcode version Xcode Cloud uses, and that is not
+   readable from this repository.** Releases go through **Xcode Cloud** (`ci_scripts/ci_post_clone.sh`),
+   whose Xcode version is configured in App Store Connect, not in any tracked file. Only the owner
+   can read it.
 
-   The decision is binary. Move the pin to Xcode 27 if the App Store accepts iOS 27 SDK builds, and
-   both blockers close together. If it does not, PCC cannot ship in 5.0 at any price and the 5.0
-   scope changes. The pin is one line and is not a hard-boundary file; whether Apple accepts the
-   build is the external fact nobody here can settle.
+   **Do not cite `.github/workflows/appstore.yml:17` for this.** That workflow pins Xcode 26.5 but
+   has **never executed** — zero runs, checked with authenticated `gh` on 2026-08-19. An earlier
+   version of this line used it as evidence and was wrong. The repo's live GitHub workflow is `CI`,
+   which runs on push and is unrelated to releasing.
+
+   What *is* established: PCC sits behind `#if compiler(>=6.4)` in
+   `FoundationModelSessionFactory.swift`, shared by eleven sites across six files, and Xcode 27
+   measures as Swift **6.4**. An Xcode 27 archive contains PCC — **18 undefined symbol references to
+   `PrivateCloudComputeLanguageModel`** and `FoundationModels.framework` in the load commands. A
+   build from any older Xcode omits it and every PCC request reaches `throw LLMError.modelUnavailable`.
+
+   **The open question is one lookup:** which Xcode does the Xcode Cloud workflow use? On 27, PCC
+   ships and this closes. On anything older, PCC is absent from shipped builds and the 5.0 scope
+   decision is real.
    [Xcode pin](https://app.notion.com/3bf49a74d54f818cb1bde1b11a0a7557) ·
    [PCC](https://app.notion.com/39e49a74d54f81388056f384c4663876)
 
-2. **Two PCC things previously believed to be blockers are not, and should not be re-investigated.**
-   The App ID capability *is* enabled — owner-confirmed in the portal on 2026-08-19, corroborated by
-   the development profile of 2026-07-15 carrying `com.apple.developer.private-cloud-compute`. The
-   distribution profile is stale (2026-05-15, entitlement absent) but that is **not** load-bearing:
-   `EngineSDKCompatibility.swift:214` deliberately fails *open* for the PCC key when a distribution
-   build has no embedded profile, so the runtime check would not have blocked it either. The
-   entitlements file has always declared the key. Toggling automatic signing regenerates only
-   development profiles, and a distribution profile is reissued only by an actual Archive.
+2. **The signing question is answered: the entitlement survives App Store distribution signing.**
+   Settled 2026-08-19 by archiving locally with Xcode 27 and exporting `method: app-store-connect`.
+   The resulting `.ipa` is signed `Apple Distribution: Gunnar Hostetler (Z3E334EXZD)` and carries
+   `get-task-allow=false`, `beta-reports-active=true`, and
+   **`com.apple.developer.private-cloud-compute=true`**. Nothing was uploaded. Re-running it is
+   `xcodebuild archive` then `-exportArchive` with `-allowProvisioningUpdates`; the flag matters,
+   because the cached distribution profile predates the capability.
+
+   Cleared along the way, so none of it is re-investigated: the App ID capability is enabled
+   (owner-confirmed in the portal); the stale 2026-05-15 distribution profile was never load-bearing,
+   because `EngineSDKCompatibility.swift:214` fails *open* for the PCC key when a distribution build
+   has no embedded profile; the entitlements file has always declared the key; and toggling automatic
+   signing regenerates development profiles only.
 
    User-facing copy is **not** wrong and needs no claim audit: `README.md:28` already scopes PCC to
    "On iOS and macOS 27+". The gap is that a shipped build cannot honour that even on iOS 27, which
