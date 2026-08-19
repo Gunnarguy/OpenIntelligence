@@ -1,145 +1,33 @@
 # Current State
 
 Updated: 2026-08-19
-Branch/worktree: main, clean, fully pushed.
-Last verified commit: 9aed4cf
+Branch/worktree: main, clean, fully pushed (`HEAD` == `origin/main`).
+Last verified commit: ef3fd25
 
 ## Objective
 
-**Get v5.0 shippable.** Two things block it and neither is a code defect; see Blockers 1 and 2.
-Everything else on the board is optional for this release.
+**Get v5.0 shippable.** Two things block it, neither is a code defect, and neither is mine to fix
+from here — see Blockers 1 and 2. Everything else on the board is optional for this release.
 
-The embedding arc that ran all week is **complete and verified on hardware**. Mean pooling
-(`vector r@1` 0.000 → 0.571, p = 0.0005) shipped in `3ea5cd9` after its two prerequisites, and
-`EmbeddingProviderAgreementTests` passed on an iPhone 16 Pro Max. That Notion row is Completed.
-
-## Status
-
-Twenty-plus commits today. `0990a69..50e4f0e` is pushed; the rest are local.
-
-Five device captures and, for the first time, **real device tests and Instruments traces**. Six
-fixes are now confirmed on hardware rather than argued from source.
-
-**Existing libraries will prompt for a rebuild on next launch.** That is the fingerprint detecting
-the re-export, working as designed, and the button works.
-
-## Completed today
-
-Confirmed on device:
-
-- **Sync loop.** 48 vector-store rewrites per boot → 0, in two separate captures. ~200 MB of
-  pointless writes and iCloud uploads per launch, gone. (`72b5c8b`, instrumented in `a840786`)
-- **Self-heal.** A library with no vectors now detects it, shows a banner, and rebuilds
-  successfully. Previously silent; deleting the library was the only escape. (`116978a`)
-
-Code-verified, not device-verified:
-
-- **Vectors written to the wrong library** (`0350083`). `addDocument` captured its container once
-  but resolved the vector store live, so switching libraries during a long import split the
-  document from its index. This is the root cause beneath the self-heal symptom.
-- **Embedding fingerprint** (`3b48c88`) and **mean-pooling re-export** (`3ea5cd9`). The ordering was
-  mandatory: without the fingerprint the re-export corrupts every existing library undetectably.
-- **Reasoning chain re-read windows 1-3 as sessions 6-8** (`e16a2d3`). ~105s of 279s, byte-identical.
-- **Launch: the 43 MiB model loads on first use** (`5e81abd`), not in `ContentView.init`.
-- **SourceOnly prompt budget** (`68713fd`); six UI and flow fixes (`70a15a0`, `c9be781`, `dc097cc`,
-  `b87123d`, `078292d`).
-- **Release scope frozen** (`9caf575`): new findings default to `Future Backlog` unless they lose
-  data, break an advertised capability, or block shipping.
-
-## Active Constraints
-
-- **Build from a copy outside iCloud.** `rsync -a --exclude 'BenchmarkRuns/' --exclude
-  '.simulator-smoke.nosync/' --exclude 'Benchmarks/run/' ./ /private/tmp/oi-src/`, then build there
-  with `-derivedDataPath /private/tmp/oi-dd`. In place it hangs in NSFileCoordinator.
-- **Never build, test or run anything while a benchmark measures.** Cost 20 minutes twice.
-- **Core AI does not work in the simulator.** It resolves no model resource and sets
-  `isModelLoadingFailed` before attempting a load, so anything touching Core AI is device-only.
-- Hard-boundary file edited today under explicit approval: `WorkspaceSyncService.swift`.
-- Commit to `main`; do not branch. Do not push unless asked.
-
-## Working Set
-
-| File | Why |
-|---|---|
-| `Docs/Engineering/EMBEDDING_MEAN_POOLING_REEXPORT.md` | The re-export, its four verification steps, and which remain outstanding. Read before touching embeddings. |
-| `OpenIntelligenceTests/Services/Embedding/EmbeddingProviderAgreementTests.swift` | The check that closes the re-export. Device-only; skips in CI by design. |
-| `Docs/Engineering/V50_PERF_AUDIT.md`, `V50_FLOW_AUDIT.md`, `V50_STAGE1_DIAGNOSIS.md` | Three read-only audits, adversarially verified, refutations recorded. |
-| `scripts/run_deepthink_pilot.sh` | Executed: 31s/case, 3/3 pass. Fixtures too small to exercise the session cap. |
-| `scripts/run_device_tests.sh` | Runs the suite on a wired iPhone. Works around blocker 3. Read its header before touching signing. |
-| `OpenIntelligence/Services/Embedding/EmbeddingFingerprint.swift` | New. What is hashed, and what is deliberately not. |
-
-## Verification
-
-Run today, output read:
-
-- `xcodebuild test`, iOS 27.0 iPhone 17 Pro simulator → **238 tests, 2 skipped, 0 failures**. The two
-  skips are `EmbeddingProviderAgreementTests`, which cannot run in the simulator. They **passed on
-  device** — see below.
-- Deep Think pilot, 3 cases → **93s, 31s/case, 3/3 PASS**, real retrieval (3-5 chunks, conf 0.85-0.95).
-- Device capture: sync writes 48 → 0, with `already current; skipping rewrite` ×143.
-- Device capture: rebuild banner fired on a genuinely empty vector store; manual rebuild succeeded,
-  196 chunks in 6.8s.
-- `strings` on the new `main.mlirb` → `input_ids`, `attention_mask`, `embeddings`. The previous
-  committed artifact had only the first and third.
-- `python3 scripts/secret_scan.py` → clean. `scripts/check_icloud_conflicts.sh` → clean.
-
-- **On device**, iPhone 16 Pro Max, wired: `EmbeddingProviderAgreementTests` → 2 passed. First
-  device test run in this project's history; see blocker 3 for why.
-- App Launch Instruments trace on device → first frame **0.69s**.
-- Foundation Models Instruments trace on the Mac build → generation is **90%** of a Deep Think
-  query (48.7s of 54.2s across 8 generations).
-
-**Not run:** the 25-case benchmark, `build_simulator_smoke.sh`.
-
-## Blockers / Unknowns
-
-1. **The App Store build pins Xcode 26.5**, so no iOS 27 API can ship. Decides what 5.0 can contain.
-   [Notion](https://app.notion.com/3bf49a74d54f818cb1bde1b11a0a7557)
-2. **PCC entitlement unproven through Archive and TestFlight.** It is advertised, so it has to work
-   through the signing path. [Notion](https://app.notion.com/39e49a74d54f81388056f384c4663876)
-3. **The engine framework has a macOS install name, so no test can run on device unaided.**
-   `otool -D` gives `/Library/Frameworks/OpenIntelligenceEngine.framework/...`, and the framework is
-   embedded nowhere. The app does not link it so the app is fine; the test bundle does. In the
-   simulator that path resolves, which is why 238 tests pass there and **zero had ever run on
-   hardware**. `scripts/run_device_tests.sh` works around it with `install_name_tool`; the real fix
-   is `DYLIB_INSTALL_NAME_BASE` in `project.pbxproj`, a hard-boundary file.
-   [Notion](https://app.notion.com/3c149a74d54f81959f96cef9d1e28dfc)
-4. **The session cap is confirmed on device and unmeasured for quality.** Device capture shows
-   `Corpus exhausted after 5 distinct window(s)`, five sessions, **279.1s → 80.3s** on the same query
-   and library, with a *longer* answer (512 words against 450). What is still unmeasured is whether
-   answer quality moved, which needs the 40-document paired run at `e16a2d3` and `e16a2d3~1`
-   compared with `compare_benchmark_runs.py`.
-5. **The truncation fix has never executed.** Three device runs all took the reasoning-chain branch
-   because retrieval was excellent. `executeDirectSynthesis` is reached only at moderate or low
-   confidence, so exercising it needs a query the library covers *poorly*.
-6. **Retrieval is ~21% reproducible.** Caps confidence in any single benchmark run, and is why
-   paired comparison plus the sign test is the only trustworthy readout.
-8. **Timing from any benchmark run containing a timeout is suspect.** Until `9aed4cf`, a timed-out
-   case left the app resident holding the shared library, so later cases measured how long they
-   waited rather than what they cost. This includes the 925s/case figure that was briefly read as a
-   performance regression and withdrawn for an unrelated reason. Re-measure before trusting any
-   pre-`9aed4cf` timing. [Notion](https://app.notion.com/3c149a74d54f817bb929ec79362f3c0f)
-7. **The `Hang detected: N s` lines are not launch cost. Corrected 2026-08-18.**
-   Measured with the App Launch Instruments template on the device: **first frame at 0.69s**, of
-   which 0.547s is Initial Frame Rendering and everything before it totals 0.145s. The 2.94-4.50s
-   hangs in console captures happen *after* the app is interactive, so anyone chasing them should
-   look at post-launch work, not startup. `5e81abd` is confirmed working by a different signal:
-   `Loaded EmbeddingModel` appears **zero times** in a session where nothing embedded.
-
-## Device-verified on 2026-08-18, after the tests could finally run there
-
-- **Mean-pooling re-export.** `EmbeddingProviderAgreementTests` green on an iPhone 16 Pro Max: Core
-  AI and Core ML agree at cosine > 0.99, and two unrelated short texts stay below 0.95 apart, which
-  is the attention mask specifically. Notion row **Completed**.
-- **Session cap.** 279.1s → 80.3s, five sessions, zero repeats, longer answer.
-- **Lazy model load.** `Loaded EmbeddingModel` absent from a session that never embedded.
-- **Sync short-circuit.** `already current; skipping rewrite` ×70, zero writes.
-- **Launch.** 0.69s to first frame, measured, not inferred.
+The week's arc has moved. The embedding work is finished and hardware-verified. **The open question
+is now retrieval, not synthesis**, and the instrumentation that answers it is committed and has
+never been run.
 
 ## Exact Next Action
 
-**Re-run the paired benchmark. The harness defect that ruined the last attempt is fixed in `9aed4cf`
-and has never been exercised.**
+**Run the paired benchmark.** The trace wiring in `ef3fd25` has never executed. This is the whole
+reason the last session ended.
+
+```bash
+cd /private/tmp/oi-src && DEVELOPER_DIR=/Applications/Xcode-beta.app/Contents/Developer xcodebuild \
+  -scheme OpenIntelligence -destination "platform=macOS" -configuration Debug \
+  -derivedDataPath /private/tmp/oi-mac-40 -skipPackagePluginValidation \
+  CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO build
+```
+
+Rebuild first — `/private/tmp/oi-mac-40` predates `ef3fd25`, and without a rebuild the run produces
+the same unattributable result as last time. `rsync` to `/private/tmp/oi-src` first (see Active
+Constraints).
 
 ```bash
 python3 scripts/run_quality_matrix.py \
@@ -147,39 +35,166 @@ python3 scripts/run_quality_matrix.py \
   --manifest Benchmarks/ResearchFixtures/qasper_external_v1/manifest.json \
   --pcc deny --pool-limit 10 --reset-shared-library --timeout 1800 \
   --sampling topk --seed 42 --temperature 0.7 \
-  --modes deep-think,standard --limit 8 --output-dir BenchmarkRuns/paired-retry
+  --modes deep-think,standard --limit 8 --output-dir BenchmarkRuns/paired-traced
 ```
 
-Rebuild the macOS app first if the tree moved. `pool_limit 10` is not optional: it is what `tokfix`
-and `coreml-provider` used, and the standard-mode baselines of 9/25 and 13/25 are only comparable at
-that value.
+Roughly **95 minutes** (the same run took 5,659s wall). Wrap in `caffeinate -dimsu` and background
+it. **`pool_limit 10` is not optional** — `tokfix` and `coreml-provider` used 10, and standard's
+9/25 and 13/25 baselines are only comparable at that value.
 
-**Success looks like the run completing.** If a case times out, the log should now say
-`reaped N orphaned app process(es)` and the *next* case should still finish in ~250s. If later cases
-still time out after a reap, the leak was not the cause and the ledger entry needs correcting.
+**What success looks like:**
 
-Deep Think has no quality baseline at all. That is what this produces.
+```python
+python3 -c "
+import json;d=json.load(open('BenchmarkRuns/paired-traced/results.json'))
+for m,rows in d['stage_summaries'].items():
+    print(m, [r['stage'] for r in rows])"
+```
 
-## Ready to close, needs only a decision
+`deep-think` must list **seven** stages. Last run it listed exactly one, `final`. If it still lists
+one, `ef3fd25` did not take effect and the build is stale — check that first, before anything else.
 
-Two rows are confirmed on device and still sit `In Progress`:
+Then read where deep-think's recall falls off against standard's, which is in Blocker 4.
 
-- [Self-heal](https://app.notion.com/3c049a74d54f81fd9255edc739959d36) — banner fired on a genuinely
-  empty vector store, manual rebuild succeeded, 196 chunks in 6.8s. The blocked-rebuild path was
-  never exercised, so closing it is a judgement call about whether the visible symptom is enough.
-- [Embedding fingerprint](https://app.notion.com/3bf49a74d54f812597ffd48a165a139f) — fired after the
-  re-export exactly as designed, and the rebuild worked.
+## Status
 
-## Cheap and unblocked, if the benchmark is running
+`ef3fd25`, clean, pushed. Nothing running. No background tasks or monitors left armed.
 
-Three rows need no measurement and no device:
+**Twenty-four commits over two days.** 1,483 insertions across 21 Swift files, plus a regenerated
+`main.mlirb`. Six fixes device-confirmed, two shipped and never once executed (Blocker 5).
 
-- [iWork import](https://app.notion.com/3b749a74d54f81569b7eda2df6a887bc) — support is zero, not
-  limited. Internal docs are already correct; only outward claims and one error string are wrong.
-  Run `oi-claim-audit` first. Note the route violation recorded on the row.
-- [Eight agentic tools](https://app.notion.com/3b449a74d54f818486feee1dada5554b) — it is six, not
-  eight, and the omissions are deliberate and documented. The real defect is `disableTools`, and the
-  highest-value line in that row is a warning before `FoundationModelToolRegistry.swift:422`.
-- [FTS5 bm25](https://app.notion.com/3b149a74d54f81248feaf48022482a63) — the weighting half was
-  already done on 2026-08-06. Only trigram remains, it needs the `SQLiteFullTextService.swift`
-  schema named in an approval, and it is unmeasurable at 21% reproducibility.
+## The finding that redirects everything
+
+From `BenchmarkRuns/paired-retry`, 8 cases, both modes, `pool_limit 10`, QASPER:
+
+| mode | correct | gold_recall |
+| :-- | :-- | :-- |
+| deep-think | **2/8 (25%)** | 0.38 |
+| standard | **4/7 (57%)**, 1 timeout | 0.57 |
+
+Standard lands on its historical 36%/52% baseline, so the harness measures consistently. This is
+**Deep Think's first quality number in the project's history**.
+
+**`correct == (gold_recall == 1.0)` in 14 of 15 scored runs.** Answer accuracy is almost entirely
+determined by whether retrieval surfaced the gold document. Neither mode ever produced a right
+answer without the evidence, and only once produced a wrong answer with it.
+
+Three consequences:
+
+1. **Synthesis is not the bottleneck and has not been for some time.** The truncation fix, the
+   session cap and the SourceOnly budget are all real and none of them can move this number.
+2. **Deep Think's retrieval is worse than Standard's**, 0.38 against 0.57, and that gap *is* the
+   quality difference between the modes.
+3. **Fusion ranks below the lexical arm it fuses**, 0.714 against 0.857 at r@10. The keyword arm
+   alone would have retrieved more than the hybrid did. That is an open row, now with numbers.
+
+Do **not** restructure the three-mode design on this. n=8, one corpus, ~21% reproducibility.
+
+## Two hypotheses already refuted — do not re-investigate
+
+Both were formed from source and killed by reading further. Recorded so the next session does not
+spend the hour again:
+
+- **Query expansion degrades the lexical arm.** False. `searchWithFTS5` searches `originalQuery`
+  (`HybridSearchService.swift:941,947`) and uses expansions only as a fallback when the original
+  returns nothing (`:967`). `applyKeywordMatchBoost` also uses `originalQuery` (`:1102`).
+- **Expansion replaces the original query.** False, same evidence. The original is filtered out of
+  `expandedQueries` at `RAGService.swift:9325`, but that set only feeds the FTS5 *fallback* and the
+  supplementary vector searches, never the primary lexical arm.
+
+A third guess was deliberately not attempted. That is what `ef3fd25` is for.
+
+## Active Constraints
+
+- **Build from a copy outside iCloud.** `rsync -a --exclude 'BenchmarkRuns/' --exclude
+  '.simulator-smoke.nosync/' --exclude 'Benchmarks/run/' ./ /private/tmp/oi-src/`, then build there
+  with `-derivedDataPath` under `/private/tmp`. In place it hangs in NSFileCoordinator.
+- **Nothing else builds, tests or runs while a benchmark measures.** Cost 20 minutes twice.
+- **Never `pkill` on the app path.** `oi-mac-40.*OpenIntelligence` also matches the harness, whose
+  command line contains `--app /private/tmp/oi-mac-40/...`. That killed a run at case 11 of 16 and
+  orphaned the apps it had spawned, which poisoned the *next* run. Match
+  `Contents/MacOS/OpenIntelligence`.
+- **Core AI does not work in the simulator.** It resolves no model resource and sets
+  `isModelLoadingFailed` before attempting a load, so anything touching Core AI is device-only.
+- **The benchmark ingests into the real library** and protects pre-existing documents by snapshot.
+  It has destroyed documents before. Check `ImportedDocuments` if a count looks wrong; a low count
+  in `documents_metadata.json` mid-run is normal transient state.
+- Commit to `main`; do not branch. Do not push unless asked.
+- Hard-boundary files edited under explicit approval this week: `WorkspaceSyncService.swift`.
+
+## Working Set
+
+| File | Why |
+|---|---|
+| `scripts/run_quality_matrix.py` | The harness. `reap_orphan_apps` and the pre-run guard are new; read their comments before changing timeout handling. |
+| `BenchmarkRuns/LEDGER.md` | Every run, what it settled, and four places analysis was wrong. Read before trusting any figure quoted anywhere else. |
+| `Docs/RETRIEVAL_PIPELINE.md` items 12, 18, 19 | Per-stage metrics, the truncation defect, and why the agentic path was unmeasurable. |
+| `OpenIntelligence/Services/RAG/Orchestration/RAGService.swift:18093` | `executeFullRetrievalPipeline` and the trace it now accepts. |
+| `Docs/Engineering/V50_PERF_AUDIT.md`, `V50_FLOW_AUDIT.md`, `V50_STAGE1_DIAGNOSIS.md` | Three adversarially-verified audits with refutations recorded. |
+| `scripts/run_device_tests.sh` | Runs the suite on a wired iPhone. Read its header before touching signing. |
+
+## Verification
+
+Run and output read, this session:
+
+- `xcodebuild test`, iOS 27.0 iPhone 17 Pro simulator → **238 tests, 2 skipped, 0 failures**. The
+  skips are `EmbeddingProviderAgreementTests`, which cannot run in the simulator and **passed on
+  device**.
+- `BenchmarkRuns/paired-retry` → 16/16 attempted, 1 timeout, **no cascade**. 5,659s wall.
+- Device: `EmbeddingProviderAgreementTests` → 2 passed on iPhone 16 Pro Max, wired. First device
+  test run in the project's history.
+- Device, App Launch Instruments → first frame **0.69s**.
+- Mac, Foundation Models Instruments → generation is **90%** of a Deep Think query (48.7s of 54.2s).
+- `secret_scan.py` clean, `check_icloud_conflicts.sh` clean.
+
+**Not run:** the 25-case benchmark; `build_simulator_smoke.sh`; the traced run above.
+
+## Blockers / Unknowns
+
+1. **The App Store build pins Xcode 26.5**, so no iOS 27 API can ship. Decides what 5.0 can contain.
+   [Notion](https://app.notion.com/3bf49a74d54f818cb1bde1b11a0a7557)
+2. **PCC entitlement unproven through Archive and TestFlight.** It is advertised, so it has to work
+   through the signing path. [Notion](https://app.notion.com/39e49a74d54f81388056f384c4663876)
+3. **Deep Think's recall gap is measured but unattributed.** r@10 0.625 against standard's 1.000.
+   The instrumented run above is what attributes it.
+   [Notion](https://app.notion.com/3bf49a74d54f81d593ddfe700f277f1e)
+4. **The engine framework has a macOS install name**, so device tests need
+   `scripts/run_device_tests.sh` and its `install_name_tool` workaround. The real fix is
+   `DYLIB_INSTALL_NAME_BASE` in `project.pbxproj`, a hard-boundary file.
+   [Notion](https://app.notion.com/3c149a74d54f81959f96cef9d1e28dfc)
+5. **Two shipped engine changes have never executed anywhere.** The truncation fix
+   (`executeDirectSynthesis`, reached only at moderate/low retrieval confidence — three device runs
+   all took the reasoning-chain branch) and the SourceOnly prompt budget (`SourceOnly` appeared zero
+   times in two captures). Exercising the first needs a query the library covers *poorly*.
+6. **Retrieval is ~21% reproducible.** Paired comparison plus the sign test is the only trustworthy
+   readout. A single run cannot separate a change from noise.
+7. **A long answer outlives its ~30s background grant.** `BGContinuedProcessingTask` is registered
+   at `OpenIntelligenceApp.swift:154` with a handler ready and **is never submitted**.
+   [Notion](https://app.notion.com/p/3c149a74d54f8171adfcce5dcb345777)
+8. **The `Hang detected: N s` lines are not launch cost.** Instruments measured first frame at
+   0.69s. Those hangs happen *after* the app is interactive; look at post-launch work.
+
+## Retracted, so nobody acts on them
+
+- ~~A 4-7x performance regression on 2026-08-18.~~ The baselines used `pool_limit 10` and the
+  comparison run used 40. `meta.pool_documents` is the *available* pool; `run_config.json`
+  `pool_limit` is the per-case ingest. **Always compare `run_config.json`.**
+- ~~The sync short-circuit's comparison caused it.~~ Plausible, matched the timing, wrong. The fix
+  shipped anyway and is a genuine improvement.
+- ~~A benchmark timeout cascades and poisons later cases.~~ `paired-retry` case 14 timed out and
+  case 15 completed in 268.9s. The reaper never fired, because `subprocess.run` kills its own child
+  and that child *is* the app. The orphans came from a manual `pkill`.
+- ~~Timing from any run containing a timeout is suspect.~~ Follows from the above; withdrawn.
+- ~~Generation holds no background assertion.~~ It does — `ChatScreen.swift:116` arms
+  `RAGQueryHandoff`. The real gap is Blocker 7.
+- ~~No watchOS surface exists.~~ Live Activities mirror to Apple Watch automatically; the ingestion
+  activity already appears there.
+
+## Roadmap
+
+v5.0: **31 Completed, 10 In Progress, 17 To Do.** Two rows are device-confirmed and sit In Progress
+pending only a decision — [self-heal](https://app.notion.com/3c049a74d54f81fd9255edc739959d36) and
+[embedding fingerprint](https://app.notion.com/3bf49a74d54f812597ffd48a165a139f).
+
+Roughly fifteen of the open rows are features and tooling rather than defects. Use the
+`notion-roadmap` skill; never answer a roadmap question from memory or from `Docs/ROADMAP.md`.
