@@ -2,7 +2,7 @@
 
 Updated: 2026-08-19
 Branch/worktree: main, clean, fully pushed (`HEAD` == `origin/main`).
-Last verified commit: ef3fd25
+Last verified commit: 0c3401f
 
 ## Objective
 
@@ -94,7 +94,8 @@ Then read where deep-think's recall falls off against standard's. That is Blocke
 
 ## Status
 
-`cfab566`, clean, pushed. Nothing running. No background tasks or monitors left armed.
+`0c3401f`, clean, **not pushed** — `origin/main` is at `8791baa`. Nothing running. No background
+tasks or monitors left armed.
 
 **Twenty-four commits over two days.** 1,483 insertions across 21 Swift files, plus a regenerated
 `main.mlirb`. Six fixes device-confirmed, two shipped and never once executed (Blocker 5).
@@ -189,6 +190,8 @@ Run and output read, this session:
 - Device, App Launch Instruments → first frame **0.69s**.
 - Mac, Foundation Models Instruments → generation is **90%** of a Deep Think query (48.7s of 54.2s).
 - `secret_scan.py` clean, `check_icloud_conflicts.sh` clean.
+- `build_simulator_smoke.sh` → **BUILD SUCCEEDED**, iPhone 17 Pro simulator. Run because the
+  `repoos_workspace_automation` route requires it, not because a shell-script edit could affect it.
 - **The session-start hook parser, fixed and measured either side of the change.** Before: the
   parser returned ``ef3fd25—thelastchangetocode.`6cc5e55`and`cfab566`aredocs-only,so`` and the hook
   printed "names a commit not in this repository". After: `ef3fd25`, and drift counted over
@@ -197,7 +200,7 @@ Run and output read, this session:
   the working directory, so the `.`-relative form returns 4 rather than 0 when run from a
   subdirectory. `:(top)` is used instead. `test_repoos_router.py` → 24 tests, OK.
 
-**Not run:** the 25-case benchmark; `build_simulator_smoke.sh`; the traced run above.
+**Not run:** the 25-case benchmark; the traced run above; item 1's three device imports.
 
 ## Blockers / Unknowns
 
