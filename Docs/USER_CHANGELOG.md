@@ -8,7 +8,7 @@ This document provides a chronological history of user-facing changes, highlight
 ---
 
 ## v5.0 - August 10, 2026
-Importing a document was quietly losing parts of it. This release finds the places that happened.
+Documents were quietly losing parts of themselves, answers were built from a fraction of what was found, and the app was rewriting your library on every launch. This release is the search for all three.
 
 ### Speed
 - **Deep Think answers roughly three times faster.** The same question that took four and a half minutes now takes eighty seconds, and comes back slightly longer. It was re-reading the same passages three times over on smaller libraries; it now stops once it has covered the material.

@@ -101,42 +101,52 @@ final class WhatsNewStore: ObservableObject {
     static let releases: [String: WhatsNewRelease] = [
         "5.0": WhatsNewRelease(
             version: "5.0",
-            headline: "Importing a document was quietly losing parts of it. This release finds the places that happened.",
+            headline: "Documents were quietly losing parts of themselves, answers were built from a fraction of what was found, and the app was rewriting your library on every launch. This release is the search for all three.",
             items: [
                 .init(
+                    symbol: "brain",
+                    title: "The search index was reading the wrong part of the model",
+                    detail: "Every document you have ever added was indexed using one position of the AI model instead of averaging the whole passage. It was never broken enough to notice and it made search markedly worse. Your libraries will offer to rebuild once, and searching improves substantially afterwards."
+                ),
+                .init(
+                    symbol: "text.magnifyingglass",
+                    title: "Deep Think was answering from a fraction of what it found",
+                    detail: "It retrieved the right passages and then discarded most of them before writing, including the single best one. It now keeps the most relevant evidence and says in the logs what it left out."
+                ),
+                .init(
+                    symbol: "hare",
+                    title: "Deep Think is roughly three times faster",
+                    detail: "On a smaller library it kept re-reading passages it had already read, word for word, for about a third of its total time. It now stops once it has covered the material, and still reads everything it retrieved."
+                ),
+                .init(
+                    symbol: "wrench.and.screwdriver",
+                    title: "A library that cannot answer now says so, and can fix itself",
+                    detail: "If a library's search index goes missing, it now tells you and offers a rebuild that works. Before, it stayed silent and deleting the library was the only way out."
+                ),
+                .init(
+                    symbol: "icloud",
+                    title: "iCloud sync stopped re-uploading libraries that had not changed",
+                    detail: "Every sync rewrote each library's index whether or not anything differed, and each rewrite looked like a change and started another one. Hundreds of megabytes per launch, for nothing."
+                ),
+                .init(
+                    symbol: "bolt",
+                    title: "The app starts faster and reaches the first screen sooner",
+                    detail: "A 43 MB model loaded on every launch before anything appeared, even if you never asked a question. It now loads the first time it is actually needed."
+                ),
+                .init(
+                    symbol: "bubble.left.and.text.bubble.right",
+                    title: "Leaving the chat tab no longer kills the answer",
+                    detail: "Switching away mid-answer used to cancel it and throw away everything written so far, with nothing to explain why. The chat also keeps your scroll position instead of jumping to the newest message."
+                ),
+                .init(
+                    symbol: "hand.tap",
+                    title: "The document screen is one tap everywhere",
+                    detail: "Add, search, settings and both delete actions are five icons on a single row instead of two buttons and a hidden menu. Press-and-hold on a library behaves like the rest of iOS instead of fighting the scroll."
+                ),
+                .init(
                     symbol: "tablecells",
-                    title: "Tables in Word documents were being thrown away",
-                    detail: "Each one was read into rows and then dropped, so a document could import looking fine with all of its numbers missing."
-                ),
-                .init(
-                    symbol: "photo",
-                    title: "Images keep their layout",
-                    detail: "Every image became one unbroken line of text before anything downstream could read it."
-                ),
-                .init(
-                    symbol: "camera.viewfinder",
-                    title: "Photographing a page now matches importing it",
-                    detail: "Camera captures came out as flat text where the same page imported as table cells."
-                ),
-                .init(
-                    symbol: "doc.viewfinder",
-                    title: "Scanned pages report their scanning honestly",
-                    detail: "A fully scanned PDF used to tell you it had scanned zero pages."
-                ),
-                .init(
-                    symbol: "magnifyingglass",
-                    title: "Search ranks section headings again",
-                    detail: "A weighting mistake had dropped section paths out of ranking entirely."
-                ),
-                .init(
-                    symbol: "cpu",
-                    title: "Your device is identified correctly",
-                    detail: "iPhone 17 and M5 hardware reported itself as \"A12 or Older\" with limited performance."
-                ),
-                .init(
-                    symbol: "slider.horizontal.3",
-                    title: "The chat controls match, and the mode menu explains itself",
-                    detail: "It also shows which mode is active and how many Maximum runs you have left before you pick it."
+                    title: "Tables, images and scanned pages survive importing",
+                    detail: "Word tables were read into rows and then dropped. Images collapsed to one unbroken line. A fully scanned PDF reported scanning zero pages."
                 ),
                 .init(
                     symbol: "exclamationmark.triangle",

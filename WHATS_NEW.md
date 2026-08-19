@@ -6,7 +6,7 @@ Public release highlights for OpenIntelligence.
 
 ## 5.0
 
-Importing a document was quietly losing parts of it. This release finds the places that happened.
+Documents were quietly losing parts of themselves, answers were built from a fraction of what was found, and the app was rewriting your library on every launch. This release is the search for all three.
 
 ### Speed
 - **Deep Think answers roughly three times faster:** the same question went from four and a half minutes to eighty seconds, with a slightly longer answer. It was re-reading the same passages.

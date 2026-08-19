@@ -55,7 +55,30 @@ got that far. What it found is worth more.
   overnight one. Either run at `pool_limit: 10` to match the existing baselines, or budget two
   nights.
 
-### The harness leaks a hung app process per timeout, and that is what killed this run
+### CORRECTED 2026-08-19 10:30: a timeout does not cascade. I caused the cascade.
+
+The `paired-retry` run settles it. **Case 14 timed out at 1800s and case 15 completed normally in
+268.9s.** A timeout does not poison what follows.
+
+The reaper added in `9aed4cf` **never fired** — zero reap events across the whole run. That is
+correct behaviour, and it shows the original diagnosis was wrong: `subprocess.run(timeout=)` kills
+its direct child, and the direct child *is* the app binary, because the harness launches it
+directly. On a clean timeout the app dies on its own and there is nothing to reap.
+
+So where did the two 4.5-hour-old processes come from? **From me.** I ran `pkill -f run_quality_matrix`
+during the timing-check, which killed the harness and orphaned the apps it had spawned. Those
+orphans then held the shared library and every case in the next run blocked behind them.
+
+The fix that actually matters is therefore not the reaper but the **pre-run guard**, which asserts a
+clean slate and warns if it finds one. It catches contamination from any source, including a human
+killing a job. The reaper stays as a cheap safety net for the case where the app outlives its
+parent for some other reason.
+
+**Two mis-attributions on the same defect in one night.** First the sync comparison, then the
+timeout mechanism. Both were plausible, both matched the symptom, and both were wrong. The pattern
+is reasoning from mechanism and stopping before the measurement that would separate the candidates.
+
+### Superseded: the original diagnosis
 
 Case 1 completed in both modes. Everything from case 2 onward timed out, including standard mode,
 which had just answered case 1 in 197s. That is not variance, it is state.
@@ -75,6 +98,38 @@ sequence provokes it — worth finding before trusting any timing from this harn
 also matches the python harness, whose command line contains the app path. Killing the two hung
 processes killed the job at case 11/16. Use `pgrep -f 'Contents/MacOS/OpenIntelligence'` to target
 the app alone.
+
+### `paired-retry` — the run that worked, and what it found
+
+| run | commit | tests | verdict |
+| :-- | :-- | :-- | :-- |
+| `paired-retry` | `1b700ed` | 8 cases x {deep-think, standard}, pool_limit 10, QASPER, matching `tokfix` and `coreml-provider`. | **Complete. 16/16 attempted, one timeout, no cascade.** deep-think **2/8 (25%)**, standard **4/7 (57%)**, `gold_recall` 0.38 against 0.57. Standard lands on its historical baseline of 36% and 52%, so the harness is measuring consistently. **Deep Think's first quality number ever.** |
+
+**The finding: `correct == (gold_recall == 1.0)` in 14 of 15 scored runs.**
+
+Answer accuracy is almost entirely determined by whether retrieval surfaced the gold document.
+Neither mode produced a wrong answer from correct evidence except once, and neither produced a right
+answer without it, ever.
+
+The single exception is `qasper_1911.10742_397a1e85`, where Deep Think **had** the right document and
+still answered wrong. That is the only genuine synthesis failure in the set, and it is the same
+shape as the device-observed dopamine query.
+
+**What follows, and it redirects the whole quality arc:**
+
+- **Synthesis is not the bottleneck and has not been for some time.** Truncation, the session cap,
+  the SourceOnly budget — all real fixes, none of which can move this number, because synthesis is
+  already 14/15 correct given the evidence.
+- **Deep Think's retrieval is worse than Standard's**, 0.38 against 0.57. Deep Think's distinguishing
+  feature at the retrieval stage is multi-query expansion plus HyDE. On this corpus the expansion is
+  *losing* documents Standard finds.
+- **Do not restructure the mode design on this.** n=8, one corpus, ~21% reproducibility. The
+  actionable move is to find why expansion lowers recall; if that is fixable, Deep Think should
+  dominate Standard rather than trail it.
+
+Session-cap behaviour confirmed off-device for the first time: **11 generations** on a rich case,
+**6** on a sparse one, against 5 observed on the phone. It scales with distinct windows in both
+directions, which is what `e16a2d3` was for.
 
 ### Still open
 
