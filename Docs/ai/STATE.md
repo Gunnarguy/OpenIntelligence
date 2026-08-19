@@ -45,6 +45,17 @@ Vectors land in all three → the fix works, every broken library seen so far is
 [the row](https://app.notion.com/3c149a74d54f81239443c15fe6ae3782) closes. Empty in 2 or 3 tells you
 *which* of the two fixes is wrong.
 
+**How to capture it: ask a question after each import and share the trace from the response.** No
+Xcode, no cable. The exported trace now carries a `LIBRARY STATE` section with the document count,
+the ingested chunk count and the searchable one side by side, the rebuild flag, and the stored
+embedding fingerprint against the live one. Documents present with zero searchable chunks is the
+failure signature, and it is stated outright in the section. Before this, that line was logged under
+`.vectorDB`, which is excluded from `fileLogCategories`, so it reached an attached Xcode console and
+nothing else — which is why all three device rows stayed open.
+
+The same capture also answers the fingerprint row, since stored and live appear together, and shows
+whether a rebuild is flagged while the store is empty, which is the self-heal row.
+
 **Left behind by `0350083`:** `RAGService.swift:5695` is still `dbForActiveContainer()`. Read-only,
 gated on `autoAdaptDimension`, and it loads chunks from whatever library is on screen while
 combining them with documents filtered by the captured `activeContainerId` at `:5710` — so switching

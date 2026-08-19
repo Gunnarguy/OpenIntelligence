@@ -34,6 +34,8 @@ struct MessageBubbleV2: View {
     @State private var sharePayload: SharePayload? = nil
     @State private var showReasoningTrace = false
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    // Injected at ContentView. Used only to read the library's index state when a trace is shared.
+    @EnvironmentObject private var ragService: RAGService
 
     /// Responsive spacer: compact (iPhone) gets more content width, regular (iPad/Mac) keeps roomy margins
     private var bubbleSpacerMinLength: CGFloat {
@@ -336,21 +338,35 @@ struct MessageBubbleV2: View {
     }
 
     private func exportPipelineTrace() {
-        if let fileURL = PipelineTraceExporter.exportToFile(
-            message: message,
-            pipelineTrace: message.pipelineTrace ?? []
-        ) {
-            sharePayload = SharePayload(items: [fileURL])
-        } else {
-            // Fallback: copy trace text to clipboard
-            let traceText = PipelineTraceExporter.buildTrace(
+        // Read the library state at share time rather than capturing it with the message. The
+        // interesting state belongs to the vector store, not to the answer, and a store that was
+        // healthy when the question was asked and empty afterwards is exactly the case worth
+        // seeing. Async because the chunk count is a real read of the store.
+        Task { @MainActor in
+            let libraryState: String? = if let containerId = message.containerId {
+                await ragService.libraryStateTraceBlock(for: containerId)
+            } else {
+                nil
+            }
+
+            if let fileURL = PipelineTraceExporter.exportToFile(
                 message: message,
-                pipelineTrace: message.pipelineTrace ?? []
-            )
-            #if canImport(UIKit)
-                UIPasteboard.general.string = traceText
-            #endif
-            DSHaptics.success()
+                pipelineTrace: message.pipelineTrace ?? [],
+                libraryState: libraryState
+            ) {
+                sharePayload = SharePayload(items: [fileURL])
+            } else {
+                // Fallback: copy trace text to clipboard
+                let traceText = PipelineTraceExporter.buildTrace(
+                    message: message,
+                    pipelineTrace: message.pipelineTrace ?? [],
+                    libraryState: libraryState
+                )
+                #if canImport(UIKit)
+                    UIPasteboard.general.string = traceText
+                #endif
+                DSHaptics.success()
+            }
         }
     }
 

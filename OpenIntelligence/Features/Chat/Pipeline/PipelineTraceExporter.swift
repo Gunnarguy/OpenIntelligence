@@ -18,7 +18,8 @@ enum PipelineTraceExporter {
         message: ChatMessage,
         userQuery: String? = nil,
         thinkingEvents: [ThinkingEvent] = [],
-        pipelineTrace: [String] = []
+        pipelineTrace: [String] = [],
+        libraryState: String? = nil
     ) -> String {
         var lines: [String] = []
         let divider = String(repeating: "═", count: 72)
@@ -79,6 +80,19 @@ enum PipelineTraceExporter {
             if let embedding = meta.embeddingProvider {
                 lines.append("  Embedding:        \(embedding)")
             }
+        }
+
+        // Library state.
+        //
+        // Retrieval returning nothing and the library having no vectors at all produce the same
+        // answer on screen and read identically in every section above. The `.vectorDB` logs that
+        // separate them are excluded from the trace file and only reach an attached Xcode console,
+        // which made three device-only defects diagnosable exclusively over a cable.
+        if let libraryState, !libraryState.isEmpty {
+            lines.append("")
+            lines.append("▶ LIBRARY STATE")
+            lines.append(thinDivider)
+            lines.append(libraryState)
         }
 
         // Thinking Events (real-time pipeline steps)
@@ -175,13 +189,15 @@ enum PipelineTraceExporter {
         message: ChatMessage,
         userQuery: String? = nil,
         thinkingEvents: [ThinkingEvent] = [],
-        pipelineTrace: [String] = []
+        pipelineTrace: [String] = [],
+        libraryState: String? = nil
     ) -> URL? {
         let trace = buildTrace(
             message: message,
             userQuery: userQuery,
             thinkingEvents: thinkingEvents,
-            pipelineTrace: pipelineTrace
+            pipelineTrace: pipelineTrace,
+            libraryState: libraryState
         )
 
         let timestamp = DateFormatter.traceFileFormatter.string(from: message.timestamp)

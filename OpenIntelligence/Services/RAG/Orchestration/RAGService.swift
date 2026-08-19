@@ -6695,6 +6695,77 @@ class RAGService: ObservableObject {
         }
     }
 
+    /// A readable snapshot of a library's index state, for the trace a user shares from a response.
+    ///
+    /// Everything here is invisible in a shared capture today. `Log`'s `.vectorDB` category is not
+    /// in `fileLogCategories`, so the one line separating "retrieval found nothing relevant" from
+    /// "this library has no vectors at all" only ever reaches an attached Xcode console. Three open
+    /// defects are told apart by exactly that distinction, and all three are device-only.
+    ///
+    /// Reports the ingested and the searchable chunk counts side by side rather than choosing one.
+    /// `container.totalChunks` counts what ingestion believed it wrote; `count()` counts what
+    /// retrieval can actually reach. The divergence is the defect signature itself — a library once
+    /// reported 420 against a vector store holding none.
+    ///
+    /// Deliberately side-effect free. It does not route through `resolveEmbeddingContext`, which
+    /// flags and can wipe a store, and it does not mutate `librariesNeedingIndexRebuild`. Sharing a
+    /// trace has to observe the system without changing it, or the next capture describes the act
+    /// of capturing.
+    @MainActor
+    func libraryStateTraceBlock(for containerId: UUID) async -> String {
+        guard let container = containerService.containers.first(where: { $0.id == containerId }) else {
+            return "  Container \(containerId.uuidString) is not registered; it may have been deleted."
+        }
+
+        let documentCount = documentsForContainer(containerId).count
+        var lines: [String] = [
+            "  Library:             \(container.name)",
+            "  Container:           \(container.id.uuidString)",
+            "  Documents:           \(documentCount)",
+            "  Chunks (ingested):   \(container.totalChunks)",
+        ]
+
+        // A failed read is reported as unknown, never as zero. Treating a failed read as evidence
+        // of an empty store is a mistake this file has already made.
+        var searchableChunks: Int?
+        do {
+            let count = try await vectorRouter.db(for: container).count()
+            searchableChunks = count
+            lines.append("  Chunks (searchable): \(count)")
+        } catch {
+            lines.append("  Chunks (searchable): UNREADABLE - \(error.localizedDescription)")
+        }
+
+        if documentCount > 0, searchableChunks == 0 {
+            lines.append("  >> This library holds documents and zero searchable chunks.")
+            lines.append("     Semantic retrieval cannot work here, whatever the query was.")
+        }
+
+        lines.append("  Rebuild flagged:     \(librariesNeedingIndexRebuild.contains(containerId) ? "YES" : "no")")
+
+        let liveFingerprint = EmbeddingFingerprint.compute(
+            providerId: embeddingService.actualProviderId,
+            dimension: embeddingService.outputDimension,
+            maxSequenceLength: embeddingService.maxSafeTokens,
+            poolingRecipe: embeddingService.poolingRecipe,
+            modelRevision: embeddingService.modelRevision,
+            chunkerRecipe: container.chunkingDirective.map { "\($0.strategy)/\($0.targetWordWindow)" } ?? "default"
+        )
+        lines.append("  Fingerprint stored:  \(container.embeddingFingerprint ?? "none recorded")")
+        lines.append("  Fingerprint live:    \(liveFingerprint)")
+
+        if let stored = container.embeddingFingerprint, stored != liveFingerprint {
+            lines.append("  >> The embedding pipeline changed after these vectors were written.")
+            lines.append("     They are valid and searchable but stale.")
+        } else if container.embeddingFingerprint == nil {
+            lines.append("  >> No fingerprint recorded, so a pipeline change cannot be detected for")
+            lines.append("     this library. It adopts the current one silently on the next check,")
+            lines.append("     which is why an absent flag is not evidence that nothing changed.")
+        }
+
+        return lines.joined(separator: "\n")
+    }
+
     /// Rebuild a library's semantic index and re-arm automatic repair for it.
     ///
     /// Deliberately clears suppression first. A user asking for a rebuild is
