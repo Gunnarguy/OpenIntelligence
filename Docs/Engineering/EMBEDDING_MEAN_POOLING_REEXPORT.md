@@ -1,8 +1,14 @@
 # Re-exporting the Core AI embedding model with mean pooling
 
-**Status: DONE 2026-08-18, code-verified, not yet benchmarked.** The export, the Swift mask and the
-model artifact all landed. What remains is verification steps 2-4 below, which need a device or a
-benchmark run — see "What is still unverified" at the end.
+**Status: DONE and DEVICE-VERIFIED 2026-08-18.** The export, the Swift mask and the model artifact
+landed in `3ea5cd9`, and `EmbeddingProviderAgreementTests` passed on an iPhone 16 Pro Max: Core AI
+and Core ML agree at **cosine > 0.99** on identical text, and two unrelated short texts stay below
+0.95 apart, which is the attention mask specifically. Verification steps 1-3 below are satisfied.
+Step 4, the 25-case benchmark, is scheduled and measures retrieval quality end to end rather than
+export correctness. The Notion row is Completed.
+
+Everything below is kept as the record of what the defect was and how it was found. Read it in the
+past tense.
 
 The rest of this document is kept as written, because the reasoning is why the fix looks the way it
 does and a future reader deserves the argument rather than the conclusion.

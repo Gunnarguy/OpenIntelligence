@@ -73,7 +73,8 @@ Code-verified, not device-verified:
 Run today, output read:
 
 - `xcodebuild test`, iOS 27.0 iPhone 17 Pro simulator → **238 tests, 2 skipped, 0 failures**. The two
-  skips are `EmbeddingProviderAgreementTests`, which cannot run without hardware.
+  skips are `EmbeddingProviderAgreementTests`, which cannot run in the simulator. They **passed on
+  device** — see below.
 - Deep Think pilot, 3 cases → **93s, 31s/case, 3/3 PASS**, real retrieval (3-5 chunks, conf 0.85-0.95).
 - Device capture: sync writes 48 → 0, with `already current; skipping rewrite` ×143.
 - Device capture: rebuild banner fired on a genuinely empty vector store; manual rebuild succeeded,

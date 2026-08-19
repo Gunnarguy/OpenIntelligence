@@ -536,6 +536,15 @@ Measured on device 2026-08-14, Deep Think, eight sessions. Sessions 6, 7 and 8 r
 the session loop wrapped. Novelty on those three repeated sessions was reported as **90%, 79% and
 77%**.
 
+**The wrap was fixed on 2026-08-18 in `e16a2d3`; the novelty defect it exposed was not.** Window
+building now stops when the corpus is exhausted and the session loop runs
+`min(maxSessions, distinctWindows)`, so identical contexts are no longer generated — a device
+capture shows `Corpus exhausted after 5 distinct window(s)` and the same query dropping from 279.1s
+to 80.3s. That removes the *demonstration*, not the cause: novelty is still computed from facts
+extracted out of insight text rather than from the evidence shown, so a model restating the same
+passage in different words would still register as new information. Do not treat this section as
+closed because the repeated sessions are gone.
+
 Novelty is computed from facts extracted out of the session's insight text, not from the evidence it
 was shown, so a model restating the same passage in different words registers as new information.
 Saturation, which is measured on content similarity, tracked it correctly over the same run: 0%, 0%,
