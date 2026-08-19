@@ -64,6 +64,14 @@ final class CoreMLSentenceEmbeddingProvider: EmbeddingProvider {
     /// Native output dimension of the bundled MiniLM-L6-v2 model.
     /// This is FIXED - the model always outputs 384 dimensions regardless of configuration.
     let dimension: Int = 384
+
+    /// Pooling this provider actually performs. Part of `EmbeddingFingerprint`.
+    ///
+    /// Core ML mean-pools over the attention mask in Swift; Core AI reads `last_hidden_state[:, 0, :]`,
+    /// the CLS position. Same weights, different vectors — the difference measured at
+    /// `vector r@1` 0.000 to 0.571. Change this string whenever that changes.
+    var poolingRecipe: String { "mean-attention-masked/l2" }
+    var modelRevision: String { "MiniLM-L6-v2/coreml-mlpackage" }
     private let maxSequenceLength: Int
 
     #if canImport(CoreML)

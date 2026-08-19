@@ -14,6 +14,14 @@ import CoreAI
 
 @available(iOS 27.0, macOS 27.0, *)
 final class CoreAISentenceEmbeddingProvider: EmbeddingProvider {
+    /// Pooling this provider actually performs. Part of `EmbeddingFingerprint`.
+    ///
+    /// Core ML mean-pools over the attention mask in Swift; Core AI reads `last_hidden_state[:, 0, :]`,
+    /// the CLS position. Same weights, different vectors — the difference measured at
+    /// `vector r@1` 0.000 to 0.571. Change this string whenever that changes.
+    var poolingRecipe: String { "cls/l2" }
+    var modelRevision: String { "MiniLM-L6-v2/coreai-mlirb" }
+
     static let shared = CoreAISentenceEmbeddingProvider()
 
     // MARK: - Properties

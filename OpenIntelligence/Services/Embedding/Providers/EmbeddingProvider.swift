@@ -30,6 +30,21 @@ protocol EmbeddingProvider {
     /// Maximum safe token count (typically 510 for 512-token models after CLS/SEP)
     var maxSafeTokens: Int { get }
 
+    /// How token embeddings are reduced to one vector, and how that vector is normalised.
+    ///
+    /// Declared rather than derived, because nothing in the compiled artifacts states it. It is
+    /// part of `EmbeddingFingerprint` because two providers running identical weights produce
+    /// genuinely different vectors when they pool differently — which is exactly the CLS-versus-
+    /// mean-pooling defect measured at `vector r@1` 0.000 to 0.571.
+    var poolingRecipe: String { get }
+
+    /// Identifies the model artifact. Bump when the weights or the exported graph change.
+    ///
+    /// Declared rather than hashed. The compiled `.mlmodelc` is `coremlc` output and can change
+    /// on an Xcode or SDK bump with byte-identical numerics, so hashing it would rebuild every
+    /// user's library on an app update that changed nothing.
+    var modelRevision: String { get }
+
     /// Enable ingestion mode - forces embeddings to GPU so ANE can focus on Vision OCR
     /// This creates true ANE+GPU parallelism for faster document ingestion
     func enableIngestionMode()
@@ -49,6 +64,8 @@ extension EmbeddingProvider {
 
     /// Default max tokens (512 - 2 for CLS/SEP)
     var maxSafeTokens: Int { 510 }
+    var poolingRecipe: String { "unspecified" }
+    var modelRevision: String { "unspecified" }
 
     /// Default no-op for providers that don't support ingestion mode
     func enableIngestionMode() {}

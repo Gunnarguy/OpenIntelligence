@@ -48,6 +48,18 @@ struct KnowledgeContainer: Identifiable, Codable, Equatable, Sendable {
     // Retrieval/Embedding configuration
     var embeddingProviderId: String // e.g. "nl_embedding", "nl_contextual_embedding"
     var embeddingDim: Int // Native Apple dimension is 512
+    /// Digest of the pipeline that produced this library's vectors. See `EmbeddingFingerprint`.
+    ///
+    /// Optional because containers written before this field existed have no value, and a nil
+    /// fingerprint must mean "unknown, do not act" rather than "mismatched" — otherwise shipping
+    /// this flags every existing library at once.
+    ///
+    /// Note the iCloud round trip: `WorkspaceSyncService.mergeContainersIfNeeded` decodes
+    /// `[KnowledgeContainer]` from both roots and writes the merged array back, so a device still
+    /// on an older build will strip this key on its next sync. That makes a nil here ambiguous
+    /// between "never had one" and "an old build dropped it", which is another reason nil is
+    /// treated as unknown rather than stale.
+    var embeddingFingerprint: String?
     var vectorDBKind: VectorDBKind
     var autoAdaptDimension: Bool // Auto-orchestrate chunking/embedding when enabled
     var chunkingDirective: ChunkingDirective?
@@ -72,6 +84,7 @@ struct KnowledgeContainer: Identifiable, Codable, Equatable, Sendable {
     private enum CodingKeys: String, CodingKey {
         case id, name, icon, colorHex, createdAt, description
         case embeddingProviderId, embeddingDim, vectorDBKind
+        case embeddingFingerprint
         case autoAdaptDimension, chunkingDirective, lastSelfTuneAt
         case retrievalConfig
         case totalDocuments, totalChunks, dbSizeBytes, lastIndexedAt
@@ -92,6 +105,7 @@ struct KnowledgeContainer: Identifiable, Codable, Equatable, Sendable {
         description = try container.decodeIfPresent(String.self, forKey: .description)
         embeddingProviderId = try container.decode(String.self, forKey: .embeddingProviderId)
         embeddingDim = try container.decode(Int.self, forKey: .embeddingDim)
+        embeddingFingerprint = try container.decodeIfPresent(String.self, forKey: .embeddingFingerprint)
         vectorDBKind = try container.decode(VectorDBKind.self, forKey: .vectorDBKind)
         autoAdaptDimension = try container.decodeIfPresent(Bool.self, forKey: .autoAdaptDimension) ?? false
         chunkingDirective = try container.decodeIfPresent(ChunkingDirective.self, forKey: .chunkingDirective)
@@ -129,6 +143,7 @@ struct KnowledgeContainer: Identifiable, Codable, Equatable, Sendable {
         try container.encodeIfPresent(description, forKey: .description)
         try container.encode(embeddingProviderId, forKey: .embeddingProviderId)
         try container.encode(embeddingDim, forKey: .embeddingDim)
+        try container.encodeIfPresent(embeddingFingerprint, forKey: .embeddingFingerprint)
         try container.encode(vectorDBKind, forKey: .vectorDBKind)
         try container.encode(autoAdaptDimension, forKey: .autoAdaptDimension)
         try container.encodeIfPresent(chunkingDirective, forKey: .chunkingDirective)
@@ -152,6 +167,7 @@ struct KnowledgeContainer: Identifiable, Codable, Equatable, Sendable {
         description: String? = nil,
         embeddingProviderId: String = "coreml_sentence_embedding", // Silver bullet: CoreML 384-dim
             embeddingDim: Int = 384, // Matches actual CoreMLSentenceEmbeddingProvider output
+        embeddingFingerprint: String? = nil,
         vectorDBKind: VectorDBKind = .persistentJSON,
         autoAdaptDimension: Bool = true,
         chunkingDirective: ChunkingDirective? = nil,
@@ -173,6 +189,7 @@ struct KnowledgeContainer: Identifiable, Codable, Equatable, Sendable {
         self.description = description
         self.embeddingProviderId = embeddingProviderId
         self.embeddingDim = embeddingDim
+        self.embeddingFingerprint = embeddingFingerprint
         self.vectorDBKind = vectorDBKind
         self.autoAdaptDimension = autoAdaptDimension
         self.chunkingDirective = chunkingDirective

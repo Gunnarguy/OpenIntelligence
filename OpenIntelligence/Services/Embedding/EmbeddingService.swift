@@ -33,6 +33,10 @@ class EmbeddingService {
     /// Maximum safe token count for this provider
     var maxSafeTokens: Int { provider.maxSafeTokens }
 
+    /// Pipeline identity, for `EmbeddingFingerprint`. See the protocol for why these are declared.
+    var poolingRecipe: String { provider.poolingRecipe }
+    var modelRevision: String { provider.modelRevision }
+
     // MARK: - Ingestion Mode (GPU + ANE Parallelism)
 
     /// Enable ingestion mode - forces embeddings to GPU so ANE can focus on Vision OCR

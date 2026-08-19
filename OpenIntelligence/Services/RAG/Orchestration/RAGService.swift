@@ -4316,6 +4316,59 @@ class RAGService: ObservableObject {
         let actualProviderId = service.actualProviderId
         let actualDimension = service.outputDimension
 
+        // Content-only staleness: same provider, same dimension, different vectors.
+        //
+        // The dimension/provider check below cannot see this. Both operands there are declared
+        // values — `actualProviderId` returns a string literal and `outputDimension` a number from
+        // a hardcoded table — so a change to the tokenizer, the pooling recipe or the model
+        // artifact moves every vector while leaving both sides equal. Commit 2753d15 did exactly
+        // that and said so in its own message.
+        //
+        // The response is deliberately different too. A dimension change makes old vectors
+        // *incompatible*, so wiping is correct. A content change makes them *stale*: still
+        // 384-dimensional, still searchable, just worse. Wiping those would take a working library
+        // offline until a rebuild finishes, so this flags instead and lets the user rebuild when
+        // they choose — using the same banner and manual rebuild that were fixed on 2026-08-18 and
+        // confirmed working on device.
+        let liveFingerprint = EmbeddingFingerprint.compute(
+            providerId: actualProviderId,
+            dimension: actualDimension,
+            maxSequenceLength: service.maxSafeTokens,
+            poolingRecipe: service.poolingRecipe,
+            modelRevision: service.modelRevision,
+            chunkerRecipe: container.chunkingDirective.map { "\($0.strategy)/\($0.targetWordWindow)" } ?? "default"
+        )
+
+        if container.embeddingProviderId == actualProviderId,
+           container.embeddingDim == actualDimension {
+            if let stored = container.embeddingFingerprint {
+                if stored != liveFingerprint {
+                    Log.warning(
+                        "[RAGService] Embedding pipeline changed for container \(container.id): fingerprint \(stored) → \(liveFingerprint). "
+                            + "Existing vectors are valid but stale; surfacing a rebuild rather than wiping a working index.",
+                        category: .embedding
+                    )
+                    await MainActor.run {
+                        let hasDocs = !self.documentsForContainer(container.id).isEmpty
+                        if hasDocs { self.librariesNeedingIndexRebuild.insert(container.id) }
+                        var updated = container
+                        updated.embeddingFingerprint = liveFingerprint
+                        self.containerService.updateContainer(updated)
+                    }
+                }
+            } else {
+                // No fingerprint recorded: either the container predates the field, or an older
+                // build stripped it on an iCloud round trip. Adopt the current one silently. A nil
+                // means unknown, and flagging every existing library the moment this ships would
+                // be a worse failure than the one it is meant to catch.
+                await MainActor.run {
+                    var updated = container
+                    updated.embeddingFingerprint = liveFingerprint
+                    self.containerService.updateContainer(updated)
+                }
+            }
+        }
+
         if container.embeddingProviderId != actualProviderId || container.embeddingDim != actualDimension {
             Log.warning(
                 "[RAGService] Embedding config mismatch for container \(container.id). " +
@@ -4328,6 +4381,7 @@ class RAGService: ObservableObject {
                 var updated = container
                 updated.embeddingProviderId = actualProviderId
                 updated.embeddingDim = actualDimension
+                updated.embeddingFingerprint = liveFingerprint
                 self.containerService.updateContainer(updated)
 
                 // Clear any persisted vectors created under a different dimension.
