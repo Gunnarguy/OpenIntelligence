@@ -25,6 +25,12 @@ MODES="${MODES:-deep-think}"
 # would truncate a slow case and silently under-report, so it is raised here.
 TIMEOUT="${TIMEOUT:-1800}"
 POOL="${POOL:-10}"
+# Pass the manifest explicitly. Omitting it silently selects DEFAULT_MANIFEST
+# (tiny_research_suite), which is a far easier corpus than qasper_external_v1, and the resulting
+# pass rate is then not comparable to anything in BenchmarkRuns/. On 2026-08-19 a 3/3 from this
+# script was read as a Deep Think baseline for four hours before anyone noticed it had run against
+# different fixtures.
+MAN="${MAN:-Benchmarks/ResearchFixtures/qasper_external_v1/manifest.json}"
 
 if [ ! -d "$APP" ]; then
   echo "error: no app at $APP" >&2
@@ -39,6 +45,7 @@ fi
 echo "Deep Think pilot"
 echo "  app     : $APP"
 echo "  cases   : $LIMIT   modes: $MODES   pool: $POOL docs   timeout: ${TIMEOUT}s/run"
+echo "  manifest: $MAN"
 echo "  started : $(date '+%H:%M:%S')"
 echo
 echo "Do not build, test or run anything else until this finishes."
@@ -48,6 +55,7 @@ START=$(date +%s)
 python3 scripts/run_quality_matrix.py \
   --app "$APP" \
   --modes "$MODES" \
+  --manifest "$MAN" \
   --pcc deny \
   --limit "$LIMIT" \
   --pool-limit "$POOL" \

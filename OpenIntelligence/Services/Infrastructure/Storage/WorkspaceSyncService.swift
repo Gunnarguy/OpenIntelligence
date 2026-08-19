@@ -2505,14 +2505,44 @@ final class WorkspaceSyncService: ObservableObject {
     /// lists holding the same chunks in a different sequence are genuinely different files.
     nonisolated private func vectorChunksAreIdentical(_ lhs: [DocumentChunk], _ rhs: [DocumentChunk]) -> Bool {
         guard lhs.count == rhs.count else { return false }
+
+        // Identity and sizes first, across the whole array, before touching any payload.
+        //
+        // The original version walked one chunk at a time comparing id, documentId, content,
+        // parentContent, contextualPrefix and the full 384-float embedding. That is correct and it
+        // was catastrophically slow at scale: a benchmark case with a 40-document pool went from
+        // 269-414s to over 1800s, a 4-7x regression, because the comparison is O(chunks x 384)
+        // element-wise plus full string equality on every chunk body, and it runs on every sync
+        // pass. It looked free when written because both sides were already in memory — the cost
+        // is CPU, not I/O, and the unoptimised Debug build the benchmark uses makes element-wise
+        // Swift loops far more expensive than the Release app the device runs.
+        //
+        // A device library of 26-1451 chunks never showed it. Forty documents did. That is the
+        // "some libraries are going to be massive" case, so the cheap version is the correct one
+        // even for production.
         for (a, b) in zip(lhs, rhs) {
             guard a.id == b.id,
                   a.documentId == b.documentId,
-                  a.content == b.content,
-                  a.parentContent == b.parentContent,
-                  a.contextualPrefix == b.contextualPrefix,
-                  a.embedding == b.embedding
+                  a.embedding.count == b.embedding.count,
+                  a.content.utf8.count == b.content.utf8.count
             else { return false }
+        }
+
+        // Only then the expensive payload, and the embeddings by raw memory rather than
+        // element-wise. Same semantics for IEEE bit patterns, one memcmp per chunk instead of 384
+        // Float comparisons through a generic ==.
+        for (a, b) in zip(lhs, rhs) {
+            guard a.content == b.content,
+                  a.parentContent == b.parentContent,
+                  a.contextualPrefix == b.contextualPrefix
+            else { return false }
+
+            let same = a.embedding.withUnsafeBytes { ab in
+                b.embedding.withUnsafeBytes { bb in
+                    ab.count == bb.count && memcmp(ab.baseAddress, bb.baseAddress, ab.count) == 0
+                }
+            }
+            guard same else { return false }
         }
         return true
     }

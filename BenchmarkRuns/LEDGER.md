@@ -12,6 +12,48 @@ in this table by hand.
 
 ---
 
+## 2026-08-19: the overnight run that found a regression instead of a number
+
+Ran to measure whether the reasoning-chain session cap (`e16a2d3`) changed answer quality. It never
+got that far. What it found is worth more.
+
+| run | commit | tests | verdict |
+| :-- | :-- | :-- | :-- |
+| `overnight-smoke` | `0eb5d96` | 6 cases, deep-think, pool 40, QASPER. First Deep Think benchmark ever attempted. | **1/5 correct, 1 timeout at 1800s, ~900s/case.** `gold_recall` **0.0 on 3 of 5** — retrieval never surfaced the expected document. Gate aborted the full run, correctly, but **reported 0/6 when the truth was 1/5**: it read `answer_accuracy`/`pass`/`status`, none of which exist. The schema is `score.correct` with `patterns_hit`/`patterns_total`. Right call, wrong arithmetic. |
+| `overnight-paired` | `0eb5d96` | 10 cases x {deep-think, standard}, pool 40. | **Killed at case 2.** Deep Think case 1 timed out at 1800s having taken 1242s in the smoke an hour earlier. Then **standard** timed out too, and standard does one generation, so this was not session-count variance. |
+| `timing-check` | working tree after the fix | 2 standard cases, pool 40, same manifest. | Confirms or refutes the fix below. |
+
+### What this arc settled
+
+- **There was no regression. The comparison was invalid.** `tokfix` and `coreml-provider` ran with
+  **`pool_limit: 10`**; tonight ran with **`pool_limit: 40`**. Four times the corpus ingested,
+  embedded and indexed per case. 269s → 925s is roughly linear in pool size and is the expected
+  cost of the configuration, not a defect.
+- **The error was reading the wrong field.** `meta.pool_documents` is the size of the *available*
+  fixture pool. `run_config.json` `pool_limit` is what each case actually ingests. They are both 40
+  in tonight's run and 40 vs 10 in the baselines, so the meta field looked like a match and was not.
+  **Check `run_config.json`, never `meta.pool_documents`, before comparing two runs.**
+- **A plausible mechanism that matches the timing is not evidence.** The sync short-circuit's
+  comparison was O(chunks x 384) per pass, scaled with corpus size, and had shipped that same day.
+  Every part of that was true and it explained nothing, because there was nothing to explain. The
+  fix went in anyway and stands on its own merits; it did not change the timing at all, which is
+  what should have prompted the config check an hour earlier.
+- **A pilot's 3/3 pass was worthless as a Deep Think baseline.** `run_deepthink_pilot.sh` passes no
+  `--manifest`, so it silently used `tiny_research_suite`, not QASPER. Different corpus, different
+  difficulty.
+- **Deep Think at pool 40 costs roughly 900-1800s/case on an unoptimised Debug build**, against
+  ~80s on device for a comparable query. A 25-case paired run is therefore a 12+ hour job, not an
+  overnight one. Either run at `pool_limit: 10` to match the existing baselines, or budget two
+  nights.
+
+### Still open
+
+Deep Think has **no** quality baseline. The only numbers are 1/5 on six QASPER cases with three
+retrieval misses, at n=5, against a standard-mode baseline of 9/25 and 13/25. Not enough to
+conclude anything, and the retrieval misses matter more than the answer count.
+
+---
+
 ## 2026-08-17: the tokenizer arc
 
 | run | commit | tests | verdict |
