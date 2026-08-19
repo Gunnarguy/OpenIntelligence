@@ -2,7 +2,7 @@
 
 Updated: 2026-08-19
 Branch/worktree: main, clean, fully pushed (`HEAD` == `origin/main`).
-Last verified commit: e138b31
+Last verified commit: 6992f36
 
 ## Objective
 
@@ -105,7 +105,7 @@ Then read where deep-think's recall falls off against standard's. That is Blocke
 
 ## Status
 
-`e138b31`, clean, **not pushed** — `origin/main` is at `8791baa`, five commits behind. Nothing running. No background
+`6992f36`, clean, **not pushed** — `origin/main` is at `8791baa`, eight commits behind. Nothing running. No background
 tasks or monitors left armed.
 
 **Twenty-four commits over two days.** 1,483 insertions across 21 Swift files, plus a regenerated
@@ -201,8 +201,10 @@ Run and output read, this session:
 - Device, App Launch Instruments → first frame **0.69s**.
 - Mac, Foundation Models Instruments → generation is **90%** of a Deep Think query (48.7s of 54.2s).
 - `secret_scan.py` clean, `check_icloud_conflicts.sh` clean.
-- `build_simulator_smoke.sh` → **BUILD SUCCEEDED**, iPhone 17 Pro simulator. Run because the
-  `repoos_workspace_automation` route requires it, not because a shell-script edit could affect it.
+- `build_simulator_smoke.sh` → **BUILD SUCCEEDED**, iPhone 17 Pro simulator, three times this
+  session, most recently on the trace change.
+- `xcodebuild test` after the trace change → **238 tests, 2 skipped, 0 failures**, iOS 27.0
+  iPhone 17 Pro. Unchanged from the baseline.
 - **The preflight's `active_release` was wrong, and both failure directions are now covered by
   tests.** It read `## 5.0 - 2026-08-10` as a shipped release, because it treats the first numbered
   heading in `CHANGELOG.md` as `last_shipped`. That heading is the open section here: all nine
