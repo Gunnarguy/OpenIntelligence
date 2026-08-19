@@ -30,7 +30,7 @@ got that far. What it found is worth more.
 | `overnight-smoke` | `0eb5d96` | 6 cases, deep-think, pool 40, QASPER. First Deep Think benchmark ever attempted. | **1/5 correct, 1 timeout at 1800s, ~900s/case.** `gold_recall` **0.0 on 3 of 5** — retrieval never surfaced the expected document. Gate aborted the full run, correctly, but **reported 0/6 when the truth was 1/5**: it read `answer_accuracy`/`pass`/`status`, none of which exist. The schema is `score.correct` with `patterns_hit`/`patterns_total`. Right call, wrong arithmetic. |
 | `overnight-paired` | `0eb5d96` | 10 cases x {deep-think, standard}, pool 40. | **Killed at case 2.** Deep Think case 1 timed out at 1800s having taken 1242s in the smoke an hour earlier. Then **standard** timed out too, and standard does one generation, so this was not session-count variance. |
 | `timing-check` | `025b912` | 2 standard cases, pool 40, after the comparison fix. | **925s/case, unchanged.** The fix moved nothing, which is what exposed the premise as wrong rather than the code. |
-| `paired-pool10` | `025b912` | 8 cases x {deep-think, standard}, **pool_limit 10**, matching `tokfix` and `coreml-provider` exactly. | First comparable Deep Think numbers. Case 1 at **256.9s** against 1242s for the same case at pool 40, confirming cost is linear in pool size. |
+| `paired-pool10` | `025b912` | 8 cases x {deep-think, standard}, **pool_limit 10**, matching `tokfix` and `coreml-provider` exactly. | **Failed at case 11/16. One scored pair out of eight.** Case 1: deep-think **miss** at 256.9s / 7 generations, standard **PASS** at 197.2s / 1 generation, both `gold_recall` 1.0 — retrieval found the document and only Deep Think failed to answer from it. Cases 2-5 all timed out in both modes. Confirms cost is linear in pool size (256.9s here against 1242s for the identical case at pool 40) and nothing else. |
 
 ### What this arc settled
 
@@ -54,6 +54,27 @@ got that far. What it found is worth more.
   ~80s on device for a comparable query. A 25-case paired run is therefore a 12+ hour job, not an
   overnight one. Either run at `pool_limit: 10` to match the existing baselines, or budget two
   nights.
+
+### The harness leaks a hung app process per timeout, and that is what killed this run
+
+Case 1 completed in both modes. Everything from case 2 onward timed out, including standard mode,
+which had just answered case 1 in 197s. That is not variance, it is state.
+
+Two `OpenIntelligence` processes were found alive at 0% CPU, both started at 02:03 when the run
+began, still resident four and a half hours later. A hung app instance holding the shared library
+blocks the next case's file coordination, so every subsequent case waits out its full 1800s timeout.
+The harness's per-run timeout kills its own subprocess and does not reap the app.
+
+**This very likely also explains the earlier pool-40 results**, which were read as a performance
+regression. If cases were serialising behind hung predecessors rather than doing work, the 925s
+figure measures blocking, not cost, and the pool-size explanation may be only part of the story.
+`tokfix` and `coreml-provider` completed 25 cases each without this, so something about tonight's
+sequence provokes it — worth finding before trusting any timing from this harness again.
+
+**The run was then ended by hand, in error.** A `pkill` pattern matching `oi-mac-40.*OpenIntelligence`
+also matches the python harness, whose command line contains the app path. Killing the two hung
+processes killed the job at case 11/16. Use `pgrep -f 'Contents/MacOS/OpenIntelligence'` to target
+the app alone.
 
 ### Still open
 
