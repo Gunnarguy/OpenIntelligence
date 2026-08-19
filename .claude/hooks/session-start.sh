@@ -79,7 +79,11 @@ else
 fi
 
 if [ -f "$STATE_MD" ]; then
-  STATE_COMMIT="$(sed -n 's/^Last verified commit:[[:space:]]*//p' "$STATE_MD" | head -1 | tr -d '[:space:]')"
+  # First whitespace-delimited token only. Taking the whole remainder of the line and stripping the
+  # spaces out of it made any trailing prose part of the sha, so an explanatory clause added to that
+  # line on 2026-08-19 turned a mild drift note into "names a commit not in this repository", which
+  # reads like a corrupt or foreign checkout. The line may carry prose after the sha.
+  STATE_COMMIT="$(sed -n 's/^Last verified commit:[[:space:]]*\([^[:space:]]*\).*/\1/p' "$STATE_MD" | head -1)"
   STATE_UPDATED="$(sed -n 's/^Updated:[[:space:]]*//p' "$STATE_MD" | head -1)"
   echo "STATE.md updated ${STATE_UPDATED:-unknown}, recorded commit ${STATE_COMMIT:-none}."
   # Resolve both sides through git before comparing. A string compare of a full sha in STATE.md
@@ -91,12 +95,18 @@ if [ -f "$STATE_MD" ]; then
     if [ -z "$RESOLVED" ]; then
       echo "  STALE: STATE.md names commit $STATE_COMMIT, which is not in this repository."
     elif [ "$RESOLVED" != "$CURRENT" ]; then
-      BEHIND="$(git rev-list --count "$RESOLVED..HEAD" 2>/dev/null)"
-      # One commit behind is the normal resting state, not drift: STATE.md cannot record the sha of
-      # the commit that contains it, so committing a handoff always leaves it exactly one behind.
-      # Warning at 1 would mean warning on every well-maintained repository, every session.
-      [ -n "$BEHIND" ] && [ "$BEHIND" -gt 1 ] 2>/dev/null &&
-        echo "  STALE: HEAD has moved $BEHIND commits since STATE.md was written. Trust git over STATE.md."
+      # Count only commits that changed something other than STATE.md itself. A handoff cannot record
+      # the sha of the commit containing it, and follow-up docs-only edits land after that, so a
+      # well-maintained handoff always trails HEAD without anything it describes having drifted.
+      # This generalises the hard-coded "exactly one behind" exemption it replaces: what matters is
+      # whether anything the document describes has changed, not how many commits went by.
+      #
+      # :(top) rather than a bare `.` because both pathspecs would otherwise resolve against the
+      # working directory. The `cd "$ROOT"` above makes them equivalent here today; anchoring to the
+      # repository root states the intent without depending on that.
+      BEHIND="$(git rev-list --count "$RESOLVED..HEAD" -- ':(top)' ':(top,exclude)Docs/ai/STATE.md' 2>/dev/null)"
+      [ -n "$BEHIND" ] && [ "$BEHIND" -gt 0 ] 2>/dev/null &&
+        echo "  STALE: $BEHIND commit(s) since STATE.md was written changed something other than STATE.md. Trust git over STATE.md."
     fi
   fi
   awk '/^## Objective/{f=1;next} /^## /{f=0} f && NF' "$STATE_MD" 2>/dev/null | head -3 | sed 's/^/  Objective: /'

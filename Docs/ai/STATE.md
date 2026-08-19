@@ -15,10 +15,16 @@ never been run.
 
 ## Exact Next Action
 
-**Two things, in this order. The first costs two minutes and settles a data-integrity blocker; the
-second costs 95 and settles a quality one.**
+**Two things, in this order. The first settles a data-integrity blocker and costs whatever three
+device imports cost; the second costs 95 minutes and settles a quality one.**
 
-### 1. Does a fresh import still lose its vectors? (2 min, on device)
+### 1. Does a fresh import still lose its vectors? (three imports, on device)
+
+**This is no longer the two-minute test it was recorded as.** Two of the three cases below require
+switching libraries *during* an import, so the cost is set by how long the documents take to ingest,
+not by the clicking. `0350083`'s own commit cites a device import at 1 hr 14 min. Pick documents
+large enough to leave a window to switch in and no larger. It is still far cheaper than item 2 and
+still settles a blocker, so the ordering stands.
 
 Three separate libraries have been found holding documents with **0 chunks** in their vector store —
 Library 6, `009866A3`, and `4AF043A3`. `0350083` fixes the suspected cause and has never been
@@ -183,6 +189,13 @@ Run and output read, this session:
 - Device, App Launch Instruments → first frame **0.69s**.
 - Mac, Foundation Models Instruments → generation is **90%** of a Deep Think query (48.7s of 54.2s).
 - `secret_scan.py` clean, `check_icloud_conflicts.sh` clean.
+- **The session-start hook parser, fixed and measured either side of the change.** Before: the
+  parser returned ``ef3fd25—thelastchangetocode.`6cc5e55`and`cfab566`aredocs-only,so`` and the hook
+  printed "names a commit not in this repository". After: `ef3fd25`, and drift counted over
+  non-`STATE.md` commits gives 0 for `ef3fd25..HEAD` and 1 for `552885e..HEAD`, which contains a
+  code commit. The specified pathspec was corrected while applying it: `:(exclude)` resolves against
+  the working directory, so the `.`-relative form returns 4 rather than 0 when run from a
+  subdirectory. `:(top)` is used instead. `test_repoos_router.py` → 24 tests, OK.
 
 **Not run:** the 25-case benchmark; `build_simulator_smoke.sh`; the traced run above.
 
@@ -215,18 +228,6 @@ Run and output read, this session:
 8. **A long answer outlives its ~30s background grant.** `BGContinuedProcessingTask` is registered
    at `OpenIntelligenceApp.swift:154` with a handler ready and **is never submitted**.
    [Notion](https://app.notion.com/p/3c149a74d54f8171adfcce5dcb345777)
-10. **The session-start hook mis-parses `Last verified commit:` and needs a two-line fix.** It reads
-   the whole remainder of the line through `tr -d '[:space:]'`
-   ([session-start.sh:88](.claude/hooks/session-start.sh:88)), so any prose after the sha becomes
-   part of it. `0642456` added an explanatory clause and turned a mild drift note into
-   "names a commit not in this repository"; the prose is reverted but the parser is unfixed.
-   Two changes, **not yet applied, needs `PROCEED: IMPLEMENT`**:
-   parse the first token only with
-   `sed -n 's/^Last verified commit:[[:space:]]*\([^[:space:]]*\).*/\1/p'`, and count drift with
-   `git rev-list --count "$RESOLVED..HEAD" -- . ':(exclude)Docs/ai/STATE.md'` so docs-only commits
-   are not drift. Measured: `ef3fd25..HEAD` gives 0, `552885e..HEAD` gives 1. Note a handoff can
-   never name the commit containing it, so some lag is structural — that is what the existing
-   hard-coded `BEHIND == 1` exemption is for, and this generalises it.
 9. **The `Hang detected: N s` lines are not launch cost.** Instruments measured first frame at
    0.69s. Those hangs happen *after* the app is interactive; look at post-launch work.
 

@@ -1,5 +1,9 @@
 ## [Unreleased]
 
+### Fixed
+
+- **[General]** **The session-start hook read prose as part of a commit sha.** It parsed the `Last verified commit:` line by taking the whole remainder and stripping the whitespace out of it, so anything written after the sha became part of the sha. An explanatory clause added to that line turned the mild "HEAD has moved N commits" note into "names a commit not in this repository" — which reads like a corrupt or foreign checkout, and is the one thing a handoff document cannot afford a fresh session to read first. The parser now takes the first whitespace-delimited token, so the line may carry prose after the sha without breaking. Drift is now counted over commits that changed something other than `Docs/ai/STATE.md`, which generalises the hard-coded "exactly one behind" exemption it replaces: a handoff cannot record the sha of the commit that contains it and docs-only follow-ups land after that, so a well-maintained handoff always trailed HEAD and therefore always warned. The pathspec is anchored with `:(top)`, because `:(exclude)` otherwise resolves against the working directory and counts 4 rather than 0 when the hook is invoked from a subdirectory.
+
 <!-- next-version: 5.1 -->
 
 ## 5.0 - 2026-08-10
