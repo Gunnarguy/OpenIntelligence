@@ -15,21 +15,41 @@ never been run.
 
 ## Exact Next Action
 
-**Run the paired benchmark.** The trace wiring in `ef3fd25` has never executed. This is the whole
-reason the last session ended.
+**Two things, in this order. The first costs two minutes and settles a data-integrity blocker; the
+second costs 95 and settles a quality one.**
+
+### 1. Does a fresh import still lose its vectors? (2 min, on device)
+
+Three separate libraries have been found holding documents with **0 chunks** in their vector store —
+Library 6, `009866A3`, and `4AF043A3`. `0350083` fixes the suspected cause and has never been
+confirmed. Nothing else on the board matters as much as knowing whether it worked.
+
+On a build containing `0350083`:
+
+1. Create a new library, import one document, query it immediately. Vectors should land.
+2. Repeat, but **switch libraries while the import is still running**. That is the actual trigger
+   this row describes.
+
+Vectors land in both → the fix works, every broken library seen so far is residue, and
+[the row](https://app.notion.com/3c149a74d54f81239443c15fe6ae3782) closes. Empty in either → the fix
+is wrong and this jumps ahead of everything below.
+
+### 2. Run the paired benchmark with tracing (95 min, Mac)
+
+The trace wiring in `ef3fd25` has never executed. Rebuild first — `/private/tmp/oi-mac-40` predates
+it, and without a rebuild the run reproduces the same unattributable result.
 
 ```bash
-cd /private/tmp/oi-src && DEVELOPER_DIR=/Applications/Xcode-beta.app/Contents/Developer xcodebuild \
+rsync -a --exclude 'BenchmarkRuns/' --exclude '.simulator-smoke.nosync/' --exclude 'Benchmarks/run/' \
+  ./ /private/tmp/oi-src/ && cd /private/tmp/oi-src && \
+DEVELOPER_DIR=/Applications/Xcode-beta.app/Contents/Developer xcodebuild \
   -scheme OpenIntelligence -destination "platform=macOS" -configuration Debug \
   -derivedDataPath /private/tmp/oi-mac-40 -skipPackagePluginValidation \
   CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO build
 ```
 
-Rebuild first — `/private/tmp/oi-mac-40` predates `ef3fd25`, and without a rebuild the run produces
-the same unattributable result as last time. `rsync` to `/private/tmp/oi-src` first (see Active
-Constraints).
-
 ```bash
+caffeinate -dimsu \
 python3 scripts/run_quality_matrix.py \
   --app /private/tmp/oi-mac-40/Build/Products/Debug/OpenIntelligence.app \
   --manifest Benchmarks/ResearchFixtures/qasper_external_v1/manifest.json \
@@ -38,23 +58,21 @@ python3 scripts/run_quality_matrix.py \
   --modes deep-think,standard --limit 8 --output-dir BenchmarkRuns/paired-traced
 ```
 
-Roughly **95 minutes** (the same run took 5,659s wall). Wrap in `caffeinate -dimsu` and background
-it. **`pool_limit 10` is not optional** — `tokfix` and `coreml-provider` used 10, and standard's
-9/25 and 13/25 baselines are only comparable at that value.
+**`pool_limit 10` is not optional** — `tokfix` and `coreml-provider` used 10, and standard's 9/25 and
+13/25 baselines are only comparable at that value.
 
-**What success looks like:**
+**Pass condition:**
 
-```python
+```bash
 python3 -c "
 import json;d=json.load(open('BenchmarkRuns/paired-traced/results.json'))
-for m,rows in d['stage_summaries'].items():
-    print(m, [r['stage'] for r in rows])"
+for m,rows in d['stage_summaries'].items(): print(m,[r['stage'] for r in rows])"
 ```
 
-`deep-think` must list **seven** stages. Last run it listed exactly one, `final`. If it still lists
-one, `ef3fd25` did not take effect and the build is stale — check that first, before anything else.
+`deep-think` must list **seven** stages. Last run it listed one, `final`. If it still lists one, the
+build is stale — check that before concluding the fix failed.
 
-Then read where deep-think's recall falls off against standard's, which is in Blocker 4.
+Then read where deep-think's recall falls off against standard's. That is Blocker 4.
 
 ## Status
 
@@ -141,6 +159,13 @@ Run and output read, this session:
   skips are `EmbeddingProviderAgreementTests`, which cannot run in the simulator and **passed on
   device**.
 - `BenchmarkRuns/paired-retry` → 16/16 attempted, 1 timeout, **no cascade**. 5,659s wall.
+- **Device, self-heal end to end (2026-08-19).** One capture containing both the failure and the
+  recovery: detection at line 357, user taps Rebuild at 562, `STARTING FULL REBUILD` at 563,
+  **196 chunks embedded in 3.69s (19ms/chunk)** at 585, success at 592, and the same library then
+  answers a real question with **20 chunks, 512 words, 94.5s**. Before `116978a` the state at 357
+  was silent.
+- Same capture: five other libraries logged `already current; skipping rewrite` at 26/182/182/1451/196
+  chunks — the sync fix holding across a full session, third confirmation.
 - Device: `EmbeddingProviderAgreementTests` → 2 passed on iPhone 16 Pro Max, wired. First device
   test run in the project's history.
 - Device, App Launch Instruments → first frame **0.69s**.
@@ -155,23 +180,30 @@ Run and output read, this session:
    [Notion](https://app.notion.com/3bf49a74d54f818cb1bde1b11a0a7557)
 2. **PCC entitlement unproven through Archive and TestFlight.** It is advertised, so it has to work
    through the signing path. [Notion](https://app.notion.com/39e49a74d54f81388056f384c4663876)
-3. **Deep Think's recall gap is measured but unattributed.** r@10 0.625 against standard's 1.000.
+3. **A fresh import may still lose its vectors, and this is the cheapest open blocker.** Three
+   libraries found with documents and 0 chunks. `0350083` fixes the suspected cause and is
+   unconfirmed. Ruled out as causes from the 2026-08-19 capture: the fingerprint never fired
+   (`"Embedding pipeline changed"` 0 occurrences), the provider/dimension wipe path never fired, no
+   provider fallback occurred, and five other stores were intact. So nothing shipped this week
+   emptied them — but whether the import bug is dead is unknown.
+   [Notion](https://app.notion.com/3c149a74d54f81239443c15fe6ae3782)
+4. **Deep Think's recall gap is measured but unattributed.** r@10 0.625 against standard's 1.000.
    The instrumented run above is what attributes it.
    [Notion](https://app.notion.com/3bf49a74d54f81d593ddfe700f277f1e)
-4. **The engine framework has a macOS install name**, so device tests need
+5. **The engine framework has a macOS install name**, so device tests need
    `scripts/run_device_tests.sh` and its `install_name_tool` workaround. The real fix is
    `DYLIB_INSTALL_NAME_BASE` in `project.pbxproj`, a hard-boundary file.
    [Notion](https://app.notion.com/3c149a74d54f81959f96cef9d1e28dfc)
-5. **Two shipped engine changes have never executed anywhere.** The truncation fix
+6. **Two shipped engine changes have never executed anywhere.** The truncation fix
    (`executeDirectSynthesis`, reached only at moderate/low retrieval confidence — three device runs
    all took the reasoning-chain branch) and the SourceOnly prompt budget (`SourceOnly` appeared zero
    times in two captures). Exercising the first needs a query the library covers *poorly*.
-6. **Retrieval is ~21% reproducible.** Paired comparison plus the sign test is the only trustworthy
+7. **Retrieval is ~21% reproducible.** Paired comparison plus the sign test is the only trustworthy
    readout. A single run cannot separate a change from noise.
-7. **A long answer outlives its ~30s background grant.** `BGContinuedProcessingTask` is registered
+8. **A long answer outlives its ~30s background grant.** `BGContinuedProcessingTask` is registered
    at `OpenIntelligenceApp.swift:154` with a handler ready and **is never submitted**.
    [Notion](https://app.notion.com/p/3c149a74d54f8171adfcce5dcb345777)
-8. **The `Hang detected: N s` lines are not launch cost.** Instruments measured first frame at
+9. **The `Hang detected: N s` lines are not launch cost.** Instruments measured first frame at
    0.69s. Those hangs happen *after* the app is interactive; look at post-launch work.
 
 ## Retracted, so nobody acts on them
