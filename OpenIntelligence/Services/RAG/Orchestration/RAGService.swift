@@ -8723,6 +8723,21 @@ class RAGService: ObservableObject {
         streamHandler: LLMStreamHandler? = nil,
         trace: RetrievalTraceCollector? = nil
     ) async throws -> (response: RAGResponse, auditSnapshot: RAGAuditSnapshot?) {
+        // Hold the collector for the duration of the query so the agentic path inherits it.
+        //
+        // `queryWithAudit` is the only place a trace enters, and in Deep Think and Maximum the work
+        // happens inside `AgenticOrchestrator`, which reaches retrieval through nine separate calls
+        // to `executeFullRetrievalPipeline`. Threading a parameter through all nine would be a wide
+        // change to a hot path for a diagnostic that is nil in production; holding it here is one
+        // line and reaches every one of them.
+        //
+        // Diagnostic only, and deliberately not concurrency-safe: two overlapping traced queries
+        // would share a collector. The harness runs one case at a time and production passes nil,
+        // so the case cannot arise today. If a second concurrent traced query is ever needed, this
+        // has to become a task-local value rather than a property.
+        activeRetrievalTrace = trace
+        defer { activeRetrievalTrace = nil }
+
         let response = try await query(
             question,
             topK: topK,
@@ -8736,6 +8751,10 @@ class RAGService: ObservableObject {
         trace?.record(.final, results: response.retrievedChunks)
         return (response, lastAuditSnapshot)
     }
+
+    /// The collector in force for the current `queryWithAudit`, or nil. See that method for why
+    /// this is a property rather than a parameter, and for the concurrency caveat.
+    private var activeRetrievalTrace: RetrievalTraceCollector?
 
     private func queryInternal(
         _ question: String,
@@ -18061,20 +18080,39 @@ extension RAGService: RAGToolHandler {
     /// Used by AgenticOrchestrator for high-quality chunk retrieval with reasoning on top
     /// - Parameter qualityMode: Controls retrieval parameters (mmrLambda, parent doc, etc.)
     /// - Parameter onDetailedEvent: Optional callback for verbose thinking events (for Deep Think/Maximum)
+    /// - Parameter trace: Optional per-stage recorder. Nil in production; the benchmark passes one.
+    ///
+    ///   This parameter did not exist until 2026-08-19, and its absence is why the agentic path was
+    ///   unmeasurable. A paired benchmark recorded standard mode across seven stages — vector,
+    ///   lexical, fusion, boosted, candidates, rerank, final — and deep-think across exactly one,
+    ///   `final`, because `queryWithAudit` records that stage from the response and nothing inside
+    ///   this function recorded anything. The numbers showed deep-think retrieval at r@10 **0.625**
+    ///   against standard's **1.000** on the same eight cases, and no way to say which stage lost
+    ///   the document. Two hypotheses were formed and refuted by reading source in the same hour.
+    ///   Instrumenting is the fix that makes the next attempt an attribution rather than a guess.
     func executeFullRetrievalPipeline(
         query: String,
         topK: Int = 20,
         minSimilarity: Float? = nil,
         qualityMode: RAGQualityMode? = nil,
-        onDetailedEvent: DetailedThinkingCallback? = nil
+        onDetailedEvent: DetailedThinkingCallback? = nil,
+        trace: RetrievalTraceCollector? = nil
     ) async throws -> [RetrievedChunk] {
+        // Callers in `AgenticOrchestrator` pass nothing, so fall back to whatever `queryWithAudit`
+        // is holding. That is what makes Deep Think measurable without touching nine call sites.
+        let effectiveTrace = trace ?? activeRetrievalTrace
         let chunks = try await performFullRetrievalPipeline(
             query: query,
             topK: topK,
             minSimilarity: minSimilarity,
             qualityMode: qualityMode,
-            onDetailedEvent: onDetailedEvent
+            onDetailedEvent: onDetailedEvent,
+            trace: effectiveTrace
         )
+
+        // The stage `queryWithAudit` records for the standard path, recorded here too so the two
+        // modes are comparable end to end rather than only where they happen to overlap.
+        effectiveTrace?.record(.final, results: chunks)
 
         // An empty retrieval is the moment to check whether this library can answer at all,
         // because it is the moment the user finds out it cannot.
@@ -18107,7 +18145,8 @@ extension RAGService: RAGToolHandler {
         topK: Int,
         minSimilarity: Float?,
         qualityMode: RAGQualityMode?,
-        onDetailedEvent: DetailedThinkingCallback?
+        onDetailedEvent: DetailedThinkingCallback?,
+        trace: RetrievalTraceCollector? = nil
     ) async throws -> [RetrievedChunk] {
         // Resolve quality mode from parameter or settings
         let mode: RAGQualityMode
@@ -18230,7 +18269,8 @@ extension RAGService: RAGToolHandler {
             embedding: queryEmbedding,
             topK: topK * 2, // Get extra for re-ranking
             cachedChunks: effectiveChunks, // Use RAPTOR-lite filtered chunks
-            containerId: embeddingContext.containerId // Enable SQLite FTS5 acceleration
+            containerId: embeddingContext.containerId, // Enable SQLite FTS5 acceleration
+            trace: trace // Records vector, lexical, fusion, boosted and candidates
         )
 
         // Demote purely interrogative chunks to prevent retrieval poisoning

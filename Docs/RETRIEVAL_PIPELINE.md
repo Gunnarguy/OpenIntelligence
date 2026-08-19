@@ -148,3 +148,26 @@ Diagnostic and telemetry surfaces are included for inspecting chunks, retrieval 
     **Rank-ordered packing does not license recomputing the citation list.** Item 15's invariant still binds: the budgeted subset is passed to `generateWithProperConsent` as `sourceChunks` in the order it was labelled, because `[S1]` resolves positionally. Reordering for relevance without carrying the order forward would have swapped one defect for a misattribution. `[evidence_level: code_verified, confidence: exact, evidence_source: AgenticOrchestrator.assembleBudgetedEvidence and executeDirectSynthesis; RAGService.swift step 7.5; reorder reproduced directly for n=85]`
 
     **Not device-verified.** The change is build-verified and passes the 236-test suite, and this path has no test coverage, so the claim that Deep Think stops abstaining on the dopamine query remains unverified until the identical query is re-run on hardware and compared against the saved trace. `[evidence_level: code_verified, confidence: high_pending_device_validation]`
+
+19. **The agentic path was never measured, which is why its recall gap could not be attributed** *(added 2026-08-19)*: item 12 records seven per-stage metrics — `vector`, `lexical`, `fusion`, `boosted`, `candidates`, `rerank`, `final`. Those come from `HybridSearchService` and from `queryWithAudit`. **Deep Think and Maximum reach retrieval through `AgenticOrchestrator`, which calls `executeFullRetrievalPipeline`, and that function took no `trace` parameter at all.**
+
+    The consequence showed up the first time the two modes were benchmarked against each other. Standard reported all seven stages; Deep Think reported exactly one, `final`, recorded downstream from the response.
+
+    | stage | standard r@10 | deep-think r@10 |
+    | :--- | :---: | :---: |
+    | vector | 0.571 | — |
+    | lexical | **0.857** | — |
+    | fusion | 0.714 | — |
+    | rerank | 0.857 | — |
+    | **final** | **1.000** | **0.625** |
+
+    Standard's retrieval is perfect on this set: r@5 and r@10 both 1.000 across seven scored cases. Deep Think finds the gold document 62.5% of the time on the same eight. **That gap is the entire quality difference between the modes**, because `correct == (gold_recall == 1.0)` held in 14 of 15 scored runs — synthesis was right whenever it had the evidence and wrong whenever it did not.
+
+    **Two hypotheses were formed and refuted by reading source within the hour.** That query expansion degrades the lexical arm: false, `searchWithFTS5` searches `originalQuery` and uses expansions only as a fallback when the original returns nothing. That expansion replaces the original query: false for the same reason, and the keyword boost also uses `originalQuery`. A third guess was not attempted. The path is now instrumented instead.
+
+    `executeFullRetrievalPipeline` takes a `trace`, and `queryWithAudit` holds the collector for the query's duration so all nine agentic call sites inherit it without a signature change. That property is diagnostic-only and not concurrency-safe: two overlapping traced queries would share a collector. The harness runs one case at a time and production passes nil, so it cannot arise today; a second concurrent traced query would need a task-local instead.
+
+    **Also confirmed by the same table, and already an open row:** fusion ranks *below* the lexical arm it is fusing, 0.714 against 0.857. The keyword arm alone would have retrieved more than the hybrid did.
+
+    `[evidence_level: measured, confidence: exact_for_the_gap, cause_unattributed_pending_instrumented_run, evidence_source: BenchmarkRuns/paired-retry stage_summaries, 8 cases, pool_limit 10, qasper_external_v1]`
+
