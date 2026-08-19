@@ -227,10 +227,33 @@ Run and output read, this session:
 
 ## Blockers / Unknowns
 
-1. **The App Store build pins Xcode 26.5**, so no iOS 27 API can ship. Decides what 5.0 can contain.
-   [Notion](https://app.notion.com/3bf49a74d54f818cb1bde1b11a0a7557)
-2. **PCC entitlement unproven through Archive and TestFlight.** It is advertised, so it has to work
-   through the signing path. [Notion](https://app.notion.com/39e49a74d54f81388056f384c4663876)
+1. **Blockers 1 and 2 are one question, established 2026-08-19: has PCC ever shipped, and the
+   answer is no.** `.github/workflows/appstore.yml:17` pins Xcode **26.5**. PCC sits behind
+   `#if compiler(>=6.4)` in `FoundationModelSessionFactory.swift`, and Xcode 27 measures as Swift
+   **6.4** locally, so 26.5 is below the gate and the branch compiles to
+   `throw LLMError.modelUnavailable`. Eleven sites across six files share that gate. PCC works on
+   the owner's device because he builds locally with Xcode 27; **no App Store build has ever
+   contained it.**
+
+   The decision is binary. Move the pin to Xcode 27 if the App Store accepts iOS 27 SDK builds, and
+   both blockers close together. If it does not, PCC cannot ship in 5.0 at any price and the 5.0
+   scope changes. The pin is one line and is not a hard-boundary file; whether Apple accepts the
+   build is the external fact nobody here can settle.
+   [Xcode pin](https://app.notion.com/3bf49a74d54f818cb1bde1b11a0a7557) ·
+   [PCC](https://app.notion.com/39e49a74d54f81388056f384c4663876)
+
+2. **Two PCC things previously believed to be blockers are not, and should not be re-investigated.**
+   The App ID capability *is* enabled — owner-confirmed in the portal on 2026-08-19, corroborated by
+   the development profile of 2026-07-15 carrying `com.apple.developer.private-cloud-compute`. The
+   distribution profile is stale (2026-05-15, entitlement absent) but that is **not** load-bearing:
+   `EngineSDKCompatibility.swift:214` deliberately fails *open* for the PCC key when a distribution
+   build has no embedded profile, so the runtime check would not have blocked it either. The
+   entitlements file has always declared the key. Toggling automatic signing regenerates only
+   development profiles, and a distribution profile is reissued only by an actual Archive.
+
+   User-facing copy is **not** wrong and needs no claim audit: `README.md:28` already scopes PCC to
+   "On iOS and macOS 27+". The gap is that a shipped build cannot honour that even on iOS 27, which
+   is a pipeline fact rather than a copy defect.
 3. **A fresh import may still lose its vectors, and this is the cheapest open blocker.** Three
    libraries found with documents and 0 chunks. `0350083` fixes the suspected cause and is
    unconfirmed. Not the cause, from the 2026-08-19 capture: the provider/dimension wipe path never
