@@ -323,12 +323,19 @@ tokenizer's limit would close it.
 independent, and conflating them would turn a re-embed into a format migration.
 
 - **Core AI Integration**: Silicon-native zero-copy sentence embeddings are generated via `CoreAISentenceEmbeddingProvider.swift` using dynamic `NDArray` and `InferenceFunction.run(inputs:)` graph execution on iOS 27 / macOS 27+ Apple Intelligence SDK. Access and selector selection availability are stabilized via shared instance caching and an awaitable readiness gate in `ContainerSettingsSheet`. The exported PyTorch graph output is explicitly bound to "embeddings" in `compile_core_ai_model.py` and correctly parsed from the MLFeatureProvider dictionary in Swift. `[evidence: code_verified, exact, CoreAISentenceEmbeddingProvider.swift, compile_core_ai_model.py]`
-- **The two providers are not interchangeable, and the difference is invisible from settings.**
-  Core AI runs `main.mlirb`, which takes `input_ids` only and returns `last_hidden_state[:, 0, :]`,
-  the CLS position. Core ML runs the `.mlpackage`, which takes `attention_mask` and is mean-pooled
-  in Swift. `all-MiniLM-L6-v2` is trained for mean pooling, so the two paths produce genuinely
-  different vectors from identical weights, and every retrieval figure measured before 2026-08-17
-  came from the CLS path without anyone knowing which had run. A benchmark-only override in
+- **The two providers now compute the same thing, and did not until 2026-08-18.** Core AI runs
+  `main.mlirb` and Core ML runs the `.mlpackage`, both over the same `all-MiniLM-L6-v2` weights.
+  Until the mean-pooling re-export, Core AI took `input_ids` only and returned
+  `last_hidden_state[:, 0, :]` — the CLS position — while Core ML took `attention_mask` and
+  mean-pooled in Swift. `all-MiniLM-L6-v2` is trained for mean pooling, so the two paths produced
+  genuinely different vectors from identical weights, and **every retrieval figure measured before
+  2026-08-17 came from the CLS path** without anyone knowing which had run. The export now averages
+  over a real attention mask and the provider passes one; `strings` on the new `main.mlirb` lists
+  `input_ids`, `attention_mask` and `embeddings`, where the previous artifact listed only the first
+  and last. `EmbeddingProviderAgreementTests` pins the two providers to cosine > 0.99 on identical
+  text, but **skips in the simulator** — Core AI resolves no model resource there and sets
+  `isModelLoadingFailed` before attempting a load, so this invariant is device-only and the vectors
+  themselves remain unverified. A benchmark-only override in
   `EmbeddingService.forProvider`, keyed on the `benchmarkEmbeddingProvider` user default and set
   only by `DebugRAGValidationHarness` from a launch argument, makes the two comparable in one run;
   it is absent in a shipping app. Paired over 21 comparable cases the swap moved `vector r@1` from
@@ -336,6 +343,11 @@ independent, and conflating them would turn a re-embed into a format migration.
   `[evidence: measured+code_verified, exact, BenchmarkRuns/coreml-provider vs tokfix via
   scripts/compare_benchmark_runs.py; EmbeddingService.swift forProvider]`
 - **Resource Packaging**: The compiled model is bundled as `EmbeddingModel.bundle` (a raw folder structure bypassing Xcode's build-time `mlassetc` version-gate checks that otherwise block minimum deployment targets below 27.0) and dynamically loaded at runtime. `[evidence: code_verified, exact, Package.swift, CoreAISentenceEmbeddingProvider.swift]`
+- **Provider routing is no longer a quality decision.** `EmbeddingService` routes iOS/macOS 27+ to
+  Core AI and older systems to Core ML. Until 2026-08-18 that meant the newer OS got the worse path
+  while the correct one was labelled a fallback, so upgrading degraded retrieval. With both
+  providers mean-pooling, the routing chooses a framework rather than a quality tier.
+  `[evidence: code_verified, exact, EmbeddingService.swift provider selection; compile_core_ai_model.py]`
 - **Adaptive Auto-Tuning**: `SettingsStore` and `RAGService` automatically recommend and switch to the Core AI provider on supported hardware, falling back dynamically to `CoreMLSentenceEmbeddingProvider` on older targets. Ingestion mode scoping is strictly enforced per-document in `RAGService.addDocument()` to bypass global configuration conflicts. `[evidence: code_verified, exact, SettingsStore.swift, RAGService.swift]`
 
 ### DocumentProcessor & RAGService Streaming
