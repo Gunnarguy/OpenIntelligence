@@ -2,8 +2,7 @@
 
 Updated: 2026-08-19
 Branch/worktree: main, clean, fully pushed (`HEAD` == `origin/main`).
-Last verified commit: ef3fd25 — the last change to code. `6cc5e55` and `cfab566` are docs-only, so
-a resume hook reporting HEAD ahead of this line is expected, not drift.
+Last verified commit: ef3fd25
 
 ## Objective
 
@@ -25,15 +24,27 @@ Three separate libraries have been found holding documents with **0 chunks** in 
 Library 6, `009866A3`, and `4AF043A3`. `0350083` fixes the suspected cause and has never been
 confirmed. Nothing else on the board matters as much as knowing whether it worked.
 
-On a build containing `0350083`:
+**Three imports, not two.** `0350083` landed in two places and which one runs is decided by
+`RAGService.swift:5569` — `documentType == .pdf && fileSizeMB > 10`. A PDF over 10 MB streams and
+hits the fix at `RAGService+Streaming.swift:75`; anything else takes the inline path and hits it at
+`RAGService.swift:6125`. A small document also gives no window to switch libraries mid-import, so a
+two-step protocol cannot exercise the inline fix under its own trigger.
 
-1. Create a new library, import one document, query it immediately. Vectors should land.
-2. Repeat, but **switch libraries while the import is still running**. That is the actual trigger
-   this row describes.
+1. New library, **small document**, no switch. Query it. Baseline.
+2. New library, **PDF over 10 MB**, switch libraries mid-import. Tests the streamed fix.
+3. New library, **large non-PDF** or a slow scanned PDF under 10 MB, switch mid-import. Tests the
+   inline fix.
 
-Vectors land in both → the fix works, every broken library seen so far is residue, and
-[the row](https://app.notion.com/3c149a74d54f81239443c15fe6ae3782) closes. Empty in either → the fix
-is wrong and this jumps ahead of everything below.
+Vectors land in all three → the fix works, every broken library seen so far is residue, and
+[the row](https://app.notion.com/3c149a74d54f81239443c15fe6ae3782) closes. Empty in 2 or 3 tells you
+*which* of the two fixes is wrong.
+
+**Left behind by `0350083`:** `RAGService.swift:5695` is still `dbForActiveContainer()`. Read-only,
+gated on `autoAdaptDimension`, and it loads chunks from whatever library is on screen while
+combining them with documents filtered by the captured `activeContainerId` at `:5710` — so switching
+mid-import mixes corpora during auto-adapt. Not the vector-loss defect and not data loss, so
+`Future Backlog`. Whether a wrong auto-tuned dimension can propagate into a mixed-dimension store is
+open and unchecked.
 
 ### 2. Run the paired benchmark with tracing (95 min, Mac)
 
@@ -204,6 +215,18 @@ Run and output read, this session:
 8. **A long answer outlives its ~30s background grant.** `BGContinuedProcessingTask` is registered
    at `OpenIntelligenceApp.swift:154` with a handler ready and **is never submitted**.
    [Notion](https://app.notion.com/p/3c149a74d54f8171adfcce5dcb345777)
+10. **The session-start hook mis-parses `Last verified commit:` and needs a two-line fix.** It reads
+   the whole remainder of the line through `tr -d '[:space:]'`
+   ([session-start.sh:88](.claude/hooks/session-start.sh:88)), so any prose after the sha becomes
+   part of it. `0642456` added an explanatory clause and turned a mild drift note into
+   "names a commit not in this repository"; the prose is reverted but the parser is unfixed.
+   Two changes, **not yet applied, needs `PROCEED: IMPLEMENT`**:
+   parse the first token only with
+   `sed -n 's/^Last verified commit:[[:space:]]*\([^[:space:]]*\).*/\1/p'`, and count drift with
+   `git rev-list --count "$RESOLVED..HEAD" -- . ':(exclude)Docs/ai/STATE.md'` so docs-only commits
+   are not drift. Measured: `ef3fd25..HEAD` gives 0, `552885e..HEAD` gives 1. Note a handoff can
+   never name the commit containing it, so some lag is structural — that is what the existing
+   hard-coded `BEHIND == 1` exemption is for, and this generalises it.
 9. **The `Hang detected: N s` lines are not launch cost.** Instruments measured first frame at
    0.69s. Those hangs happen *after* the app is interactive; look at post-launch work.
 
