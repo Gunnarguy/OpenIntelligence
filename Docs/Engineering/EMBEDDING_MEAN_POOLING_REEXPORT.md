@@ -189,6 +189,26 @@ Verification step 1 passed and is conclusive: `strings` on the new `main.mlirb` 
 `attention_mask` and `embeddings`, where the previous committed artifact listed only `input_ids` and
 `embeddings`. The graph takes the mask.
 
+Step 3 now has a test, `OpenIntelligenceTests/EmbeddingProviderAgreementTests`, which embeds the same
+text with both providers and asserts cosine > 0.99, plus a second case asserting two unrelated short
+texts stay apart (the signature of padding dominating the mean is that they converge).
+
+**It skips in the simulator, and cannot be made to run there.** `CoreAISentenceEmbeddingProvider`
+resolves its model resource at line 78 and sets `isModelLoadingFailed` when that lookup fails, before
+any load is attempted; `isAvailable` is `!isModelLoadingFailed`. The device log shows the other side:
+`Created .aimodel symlink`, `Loaded Core AI model successfully`, `available: true`. The tokenizer
+loads in both places; the model only loads on hardware.
+
+So this is a device test:
+
+```bash
+xcodebuild test -scheme OpenIntelligence \
+  -destination 'platform=iOS,id=<device-udid>' \
+  -only-testing:OpenIntelligenceTests/EmbeddingProviderAgreementTests
+```
+
+A skip means unverified, not fine.
+
 Steps 2, 3 and 4 have **not** been done:
 
 - A short string and a long string embedding differently.
