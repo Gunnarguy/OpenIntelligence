@@ -119,6 +119,71 @@ class RepoOSRouterTests(unittest.TestCase):
         self.assertEqual(release["unreleased_entries"], "0")
         self.assertEqual(release["confidence"], "exact")
 
+    def test_open_marker_makes_the_top_section_the_target(self) -> None:
+        """The case the router got wrong for the whole v5.0 cycle.
+
+        A dated numbered heading is written when the section is opened, not when the release is
+        cut, so without the marker this reads as "5.0 shipped" while 28 roadmap rows are open
+        against it.
+        """
+        repo = self.changelog_repo(
+            "# Changelog\n\n## [Unreleased]\n\n<!-- next-version: 5.1 -->\n\n"
+            "## 5.0 - 2026-08-10 <!-- unreleased -->\n\n- in flight\n\n"
+            "## 4.9 - 2026-08-02\n\n- shipped\n"
+        )
+        release = router.detect_active_release(repo)
+        self.assertEqual(release["version"], "v5.0")
+        self.assertEqual(release["last_shipped"], "v4.9")
+        self.assertEqual(release["state"], "in_development")
+        self.assertEqual(release["open_section"], "yes")
+        self.assertEqual(release["confidence"], "exact")
+        self.assertEqual(router.changelog_section(release), "## 5.0")
+
+    def test_open_marker_wins_over_an_empty_unreleased_block(self) -> None:
+        """An empty [Unreleased] previously forced state="shipped" on its own."""
+        repo = self.changelog_repo(
+            "# Changelog\n\n## [Unreleased]\n\n## 5.0 - 2026-08-10 <!-- unreleased -->\n\n"
+            "- in flight\n\n## 4.9 - 2026-08-02\n\n- shipped\n"
+        )
+        release = router.detect_active_release(repo)
+        self.assertEqual(release["version"], "v5.0")
+        self.assertEqual(release["state"], "in_development")
+
+    def test_removing_the_open_marker_is_what_cutting_a_release_means(self) -> None:
+        repo = self.changelog_repo(
+            "# Changelog\n\n## [Unreleased]\n\n## 5.0 - 2026-08-10\n\n- shipped\n"
+        )
+        release = router.detect_active_release(repo)
+        self.assertEqual(release["version"], "v5.0")
+        self.assertEqual(release["state"], "shipped")
+        self.assertEqual(release["open_section"], "no")
+        self.assertEqual(router.changelog_section(release), "[Unreleased]")
+
+    def test_open_marker_is_read_from_the_heading_line_and_nowhere_else(self) -> None:
+        """Prose describing the marker must not be mistaken for the marker.
+
+        CHANGELOG.md contains an entry describing this very mechanism, so a whole-file search
+        would report every release as open forever. Same defect the next-version marker's
+        anchoring exists to prevent.
+        """
+        repo = self.changelog_repo(
+            "# Changelog\n\n## [Unreleased]\n\n## 5.0 - 2026-08-10\n\n"
+            "- Sections carry a `<!-- unreleased -->` marker while open.\n\n"
+            "## 4.9 - 2026-08-02\n\n- shipped\n"
+        )
+        release = router.detect_active_release(repo)
+        self.assertEqual(release["state"], "shipped")
+        self.assertEqual(release["open_section"], "no")
+
+    def test_open_marker_with_no_earlier_release_reports_unknown(self) -> None:
+        repo = self.changelog_repo(
+            "# Changelog\n\n## [Unreleased]\n\n## 1.0 - 2026-01-01 <!-- unreleased -->\n\n- first\n"
+        )
+        release = router.detect_active_release(repo)
+        self.assertEqual(release["version"], "v1.0")
+        self.assertEqual(release["last_shipped"], "unknown")
+        self.assertEqual(release["state"], "in_development")
+
     def test_non_empty_unreleased_reads_the_next_version_marker(self) -> None:
         repo = self.changelog_repo(
             "# Changelog\n\n## [Unreleased]\n\n<!-- next-version: 5.0 -->\n\n### Added\n"
@@ -230,7 +295,13 @@ class RepoOSRouterTests(unittest.TestCase):
             (self.repo / "CHANGELOG.md").read_text(encoding="utf-8")
         )
         self.assertIsNotNone(heading)
-        self.assertEqual(release["last_shipped"], f"v{heading.group(1)}")
+        top = f"v{heading.group(1)}"
+        if release["open_section"] == "yes":
+            # An open top section is the target, so it is emphatically not `last_shipped`.
+            self.assertEqual(release["version"], top)
+            self.assertNotEqual(release["last_shipped"], top)
+        else:
+            self.assertEqual(release["last_shipped"], top)
         if release["state"] == "in_development":
             self.assertNotEqual(release["version"], release["last_shipped"])
 
@@ -242,7 +313,12 @@ class RepoOSRouterTests(unittest.TestCase):
             preflight=False,
         )
         targets = report["documentation_targets"]
-        self.assertEqual(targets["changelog_section"], "[Unreleased]")
+        self.assertEqual(
+            targets["changelog_section"],
+            f"## {report['active_release']['version'].lstrip('v')}"
+            if report["active_release"]["open_section"] == "yes"
+            else "[Unreleased]",
+        )
         self.assertEqual(
             targets["notion_target_release"], report["active_release"]["version"]
         )

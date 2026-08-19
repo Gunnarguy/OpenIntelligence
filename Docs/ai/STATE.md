@@ -192,6 +192,16 @@ Run and output read, this session:
 - `secret_scan.py` clean, `check_icloud_conflicts.sh` clean.
 - `build_simulator_smoke.sh` → **BUILD SUCCEEDED**, iPhone 17 Pro simulator. Run because the
   `repoos_workspace_automation` route requires it, not because a shell-script edit could affect it.
+- **The preflight's `active_release` was wrong, and both failure directions are now covered by
+  tests.** It read `## 5.0 - 2026-08-10` as a shipped release, because it treats the first numbered
+  heading in `CHANGELOG.md` as `last_shipped`. That heading is the open section here: all nine
+  commits of this cycle filed into it while `[Unreleased]` stayed empty. Ground truth is that v5.0
+  has **not** shipped — Notion has 28 open rows against it while every release v4.0 through v4.9 is
+  100% Completed, there is no `v5.0` tag, and `RELEASE_NOTES.md` still lists Archive/TestFlight
+  validation as pending. Fixed with a `<!-- unreleased -->` marker on the heading. `test_repoos_router.py`
+  → **29 tests, OK**, up from 24. The preflight now reports `v5.0 (in_development, last shipped
+  v4.9)` and `Changelog target: ## 5.0`. `ci_post_clone.sh` still extracts `5.0` for
+  `MARKETING_VERSION`, checked with its own `grep`/`awk` after the marker was added.
 - **The session-start hook parser, fixed and measured either side of the change.** Before: the
   parser returned ``ef3fd25—thelastchangetocode.`6cc5e55`and`cfab566`aredocs-only,so`` and the hook
   printed "names a commit not in this repository". After: `ef3fd25`, and drift counted over

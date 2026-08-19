@@ -70,6 +70,23 @@ NEXT_VERSION_MARKER = re.compile(
     r"^[ \t]*<!--\s*next-version:\s*(v?\d[0-9A-Za-z.\-]*)\s*-->[ \t]*$",
     re.IGNORECASE | re.MULTILINE,
 )
+# An explicit declaration that the top numbered section has NOT shipped yet.
+#
+# Nothing else in the repository records this. The heading's own date is written when the section is
+# opened, not when the release is cut, and git tags cannot stand in: v4.0 and v4.2 through v4.6 have
+# none. Without a declaration the router read `## 5.0 - 2026-08-10` as a shipped release while 28
+# roadmap rows were still open against it, and told every session that new work targeted the version
+# after it.
+#
+# Only ever tested against the first numbered heading's own line, never the whole file, for the same
+# reason NEXT_VERSION_MARKER is anchored: this file and CHANGELOG.md both contain prose describing
+# these markers, and matching that prose is the "read prose as data" defect twice over.
+#
+# Removing this marker is what cutting a release means. Left on a section that has shipped, the
+# router keeps naming that version as the target, which is wrong but bounded: it names a real
+# release rather than inventing the next one, and it self-corrects as soon as a newer section is
+# opened above it.
+OPEN_SECTION_MARKER = re.compile(r"<!--\s*unreleased\s*-->", re.IGNORECASE)
 HARD_BOUNDARY_NAMES = {
     "project.pbxproj",
     "storekitconfiguration.storekit",
@@ -280,6 +297,9 @@ def detect_active_release(repo: Path) -> dict[str, str]:
     treating it as the target is what made CI stamp an already-released 4.6 and got the build
     rejected by App Store Connect on 2026-07-28. So the two states are reported separately:
 
+      * top heading carries      -> that section is still open, so it IS the target and the section
+        `<!-- unreleased -->`        below it is `last_shipped`. Checked first, because it is the
+                                     only positive statement available; both other branches infer.
       * `[Unreleased]` empty      -> the numbered heading is the target. state="shipped".
       * `[Unreleased]` non-empty  -> the target is the *next* version, which the numbered heading
                                      does not name. state="in_development", and the number comes
@@ -296,6 +316,7 @@ def detect_active_release(repo: Path) -> dict[str, str]:
             "last_shipped": "unknown",
             "state": "unknown",
             "unreleased_entries": "0",
+            "open_section": "no",
             "source": "none",
             "matched_text": f"{CHANGELOG_PATH} not found",
             "evidence_level": "artifact_derived",
@@ -303,9 +324,26 @@ def detect_active_release(repo: Path) -> dict[str, str]:
         }
 
     content = path.read_text(encoding="utf-8")
-    shipped = SHIPPED_HEADING.search(content)
+    headings = list(SHIPPED_HEADING.finditer(content))
+    shipped = headings[0] if headings else None
     last_shipped = f"v{shipped.group(1)}" if shipped else "unknown"
     pending = unreleased_entry_count(content)
+
+    if shipped is not None:
+        end = content.find("\n", shipped.start())
+        heading_line = content[shipped.start() : end if end != -1 else len(content)]
+        if OPEN_SECTION_MARKER.search(heading_line):
+            return {
+                "version": last_shipped,
+                "last_shipped": f"v{headings[1].group(1)}" if len(headings) > 1 else "unknown",
+                "state": "in_development",
+                "unreleased_entries": str(pending),
+                "open_section": "yes",
+                "source": f"{CHANGELOG_PATH} unreleased marker",
+                "matched_text": heading_line.strip(),
+                "evidence_level": "artifact_derived",
+                "confidence": "exact",
+            }
 
     if pending == 0:
         return {
@@ -313,6 +351,7 @@ def detect_active_release(repo: Path) -> dict[str, str]:
             "last_shipped": last_shipped,
             "state": "shipped",
             "unreleased_entries": "0",
+            "open_section": "no",
             "source": CHANGELOG_PATH,
             "matched_text": shipped.group(0).strip() if shipped else "no numbered heading",
             "evidence_level": "artifact_derived",
@@ -334,6 +373,7 @@ def detect_active_release(repo: Path) -> dict[str, str]:
                 "last_shipped": last_shipped,
                 "state": "in_development",
                 "unreleased_entries": str(pending),
+                "open_section": "no",
                 "source": f"{CHANGELOG_PATH} next-version marker",
                 "matched_text": marker.group(0).strip(),
                 "evidence_level": "artifact_derived",
@@ -345,6 +385,7 @@ def detect_active_release(repo: Path) -> dict[str, str]:
         "last_shipped": last_shipped,
         "state": "in_development",
         "unreleased_entries": str(pending),
+        "open_section": "no",
         "source": CHANGELOG_PATH,
         "matched_text": (
             f"[Unreleased] has {pending} entrie(s) and no <!-- next-version: X --> marker; "
@@ -353,6 +394,18 @@ def detect_active_release(repo: Path) -> dict[str, str]:
         "evidence_level": "artifact_derived",
         "confidence": "unknown",
     }
+
+
+def changelog_section(release: dict[str, str]) -> str:
+    """The heading a new entry goes under.
+
+    `[Unreleased]` is right whenever the top numbered section has already shipped. While that
+    section is still open it is the target instead, which is what every commit of the v5.0 cycle
+    did in practice while this function was hardcoded to say otherwise.
+    """
+    if release.get("open_section") == "yes":
+        return f"## {release['version'].lstrip('v')}"
+    return "[Unreleased]"
 
 
 def release_notes_section(repo: Path, release: dict[str, str]) -> str:
@@ -459,7 +512,7 @@ def build_report(repo: Path, task: str, paths: list[str], preflight: bool) -> di
         "active_release": active_release,
         "documentation_targets": {
             "effective_required_docs": effective_required_docs(route, intent),
-            "changelog_section": "[Unreleased]",
+            "changelog_section": changelog_section(active_release),
             "release_notes_section": release_notes_section(repo, active_release),
             "notion_target_release": (
                 active_release["version"]
