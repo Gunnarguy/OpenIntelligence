@@ -67,7 +67,29 @@ final class CoreMLSentenceEmbeddingProvider: EmbeddingProvider {
     private let maxSequenceLength: Int
 
     #if canImport(CoreML)
+        /// Loaded on first use, never in `init`.
+        ///
+        /// This is a 43 MiB model and `MLModel(contentsOf:configuration:)` is synchronous. It used
+        /// to load inside `setup()`, called from `init`, reached from `ContentView.init` by way of
+        /// `RAGService` — so every launch paid for it before the first frame, and four device
+        /// captures on 2026-08-18 recorded launch hangs of 2.94s, 3.75s, 4.31s and 4.06s. In none
+        /// of those sessions did anything embed, so the cost bought nothing at all.
+        ///
+        /// Deferring it removes the work rather than moving it: a session that never ingests and
+        /// never queries never loads the model.
         private var model: MLModel?
+
+        /// Guards `model` against N concurrent first-callers each loading their own 43 MiB copy.
+        ///
+        /// This class is a non-`Sendable` `final class`, `embed` runs at
+        /// `DeviceCapabilityService.embeddingConcurrency` > 1, and Swift 5 language mode will not
+        /// diagnose the race. The lock is held across the load, so the second caller waits for the
+        /// first rather than duplicating it.
+        private let modelLock = NSLock()
+
+        /// Set once a load has been attempted, successfully or not, so a missing or corrupt model
+        /// is not re-read from disk on every embed call.
+        private var modelLoadAttempted = false
     #endif
 
     private var tokenizer: Tokenizer?
@@ -108,25 +130,15 @@ final class CoreMLSentenceEmbeddingProvider: EmbeddingProvider {
         guard !isIngestionMode else { return }
         isIngestionMode = true
         #if canImport(CoreML)
-            let modelName = "EmbeddingModel"
-            guard let url = OpenIntelligenceResourceBundle.url(forResource: modelName, withExtension: "mlmodelc") else {
-                Log.warning("[CoreMLSentenceEmbeddingProvider] Cannot enable ingestion mode: model not found", category: .embedding)
-                return
-            }
-            do {
-                let config = MLModelConfiguration()
-                config.computeUnits = DeviceCapabilityService.shared.embeddingComputeUnitsDuringIngestion
-                model = try MLModel(contentsOf: url, configuration: config)
-                let computeDesc: String
-                switch config.computeUnits {
-                case .cpuAndGPU: computeDesc = "GPU+CPU (ingestion: ANE free for Vision)"
-                case .cpuAndNeuralEngine: computeDesc = "ANE+CPU"
-                case .all: computeDesc = "All"
-                default: computeDesc = "default"
-                }
-                Log.info("[CoreMLSentenceEmbeddingProvider] ⚡ Ingestion mode ON → \(computeDesc)", category: .embedding)
-            } catch {
-                Log.error("[CoreMLSentenceEmbeddingProvider] Failed to reload model for ingestion: \(error)", category: .embedding)
+            // Same lock as the lazy load, so a mode switch cannot race a first embed.
+            modelLock.lock()
+            defer { modelLock.unlock() }
+            modelLoadAttempted = true
+            if let reloaded = Self.makeModel(computeUnits: DeviceCapabilityService.shared.embeddingComputeUnitsDuringIngestion) {
+                model = reloaded
+                Log.info("[CoreMLSentenceEmbeddingProvider] ⚡ Ingestion mode ON (ANE freed for Vision)", category: .embedding)
+            } else {
+                Log.error("[CoreMLSentenceEmbeddingProvider] Failed to reload model for ingestion", category: .embedding)
                 isIngestionMode = false
             }
         #endif
@@ -136,55 +148,85 @@ final class CoreMLSentenceEmbeddingProvider: EmbeddingProvider {
         guard isIngestionMode else { return }
         isIngestionMode = false
         #if canImport(CoreML)
-            let modelName = "EmbeddingModel"
-            guard let url = OpenIntelligenceResourceBundle.url(forResource: modelName, withExtension: "mlmodelc") else { return }
-            do {
-                let config = MLModelConfiguration()
-                config.computeUnits = DeviceCapabilityService.shared.preferredComputeUnits
-                model = try MLModel(contentsOf: url, configuration: config)
+            modelLock.lock()
+            defer { modelLock.unlock() }
+            // Only restore a model that was actually loaded. If nothing has embedded yet there is
+            // nothing to restore, and loading 43 MiB here would reintroduce the cost this change
+            // exists to remove, on a path the user cannot see.
+            guard model != nil else { return }
+            if let restored = Self.makeModel(computeUnits: DeviceCapabilityService.shared.preferredComputeUnits) {
+                model = restored
                 Log.info("[CoreMLSentenceEmbeddingProvider] Ingestion mode OFF → restored default compute units", category: .embedding)
-            } catch {
-                Log.error("[CoreMLSentenceEmbeddingProvider] Failed to restore default model: \(error)", category: .embedding)
+            } else {
+                Log.error("[CoreMLSentenceEmbeddingProvider] Failed to restore default model", category: .embedding)
             }
         #endif
     }
 
     private func setup() {
-        // Load Model (compiled from .mlpackage to .mlmodelc by Xcode)
-        #if canImport(CoreML)
-            let modelName = "EmbeddingModel"
-            if let url = OpenIntelligenceResourceBundle.url(forResource: modelName, withExtension: "mlmodelc") {
-                do {
-                    let config = MLModelConfiguration()
-                    // Use device-specific compute units based on GPU acceleration setting
-                    config.computeUnits = DeviceCapabilityService.shared.preferredComputeUnits
-                    let computeDesc: String
-                    switch config.computeUnits {
-                    case .cpuAndGPU: computeDesc = "GPU+CPU (forced GPU mode)"
-                    case .cpuAndNeuralEngine: computeDesc = "ANE+CPU (efficiency mode)"
-                    case .all: computeDesc = "All (system choice)"
-                    default: computeDesc = "default"
-                    }
-                    model = try MLModel(contentsOf: url, configuration: config)
-                    Log.info("[CoreMLSentenceEmbeddingProvider] Loaded EmbeddingModel.mlmodelc - compute: \(computeDesc)", category: .embedding)
-                } catch {
-                    Log.error("[CoreMLSentenceEmbeddingProvider] Failed to load MLModel: \(error)", category: .embedding)
-                }
-            } else if let sourceURL = OpenIntelligenceResourceBundle.url(forResource: modelName, withExtension: "mlpackage") {
-                // Fallback: Check for uncompiled package (rare, but good for safety)
-                do {
-                    let config = MLModelConfiguration()
-                    config.computeUnits = DeviceCapabilityService.shared.preferredComputeUnits
-                    model = try MLModel(contentsOf: sourceURL, configuration: config)
-                    Log.info("[CoreMLSentenceEmbeddingProvider] Loaded EmbeddingModel.mlpackage (fallback)", category: .embedding)
-                } catch {
-                    Log.error("[CoreMLSentenceEmbeddingProvider] Failed to load MLModel from source: \(error)", category: .embedding)
-                }
-            } else {
-                Log.error("[CoreMLSentenceEmbeddingProvider] ❌ Model not found. Looked for '\(modelName).mlmodelc' and '.mlpackage'", category: .embedding)
-            }
-        #endif
+        // The model is NOT loaded here; see `model` and `loadedModel()`. Only the tokenizer is,
+        // because it is small, it is needed to answer `countTokens` without embedding anything,
+        // and it already loads asynchronously.
+        loadTokenizer()
+    }
 
+    /// Load the model on first use. Returns nil if it cannot be loaded.
+    #if canImport(CoreML)
+    private func loadedModel() -> MLModel? {
+        modelLock.lock()
+        defer { modelLock.unlock() }
+
+        if let model { return model }
+        if modelLoadAttempted { return nil }
+        modelLoadAttempted = true
+
+        model = Self.makeModel(computeUnits: DeviceCapabilityService.shared.preferredComputeUnits)
+        return model
+    }
+
+    /// Build an `MLModel` at the given compute units, or nil.
+    ///
+    /// Shared by the lazy first load and by both ingestion-mode switches, which previously carried
+    /// their own copies of this lookup-and-load with slightly different logging and error handling.
+    private static func makeModel(computeUnits: MLComputeUnits) -> MLModel? {
+        let modelName = "EmbeddingModel"
+        let computeDesc: String
+        switch computeUnits {
+        case .cpuAndGPU: computeDesc = "GPU+CPU"
+        case .cpuAndNeuralEngine: computeDesc = "ANE+CPU"
+        case .all: computeDesc = "All (system choice)"
+        default: computeDesc = "default"
+        }
+
+        if let url = OpenIntelligenceResourceBundle.url(forResource: modelName, withExtension: "mlmodelc") {
+            do {
+                let config = MLModelConfiguration()
+                config.computeUnits = computeUnits
+                let loaded = try MLModel(contentsOf: url, configuration: config)
+                Log.info("[CoreMLSentenceEmbeddingProvider] Loaded EmbeddingModel.mlmodelc on first use - compute: \(computeDesc)", category: .embedding)
+                return loaded
+            } catch {
+                Log.error("[CoreMLSentenceEmbeddingProvider] Failed to load MLModel: \(error)", category: .embedding)
+            }
+        } else if let sourceURL = OpenIntelligenceResourceBundle.url(forResource: modelName, withExtension: "mlpackage") {
+            // Fallback: Check for uncompiled package (rare, but good for safety)
+            do {
+                let config = MLModelConfiguration()
+                config.computeUnits = computeUnits
+                let loaded = try MLModel(contentsOf: sourceURL, configuration: config)
+                Log.info("[CoreMLSentenceEmbeddingProvider] Loaded EmbeddingModel.mlpackage (fallback)", category: .embedding)
+                return loaded
+            } catch {
+                Log.error("[CoreMLSentenceEmbeddingProvider] Failed to load MLModel from source: \(error)", category: .embedding)
+            }
+        } else {
+            Log.error("[CoreMLSentenceEmbeddingProvider] ❌ Model not found. Looked for '\(modelName).mlmodelc' and '.mlpackage'", category: .embedding)
+        }
+        return nil
+    }
+    #endif
+
+    private func loadTokenizer() {
         // Load Tokenizer
         if let url = OpenIntelligenceResourceBundle.url(forResource: "embedding_tokenizer", withExtension: "bundle") {
             Task {
@@ -202,9 +244,20 @@ final class CoreMLSentenceEmbeddingProvider: EmbeddingProvider {
 
     var isAvailable: Bool {
         #if canImport(CoreML)
+            // "Can this provider work", not "has it loaded yet".
+            //
+            // This read `model != nil`, which was equivalent while the model loaded in `init`.
+            // With the load deferred it would report unavailable until something first embedded,
+            // and callers route on this — `EmbeddingService.forProvider(allowFallback:)` would
+            // silently fall back to a different provider on a cold app, which is the failure mode
+            // that produces a library embedded by two different models.
+            //
+            // Resource presence is the honest test and costs a bundle lookup, not 43 MiB.
             let available = model != nil
+                || OpenIntelligenceResourceBundle.url(forResource: "EmbeddingModel", withExtension: "mlmodelc") != nil
+                || OpenIntelligenceResourceBundle.url(forResource: "EmbeddingModel", withExtension: "mlpackage") != nil
             if !available {
-                Log.warning("[CoreMLSentenceEmbeddingProvider] Provider unavailable: model=\(model != nil)", category: .embedding)
+                Log.warning("[CoreMLSentenceEmbeddingProvider] Provider unavailable: EmbeddingModel not present in bundle", category: .embedding)
             }
 
             return available
@@ -249,7 +302,7 @@ final class CoreMLSentenceEmbeddingProvider: EmbeddingProvider {
                 count += 1
             }
 
-            guard let model = model, let tokenizer = tokenizer else {
+            guard let model = loadedModel(), let tokenizer = tokenizer else {
                 throw EmbeddingError.modelUnavailable
             }
 
