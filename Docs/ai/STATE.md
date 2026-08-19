@@ -220,10 +220,21 @@ Run and output read, this session:
    through the signing path. [Notion](https://app.notion.com/39e49a74d54f81388056f384c4663876)
 3. **A fresh import may still lose its vectors, and this is the cheapest open blocker.** Three
    libraries found with documents and 0 chunks. `0350083` fixes the suspected cause and is
-   unconfirmed. Ruled out as causes from the 2026-08-19 capture: the fingerprint never fired
-   (`"Embedding pipeline changed"` 0 occurrences), the provider/dimension wipe path never fired, no
-   provider fallback occurred, and five other stores were intact. So nothing shipped this week
-   emptied them — but whether the import bug is dead is unknown.
+   unconfirmed. Not the cause, from the 2026-08-19 capture: the provider/dimension wipe path never
+   fired, no provider fallback occurred, and five other stores were intact. So nothing shipped this
+   week emptied them — but whether the import bug is dead is unknown.
+
+   **The fingerprint's 0 occurrences of `"Embedding pipeline changed"` is not evidence of anything
+   and must not be read as ruling it out.** `3b48c88` shipped the fingerprint and `3ea5cd9`
+   re-exported the model with mean pooling, adjacent commits on 2026-08-18. At first launch on a
+   build carrying both, every existing library had `embeddingFingerprint == nil`, took the
+   silent-adopt branch at `RAGService.swift:4359`, and recorded the *post*-re-export fingerprint
+   over *pre*-re-export vectors. The nil-adopt behaviour is deliberate and the row argues for it
+   correctly, but it consumed the one event that would have proven the flag works, and it leaves
+   those libraries reading healthy while holding stale vectors. Closing that row now needs a
+   fingerprint change induced on a library that already carries one — a chunker-recipe change or a
+   `modelRevision` bump — because nil-adopt cannot fire twice. Re-importing a library is the
+   owner-side fix and takes about two minutes for fifteen documents.
    [Notion](https://app.notion.com/3c149a74d54f81239443c15fe6ae3782)
 4. **Deep Think's recall gap is measured but unattributed.** r@10 0.625 against standard's 1.000.
    The instrumented run above is what attributes it.
@@ -262,9 +273,19 @@ Run and output read, this session:
 
 ## Roadmap
 
-v5.0: **31 Completed, 10 In Progress, 17 To Do.** Two rows are device-confirmed and sit In Progress
-pending only a decision — [self-heal](https://app.notion.com/3c049a74d54f81fd9255edc739959d36) and
-[embedding fingerprint](https://app.notion.com/3bf49a74d54f812597ffd48a165a139f).
+v5.0: **31 Completed, 11 In Progress, 17 To Do**, verified against the database 2026-08-19.
+
+**Neither of the two "device-confirmed" rows is closeable, and an earlier version of this line said
+they were.** Read the rows, not this summary; both state their own closing conditions and both fail
+them.
+
+- [self-heal](https://app.notion.com/3c049a74d54f81fd9255edc739959d36) covers two defects. "Cannot
+  repair itself" is disproven on device. "The repair reports success" has never been exercised,
+  because no rebuild in any capture has been blocked. Needs a library with a stuck non-terminal
+  ingestion item.
+- [embedding fingerprint](https://app.notion.com/3bf49a74d54f812597ffd48a165a139f) closes when a
+  device run shows a library flagged after an embedding change and rebuilt from the banner. That
+  can no longer happen by the route the row names — see Blocker 3.
 
 Roughly fifteen of the open rows are features and tooling rather than defects. Use the
 `notion-roadmap` skill; never answer a roadmap question from memory or from `Docs/ROADMAP.md`.
