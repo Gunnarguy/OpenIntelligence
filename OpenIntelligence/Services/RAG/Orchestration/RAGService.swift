@@ -8588,6 +8588,29 @@ class RAGService: ObservableObject {
                 }
             }()
 
+            // The reasoning trace is shown to the user and included in the exported pipeline
+            // trace, but `verifyCitations` only ever inspected the final answer, so a citation
+            // here pointing past the end of the source list reached the screen unchecked. Device
+            // 2026-08-19 displayed `[S13]` and `[S17]` against a 12-source list in silence.
+            //
+            // This logs rather than rewrites: a dangling citation means the source list and the
+            // labels have diverged, and silently renumbering would hide that divergence instead
+            // of surfacing it.
+            if let reasoningTrace {
+                let dangling = AgenticOrchestrator.danglingCitations(
+                    in: reasoningTrace.joined(separator: "\n"),
+                    sourceCount: result.retrievedChunks.count
+                )
+                if !dangling.isEmpty {
+                    Log.warning(
+                        "[RAGService] Reasoning trace cites \(dangling.map { "[S\($0)]" }.joined(separator: ", ")) "
+                            + "against \(result.retrievedChunks.count) source(s). The labels and the reported source "
+                            + "list have diverged; the citations are unresolvable for the reader.",
+                        category: .llm
+                    )
+                }
+            }
+
             let agenticAnswerIntent = QueryEnhancementService().classifyAnswerIntent(question)
             let generatedAgenticAnswer = repairMalformedURLs(cleanupResponseText(result.finalAnswer))
             let extractiveAgenticAnswer = await highPrecisionLookupOverrideAnswer(

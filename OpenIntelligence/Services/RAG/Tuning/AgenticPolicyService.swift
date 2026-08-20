@@ -177,7 +177,19 @@ enum AgenticPolicyService {
         if !addressesQuestion {
             return "retry"
         }
-        if groundingScore < 0.3 && totalCitations > 0 {
+        // Raised from 0.3 on 2026-08-19. At 0.3, seven of every ten citations could fail to check
+        // out and the answer still shipped. A device capture logged
+        // `accept (relevance=54%, citations=2/4, confidence=67%)` — half the citations ungrounded,
+        // nowhere near the old bar. For an app whose premise is that answers are grounded in the
+        // user's own documents, "most citations are wrong" should not be an accepted outcome.
+        //
+        // This is a judgement call and it trades latency for correctness: more answers will now
+        // retry. If retries prove expensive the right response is to fix grounding, not to lower
+        // this number back.
+        // A strict majority of citations must check out. `< 0.5` was not enough: the device
+        // capture scored exactly 2/4, and 0.5 is not less than 0.5, so the very case this was
+        // raised for would still have been accepted. Caught by the test below before shipping.
+        if groundingScore <= 0.5 && totalCitations > 0 {
             return "retry"
         }
         if calibratedConfidence < 0.5 {
@@ -192,19 +204,39 @@ enum AgenticPolicyService {
         answerLength: Int,
         sourceCount: Int
     ) -> Float {
-        let relevanceWeight: Float = 0.40
-        let citationWeight: Float = 0.30
-        let completenessWeight: Float = 0.30
+        // Confidence is relevance and grounding. Nothing else.
+        //
+        // There was a third `completeness` term worth 0.30, computed from answer length and source
+        // count. Both saturated — length at 500 characters, sources at 5 — so for any real answer
+        // it returned 1.0 and simply handed over its full weight. Combined with the floor, that
+        // meant a completely ungrounded and completely irrelevant answer reported 30% confidence.
+        //
+        // Removing only the length half was not enough, because source count saturates the same
+        // way; the first attempt at this fix still produced exactly 0.30 and the test caught it.
+        // Neither term measures whether the answer is right. Retrieving twelve chunks and writing
+        // five paragraphs is not evidence of correctness, and a confidence score that cannot fall
+        // to zero cannot report failure.
+        let relevanceWeight: Float = 0.50
+        let citationWeight: Float = 0.50
 
-        let lengthScore = min(1.0, Float(answerLength) / 500.0)
-        let sourceScore = min(1.0, Float(sourceCount) / 5.0)
-        let completeness = (lengthScore + sourceScore) / 2
+        // Completeness deliberately no longer counts answer length.
+        //
+        // `lengthScore` saturated at 500 characters, so every real answer scored 1.0 on it and the
+        // term discriminated nothing — it simply handed out its share of the weight. Worse, the two
+        // saturating terms together made `completeness` a near-constant 0.30 contribution, which
+        // combined with the floor below meant a completely ungrounded, completely irrelevant answer
+        // still reported 30% confidence. Length is not evidence of correctness in either direction:
+        // a correct answer can be one sentence and a wrong one can be five paragraphs.
+        _ = sourceCount
+        _ = answerLength
 
         let rawConfidence = (answerRelevance * relevanceWeight)
             + (citationScore * citationWeight)
-            + (completeness * completenessWeight)
 
-        return min(0.95, max(0.30, rawConfidence))
+        // Floor lowered from 0.30. A confidence score that cannot fall below 30% cannot express
+        // failure, and an answer with zero grounding and zero relevance was reporting exactly that.
+        // The floor stays non-zero only so the value reads as a score rather than an error.
+        return min(0.95, max(0.05, rawConfidence))
     }
 
     static func reasoningPolicy(

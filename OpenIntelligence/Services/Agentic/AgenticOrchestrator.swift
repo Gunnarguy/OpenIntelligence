@@ -749,14 +749,26 @@ final class AgenticOrchestrator: Sendable {
                 )
             }
 
+                // Report the array the chain actually laboured over, not the pre-routing
+                // accumulation. `initialSources:` above already does this and says why; these two
+                // returns were left on `allRetrievedChunks`, so the two disagreed.
+                //
+                // The chain labels sources by global position in `routedChunks` (see
+                // `labelOffset`), so a citation of `[S13]` is valid against that array. Handing
+                // back a shorter, differently-ordered list silently turns every citation past its
+                // end into a dangling reference.
+                //
+                // Device 2026-08-19: 20 chunks entered the pipeline, the reasoning trace cited
+                // `[S13]` and `[S17]`, and 12 chunks were reported. Nothing was hallucinated —
+                // the citations were right and the source list was the wrong one.
             return AgenticResult(
                 finalAnswer: chainResult.finalAnswer,
                 steps: steps,
                 totalTokens: totalTokens,
                 totalDuration: Date().timeIntervalSince(startTime),
                 confidence: chainResult.confidence,
-                sourcesUsed: allRetrievedChunks.count,
-                retrievedChunks: allRetrievedChunks
+                sourcesUsed: chainResult.routedChunks.count,
+                retrievedChunks: chainResult.routedChunks
             )
 
         case .good:
@@ -839,14 +851,26 @@ final class AgenticOrchestrator: Sendable {
                 )
             }
 
+                // Report the array the chain actually laboured over, not the pre-routing
+                // accumulation. `initialSources:` above already does this and says why; these two
+                // returns were left on `allRetrievedChunks`, so the two disagreed.
+                //
+                // The chain labels sources by global position in `routedChunks` (see
+                // `labelOffset`), so a citation of `[S13]` is valid against that array. Handing
+                // back a shorter, differently-ordered list silently turns every citation past its
+                // end into a dangling reference.
+                //
+                // Device 2026-08-19: 20 chunks entered the pipeline, the reasoning trace cited
+                // `[S13]` and `[S17]`, and 12 chunks were reported. Nothing was hallucinated —
+                // the citations were right and the source list was the wrong one.
             return AgenticResult(
                 finalAnswer: chainResult.finalAnswer,
                 steps: steps,
                 totalTokens: totalTokens,
                 totalDuration: Date().timeIntervalSince(startTime),
                 confidence: chainResult.confidence,
-                sourcesUsed: allRetrievedChunks.count,
-                retrievedChunks: allRetrievedChunks
+                sourcesUsed: chainResult.routedChunks.count,
+                retrievedChunks: chainResult.routedChunks
             )
 
         case .moderate:
@@ -3826,6 +3850,25 @@ final class AgenticOrchestrator: Sendable {
     }
 
     /// Verify that citations [S1], [S2], etc. actually reference content from sources
+    /// Report any `[S#]` in `text` that points past the end of the source list.
+    ///
+    /// `verifyCitations` only ever inspected the final answer, so a dangling citation in the
+    /// reasoning trace — which is rendered to the user and included in the exported trace — reached
+    /// the screen unchecked. The 2026-08-19 capture displayed `[S13]` and `[S17]` against a
+    /// 12-source list while the existing out-of-range branch stayed silent, because it was pointed
+    /// at the wrong text.
+    nonisolated static func danglingCitations(in text: String, sourceCount: Int) -> [Int] {
+        guard let regex = try? NSRegularExpression(pattern: "\\[S([0-9]+)\\]") else { return [] }
+        let range = NSRange(text.startIndex..<text.endIndex, in: text)
+        var dangling: Set<Int> = []
+        for match in regex.matches(in: text, range: range) where match.numberOfRanges > 1 {
+            guard let numberRange = Range(match.range(at: 1), in: text),
+                  let index = Int(text[numberRange]) else { continue }
+            if index < 1 || index > sourceCount { dangling.insert(index) }
+        }
+        return dangling.sorted()
+    }
+
     private func verifyCitations(answer: String, sources: [RetrievedChunk]) -> CitationVerificationResult {
         // Extract citation markers from answer.
         //
