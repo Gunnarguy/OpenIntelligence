@@ -15,22 +15,45 @@ never been run.
 
 ## Exact Next Action
 
-### 0. Read the benchmark that ran overnight (2026-08-19 → 20)
+### 0. The overnight benchmark finished. Read this before anything else.
 
-`BenchmarkRuns/postfix-citations`, 8 cases x {deep-think, standard}, `pool_limit 10`, QASPER,
-seed 42, temp 0.7, `topk`, `--pcc deny`. **Flag-for-flag identical to `paired-retry`**, which is the
-baseline: deep-think **2/8 (25%)**, standard **4/7 (57%)**, `gold_recall` 0.38 against 0.57.
+`BenchmarkRuns/postfix-citations`, 8 cases x {deep-think, standard}, `pool_limit 10`, QASPER, seed
+42, temp 0.7, `topk`, `--pcc deny` — **flag-for-flag identical to `paired-retry`**. Full record in
+`BenchmarkRuns/LEDGER.md`.
 
-**This is not a single-variable A/B and must not be read as one.** Six behavioural changes shipped
-between the two runs (see below). The run measures their combined effect, nothing finer.
+**16/16 completed, no timeout, no cascade.**
 
-```bash
-python3 -c "
-import json;d=json.load(open('BenchmarkRuns/postfix-citations/results.json'))
-for m,s in d['summaries'].items(): print(m, s)"
-```
+| | baseline | today |
+| :-- | --: | --: |
+| deep-think correct | 2/8 (25%) | **3/8 (37.5%)** |
+| standard correct | 4/8, 1 failed | **5/8 (62.5%), 0 failed** |
+| deep-think mean seconds | 292.7 | **242.3** |
+| deep-think stages reported | **1** | **6** |
 
-Compare against `BenchmarkRuns/LEDGER.md` line 106 before quoting any figure.
+**Do not read the accuracy delta as a result.** Six behavioural changes shipped between the runs, so
+nothing here attributes a delta to a cause, and at n=8 with ~21% reproducibility one case is noise.
+The run's value is the two things below, which are structural rather than statistical.
+
+**Deep Think's retrieval is measurable for the first time.** `ef3fd25` instrumented the agentic path
+and had never executed. The baseline reported one stage, `final`. This run reports six. `rerank` is
+still missing for deep-think while standard reports all seven — worth chasing, because either the
+agentic path does not rerank or it does not capture it.
+
+**Fusion ranks below the lexical arm it fuses, now confirmed in both modes:**
+
+| mode | lexical r@10 | fusion r@10 | lexical MRR | fusion MRR |
+| :-- | --: | --: | --: | --: |
+| deep-think | 0.692 | **0.538** | 0.615 | **0.431** |
+| standard | 0.750 | **0.625** | 0.646 | **0.448** |
+
+The MRR penalty exceeds the recall penalty in both modes, so fusion is demoting correct documents
+rather than losing them. That is the sharpest lead currently on the board.
+
+**A scoring flaw that must be fixed before the next attribution run.** deep-think's `final` stage is
+scored over **n=21** while its other stages are **n=13**, so the apparent recovery from
+`candidates` 0.462 to `final` 0.857 is partly a denominator artifact. Standard is n=8 throughout.
+Any per-stage comparison for deep-think is unsound until that is reconciled.
+
 
 
 
