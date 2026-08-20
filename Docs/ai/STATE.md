@@ -183,5 +183,8 @@ baseline; `final` uncertain because the k=6 cut still applies. Final worse with 
 `git checkout -- OpenIntelligence/Services/RAG/Retrieval/HybridSearchService.swift`, same as the
 boost fix. Better or equal → commit code + CHANGELOG entry together.
 
-**The binary at `/private/tmp/oi-mac-40` already contains the fix.** A clean re-measure of anything
-*else* requires rebuilding from a stashed tree first.
+**A reboot wipes `/private/tmp`, including the built binary.** The fix survives in the working
+tree. After reboot: probe FM health first (one-word `session.respond` via `xcrun swift`, ~15s — do
+NOT trust `SystemLanguageModel.availability`), then rebuild with the rsync+xcodebuild command in
+Active Constraints, then run the measurement above. A clean re-measure of anything *else* requires
+rebuilding from a stashed tree.
