@@ -27,6 +27,9 @@ struct MessageListV2: View {
     var onTranslate: ((String) -> Void)?
     /// Called when user taps Illustrate on a message
     var onIllustrate: ((String) -> Void)?
+    /// Supplies the library index state for a shared pipeline trace. Defaulted to nil so a host
+    /// that does not pass it yields a trace without a LIBRARY STATE section rather than crashing.
+    var libraryStateProvider: ((UUID) async -> String)?
 
     @State private var scrollProxy: ScrollViewProxy?
 
@@ -51,7 +54,8 @@ struct MessageListV2: View {
         onThumbsUp: (() -> Void)? = nil,
         onThumbsDown: (() -> Void)? = nil,
         onTranslate: ((String) -> Void)? = nil,
-        onIllustrate: ((String) -> Void)? = nil
+        onIllustrate: ((String) -> Void)? = nil,
+        libraryStateProvider: ((UUID) async -> String)? = nil
     ) {
         _messages = messages
         _thinkingEvents = thinkingEvents
@@ -65,6 +69,7 @@ struct MessageListV2: View {
         self.onThumbsDown = onThumbsDown
         self.onTranslate = onTranslate
         self.onIllustrate = onIllustrate
+        self.libraryStateProvider = libraryStateProvider
     }
 
     var body: some View {
@@ -86,7 +91,8 @@ struct MessageListV2: View {
                                     onThumbsUp: snapshot.role == .assistant ? onThumbsUp : nil,
                                     onThumbsDown: snapshot.role == .assistant ? onThumbsDown : nil,
                                     onTranslate: snapshot.role == .assistant ? onTranslate : nil,
-                                    onIllustrate: snapshot.role == .assistant ? onIllustrate : nil
+                                    onIllustrate: snapshot.role == .assistant ? onIllustrate : nil,
+                                    libraryStateProvider: libraryStateProvider
                                 )
                                 .id(snapshot.id)
                                 .transition(.asymmetric(

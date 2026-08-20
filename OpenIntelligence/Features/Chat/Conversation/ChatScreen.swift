@@ -2113,6 +2113,12 @@ struct ChatScreen: View {
                 onTranslate: { text in
                     translationText = text
                     showTranslation = true
+                },
+                // Supplied here because this is where RAGService actually lives: it arrives through
+                // this screen's init as an @ObservedObject, never through the environment. Reaching
+                // for it with @EnvironmentObject inside the bubble crashed the app on 2026-08-19.
+                libraryStateProvider: { containerId in
+                    await ragService.libraryStateTraceBlock(for: containerId)
                 }
             )
         }

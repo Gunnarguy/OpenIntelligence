@@ -34,8 +34,16 @@ struct MessageBubbleV2: View {
     @State private var sharePayload: SharePayload? = nil
     @State private var showReasoningTrace = false
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
-    // Injected at ContentView. Used only to read the library's index state when a trace is shared.
-    @EnvironmentObject private var ragService: RAGService
+
+    /// Supplies the library's index state for the shared trace. Optional on purpose.
+    ///
+    /// This was an `@EnvironmentObject` for RAGService and it crashed the app on 2026-08-19.
+    /// `ChatScreen` takes its `ragService` through `init` as an `@ObservedObject`, so the object is
+    /// not in this view tree's environment and never has been. `@EnvironmentObject` traps when the
+    /// object is absent rather than returning nil, which turns a missing section into a crash.
+    /// Passed explicitly and defaulted to nil so a host that does not supply it simply produces a
+    /// trace without a LIBRARY STATE section.
+    var libraryStateProvider: ((UUID) async -> String)?
 
     /// Responsive spacer: compact (iPhone) gets more content width, regular (iPad/Mac) keeps roomy margins
     private var bubbleSpacerMinLength: CGFloat {
@@ -50,7 +58,8 @@ struct MessageBubbleV2: View {
         onThumbsUp: (() -> Void)? = nil,
         onThumbsDown: (() -> Void)? = nil,
         onTranslate: ((String) -> Void)? = nil,
-        onIllustrate: ((String) -> Void)? = nil
+        onIllustrate: ((String) -> Void)? = nil,
+        libraryStateProvider: ((UUID) async -> String)? = nil
     ) {
         _message = message
         self.showMetadata = showMetadata
@@ -60,6 +69,7 @@ struct MessageBubbleV2: View {
         self.onThumbsDown = onThumbsDown
         self.onTranslate = onTranslate
         self.onIllustrate = onIllustrate
+        self.libraryStateProvider = libraryStateProvider
     }
 
     private var isUser: Bool { message.role == .user }
@@ -343,10 +353,9 @@ struct MessageBubbleV2: View {
         // healthy when the question was asked and empty afterwards is exactly the case worth
         // seeing. Async because the chunk count is a real read of the store.
         Task { @MainActor in
-            let libraryState: String? = if let containerId = message.containerId {
-                await ragService.libraryStateTraceBlock(for: containerId)
-            } else {
-                nil
+            var libraryState: String? = nil
+            if let containerId = message.containerId, let libraryStateProvider {
+                libraryState = await libraryStateProvider(containerId)
             }
 
             if let fileURL = PipelineTraceExporter.exportToFile(
