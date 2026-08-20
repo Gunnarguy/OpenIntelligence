@@ -152,11 +152,19 @@ per-case in `BenchmarkRuns/LEDGER.md` (2026-08-20 forensics entry): RRF fuses 3�
 a corpus-length dense list, so lexical gold dies at the order-dependent 182→90 cut before the
 cross-encoder ever sees it.
 
-**Measurement is blocked by a Foundation Models outage on this Mac.**
-`ModelManagerServices.ModelManagerError Code=1026` on every generation and on ingestion
-summarization. `BenchmarkRuns/lexical-survival` is invalid because of it — every answer is the
-fallback text; do not read its numbers. `modelmanagerd` (pid 587, `_modelmanagerd`, up 8 days) needs
-a reboot, which only the owner can do.
+**Measurement is blocked by a Foundation Models outage on this Mac, diagnosed to its edge.**
+Every process in this login session — the app, a pre-fix build of the app, and a bare Apple-signed
+Swift script — fails inference with `ModelManagerError 1026`, while
+`SystemLanguageModel.default.availability` reports `.available` the whole time. **The availability
+flag is not a health check; only a real `session.respond` is.** A 15-second probe script pattern for
+this lives in the 2026-08-20 ledger entry context: generate one word before trusting the stack.
+Probable trigger: the Data volume hit 96% under accumulated build trees (16 GB since cleaned, 35 GB
+free) and model assets were evicted. Everything reachable without root was tried and is exhausted:
+simulator shutdown, user-domain agent kicks (`intelligenceplatformd` and `generativeexperiencesd`
+are SIP-protected even in the user domain), `ModelCatalogAgent` kick plus delay. `sudo launchctl
+kickstart` of the system daemon is refused under SIP. Remaining fixes are owner-only: toggle Apple
+Intelligence off/on in System Settings, or reboot. `BenchmarkRuns/lexical-survival` is invalid —
+every answer is the fallback text; do not read its numbers.
 
 After the environment recovers (verify with a 1-case probe first):
 
