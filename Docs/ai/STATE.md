@@ -2,7 +2,7 @@
 
 Updated: 2026-08-19
 Branch/worktree: main, clean, fully pushed (`HEAD` == `origin/main`).
-Last verified commit: 6992f36
+Last verified commit: ff24b72
 
 ## Objective
 
@@ -14,6 +14,25 @@ is now retrieval, not synthesis**, and the instrumentation that answers it is co
 never been run.
 
 ## Exact Next Action
+
+### 0. Read the benchmark that ran overnight (2026-08-19 → 20)
+
+`BenchmarkRuns/postfix-citations`, 8 cases x {deep-think, standard}, `pool_limit 10`, QASPER,
+seed 42, temp 0.7, `topk`, `--pcc deny`. **Flag-for-flag identical to `paired-retry`**, which is the
+baseline: deep-think **2/8 (25%)**, standard **4/7 (57%)**, `gold_recall` 0.38 against 0.57.
+
+**This is not a single-variable A/B and must not be read as one.** Six behavioural changes shipped
+between the two runs (see below). The run measures their combined effect, nothing finer.
+
+```bash
+python3 -c "
+import json;d=json.load(open('BenchmarkRuns/postfix-citations/results.json'))
+for m,s in d['summaries'].items(): print(m, s)"
+```
+
+Compare against `BenchmarkRuns/LEDGER.md` line 106 before quoting any figure.
+
+
 
 **Two things, in this order. The first settles a data-integrity blocker and costs whatever three
 device imports cost; the second costs 95 minutes and settles a quality one.**
@@ -105,8 +124,12 @@ Then read where deep-think's recall falls off against standard's. That is Blocke
 
 ## Status
 
-`6992f36`, clean, **not pushed** — `origin/main` is at `8791baa`, eight commits behind. Nothing running. No background
-tasks or monitors left armed.
+`ff24b72`, clean, **not pushed** — `origin/main` is at `8791baa`, fifteen commits behind.
+
+**A benchmark may still be running when you read this.** `BenchmarkRuns/postfix-citations`, started
+2026-08-19 late evening, ~95 minutes, from a binary built at `/private/tmp/oi-mac-40` out of an
+rsync'd copy at `/private/tmp/oi-src`. Nothing else should build, test or run until it finishes.
+**Never `pkill` on the app path** — it matches the harness too; match `Contents/MacOS/OpenIntelligence`.
 
 **Twenty-four commits over two days.** 1,483 insertions across 21 Swift files, plus a regenerated
 `main.mlirb`. Six fixes device-confirmed, two shipped and never once executed (Blocker 5).
@@ -224,6 +247,38 @@ Run and output read, this session:
   subdirectory. `:(top)` is used instead. `test_repoos_router.py` → 24 tests, OK.
 
 **Not run:** the 25-case benchmark; the traced run above; item 1's three device imports.
+
+## What shipped 2026-08-19, late session
+
+Six behavioural changes, all on `main`, none pushed. All were found by reading one device trace at
+a time rather than by reasoning about the code, which is the only method that has worked this week.
+
+| commit | change |
+|---|---|
+| `6992f36` | `LIBRARY STATE` section in the shared pipeline trace |
+| `5307fdc` | fixed the crash `6992f36` introduced (`@EnvironmentObject` for a service never in that environment) |
+| `669f4c5` | intent misrouting, source-only evidence budget, review/extraction evidence mismatch |
+| `ff24b72` | citation source-list mismatch, dangling-citation detection, grounding threshold, confidence formula |
+
+**Two of my own diagnoses were wrong and the tests caught both before they shipped.** I attributed
+the intent misrouting to a `words.count <= 5` fallback; the query never reached it, and the real
+cause was a `lookupStarters` prefix rule several branches earlier. I then set the grounding
+threshold to `< 0.5`, which would still have accepted the exact `2/4` case it was written for. Both
+were caught by tests written alongside the fix. Write the test before believing the diagnosis.
+
+**Known-but-unfixed, pinned by tests asserting current behaviour** so changing them is deliberate:
+
+- A bare `what` prefix still classifies as `.lookup`, so mechanism questions outside the verb list
+  still open the extractive gate.
+- `computePatterns` contains the substring `sum`, so `summary`, `summarize`, `consume`, `presumably`
+  and `assume` classify as arithmetic before the summarize branch is reached. The strings
+  `summarize` and `summary` in `summarizePatterns` are unreachable.
+
+**Still open from the same traces, not filed:** `retrievalTime` is a hardcoded `0` on the agentic
+path while `toolCallsMade` filters exactly the steps whose durations it needed; `timeToFirstToken`
+is `totalTime / stepCount` rather than a measurement, confirmed three times by arithmetic against
+captures; retrieval returns near-duplicate chunks; and similarity scores collide on exact values
+(four chunks at exactly `0.7650`, two at exactly `0.9000`), which no real cosine should do.
 
 ## Blockers / Unknowns
 
