@@ -364,3 +364,59 @@ this number. If it does not, the cause is not only pooling and this row is incom
    whichever direction the missing cases happened to fall. Use `scripts/compare_benchmark_runs.py`,
    which intersects by `case_id` and reports per-case flips. An interim average in this ledger was
    wrong for exactly this reason before it was caught.
+
+### `fusion-vw030` — the fusion weight, measured rather than argued
+
+| run | commit | config | result |
+| :-- | :-- | :-- | :-- |
+| `fusion-vw030` | `4a96958` | 8 cases x standard only, **`--vector-weight 0.3`**, `pool_limit 10`, QASPER, seed 42, temp 0.7, `topk`, `--pcc deny`. Otherwise identical to `postfix-citations`. | 7 scored, 1 timeout. Fusion improved on every metric and **the improvement did not reach the answer.** |
+
+**The question.** Default fusion weights are `vector 0.7 / keyword 0.3`, but every measurement taken
+of the two arms says lexical is the stronger one — `RAGEngine.swift:982` records lexical ranking the
+gold document first in 60% of cases against dense's 8%, and `postfix-citations` measured lexical MRR
+0.646 against vector's 0.396. The weighting is inverted relative to the evidence. This run asked
+whether correcting it helps.
+
+**Paired on the 7 cases with metrics in both runs**, via `scripts/compare_benchmark_runs.py`:
+
+| stage | MRR 0.7 → 0.3 | r@10 0.7 → 0.3 | nDCG@10 0.7 → 0.3 |
+| :-- | :-- | :-- | :-- |
+| `vector` | 0.452 → 0.452 | 0.571 → 0.571 | 0.479 → 0.479 |
+| `lexical` | 0.714 → 0.714 | 0.714 → 0.714 | 0.714 → 0.714 |
+| **`fusion`** | **0.476 → 0.571** | **0.571 → 0.714** | **0.500 → 0.609** |
+| `boosted` | 0.476 → **0.405** | 0.571 → 0.571 | 0.500 → **0.447** |
+| `candidates` | 0.476 → 0.405 | 0.571 → 0.571 | 0.500 → 0.447 |
+| `rerank` | 0.714 → 0.714 | 0.714 → 0.714 | 0.714 → 0.714 |
+| `final` | 0.786 → 0.786 | 0.857 → 0.857 | 0.804 → 0.804 |
+
+**The comparison is trustworthy.** `vector` and `lexical` are bit-identical case for case at both
+weights, which is what they must be — the knob touches only fusion. The tool's own control line
+reports `identical case for case, runs are comparable`. This is a genuine single-variable test, which
+is rare in this ledger.
+
+**Three findings, in order of confidence.**
+
+1. **The hypothesis was right about fusion.** Weighting the stronger arm higher improved fusion on
+   all four metrics: MRR +0.095, r@10 +0.143, nDCG@10 +0.109. Not one metric moving, all of them.
+
+2. **`boosted` gives the improvement back.** MRR 0.571 → 0.405 and r@1 0.429 → 0.286. The
+   keyword-match boost reorders a better-ordered list into a worse one. That is a defect independent
+   of the weight question and it was invisible until fusion was improved enough to expose it.
+
+3. **`rerank` and `final` are identical at both weights.** The cross-encoder re-sorts everything and
+   erases the difference completely — 0.714 and 0.786 either way, to three decimals.
+
+**Standard mode was the wrong vehicle and this run proves it.** Its reranker sits downstream of
+fusion and normalises any fusion change out of existence. **Deep Think has no `rerank` stage at all**
+— `postfix-citations` shows it going `fusion 0.431 → final 0.688` with nothing in between, while
+standard goes `fusion 0.448 → rerank 0.750 → final 0.812`. If the fusion weight can reach an answer
+anywhere, it is only there. **Do not conclude from this run that the fusion weight does not matter.
+Conclude that it cannot matter in the mode that reranks.**
+
+**Accuracy went 4/7 to 3/7 and means nothing at n=7.** One case. The sign test found no discordant
+pairs on the retrieval metric and reported nothing to test.
+
+**The hang recurred, third occurrence, same paper.** `qasper_1604.02038_bc8526d4` sat at 0.1% CPU
+for 21 minutes and timed out at 1800s; `qasper_1604.02038_a0fd0c0f` did the same in `tokfix` for 25
+minutes. Something about `1604.02038` provokes it. The reaper did not fire and no orphan survived,
+which is the fourth confirmation that `subprocess.run` kills its own child correctly.
