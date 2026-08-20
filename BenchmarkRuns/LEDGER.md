@@ -420,3 +420,60 @@ pairs on the retrieval metric and reported nothing to test.
 for 21 minutes and timed out at 1800s; `qasper_1604.02038_a0fd0c0f` did the same in `tokfix` for 25
 minutes. Something about `1604.02038` provokes it. The reaper did not fire and no orphan survived,
 which is the fourth confirmation that `subprocess.run` kills its own child correctly.
+
+### `fusion-vw030-deepthink` — the fusion weight is not the lever, and `boosted` is
+
+| run | commit | config | result |
+| :-- | :-- | :-- | :-- |
+| `fusion-vw030-deepthink` | `61a6a70` | 8 cases x deep-think only, **`--vector-weight 0.3`**, `pool_limit 10`, QASPER, seed 42, temp 0.7, `topk`, `--pcc deny`. | **8/8 complete, no timeout.** Fusion improved sharply. `final` got worse. **Do not change the weight.** |
+
+**Why this run existed.** `fusion-vw030` showed a fusion improvement that `rerank` erased in Standard.
+Deep Think has no `rerank` stage, so it was the only pipeline where the change could reach an answer.
+
+**Deep-think paired on all 8 cases** (mode-aware; see the tooling warning below):
+
+| stage | MRR 0.7 → 0.3 | r@10 0.7 → 0.3 |
+| :-- | :-- | :-- |
+| `vector` | 0.330 → 0.419 | 0.462 → 0.533 |
+| `lexical` | 0.615 → 0.613 | 0.692 → 0.733 |
+| **`fusion`** | **0.431 → 0.591** | **0.538 → 0.800** |
+| `boosted` | 0.591 → **0.442** | 0.800 → 0.667 |
+| `candidates` | 0.336 → 0.442 | 0.615 → 0.667 |
+| **`final`** | **0.688 → 0.530** | **0.857 → 0.739** |
+
+Accuracy **3/8 → 2/8**.
+
+**The answer: no.** Fusion improves substantially at weight 0.3 — MRR +0.160, r@10 0.538 to 0.800 —
+and the answer still gets worse. Combined with `fusion-vw030`, the weight change is neutral in
+Standard and negative in Deep Think. **The default `vector 0.7 / keyword 0.3` stays.** Two runs, both
+modes, one conclusion.
+
+**What the two runs actually found is `boosted`.** Isolating what
+`applyKeywordMatchBoost` does to the ranking fusion hands it, across all four conditions:
+
+| condition | fusion MRR | boosted MRR | change |
+| :-- | --: | --: | --: |
+| standard vw0.7 | 0.448 | 0.442 | −0.006 |
+| deep-think vw0.7 | 0.431 | 0.336 | −0.095 |
+| standard vw0.3 | 0.571 | 0.405 | **−0.167** |
+| deep-think vw0.3 | 0.591 | 0.442 | **−0.149** |
+
+**It degrades the ranking in every condition, and it degrades more the better the ranking it is
+given.** Sorted by fusion quality, the damage rises monotonically. That is not a tuning problem; a
+stage that destroys more value the more value it receives is doing the wrong thing. This is the
+lever, and it was invisible until fusion was improved enough to expose it.
+
+**Tooling warning, recorded because it nearly produced a wrong conclusion.**
+`scripts/compare_benchmark_runs.py` pairs by `case_id` alone and has no `--mode` filter. Comparing a
+single-mode run against a two-mode run silently matched deep-think candidate rows against **standard**
+baseline rows. The control line caught it — `lexical r1: MOVED -- runs are not comparable` — which is
+the control doing exactly its job. The table above was recomputed mode-aware. **Add a mode filter to
+that script, or always pass single-mode runs to it.**
+
+**A structural limit on A/B testing Deep Think.** In the mode-aware pairing, `vector` MRR moved
+0.330 → 0.419, and the fusion weight cannot touch the vector arm directly. The agentic loop is
+adaptive: changing fusion changes which chunks come back, which changes the next query it issues,
+which changes every later call's vector stage. **No stage is a valid control in Deep Think**, and
+per-call means are taken over different query sets between runs (n=13 against n=15 here). Deep-think
+stage deltas are directional evidence, not measurements. The `final` and accuracy figures are the
+trustworthy ones because they are per-case.
