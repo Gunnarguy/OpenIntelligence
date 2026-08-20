@@ -144,47 +144,31 @@ Command → result, this session only:
 
 ## Exact Next Action
 
-**The working tree holds an unmeasured fix. Measure it before committing it, and do not commit it
-blind.** `HybridSearchService.swift` is modified: a lexical survival guarantee — the reranker pool
-is the top-K cut unioned with the lexical arm's best hits (`guaranteeingLexicalSurvivors`, both
-hybrid paths). Suite-green (256 tests, 0 failures). The mechanism it addresses is established
-per-case in `BenchmarkRuns/LEDGER.md` (2026-08-20 forensics entry): RRF fuses 3–9 lexical hits into
-a corpus-length dense list, so lexical gold dies at the order-dependent 182→90 cut before the
-cross-encoder ever sees it.
-
-**Measurement is blocked by a Foundation Models outage on this Mac, diagnosed to its edge.**
-Every process in this login session — the app, a pre-fix build of the app, and a bare Apple-signed
-Swift script — fails inference with `ModelManagerError 1026`, while
-`SystemLanguageModel.default.availability` reports `.available` the whole time. **The availability
-flag is not a health check; only a real `session.respond` is.** A 15-second probe script pattern for
-this lives in the 2026-08-20 ledger entry context: generate one word before trusting the stack.
-Probable trigger: the Data volume hit 96% under accumulated build trees (16 GB since cleaned, 35 GB
-free) and model assets were evicted. Everything reachable without root was tried and is exhausted:
-simulator shutdown, user-domain agent kicks (`intelligenceplatformd` and `generativeexperiencesd`
-are SIP-protected even in the user domain), `ModelCatalogAgent` kick plus delay. `sudo launchctl
-kickstart` of the system daemon is refused under SIP. Remaining fixes are owner-only: toggle Apple
-Intelligence off/on in System Settings, or reboot. `BenchmarkRuns/lexical-survival` is invalid —
-every answer is the fallback text; do not read its numbers.
-
-After the environment recovers (verify with a 1-case probe first):
+**Resume the survival-fix measurement — everything upstream of it is done.** The FM outage cleared
+with the 2026-08-20 reboot (probe: `GENERATION OK`), the binary at `/private/tmp/oi-mac-40` is
+rebuilt **and contains the uncommitted fix**, and `BenchmarkRuns/lexical-survival-2` holds 1 healthy
+case (PASS, 207.5s, real generation) before the owner reclaimed the machine. Do not start fresh;
+resume:
 
 ```bash
 caffeinate -dimsu python3 scripts/run_quality_matrix.py \
+  --resume BenchmarkRuns/lexical-survival-2 \
   --app /private/tmp/oi-mac-40/Build/Products/Debug/OpenIntelligence.app \
   --manifest Benchmarks/ResearchFixtures/qasper_external_v1/manifest.json \
   --pcc deny --pool-limit 10 --reset-shared-library --timeout 1800 \
-  --sampling topk --seed 42 --temperature 0.7 \
-  --modes standard --limit 8 --output-dir BenchmarkRuns/lexical-survival-2
+  --sampling topk --seed 42 --temperature 0.7 --modes standard --limit 8
 ```
 
-Compare against `BenchmarkRuns/postfix-citations` with `scripts/compare_benchmark_runs.py`; check
-the control line first. Predictions on record: controls identical; `candidates`/`rerank` r@10 ≥
-baseline; `final` uncertain because the k=6 cut still applies. Final worse with controls intact →
-`git checkout -- OpenIntelligence/Services/RAG/Retrieval/HybridSearchService.swift`, same as the
-boost fix. Better or equal → commit code + CHANGELOG entry together.
+Then `scripts/compare_benchmark_runs.py BenchmarkRuns/postfix-citations BenchmarkRuns/lexical-survival-2`,
+control line first. Predictions on record: controls identical; `candidates`/`rerank` r@10 ≥
+baseline; `final` uncertain (k=6 cut still applies). Worse with controls intact →
+`git checkout -- OpenIntelligence/Services/RAG/Retrieval/HybridSearchService.swift`. Better or equal
+→ commit code + CHANGELOG together.
 
-**A reboot wipes `/private/tmp`, including the built binary.** The fix survives in the working
-tree. After reboot: probe FM health first (one-word `session.respond` via `xcrun swift`, ~15s — do
-NOT trust `SystemLanguageModel.availability`), then rebuild with the rsync+xcodebuild command in
-Active Constraints, then run the measurement above. A clean re-measure of anything *else* requires
-rebuilding from a stashed tree.
+**Device evidence already in hand (2026-08-20, n=1, not a substitute for the paired run):** the
+owner ran the exact 2026-08-19 regression query, "What regulates anxiety-like actions?", on a phone
+build that includes the uncommitted fix. Before: 8 words in 145.3s, SourceOnly trimming 93% and
+rejecting 7 claim ids. After: 4,593 chars in 90.1s at 52.5 tok/s, zero SourceOnly warnings, every
+citation resolvable against 26 shown chunks, and `Lexical survival: 5 hit(s) re-attached below the
+top-30 cut` firing in the console. The library still holds pre-mean-pooling vectors (the stale
+fingerprint banner shows correctly), so this answer came from stale embeddings.
