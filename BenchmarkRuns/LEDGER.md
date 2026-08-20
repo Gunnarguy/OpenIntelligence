@@ -99,6 +99,58 @@ also matches the python harness, whose command line contains the app path. Killi
 processes killed the job at case 11/16. Use `pgrep -f 'Contents/MacOS/OpenIntelligence'` to target
 the app alone.
 
+### `postfix-citations` — after the 2026-08-19 fixes, and what it settled
+
+| run | commit | config | result |
+| :-- | :-- | :-- | :-- |
+| `postfix-citations` | `4a96958` | 8 cases x {deep-think, standard}, `pool_limit 10`, QASPER, seed 42, temp 0.7, `topk`, `--pcc deny`. **Flag-for-flag identical to `paired-retry`.** | **Complete. 16/16, no timeout, no cascade.** deep-think **3/8 (37.5%)**, standard **5/8 (62.5%)**. |
+
+**Read the caveat before the numbers.** Six behavioural changes shipped between `paired-retry` and
+this run: intent classification, source-only evidence budgeting, review/extraction evidence
+consistency, the citation source list, the grounding threshold and the confidence formula. This is
+**not** a single-variable A/B and cannot attribute any delta to any one change. At n=8 with roughly
+21% reproducibility it also cannot resolve a difference of one case. Both modes moving up by exactly
+one case is inside noise.
+
+| | baseline | today |
+| :-- | --: | --: |
+| deep-think correct | 2/8 | **3/8** |
+| standard correct | 4/8 (1 failed) | **5/8 (0 failed)** |
+| deep-think mean seconds | 292.7 | **242.3** |
+| standard mean seconds | 216.7 | **196.0** |
+| deep-think mean confidence | 0.83 | **0.77** |
+| deep-think stages reported | **1** (`final`) | **6** |
+
+**The two things this run actually settles, neither of which is the accuracy number.**
+
+**Deep Think's retrieval is measurable for the first time.** `ef3fd25` instrumented the agentic path
+and had never executed; the baseline reported a single `final` stage. This run reports `vector`,
+`lexical`, `fusion`, `boosted`, `candidates`, `final`. `rerank` is still absent for deep-think while
+standard reports all seven, which is itself worth chasing — the agentic path either does not rerank
+or does not capture it.
+
+**Fusion ranks below the lexical arm it fuses, in both modes.** Previously observed on standard
+only. Now measured on both, in the same direction and similar magnitude:
+
+| mode | lexical r@10 | fusion r@10 | delta | lexical MRR | fusion MRR | delta |
+| :-- | --: | --: | --: | --: | --: | --: |
+| deep-think | 0.692 | 0.538 | **-0.154** | 0.615 | 0.431 | **-0.185** |
+| standard | 0.750 | 0.625 | **-0.125** | 0.646 | 0.448 | **-0.198** |
+
+Combining the vector and lexical arms produces a ranking worse than the lexical arm alone, and the
+MRR penalty is larger than the recall penalty in both modes, meaning fusion is pushing correct
+documents *down* rather than dropping them.
+
+**A scoring caveat that must not be skipped.** deep-think's `final` stage is scored over **n=21**
+while its other stages are **n=13**. Different denominators, so `final` r@10 0.857 is not comparable
+to `candidates` 0.462 and the apparent recovery across that boundary is partly an artifact. Standard
+is n=8 throughout and does not have this problem.
+
+`boosted` and `candidates` are byte-identical in both modes, so top-K truncation dropped nothing
+here and the boost stage is doing no reordering that survives to candidates.
+
+`[evidence_level: run_artifact_verified, confidence: exact_for_the_figures, causal_attribution_impossible]`
+
 ### `paired-retry` — the run that worked, and what it found
 
 | run | commit | tests | verdict |
