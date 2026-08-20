@@ -2,7 +2,7 @@
 
 Updated: 2026-08-20
 Branch/worktree: main, clean, **not pushed** — `origin/main` is at `8791baa`, seventeen commits behind.
-Last verified commit: 612f74c
+Last verified commit: a2f33d2
 
 ## Objective
 
@@ -118,9 +118,8 @@ Command → result, this session only:
    `0350083` fixes the suspected cause and is unconfirmed. Needs three device imports; the protocol
    and the routing condition (`RAGService.swift:5569`, PDF-over-10MB) are on
    [the row](https://app.notion.com/3c149a74d54f81239443c15fe6ae3782).
-4. **`boosted` degrades ranking.** MRR 0.476 → 0.405 and r@1 0.429 → 0.286 at weight 0.3. The
-   keyword-match boost reorders a better list into a worse one. Independent of the weight question
-   and previously invisible.
+4. **`boosted` degrades ranking in all four measured conditions**, and more the better its input.
+   This is now the Exact Next Action rather than a blocker.
 5. **Deep Think has no `rerank` stage.** Whether that is deliberate or an omission is unverified;
    `postfix-citations` simply shows the stage absent. Verify by reading where `RAGEngine.rerank` is
    called from `RAGService` and which quality modes reach it.
@@ -141,28 +140,32 @@ Command → result, this session only:
 
 ## Exact Next Action
 
-**Run the fusion-weight sweep in deep-think mode.** It is the only pipeline where the change can
-reach an answer, because it has no reranker to normalise fusion away — which `fusion-vw030` proved
-by showing `rerank` and `final` identical at both weights in Standard.
+**Investigate `applyKeywordMatchBoost` in `HybridSearchService.swift` (`:1102` uses `originalQuery`).**
+It is the stage that destroys retrieval quality, and two benchmark runs now say so.
 
-```bash
-caffeinate -dimsu python3 scripts/run_quality_matrix.py \
-  --app /private/tmp/oi-mac-40/Build/Products/Debug/OpenIntelligence.app \
-  --manifest Benchmarks/ResearchFixtures/qasper_external_v1/manifest.json \
-  --pcc deny --pool-limit 10 --reset-shared-library --timeout 1800 \
-  --sampling topk --seed 42 --temperature 0.7 \
-  --vector-weight 0.3 --modes deep-think --limit 8 \
-  --output-dir BenchmarkRuns/fusion-vw030-deepthink
-```
+Across all four measured conditions it degrades the ranking fusion hands it, and **the damage scales
+with the quality of its input**:
 
-Roughly 55 minutes. The binary at `/private/tmp/oi-mac-40` is current as of `ff24b72`; rebuild only
-if `HEAD` has moved past it.
+| condition | fusion MRR | boosted MRR | change |
+| :-- | --: | --: | --: |
+| standard vw0.7 | 0.448 | 0.442 | −0.006 |
+| deep-think vw0.7 | 0.431 | 0.336 | −0.095 |
+| standard vw0.3 | 0.571 | 0.405 | −0.167 |
+| deep-think vw0.3 | 0.591 | 0.442 | −0.149 |
 
-**What its output decides.** Compare against `postfix-citations` deep-think with
-`scripts/compare_benchmark_runs.py` and check the control line first. If deep-think `final` MRR rises
-above 0.688, the fusion weight reaches the answer in the mode that matters and
-`HybridSearchService.swift:208` should be changed from `0.7/0.3`. If `final` is unchanged, the weight
-is not the lever and the next candidate is Blocker 5 — giving Deep Think a rerank stage.
+A stage that destroys more value the more value it receives is doing the wrong thing, not the right
+thing badly tuned. Read what it boosts and why, then decide whether it should be weakened, gated, or
+removed. Whatever the change, measure it the way the fusion weight was measured — Standard mode,
+paired, with `scripts/compare_benchmark_runs.py` and its control line.
 
-**Do not change the fusion weight without that run.** A Standard-mode result cannot justify it, and
-concluding otherwise from `fusion-vw030` is exactly the error the ledger exists to prevent.
+**The fusion weight question is closed. Do not reopen it.** `vector 0.7 / keyword 0.3` stays.
+Weight 0.3 improves fusion substantially in both modes and the answer does not improve: Standard's
+reranker erases the difference entirely, and Deep Think's `final` MRR fell 0.688 to 0.530 with
+accuracy 3/8 to 2/8. Both runs are in `BenchmarkRuns/LEDGER.md`.
+
+**Two tooling facts to carry forward.** `scripts/compare_benchmark_runs.py` pairs by `case_id` with
+no mode filter, so passing it a two-mode run against a single-mode run silently compares different
+modes — its control line catches this, but only if you read it. And Deep Think cannot be cleanly
+A/B'd at stage level: the loop is adaptive, so changing any stage changes every later query, and
+`vector` moved between two runs that could not have touched it. Deep-think `final` and accuracy are
+per-case and trustworthy; its per-stage means are directional only.
