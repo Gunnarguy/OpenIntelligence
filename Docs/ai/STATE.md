@@ -102,8 +102,10 @@ Command → result, this session only:
 - `BenchmarkRuns/fusion-vw030` → 7 scored, 1 timeout, `results.json` written, no orphans left.
 - `scripts/compare_benchmark_runs.py postfix-citations fusion-vw030` → control line reports
   `identical case for case, runs are comparable`.
+- `BenchmarkRuns/fusion-vw030-deepthink` → **8/8 complete, no timeout**, ~35 min wall. Fusion MRR
+  0.431 → 0.591, `final` MRR 0.688 → **0.530**, accuracy 3/8 → **2/8**.
 
-**Not run:** a deep-think fusion sweep; the 25-case benchmark; anything on device since 2026-08-19.
+**Not run:** the 25-case benchmark; anything on device since 2026-08-19.
 
 ## Blockers / Unknowns
 
@@ -123,8 +125,10 @@ Command → result, this session only:
 5. **Deep Think has no `rerank` stage.** Whether that is deliberate or an omission is unverified;
    `postfix-citations` simply shows the stage absent. Verify by reading where `RAGEngine.rerank` is
    called from `RAGService` and which quality modes reach it.
-6. **A hang recurs on QASPER paper `1604.02038`**, third occurrence: 0.1% CPU for 21 minutes, then
-   timeout. Two different case ids from the same paper. Cause unknown.
+6. **A hang appears intermittently on QASPER paper `1604.02038`.** Third occurrence 2026-08-20:
+   0.1% CPU for 21 minutes, then timeout. **It did not recur on the very next run of the same case**
+   (`fusion-vw030-deepthink`, 234.5s, completed), so it is intermittent rather than deterministic for
+   that paper. Cause unknown.
 7. **Retrieval is ~21% reproducible.** Paired comparison plus the sign test is the only trustworthy
    readout. A single run cannot separate a change from noise.
 8. **Two shipped engine changes have never executed on device.** `executeDirectSynthesis` still shows
