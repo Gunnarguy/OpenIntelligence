@@ -231,16 +231,9 @@ final class SourceOnlyAnswerService {
             )
         }
 
-        let evidenceRecords = buildEvidenceRecords(from: domainFilteredChunks)
-        guard !evidenceRecords.isEmpty else { return nil }
         let queryDomain = verificationMode == .strictScientificDomain
             ? domainAssessment.allowedDomain.rawValue
             : "GENERAL / NOT_APPLICABLE"
-
-        let evidencePrompt = renderEvidencePrompt(
-            evidenceRecords,
-            verificationMode: verificationMode
-        )
         // Budget the prompt before building it, because this session has no other protection.
         //
         // A device capture on 2026-08-18 recorded `Draft generation failed: The session's
@@ -248,11 +241,21 @@ final class SourceOnlyAnswerService {
         // steps and 132.5 seconds. The stage that was meant to produce the answer failed at the
         // last moment, and the run continued, so it read from outside as a slow success.
         //
-        // Every other input here is already bounded: `buildEvidenceRecords` caps at 6 chunks of
-        // 420 characters, and the instructions are a constant. `candidateAnswer` is the one
-        // unbounded input — it is whatever the chain produced, 455 words in that capture and
-        // able to be much longer. So it is trimmed first, and only if the evidence alone still
-        // does not fit are records dropped from the tail, which is the least-relevant end.
+        // Every other input here is already bounded, and the instructions are a constant.
+        // `candidateAnswer` is the one unbounded input — whatever the chain produced, 455 words in
+        // that capture and able to be much longer.
+        //
+        // 2026-08-19, first device execution of this path: the original bound was a hardcoded
+        // 6 records x 420 characters. At `onDeviceCharsPerToken` 1.4 that is 1,800 tokens against a
+        // measured budget of 1,430, so the evidence could not fit *by construction* and the drop
+        // loop fired on every full-evidence run rather than as an exception. The observed capture
+        // dropped 4 of 6 records and cut the candidate from 4,051 to 268 characters, leaving about
+        // 6% of the retrieved evidence, and the answer was 8 words after 145 seconds.
+        //
+        // The records are now sized against the budget rather than against a constant, so all of
+        // them survive with a shorter snippet each instead of two surviving at full length. On the
+        // observed numbers that is 6 x 233 characters rather than 2 x 420 — more total evidence and
+        // every source still represented. Dropping from the tail remains only as a backstop.
         //
         // Guided generation reserves context for the `SourceOnlyAnswerDraft` schema on top of the
         // prompt, hence the schema allowance below. The on-device ratio is used regardless of
@@ -267,8 +270,21 @@ final class SourceOnlyAnswerService {
             + Self.draftSafetyReserve
         let promptBudget = max(512, contextSize - reserved)
 
+        // Size each snippet so the whole evidence set fits its share of the budget. Bounded below
+        // so a record still carries a usable quotation, and above by the original 420 so this can
+        // only ever shorten a snippet relative to the previous behaviour, never lengthen it.
+        let recordCount = min(Self.maxEvidenceRecords, domainFilteredChunks.count)
+        let evidenceCharBudget = Double(promptBudget) * Self.evidenceBudgetShare
+            * FoundationModelTokenBudget.onDeviceCharsPerToken
+        let snippetLimit = recordCount > 0
+            ? max(Self.minSnippetChars, min(Self.maxSnippetChars, Int(evidenceCharBudget) / recordCount))
+            : Self.maxSnippetChars
+
+        let evidenceRecords = buildEvidenceRecords(from: domainFilteredChunks, snippetLimit: snippetLimit)
+        guard !evidenceRecords.isEmpty else { return nil }
+
         var budgetedRecords = evidenceRecords
-        var evidencePromptText = evidencePrompt
+        var evidencePromptText = renderEvidencePrompt(budgetedRecords, verificationMode: verificationMode)
         var droppedRecords = 0
         while budgetedRecords.count > 1,
               FoundationModelTokenBudget.estimateTokens(for: evidencePromptText, isAppleFMOnDevice: true) > promptBudget {
@@ -330,11 +346,18 @@ final class SourceOnlyAnswerService {
             return nil
         }
 
+        // The budgeted evidence, not the full set. This previously passed the untrimmed
+        // `evidencePrompt` while the extraction step received the trimmed one, so the two stages
+        // disagreed about what evidence existed: the reviewer could ground claims in records the
+        // drafter had never seen. The caller then rejects any claim id it does not recognise, which
+        // is what the 2026-08-19 capture logged seven times in a row as
+        // `Source-only review returned unexpected claim id C2..C8; ignored`. Both stages now read
+        // the same records.
         let reviewPrompt = buildReviewPrompt(
             query: query,
             queryDomain: queryDomain,
             draft: draft,
-            evidencePrompt: evidencePrompt,
+            evidencePrompt: evidencePromptText,
             verificationMode: verificationMode
         )
         // `model:` is required. Omitting it yields a session that produces no output: an Instruments
@@ -546,11 +569,14 @@ final class SourceOnlyAnswerService {
         }
     }
 
-    private func buildEvidenceRecords(from chunks: [RetrievedChunk]) -> [EvidenceRecord] {
-        Array(chunks.prefix(6)).enumerated().map { index, chunk in
+    private func buildEvidenceRecords(
+        from chunks: [RetrievedChunk],
+        snippetLimit: Int = SourceOnlyAnswerService.maxSnippetChars
+    ) -> [EvidenceRecord] {
+        Array(chunks.prefix(Self.maxEvidenceRecords)).enumerated().map { index, chunk in
             let snippet = String((chunk.chunk.parentContent ?? chunk.chunk.content)
                 .trimmingCharacters(in: .whitespacesAndNewlines)
-                .prefix(420))
+                .prefix(max(1, snippetLimit)))
             return EvidenceRecord(
                 label: "E\(index + 1)",
                 chunk: chunk,
@@ -561,6 +587,15 @@ final class SourceOnlyAnswerService {
     }
 
     /// Output tokens the draft response is allowed to use.
+    /// Evidence-set bounds. `maxEvidenceRecords` and `maxSnippetChars` are the historical values;
+    /// the effective snippet length is derived from the prompt budget at call time and can only be
+    /// smaller. `evidenceBudgetShare` leaves the remainder for the candidate answer, which is the
+    /// unbounded input and is trimmed against whatever the evidence did not use.
+    static let maxEvidenceRecords = 6
+    static let maxSnippetChars = 420
+    private static let minSnippetChars = 160
+    private static let evidenceBudgetShare = 0.7
+
     private static let draftOutputReserve = 700
     /// Guided generation reserves context for the response schema on top of the prompt.
     private static let draftSchemaReserve = 400

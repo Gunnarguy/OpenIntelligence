@@ -516,10 +516,26 @@ final class QueryEnhancementService {
         }
 
         // Priority 5b: Investigate (multi-hop research requiring iterative retrieval)
+        // "what affects" and "what influences" were already here, so the shape was already
+        // recognised: a "what <verb>" question about mechanism is investigative, not a value
+        // lookup. The mechanism verbs below are the same shape and were simply missing, which left
+        // them to the `lookupStarters` prefix rule further down — the rule that classifies *any*
+        // query beginning with "what" as `.lookup`.
+        //
+        // That is what happened to "What regulates anxiety-like actions?" on device 2026-08-19: it
+        // opened `isExtractiveFirst`, ExtractiveQA scored `behaviors.56` and `Neuron 2016` as part
+        // numbers before giving up at 0.50 against a 0.65 threshold, and the source-only verifier
+        // then reduced 2,305 words of evidence to an eight-word answer after 145 seconds.
+        //
+        // This list is a targeted fix, not a general one. The general problem is that a bare "what"
+        // prefix is treated as evidence of extractive intent; narrowing that rule reroutes a great
+        // deal of traffic and is a separate decision.
         let investigatePatterns: [String] = [
             "factors", "causes", "reasons", "why does", "why is", "why are",
             "what affects", "what influences", "implications", "consequences",
-            "relationship between", "how does .* affect", "what happens when"
+            "relationship between", "how does .* affect", "what happens when",
+            "what regulates", "what controls", "what modulates", "what governs",
+            "what drives", "what determines", "what mediates", "what triggers"
         ]
         for pattern in investigatePatterns {
             if pattern.contains(".*"), let _ = lower.range(of: pattern, options: .regularExpression) {
@@ -598,10 +614,28 @@ final class QueryEnhancementService {
             }
         }
 
-        // Fallback for short queries
-        if words.count <= 5 { return .lookup }
-
-        // For longer conceptual queries, default to investigate
+        // Unclassified queries default to `.investigate`, regardless of length.
+        //
+        // This used to be `if words.count <= 5 { return .lookup }`, and that one line was the root
+        // of a defect observed on device 2026-08-19. "What regulates anxiety-like actions?" is four
+        // words, matched none of the patterns above, and was therefore classified as a spec-value
+        // lookup — the branch whose own comment gives `SAE 0W-20` as its example. `.lookup` is the
+        // only intent that satisfies `isExtractiveFirst`, which is the single gate on both the
+        // ExtractiveQA path and the source-only verifier. The consequences were visible in one
+        // trace: ExtractiveQA scored `behaviors.56` and `Neuron 2016` as part numbers, gave up at
+        // 0.50 against a 0.65 threshold, and the verifier then reduced 2,305 words of evidence to
+        // an eight-word answer after 145 seconds.
+        //
+        // Length is not evidence of extractive intent. By the time control reaches here, every
+        // lookup, spec, indicator and embedded-lookup pattern above has declined to claim the
+        // query, and several of those groups carry comments warning that a wrong `.lookup` will
+        // short-circuit into ExtractiveQA. This was the remaining hole in that defence.
+        //
+        // The costs are asymmetric, which is what makes `.investigate` the safe default: routing a
+        // genuine short lookup to `.investigate` yields a synthesised answer instead of an
+        // extracted value, which is a degradation. Routing a conceptual question to `.lookup`
+        // produced the failure above. A genuinely short lookup that matters should earn a pattern
+        // here rather than be caught by counting words.
         return .investigate
     }
 
