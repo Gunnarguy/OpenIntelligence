@@ -517,3 +517,8 @@ Do not read that run's stage metrics either — ingestion enrichment failed duri
 metadata differs from healthy runs. The intermittent 1800s hang at 0.1% CPU (`1604.02038`, three
 occurrences) is plausibly the same daemon wedging mid-run rather than anything about that paper —
 hypothesis, not established.
+
+**2026-08-20, later: the FM outage cleared with a reboot.** Probe returned `GENERATION OK`;
+`lexical-survival-2` case 1 ran healthy (PASS, 207.5s). The `availability`-flag lesson stands. The
+run was interrupted by the owner at case 2 and resumes via `--resume`; its verdict decides the
+uncommitted survival fix.
