@@ -2,7 +2,7 @@
 
 Updated: 2026-08-20
 Branch/worktree: main, clean, **not pushed** — `origin/main` is at `8791baa`, seventeen commits behind.
-Last verified commit: a2f33d2
+Last verified commit: c29e513
 
 ## Objective
 
@@ -144,32 +144,36 @@ Command → result, this session only:
 
 ## Exact Next Action
 
-**Investigate `applyKeywordMatchBoost` in `HybridSearchService.swift` (`:1102` uses `originalQuery`).**
-It is the stage that destroys retrieval quality, and two benchmark runs now say so.
+**The working tree holds an unmeasured fix. Measure it before committing it, and do not commit it
+blind.** `HybridSearchService.swift` is modified: a lexical survival guarantee — the reranker pool
+is the top-K cut unioned with the lexical arm's best hits (`guaranteeingLexicalSurvivors`, both
+hybrid paths). Suite-green (256 tests, 0 failures). The mechanism it addresses is established
+per-case in `BenchmarkRuns/LEDGER.md` (2026-08-20 forensics entry): RRF fuses 3–9 lexical hits into
+a corpus-length dense list, so lexical gold dies at the order-dependent 182→90 cut before the
+cross-encoder ever sees it.
 
-Across all four measured conditions it degrades the ranking fusion hands it, and **the damage scales
-with the quality of its input**:
+**Measurement is blocked by a Foundation Models outage on this Mac.**
+`ModelManagerServices.ModelManagerError Code=1026` on every generation and on ingestion
+summarization. `BenchmarkRuns/lexical-survival` is invalid because of it — every answer is the
+fallback text; do not read its numbers. `modelmanagerd` (pid 587, `_modelmanagerd`, up 8 days) needs
+a reboot, which only the owner can do.
 
-| condition | fusion MRR | boosted MRR | change |
-| :-- | --: | --: | --: |
-| standard vw0.7 | 0.448 | 0.442 | −0.006 |
-| deep-think vw0.7 | 0.431 | 0.336 | −0.095 |
-| standard vw0.3 | 0.571 | 0.405 | −0.167 |
-| deep-think vw0.3 | 0.591 | 0.442 | −0.149 |
+After the environment recovers (verify with a 1-case probe first):
 
-A stage that destroys more value the more value it receives is doing the wrong thing, not the right
-thing badly tuned. Read what it boosts and why, then decide whether it should be weakened, gated, or
-removed. Whatever the change, measure it the way the fusion weight was measured — Standard mode,
-paired, with `scripts/compare_benchmark_runs.py` and its control line.
+```bash
+caffeinate -dimsu python3 scripts/run_quality_matrix.py \
+  --app /private/tmp/oi-mac-40/Build/Products/Debug/OpenIntelligence.app \
+  --manifest Benchmarks/ResearchFixtures/qasper_external_v1/manifest.json \
+  --pcc deny --pool-limit 10 --reset-shared-library --timeout 1800 \
+  --sampling topk --seed 42 --temperature 0.7 \
+  --modes standard --limit 8 --output-dir BenchmarkRuns/lexical-survival-2
+```
 
-**The fusion weight question is closed. Do not reopen it.** `vector 0.7 / keyword 0.3` stays.
-Weight 0.3 improves fusion substantially in both modes and the answer does not improve: Standard's
-reranker erases the difference entirely, and Deep Think's `final` MRR fell 0.688 to 0.530 with
-accuracy 3/8 to 2/8. Both runs are in `BenchmarkRuns/LEDGER.md`.
+Compare against `BenchmarkRuns/postfix-citations` with `scripts/compare_benchmark_runs.py`; check
+the control line first. Predictions on record: controls identical; `candidates`/`rerank` r@10 ≥
+baseline; `final` uncertain because the k=6 cut still applies. Final worse with controls intact →
+`git checkout -- OpenIntelligence/Services/RAG/Retrieval/HybridSearchService.swift`, same as the
+boost fix. Better or equal → commit code + CHANGELOG entry together.
 
-**Two tooling facts to carry forward.** `scripts/compare_benchmark_runs.py` pairs by `case_id` with
-no mode filter, so passing it a two-mode run against a single-mode run silently compares different
-modes — its control line catches this, but only if you read it. And Deep Think cannot be cleanly
-A/B'd at stage level: the loop is adaptive, so changing any stage changes every later query, and
-`vector` moved between two runs that could not have touched it. Deep-think `final` and accuracy are
-per-case and trustworthy; its per-stage means are directional only.
+**The binary at `/private/tmp/oi-mac-40` already contains the fix.** A clean re-measure of anything
+*else* requires rebuilding from a stashed tree first.

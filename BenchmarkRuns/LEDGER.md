@@ -477,3 +477,43 @@ which changes every later call's vector stage. **No stage is a valid control in 
 per-call means are taken over different query sets between runs (n=13 against n=15 here). Deep-think
 stage deltas are directional evidence, not measurements. The `final` and accuracy figures are the
 trustworthy ones because they are per-case.
+
+### 2026-08-20, per-case forensics — the mechanism behind three open mysteries, from data already on disk
+
+No new runs. Everything below comes from per-case `stage_metrics` in `postfix-citations`,
+`boostfix-standard` and `fusion-vw050`, plus reading the code.
+
+**1. The dense arm is not a retrieval list; it is the whole corpus, ranked.** `vector` returns 180
+of ~182 chunks — no similarity floor cuts it. RRF therefore fuses 3–9 precise lexical hits into a
+ranking of everything: with k=60, a lexical rank-1 contributes `w/61` once while every chunk in the
+store collects a dense contribution. A lexical rank-1 gold chunk can leave fusion below the top-90
+cut. **This is why "fusion ranks below its own lexical arm", and why no weight — 0.3, 0.5, 0.7 —
+could fix it.** The sweeps were tuning the coefficients of a structural burial.
+
+**2. The rerank→final "inversion" was two individual cases, not a force.**
+`qasper_1911.10742_f7662b11`: gold at lexical rank 1 of 3, absent from fusion's top 10, cut from
+the reranker pool, rescued by the post-rerank cascade in all three runs (final mrr 1.0 every time).
+`qasper_1604.02038_bc8526d4`: the cross-encoder ranked gold #1 given one 90-chunk pool and #7 given
+another — the pools differed because the 182→90 cut is taken in list order, and the boost sort
+controlled that order. Rank 7 then died at the final k=6 cut. **The boost fix's "regression" was
+this single case: the boost sort was load-bearing for pool membership, not for ranking quality.**
+
+**3. The cascade trigger reads synthetic numbers.** `cascadeDecision` compares
+`metrics.topSimilarity < 0.45`, but post-cross-encoder scores are normalized to [0.1, 0.9] by
+construction — the top is ~0.9 regardless of quality. On the cross-encoder path the trigger is
+structurally near-dead; the rescues observed came through its other conditions.
+
+**Fix implemented on the strength of this** (uncommitted pending measurement): a lexical survival
+guarantee in `HybridSearchService` — the reranker pool is the top-K cut unioned with the lexical
+arm's best hits (capped, tail-appended; the cross-encoder scores the whole pool regardless of
+position). Both hybrid paths.
+
+**Measurement blocked by an environment failure, recorded so nobody trusts the numbers.**
+`BenchmarkRuns/lexical-survival` is **invalid**: every case completed in ~19–23s with every answer
+the graceful-degradation fallback, and `ModelManagerServices.ModelManagerError Code=1026` on every
+generation *and* on ingestion summarization. Foundation Models on this Mac wedged after five
+back-to-back benchmark runs plus a simulator suite; shutting the simulator down did not clear it.
+Do not read that run's stage metrics either — ingestion enrichment failed during it, so chunk
+metadata differs from healthy runs. The intermittent 1800s hang at 0.1% CPU (`1604.02038`, three
+occurrences) is plausibly the same daemon wedging mid-run rather than anything about that paper —
+hypothesis, not established.
