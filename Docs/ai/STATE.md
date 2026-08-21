@@ -76,9 +76,28 @@ Fixed (`aac50a2`, `80cf974`):
 | two file handles clobbering each other's lines, ~0.2% | opened `O_APPEND` |
 | chunk text truncated at 300 chars against ~2,600-char chunks | 4,000, and reports the real length |
 
-**Still true and not fixed:** a Release or TestFlight build emits nothing anywhere. `#if DEBUG`
-around `print`, an `.error` default level, an empty category set and `_fileLogEnabled == false` are
-four independent gates and all are closed. Debug-on-device works; TestFlight does not.
+**Release/TestFlight logging, corrected 2026-08-21 after an initial wrong reading.** It is **not** a
+regression — the Release defaults date to `aeeed8a` (2026-04-16), the file's first commit, and have
+not changed since May. It is also **not** permanently dark, which the first reading claimed:
+
+- `_currentLevel` is `.error` and `_enabledCategories` is `[]` in Release. The category guard in
+  `log()` runs *after* the level guard, so a categorised `.error` is dropped too — Release logs
+  **nothing** by default, not "errors only".
+- **Settings -> Developer ships in Release.** `DeveloperDiagnosticsHubView` is not `#if DEBUG` gated
+  (`SettingsView.swift:560`) and `applyLoggingSettings()` sets `currentLevel` and
+  `enabledCategories` at runtime. So TestFlight logging is opt-in, not absent.
+
+**Two real gaps remain, and they are why turning it on is still not enough:**
+
+1. The hub exposes only `.pipeline`, `.performance`, `.llm`, `.streaming`, `.vectorDB`. **`.ingestion`
+   and `.retrieval` have no toggle**, and those are the two that matter most — both are in
+   `fileLogCategories`, and ingestion is the whole reason the share was rebuilt.
+2. **Nothing anywhere assigns `fileLogEnabled`.** It is `false` in Release and the hub does not
+   expose it, so `pipeline_trace.log` can never be written on TestFlight at any setting.
+
+With the ring buffer in `80cf974`, toggling the hub on in Release now populates the in-app share for
+the five categories it covers. Adding the two missing toggles plus a file-log switch would make
+TestFlight genuinely debuggable; that work is not done.
 
 **Unverified on device.** Everything above was verified on the simulator and in tests. The next
 device session should confirm the share now carries an `ENGINE LOG` section and that

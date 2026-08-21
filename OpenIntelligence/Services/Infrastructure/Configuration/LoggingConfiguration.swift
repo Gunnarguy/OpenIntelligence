@@ -284,9 +284,12 @@ nonisolated enum LoggingConfiguration {
 
     /// The recent log lines, oldest first. Empty when nothing has been logged.
     ///
-    /// Subject to the same level and category gates as everything else, so a Release build returns
-    /// only what `.error` admits. That is intentional: this changes what a share *contains*, never
-    /// what the app *logs*.
+    /// Subject to the same level and category gates as everything else. In a Release build that
+    /// means **nothing** by default, not "errors only": `_enabledCategories` is empty in Release and
+    /// the category guard in `log()` runs after the level guard, so an `.error` carrying a category
+    /// is dropped too. What *does* open it is Settings -> Developer, which ships in Release and sets
+    /// `currentLevel` and `enabledCategories` at runtime — so this buffer fills on TestFlight once a
+    /// user turns logging on. This changes what a share *contains*, never what the app *logs*.
     static func recentLogLines(limit: Int? = nil) -> [String] {
         ringLock.lock()
         defer { ringLock.unlock() }
