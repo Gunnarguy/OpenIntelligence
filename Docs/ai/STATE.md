@@ -56,6 +56,34 @@ one in the changelog rather than presented as a feature drop.
 Verified this session: **268 tests, 3 skipped, 0 failures** (up from 261); `build_simulator_smoke.sh`
 **BUILD SUCCEEDED**; `secret_scan` clean.
 
+## Getting evidence off a phone: audited and fixed 2026-08-21
+
+An audit of what a device trace can actually deliver found six defects. **The finding that closes a
+long-standing question: the Xcode console is a *superset* of `pipeline_trace.log`, not a different
+view.** Both come from the same `Log.log()` call; the file is then filtered to six categories while
+the console is filtered to none, and `pipelineStep`/`pipelineHeader`/`section`/`box` are
+console-only. Only the `▶ QUERY:` separators exist in the file and not the console. **A tethered
+console capture has always been the best artifact.**
+
+Fixed (`aac50a2`, `80cf974`):
+
+| defect | state |
+|---|---|
+| `scripts/pull_trace.sh` referenced in code, never existed | written, verified against a booted simulator |
+| `UIFileSharingEnabled` unset, so the log was unreachable in Files | set, under explicit approval, that key only |
+| in-app share carried **zero** `Log` output, so no ingestion | ring buffer feeds it an `▶ ENGINE LOG` section |
+| rotation checked only on the first log line per launch | evaluated against an in-process byte counter |
+| two file handles clobbering each other's lines, ~0.2% | opened `O_APPEND` |
+| chunk text truncated at 300 chars against ~2,600-char chunks | 4,000, and reports the real length |
+
+**Still true and not fixed:** a Release or TestFlight build emits nothing anywhere. `#if DEBUG`
+around `print`, an `.error` default level, an empty category set and `_fileLogEnabled == false` are
+four independent gates and all are closed. Debug-on-device works; TestFlight does not.
+
+**Unverified on device.** Everything above was verified on the simulator and in tests. The next
+device session should confirm the share now carries an `ENGINE LOG` section and that
+`pipeline_trace.log` appears in Files → On My iPhone → OpenIntelligence.
+
 ## Status
 
 All work is on `main`, none pushed. Every run is recorded in `BenchmarkRuns/LEDGER.md` (prose,
