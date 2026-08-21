@@ -1,6 +1,6 @@
 # Benchmark progression
 
-Generated 2026-08-21 10:15 by `scripts/benchmark_progression.py`. 44 run/mode pairs across 39 runs.
+Generated 2026-08-21 12:07 by `scripts/benchmark_progression.py`. 45 run/mode pairs across 40 runs.
 
 **Read the config columns before comparing any two rows.** Runs differing in `cases`, `pool`, `seed`, `temp` or `vw` are not comparable on accuracy — a withdrawn "4-7x performance regression" in `LEDGER.md` was exactly this mistake. For a real comparison use `scripts/compare_benchmark_runs.py`, which pairs by `case_id` and prints a control line.
 
@@ -11,6 +11,7 @@ Generated 2026-08-21 10:15 by `scripts/benchmark_progression.py`. 44 run/mode pa
 |  | qasper-deepthink-20260815 | deep-think | — | 82/83 | 10 | — | — | dflt | 17 | 0.205 | — | — | — | 0.421 | 0.632 | 0.479 | 402 |
 |  | fusion-vw030 | standard | 27d2067 | 7/8 | 10 | 42 | 0.7 | 0.30 | 3 | 0.375 | 0.714 | 0.571 | 0.714 | 0.714 | 0.857 | 0.786 | 30 |
 |  | rescue-position-fix | standard | f9b5765 | 25/25 | 10 | 42 | 0.7 | dflt | 12 | 0.480 | 0.691 | 0.708 | 0.732 | 0.500 | 0.875 | 0.646 | 92 |
+|  | passage-level-1 | standard | ad99b1b | 25/25 | 10 | 42 | 0.7 | dflt | 11 | 0.440 | 0.691 | 0.708 | 0.732 | 0.500 | 0.875 | 0.642 | 78 |
 |  | overnight-25case-nodeadlock | standard | 73fff4f | 25/25 | 10 | 42 | 0.7 | dflt | 10 | 0.400 | 0.691 | 0.708 | 0.753 | 0.417 | 0.875 | 0.590 | 209 |
 |  | overnight-25case-nodeadlock | deep-think | 73fff4f | 25/25 | 10 | 42 | 0.7 | dflt | 9 | 0.360 | 0.696 | 0.719 | 0.699 | 0.567 | 0.878 | 0.665 | 209 |
 |  | lexical-survival-3 | standard | 6790548 | 7/8 | 10 | 42 | 0.7 | dflt | 5 | 0.625 | 0.595 | 0.369 | 0.714 | 0.571 | 0.857 | 0.679 | 55 |

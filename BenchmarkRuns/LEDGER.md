@@ -722,3 +722,49 @@ answers worse, because a summary cannot answer an extractive question. 19 of 25 
 `answer_kind: extractive`, so the answer is a literal span and "did the span arrive" is the only
 question that matters at that stage. It could not previously be asked; `retrieved_chunks` was an
 integer count and chunk text was persisted nowhere.
+
+### `passage-level-1` — the retrieval/synthesis split, measured at last; and the noise floor, measured by accident
+
+| run | commit | config | result |
+| :-- | :-- | :-- | :-- |
+| `passage-level-1` | `ad99b1b` | 25 cases x standard, flag-for-flag with `rescue-position-fix`. | 25/25, no timeouts. First run carrying passage-level scoring. |
+
+**The decomposition** (re-scored offline with the corrected matcher, n=25):
+
+| gold span | answer | count |
+| :-- | :-- | --: |
+| present | correct | 7 |
+| **present** | **wrong** | **7** |
+| absent | correct | 3 |
+| absent | wrong | 7 |
+| unmeasurable | correct | 1 |
+
+**Two problems of roughly equal size.** The gold span fails to reach the model in **10 of 24**
+measurable cases (42%) — retrieval. When it does reach the model the answer is still wrong in
+**7 of 14** (50%) — synthesis. Every prior argument on this row assumed one or the other dominated;
+both are wrong. Document-level `r@10` of 0.875 concealed this entirely, because it credits the
+document while the answer needs the passage.
+
+**Rank of the answer-bearing chunk when present:** `1,1,1,2,2,3,3,4,4,4,4,4,7,9`. Rank 1 in 3 of 14
+(21%), top-3 in 7 of 14. A real ranking weakness, and less dramatic than the partial-run reading of
+"never in the top 3" (ranks 4,4,4,7 at n=10), which was a small-sample artifact and is withdrawn.
+
+**Three cases remain "span absent, answer correct."** Either residual matcher false negatives or
+QASPER answers derivable from other passages — its questions often carry several valid evidence
+spans and the fixture stores one. Do not build on that column.
+
+### The noise floor, measured: ±1 case at n=24
+
+`rescue-position-fix` and `passage-level-1` differ **only** by the debug harness printing chunk text
+*after* generation, plus offline scoring. Same binary behaviour, same config, control identical case
+for case. Accuracy: **11/24 vs 10/24.**
+
+That is a same-code A/A comparison, and it puts a number on this project's long-suspected
+reproducibility problem: **a one-case accuracy difference at n=24 is indistinguishable from noise.**
+
+**Consequence, applied to this ledger's own recent claim.** The rescue-position fix was recorded
+above as 9/24 → 11/24 and described as the first accuracy movement of the week. At a ±1 floor, +2
+is barely outside noise and should not have been leaned on as hard as it was. What survives is the
+mechanism and the retrieval metric: the code provably evicted the reranker's top chunk, and `final`
+r@1 moved 0.417 → 0.500 — a stage-level figure, far more stable than end accuracy. **Accuracy at
+n=25 cannot adjudicate anything smaller than about a 4-case swing. Stage metrics can.**
