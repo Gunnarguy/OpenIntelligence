@@ -147,6 +147,18 @@ Command → result, this session only:
 
 ## Exact Next Action
 
+**FIRST, hours-later addendum: the 0-chunk phantom REPRODUCED live — `0350083` does not close the
+vector-loss row.** The evening's fresh import (`FE9E86BF`, 197 searchable, answering queries) came
+back after relaunch as `1 document(s) and no vector store yet`, document invisible in the UI. Two
+candidate mechanisms are on [the row](https://app.notion.com/3c149a74d54f81239443c15fe6ae3782) —
+deferred BNNS persist never flushed before exit, or the deleted-mid-import fallback misfiling the
+store during the resurrection churn. **The one-line tell:** the next ingestion console either shows
+`[BNNS] Persisted 196 chunks` (flush-timing problem; fix = persist barrier at end of ingest + a
+terminal flush on scene-phase change) or it doesn't / shows it under another container's file
+(fallback problem; fix = fail the ingest loudly rather than fall back to the active container).
+Owner's recovery: one tap of Rebuild. **Captures overwrite `XcodeConsole.txt` — grep each new one
+for `BNNS] Persisted` immediately, before it is replaced.**
+
 **Added 2026-08-20 late, from the owner's ingestion/deletion/query capture** (before the
 interleaved-fixture item below, which still stands):
 
