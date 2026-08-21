@@ -147,6 +147,29 @@ Command → result, this session only:
 
 ## Exact Next Action
 
+**Added 2026-08-20 late, from the owner's ingestion/deletion/query capture** (before the
+interleaved-fixture item below, which still stands):
+
+- **Library deletion races its own background writers — log-proven, filed.** Tap one deletes data;
+  `SelfTuning`, `Spotlight` and a metadata save then write to the dead container and resurrect it;
+  tap two deletes the shell. Row (Future Backlog):
+  [delete race](https://app.notion.com/3c349a74d54f81beaad5c59162e58434). A partial-resurrection
+  variant is filed on the v5.0 vector-loss row as a second candidate origin for the 0-chunk
+  phantoms — hypothesis, not established.
+- **Case 1 of the three-import protocol effectively passed live**: fresh Yagishita import → 196
+  chunks in 5.75s → immediate correct Deep Think answers. Cases 2 and 3 (mid-import switches)
+  remain the owner's.
+- **`ingested 196 / searchable 197` is benign** — the +1 is the RAPTOR-lite L1 summary chunk. The
+  LIBRARY STATE trace warning over-fires on small positive deltas; softening its wording is a
+  follow-up (no code changed tonight, builds paused). **Documents-present with 0 searchable remains
+  the real signature.**
+- **Open anomaly:** queried "Library 7" (`FE9E86BF`) carries the pre-re-export fingerprint
+  `0ca10df0…`, impossible for a container created tonight. Most likely the import landed in an
+  older shell (resurrection-adjacent). **The owner's library list (names + doc counts) settles it**;
+  ask for it or for the next trace share. Sync merge-by-name is ruled out (id-keyed,
+  `WorkspaceSyncService:2893`; `mergeContainer` never copies fingerprints).
+
+
 **Run the interleaved-fixture test; its first run is the verdict on the PDF block builder.**
 
 ```bash
