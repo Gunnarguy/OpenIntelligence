@@ -745,9 +745,15 @@ measurable cases (42%) — retrieval. When it does reach the model the answer is
 both are wrong. Document-level `r@10` of 0.875 concealed this entirely, because it credits the
 document while the answer needs the passage.
 
-**Rank of the answer-bearing chunk when present:** `1,1,1,2,2,3,3,4,4,4,4,4,7,9`. Rank 1 in 3 of 14
-(21%), top-3 in 7 of 14. A real ranking weakness, and less dramatic than the partial-run reading of
-"never in the top 3" (ranks 4,4,4,7 at n=10), which was a small-sample artifact and is withdrawn.
+**Position of the answer-bearing chunk when present:** `1,1,1,2,2,3,3,4,4,4,4,4,7,9`. Position 1 in
+3 of 14 (21%), top-3 in 7 of 14. Less dramatic than the partial-run reading of "never in the top 3"
+(4,4,4,7 at n=10), which was a small-sample artifact and is withdrawn.
+
+**Correction to how that list was first described, same day.** It was written as "rank of the chunk",
+which reads as *retrieval* rank. It is not. `passage_chunk_rank` counts position in the
+`RETRIEVED CHUNK TEXT` block, and that block is `response.retrievedChunks`, which is
+`promptSources + rescuedChunks` (`RAGService.swift:12193`) — **the chunks that reached the prompt.**
+So it is prompt position, and the reranker's own ordering is not what it measures.
 
 **Three cases remain "span absent, answer correct."** Either residual matcher false negatives or
 QASPER answers derivable from other passages — its questions often carry several valid evidence
@@ -768,3 +774,47 @@ is barely outside noise and should not have been leaned on as hard as it was. Wh
 mechanism and the retrieval metric: the code provably evicted the reranker's top chunk, and `final`
 r@1 moved 0.417 → 0.500 — a stage-level figure, far more stable than end accuracy. **Accuracy at
 n=25 cannot adjudicate anything smaller than about a 4-case swing. Stage metrics can.**
+
+### What `passage_present` actually proves, and the bottleneck found while checking it
+
+Two properties of the metric were checked against the code rather than assumed, because the metric
+was three hours old and had already been wrong once.
+
+**Checked and sound.** `response.retrievedChunks` is `promptSources + rescuedChunks`
+(`RAGService.swift:12193`), assigned from `assembleContext`'s returned `sources` — not the
+pre-assembly candidate list. `passage_present: true` therefore means the chunk reached the prompt,
+which is the claim the metric is making.
+
+**A worry raised and then refuted by measurement.** `assembleContext` truncates early chunks to
+`targetCharsPerChunk` (`RAGEngine.swift:591`) while the harness prints the *full* chunk text, so a
+gold span past the cut would score present although the model never saw it. Measured across all 25
+reports: the budget is 9,485–9,553 chars, giving a per-chunk target of ~3,150, and **the longest
+chunk in any case is 2,585. Zero cases truncated.** The concern does not apply to this run. It would
+apply on a smaller budget — the floor is 400 chars — so re-check it if the context budget changes.
+
+**The bottleneck that check exposed.** From the audit snapshots, every case:
+
+| | value |
+| :-- | :-- |
+| chunks MMR selects | 30 (25 in one case) |
+| chunks that reach the prompt | **median 5**, range 4–24 |
+| cases dropping 23–26 of the 30 | **20 of 25** |
+| context chars used | 9,300–9,500 of ~9,540 — the budget is full |
+
+**Roughly 83% of what the retrieval pipeline ranks never reaches the model.** The budget is the
+on-device 4K-token window and it is saturated, not misconfigured; chunks average ~2,000 chars, so
+five of them is the whole budget. The arithmetic is forced.
+
+**Consequence for where tuning effort goes.** Any change that improves the ordering of chunks
+beyond roughly position 5 cannot change an on-device answer, because those chunks are not in the
+prompt. That covers most of what fusion-weight and rerank tuning move. What can change an answer is
+(a) getting the right chunk into the top ~5, or (b) putting more of the *right sentences* into the
+same budget instead of whole chunks. The code already contains machinery for (b) — a sentence
+extraction path and a "needle rescue from dropped chunks" step (`RAGService.swift:12130`) — and
+whether either fires on these cases is unmeasured.
+
+**What cannot be attributed offline.** The 10 cases where the span never reached the prompt split
+into "never retrieved" and "retrieved, ranked, then cut at assembly", and those have completely
+different fixes. `STAGE SOURCES` records chunk *ids* per stage but only the final chunks carry
+*text*, so the gold span cannot be located in the rerank set from saved data. Splitting that 10
+requires the harness to emit rerank-stage chunk text. That is the next measurement.

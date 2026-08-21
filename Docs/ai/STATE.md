@@ -1,22 +1,30 @@
 # Current State
 
-Updated: 2026-08-20
+Updated: 2026-08-21
 Branch/worktree: main, clean, **not pushed** — `origin/main` is at `8791baa`, seventeen commits behind.
-Last verified commit: d6476d5
+Last verified commit: 7fccc1c
 
 ## Objective
 
 **Get v5.0 shippable.** One question decides what 5.0 can contain and only the owner can answer it
-(Blocker 1). Separately, **Deep Think underperforms Standard and the cause is open again**: the
-"no reranker" attribution was retracted on 2026-08-20 — Deep Think reranks unconditionally
-(`RAGService.swift:18396`); only the trace record was missing. See the ledger retraction. The
-survival fix (`89bf928`) repaired the shared fusion-burial defect for both modes.
+(Blocker 1).
+
+**Answer quality is now decomposed, and it is two problems of roughly equal size, not one.** As of
+`passage-level-1` (2026-08-21), the answer-bearing span fails to reach the model in **10 of 24**
+measurable cases, and when it does reach the model the answer is still wrong in **7 of 14**.
+Retrieval and synthesis each account for about half the failures. Every prior plan assumed one of
+them dominated.
 
 ## Status
 
-Six behavioural fixes shipped 2026-08-19, all on `main`, none pushed. Two benchmark runs completed
-and are recorded in `BenchmarkRuns/LEDGER.md`. Nothing is running; no background tasks or monitors
-are armed.
+All work is on `main`, none pushed. Every run is recorded in `BenchmarkRuns/LEDGER.md` (prose,
+authoritative) and indexed in `BenchmarkRuns/PROGRESSION.md` (table, generated). Nothing is running;
+no background tasks or monitors are armed.
+
+**The measurement ruler changed on 2026-08-21 and this is the single most important fact for anyone
+resuming.** Retrieval is now scored at passage level as well as document level. Document-level
+`r@1`/`r@10` credit an entire document when any one of its chunks appears, so they read ~0.875 while
+the actual answer span was missing 42% of the time. Do not tune against the document-level numbers.
 
 ## Completed this session
 
@@ -132,8 +140,13 @@ Command → result, this session only:
    0.1% CPU for 21 minutes, then timeout. **It did not recur on the very next run of the same case**
    (`fusion-vw030-deepthink`, 234.5s, completed), so it is intermittent rather than deterministic for
    that paper. Cause unknown.
-7. **Retrieval is ~21% reproducible.** Paired comparison plus the sign test is the only trustworthy
-   readout. A single run cannot separate a change from noise.
+7. **Retrieval is ~21% reproducible, and the accuracy noise floor is now measured: ±1 case at
+   n=24.** `rescue-position-fix` and `passage-level-1` differ only by the debug harness printing
+   chunk text *after* generation — same behaviour, same config, control identical case for case —
+   and scored 11/24 vs 10/24. That is an A/A comparison. **Accuracy at n=25 cannot adjudicate
+   anything smaller than about a 4-case swing.** Stage metrics (`rerank`/`final` MRR, r@1) are far
+   more stable and are what a change should be judged on. Paired comparison plus the sign test
+   remains the only trustworthy readout.
 8. **Two shipped engine changes have never executed on device.** `executeDirectSynthesis` still shows
    zero occurrences in every capture.
 9. Known-but-unfixed, each pinned by a test asserting current behaviour so changing it is deliberate:
@@ -147,20 +160,41 @@ Command → result, this session only:
 
 ## Exact Next Action
 
-**Run the benchmark once with the new passage-level metric, then read it.** The harness now emits
-`RETRIEVED CHUNK TEXT` from the debug harness and scores `passage_present` / `passage_chunk_rank`
-against the fixture's `expected_evidence[].excerpt` — **committed but never exercised**. Standard
-mode, 25 cases, defaults, then `scripts/compare_benchmark_runs.py` against
-`BenchmarkRuns/rescue-position-fix`, control line first.
+**Emit rerank-stage chunk text from the debug harness, then re-score.** One line of harness output
+splits the single biggest open number into two problems with unrelated fixes.
 
-It answers the question everything else now depends on: **for the 19 of 25 QASPER cases whose
-answer is a literal span, does that span actually reach the model?** Nobody can say today.
+The gold span fails to reach the model in **10 of 24** cases. Those 10 are either *never retrieved*
+(a ranking problem) or *retrieved, ranked, then cut when the prompt was assembled* (a budget and
+packing problem). **They cannot be told apart from any saved run.** `STAGE SOURCES` records chunk
+ids for every stage but only the final chunks carry text, so the gold span cannot be located in the
+rerank set offline. `DebugRAGValidationHarness` already emits `RETRIEVED CHUNK TEXT` for the final
+chunks; emitting the same block for the `rerank` stage closes it, and `passage_recall` then answers
+"present at rerank, absent at final" directly.
 
-**Why it outranks further retrieval tuning.** Every retrieval number on record is document-level;
-`r@1`/`r@10` credit a whole document when any chunk of it appears. On 2026-08-21 that ruler produced
-four wrong conclusions in one day and the last was *inverted*: injecting a document summary raised
-`r@1` (a summary is a chunk of the gold document) while making answers worse. Tuning against it
-again would be tuning against a metric that rewards the defect.
+**Why this outranks any further retrieval tuning — measured 2026-08-21, all 25 cases:**
+
+| | value |
+| :-- | :-- |
+| chunks MMR selects | 30 |
+| chunks that reach the prompt | **median 5** (range 4–24) |
+| cases dropping 23–26 of the 30 | **20 of 25** |
+| context chars used | 9,300–9,500 of ~9,540 — full |
+
+**About 83% of what retrieval ranks never reaches the model.** The budget is the on-device 4K-token
+window and it is saturated, not misconfigured: chunks average ~2,000 chars, so five fills it.
+**Improving the order of anything past position ~5 cannot change an on-device answer** — which is
+most of what fusion-weight and reranker tuning move, and explains why three fusion weights all
+measured the same. The two things that can change an answer are getting the right chunk into the
+top ~5, or packing the right *sentences* rather than whole chunks. The code already has both a
+sentence-extraction path and a "needle rescue from dropped chunks" step
+(`RAGService.swift:12130`); whether either fires on these cases is unmeasured.
+
+**Do not re-open the metric itself.** Both of its assumptions were checked against code on
+2026-08-21: `response.retrievedChunks` is `promptSources + rescuedChunks`
+(`RAGService.swift:12193`), so `passage_present` genuinely means "reached the prompt"; and the
+per-chunk truncation in `assembleContext` that would have made it over-count does not fire at this
+budget (longest chunk 2,585 chars against a ~3,150 target, 0 of 25 truncated). Re-check the second
+one only if the context budget shrinks — its floor is 400 chars.
 
 ### Current numbers (`BenchmarkRuns/PROGRESSION.md` has all 39 runs)
 
@@ -169,6 +203,24 @@ again would be tuning against a metric that rewards the defect.
 | `overnight-25case-nodeadlock` | standard | 10/25 | 0.417 | 0.590 |
 | `overnight-25case-nodeadlock` | deep-think | 9/25 | 0.567 | 0.665 |
 | `rescue-position-fix` | standard | **12/25** | **0.500** | **0.646** |
+| `passage-level-1` | standard | 11/25 | 0.500 | 0.646 |
+
+The last two rows are the same code. The 12 → 11 difference is the noise floor, not a regression.
+
+**Passage-level decomposition** (`passage-level-1`, n=25, the first run ever scored this way):
+
+| gold span | answer | count |
+| :-- | :-- | --: |
+| present | correct | 7 |
+| **present** | **wrong** | **7** |
+| absent | correct | 3 |
+| absent | wrong | 7 |
+| unmeasurable | correct | 1 |
+
+Rank of the answer-bearing chunk when it is present: `1,1,1,2,2,3,3,4,4,4,4,4,7,9` — rank 1 in only
+3 of 14. The three "absent but correct" rows are either matcher false negatives or QASPER questions
+answerable from a second valid evidence span the fixture does not store; **do not build on that
+column.**
 
 ### Settled, do not reopen
 
@@ -182,10 +234,13 @@ again would be tuning against a metric that rewards the defect.
 
 ### Open, in order
 
-1. **Passage-level run** (above).
+1. **Rerank-stage chunk text** (above) — splits the 10 absent cases into two different problems.
 2. **`final` r@1 (0.500) is still below `rerank` (0.667)** — at least one more stage drops rank-1
-   chunks after reranking. Suspects: parent-document expansion, final top-K truncation, MMR's
-   diversity penalty. `a7c1945` fixed one such stage and recovered part of it.
+   chunks after reranking. The stage list between the two trace points is now enumerated:
+   `filterBySimilarity` (`RAGEngine.swift:426`, order-preserving, **no top-1 guarantee** — it drops
+   any chunk below the threshold including position 1), the spec-rescue insert (fixed in `a7c1945`),
+   `ensureDocumentCoverage` (`RAGService.swift:17475`, **appends only, cannot displace position 1** —
+   checked and cleared), and MMR. `filterBySimilarity` is the prime suspect on that reading.
 3. **Summary injection is unmeasured as a cause.** It fires in 14/25 cases, prepends summaries ahead
    of every reranked chunk and takes ~25% of the token budget. Accuracy is lower when it fires
    (6/14 vs 6/11) but the case mix is confounded — `.investigate`/`.findings` get summaries *and*
