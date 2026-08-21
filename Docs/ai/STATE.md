@@ -103,6 +103,51 @@ TestFlight genuinely debuggable; that work is not done.
 device session should confirm the share now carries an `ENGINE LOG` section and that
 `pipeline_trace.log` appears in Files → On My iPhone → OpenIntelligence.
 
+## Release path, traced through git history 2026-08-21
+
+**Xcode Cloud is genuinely connected, and there is repo-side proof beyond the hook script.**
+`OpenIntelligence.xcodeproj/xcshareddata/xcodecloud/manifest.json` carries product id
+`a3dfbb40-22a3-43ba-a366-64193d6d3e84`. Xcode writes that file when a product is *connected* to
+Xcode Cloud; it was added 2026-06-19 and has never been modified since. **Owner confirms builds ran
+within the last few days.**
+
+| date | commit | what happened |
+|---|---|---|
+| 2026-06-19 | `af01758` | "Prepare for Xcode Cloud" |
+| 2026-06-19 | `07bc138` | `.env.appstore` values **stripped from git** and gitignored; xcodecloud manifest added |
+| 2026-06-20 | `6aa8469` | version bump "to trigger Xcode Cloud" |
+| 2026-06-21 | `4a9911d` | `ci_post_clone.sh` added, syncing `MARKETING_VERSION` from `CHANGELOG.md` |
+| 2026-07-01 | `b5983f4` | PCC entitlement added |
+| **2026-07-01** | **`99ba85d`** | **PCC entitlement removed — "resolve Xcode Cloud export validation failure"** |
+| 2026-07-15 | `c6052df` | PCC entitlement restored, inside an unrelated routing feature commit |
+| 2026-07-30 | `b30f521` | `ci_post_clone.sh` unified iOS and macOS onto one version line |
+| 2026-08-17 | `df6a97c` | `MARKETING_VERSION` 4.9 → 5.0, "so local builds match CI" |
+| 2026-08-19 | `2f53440` | dead `appstore.yml` deleted |
+
+**Why `.env.appstore` is useless to an agent:** `07bc138` stripped its values and gitignored it. The
+file on disk today declares `ASC_KEY_ID`, `ASC_ISSUER_ID`, `ASC_KEY_BASE64`, `DIST_CERT_P12_BASE64`
+and `DIST_CERT_PASSWORD` with **zero-length values** — a template reading "Dump your new keys here!"
+So the App Store Connect API cannot be queried from here, and Blocker 1 cannot be closed by an agent
+until those are filled.
+
+**`release.yml` is not the App Store path and must not be cited as one.** It builds
+`generic/platform=iOS Simulator` with `CODE_SIGNING_ALLOWED=NO` and publishes a GitHub Release via
+`softprops/action-gh-release`. It last ran for `v4.8.0` on 2026-08-03 and **never ran for `v4.9.0`**
+despite that tag existing. It is a compile check. This is the second dead-release-path trap in this
+repo, after `appstore.yml`.
+
+**Unwritten-down risk, surfaced by the table above.** Xcode Cloud rejected the PCC entitlement at
+export validation once (2026-07-01). The entitlement went back on 2026-07-15 inside a feature
+commit, and **nothing in the repo records re-verifying Xcode Cloud export afterwards.** Builds are
+running now, so it is probably fine; it has simply never been stated as verified. The local
+Xcode 27 archive check on 2026-08-20 exercised *local* distribution signing, not Xcode Cloud's.
+
+**Blocker 1 is unchanged and is now a single question, not two.** Connection is established; the
+open item is purely **which Xcode version the workflow uses**, which lives in App Store Connect and
+nowhere in this repository. On 27, PCC exists in shipped builds. Below it, the eleven
+`#if compiler(>=6.4)` sites compile out and every PCC request reaches `throw
+LLMError.modelUnavailable` in the shipped app.
+
 ## Status
 
 All work is on `main`, none pushed. Every run is recorded in `BenchmarkRuns/LEDGER.md` (prose,
