@@ -5,6 +5,33 @@ enum OpenIntelligenceRuntimePaths {
     nonisolated(unsafe) private static var overrideLocalCacheDirectory: URL?
     nonisolated(unsafe) private static var overridesPinned = false
 
+    /// Guards the three override properties above.
+    ///
+    /// This used the `objc_sync` pair on `Self.self`, and it deadlocked ingestion. Sampled on
+    /// 2026-08-21 during a benchmark case sitting at 0.0% CPU that would otherwise have timed out
+    /// at 1800s:
+    ///
+    ///     RAGService.runIngestionLoop -> addDocument
+    ///       -> SuggestedQuestionsService.generateQuestionsForIngestedDocument
+    ///         -> mergeIntoPersistedBank -> loadQuestionBank
+    ///           -> AppSupportPaths.suggestedQuestionsURL -> baseDir
+    ///             -> OpenIntelligenceRuntimePaths.baseDirectory
+    ///               -> [lock acquisition] -> _os_unfair_lock_lock_slow -> __ulock_wait2
+    ///
+    /// Blocked for the entire sample window while the main thread sat idle in its run loop, and
+    /// every acquisition in this file was correctly paired with a release or a defer — so nothing
+    /// of ours held it.
+    ///
+    /// That API takes an Objective-C object and selects a lock from a global striped table keyed
+    /// by the pointer, so unrelated objects sharing a stripe share a lock. A Swift enum metatype
+    /// is not an Objective-C object, and this type's stripe can be held by code with nothing to do
+    /// with path resolution. A dedicated lock cannot be contended by anything but this file.
+    ///
+    /// Non-recursive is safe and must stay so: no method below calls another while holding it.
+    /// `baseDirectory` and `localCacheDirectory` deliberately read the override, release, and only
+    /// then touch the filesystem — file I/O must never happen under this lock.
+    private static let overridesLock = NSLock()
+
     /// Set both overrides and refuse every later mutation for the life of the process.
     ///
     /// Exists for the benchmark harness, whose `--rag-validation-storage` override was being
@@ -31,22 +58,22 @@ enum OpenIntelligenceRuntimePaths {
     /// that should stand down during a benchmark to ask, rather than for the path to lie to
     /// everybody.
     nonisolated static var areOverridesPinned: Bool {
-        objc_sync_enter(Self.self)
-        defer { objc_sync_exit(Self.self) }
+        overridesLock.lock()
+        defer { overridesLock.unlock() }
         return overridesPinned
     }
 
     nonisolated static func pinOverrides(base: URL, localCache: URL) {
-        objc_sync_enter(Self.self)
-        defer { objc_sync_exit(Self.self) }
+        overridesLock.lock()
+        defer { overridesLock.unlock() }
         overrideBaseDirectory = base
         overrideLocalCacheDirectory = localCache
         overridesPinned = true
     }
 
     nonisolated static func setBaseDirectory(_ url: URL?) {
-        objc_sync_enter(Self.self)
-        defer { objc_sync_exit(Self.self) }
+        overridesLock.lock()
+        defer { overridesLock.unlock() }
         if overridesPinned {
             print("[RuntimePaths] refused setBaseDirectory(\(url?.path ?? "nil")): overrides are pinned for this run")
             return
@@ -55,8 +82,8 @@ enum OpenIntelligenceRuntimePaths {
     }
 
     nonisolated static func setLocalCacheDirectory(_ url: URL?) {
-        objc_sync_enter(Self.self)
-        defer { objc_sync_exit(Self.self) }
+        overridesLock.lock()
+        defer { overridesLock.unlock() }
         if overridesPinned {
             print("[RuntimePaths] refused setLocalCacheDirectory(\(url?.path ?? "nil")): overrides are pinned for this run")
             return
@@ -65,8 +92,8 @@ enum OpenIntelligenceRuntimePaths {
     }
 
     nonisolated static func resetOverrides() {
-        objc_sync_enter(Self.self)
-        defer { objc_sync_exit(Self.self) }
+        overridesLock.lock()
+        defer { overridesLock.unlock() }
         if overridesPinned {
             print("[RuntimePaths] refused resetOverrides(): overrides are pinned for this run")
             return
@@ -84,9 +111,9 @@ enum OpenIntelligenceRuntimePaths {
     }
 
     nonisolated static func baseDirectory(defaultFolderName: String = "OpenIntelligence") -> URL {
-        objc_sync_enter(Self.self)
+        overridesLock.lock()
         let overrideBaseDirectory = overrideBaseDirectory
-        objc_sync_exit(Self.self)
+        overridesLock.unlock()
 
         if let overrideBaseDirectory {
             try? FileManager.default.createDirectory(
@@ -100,9 +127,9 @@ enum OpenIntelligenceRuntimePaths {
     }
 
     nonisolated static func localCacheDirectory(defaultFolderName: String = "OpenIntelligence") -> URL {
-        objc_sync_enter(Self.self)
+        overridesLock.lock()
         let overrideLocalCacheDirectory = overrideLocalCacheDirectory
-        objc_sync_exit(Self.self)
+        overridesLock.unlock()
 
         if let overrideLocalCacheDirectory {
             try? FileManager.default.createDirectory(
