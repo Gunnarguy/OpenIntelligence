@@ -176,8 +176,16 @@ Command → result, this session only:
 
 ## Exact Next Action
 
-**Emit rerank-stage chunk text from the debug harness, then re-score.** One line of harness output
-splits the single biggest open number into two problems with unrelated fixes.
+**One run answers the two biggest open questions: add rerank-stage chunk text to the harness, then
+run the 25 cases under `--rag-validation-sampling greedy`.** Do not run these separately.
+
+*Greedy* removes the sampler from the picture by construction — it takes the highest-probability
+token and ignores temperature — so for the first time a repeat run measures only what the pipeline
+did, not what the sampler drew. That is what makes every subsequent A/B readable; the ±1 accuracy
+noise floor is currently what blocks every other measurement on the board.
+
+*Rerank-stage chunk text* splits the single biggest open number into two problems with unrelated
+fixes.
 
 The gold span fails to reach the model in **10 of 24** cases. Those 10 are either *never retrieved*
 (a ranking problem) or *retrieved, ranked, then cut when the prompt was assembled* (a budget and

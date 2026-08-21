@@ -157,8 +157,15 @@ def render(rows: list[dict]) -> str:
     L.append("**Columns.** `acc` is exact-match against the fixture's `expected_answer_patterns`; "
              "it is a floor, not a quality score. `final r@1`/`r@10` are **document-level** — they "
              "credit a whole document when any of its chunks appears, which inflated `r@1` to 1.000 "
-             "on runs where a document summary was injected. Passage-level recall lands with the "
-             "next run and is the metric to trust once present.")
+             "on runs where a document summary was injected.")
+    L.append("")
+    L.append("**Do not read a one- or two-case accuracy difference as a result.** Two runs of the "
+             "same build (`rescue-position-fix` and `passage-level-1`, differing only by debug "
+             "output printed after generation) scored 11/24 and 10/24 with an identical lexical "
+             "control. **\u00b11 case at n=24 is the measured noise floor**, so nothing smaller than "
+             "roughly a 4-case swing resolves in the `correct`/`acc` columns. The stage columns are "
+             "far more stable \u2014 22 of those 24 cases were identical at every retrieval stage \u2014 "
+             "and are what a change should be judged on. `LEDGER.md` carries the decomposition.")
     return "\n".join(L)
 
 

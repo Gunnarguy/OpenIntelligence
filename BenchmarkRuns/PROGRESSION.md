@@ -1,6 +1,6 @@
 # Benchmark progression
 
-Generated 2026-08-21 12:07 by `scripts/benchmark_progression.py`. 45 run/mode pairs across 40 runs.
+Generated 2026-08-21 12:21 by `scripts/benchmark_progression.py`. 45 run/mode pairs across 40 runs.
 
 **Read the config columns before comparing any two rows.** Runs differing in `cases`, `pool`, `seed`, `temp` or `vw` are not comparable on accuracy — a withdrawn "4-7x performance regression" in `LEDGER.md` was exactly this mistake. For a real comparison use `scripts/compare_benchmark_runs.py`, which pairs by `case_id` and prints a control line.
 
@@ -56,4 +56,6 @@ Generated 2026-08-21 12:07 by `scripts/benchmark_progression.py`. 45 run/mode pa
 
 **⚠ marks 10 run/mode pair(s) averaging under 60s per case — generation almost certainly did not run.** The known instance is `lexical-survival`, taken while Foundation Models was wedged machine-wide; every answer was fallback text. Treat any flagged row as unmeasured, not as a low score.
 
-**Columns.** `acc` is exact-match against the fixture's `expected_answer_patterns`; it is a floor, not a quality score. `final r@1`/`r@10` are **document-level** — they credit a whole document when any of its chunks appears, which inflated `r@1` to 1.000 on runs where a document summary was injected. Passage-level recall lands with the next run and is the metric to trust once present.
+**Columns.** `acc` is exact-match against the fixture's `expected_answer_patterns`; it is a floor, not a quality score. `final r@1`/`r@10` are **document-level** — they credit a whole document when any of its chunks appears, which inflated `r@1` to 1.000 on runs where a document summary was injected.
+
+**Do not read a one- or two-case accuracy difference as a result.** Two runs of the same build (`rescue-position-fix` and `passage-level-1`, differing only by debug output printed after generation) scored 11/24 and 10/24 with an identical lexical control. **±1 case at n=24 is the measured noise floor**, so nothing smaller than roughly a 4-case swing resolves in the `correct`/`acc` columns. The stage columns are far more stable — 22 of those 24 cases were identical at every retrieval stage — and are what a change should be judged on. `LEDGER.md` carries the decomposition.
