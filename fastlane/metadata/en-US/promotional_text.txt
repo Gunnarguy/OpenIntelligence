@@ -1,1 +1,1 @@
-Deep Think and Maximum now reason across your whole library and cite what they used. Answers run on your device, or on Apple Private Cloud Compute with your permission.
+Deep Think and Maximum now reason across your whole library and cite what they used. Every answer runs on your device. Nothing goes to a third-party AI provider.

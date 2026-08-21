@@ -25,7 +25,7 @@ citations you can tap and check.
 verification are all local. Nothing is uploaded to make search work. There is no
 account, no server of ours, and no third-party AI service anywhere in the path.
 
-On iOS and macOS 27+ you can optionally allow Apple **Private Cloud Compute** to
+On iOS and macOS 27+, in a build compiled with Xcode 27, you can optionally allow Apple **Private Cloud Compute** to
 write the final answer — and only after you have seen exactly which excerpts
 would be sent. Every answer carries a badge showing where it actually ran, read
 from an execution receipt rather than from what was requested.
@@ -91,14 +91,16 @@ face verification gates that check the response is genuinely grounded in the
 retrieved text before you see it.
 
 Measured on a physical A18 Pro: **27 tokens/sec on-device**, **86 tokens/sec on
-PCC**, time-to-first-token 2.2–3.2s.
+PCC**, time-to-first-token 2.2–3.2s. The PCC figure is real and was measured from a
+local Xcode 27 build; it is not what an App Store build does today, for the toolchain
+reason described under Status.
 
 ### Routing, and what the badge means
 
 The model picker is a policy, not a hint:
 
 - **On-Device** never uses PCC. Not for planning, not for synthesis.
-- **PCC** requests Private Cloud Compute, with a declared local fallback if a gate or quota blocks it.
+- **PCC** requests Private Cloud Compute, with a declared local fallback if a gate or quota blocks it. In an App Store build the compiler gate is itself such a gate, so this mode currently always takes the local fallback.
 - **Hybrid** decides per query, based on the evidence actually retrieved.
 
 Cloud consent is requested only for a real, finalised evidence envelope — never
@@ -193,7 +195,7 @@ Shipping on the App Store for iPhone, iPad, and Mac. Actively developed against 
 [public roadmap](https://gunzino.notion.site/OpenIntelligence-Public-Roadmap-e4446012bb8940e6b78a745aee688075)
 synced from the same database the work is planned in.
 
-Private Cloud Compute execution is confirmed on a physical device. Edge cases —
+Private Cloud Compute execution is confirmed on a physical device **from a local Xcode 27 build**. It has never been present in an App Store build: releases are produced by Xcode Cloud on the "Latest Release" toolchain, currently Xcode 26.6, which compiles the eleven `#if compiler(>=6.4)` sites out. Edge cases —
 quota exhaustion, mid-stream network transitions, background consent — are still
 unverified, and tracked as open items rather than quietly assumed.
 

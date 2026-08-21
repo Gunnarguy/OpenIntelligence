@@ -26,7 +26,7 @@ If the sources do not establish an answer, the app flags weak support or abstain
 
 WHERE YOUR FILES GO (AND DON'T)
 
-Document processing, indexing, retrieval, evidence selection, and citation checking run on your device. On-device answers need no connection at all. On a plane, in a dead zone, in a locked-down office, your library still works. On supported systems, longer evidence-heavy questions can use Apple Private Cloud Compute, but only after the app shows you exactly what would be sent and you approve it. Your material is never sent to a third-party AI provider.
+Document processing, indexing, retrieval, evidence selection, and citation checking run on your device. On-device answers need no connection at all. On a plane, in a dead zone, in a locked-down office, your library still works. Optional Apple Private Cloud Compute support for longer evidence-heavy questions is built and will enable in a future release on iOS and macOS 27; when it does, the app will show you exactly what would be sent and ask you to approve it first. Your material is never sent to a third-party AI provider.
 
 ANSWERS YOU CAN INSPECT
 

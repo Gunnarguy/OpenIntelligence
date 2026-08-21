@@ -97,7 +97,10 @@ struct LiveFoundationModelCapabilityProvider: FoundationModelCapabilityProviding
             pccQuota: .unsupported,
             pccContextSize: nil,
             source: .sdkExact,
-            unavailabilityReason: "PCC requires iOS/macOS 27"
+            // Names the build, not the OS. The compiler gate above is what removed PCC from this
+            // binary, so on an iOS 27 device the old string ("PCC requires iOS/macOS 27") was read
+            // by the one user who would care as a contradiction of what their phone was running.
+            unavailabilityReason: "This build was compiled without Private Cloud Compute (requires Xcode 27)"
         )
         #endif
     }
