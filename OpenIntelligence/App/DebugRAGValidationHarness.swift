@@ -547,6 +547,31 @@ enum DebugRAGValidationHarness {
         lines.append("ANSWER")
         lines.append("Confidence: \(String(format: "%.2f", response.confidenceScore))")
         lines.append("Retrieved Chunks: \(response.retrievedChunks.count)")
+
+        // Emit the text of every chunk that reached the model, so retrieval can be scored at
+        // PASSAGE level rather than document level.
+        //
+        // Until 2026-08-21 this report carried only a count, and `r@1`/`r@10` credited a whole
+        // document when any of its chunks appeared. That ruler misled four separate conclusions in
+        // one day, and the last one was inverted: injecting a document summary raised `r@1` to
+        // 1.000 (the summary is a chunk of the gold document) while making the answer worse,
+        // because a summary cannot answer an extractive question. 19 of 25 QASPER cases are
+        // `answer_kind: extractive` — the answer is a literal span — so "did the span reach the
+        // model" is the question that actually matters and could not previously be asked.
+        //
+        // Written as one line per chunk with newlines escaped, so the scorer can substring-match
+        // the fixture's `expected_evidence[].excerpt` without a parser. Debug-harness only; this
+        // file is not on any production path.
+        lines.append("RETRIEVED CHUNK TEXT")
+        for (index, retrieved) in response.retrievedChunks.enumerated() {
+            let body = (retrieved.chunk.parentContent ?? retrieved.chunk.content)
+                .replacingOccurrences(of: "\n", with: " ")
+                .replacingOccurrences(of: "\r", with: " ")
+            lines.append("CHUNK \(index + 1) | \(retrieved.sourceDocument) | \(body)")
+        }
+        lines.append("END RETRIEVED CHUNK TEXT")
+        lines.append("")
+
         lines.append("Response:")
         lines.append(response.generatedResponse)
         lines.append("")

@@ -430,6 +430,48 @@ def gold_recall(predicted: str, gold: str) -> float:
     return overlap / len(gold_tokens) if gold_tokens else 0.0
 
 
+def passage_recall(case: dict, report_text: str) -> dict:
+    """Did the gold ANSWER SPAN reach the model, not merely its document?
+
+    Added 2026-08-21. Every retrieval metric in this harness is document-level: `r@1` and `r@10`
+    credit a whole file when any of its chunks appears. That ruler produced four wrong conclusions
+    in a single day, the last one inverted — injecting a document summary drove `r@1` to 1.000
+    because the summary is a chunk of the gold document, while making the answer worse, since a
+    summary cannot answer an extractive question. 19 of 25 QASPER cases are `answer_kind:
+    extractive`, so the span is the answer and "did the span arrive" is the only question that
+    matters at this stage.
+
+    Matching is a sliding 12-word window over the fixture's `expected_evidence[].excerpt`, compared
+    against the concatenated chunk text the app now emits. A window rather than the whole excerpt
+    because chunk boundaries cut sentences; 12 words because shorter windows collide with common
+    phrasing in a same-domain corpus. Whitespace and punctuation are normalised on both sides.
+
+    Returns `None` for `present` when the fixture carries no excerpt or the report predates the
+    chunk-text block, so an unmeasurable case is never scored as a miss.
+    """
+    excerpts = [e.get("excerpt", "") for e in (case.get("expected_evidence") or []) if e.get("excerpt")]
+    block = re.search(r"^RETRIEVED CHUNK TEXT$(.*?)^END RETRIEVED CHUNK TEXT$",
+                      report_text, re.M | re.S)
+    if not excerpts or not block:
+        return {"passage_present": None, "passage_chunk_rank": None}
+
+    def norm(t: str) -> str:
+        return re.sub(r"\W+", " ", t.lower()).strip()
+
+    chunk_lines = [l for l in block.group(1).splitlines() if l.startswith("CHUNK ")]
+    normalised = [norm(l) for l in chunk_lines]
+
+    for excerpt in excerpts:
+        words = norm(excerpt).split()
+        if len(words) < 6:
+            continue
+        windows = [" ".join(words[i:i + 12]) for i in range(0, max(1, len(words) - 11), 4)]
+        for rank, chunk in enumerate(normalised, start=1):
+            if any(w and w in chunk for w in windows):
+                return {"passage_present": True, "passage_chunk_rank": rank}
+    return {"passage_present": False, "passage_chunk_rank": None}
+
+
 def score(case: dict, parsed: dict) -> dict:
     """Score one run against the manifest's ground truth."""
     answer, verification_flagged = strip_verification_banner(parsed.get("answer", ""))
@@ -668,6 +710,9 @@ def run_one(
             tail = (proc.stderr or report or "").strip().splitlines()[-4:]
             return {"ok": False, "seconds": elapsed, "error": "no report", "tail": tail}
         parsed = parse_report(report)
+        # Retained for `passage_recall`, which needs the RETRIEVED CHUNK TEXT block. Stripped again
+        # before the row is written so `results.jsonl` does not grow by the whole corpus per case.
+        parsed["_report_text"] = report
 
         # A report can be emitted with no ANSWER section at all: the harness
         # writes its header and artifacts, but generation produced nothing.
@@ -1147,6 +1192,9 @@ def main() -> int:
                 row = {"case_id": case["id"], "category": case["category"], "mode": mode, "run": run}
                 if run.get("ok"):
                     row["score"] = score(case, run)
+                    row["score"].update(passage_recall(case, run.get("_report_text", "")))
+                run.pop("_report_text", None)
+                if run.get("ok"):
                     verdict = "PASS" if row["score"]["correct"] else (
                         "HALLUC" if row["score"]["expected"] == "abstain" else "miss")
                     print(f"{verdict} ({run['seconds']:.1f}s, {run.get('llm_calls', '?')} calls)", flush=True)
