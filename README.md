@@ -52,7 +52,7 @@ an answer is more trustworthy when you can see what it was built from.
 
 | | |
 | :-- | :-- |
-| **Reads real documents** | PDFs with tables and figures, Office and iWork files, code, plain text, images, audio, and video. Vision handles OCR when a PDF's text layer is unreliable. |
+| **Reads real documents** | PDFs with tables and figures, Office files, code, plain text, images, audio, and video. Pages, Numbers and Keynote are not readable and must be exported first. Vision handles OCR when a PDF's text layer is unreliable. |
 | **Searches two ways at once** | Meaning-based vector search and keyword BM25 run together, then fuse and re-rank. Hunting a part number and asking a conceptual question both work. |
 | **Shows its work** | A live pipeline view names each stage as it runs, and every claim links back to the excerpt behind it. |
 | **Explains its own vocabulary** | Every figure it shows defines itself where it sits, in a plain register and a technical one. Tapping `38 TOPS` says what the number is, and says that it is a per-chip rating rather than a measurement. |

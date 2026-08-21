@@ -141,7 +141,8 @@ struct DocumentPicker: View {
                 .foregroundColor(.accentColor)
             Text("Choose documents to import")
                 .font(.headline)
-            Text("PDFs, Office and iWork files, text, code, images, audio, or video.")
+            Text("PDFs, Office files, text, code, images, audio, or video. Export Pages, Numbers "
+                     + "and Keynote to PDF first.")
                 .font(.caption)
                 .foregroundColor(.secondary)
                 .multilineTextAlignment(.center)

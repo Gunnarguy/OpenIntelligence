@@ -16,7 +16,7 @@ WHAT YOU CAN DO
 
 BRING YOUR OWN MATERIAL
 
-Import PDFs, Office and iWork documents, text and Markdown files, CSVs, code, images and scans, audio, or video. OpenIntelligence extracts text, uses Vision OCR where needed, transcribes speech, and builds a searchable index for each library.
+Import PDFs, Office documents, text and Markdown files, CSVs, code, images and scans, audio, or video. Pages, Numbers and Keynote files need to be exported to PDF first. OpenIntelligence extracts text, uses Vision OCR where needed, transcribes speech, and builds a searchable index for each library.
 
 HOW ANSWERS ARE BUILT
 

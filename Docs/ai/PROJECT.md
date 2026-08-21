@@ -19,8 +19,11 @@ developers, and product copy is read by people who will not check the source.
 
 ## In scope
 
-- Ingesting PDFs (including OCR through Vision when the text layer is unreliable), Office and iWork
-  files, code, plain text, images, audio, and video.
+- Ingesting PDFs (including OCR through Vision when the text layer is unreliable), Office files,
+  code, plain text, images, audio, and video. **Pages, Numbers and Keynote are explicitly out of
+  scope**: modern iWork stores content as compressed protobuf in `Index/*.iwa`, no Apple API
+  exposes it, and `extractTextFromIWorkDocument` throws on every such file by construction. The
+  picker still offers them so the failure is reachable and explained rather than hidden.
 - On-device indexing: dense vectors plus a SQLite FTS5 keyword index.
 - Hybrid retrieval with reciprocal rank fusion and cross-encoder reranking.
 - Answers with tappable citations back to the source excerpt.

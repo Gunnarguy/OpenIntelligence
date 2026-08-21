@@ -142,6 +142,61 @@ Not a regression; it has never worked, and the reason is structural rather than 
 
 Both paths end at `throw DocumentProcessingError.iWorkExtractionFailed`. That is the acceptable half of the answer: it fails loudly, so nothing is indexed as a silent empty. Two tests pin both shapes so that cannot quietly change. `[evidence_level: code_verified+test_verified, confidence: exact]`
 
+**2026-08-21: the outward claims now match this, and the escape hatches were checked before removing
+them.** Five user-facing places still advertised iWork support (`README.md`, the App Store
+description, `Docs/ai/PROJECT.md`, the picker caption, and the error string, which called support
+"limited" when it is zero). Per the claim-audit rule the removal was evidenced in both directions,
+not just by absence:
+
+- The iOS 27 SDK on this machine exposes **no** iWork text-extraction API. Swept
+  `iPhoneOS.sdk/System/Library/Frameworks` for iWork/`iwa` symbols and for Apple-declared
+  `com.apple.iwork.*` type identifiers with a route to content. Nothing.
+- The obvious workaround is closed as well. Rendering the file with QuickLook and running the
+  existing Vision OCR over it reaches **page 1 and no further**: `QLThumbnailGenerator` takes no
+  page index, and `QLPreviewController` is UI-only.
+
+So implementing this genuinely means parsing Apple's undocumented `.iwa` protobuf, and
+`ZIPArchive` being file-scoped private means a new reader cannot even see the unzip helper without
+an access-level change. **The formats stay in the picker on purpose** so the failure is reachable
+and explained; removing them re-creates the defect `CHANGELOG.md:162` already fixed.
+`[evidence_level: code_verified+sdk_verified, confidence: exact]`
+
+### Spatial extraction: the word-position arithmetic, and two branches that used to fail silently
+
+`extractTextWithSpatialOrdering` is the column-aware reader for every PDF page that skips Vision.
+It asks PDFKit where each word sits via `page.selection(for: NSRange)` and groups the results into
+lines, then into columns.
+
+**Until 2026-08-21 the range it asked with drifted off the word.** It was built from a
+hand-maintained counter that under-counted two independent ways, and the two compounded:
+`split(whereSeparator:)` omits empty subsequences, so every run of whitespace collapsed into a
+single gap while the cursor advanced by exactly `+ 1` per gap; and `String.count` counts grapheme
+clusters while `NSRange` addresses UTF-16 code units, so ligatures drifted it further. Both
+under-count in the same direction, so the range stayed **in bounds** and PDFKit kept returning
+bounds, for different text than the word being positioned. The word appended to the line was right
+and its recorded coordinates were not. The range now derives from the `Substring`,
+`NSRange(word.startIndex..<word.endIndex, in: pageString)`, where `in: pageString` is load-bearing.
+`[evidence_level: code_verified+test_verified, confidence: exact, evidence_source: SpatialOffsetArithmeticTests]`
+
+**Two branches returned a materially worse result and said nothing**, which is why a two-column
+extraction defect had to be diagnosed by inference across three sessions rather than read off a
+trace:
+
+1. `guard spatialLines.count > 3` returns nil, sending the caller to raw `page.string`, which
+   interleaves columns by construction. Both call sites read `... ?? text`, so a nil return was
+   indistinguishable from a success.
+2. When `detectColumnBoundaries` returns empty, the page is read as a single column, sorted by Y
+   alone, and returned **non-nil**. Genuinely single-column pages and multi-column pages whose
+   boundaries were missed both land here and cannot be told apart from inside the function; in the
+   second case a Y-only sort interleaves the columns, because a left line and a right line at the
+   same height sort adjacent.
+
+Both now log. The selected `PageProcessingStrategy` is also logged per page, and equal-Y ties break
+on X ascending, because `sorted(by:)` is not stable in Swift and the same page could previously
+extract differently on two runs. **The instrumentation is the point of the change**: the
+attribution of the remaining two-column damage is still open, and it is now readable from a device
+trace instead of inferable. `[evidence_level: code_verified, confidence: exact, attribution_open]`
+
 ### Audio and video: the failure mode is verified, transcription itself is not
 
 `say` fails from an agent shell (`-241`), so no *speech* fixture can be authored there. A silent WAV was used to check the failure mode instead, and that part is settled: ingesting audio with nothing to transcribe **throws in about 76 ms** rather than yielding an empty document that gets indexed as a success. `[evidence_level: test_verified, confidence: exact, evidence_source: IngestionFormatCoverageTests testSilentAudio, 0.076s]`

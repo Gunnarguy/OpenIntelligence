@@ -3471,6 +3471,15 @@ class DocumentProcessor {
                     if hasText && textQualityOK && !requiresOCRForAccuracy {
                         if let spatialText = extractTextWithSpatialOrdering(from: page), !spatialText.isEmpty {
                             effectiveString = spatialText
+                        } else {
+                            // Second of the two silent fallbacks to raw `page.string`. Same reason
+                            // as the one in the batch path: the fallback does not preserve column
+                            // order, so a page taking it is a quality event worth seeing.
+                            Log.warning(
+                                "[DocumentProcessor] Page \(pageIndex + 1): spatial extraction "
+                                    + "produced nothing; using raw page text (column order not preserved)",
+                                category: .ingestion
+                            )
                         }
                     }
 
@@ -4204,8 +4213,19 @@ class DocumentProcessor {
                     var layoutText: String? = nil
                     if !documentTextLayerGarbled && !needsVision, let text = plainText, !text.isEmpty {
                         // Use PDFKit spatial extraction (no Vision needed)
-                        layoutText = extractTextWithSpatialOrdering(from: page) ?? text
-                        Log.debug("[DocumentProcessor] Page \(pageNumber): Using PDFKit spatial extraction (skipped Vision)", category: .ingestion)
+                        // Which of the two outcomes happened is recorded, because `?? text` hides
+                        // it and that is why a two-column extraction defect had to be diagnosed by
+                        // inference rather than read off a trace. `text` here is raw `page.string`,
+                        // which interleaves columns by construction, so the fallback is a materially
+                        // worse result and not an equivalent one.
+                        let spatial = extractTextWithSpatialOrdering(from: page)
+                        layoutText = spatial ?? text
+                        Log.debug(
+                            "[DocumentProcessor] Page \(pageNumber): strategy=\(strategy.description), "
+                                + "Vision skipped, spatial extraction "
+                                + (spatial == nil ? "FAILED -> raw page text (column order not preserved)" : "ok"),
+                            category: .ingestion
+                        )
                     }
 
                     batchRenderData.append(PageRenderData(
@@ -7680,15 +7700,28 @@ class DocumentProcessor {
         var currentLineBounds: CGRect = .zero
         var lineXPositions: [CGFloat] = []
 
-        // Enumerate words and group into lines based on Y position
+        // Enumerate words and group into lines based on Y position.
+        //
+        // The range handed to `page.selection(for:)` is taken from the Substring itself rather than
+        // from a hand-maintained counter. The counter version under-counted twice over and the two
+        // errors compounded: `split(whereSeparator:)` omits empty subsequences, so every run of
+        // whitespace collapsed to one gap while the cursor advanced by exactly `+ 1` per gap; and
+        // `String.count` counts grapheme clusters while `NSRange` addresses UTF-16 code units, so
+        // every ligature drifted it further. Both under-count in the same direction, which is why
+        // the range stayed valid and `selection(for:)` kept returning bounds — for the wrong text.
+        // The word appended was correct and the coordinates recorded against it were not.
+        //
+        // `Substring` indices are indices into the base string, so `word.startIndex..<word.endIndex`
+        // is already the true range. `in: pageString` is load-bearing: `in: word` would produce
+        // word-relative offsets and reintroduce the same defect in a new shape.
         let words = pageString.split(whereSeparator: { $0.isWhitespace || $0.isNewline })
-        var wordIndex = 0
+        var unresolvedWords = 0
 
         for word in words {
             let wordString = String(word)
 
             // Try to find this word in the page and get its bounds
-            if let selection = page.selection(for: NSRange(location: wordIndex, length: wordString.count)),
+            if let selection = page.selection(for: NSRange(word.startIndex..<word.endIndex, in: pageString)),
                let firstChar = selection.selectionsByLine().first {
 
                 let bounds = firstChar.bounds(for: page)
@@ -7716,9 +7749,12 @@ class DocumentProcessor {
                 currentLineY = bounds.midY
                 lineXPositions.append(bounds.midX)
                 currentLineBounds = currentLineBounds.isEmpty ? bounds : currentLineBounds.union(bounds)
+            } else {
+                // A word PDFKit cannot place. Counted rather than ignored: a page where many words
+                // fail to resolve produces sparse, unreliable `spatialLines`, and until this was
+                // logged there was no way to tell that from a page that simply has little text.
+                unresolvedWords += 1
             }
-
-            wordIndex += wordString.count + 1 // +1 for separator
         }
 
         // Don't forget the last line
@@ -7732,8 +7768,29 @@ class DocumentProcessor {
             ))
         }
 
-        // If we couldn't get spatial info, fall back to simple extraction
-        guard spatialLines.count > 3 else { return nil }
+        // If we couldn't get spatial info, fall back to simple extraction.
+        //
+        // Returning nil sends the caller to raw `page.string`, which interleaves columns by
+        // construction. That is a real quality cliff and it used to be silent — there was no way to
+        // distinguish a nil return here from a success, because the call site reads
+        // `extractTextWithSpatialOrdering(from: page) ?? text`.
+        guard spatialLines.count > 3 else {
+            Log.warning(
+                "[DocumentProcessor] Spatial extraction bailed: only \(spatialLines.count) line(s) "
+                    + "resolved from \(words.count) word(s), \(unresolvedWords) unplaceable. "
+                    + "Falling back to raw page text, which does NOT preserve column order.",
+                category: .ingestion
+            )
+            return nil
+        }
+
+        if unresolvedWords > 0 {
+            Log.debug(
+                "[DocumentProcessor] Spatial extraction: \(unresolvedWords) of \(words.count) "
+                    + "word(s) could not be placed on the page",
+                category: .ingestion
+            )
+        }
 
         // Detect columns from X positions
         let xPositions = spatialLines.map { $0.xPosition }
@@ -7741,8 +7798,27 @@ class DocumentProcessor {
         let columnBoundaries = detectColumnBoundaries(from: xPositions, pageWidth: pageWidth)
 
         if columnBoundaries.isEmpty {
-            // Single column - just sort by Y (top to bottom)
-            let sorted = spatialLines.sorted { $0.yPosition > $1.yPosition }
+            // Treated as a single column and sorted by Y alone.
+            //
+            // This branch is reached both by genuinely single-column pages and by multi-column pages
+            // whose boundaries could not be detected, and the two are indistinguishable from here.
+            // In the second case a Y-only sort interleaves the columns, because a line on the left
+            // and a line on the right at the same height sort adjacent — which is exactly the
+            // damage reported against two-column journal PDFs. It then returns non-nil, so nothing
+            // downstream can tell. Logged rather than silently returned.
+            //
+            // The tiebreak on X is not cosmetic. `sorted(by:)` is not stable in Swift, so equal-Y
+            // lines previously came out in arbitrary order — the same page could extract
+            // differently on two runs. Ordering ties left-to-right makes the output deterministic
+            // and, on an undetected two-column page, at least reading-order-correct per row.
+            let sorted = spatialLines.sorted {
+                $0.yPosition == $1.yPosition ? $0.xPosition < $1.xPosition : $0.yPosition > $1.yPosition
+            }
+            Log.debug(
+                "[DocumentProcessor] Spatial extraction found no column boundaries across "
+                    + "\(spatialLines.count) line(s); reading as a single column",
+                category: .ingestion
+            )
             return sorted.map { $0.text }.joined(separator: "\n")
         }
 
@@ -7765,7 +7841,10 @@ class DocumentProcessor {
         // Process each column top-to-bottom (higher Y = higher on page in PDF coords)
         var result: [String] = []
         for (colIdx, group) in columnGroups.enumerated() {
-            let sortedColumn = group.sorted { $0.yPosition > $1.yPosition }
+            // Same non-stable-sort hazard as the single-column branch above.
+            let sortedColumn = group.sorted {
+                $0.yPosition == $1.yPosition ? $0.xPosition < $1.xPosition : $0.yPosition > $1.yPosition
+            }
             let columnText = sortedColumn.map { $0.text }
             if !columnText.isEmpty {
                 result.append(contentsOf: columnText)
@@ -8524,7 +8603,11 @@ class DocumentProcessor {
     private func extractTextFromIWorkDocument(url: URL) throws -> String {
         // iWork documents are packages - look for index.xml or similar
         // This is a simplified implementation
-        Log.warning("[DocumentProcessor] iWork document support is limited", category: .ingestion)
+        Log.warning(
+            "[DocumentProcessor] iWork content is not readable: modern Pages/Numbers/Keynote store "
+                + "text as compressed protobuf in Index/*.iwa, which this app does not parse",
+            category: .ingestion
+        )
         Log.info("[DocumentProcessor] Suggestion: Export as PDF or text for full compatibility", category: .ingestion)
 
         // Try to read as a package
@@ -9278,7 +9361,8 @@ enum DocumentProcessingError: LocalizedError {
         case .officeFormatNeedsConversion:
             return "Office document detected. For best results, export as PDF before importing."
         case .iWorkExtractionFailed:
-            return "iWork document support is limited. Please export as PDF or text for full compatibility."
+            return "Pages, Numbers and Keynote files can't be read. Export this document as PDF, "
+                + "Word, Excel or PowerPoint and import that instead."
         case let .audioTranscriptionFailed(reason):
             return "Audio transcription failed: \(reason)"
         case .audioTranscriptionEmpty:
