@@ -18394,6 +18394,13 @@ extension RAGService: RAGToolHandler {
 
         let engine = RAGEngine.shared
         retrievedChunks = await engine.rerank(chunks: retrievedChunks, query: semanticQuery, topK: topK * 2)
+        // Record the stage that just ran. This line missing is why every deep-think benchmark trace
+        // showed six stages and no `.rerank`, which was then read as "Deep Think has no reranker"
+        // and hardened into ledger entries, STATE, a roadmap row and a commit message on 2026-08-20
+        // before this function was actually read. The reranker has been on this path all along —
+        // unconditional between the hybrid search above and here. An unrecorded stage is not an
+        // absent stage; this is the same lesson as the fusion order/score split, one layer up.
+        trace?.record(.rerank, results: retrievedChunks)
 
         await onDetailedEvent?(.rerank, "Re-ranking complete", "Top scores: \(retrievedChunks.prefix(3).map { String(format: "%.0f%%", $0.similarityScore * 100) }.joined(separator: ", "))")
 

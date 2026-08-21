@@ -7,9 +7,10 @@ Last verified commit: 89bf928
 ## Objective
 
 **Get v5.0 shippable.** One question decides what 5.0 can contain and only the owner can answer it
-(Blocker 1). Separately, **Deep Think underperforms Standard and the cause is now located**: fusion
-degrades the ranking its own lexical arm earned, Standard's cross-encoder repairs it, and Deep Think
-has no rerank stage to repair it with.
+(Blocker 1). Separately, **Deep Think underperforms Standard and the cause is open again**: the
+"no reranker" attribution was retracted on 2026-08-20 — Deep Think reranks unconditionally
+(`RAGService.swift:18396`); only the trace record was missing. See the ledger retraction. The
+survival fix (`89bf928`) repaired the shared fusion-burial defect for both modes.
 
 ## Status
 
@@ -44,8 +45,9 @@ deep-think    lexical 0.615 → fusion 0.431 → (no rerank)  → final 0.688
 ```
 
 **Fusion loses roughly 30% of the MRR its lexical arm earned, in both modes independently.** Standard
-recovers via the cross-encoder. Deep Think has no `rerank` stage and never recovers. That is the
-Deep Think gap, attributed by measurement rather than argument.
+recovers via the cross-encoder. **[RETRACTED 2026-08-20]** The next sentence originally read
+"Deep Think has no `rerank` stage" — false; the stage ran unrecorded. The gap is unattributed;
+ledger has the retraction. Kept so the reasoning error stays visible.
 
 Default fusion weights are `vector 0.7 / keyword 0.3`, weighting the weaker arm more than twice as
 heavily as the stronger one. `RAGEngine.swift:982` already records lexical ranking the gold document
@@ -122,9 +124,10 @@ Command → result, this session only:
    [the row](https://app.notion.com/3c149a74d54f81239443c15fe6ae3782).
 4. **`boosted` degrades ranking in all four measured conditions**, and more the better its input.
    This is now the Exact Next Action rather than a blocker.
-5. **Deep Think has no `rerank` stage.** Whether that is deliberate or an omission is unverified;
-   `postfix-citations` simply shows the stage absent. Verify by reading where `RAGEngine.rerank` is
-   called from `RAGService` and which quality modes reach it.
+5. **Resolved 2026-08-20, the blocker's own instruction was followed and refuted the premise:**
+   `performFullRetrievalPipeline` calls `engine.rerank` unconditionally for every agentic
+   retrieval; the trace simply never recorded it, and now does. The gap moved to Exact Next
+   Action item 3 as re-attribution work.
 6. **A hang appears intermittently on QASPER paper `1604.02038`.** Third occurrence 2026-08-20:
    0.1% CPU for 21 minutes, then timeout. **It did not recur on the very next run of the same case**
    (`fusion-vw030-deepthink`, 234.5s, completed), so it is intermittent rather than deterministic for
@@ -144,24 +147,24 @@ Command → result, this session only:
 
 ## Exact Next Action
 
-**The survival-fix arc is closed — `89bf928`, committed on its paired verdict** (`lexical-survival-3`
-in the ledger: rerank r@10 0.714→0.857, correct 4/7→5/7, control bit-identical, one noise-scale
-final-MRR dip recorded). The tree is clean. Nothing is running.
+**Corrected 2026-08-20, same day: item 3 below was withdrawn before implementation.** Deep Think
+**has** a reranker — `performFullRetrievalPipeline` calls `engine.rerank` unconditionally
+(`RAGService.swift:18396`); only the `.rerank` trace record was missing, and that line now exists.
+The full retraction is in `BenchmarkRuns/LEDGER.md`. The deep-think vs standard gap is therefore
+**unattributed again**; do not build a reranker, and do not quote "Deep Think has no rerank stage"
+from any earlier document.
 
 Next, in order of leverage:
 
 1. **Owner: read the Xcode version off the Xcode Cloud workflow in App Store Connect.** Decides
    whether PCC has ever shipped and what v5.0 can contain (Blocker 1). Two minutes, owner-only.
-2. **Owner: one phone session** — re-import the library (stale pre-mean-pooling vectors; two
-   minutes) and run the three-import vector-loss test (protocol on the Notion row). Closes a v5.0
-   blocker.
-3. **Engineering: give Deep Think a rerank stage.** The largest attributed gap in the engine:
-   Standard's cross-encoder adds +30 MRR points and repairs fusion; Deep Think has no rerank stage
-   and inherits fusion's loss (ledger, `postfix-citations`). Blocker: verify where `RAGEngine.rerank`
-   is called and which quality modes reach it, then a plan and `PROCEED: IMPLEMENT`. Measure
-   deep-think paired, expecting only `final`/accuracy to be trustworthy (adaptive loop; no stage
-   controls).
-4. **The intermittent 1800s hang** now hits ~1-in-8 cases (three case ids, two papers, 0.1% CPU).
-   Next occurrence: capture a `sample` of the wedged app before it times out —
-   `sample $(pgrep -f Contents/MacOS/OpenIntelligence | head -1) 10 -file /tmp/hang.txt` — the
-   stack will name what it waits on.
+2. **Owner: one phone session** — re-import the library (stale pre-mean-pooling vectors), and run
+   the three-import vector-loss test (protocol on the Notion row). Closes a v5.0 blocker.
+3. **Engineering: re-attribute the deep-think gap with the fixed instrumentation.** One paired
+   deep-think run now records `.rerank`, so fusion→rerank→final decomposes for the first time.
+   Candidates, none established: no post-rerank cascade on the agentic path; different per-call
+   `topK`; adaptive query rewrites. Per-case `final`/accuracy are the only trustworthy deep-think
+   readouts; per-call stage means are directional at best.
+4. **The intermittent 1800s hang** (~1-in-8 cases, three case ids, two papers, 0.1% CPU). Next
+   occurrence: `sample $(pgrep -f Contents/MacOS/OpenIntelligence | head -1) 10 -file /tmp/hang.txt`
+   before the timeout fires; the stack names what it waits on.

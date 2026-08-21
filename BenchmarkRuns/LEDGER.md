@@ -557,3 +557,29 @@ log firing).
 **The intermittent hang struck a third distinct case id** (`85e41723`, second distinct paper),
 killing the paper-specific theory for good. It is the app/daemon wedge, frequency roughly 1-in-8
 cases per run today.
+
+### 2026-08-20, retraction: "Deep Think has no rerank stage" was an instrumentation artifact
+
+Withdrawn before any feature was built on it, but after it reached this ledger, `STATE.md`, the
+fusion roadmap row, and the `89bf928` commit message. The record stays; this entry corrects it.
+
+**Deep Think reranks and always has.** `performFullRetrievalPipeline` — the function every
+`AgenticOrchestrator` retrieval call goes through — calls `engine.rerank(chunks:query:topK*2)`
+unconditionally between the hybrid search and its return (`RAGService.swift:18396`). What was
+missing was one line: `trace?.record(.rerank, …)`. The benchmark trace therefore showed six stages,
+and the absent *record* was read as an absent *reranker*, then hardened by repetition. Two
+confirmations beyond the code path: no gate or early return exists between search and rerank (only
+the empty-corpus guard), and deep-think's own numbers carry the reranker's signature — `candidates`
+MRR 0.336 → `final` 0.688, the same shape as standard's 0.442 → 0.750. Blocker 5 had flagged
+"deliberate or omission is unverified"; the verification happened only after a feature to "add" the
+reranker was approved. The stage is now recorded (same commit as this entry).
+
+**What this reopens:** the deep-think vs standard gap (final MRR 0.688 vs 0.812 at the last valid
+paired read) is *unattributed again*. Both modes rerank. Remaining candidates, none established:
+the agentic path has no post-rerank cascade; its per-call `topK` differs; its queries are adaptive
+rewrites rather than the user's question; and per-call stage means are structurally untrustworthy in
+an adaptive loop. Attribution requires the newly recorded `.rerank` stage in a fresh paired run —
+per-case `final`/accuracy remain the only trustworthy deep-think readouts.
+
+**"+30 MRR points from the cross-encoder" survives** — it was measured in Standard, where controls
+hold. What is withdrawn is only its corollary "and Deep Think gets zero."
