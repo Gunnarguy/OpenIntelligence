@@ -162,16 +162,54 @@ enum PipelineTraceExporter {
                 if !structureType.isEmpty {
                     lines.append("  Structure:  \(structureType)")
                 }
-                // Show first 300 chars of content
+                // Chunk text, capped generously rather than previewed.
+                //
+                // This was 300 characters, which is a preview and not evidence. Measured chunk
+                // lengths in this app run to ~2,600 characters, so 300 truncated roughly nine
+                // tenths of every chunk. That silently invalidated an analysis on 2026-08-21 that
+                // tried to answer "did the answer-bearing passage actually reach the model" from
+                // shared traces: the passage was usually past character 300, so it read as absent
+                // whether it was there or not. A trace that cannot answer that question is not
+                // worth exporting.
+                //
+                // 4,000 covers the longest chunk observed with headroom. The cap stays because a
+                // parent-document chunk can be far larger and this file is meant to be pasted.
+                let contentCap = 4000
                 let preview = String(
                     sanitizedPreviewContent(
                         chunk.chunk.text,
                         cleanedSectionPath: trustedLegacySectionPath(chunk.chunk.metadata.sectionPath)
-                    ).prefix(300)
+                    ).prefix(contentCap)
                 )
                     .replacingOccurrences(of: "\n", with: " ")
-                lines.append("  Content:    \(preview)\(chunk.chunk.text.count > 300 ? "..." : "")")
+                let truncatedNote = chunk.chunk.text.count > contentCap
+                    ? " …[truncated, \(chunk.chunk.text.count) chars total]"
+                    : ""
+                lines.append("  Content:    \(preview)\(truncatedNote)")
             }
+        }
+
+        // Engine log.
+        //
+        // Until 2026-08-21 this export contained no `Log` output at all — it was assembled purely
+        // from the UI's `capturedThinkingEvents`, which is a summary of what the screen already
+        // showed. So it carried no retrieval internals, no LLM detail, and **no ingestion**, since
+        // ingestion happens at import time and belongs to no message. Reading a device trace
+        // therefore meant reading the Xcode console, which meant staying tethered to a Mac.
+        //
+        // These are the same lines the console prints, held in a bounded in-memory ring, and they
+        // are appended last because they are the longest section.
+        let engineLog = LoggingConfiguration.recentLogLines()
+        if !engineLog.isEmpty {
+            lines.append("")
+            lines.append("▶ ENGINE LOG (\(engineLog.count) lines, most recent last)")
+            lines.append(thinDivider)
+            lines.append("  Buffered in memory and bounded, so this is the tail of the session and")
+            lines.append("  not necessarily its beginning. Ingestion of a large document can fill it.")
+            lines.append("  For a full session use Files -> On My iPhone -> OpenIntelligence ->")
+            lines.append("  pipeline_trace.log, or scripts/pull_trace.sh with the device attached.")
+            lines.append(thinDivider)
+            lines.append(contentsOf: engineLog)
         }
 
         // Footer

@@ -137,6 +137,7 @@ nonisolated enum LoggingConfiguration {
         let titlePad = title.padding(toLength: 28, withPad: " ", startingAt: 0)
         let timePad = timeStr.padding(toLength: 8, withPad: " ", startingAt: 0)
 
+        captureForShare("🔹 \(stepBox) \(titlePad) \(timePad) │ \(detailStr)")
         #if DEBUG
         print("🔹 \(stepBox) \(titlePad) \(timePad) │ \(detailStr)")
         #endif
@@ -242,6 +243,66 @@ nonisolated enum LoggingConfiguration {
         }
     }
 
+    // MARK: - In-memory ring buffer, so the in-app share carries real logs
+
+    /// Recent log lines held in memory for `PipelineTraceExporter`.
+    ///
+    /// Why this exists: the in-app "share trace" was built entirely from the UI's own
+    /// `capturedThinkingEvents` (`ChatScreen.swift`), so it contained **no `Log` output of any
+    /// kind** — no retrieval detail, no LLM detail, and no ingestion at all, since ingestion
+    /// happens at import time and is attached to no message. Every request for device evidence
+    /// therefore really meant "sit tethered to Xcode and copy the console", which defeats testing
+    /// on a phone. This buffer is what makes a phone-only trace worth reading.
+    ///
+    /// Bounded on **both** line count and bytes. Ingestion alone emits thousands of lines per
+    /// document — 5,245 in one measured session — so a line cap without a byte cap still allows an
+    /// unbounded share, and a byte cap without a line cap allows unbounded array growth.
+    ///
+    /// Guarded by its own lock rather than `stateLock`, deliberately: `writeToFile` holds
+    /// `stateLock` across the file write, and reusing it here would put a lock acquisition inside
+    /// that critical section the first time someone moved a call.
+    private static let ringLock = NSLock()
+    private static let ringMaxLines = 4000
+    private static let ringMaxBytes = 512_000
+    private static var _ring: [String] = []
+    private static var _ringBytes = 0
+
+    /// Record a line for the in-app share. Cheap and non-throwing; never on the caller's hot path
+    /// for more than an append.
+    private static func captureForShare(_ line: String) {
+        ringLock.lock()
+        defer { ringLock.unlock() }
+        _ring.append(line)
+        _ringBytes += line.utf8.count
+        guard _ring.count > ringMaxLines || _ringBytes > ringMaxBytes else { return }
+        // Evict in a batch. `removeFirst()` per line is O(n) each time and this runs on every log
+        // call once the buffer is warm; dropping a quarter at once makes it amortised O(1).
+        let drop = max(1, _ring.count / 4)
+        for line in _ring.prefix(drop) { _ringBytes -= line.utf8.count }
+        _ring.removeFirst(drop)
+    }
+
+    /// The recent log lines, oldest first. Empty when nothing has been logged.
+    ///
+    /// Subject to the same level and category gates as everything else, so a Release build returns
+    /// only what `.error` admits. That is intentional: this changes what a share *contains*, never
+    /// what the app *logs*.
+    static func recentLogLines(limit: Int? = nil) -> [String] {
+        ringLock.lock()
+        defer { ringLock.unlock() }
+        if let limit, limit > 0, limit < _ring.count { return Array(_ring.suffix(limit)) }
+        return _ring
+    }
+
+    /// Drop the buffered lines. Used by the harness between cases so one case cannot inherit
+    /// another's tail.
+    static func clearRecentLogLines() {
+        ringLock.lock()
+        defer { ringLock.unlock() }
+        _ring.removeAll(keepingCapacity: true)
+        _ringBytes = 0
+    }
+
     /// Maximum file size before rotation (~500KB)
     private static let maxFileSize: UInt64 = 500_000
 
@@ -250,8 +311,26 @@ nonisolated enum LoggingConfiguration {
     private static var _fileURL: URL?
 
     /// Get or create the trace log file handle
+    /// Bytes written by this process since the handle was opened, so rotation can be evaluated
+    /// without a `stat` on every line. Seeded from the file's size when the handle is opened.
+    private static var _bytesOnDisk: UInt64 = 0
+
     private static func traceFileHandle() -> FileHandle? {
-        if let handle = _fileHandle { return handle }
+        if let handle = _fileHandle {
+            // Rotation used to live below the early return, which meant the size check ran exactly
+            // once per launch — on the first log line — and never again. Within a session the file
+            // grew without limit, and the check then fired on the *next* launch. That is the worst
+            // possible timing: relaunching the app to go and share the trace is what rotated the
+            // session you wanted out into `pipeline_trace.prev.log`, leaving a nearly empty live
+            // file. Observed directly on 2026-08-21, a 569 KB `.prev.log` beside a 145 KB live one.
+            //
+            // Counting bytes in-process keeps this cheap: no `stat` per line.
+            if _bytesOnDisk > maxFileSize {
+                rotateLocked()
+                return _fileHandle
+            }
+            return handle
+        }
 
         let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first
         guard let docsDir = docs else { return nil }
@@ -265,20 +344,52 @@ nonisolated enum LoggingConfiguration {
             FileManager.default.createFile(atPath: fileURL.path, contents: header.data(using: .utf8))
         }
 
-        // Rotate if too large
-        if let attrs = try? FileManager.default.attributesOfItem(atPath: fileURL.path),
-           let size = attrs[.size] as? UInt64, size > maxFileSize {
-            // Rename old log, start fresh
-            let backupURL = docsDir.appendingPathComponent("pipeline_trace.prev.log")
-            try? FileManager.default.removeItem(at: backupURL)
-            try? FileManager.default.moveItem(at: fileURL, to: backupURL)
-            let header = "═══ OpenIntelligence Pipeline Trace (rotated) ═══\nStarted: \(ISO8601DateFormatter().string(from: Date()))\n\n"
-            FileManager.default.createFile(atPath: fileURL.path, contents: header.data(using: .utf8))
+        let existing = (try? FileManager.default.attributesOfItem(atPath: fileURL.path))
+            .flatMap { $0[.size] as? UInt64 } ?? 0
+        if existing > maxFileSize {
+            _bytesOnDisk = existing
+            rotateLocked()
+            return _fileHandle
         }
 
-        _fileHandle = try? FileHandle(forWritingTo: fileURL)
-        _fileHandle?.seekToEndOfFile()
+        _bytesOnDisk = existing
+        _fileHandle = openAppending(fileURL)
         return _fileHandle
+    }
+
+    /// Open the trace for writing in **append mode**.
+    ///
+    /// `FileHandle(forWritingTo:)` plus `seekToEndOfFile()` keeps a per-handle offset, so two
+    /// handles over the same path — a second app process, an extension, a relaunch overlapping a
+    /// process that has not exited — each believe they own the end of the file and write over one
+    /// another. The symptom is a line with a second timestamp spliced into its middle and the first
+    /// entry truncated mid-word. Measured at ~0.2% of lines (14 of ~6,900) in a real simulator
+    /// trace on 2026-08-21, which is rare enough to look like a formatting quirk and is in fact
+    /// destroyed data.
+    ///
+    /// `O_APPEND` moves the offset-to-end and the write into one atomic kernel operation, so
+    /// concurrent writers interleave between lines instead of inside them. This does not require
+    /// knowing which writer was responsible, which is the point: the guarantee holds for all of them.
+    private static func openAppending(_ url: URL) -> FileHandle? {
+        let fd = open(url.path, O_WRONLY | O_APPEND | O_CREAT, 0o644)
+        guard fd >= 0 else { return nil }
+        return FileHandle(fileDescriptor: fd, closeOnDealloc: true)
+    }
+
+    /// Move the live trace aside and start a fresh one. Caller must hold `stateLock`.
+    private static func rotateLocked() {
+        guard let fileURL = _fileURL else { return }
+        let docsDir = fileURL.deletingLastPathComponent()
+        try? _fileHandle?.close()
+        _fileHandle = nil
+
+        let backupURL = docsDir.appendingPathComponent("pipeline_trace.prev.log")
+        try? FileManager.default.removeItem(at: backupURL)
+        try? FileManager.default.moveItem(at: fileURL, to: backupURL)
+        let header = "═══ OpenIntelligence Pipeline Trace (rotated) ═══\nStarted: \(ISO8601DateFormatter().string(from: Date()))\nPrevious session: pipeline_trace.prev.log\n\n"
+        FileManager.default.createFile(atPath: fileURL.path, contents: header.data(using: .utf8))
+        _bytesOnDisk = UInt64(header.utf8.count)
+        _fileHandle = openAppending(fileURL)
     }
 
     /// Write a line to the trace log file (non-blocking, fire-and-forget)
@@ -296,6 +407,7 @@ nonisolated enum LoggingConfiguration {
         stateLock.lock()
         let handle = traceFileHandle()
         handle?.write(data)
+        _bytesOnDisk += UInt64(data.count)
         stateLock.unlock()
     }
 
@@ -355,6 +467,12 @@ nonisolated enum LoggingConfiguration {
         #if DEBUG
         print("\(prefix) \(message)")
         #endif
+
+        // Captured for the in-app share regardless of `#if DEBUG`, because the console does not
+        // exist on a phone that is not plugged into Xcode and this buffer is the only thing that
+        // makes an untethered trace readable. The level and category gates above still apply, so
+        // a Release build contributes only what `.error` admits.
+        captureForShare("[\(fileTimestampFormatter.string(from: Date()))] \(prefix) \(message)")
 
         // Also write to trace file for pipeline-relevant categories
         writeToFile(message, category: category)
