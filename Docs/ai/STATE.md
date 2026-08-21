@@ -2,7 +2,7 @@
 
 Updated: 2026-08-20
 Branch/worktree: main, clean, **not pushed** — `origin/main` is at `8791baa`, seventeen commits behind.
-Last verified commit: 73fff4f
+Last verified commit: d6476d5
 
 ## Objective
 
@@ -147,41 +147,63 @@ Command → result, this session only:
 
 ## Exact Next Action
 
-**Investigate what happens between `rerank` and `final`. It is now the largest measured quality loss
-in the pipeline**, and the 25-case run (`BenchmarkRuns/overnight-25case-nodeadlock`, 50/50, zero
-timeouts) makes it unarguable:
+**Run the benchmark once with the new passage-level metric, then read it.** The harness now emits
+`RETRIEVED CHUNK TEXT` from the debug harness and scores `passage_present` / `passage_chunk_rank`
+against the fixture's `expected_evidence[].excerpt` — **committed but never exercised**. Standard
+mode, 25 cases, defaults, then `scripts/compare_benchmark_runs.py` against
+`BenchmarkRuns/rescue-position-fix`, control line first.
 
-```
-standard    rerank MRR 0.753  r@1 0.667   ->   final MRR 0.590  r@1 0.417
-deep-think  rerank MRR 0.699  r@1 0.606   ->   final MRR 0.665  r@1 0.567
-```
+It answers the question everything else now depends on: **for the 19 of 25 QASPER cases whose
+answer is a literal span, does that span actually reach the model?** Nobody can say today.
 
-**A quarter of all standard cases lose their top-ranked gold document after the cross-encoder ranked
-it first.** `final` has the same n as `rerank` (24), so it is not a sampling artifact. Read, in
-order: MMR diversification (retrieves `topK * 3` then re-selects), parent-document expansion, and
-the final top-K truncation — all in `RAGService` between the `.rerank` and `.final` trace records.
-Measure any change in Standard mode, paired, control line first.
+**Why it outranks further retrieval tuning.** Every retrieval number on record is document-level;
+`r@1`/`r@10` credit a whole document when any chunk of it appears. On 2026-08-21 that ruler produced
+four wrong conclusions in one day and the last was *inverted*: injecting a document summary raised
+`r@1` (a summary is a chunk of the gold document) while making answers worse. Tuning against it
+again would be tuning against a metric that rewards the defect.
 
-**Two things this run settled, both good:**
+### Current numbers (`BenchmarkRuns/PROGRESSION.md` has all 39 runs)
 
-- **Fusion now beats its own lexical arm** — 0.708 vs 0.691 (standard), 0.719 vs 0.696 (deep-think).
-  The "hybrid fusion ranks worse than the keyword arm it is fusing" defect **no longer reproduces**;
-  the lexical survival guarantee (`89bf928`) fixed it. That roadmap row needs closing or rewriting.
-- **The deadlock fix holds** (`73fff4f`): 50 consecutive runs, zero 1800s timeouts, against a prior
-  rate near one in eight.
+| run | mode | accuracy | final r@1 | final MRR |
+| :-- | :-- | --: | --: | --: |
+| `overnight-25case-nodeadlock` | standard | 10/25 | 0.417 | 0.590 |
+| `overnight-25case-nodeadlock` | deep-think | 9/25 | 0.567 | 0.665 |
+| `rescue-position-fix` | standard | **12/25** | **0.500** | **0.646** |
 
-**Still open and now well-measured:** `boosted` destroys 0.073 (standard) / 0.136 (deep-think) MRR of
-what fusion earned, at n=24/66. Earlier attempts to fix it by removing its re-sort made `final`
-worse and were reverted; with fusion now healthy, it deserves a fresh look **after** the
-rerank→final work, since that stage dominates.
+### Settled, do not reopen
 
-**Accuracy: deep-think 9/25 (36%), standard 10/25 (40%).** Paired against `postfix-citations` on the
-8 shared cases with the control identical: 5/8 → 5/8. Nothing resolvable at this size.
+- **The fusion weight.** Three values measured (0.3/0.5/0.7); none moved the answer. Fusion now
+  *beats* its lexical arm (0.708 vs 0.691 standard) after `89bf928`. That defect is gone.
+- **The 1800s hang is not paper-specific.** It was a path-lookup deadlock, fixed in `73fff4f`;
+  50 consecutive runs, zero timeouts.
+- **"Deep Think has no reranker."** False, retracted 2026-08-20.
+- **"40% accuracy is partly a grading artifact."** False. Of 13 retrieved-but-wrong standard cases,
+  zero had soft `gold_recall >= 0.8` and eleven had `< 0.4`. The answers are genuinely wrong.
 
-### Owner's queue, unchanged and still owner-only
+### Open, in order
 
-1. **Build `main` to the iPhone.** Every disappearing-file fix (`f57e81f`, `c64f468`) plus the
-   ingestion deadlock fix (`73fff4f`) is committed and none has run on the device. Import once: it
-   lands, self-repairs, or throws a named error — silence is no longer possible.
+1. **Passage-level run** (above).
+2. **`final` r@1 (0.500) is still below `rerank` (0.667)** — at least one more stage drops rank-1
+   chunks after reranking. Suspects: parent-document expansion, final top-K truncation, MMR's
+   diversity penalty. `a7c1945` fixed one such stage and recovered part of it.
+3. **Summary injection is unmeasured as a cause.** It fires in 14/25 cases, prepends summaries ahead
+   of every reranked chunk and takes ~25% of the token budget. Accuracy is lower when it fires
+   (6/14 vs 6/11) but the case mix is confounded — `.investigate`/`.findings` get summaries *and*
+   are harder. A controlled A/B with injection disabled would settle it.
+4. **Maximum mode has never been benchmarked.**
+5. **PCC is never exercised by any benchmark** (`--pcc deny` always), so the cloud path is entirely
+   unmeasured.
+
+### The benchmark is the shipping engine — verified 2026-08-21
+
+Chat calls `ragService.query(...)` → `queryInternal(...)`. The harness constructs a real `RAGService`
+and calls `queryWithAudit(...)` → the same `queryInternal`; `queryWithAudit` is `query` plus a
+nil-checked trace recorder. Ingestion is the same `ingestDocuments(...)` the import button uses.
+Differences: macOS rather than iOS, `--pcc deny`, fixed seed/temperature, storage redirect.
+
+### Owner's queue, unchanged
+
+1. **Build `main` to the iPhone.** Four vector-store loss fixes, the detector-repair fix and the
+   ingestion deadlock fix are committed and **none has run on the device**.
 2. **App Store Connect → Xcode Cloud workflow → read the Xcode version.** Decides Blocker 1 and
    whether PCC has ever shipped.
