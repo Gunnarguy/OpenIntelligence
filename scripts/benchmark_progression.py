@@ -64,15 +64,85 @@ def suspect_flag(meta: dict, summary: dict) -> str:
     return ""
 
 
-def collect() -> list[dict]:
-    out = []
-    for d in sorted(RUNS.iterdir()):
-        rj = d / "results.json"
-        if not d.is_dir() or not rj.exists():
-            continue
+def reconstruct(d: Path) -> dict | None:
+    """Rebuild a run summary from `results.jsonl` when `results.json` is absent.
+
+    Added 2026-08-21 after this script was found to be doing the thing it exists to prevent. Of 79
+    run directories on disk, 65 carried `results.json` and the collector `continue`d silently past
+    the other 14 — so a table whose entire purpose is "show every run" was quietly showing 82% of
+    them, with no count of what it dropped and no way for a reader to tell.
+
+    Eleven of those 14 still hold `results.jsonl`, one JSON object per case, which is the raw
+    evidence the ledger cites. A run whose aggregate file is missing is usually one that was killed
+    before the harness wrote its summary, and those are exactly the runs worth seeing rather than
+    hiding. Reconstructed rows are marked so nobody mistakes a recomputed aggregate for one the
+    harness wrote.
+    """
+    jl = d / "results.jsonl"
+    if not jl.exists():
+        return None
+    by_mode: dict[str, list[dict]] = {}
+    for line in jl.read_text(errors="replace").splitlines():
         try:
-            data = json.loads(rj.read_text())
+            r = json.loads(line)
         except Exception:
+            continue
+        if isinstance(r, dict) and r.get("case_id"):
+            by_mode.setdefault(r.get("mode") or "?", []).append(r)
+    if not by_mode:
+        return None
+    summaries, stages = [], {}
+    for mode, rows in by_mode.items():
+        correct = sum(1 for r in rows if (r.get("score") or {}).get("correct"))
+        summaries.append({
+            "mode": mode, "runs": len(rows), "completed": len(rows),
+            "correct": correct, "accuracy": correct / len(rows) if rows else None,
+        })
+        agg: dict[str, list] = {}
+        for r in rows:
+            sm = (r.get("run") or {}).get("stage_metrics") or {}
+            if isinstance(sm, list):
+                sm = {x.get("stage"): x for x in sm if isinstance(x, dict)}
+            for stage, vals in (sm or {}).items():
+                if isinstance(vals, dict):
+                    agg.setdefault(stage, []).append(vals)
+        stages[mode] = [
+            {"stage": st,
+             **{m: (sum(v.get(m) or 0 for v in vs) / len(vs)) for m in ("r1", "r5", "r10", "mrr")}}
+            for st, vs in agg.items() if vs
+        ]
+    return {"meta": {}, "summaries": summaries, "stage_summaries": stages, "_reconstructed": True}
+
+
+def collect() -> tuple[list[dict], list[str]]:
+    out: list[dict] = []
+    unreadable: list[str] = []
+    legacy: list[dict] = []
+    for d in sorted(RUNS.iterdir()):
+        if not d.is_dir():
+            continue
+        rj = d / "results.json"
+        data = None
+        if rj.exists():
+            try:
+                data = json.loads(rj.read_text())
+            except Exception:
+                data = None
+        if data is None:
+            data = reconstruct(d)
+        if data is not None and "summaries" not in data and isinstance(data.get("cases"), list):
+            # Pre-`summaries` harness schema, all from 2026-07-03. Counted and named below rather
+            # than tabulated: every one is a 1-9 case bring-up run and not a single case ever
+            # passed, so 25 rows of zeros would bury the runs that mean something. Silently
+            # dropping them, which is what this script did until 2026-08-21, is the worse option.
+            sm = data.get("summary") or {}
+            legacy.append({"run": d.name, "total": sm.get("total") or len(data["cases"]),
+                           "scored": sm.get("scored") or 0, "passed": sm.get("passed") or 0})
+            continue
+        if data is None:
+            # Never drop a run silently. A directory with neither file is still a run that was
+            # started, and the reader is entitled to know it exists and holds nothing.
+            unreadable.append(d.name)
             continue
         meta = data.get("meta", {}) or {}
         cfg = {}
@@ -109,17 +179,45 @@ def collect() -> list[dict]:
                 "fin_mrr": stage(st, "final", "mrr"),
                 "wall_min": round((meta.get("wall_seconds") or 0) / 60) or None,
                 "flag": suspect_flag(meta, s),
+                "recon": bool(data.get("_reconstructed")),
             })
     out.sort(key=lambda r: (r["when"], r["run"], r["mode"]), reverse=True)
-    return out
+    return out, unreadable, legacy
 
 
-def render(rows: list[dict]) -> str:
+def render(rows: list[dict], unreadable: list[str], legacy: list[dict]) -> str:
     L = []
     L.append("# Benchmark progression")
     L.append("")
+    n_runs = len({r["run"] for r in rows})
+    total_dirs = n_runs + len(unreadable) + len(legacy)
+    n_recon = len({r["run"] for r in rows if r.get("recon")})
     L.append(f"Generated {dt.datetime.now():%Y-%m-%d %H:%M} by `scripts/benchmark_progression.py`. "
-             f"{len(rows)} run/mode pairs across {len({r['run'] for r in rows})} runs.")
+             f"{len(rows)} run/mode pairs across {n_runs} runs, "
+             f"of {total_dirs} run directories on disk — every one accounted for below.")
+    if n_recon or unreadable or legacy:
+        L.append("")
+        if n_recon:
+            L.append(f"**† marks {n_recon} run(s) rebuilt from `results.jsonl`** because the harness "
+                     "never wrote a `results.json` — normally a run killed before it finished. The "
+                     "per-case data is real; the aggregates in those rows were recomputed here, not "
+                     "written by the harness, and `min` is unavailable for them.")
+        if legacy:
+            L.append("")
+            tp = sum(x["passed"] for x in legacy)
+            tc = sum(x["total"] for x in legacy)
+            L.append(f"**{len(legacy)} run(s) predate the current results schema** and are counted "
+                     f"here rather than tabulated: all are from 2026-07-03, 1-9 cases each, "
+                     f"{tc} cases total, and **{tp} passed**. They are harness bring-up, not "
+                     "measurement, and 25 rows of zeros would bury the runs that mean something. "
+                     "Named so the count reconciles: "
+                     + ", ".join(f"`{x['run']}`" for x in sorted(legacy, key=lambda z: z["run"])) + ".")
+        if unreadable:
+            L.append("")
+            L.append(f"**{len(unreadable)} run director(ies) hold no results data** and cannot be "
+                     "tabulated (`latest` holds only a dashboard; the other two are empty): " + ", ".join(f"`{u}`" for u in unreadable) + ". They are listed "
+                     "rather than dropped, because a table that silently omits runs is the exact "
+                     "failure this file exists to prevent.")
     L.append("")
     L.append("**Read the config columns before comparing any two rows.** Runs differing in "
              "`cases`, `pool`, `seed`, `temp` or `vw` are not comparable on accuracy — a withdrawn "
@@ -137,7 +235,8 @@ def render(rows: list[dict]) -> str:
     L.append("|" + "|".join([" :-- ", " :-- ", " :-- ", " :-- "] + [" --: "] * (len(hdr) - 4)) + "|")
     for r in rows:
         L.append("| " + " | ".join([
-            "⚠" if r["flag"] else "", r["run"], r["mode"], r["commit"] or "—",
+            ("⚠" if r["flag"] else "") + ("†" if r.get("recon") else ""),
+            r["run"], r["mode"], r["commit"] or "—",
             f'{fmt(r["done"],0)}/{fmt(r["cases"],0)}',
             fmt(r["pool"], 0), fmt(r["seed"], 0), fmt(r["temp"], 1),
             fmt(r["vw"], 2) if r["vw"] is not None else "dflt",
@@ -173,7 +272,8 @@ def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--out", default="")
     a = ap.parse_args()
-    text = render(collect())
+    rows, unreadable, legacy = collect()
+    text = render(rows, unreadable, legacy)
     if a.out:
         Path(a.out).write_text(text)
         print(f"wrote {a.out}")

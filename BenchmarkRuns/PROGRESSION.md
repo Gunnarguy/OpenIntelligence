@@ -1,6 +1,12 @@
 # Benchmark progression
 
-Generated 2026-08-21 12:21 by `scripts/benchmark_progression.py`. 45 run/mode pairs across 40 runs.
+Generated 2026-08-21 12:29 by `scripts/benchmark_progression.py`. 58 run/mode pairs across 51 runs, of 79 run directories on disk — every one accounted for below.
+
+**† marks 11 run(s) rebuilt from `results.jsonl`** because the harness never wrote a `results.json` — normally a run killed before it finished. The per-case data is real; the aggregates in those rows were recomputed here, not written by the harness, and `min` is unavailable for them.
+
+**25 run(s) predate the current results schema** and are counted here rather than tabulated: all are from 2026-07-03, 1-9 cases each, 80 cases total, and **0 passed**. They are harness bring-up, not measurement, and 25 rows of zeros would bury the runs that mean something. Named so the count reconciles: `20260703-193614`, `20260703-193920`, `20260703-194701`, `20260703-195049`, `20260703-195153`, `20260703-195247`, `20260703-195500`, `20260703-195827`, `20260703-200110`, `20260703-200209`, `20260703-200310`, `20260703-200750`, `20260703-200913`, `20260703-200935`, `20260703-201017`, `20260703-201245`, `20260703-201426`, `20260703-201523`, `20260703-201917`, `20260703-202728`, `20260703-215109`, `20260703-221027`, `20260703-221523`, `20260703-221712`, `20260703-222241`.
+
+**3 run director(ies) hold no results data** and cannot be tabulated (`latest` holds only a dashboard; the other two are empty): `20260809-165839-matrix`, `20260811-144942-matrix`, `latest`. They are listed rather than dropped, because a table that silently omits runs is the exact failure this file exists to prevent.
 
 **Read the config columns before comparing any two rows.** Runs differing in `cases`, `pool`, `seed`, `temp` or `vw` are not comparable on accuracy — a withdrawn "4-7x performance regression" in `LEDGER.md` was exactly this mistake. For a real comparison use `scripts/compare_benchmark_runs.py`, which pairs by `case_id` and prints a control line.
 
@@ -53,6 +59,19 @@ Generated 2026-08-21 12:21 by `scripts/benchmark_progression.py`. 45 run/mode pa
 |  | 20260730-091821-matrix | standard | — | 20/20 | — | — | — | dflt | 16 | 0.800 | — | — | — | — | — | — | 21 |
 |  | 20260730-091821-matrix | maximum | — | 4/20 | — | — | — | dflt | 4 | 1.000 | — | — | — | — | — | — | 21 |
 |  | 20260730-091821-matrix | deep-think | — | 5/20 | — | — | — | dflt | 4 | 0.800 | — | — | — | — | — | — | 21 |
+| † | tok512 | standard | — | 1/1 | 10 | 42 | 0.7 | dflt | 0 | 0.000 | — | — | — | — | — | — | — |
+| † | tiefix-2 | standard | — | 1/1 | 10 | 42 | 0.7 | dflt | 0 | 0.000 | 1.000 | 1.000 | 1.000 | 1.000 | 1.000 | 1.000 | — |
+| † | rrfix-2 | standard | — | 1/1 | 10 | 42 | 0.7 | dflt | 0 | 0.000 | 1.000 | 1.000 | 1.000 | 1.000 | 1.000 | 1.000 | — |
+| † | qasper-vw30 | standard | — | 36/36 | — | — | — | dflt | 14 | 0.389 | 0.715 | 0.616 | 0.652 | 0.593 | 0.778 | 0.636 | — |
+| † | qasper-topk10 | standard | — | 8/8 | — | — | — | dflt | 4 | 0.500 | 0.646 | 0.542 | 0.625 | 0.500 | 0.750 | 0.588 | — |
+| † | qasper-run-1 | standard | — | 2/2 | — | — | — | dflt | 0 | 0.000 | 1.000 | 0.417 | 0.750 | 0.500 | 1.000 | 0.750 | — |
+| † | qasper-deepthink-c2477b3 | deep-think | — | 3/3 | 10 | — | — | dflt | 1 | 0.333 | — | — | — | 1.000 | 1.000 | 1.000 | — |
+| † | paired-pool10 | standard | 0eb5d96 | 5/5 | 10 | 42 | 0.7 | dflt | 1 | 0.200 | 1.000 | 1.000 | 1.000 | 1.000 | 1.000 | 1.000 | — |
+| † | paired-pool10 | deep-think | 0eb5d96 | 5/5 | 10 | 42 | 0.7 | dflt | 0 | 0.000 | — | — | — | 1.000 | 1.000 | 1.000 | — |
+| † | overnight-25case-aborted-deadlock | standard | c64f468 | 5/5 | 10 | 42 | 0.7 | dflt | 2 | 0.400 | 0.800 | 0.467 | 0.900 | 0.800 | 1.000 | 0.900 | — |
+| † | overnight-25case-aborted-deadlock | deep-think | c64f468 | 5/5 | 10 | 42 | 0.7 | dflt | 2 | 0.400 | 1.000 | 0.708 | 1.000 | 0.500 | 1.000 | 0.675 | — |
+| † | lexical-survival-2 | standard | 79755ea | 1/1 | 10 | 42 | 0.7 | dflt | 1 | 1.000 | 1.000 | 1.000 | 1.000 | 1.000 | 1.000 | 1.000 | — |
+| † | cmp-deepthink | deep-think | — | 16/16 | 10 | 42 | 0.7 | dflt | 2 | 0.125 | — | — | — | 0.438 | 0.625 | 0.485 | — |
 
 **⚠ marks 10 run/mode pair(s) averaging under 60s per case — generation almost certainly did not run.** The known instance is `lexical-survival`, taken while Foundation Models was wedged machine-wide; every answer was fallback text. Treat any flagged row as unmeasured, not as a low score.
 
