@@ -15,6 +15,31 @@ measurable cases, and when it does reach the model the answer is still wrong in 
 Retrieval and synthesis each account for about half the failures. Every prior plan assumed one of
 them dominated.
 
+## v5.0 was re-scoped on 2026-08-21: 25 open rows down to 11
+
+The owner cut the release to rows that pass one of the three tests in `CLAUDE.md` — loses data,
+breaks an advertised capability, or blocks shipping. **14 rows moved to `Future Backlog`.** Notion is
+authoritative; this is a pointer, not a copy.
+
+**What v5.0 now is:** three data-corruption fixes (the vector-loss family, all committed and none
+verified on device), two broken importers (iWork, two-column PDFs), three infrastructure rows (the
+release-toolchain lookup, the PCC entitlement, device testing), and three orchestration defects the
+owner kept as judgement calls (background grant, reasoning-chain overrun, Self-RAG self-contradiction).
+
+**What it is no longer, and this was deliberate:** the embedding EPIC and the WWDC 2026 API adoption
+both moved out, and both had previously been named as top v5.0 goals. Liquid Glass moved too, which
+means **v5.0 has no user-visible new feature — it is a correctness release** and should be named as
+one in the changelog rather than presented as a feature drop.
+
+**Critical path is now two owner-only tasks**, and both block work nobody else can start:
+1. Read the Xcode version on the Xcode Cloud workflow in App Store Connect. Decides whether PCC has
+   ever shipped and closes two rows at once.
+2. Build `main` to the iPhone and re-run the delete → ingest → query → relaunch sequence. Closes or
+   reopens the three data-corruption rows, which are the ones that made the app lose a document.
+
+Agent-workable in the meantime, both on the release and neither owner-blocked: **iWork import** and
+**two-column PDF reading order**.
+
 ## Status
 
 All work is on `main`, none pushed. Every run is recorded in `BenchmarkRuns/LEDGER.md` (prose,
