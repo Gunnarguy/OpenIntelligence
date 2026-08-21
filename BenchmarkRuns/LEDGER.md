@@ -818,3 +818,39 @@ into "never retrieved" and "retrieved, ranked, then cut at assembly", and those 
 different fixes. `STAGE SOURCES` records chunk *ids* per stage but only the final chunks carry
 *text*, so the gold span cannot be located in the rerank set from saved data. Splitting that 10
 requires the harness to emit rerank-stage chunk text. That is the next measurement.
+
+### The A/A pair, decomposed: nondeterminism has two independent causes
+
+Pushing the same A/A comparison further, per case rather than in aggregate.
+
+| | 24 paired cases |
+| :-- | :-- |
+| `vector` / `lexical` / `fusion` metrics identical | **24 / 24** |
+| `boosted` / `candidates` / `rerank` / `final` identical | 23 / 24 |
+| every retrieval stage identical | **22 / 24** |
+| identical `context_chars` | **10 / 25** |
+| identical retrieved-chunk count | 22 / 25 |
+| identical answer | **7 / 25** |
+
+**Cause 1: prompt assembly diverges below the resolution of every metric here.** 22 of 24 cases
+match at every retrieval stage, and the assembled prompt still differs in 15 of 25. Stage metrics
+score against *gold documents*, so a different chunk selection or ordering **within the same
+documents** scores identically and builds a different prompt. "Stages identical" has never meant
+"same input to the model", and no metric in this harness can see the difference.
+
+**Cause 2: the seeded sampler is not reproducible across processes.** Three cases matched on stage
+metrics, chunk count and prompt size and still answered differently — including one that returned
+**173 characters both times with different text**, which a differing prompt cannot produce. The seed
+does reach generation: `strategy=topk` logged in all 25 reports, and `LLMService.swift:722` passes
+`seed: benchmarkSeed ?? config.seed` into `SamplingMode.random(top:seed:)`.
+
+**Next run should be `--rag-validation-sampling greedy`.** Greedy takes the highest-probability
+token by construction and ignores temperature, eliminating cause 2 outright and leaving cause 1
+measurable alone for the first time. **A reproducible harness is worth more than any single
+retrieval fix here**, because the ±1 noise floor is what blocks every other measurement.
+
+**A latent footgun, checked and not firing on any run on record.** `benchmarkSeed` is read only
+*inside* `if let benchmarkSampling` (`LLMService.swift:720-738`), so `--rag-validation-seed` without
+`--rag-validation-sampling` discards the seed silently while the run still logs as configured. Every
+run on disk passed `sampling: topk`, so no published figure is affected — but the flag combination
+that looks most obviously correct is the one that does nothing.

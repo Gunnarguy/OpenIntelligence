@@ -147,6 +147,22 @@ Command → result, this session only:
    anything smaller than about a 4-case swing.** Stage metrics (`rerank`/`final` MRR, r@1) are far
    more stable and are what a change should be judged on. Paired comparison plus the sign test
    remains the only trustworthy readout.
+
+   **Decomposed the same day into two independent causes.** Per case across those 24 pairs:
+   `vector`/`lexical`/`fusion` are identical in **24/24**, every retrieval stage is identical in
+   **22/24** — and yet `context_chars` matches in only **10/25** and the answer in **7/25**.
+   *Cause 1:* prompt assembly diverges below the resolution of every metric here, because stage
+   metrics score against gold *documents* and a different chunk order within the same documents
+   scores identically. *Cause 2:* three cases matched on stage metrics, chunk count and prompt size
+   and still answered differently, one returning 173 chars both times with different text — so
+   Apple's seeded `SamplingMode.random(top:seed:)` is not reproducible across processes. The seed
+   does reach it (`LLMService.swift:722`, `strategy=topk` logged in all 25 reports).
+   **The cheapest high-value run available is the same 25 cases under
+   `--rag-validation-sampling greedy`**, which removes cause 2 by construction and measures cause 1
+   alone for the first time. Footgun found while checking: `benchmarkSeed` is read only inside
+   `if let benchmarkSampling` (`LLMService.swift:720-738`), so `--rag-validation-seed` *without*
+   `--rag-validation-sampling` silently discards the seed. No run on disk is affected; all passed
+   `topk`.
 8. **Two shipped engine changes have never executed on device.** `executeDirectSynthesis` still shows
    zero occurrences in every capture.
 9. Known-but-unfixed, each pinned by a test asserting current behaviour so changing it is deliberate:
