@@ -2,7 +2,7 @@
 
 Updated: 2026-08-20
 Branch/worktree: main, clean, **not pushed** — `origin/main` is at `8791baa`, seventeen commits behind.
-Last verified commit: 89bf928
+Last verified commit: f57e81f
 
 ## Objective
 
@@ -146,6 +146,34 @@ Command → result, this session only:
     collide on exact values (four chunks at exactly `0.7650`).
 
 ## Exact Next Action
+
+**The data-loss fixes are committed (`f57e81f`) and have NEVER run on the owner's device. Nothing
+about the vector-loss row can be concluded until they do.** Every capture so far is the old build —
+check any new capture for the fingerprints `persisting then evicting`, `persisted vector stores`,
+or `failing the write rather than misfiling` before interpreting it.
+
+Four loss paths closed in `f57e81f`: memory-pressure eviction of dirty stores (persists first,
+refuses to evict on failure), config-mismatch store drops (persists outgoing), the
+deleted-mid-import fallback (now throws `VectorStoreRoutingError.containerNotFound` — a visible,
+retryable failure instead of silent misfiling; both ingestion call sites updated), and the missing
+vector-store flush on backgrounding (`persistAllVectorStores()` runs first in the background
+transition).
+
+**Established from the 2026-08-20 night captures (old build):** the flush theory alone is
+insufficient — one re-ingest logged `[BNNS] Persisted 197 chunks (197 mmap'd)` and the sync sweep
+still found no store file for the target container while finding every other container's file: the
+store was misfiled under a different id, which is the fallback path, now throwing. Self-heal
+detection works: `holds 1 document(s) but its vector store has 0 chunks; surfacing a rebuild` fired
+and the Rebuild banner is the owner's recovery.
+
+**Owner's two steps:** tap Rebuild on the broken library (recovers the file today), and build
+`main` to the iPhone, then re-ingest once. Outcomes: import lands and the sync sweep opens its
+store file → the fixes hold, watch for phantom recurrence across days; OR the app shows "The
+library this import was addressed to no longer exists" → the remaining cause named itself; capture
+the console and the container id in the error.
+
+## Previous next actions, superseded above
+
 
 **FIRST, hours-later addendum: the 0-chunk phantom REPRODUCED live — `0350083` does not close the
 vector-loss row.** The evening's fresh import (`FE9E86BF`, 197 searchable, answering queries) came
