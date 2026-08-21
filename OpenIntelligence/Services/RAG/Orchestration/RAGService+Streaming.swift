@@ -72,7 +72,7 @@ extension RAGService {
         // This function already takes `activeContainerId` and uses it for every other write; the
         // vector store was the one place it read the live value instead, and a streamed import is
         // the longest-running kind, so it had the widest window to diverge. See `dbForContainer`.
-        let db = await dbForContainer(activeContainerId)
+        let db = try await dbForContainer(activeContainerId)
         
         for startPage in stride(from: 0, to: totalPages, by: batchSize) {
             let endPage = min(startPage + batchSize - 1, totalPages - 1)

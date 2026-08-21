@@ -127,8 +127,14 @@ final class LayoutReadingOrderTests: XCTestCase {
         let raw = try XCTUnwrap(page.string)
         let rawLastLeft = position(of: "Iota left sentence number 5", in: raw)
         let rawFirstRight = position(of: "Kappa right sentence number 1", in: raw)
-        XCTAssertTrue(rawFirstRight < rawLastLeft,
-                      "Fixture failed to model content-stream disorder; page.string is already ordered.")
+        // Measured 2026-08-20: PDFKit rebuilds `page.string` in GEOMETRIC order even when the
+        // content stream interleaves draw calls — CTLineDraw-generated PDFs cannot model
+        // content-stream disorder at all. That both explains why the ordered fixtures passed and
+        // removes this generation approach as a way to convict the block builder. Reproducing the
+        // device damage needs a fixture with a hand-authored content stream (raw PDF operators),
+        // or the actual failing publisher PDF as a test resource. Skipping, loudly, until then.
+        try XCTSkipIf(rawFirstRight >= rawLastLeft,
+                      "PDFKit normalizes CTLineDraw order into geometric order; this fixture cannot model content-stream disorder.")
 
         let result = try await LayoutAwareExtractor.shared.extractWithLayout(from: page, pageNumber: 1)
         let text = result.readingOrderText

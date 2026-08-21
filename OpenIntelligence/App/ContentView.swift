@@ -326,9 +326,18 @@ struct ContentView: View {
             // Save the current session transcript before backgrounding
             // This ensures conversation state is preserved if the app is terminated
             Task { @MainActor in
+                // Flush buffered vector-store writes FIRST. Everything else in this block was
+                // already persisted on backgrounding — the transcript, the ingestion queue, an
+                // FTS5 checkpoint — while the vector stores, whose writes are deliberately
+                // deferred for batching, were not. A fresh import queried before ever being
+                // flushed therefore lived only in memory, and if the process died back here the
+                // library came back as documents-with-no-vector-store. Observed end to end on
+                // 2026-08-20 (container FE9E86BF: 197 searchable chunks at night, `no vector
+                // store yet` at next launch).
+                await ragService.persistAllVectorStores()
                 ragService.persistIngestionQueueState()
                 ragService.saveSessionTranscript()
-                Log.debug("[App] Scene entered background - saved transcript", category: .initialization)
+                Log.debug("[App] Scene entered background - persisted vector stores, saved transcript", category: .initialization)
             }
 
             // Begin ingestion handoff if processing

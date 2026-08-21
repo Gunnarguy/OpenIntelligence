@@ -3855,20 +3855,41 @@ class RAGService: ObservableObject {
     /// nothing in chat. Observed on device 2026-08-18 as
     /// `Container 009866A3 has 1 document(s) and no vector store yet`.
     ///
-    /// Falls back to the active container only if the id no longer resolves, which means the
-    /// library was deleted mid-import; there is nowhere better to put the vectors at that point
-    /// and the caller's own container guard will discard them.
-    func dbForContainer(_ containerId: UUID) async -> VectorDatabase {
-        await MainActor.run {
+    /// Throws when the id no longer resolves, instead of the previous fallback to the active
+    /// container. "There is nowhere better to put the vectors" was the old rationale — refuted on
+    /// 2026-08-20: silently persisting a document's vectors into whichever library happens to be
+    /// on screen is how metadata and vectors end up split across containers, which the user
+    /// discovers days later as a library that answers nothing. During the delete-resurrection
+    /// churn observed that night, container identity is exactly the thing that cannot be trusted
+    /// mid-flight. A failed ingest is visible and retryable; a misfiled one is a phantom.
+    func dbForContainer(_ containerId: UUID) async throws -> VectorDatabase {
+        try await MainActor.run {
             guard let container = self.containerService.containers.first(where: { $0.id == containerId }) else {
-                Log.warning(
-                    "[RAGService] Vector store requested for unknown container \(containerId); falling back to the active container. The library was probably deleted mid-import.",
+                Log.error(
+                    "[RAGService] Vector store requested for unknown container \(containerId); failing the write rather than misfiling it into the active container.",
                     category: .vectorDB
                 )
-                return self.vectorRouter.db(for: self.containerService.activeContainer!)
+                throw VectorStoreRoutingError.containerNotFound(containerId)
             }
             return self.vectorRouter.db(for: container)
         }
+    }
+
+    /// A vector-store write was addressed to a container that no longer exists.
+    enum VectorStoreRoutingError: LocalizedError {
+        case containerNotFound(UUID)
+        var errorDescription: String? {
+            switch self {
+            case .containerNotFound(let id):
+                return "The library this import was addressed to (\(id.uuidString.prefix(8))…) no longer exists. Nothing was written; re-import into an existing library."
+            }
+        }
+    }
+
+    /// Persist every cached vector store with pending data. Called when the app leaves the
+    /// foreground; see `VectorStoreRouter.persistAll`.
+    func persistAllVectorStores() async {
+        await vectorRouter.persistAll()
     }
 
     func dbForActiveContainer() async -> VectorDatabase {
@@ -6122,7 +6143,7 @@ class RAGService: ObservableObject {
             // a long import therefore split the document: metadata and FTS5 to the captured
             // container, vectors to whichever one was on screen. See `dbForContainer`.
             try Task.checkCancellation()
-            let db = await dbForContainer(activeContainerId)
+            let db = try await dbForContainer(activeContainerId)
             try await db.storeBatch(chunks: documentChunks)
             try await db.persist()
             // Invalidate visualization cache for this container after data change

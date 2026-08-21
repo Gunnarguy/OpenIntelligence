@@ -63,9 +63,49 @@ final class VectorStoreRouter {
         let evictableIds = stores.keys.filter { $0 != activeContainerId }
         if evictableIds.isEmpty { return }
 
-        Log.warning("[VectorStoreRouter] Memory pressure - evicting \(evictableIds.count) inactive container stores", category: .vectorDB)
+        // Persist BEFORE evicting, and only evict what disk now holds.
+        //
+        // This used to remove stores from the cache unconditionally. A store whose writes were
+        // still buffered (`storeBatch` defers persistence) lost those chunks with nothing ever
+        // reaching disk — while document metadata, saved eagerly elsewhere, survived. That is the
+        // exact "documents present, 0 chunks" phantom this app has produced repeatedly, and
+        // on-device generation is precisely when memory warnings fire, so a fresh import queried
+        // under Deep Think was the likeliest store to die. Observed end to end on 2026-08-20:
+        // 197 searchable chunks answering queries, then `no vector store yet` after relaunch.
+        //
+        // `persist()` no-ops on clean stores, so the extra cost lands only on dirty ones — the
+        // ones that must not be dropped. On a persist failure the store stays cached: keeping
+        // memory over losing data is the whole point of this cache existing.
+        Log.warning("[VectorStoreRouter] Memory pressure - persisting then evicting \(evictableIds.count) inactive container stores", category: .vectorDB)
         for id in evictableIds {
-            stores.removeValue(forKey: id)
+            guard let store = stores[id] else { continue }
+            Task { @MainActor [weak self] in
+                do {
+                    try await store.persist()
+                    self?.stores.removeValue(forKey: id)
+                } catch {
+                    Log.error(
+                        "[VectorStoreRouter] Refusing to evict container \(id): persist failed (\(error.localizedDescription)). Keeping it in memory rather than losing buffered chunks.",
+                        category: .vectorDB
+                    )
+                }
+            }
+        }
+    }
+
+    /// Persist every cached store that has pending data. `persist()` no-ops on clean stores.
+    ///
+    /// Called when the app leaves the foreground: buffered chunks must not depend on the process
+    /// surviving until the next explicit persist. See `handleMemoryPressure` for the data-loss
+    /// history behind this.
+    func persistAll() async {
+        for (id, store) in stores {
+            do { try await store.persist() } catch {
+                Log.error(
+                    "[VectorStoreRouter] Terminal persist failed for container \(id): \(error.localizedDescription)",
+                    category: .vectorDB
+                )
+            }
         }
     }
 
@@ -83,7 +123,22 @@ final class VectorStoreRouter {
                 return existing
             }
 
-            // Config mismatch - invalidate and recreate
+            // Config mismatch - invalidate and recreate. Persist the outgoing store first: a
+            // dimension or kind change arriving while writes are still buffered (SelfTuning can
+            // adjust configuration right after an import) otherwise drops those chunks silently —
+            // the same loss class as the eviction path above. The persist task holds its own
+            // strong reference, so the data survives the cache removal below; the recreated
+            // store's lazy load can in principle race the persist, which is loud in the log and
+            // strictly better than the guaranteed loss this replaces.
+            let outgoing = existing
+            Task { @MainActor in
+                do { try await outgoing.persist() } catch {
+                    Log.error(
+                        "[VectorStoreRouter] Persist of outgoing mismatched store \(container.id) failed: \(error.localizedDescription)",
+                        category: .vectorDB
+                    )
+                }
+            }
             Log.warning("[VectorStoreRouter] Cached store mismatch for container \(container.id): dim \(existingDim)->\(container.embeddingDim), kind \(existingKind)->\(expectedKind). Recreating.", category: .vectorDB)
             stores.removeValue(forKey: container.id)
         }
