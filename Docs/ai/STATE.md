@@ -6,8 +6,10 @@ Last verified commit: 7fccc1c
 
 ## Objective
 
-**Get v5.0 shippable.** One question decides what 5.0 can contain and only the owner can answer it
-(Blocker 1).
+**Get v5.0 shippable.** The question that gated this is **answered**: Xcode Cloud builds with
+Xcode 26.6, so PCC has never shipped and cannot reach the App Store until Apple ships the Xcode 27
+Release Candidate. v5.0 is therefore either a correctness release without PCC, or it waits for the
+RC. That is now a scope decision, not an unknown.
 
 **Answer quality is now decomposed, and it is two problems of roughly equal size, not one.** As of
 `passage-level-1` (2026-08-21), the answer-bearing span fails to reach the model in **10 of 24**
@@ -252,11 +254,30 @@ Command → result, this session only:
 
 ## Blockers / Unknowns
 
-1. **Which Xcode does Xcode Cloud use?** Only the owner can read it, in App Store Connect. PCC sits
-   behind `#if compiler(>=6.4)`, eleven sites across six files; Xcode 27 measures as Swift 6.4. An
-   Xcode 27 archive contains PCC (18 undefined symbol references to `PrivateCloudComputeLanguageModel`);
-   any older Xcode omits it and every PCC request reaches `throw LLMError.modelUnavailable`.
-   **Do not cite `.github/workflows/appstore.yml` — it has never executed and was deleted.**
+1. **RESOLVED 2026-08-21, from the workflow screen.** Xcode Cloud's `Default` workflow has
+   **Xcode Version = "Latest Release", currently Xcode 26.6 (17F113)**, building
+   `github.com/Gunnarguy/OpenIntelligence.git` on `main`. Xcode 27 appears in that dropdown **only**
+   as the alias "Latest Beta or Release — Xcode 27 beta 5 (27A5237l)"; the Released Versions list
+   tops out at 26.6.
+
+   **Therefore PCC has never shipped to a single user.** Every App Store build was produced by
+   Xcode 26.x, so the eleven `#if compiler(>=6.4)` sites across six files compiled out and every PCC
+   request in a shipped build reaches `throw LLMError.modelUnavailable`. The entitlement being
+   present and surviving distribution signing was necessary and never sufficient.
+
+   **What is possible today, verified against Apple:** Apple permits Xcode 27 beta builds to be
+   submitted "for internal and external testing" — TestFlight's two tester types — and **no Xcode 27
+   Release Candidate exists** (developer.apple.com/news/releases confirms beta 5 of 2026-08-10 as
+   the newest, with 26.6 RC 2 the newest RC). App Store submissions historically open at the RC:
+   last cycle that was 2025-09-09 for Xcode 26. So switching the workflow to "Latest Beta or
+   Release" would put PCC into a TestFlight build **now**, and could not reach the App Store until
+   the 27 RC ships.
+
+   **A scheduled surprise worth knowing about:** the workflow is pinned to an *alias*, not a
+   version. The day Xcode 27 goes GA, "Latest Release" silently becomes 27, every gated site starts
+   compiling in, and PCC appears in builds with no one having changed a setting. That is desirable
+   only if the PCC path is ready on the day it happens.
+
 2. **Settled:** the entitlement survives App Store distribution signing, verified by a local Xcode 27
    archive exported `method: app-store-connect`.
 3. **A fresh import may still lose its vectors.** Three libraries found with documents and 0 chunks.
