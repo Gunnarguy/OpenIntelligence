@@ -6705,12 +6705,34 @@ class RAGService: ObservableObject {
         }
 
         if indexedChunkCount == 0 {
-            guard !librariesNeedingIndexRebuild.contains(containerId) else { return }
-            Log.warning(
-                "[RAGService] Library \(containerId) holds \(documentCount) document(s) but its vector store has 0 chunks. Semantic retrieval cannot work here; surfacing a rebuild.",
-                category: .vectorDB
-            )
-            librariesNeedingIndexRebuild.insert(containerId)
+            if !librariesNeedingIndexRebuild.contains(containerId) {
+                Log.warning(
+                    "[RAGService] Library \(containerId) holds \(documentCount) document(s) but its vector store has 0 chunks. Semantic retrieval cannot work here; repairing.",
+                    category: .vectorDB
+                )
+                librariesNeedingIndexRebuild.insert(containerId)
+            }
+
+            // Repair it, do not merely flag it.
+            //
+            // This branch used to insert into `librariesNeedingIndexRebuild` and stop. That set has
+            // exactly one reader in the whole app — the banner in `DocumentLibraryView` — so a
+            // library detected as broken while the user was in Chat stayed broken until they
+            // happened to visit the Documents tab and notice a banner. Observed on device
+            // 2026-08-20: the detector logged this line, the query returned
+            // `Fused 0 results into 0 unique chunks`, and no self-healing line appears anywhere in
+            // the capture, because nothing enqueued one. The owner reported no banner and no repair.
+            //
+            // `enqueueSelfHealingRebuild` is the right call to make unconditionally here: it is
+            // idempotent (guards on suppression, on `pendingSelfHealingContainerIds`, on an
+            // already-queued ingestion item, and on a running task), and when self-healing is
+            // suppressed by an earlier user dismissal it re-publishes the flag rather than
+            // repairing — which is exactly the intended behaviour for a user who said no.
+            //
+            // Called on every evaluation rather than only on the first flag, because a library
+            // already flagged in a previous session would otherwise return early forever and never
+            // attempt the repair at all.
+            enqueueSelfHealingRebuild(for: containerId)
         } else {
             librariesNeedingIndexRebuild.remove(containerId)
         }
