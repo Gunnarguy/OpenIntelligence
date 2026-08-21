@@ -681,3 +681,44 @@ carries `expected_evidence[].excerpt` for every case, so only the harness side i
 the single highest-value instrumentation left**: 19 of 25 QASPER cases are `answer_kind: extractive`
 (6/19 correct), meaning the answer is a literal span, and nobody can currently say whether that span
 reaches the model.
+
+### 2026-08-21: an index over this ledger, and a warning it now carries
+
+`BenchmarkRuns/PROGRESSION.md` (regenerate with `python3 scripts/benchmark_progression.py --out
+BenchmarkRuns/PROGRESSION.md`) tabulates every run on disk — 44 run/mode pairs across 39 runs —
+with the config that produced each row beside it, so a reader can see at a glance whether two rows
+are comparable at all. **It is an index, not a replacement.** This file stays authoritative for what
+each run settled and for the analyses that turned out to be wrong, which is the part a table cannot
+hold.
+
+Two things it surfaced immediately:
+
+- **Six run/mode pairs average under 60 seconds per case**, which means generation never ran. They
+  are marked ⚠ SUSPECT. One is `lexical-survival`, already recorded above as invalid (Foundation
+  Models wedged machine-wide, every answer the fallback text). The heuristic also independently
+  flagged `20260811-150328-matrix` and `20260811-133233-matrix` at ~21s per case — the same runs
+  this ledger separately records as measuring each case against an index containing only its own
+  expected documents, the defect that pinned every stage at 1.000. **An invalid run listed beside
+  valid ones is worse than no table**, which is why the flag exists.
+- **The trend the prose obscured**: across the three 25-case standard runs at identical config,
+  `final r@1` went 0.417 → 0.500 while `fusion` MRR held at 0.708 and `lexical` at 0.691. Retrieval
+  quality upstream is stable; everything moving is downstream of the reranker.
+
+### Passage-level recall — the metric that should have existed from the start
+
+Committed 2026-08-21 alongside this entry, **not yet exercised by any run**.
+
+`DebugRAGValidationHarness` now emits a `RETRIEVED CHUNK TEXT` block listing every chunk that
+reached the model, and `run_quality_matrix.py` gained `passage_recall()`, which slides a 12-word
+window over the fixture's `expected_evidence[].excerpt` and reports `passage_present` plus the rank
+of the chunk containing it. Cases without an excerpt, and reports predating the block, return
+`None` rather than a miss — an unmeasurable case must never look like a failure.
+
+**Why it matters more than anything else here.** Every retrieval number in this file is
+document-level: `r@1` and `r@10` credit a whole document when any of its chunks appears. On
+2026-08-21 that ruler produced four wrong conclusions in one day, the last of them *inverted* —
+injecting a document summary drove `r@1` up (a summary is a chunk of the gold document) while making
+answers worse, because a summary cannot answer an extractive question. 19 of 25 QASPER cases are
+`answer_kind: extractive`, so the answer is a literal span and "did the span arrive" is the only
+question that matters at that stage. It could not previously be asked; `retrieved_chunks` was an
+integer count and chunk text was persisted nowhere.
