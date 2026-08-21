@@ -147,24 +147,40 @@ Command → result, this session only:
 
 ## Exact Next Action
 
-**Corrected 2026-08-20, same day: item 3 below was withdrawn before implementation.** Deep Think
-**has** a reranker — `performFullRetrievalPipeline` calls `engine.rerank` unconditionally
-(`RAGService.swift:18396`); only the `.rerank` trace record was missing, and that line now exists.
-The full retraction is in `BenchmarkRuns/LEDGER.md`. The deep-think vs standard gap is therefore
-**unattributed again**; do not build a reranker, and do not quote "Deep Think has no rerank stage"
-from any earlier document.
+**Run the interleaved-fixture test; its first run is the verdict on the PDF block builder.**
 
-Next, in order of leverage:
+```bash
+DEVELOPER_DIR=/Applications/Xcode-beta.app/Contents/Developer xcodebuild test \
+  -scheme OpenIntelligence -destination "platform=iOS Simulator,id=8FA2B3CE-5EB0-4339-8629-F40684EDCE2D" \
+  -derivedDataPath /private/tmp/oi-test-dd -skipPackagePluginValidation \
+  -only-testing:OpenIntelligenceTests/LayoutReadingOrderTests
+```
 
-1. **Owner: read the Xcode version off the Xcode Cloud workflow in App Store Connect.** Decides
-   whether PCC has ever shipped and what v5.0 can contain (Blocker 1). Two minutes, owner-only.
-2. **Owner: one phone session** — re-import the library (stale pre-mean-pooling vectors), and run
-   the three-import vector-loss test (protocol on the Notion row). Closes a v5.0 blocker.
-3. **Engineering: re-attribute the deep-think gap with the fixed instrumentation.** One paired
-   deep-think run now records `.rerank`, so fusion→rerank→final decomposes for the first time.
-   Candidates, none established: no post-rerank cascade on the agentic path; different per-call
-   `topK`; adaptive query rewrites. Per-case `final`/accuracy are the only trustworthy deep-think
-   readouts; per-call stage means are directional at best.
-4. **The intermittent 1800s hang** (~1-in-8 cases, three case ids, two papers, 0.1% CPU). Next
-   occurrence: `sample $(pgrep -f Contents/MacOS/OpenIntelligence | head -1) 10 -file /tmp/hang.txt`
-   before the timeout fires; the stack names what it waits on.
+Context, so nobody re-derives it: the 2026-08-19 device capture showed two-column text interleaved
+and fragments glued (`disserotonin`). The first diagnosis — `extractBlocksFromPDFPage` building
+blocks by string-splitting `page.string` — was **refuted before any code changed**: four ordered
+fixtures all passed against it, because drawing columns in order makes `page.string` ordered and
+never stresses the builder. `testInterleavedContentStreamIsReorderedByGeometry` (authored, never
+run) models content-stream disorder faithfully and asserts its own precondition, so its outcome is
+decisive either way:
+
+- **Fails** → the builder is convicted after all; fix is geometry-true lines via
+  `PDFSelection.selectionsByLine()` on a whole-page selection, then re-run all five fixtures.
+- **Passes** → the PDFKit path is exonerated end to end and the device damage entered elsewhere —
+  the Vision/OCR route (the `5-HTiA` shapes point there) or a downstream merge in
+  `extractWithStructuredParsing` (`DocumentProcessor.swift:3825`). Next probe: the Jaccard
+  text-layer gate at `:3848` is order-insensitive by design, so a scrambled-but-real text layer
+  passes validation; instrument which route each page of a suspect PDF takes.
+
+This is part of the **WWDC26 adoption + extraction quality** arc the owner pulled back into 5.0:
+the adoption row's live checklist names SpotlightSearchTool + OCRTool binding
+(`FoundationModelToolRegistry.swift:426` — NOT hard-boundary, adoptable), `response.usage`
+telemetry, and tools/transcript terms into the token budget (`RAGService.swift:15028,:15038`).
+SQLite/FTS5 was audited read-only: WAL + busy_timeout + porter/unicode61 + weighted bm25 on the
+chunks query — fundamentally sound; open tunables are the trigram index (existing row), missing
+prefix indexes, and one unweighted bm25 query path (`document_pages`, `:518`). Schema is
+hard-boundary; changes need the owner to name the file.
+
+**Builds were deliberately paused 2026-08-20 evening for the owner's raid** — nothing was running
+when this was written. The five fixture tests are committed; four are run-and-green, the
+interleaved one is authored-only, and the commit message says exactly that.
