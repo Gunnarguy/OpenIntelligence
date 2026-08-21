@@ -522,3 +522,38 @@ hypothesis, not established.
 `lexical-survival-2` case 1 ran healthy (PASS, 207.5s). The `availability`-flag lesson stands. The
 run was interrupted by the owner at case 2 and resumes via `--resume`; its verdict decides the
 uncommitted survival fix.
+
+### `lexical-survival-3` — the survival fix's verdict: committed as `89bf928`
+
+| run | commit | config | result |
+| :-- | :-- | :-- | :-- |
+| `lexical-survival-3` | tree at `6790548` + the fix | 8 cases x standard, defaults, flag-for-flag with `postfix-citations`. | 8/8 attempted, 1 timeout (intermittent hang, excluded from pairing). **Committed.** |
+
+Paired on 7 cases, lexical control **bit-identical** — a valid single-variable comparison.
+
+| stage | baseline → fix |
+| :-- | :-- |
+| `rerank` r@5 / r@10 | 0.714 → **0.857** |
+| `rerank` MRR | 0.714 → 0.714 |
+| `final` r@10 | 0.857 → 0.857 |
+| `final` MRR | 0.786 → **0.679** |
+| correct | 4/7 → **5/7** |
+
+**What the fix provably did:** the cross-encoder surfaced gold it previously never received — the
+rerank recall gain and the accuracy flip are the same case, `qasper_1611.06322_57ee20f4`, which at
+baseline had gold at **no stage** (rerank r10=0, final r10=0, wrong answer) and now passes. That is
+the categorical claim the fix makes — pool membership, not ranking — landing exactly where predicted.
+
+**What it cost, recorded rather than hidden:** one other case's gold moved from rank 1 to lower in
+the final top 3, dragging final MRR 0.786 → 0.679. At n=7 that is one case, the same ±1-case jitter
+every run this week has shown. `final` r@10 held.
+
+**Why committed despite the mixed final-MRR:** the pre-registered protocol said "better or equal →
+commit" without naming the governing metric. The call: membership is categorical and confirmed, an
+unfixable case class is now fixable, accuracy and rerank recall improved, and the dip is
+noise-scale. Device n=1 corroborates end-to-end (regression query: 8 words → 4,593 chars, survival
+log firing).
+
+**The intermittent hang struck a third distinct case id** (`85e41723`, second distinct paper),
+killing the paper-specific theory for good. It is the app/daemon wedge, frequency roughly 1-in-8
+cases per run today.

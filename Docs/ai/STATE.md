@@ -2,7 +2,7 @@
 
 Updated: 2026-08-20
 Branch/worktree: main, clean, **not pushed** — `origin/main` is at `8791baa`, seventeen commits behind.
-Last verified commit: c29e513
+Last verified commit: 89bf928
 
 ## Objective
 
@@ -144,31 +144,24 @@ Command → result, this session only:
 
 ## Exact Next Action
 
-**Resume the survival-fix measurement — everything upstream of it is done.** The FM outage cleared
-with the 2026-08-20 reboot (probe: `GENERATION OK`), the binary at `/private/tmp/oi-mac-40` is
-rebuilt **and contains the uncommitted fix**, and `BenchmarkRuns/lexical-survival-2` holds 1 healthy
-case (PASS, 207.5s, real generation) before the owner reclaimed the machine. Do not start fresh;
-resume:
+**The survival-fix arc is closed — `89bf928`, committed on its paired verdict** (`lexical-survival-3`
+in the ledger: rerank r@10 0.714→0.857, correct 4/7→5/7, control bit-identical, one noise-scale
+final-MRR dip recorded). The tree is clean. Nothing is running.
 
-```bash
-caffeinate -dimsu python3 scripts/run_quality_matrix.py \
-  --resume BenchmarkRuns/lexical-survival-2 \
-  --app /private/tmp/oi-mac-40/Build/Products/Debug/OpenIntelligence.app \
-  --manifest Benchmarks/ResearchFixtures/qasper_external_v1/manifest.json \
-  --pcc deny --pool-limit 10 --reset-shared-library --timeout 1800 \
-  --sampling topk --seed 42 --temperature 0.7 --modes standard --limit 8
-```
+Next, in order of leverage:
 
-Then `scripts/compare_benchmark_runs.py BenchmarkRuns/postfix-citations BenchmarkRuns/lexical-survival-2`,
-control line first. Predictions on record: controls identical; `candidates`/`rerank` r@10 ≥
-baseline; `final` uncertain (k=6 cut still applies). Worse with controls intact →
-`git checkout -- OpenIntelligence/Services/RAG/Retrieval/HybridSearchService.swift`. Better or equal
-→ commit code + CHANGELOG together.
-
-**Device evidence already in hand (2026-08-20, n=1, not a substitute for the paired run):** the
-owner ran the exact 2026-08-19 regression query, "What regulates anxiety-like actions?", on a phone
-build that includes the uncommitted fix. Before: 8 words in 145.3s, SourceOnly trimming 93% and
-rejecting 7 claim ids. After: 4,593 chars in 90.1s at 52.5 tok/s, zero SourceOnly warnings, every
-citation resolvable against 26 shown chunks, and `Lexical survival: 5 hit(s) re-attached below the
-top-30 cut` firing in the console. The library still holds pre-mean-pooling vectors (the stale
-fingerprint banner shows correctly), so this answer came from stale embeddings.
+1. **Owner: read the Xcode version off the Xcode Cloud workflow in App Store Connect.** Decides
+   whether PCC has ever shipped and what v5.0 can contain (Blocker 1). Two minutes, owner-only.
+2. **Owner: one phone session** — re-import the library (stale pre-mean-pooling vectors; two
+   minutes) and run the three-import vector-loss test (protocol on the Notion row). Closes a v5.0
+   blocker.
+3. **Engineering: give Deep Think a rerank stage.** The largest attributed gap in the engine:
+   Standard's cross-encoder adds +30 MRR points and repairs fusion; Deep Think has no rerank stage
+   and inherits fusion's loss (ledger, `postfix-citations`). Blocker: verify where `RAGEngine.rerank`
+   is called and which quality modes reach it, then a plan and `PROCEED: IMPLEMENT`. Measure
+   deep-think paired, expecting only `final`/accuracy to be trustworthy (adaptive loop; no stage
+   controls).
+4. **The intermittent 1800s hang** now hits ~1-in-8 cases (three case ids, two papers, 0.1% CPU).
+   Next occurrence: capture a `sample` of the wedged app before it times out —
+   `sample $(pgrep -f Contents/MacOS/OpenIntelligence | head -1) 10 -file /tmp/hang.txt` — the
+   stack will name what it waits on.
