@@ -308,8 +308,21 @@ class HybridSearchService {
         // 5. Apply STRUCTURE-AWARE BOOST for spec queries (iOS 26+ structured parsing)
         let structureBoostedResults = applyStructureTypeBoost(query: boostQuery, results: boostedResults)
 
-        // 6. Take top K from boosted results and re-rank index
-        let topResults = Array(structureBoostedResults.prefix(topK))
+        // 6. Take top K from boosted results, guaranteeing the lexical arm's best hits survive
+        // the cut. See `guaranteeingLexicalSurvivors` for the measured cases behind this.
+        let lexicalBestFirst = keywordResults
+            .filter { $0.score > 0 }
+            .sorted {
+                $0.score != $1.score
+                    ? $0.score > $1.score
+                    : Self.stableTieBreakKey($0.chunk) < Self.stableTieBreakKey($1.chunk)
+            }
+            .map(\.chunk)
+        let topResults = guaranteeingLexicalSurvivors(
+            top: Array(structureBoostedResults.prefix(topK)),
+            lexicalBestFirst: lexicalBestFirst,
+            topK: topK
+        )
 
         // Stage capture for the retrieval benchmark. Recorded here rather than at each stage
         // because every stage's output is still in scope, which keeps the instrumentation to one
@@ -335,6 +348,41 @@ class HybridSearchService {
         let finalResults = sanitizeRetrievedChunks(reindex(topResults))
         trace?.record(.candidates, results: finalResults)
         return finalResults
+    }
+
+    /// Union the top-K cut with the lexical arm's best hits, so they cannot die before the
+    /// reranker sees them.
+    ///
+    /// The top-K cut is taken in boosted-list order, and RRF merges the lexical arm's handful of
+    /// precise hits into a dense list that spans essentially the whole corpus — the dense arm has
+    /// no similarity floor, so with k=60 a lexical rank-1 chunk contributes once against a dense
+    /// contribution paid to every chunk in the store. A gold chunk can therefore leave fusion
+    /// below the cut line while sitting at rank 1 of the lexical list.
+    ///
+    /// Measured 2026-08-20 on QASPER, per-case: `qasper_1911.10742_f7662b11` had gold at lexical
+    /// rank 1 of 3, absent from fusion's top 10, cut from the reranker's pool, and rescued only by
+    /// the post-rerank cascade. `qasper_1604.02038_bc8526d4` flipped pass→miss between two runs
+    /// solely because upstream reordering changed which gold chunks survived this cut — the
+    /// cross-encoder ranked gold #1 when handed one 90-chunk pool and #7 when handed the other.
+    ///
+    /// The cap exists only for pathological broad-match queries; observed lexical lists are 3–9
+    /// items, so normally every hit survives. Appended at the tail: position within the pool does
+    /// not matter, because the cross-encoder scores the whole pool and is the one stage measured
+    /// to add ranking quality (+30 MRR points, `BenchmarkRuns/LEDGER.md`).
+    private func guaranteeingLexicalSurvivors(
+        top: [RetrievedChunk],
+        lexicalBestFirst: [RetrievedChunk],
+        topK: Int
+    ) -> [RetrievedChunk] {
+        let cap = max(4, topK / 6)
+        let topIds = Set(top.map { $0.chunk.id })
+        let survivors = lexicalBestFirst.filter { !topIds.contains($0.chunk.id) }.prefix(cap)
+        guard !survivors.isEmpty else { return top }
+        Log.info(
+            "[Hybrid] Lexical survival: \(survivors.count) hit(s) re-attached below the top-\(topK) cut",
+            category: .pipeline
+        )
+        return top + Array(survivors)
     }
 
     /// Boost chunks that contain EXACT matches of important query keywords.
@@ -1139,7 +1187,13 @@ class HybridSearchService {
         //
         // `.candidates`, not `.final`: reranking runs afterwards in `RAGService`, so what this
         // returns is the reranker's input. See the same note in `search` above.
-        let candidateResults = sanitizeRetrievedChunks(reindex(Array(anchorAdjustedResults.prefix(topK))))
+        // `fts5KeywordResults` is already sorted best-first. See `guaranteeingLexicalSurvivors`
+        // for the measured cases behind re-attaching lexical hits below the cut.
+        let candidateResults = sanitizeRetrievedChunks(reindex(guaranteeingLexicalSurvivors(
+            top: Array(anchorAdjustedResults.prefix(topK)),
+            lexicalBestFirst: fts5KeywordResults.map(\.chunk),
+            topK: topK
+        )))
         if let trace {
             trace.record(.vector, results: vectorResultsFiltered)
             trace.record(.lexical, results: fts5KeywordResults.map(\.chunk))
