@@ -2,7 +2,7 @@
 
 Updated: 2026-08-20
 Branch/worktree: main, clean, **not pushed** — `origin/main` is at `8791baa`, seventeen commits behind.
-Last verified commit: f57e81f
+Last verified commit: 73fff4f
 
 ## Objective
 
@@ -147,103 +147,48 @@ Command → result, this session only:
 
 ## Exact Next Action
 
-**The data-loss fixes are committed (`f57e81f`) and have NEVER run on the owner's device. Nothing
-about the vector-loss row can be concluded until they do.** Every capture so far is the old build —
-check any new capture for the fingerprints `persisting then evicting`, `persisted vector stores`,
-or `failing the write rather than misfiling` before interpreting it.
+**Read `BenchmarkRuns/overnight-25case-nodeadlock` — 25 cases x both modes, the largest paired run
+this project has ever completed, on a binary containing every 2026-08-20/21 fix.** Compare against
+`postfix-citations` (8-case) with `scripts/compare_benchmark_runs.py`, control line first. Note the
+runs differ in size, so pair on the intersection; the tool does that.
 
-Four loss paths closed in `f57e81f`: memory-pressure eviction of dirty stores (persists first,
-refuses to evict on failure), config-mismatch store drops (persists outgoing), the
-deleted-mid-import fallback (now throws `VectorStoreRoutingError.containerNotFound` — a visible,
-retryable failure instead of silent misfiling; both ingestion call sites updated), and the missing
-vector-store flush on backgrounding (`persistAllVectorStores()` runs first in the background
-transition).
+**It is also the proof of the deadlock fix** (`73fff4f`): 50 runs with zero 1800s timeouts closes
+it; any timeout reopens it, and the sampler in
+`<scratchpad>/hangwatch.sh` re-arms with `pgrep -x OpenIntelligence` (never `-f`).
 
-**Established from the 2026-08-20 night captures (old build):** the flush theory alone is
-insufficient — one re-ingest logged `[BNNS] Persisted 197 chunks (197 mmap'd)` and the sync sweep
-still found no store file for the target container while finding every other container's file: the
-store was misfiled under a different id, which is the fallback path, now throwing. Self-heal
-detection works: `holds 1 document(s) but its vector store has 0 chunks; surfacing a rebuild` fired
-and the Rebuild banner is the owner's recovery.
+### What shipped overnight, all on `main`, none pushed
 
-**Owner's two steps:** tap Rebuild on the broken library (recovers the file today), and build
-`main` to the iPhone, then re-ingest once. Outcomes: import lands and the sync sweep opens its
-store file → the fixes hold, watch for phantom recurrence across days; OR the app shows "The
-library this import was addressed to no longer exists" → the remaining cause named itself; capture
-the console and the container id in the error.
+| commit | change |
+| :-- | :-- |
+| `f57e81f` | four vector-store loss paths: eviction without persist, config-mismatch drop, silent misfiling (now a thrown `VectorStoreRoutingError`), missing background flush |
+| `c64f468` | the broken-library detector now repairs instead of only setting a UI flag one view reads |
+| `73fff4f` | ingestion deadlock on a path lookup — `objc_sync_enter` on a Swift metatype uses a global striped lock table; replaced with a dedicated `NSLock` |
 
-## Previous next actions, superseded above
+### Retracted overnight
 
+- **"The 1800s hang is specific to paper `1604.02038`" and later `1611.06322`.** Both wrong. It is
+  the path-lookup deadlock, stack-sampled: `runIngestionLoop → addDocument →
+  generateQuestionsForIngestedDocument → mergeIntoPersistedBank → loadQuestionBank →
+  AppSupportPaths.suggestedQuestionsURL → baseDir → RuntimePaths.baseDirectory → objc_sync_enter →
+  __ulock_wait2`, with the main thread idle (hence 0.1% CPU, hence "stall" not "deadlock").
+- **"Deep Think has no rerank stage."** Retracted 2026-08-20; it reranks unconditionally, only the
+  trace record was missing (`017280b`).
+- **"The banner is the only rebuild trigger in the app."** Wrong — Database → Maintenance has
+  "Rebuild Index" and Container Settings has "Rebuild now". I grepped one function name and
+  generalised.
 
-**FIRST, hours-later addendum: the 0-chunk phantom REPRODUCED live — `0350083` does not close the
-vector-loss row.** The evening's fresh import (`FE9E86BF`, 197 searchable, answering queries) came
-back after relaunch as `1 document(s) and no vector store yet`, document invisible in the UI. Two
-candidate mechanisms are on [the row](https://app.notion.com/3c149a74d54f81239443c15fe6ae3782) —
-deferred BNNS persist never flushed before exit, or the deleted-mid-import fallback misfiling the
-store during the resurrection churn. **The one-line tell:** the next ingestion console either shows
-`[BNNS] Persisted 196 chunks` (flush-timing problem; fix = persist barrier at end of ingest + a
-terminal flush on scene-phase change) or it doesn't / shows it under another container's file
-(fallback problem; fix = fail the ingest loudly rather than fall back to the active container).
-Owner's recovery: one tap of Rebuild. **Captures overwrite `XcodeConsole.txt` — grep each new one
-for `BNNS] Persisted` immediately, before it is replaced.**
+### A footgun I hit three times in one night
 
-**Added 2026-08-20 late, from the owner's ingestion/deletion/query capture** (before the
-interleaved-fixture item below, which still stands):
+`pgrep -f`/`pkill -f` on the app path also matches the harness **and my own monitor scripts**, whose
+command lines contain the pattern. It sampled `/bin/zsh` once and reported "still running" for a
+stopped harness once. **`pgrep -x OpenIntelligence` is the only correct form.** The ledger has
+recorded this for `pkill` since last week; it generalises to every process-matching tool.
 
-- **Library deletion races its own background writers — log-proven, filed.** Tap one deletes data;
-  `SelfTuning`, `Spotlight` and a metadata save then write to the dead container and resurrect it;
-  tap two deletes the shell. Row (Future Backlog):
-  [delete race](https://app.notion.com/3c349a74d54f81beaad5c59162e58434). A partial-resurrection
-  variant is filed on the v5.0 vector-loss row as a second candidate origin for the 0-chunk
-  phantoms — hypothesis, not established.
-- **Case 1 of the three-import protocol effectively passed live**: fresh Yagishita import → 196
-  chunks in 5.75s → immediate correct Deep Think answers. Cases 2 and 3 (mid-import switches)
-  remain the owner's.
-- **`ingested 196 / searchable 197` is benign** — the +1 is the RAPTOR-lite L1 summary chunk. The
-  LIBRARY STATE trace warning over-fires on small positive deltas; softening its wording is a
-  follow-up (no code changed tonight, builds paused). **Documents-present with 0 searchable remains
-  the real signature.**
-- **Open anomaly:** queried "Library 7" (`FE9E86BF`) carries the pre-re-export fingerprint
-  `0ca10df0…`, impossible for a container created tonight. Most likely the import landed in an
-  older shell (resurrection-adjacent). **The owner's library list (names + doc counts) settles it**;
-  ask for it or for the next trace share. Sync merge-by-name is ruled out (id-keyed,
-  `WorkspaceSyncService:2893`; `mergeContainer` never copies fingerprints).
+### Owner's queue
 
-
-**Run the interleaved-fixture test; its first run is the verdict on the PDF block builder.**
-
-```bash
-DEVELOPER_DIR=/Applications/Xcode-beta.app/Contents/Developer xcodebuild test \
-  -scheme OpenIntelligence -destination "platform=iOS Simulator,id=8FA2B3CE-5EB0-4339-8629-F40684EDCE2D" \
-  -derivedDataPath /private/tmp/oi-test-dd -skipPackagePluginValidation \
-  -only-testing:OpenIntelligenceTests/LayoutReadingOrderTests
-```
-
-Context, so nobody re-derives it: the 2026-08-19 device capture showed two-column text interleaved
-and fragments glued (`disserotonin`). The first diagnosis — `extractBlocksFromPDFPage` building
-blocks by string-splitting `page.string` — was **refuted before any code changed**: four ordered
-fixtures all passed against it, because drawing columns in order makes `page.string` ordered and
-never stresses the builder. `testInterleavedContentStreamIsReorderedByGeometry` (authored, never
-run) models content-stream disorder faithfully and asserts its own precondition, so its outcome is
-decisive either way:
-
-- **Fails** → the builder is convicted after all; fix is geometry-true lines via
-  `PDFSelection.selectionsByLine()` on a whole-page selection, then re-run all five fixtures.
-- **Passes** → the PDFKit path is exonerated end to end and the device damage entered elsewhere —
-  the Vision/OCR route (the `5-HTiA` shapes point there) or a downstream merge in
-  `extractWithStructuredParsing` (`DocumentProcessor.swift:3825`). Next probe: the Jaccard
-  text-layer gate at `:3848` is order-insensitive by design, so a scrambled-but-real text layer
-  passes validation; instrument which route each page of a suspect PDF takes.
-
-This is part of the **WWDC26 adoption + extraction quality** arc the owner pulled back into 5.0:
-the adoption row's live checklist names SpotlightSearchTool + OCRTool binding
-(`FoundationModelToolRegistry.swift:426` — NOT hard-boundary, adoptable), `response.usage`
-telemetry, and tools/transcript terms into the token budget (`RAGService.swift:15028,:15038`).
-SQLite/FTS5 was audited read-only: WAL + busy_timeout + porter/unicode61 + weighted bm25 on the
-chunks query — fundamentally sound; open tunables are the trigram index (existing row), missing
-prefix indexes, and one unweighted bm25 query path (`document_pages`, `:518`). Schema is
-hard-boundary; changes need the owner to name the file.
-
-**Builds were deliberately paused 2026-08-20 evening for the owner's raid** — nothing was running
-when this was written. The five fixture tests are committed; four are run-and-green, the
-interleaved one is authored-only, and the commit message says exactly that.
+1. **Build `main` to the iPhone.** Every disappearing-file fix is committed and none has ever run on
+   the device. Import once: it lands, self-repairs, or throws a named error — silence is no longer
+   possible.
+2. **App Store Connect → Xcode Cloud workflow → read the Xcode version.** Decides Blocker 1 and
+   whether PCC has ever shipped. Two minutes, owner-only.
+3. Re-attribute the deep-think/standard gap with the now-honest `.rerank` instrumentation.
