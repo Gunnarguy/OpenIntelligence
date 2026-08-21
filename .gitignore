@@ -34,6 +34,10 @@ Xrays/*.txt
 BenchmarkRuns/*
 # The ledger is the only durable record of what each run tested and settled.
 !BenchmarkRuns/LEDGER.md
+# The progression table is derived from the (ignored) run directories, but is the only place the
+# whole benchmark history is visible at once. Tracked so it survives a machine, like the ledger.
+# Regenerate with `python3 scripts/benchmark_progression.py --out BenchmarkRuns/PROGRESSION.md`.
+!BenchmarkRuns/PROGRESSION.md
 
 # Swift Package Manager
 .swiftpm/
