@@ -10725,8 +10725,28 @@ class RAGService: ObservableObject {
                                 )
                             }
 
-                            // Insert at front so they're available for MMR selection
-                            filteredChunks.insert(contentsOf: boostedRescued, at: 0)
+                            // Insert *after* the top result, never in front of it.
+                            //
+                            // This was `at: 0`, which contradicted the scoring three lines above and
+                            // silently outranked the cross-encoder. `rescueScore` is deliberately
+                            // `topScore - 0.02` so a rescued chunk sits just below the best result —
+                            // but `applyMMR` selects its first chunk by POSITION, unconditionally
+                            // (`if let first = remaining.first { selected.append(...) }`), and the
+                            // MMR-skipped path takes `prefix(effectiveTopK)` which is also
+                            // positional. Either way the score was decorative and position decided,
+                            // so every rescue displaced the reranker's top-ranked chunk.
+                            //
+                            // Measured over 25 cases x 2 modes on 2026-08-21
+                            // (`BenchmarkRuns/overnight-25case-nodeadlock`): standard `rerank` r@1
+                            // 0.667 collapsing to `final` r@1 0.417 — a quarter of all cases losing
+                            // the gold document from rank 1 *after* the cross-encoder had ranked it
+                            // first. Largest single quality loss measured in the pipeline.
+                            //
+                            // Rescued chunks still enter the candidate set and still reach MMR;
+                            // they simply no longer pre-empt the top result, which is what the
+                            // rescue was always documented to do.
+                            let rescueInsertionIndex = filteredChunks.isEmpty ? 0 : 1
+                            filteredChunks.insert(contentsOf: boostedRescued, at: rescueInsertionIndex)
 
                             Log.info(
                                 "   🔧 Spec preservation: rescued \(topRescued.count) spec chunks (score=\(String(format: "%.2f", rescueScore)))",
