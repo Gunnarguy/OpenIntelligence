@@ -461,14 +461,30 @@ def passage_recall(case: dict, report_text: str) -> dict:
     chunk_lines = [l for l in block.group(1).splitlines() if l.startswith("CHUNK ")]
     normalised = [norm(l) for l in chunk_lines]
 
+    # Short excerpts are matched whole rather than skipped. QASPER's `expected_evidence` sometimes
+    # carries a section heading ("Experiments ::: Automatic Evaluation Metrics", four words once
+    # normalised) instead of a prose sentence. The first version of this function required six
+    # words and `continue`d past anything shorter, so a case whose every excerpt was a heading fell
+    # through to `passage_present: False` — reported as absent when it was merely unmeasurable by
+    # that rule. That produced three "span absent, answer correct" rows on the first partial run,
+    # which is impossible and is what exposed it. Precisely the failure this function's own
+    # docstring warns about.
+    #
+    # Four words is the floor: below that a match against a same-domain corpus is coincidence.
+    measurable = False
     for excerpt in excerpts:
         words = norm(excerpt).split()
-        if len(words) < 6:
+        if len(words) < 4:
             continue
-        windows = [" ".join(words[i:i + 12]) for i in range(0, max(1, len(words) - 11), 4)]
+        measurable = True
+        span = min(12, len(words))
+        step = 4 if len(words) > span else 1
+        windows = [" ".join(words[i:i + span]) for i in range(0, max(1, len(words) - span + 1), step)]
         for rank, chunk in enumerate(normalised, start=1):
             if any(w and w in chunk for w in windows):
                 return {"passage_present": True, "passage_chunk_rank": rank}
+    if not measurable:
+        return {"passage_present": None, "passage_chunk_rank": None}
     return {"passage_present": False, "passage_chunk_rank": None}
 
 
