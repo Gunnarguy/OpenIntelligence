@@ -147,48 +147,41 @@ Command → result, this session only:
 
 ## Exact Next Action
 
-**Read `BenchmarkRuns/overnight-25case-nodeadlock` — 25 cases x both modes, the largest paired run
-this project has ever completed, on a binary containing every 2026-08-20/21 fix.** Compare against
-`postfix-citations` (8-case) with `scripts/compare_benchmark_runs.py`, control line first. Note the
-runs differ in size, so pair on the intersection; the tool does that.
+**Investigate what happens between `rerank` and `final`. It is now the largest measured quality loss
+in the pipeline**, and the 25-case run (`BenchmarkRuns/overnight-25case-nodeadlock`, 50/50, zero
+timeouts) makes it unarguable:
 
-**It is also the proof of the deadlock fix** (`73fff4f`): 50 runs with zero 1800s timeouts closes
-it; any timeout reopens it, and the sampler in
-`<scratchpad>/hangwatch.sh` re-arms with `pgrep -x OpenIntelligence` (never `-f`).
+```
+standard    rerank MRR 0.753  r@1 0.667   ->   final MRR 0.590  r@1 0.417
+deep-think  rerank MRR 0.699  r@1 0.606   ->   final MRR 0.665  r@1 0.567
+```
 
-### What shipped overnight, all on `main`, none pushed
+**A quarter of all standard cases lose their top-ranked gold document after the cross-encoder ranked
+it first.** `final` has the same n as `rerank` (24), so it is not a sampling artifact. Read, in
+order: MMR diversification (retrieves `topK * 3` then re-selects), parent-document expansion, and
+the final top-K truncation — all in `RAGService` between the `.rerank` and `.final` trace records.
+Measure any change in Standard mode, paired, control line first.
 
-| commit | change |
-| :-- | :-- |
-| `f57e81f` | four vector-store loss paths: eviction without persist, config-mismatch drop, silent misfiling (now a thrown `VectorStoreRoutingError`), missing background flush |
-| `c64f468` | the broken-library detector now repairs instead of only setting a UI flag one view reads |
-| `73fff4f` | ingestion deadlock on a path lookup — `objc_sync_enter` on a Swift metatype uses a global striped lock table; replaced with a dedicated `NSLock` |
+**Two things this run settled, both good:**
 
-### Retracted overnight
+- **Fusion now beats its own lexical arm** — 0.708 vs 0.691 (standard), 0.719 vs 0.696 (deep-think).
+  The "hybrid fusion ranks worse than the keyword arm it is fusing" defect **no longer reproduces**;
+  the lexical survival guarantee (`89bf928`) fixed it. That roadmap row needs closing or rewriting.
+- **The deadlock fix holds** (`73fff4f`): 50 consecutive runs, zero 1800s timeouts, against a prior
+  rate near one in eight.
 
-- **"The 1800s hang is specific to paper `1604.02038`" and later `1611.06322`.** Both wrong. It is
-  the path-lookup deadlock, stack-sampled: `runIngestionLoop → addDocument →
-  generateQuestionsForIngestedDocument → mergeIntoPersistedBank → loadQuestionBank →
-  AppSupportPaths.suggestedQuestionsURL → baseDir → RuntimePaths.baseDirectory → objc_sync_enter →
-  __ulock_wait2`, with the main thread idle (hence 0.1% CPU, hence "stall" not "deadlock").
-- **"Deep Think has no rerank stage."** Retracted 2026-08-20; it reranks unconditionally, only the
-  trace record was missing (`017280b`).
-- **"The banner is the only rebuild trigger in the app."** Wrong — Database → Maintenance has
-  "Rebuild Index" and Container Settings has "Rebuild now". I grepped one function name and
-  generalised.
+**Still open and now well-measured:** `boosted` destroys 0.073 (standard) / 0.136 (deep-think) MRR of
+what fusion earned, at n=24/66. Earlier attempts to fix it by removing its re-sort made `final`
+worse and were reverted; with fusion now healthy, it deserves a fresh look **after** the
+rerank→final work, since that stage dominates.
 
-### A footgun I hit three times in one night
+**Accuracy: deep-think 9/25 (36%), standard 10/25 (40%).** Paired against `postfix-citations` on the
+8 shared cases with the control identical: 5/8 → 5/8. Nothing resolvable at this size.
 
-`pgrep -f`/`pkill -f` on the app path also matches the harness **and my own monitor scripts**, whose
-command lines contain the pattern. It sampled `/bin/zsh` once and reported "still running" for a
-stopped harness once. **`pgrep -x OpenIntelligence` is the only correct form.** The ledger has
-recorded this for `pkill` since last week; it generalises to every process-matching tool.
+### Owner's queue, unchanged and still owner-only
 
-### Owner's queue
-
-1. **Build `main` to the iPhone.** Every disappearing-file fix is committed and none has ever run on
-   the device. Import once: it lands, self-repairs, or throws a named error — silence is no longer
-   possible.
+1. **Build `main` to the iPhone.** Every disappearing-file fix (`f57e81f`, `c64f468`) plus the
+   ingestion deadlock fix (`73fff4f`) is committed and none has run on the device. Import once: it
+   lands, self-repairs, or throws a named error — silence is no longer possible.
 2. **App Store Connect → Xcode Cloud workflow → read the Xcode version.** Decides Blocker 1 and
-   whether PCC has ever shipped. Two minutes, owner-only.
-3. Re-attribute the deep-think/standard gap with the now-honest `.rerank` instrumentation.
+   whether PCC has ever shipped.

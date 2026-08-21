@@ -583,3 +583,51 @@ per-case `final`/accuracy remain the only trustworthy deep-think readouts.
 
 **"+30 MRR points from the cross-encoder" survives** — it was measured in Standard, where controls
 hold. What is withdrawn is only its corollary "and Deep Think gets zero."
+
+### `overnight-25case-nodeadlock` — the largest paired run this project has completed, and it moves the target
+
+| run | commit | config | result |
+| :-- | :-- | :-- | :-- |
+| `overnight-25case-nodeadlock` | `73fff4f` | 25 cases x {deep-think, standard} = 50 runs, `pool_limit 10`, QASPER, seed 42, temp 0.7, `topk`, `--pcc deny`. | **50/50 completed, 0 failed, 0 timeouts, 209 min.** |
+
+**It proves the deadlock fix.** The prior attempt on the unfixed binary hit its first 1800s timeout
+by case 3 and was aborted at 10/50 (preserved as `overnight-25case-aborted-deadlock`). Fifty
+consecutive runs with none, against a prior rate near one per eight cases.
+
+**Per-stage, both modes** (n=24 standard, n=66 deep-think per-retrieval-call):
+
+| stage | std MRR | std r@1 | dt MRR | dt r@1 |
+| :-- | --: | --: | --: | --: |
+| `vector` | 0.563 | 0.500 | 0.603 | 0.530 |
+| `lexical` | 0.691 | 0.625 | 0.696 | 0.621 |
+| **`fusion`** | **0.708** | 0.625 | **0.719** | 0.667 |
+| `boosted` | 0.635 | 0.542 | 0.583 | 0.500 |
+| `candidates` | 0.635 | 0.542 | 0.583 | 0.500 |
+| `rerank` | **0.753** | 0.667 | 0.699 | 0.606 |
+| **`final`** | **0.590** | **0.417** | 0.665 | 0.567 |
+
+**1. Fusion now beats its own lexical arm, in both modes.** 0.708 against 0.691 (standard), 0.719
+against 0.696 (deep-think). The defect that drove a week of fusion-weight sweeps — "fusion ranks
+below the keyword arm it is fusing" — **is gone**, and the lexical survival guarantee (`89bf928`) is
+why: the reranker pool now contains the lexical hits that used to die at the cut. That roadmap row's
+central claim no longer reproduces.
+
+**2. `boosted` is now unambiguously the worst stage.** It destroys 0.073 MRR (standard) and 0.136
+(deep-think) of what fusion earned, at n=24 and n=66 — far past the 8-case noise that made this
+arguable before. Confirmed in every measured condition to date.
+
+**3. The rerank→final collapse is real, large, and now the headline defect.** Standard: MRR 0.753 →
+**0.590**, and r@1 0.667 → **0.417** — a quarter of all cases lose their top-ranked gold document
+*after* the cross-encoder has correctly ranked it. `final` has the same n as `rerank` (24), so this
+is not a sampling artifact. Deep-think shows the same direction, smaller (0.699 → 0.665). **Whatever
+runs between the reranker and the answer is the largest single quality loss in the pipeline.**
+Candidates to read, in order: the MMR diversification (`topK * 3` then re-select), parent-document
+expansion, and the final top-K truncation.
+
+**4. Deep Think emits all seven stages**, including `rerank`, confirming `017280b`. Its `final` MRR
+(0.665) is *higher* than standard's (0.590) while its accuracy is lower (36% vs 40%) — retrieval
+quality and answer correctness are diverging, which is worth its own investigation.
+
+**Accuracy: deep-think 9/25 (36%), standard 10/25 (40%).** Paired against `postfix-citations` on the
+8 shared cases with the lexical control identical: 5/8 → 5/8, no change. The four-point mode gap at
+n=25 is one case; nothing is resolvable at this size, as ever.
