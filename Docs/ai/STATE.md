@@ -37,8 +37,24 @@ one in the changelog rather than presented as a feature drop.
 2. Build `main` to the iPhone and re-run the delete → ingest → query → relaunch sequence. Closes or
    reopens the three data-corruption rows, which are the ones that made the app lose a document.
 
-Agent-workable in the meantime, both on the release and neither owner-blocked: **iWork import** and
-**two-column PDF reading order**.
+**Both agent-workable rows are now done and committed (`249dec0`), neither is closed:**
+
+- **Pages/Numbers/Keynote.** Owner chose de-advertise over building an `.iwa` parser. Five outward
+  claims corrected; the in-app half had already landed earlier in 5.0 and the row did not know it.
+  Claim audit checked both directions: no iWork extraction API exists in the iOS 27 SDK, and the
+  QuickLook-render-then-OCR workaround reaches page 1 only (`QLThumbnailGenerator` takes no page
+  index). **Closes on the App Store Connect metadata push — an owner action. Until then the live
+  listing still advertises iWork.**
+- **Two-column PDFs.** The certain bug is fixed (`NSRange` from the `Substring` rather than a
+  drifting counter, 7 new tests including one asserting the old counter *cannot* pass), plus a
+  non-stable-sort defect that made ingestion itself nondeterministic at equal Y. Both silent
+  fallbacks to raw `page.string` now log, as does the per-page strategy. **Left open on purpose:**
+  the row's own instruction is not to close on the offset fix, and symptom attribution needs a
+  device trace. A hypothesis was recorded — drifted bounds smear the X clusters, so column
+  detection fails and the Y-only branch interleaves — and explicitly *not* claimed as established.
+
+Verified this session: **268 tests, 3 skipped, 0 failures** (up from 261); `build_simulator_smoke.sh`
+**BUILD SUCCEEDED**; `secret_scan` clean.
 
 ## Status
 
