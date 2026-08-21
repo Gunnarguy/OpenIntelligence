@@ -631,3 +631,53 @@ quality and answer correctness are diverging, which is worth its own investigati
 **Accuracy: deep-think 9/25 (36%), standard 10/25 (40%).** Paired against `postfix-citations` on the
 8 shared cases with the lexical control identical: 5/8 → 5/8, no change. The four-point mode gap at
 n=25 is one case; nothing is resolvable at this size, as ever.
+
+### `rescue-position-fix` — first accuracy movement of the week with a valid control
+
+| run | commit | config | result |
+| :-- | :-- | :-- | :-- |
+| `rescue-position-fix` | `a7c1945` | 25 cases x standard, otherwise flag-for-flag with `overnight-25case-nodeadlock`. | 25/25, no timeouts. **Committed.** |
+
+Paired on 24 cases, lexical control identical case for case:
+
+| stage | before | after |
+| :-- | --: | --: |
+| `lexical` (control) | 0.691 | 0.691 |
+| `fusion` | 0.708 | 0.708 |
+| `rerank` MRR | 0.753 | 0.732 |
+| **`final` r@1** | **0.417** | **0.500** |
+| **`final` MRR** | **0.590** | **0.646** |
+| **correct** | **9/24** | **11/24** |
+
+**Predicted before the run** (recorded in the working message, then verified): `final` r@1 recovers
+toward `rerank`'s 0.667, `rerank` unchanged, control identical. Two of three held exactly. `rerank`
+drifted 0.753 → 0.732, which the fix cannot touch — small, unexplained, and deliberately not
+attributed.
+
+**Partial, not complete.** `final` r@1 0.500 is still well below `rerank`'s 0.667, so at least one
+more stage between reranking and the answer drops rank-1 chunks. Remaining suspects: parent-document
+expansion, the final top-K truncation, and MMR's own diversity penalty demoting a correct chunk.
+
+### The measurement gap that matters more than any of this
+
+Three claims were withdrawn on 2026-08-21, all the same error — reading a number as stronger evidence
+than it was:
+
+1. **"Retrieval finds the gold document 84% of the time, so the bottleneck is synthesis."** `r@10`
+   credits the *document*, not the passage. In `qasper_1611.06322_1a615618` the gold sentence appears
+   **zero times** in the entire run while the case scored as retrieval success; the model then
+   summarised a different section of the correct paper, fluently and with citations. This ledger has
+   warned since 2026-08-11 that document-level truth is a generous ruler; it was quoted anyway.
+2. **"40% accuracy is partly a grading artifact."** Refuted by the harness's own unused soft metric:
+   of 13 retrieved-but-wrong standard cases, **zero** had `gold_recall >= 0.8` and eleven had `< 0.4`.
+   The answers are genuinely wrong, not merely phrased differently.
+3. **A passage-level measurement of those same cases.** Invalid: it grepped run *reports*, which
+   store only truncated previews. Eight cases scored correct while the detector claimed the passage
+   was absent — impossible, and the tell that the detector was broken.
+
+**Passage-level retrieval is therefore unmeasured and unmeasurable from anything on disk**, because
+`retrieved_chunks` is an integer count and chunk text is never persisted. The fixture pack already
+carries `expected_evidence[].excerpt` for every case, so only the harness side is missing. **This is
+the single highest-value instrumentation left**: 19 of 25 QASPER cases are `answer_kind: extractive`
+(6/19 correct), meaning the answer is a literal span, and nobody can currently say whether that span
+reaches the model.
