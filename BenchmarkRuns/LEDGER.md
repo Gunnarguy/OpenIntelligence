@@ -854,3 +854,60 @@ retrieval fix here**, because the ±1 noise floor is what blocks every other mea
 `--rag-validation-sampling` discards the seed silently while the run still logs as configured. Every
 run on disk passed `sampling: topk`, so no published figure is affected — but the flag combination
 that looks most obviously correct is the one that does nothing.
+
+### `baseline-49` — the first controlled 4.9 vs 5.0 comparison
+
+v4.9.0 in a detached worktree with a **measurement-only backport**: the seed/sampling/temperature
+pin from 5.0, two files, applied so the arm could be seeded at all. Retrieval, ranking, evidence
+selection and prompt construction untouched. Same 25-case fixture, same flags (`topk`, seed 42,
+temp 0.7, pool 10, top-k 3, `--pcc deny`), same machine, both built with the Xcode 27 SDK.
+
+**Paired on the 22 cases measured in all three runs:**
+
+| run | correct | |
+| :-- | --: | --: |
+| 4.9 | 6/22 | **27.3%** |
+| 5.0 `passage-level-1` | 10/22 | **45.5%** |
+| 5.0 `rescue-position-fix` | 11/22 | **50.0%** |
+
+**6 cases fixed, 2 broken, net +4 to +5** — above the measured ±1 noise floor, and the first
+defensible claim in this project that 5.0 beats 4.9 on answer accuracy.
+
+**Reliability, not in that table.** 4.9 failed outright on **3 of 25**: two 600s timeouts and one
+that produced no report. Those are excluded from its accuracy rather than scored wrong, which is the
+generous reading; counted as failures 4.9 is 6/25. The 5.0 25-case runs had **zero** timeouts. 4.9
+was also slower per case, 176–351s against ~180s.
+
+**The confound, stated rather than buried.** Both arms ran at temperature 0.7. 4.9's own default was
+0.4 (`config had 0.4` logged on every case) while 5.0's shipped default *is* 0.7, so this ran 5.0 at
+its real setting and 4.9 off its real setting. Pinning both is what makes the comparison attributable
+to code rather than to sampling, but it is not a comparison of the two products *as shipped*. A
+4.9@0.4 arm would answer that and has not been run.
+
+### `greedy-5case` — sampling is not where the missing accuracy lives
+
+Prompted by the observation that `InferenceConfig.ragOptimized` sets `temperature = 0.7` with the
+comment `// Balanced creativity`, on a product whose promise is answers attributable to the user's
+documents.
+
+**Verified against Apple before testing.** `GenerationOptions` exposes exactly four properties —
+`samplingMode`, `temperature`, `maximumResponseTokens`, and `toolCallingMode` (27+) — read from the
+SDK's own `.swiftinterface`. **There is no frequency, presence or repetition penalty**, so those
+three fields in `ragOptimized` are dead config that never reach the model. Apple documents
+temperature as 0–1 (the harness validates 0–2) and describes low values as "more stable and
+predictable" against "more creative license"; the WWDC25 deep-dive describes `.greedy` as making
+output deterministic.
+
+**Result, 5 cases, greedy vs the same 5 under `topk`:** 2/5, against 3/5 and 2/5 for the two topk
+runs. Greedy matched `rescue-position-fix` on **all five** and differed from `passage-level-1` only
+on `3319d565` — the one case those two topk runs already disagreed on. **No effect.**
+
+**What the negative result buys.** The three failures are not sampling accidents: greedy takes the
+highest-probability token every time and they still failed. They fail structurally — the evidence
+did not arrive, or the model could not extract from what did. That is consistent with the
+passage-level decomposition and it removes temperature from the list of things worth tuning for
+accuracy. n=5 rules out a large effect, not a small one.
+
+**Still worth changing the default, for a different reason.** Greedy is deterministic, so a greedy
+arm has no sampling noise at all — which is the cheapest available fix for the reproducibility row,
+independent of accuracy.
