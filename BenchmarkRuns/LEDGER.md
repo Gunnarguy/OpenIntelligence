@@ -973,3 +973,58 @@ than every number on record. That is a plausible upside nobody has measured, and
 **Do not add `--temperature 0.7` to future runs by habit.** A run intended to describe the product
 should pass no `--temperature` at all and let the clamps do their work; a run intended to compare two
 builds should pin both arms to the same value and say so.
+
+### `shipcfg-50` — the shipping number, and where the reranker's work goes to die
+
+| run | commit | config | result |
+| :-- | :-- | :-- | :-- |
+| `shipcfg-50` | `67ba90a` | 83 QASPER cases, standard, **no `--temperature`** so the app's own 0.4 clamp applies | **32/83 = 38.6%**, all 83 completed, 311 min |
+
+First run that describes the shipped product rather than one forced hotter than the app ever runs.
+
+**Temperature, tested and not supported.** On the 25 cases shared with the 0.7 runs: 0.7 scored
+11/25 and 12/25, 0.4 scored **9/25**. One case better, three worse, **sign p = 0.938**. Cooling from
+0.7 to 0.4 did nothing measurable and the point estimate leans the wrong way. **Greedy (0.0) is
+still untested** and remains the open version of that hypothesis.
+
+**The largest measured loss in the pipeline, now at n=83:**
+
+```
+rerank   r@1 0.610   MRR 0.690
+final    r@1 0.442   MRR 0.574
+```
+
+17 cases have gold at rank 1 after reranking and not at final; 4 gain it; **net −13**. Cases that
+lose rank 1 answer correctly **4/17 (23.5%)** against **28/66 (42.4%)** for those that keep it.
+
+**It is demotion, not deletion.** Tracing the reranker's top *chunk id* through `STAGE SOURCES`:
+**14 of 17 are still in the final prompt**, just no longer first (landing positions cluster at 4);
+only 3 are removed outright. So the chunk survives the budget and loses the highest-attention slot.
+
+**Two hypotheses tested and rejected before the third:**
+
+- **`filterBySimilarity` dropping the top chunk.** Rejected. It has no top-1 guarantee, but lost
+  cases had *fewer* chunks filtered (33.0) than kept cases (39.0), and 14 of 17 top chunks survive.
+- **Document-summary injection prepending.** Rejected as the main cause despite
+  `contextCandidates = selectedSummaries + topDetailChunks` (`RAGService.swift:11184`) provably
+  placing summaries ahead of every detail chunk. At n=83 it fires on 36 cases at **38.9%** accuracy
+  against **38.3%** when it does not, and explains only 7 of the 17 losses — the same rate as in
+  cases that keep rank 1. Five losses had no summaries at all.
+
+**What survives: the cross-encoder's ranking is overwritten by a heuristic.** Before assembly,
+`orderedCandidates` is re-sorted (`RAGService.swift:11975` and `:12016`) — by document order for
+procedural queries, and for extractive-intent queries by
+`EvidenceScoringPolicyService.extractivePriorityScore`, a keyword-and-structure score that is **not
+the cross-encoder score**. QASPER is overwhelmingly extractive. Measured: the rank-1 loss rate is
+**27.0% (10/37)** where that re-sort runs against **15.2% (7/46)** where it does not.
+
+**Stated at its real strength: association, not a proven sufficient cause.** Detection of the
+re-sort is a log-string proxy, and 7 cases lose rank 1 without it. At least two mechanisms are in
+play. What is certain from code is that `filterBySimilarity`, the spec rescue, `ensureDocumentCoverage`,
+MMR and lost-in-the-middle reordering **all preserve position 0** — verified by reading each — so the
+demotion has to come from a prepend or a re-sort, and the re-sort is the one that correlates.
+
+**The question this raises is a design one, not a bug report:** the pipeline runs a trained
+cross-encoder and then replaces its ordering with a hand-written keyword heuristic on exactly the
+query class the benchmark is made of. Whether that heuristic earns its place has never been measured.
+The cheap test is to make it a tie-break or a bounded boost rather than a full re-sort, and re-run.
