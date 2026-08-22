@@ -5,6 +5,25 @@ Branch/worktree: main, clean, **not pushed** — `origin/main` is at `248f2f2`, 
 Cross-tool handoff (if Claude access runs out): `HANDOFF.md` at repo root.
 Last verified commit: e7e51da
 
+## First real device evidence since the vector-loss fixes landed (2026-08-22)
+
+Owner captured a real console trace on his physical iPhone (`environment=device`, A18 Pro):
+ingest a new PDF into a library, query it twice in Standard and once in Deep Think (all four real,
+chunks retrieved, answers generated), then delete it. Deletion was clean: 197 chunks removed from
+BNNS, FTS5 entry removed, document dropped from the list. Every other library in the workspace
+loaded correctly at the end with stable chunk counts, nothing zeroed. Full trace at
+`Deletion+Ingestion+closeandreopenapp+standard+deepthink.txt`.
+
+**This does not close any of the three open vector-loss rows below.** Checked specifically: no
+container switch happened during the ingestion window (rules out testing "switching libraries
+during import"), and no app relaunch is visible in the capture itself (the once-per-process startup
+markers each appear exactly once). It's real evidence the everyday cycle works; it isn't evidence
+for the narrower scenarios those three rows are actually about.
+
+One minor anomaly logged, not chased: one container loaded "0 chunks" then self-corrected to 182 on
+the very next read, one line later. Not the permanent loss class from before. Worth a look if it
+ever fails to self-correct.
+
 ## Objective
 
 **Get v5.0 shippable.** The question that gated this is **answered**: Xcode Cloud builds with
