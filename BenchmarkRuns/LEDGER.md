@@ -870,8 +870,27 @@ temp 0.7, pool 10, top-k 3, `--pcc deny`), same machine, both built with the Xco
 | 5.0 `passage-level-1` | 10/22 | **45.5%** |
 | 5.0 `rescue-position-fix` | 11/22 | **50.0%** |
 
-**6 cases fixed, 2 broken, net +4 to +5** — above the measured ±1 noise floor, and the first
-defensible claim in this project that 5.0 beats 4.9 on answer accuracy.
+**6 cases fixed, 2 broken, net +4 to +5.**
+
+**Correction, same day, before this was quoted anywhere.** The line above originally read "above the
+measured ±1 noise floor, and the first defensible claim that 5.0 beats 4.9 on answer accuracy."
+**That overstates it.** The ±1 figure is a *net* difference from a single A/A pair; the right test on
+paired binary outcomes is the sign test over discordant pairs, and it was not run before the claim
+was written:
+
+| comparison | 4.9 | 5.0 | discordant | one-sided p |
+| :-- | --: | --: | :-- | --: |
+| vs `passage-level-1` | 6/22 | 10/22 | 6 up, 2 down | **0.1445** |
+| vs `rescue-position-fix` | 6/22 | 11/22 | 6 up, 1 down | **0.0625** |
+
+**Neither reaches p < 0.05**, so the accuracy improvement is *suggestive and consistent*, not proven.
+What supports it: both point estimates favour 5.0, and two independent 5.0 runs each beat the same
+4.9 arm. What would prove it: the 83-case fixture, where a split of this shape reaches significance.
+
+**What does not depend on the sign test at all**, and is the stronger half of the case: 4.9 failed to
+produce an answer on **3 of 25** cases (two 600s timeouts, one no-report) against **zero timeouts in
+50 cases** of 5.0, and was slower per case on the same hardware. That is a categorical reliability
+difference, not a marginal statistical one.
 
 **Reliability, not in that table.** 4.9 failed outright on **3 of 25**: two 600s timeouts and one
 that produced no report. Those are excluded from its accuracy rather than scored wrong, which is the
