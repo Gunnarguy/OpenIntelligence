@@ -1,6 +1,6 @@
 # Handoff
 
-Written 2026-08-22, at commit `e1113f7`, because Gunnar expects to run out of Claude usage this
+Written 2026-08-22, kept current through commit `e7e51da`, because Gunnar expects to run out of Claude usage this
 week and wants whatever picks this repo up next — Gemini/Antigravity, Codex, a different tool
 entirely, or just himself six months from now — to land somewhere useful without re-deriving three
 weeks of work. Nothing here requires Claude-specific tooling to read: it's plain markdown, and every
@@ -75,47 +75,62 @@ honestly — several defects fixed this cycle were exactly that promise being si
   check `THIRD_PARTY_NOTICES.md`, grep the whole repo, and check primary vendor docs before you
   delete, not just the one file that prompted the question.
 
-## Current state, as of `e1113f7` (2026-08-22)
+## Current state, as of `e7e51da` (2026-08-22)
 
 **v5.0 was re-scoped on 2026-08-21** from 25 open roadmap rows to 11, cut to only what loses data,
 breaks an advertised capability, or blocks shipping — the rest moved to Future Backlog, including
 the embedding-migration EPIC and WWDC26 API adoption, both previously called top priorities. That
 was a deliberate trade for shipping speed, recorded on the affected Notion rows, not an oversight.
 
-**Two UI bugs were fixed this session. One is holding; the other took two attempts and neither is
-device-confirmed.** The Claude Code iOS Simulator streaming panel crashed and stopped retrying
-partway through, so nothing here has been watched happen — only reasoned from code, confirmed to
-build, and (for the glossary fix) checked against the owner's own precise on-device repro.
+**Three UI/content changes happened this session. One is device-confirmed working. One is still
+unverified. One is a content expansion built on top of the confirmed fix and only build/test-checked
+so far.** The Claude Code iOS Simulator streaming panel crashed and stopped retrying partway through
+the first two, so most of this was reasoned from code rather than watched happen; the glossary
+navigation fix is the exception, confirmed directly against the owner's physical device.
 
-1. **Library picker resetting to the first library.** `documentHeader`, which hosts
-   `ContainerPickerStrip`, was called from both branches of an `if filteredDocuments.isEmpty {
-   emptyStateView } else { documentListView }`, so switching to or from an empty library tore the
-   picker's `ScrollView` down and rebuilt it at its default scroll position. Fixed by hoisting
-   `documentHeader` above the branch. **Not yet confirmed on device**, but the mechanism is
-   unambiguous from the code — no live behavior to guess at here.
-2. **Glossary term taps not navigating cleanly (Settings → Plain English).** First attempt moved
-   `.navigationDestination(for: GlossaryTermID.self)` off the same `List` that carries
-   `.searchable(text:)`, reasoning from a known SwiftUI collision class. **The owner tested it on a
-   physical device and it did not fix it** — his exact repro (tap animates to nothing new; the
-   *next* back tap is what reveals the real detail; a second back tap is what one correct pop
-   should have done) is a transition running one step behind the navigation stack, not a
-   registration-scope problem, so relocating the modifier couldn't have addressed it. Second attempt
-   (current): switched the row taps to `.sheet(item:)` presenting `GlossaryTermSheet` — the exact
-   mechanism `GlossaryInfoButton` already uses successfully everywhere else a term is tappable in
-   this app (`HowItWorksView`, every Settings hardware row) — which sidesteps the `.searchable` +
-   push collision instead of continuing to guess at its precise mechanism. **Still not
-   device-confirmed.** If this one also doesn't hold, that would mean the transition-desync is
-   deeper than `.searchable`+push specifically, and the next step should be reproducing it with
-   Xcode attached over a cable so the console/view-debugger settle what code reading can't.
+1. **Library picker resetting to the first library — still not device-confirmed.**
+   `documentHeader`, which hosts `ContainerPickerStrip`, was called from both branches of an `if
+   filteredDocuments.isEmpty { emptyStateView } else { documentListView }`, so switching to or from
+   an empty library tore the picker's `ScrollView` down and rebuilt it at its default scroll
+   position. Fixed by hoisting `documentHeader` above the branch (`e1113f7`). The mechanism is
+   unambiguous from the code, but nobody has actually tapped through it on a library that starts
+   empty since the fix landed. **Do this before assuming it's fine.**
+2. **Glossary term taps not navigating cleanly — fixed, and confirmed on the owner's physical
+   iPhone.** First attempt (`e1113f7`) moved `.navigationDestination(for: GlossaryTermID.self)` off
+   the same `List` that carries `.searchable(text:)`. The owner tested it on device and it did not
+   fix it — his exact repro (tap animates to nothing new; the *next* back tap is what reveals the
+   real detail; a second back tap is what one correct pop should have done) showed a transition
+   running one step behind the navigation stack, not a registration-scope problem. Second attempt
+   (`c7f1919`) switched the row taps to `.sheet(item:)` presenting `GlossaryTermSheet` — the same
+   mechanism `GlossaryInfoButton` already used successfully everywhere else a term is tappable in
+   this app — sidestepping the collision instead of continuing to guess at its mechanism. **The
+   owner confirmed this works** ("now tappable and it's like pulling up a card, neat"). If you touch
+   `GlossaryView.swift` again: don't put term taps back on push navigation. The sheet pattern is now
+   the proven one for this specific screen.
+3. **Glossary content expanded from 25 terms to 32, plus two corrections — build/test-verified
+   only, not yet read on a real device.** Prompted by the owner asking whether the glossary actually
+   covered app-specific concepts or just read as generic. An audit found ~35-40 genuinely undefined
+   terms across Settings, chat, and the Atlas/Database tabs; this pass (`e7e51da`) covers the
+   highest-confusion subset by the owner's own priority call — quality modes, routing, and the trust
+   cluster (confidence vs. fidelity vs. verification gates vs. the abstained badge, which are shown
+   together in the response-details screen with nothing previously explaining that confidence and
+   fidelity are two different measurements that can disagree). Also corrected the `vector` entry,
+   which had hardcoded one embedding provider's dimension count as if it were universal when the app
+   switches live between four. A new `trust` `GlossarySection` was added. All 277 tests pass,
+   including `GlossaryTests`' orphan-graph and no-em-dash checks, but nobody has scrolled through the
+   new entries on an actual screen yet to check for the same two-line-truncation issue the existing
+   terms already had to design around. The remaining ~25-30 lower-priority terms (Database/Atlas tab
+   jargon, generation-parameter sliders) are unaddressed; see the commit message on `e7e51da` for
+   exactly which six areas were audited if you pick that up.
 
-**Whoever picks this up: check both on a real device before building on top of either file** —
-`DocumentLibraryView.swift` and `GlossaryView.swift`, both in `OpenIntelligence/Features/`. The
-glossary one in particular has already burned one confident-but-wrong fix; don't assume the second
-attempt is right just because the reasoning behind it is stronger.
+**Whoever picks this up: verify #1 and eyeball #3 on a real device before building further on either
+file.** #2 is the one you can trust — it's the only one of the three actually confirmed against
+hardware.
 
-**Four commits are unpushed** (`git rev-list --count origin/main..HEAD` will confirm the exact
-count when you read this). Pushing triggers both GitHub Actions CI and an Xcode Cloud build; see
-below on Xcode Cloud before pushing something you want archived.
+**Eight commits are unpushed** as of `e7e51da` (`git rev-list --count origin/main..HEAD` will
+confirm the exact count when you read this, since this number moves every commit). Pushing
+triggers both GitHub Actions CI and an Xcode Cloud build; see below on Xcode Cloud before pushing
+something you want archived.
 
 **Owner-only, blocking several roadmap rows:**
 1. **Build `main` to a physical iPhone** and run delete → ingest → query → force-quit → reopen.
