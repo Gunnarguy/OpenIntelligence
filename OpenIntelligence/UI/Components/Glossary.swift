@@ -38,6 +38,7 @@ enum GlossarySection: String, CaseIterable, Identifiable, Sendable {
     case pipeline
     case hardware
     case answering
+    case trust
 
     var id: String { rawValue }
 
@@ -46,6 +47,7 @@ enum GlossarySection: String, CaseIterable, Identifiable, Sendable {
         case .pipeline: return "What happens to your files"
         case .hardware: return "The words about your device"
         case .answering: return "When an answer gets written"
+        case .trust: return "How you know an answer is right"
         }
     }
 
@@ -54,6 +56,7 @@ enum GlossarySection: String, CaseIterable, Identifiable, Sendable {
         case .pipeline: return "square.and.arrow.down"
         case .hardware: return "cpu"
         case .answering: return "text.bubble"
+        case .trust: return "checkmark.shield"
         }
     }
 }
@@ -126,6 +129,15 @@ enum GlossaryTermID: String, CaseIterable, Identifiable, Sendable {
     case onDevice
     case privateCloudCompute
     case temperature
+    case qualityMode
+    case selfRAG
+    case routing
+
+    // How you know an answer is right
+    case confidence
+    case fidelity
+    case verificationGates
+    case abstained
 
     var id: String { rawValue }
 }
@@ -191,7 +203,12 @@ extension GlossaryTermID {
                 icon: "brain.head.profile",
                 section: .pipeline,
                 plain: "A list of numbers standing for what a passage means. Two passages about the same thing get similar numbers, and that is how the app finds the right paragraph when you did not use the document's exact words.",
-                technical: "384 dimensions per passage from MiniLM-L6-v2 through Core ML. Retrieval compares your question's vector against stored passage vectors by cosine similarity, which is the semantic half of the search.",
+                // Corrected 2026-08-22: this stated 384D/MiniLM-L6-v2 as if it were the only
+                // path. `AboutView.swift` shows the app switching live between four embedding
+                // providers by `settings.defaultEmbeddingProvider` — 384D (MiniLM-L6-v2, the
+                // default), 512D (NLContextual or NLEmbedding), or 1024D (Apple FM) — so a fixed
+                // number here was accurate for one configuration and wrong for the other three.
+                technical: "384 dimensions per passage by default, from MiniLM-L6-v2 through Core ML. The app also supports three other embedding providers at 512 or 1024 dimensions, and which one is active for a given library is shown under Settings → About. Retrieval compares your question's vector against stored passage vectors by cosine similarity, which is the semantic half of the search regardless of which provider produced them.",
                 seeAlso: [.chunk, .hybridSearch, .neuralEngine],
                 synonyms: ["embedding", "embeddings", "vectors", "semantic", "dimension"]
             )
@@ -257,7 +274,7 @@ extension GlossaryTermID {
                 icon: "quote.opening",
                 section: .pipeline,
                 plain: "The link under an answer back to the passage it came from. Tapping it shows you the real text inside your own document, which is how you check an answer instead of trusting it.",
-                technical: "Answers are assembled from retrieved passages and carry the source and position of each. When the retrieved passages do not support an answer, the app reports that rather than writing one anyway.",
+                technical: "Answers are assembled from retrieved passages and carry the source and position of each. The `[S1]`, `[S2]`… markers the model writes inline and the numbered source chips shown under the answer share one numbering: `[S3]` in the text is the same source as chip #3, not a separate reference. When the retrieved passages do not support an answer, the app reports that rather than writing one anyway.",
                 seeAlso: [.rag, .reranking],
                 synonyms: ["source", "sources", "reference", "evidence", "cited"]
             )
@@ -422,7 +439,7 @@ extension GlossaryTermID {
                 // unqualified "nothing uses the network" would be false for it. This is the
                 // same framing `HowItWorksView` uses, verified 2026-08-10.
                 technical: "Reading, splitting, embedding, indexing, retrieval and ranking have no network path. The only outbound call in the answer path is Private Cloud Compute, gated on per-request consent. Sharing a library through iCloud is separate, opt in, and not part of answering a question.",
-                seeAlso: [.privateCloudCompute, .index, .languageModel],
+                seeAlso: [.privateCloudCompute, .routing, .index, .languageModel],
                 synonyms: ["local", "offline", "private", "no server", "no upload", "airplane mode"]
             )
 
@@ -434,7 +451,7 @@ extension GlossaryTermID {
                 section: .answering,
                 plain: "Apple's servers, for the one case where a question needs more room than this device's model has. It is used for the writing step only, one request at a time, and only after you approve that request. Your files are not uploaded. The passages the answer needs are.",
                 technical: "`CloudEvidenceMinimizer` bounds the payload to a selected set of source IDs, names, page numbers and passage text. The consent sheet shows the provider, the model, prompt size, context size, chunk count and total estimated bytes before anything leaves. Setting routing to On-Device means this path is never taken.",
-                seeAlso: [.onDevice, .contextWindow, .languageModel],
+                seeAlso: [.onDevice, .routing, .contextWindow, .languageModel],
                 synonyms: ["pcc", "cloud", "apple", "consent", "routing", "escalate"]
             )
 
@@ -448,6 +465,90 @@ extension GlossaryTermID {
                 technical: "Sampling temperature on the generation session. Retrieval and ranking sit entirely upstream and are unaffected by it, so this changes how an answer reads rather than what was found in your files.",
                 seeAlso: [.languageModel, .token],
                 synonyms: ["sampling", "creativity", "randomness", "top p", "top k"]
+            )
+
+        case .qualityMode:
+            return GlossaryTerm(
+                id: self,
+                term: "Quality mode",
+                icon: "gauge.medium",
+                section: .answering,
+                plain: "Standard, Deep Think, or Maximum: how much work the app puts into one answer. Standard reads and answers in a single pass. Deep Think and Maximum can search again, check their own draft, and take longer to do it.",
+                technical: "Deep Think and Maximum route through an agentic loop instead of a single retrieve-then-write pass, and unlock query expansion, document-level summaries, and the verification gates below. Maximum additionally keeps the full context window rather than compressing it, which is the reason it is the slowest of the three.",
+                seeAlso: [.selfRAG, .verificationGates, .contextWindow],
+                synonyms: ["standard", "deep think", "maximum", "mode", "modes"]
+            )
+
+        case .selfRAG:
+            return GlossaryTerm(
+                id: self,
+                term: "Self-checking",
+                icon: "arrow.triangle.2.circlepath",
+                section: .answering,
+                plain: "The app grading its own draft before showing it to you, and trying again if it doesn't hold up. Deep Think and Maximum can retrieve, write, check what they wrote against the evidence, and search again several times rather than answering on the first attempt.",
+                technical: "An agentic loop bounded by a session count and a confidence threshold set from device capability, not a fixed number. Each pass can retrieve more evidence, rewrite the query, or accept the draft; `AgenticPolicyService.verificationAction` decides accept, retry, or abstain after every pass.",
+                seeAlso: [.qualityMode, .verificationGates, .confidence],
+                synonyms: ["agentic", "agentic orchestrator", "self-rag", "iterative retrieval", "agentic loop"]
+            )
+
+        case .routing:
+            return GlossaryTerm(
+                id: self,
+                term: "Routing",
+                icon: "signpost.right.and.left",
+                section: .answering,
+                plain: "The decision behind every answer about where it gets written: on this device, or on Apple's Private Cloud Compute, only after you approve it. You can pin it to always stay on-device in Settings.",
+                technical: "On-Device, Private Cloud Compute, and Hybrid (decided per query from the evidence actually retrieved) are the three routes most people see. Setting routing to On-Device removes Private Cloud Compute as an option entirely rather than merely preferring the other path.",
+                seeAlso: [.onDevice, .privateCloudCompute],
+                synonyms: ["route", "routed", "hybrid"]
+            )
+
+        case .confidence:
+            return GlossaryTerm(
+                id: self,
+                term: "Confidence",
+                icon: "percent",
+                section: .trust,
+                plain: "A percentage on every answer for how strongly the app believes it, based on how relevant the evidence was and how well the wording is actually backed by it. It is not a measure of how long or detailed the answer is.",
+                technical: "50% answer relevance, 50% citation/grounding score, with a floor so a genuinely ungrounded answer can report near zero rather than settling on a reassuring middle number. An earlier version also weighted answer length and source count; both saturated for any real answer and made confidence unable to fall below roughly 30% no matter how wrong the answer was, so that term was removed.",
+                seeAlso: [.fidelity, .verificationGates],
+                synonyms: ["confidence score", "confident"]
+            )
+
+        case .fidelity:
+            return GlossaryTerm(
+                id: self,
+                term: "Fidelity",
+                icon: "shield.lefthalf.filled",
+                section: .trust,
+                plain: "Source-Locked, Partially Supported, or Not Enough Evidence: a label for what the verification step actually concluded, shown next to the confidence percentage rather than replacing it. The two can disagree, confidence is a number about the evidence, fidelity is what the check itself decided.",
+                technical: "Read from the same gating decision self-checking produces, not computed independently: a failed or missing-citations or abstain decision reads as Not Enough Evidence, a low-confidence or fallback decision reads as Partially Supported, and everything else, including no gate having run at all (which is Standard mode's default), reads as Source-Locked.",
+                seeAlso: [.confidence, .selfRAG, .citation],
+                synonyms: ["source-locked", "partially supported", "not enough evidence", "insufficient evidence"]
+            )
+
+        case .verificationGates:
+            return GlossaryTerm(
+                id: self,
+                term: "Verification gates",
+                icon: "checkmark.seal.fill",
+                section: .trust,
+                plain: "A live checklist Deep Think and Maximum run before handing you an answer: whether retrieval actually covered the question, whether numbers in the draft match the source, whether the wording matches what was actually retrieved. You can watch it happen while an answer is being written.",
+                technical: "Named checks vary by mode; Deep Think runs eight (Intent Formulation, HyDE Generation, Vector & BM25, RRF Fusion, MMR Diversity, Compression, Semantic Grounding, Agentic Loop), Maximum runs a different eight built around broader retrieval and a higher confidence target. A red \"ABSTAINED\" badge means at least one gate in the current pass reported a failure.",
+                seeAlso: [.selfRAG, .abstained, .qualityMode],
+                synonyms: ["verification", "gates", "gate", "anti-hallucination"]
+            )
+
+        case .abstained:
+            return GlossaryTerm(
+                id: self,
+                term: "Abstained",
+                icon: "hand.raised.fill",
+                section: .trust,
+                plain: "A red badge shown while an answer is being checked, meaning at least one internal check did not pass. It doesn't always mean you get no answer: the app can retry, or hand back a more cautious one instead.",
+                technical: "Set live whenever any verification gate in the current pass reports failed status; it is a mid-pipeline signal, not necessarily the terminal outcome. What happens next (retry, fall back to a lower-confidence draft, or genuinely decline to answer) is decided afterward, so this badge can be visible before the real outcome is known.",
+                seeAlso: [.verificationGates, .selfRAG],
+                synonyms: ["abstain", "abstention"]
             )
         }
     }
