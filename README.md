@@ -117,7 +117,9 @@ The engineering docs are unusually detailed, and label every claim with how it
 was verified — source-read, build-checked, test-covered, or confirmed on a
 physical device. Where something is unproven, it says so.
 
-**Start here:** [Documentation Atlas](Docs/README.md)
+**If you are reading one thing, read this:** [How OpenIntelligence Works](Docs/HOW_IT_WORKS.md). Every stage of both pipelines in order, with the reason each one exists and what breaks without it. Written at two levels, plain English and technical, side by side.
+
+**Start here for everything else:** [Documentation Atlas](Docs/README.md)
 
 **Architecture**
 - [System Architecture](Docs/OPENINTELLIGENCE_ARCHITECTURE_ATLAS.md) — import-time and query-time pipelines
