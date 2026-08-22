@@ -628,7 +628,7 @@ Every prior plan had assumed one of those dominated. Retrieval and synthesis eac
 > - **Three run directories were deleted before being re-read.** `BenchmarkRuns/*` is gitignored, so the conclusions drawn from them survive and their raw data does not. Those rows are marked unauditable in the ledger rather than quietly dropped.
 > - Document-level recall credits a whole document when any chunk of it appears, which inflated `r@1` on runs where a summary was injected.
 
-**The older figure is still quoted elsewhere in this repository**, including `README.md`, `Docs/LIMITATIONS.md`, `Docs/EVALS.md` and `Docs/RELEASE_NOTES.md`. Withdrawing it from those is a deliberate claim-removal pass that has not been done yet, so if one of them says 80% across 20 cases, this section is the newer reading and the reasons above are why.
+**The older figure was withdrawn from `README.md`, `Docs/LIMITATIONS.md` and `Docs/EVALS.md` on 2026-08-21**, each corrected in place with a dated note rather than deleted. `Docs/RELEASE_NOTES.md` deliberately keeps its two mentions: they are historical records of what was believed and re-scored at the time, not claims about the app now. The figure was never shown anywhere in the app itself.
 
 The live record is `BenchmarkRuns/PROGRESSION.md` for the numbers and `BenchmarkRuns/LEDGER.md` for what each run was testing and what it settled. Read those rather than trusting any figure quoted here, including these.
 
