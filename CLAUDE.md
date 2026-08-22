@@ -112,6 +112,7 @@ Xcode 27 lives at `/Applications/Xcode-beta.app`. Scheme `OpenIntelligence`, tes
 | Why something is the way it is | `Docs/ai/DECISIONS.md` |
 | How to build, test, release, recover | `Docs/ai/RUNBOOK.md` |
 | Full agent directives | `AGENTS.md` |
+| Cross-tool handoff — current state for any agent, not only Claude | `HANDOFF.md` |
 | Evidence and supersession rules, before any audit or docs pass | `Docs/AgentPlaybooks/00_SUPERSEDING_EVIDENCE_PROTOCOL.md` |
 | Routing, edit boundaries, release gate | `Docs/RepoOS/` |
 | Absolute ground truth on product claims | `Docs/CANONICAL_OPENINTELLIGENCE_SOURCE_OF_TRUTH.md` |
