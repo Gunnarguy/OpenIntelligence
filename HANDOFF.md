@@ -82,22 +82,36 @@ breaks an advertised capability, or blocks shipping — the rest moved to Future
 the embedding-migration EPIC and WWDC26 API adoption, both previously called top priorities. That
 was a deliberate trade for shipping speed, recorded on the affected Notion rows, not an oversight.
 
-**Two UI bugs were just fixed and are unverified.** The Claude Code iOS Simulator streaming panel
-crashed and stopped retrying partway through this session, so neither fix has been watched happen,
-only reasoned from code and confirmed to build (277 tests, 0 failures) and boot:
+**Two UI bugs were fixed this session. One is holding; the other took two attempts and neither is
+device-confirmed.** The Claude Code iOS Simulator streaming panel crashed and stopped retrying
+partway through, so nothing here has been watched happen — only reasoned from code, confirmed to
+build, and (for the glossary fix) checked against the owner's own precise on-device repro.
 
-1. The library picker (`ContainerPickerStrip`) reset to the first library and the whole screen
-   flashed when switching to or from an empty library. Root cause: `documentHeader`, which hosts the
-   picker, was called from both branches of an `if filteredDocuments.isEmpty { emptyStateView } else
-   { documentListView }`, so crossing that line tore the picker's `ScrollView` down and rebuilt it at
-   its default (leading-edge) scroll position. Fixed by hoisting `documentHeader` above the branch.
-2. Tapping a term in Settings → Plain English (the glossary) could fail to navigate cleanly and
-   leave a blank screen after backing out. `GlossaryView`'s `List` had both `.searchable(text:)` and
-   `.navigationDestination(for: GlossaryTermID.self)` on the same view, a known SwiftUI collision
-   point. Moved the destination registration to a parent `Group`.
+1. **Library picker resetting to the first library.** `documentHeader`, which hosts
+   `ContainerPickerStrip`, was called from both branches of an `if filteredDocuments.isEmpty {
+   emptyStateView } else { documentListView }`, so switching to or from an empty library tore the
+   picker's `ScrollView` down and rebuilt it at its default scroll position. Fixed by hoisting
+   `documentHeader` above the branch. **Not yet confirmed on device**, but the mechanism is
+   unambiguous from the code — no live behavior to guess at here.
+2. **Glossary term taps not navigating cleanly (Settings → Plain English).** First attempt moved
+   `.navigationDestination(for: GlossaryTermID.self)` off the same `List` that carries
+   `.searchable(text:)`, reasoning from a known SwiftUI collision class. **The owner tested it on a
+   physical device and it did not fix it** — his exact repro (tap animates to nothing new; the
+   *next* back tap is what reveals the real detail; a second back tap is what one correct pop
+   should have done) is a transition running one step behind the navigation stack, not a
+   registration-scope problem, so relocating the modifier couldn't have addressed it. Second attempt
+   (current): switched the row taps to `.sheet(item:)` presenting `GlossaryTermSheet` — the exact
+   mechanism `GlossaryInfoButton` already uses successfully everywhere else a term is tappable in
+   this app (`HowItWorksView`, every Settings hardware row) — which sidesteps the `.searchable` +
+   push collision instead of continuing to guess at its precise mechanism. **Still not
+   device-confirmed.** If this one also doesn't hold, that would mean the transition-desync is
+   deeper than `.searchable`+push specifically, and the next step should be reproducing it with
+   Xcode attached over a cable so the console/view-debugger settle what code reading can't.
 
-**Verify these two on a real device or a working simulator before trusting them further** —
-`DocumentLibraryView.swift` and `GlossaryView.swift`, both in `OpenIntelligence/Features/`.
+**Whoever picks this up: check both on a real device before building on top of either file** —
+`DocumentLibraryView.swift` and `GlossaryView.swift`, both in `OpenIntelligence/Features/`. The
+glossary one in particular has already burned one confident-but-wrong fix; don't assume the second
+attempt is right just because the reasoning behind it is stronger.
 
 **Four commits are unpushed** (`git rev-list --count origin/main..HEAD` will confirm the exact
 count when you read this). Pushing triggers both GitHub Actions CI and an Xcode Cloud build; see
