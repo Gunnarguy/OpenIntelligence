@@ -1,0 +1,108 @@
+diff --git a/OpenIntelligence/App/DebugRAGValidationHarness.swift b/OpenIntelligence/App/DebugRAGValidationHarness.swift
+index 13559a4..142fdca 100644
+--- a/OpenIntelligence/App/DebugRAGValidationHarness.swift
++++ b/OpenIntelligence/App/DebugRAGValidationHarness.swift
+@@ -43,6 +43,7 @@ enum DebugRAGValidationHarness {
+         AppSupportPaths.configureBaseDir(configuration.storageDirectory)
+         seedPCCConsentIfNeeded(configuration.pccConsent)
+         seedBenchmarkEntitlementIfNeeded(configuration.benchmarkEntitlement)
++        seedSamplingOverridesIfNeeded()   // measurement-only backport, 2026-08-21
+     }
+ 
+     static func runHeadlessIfNeeded() {
+@@ -383,6 +384,33 @@ enum DebugRAGValidationHarness {
+         )
+     }
+ 
++    /// MEASUREMENT-ONLY BACKPORT, 2026-08-21, not part of v4.9.0.
++    ///
++    /// v4.9.0 shipped without `--rag-validation-sampling`, `--rag-validation-seed` and
++    /// `--rag-validation-temperature`, so every benchmark run against it drew a different sample and
++    /// no two runs were comparable. Added here, byte-for-byte equivalent to 5.0's version, purely so
++    /// a 4.9 arm can be differenced against a 5.0 arm under identical sampling.
++    private static func seedSamplingOverridesIfNeeded() {
++        if let raw = LaunchArguments.valueEither(for: "rag-validation-sampling")?.lowercased(),
++           ["greedy", "topk", "topp"].contains(raw) {
++            UserDefaults.standard.set(raw, forKey: "benchmarkSamplingStrategy")
++        } else {
++            UserDefaults.standard.removeObject(forKey: "benchmarkSamplingStrategy")
++        }
++        if let raw = LaunchArguments.valueEither(for: "rag-validation-seed"),
++           let value = UInt64(raw) {
++            UserDefaults.standard.set(NSNumber(value: value), forKey: "benchmarkSamplingSeed")
++        } else {
++            UserDefaults.standard.removeObject(forKey: "benchmarkSamplingSeed")
++        }
++        if let raw = LaunchArguments.valueEither(for: "rag-validation-temperature"),
++           let value = Double(raw), value >= 0, value <= 2 {
++            UserDefaults.standard.set(value, forKey: "benchmarkTemperature")
++        } else {
++            UserDefaults.standard.removeObject(forKey: "benchmarkTemperature")
++        }
++    }
++
+     private static func seedPCCConsentIfNeeded(_ consent: String?) {
+         guard let consent else { return }
+         let key = "cloudConsent.applePCC"
+diff --git a/OpenIntelligence/Services/LLM/LLMService.swift b/OpenIntelligence/Services/LLM/LLMService.swift
+index 2e876a5..687b665 100644
+--- a/OpenIntelligence/Services/LLM/LLMService.swift
++++ b/OpenIntelligence/Services/LLM/LLMService.swift
+@@ -666,16 +666,53 @@ struct LLMResponse {
+                 samplingMode = nil
+             }
+ 
++            // ── MEASUREMENT-ONLY BACKPORT, 2026-08-21, not part of v4.9.0 ──────────────
++            // Mirrors 5.0's override at the single point an InferenceConfig becomes
++            // GenerationOptions. Without it this arm draws an unseeded sample every run, which is
++            // the exact reason the August 12 baseline could not be differenced against anything.
++            // It changes WHICH SAMPLE IS DRAWN and nothing else: retrieval, ranking, evidence
++            // selection and prompt construction are untouched, so the comparison still measures
++            // 4.9's pipeline.
++            let benchmarkSampling = UserDefaults.standard.string(forKey: "benchmarkSamplingStrategy")
++            let benchmarkTemperature = UserDefaults.standard.object(forKey: "benchmarkTemperature") as? Double
++            let benchmarkSeed = (UserDefaults.standard.object(forKey: "benchmarkSamplingSeed") as? NSNumber)
++                .map { UInt64(truncating: $0) }
++
++            var effectiveSampling = samplingMode
++            if let benchmarkSampling {
++                switch benchmarkSampling {
++                case "greedy":
++                    effectiveSampling = .greedy
++                case "topk":
++                    effectiveSampling = .random(top: config.topK > 0 ? config.topK : 40, seed: benchmarkSeed)
++                case "topp":
++                    effectiveSampling = .random(
++                        probabilityThreshold: Double(config.topP > 0 ? config.topP : 0.9),
++                        seed: benchmarkSeed
++                    )
++                default:
++                    break
++                }
++            }
++            let effectiveTemperature = benchmarkTemperature ?? Double(config.temperature)
++            if benchmarkSampling != nil || benchmarkTemperature != nil {
++                Log.debug(
++                    "[FM] Benchmark sampling override (4.9 backport): strategy=\(benchmarkSampling ?? "<config>") "
++                        + "temperature=\(effectiveTemperature) (config had \(config.temperature))",
++                    category: .llm
++                )
++            }
++
+             #if compiler(>=6.4)
+             let options = GenerationOptions(
+-                samplingMode: samplingMode,
+-                temperature: Double(config.temperature),
++                samplingMode: effectiveSampling,
++                temperature: effectiveTemperature,
+                 maximumResponseTokens: config.maxTokens > 0 ? config.maxTokens : nil
+             )
+             #else
+             let options = GenerationOptions(
+-                sampling: samplingMode,
+-                temperature: Double(config.temperature),
++                sampling: effectiveSampling,
++                temperature: effectiveTemperature,
+                 maximumResponseTokens: config.maxTokens > 0 ? config.maxTokens : nil
+             )
+             #endif
