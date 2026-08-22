@@ -61,8 +61,16 @@ an answer is more trustworthy when you can see what it was built from.
 ### Quality modes
 
 **Standard** answers in one pass — best for lookups and direct questions. It is
-the only mode with a measured accuracy baseline: **80% across 20 ground-truthed
-cases with zero hallucinations**, local-only.
+the only mode with a measured accuracy baseline: **0.410 exact-match across 83
+cases drawn from 40 real research papers** (QASPER), local-only.
+
+> **Withdrawn 2026-08-21.** This previously read "80% across 20 ground-truthed
+> cases with zero hallucinations". That figure came from a synthetic corpus
+> written alongside its own questions, from a run now flagged in
+> `BenchmarkRuns/PROGRESSION.md` as averaging 7 seconds per case, below the
+> threshold at which generation almost certainly did not execute. The replacement
+> is a harder external set and a worse number. See
+> [How OpenIntelligence Works, section 08](Docs/HOW_IT_WORKS.md).
 
 **Deep Think** runs 4–8 sequential reasoning sessions over rotating context
 windows, passing compressed findings forward before synthesising. It stops early

@@ -252,7 +252,8 @@ engine" had nothing to read. These are the real numbers with what each one is wo
 
 | Measurement | Result | n | What it actually measures |
 | :--- | :--- | ---: | :--- |
-| Synthetic pack, 2026-08-11, standard | 18/20 correct, 0 hallucinated | 20 | reading one correct document and restating it |
+| Synthetic pack, 2026-08-11, standard | 18/20 correct, 0 hallucinated **(withdrawn 2026-08-21, see below)** | 20 | reading one correct document and restating it |
+| QASPER external, 2026-08-19, standard | 0.410 exact-match, 77 of 83 scored | 83 | real research papers this project did not write |
 | **QASPER external, 2026-08-12, standard, complete** | **34/77 correct (44%)**, 40 miss, 3 hallucinated, 6 error | 83 attempted | answering externally-authored questions against 9 distractor papers |
 | Unit suite | 236 pass, 0 fail | 236 | that units behave; no end-to-end coverage of routing, gates, sync or retrieval |
 
@@ -558,3 +559,6 @@ novelty figure late in a chain as unproven rather than as evidence of progress.
 
 `[evidence_level: measured, confidence: high, evidence_source: device capture 2026-08-14, session
 contexts 3329/2476/3300 repeated at sessions 6-8 with novelty 90/79/77]`
+
+
+> **Withdrawn 2026-08-21.** The synthetic-pack row above is kept as history and must not be quoted as a current figure. The run behind it averaged 7 seconds per case, under the 60-second threshold at which `BenchmarkRuns/PROGRESSION.md` flags generation as almost certainly not having run, and the corpus was synthetic and authored alongside its own questions. Its stage table was also measuring the ground-truth defect corrected on 2026-08-11 rather than the pipeline. The QASPER row is the current best evidence, and `BenchmarkRuns/PROGRESSION.md` is the live record.
