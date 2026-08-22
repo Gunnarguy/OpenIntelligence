@@ -911,3 +911,46 @@ accuracy. n=5 rules out a large effect, not a small one.
 **Still worth changing the default, for a different reason.** Greedy is deterministic, so a greedy
 arm has no sampling noise at all — which is the cheapest available fix for the reproducibility row,
 independent of accuracy.
+
+### **No benchmark has ever measured the shipping configuration** — found 2026-08-21
+
+Chasing why the greedy run logged `config had 0.4` when `InferenceConfig.ragOptimized` sets 0.7.
+
+**The real temperature chain for a Standard answer:**
+
+| step | value | site |
+| :-- | --: | :-- |
+| `InferenceConfig.ragOptimized` | 0.7 | `LLMModel.swift:182`, commented `// Balanced creativity` |
+| `min(config, qualityMode.temperature)` | **0.4** | `RAGService.swift:12745`, `.standard` = 0.4 |
+| evidence-first / cautious prompt | 0.2 | `RAGService.swift:12740` |
+| `highAccuracy` retrieval config | 0.2 | `RAGService.swift:12749` |
+| retry / repair / fallback | 0.2 / 0.15 / 0.4 | `:13333`, `:13403`, `:14337` |
+
+Every application is a `min()`, so 0.7 is a **ceiling that is immediately clamped**, never an
+operating value. **A correction to a claim made earlier the same day: the app does not ship at 0.7.
+Standard ships at 0.4 and several paths clamp to 0.2.** The `// Balanced creativity` comment is
+misleading but the number beside it never reaches the model.
+
+**The consequence, and it invalidates the framing of every accuracy figure in this ledger.** The
+harness applies `--temperature` inside `LLMService`, at the single point an `InferenceConfig` becomes
+`GenerationOptions` — which is **downstream of every clamp above**. So `--temperature 0.7` does not
+reproduce the app, it **overrides the app's own 0.4 and forces a hotter setting than ships.**
+
+| run | flags | effective temperature |
+| :-- | :-- | --: |
+| `passage-level-1` | `topk`, `--temperature 0.7` | 0.7 |
+| `rescue-position-fix` | `topk`, `--temperature 0.7` | 0.7 |
+| `baseline-49` (the 4.9 arm) | `topk`, `--temperature 0.7` | 0.7 |
+| `greedy-5case` | `greedy`, no `--temperature` | 0.4, and inert under greedy |
+
+**So 40%, 44%, 48% and 4.9's 27.3% were all measured at a temperature the app never uses.** The
+4.9 vs 5.0 comparison remains valid — both arms were forced to the same 0.7, so the delta is still
+attributable to code — but the absolute numbers do not describe the shipped product.
+
+**Untested and now the highest-value cheap experiment available: `topk` at 0.4**, the actual
+shipping value. If lower temperature helps at all, the shipping app is already performing better
+than every number on record. That is a plausible upside nobody has measured, and it costs one run.
+
+**Do not add `--temperature 0.7` to future runs by habit.** A run intended to describe the product
+should pass no `--temperature` at all and let the clamps do their work; a run intended to compare two
+builds should pin both arms to the same value and say so.

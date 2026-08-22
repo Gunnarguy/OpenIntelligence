@@ -150,6 +150,30 @@ nowhere in this repository. On 27, PCC exists in shipped builds. Below it, the e
 `#if compiler(>=6.4)` sites compile out and every PCC request reaches `throw
 LLMError.modelUnavailable` in the shipped app.
 
+## Benchmark temperature does not match the app — found 2026-08-21, unresolved
+
+`InferenceConfig.ragOptimized` sets `temperature = 0.7 // Balanced creativity`, but that is a
+**ceiling**, not an operating value. `RAGService.swift:12745` applies
+`min(config.temperature, qualityMode.temperature)` and `.standard` is **0.4**; the evidence-first
+prompt, `highAccuracy` config, retry, repair and fallback paths clamp further to 0.2/0.15.
+
+**The harness overrides all of it.** `--temperature` is applied in `LLMService` where
+`GenerationOptions` is built, downstream of every clamp, so `--temperature 0.7` forces a hotter
+setting than the app ever uses. **Every accuracy figure on record — 4.9's 27.3%, 5.0's 40/44/48% —
+was measured at 0.7. The app ships 0.4.**
+
+The 4.9 vs 5.0 delta survives, because both arms were pinned to the same 0.7 and the difference is
+therefore attributable to code. The **absolute** numbers do not describe the shipped product.
+
+**Next run should be `topk` with no `--temperature`**, so the clamps apply and the benchmark
+describes the app. If cooler helps, the shipped app is already better than every recorded number.
+Unmeasured, one run to find out.
+
+Also verified against Apple's SDK the same day: `GenerationOptions` exposes exactly
+`samplingMode`, `temperature`, `maximumResponseTokens`, `toolCallingMode` (27+). **The
+`frequencyPenalty`, `presencePenalty` and `repetitionPenalty` fields in `ragOptimized` are dead
+config** and never reach the model. Apple documents temperature as 0–1; the harness validates 0–2.
+
 ## Status
 
 All work is on `main`, none pushed. Every run is recorded in `BenchmarkRuns/LEDGER.md` (prose,
