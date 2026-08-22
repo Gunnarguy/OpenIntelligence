@@ -21,6 +21,28 @@ struct GlossaryView: View {
     @State private var query = ""
     @AppStorage(GlossaryPreference.technicalDetailKey) private var showsTechnical = false
 
+    /// Which term's sheet is open, if any. `.sheet(item:)` rather than `NavigationLink(value:)`.
+    ///
+    /// This screen was pushing `GlossaryTermDetail` via `NavigationLink(value: term.id)` plus
+    /// `.navigationDestination(for: GlossaryTermID.self)`, on the same `List` that also carries
+    /// `.searchable(text:)`. That combination is a known SwiftUI collision — both modifiers
+    /// install machinery on the surrounding navigation controller — and moving the destination
+    /// registration to a parent `Group` (tried first, 2026-08-22) did not fix it: reported on
+    /// device as a push that animates but shows no new content, where the *first* subsequent back
+    /// tap is what actually reveals the term detail, and the second back tap is what a single
+    /// correct pop should have done. That is a transition one step behind the real navigation
+    /// stack, not a destination-registration problem, so no amount of moving where
+    /// `.navigationDestination` is declared was going to fix it.
+    ///
+    /// Every other place in the app that opens a definition — `GlossaryInfoButton`, used from
+    /// `HowItWorksView` and every Settings hardware row — already does this via
+    /// `.sheet(item:)` presenting `GlossaryTermSheet`, and none of those are reported broken.
+    /// Switching this screen to the same mechanism removes the collision rather than trying to
+    /// out-maneuver it, and costs nothing: `GlossaryTermSheet` has its own isolated
+    /// `NavigationStack`, so "Related" term taps inside it still push correctly, independent of
+    /// this screen's `.searchable`.
+    @State private var presentedTerm: GlossaryTermID?
+
     private var trimmed: String {
         query.trimmingCharacters(in: .whitespacesAndNewlines)
     }
@@ -40,48 +62,44 @@ struct GlossaryView: View {
     // `.navigationDestination` one level up, on a plain `Group` the search controller has no
     // reason to touch, removes the collision regardless of the exact mechanism.
     var body: some View {
-        Group {
-            List {
-                if trimmed.isEmpty {
-                    Section {
-                        intro
-                            .listRowInsets(EdgeInsets())
-                            .listRowBackground(Color.clear)
-                            .listRowSeparator(.hidden)
-                    }
+        List {
+            if trimmed.isEmpty {
+                Section {
+                    intro
+                        .listRowInsets(EdgeInsets())
+                        .listRowBackground(Color.clear)
+                        .listRowSeparator(.hidden)
+                }
 
-                    ForEach(GlossarySection.allCases) { section in
-                        Section {
-                            ForEach(Glossary.terms(in: section)) { term in
-                                row(term)
-                            }
-                        } header: {
-                            Label(section.title, systemImage: section.icon)
-                        }
-                    }
-                } else {
+                ForEach(GlossarySection.allCases) { section in
                     Section {
-                        ForEach(results) { term in
+                        ForEach(Glossary.terms(in: section)) { term in
                             row(term)
                         }
                     } header: {
-                        Text("\(results.count) \(results.count == 1 ? "term" : "terms")")
+                        Label(section.title, systemImage: section.icon)
                     }
                 }
-            }
-            .searchable(text: $query, prompt: "Search these words")
-            .overlay {
-                if !trimmed.isEmpty, results.isEmpty {
-                    ContentUnavailableView.search(text: trimmed)
+            } else {
+                Section {
+                    ForEach(results) { term in
+                        row(term)
+                    }
+                } header: {
+                    Text("\(results.count) \(results.count == 1 ? "term" : "terms")")
                 }
             }
         }
+        .searchable(text: $query, prompt: "Search these words")
         .navigationTitle("Plain English")
         .navigationBarTitleDisplayMode(.inline)
-        .navigationDestination(for: GlossaryTermID.self) { id in
-            GlossaryTermDetail(termID: id)
-                .navigationTitle(id.definition.term)
-                .navigationBarTitleDisplayMode(.inline)
+        .overlay {
+            if !trimmed.isEmpty, results.isEmpty {
+                ContentUnavailableView.search(text: trimmed)
+            }
+        }
+        .sheet(item: $presentedTerm) { id in
+            GlossaryTermSheet(startingTerm: id)
         }
     }
 
@@ -112,7 +130,10 @@ struct GlossaryView: View {
     }
 
     private func row(_ term: GlossaryTerm) -> some View {
-        NavigationLink(value: term.id) {
+        Button {
+            DSHaptics.light()
+            presentedTerm = term.id
+        } label: {
             HStack(alignment: .top, spacing: DSSpacing.md) {
                 Image(systemName: term.icon)
                     .font(.footnote.weight(.semibold))
@@ -134,7 +155,9 @@ struct GlossaryView: View {
                 }
             }
             .padding(.vertical, 2)
+            .contentShape(Rectangle())
         }
+        .buttonStyle(.plain)
         .accessibilityLabel(term.term)
         .accessibilityHint(term.plain)
     }
