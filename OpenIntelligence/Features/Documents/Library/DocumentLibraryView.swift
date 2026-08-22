@@ -172,11 +172,21 @@ struct DocumentLibraryView: View {
         return "Only on this device: \(localNames). Only in iCloud: \(sharedNames)."
     }
 
-    private var emptyStateView: some View {
+    /// Content shown below the persistent `documentHeader`, for a library with no documents.
+    ///
+    /// `documentHeader` used to live inside this view *and* inside `documentListContent`, as two
+    /// separate calls to the same computed property. `libraryContentView` swaps between the two
+    /// with a plain `if/else`, and SwiftUI cannot tell that a `documentHeader` on one side of that
+    /// branch is "the same" view as a `documentHeader` on the other — they are different parents,
+    /// so crossing the branch tore the whole header down and rebuilt it, including
+    /// `ContainerPickerStrip`'s horizontal `ScrollView`. A rebuilt `ScrollView` starts at its
+    /// leading edge, which is why switching to or from an empty library made the library picker
+    /// visibly jump back to the first pill and the whole screen flash, even though
+    /// `containerService.activeContainerId` never actually changed. `documentHeader` is now
+    /// rendered once, by `libraryContentView`, above this branch entirely.
+    private var emptyStateContent: some View {
         ScrollView {
             VStack(spacing: 16) {
-                documentHeader
-
                 EmptyDocumentsView(
                     isImportingSamples: isImportingSamples,
                     hasImportedSamples: onboardingStore.hasImportedSamples,
@@ -193,10 +203,10 @@ struct DocumentLibraryView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
-    private var documentListView: some View {
-        VStack(spacing: 12) {
-            documentHeader
-
+    /// Content shown below the persistent `documentHeader`, for a library with documents.
+    /// See `emptyStateContent` for why `documentHeader` no longer lives in here.
+    private var documentListContent: some View {
+        Group {
             // Document list with modern styling
             ScrollView {
                 LazyVStack(spacing: 12) {
@@ -1357,10 +1367,14 @@ struct DocumentLibraryView: View {
             )
             .ignoresSafeArea()
 
-            if filteredDocuments.isEmpty {
-                emptyStateView
-            } else {
-                documentListView
+            VStack(spacing: 12) {
+                documentHeader
+
+                if filteredDocuments.isEmpty {
+                    emptyStateContent
+                } else {
+                    documentListContent
+                }
             }
 
             if settings.showSiliconHUD {

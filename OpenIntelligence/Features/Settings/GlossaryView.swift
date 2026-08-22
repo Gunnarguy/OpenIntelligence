@@ -29,47 +29,59 @@ struct GlossaryView: View {
         Glossary.search(trimmed)
     }
 
+    // `.navigationDestination(for:)` sits on this wrapper rather than directly on the `List`
+    // below, and the reason is `.searchable`. Both modifiers attach machinery to the surrounding
+    // navigation controller — `.searchable` installs a `UISearchController` on it, and
+    // `.navigationDestination` installs a destination provider on it — and putting both on the
+    // exact same view is a known collision point: a push fired by `NavigationLink(value:)` from
+    // inside a searchable list can fail to resolve cleanly against a destination registered on
+    // that same list, so the transition animates but does not land on new content, and the stack
+    // is left in a state a subsequent pop does not recover from correctly. Declaring
+    // `.navigationDestination` one level up, on a plain `Group` the search controller has no
+    // reason to touch, removes the collision regardless of the exact mechanism.
     var body: some View {
-        List {
-            if trimmed.isEmpty {
-                Section {
-                    intro
-                        .listRowInsets(EdgeInsets())
-                        .listRowBackground(Color.clear)
-                        .listRowSeparator(.hidden)
-                }
-
-                ForEach(GlossarySection.allCases) { section in
+        Group {
+            List {
+                if trimmed.isEmpty {
                     Section {
-                        ForEach(Glossary.terms(in: section)) { term in
+                        intro
+                            .listRowInsets(EdgeInsets())
+                            .listRowBackground(Color.clear)
+                            .listRowSeparator(.hidden)
+                    }
+
+                    ForEach(GlossarySection.allCases) { section in
+                        Section {
+                            ForEach(Glossary.terms(in: section)) { term in
+                                row(term)
+                            }
+                        } header: {
+                            Label(section.title, systemImage: section.icon)
+                        }
+                    }
+                } else {
+                    Section {
+                        ForEach(results) { term in
                             row(term)
                         }
                     } header: {
-                        Label(section.title, systemImage: section.icon)
+                        Text("\(results.count) \(results.count == 1 ? "term" : "terms")")
                     }
                 }
-            } else {
-                Section {
-                    ForEach(results) { term in
-                        row(term)
-                    }
-                } header: {
-                    Text("\(results.count) \(results.count == 1 ? "term" : "terms")")
+            }
+            .searchable(text: $query, prompt: "Search these words")
+            .overlay {
+                if !trimmed.isEmpty, results.isEmpty {
+                    ContentUnavailableView.search(text: trimmed)
                 }
             }
         }
-        .searchable(text: $query, prompt: "Search these words")
         .navigationTitle("Plain English")
         .navigationBarTitleDisplayMode(.inline)
         .navigationDestination(for: GlossaryTermID.self) { id in
             GlossaryTermDetail(termID: id)
                 .navigationTitle(id.definition.term)
                 .navigationBarTitleDisplayMode(.inline)
-        }
-        .overlay {
-            if !trimmed.isEmpty, results.isEmpty {
-                ContentUnavailableView.search(text: trimmed)
-            }
         }
     }
 
