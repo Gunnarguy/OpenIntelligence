@@ -189,7 +189,7 @@ def _cmd(*args: str, merge_stderr: bool = False) -> str:
     entire point of probing.
     """
     try:
-        p = subprocess.run(args, capture_output=True, text=True, timeout=15)
+        p = subprocess.run(args, capture_output=True, text=True, errors="replace", timeout=15)
         out = p.stdout.strip()
         if merge_stderr and p.stderr.strip():
             # Strip ANSI colour so the recorded provenance is plain text.
@@ -719,7 +719,20 @@ def run_one(
 
     started = dt.datetime.now()
     try:
-        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+        # `errors="replace"` is load-bearing, not defensive tidiness.
+        #
+        # 2026-08-22: the 4.9 baseline arm died at case 11 of 83, five hours into an overnight
+        # run, with `UnicodeDecodeError: 'utf-8' codec can't decode byte 0xef in position 50103:
+        # unexpected end of data`. The app's stdout was cut mid-multibyte-character, and
+        # `text=True` decodes strictly, so one truncated glyph in a log line raised out of
+        # `subprocess.run` and took the entire remaining 72 cases with it. The 5.0 arm had
+        # completed only because it happened not to emit a split character.
+        #
+        # A benchmark harness must never lose a run over the *encoding of a log line*. The report
+        # is parsed with regexes over ASCII markers, so a replacement character costs nothing.
+        proc = subprocess.run(
+            cmd, capture_output=True, text=True, errors="replace", timeout=timeout
+        )
         elapsed = (dt.datetime.now() - started).total_seconds()
         report = proc.stdout
         if "OPENINTELLIGENCE RAG VALIDATION" not in report:
