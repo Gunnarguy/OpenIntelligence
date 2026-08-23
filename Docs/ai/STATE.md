@@ -24,6 +24,17 @@ One minor anomaly logged, not chased: one container loaded "0 chunks" then self-
 the very next read, one line later. Not the permanent loss class from before. Worth a look if it
 ever fails to self-correct.
 
+**Third and fourth traces, same day: cross-library query scoping confirmed clean.** A trace with
+12 real query/answer cycles across two different libraries shows each retrieval explicitly logged
+against its own correct container id (`[Hybrid] Using FTS5-accelerated BM25 for container X`), no
+ambiguity, no bleed-over. This is real, positive evidence that switching libraries and querying each
+one keeps retrieval correctly scoped. Caught only on a second look — the first pass searched for
+`[SYSTEM] Query received`, the debug-harness log format, and missed real chat-tab activity entirely,
+which logs as `[GENERATION]`/`[FM]`/`[Hybrid]` instead. Worth remembering for the next trace read.
+
+Does not resolve the specific `0A7415CB` mystery-container question from the previous trace — that
+container does not appear in this one at all (different session). That narrow question is still open.
+
 **Second trace, same day, `Test.txt`: the library-picker fix (`e1113f7`) confirmed under load.** 21
 rapid container switches across 7 libraries, every chunk count loaded correctly, no resets. Gap:
 none of the 7 libraries were empty, so the exact scenario the fix targeted (switching to/from an
