@@ -88,7 +88,7 @@ so far.** The Claude Code iOS Simulator streaming panel crashed and stopped retr
 the first two, so most of this was reasoned from code rather than watched happen; the glossary
 navigation fix is the exception, confirmed directly against the owner's physical device.
 
-1. **Library picker resetting to the first library — still not device-confirmed.**
+1. **Library picker resetting to the first library — confirmed stable under general use, the exact edge case still unconfirmed.** A device trace (`Test.txt`, 2026-08-22) shows 21 rapid switches across 7 populated libraries, every chunk count correct, no resets. But none of those libraries were empty, and the bug was specifically about switching to/from an *empty* library. Encouraging, not conclusive — test that specific case before calling this fully closed.
    `documentHeader`, which hosts `ContainerPickerStrip`, was called from both branches of an `if
    filteredDocuments.isEmpty { emptyStateView } else { documentListView }`, so switching to or from
    an empty library tore the picker's `ScrollView` down and rebuilt it at its default scroll

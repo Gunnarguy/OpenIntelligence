@@ -24,6 +24,15 @@ One minor anomaly logged, not chased: one container loaded "0 chunks" then self-
 the very next read, one line later. Not the permanent loss class from before. Worth a look if it
 ever fails to self-correct.
 
+**Second trace, same day, `Test.txt`: the library-picker fix (`e1113f7`) confirmed under load.** 21
+rapid container switches across 7 libraries, every chunk count loaded correctly, no resets. Gap:
+none of the 7 libraries were empty, so the exact scenario the fix targeted (switching to/from an
+*empty* library, which is what tore the picker's `ScrollView` down) is still unconfirmed. Also
+noted: a recurring `[ERROR] couldn't fetch remote operation IDs` / FileProvider permission error on
+a batch of items, present in both traces, unrelated to the RAG/vector subsystem as far as can be
+told from the logs alone — not chased, flagged for awareness only.
+
+
 ## Objective
 
 **Get v5.0 shippable.** The question that gated this is **answered**: Xcode Cloud builds with
