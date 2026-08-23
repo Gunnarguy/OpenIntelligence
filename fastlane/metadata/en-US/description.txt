@@ -20,17 +20,17 @@ Import PDFs, Office documents, text and Markdown files, CSVs, code, images and s
 
 HOW ANSWERS ARE BUILT
 
-Exact keyword matching and semantic search work together to retrieve the passages that matter. Apple Foundation Models turn those passages into a natural-language response. Then citation and verification stages compare the response against the retrieved material, so you can inspect its support instead of taking its word.
+Exact keyword matching and semantic search work together to retrieve the passages that matter. Apple Foundation Models turn those passages into a natural-language response. Then the app checks its own answer against the passages it actually used, so you can inspect what it's standing on instead of taking its word.
 
 If the sources do not establish an answer, the app flags weak support or abstains. No confident filler.
 
 WHERE YOUR FILES GO (AND DON'T)
 
-Document processing, indexing, retrieval, evidence selection, and citation checking run on your device. On-device answers need no connection at all. On a plane, in a dead zone, in a locked-down office, your library still works. Optional Apple Private Cloud Compute support for longer evidence-heavy questions is built and will enable in a future release on iOS and macOS 27; when it does, the app will show you exactly what would be sent and ask you to approve it first. Your material is never sent to a third-party AI provider.
+Reading your files, searching them, and choosing what to cite all happen on your device, start to finish, before anything is written. On-device answers need no connection at all. On a plane, in a dead zone, in a locked-down office, your library still works. Optional Apple Private Cloud Compute support for longer evidence-heavy questions is built and will enable in a future release on iOS and macOS 27; when it does, the app will show you exactly what would be sent and ask you to approve it first. Your material is never sent to a third-party AI provider.
 
 ANSWERS YOU CAN INSPECT
 
-Inline citations connect answers to their supporting pages and passages. Response details expose source snippets, retrieval quality, verification warnings, timing, and the route that actually produced the answer. The optional telemetry interface goes deeper when you want it and stays out of the way when you don't.
+Inline citations connect answers to their supporting pages and passages, one tap from claim to source. If you want more, response details go deeper: source snippets, retrieval quality, verification warnings, timing, and the route that actually produced the answer. The optional telemetry interface goes deeper when you want it and stays out of the way when you don't.
 
 LIBRARIES THAT FIT YOUR WORK
 

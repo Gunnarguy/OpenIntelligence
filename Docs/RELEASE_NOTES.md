@@ -28,9 +28,9 @@ This document provides a comprehensive, version-by-version breakdown of major ar
 
 ## v5.0 - August 10, 2026
 
-161 entries, 49 `[UI]`, 36 `[Orchestration]`, 31 `[General]`, 23 `[Retrieval]`, 17 `[Ingestion]`, 2 `[Infrastructure]`, 2 `[Indexing]`, 1 `[Chunking]`. Recounted from `CHANGELOG.md` on 2026-08-18. This figure has gone stale four times: it read
-46 before the interface pass, 74 before the correctness pass that followed, and 87 on 2026-08-11,
-because it is a typed number describing a countable fact. Recount it rather than trusting it, with:
+217 entries, 65 `[UI]`, 42 `[Orchestration]`, 38 `[General]`, 26 `[Retrieval]`, 23 `[Ingestion]`, 13 `[Indexing]`, 9 `[Infrastructure]`, 1 `[Chunking]`. Recounted from `CHANGELOG.md` on 2026-08-22. This figure has gone stale five times now, most recently
+sitting at 161 for four days across an entire device-verification cycle, because it is a typed number describing a
+countable fact. Recount it rather than trusting it, with:
 
 ```bash
 awk '/^## 5\.0/{f=1;next} /^## 4\./{f=0} f' CHANGELOG.md | grep -c '^- \*\*\['

@@ -120,8 +120,33 @@ final class WhatsNewStore: ObservableObject {
                 ),
                 .init(
                     symbol: "wrench.and.screwdriver",
-                    title: "A library that cannot answer now says so, and can fix itself",
-                    detail: "If a library's search index goes missing, it now tells you and offers a rebuild that works. Before, it stayed silent and deleting the library was the only way out."
+                    title: "Four ways a library could lose its answers while keeping its documents, closed",
+                    detail: "A library could look fine and answer nothing, with no warning, sometimes for an entire session. Detection now runs the moment a question comes back empty, and a repair no longer reports success when it was blocked from doing anything."
+                ),
+                .init(
+                    symbol: "arrow.triangle.2.circlepath",
+                    title: "Importing certain documents could freeze the whole queue",
+                    detail: "One file lookup could deadlock, and everything queued behind it waited forever with no explanation. Fixed at the root; a stuck import can no longer take the rest of the queue down with it."
+                ),
+                .init(
+                    symbol: "arrow.left.arrow.right.square",
+                    title: "Switching libraries no longer resets your place or flashes the screen",
+                    detail: "The library picker was rebuilding itself from scratch on certain switches, which reset it back to your first library and made the whole screen visibly redraw."
+                ),
+                .init(
+                    symbol: "quote.opening",
+                    title: "Citations always point at a real source now",
+                    detail: "An answer could cite a source number past the end of its own list, and confidence still reported a reassuring middle number. Citations are checked before you see them, and confidence can now report a genuine failure."
+                ),
+                .init(
+                    symbol: "arrow.triangle.merge",
+                    title: "Combining keyword and meaning-based search stopped losing to keyword search alone",
+                    detail: "The two are supposed to complement each other. The combined result was ranking worse than plain keyword search by itself; it no longer does."
+                ),
+                .init(
+                    symbol: "character.book.closed",
+                    title: "Plain English definitions open reliably, and cover a lot more of the app",
+                    detail: "Tapping a term could animate to nothing and leave the back button pointed at a blank screen; fixed. Seven new entries too, including the difference between Standard, Deep Think and Maximum, and what confidence and the trust badges actually mean."
                 ),
                 .init(
                     symbol: "icloud",

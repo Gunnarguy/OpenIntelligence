@@ -1,4 +1,4 @@
-> **Documentation status:** Updated for OpenIntelligence v5.0 on August 11, 2026. Entries are drawn from `Docs/USER_CHANGELOG.md`, which is the source this file follows.
+> **Documentation status:** Updated for OpenIntelligence v5.0 on August 22, 2026. Entries are drawn from `Docs/USER_CHANGELOG.md`, which is the source this file follows.
 
 # What's New
 
@@ -13,7 +13,7 @@ Documents were quietly losing parts of themselves, answers were built from a fra
 - **The app starts faster:** a 43 MB model loaded on every launch before anything appeared, even if you never asked a question. It now loads when it is first needed.
 - **Deep Think stops when it runs out of new material:** on smaller libraries it repeated its first three reasoning passes word for word, about a third of the total time, learning nothing. It still reads everything it retrieved.
 - **Switching libraries during an import no longer splits the document from its index:** the file was filed in one library and the part that makes it searchable in another, so it appeared in the list and answered nothing.
-- **A library that stopped answering questions can now fix itself:** the check only ran when you switched libraries, and the repair reported success even when it had been blocked from doing anything. Deleting the library used to be the only way out.
+- **Four separate ways a library could lose its ability to answer while still showing its documents, found and closed:** detection now runs the moment a question comes back with nothing, not only when you switch libraries, and a repair no longer reports success when it was blocked from doing anything.
 - **iCloud sync stopped re-uploading libraries that had not changed:** it rewrote every index on every pass, and each rewrite looked like a change and started another pass. It now compares before writing. Less battery, less data, same sync.
 - **The source chips under an answer scroll properly:** swiping across them sometimes registered as a tap. Same look, no longer fights the scroll.
 - **Leaving the chat tab no longer kills the answer you were waiting for:** it used to cancel and discard the partial answer with no explanation.
@@ -26,6 +26,8 @@ Documents were quietly losing parts of themselves, answers were built from a fra
 - **Every action above your documents is now one tap:** five icons on a single row instead of two buttons and a three-dot menu. Nothing hidden, nothing removed, and both delete actions still confirm first.
 - **Press and hold on a library now behaves like the rest of iOS:** the old custom gesture competed with sideways scrolling, so holding a library sometimes scrolled the row instead.
 - **Creating a library no longer suggests a name you already have:** the suggestion counted your libraries instead of reading their names, so after a deletion it could propose one already in use.
+- **Importing certain documents could freeze the whole import queue:** one file-path lookup could deadlock, and everything queued behind it waited forever. Fixed at the root.
+- **Switching between libraries no longer resets your place or flashes the screen:** the library picker was rebuilding itself from scratch on certain switches, which reset its scroll position and made the screen visibly redraw.
 
 ### Your Documents
 - **Tables in Word documents were being thrown away:** each one was read into rows and then dropped, so a document could import looking fine with all of its numbers missing.
@@ -37,6 +39,9 @@ Documents were quietly losing parts of themselves, answers were built from a fra
 ### Answers
 - **Search ranks section headings again.** A weighting mistake had dropped section paths out of ranking entirely.
 - **Long questions can reach Private Cloud Compute** instead of being kept on device precisely when they were too big for it.
+- **Deep Think was writing its answer from a fraction of what it actually found:** it could retrieve the right passages and discard most of them, including the best one, before writing a word.
+- **Citations now always point at a source that's actually there,** and confidence can report a genuine failure instead of always settling on a reassuring middle number.
+- **Combining keyword and meaning-based search stopped losing to keyword search alone.**
 
 ### Settings
 - **Settings is a searchable list instead of one very long scroll.** It was fifteen stacked panels with everything at the same volume. It's now about ten rows in sections, each opening its own screen, with search at the top. Nothing was removed, type "temperature" and you land on it.
@@ -51,6 +56,8 @@ Documents were quietly losing parts of themselves, answers were built from a fra
 - **Two explanations for each, not one:** a plain one first, and the mechanism underneath if you want it. Turn the technical version on once and it stays on everywhere.
 - **The four import stages explain themselves while they run:** Extract, Chunk, Embed and Index are tappable during the import you watch on first launch.
 - **Nothing is buried:** Settings has the full list under Plain English, searchable, including by the technical name if that is the word you know.
+- **Tapping a Plain English term now reliably opens its definition** instead of sometimes animating to nothing and leaving the back button pointed at a blank screen.
+- **Plain English covers a lot more of the app:** seven new entries, including Standard vs. Deep Think vs. Maximum, where an answer actually gets written, and the trust cluster, confidence, fidelity, the live verification checklist, and the "Abstained" badge.
 
 ### Your Libraries
 - **"Remove Local Copies" is now "Remove All Documents":** it never only removed local copies, it deleted those documents from iCloud and your other devices while saying Sync Now could bring them back.

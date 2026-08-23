@@ -1,4 +1,4 @@
-> **Documentation status:** Source-verified for OpenIntelligence v5.0 on August 11, 2026. The v5.0 entries below were each checked against the code that implements them. Anything device-only, including Private Cloud Compute behaviour and the library management screens added late in v5.0, is build-verified rather than device-verified and is called out where it matters.
+> **Documentation status:** Source-verified for OpenIntelligence v5.0 on August 22, 2026. Entries added or revised this pass are checked against the code and commit that implements them; the vector-loss and self-heal fixes are additionally confirmed by real device console traces captured the same day, not simulator or code reading alone. Anything device-only that has *not* been traced, including Private Cloud Compute behaviour, is build-verified rather than device-verified and is called out where it matters.
 
 
 # OpenIntelligence User-Facing Changelog
@@ -15,7 +15,7 @@ Documents were quietly losing parts of themselves, answers were built from a fra
 - **The app starts faster.** A 43 MB model was being loaded every single launch, before anything appeared on screen, whether or not you went on to ask a question or import anything. It now loads the first time it is actually needed. If you open the app to check something and close it again, that work never happens.
 - **Deep Think stops when it runs out of new material instead of re-reading.** On a smaller library it would run its full eight reasoning passes even after it had already read everything, repeating the first three passes word for word. Those repeats took about a third of the total time and could not tell it anything new. It now stops once it has covered the material. It still reads every part of every document it retrieved, and it still keeps going when there is genuinely more to read.
 - **Switching libraries during an import no longer splits the document from its index.** If you started importing a file and then moved to another library while it processed, the file was filed in the library you started in but the part that makes it searchable was written to the one you moved to. The document showed up in the list and in the database view, and then answered nothing, which is the state that made a library look broken for no reason. An import now always writes to the library it started in, however long it takes and wherever you go in the meantime.
-- **A library that stopped answering questions can now fix itself.** It was possible for a library to keep its documents and its text search while losing the part that answers questions — the file was still listed, but asking about it returned nothing, and the Atlas view was empty. The app checked for this only when you switched libraries, so if it happened while you were already looking at one, nothing ever noticed and deleting the library was the only way out. The check now also runs when a question comes back with nothing, the repair no longer reports success when it was blocked from doing anything, and a rebuild that cannot run because files are still importing now says so instead of failing quietly.
+- **Four separate ways a library could lose its ability to answer while still showing its documents, found and closed.** A library could keep its file list and its text search while the part that actually answers questions quietly went missing, and detection previously ran only when you switched libraries, so it could sit broken for an entire session with nothing to tell you. The check now also runs the moment a question comes back with nothing, a rebuild that genuinely repaired the library is verified end to end on device rather than assumed, the repair no longer reports success when it was blocked from doing anything, and a rebuild that cannot run because files are still importing now says so instead of failing quietly.
 - **iCloud sync stopped re-uploading libraries that had not changed.** Every sync pass rewrote each library's search index whether or not anything was different, and because rewriting a file looks like a change, that started another pass. One launch could do this six times over, writing hundreds of megabytes and queueing half of it to iCloud, all of it identical to what was already there. Sync now compares before it writes, and skips when nothing differs. Nothing about what gets synced has changed, only how often it is rewritten.
 - **The source chips under an answer scroll properly now.** They used a custom press handler that fought the sideways scroll, so swiping across them sometimes registered as a tap instead. They look and respond exactly the same, they just no longer argue with the scroll.
 - **Leaving the chat tab no longer kills the answer you were waiting for.** Switching to Documents mid-answer and coming back used to cancel it and discard everything written so far, with nothing to tell you why. The answer now keeps going while you look at something else.
@@ -28,94 +28,101 @@ Documents were quietly losing parts of themselves, answers were built from a fra
 - **Every action above your documents is now one tap.** Add, search, library settings, emptying a library and deleting one were two buttons and a three-dot menu hiding the rest. They are now five icons on a single row, nothing hidden. VoiceOver still reads each one's full name, including which library a delete would affect, and both delete actions still ask you to confirm and still tell you exactly what will go.
 - **Press and hold on a library now behaves like the rest of iOS.** It was using a custom gesture that competed with sideways scrolling, so holding a library sometimes scrolled the row instead and nothing told you which one was about to happen. It now uses the standard press-and-hold menu, with the usual preview and haptic.
 - **Creating a library no longer suggests a name you already have.** The suggested name was based on how many libraries you had rather than what they were called, so after deleting one, the next suggestion could collide with a library still on screen. Accepting it left you with two libraries sharing a name.
+- **Importing certain documents could freeze the whole import queue.** One kind of file-path lookup could deadlock partway through, and because everything after it in the queue waits its turn, nothing else would import either until the app was force-quit. Found from a live stack sample and fixed at the root.
+- **Switching between libraries no longer resets your place or flashes the screen.** The library picker at the top of Documents was rebuilt from scratch every time you switched to or from an empty library, which reset its scroll position back to your first library and made the whole screen visibly redraw. Switching libraries now leaves the picker exactly where it was.
 
 ### Your Documents
 
-*   **Tables in Word documents were being thrown away.** Each one was read into rows and then dropped, so a document could import looking fine with all of its numbers missing.
-*   **Images keep their layout.** Every image became one unbroken line of text before anything downstream could read it.
-*   **Photographing a page now matches importing it.** Camera captures came out as flat text where the same page imported as table cells.
-*   **Scanned pages report their scanning honestly.** A fully scanned PDF used to tell you it had scanned zero pages.
-*   **A page the parser knew it had read badly is no longer repaired and then discarded.**
-*   **PDFs with figures but no tables keep their figures.**
-*   **Pages, Numbers and Keynote files now fail clearly.** They were never actually readable; importing one no longer looks like it worked.
+- **Tables in Word documents were being thrown away.** Each one was read into rows and then dropped, so a document could import looking fine with all of its numbers missing.
+- **Images keep their layout.** Every image became one unbroken line of text before anything downstream could read it.
+- **Photographing a page now matches importing it.** Camera captures came out as flat text where the same page imported as table cells.
+- **Scanned pages report their scanning honestly.** A fully scanned PDF used to tell you it had scanned zero pages.
+- **A page the parser knew it had read badly is no longer repaired and then discarded.**
+- **PDFs with figures but no tables keep their figures.**
+- **Pages, Numbers and Keynote files now fail clearly.** They were never actually readable; importing one no longer looks like it worked.
 
 ### Answers
 
-*   **Search ranks section headings again.** A weighting mistake had dropped section paths out of ranking entirely.
-*   **Evidence that retrieval had already found is no longer discarded** when sentence extraction matches nothing.
-*   **Long questions can now reach Private Cloud Compute.** They were being kept on device precisely when they were too big for it.
+- **Search ranks section headings again.** A weighting mistake had dropped section paths out of ranking entirely.
+- **Evidence that retrieval had already found is no longer discarded** when sentence extraction matches nothing.
+- **Long questions can now reach Private Cloud Compute.** They were being kept on device precisely when they were too big for it.
+- **Deep Think was writing its answer from a fraction of what it actually found.** It could retrieve the right passages and then discard most of them before writing a single word of the answer, including the single best one it found. It now keeps what it retrieved and, in the technical detail view, says exactly what it chose to leave out and why.
+- **Citations now always point at a source that's actually there.** An answer could cite a source number past the end of its own source list, and nothing caught it. Citations are checked against the real list before you see them, and the confidence score can now report a genuine failure instead of always settling on a reassuring middle number.
+- **Combining keyword and meaning-based search stopped losing to keyword search alone.** The two search methods are supposed to complement each other, and instead the combined result was ranking worse than keyword search by itself. The keyword search's best matches can no longer be crowded out before the two are compared.
 
 ### Your Sample Documents
 
-*   **The three sample documents described things the app cannot do.** They claimed Pages, Numbers and Keynote support, credited the wrong framework, and documented a screen that does not exist. The app answers questions out of those documents, so a wrong sentence became a wrong answer.
-*   **If you already had them, they update themselves once.** You will see a short re-import the first time you open Documents, and a notice explaining it. Nothing you imported yourself is touched, and samples you deleted stay deleted.
+- **The three sample documents described things the app cannot do.** They claimed Pages, Numbers and Keynote support, credited the wrong framework, and documented a screen that does not exist. The app answers questions out of those documents, so a wrong sentence became a wrong answer.
+- **If you already had them, they update themselves once.** You will see a short re-import the first time you open Documents, and a notice explaining it. Nothing you imported yourself is touched, and samples you deleted stay deleted.
 
 ### Settings
 
-*   **Settings is a searchable list instead of one long scroll.** Fifteen stacked panels became about ten rows in sections. Nothing was removed. Type "temperature" and you land on it.
-*   **The generation controls are reachable.** Temperature and response length were built with no way into them. Settings → Advanced, one tap. Both work on device and on Private Cloud Compute.
-*   **You can choose how the model picks its words.** Top-K, Top-P or Greedy. The app used to decide for you and always picked the same one, so the Top-P slider did nothing. Unchanged unless you change it.
-*   **Answers can be made reproducible.** Turn on "Reproducible answers" and the same question against the same library returns the same answer every time. Useful if you are checking work, or comparing two libraries fairly.
-*   **Controls that never affected Apple Intelligence now say so.** The three penalty sliders apply to a self-hosted model, not to on-device or Private Cloud Compute answers.
-*   **Five switches that did nothing are no longer switches.** Writing Tools, Speech Analysis, Translation, Screen Awareness and Image Playground are real and always on. The toggles never controlled them.
+- **Settings is a searchable list instead of one long scroll.** Fifteen stacked panels became about ten rows in sections. Nothing was removed. Type "temperature" and you land on it.
+- **The generation controls are reachable.** Temperature and response length were built with no way into them. Settings → Advanced, one tap. Both work on device and on Private Cloud Compute.
+- **You can choose how the model picks its words.** Top-K, Top-P or Greedy. The app used to decide for you and always picked the same one, so the Top-P slider did nothing. Unchanged unless you change it.
+- **Answers can be made reproducible.** Turn on "Reproducible answers" and the same question against the same library returns the same answer every time. Useful if you are checking work, or comparing two libraries fairly.
+- **Controls that never affected Apple Intelligence now say so.** The three penalty sliders apply to a self-hosted model, not to on-device or Private Cloud Compute answers.
+- **Five switches that did nothing are no longer switches.** Writing Tools, Speech Analysis, Translation, Screen Awareness and Image Playground are real and always on. The toggles never controlled them.
 
 ### Every Word, Explained Where You Read It
 
-*   **Tap any figure the app shows you and it tells you what it means.** "38 TOPS", "32/batch", "768 search", "Chunks", "Vectors". Where they already are, without leaving the screen.
-*   **Two explanations for each, not one.** A plain one first, and the mechanism underneath if you want it. Turn the technical version on once and it stays on everywhere.
-*   **The four import stages explain themselves while they run.** Extract, Chunk, Embed and Index are all tappable during the import you watch on first launch.
-*   **Nothing is buried.** Settings has the full list under Plain English, searchable, including by the technical name if that happens to be the word you know.
+- **Tap any figure the app shows you and it tells you what it means.** "38 TOPS", "32/batch", "768 search", "Chunks", "Vectors". Where they already are, without leaving the screen.
+- **Two explanations for each, not one.** A plain one first, and the mechanism underneath if you want it. Turn the technical version on once and it stays on everywhere.
+- **The four import stages explain themselves while they run.** Extract, Chunk, Embed and Index are all tappable during the import you watch on first launch.
+- **Nothing is buried.** Settings has the full list under Plain English, searchable, including by the technical name if that happens to be the word you know.
+- **Tapping a Plain English term now reliably opens its definition.** It could animate as if it were opening and then leave you looking at the same list, and backing out could land you on a blank screen. Terms now open the same way every other definition in the app already did.
+- **Plain English covers a lot more of the app now.** Seven new entries: the difference between Standard, Deep Think and Maximum, where an answer actually gets written, and the trust cluster — confidence, fidelity, the live verification checklist, and what the red "Abstained" badge means. Confidence and fidelity in particular are two different measurements shown together with nothing previously explaining that they can disagree, or why.
 
 ### Your Libraries
 
-*   **"Remove Local Copies" is now "Remove All Documents", because that is what it did.** It never only removed local copies. It deleted those documents from iCloud and from your other devices too, while telling you Sync Now could bring them back. It could not. The wording now says what happens, and names the library it applies to.
-*   **Deleting one document said the same untrue thing,** and its button is now just "Delete".
-*   **Emptying a library used to leave things behind.** The documents stayed in Spotlight search, and their files stayed on disk taking up space. Both are cleaned up now.
-*   **Moving a library off iCloud asks first.** One tap used to remove that library's copy from iCloud with no warning at all.
-*   **The Documents toolbar no longer hides half its buttons off the edge of the screen.** Library Settings, and the two destructive actions, now live in one menu you can see. Visualize is gone from that row, because it only switched you to the Atlas tab that is already at the bottom of the screen.
-*   **Two libraries with the same name can be told apart** by a short code on the chip.
-*   **Library chips in Semantic Search no longer show storage buttons that did nothing.**
+- **"Remove Local Copies" is now "Remove All Documents", because that is what it did.** It never only removed local copies. It deleted those documents from iCloud and from your other devices too, while telling you Sync Now could bring them back. It could not. The wording now says what happens, and names the library it applies to.
+- **Deleting one document said the same untrue thing,** and its button is now just "Delete".
+- **Emptying a library used to leave things behind.** The documents stayed in Spotlight search, and their files stayed on disk taking up space. Both are cleaned up now.
+- **Moving a library off iCloud asks first.** One tap used to remove that library's copy from iCloud with no warning at all.
+- **The Documents toolbar no longer hides half its buttons off the edge of the screen.** Library Settings, and the two destructive actions, now live in one menu you can see. Visualize is gone from that row, because it only switched you to the Atlas tab that is already at the bottom of the screen.
+- **Two libraries with the same name can be told apart** by a short code on the chip.
+- **Library chips in Semantic Search no longer show storage buttons that did nothing.**
 
 ### Your Database Tab
 
-*   **You can look at any library from here.** It used to offer only "All Libraries" or whichever library happened to be active, so seeing a different one meant going to Documents, switching, and coming back. Every library is now in one menu.
-*   **"All Libraries" actually shows all of them.** The document list underneath used to show only the active library no matter what you picked, and never said which library you were looking at. It says now.
+- **You can look at any library from here.** It used to offer only "All Libraries" or whichever library happened to be active, so seeing a different one meant going to Documents, switching, and coming back. Every library is now in one menu.
+- **"All Libraries" actually shows all of them.** The document list underneath used to show only the active library no matter what you picked, and never said which library you were looking at. It says now.
 
 ### Library Settings
 
-*   **Changing the embedding model no longer wipes your vectors before you agree to rebuild them.** It deleted them at Save, then asked, and choosing "Later" left the library holding documents it could not search.
-*   **The chunk size sliders now stop where the app actually stops.** They went up to 600 words and 200 overlap while importing quietly capped them at 260 and 50, so over half of each slider did nothing. If you had set 400, you were already getting 260.
-*   **The chunk size controls now say you should not touch them.** The app already picks a chunk size from the kind of file you imported, smaller for code, larger for reports and transcripts. Setting these by hand replaces that with one size for everything in the library.
-*   **Two descriptions on that screen were not true.** One said chunks are split by comparing meaning between sentences; that never runs. It splits on section headings and a fixed list of ten English phrases, and the screen says so now, including that the list is English only. The other described the storage format the app stopped using.
+- **Changing the embedding model no longer wipes your vectors before you agree to rebuild them.** It deleted them at Save, then asked, and choosing "Later" left the library holding documents it could not search.
+- **The chunk size sliders now stop where the app actually stops.** They went up to 600 words and 200 overlap while importing quietly capped them at 260 and 50, so over half of each slider did nothing. If you had set 400, you were already getting 260.
+- **The chunk size controls now say you should not touch them.** The app already picks a chunk size from the kind of file you imported, smaller for code, larger for reports and transcripts. Setting these by hand replaces that with one size for everything in the library.
+- **Two descriptions on that screen were not true.** One said chunks are split by comparing meaning between sentences; that never runs. It splits on section headings and a fixed list of ten English phrases, and the screen says so now, including that the list is English only. The other described the storage format the app stopped using.
 
-*   **Deleting a library from its settings screen no longer half-works.** If iCloud refused the delete, that screen used to remove the library from this device anyway, so the next sync brought it back and you were left thinking it was gone. It now stops, keeps the library, and tells you why.
+- **Deleting a library from its settings screen no longer half-works.** If iCloud refused the delete, that screen used to remove the library from this device anyway, so the next sync brought it back and you were left thinking it was gone. It now stops, keeps the library, and tells you why.
 
-*   **The two destructive actions no longer look like the same button.** They sat next to each other, both red, both a bin icon, and one empties a library while the other removes it. They are now "Remove All Documents from X" and "Delete the X Library", with different icons and a divider between them.
-*   **"Cached Documents" is hidden until there is something in it.** It was always empty, because the feature that would fill it has not been built yet.
+- **The two destructive actions no longer look like the same button.** They sat next to each other, both red, both a bin icon, and one empties a library while the other removes it. They are now "Remove All Documents from X" and "Delete the X Library", with different icons and a divider between them.
+- **"Cached Documents" is hidden until there is something in it.** It was always empty, because the feature that would fill it has not been built yet.
 
-*   **On a Mac, a Shortcut running in the background could send a question to Apple's Private Cloud Compute with nobody there to approve it.** The check that requires you to be looking at the app was only ever running on iPhone and iPad. It runs on Mac now.
-*   **A question is no longer sent to the cloud when the app cannot tell how much cloud quota is left.** It now answers on this device instead of guessing.
+- **On a Mac, a Shortcut running in the background could send a question to Apple's Private Cloud Compute with nobody there to approve it.** The check that requires you to be looking at the app was only ever running on iPhone and iPad. It runs on Mac now.
+- **A question is no longer sent to the cloud when the app cannot tell how much cloud quota is left.** It now answers on this device instead of guessing.
 
 ### Things The App Was Claiming That Weren't True
 
 Settings describes what the app is doing while it answers you. Several of those lines described
 things the code does not do, so they are gone or corrected.
 
-*   **Settings listed eight agentic tools, and all eight were the wrong ones.** Four tools are actually wired up. Those four are now what it names.
-*   **Two advertised features did not exist,** and are no longer advertised.
-*   **The model picker listed a tier the app cannot select.**
-*   **Speed figures that were never measured have been removed,** including from the sample documents the app reads back to you as fact. Where the underlying work was real, it is now described by what it does instead of by a number.
-*   **Every remaining capability line was checked against the code that would have to run it.**
+- **Settings listed eight agentic tools, and all eight were the wrong ones.** Four tools are actually wired up. Those four are now what it names.
+- **Two advertised features did not exist,** and are no longer advertised.
+- **The model picker listed a tier the app cannot select.**
+- **Speed figures that were never measured have been removed,** including from the sample documents the app reads back to you as fact. Where the underlying work was real, it is now described by what it does instead of by a number.
+- **Every remaining capability line was checked against the code that would have to run it.**
 
 ### The App Itself
 
-*   **Your device is identified correctly.** iPhone 17 and M5 hardware reported itself as "A12 or Older" with limited performance.
-*   **The first screen no longer cuts off its own text.** Half the headline and all three example questions were being truncated.
-*   **The chat controls match each other, and the mode menu explains itself.** It also shows which mode is active, and how many Maximum runs you have left before you pick it.
-*   **The hardware readout follows a live answer** and no longer stays lit after you stop one.
-*   **The screen readers can reach the hardware panel properly.** Its figures used to be read as one long block; each one is now its own element with its own definition.
-*   **Answers that ended in bold or italic text no longer come out broken.** The last two characters were being cut off, which left the formatting unclosed and bled it into the rest of the screen. The clearest case was the notice you get when an answer could not be verified: its closing bracket was always missing.
-*   **The embedding view no longer claims your vectors have 512 numbers when they have 384.** It reads the real number from the library you are looking at, which differs depending on which embedding model that library was built with.
+- **Your device is identified correctly.** iPhone 17 and M5 hardware reported itself as "A12 or Older" with limited performance.
+- **The first screen no longer cuts off its own text.** Half the headline and all three example questions were being truncated.
+- **The chat controls match each other, and the mode menu explains itself.** It also shows which mode is active, and how many Maximum runs you have left before you pick it.
+- **The hardware readout follows a live answer** and no longer stays lit after you stop one.
+- **The screen readers can reach the hardware panel properly.** Its figures used to be read as one long block; each one is now its own element with its own definition.
+- **Answers that ended in bold or italic text no longer come out broken.** The last two characters were being cut off, which left the formatting unclosed and bled it into the rest of the screen. The clearest case was the notice you get when an answer could not be verified: its closing bracket was always missing.
+- **The embedding view no longer claims your vectors have 512 numbers when they have 384.** It reads the real number from the library you are looking at, which differs depending on which embedding model that library was built with.
 
 ## v4.9 - August 2, 2026
 Documents no longer disappear after importing, and libraries carry their work between devices instead of asking you to redo it.
