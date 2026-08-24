@@ -14,6 +14,10 @@ Generated 2026-08-21 12:29 by `scripts/benchmark_progression.py`. 58 run/mode pa
 
 |  | run | mode | commit | cases | pool | seed | temp | vw | correct | acc | lexical MRR | fusion MRR | rerank MRR | final r@1 | final r@10 | final MRR | min |
 | :-- | :-- | :-- | :-- | --: | --: | --: | --: | --: | --: | --: | --: | --: | --: | --: | --: | --: | --: |
+|  | greedy-83-1 | standard | 058a27b | 83/83 | 10 | — | — | dflt | 39 | 0.470 | 0.599 | 0.624 | 0.682 | 0.442 | 0.831 | 0.584 | 321 |
+|  | shipcfg-50 | standard | 2201b8b | 83/83 | 10 | 42 | — | dflt | 32 | 0.386 | 0.599 | 0.624 | 0.690 | 0.442 | 0.818 | 0.574 | 311 |
+|  | greedy-25-b | standard | 058a27b | 25/25 | 10 | — | — | dflt | 9 | 0.360 | 0.691 | 0.708 | 0.753 | 0.458 | 0.875 | 0.611 | 86 |
+|  | greedy-25-a | standard | 058a27b | 25/25 | 10 | — | — | dflt | 9 | 0.360 | 0.691 | 0.708 | 0.753 | 0.417 | 0.875 | 0.601 | 87 |
 |  | qasper-deepthink-20260815 | deep-think | — | 82/83 | 10 | — | — | dflt | 17 | 0.205 | — | — | — | 0.421 | 0.632 | 0.479 | 402 |
 |  | fusion-vw030 | standard | 27d2067 | 7/8 | 10 | 42 | 0.7 | 0.30 | 3 | 0.375 | 0.714 | 0.571 | 0.714 | 0.714 | 0.857 | 0.786 | 30 |
 |  | rescue-position-fix | standard | f9b5765 | 25/25 | 10 | 42 | 0.7 | dflt | 12 | 0.480 | 0.691 | 0.708 | 0.732 | 0.500 | 0.875 | 0.646 | 92 |

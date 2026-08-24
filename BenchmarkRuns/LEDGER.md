@@ -1028,3 +1028,90 @@ demotion has to come from a prepend or a re-sort, and the re-sort is the one tha
 cross-encoder and then replaces its ordering with a hand-written keyword heuristic on exactly the
 query class the benchmark is made of. Whether that heuristic earns its place has never been measured.
 The cheap test is to make it a tie-break or a bounded boost rather than a full re-sort, and re-run.
+
+### `greedy-25-a` / `greedy-25-b` / `greedy-83-1` — the reproducibility debate, run as a controlled pair for the first time, and a bigger finding underneath it
+
+Overnight run, 2026-08-23 into 08-24, ~8h14m wall clock, unattended. Two prerequisites went in first:
+`RERANK CHUNK TEXT` added to `DebugRAGValidationHarness.buildReport` (commit `058a27b`) so
+`passage_present` can eventually be scored at rerank as well as final, not just instrumented for it —
+and every run below carries it, smoke-verified before the long runs started (90 chunks captured at
+rerank against 7 at final on the smoke case, and the 1-in-25/6-in-83 reports without the block are
+exactly the negative-control cases with no expected source, matching the documented guard clause).
+
+**Part 1 — `greedy-25-a` vs `greedy-25-b`: a deliberate A/A pair, not a found one.** Every prior
+reproducibility finding in this file was discovered by accident, comparing two runs launched for
+unrelated reasons. This is the first pair launched specifically to test it: identical manifest,
+identical flags, `--sampling greedy`, no `--temperature`, back-to-back, same commit.
+
+| stage | r1 (a → b) | mrr (a → b) |
+| :-- | :-- | :-- |
+| vector | 0.500 → 0.500 | 0.567 → 0.567 |
+| lexical (control) | 0.625 → 0.625 | 0.691 → 0.691 |
+| fusion | 0.625 → 0.625 | 0.708 → 0.708 |
+| boosted / candidates | 0.542 → 0.583 | 0.642 → 0.656 |
+| rerank | 0.667 → 0.667 | 0.753 → 0.753 |
+| final | 0.417 → 0.458 | 0.601 → 0.611 |
+
+**Vector, lexical and fusion are bit-identical.** `compare_benchmark_runs.py`'s per-case vector r1
+breakdown: 0 better, 0 worse, 24/24 unchanged — the sign test has no discordant pairs to test. This
+matters beyond this pair: every reproducibility finding earlier in this file (90% vs 91% keyword hit
+rate, `passage-level-1` vs `rescue-position-fix` scoring 11/24 vs 12/24) was measured under
+`topk`, and blamed the divergence on embedding or vector search. Under `greedy` that stage is now
+perfectly stable. That points the earlier cause back at the sampler, not retrieval — consistent with,
+not yet proof of, since this is one pair.
+
+**Two smaller, real, new sources of jitter remain**, neither of them the sampler: one case's rank
+flips at `boosted`/`candidates` (which apply keyword-match and structure-aware boosts, not the
+cross-encoder), and reranking absorbs it (`rerank` r1 identical) but a *different* case flips between
+`rerank` and `final` instead. Both stages run before generation, so this is not sampler noise wearing
+a different hat — something in the boost step and something between rerank and final still moves
+under an unchanged input. Not chased further tonight; worth a look if a future A/B lands inside a
+2-case margin.
+
+**Accuracy held exactly: 9/24 → 9/24, same 9 cases both times.** That is the headline this pair was
+launched to get: the residual stage-level jitter above never changed which cases the model actually
+got right. Prior A/A noise floor was ±1 case at n=24 (`rescue-position-fix`/`passage-level-1`, 12 vs
+11); this pair, the first deliberately designed to isolate the sampler, shows ±0. **Greedy sampling
+makes this benchmark's accuracy trustworthy for A/B comparison, which it measurably was not under
+`topk`.** One pair is not proof against a future divergence, but it is the cleanest evidence produced
+here so far, specifically because it was designed rather than found.
+
+**Part 2 — `greedy-83-1` vs `shipcfg-50`: not what this run was for, and the bigger number.**
+`shipcfg-50` (`2201b8b`, `topk`, no `--temperature`, effective 0.4) scored 32/83 = 38.6%.
+`greedy-83-1` (`058a27b`, `greedy`, no `--temperature`) scored **39/83 = 47.0%**. Between those two
+commits, the *only* change touching any RAG, evaluation or harness path is this run's own 18-line
+additive instrumentation (`git diff --stat 67ba90a..058a27b` over
+`Services/RAG/`, `Services/Evaluation/`, `DebugRAGValidationHarness.swift`, `run_quality_matrix.py`)
+— so this is a clean single-variable comparison of sampling mode, not confounded by code drift.
+
+Paired sign test on the 83 shared cases, computed from `score.correct` in each run's
+`results.jsonl` (not run by `compare_benchmark_runs.py`, which defaults to the `vector`/`r1`
+breakdown and has no accuracy-column mode): **8 cases flipped wrong→right, 1 flipped right→wrong,
+two-sided exact sign test p = 0.039.** That clears both p<0.05 and this repository's own stated
+resolution floor for this n (6 discordant cases favoring one side).
+
+**This was not what the run was launched to measure, and says so up front so it isn't over-read.**
+`greedy-5case` (2026-08-21, n=5) found "no effect" from sampling and explicitly flagged itself as
+underpowered — "n=5 rules out a large effect, not a small one." An 83-case run with real power is
+the first fair test of the same hypothesis, and it leans the opposite way from the pilot: not neutral,
+measurably better. **This is not a recommendation to change the shipping sampler.** Greedy has
+failure modes this benchmark's extractive QASPER questions may not surface (repetition, degenerate
+loops on open-ended generation), and the app's actual default was never in question here — this run
+was about whether *any* comparison could be trusted, not about which sampling mode should ship. If
+the shipping default is reconsidered, it deserves its own measurement, deliberately, not a footnote
+inherited from a reproducibility run.
+
+**What the new rerank-stage text unblocks and does not yet answer.** Every report in these four runs
+now carries `RERANK CHUNK TEXT`, so `passage_present` can be computed at rerank as well as final —
+splitting "never retrieved" from "retrieved, ranked, then cut by the budget" for the first time. No
+scoring pass against that block exists yet; `results.jsonl`'s `score.passage_present` /
+`passage_chunk_rank` fields are final-stage only. That is the immediate next step this unlocks, not
+something this run itself measured.
+
+**Provenance.** All four runs: `SWIFT_DETERMINISTIC_HASHING=1`, macOS Debug build from
+`/private/tmp/oi-src`, `--pcc deny` (PCC unreachable from this shell regardless), `--pool-limit 10
+--top-k 3`. `greedy-25-a`/`greedy-25-b`/`greedy-83-1` at commit `058a27b`, tree clean. Full chain
+launched detached (`caffeinate -ims`, `nohup`, `disown`) so it survived independent of the driving
+session; a prior identically-scoped attempt (`greedy-50`, 2026-08-21) was started and abandoned with
+no `results.json` ever written and no note anywhere of why — not deleted, per this repo's own rule,
+but worth knowing a first attempt at this exact run died silently once already.
