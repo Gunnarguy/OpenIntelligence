@@ -124,6 +124,7 @@ things the code does not do, so they are gone or corrected.
 
 ### The App Itself
 
+- **The upload status stops breaking its own words in half.** With the controls beside it taking the room, "Processing uploads" could render as "Process / ing / uploads". It is the one piece of chrome on screen during every import.
 - **The app icon now follows your device's dark mode.** The existing light mark stays the same, and a matching dark appearance is selected when your device uses dark mode.
 - **Your device is identified correctly.** iPhone 17 and M5 hardware reported itself as "A12 or Older" with limited performance.
 - **The first screen no longer cuts off its own text.** Half the headline and all three example questions were being truncated.

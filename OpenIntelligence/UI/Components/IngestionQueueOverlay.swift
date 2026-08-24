@@ -538,19 +538,31 @@ struct IngestionQueueOverlay: View {
             }
             .frame(width: 32, height: 32)
 
+            // Both labels are single-line on purpose. Neither had a line limit, so
+            // when the controls on the right leave the text less width than the
+            // longest word, SwiftUI breaks *inside* the word: "Processing uploads"
+            // rendered as "Process / ing / uploads" on a 6.3" device, which is the
+            // one piece of chrome visible during every single import.
             VStack(alignment: .leading, spacing: 1) {
                 Text(headerTitle)
                     .font(.system(size: 14, weight: .bold))
                     .foregroundStyle(DSColors.primaryText)
-                
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+                    .truncationMode(.tail)
+
                 if !isMinimized {
                     Text(statusLine)
                         .font(.system(size: 11, weight: .medium))
                         .foregroundStyle(DSColors.secondaryText)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.85)
+                        .truncationMode(.tail)
                 }
             }
+            .layoutPriority(1)
 
-            Spacer()
+            Spacer(minLength: 8)
 
             headerControls
         }

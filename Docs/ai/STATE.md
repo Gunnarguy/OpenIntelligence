@@ -3,7 +3,7 @@
 Updated: 2026-08-24
 Branch/worktree: main, **not pushed** — check `git status` against `origin/main` before assuming this is current.
 Cross-tool handoff (if Claude access runs out): `HANDOFF.md` at repo root (kept current less often than this file).
-Last verified commit: dbff15a
+Last verified commit: 0837f29
 
 ## Objective
 
@@ -15,10 +15,11 @@ not re-derive it here.
 
 ## Status
 
-**Both v5.0 data-and-answer defects the device capture found are fixed, built and suite-green, and
-neither is device-verified.** The app no longer deletes a just-imported document's vectors, and the
-source-only stage no longer replaces an answer it could not read. Everything now waits on one device
-pass. App Store Connect is unblocked and the 5.0 listing carries 5.0's own notes.
+**The vector-deletion fix is device-verified and both its rows are closed.** A second capture on a
+build carrying `ece4bae` shows the guard refusing at both of the exact points where the previous
+build deleted silently, zero occurrences of the failure signature against 87 before, and the vectors
+surviving a relaunch with no rebuild needed. **The source-only fix is still unexercised** — that path
+is gated on extractive-first intent and the question asked was narrative, so it never ran.
 
 ## Completed this session (2026-08-24)
 
@@ -140,32 +141,37 @@ builds only, it does not run tests); anything on device since 2026-08-19; the re
 
 ## Blockers / Unknowns
 
-1. **Neither of today's two fixes has run on the device.** Both are build- and suite-verified and
-   neither is proven where the defect appeared, and the unit suite covers no sync and no
-   orchestration path, so suite-green closes nothing here. One pass settles both:
-   - Import a document, **switch libraries while it is still processing**, return and query it.
-     Passes if the document answers, and the console shows either nothing removed or
-     `refusing to delete. An import may still be writing.` instead of a silent removal.
-     Row: https://app.notion.com/p/3c649a74d54f815b8f60e06555ce97bf
-   - Ask *What role do dopamine receptors play in movement?* against the same library. Passes on a
-     full answer, or on `Declining to replace the answer: the extraction stage saw only N% of it`.
-     A 9-word stub is a failure. Row: https://app.notion.com/p/3c649a74d54f81eaa73dfa4d627d8a5e
-2. **Two-column PDFs: attribution exists, fix does not.** `LayoutAwareExtractor` detected 2 columns
+1. **`dbff15a` has never executed.** The 2026-08-24 evening capture ran on a build containing it and
+   `SourceOnly` appears **0 times in 8,603 lines**, because `sourceOnlyOutcomeIfNeeded` opens with
+   `guard answerIntent.isExtractiveFirst else { return nil }` and *"How does dopamine affect social
+   behavior?"* classifies as narrative. **To exercise it, ask the original question:** *"What role do
+   dopamine receptors play in movement?"* against a library holding the Yagishita paper — that one
+   did reach the stage in the first capture. Pass is a full answer, or the console line
+   `Declining to replace the answer: the extraction stage saw only N% of it`. A 9-word stub is a
+   failure. Row: https://app.notion.com/p/3c649a74d54f81eaa73dfa4d627d8a5e
+2. **The same failure shape reached the answer through a second path, unfixed.** In that capture the
+   agentic layer rejected a replacement twice in one query:
+   `Rejected replacement: would trade 12 citations for none (3953 chars -> 190 chars)`. It held, so
+   the answer survived at 526 words — but something upstream is repeatedly proposing to replace a
+   grounded 3,953-character answer with a ~180-character stub. Worth understanding before assuming
+   the source-only guard covers the class.
+3. **Two-column PDFs: attribution exists, fix does not.** `LayoutAwareExtractor` detected 2 columns
    on 6 of 8 pages and its output was discarded for PDFKit's `page.string`. Evidence chunks are left
    and right columns spliced line-for-line. 118 of 552 chunks in one English paper were detected as
    non-English — a free interleaving signal nothing reads. Fix is routing first
    (`DocumentProcessor.swift:4301`, `:4362`), then the vertical-only line-break test at `:7731`.
    Row: https://app.notion.com/p/3bf49a74d54f81fcb146ef3f489be576
-3. **`final` r@1 stays below `rerank` r@1 at n=83 (0.442 vs 0.610 on `shipcfg-50`).** The ledger
+4. **`final` r@1 stays below `rerank` r@1 at n=83 (0.442 vs 0.610 on `shipcfg-50`).** The ledger
    **rejects** `filterBySimilarity` — do not re-open that. Best account:
    `EvidenceScoringPolicyService.extractivePriorityScore` re-sorts extractive-intent queries by a
-   keyword heuristic that overwrites the cross-encoder. Rank-1 loss 27.0% where it fires vs 15.2%
-   where it does not. **Cheap test, not run:** make it a tie-break, not a full re-sort.
+   keyword heuristic that overwrites the cross-encoder. **Cheap test, not run:** make it a tie-break.
 
 ## Exact Next Action
 
-**Owner: build `main` (at `dbff15a` or later) to the iPhone and run the two checks in Blocker 1.**
-They share one setup and take a few minutes. Both rows close or reopen on that pass, and they are
-the last two v5.0 rows that are fixed-but-unproven.
+**Owner: ask *"What role do dopamine receptors play in movement?"* on the current build**, against a
+library containing the Yagishita paper. That is the only outstanding check on `dbff15a`, it takes one
+query, and it is the last v5.0 row that is fixed-but-unproven.
 
-Agent-side while that runs: Blocker 3's cheap test, which needs `PROCEED: IMPLEMENT`.
+Agent-side: Blocker 3, two-column PDFs. It is the largest remaining user-facing quality defect, it
+affects most academic PDFs, and the first half of the fix is routing rather than a new algorithm.
+Needs `PROCEED: IMPLEMENT`.

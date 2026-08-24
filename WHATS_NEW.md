@@ -97,6 +97,7 @@ Settings describes what the app is doing while it answers you, and several of th
 - **Speed figures that were never measured have been removed,** including from the sample documents the app reads back to you as fact.
 
 ### The App Itself
+- **The upload status stops breaking its own words in half:** "Processing uploads" could render as "Process / ing / uploads" when the controls beside it left too little room.
 - **The app icon now follows your device's dark mode:** the existing light mark stays the same, and a matching dark appearance is selected when your device uses dark mode.
 - **Your device is identified correctly.** iPhone 17 and M5 hardware reported itself as "A12 or Older".
 - **The first screen no longer cuts off its own text.**
