@@ -1388,7 +1388,7 @@ final class WorkspaceSyncService: ObservableObject {
 
         let removedContainerIDs = Set(localInventory.containers.map(\.id)).subtracting(finalLocalContainers.map(\.id))
         for containerId in removedContainerIDs {
-            removeVectorStoreArtifacts(for: containerId, in: localRoot)
+            removeVectorStoreArtifacts(for: containerId, in: localRoot, reason: "library was removed from the workspace")
             let prefixes = ["chat_history_", "transcript_", "conversation_memory_"]
             for prefix in prefixes {
                 let localAuxURL = localRoot.appendingPathComponent("\(prefix)\(containerId.uuidString).json")
@@ -2326,11 +2326,11 @@ final class WorkspaceSyncService: ObservableObject {
         let sharedVectorURL = vectorStoreBaseURL(for: container.id, in: sharedRoot)
 
         guard container.vectorDBKind == .persistentJSON else {
-            removeVectorStoreArtifacts(for: container.id, in: sharedRoot)
-            removeVectorStoreArtifacts(for: container.id, in: localRoot)
+            removeVectorStoreArtifacts(for: container.id, in: sharedRoot, reason: "library does not use the persistent JSON vector store")
+            removeVectorStoreArtifacts(for: container.id, in: localRoot, reason: "library does not use the persistent JSON vector store")
             for sourceContainerID in sourceContainerIDs where sourceContainerID != container.id {
-                removeVectorStoreArtifacts(for: sourceContainerID, in: localRoot)
-                removeVectorStoreArtifacts(for: sourceContainerID, in: sharedRoot)
+                removeVectorStoreArtifacts(for: sourceContainerID, in: localRoot, reason: "merge source of a non-JSON vector store")
+                removeVectorStoreArtifacts(for: sourceContainerID, in: sharedRoot, reason: "merge source of a non-JSON vector store")
             }
             return
         }
@@ -2433,11 +2433,51 @@ final class WorkspaceSyncService: ObservableObject {
                 return
             }
 
-            removeVectorStoreArtifacts(for: container.id, in: sharedRoot)
-            removeVectorStoreArtifacts(for: container.id, in: localRoot)
+            // `allowedDocumentIds` is empty. Usually that is a genuinely emptied
+            // library whose store should go with it. It is also exactly what an
+            // in-flight import looks like: `RAGService` persists vectors as soon
+            // as embedding finishes and saves the document record only later, so
+            // for the whole span between those two writes the library reads as
+            // having no documents while its store is being filled.
+            //
+            // A device capture on 2026-08-24 caught this deleting a just-written
+            // store twice — at log lines 6685 and 6881, for a document that had
+            // embedded 196 chunks seconds earlier — leaving the library holding
+            // the document, its chunk count and its FTS5 rows with no semantic
+            // retrieval at all. Three sessions read that as a failure to write,
+            // because the deletion below logged nothing. Switching libraries
+            // mid-import widens the window but is not required to hit it.
+            //
+            // So chunks on disk with no documents in metadata is not proof the
+            // index is garbage; during an import it is proof the metadata has not
+            // caught up yet. Apply the rule the branch above already states: a
+            // stale index is recoverable, a deleted one is not. The residual cost
+            // is a store left behind by a genuinely empty library after a partial
+            // chunk-removal failure, which leaks disk rather than losing work, and
+            // which the error below makes visible instead of silent.
+            //
+            // Logged under `.ingestion` rather than `.vectorDB` on purpose: only
+            // the categories in `LoggingConfiguration.fileLogCategories` reach the
+            // trace a user can share, `.vectorDB` is not one of them, and
+            // `writeToFile` has no level filter — so adding `.vectorDB` wholesale
+            // would put 1,311 `loadVectorChunks` debug lines per session into a
+            // 500 KB rotating file and push out the evidence this line exists to
+            // provide. The reader who needs this is looking at an ingestion trace
+            // because an import lost its vectors.
+            let unreferencedChunkCount = localChunks.count + sharedChunks.count
+            guard unreferencedChunkCount == 0 else {
+                Log.error(
+                    "[WorkspaceSync] Container \(container.id) has no documents in metadata but its vector store holds \(unreferencedChunkCount) chunk(s); refusing to delete. An import may still be writing.",
+                    category: .ingestion
+                )
+                return
+            }
+
+            removeVectorStoreArtifacts(for: container.id, in: sharedRoot, reason: "library has no documents and no indexed chunks")
+            removeVectorStoreArtifacts(for: container.id, in: localRoot, reason: "library has no documents and no indexed chunks")
             for sourceContainerID in sourceContainerIDs where sourceContainerID != container.id {
-                removeVectorStoreArtifacts(for: sourceContainerID, in: localRoot)
-                removeVectorStoreArtifacts(for: sourceContainerID, in: sharedRoot)
+                removeVectorStoreArtifacts(for: sourceContainerID, in: localRoot, reason: "merge source of an empty library")
+                removeVectorStoreArtifacts(for: sourceContainerID, in: sharedRoot, reason: "merge source of an empty library")
             }
             return
         }
@@ -2489,8 +2529,8 @@ final class WorkspaceSyncService: ObservableObject {
         }
 
         for sourceContainerID in sourceContainerIDs where sourceContainerID != container.id {
-            removeVectorStoreArtifacts(for: sourceContainerID, in: localRoot)
-            removeVectorStoreArtifacts(for: sourceContainerID, in: sharedRoot)
+            removeVectorStoreArtifacts(for: sourceContainerID, in: localRoot, reason: "chunks merged into the destination library")
+            removeVectorStoreArtifacts(for: sourceContainerID, in: sharedRoot, reason: "chunks merged into the destination library")
         }
     }
 
@@ -2716,10 +2756,33 @@ final class WorkspaceSyncService: ObservableObject {
             .contains { ubiquitousPlaceholderExists(for: $0) }
     }
 
-    nonisolated private func removeVectorStoreArtifacts(for containerId: UUID, in root: URL) {
+    /// Deletes a container's vector store from one root.
+    ///
+    /// `reason` is not optional on purpose. Every non-destructive operation in
+    /// this file logs and, until 2026-08-24, this one did not, so a device
+    /// capture of a real vector-store loss contained no evidence of the loss.
+    /// That silence is what made the same defect read as a phantom across three
+    /// sessions. A deletion that leaves no trace is not cheaper than one that
+    /// does; it is only harder to find.
+    nonisolated private func removeVectorStoreArtifacts(for containerId: UUID, in root: URL, reason: String) {
+        var removed = 0
         for url in vectorStoreArtifactURLs(for: containerId, in: root) {
-            try? Self.coordinatedRemoveItem(at: url)
+            guard ubiquitousItemExists(at: url) else { continue }
+            do {
+                try Self.coordinatedRemoveItem(at: url)
+                removed += 1
+            } catch {
+                Log.error(
+                    "[WorkspaceSync] Failed to remove vector artifact \(url.lastPathComponent) for container \(containerId): \(error.localizedDescription)",
+                    category: .ingestion
+                )
+            }
         }
+        guard removed > 0 else { return }
+        Log.error(
+            "[WorkspaceSync] Deleted vector store for container \(containerId) (\(removed) artifact(s), root \(root.lastPathComponent)): \(reason).",
+            category: .ingestion
+        )
     }
 
     nonisolated private func repairWorkspaceMetadataIfNeeded(
