@@ -490,6 +490,24 @@ enum DebugRAGValidationHarness {
         }
         lines.append("")
 
+        // STAGE SOURCES above has ids for every stage, but text only for final (RETRIEVED CHUNK
+        // TEXT, on the response). That makes the 10-of-24 cases where the gold span never reaches
+        // the model unattributable: unretrieved and cut-during-assembly both look identical from a
+        // saved run. Emitting rerank's text too — same escaped-newline, one-line-per-chunk format —
+        // lets passage_recall be scored at rerank as well as final, which is what tells the two
+        // apart. Debug-harness only; this file is not on any production path.
+        if let rerankTrace = traces.first(where: { $0.stage == RetrievalTraceCollector.Stage.rerank.rawValue }) {
+            lines.append("RERANK CHUNK TEXT")
+            for (index, result) in rerankTrace.results.enumerated() {
+                let body = (result.chunk.parentContent ?? result.chunk.content)
+                    .replacingOccurrences(of: "\n", with: " ")
+                    .replacingOccurrences(of: "\r", with: " ")
+                lines.append("CHUNK \(index + 1) | \(result.sourceDocument) | \(body)")
+            }
+            lines.append("END RERANK CHUNK TEXT")
+            lines.append("")
+        }
+
         return lines
     }
 
