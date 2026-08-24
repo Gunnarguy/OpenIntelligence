@@ -488,8 +488,49 @@ Fastlane lanes in `fastlane/Fastfile`, all *recorded*, none run from here:
 | `submit_latest` | Push metadata and submit using the newest build ASC has already processed. Xcode Cloud is the builder. |
 | `release_to_review` | Metadata, upload, and submit. `release` is an alias. |
 
-Each takes `platform: ios` (default) or `osx`. Credentials come from `.env.appstore`; never commit
-values, only the variable names.
+Each takes `platform: ios` (default) or `osx`.
+
+### App Store Connect credentials
+
+Check first. Do not diagnose from an error message.
+
+```bash
+ruby scripts/asc_healthcheck.rb
+```
+
+It reports the configured key, validates the file, authenticates against the live API and confirms
+OpenIntelligence is reachable. Green means `push_metadata` will authenticate. It never prints key
+material, the issuer UUID or the signed token.
+
+Fastlane reads three variables from the shell, exported in `~/.zshrc`:
+
+| Variable | Value |
+|---|---|
+| `APP_STORE_CONNECT_API_KEY_ID` | Exactly 10 characters. Any other length is not an ASC API key. |
+| `APP_STORE_CONNECT_ISSUER_ID` | Team UUID, top of Users and Access > Integrations. |
+| `APP_STORE_CONNECT_API_KEY_PATH` | `~/.appstoreconnect/private_keys/AuthKey_<KEYID>.p8` |
+
+The key lives in `~/.appstoreconnect/private_keys/` because `notarytool`, `altool` and Transporter
+auto-discover keys there given only `--apiKey` and `--apiIssuer`.
+
+`.env.appstore` is **not** what fastlane reads. It defines `ASC_KEY_ID`, `ASC_ISSUER_ID` and
+`ASC_KEY_BASE64`, which no lane references, and it loads only under `fastlane --env appstore`. Treat
+it as unused until something is changed to consume it.
+`[evidence_level: code_verified, confidence: exact, evidence_source: fastlane/Fastfile:36-47 reads APP_STORE_CONNECT_*, .env.appstore defines ASC_*]`
+
+Apple returns a byte-identical bare 401 for a revoked key, a wrong issuer, a malformed token and a
+file that was never an ASC key. On 2026-08-24 the push had been failing for days across two
+sessions, both of which diagnosed it from the error text and both of which were wrong: the path
+pointed at `ApiKey_5UNPFIPXPPRC.p8`, a 12-character ID Apple does not issue, while a working key sat
+unused in `~/Downloads`. That is what the healthcheck exists to prevent.
+`[evidence_level: measured, confidence: exact, evidence_source: 2026-08-24, five keys probed against GET /v1/apps]`
+
+`deliver` needs a UTF-8 locale. The release notes contain non-ASCII characters, and without `LANG`
+and `LC_ALL` set it raises `invalid byte sequence in US-ASCII` partway through the metadata upload:
+
+```bash
+LANG=en_US.UTF-8 LC_ALL=en_US.UTF-8 fastlane push_metadata version:5.0
+```
 
 CI is `.github/workflows/ci.yml`, building on `macos-26` on push and PR to `main`, selecting the
 highest installed Xcode.

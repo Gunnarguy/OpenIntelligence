@@ -13,7 +13,7 @@ Documents were quietly losing parts of themselves, answers were built from a fra
 - **The app starts faster:** a 43 MB model loaded on every launch before anything appeared, even if you never asked a question. It now loads when it is first needed.
 - **Deep Think stops when it runs out of new material:** on smaller libraries it repeated its first three reasoning passes word for word, about a third of the total time, learning nothing. It still reads everything it retrieved.
 - **Switching libraries during an import no longer splits the document from its index:** the file was filed in one library and the part that makes it searchable in another, so it appeared in the list and answered nothing.
-- **Four separate ways a library could lose its ability to answer while still showing its documents, found and closed:** detection now runs the moment a question comes back with nothing, not only when you switch libraries, and a repair no longer reports success when it was blocked from doing anything.
+- **A library that has lost its ability to answer now tells you, and can repair itself:** detection now runs the moment a question comes back with nothing, not only when you switch libraries, and the repair is confirmed working on a real device, rebuilding and answering again in about four seconds. Two related cases, where the repair is blocked because files are still importing, are fixed in code but not yet reproduced on a device.
 - **iCloud sync stopped re-uploading libraries that had not changed:** it rewrote every index on every pass, and each rewrite looked like a change and started another pass. It now compares before writing. Less battery, less data, same sync.
 - **The source chips under an answer scroll properly:** swiping across them sometimes registered as a tap. Same look, no longer fights the scroll.
 - **Leaving the chat tab no longer kills the answer you were waiting for:** it used to cancel and discard the partial answer with no explanation.
@@ -35,6 +35,11 @@ Documents were quietly losing parts of themselves, answers were built from a fra
 - **Photographing a page now matches importing it:** camera captures came out as flat text where the same page imported as table cells.
 - **Scanned pages report their scanning honestly:** a fully scanned PDF used to tell you it had scanned zero pages.
 - **Pages, Numbers and Keynote files now fail clearly.** They were never actually readable, so importing one no longer looks like it worked.
+
+### Search
+- **More than half of every document never reached the part that makes it searchable:** a padding setting capped text at 128 tokens against models built for 512, and made the length check return the same number for every input, so nothing could notice. Measured over 139 live chunks: 90% cut short, 55% of all library content never embedded.
+- **The model that reads meaning was looking at one position instead of the whole passage:** re-exported to average across the passage as it was trained to, moving rank-1 retrieval from 0.000 to 0.571 across 21 paired test questions, 12 better and none worse.
+- **Libraries you already have keep the index they were built with:** nothing will prompt you to rebuild, because the app cannot tell the difference on a library created before this release. Re-importing a document rebuilds it correctly.
 
 ### Answers
 - **Search ranks section headings again.** A weighting mistake had dropped section paths out of ranking entirely.
