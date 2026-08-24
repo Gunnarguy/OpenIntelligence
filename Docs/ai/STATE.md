@@ -41,7 +41,7 @@ pass. App Store Connect is unblocked and the 5.0 listing carries 5.0's own notes
   doc pointing at the wrong one of two credential sources is the discoverability half of why this
   stayed broken for days. Also records the UTF-8 locale `deliver` needs.
 - **5.0 release notes rewritten and pushed.** `fastlane/metadata/en-US/release_notes.txt` still held
-  the 4.9 text. New text is 3,996 characters against Apple's 4,000 limit, pushed with `deliver`
+  the 4.9 text. New text is 3,995 characters against Apple's 4,000 limit after the `96e73a1` trade, pushed with `deliver`
   (metadata only, screenshots explicitly skipped) and **read back from
   `appStoreVersionLocalizations` and confirmed byte-for-byte**.
 - **The embedding arc was missing from every user-facing file.** `2753d15` (tokenizer padding),
@@ -100,7 +100,7 @@ pass. App Store Connect is unblocked and the 5.0 listing carries 5.0's own notes
 |---|---|
 | `scripts/asc_healthcheck.rb` | Run before ever diagnosing an ASC failure from its error text. |
 | `Docs/ai/RUNBOOK.md` → Release → App Store Connect credentials | The corrected credential source and the `deliver` locale requirement. |
-| `fastlane/metadata/en-US/release_notes.txt` | What the App Store shows for 5.0. 3,996 of 4,000 characters — anything added needs something removed. |
+| `fastlane/metadata/en-US/release_notes.txt` | What the App Store shows for 5.0. 3,995 of 4,000 characters — anything added needs something removed. |
 | `Docs/USER_CHANGELOG.md` | Source of truth for user-facing history. Copy to `OpenIntelligence/Resources/VersionHistory.md` on every edit. |
 | `Delete+IngestANDCHANGELIBRARIESMIDINGEST+Query+Rebuild.txt` (repo root, gitignored) | The device capture behind Blockers 1-3. Line 11513 is the relaunch divider. 1.78 MB — grep it, never read it whole. |
 | `BenchmarkRuns/LEDGER.md` | Full narrative of every run. Read before trusting any figure. |
