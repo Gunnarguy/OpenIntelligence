@@ -38,6 +38,7 @@ Documents were quietly losing parts of themselves, answers were built from a fra
 - **Images keep their layout.** Every image became one unbroken line of text before anything downstream could read it.
 - **Photographing a page now matches importing it.** Camera captures came out as flat text where the same page imported as table cells.
 - **Scanned pages report their scanning honestly.** A fully scanned PDF used to tell you it had scanned zero pages.
+- **Two-column PDFs are read column by column instead of straight across.** Most journal articles and many reports are two-column. The app was reading a line from the left column and a line from the right column as though they were one sentence, so a passage could come out as two half-sentences welded together with a word cut in half at the join. It could still find the right page, and then hand the model text nobody could read. This is fixed at the point where words are grouped into lines, which is where the column information was being lost.
 - **A page the parser knew it had read badly is no longer repaired and then discarded.**
 - **PDFs with figures but no tables keep their figures.**
 - **Pages, Numbers and Keynote files now fail clearly.** They were never actually readable; importing one no longer looks like it worked.

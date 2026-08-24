@@ -193,9 +193,48 @@ trace:
 
 Both now log. The selected `PageProcessingStrategy` is also logged per page, and equal-Y ties break
 on X ascending, because `sorted(by:)` is not stable in Swift and the same page could previously
-extract differently on two runs. **The instrumentation is the point of the change**: the
-attribution of the remaining two-column damage is still open, and it is now readable from a device
-trace instead of inferable. `[evidence_level: code_verified, confidence: exact, attribution_open]`
+extract differently on two runs. **The instrumentation was the point of that change**, and it is
+what made the attribution below possible.
+`[evidence_level: code_verified, confidence: exact]`
+
+#### Attribution closed 2026-08-24: the column signal was destroyed before column detection ran
+
+The damage was upstream of every check meant to catch it, which is why branch 2 above looked like
+the defect and was only a symptom of it.
+
+Words were grouped into a `SpatialLine` on a **vertical test alone**. `page.string` on a two-column
+PDF emits words row by row across the gutter, so a left-column word and a right-column word at the
+same height arrive adjacent at the same Y and were merged into one line. That line's `xPosition` is
+the **mean** of its words' midpoints, so it lands near the page centre.
+
+`detectColumnBoundaries` then looks for a gap wider than 10% of the page across those means. Once
+every line sits at the centre there is no gap, so it returns empty, branch 2 sorts by Y, and the
+columns interleave. **Neither a smarter `detectColumnBoundaries` nor the tie-break could have fixed
+this**: both operate on X positions that have already been averaged across the gutter.
+
+`DocumentProcessor.spatialLineBreak(wordBounds:currentLineBounds:currentLineY:)` now returns
+`.none`, `.verticalGap` or `.horizontalGap`, and a horizontal discontinuity starts a new line: a
+move back to or past the line's own left edge, or a forward jump wider than `1.5 ×` glyph height
+(floored at 8pt), which is a gutter rather than a word space. Scaling by glyph height keeps the
+threshold correct at any page size. Lines then stay inside one column, `xPosition` becomes genuinely
+bimodal, and the existing column grouping and per-column top-to-bottom assembly work as designed
+with no further change.
+
+It is `nonisolated static` and takes only geometry, so this is the first part of the two-column path
+that can be exercised without ingesting a real journal PDF on a device. Seven cases in
+`DocumentProcessorTests` cover the gutter crossing, the left-margin wrap, ordinary word spacing,
+the next row, both no-line-started guards, and that the threshold scales with type size.
+
+A page whose words arrive across a gutter now says so, so a genuinely single-column page and a
+two-column page are no longer indistinguishable in a trace.
+
+Device evidence this closes: a stored chunk read *"…in locomotors are more diverse, consisting of
+Gi-coupled 5-HT, and 5-HTS. tion, reinforcement learning…"* — two columns welded line for line with
+"locomotion" severed across the splice. In the same document, language detection returned
+non-English on **118 of 552 chunks** of a single English paper, and the quality gate passed the text
+anyway because printable ratio and entropy both stay healthy when two valid columns are shuffled
+together. That detector is still unused and is tracked separately.
+`[evidence_level: code_verified+test_verified, confidence: exact, evidence_source: DocumentProcessor.spatialLineBreak; DocumentProcessorTests, 7 cases; device capture 2026-08-24, not yet device-verified]`
 
 ### Audio and video: the failure mode is verified, transcription itself is not
 

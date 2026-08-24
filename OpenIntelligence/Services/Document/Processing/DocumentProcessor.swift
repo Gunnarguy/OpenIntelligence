@@ -7688,6 +7688,66 @@ class DocumentProcessor {
     /// Extract text from a PDF page using spatial ordering to handle multi-column layouts
     /// This is the key 10x improvement: PDFKit's default extraction often mixes columns
     /// By using character/line bounding boxes, we can detect columns and read correctly
+    /// Why a word begins a new spatial line, or that it does not.
+    enum SpatialLineBreak: Equatable {
+        case none
+        /// The word sits on a different row.
+        case verticalGap
+        /// The word sits on the same row but across a horizontal discontinuity — in a
+        /// multi-column page, the gutter.
+        case horizontalGap
+    }
+
+    /// Decides whether `wordBounds` continues the line built so far or starts a new one.
+    ///
+    /// `nonisolated static` and taking only geometry so the decision is testable without a
+    /// `PDFPage`. That matters here: this is the whole two-column defect, and until now the only
+    /// way to exercise it was to ingest a real journal PDF on a device.
+    ///
+    /// **A vertical test alone cannot see a column gutter.** `page.string` on a two-column PDF
+    /// emits words row by row across the gutter, so a left-column word and a right-column word at
+    /// the same height arrive adjacent and at the same Y. Grouped on Y alone they become one
+    /// `SpatialLine`, and that line's `xPosition` is the *mean* of both columns, landing near the
+    /// page centre.
+    ///
+    /// Everything downstream then fails for a reason it cannot detect. `detectColumnBoundaries`
+    /// looks for a gap wider than 10% of the page across those means; once every line sits at the
+    /// centre there is no gap, so it returns empty, the single-column branch sorts by Y, and the
+    /// columns come out interleaved. The function returns non-nil, so no caller can tell.
+    ///
+    /// The column signal is destroyed here, before the code that looks for it ever runs. That is
+    /// why neither the earlier tie-break fix nor a smarter `detectColumnBoundaries` could have
+    /// addressed this, and why that entry carries `symptom_attribution_still_open`.
+    ///
+    /// Observed on device 2026-08-24: a stored chunk read "…in locomotors are more diverse,
+    /// consisting of Gi-coupled 5-HT, and 5-HTS. tion, reinforcement learning…" — two columns
+    /// welded line for line, with "locomotion" severed across the splice.
+    nonisolated static func spatialLineBreak(
+        wordBounds: CGRect,
+        currentLineBounds: CGRect,
+        currentLineY: CGFloat
+    ) -> SpatialLineBreak {
+        // No line started yet.
+        guard currentLineY >= 0 else { return .none }
+
+        let yThreshold = wordBounds.height * 0.5
+        if abs(wordBounds.midY - currentLineY) > yThreshold { return .verticalGap }
+
+        guard !currentLineBounds.isEmpty else { return .none }
+
+        // Reading order runs left to right within a line, so a move back to or past the line's own
+        // left edge starts a new line whose Y moved by less than the threshold.
+        if wordBounds.minX < currentLineBounds.minX { return .horizontalGap }
+
+        // A forward jump far wider than an inter-word space is a gutter. Word spacing is a fraction
+        // of the glyph height and a gutter is a multiple of it, so scaling by height keeps this
+        // correct at any page size. The floor covers very small type.
+        let gutterThreshold = max(wordBounds.height * 1.5, 8)
+        if wordBounds.minX - currentLineBounds.maxX > gutterThreshold { return .horizontalGap }
+
+        return .none
+    }
+
     private func extractTextWithSpatialOrdering(from page: PDFPage) -> String? {
         // Get all selections for lines on this page
         // We'll enumerate through the page character by character to find line boundaries
@@ -7716,6 +7776,10 @@ class DocumentProcessor {
         // word-relative offsets and reintroduce the same defect in a new shape.
         let words = pageString.split(whereSeparator: { $0.isWhitespace || $0.isNewline })
         var unresolvedWords = 0
+        // Counted so a trace can distinguish a genuinely single-column page from a two-column page
+        // whose gutter was never seen. Those two produced identical output and identical logs until
+        // now, which is what made this defect diagnosable only by inference.
+        var columnBreaks = 0
 
         for word in words {
             let wordString = String(word)
@@ -7726,9 +7790,13 @@ class DocumentProcessor {
 
                 let bounds = firstChar.bounds(for: page)
 
-                // Check if this is a new line (Y position changed significantly)
-                let yThreshold: CGFloat = bounds.height * 0.5
-                let isNewLine = currentLineY >= 0 && abs(bounds.midY - currentLineY) > yThreshold
+                let lineBreak = Self.spatialLineBreak(
+                    wordBounds: bounds,
+                    currentLineBounds: currentLineBounds,
+                    currentLineY: currentLineY
+                )
+                if lineBreak == .horizontalGap { columnBreaks += 1 }
+                let isNewLine = lineBreak != .none
 
                 if isNewLine && !currentLineText.isEmpty {
                     // Save the previous line
@@ -7788,6 +7856,14 @@ class DocumentProcessor {
             Log.debug(
                 "[DocumentProcessor] Spatial extraction: \(unresolvedWords) of \(words.count) "
                     + "word(s) could not be placed on the page",
+                category: .ingestion
+            )
+        }
+
+        if columnBreaks > 0 {
+            Log.info(
+                "[DocumentProcessor] Spatial extraction split \(columnBreaks) line(s) on a horizontal "
+                    + "gap; this page's words arrive across a gutter rather than in reading order",
                 category: .ingestion
             )
         }

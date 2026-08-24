@@ -155,11 +155,16 @@ builds only, it does not run tests); anything on device since 2026-08-19; the re
    the answer survived at 526 words — but something upstream is repeatedly proposing to replace a
    grounded 3,953-character answer with a ~180-character stub. Worth understanding before assuming
    the source-only guard covers the class.
-3. **Two-column PDFs: attribution exists, fix does not.** `LayoutAwareExtractor` detected 2 columns
-   on 6 of 8 pages and its output was discarded for PDFKit's `page.string`. Evidence chunks are left
-   and right columns spliced line-for-line. 118 of 552 chunks in one English paper were detected as
-   non-English — a free interleaving signal nothing reads. Fix is routing first
-   (`DocumentProcessor.swift:4301`, `:4362`), then the vertical-only line-break test at `:7731`.
+3. **Two-column PDFs: fixed in code, not device-verified.** The earlier diagnosis in this file was
+   **wrong** and is corrected: `DocumentProcessor.swift:4301` already preferred `readingOrderText`
+   when `isMultiColumn`, so Vision's output was never being discarded. The real defect was one step
+   earlier — `extractTextWithSpatialOrdering` grouped words into lines on a vertical test alone, so
+   a left-column and a right-column word at the same height merged into one line whose `xPosition`
+   is their **mean**, landing at the page centre. `detectColumnBoundaries` then found no gap and the
+   single-column branch interleaved. The column signal was destroyed before the detector ran, which
+   is why the tie-break fix could never have helped. `spatialLineBreak(...)` now breaks on
+   horizontal discontinuity; 7 unit tests, suite 284/0. **Closes when** the Yagishita paper is
+   re-imported on device and the locomotion passage reads as continuous prose.
    Row: https://app.notion.com/p/3bf49a74d54f81fcb146ef3f489be576
 4. **`final` r@1 stays below `rerank` r@1 at n=83 (0.442 vs 0.610 on `shipcfg-50`).** The ledger
    **rejects** `filterBySimilarity` — do not re-open that. Best account:
@@ -172,6 +177,10 @@ builds only, it does not run tests); anything on device since 2026-08-19; the re
 library containing the Yagishita paper. That is the only outstanding check on `dbff15a`, it takes one
 query, and it is the last v5.0 row that is fixed-but-unproven.
 
-Agent-side: Blocker 3, two-column PDFs. It is the largest remaining user-facing quality defect, it
-affects most academic PDFs, and the first half of the fix is routing rather than a new algorithm.
-Needs `PROCEED: IMPLEMENT`.
+The same device session can settle Blocker 3 at no extra cost: re-import the Yagishita paper and
+check whether a chunk containing the locomotion passage reads as continuous prose. Pre-fix text for
+comparison is in that row.
+
+Agent-side, unclaimed and in rough value order: the repeated-non-English interleaving detector
+(118 of 552 chunks, free signal, nothing reads it); the second answer-replacement path in Blocker 2;
+and Blocker 4's tie-break test. All need `PROCEED: IMPLEMENT`.
