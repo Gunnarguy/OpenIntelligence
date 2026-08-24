@@ -22,15 +22,13 @@ YOUR DOCUMENTS
 
 • Tables in Word documents were read and then thrown away. A file could import looking complete with all of its numbers missing.
 • Images keep their layout instead of collapsing into one line of text.
-• Photographing a page now matches importing it.
 • A page the reader knew it had read badly is no longer repaired and then discarded.
-• PDFs with figures but no tables keep their figures.
 • Importing certain files could deadlock the whole queue until you force-quit.
 
 
 YOUR LIBRARIES
 
-• A library that has lost its ability to answer now tells you, and rebuilds itself in about four seconds.
+• A document you import no longer loses its searchability to the app's own housekeeping, which deleted a just-built index and said nothing. If one is lost, the app says so and rebuilds in about four seconds.
 • "Remove Local Copies" is now "Remove All Documents", because that is what it did. It deleted from iCloud and your other devices while telling you Sync Now could bring them back. It could not.
 • Deleting a library from its settings screen no longer removes it here when iCloud refused.
 • Changing the embedding model no longer wipes your vectors before you agree to rebuild them.
