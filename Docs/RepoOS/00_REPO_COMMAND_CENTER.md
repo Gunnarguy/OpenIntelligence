@@ -47,7 +47,8 @@ Pick exactly one; each routes through `Docs/RepoOS/01_TASK_ROUTER.md`:
 - **D. Architecture re-audit / atlas update** → `Docs/AgentPlaybooks/architecture-atlas-update.md`; required before superseding the canonical doc (canonical §16).
 - **E. Resolve the stale-gate contradiction** → docs-only task: update `CURRENT_HANDOFF_PACKET.md` and FinalReview registry rows to reflect Phase 10 completion (needs user approval; modifies governance record).
 - **F. Anything touching a forbidden boundary** → STOP, present plan, wait for explicit user approval.
-- **G. RepoOS/Codex workflow automation** → Router row 14 → use `.codex/skills/route-openintelligence-work/SKILL.md`; keep Apple app source out of scope.
+- **G. App icon / asset appearance** → Router row 14 → keep the change inside the AppIcon asset catalog and validate with `actool` plus the simulator smoke build.
+- **H. RepoOS/Codex workflow automation** → Router row 15 → use `.codex/skills/route-openintelligence-work/SKILL.md`; keep Apple app source out of scope.
 
 ## Universal hard rules (apply to every task)
 No destructive git commands. No `project.pbxproj`, `.storekit`, or `.entitlements` edits without explicit user authorization (`Docs/AgentPlaybooks/07_TASK_ROUTER_AND_CHANGE_CONTROL.md`). No presenting conceptual links as exact code linkage. Tag all architecture claims with evidence_level + confidence. Stop after the requested phase.

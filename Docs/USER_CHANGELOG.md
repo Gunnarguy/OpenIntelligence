@@ -116,6 +116,7 @@ things the code does not do, so they are gone or corrected.
 
 ### The App Itself
 
+- **The app icon now follows your device's dark mode.** The existing light mark stays the same, and a matching dark appearance is selected when your device uses dark mode.
 - **Your device is identified correctly.** iPhone 17 and M5 hardware reported itself as "A12 or Older" with limited performance.
 - **The first screen no longer cuts off its own text.** Half the headline and all three example questions were being truncated.
 - **The chat controls match each other, and the mode menu explains itself.** It also shows which mode is active, and how many Maximum runs you have left before you pick it.

@@ -449,3 +449,7 @@ downstream of every stage the benchmark measures.
 **Not a recommendation.** Promoting the loop out of its fallback position, or giving reasoning
 sessions tools, is an architecture change in the highest-risk file in the repository, on a path with
 no test coverage. This section exists so that decision is made against what the code does.
+
+## 21. App Icon Appearance Boundary
+
+- The `OpenIntelligence/Resources/Assets/Assets.xcassets/AppIcon.appiconset` catalog retains the existing light icon and adds a universal iOS `luminosity=dark` rendition using `AppIcon-dark-1024.png`. Xcode's asset compiler packages the dark rendition as `UIAppearanceDark`; runtime selection on a physical device remains unverified. `[evidence_level: build_verified, confidence: high_pending_device_validation, evidence_source: AppIcon.appiconset/Contents.json; xcrun actool; /usr/bin/assetutil --info]`

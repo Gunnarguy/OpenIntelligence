@@ -113,7 +113,16 @@ Routes common task types to owning subsystems with read-first docs, edit zones, 
 - **Forbidden by default:** `OpenIntelligence.xcodeproj/project.pbxproj`, `Package.swift` targets, `Info.plist` capabilities, `ci_scripts/**`
 - **Approval:** ALWAYS, with explicit user authorization naming the file
 
-### 14. RepoOS / Codex workspace automation
+### 14. App icon / asset catalog appearance change
+- **Subsystem:** user-visible app icon assets
+- **Read first:** `Docs/RepoOS/03_FORBIDDEN_EDIT_BOUNDARIES.md`, `Docs/CANONICAL_OPENINTELLIGENCE_SOURCE_OF_TRUTH.md`
+- **Allowed:** `OpenIntelligence/Resources/Assets/Assets.xcassets/AppIcon.appiconset/**`
+- **Forbidden:** `OpenIntelligence.xcodeproj/project.pbxproj`, entitlements, capability keys, and unrelated source/config files
+- **Verify:** validate `Contents.json`; compile the asset catalog with `xcrun actool`; run `bash scripts/build_simulator_smoke.sh`
+- **Docs to update:** `WHATS_NEW.md`, `Docs/USER_CHANGELOG.md`, `CHANGELOG.md`
+- **Approval:** plan approval before edit
+
+### 15. RepoOS / Codex workspace automation
 - **Subsystem:** developer governance and agent workflow automation
 - **Read first:** `AGENTS.md`, `.codex/skills/route-openintelligence-work/SKILL.md`, `.agents/rules/00-repoos-routing.md`, `.agents/rules/01-docs-and-notion-sync.md`
 - **Allowed:** `.codex/skills/**`, `.agents/**`, `Docs/RepoOS/**`, `Docs/AuditArtifacts/RepoOS/**`, `AGENTS.md`, and documentation required by rule 14

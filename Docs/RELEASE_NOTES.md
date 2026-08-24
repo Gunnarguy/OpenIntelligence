@@ -28,7 +28,7 @@ This document provides a comprehensive, version-by-version breakdown of major ar
 
 ## v5.0 - August 10, 2026
 
-217 entries, 65 `[UI]`, 42 `[Orchestration]`, 38 `[General]`, 26 `[Retrieval]`, 23 `[Ingestion]`, 13 `[Indexing]`, 9 `[Infrastructure]`, 1 `[Chunking]`. Recounted from `CHANGELOG.md` on 2026-08-22. This figure has gone stale five times now, most recently
+219 entries, 66 `[UI]`, 42 `[Orchestration]`, 39 `[General]`, 26 `[Retrieval]`, 23 `[Ingestion]`, 13 `[Indexing]`, 9 `[Infrastructure]`, 1 `[Chunking]`. Recounted from `CHANGELOG.md` on 2026-08-23. This figure has gone stale five times now, most recently
 sitting at 161 for four days across an entire device-verification cycle, because it is a typed number describing a
 countable fact. Recount it rather than trusting it, with:
 
@@ -140,6 +140,7 @@ not support.
 
 ### Interface, and the design-system foundation
 
+*   **The app icon now follows the device's dark appearance.** The existing light mark remains the default, while the AppIcon catalog's universal iOS slot supplies a matching dark luminosity rendition for Home Screen selection. `[evidence_level: build_verified, confidence: high_pending_device_validation, evidence_source: OpenIntelligence/Resources/Assets/Assets.xcassets/AppIcon.appiconset/Contents.json; xcrun actool; assetutil UIAppearanceDark rendition]`
 *   **The About screen told an iPhone 17 Pro it was running "A12 or Older" with "Limited"
     performance.** `RAGService.detectDeviceChip()` stops at the iPhone 16 line, so every newer
     identifier fell to `default: return .older`. That value was rendered directly, and ANDed into

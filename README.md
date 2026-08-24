@@ -21,6 +21,8 @@ Drop in PDFs, Office files, code, images, audio, or video. OpenIntelligence read
 them, builds a private searchable index, and answers questions about them with
 citations you can tap and check.
 
+The app icon includes light and dark appearances, so it follows the device's appearance setting.
+
 **It runs on your device.** Ingestion, indexing, retrieval, ranking, and
 verification are all local. Nothing is uploaded to make search work. There is no
 account, no server of ours, and no third-party AI service anywhere in the path.
