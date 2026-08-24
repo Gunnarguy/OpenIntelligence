@@ -16325,8 +16325,44 @@ class RAGService: ObservableObject {
         }
         guard outcome.fidelityScore >= 0.72 else { return nil }
 
+        // A verification stage that could not read its own input must decline
+        // rather than overwrite. Neither guard above can see this: both
+        // `supportedClaims` and `fidelityScore` are computed over whatever
+        // fragment the drafter was shown, so a confident verdict about 1.5% of an
+        // answer is indistinguishable from a confident verdict about all of it.
+        //
+        // On 2026-08-24 that is exactly what shipped: a 472-word answer that
+        // Self-RAG had already accepted at 95% relevance and 80% confidence was
+        // handed to this stage, which saw 50 of its 3,415 characters and returned
+        // a 9-word fallback after 146.7 seconds. No inference ran after the trim.
+        // The comment above already names the failure mode — "not when it
+        // downgrades a plausible answer into a brittle abstention or ultra-thin
+        // rewrite" — and this is the guard that makes that intent enforceable
+        // rather than aspirational.
+        //
+        // The floor is high on purpose. This stage's output *replaces* the answer,
+        // so partial input makes the replacement unsound rather than merely
+        // weaker, and the generated answer it would replace has already passed
+        // verification. Declining costs grounding polish; accepting costs the
+        // answer.
+        guard outcome.candidateCoverage >= Self.sourceOnlyMinCandidateCoverage else {
+            Log.warning(
+                "[SourceOnly] Declining to replace the answer: the extraction stage saw only "
+                    + "\(Int((outcome.candidateCoverage * 100).rounded()))% of it "
+                    + "(floor \(Int((Self.sourceOnlyMinCandidateCoverage * 100).rounded()))%). "
+                    + "Keeping the generated answer.",
+                category: .llm
+            )
+            return nil
+        }
+
         return outcome
     }
+
+    /// How much of the candidate answer the source-only stage must have been shown
+    /// before it is allowed to replace that answer. See the guard in
+    /// `sourceOnlyOutcomeIfNeeded` for why this is strict.
+    private static let sourceOnlyMinCandidateCoverage = 0.85
 #endif
 
     /// Repair malformed URLs in LLM output so links are tappable and correct.

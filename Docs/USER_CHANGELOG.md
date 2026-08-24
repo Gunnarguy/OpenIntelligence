@@ -50,6 +50,7 @@ Documents were quietly losing parts of themselves, answers were built from a fra
 
 ### Answers
 
+- **A long answer is no longer replaced by a one-line stub.** After the app writes a long answer, a final stage re-reads every claim in it against your documents. That stage was given a smaller budget than the answer it was checking, so on a long answer it could be shown as little as one and a half percent of it and then replace the whole thing with a fragment. It now keeps its share of the budget for the answer rather than letting the evidence take all of it, and if it still cannot see enough of the answer to judge it fairly, it declines and leaves the original alone.
 - **Search ranks section headings again.** A weighting mistake had dropped section paths out of ranking entirely.
 - **Evidence that retrieval had already found is no longer discarded** when sentence extraction matches nothing.
 - **Long questions can now reach Private Cloud Compute.** They were being kept on device precisely when they were too big for it.

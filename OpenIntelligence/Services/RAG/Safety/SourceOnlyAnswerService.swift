@@ -145,6 +145,17 @@ struct SourceOnlyAnswerOutcome: Sendable {
     let abstentionReason: String?
     let fidelityScore: Float
     let warnings: [String]
+
+    /// Fraction of the candidate answer the drafter was actually shown, 0...1.
+    ///
+    /// A verification stage that cannot see its own input must decline rather
+    /// than overwrite. On 2026-08-24 this stage was shown 50 of a 3,415-character
+    /// answer — 1.5% — and replaced a 472-word answer that Self-RAG had already
+    /// accepted at 80% confidence with a 9-word fallback. Neither
+    /// `supportedClaims` nor `fidelityScore` can see that: both are computed over
+    /// the fragment, so a confident verdict about 1.5% of an answer looks
+    /// identical to a confident verdict about all of it. Callers gate on this.
+    let candidateCoverage: Double
 }
 
 private enum SourceOnlyVerificationMode: Sendable {
@@ -227,7 +238,8 @@ final class SourceOnlyAnswerService {
                 shouldAbstain: true,
                 abstentionReason: reason,
                 fidelityScore: 0,
-                warnings: [domainAssessment.details] + warnings
+                warnings: [domainAssessment.details] + warnings,
+                candidateCoverage: 1
             )
         }
 
@@ -276,18 +288,40 @@ final class SourceOnlyAnswerService {
         let recordCount = min(Self.maxEvidenceRecords, domainFilteredChunks.count)
         let evidenceCharBudget = Double(promptBudget) * Self.evidenceBudgetShare
             * FoundationModelTokenBudget.onDeviceCharsPerToken
+
+        // `renderEvidencePrompt` wraps every snippet in XML and adds the source
+        // name, the page and a 36-character chunk UUID, plus three more domain
+        // elements in strict mode. Sizing the snippet against the budget alone
+        // therefore overshoots by the entire wrapper, which is what kept the drop
+        // loop firing on every full-evidence run instead of as an exception — the
+        // same class of miscalculation the 2026-08-19 note above records once
+        // already. Measure the wrapper rather than guessing it, so it stays correct
+        // if the rendering changes.
+        let probeRecords = buildEvidenceRecords(from: domainFilteredChunks, snippetLimit: Self.maxSnippetChars)
+        let probeText = renderEvidencePrompt(probeRecords, verificationMode: verificationMode)
+        let wrapperChars = max(0, probeText.count - probeRecords.reduce(0) { $0 + $1.snippet.count })
+        let snippetCharBudget = max(0, Int(evidenceCharBudget) - wrapperChars)
+
         let snippetLimit = recordCount > 0
-            ? max(Self.minSnippetChars, min(Self.maxSnippetChars, Int(evidenceCharBudget) / recordCount))
+            ? max(Self.minSnippetChars, min(Self.maxSnippetChars, snippetCharBudget / recordCount))
             : Self.maxSnippetChars
 
         let evidenceRecords = buildEvidenceRecords(from: domainFilteredChunks, snippetLimit: snippetLimit)
         guard !evidenceRecords.isEmpty else { return nil }
 
+        // Enforce the share the constant already declares. This loop previously
+        // stopped at `promptBudget`, the *whole* budget, so evidence was free to
+        // consume all of it and `candidateBudget` below collapsed to whatever was
+        // left — on the 2026-08-24 capture, 50 characters of a 3,415-character
+        // answer. `evidenceBudgetShare` was applied to `snippetLimit` above and
+        // nowhere else, so the intent was documented and then not implemented.
+        // Bounding here guarantees the candidate keeps its 30%.
+        let evidenceTokenCeiling = max(1, Int(Double(promptBudget) * Self.evidenceBudgetShare))
         var budgetedRecords = evidenceRecords
         var evidencePromptText = renderEvidencePrompt(budgetedRecords, verificationMode: verificationMode)
         var droppedRecords = 0
         while budgetedRecords.count > 1,
-              FoundationModelTokenBudget.estimateTokens(for: evidencePromptText, isAppleFMOnDevice: true) > promptBudget {
+              FoundationModelTokenBudget.estimateTokens(for: evidencePromptText, isAppleFMOnDevice: true) > evidenceTokenCeiling {
             budgetedRecords.removeLast()
             droppedRecords += 1
             evidencePromptText = renderEvidencePrompt(budgetedRecords, verificationMode: verificationMode)
@@ -297,12 +331,16 @@ final class SourceOnlyAnswerService {
         let candidateBudget = max(0, promptBudget - evidenceTokens)
         let candidateCharBudget = Int(Double(candidateBudget) * FoundationModelTokenBudget.onDeviceCharsPerToken)
         let budgetedCandidate = Self.trimmedAtSentenceBoundary(candidateAnswer, limit: candidateCharBudget)
+        let candidateCoverage = candidateAnswer.isEmpty
+            ? 1.0
+            : Double(budgetedCandidate.count) / Double(candidateAnswer.count)
 
         if droppedRecords > 0 || budgetedCandidate.count < candidateAnswer.count {
             Log.warning(
                 "[SourceOnly] Extraction prompt trimmed to fit \(promptBudget) tokens: dropped "
                     + "\(droppedRecords) evidence record(s), candidate answer "
-                    + "\(budgetedCandidate.count)/\(candidateAnswer.count) chars",
+                    + "\(budgetedCandidate.count)/\(candidateAnswer.count) chars "
+                    + "(\(Int((candidateCoverage * 100).rounded()))% coverage)",
                 category: .llm
             )
         }
@@ -473,7 +511,8 @@ final class SourceOnlyAnswerService {
             shouldAbstain: shouldAbstain,
             abstentionReason: abstentionReason,
             fidelityScore: fidelityScore,
-            warnings: warnings
+            warnings: warnings,
+            candidateCoverage: candidateCoverage
         )
     }
 
