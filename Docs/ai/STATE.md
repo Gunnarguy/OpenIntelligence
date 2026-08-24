@@ -3,7 +3,7 @@
 Updated: 2026-08-24
 Branch/worktree: main, **not pushed** — check `git status` against `origin/main` before assuming this is current.
 Cross-tool handoff (if Claude access runs out): `HANDOFF.md` at repo root (kept current less often than this file).
-Last verified commit: 9f10a76
+Last verified commit: dbff15a
 
 ## Objective
 
@@ -15,11 +15,10 @@ not re-derive it here.
 
 ## Status
 
-**The device verification pass ran, and it found the cause of the 0-chunk phantom that three
-sessions had misattributed.** The app deletes a just-imported document's vectors itself, in
-`WorkspaceSyncService`, and the deletion is unlogged. `0350083` is exonerated. Separately, the
-"garbage answer" has a definite proximate cause that is not retrieval. App Store Connect is
-unblocked and the 5.0 listing now carries 5.0's own release notes; it had been carrying 4.9's.
+**Both v5.0 data-and-answer defects the device capture found are fixed, built and suite-green, and
+neither is device-verified.** The app no longer deletes a just-imported document's vectors, and the
+source-only stage no longer replaces an answer it could not read. Everything now waits on one device
+pass. App Store Connect is unblocked and the 5.0 listing carries 5.0's own notes.
 
 ## Completed this session (2026-08-24)
 
@@ -63,6 +62,17 @@ unblocked and the 5.0 listing now carries 5.0's own release notes; it had been c
 - **Device console forensics** over `Delete+IngestANDCHANGELIBRARIESMIDINGEST+Query+Rebuild.txt`
   (11,690 lines, gitignored, kept at repo root). 16 confirmed findings, 4 rejected on verification.
   Four Notion rows filed and two existing rows corrected in place — see Blockers.
+- **`ece4bae` — the app no longer deletes a just-imported document's vectors.**
+  `synchronizeVectorStore` refuses to delete when the chunks it just read are non-zero, and
+  `removeVectorStoreArtifacts` takes a mandatory `reason` and logs what it removed. All eleven call
+  sites labelled, not a subset. Hard-boundary file, edited under explicit owner approval.
+- **`dbff15a` — the source-only stage no longer destroys the answer it verifies.** Drop loop bounded
+  by `evidenceBudgetShare` (it previously stopped at the whole budget); `snippetLimit` sized against
+  a measured probe render rather than raw snippet length; and `SourceOnlyAnswerOutcome` now carries
+  `candidateCoverage`, with the caller keeping the generated answer below 0.85. The gate is the
+  load-bearing part — enforcing the share alone still leaves under 600 characters for a long answer.
+- **`96e73a1` — App Store notes re-pushed** with the vector-deletion fix, 3,995/4,000 characters,
+  read back byte-for-byte. Two bullets traded out to make room.
 
 ## Active Constraints
 
@@ -119,35 +129,34 @@ Command → result, this session only:
   `no vector store yet` from 6951 — the store was written twice and removed twice. Analysed by 26
   agents across 6 dimensions; 16 findings confirmed against the source, 4 rejected on verification.
 
-**Not run:** the fix for any of Blockers 1-3; the simulator test suite (`build_simulator_smoke.sh`
+- `xcodebuild test` on iOS 27 (UDID 8FA2B3CE-5EB0-4339-8629-F40684EDCE2D), after each of `ece4bae`
+  and `dbff15a` → **277 tests, 3 skipped, 0 failures, TEST SUCCEEDED** both times. Note the suite
+  references `WorkspaceSync` nowhere and covers no orchestration path, so this bounds regressions
+  rather than proving either fix.
+
+**Not run:** device verification of `ece4bae` or `dbff15a`; the simulator test suite (`build_simulator_smoke.sh`
 builds only, it does not run tests); anything on device since 2026-08-19; the rerank-stage
 `passage_present` scoring pass (data exists, scorer does not).
 
 ## Blockers / Unknowns
 
-1. **The app deletes a just-imported document's vectors itself. Data loss, reproducible, unfixed.**
-   `RAGService` persists vectors (log 6675) before it saves the document record (log 6908). In that
-   window `WorkspaceSyncService.synchronizeVectorStore` builds an empty `allowedDocumentIds`,
-   filters every chunk out, and falls through `guard allowedDocumentIds.isEmpty else { ... return }`
-   (`WorkspaceSyncService.swift:2399`) into `removeVectorStoreArtifacts` (`:2436`, silent helper at
-   `:2719`). It deleted the store twice, at 6685 and 6881. **A library switch is not required** — it
-   widens the window. `0350083` worked; the vectors were addressed correctly and then destroyed.
-   Fix is ~5 lines: refuse to delete when the chunks just read are non-zero.
-   **`WorkspaceSyncService.swift` is hard-boundary — needs the owner to name it in an approval.**
-   Row: https://app.notion.com/p/3c649a74d54f815b8f60e06555ce97bf
-2. **Source-only verification destroys the answer it verifies.** A 472-word answer, accepted by
-   Self-RAG at 80% confidence (log 10975), was cut to 50 of 3,415 characters by a 1,421-token prompt
-   budget and delivered as a 9-word fallback (11253). No inference ran after the trim. Generation is
-   allowed 1,500 tokens; the stage gating it gets 1,421 for evidence *plus* answer, so the two
-   budgets are mutually unsatisfiable and this fires on every long answer. Introduced by the fix for
-   the 2026-08-18 context overflow. `SourceOnlyAnswerService.swift:289`, gate at
-   `RAGService.swift:16290`. Row: https://app.notion.com/p/3c649a74d54f81eaa73dfa4d627d8a5e
-3. **Two-column PDFs: attribution now exists, and it is worse than "can reach".** `LayoutAwareExtractor`
-   detected 2 columns on 6 of 8 pages and its output was discarded for PDFKit's `page.string`.
-   Evidence chunks are left and right columns spliced line-for-line. 118 of 552 chunks in a single
-   English paper were detected as non-English — a free interleaving signal nothing reads. Existing
-   row updated in place: https://app.notion.com/p/3bf49a74d54f81fcb146ef3f489be576
-4. **`final` r@1 stays below `rerank` r@1 at n=83 (0.442 vs 0.610 on `shipcfg-50`).** The ledger
+1. **Neither of today's two fixes has run on the device.** Both are build- and suite-verified and
+   neither is proven where the defect appeared, and the unit suite covers no sync and no
+   orchestration path, so suite-green closes nothing here. One pass settles both:
+   - Import a document, **switch libraries while it is still processing**, return and query it.
+     Passes if the document answers, and the console shows either nothing removed or
+     `refusing to delete. An import may still be writing.` instead of a silent removal.
+     Row: https://app.notion.com/p/3c649a74d54f815b8f60e06555ce97bf
+   - Ask *What role do dopamine receptors play in movement?* against the same library. Passes on a
+     full answer, or on `Declining to replace the answer: the extraction stage saw only N% of it`.
+     A 9-word stub is a failure. Row: https://app.notion.com/p/3c649a74d54f81eaa73dfa4d627d8a5e
+2. **Two-column PDFs: attribution exists, fix does not.** `LayoutAwareExtractor` detected 2 columns
+   on 6 of 8 pages and its output was discarded for PDFKit's `page.string`. Evidence chunks are left
+   and right columns spliced line-for-line. 118 of 552 chunks in one English paper were detected as
+   non-English — a free interleaving signal nothing reads. Fix is routing first
+   (`DocumentProcessor.swift:4301`, `:4362`), then the vertical-only line-break test at `:7731`.
+   Row: https://app.notion.com/p/3bf49a74d54f81fcb146ef3f489be576
+3. **`final` r@1 stays below `rerank` r@1 at n=83 (0.442 vs 0.610 on `shipcfg-50`).** The ledger
    **rejects** `filterBySimilarity` — do not re-open that. Best account:
    `EvidenceScoringPolicyService.extractivePriorityScore` re-sorts extractive-intent queries by a
    keyword heuristic that overwrites the cross-encoder. Rank-1 loss 27.0% where it fires vs 15.2%
@@ -155,20 +164,8 @@ builds only, it does not run tests); anything on device since 2026-08-19; the re
 
 ## Exact Next Action
 
-**Fix Blocker 1.** In `WorkspaceSyncService.synchronizeVectorStore`, before the
-`removeVectorStoreArtifacts` calls at `WorkspaceSyncService.swift:2436-2442`, guard on the chunks
-already loaded a few lines above:
+**Owner: build `main` (at `dbff15a` or later) to the iPhone and run the two checks in Blocker 1.**
+They share one setup and take a few minutes. Both rows close or reopen on that pass, and they are
+the last two v5.0 rows that are fixed-but-unproven.
 
-```swift
-let loadedChunkCount = localChunks.count + sharedChunks.count
-guard loadedChunkCount == 0 else {
-    Log.error("[WorkspaceSync] Container \(container.id) has no documents in metadata but its vector store holds \(loadedChunkCount) chunk(s); refusing to delete. An import may still be writing.")
-    return
-}
-```
-
-Add a log line to `removeVectorStoreArtifacts` in the same change — its silence is why this took
-three sessions. **Both edits are in a hard-boundary file: get the owner to name
-`WorkspaceSyncService.swift` in an approval first.** Verify by re-running the owner's own protocol:
-import, switch libraries mid-import, return and query. Passes if the document answers and the
-console shows the refusing-to-delete line.
+Agent-side while that runs: Blocker 3's cheap test, which needs `PROCEED: IMPLEMENT`.
