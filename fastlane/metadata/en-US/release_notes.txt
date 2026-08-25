@@ -5,7 +5,7 @@ SEARCH
 
 • The part of the app that reads what a passage means was looking at one position in it instead of the whole thing. It reads all of it now.
 • A broken length check returned the same number for every input, so long passages were cut short before they were ever indexed.
-• Libraries you already have keep the index they were built with, and nothing will prompt you to change it. Re-importing a document rebuilds it with the corrected model.
+• Libraries you already have will offer to rebuild their index once, because anything indexed before this update was built the old way. Nothing is deleted and the library keeps working while you decide.
 • Keyword and meaning-based search combined stopped scoring worse than keyword search alone, and strong keyword matches are no longer dropped before ranking.
 
 
@@ -15,7 +15,6 @@ ANSWERS
 • Citations are checked against the real source list. An answer could cite a source number past the end of its own list.
 • Deep Think is about three times faster, and stops when it runs out of new material instead of re-reading the same passages.
 • A long answer no longer fails at the last step after minutes of work.
-• Answers ending in bold or italic no longer come out broken.
 
 
 YOUR DOCUMENTS

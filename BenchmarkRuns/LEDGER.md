@@ -13,6 +13,45 @@ in this table by hand.
 ---
 
 
+## 2026-08-25: `20260825-postfix-greedy-83` — failed, every case timed out, cause not attributed
+
+Recorded rather than deleted, per the standing rule, and recorded as **failed** so nobody reads the
+directory as evidence of anything.
+
+**Intent.** Re-take `final` vs `rerank` r@1 on a build containing `11b8d9f`, which made the
+extractive evidence re-sort deterministic. Every `final`-stage figure in this ledger was measured
+against a comparator whose output was undefined, so the 27.0%/15.2% attribution above needs
+re-taking before it is trusted or acted on.
+
+**Configuration.** macOS Debug, unsandboxed, built from `/private/tmp/oi-src`, entitlements
+confirmed empty. QASPER `qasper_external_v1`, 83 cases, `--modes standard --pcc deny
+--sampling greedy`. Commit `91ea045`.
+
+**Outcome.** Cases 1 through 5 each returned `ERROR: timeout after 600s`; the run was killed during
+case 6 when the session ended. No `reports/` were written, so there is no per-case stdout and
+**nothing attributes the hang**.
+
+**Ruled out.** The sandbox cause the runbook documents first: zero occurrences of
+`have permission to save`, and `codesign -d --entitlements -` printed none. No other error of any
+kind appears in the harness log.
+
+**Not established.** Whether Foundation Models generation completed. The 600s figure matches the
+runbook's recorded shape exactly — the agentic path retrying eight reasoning sessions is "the ten
+minutes" — but that passage concerns the **Simulator** and states the host Mac generates real text.
+Attributing this to FM without per-case output would be a guess, and this project has spent four
+wrong root causes this week on exactly that move.
+
+**Process failure worth recording.** Runbook item 7 says run six cases before eighty three, for this
+reason. Eighty three were launched directly. The discipline exists because a broken configuration
+should cost ten minutes, and this cost about fifty.
+
+**Next attempt must**: run `--limit 2` first, capture per-case stdout, and attach
+`scripts/watch_benchmark_defects.sh` so a failure shape is visible as it happens rather than after.
+
+`[evidence_level: run_artifact_verified, confidence: exact_for_the_failure, cause_unattributed]`
+
+---
+
 ## 2026-08-24: the `final` vs `rerank` r@1 figures were measured against an undefined sort
 
 Recorded at the top because it affects how every `final`-stage number in this ledger should be
