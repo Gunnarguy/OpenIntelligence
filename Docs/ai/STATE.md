@@ -3,7 +3,7 @@
 Updated: 2026-08-25
 Branch/worktree: main, pushed to `origin/main`.
 Cross-tool handoff (if Claude access runs out): `HANDOFF.md` at repo root (kept current less often than this file).
-Last verified commit: ef5ede0
+Last verified commit: 771461c
 
 ## Objective
 
@@ -12,11 +12,10 @@ for the row list** — use the `notion-roadmap` skill, do not re-derive it here.
 
 ## Status
 
-**v5.0 is 43 Completed against 4 open.** The overnight retrieval pass was device-verified on
-2026-08-25 in `whatQuery.txt` and closed three rows at once. Four fixes confirmed on hardware: the
-source-only gate declined a 23%-coverage replacement and kept the answer, `Draft generation failed`
-is gone with the stage demonstrably running, spec-query boosts went 6 to 0, and no bibliography
-entry reached the citation map. What remains is two staged device checks and two unstarted tasks.
+**v5.0 is 43 Completed against 5 open**, and every open row now has either code waiting for a
+device check or a staged test. Five more fixes landed on 2026-08-25 — the answer-replacement hole,
+the Self-RAG contradiction check, the background-task correction, and the sync churn — at **317
+tests, 0 failures** (from 287 two days ago). **None of today's work is device-verified.**
 
 ## Completed this session (2026-08-24)
 
@@ -100,47 +99,47 @@ entry reached the citation map. What remains is two staged device checks and two
 
 ## Blockers / Unknowns
 
-**Two staged device checks. Neither is a normal query — both need a deliberately constructed state.**
+**Everything open is now a device check. No unstarted code work remains in v5.0.**
 
-1. **A library with no vectors cannot repair itself, and the repair reports success.** Detection and
-   repair are device-proven; the **blocked-rebuild** path never has been. Needs a library with a
-   stuck non-terminal ingestion queue item, which vetoes its own document's repair. Discriminator on
-   the row: `Self-healing rebuild completed successfully` with no preceding
-   `[Reembed] STARTING FULL REBUILD`. https://app.notion.com/p/3c049a74d54f81fd9255edc739959d36
-2. **Existing libraries keep truncated vectors.** `EmbeddingFingerprint` shipped in `3b48c88`, but
-   every existing container had `embeddingFingerprint == nil` and took the silent-adopt branch, so
-   the event that would have proven the flag was absorbed and **cannot fire twice**. Replacement
-   condition on the row: induce a fingerprint change on a library that already carries one — a
-   chunker-recipe change or a `modelRevision` bump — then confirm flag, banner and rebuild on device.
-   The owner's own library is in this state; delete-and-re-import is the cheap workaround.
-   https://app.notion.com/p/3bf49a74d54f812597ffd48a165a139f
-
-**Two unstarted tasks.**
-
-3. **Self-RAG accepted an answer that contradicts itself and its own sources at 88% confidence.**
+1. **Sync churn — the highest-value check, and the one with real downside if wrong.**
+   `771461c` skips the two full store reads when a signature of both roots, the document set,
+   `documentAliases` and `strategy` matches a pass that concluded nothing needed writing.
+   Baseline to beat: **128 opens / 43,164 chunk records / 0 writes** in one session, 64 opens
+   before first paint. **The check that matters is the second one:** a genuine change must still
+   sync. Edit or import on one device and confirm it reaches another. The failure this could
+   introduce is a *skipped* sync, not a slow one. No unit coverage — sync has none.
+   https://app.notion.com/p/3c649a74d54f81219022c292bc4aba31
+2. **Self-RAG contradiction check.** `7851b92` retries an answer that asserts its sources are
+   silent while citing them. Look for `Answer asserts its sources do not cover the question while
+   citing N of them`. An honest abstention citing nothing is explicitly unaffected and has a test.
    https://app.notion.com/p/3bf49a74d54f81b8a47ef00d9037f08e
-4. **A long answer outlives its 30-second background grant**; the task that would save it is
-   registered but never submitted. Loses the answer, so it passes test 1.
+3. **A library with no vectors cannot repair itself.** Needs a staged stuck-queue item.
+   Discriminator: `Self-healing rebuild completed successfully` with no preceding
+   `[Reembed] STARTING FULL REBUILD`. https://app.notion.com/p/3c049a74d54f81fd9255edc739959d36
+4. **Existing libraries keep truncated vectors.** Original closing test was consumed by nil-adopt
+   and cannot fire twice; needs a fingerprint change induced on a library that already carries one.
+   https://app.notion.com/p/3bf49a74d54f812597ffd48a165a139f
+5. **Background grant — recommend moving out of v5.0.** The row's premise is false and now
+   corrected: the task **is** submitted, and `whatQuery.txt` shows `Submitted continued query task`
+   once with zero failures. What is unknown is whether a long answer survives backgrounding, which
+   nothing in the repo can settle. Its lifecycle logs now reach a shareable trace.
    https://app.notion.com/p/3c149a74d54f8171adfcce5dcb345777
 
-**Not in the release, but live and now filed.** The recursive-research loop keeps proposing to
-replace long cited answers with uncited fragments — six occurrences across three captures, most
-recently `3080 chars -> 352 chars` twice in one query. `shouldAcceptReplacement` has caught every
-one. The loop *prefers* the fragment because an answer with no citations has its grounding forced to
-0.5 and skips the retry check, so uncited always verifies cleaner than cited. The guard is a net
-under a bug; nobody has enumerated the replacement sites to confirm it covers all of them, and that
-enumeration is a code read rather than a device run.
+**Not in the release, filed:** the recursive-research loop still proposes uncited fragments — six
+occurrences across three captures. Every displacement site is now guarded, so the harm is contained,
+but the loop *prefers* the fragment because an uncited answer has its grounding forced to 0.5 and
+skips the retry check. Changing that risks a loop and needs its own measurement.
 https://app.notion.com/p/3c749a74d54f816b808cee4e0284948c
 
 ## Exact Next Action
 
-**Agent-side, and it costs nothing on device: re-run the greedy A/A pair on a build containing
-`11b8d9f`.** The 2026-08-23 pair was bit-identical on vector, lexical and fusion but jittered at
-`boosted` and between `rerank` and `final`. `final` sits downstream of the extractive re-sort, whose
-result was undefined until that commit. If the jitter narrows, the "two runs return different
-evidence" row has its answer and the `final` r@1 figure can be re-taken in the same run — and that
-figure needs re-taking regardless, because the 27.0%/15.2% attribution was measured against the
-undefined sort.
+**Owner, one session on the phone settles four rows.** Import a document (checks sync churn and the
+truncated-vector flag), let it finish, ask a question that would previously have drawn an absence
+claim (checks the Self-RAG contradiction check), and background the app mid-answer (checks the
+continued-query task). Share the trace.
 
-Then Blocker 4 (background grant, passes test 1) and Blocker 3 (Self-RAG contradictions), each
-needing `PROCEED: IMPLEMENT`. The two staged device checks are the owner's whenever convenient.
+**Agent-side, and it costs nothing on device:** re-run the greedy A/A pair on a build containing
+`11b8d9f`. `final` sits downstream of the extractive re-sort, whose result was undefined until that
+commit. If the jitter narrows, the "two runs return different evidence" row has its answer and the
+`final` r@1 figure can be re-taken — which it needs regardless, because the 27.0%/15.2% attribution
+was measured against the undefined sort.
