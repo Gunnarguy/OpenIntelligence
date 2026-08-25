@@ -35,6 +35,7 @@ Documents were quietly losing parts of themselves, answers were built from a fra
 
 ### Your Documents
 
+- **A document's auto-generated tags no longer come from its bibliography.** The app samples the start, middle and end of a document to work out what it is about, and on a research paper the end is the reference list — so a third of what it read was author surnames. The same paper produced "analysis, depression, dopamine, motivation, serotonin" on one import and "cho, merten, pychatry, zeng" on another, the second set being cited authors and a mangled page header. Reference sections are left out of that sample now.
 - **Tables in Word documents were being thrown away.** Each one was read into rows and then dropped, so a document could import looking fine with all of its numbers missing.
 - **Images keep their layout.** Every image became one unbroken line of text before anything downstream could read it.
 - **Photographing a page now matches importing it.** Camera captures came out as flat text where the same page imported as table cells.

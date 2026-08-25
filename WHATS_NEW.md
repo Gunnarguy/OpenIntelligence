@@ -32,6 +32,7 @@ Documents were quietly losing parts of themselves, answers were built from a fra
 - **Switching between libraries no longer resets your place or flashes the screen:** the library picker was rebuilding itself from scratch on certain switches, which reset its scroll position and made the screen visibly redraw.
 
 ### Your Documents
+- **A document's auto-generated tags no longer come from its bibliography:** the app samples the start, middle and end of a document, and on a research paper the end is the reference list — so a third of what it read was author surnames. The same paper produced "dopamine, motivation, serotonin" on one import and "cho, merten, pychatry, zeng" on another.
 - **Tables in Word documents were being thrown away:** each one was read into rows and then dropped, so a document could import looking fine with all of its numbers missing.
 - **Images keep their layout:** every image became one unbroken line of text before anything downstream could read it.
 - **Photographing a page now matches importing it:** camera captures came out as flat text where the same page imported as table cells.
