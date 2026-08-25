@@ -515,3 +515,63 @@ A related decision inside the same change: parent document expansion is now gate
 but the gate admits every primary retrieval match unconditionally and only withholds siblings.
 Gating primaries would have replaced a silent loss at synthesis with a silent loss at retrieval,
 which is the same defect one stage earlier.
+
+---
+
+## 2026-08-25 — PCC stays behind `#if compiler(>=6.4)`, and a runtime gate is not an alternative
+
+**Context.** The owner runs local Xcode 27 builds and sees Private Cloud Compute working, while
+App Store users do not. The natural hypothesis — that a runtime check like
+`if #available(iOS 27.0, *)` could unlock it on an iOS 27 device from an App Store binary, and that
+it would therefore "just work" once iOS 27 ships publicly — was investigated across five independent
+lines and settled empirically rather than by argument. This is recorded because the hypothesis is
+reasonable, recurs, and acting on it would produce either a build failure or a review rejection.
+
+**What was established.**
+
+1. **`#if compiler(...)` is a build-time condition, and its false branch is not merely uncompiled —
+   it is not even parsed.** Swift's language reference states an explicit exception for `swift()`
+   and `compiler()` conditions: those branches are scanned only far enough to find the matching
+   `#endif`. Verified locally: code inside `#if compiler(>=99.0)` calling a nonexistent function
+   compiles cleanly, and its string literals are absent from the built binary under `strings`, raw
+   byte `grep` and `nm -u`. The same test under `-Onone` behaves identically, so this is conditional
+   compilation rather than the optimiser.
+
+2. **`if #available` is the opposite.** A probe gated on `#available(macOS 99.0, *)` — a version
+   that can never be satisfied — still emits **both** branches, and both string literals appear in
+   the binary. Availability chooses between paths that were both compiled; conditional compilation
+   decides whether the code exists at all. A runtime check cannot reach a symbol a false
+   compile-time gate excluded, because the compiler never emitted it.
+
+3. **The symbol does not exist in the older SDK, so a runtime gate does not even compile.** Against
+   `MacOSX26.5.sdk`, `if #available(macOS 27.0, *) { PrivateCloudComputeLanguageModel() }` fails
+   with `error: cannot find 'PrivateCloudComputeLanguageModel' in scope`. Changing **only** the
+   `-sdk` flag to `MacOSX27.0.sdk` makes the identical source typecheck. `grep -c` over the 26.5
+   FoundationModels `.swiftinterface` returns **0** for the type against **29** for
+   `SystemLanguageModel`, so the absence is real rather than a broken grep.
+
+4. **Xcode 26.6 ships Swift 6.3**, verbatim from Apple: *"Xcode 26.6 includes Swift 6.3 and SDKs for
+   iOS 26.5…"*. `6.3 < 6.4`, so every Xcode Cloud "Latest Release" build compiled all ten gates out.
+   Xcode 27 was still **beta** at the time of this check, which is why "Latest Release" resolves
+   to 26.6.
+
+5. **One tempting nuance, checked and closed.** The 26.5 SDK's FoundationModels linker stub *does*
+   export `PrivateCloudComputeLanguageModel` mangled symbols as non-public ABI — 20+ of them. That
+   is why "surely the code is on the device" feels right. But the exported shape is an earlier,
+   incompatible iteration of the type, and reaching it would mean hand-declaring mangled symbols,
+   which is private-API use and a review rejection. There is no supported path.
+
+**Decision.** Leave the gate as `#if compiler(>=6.4)`. It is correct as written. PCC enables when
+the **build toolchain** moves to Xcode 27, not when the user's OS does.
+
+**Alternatives rejected.** Replacing the compile-time gate with a runtime one (does not compile
+against the shipping SDK); weak-linking and hand-declaring the symbols (private API, rejection risk);
+waiting for iOS 27's public release and expecting existing binaries to light up (they cannot — the
+code is not in them).
+
+**Consequences.** No App Store or TestFlight build has ever contained executable PCC code, and the
+owner is the only person who has run it. **The app itself never misled anyone:**
+`FoundationModelCapabilityProvider` returns `supportsPCC: false` on the 26.x toolchain and the UI
+reads that snapshot, so nobody was offered PCC and then failed. The defect was confined to outward
+copy, corrected for marketing on 2026-08-21 and for in-app copy in `8f76398`.
+`[evidence_level: proven, confidence: exact, evidence_source: local compile probes against MacOSX26.5.sdk vs MacOSX27.0.sdk; swift-book Statements.md; Apple Xcode 26.6 and Xcode 27 beta 6 release notes; 21-agent verification pass]`
