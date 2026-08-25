@@ -369,13 +369,65 @@ enum EvidenceScoringPolicyService {
         queryKeywords: [String],
         structureType: String?
     ) -> Float {
-        let lowercased = content.lowercased()
         let specScore = Float(specPatternCount(in: content))
         let structuredBonus: Float = isStructuredEvidence(text: content, structureType: structureType) ? 10 : 0
-        let keywordHits = Float(queryKeywords.filter { lowercased.contains($0) }.count)
+        // Whole-word hits. `content.lowercased().contains(keyword)` credited a keyword
+        // that merely appeared inside a longer word, and each false hit is worth 5 points
+        // here — enough to reorder the evidence a query is answered from. Same defect as
+        // the one that made "dopamine" match the spec keyword "min".
+        let contentTokens = Set(evidenceTokens(in: content))
+        let keywordHits = Float(queryKeywords.filter { contentTokens.contains($0.lowercased()) }.count)
         let keywordBonus = keywordHits * 5
         return specScore + structuredBonus + keywordBonus
     }
+
+    /// Lowercased alphanumeric tokens, for whole-word keyword credit.
+    nonisolated static func evidenceTokens(in text: String) -> [String] {
+        text.lowercased()
+            .split(whereSeparator: { !$0.isLetter && !$0.isNumber })
+            .map(String.init)
+    }
+
+    /// Orders two candidates for the extractive evidence pass.
+    ///
+    /// The predicate this replaces was **not a strict weak ordering**:
+    ///
+    /// ```swift
+    /// if abs(aPriority - bPriority) >= 2 { return aPriority > bPriority }
+    /// return a.similarityScore > b.similarityScore
+    /// ```
+    ///
+    /// With priorities 5, 4 and 3, the two inner pairs both fall through to similarity
+    /// while the outer pair sorts by priority. `sorted(by:)` is documented as producing an
+    /// **unspecified** result when given such a predicate, so the final evidence order was
+    /// undefined rather than merely debatable. This is the third instance of that exact
+    /// shape found in this codebase on 2026-08-24, after `buildReadingOrderText` and
+    /// `detectAndSeparateTables`.
+    ///
+    /// It matters here more than it did there. `BenchmarkRuns/LEDGER.md` records `final`
+    /// r@1 at 0.442 against `rerank` r@1 at 0.610 over n=83 — the ordering gets *worse*
+    /// after this stage — and attributes a rank-1 loss of 27.0% where this re-sort fires
+    /// against 15.2% where it does not. An undefined sort at exactly the stage where rank
+    /// 1 degrades is a better account of that than any scoring hypothesis, and it means
+    /// **the 27%/15.2% figure was itself measured against undefined behaviour** and needs
+    /// re-taking before the tie-break experiment on that row is worth running.
+    ///
+    /// Quantising into priority bands preserves the original intent — only a clear
+    /// advantage outranks relevance, a difference of 1 does not — while being transitive.
+    /// The band width matches the old threshold, and the score is built from steps of 5
+    /// (keyword) and 10 (structured), so genuine advantages still separate cleanly.
+    nonisolated static func extractiveEvidencePrecedes(
+        lhsPriority: Float, lhsRelevance: Float,
+        rhsPriority: Float, rhsRelevance: Float
+    ) -> Bool {
+        let lhsBand = (lhsPriority / Self.extractivePriorityBandWidth).rounded(.down)
+        let rhsBand = (rhsPriority / Self.extractivePriorityBandWidth).rounded(.down)
+        if lhsBand != rhsBand { return lhsBand > rhsBand }
+        return lhsRelevance > rhsRelevance
+    }
+
+    /// Matches the `>= 2` threshold the previous comparator used.
+    nonisolated static let extractivePriorityBandWidth: Float = 2
 
     nonisolated static func sentenceScore(
         line: String,

@@ -12027,12 +12027,15 @@ class RAGService: ObservableObject {
                             structureType: b.chunk.metadata.structureType
                         )
 
-                        // If one has clear advantage, prioritize it
-                        if abs(aPriority - bPriority) >= 2 {
-                            return aPriority > bPriority
-                        }
-                        // Otherwise, maintain relevance order
-                        return a.similarityScore > b.similarityScore
+                        // Clear advantage outranks relevance; a difference of 1 does not.
+                        // Expressed as bands rather than an epsilon, because the epsilon
+                        // form was not a strict weak ordering and left this sort's output
+                        // undefined. See `extractiveEvidencePrecedes` for the full note and
+                        // for why the LEDGER's 27.0%/15.2% rank-1 figure needs re-taking.
+                        return EvidenceScoringPolicyService.extractiveEvidencePrecedes(
+                            lhsPriority: aPriority, lhsRelevance: a.similarityScore,
+                            rhsPriority: bPriority, rhsRelevance: b.similarityScore
+                        )
                     })
                     Log.info("[RAG] Extractive query - prioritizing specs (discriminative: [\(discriminativeKeywords.joined(separator: ", "))])", category: .retrieval)
                 } else {

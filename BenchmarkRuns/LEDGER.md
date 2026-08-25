@@ -12,6 +12,33 @@ in this table by hand.
 
 ---
 
+
+## 2026-08-24: the `final` vs `rerank` r@1 figures were measured against an undefined sort
+
+Recorded at the top because it affects how every `final`-stage number in this ledger should be
+read, and because the correction is not visible from any run directory.
+
+`RAGService`'s extractive evidence re-sort used `abs(aPriority - bPriority) >= 2` inside its
+comparator. That predicate is not a strict weak ordering — with priorities 5, 4 and 3 the inner
+pairs compare equal while the outer pair compares ordered — and `sorted(by:)` is documented as
+producing an **unspecified** result when given one. The final evidence order was therefore
+undefined, not merely debatable.
+
+**Consequences for what is written below.** The `shipcfg-50` account attributing rank-1 loss of
+27.0% where the re-sort fires against 15.2% where it does not was computed over that undefined
+ordering, so the figure characterises the sort's arbitrary output rather than the scoring policy.
+It should be re-taken on a build containing `EvidenceScoringPolicyService.extractiveEvidencePrecedes`
+before the proposed tie-break experiment is run, because that experiment was designed to test a
+hypothesis the measurement cannot currently support.
+
+`final` r@1 0.442 against `rerank` r@1 0.610 at n=83 remains the observation worth explaining. An
+undefined sort at exactly the stage where rank 1 degrades is a better candidate than any scoring
+hypothesis, and it is now removed. Whether it was the whole cause is open.
+
+No run directory was modified. `[evidence_level: code_verified, confidence: exact_for_the_defect,
+retrieval_effect_unmeasured]`
+
+
 ## 2026-08-19: the overnight run that found a regression instead of a number
 
 Ran to measure whether the reasoning-chain session cap (`e16a2d3`) changed answer quality. It never
