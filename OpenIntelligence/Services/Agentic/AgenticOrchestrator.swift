@@ -3720,11 +3720,21 @@ final class AgenticOrchestrator: Sendable {
             sourceCount: sourceChunks.count
         )
 
+        let assertsAbsence = AgenticPolicyService.assertsAbsenceOfEvidence(in: answer)
+        if assertsAbsence && citationResult.totalCitations > 0 {
+            Log.warning(
+                "[Self-RAG 2.0] Answer asserts its sources do not cover the question while citing "
+                    + "\(citationResult.totalCitations) of them. Treating as self-contradicting.",
+                category: .llm
+            )
+        }
+
         let action = AgenticPolicyService.verificationAction(
             addressesQuestion: addressesQuestion,
             groundingScore: citationResult.groundingScore,
             totalCitations: citationResult.totalCitations,
-            calibratedConfidence: calibrated
+            calibratedConfidence: calibrated,
+            assertsAbsenceOfEvidence: assertsAbsence
         )
 
         let summary = buildVerificationSummary(

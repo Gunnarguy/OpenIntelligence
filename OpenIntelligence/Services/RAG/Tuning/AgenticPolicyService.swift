@@ -168,13 +168,65 @@ enum AgenticPolicyService {
         answerRelevance >= 0.35
     }
 
+    /// Whether the answer claims its own sources do not cover the question.
+    ///
+    /// Deliberately narrow, and the narrowness is the design. A sentence must contain
+    /// **both** a reference to the corpus and an absence phrase before it counts, so
+    /// "the study found no evidence of an effect" — a finding reported *by* a document —
+    /// is not mistaken for "the documents contain no evidence", which is a claim *about*
+    /// the documents. A false positive here costs a needless retry, so the bar is high.
+    ///
+    /// No model call. The row this implements observed the shape directly: an answer that
+    /// asserted the corpus held no evidence on the question **while citing twenty sources
+    /// from that corpus**, containing a section headed "Dopamine Dynamics During Social
+    /// Stress" that presented evidence and then concluded none existed, and within a single
+    /// sentence stating signalling "can include signaling in social interaction, there is
+    /// no detailed evidence of such effects". The gate accepted it at 88% confidence.
+    static func assertsAbsenceOfEvidence(in answer: String) -> Bool {
+        let corpusTerms = [
+            "document", "source", "context", "provided", "retrieved",
+            "corpus", "library", "excerpt", "passage", "material"
+        ]
+        let absenceTerms = [
+            "no evidence", "no detailed evidence", "no information", "no specific information",
+            "no mention", "no details", "no data",
+            "does not contain", "do not contain", "does not mention", "do not mention",
+            "does not provide", "do not provide", "does not include", "do not include",
+            "does not address", "do not address", "does not discuss", "do not discuss",
+            "not covered", "not available", "not present", "cannot be determined"
+        ]
+
+        return answer.lowercased()
+            .split(whereSeparator: { ".!?\n".contains($0) })
+            .contains { sentence in
+                corpusTerms.contains(where: { sentence.contains($0) })
+                    && absenceTerms.contains(where: { sentence.contains($0) })
+            }
+    }
+
     static func verificationAction(
         addressesQuestion: Bool,
         groundingScore: Float,
         totalCitations: Int,
-        calibratedConfidence: Float
+        calibratedConfidence: Float,
+        assertsAbsenceOfEvidence: Bool = false
     ) -> String {
         if !addressesQuestion {
+            return "retry"
+        }
+
+        // An answer that asserts its sources do not cover the question, while carrying
+        // citations to those sources, contradicts itself. Nothing else in this gate can
+        // see that: `citations=1/1` is a perfect score and means only that the markers
+        // resolve to real chunks, not that the answer agrees with them or with itself.
+        // That is how a self-contradicting answer was certified at 88% confidence on
+        // 2026-08-17 — the check meant to catch a wrong answer instead endorsed it.
+        //
+        // `retry` rather than a new action on purpose: it is the response this gate
+        // already uses for a grounding failure, so the downstream handling is exercised
+        // rather than novel. The detector is deliberately conservative for the same
+        // reason — a false positive here spends a retry for nothing.
+        if assertsAbsenceOfEvidence && totalCitations > 0 {
             return "retry"
         }
         // Raised from 0.3 on 2026-08-19. At 0.3, seven of every ten citations could fail to check

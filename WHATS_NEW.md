@@ -52,6 +52,7 @@ Documents were quietly losing parts of themselves, answers were built from a fra
 - **The evidence behind an answer was being put in an undefined order:** the rule deciding which passage outranks which treated close scores as equal and distant ones as different, which is inconsistent across three passages, and a sort given an inconsistent rule has no defined result. It now uses a rule that always agrees with itself.
 - **Deep Think was writing its answer from a fraction of what it actually found:** it could retrieve the right passages and discard most of them, including the best one, before writing a word.
 - **An answer that cites your documents can no longer be replaced by one that cites nothing:** one editing pass could replace the answer on length alone with no citation check, and the citation counter only recognised one of the two ways sources get written, so the protection silently switched itself off.
+- **An answer can no longer tell you your documents are silent while quoting them:** the check meant to catch a bad answer only confirmed its citation numbers pointed at real passages, so an answer asserting "no evidence in the documents" while citing twenty of them was certified at 88% confidence. An honest "I couldn't find this", citing nothing, is untouched.
 - **Citations now always point at a source that's actually there,** and confidence can report a genuine failure instead of always settling on a reassuring middle number.
 - **Combining keyword and meaning-based search stopped losing to keyword search alone.**
 
