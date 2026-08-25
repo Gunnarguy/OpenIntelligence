@@ -4378,11 +4378,43 @@ class RAGService: ObservableObject {
                     }
                 }
             } else {
-                // No fingerprint recorded: either the container predates the field, or an older
-                // build stripped it on an iCloud round trip. Adopt the current one silently. A nil
-                // means unknown, and flagging every existing library the moment this ships would
-                // be a worse failure than the one it is meant to catch.
+                // No fingerprint recorded. This used to adopt the live one silently, on the
+                // reasoning that nil means *unknown* and flagging every existing library the day
+                // the field shipped would be a worse failure than the one it catches.
+                //
+                // That reasoning was right on 2026-08-18 and is wrong for the 5.0 release, because
+                // what nil means has changed. v5.0 is the first build to carry
+                // `embeddingFingerprint` at all, so a container arriving with nil **and documents**
+                // was indexed by a pre-5.0 pipeline — and this release is precisely the one that
+                // fixed how text becomes a vector. Those documents were embedded with a tokenizer
+                // that truncated at 128 tokens against a 512-token model, leaving 55% of library
+                // content unembedded (`2753d15`), and pooled at the CLS position rather than across
+                // the passage, which measured vector r@1 0.000 → 0.571 over 21 paired cases when
+                // corrected (`3ea5cd9`). Silent adoption stamps those vectors "current" and the
+                // owner is never told.
+                //
+                // So nil is no longer unknown here; on this release it is knowable and it is stale.
+                //
+                // Flag rather than wipe, matching the branch above: the vectors are still valid,
+                // still 384-dimensional and still searchable, just worse. Wiping would take a
+                // working library offline until a rebuild finished. This surfaces the same banner
+                // and the same manual rebuild that were confirmed on device on 2026-08-19 —
+                // detected, rebuilt and answering again in about four seconds for 196 chunks.
+                //
+                // An empty container is adopted silently as before: there is nothing to rebuild,
+                // and anything imported from now on is embedded correctly.
                 await MainActor.run {
+                    let hasDocs = !self.documentsForContainer(container.id).isEmpty
+                    if hasDocs {
+                        Log.warning(
+                            "[RAGService] Container \(container.id) has no embedding fingerprint and "
+                                + "\(self.documentsForContainer(container.id).count) document(s), so it was indexed "
+                                + "before this release's tokenizer and pooling fixes. Surfacing a rebuild rather "
+                                + "than adopting \(liveFingerprint) over stale vectors.",
+                            category: .embedding
+                        )
+                        self.librariesNeedingIndexRebuild.insert(container.id)
+                    }
                     var updated = container
                     updated.embeddingFingerprint = liveFingerprint
                     self.containerService.updateContainer(updated)
