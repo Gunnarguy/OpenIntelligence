@@ -141,7 +141,17 @@ builds only, it does not run tests); anything on device since 2026-08-19; the re
 
 ## Blockers / Unknowns
 
-1. **`dbff15a` has never executed.** The 2026-08-24 evening capture ran on a build containing it and
+1. **`dbff15a` has never executed. Two device runs have now missed it, so note the exact reason.**
+   `sourceOnlyOutcomeIfNeeded` opens with `guard answerIntent.isExtractiveFirst`, and
+   `QueryEnhancementService` only returns `.lookup` for queries whose prefix is in
+   `["what", "which", "when", "where", "who", "how much", "how many", "wat"]`. **Bare "How do…" is
+   not in that list.** *"How does dopamine affect social behavior?"* (2026-08-24 evening) and
+   *"How do dopamine and serotonin signals affect movement?"* (later the same night) both classified
+   conceptual/balanced and skipped the stage; both answered healthily at 526 and 554 words. The
+   question must start with one of those words. Use the original: **"What role do dopamine receptors
+   play in movement?"** — that one reached the stage in the first capture and produced the 9-word
+   stub. This also scopes the defect: it can only ever have bitten lookup-style questions.
+   (Original text below.) The 2026-08-24 evening capture ran on a build containing it and
    `SourceOnly` appears **0 times in 8,603 lines**, because `sourceOnlyOutcomeIfNeeded` opens with
    `guard answerIntent.isExtractiveFirst else { return nil }` and *"How does dopamine affect social
    behavior?"* classifies as narrative. **To exercise it, ask the original question:** *"What role do
