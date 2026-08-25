@@ -34,7 +34,7 @@ Documents were quietly losing parts of themselves, answers were built from a fra
 - **Tables in Word documents were being thrown away:** each one was read into rows and then dropped, so a document could import looking fine with all of its numbers missing.
 - **Images keep their layout:** every image became one unbroken line of text before anything downstream could read it.
 - **Photographing a page now matches importing it:** camera captures came out as flat text where the same page imported as table cells.
-- **Two-column PDFs are read column by column instead of straight across:** most journal articles are two-column, and the app was reading a left-column line and a right-column line as one sentence, so a passage arrived as two half-sentences welded together with a word cut in half at the join. Fixed where words are grouped into lines, which is where the column information was being lost.
+- **Text from a PDF page is no longer shuffled into the wrong order:** lines were grouped by position down the page using a lookup that depended on the order the page arrived in, so adjacent lines came out swapped and a paragraph read as a jumble of half-sentences. The same page could come out differently on two runs. Lines now match the nearest one deterministically.
 - **Scanned pages report their scanning honestly:** a fully scanned PDF used to tell you it had scanned zero pages.
 - **Pages, Numbers and Keynote files now fail clearly.** They were never actually readable, so importing one no longer looks like it worked.
 

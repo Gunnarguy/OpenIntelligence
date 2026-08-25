@@ -236,6 +236,38 @@ anyway because printable ratio and entropy both stay healthy when two valid colu
 together. That detector is still unused and is tracked separately.
 `[evidence_level: code_verified+test_verified, confidence: exact, evidence_source: DocumentProcessor.spatialLineBreak; DocumentProcessorTests, 7 cases; device capture 2026-08-24, not yet device-verified]`
 
+#### 2026-08-24, same evening: the real defect was line ordering in the Vision path, not columns
+
+Two paired probes settled this in one device run and corrected two prior diagnoses.
+
+`DocumentObservation.text.transcript` for page 1 reads *"…dynamics that regulate diverse aspects of
+motivation-related behavior. Dopamine and serotonin transiently modulate moment-to-moment behavior at
+timescales ranging from sub-second to minutes…"* — correct and continuous. **Vision's own reading
+order was never the problem.**
+
+The text that actually won for that page — `winner=layoutText` on all 8 pages — emitted those same
+lines in the order **2, 1, 4, 3**. Adjacent pairs swapped. Pages 3 and 5 take the PDFKit spatial path,
+carry its `speci c` ligature drops, and read correctly, which localises the defect to
+`LayoutAwareExtractor`.
+
+`groupBlocksByLine` matched a block to a line with
+`groups.keys.first { abs($0 - block.topY) < lineTolerance }`. `Dictionary.keys` iterates in hash
+order, so a block within tolerance of more than one line joined an **arbitrary** one. The grouping
+therefore depended on Vision's block order and on the per-process hash seed, so the same page could
+group differently between runs. Blocks are now consumed top-to-bottom and matched to the *nearest*
+line from sorted keys.
+
+**Nothing was read across the gutter and no text was lost.** Every word was present and correctly
+recognised, in the wrong order — which is exactly why it passed a printable-ratio and entropy quality
+gate, and why the repeated non-English detections were a symptom of scrambled word sequences rather
+than of missing text.
+
+Correcting the entry above it: the `952d85f` note described this as gutter interleaving. It is not.
+That commit stands on its own — `extractTextWithSpatialOrdering` genuinely did merge across a gutter
+and now has 7 tests where it had none — but that path handles 2 of 8 pages here and found nothing to
+correct on either, and the language-detection distribution was byte-identical before and after it.
+`[evidence_level: device_log_proven+build_verified+test_verified, confidence: exact, evidence_source: PostFix.txt TRANSCRIPT PROBE vs PAGE TEXT PROBE across all 8 pages]`
+
 ### Audio and video: the failure mode is verified, transcription itself is not
 
 `say` fails from an agent shell (`-241`), so no *speech* fixture can be authored there. A silent WAV was used to check the failure mode instead, and that part is settled: ingesting audio with nothing to transcribe **throws in about 76 ms** rather than yielding an empty document that gets indexed as a success. `[evidence_level: test_verified, confidence: exact, evidence_source: IngestionFormatCoverageTests testSilentAudio, 0.076s]`

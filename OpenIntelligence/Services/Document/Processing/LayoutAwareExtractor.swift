@@ -680,11 +680,35 @@ actor LayoutAwareExtractor {
 
         var groups: [CGFloat: [TextBlock]] = [:]
 
-        for block in blocks {
-            // Find existing group within tolerance
-            let matchingKey = groups.keys.first { abs($0 - block.topY) < lineTolerance }
+        // Two things here are load-bearing and neither was true before 2026-08-24.
+        //
+        // 1. Blocks are consumed top-to-bottom rather than in whatever order Vision
+        //    returned them, so a line's group is keyed by its own topmost block
+        //    instead of by whichever block happened to arrive first.
+        // 2. A block joins the *nearest* line within tolerance, chosen from sorted
+        //    keys, rather than the first key `Dictionary.keys` happens to yield.
+        //
+        // `groups.keys.first { ... }` iterates in hash order, so when a block sat
+        // within tolerance of more than one line it joined an arbitrary one. The
+        // grouping therefore depended on input order and on the hash seed, which is
+        // per-process: the same page could group differently between runs, and the
+        // rendered lines came out transposed against the source.
+        //
+        // Device evidence, 2026-08-24. Vision's own transcript for page 1 reads
+        // "…dynamics that regulate diverse aspects of motivation-related behavior.
+        // Dopamine and serotonin transiently modulate moment-to-moment behavior at
+        // timescales ranging from sub-second to minutes…" — correct and continuous.
+        // What this function produced for the same page emitted those lines in the
+        // order 2, 1, 4, 3: adjacent pairs swapped. The text was never lost or read
+        // across the gutter; it was reordered here, which is why it survived a
+        // printable-ratio and entropy quality gate and read as an extraction defect.
+        for block in blocks.sorted(by: { $0.topY > $1.topY }) {
+            let nearestKey = groups.keys
+                .filter { abs($0 - block.topY) < lineTolerance }
+                .sorted()
+                .min(by: { abs($0 - block.topY) < abs($1 - block.topY) })
 
-            if let key = matchingKey {
+            if let key = nearestKey {
                 groups[key]?.append(block)
             } else {
                 groups[block.topY] = [block]
