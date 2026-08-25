@@ -3,7 +3,7 @@
 Updated: 2026-08-25
 Branch/worktree: main, pushed and clean as of writing.
 Cross-tool handoff (if Claude access runs out): `HANDOFF.md` at repo root (kept current less often than this file).
-Last verified commit: a1508d6
+Last verified commit: cd507d0
 
 ## Objective
 
@@ -13,10 +13,13 @@ not re-derive it here.
 
 ## Status
 
-**v5.0 is 43 Completed against 5 open, and every open row is a device check rather than unstarted
-work.** Nine code fixes landed 2026-08-24 into 08-25 at **317 tests, 3 skipped, 0 failures** (from
-287). **None of the nine is device-verified.** One attempt to measure them on the Mac failed
-outright — see Blocker 6.
+**v5.0 is 45 Completed against 2 open.** Today's device capture closed the sync churn and Self-RAG
+rows on evidence, moved the background-grant row to `Future Backlog` because its admitting premise
+was false, and **caught a regression in 90-minute-old code** — `91ea045` was offering a rebuild to
+libraries built by the correct pipeline, fixed in `cd507d0`. 317 tests, 3 skipped, 0 failures.
+
+**Both remaining rows need a device action, not code.** Neither is blocked on anything an agent can
+do.
 
 ## Completed this session (2026-08-25)
 
@@ -95,46 +98,31 @@ Command → result, this session only:
 
 ## Blockers / Unknowns
 
-**Rows 1-5 are device checks. Row 6 is agent work and is the only one that does not need the phone.**
-
-1. **Sync churn (`771461c`).** Baseline to beat: **128 opens / 43,164 chunk records / 0 writes**.
-   **The half that matters is the second: a genuine change must still sync.** Edit or import on one
-   device and confirm it reaches another. The failure this could introduce is a *skipped* sync, not
-   a slow one. No unit coverage — sync has none.
-   https://app.notion.com/p/3c649a74d54f81219022c292bc4aba31
-2. **Fingerprint rebuild offer (`91ea045`).** A library with documents and no fingerprint should now
-   surface the rebuild banner. **The owner's own libraries were already stamped by a dev build
-   carrying `3b48c88` and will not flag** — testing this needs a library that has never run such a
-   build, or delete-and-re-import.
+1. **Fingerprint rebuild has never been run from the banner.** The flag itself is device-proven —
+   it fired on 2026-08-25, incorrectly, which is how `cd507d0` was found. What has never been
+   exercised is tapping the banner and watching the rebuild finish. Needs a library that genuinely
+   predates the fingerprint field; the owner's were stamped by dev builds carrying `3b48c88` and a
+   library created on v5.0 is now correctly stamped at ingest, so **neither will flag**. Delete and
+   re-import on a build *without* `cd507d0`, or find an untouched pre-5.0 library.
    https://app.notion.com/p/3bf49a74d54f812597ffd48a165a139f
-3. **Self-RAG contradiction check (`7851b92`).** Look for `Answer asserts its sources do not cover
-   the question while citing N of them`. https://app.notion.com/p/3bf49a74d54f81b8a47ef00d9037f08e
-4. **Library with no vectors cannot repair itself.** Needs a staged stuck-queue item. Discriminator:
-   `Self-healing rebuild completed successfully` with no preceding `[Reembed] STARTING FULL REBUILD`.
+2. **A library with no vectors cannot repair itself.** The only remaining row that is setup rather
+   than observation. Needs a staged stuck-queue item so the blocked-rebuild path executes.
+   Discriminator: `Self-healing rebuild completed successfully` with **no** preceding
+   `[Reembed] STARTING FULL REBUILD` — success reported for work that never ran.
    https://app.notion.com/p/3c049a74d54f81fd9255edc739959d36
-5. **Background grant — recommend moving out of v5.0.** Premise corrected: the task **is** submitted.
-   What is unknown is whether a long answer survives backgrounding, which no code change addresses.
-   https://app.notion.com/p/3c149a74d54f8171adfcce5dcb345777
-6. **`final` vs `rerank` r@1 has never been measured against a defined sort, and the run that would
-   fix that failed.** `20260825-postfix-greedy-83`: cases 1-5 each `ERROR: timeout after 600s`,
-   killed during case 6, **no `reports/` written so nothing attributes the hang**. Sandbox cause
-   ruled out (zero `have permission to save`, empty entitlements). Whether Foundation Models
-   generation completed is **not established** — the 600s shape matches the runbook's eight-retry
-   description, but that passage concerns the Simulator and says the host Mac generates fine.
+
+**Not a blocker, but the honest risk before cutting a build:** none of the ten fixes from the
+2026-08-24/25 pass has been through one ordinary unhurried session — import, several queries,
+relaunch — on a build carrying all of them. The 2026-08-25 capture covered one import and one query
+and found a regression in code 90 minutes old.
+
+**Agent-side and unclaimed:** the benchmark that would re-take `final` vs `rerank` r@1 has never
+succeeded. See the ledger's top entry. Next attempt runs `--limit 2` first.
 
 ## Exact Next Action
 
-**Diagnose the benchmark with a two-case run before spending another five hours.** From
-`/private/tmp/oi-src`, with the macOS app already built at
-`/private/tmp/oi-mac-nosbx/Build/Products/Debug/OpenIntelligence.app`:
+**Owner: one unhurried session on a build carrying `cd507d0`.** Import a document, ask three or four
+questions of different shapes, relaunch, ask one more. Share the trace. That is the pass none of the
+ten fixes has had, and today demonstrated it finds things.
 
-```bash
-python3 scripts/run_quality_matrix.py --app /private/tmp/oi-mac-nosbx/Build/Products/Debug/OpenIntelligence.app --manifest Benchmarks/ResearchFixtures/qasper_external_v1/manifest.json --modes standard --pcc deny --sampling greedy --limit 2 --output-dir BenchmarkRuns/20260825-diagnose-2
-```
-
-If both cases time out again, read the per-case report under `reports/` for where it stalls —
-absence of Foundation Models output would confirm the FM hypothesis the failed run could not.
-If they pass, the 83-case run is sound and can be relaunched with the same flags minus `--limit`.
-
-**Owner, in parallel:** one phone session settles rows 1, 3 and 5 — import a document, ask a question
-that would previously have drawn an absence claim, background the app mid-answer, share the trace.
+If it is clean, the only work left in v5.0 is staging the stuck-queue test for row 2 above.
