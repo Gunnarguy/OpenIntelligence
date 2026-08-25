@@ -380,7 +380,13 @@ final class BackgroundTaskService: Sendable {
                     errorMessage: nil
                 )
             )
-            Log.info("[BackgroundTasks] Submitted continued query task", category: .initialization)
+            // `.pipeline` rather than `.initialization` so these four lifecycle lines reach
+            // the trace a user can share. `LoggingConfiguration.fileLogCategories` does not
+            // include `.initialization`, and the only way to settle whether a long answer
+            // survives backgrounding is a device run whose evidence is exactly these lines.
+            // A closing condition that cannot produce shareable proof is not a closing
+            // condition; that lesson cost three device runs on the source-only gate.
+            Log.info("[BackgroundTasks] Submitted continued query task", category: .pipeline)
         } catch {
             continuedQueryRequestSubmitted = false
             recordContinuedQueryStatus(
@@ -404,7 +410,7 @@ final class BackgroundTaskService: Sendable {
                     errorMessage: error.localizedDescription
                 )
             )
-            Log.warning("[BackgroundTasks] Failed to submit continued query task: \(error.localizedDescription)", category: .initialization)
+            Log.warning("[BackgroundTasks] Failed to submit continued query task: \(error.localizedDescription)", category: .pipeline)
         }
 #endif
     }
@@ -647,7 +653,7 @@ final class BackgroundTaskService: Sendable {
     @MainActor
     @available(iOS 26.0, *)
     func handleContinuedQuery(task: BGContinuedProcessingTask) {
-        Log.info("[BackgroundTasks] Starting continued query task", category: .initialization)
+        Log.info("[BackgroundTasks] Starting continued query task", category: .pipeline)
 
         endForegroundFallbackQueryExtension()
         continuedQueryRequestSubmitted = false
@@ -686,7 +692,7 @@ final class BackgroundTaskService: Sendable {
                     phase: .expired,
                     errorMessage: "The system expired the continued query task before completion."
                 )
-                Log.warning("[BackgroundTasks] Continued query task expired", category: .initialization)
+                Log.warning("[BackgroundTasks] Continued query task expired", category: .pipeline)
             }
         }
 
