@@ -2469,7 +2469,7 @@ final class WorkspaceSyncService: ObservableObject {
                     )
                 } else if anyStoreExists {
                     // Case 2.
-                    Log.error(
+                    Log.warning(
                         "[WorkspaceSync] Vector store for container \(container.id) exists but read as empty while the library still has \(allowedDocumentIds.count) document(s). Treating as a failed read and leaving it untouched.",
                         category: .vectorDB
                     )
@@ -2516,7 +2516,7 @@ final class WorkspaceSyncService: ObservableObject {
             // because an import lost its vectors.
             let unreferencedChunkCount = localChunks.count + sharedChunks.count
             guard unreferencedChunkCount == 0 else {
-                Log.error(
+                Log.info(
                     "[WorkspaceSync] Container \(container.id) has no documents in metadata but its vector store holds \(unreferencedChunkCount) chunk(s); refusing to delete. An import may still be writing.",
                     category: .ingestion
                 )
@@ -2899,7 +2899,7 @@ final class WorkspaceSyncService: ObservableObject {
             }
         }
         guard removed > 0 else { return }
-        Log.error(
+        Log.info(
             "[WorkspaceSync] Deleted vector store for container \(containerId) (\(removed) artifact(s), root \(root.lastPathComponent)): \(reason).",
             category: .ingestion
         )
