@@ -4362,6 +4362,32 @@ class DocumentProcessor {
                         let bestAvailableText = (renderData.layoutText ?? renderData.plainText)?
                             .trimmingCharacters(in: .whitespacesAndNewlines)
 
+                        // Temporary instrumentation, 2026-08-24. Pairs with the TRANSCRIPT PROBE in
+                        // StructuredDocumentParser. That one says what Vision produced; this says
+                        // which of the candidates actually won for this page and what it reads like,
+                        // so the two can be compared without inferring the path from code.
+                        //
+                        // Sampled from a third of the way in for the same reason: mastheads and
+                        // titles span the full page width and read correctly whether or not the
+                        // body is interleaved.
+                        if let chosen = bestAvailableText, !chosen.isEmpty {
+                            let start = chosen.index(
+                                chosen.startIndex,
+                                offsetBy: min(600, chosen.count / 3),
+                                limitedBy: chosen.endIndex
+                            ) ?? chosen.startIndex
+                            let sample = String(chosen[start...].prefix(260))
+                                .replacingOccurrences(of: "\n", with: "\\n")
+                            Log.info(
+                                "[DocumentProcessor] PAGE TEXT PROBE page \(pageNumber): "
+                                    + "winner=\(renderData.layoutText != nil ? "layoutText" : "plainText") "
+                                    + "layoutTextChars=\(renderData.layoutText?.count ?? -1) "
+                                    + "plainTextChars=\(renderData.plainText?.count ?? -1) "
+                                    + "sample=\(sample)",
+                                category: .ingestion
+                            )
+                        }
+
                         // No page data available
                         guard let pageImage = renderData.pageImage else {
                             // PHASE -1: when text layer is garbled, don't use PDFKit fallback
