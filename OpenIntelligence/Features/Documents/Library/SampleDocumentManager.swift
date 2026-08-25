@@ -125,10 +125,10 @@ The plan structure is about scale and organization. The core product idea stays 
 
 OpenIntelligence uses a two-tier context window strategy based on query complexity and quality settings:
 
-- **On-device:** Standard queries run locally on Apple Silicon using FoundationModels. Private, and never leaves the device. Measured on an iPhone A18 Pro: roughly 27 tokens/second, with time-to-first-token between 2.2 and 3.2 seconds. The app asks the system for the device's actual context window rather than assuming one, and escalates above it. That window is 4,096 tokens on current hardware, which is the figure the rest of this document uses.
-- **Private Cloud Compute:** Complex reasoning, heavy synthesis, or deep comparisons escalate to Apple's PCC enclaves, which offer a larger context window than the device while maintaining zero-retention, end-to-end encrypted privacy. Measured on the same device: roughly 86 tokens/second, time-to-first-token 2.2 to 2.5 seconds. The exact PCC context size is reported by the system at runtime rather than fixed by this app.
+- **On-device:** Standard queries run locally on Apple Silicon using FoundationModels. Private, and never leaves the device. Measured on an iPhone A18 Pro: roughly 27 tokens/second, with time-to-first-token between 2.2 and 3.2 seconds. The app asks the system for the device's actual context window rather than assuming one. That window is 4,096 tokens on current hardware, which is the figure the rest of this document uses.
+- **Private Cloud Compute:** Support for escalating complex reasoning, heavy synthesis or deep comparisons to Apple's PCC enclaves is built, and **is not enabled in App Store builds**. It is compiled out by the toolchain those builds use, so it is absent from the app rather than switched off inside it. Nothing escalates today and every answer is produced on this device. When it does enable, PCC offers a larger context window than the device while maintaining zero-retention, end-to-end encrypted privacy, and the exact context size is reported by the system at runtime rather than fixed by this app. Measured on a **local Xcode 27 build** on the same iPhone A18 Pro: roughly 86 tokens/second, time-to-first-token 2.2 to 2.5 seconds. That measurement is real, and it was taken on a build that is not the one you are running.
 
-Routing is automatic based on the complexity of your prompt, the selected quality mode, and your token requirements.
+In this build every query resolves on-device. When PCC is enabled, routing becomes automatic based on the complexity of your prompt, the selected quality mode, and your token requirements.
 
 ---
 
@@ -225,15 +225,17 @@ Key properties of PCC:
 
 ---
 
-## When does PCC activate?
+## When will PCC activate?
 
-The app routes to PCC automatically when a query needs it:
+**Not in this build.** Private Cloud Compute is absent from App Store builds, so every answer is produced on this device, and the metrics bar under each answer will say so.
+
+When it is enabled, the app will route to PCC automatically when a query needs it:
 
 - complex multi-step reasoning across multiple files
 - synthesis that exceeds the 4K on-device token budget
 - Deep Think or Maximum quality modes with heavy context
 
-Routing is determined by query complexity, selected quality mode, and token requirements. Every answer carries the route it actually took: expand the metrics bar underneath it.
+Routing will then be determined by query complexity, selected quality mode, and token requirements. Either way, every answer carries the route it actually took: expand the metrics bar underneath it.
 
 ---
 

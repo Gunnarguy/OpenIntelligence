@@ -116,24 +116,44 @@ struct ModelInfoCard: View {
     private var features: [String] {
         switch modelType {
         case .appleIntelligence:
+            // PCC lines are gated on `supportsPrivateCloudCompute`, not on
+            // `supportsFoundationModels`. They used to be gated on the latter, which is a
+            // different question: Foundation Models works on this toolchain while PCC is
+            // compiled out of it, so an App Store build satisfied the old condition and told
+            // the user it had a "PCC server" it does not contain.
+            //
+            // The 2026-08-21 claim audit corrected the App Store description, the promotional
+            // text and the README for exactly this, and did not reach in-app copy.
             if capabilities.supportsFoundationModels {
-                return [
-                    "Foundation Models (iOS 26+)",
-                    "On-device model + PCC server",
+                var lines = ["Foundation Models (iOS 26+)"]
+                lines.append(
+                    capabilities.supportsPrivateCloudCompute
+                        ? "On-device model + PCC server"
+                        : "On-device model, runs entirely on this device"
+                )
+                lines.append(contentsOf: [
                     "4,096 token context window",
                     "Zero data retention",
                     "Works offline for simple queries",
-                ]
+                ])
+                return lines
             }
-            return [
-                "Apple Intelligence platform",
+            var lines = ["Apple Intelligence platform"]
+            if capabilities.supportsPrivateCloudCompute {
                 // See the note in SettingsStore.executionSummary: routing is on-device
                 // first, with PCC as the escalation for prompts that do not fit.
-                "On-device first, escalating to PCC only when a prompt is too large",
-                "Zero data retention (PCC)",
+                lines.append(contentsOf: [
+                    "On-device first, escalating to PCC only when a prompt is too large",
+                    "Zero data retention (PCC)",
+                ])
+            } else {
+                lines.append("Runs on this device; Private Cloud Compute is not enabled in this build")
+            }
+            lines.append(contentsOf: [
                 "No API key needed",
                 "Private and secure",
-            ]
+            ])
+            return lines
         case .onDeviceAnalysis:
             return [
                 "Extracts key sentences from documents",

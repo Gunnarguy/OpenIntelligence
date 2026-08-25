@@ -23,6 +23,11 @@ import SwiftUI
 struct HowItWorksView: View {
     @EnvironmentObject private var onboardingStore: OnboardingStateStore
     @State private var didRequestReplay = false
+    /// Read so this screen describes the build the user is actually running. Private Cloud
+    /// Compute is compiled out of App Store builds, so the escalation copy below described a
+    /// step that cannot happen. Gating on the capability means the wording corrects itself
+    /// when PCC does ship rather than needing another edit.
+    @State private var deviceCapabilities = DeviceCapabilities()
 
     var body: some View {
         ScrollView {
@@ -158,6 +163,20 @@ struct HowItWorksView: View {
 
     // MARK: - Leaving the device
 
+    /// What actually leaves the device, on the build the user is running.
+    ///
+    /// The second wording is not a hedge. Private Cloud Compute sits behind
+    /// `#if compiler(>=6.4)` in eleven places, and App Store builds are produced by an older
+    /// toolchain that compiles those blocks out entirely, so nothing escalates and the app
+    /// never asks. Telling the user it might was describing a different build than the one in
+    /// their hand.
+    private var leavingExplanation: String {
+        if deviceCapabilities.supportsPrivateCloudCompute {
+            return "Everything above is local, and the writing step normally is too. If a question needs more context than this device's model can hold, the app asks whether to send that single request to Apple's Private Cloud Compute. Apple states it is not retained. You can decline every time, or set routing to On-Device and it will never leave, at the cost of failing on very large questions rather than escalating."
+        }
+        return "Everything above is local, and so is the writing step, in this version. Support for escalating a single oversized request to Apple's Private Cloud Compute is built and is not enabled in this build, so nothing is sent anywhere and you will not be asked. A question too large for this device's model fails rather than escalating. When that support does enable, it will ask first and you will be able to decline every time."
+    }
+
     private var leavingCard: some View {
         SurfaceCard {
             SectionHeader(icon: "cloud", title: "When anything leaves this device")
@@ -166,7 +185,7 @@ struct HowItWorksView: View {
                 .fontWeight(.medium)
                 .fixedSize(horizontal: false, vertical: true)
 
-            Text("Everything above is local, and the writing step normally is too. If a question needs more context than this device's model can hold, the app asks whether to send that single request to Apple's Private Cloud Compute. Apple states it is not retained. You can decline every time, or set routing to On-Device and it will never leave, at the cost of failing on very large questions rather than escalating.")
+            Text(leavingExplanation)
                 .font(.callout)
                 .fixedSize(horizontal: false, vertical: true)
 
