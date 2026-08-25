@@ -712,7 +712,7 @@ final class AgenticOrchestrator: Sendable {
                     !cleanRecursiveAnswer.isEmpty,
                     !answerIndicatesRetrievalMiss(recursiveResult.finalAnswer),
                     !looksLikeRawEvidenceDump(cleanRecursiveAnswer),
-                    shouldAcceptReplacement(previous: chainResult.finalAnswer, replacement: cleanRecursiveAnswer) {
+                    Self.shouldAcceptReplacement(previous: chainResult.finalAnswer, replacement: cleanRecursiveAnswer) {
                     Log.info("[Agentic] Recursive research found answer after \(recursiveResult.steps.count) steps", category: .llm)
                     steps.append(contentsOf: recursiveResult.steps)
                     return AgenticResult(
@@ -3491,8 +3491,24 @@ final class AgenticOrchestrator: Sendable {
     /// answer was actually better could not be settled from the artifacts, because only the winner
     /// was ever recorded. Both lengths and the citation counts are the evidence needed to decide
     /// whether this replacement should be guarded at all. Logging only, no behaviour change.
-    private func citationCount(in text: String) -> Int {
-        guard let regex = try? NSRegularExpression(pattern: #"\[S\d+\]"#) else { return 0 }
+    /// Counts citation markers in both the bracket and parenthesis forms.
+    ///
+    /// This previously matched `\[S\d+\]` only, while `verifyCitations` a few hundred lines
+    /// below already matched `[\[(]S(\d+)[\])]` — and carries a comment explaining exactly
+    /// why: the prompts ask for `[S1]`, models routinely write `(S1)` instead, and a device
+    /// run produced an answer carrying five `(S1)`/`(S2)` markers that scored `citations=0/0`.
+    /// That fix was applied to one of the two counters, which is how this repository has now
+    /// produced four separate defects.
+    ///
+    /// The undercount was not cosmetic here. `shouldAcceptReplacement` returns `true` when
+    /// `previousCitations == 0`, on the reasoning that there is nothing to protect. An answer
+    /// citing entirely in parentheses counted as zero, so the guard waved through precisely
+    /// the replacement it exists to block.
+    ///
+    /// `nonisolated static` so both this and the guard above it are testable without an
+    /// orchestrator, a model or a query.
+    nonisolated static func citationCount(in text: String) -> Int {
+        guard let regex = try? NSRegularExpression(pattern: #"[\[(]S\d+[\])]"#) else { return 0 }
         return regex.numberOfMatches(in: text, options: [], range: NSRange(text.startIndex..., in: text))
     }
 
@@ -3513,7 +3529,7 @@ final class AgenticOrchestrator: Sendable {
     /// totalCitations > 0`, while an answer with no citations has its grounding forced to 0.5 and
     /// skips the check. So an uncited replacement always verifies cleaner than the cited original
     /// it displaced, and the loop preferred it for precisely that reason.
-    private func shouldAcceptReplacement(previous: String, replacement: String) -> Bool {
+    nonisolated static func shouldAcceptReplacement(previous: String, replacement: String) -> Bool {
         let previousCitations = citationCount(in: previous)
         let replacementCitations = citationCount(in: replacement)
 
@@ -3534,8 +3550,8 @@ final class AgenticOrchestrator: Sendable {
     private func logAnswerReplacement(previous: String, replacement: String, reason: String) {
         let ratio = replacement.isEmpty ? 0 : Double(previous.count) / Double(max(replacement.count, 1))
         Log.warning(
-            "[Agentic] Answer replaced (\(reason)): \(previous.count) chars with \(citationCount(in: previous)) citations "
-                + "-> \(replacement.count) chars with \(citationCount(in: replacement)) citations "
+            "[Agentic] Answer replaced (\(reason)): \(previous.count) chars with \(Self.citationCount(in: previous)) citations "
+                + "-> \(replacement.count) chars with \(Self.citationCount(in: replacement)) citations "
                 + "(shrink \(String(format: "%.1f", ratio))x)",
             category: .llm
         )
@@ -3640,7 +3656,7 @@ final class AgenticOrchestrator: Sendable {
                     Log.warning("[Agentic] Self-RAG: Semantic delta too low (\(String(format: "%.4f", delta)) < 0.10). Refusing further retries.", category: .llm)
                     currentSteps.append(contentsOf: recursiveResult.steps)
                     currentTokens += recursiveResult.totalTokens
-                    if shouldAcceptReplacement(previous: currentAnswer, replacement: newAnswer) {
+                    if Self.shouldAcceptReplacement(previous: currentAnswer, replacement: newAnswer) {
                         logAnswerReplacement(previous: currentAnswer, replacement: newAnswer, reason: "semantic delta below 0.10")
                         currentAnswer = newAnswer
                     }
@@ -3650,7 +3666,7 @@ final class AgenticOrchestrator: Sendable {
                 if !answerIndicatesRetrievalMiss(newAnswer) {
                     currentSteps.append(contentsOf: recursiveResult.steps)
                     currentTokens += recursiveResult.totalTokens
-                    if shouldAcceptReplacement(previous: currentAnswer, replacement: newAnswer) {
+                    if Self.shouldAcceptReplacement(previous: currentAnswer, replacement: newAnswer) {
                         logAnswerReplacement(previous: currentAnswer, replacement: newAnswer, reason: "recursive research returned an answer")
                         currentAnswer = newAnswer
                     }
@@ -6947,8 +6963,19 @@ extension AgenticOrchestrator {
             )
             let refined = cleanupFinalAnswer(refinedResponse?.text ?? "")
 
-            // Only use refinement if it's substantial (not a truncated mess)
-            if refined.count > finalAnswer.count / 2 {
+            // Only use refinement if it's substantial AND it keeps the draft's citations.
+            //
+            // The length test alone was the one replacement site in this file not covered by
+            // `shouldAcceptReplacement`, found by enumerating them on 2026-08-25. A refinement
+            // returning 60% of the draft's length with zero citations replaced a fully cited
+            // answer and nothing checked.
+            //
+            // This path is more likely to produce that than any other, not less: the prompt
+            // above instructs the editor to "remove any claims not supported by the FACT BANK",
+            // and an editor following that instruction strips citation markers, which look
+            // exactly like unsupported cruft. The guard belongs here most of all.
+            if refined.count > finalAnswer.count / 2,
+               Self.shouldAcceptReplacement(previous: finalAnswer, replacement: refined) {
                 finalAnswer = refined  // REPLACE, never append
             }
         }
