@@ -1,5 +1,6 @@
 import Combine
 @preconcurrency import Foundation
+import os
 
 extension Notification.Name {
     nonisolated static let localWorkspaceDidChange = Notification.Name("openIntelligence.workspaceSync.localWorkspaceDidChange")
@@ -212,6 +213,30 @@ enum QueueFilterMode {
 
 @MainActor
 final class WorkspaceSyncService: ObservableObject {
+
+    /// Signature of a container's vector artifacts at the moment a sync pass proved both
+    /// its local and shared stores already matched the merged content.
+    ///
+    /// Why this exists. `synchronizeVectorStore` reads **every chunk of every library out of
+    /// both roots** before it can decide whether a write is needed, and a sync pass runs on
+    /// every `.localWorkspaceDidChange`. A device capture on 2026-08-24 measured the result:
+    /// **128 store opens and 43,164 chunk records deserialised in one session, against zero
+    /// writes** — and 64 of those opens, 21,582 records, happened before the app had drawn a
+    /// screen. The decision to do nothing was costing a full read of the corpus, repeatedly,
+    /// on the main actor.
+    ///
+    /// The comparison itself is deliberately exact and stays that way; the note above
+    /// `vectorChunksAreIdentical` records why a count-only or id-only check is unsafe here and
+    /// that reasoning is untouched. This only avoids *reaching* that comparison when nothing
+    /// the comparison reads has changed.
+    ///
+    /// Correctness rests on the signature being conservative in the right direction: it is
+    /// recorded **only** when a pass concluded both stores were already current, and any
+    /// difference in file size, modification date, document set or source-container set
+    /// invalidates it. An unreadable attribute yields `nil`, which never matches, so doubt
+    /// always takes the full path. A cold start has an empty cache and behaves exactly as
+    /// before.
+    private nonisolated let vectorStoreSyncSignatures = OSAllocatedUnfairLock<[UUID: String]>(initialState: [:])
     typealias BootstrapChoice = SyncBootstrapChoice
     typealias PendingBootstrapConflict = SyncPendingBootstrapConflict
 
@@ -2335,6 +2360,31 @@ final class WorkspaceSyncService: ObservableObject {
             return
         }
 
+        // Fast path: nothing this pass reads has changed since a pass that concluded there
+        // was nothing to write. Skipping here avoids two full store reads per container per
+        // sync pass, which is where 43,164 chunk deserialisations for zero writes came from.
+        //
+        // Placed after the `vectorDBKind` guard on purpose — that branch performs cleanup and
+        // must not be skipped — and before the loads, which are the cost being avoided.
+        let currentSignature = vectorStoreSignature(
+            for: container.id,
+            localRoot: localRoot,
+            sharedRoot: sharedRoot,
+            sourceContainerIDs: sourceContainerIDs,
+            allowedDocumentIds: allowedDocumentIds,
+            documentAliases: documentAliases,
+            strategy: strategy
+        )
+        if let currentSignature,
+           vectorStoreSyncSignatures.withLock({ $0[container.id] }) == currentSignature {
+            Log.debug(
+                "[WorkspaceSyncService] Vector stores for \(container.id) unchanged since the last "
+                    + "pass found them current; skipping read of both roots",
+                category: .vectorDB
+            )
+            return
+        }
+
         var localChunks: [DocumentChunk] = []
         for sourceContainerID in sourceContainerIDs where vectorStoreExists(for: sourceContainerID, in: localRoot) {
             localChunks += try await loadVectorChunks(
@@ -2531,6 +2581,26 @@ final class WorkspaceSyncService: ObservableObject {
         for sourceContainerID in sourceContainerIDs where sourceContainerID != container.id {
             removeVectorStoreArtifacts(for: sourceContainerID, in: localRoot, reason: "chunks merged into the destination library")
             removeVectorStoreArtifacts(for: sourceContainerID, in: sharedRoot, reason: "chunks merged into the destination library")
+        }
+
+        // Only a pass that wrote nothing may license skipping the next one. If either store
+        // was rewritten, its size and modification date have just changed, so the signature
+        // taken at the top of this call no longer describes what is on disk — recording it
+        // would authorise skipping a pass whose input had moved. Recompute instead of reusing
+        // it, and drop the entry entirely if that recomputation is not readable.
+        if localAlreadyCurrent && sharedAlreadyCurrent {
+            let settled = vectorStoreSignature(
+                for: container.id,
+                localRoot: localRoot,
+                sharedRoot: sharedRoot,
+                sourceContainerIDs: sourceContainerIDs,
+                allowedDocumentIds: allowedDocumentIds,
+                documentAliases: documentAliases,
+                strategy: strategy
+            )
+            vectorStoreSyncSignatures.withLock { $0[container.id] = settled }
+        } else {
+            vectorStoreSyncSignatures.withLock { $0[container.id] = nil }
         }
     }
 
@@ -2764,6 +2834,56 @@ final class WorkspaceSyncService: ObservableObject {
     /// That silence is what made the same defect read as a phantom across three
     /// sessions. A deletion that leaves no trace is not cheaper than one that
     /// does; it is only harder to find.
+    /// A cheap stand-in for "these stores have not changed since we last looked".
+    ///
+    /// Size and modification date of every artifact in both roots, plus the document set and
+    /// the source-container set, because a change in either of those changes what the merge
+    /// would produce even when no file has moved. Returns `nil` if any attribute cannot be
+    /// read — an iCloud placeholder, a file mid-write — so an unreadable state can never be
+    /// mistaken for an unchanged one.
+    nonisolated private func vectorStoreSignature(
+        for containerId: UUID,
+        localRoot: URL,
+        sharedRoot: URL,
+        sourceContainerIDs: Set<UUID>,
+        allowedDocumentIds: Set<UUID>,
+        documentAliases: [UUID: UUID],
+        strategy: SyncResolutionStrategy
+    ) -> String? {
+        var parts: [String] = []
+
+        for root in [localRoot, sharedRoot] {
+            for sourceContainerID in sourceContainerIDs.sorted(by: { $0.uuidString < $1.uuidString }) {
+                for url in vectorStoreArtifactURLs(for: sourceContainerID, in: root) {
+                    guard let attributes = try? FileManager.default.attributesOfItem(atPath: url.path) else {
+                        // Absent is a legitimate, stable state and is recorded as such; only an
+                        // unreadable one is disqualifying, and that is handled by the throw above.
+                        parts.append("\(url.lastPathComponent):absent")
+                        continue
+                    }
+                    let size = (attributes[.size] as? NSNumber)?.int64Value
+                    let modified = (attributes[.modificationDate] as? Date)?.timeIntervalSince1970
+                    guard let size, let modified else { return nil }
+                    parts.append("\(url.lastPathComponent):\(size):\(modified)")
+                }
+            }
+        }
+
+        parts.append("docs:" + allowedDocumentIds.map(\.uuidString).sorted().joined(separator: ","))
+        parts.append("sources:" + sourceContainerIDs.map(\.uuidString).sorted().joined(separator: ","))
+
+        // `documentAliases` and `strategy` are inputs to the merge too. Two passes over
+        // byte-identical files with the same document set can still resolve differently if an
+        // alias was added or the resolution strategy changed, so leaving them out would license
+        // skipping a pass whose result would not have been the same.
+        parts.append("aliases:" + documentAliases
+            .map { "\($0.key.uuidString)>\($0.value.uuidString)" }
+            .sorted()
+            .joined(separator: ","))
+        parts.append("strategy:\(strategy)")
+        return parts.joined(separator: "|")
+    }
+
     nonisolated private func removeVectorStoreArtifacts(for containerId: UUID, in root: URL, reason: String) {
         var removed = 0
         for url in vectorStoreArtifactURLs(for: containerId, in: root) {
