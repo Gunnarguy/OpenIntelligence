@@ -462,10 +462,23 @@ actor LayoutAwareExtractor {
 
         let avgHeight = blocks.map { $0.height }.reduce(0, +) / CGFloat(blocks.count)
         let lineThreshold = max(0.015, avgHeight * lineToleranceRatio)
+
+        // Row-then-left-to-right, expressed as a transitive comparison.
+        //
+        // The intent here is legitimate, unlike the reading-order sort this file also
+        // carried: blocks on the same visual row *should* order left to right. But
+        // writing that as `abs(lhs.topY - rhs.topY) > threshold` inside the comparator
+        // is not a strict weak ordering — three blocks stepping down by half a
+        // threshold each make the outer pair ordered while both inner pairs compare
+        // equal — and `sorted(by:)` is documented as producing an unspecified result
+        // when given one.
+        //
+        // Quantising into row buckets keeps the grouping and makes the comparison
+        // transitive, so the same page sorts the same way every time.
         let sortedBlocks = blocks.sorted { lhs, rhs in
-            if abs(lhs.topY - rhs.topY) > lineThreshold {
-                return lhs.topY > rhs.topY
-            }
+            let lhsRow = (lhs.topY / lineThreshold).rounded(.down)
+            let rhsRow = (rhs.topY / lineThreshold).rounded(.down)
+            if lhsRow != rhsRow { return lhsRow > rhsRow }
             return lhs.minX < rhs.minX
         }
 
@@ -549,15 +562,58 @@ actor LayoutAwareExtractor {
     // MARK: - Reading Order Construction
 
     /// Build text in proper reading order from detected columns
+    /// Orders two already-line-grouped elements within a column: down the page, then
+    /// left to right only for an exact vertical tie.
+    ///
+    /// This replaces an epsilon comparison that was both wrong and **not a strict weak
+    /// ordering**:
+    ///
+    /// ```swift
+    /// if abs(lhs.topY - rhs.topY) > 0.02 { return lhs.topY > rhs.topY }
+    /// return lhs.minX < rhs.minX
+    /// ```
+    ///
+    /// Two defects, and the second is why the output was undefined rather than merely
+    /// imprecise.
+    ///
+    /// **The threshold was larger than the thing it was comparing.** A journal page
+    /// carries roughly 55 lines, so consecutive lines sit about 0.015 apart in
+    /// normalised coordinates — under 0.02. The vertical test therefore never fired
+    /// between adjacent lines and `minX` decided their order instead, which is
+    /// meaningless inside a single column: it sorts by left edge, so an indented or
+    /// hyphenated line jumps ahead of the line above it.
+    ///
+    /// **It was non-transitive.** With lines at 0.500, 0.485 and 0.470, the first two
+    /// compare "equal" and so do the last two, yet the outer pair compares ordered.
+    /// A comparator that does that is not a strict weak ordering, and `sorted(by:)`
+    /// is documented as producing an unspecified result when given one.
+    ///
+    /// Device evidence, 2026-08-24: Vision's transcript for page 1 read
+    /// "…dynamics that regulate diverse aspects of motivation-related behavior.
+    /// Dopamine and serotonin transiently modulate moment-to-moment behavior at
+    /// timescales ranging from sub-second to minutes…" while the stored text emitted
+    /// those lines in the order 2, 1, 4, 3. No text was lost and nothing was read
+    /// across a gutter — every word was present and correctly recognised, in the wrong
+    /// order, which is why a printable-ratio and entropy gate passed it and why
+    /// language detection reported non-English on scrambled word sequences.
+    ///
+    /// No epsilon is needed here at all: `groupBlocksByLine` has already collapsed a
+    /// physical line into one element using a tolerance derived from real glyph
+    /// height, so two distinct elements are two distinct lines by construction.
+    nonisolated static func readingOrderPrecedes(
+        lhsTopY: CGFloat, lhsMinX: CGFloat,
+        rhsTopY: CGFloat, rhsMinX: CGFloat
+    ) -> Bool {
+        if lhsTopY != rhsTopY { return lhsTopY > rhsTopY }
+        return lhsMinX < rhsMinX
+    }
+
     private func buildReadingOrderText(columns: [DetectedColumn], tables: [TableRegion]) -> String {
         let sortedColumns = columns.sorted { $0.xRange.lowerBound < $1.xRange.lowerBound }
         guard !sortedColumns.isEmpty else {
             return tables
-                .sorted { lhs, rhs in
-                    if abs(lhs.topY - rhs.topY) > 0.02 {
-                        return lhs.topY > rhs.topY
-                    }
-                    return lhs.minX < rhs.minX
+                .sorted {
+                    Self.readingOrderPrecedes(lhsTopY: $0.topY, lhsMinX: $0.minX, rhsTopY: $1.topY, rhsMinX: $1.minX)
                 }
                 .map(renderTableText)
                 .joined(separator: "\n\n")
@@ -600,11 +656,8 @@ actor LayoutAwareExtractor {
                 ))
             }
 
-            let orderedElements = elements.sorted { lhs, rhs in
-                if abs(lhs.topY - rhs.topY) > 0.02 {
-                    return lhs.topY > rhs.topY
-                }
-                return lhs.minX < rhs.minX
+            let orderedElements = elements.sorted {
+                Self.readingOrderPrecedes(lhsTopY: $0.topY, lhsMinX: $0.minX, rhsTopY: $1.topY, rhsMinX: $1.minX)
             }
 
             let columnText = orderedElements
@@ -619,11 +672,11 @@ actor LayoutAwareExtractor {
 
         let orphanTables = tables.enumerated()
             .filter { !assignedTableIndexes.contains($0.offset) }
-            .sorted { lhs, rhs in
-                if abs(lhs.element.topY - rhs.element.topY) > 0.02 {
-                    return lhs.element.topY > rhs.element.topY
-                }
-                return lhs.element.minX < rhs.element.minX
+            .sorted {
+                Self.readingOrderPrecedes(
+                    lhsTopY: $0.element.topY, lhsMinX: $0.element.minX,
+                    rhsTopY: $1.element.topY, rhsMinX: $1.element.minX
+                )
             }
             .map { renderTableText($0.element) }
 

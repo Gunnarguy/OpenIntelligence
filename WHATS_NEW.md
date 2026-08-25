@@ -34,7 +34,7 @@ Documents were quietly losing parts of themselves, answers were built from a fra
 - **Tables in Word documents were being thrown away:** each one was read into rows and then dropped, so a document could import looking fine with all of its numbers missing.
 - **Images keep their layout:** every image became one unbroken line of text before anything downstream could read it.
 - **Photographing a page now matches importing it:** camera captures came out as flat text where the same page imported as table cells.
-- **Text from a PDF page is no longer shuffled into the wrong order:** lines were grouped by position down the page using a lookup that depended on the order the page arrived in, so adjacent lines came out swapped and a paragraph read as a jumble of half-sentences. The same page could come out differently on two runs. Lines now match the nearest one deterministically.
+- **Text from a PDF page is no longer shuffled into the wrong order:** lines were sequenced by a comparison that treated any two lines closer than a fixed distance as level, then ordered those by left edge — and that distance was wider than the line spacing of a typical journal article, so neighbouring lines came out swapped. Every word was read correctly; the paragraph simply arrived scrambled.
 - **Scanned pages report their scanning honestly:** a fully scanned PDF used to tell you it had scanned zero pages.
 - **Pages, Numbers and Keynote files now fail clearly.** They were never actually readable, so importing one no longer looks like it worked.
 

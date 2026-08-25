@@ -262,6 +262,35 @@ recognised, in the wrong order — which is exactly why it passed a printable-ra
 gate, and why the repeated non-English detections were a symptom of scrambled word sequences rather
 than of missing text.
 
+**Correction, same evening.** The paragraph above attributed this to `groupBlocksByLine`'s
+`Dictionary.keys.first` lookup. That is a real defect and it was **not** the cause: the capture after
+fixing it was byte-identical, `layoutTextChars=5717` before and after, with the same transposition.
+
+The cause is one level up, in `buildReadingOrderText`:
+
+```swift
+if abs(lhs.topY - rhs.topY) > 0.02 { return lhs.topY > rhs.topY }
+return lhs.minX < rhs.minX
+```
+
+**The threshold is larger than the quantity it compares.** A journal page carries roughly 55 lines,
+so consecutive lines sit about 0.015 apart in normalised coordinates — under 0.02. The vertical test
+therefore never fired between neighbouring lines, and `minX` decided their order: body text sorted by
+left edge, so an indented or hyphenated line jumps ahead of the line above it.
+
+**And it is not a strict weak ordering.** Lines at 0.500, 0.485 and 0.470 make both inner pairs
+compare equal while the outer pair compares ordered. `sorted(by:)` is documented as producing an
+unspecified result when given such a predicate, which is why the output was scrambled rather than
+merely imprecise.
+
+`readingOrderPrecedes(lhsTopY:lhsMinX:rhsTopY:rhsMinX:)` replaces it: strictly by position down the
+page, left edge only for an exact tie. No epsilon is required, because `groupBlocksByLine` has
+already collapsed a physical line into one element using a tolerance derived from real glyph height.
+Applied to all three call sites in the file rather than the one that was proven, and the same
+non-transitive shape in `detectAndSeparateTables` is now row-bucket quantisation, which keeps its
+legitimate row-then-left-to-right intent while being transitive. Three unit tests pin the ordering,
+the transitivity, and that the left edge never overrides a real vertical difference.
+
 Correcting the entry above it: the `952d85f` note described this as gutter interleaving. It is not.
 That commit stands on its own — `extractTextWithSpatialOrdering` genuinely did merge across a gutter
 and now has 7 tests where it had none — but that path handles 2 of 8 pages here and found nothing to

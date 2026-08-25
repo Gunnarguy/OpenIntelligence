@@ -3,6 +3,72 @@ import XCTest
 
 final class DocumentProcessorTests: XCTestCase {
 
+    // MARK: - Reading order comparator (LayoutAwareExtractor)
+    //
+    // The defect these pin: `if abs(lhs.topY - rhs.topY) > 0.02 { ... }` inside a
+    // comparator. A journal page carries ~55 lines, so consecutive lines sit about
+    // 0.015 apart in normalised coordinates — under the threshold — so the vertical
+    // test never fired between adjacent lines and minX decided instead. It was also
+    // non-transitive, which makes `sorted(by:)` produce an unspecified result.
+
+    func testReadingOrder_AdjacentJournalLines_SortTopToBottom() {
+        // Realistic spacing: ~0.015 apart, i.e. under the old 0.02 threshold, and
+        // left edges that disagree with vertical order the way indented or hyphenated
+        // lines do.
+        let lines: [(topY: CGFloat, minX: CGFloat, label: String)] = [
+            (0.500, 0.14, "first"),
+            (0.485, 0.06, "second"),
+            (0.470, 0.11, "third"),
+            (0.455, 0.06, "fourth"),
+        ]
+        let shuffled = [lines[2], lines[0], lines[3], lines[1]]
+
+        let sorted = shuffled.sorted {
+            LayoutAwareExtractor.readingOrderPrecedes(
+                lhsTopY: $0.topY, lhsMinX: $0.minX,
+                rhsTopY: $1.topY, rhsMinX: $1.minX
+            )
+        }
+
+        XCTAssertEqual(sorted.map(\.label), ["first", "second", "third", "fourth"])
+    }
+
+    /// The comparator must be a strict weak ordering. Three lines stepping down by
+    /// less than the old threshold each are the case that broke it: both inner pairs
+    /// compared equal while the outer pair compared ordered.
+    func testReadingOrder_IsTransitive() {
+        let a: (topY: CGFloat, minX: CGFloat) = (0.500, 0.20)
+        let b: (topY: CGFloat, minX: CGFloat) = (0.490, 0.10)
+        let c: (topY: CGFloat, minX: CGFloat) = (0.480, 0.15)
+
+        func precedes(_ l: (topY: CGFloat, minX: CGFloat), _ r: (topY: CGFloat, minX: CGFloat)) -> Bool {
+            LayoutAwareExtractor.readingOrderPrecedes(
+                lhsTopY: l.topY, lhsMinX: l.minX, rhsTopY: r.topY, rhsMinX: r.minX
+            )
+        }
+
+        XCTAssertTrue(precedes(a, b))
+        XCTAssertTrue(precedes(b, c))
+        XCTAssertTrue(precedes(a, c), "a precedes b and b precedes c, so a must precede c")
+        XCTAssertFalse(precedes(b, a))
+        XCTAssertFalse(precedes(c, a))
+    }
+
+    /// Left edge decides only for an exact vertical tie, never across a real one.
+    func testReadingOrder_MinXOnlyBreaksExactTies() {
+        XCTAssertTrue(
+            LayoutAwareExtractor.readingOrderPrecedes(
+                lhsTopY: 0.5, lhsMinX: 0.05, rhsTopY: 0.5, rhsMinX: 0.55
+            )
+        )
+        // A line lower on the page never precedes one above it, however far left.
+        XCTAssertFalse(
+            LayoutAwareExtractor.readingOrderPrecedes(
+                lhsTopY: 0.480, lhsMinX: 0.01, rhsTopY: 0.495, rhsMinX: 0.90
+            )
+        )
+    }
+
     // MARK: - Spatial line breaking (two-column extraction)
     //
     // Geometry modelled on a two-column journal page: 612pt wide, ~10pt type,
