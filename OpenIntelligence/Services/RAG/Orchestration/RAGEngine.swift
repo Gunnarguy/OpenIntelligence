@@ -36,14 +36,6 @@ actor RAGEngine {
     private static let pageNumberRegex3 = try? Regex(#"\b\d{1,2}\s+\.{2,}"#)
     private static let standaloneNumberRegex = try? Regex(#"\b\d{2}\b"#)
 
-    // Reference-list shape. See `computeBibliographyPenalty`.
-    /// `Surname AB,` — a family name followed by run-together initials. Two or more
-    /// of these in one chunk is an author list, which prose does not produce.
-    private static let authorInitialsRegex = try? Regex(#"\b[A-Z][a-z]{2,}\s+[A-Z]{1,3}[,\.]"#)
-    /// `2013; 500: 575-579` — the year/volume/pages tail of a journal citation.
-    private static let citationTailRegex = try? Regex(#"\b(?:19|20)\d{2};\s*\d+\s*:\s*\d+"#)
-    /// `58. Menegas` — a numbered entry opening on a capitalised surname.
-    private static let numberedEntryRegex = try? Regex(#"(?:^|\s)\d{1,3}\.\s+[A-Z][a-z]{2,}"#)
 
     // MARK: - Properties
 
@@ -1297,21 +1289,13 @@ actor RAGEngine {
     /// `nonisolated static` so the shape detection is testable without an engine, a
     /// query or a document. It reads only the static regexes above.
     nonisolated static func computeBibliographyPenalty(content: String) -> Float {
-        let wordCount = content.split(separator: " ").count
-        guard wordCount > 12 else { return 0 }
+        // Shape detection lives in `ReferenceListDetector`, shared with `ContentTaggingService`,
+        // which needs the same judgement for the opposite purpose — excluding a bibliography from
+        // the chunks it samples to generate a document's tags.
+        let signals = ReferenceListDetector.analyse(content)
+        guard signals.looksLikeReferenceList else { return 0 }
 
-        let authorHits = Self.authorInitialsRegex.map { content.matches(of: $0).count } ?? 0
-        let citationHits = Self.citationTailRegex.map { content.matches(of: $0).count } ?? 0
-        let numberedHits = Self.numberedEntryRegex.map { content.matches(of: $0).count } ?? 0
-
-        let signalsPresent = [authorHits >= 2, citationHits >= 1, numberedHits >= 2]
-            .filter { $0 }
-            .count
-        guard signalsPresent >= 2 else { return 0 }
-
-        // Density, not raw count: a 400-word methods paragraph citing four papers is not
-        // a reference list, while a 60-word chunk with four author runs is.
-        let markerDensity = Float(authorHits + citationHits + numberedHits) / Float(wordCount)
+        let markerDensity = signals.markerDensity
 
         if markerDensity >= 0.08 {
             return 0.22

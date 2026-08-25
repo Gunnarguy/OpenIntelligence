@@ -276,18 +276,44 @@ import NaturalLanguage
         func generateTagsForDocument(chunks: [String], documentName: String? = nil) async throws -> ContentTags {
             guard !chunks.isEmpty else { return .empty }
 
-            // Sample strategy: beginning, middle, and end for better coverage
+            // Sample strategy: beginning, middle, and end for better coverage — of the document's
+            // *prose*. Reference lists are excluded first.
+            //
+            // The last chunk of a journal article is its bibliography, so first/middle/last spent a
+            // third of the tag model's input on author surnames. Observed on device 2026-08-25: the
+            // same paper, ingested twice, produced `analysis, depression, dopamine, motivation,
+            // serotonin` on one run and `check, cho, informative, merten, pychatry, updates, zeng`
+            // on the other. `Cho`, `Merten` and `Zeng` are cited authors; `pychatry` is a mangled
+            // `PCNPsychiatry` running header from the first chunk.
+            //
+            // Both ingests were the same document at the same extracted size, so the difference was
+            // which chunks the sampler happened to land on. Suspected, not confirmed: correcting
+            // reading order in `0a79b1c` made section boundaries clean, so the last chunk became
+            // *reliably* the bibliography where it used to be a blend — a naive sampler's worst
+            // pick got more consistent as extraction got more correct.
+            //
+            // Falls back to the unfiltered chunks when filtering leaves too little to sample. A
+            // document that is genuinely mostly references still gets tags, just not better ones.
             var sampleText = ""
             let maxSampleChars = 6000
 
-            if chunks.count == 1 {
-                sampleText = chunks[0]
-            } else if chunks.count == 2 {
-                sampleText = chunks[0] + "\n\n" + chunks[1]
+            let proseChunks = chunks.filter { !ReferenceListDetector.analyse($0).looksLikeReferenceList }
+            let sampleSource = proseChunks.count >= 3 ? proseChunks : chunks
+            if sampleSource.count != chunks.count {
+                Log.debug(
+                    "[ContentTagging] Excluded \(chunks.count - sampleSource.count) reference-list chunk(s) "
+                        + "from tag sampling for \(documentName ?? "document")",
+                    category: .ingestion
+                )
+            }
+
+            if sampleSource.count == 1 {
+                sampleText = sampleSource[0]
+            } else if sampleSource.count == 2 {
+                sampleText = sampleSource[0] + "\n\n" + sampleSource[1]
             } else {
-                // Take first chunk, a middle chunk, and last chunk
-                let middleIndex = chunks.count / 2
-                sampleText = chunks[0] + "\n\n" + chunks[middleIndex] + "\n\n" + chunks[chunks.count - 1]
+                let middleIndex = sampleSource.count / 2
+                sampleText = sampleSource[0] + "\n\n" + sampleSource[middleIndex] + "\n\n" + sampleSource[sampleSource.count - 1]
             }
 
             // Truncate if still too long
