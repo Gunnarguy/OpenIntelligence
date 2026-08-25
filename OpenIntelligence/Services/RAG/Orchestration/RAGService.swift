@@ -6722,6 +6722,64 @@ class RAGService: ObservableObject {
         )
     }
 
+    /// Why a rebuild has nothing to do. The three cases were reported identically, and that
+    /// is the defect this row is named for.
+    enum RebuildSelection: Equatable {
+        /// There is work to do.
+        case rebuild(count: Int)
+        /// The library genuinely holds no documents. A real no-op.
+        case libraryEmpty
+        /// The library HAS documents and every one was excluded by an in-flight ingestion
+        /// item. Returning normally here told the caller the repair succeeded, so it logged
+        /// success, took the rebuild banner down having rebuilt nothing, and the next health
+        /// check re-flagged the library. That cycle does not terminate, and deleting the
+        /// library was the only way out of it.
+        case blockedByQueue(blocked: Int)
+    }
+
+    /// URLs an in-flight ingestion is already working on, which a rebuild must not duplicate.
+    ///
+    /// `isTerminal` is the whole correctness of this. Built from every item regardless of
+    /// stage, a finished `.complete` entry vetoed its own document forever — and because
+    /// `pruneCompletedIngestionItems` bails whenever any item is non-terminal, one stuck
+    /// `.paused` entry pinned every completed entry in the array, each of which then blocked
+    /// its own document's repair.
+    nonisolated static func blockingIngestionURLs(in items: [IngestionItem]) -> Set<URL> {
+        Set(items.filter { !$0.stage.isTerminal }.map(\.url))
+    }
+
+    /// The documents a rebuild of `targetContainerId` should re-embed.
+    ///
+    /// Extracted as `nonisolated static` because it is the only part of the blocked-rebuild
+    /// defect provable without hardware. Everything else about that failure needs a device
+    /// with a stuck ingestion queue; this is pure selection over values.
+    nonisolated static func documentsEligibleForRebuild(
+        in documents: [Document],
+        targetContainerId: UUID,
+        blockingURLs: Set<URL>,
+        fallbackContainerId: UUID?
+    ) -> [Document] {
+        documents.filter { document in
+            // Prevent duplicate extraction pipelines if the item is already queued or paused.
+            if blockingURLs.contains(document.fileURL) { return false }
+            if let docContainer = document.containerId {
+                return docContainer == targetContainerId
+            } else if let fallbackId = fallbackContainerId {
+                return fallbackId == targetContainerId
+            }
+            return false
+        }
+    }
+
+    /// Classifies an empty rebuild, so a vetoed one is never mistaken for a completed one.
+    nonisolated static func classifyRebuild(
+        eligible: [Document],
+        documentsInLibrary: Int
+    ) -> RebuildSelection {
+        if !eligible.isEmpty { return .rebuild(count: eligible.count) }
+        return documentsInLibrary > 0 ? .blockedByQueue(blocked: documentsInLibrary) : .libraryEmpty
+    }
+
     private func localIndexSyncFingerprint(for documents: [Document]) -> String {
         documents
             .sorted { $0.id.uuidString < $1.id.uuidString }
@@ -7386,22 +7444,12 @@ class RAGService: ObservableObject {
         // `pruneCompletedIngestionItems()` defers four seconds while `kickPendingReembedIfNeeded()`
         // fires immediately after, so freshly imported documents vetoed their own re-embed.
         let documentsToRebuild = await MainActor.run {
-            var activeUrls = Set<URL>()
-            for item in self.ingestionItems where !item.stage.isTerminal {
-                activeUrls.insert(item.url)
-            }
-
-            return self.documents.filter { document in
-                if activeUrls.contains(document.fileURL) {
-                    return false // Prevent duplicate extraction pipelines if item is already queued or paused
-                }
-                if let docContainer = document.containerId {
-                    return docContainer == targetContainerId
-                } else if let fallbackId = self.containerService.containers.first?.id {
-                    return fallbackId == targetContainerId
-                }
-                return false
-            }
+            Self.documentsEligibleForRebuild(
+                in: self.documents,
+                targetContainerId: targetContainerId,
+                blockingURLs: Self.blockingIngestionURLs(in: self.ingestionItems),
+                fallbackContainerId: self.containerService.containers.first?.id
+            )
         }
 
         guard !documentsToRebuild.isEmpty else {
@@ -7418,16 +7466,22 @@ class RAGService: ObservableObject {
             let libraryDocumentCount = await MainActor.run {
                 self.documentsForContainer(targetContainerId).count
             }
-            if libraryDocumentCount > 0 {
+
+            // The classification is made by `classifyRebuild` rather than inline, so the branch
+            // that ships is the branch the unit tests cover. A test over a parallel copy of this
+            // decision would prove nothing about what actually runs.
+            switch Self.classifyRebuild(eligible: documentsToRebuild, documentsInLibrary: libraryDocumentCount) {
+            case .blockedByQueue(let blocked):
                 Log.warning(
                     "[RAGService] Rebuild for container \(targetContainerId) was blocked: all "
-                        + "\(libraryDocumentCount) document(s) are excluded by active ingestion queue items. "
+                        + "\(blocked) document(s) are excluded by active ingestion queue items. "
                         + "Nothing was rebuilt.",
                     category: .ingestion
                 )
-                throw RAGServiceError.rebuildBlockedByQueue(blocked: libraryDocumentCount)
+                throw RAGServiceError.rebuildBlockedByQueue(blocked: blocked)
+            case .libraryEmpty, .rebuild:
+                return
             }
-            return
         }
 
         // VISIBLE LOGGING: Make rebuild starts obvious in console
