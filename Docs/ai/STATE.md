@@ -3,7 +3,7 @@
 Updated: 2026-08-25
 Branch/worktree: main, pushed and clean as of writing.
 Cross-tool handoff (if Claude access runs out): `HANDOFF.md` at repo root (kept current less often than this file).
-Last verified commit: cd507d0
+Last verified commit: 0e60e3f
 
 ## Objective
 
@@ -13,15 +13,29 @@ not re-derive it here.
 
 ## Status
 
-**v5.0 is 45 Completed against 2 open.** Today's device capture closed the sync churn and Self-RAG
-rows on evidence, moved the background-grant row to `Future Backlog` because its admitting premise
-was false, and **caught a regression in 90-minute-old code** — `91ea045` was offering a rebuild to
-libraries built by the correct pipeline, fixed in `cd507d0`. 317 tests, 3 skipped, 0 failures.
-
-**Both remaining rows need a device action, not code.** Neither is blocked on anything an agent can
-do.
+**v5.0 is 46 Completed against 1 open, and that one row is a device exercise rather than work.**
+333 tests, 3 skipped, 0 failures. **The release gate is not on the board: no build is attached to
+the 5.0 App Store version.** Metadata is live, correct, and verified against the API — there is
+simply nothing to submit.
 
 ## Completed this session (2026-08-25)
+
+**Afternoon, after the morning pass below.**
+
+- **`8f76398` / `81fd54b`** The 2026-08-21 PCC claim audit fixed outward marketing and never reached
+  in-app copy. Three surfaces still said PCC works today: `ModelInfoCard` gated on the wrong
+  capability flag, `HowItWorksView` claimed the app "asks" before escalating, and the **sample
+  documents — which the app cites back to users as sourced fact** — carried a section headed *"When
+  does PCC activate?"*. Scoped, not deleted, per the precedent that pass set.
+- **`93c7a97`** `DECISIONS.md`: the PCC compile-time gate is correct and a runtime gate cannot
+  replace it. Settled by **compiling a probe**, not by argument: against the 26.5 SDK the symbol is
+  absent, so `if #available` does not merely fail to help — it does not compile. **Read this before
+  anyone proposes a runtime gate again.**
+- **`ca02b36`** Extracted the rebuild-selection logic, 9 tests, and made `reembedDocuments` call the
+  classifier so the tested branch is the shipping branch.
+- **`0e60e3f`** Guards that prevent harm no longer log as errors. Of 254 error/warning lines in a
+  device capture, 245 were Apple's FileProvider and all 9 of ours were guards working correctly.
+
 
 - **`0efb2d0`** Research papers were read as parts catalogues. `"min"` inside dopa**min**e made every
   dopamine query a specification lookup; `"ft"` matched "often", `"amp"` matched "example";
@@ -94,35 +108,56 @@ Command → result, this session only:
   matching the local file exactly.
 - `python3 scripts/secret_scan.py` → no sensitive tokens.
 
-**Not run:** any device verification of the nine fixes; any successful benchmark.
-
+**Not run:** any device verification of the afternoon's fixes; any successful benchmark (two
+attempts, two different failure modes — see `BenchmarkRuns/LEDGER.md`); any profiling of the
+Documents tab.
 ## Blockers / Unknowns
 
-1. **Fingerprint rebuild has never been run from the banner.** The flag itself is device-proven —
-   it fired on 2026-08-25, incorrectly, which is how `cd507d0` was found. What has never been
-   exercised is tapping the banner and watching the rebuild finish. Needs a library that genuinely
-   predates the fingerprint field; the owner's were stamped by dev builds carrying `3b48c88` and a
-   library created on v5.0 is now correctly stamped at ingest, so **neither will flag**. Delete and
-   re-import on a build *without* `cd507d0`, or find an untouched pre-5.0 library.
-   https://app.notion.com/p/3bf49a74d54f812597ffd48a165a139f
-2. **A library with no vectors cannot repair itself.** The only remaining row that is setup rather
-   than observation. Needs a staged stuck-queue item so the blocked-rebuild path executes.
-   Discriminator: `Self-healing rebuild completed successfully` with **no** preceding
-   `[Reembed] STARTING FULL REBUILD` — success reported for work that never ran.
+1. **THE RELEASE GATE, and it is not a Notion row.** The 5.0 iOS App Store version reads
+   `state=PREPARE_FOR_SUBMISSION, build=NONE`. An Xcode Cloud build off current `main` is required
+   before anything can be submitted. `CURRENT_PROJECT_VERSION` is 150 while Xcode Cloud last built
+   356.
+2. **A library with no vectors cannot repair itself — the only open v5.0 row.** The code is done
+   and now unit-tested (`ca02b36`, 9 cases); the blocked path has never been *exercised* on device.
+   **Cheap recipe:** import something large, force-quit around halfway, relaunch. That leaves a
+   stuck non-terminal ingestion item, which is exactly the condition. Pass = a rebuild banner that
+   stays up, instead of the app logging success and silently re-flagging.
    https://app.notion.com/p/3c049a74d54f81fd9255edc739959d36
+3. **Twelve-plus fixes have never been through one ordinary session together** — import, several
+   queries, relaunch, more queries, on a build carrying all of them. Each of the last three
+   captures found something real, including a regression in 90-minute-old code.
 
-**Not a blocker, but the honest risk before cutting a build:** none of the ten fixes from the
-2026-08-24/25 pass has been through one ordinary unhurried session — import, several queries,
-relaunch — on a build carrying all of them. The 2026-08-25 capture covered one import and one query
-and found a regression in code 90 minutes old.
+## Open, investigated, NOT diagnosed — do not act on a theory here
 
-**Agent-side and unclaimed:** the benchmark that would re-take `final` vs `rerank` r@1 has never
-succeeded. See the ledger's top entry. Next attempt runs `--limit 2` first.
+4. **Library deletion is reported inconsistent**: same button, sometimes removes the library and
+   its files, sometimes only the documents. **The mechanism is unknown.** A first diagnosis — a
+   sync merge resurrecting the container — was checked and **refuted**: the container never
+   reappeared across 76 subsequent sync operations. Every deletion in `AnotherOne.txt` completed
+   correctly, so that capture does not contain the failure. **What is verified:** two delete paths
+   exist — `DocumentLibraryView.swift:1653` calls `containerService.deleteContainer` directly,
+   bypassing `LibraryDeletion.delete`, though it operates on `localOnlyLibraryIDs` where that may
+   be correct — and `deleteContainer` opens with `guard containers.count > 1 else { return }`,
+   returning **silently** on the last library. **Get a capture of the failing case before fixing
+   anything.**
+5. **The Documents tab is slow and the cause is unknown.** Read directly and cleared: the list is
+   lazy; the `NavigationLink` destination's init only assigns three stored properties; the row card
+   does no per-row I/O; `filteredDocuments` is O(n) over ~14 documents referenced 9 times per
+   render; the sync cache runs at an **80% hit rate** (695 skips against 173 opens). **None of that
+   explains it.** The only multi-second figures in any capture are ingestion — 48.7s to extract one
+   document, ~6s per Vision page — which is import, not navigation. **Three theories were formed
+   and all three were wrong.** Next step is measurement, not more reading: Instruments → Time
+   Profiler over 30 seconds of tapping between libraries, or elapsed-time instrumentation around
+   the container-switch and delete paths.
 
 ## Exact Next Action
 
-**Owner: one unhurried session on a build carrying `cd507d0`.** Import a document, ask three or four
-questions of different shapes, relaunch, ask one more. Share the trace. That is the pass none of the
-ten fixes has had, and today demonstrated it finds things.
+**Cut an Xcode Cloud build off `main`.** Nothing in v5.0 can proceed without it and it is tracked
+nowhere but here.
 
-If it is clean, the only work left in v5.0 is staging the stuck-queue test for row 2 above.
+Then one session on that build: import a document, ask three or four questions of different shapes,
+relaunch, ask one more — and separately import something large and force-quit halfway, to stage
+Blocker 2. Share the console. That one session closes the last open row and gives the twelve fixes
+the ordinary run none of them has had.
+
+**Do not open Blockers 4 or 5 without new evidence.** Between them they have already consumed four
+wrong diagnoses; each needs a capture or a profile before any code changes.
