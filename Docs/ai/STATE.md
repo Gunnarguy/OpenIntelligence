@@ -1,145 +1,140 @@
 # Current State
 
 Updated: 2026-08-25
-Branch/worktree: main, pushed to `origin/main`.
+Branch/worktree: main, pushed and clean as of writing.
 Cross-tool handoff (if Claude access runs out): `HANDOFF.md` at repo root (kept current less often than this file).
-Last verified commit: 771461c
+Last verified commit: a1508d6
 
 ## Objective
 
-**Get v5.0 shippable.** It is a correctness release, not a feature drop. **Notion is authoritative
-for the row list** — use the `notion-roadmap` skill, do not re-derive it here.
+**Get v5.0 shippable.** It is a correctness release, not a feature drop: PCC does not ship in it and
+the notes say so. **Notion is authoritative for the row list** — use the `notion-roadmap` skill, do
+not re-derive it here.
 
 ## Status
 
-**v5.0 is 43 Completed against 5 open**, and every open row now has either code waiting for a
-device check or a staged test. Five more fixes landed on 2026-08-25 — the answer-replacement hole,
-the Self-RAG contradiction check, the background-task correction, and the sync churn — at **317
-tests, 0 failures** (from 287 two days ago). **None of today's work is device-verified.**
+**v5.0 is 43 Completed against 5 open, and every open row is a device check rather than unstarted
+work.** Nine code fixes landed 2026-08-24 into 08-25 at **317 tests, 3 skipped, 0 failures** (from
+287). **None of the nine is device-verified.** One attempt to measure them on the Mac failed
+outright — see Blocker 6.
 
-## Completed this session (2026-08-24)
+## Completed this session (2026-08-25)
 
-- **App Store Connect fixed and the 5.0 listing rewritten.** `APP_STORE_CONNECT_API_KEY_PATH`
-  pointed at a file that was never an ASC key (12-char id where Apple issues 10). `~/.zshrc` now
-  uses `AuthKey_Q3VSSU8ZGD.p8`. `scripts/asc_healthcheck.rb` answers it in ~2s. Release notes were
-  still 4.9's text; rewritten to 3,995/4,000 chars, pushed, read back byte-for-byte.
-- **`ece4bae` — the app no longer deletes a just-imported document's vectors.** Device-verified: the
-  guard refuses at both points where the old build deleted silently, 0 occurrences of the failure
-  signature against 87 before.
-- **`0a79b1c` — page text is no longer transposed.** Device-verified on all 8 pages. The cause was a
-  non-transitive comparator using a 0.02 threshold against ~0.015 line spacing, so neighbouring
-  lines ordered by left edge. Four earlier diagnoses were wrong and are recorded on the row.
-- **`dbff15a` — the source-only stage no longer destroys the answer it verifies.** Not yet executed
-  on device; see Blocker 1.
-- **`3b857ab`** — the ingestion overlay no longer breaks "Processing uploads" mid-word.
-- **`0efb2d0` — the app stopped reading research papers as parts catalogues.** `detectSpecificationQuery`
-  substring-matched two keyword lists, so bare `"min"` made every dopa**min**e query a specification
-  lookup and `"ft"`/`"oz"`/`"amp"` matched inside "often", "dozen", "example". `.caseInsensitive`
-  defeated the PartNumber pattern, turning reference markers (`behavior.42`, `min.43`) into part
-  numbers. Added `computeBibliographyPenalty` beside the two existing penalties at **both** sites,
-  because 2 of 20 cited sources in a shipped answer were bibliography entries.
-- **`11b8d9f` — the extractive evidence re-sort had no defined result.**
-  `abs(aPriority - bPriority) >= 2` inside a comparator is non-transitive; `sorted(by:)` is
-  documented as unspecified for such a predicate. **Third instance of that shape found today.** The
-  LEDGER now records that its 27.0%/15.2% rank-1 figure was measured against this undefined sort and
-  must be re-taken. `extractivePriorityScore` also credited substring keyword hits at 5 points each;
-  now whole-word.
-- **Source-only gate instrumented.** Three device runs failed to reach that stage and each looked
-  identical to a stage that ran and found nothing. Every guard now names itself, and
-  `classifyAnswerIntent` logs the intent it computed for every query.
-- **Scope pass.** 5 rows left v5.0: PCC entitlement, the Xcode toolchain row and physical-device
-  testing to `Future Backlog` (no `v5.1` option exists in the schema); iWork **Completed** because
-  the advertising it contradicted has been withdrawn; the context-window row was **kept open** after
-  its apparent pass turned out to be vacuous.
-- **PCC settled by research, not by testing.** Re-verified against `developer.apple.com/news/releases`
-  on 2026-08-24: **Xcode 27 beta 6 shipped today and there is still no Release Candidate.** Apple
-  opens App Store submissions at the RC, so PCC cannot ship in v5.0 at any price. The entitlement was
-  never the question — it survives distribution signing, verified 2026-08-20 against a local Xcode 27
-  archive carrying 18 `PrivateCloudComputeLanguageModel` symbol references. The release notes already
-  say shipped builds do not contain PCC, so the decision was made in copy before the rows caught up.
+- **`0efb2d0`** Research papers were read as parts catalogues. `"min"` inside dopa**min**e made every
+  dopamine query a specification lookup; `"ft"` matched "often", `"amp"` matched "example";
+  `.caseInsensitive` on an uppercase PartNumber pattern turned `behavior.42` into a part number.
+  Word-boundary matching, an anchored standards regex, and a bibliography penalty at both existing
+  demotion sites.
+- **`11b8d9f`** **The largest finding of the pass.** The extractive evidence re-sort used
+  `abs(lhs - rhs) > 0.05` inside its comparator, which is not a strict weak ordering, so
+  `sorted(by:)` returned an **unspecified** result. The evidence order behind every extractive
+  answer was undefined. It sits exactly where `final` r@1 falls below `rerank`.
+- **`19e93d0`** One answer-replacement site had no citation guard (length test only), and it is the
+  pass most likely to strip citations because it is told to remove unsupported claims. Separately
+  `citationCount` matched `[S1]` but not `(S1)`, so an answer citing in parentheses counted as zero
+  and the guard **waved through exactly what it exists to block**.
+- **`7851b92`** Self-RAG now retries an answer asserting its sources are silent while citing them.
+  Requires a corpus reference **and** an absence phrase in one sentence, so a reported null result is
+  not confused with a claim about the corpus. Honest abstention with nothing cited is unaffected.
+- **`a78260a`** The background-grant row's premise is **false** — the task is submitted, proven from
+  `whatQuery.txt`. Its lifecycle logs moved to a trace-visible category instead of a fix being
+  written for a non-bug.
+- **`771461c`** Sync churn. 128 store opens / 43,164 chunk records / **0 writes** in one session,
+  half before first paint. A signature of both roots plus document set, aliases and strategy now
+  skips the reads when nothing has moved. Hard-boundary file, edited under explicit approval.
+- **`91ea045`** A library with **no** embedding fingerprint is flagged for rebuild instead of
+  silently adopting the live one. `3b48c88`'s nil-adopt was right in August and wrong for release:
+  v5.0 is the first build carrying the field, so nil **plus documents** means indexed by the
+  pre-5.0 pipeline — 55% of content unembedded (`2753d15`) and CLS pooling (`3ea5cd9`). **Release
+  consequence: every user updating from 4.9 with documents sees a one-time rebuild offer.**
+- **`a1508d6`** The App Store listing said *"nothing will prompt you to change it"*, which `91ea045`
+  made false. Corrected and re-pushed, 3,966 chars, read back from the API and confirmed.
 
 ## Active Constraints
 
-- **Build from a copy outside iCloud.** `rsync -a --exclude 'BenchmarkRuns/' --exclude
-  '.simulator-smoke.nosync/' --exclude 'Benchmarks/run/' ./ /private/tmp/oi-src/`, then run the
-  script from there. **This includes `scripts/build_simulator_smoke.sh`** — in place it deadlocks in
-  `-[NSFileCoordinator _blockOnAccessClaim:withAccessArbiter:]`, confirmed with `sample`.
-- **The smoke script builds only; it does not run tests.** Full suite:
-  `xcodebuild test -scheme OpenIntelligence -destination "platform=iOS Simulator,id=8FA2B3CE-5EB0-4339-8629-F40684EDCE2D" -derivedDataPath /private/tmp/oi-build`
-  Warm: ~2-4 min. Cold: ~10-15. Current baseline **302 tests, 3 skipped, 0 failures**.
-- **Nothing else builds, tests or runs while a benchmark measures.** Never `pkill` on the app path.
-- **Core AI does not work in the simulator** — anything touching embeddings is device-only.
-- **Never delete a `BenchmarkRuns/*` run directory** — gitignored, so deletion is permanent.
+- **Build from a copy outside iCloud.** `rsync -a --delete --exclude 'BenchmarkRuns/' --exclude
+  '.simulator-smoke.nosync/' --exclude 'Benchmarks/run/' --exclude '.git.nosync/' ./ /private/tmp/oi-src/`
+  then build there. In place it deadlocks in `NSFileCoordinator`, including
+  `scripts/build_simulator_smoke.sh`.
+- **Nothing else builds, tests or runs while a benchmark measures.**
+- **Never delete a `BenchmarkRuns/*` directory.** Gitignored, so deletion is permanent. Tidy the
+  ledger, never the runs.
+- **Core AI does not work in the Simulator** — embeddings are Mac or device only.
 - **`Docs/USER_CHANGELOG.md` and `OpenIntelligence/Resources/VersionHistory.md` must stay
-  byte-identical.** `VersionHistoryTests` asserts it. `WHATS_NEW.md` is a third, condensed copy.
-- **A pre-commit hook rejects any `.swift` change without a doc update** in `WHATS_NEW.md`,
-  `CHANGELOG.md` or `Docs/`.
-- Commit to `main`. Do not branch.
+  byte-identical**; `VersionHistoryTests` asserts it. `WHATS_NEW.md` is a third, condensed copy whose
+  bullets are worded differently, so a text match that works on the first two often misses it.
+- **`fastlane/metadata/en-US/release_notes.txt` is at 3,966 of 4,000 characters.** Anything added
+  needs something removed, and it must not contradict shipped behaviour.
+- Commit to `main`; do not branch.
 
 ## Working Set
 
 | File | Why |
 |---|---|
-| `scripts/asc_healthcheck.rb` | Run before ever diagnosing an ASC failure from its error text. |
-| `fastlane/metadata/en-US/release_notes.txt` | 3,995 of Apple's 4,000 chars. Anything added needs something removed. |
-| `Docs/USER_CHANGELOG.md` | Source of truth for user-facing history; copy to `VersionHistory.md` on every edit. |
-| `OpenIntelligence/Services/RAG/Orchestration/RAGEngine.swift` | `computeTOCPenalty` / `computeQuestionBankPenalty` at two sites — where the bibliography penalty belongs. |
-| `OpenIntelligence/Services/RAG/Retrieval/HybridSearchService.swift` | `:585-598` substring spec match, `:519` unanchored standards regex. |
-| `BenchmarkRuns/LEDGER.md` | Full narrative of every run. Read before trusting any figure. |
+| `Docs/ai/RUNBOOK.md` → Retrieval benchmark | Items 1, 1b and 7. Item 7 is the one that was skipped and cost fifty minutes. |
+| `BenchmarkRuns/LEDGER.md` | Top two entries are the undefined-sort correction and the failed run. Read before trusting any `final`-stage figure. |
+| `scripts/run_quality_matrix.py` | `--limit`, `--sampling`, `--manifest`, `--resume`. |
+| `OpenIntelligence/Services/Infrastructure/Storage/WorkspaceSyncService.swift` | Hard boundary. Holds the new signature cache; needs the owner to name it in any future approval. |
+| `OpenIntelligence/Services/RAG/Orchestration/RAGService.swift` | The nil-fingerprint branch changed by `91ea045`. |
+| `fastlane/metadata/en-US/release_notes.txt` | Live App Store text, 34 characters of headroom. |
 
 ## Verification
 
-- `xcodebuild test` on iOS 27 → **287 tests, 3 skipped, 0 failures**, run after each of `ece4bae`,
-  `dbff15a`, `952d85f`, `0a79b1c` and the probe removal.
-- Device: vector-deletion fix and reading-order fix both **proven on hardware** (captures
-  `SameProcessButPostChanges.txt`, `PostPostFixAgain.txt`).
-- ASC read-back of `appStoreVersionLocalizations` matches all three local metadata files exactly.
+Command → result, this session only:
 
-**Not verified:** `dbff15a` has never executed; the three To Do rows are unstarted.
+- `xcodebuild test`, iOS 27 Simulator, from `/private/tmp/oi-src` → **317 tests, 3 skipped, 0
+  failures**, run after each of `19e93d0`, `7851b92`, `771461c` and `91ea045`.
+- `scripts/build_simulator_smoke.sh` from `/private/tmp/oi-src` → **BUILD SUCCEEDED** each time.
+- macOS Debug unsandboxed build → **BUILD SUCCEEDED**; `codesign -d --entitlements -` printed none,
+  which is the runbook's precondition for benchmarking.
+- `fastlane push_metadata` after `a1508d6` → exit 0; ASC read-back `whatsNew` **3,966 chars**,
+  matching the local file exactly.
+- `python3 scripts/secret_scan.py` → no sensitive tokens.
+
+**Not run:** any device verification of the nine fixes; any successful benchmark.
 
 ## Blockers / Unknowns
 
-**Everything open is now a device check. No unstarted code work remains in v5.0.**
+**Rows 1-5 are device checks. Row 6 is agent work and is the only one that does not need the phone.**
 
-1. **Sync churn — the highest-value check, and the one with real downside if wrong.**
-   `771461c` skips the two full store reads when a signature of both roots, the document set,
-   `documentAliases` and `strategy` matches a pass that concluded nothing needed writing.
-   Baseline to beat: **128 opens / 43,164 chunk records / 0 writes** in one session, 64 opens
-   before first paint. **The check that matters is the second one:** a genuine change must still
-   sync. Edit or import on one device and confirm it reaches another. The failure this could
-   introduce is a *skipped* sync, not a slow one. No unit coverage — sync has none.
+1. **Sync churn (`771461c`).** Baseline to beat: **128 opens / 43,164 chunk records / 0 writes**.
+   **The half that matters is the second: a genuine change must still sync.** Edit or import on one
+   device and confirm it reaches another. The failure this could introduce is a *skipped* sync, not
+   a slow one. No unit coverage — sync has none.
    https://app.notion.com/p/3c649a74d54f81219022c292bc4aba31
-2. **Self-RAG contradiction check.** `7851b92` retries an answer that asserts its sources are
-   silent while citing them. Look for `Answer asserts its sources do not cover the question while
-   citing N of them`. An honest abstention citing nothing is explicitly unaffected and has a test.
-   https://app.notion.com/p/3bf49a74d54f81b8a47ef00d9037f08e
-3. **A library with no vectors cannot repair itself.** Needs a staged stuck-queue item.
-   Discriminator: `Self-healing rebuild completed successfully` with no preceding
-   `[Reembed] STARTING FULL REBUILD`. https://app.notion.com/p/3c049a74d54f81fd9255edc739959d36
-4. **Existing libraries keep truncated vectors.** Original closing test was consumed by nil-adopt
-   and cannot fire twice; needs a fingerprint change induced on a library that already carries one.
+2. **Fingerprint rebuild offer (`91ea045`).** A library with documents and no fingerprint should now
+   surface the rebuild banner. **The owner's own libraries were already stamped by a dev build
+   carrying `3b48c88` and will not flag** — testing this needs a library that has never run such a
+   build, or delete-and-re-import.
    https://app.notion.com/p/3bf49a74d54f812597ffd48a165a139f
-5. **Background grant — recommend moving out of v5.0.** The row's premise is false and now
-   corrected: the task **is** submitted, and `whatQuery.txt` shows `Submitted continued query task`
-   once with zero failures. What is unknown is whether a long answer survives backgrounding, which
-   nothing in the repo can settle. Its lifecycle logs now reach a shareable trace.
+3. **Self-RAG contradiction check (`7851b92`).** Look for `Answer asserts its sources do not cover
+   the question while citing N of them`. https://app.notion.com/p/3bf49a74d54f81b8a47ef00d9037f08e
+4. **Library with no vectors cannot repair itself.** Needs a staged stuck-queue item. Discriminator:
+   `Self-healing rebuild completed successfully` with no preceding `[Reembed] STARTING FULL REBUILD`.
+   https://app.notion.com/p/3c049a74d54f81fd9255edc739959d36
+5. **Background grant — recommend moving out of v5.0.** Premise corrected: the task **is** submitted.
+   What is unknown is whether a long answer survives backgrounding, which no code change addresses.
    https://app.notion.com/p/3c149a74d54f8171adfcce5dcb345777
-
-**Not in the release, filed:** the recursive-research loop still proposes uncited fragments — six
-occurrences across three captures. Every displacement site is now guarded, so the harm is contained,
-but the loop *prefers* the fragment because an uncited answer has its grounding forced to 0.5 and
-skips the retry check. Changing that risks a loop and needs its own measurement.
-https://app.notion.com/p/3c749a74d54f816b808cee4e0284948c
+6. **`final` vs `rerank` r@1 has never been measured against a defined sort, and the run that would
+   fix that failed.** `20260825-postfix-greedy-83`: cases 1-5 each `ERROR: timeout after 600s`,
+   killed during case 6, **no `reports/` written so nothing attributes the hang**. Sandbox cause
+   ruled out (zero `have permission to save`, empty entitlements). Whether Foundation Models
+   generation completed is **not established** — the 600s shape matches the runbook's eight-retry
+   description, but that passage concerns the Simulator and says the host Mac generates fine.
 
 ## Exact Next Action
 
-**Owner, one session on the phone settles four rows.** Import a document (checks sync churn and the
-truncated-vector flag), let it finish, ask a question that would previously have drawn an absence
-claim (checks the Self-RAG contradiction check), and background the app mid-answer (checks the
-continued-query task). Share the trace.
+**Diagnose the benchmark with a two-case run before spending another five hours.** From
+`/private/tmp/oi-src`, with the macOS app already built at
+`/private/tmp/oi-mac-nosbx/Build/Products/Debug/OpenIntelligence.app`:
 
-**Agent-side, and it costs nothing on device:** re-run the greedy A/A pair on a build containing
-`11b8d9f`. `final` sits downstream of the extractive re-sort, whose result was undefined until that
-commit. If the jitter narrows, the "two runs return different evidence" row has its answer and the
-`final` r@1 figure can be re-taken — which it needs regardless, because the 27.0%/15.2% attribution
-was measured against the undefined sort.
+```bash
+python3 scripts/run_quality_matrix.py --app /private/tmp/oi-mac-nosbx/Build/Products/Debug/OpenIntelligence.app --manifest Benchmarks/ResearchFixtures/qasper_external_v1/manifest.json --modes standard --pcc deny --sampling greedy --limit 2 --output-dir BenchmarkRuns/20260825-diagnose-2
+```
+
+If both cases time out again, read the per-case report under `reports/` for where it stalls —
+absence of Foundation Models output would confirm the FM hypothesis the failed run could not.
+If they pass, the 83-case run is sound and can be relaunched with the same flags minus `--limit`.
+
+**Owner, in parallel:** one phone session settles rows 1, 3 and 5 — import a document, ask a question
+that would previously have drawn an absence claim, background the app mid-answer, share the trace.
