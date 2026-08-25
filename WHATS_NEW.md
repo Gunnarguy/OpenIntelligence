@@ -45,6 +45,8 @@ Documents were quietly losing parts of themselves, answers were built from a fra
 
 ### Answers
 - **A long answer is no longer replaced by a one-line stub.** After the app writes a long answer, a final stage re-reads every claim in it against your documents. That stage was given a smaller budget than the answer it was checking, so on a long answer it could be shown as little as one and a half percent of it and then replace the whole thing with a fragment. It now keeps its share of the budget for the answer rather than letting the evidence take all of it, and if it still cannot see enough of the answer to judge it fairly, it declines and leaves the original alone.
+- **The app stopped treating research papers as parts catalogues:** the word list that signals "this person wants a spec value" contained "min", matched anywhere in the text rather than as a whole word, so every question about dopa-**min**-e switched on scoring built for datasheets. It also read "often" as feet and "example" as amps.
+- **Reference lists no longer get cited as sources:** a bibliography matches keywords beautifully and states no facts. Two of twenty sources in a real answer were citation entries.
 - **Search ranks section headings again.** A weighting mistake had dropped section paths out of ranking entirely.
 - **Long questions can reach Private Cloud Compute** instead of being kept on device precisely when they were too big for it.
 - **Deep Think was writing its answer from a fraction of what it actually found:** it could retrieve the right passages and discard most of them, including the best one, before writing a word.

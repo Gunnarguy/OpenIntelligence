@@ -16296,9 +16296,34 @@ class RAGService: ObservableObject {
         isSourceLocked: Bool = false
     ) async -> SourceOnlyAnswerOutcome? {
         let trimmedAnswer = candidateAnswer.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmedAnswer.isEmpty, !retrievedChunks.isEmpty else { return nil }
-        guard answerIntent.isExtractiveFirst else { return nil }
-        guard !isSourceLocked else { return nil }
+
+        // Every exit from this gate now says why. Three device runs were spent trying to
+        // reach this stage and all three missed it silently, because a `return nil` looks
+        // identical to a stage that ran and found nothing. Pairs with the `AnswerIntent`
+        // line in `QueryEnhancementService.classifyAnswerIntent`: that one says what the
+        // query was classified as, this one says what the gate did about it.
+        func decline(_ reason: String) -> SourceOnlyAnswerOutcome? {
+            Log.info(
+                "[SourceOnly] Skipped — \(reason). intent=\(answerIntent), "
+                    + "chunks=\(retrievedChunks.count), answerChars=\(trimmedAnswer.count)",
+                category: .llm
+            )
+            return nil
+        }
+
+        guard !trimmedAnswer.isEmpty, !retrievedChunks.isEmpty else {
+            return decline(trimmedAnswer.isEmpty ? "candidate answer is empty" : "no retrieved chunks")
+        }
+        guard answerIntent.isExtractiveFirst else {
+            return decline("intent is not extractive-first; only .lookup and .tableLookup are")
+        }
+        guard !isSourceLocked else { return decline("query is source-locked") }
+
+        Log.info(
+            "[SourceOnly] Running for intent \(answerIntent) over \(retrievedChunks.count) chunk(s), "
+                + "candidate \(trimmedAnswer.count) chars",
+            category: .llm
+        )
 
         guard let outcome = await SourceOnlyAnswerService.shared.verifyAndRender(
             query: query,

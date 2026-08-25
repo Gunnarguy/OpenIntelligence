@@ -1291,7 +1291,11 @@ actor SpecificationExtractor {
     ) -> SpecificationExtractionResult? {
         // Part number regex - matches codes like 1688-020-122
         // REQUIRES at least one digit to avoid matching English words ("three-quarters")
-        let partNumberPattern = #"(?=[A-Z0-9.-]*\d)[A-Z0-9]{2,}[-\.][A-Z0-9]{2,}(?:[-\.][A-Z0-9]{2,})*"#
+        // `(?-i:…)` cancels this call's `.caseInsensitive`, which otherwise lets
+        // `[A-Z0-9]` match lowercase and turns reference markers such as `behavior.42`
+        // into part numbers. Kept identical to `SpecificationDetector`, which carries the
+        // full note.
+        let partNumberPattern = #"(?-i:(?=[A-Z0-9.-]*\d)[A-Z0-9]{2,}[-\.][A-Z0-9]{2,}(?:[-\.][A-Z0-9]{2,})*)"#
         guard let partNumberRegex = try? NSRegularExpression(pattern: partNumberPattern, options: .caseInsensitive) else {
             return nil
         }

@@ -318,7 +318,31 @@ final class QueryEnhancementService {
     /// 5. **summarize**: Overview/summary requests
     /// 6. **investigate**: Multi-hop research (factors, causes, effects)
     /// 7. **compute**: Numerical computation (total, sum, calculate)
+    /// Classifies the query and records the result.
+    ///
+    /// The log line is not decoration. `AnswerIntent` decides whether the source-only
+    /// verification stage runs at all — `isExtractiveFirst` is true only for `.lookup`
+    /// and `.tableLookup` — and three device runs in one evening were spent trying to
+    /// reach that stage without knowing which intent a question had actually been given.
+    /// The gate was reasoned about from code twice and wrong both times. One line where
+    /// the intent is decided ends that, and `.retrieval` is in
+    /// `LoggingConfiguration.fileLogCategories`, so it reaches a shareable trace rather
+    /// than only an attached console.
+    ///
+    /// Wrapping rather than editing the branches: the classifier returns from more than a
+    /// dozen places, and instrumenting a subset of them is how this repository has
+    /// produced three separate defects.
     nonisolated func classifyAnswerIntent(_ query: String) -> AnswerIntent {
+        let intent = classifyAnswerIntentUninstrumented(query)
+        Log.info(
+            "[QueryEnhancement] AnswerIntent: \(intent) (extractiveFirst: \(intent.isExtractiveFirst)) "
+                + "for: \(query.prefix(60))",
+            category: .retrieval
+        )
+        return intent
+    }
+
+    private nonisolated func classifyAnswerIntentUninstrumented(_ query: String) -> AnswerIntent {
         let lower = query.lowercased()
         let words = lower.split(whereSeparator: { $0.isWhitespace || $0.isNewline }).map(String.init)
 

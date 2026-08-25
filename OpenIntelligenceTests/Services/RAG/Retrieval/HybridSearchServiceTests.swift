@@ -24,6 +24,44 @@ class DummyVectorDatabase: VectorDatabase {
 
 final class HybridSearchServiceTests: XCTestCase {
 
+    // MARK: - Word-boundary term matching
+    //
+    // These pin the defect that made a psychiatry review read as a parts catalogue:
+    // `specPatterns` and `measurementUnits` were matched with `query.contains(term)`,
+    // and both lists carry entries short enough to appear inside ordinary words.
+
+    /// The one that cost a device session. `specPatterns` contains bare "min".
+    func testContainsTerm_DopamineDoesNotContainMin() {
+        XCTAssertFalse(HybridSearchService.containsTerm("what role does dopamine deficiency play in depression", "min"))
+        XCTAssertTrue(HybridSearchService.containsTerm("what is the min operating temperature", "min"))
+    }
+
+    /// `measurementUnits` contains "ft", "oz" and "amp".
+    func testContainsTerm_ShortUnitsDoNotMatchInsideWords() {
+        XCTAssertFalse(HybridSearchService.containsTerm("how often does this occur", "ft"))
+        XCTAssertFalse(HybridSearchService.containsTerm("what happens after the dose", "ft"))
+        XCTAssertFalse(HybridSearchService.containsTerm("give me a dozen examples", "oz"))
+        XCTAssertFalse(HybridSearchService.containsTerm("for example the sample size", "amp"))
+        XCTAssertTrue(HybridSearchService.containsTerm("what is the rated amp draw", "amp"))
+        XCTAssertTrue(HybridSearchService.containsTerm("12 ft of clearance", "ft"))
+    }
+
+    /// Multi-word entries such as "type of" must still match as phrases.
+    func testContainsTerm_MultiWordPhrasesStillMatch() {
+        XCTAssertTrue(HybridSearchService.containsTerm("what type of oil does it take", "type of"))
+        XCTAssertTrue(HybridSearchService.containsTerm("how many liters", "how many"))
+        // Not a phrase match: the words are present but not adjacent in order.
+        XCTAssertFalse(HybridSearchService.containsTerm("the type is different of course", "type of"))
+    }
+
+    /// Punctuation and case must not defeat a genuine match.
+    func testContainsTerm_NormalisesPunctuationAndCase() {
+        XCTAssertTrue(HybridSearchService.containsTerm("What is the MAX torque?", "max"))
+        XCTAssertTrue(HybridSearchService.containsTerm("dosage, please", "dosage"))
+        XCTAssertFalse(HybridSearchService.containsTerm("maximise throughput", "max"))
+    }
+
+
     var service: HybridSearchService!
 
     override func setUp() {

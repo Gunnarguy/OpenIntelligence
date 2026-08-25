@@ -516,7 +516,15 @@ class HybridSearchService {
                 (#"\d+(?:\.\d+)?\s*(?:psi|kPa|bar|Pa|atm|mmHg)\b"#, 2),
                 (#"\d+(?:\.\d+)?\s*(?:mm|cm|km|in|ft|yd)\b"#, 2),  // No bare 'm' — matches everything
                 (#"\d+(?:\.\d+)?\s*(?:V|A|W|kW|mA|Ah|kWh|Hz|MHz|GHz)\b"#, 2),
-                (#"(?:ISO|IEEE|ANSI|ASTM|IEC|DIN|EN|UL|NFPA)[-\s]?[A-Z0-9-]+"#, 3),
+                // Standards references. `(?-i:…)` locally cancels the `.caseInsensitive`
+                // this loop compiles with, because the option was defeating the pattern:
+                // it made `[A-Z0-9-]` match lowercase, and with no boundary the bare
+                // alternatives matched inside ordinary words. `UL` scored inside
+                // "Stim**ul**ation" and `EN` inside "**en**dogenous", so a neuroscience
+                // sentence earned +3 specification points for containing normal English.
+                // Real standards are written uppercase, so requiring that costs nothing
+                // and the `\b` anchors stop mid-word matches outright.
+                (#"\b(?-i:(?:ISO|IEEE|ANSI|ASTM|IEC|DIN|EN|UL|NFPA))[-\s]?(?-i:[A-Z0-9][A-Z0-9-]*)\b"#, 3),
             ]
 
             for (pattern, weight) in specPatterns {
@@ -560,6 +568,43 @@ class HybridSearchService {
 
     /// Detect if query is seeking specific data/specifications (domain-agnostic)
     /// Uses linguistic patterns that work across ANY domain
+    /// Splits a query into lowercased alphanumeric tokens.
+    nonisolated static func specificationQueryTokens(_ query: String) -> [String] {
+        query.lowercased()
+            .split(whereSeparator: { !$0.isLetter && !$0.isNumber })
+            .map(String.init)
+    }
+
+    /// Whether `query` contains `term` as a whole word or whole phrase.
+    ///
+    /// This replaces `query.contains(term)`, which was doing raw substring matching
+    /// against two lists that include very short entries. Both misfired constantly on
+    /// ordinary prose:
+    ///
+    /// - `specPatterns` contains bare `"min"`, so **every** query about **dopa*min*e**
+    ///   was classified as a specification lookup. Observed on device 2026-08-24 for
+    ///   *"What role does dopamine deficiency play in depression?"*, which then boosted
+    ///   12 table/list chunks "for spec query" and tried to resolve 9 competing spec
+    ///   values. In a journal article the table/list chunks are the reference list, so
+    ///   the answer was cited to a bibliography.
+    /// - `measurementUnits` contains `"ft"`, `"oz"` and `"amp"`, which match inside
+    ///   "o**ft**en", "a**ft**er", "d**oz**en", "ex**amp**le" and "s**amp**le".
+    ///
+    /// Multi-word entries like `"type of"` are matched as phrases against the token
+    /// stream, so "what type of oil" still resolves while "prototype offset" does not.
+    nonisolated static func containsTerm(_ query: String, _ term: String) -> Bool {
+        let tokens = specificationQueryTokens(query)
+        guard !tokens.isEmpty else { return false }
+
+        if term.contains(" ") {
+            let phrase = specificationQueryTokens(term).joined(separator: " ")
+            guard !phrase.isEmpty else { return false }
+            return " \(tokens.joined(separator: " ")) ".contains(" \(phrase) ")
+        }
+
+        return tokens.contains(term.lowercased())
+    }
+
     private func detectSpecificationQuery(_ query: String) -> Bool {
         // Pattern 1: "What is the X" / "What are the X" - seeking specific values
         if query.hasPrefix("what is") || query.hasPrefix("what are") ||
@@ -576,7 +621,7 @@ class HybridSearchService {
         let hasNumbers = query.rangeOfCharacter(from: .decimalDigits) != nil
         let measurementUnits = ["mg", "kg", "ml", "liter", "gallon", "quart", "psi", "kpa",
                                 "volt", "amp", "watt", "hz", "mm", "cm", "inch", "ft", "lb", "oz"]
-        let hasMeasurement = measurementUnits.contains { query.contains($0) }
+        let hasMeasurement = measurementUnits.contains { Self.containsTerm(query, $0) }
         if hasNumbers || hasMeasurement {
             return true
         }
@@ -593,7 +638,7 @@ class HybridSearchService {
             "limit", "threshold",  // Legal/technical
             "tolerance", "range"  // Engineering
         ]
-        if specPatterns.contains(where: { query.contains($0) }) {
+        if specPatterns.contains(where: { Self.containsTerm(query, $0) }) {
             return true
         }
 

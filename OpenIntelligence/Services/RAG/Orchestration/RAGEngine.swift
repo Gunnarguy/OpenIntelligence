@@ -36,6 +36,15 @@ actor RAGEngine {
     private static let pageNumberRegex3 = try? Regex(#"\b\d{1,2}\s+\.{2,}"#)
     private static let standaloneNumberRegex = try? Regex(#"\b\d{2}\b"#)
 
+    // Reference-list shape. See `computeBibliographyPenalty`.
+    /// `Surname AB,` — a family name followed by run-together initials. Two or more
+    /// of these in one chunk is an author list, which prose does not produce.
+    private static let authorInitialsRegex = try? Regex(#"\b[A-Z][a-z]{2,}\s+[A-Z]{1,3}[,\.]"#)
+    /// `2013; 500: 575-579` — the year/volume/pages tail of a journal citation.
+    private static let citationTailRegex = try? Regex(#"\b(?:19|20)\d{2};\s*\d+\s*:\s*\d+"#)
+    /// `58. Menegas` — a numbered entry opening on a capitalised surname.
+    private static let numberedEntryRegex = try? Regex(#"(?:^|\s)\d{1,3}\.\s+[A-Z][a-z]{2,}"#)
+
     // MARK: - Properties
 
     #if canImport(CoreML)
@@ -389,7 +398,8 @@ actor RAGEngine {
                 let contentForPenalty = r.chunk.parentContent ?? r.chunk.content
                 let tocPenalty = computeTOCPenalty(content: contentForPenalty)
                 let questionBankPenalty = computeQuestionBankPenalty(content: contentForPenalty, query: query)
-                score -= tocPenalty + questionBankPenalty
+                let bibliographyPenalty = Self.computeBibliographyPenalty(content: contentForPenalty)
+                score -= tocPenalty + questionBankPenalty + bibliographyPenalty
 
             scored.append((r, score, keywordBoost, proximityBoost, metadataBoost))
         }
@@ -1261,6 +1271,56 @@ actor RAGEngine {
     }
 
     /// Demote chunks that mainly list example questions rather than answering the current one.
+    /// Demotes reference-list chunks, which are dense in query terms and answer nothing.
+    ///
+    /// A bibliography is the worst possible evidence and one of the best keyword matches:
+    /// a page of citations about dopamine contains "dopamine" many times and states no
+    /// fact about it. Nothing in the existing demotion knew what a reference list was.
+    ///
+    /// Device evidence 2026-08-24. From the citation map of a shipped Deep Think answer,
+    /// 2 of 20 cited sources were bibliography entries:
+    ///
+    ///     S16 = …p.8  74. Chang CH, Grace AA. Amygdala-ventral pallidum pathway decreases
+    ///     S20 = …p.7  58. Menegas W, Akiti K, Amo R, Uchida N, Watabe-Uchida M. Dopamine
+    ///
+    /// Self-RAG accepted that answer at 81% confidence with relevance at 63% — a low
+    /// relevance figure consistent with a tenth of the evidence budget spent on citations.
+    ///
+    /// Three orthogonal signals, because any one alone has a false positive: a methods
+    /// section cites authors, a results table carries year/volume figures, and a numbered
+    /// procedure opens on digits. Requiring two of the three, and scaling with density,
+    /// keeps prose that merely *mentions* a reference from being demoted.
+    ///
+    /// Deliberately a penalty rather than a filter, matching the two penalties beside it.
+    /// A reference list is legitimately the answer to "what did they cite", so this must
+    /// lose to a strong genuine match rather than remove the chunk from consideration.
+    /// `nonisolated static` so the shape detection is testable without an engine, a
+    /// query or a document. It reads only the static regexes above.
+    nonisolated static func computeBibliographyPenalty(content: String) -> Float {
+        let wordCount = content.split(separator: " ").count
+        guard wordCount > 12 else { return 0 }
+
+        let authorHits = Self.authorInitialsRegex.map { content.matches(of: $0).count } ?? 0
+        let citationHits = Self.citationTailRegex.map { content.matches(of: $0).count } ?? 0
+        let numberedHits = Self.numberedEntryRegex.map { content.matches(of: $0).count } ?? 0
+
+        let signalsPresent = [authorHits >= 2, citationHits >= 1, numberedHits >= 2]
+            .filter { $0 }
+            .count
+        guard signalsPresent >= 2 else { return 0 }
+
+        // Density, not raw count: a 400-word methods paragraph citing four papers is not
+        // a reference list, while a 60-word chunk with four author runs is.
+        let markerDensity = Float(authorHits + citationHits + numberedHits) / Float(wordCount)
+
+        if markerDensity >= 0.08 {
+            return 0.22
+        } else if markerDensity >= 0.04 {
+            return 0.15
+        }
+        return 0.08
+    }
+
     private func computeQuestionBankPenalty(content: String, query: String) -> Float {
         let normalizedContent = content.lowercased()
         let normalizedQuery = query
@@ -1539,7 +1599,8 @@ actor RAGEngine {
                 let contentForPenalty = item.chunk.chunk.parentContent ?? item.chunk.chunk.content
                 let tocPenalty = computeTOCPenalty(content: contentForPenalty)
                 let questionBankPenalty = computeQuestionBankPenalty(content: contentForPenalty, query: query)
-                let adjustedScore = max(0.01, item.score - tocPenalty - questionBankPenalty)
+                let bibliographyPenalty = Self.computeBibliographyPenalty(content: contentForPenalty)
+                let adjustedScore = max(0.01, item.score - tocPenalty - questionBankPenalty - bibliographyPenalty)
                 return (item.chunk, adjustedScore)
             }.sorted { $0.score > $1.score }
 

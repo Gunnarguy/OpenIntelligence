@@ -66,7 +66,14 @@ enum SpecificationDetector: Sendable {
         // like "three-quarters", "over-revving", "Long-press".
         // DESIGN: Cast a WIDE net here. Detection = RECALL.
         // The SpecificationExtractor's entity-centric SCORING handles precision.
-        ("PartNumber", #"(?=[A-Z0-9.-]*\d)[A-Z0-9]{2,}[-\.][A-Z0-9]{2,}(?:[-\.][A-Z0-9]{2,})*"#),
+        // `(?-i:…)` is load-bearing. Both call sites compile with `.caseInsensitive`,
+        // which made `[A-Z0-9]` match lowercase letters, so this pattern classified
+        // ordinary prose as part numbers. Device evidence 2026-08-24, from a psychiatry
+        // review: `behavior.42`, `contexts.54`, `movements.40`, `ed.48` and `min.43` were
+        // all extracted as PartNumber entities — they are superscript reference markers
+        // attached to the preceding word. `D2-autoreceptors` matched for the same reason.
+        // Real part numbers are written uppercase, so requiring that costs nothing.
+        ("PartNumber", #"(?-i:(?=[A-Z0-9.-]*\d)[A-Z0-9]{2,}[-\.][A-Z0-9]{2,}(?:[-\.][A-Z0-9]{2,})*)"#),
 
         // PERCENTAGE VALUES: Number followed by %
         // Matches: 95%, 0.5%, 99.9%
