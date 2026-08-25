@@ -1,9 +1,9 @@
 # Current State
 
-Updated: 2026-08-24
+Updated: 2026-08-25
 Branch/worktree: main, pushed to `origin/main`.
 Cross-tool handoff (if Claude access runs out): `HANDOFF.md` at repo root (kept current less often than this file).
-Last verified commit: 11b8d9f
+Last verified commit: ef5ede0
 
 ## Objective
 
@@ -12,12 +12,11 @@ for the row list** — use the `notion-roadmap` skill, do not re-derive it here.
 
 ## Status
 
-**v5.0 is 40 Completed against 7 open.** Overnight pass on 2026-08-24 landed four retrieval fixes
-and one instrumentation change, all suite-green at **302 tests, 0 failures** (from 287). The deep
-finding is that the extractive evidence re-sort was **not a strict weak ordering**, so the evidence
-order a query was answered from was undefined — which is a better account of `final` r@1 0.442
-against `rerank` r@1 0.610 than any scoring hypothesis, and a concrete mechanism for the
-long-standing "two runs return different evidence" row. **None of tonight's work is device-verified.**
+**v5.0 is 43 Completed against 4 open.** The overnight retrieval pass was device-verified on
+2026-08-25 in `whatQuery.txt` and closed three rows at once. Four fixes confirmed on hardware: the
+source-only gate declined a 23%-coverage replacement and kept the answer, `Draft generation failed`
+is gone with the stage demonstrably running, spec-query boosts went 6 to 0, and no bibliography
+entry reached the citation map. What remains is two staged device checks and two unstarted tasks.
 
 ## Completed this session (2026-08-24)
 
@@ -101,67 +100,47 @@ long-standing "two runs return different evidence" row. **None of tonight's work
 
 ## Blockers / Unknowns
 
-**Two device sessions close three rows. Do these before writing any code.**
+**Two staged device checks. Neither is a normal query — both need a deliberately constructed state.**
 
-1. **One query closes two rows.** Ask, against a library holding the Yagishita paper:
-   **"What role do dopamine receptors play in movement?"**
-   It **must** start with "What". `sourceOnlyOutcomeIfNeeded` is gated on
-   `answerIntent.isExtractiveFirst`, and `QueryEnhancementService` only returns `.lookup` for a
-   prefix in `["what","which","when","where","who","how much","how many","wat"]`. Two device runs
-   were spent on "How do…" questions and skipped the stage entirely; their clean results were
-   **vacuous**, not passes.
-   - `SourceOnly` present **and** no `Draft generation failed` → *The reasoning chain overruns its
-     own context window* closes. https://app.notion.com/p/3c049a74d54f81b28598ec7405470cb0
-   - Full answer, or `Declining to replace the answer: the extraction stage saw only N% of it` →
-     *Source-only verification destroys the answer* closes.
-     https://app.notion.com/p/3c649a74d54f81eaa73dfa4d627d8a5e
-   - A short stub → the second row reopens.
-2. **A staged import closes one row.** *A library with no vectors cannot repair itself, and the
-   repair reports success.* Detection and repair are already device-proven; the **blocked-rebuild**
-   path never has been. Needs a library with a stuck non-terminal ingestion queue item, which vetoes
-   its own document's repair. The row carries the discriminator: `Self-healing rebuild completed
-   successfully` with no preceding `[Reembed] STARTING FULL REBUILD`.
-   https://app.notion.com/p/3c049a74d54f81fd9255edc739959d36
+1. **A library with no vectors cannot repair itself, and the repair reports success.** Detection and
+   repair are device-proven; the **blocked-rebuild** path never has been. Needs a library with a
+   stuck non-terminal ingestion queue item, which vetoes its own document's repair. Discriminator on
+   the row: `Self-healing rebuild completed successfully` with no preceding
+   `[Reembed] STARTING FULL REBUILD`. https://app.notion.com/p/3c049a74d54f81fd9255edc739959d36
+2. **Existing libraries keep truncated vectors.** `EmbeddingFingerprint` shipped in `3b48c88`, but
+   every existing container had `embeddingFingerprint == nil` and took the silent-adopt branch, so
+   the event that would have proven the flag was absorbed and **cannot fire twice**. Replacement
+   condition on the row: induce a fingerprint change on a library that already carries one — a
+   chunker-recipe change or a `modelRevision` bump — then confirm flag, banner and rebuild on device.
+   The owner's own library is in this state; delete-and-re-import is the cheap workaround.
+   https://app.notion.com/p/3bf49a74d54f812597ffd48a165a139f
 
-**Three rows are real work.**
+**Two unstarted tasks.**
 
-3. **`"min"` inside `"dopamine"` routes a neuroscience question down the parts-spec path**, and
-   reference-list entries reach the user as cited sources. Device-evidenced in a shipped answer:
-   `S16 = …p.8 74. Chang CH, Grace AA…`, `S20 = …p.7 58. Menegas W…` — 2 of 20 citations were
-   bibliography. **Plan is written on the row** and needs no further investigation: add
-   `computeBibliographyPenalty(content:)` beside the two existing penalties in `RAGEngine` and apply
-   it at **both** sites; word-boundary the spec keywords at `HybridSearchService.swift:585-598`;
-   anchor the standards regex at `:519` so `UL` stops matching inside "Stimulation".
-   https://app.notion.com/p/3c649a74d54f810291b2fc53a6a6066c
-4. **Self-RAG accepted an answer that contradicts itself and its own sources at 88% confidence.**
-   Unstarted. https://app.notion.com/p/3bf49a74d54f81b8a47ef00d9037f08e
-5. **A long answer outlives its 30-second background grant**; the task that would save it is
-   registered but never submitted. Loses the answer, so it passes test 1. Unstarted.
+3. **Self-RAG accepted an answer that contradicts itself and its own sources at 88% confidence.**
+   https://app.notion.com/p/3bf49a74d54f81b8a47ef00d9037f08e
+4. **A long answer outlives its 30-second background grant**; the task that would save it is
+   registered but never submitted. Loses the answer, so it passes test 1.
    https://app.notion.com/p/3c149a74d54f8171adfcce5dcb345777
 
-**One is a small task plus a check.**
-
-6. **Existing libraries keep truncated vectors.** `EmbeddingFingerprint` shipped in `3b48c88`, but
-   every existing container had `embeddingFingerprint == nil` and took the silent-adopt branch, so
-   the one event that would have proven the flag was absorbed. **Its original closing test cannot
-   fire twice.** The row names the replacement: induce a fingerprint change on a library that
-   already carries one — a chunker-recipe change or a `modelRevision` bump — then confirm the flag,
-   the banner and a successful rebuild on device. The owner's own library is in this state today and
-   the cheap workaround is delete-and-re-import.
-   https://app.notion.com/p/3bf49a74d54f812597ffd48a165a139f
+**Not in the release, but live and now filed.** The recursive-research loop keeps proposing to
+replace long cited answers with uncited fragments — six occurrences across three captures, most
+recently `3080 chars -> 352 chars` twice in one query. `shouldAcceptReplacement` has caught every
+one. The loop *prefers* the fragment because an answer with no citations has its grounding forced to
+0.5 and skips the retry check, so uncited always verifies cleaner than cited. The guard is a net
+under a bug; nobody has enumerated the replacement sites to confirm it covers all of them, and that
+enumeration is a code read rather than a device run.
+https://app.notion.com/p/3c749a74d54f816b808cee4e0284948c
 
 ## Exact Next Action
 
-**Owner: run the single query in Blocker 1 on the current build.** It costs one question, closes two
-rows, and both of the code changes behind it are already committed and suite-green. Two device runs
-have now been spent asking a question that could not reach the code under test, so use the exact
-wording above.
+**Agent-side, and it costs nothing on device: re-run the greedy A/A pair on a build containing
+`11b8d9f`.** The 2026-08-23 pair was bit-identical on vector, lexical and fusion but jittered at
+`boosted` and between `rerank` and `final`. `final` sits downstream of the extractive re-sort, whose
+result was undefined until that commit. If the jitter narrows, the "two runs return different
+evidence" row has its answer and the `final` r@1 figure can be re-taken in the same run — and that
+figure needs re-taking regardless, because the 27.0%/15.2% attribution was measured against the
+undefined sort.
 
-**Also newly worth doing, and cheap:** re-run the greedy A/A pair on a build containing `11b8d9f`.
-The 2026-08-23 pair came back bit-identical on vector, lexical and fusion but jittered at `boosted`
-and between `rerank` and `final`. `final` is downstream of the sort that was undefined until tonight.
-If that jitter narrows, the "two runs return different evidence" row has its answer, and the
-`final` r@1 figure can be re-taken at the same time.
-
-Agent-side, remaining and each needing `PROCEED: IMPLEMENT`: Blocker 5 (30-second background grant),
-then Blocker 4 (Self-RAG contradictions). Blocker 3 is done in `0efb2d0`.
+Then Blocker 4 (background grant, passes test 1) and Blocker 3 (Self-RAG contradictions), each
+needing `PROCEED: IMPLEMENT`. The two staged device checks are the owner's whenever convenient.
