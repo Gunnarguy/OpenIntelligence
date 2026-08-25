@@ -6176,8 +6176,25 @@ class RAGService: ObservableObject {
             // container, vectors to whichever one was on screen. See `dbForContainer`.
             try Task.checkCancellation()
             let db = try await dbForContainer(activeContainerId)
+
+            // A store that is empty *before* this batch will afterwards hold nothing but chunks
+            // written by the pipeline running right now, so its fingerprint is knowable rather
+            // than assumed. Recording it here is what makes a nil fingerprint mean "predates the
+            // field" instead of "nobody has looked yet".
+            //
+            // Without this, `91ea045` mis-fired on its first device run: a library deleted and
+            // recreated on v5.0, whose 193 chunks were embedded by the corrected pipeline at
+            // 19ms/chunk, was offered a rebuild it did not need — because the fingerprint is
+            // otherwise only ever written by the staleness check itself, so a freshly built
+            // library reads nil until that check runs. Every new library would have seen a
+            // spurious rebuild prompt, which is worse than the silence it replaced: a prompt
+            // that cries wolf teaches the owner to dismiss the one that matters.
+            let chunksBeforeThisImport = (try? await db.count()) ?? -1
             try await db.storeBatch(chunks: documentChunks)
             try await db.persist()
+            if chunksBeforeThisImport == 0 {
+                await MainActor.run { self.stampEmbeddingFingerprintIfAbsent(for: activeContainerId) }
+            }
             // Invalidate visualization cache for this container after data change
             ProjectionCache.shared.invalidate(forContainer: activeContainerId)
 
@@ -6678,6 +6695,33 @@ class RAGService: ObservableObject {
     }
 
     @MainActor
+    /// Records the fingerprint of the pipeline that just wrote a container's vectors.
+    ///
+    /// Call only when the vector store was empty immediately before the write, so every vector in
+    /// it demonstrably came from the current pipeline. Never overwrites an existing fingerprint: a
+    /// store that already held vectors may hold two populations, and that is exactly the case the
+    /// staleness check exists to flag.
+    private func stampEmbeddingFingerprintIfAbsent(for containerId: UUID) {
+        guard var container = containerService.containers.first(where: { $0.id == containerId }),
+              container.embeddingFingerprint == nil
+        else { return }
+
+        container.embeddingFingerprint = EmbeddingFingerprint.compute(
+            providerId: embeddingService.actualProviderId,
+            dimension: embeddingService.outputDimension,
+            maxSequenceLength: embeddingService.maxSafeTokens,
+            poolingRecipe: embeddingService.poolingRecipe,
+            modelRevision: embeddingService.modelRevision,
+            chunkerRecipe: container.chunkingDirective.map { "\($0.strategy)/\($0.targetWordWindow)" } ?? "default"
+        )
+        containerService.updateContainer(container)
+        Log.info(
+            "[RAGService] Recorded embedding fingerprint for newly built container \(containerId); "
+                + "its vectors were written by the current pipeline.",
+            category: .embedding
+        )
+    }
+
     private func localIndexSyncFingerprint(for documents: [Document]) -> String {
         documents
             .sorted { $0.id.uuidString < $1.id.uuidString }
