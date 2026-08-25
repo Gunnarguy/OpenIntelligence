@@ -100,6 +100,7 @@ Documents were quietly losing parts of themselves, answers were built from a fra
 
 ### Things The App Was Claiming That Weren't True
 Settings describes what the app is doing while it answers you, and several of those lines described things the code does not do.
+- **Three places in the app still described Private Cloud Compute as something it does today:** the Model Info card checked whether Apple Intelligence was available rather than whether PCC was, How It Works said the app "asks" before escalating, and the sample documents had a section headed "When does PCC activate?". The App Store text and README were corrected in August; the copy inside the app was missed. All three now describe the build you are running.
 - **It listed eight agentic tools, and all eight were the wrong ones.** Four are actually wired up; those four are what it names now.
 - **Two advertised features did not exist,** and the model picker listed a tier the app cannot select. Both gone.
 - **Speed figures that were never measured have been removed,** including from the sample documents the app reads back to you as fact.
