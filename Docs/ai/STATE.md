@@ -155,17 +155,12 @@ builds only, it does not run tests); anything on device since 2026-08-19; the re
    the answer survived at 526 words — but something upstream is repeatedly proposing to replace a
    grounded 3,953-character answer with a ~180-character stub. Worth understanding before assuming
    the source-only guard covers the class.
-3. **Two-column PDFs: fixed in code, not device-verified.** The earlier diagnosis in this file was
-   **wrong** and is corrected: `DocumentProcessor.swift:4301` already preferred `readingOrderText`
-   when `isMultiColumn`, so Vision's output was never being discarded. The real defect was one step
-   earlier — `extractTextWithSpatialOrdering` grouped words into lines on a vertical test alone, so
-   a left-column and a right-column word at the same height merged into one line whose `xPosition`
-   is their **mean**, landing at the page centre. `detectColumnBoundaries` then found no gap and the
-   single-column branch interleaved. The column signal was destroyed before the detector ran, which
-   is why the tie-break fix could never have helped. `spatialLineBreak(...)` now breaks on
-   horizontal discontinuity; 7 unit tests, suite 284/0. **Closes when** the Yagishita paper is
-   re-imported on device and the locomotion passage reads as continuous prose.
-   Row: https://app.notion.com/p/3bf49a74d54f81fcb146ef3f489be576
+3. **~~Two-column PDFs~~ — closed 2026-08-24, device-verified.** It was never a column defect: a
+   non-transitive comparator in `buildReadingOrderText` used a 0.02 threshold against ~0.015 line
+   spacing, so neighbouring lines ordered by left edge instead of position down the page. All eight
+   pages now match Vision's transcript order. Four earlier locations were wrong and are recorded on
+   the row so they are not re-tried. The non-English-detection "interleaving signal" is withdrawn —
+   it was reading bibliographies.
 4. **`final` r@1 stays below `rerank` r@1 at n=83 (0.442 vs 0.610 on `shipcfg-50`).** The ledger
    **rejects** `filterBySimilarity` — do not re-open that. Best account:
    `EvidenceScoringPolicyService.extractivePriorityScore` re-sorts extractive-intent queries by a

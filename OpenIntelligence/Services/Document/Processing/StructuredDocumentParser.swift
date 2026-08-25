@@ -867,41 +867,10 @@ actor StructuredDocumentParser {
         */
         #endif
 
-        // Temporary instrumentation, 2026-08-24. Two prior fixes for two-column
-        // interleaving were aimed at paths this document barely uses, because the
-        // producing function was inferred from reading code rather than traced. This
-        // records, per page, which text actually leaves this parser and what it looks
-        // like, so the next change is aimed by evidence.
-        //
-        // `document.text.transcript` is Vision's own linearised reading order for the
-        // whole page. If it reads across a two-column gutter, nothing downstream can
-        // recover it, and the column-aware assembly that already exists in this file
-        // (`assembleSpatiallyOrderedFallbackText`) is unreachable from here because it
-        // sits on the RecognizeTextRequest fallback path.
-        //
-        // The sample is deliberately taken from the middle of the page rather than the
-        // start: page tops are mastheads and titles, which span the full width and read
-        // correctly either way. Interleaving shows up in body prose.
-        let transcript = document.text.transcript
-        let sampleStart = transcript.index(
-            transcript.startIndex,
-            offsetBy: min(600, transcript.count / 3),
-            limitedBy: transcript.endIndex
-        ) ?? transcript.startIndex
-        let sample = String(transcript[sampleStart...].prefix(260))
-            .replacingOccurrences(of: "\n", with: "\\n")
-        Log.info(
-            "[StructuredDocumentParser] TRANSCRIPT PROBE page \(pageNumber): "
-                + "source=DocumentObservation.text.transcript chars=\(transcript.count) "
-                + "paragraphs=\(elements.count) tables=\(document.tables.count) "
-                + "sample=\(sample)",
-            category: .ingestion
-        )
-
         return StructuredDocumentSnapshot(
             elements: elements,
             figureReferences: figureReferences,
-            rawText: transcript,
+            rawText: document.text.transcript,
             tableCount: document.tables.count,
             listCount: document.lists.count,
             figureCount: figureCount

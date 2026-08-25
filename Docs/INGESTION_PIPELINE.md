@@ -229,11 +229,17 @@ A page whose words arrive across a gutter now says so, so a genuinely single-col
 two-column page are no longer indistinguishable in a trace.
 
 Device evidence this closes: a stored chunk read *"…in locomotors are more diverse, consisting of
-Gi-coupled 5-HT, and 5-HTS. tion, reinforcement learning…"* — two columns welded line for line with
-"locomotion" severed across the splice. In the same document, language detection returned
-non-English on **118 of 552 chunks** of a single English paper, and the quality gate passed the text
-anyway because printable ratio and entropy both stay healthy when two valid columns are shuffled
-together. That detector is still unused and is tracked separately.
+Gi-coupled 5-HT, and 5-HTS. tion, reinforcement learning…"* — lines emitted out of order, with
+"locomotion" severed across the join.
+
+**Withdrawn: the non-English detections are not a scrambling signal.** This document was read as
+non-English on 118 of 552 chunks, and that was proposed here as a free interleaving detector. The
+corrected capture disproves it: with the ordering fixed and every page matching Vision's transcript,
+the distribution barely moved (126 non-English chunks to 123). Inspecting them shows why — they are
+reference-list entries such as *"Weissbourd B, Ren J, DeLoach KE, Guenthner CJ, Miyamichi K"*, which
+are surnames and initials with no function words, and any language recogniser will call those
+Indonesian or Dutch. The signal was reading bibliographies, not damage.
+`[evidence_level: device_log_proven, confidence: exact, evidence_source: PostPostFixAgain.txt, lang distribution before and after the fix]`
 `[evidence_level: code_verified+test_verified, confidence: exact, evidence_source: DocumentProcessor.spatialLineBreak; DocumentProcessorTests, 7 cases; device capture 2026-08-24, not yet device-verified]`
 
 #### 2026-08-24, same evening: the real defect was line ordering in the Vision path, not columns
@@ -290,6 +296,14 @@ Applied to all three call sites in the file rather than the one that was proven,
 non-transitive shape in `detectAndSeparateTables` is now row-bucket quantisation, which keeps its
 legitimate row-then-left-to-right intent while being transitive. Three unit tests pin the ordering,
 the transitivity, and that the left edge never overrides a real vertical difference.
+
+**Device-verified 2026-08-24.** After the comparator fix, all eight pages' stored text matches
+Vision's transcript order. Page 1 now reads *"dynamics that regulate diverse aspects of
+motivation-related / behavior. Dopamine and serotonin transiently modulate / moment-to-moment
+behavior at timescales ranging from / sub-second to minutes…"* against the previous *2, 1, 4, 3*.
+`layoutTextChars` is unchanged at 5,717, confirming the text was only ever misordered and never lost.
+The paired probes were removed once they had done their job; the three comparator unit tests replace
+them, and unlike a log line they fail against the old predicate.
 
 Correcting the entry above it: the `952d85f` note described this as gutter interleaving. It is not.
 That commit stands on its own — `extractTextWithSpatialOrdering` genuinely did merge across a gutter
