@@ -3,7 +3,7 @@
 Updated: 2026-08-24
 Branch/worktree: main, pushed to `origin/main`.
 Cross-tool handoff (if Claude access runs out): `HANDOFF.md` at repo root (kept current less often than this file).
-Last verified commit: 36c6178
+Last verified commit: 11b8d9f
 
 ## Objective
 
@@ -12,9 +12,12 @@ for the row list** — use the `notion-roadmap` skill, do not re-derive it here.
 
 ## Status
 
-**v5.0 is 40 rows Completed against 7 open**, after a scope pass on 2026-08-24 took it from 11.
-Three of the seven are real work; three close on **two device sessions**; one is a small task plus a
-check. Nothing is blocked on an unknown — every remaining row names what closes it.
+**v5.0 is 40 Completed against 7 open.** Overnight pass on 2026-08-24 landed four retrieval fixes
+and one instrumentation change, all suite-green at **302 tests, 0 failures** (from 287). The deep
+finding is that the extractive evidence re-sort was **not a strict weak ordering**, so the evidence
+order a query was answered from was undefined — which is a better account of `final` r@1 0.442
+against `rerank` r@1 0.610 than any scoring hypothesis, and a concrete mechanism for the
+long-standing "two runs return different evidence" row. **None of tonight's work is device-verified.**
 
 ## Completed this session (2026-08-24)
 
@@ -31,6 +34,21 @@ check. Nothing is blocked on an unknown — every remaining row names what close
 - **`dbff15a` — the source-only stage no longer destroys the answer it verifies.** Not yet executed
   on device; see Blocker 1.
 - **`3b857ab`** — the ingestion overlay no longer breaks "Processing uploads" mid-word.
+- **`0efb2d0` — the app stopped reading research papers as parts catalogues.** `detectSpecificationQuery`
+  substring-matched two keyword lists, so bare `"min"` made every dopa**min**e query a specification
+  lookup and `"ft"`/`"oz"`/`"amp"` matched inside "often", "dozen", "example". `.caseInsensitive`
+  defeated the PartNumber pattern, turning reference markers (`behavior.42`, `min.43`) into part
+  numbers. Added `computeBibliographyPenalty` beside the two existing penalties at **both** sites,
+  because 2 of 20 cited sources in a shipped answer were bibliography entries.
+- **`11b8d9f` — the extractive evidence re-sort had no defined result.**
+  `abs(aPriority - bPriority) >= 2` inside a comparator is non-transitive; `sorted(by:)` is
+  documented as unspecified for such a predicate. **Third instance of that shape found today.** The
+  LEDGER now records that its 27.0%/15.2% rank-1 figure was measured against this undefined sort and
+  must be re-taken. `extractivePriorityScore` also credited substring keyword hits at 5 points each;
+  now whole-word.
+- **Source-only gate instrumented.** Three device runs failed to reach that stage and each looked
+  identical to a stage that ran and found nothing. Every guard now names itself, and
+  `classifyAnswerIntent` logs the intent it computed for every query.
 - **Scope pass.** 5 rows left v5.0: PCC entitlement, the Xcode toolchain row and physical-device
   testing to `Future Backlog` (no `v5.1` option exists in the schema); iWork **Completed** because
   the advertising it contradicted has been withdrawn; the context-window row was **kept open** after
@@ -50,7 +68,7 @@ check. Nothing is blocked on an unknown — every remaining row names what close
   `-[NSFileCoordinator _blockOnAccessClaim:withAccessArbiter:]`, confirmed with `sample`.
 - **The smoke script builds only; it does not run tests.** Full suite:
   `xcodebuild test -scheme OpenIntelligence -destination "platform=iOS Simulator,id=8FA2B3CE-5EB0-4339-8629-F40684EDCE2D" -derivedDataPath /private/tmp/oi-build`
-  Warm: ~2-4 min. Cold: ~10-15. Current baseline **287 tests, 3 skipped, 0 failures**.
+  Warm: ~2-4 min. Cold: ~10-15. Current baseline **302 tests, 3 skipped, 0 failures**.
 - **Nothing else builds, tests or runs while a benchmark measures.** Never `pkill` on the app path.
 - **Core AI does not work in the simulator** — anything touching embeddings is device-only.
 - **Never delete a `BenchmarkRuns/*` run directory** — gitignored, so deletion is permanent.
@@ -139,5 +157,11 @@ rows, and both of the code changes behind it are already committed and suite-gre
 have now been spent asking a question that could not reach the code under test, so use the exact
 wording above.
 
-Agent-side, in value order, each needing `PROCEED: IMPLEMENT`: Blocker 3 (plan already written and
-device-evidenced), then Blocker 5, then Blocker 4.
+**Also newly worth doing, and cheap:** re-run the greedy A/A pair on a build containing `11b8d9f`.
+The 2026-08-23 pair came back bit-identical on vector, lexical and fusion but jittered at `boosted`
+and between `rerank` and `final`. `final` is downstream of the sort that was undefined until tonight.
+If that jitter narrows, the "two runs return different evidence" row has its answer, and the
+`final` r@1 figure can be re-taken at the same time.
+
+Agent-side, remaining and each needing `PROCEED: IMPLEMENT`: Blocker 5 (30-second background grant),
+then Blocker 4 (Self-RAG contradictions). Blocker 3 is done in `0efb2d0`.
