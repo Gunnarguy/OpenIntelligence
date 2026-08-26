@@ -207,6 +207,26 @@ jobs:
       # runner a development certificate to reuse, or to switch to manual signing
       # with the App Store profiles supplied as secrets. Neither is done here because
       # both need material only the owner can provide.
+      # Snapshot the development certificates that exist BEFORE this run, so the
+      # cleanup at the end can revoke exactly the one this run creates and can never
+      # touch a pre-existing one.
+      #
+      # Automatic signing provisions a development certificate on every fresh runner,
+      # because the archive phase signs for development and `-exportArchive` re-signs
+      # for distribution afterwards. That is correct behaviour and cannot be pinned
+      # away — tried in run 385, it fails with "conflicting provisioning settings".
+      # But it accumulates: ten built up across runs 378 to 383 and run 384 failed
+      # outright with "Choose a certificate to revoke". Left alone this recurs roughly
+      # every ten builds, so the run cleans up after itself instead.
+      - name: Snapshot existing development certificates
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+        run: |
+          set -euo pipefail
+          ruby scripts/asc_certificates.rb list > "$RUNNER_TEMP/certs-before.txt"
+          echo "development certificates before this run: $(wc -l < "$RUNNER_TEMP/certs-before.txt" | tr -d ' ')"
+
       - name: Archive
         env:
           ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
@@ -344,6 +364,23 @@ jobs:
             -f "$(ls "$EXPORT"/$ARTIFACT_GLOB | head -1)" -t "$ALTOOL_TYPE" \
             --apiKey "$ASC_KEY_ID" --apiIssuer "$ASC_ISSUER_ID"
           echo "Uploaded ${{ inputs.platform }} build ${{ inputs.build_number }}. Processing takes a few minutes before it reads VALID."
+
+      # Revoke only what this run created. Compares against the snapshot taken before
+      # the archive, so a certificate that already existed is never a candidate.
+      - name: Revoke the certificate this run created
+        if: always()
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+        run: |
+          set -uo pipefail
+          if [ ! -f "$RUNNER_TEMP/certs-before.txt" ]; then
+            echo "No snapshot taken; nothing to compare against."
+            exit 0
+          fi
+          ruby scripts/asc_certificates.rb revoke-new "$RUNNER_TEMP/certs-before.txt" || {
+            echo "::warning::Could not revoke this run's development certificate. If runs later fail with 'Choose a certificate to revoke', the account has hit Apple's cap and needs pruning."
+          }
 
       - name: Clean up
         if: always()
