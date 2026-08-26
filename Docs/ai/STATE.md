@@ -30,8 +30,10 @@ So a new build is required, and **Xcode Cloud cannot produce one**: it is comput
 through #385 were each created and cancelled 5-9 seconds later with `startedDate: null`, never
 scheduled. The owner confirmed the cap independently.
 
-**A local archive is proven to work on this machine but cannot be submitted**, because the only
-installed Xcode is 27.0 beta. Full detail, including the procedure and the safety gate, is in
+**Xcode 26.6 (17F113) is now installed at `/Applications/Xcode.app`, and build 376 has been built
+from it and is staged for upload.** It passed the gate: `nm -u` reports **0** `PrivateCloudCompute`
+symbols against **29** for `SystemLanguageModel`, built against `iphoneos26.5` with `DTXcodeBuild
+17F113`, which is the identical toolchain Xcode Cloud uses. Full procedure is in
 `Docs/ai/RUNBOOK.md` under "Building a release locally when Xcode Cloud is unavailable".
 
 ## Completed this session (2026-08-25, evening)
@@ -97,10 +99,23 @@ Command → result, this session only:
   workflow `Default` builds Xcode `17F113` / macOS `25G83`.
 - `mas info 497799835` → Mac App Store offers Xcode **26.6**.
 
-**Not run:** any build on Xcode 26.6, which is not installed; any upload or submission; any device
-verification of the twelve fixes; any benchmark; any profiling of the Documents tab. The compile
-warnings surfaced by Swift 6.4 were **not** acted on — a background task was filed for the
-actor-isolation drift they exposed, as Future Backlog.
+Release build on **Xcode 26.6 (17F113)**, after it was installed:
+
+- `xcodebuild archive`, iOS, Release, `DEVELOPER_DIR=/Applications/Xcode.app/...` → **ARCHIVE
+  SUCCEEDED**, 394 MB, 0 errors, stamped 5.0 / build 376.
+- **The gate:** `nm -u` → **0** `PrivateCloudCompute` symbols against **29** for
+  `SystemLanguageModel`. The control matters: 0 with a live control is a real absence, not a broken
+  grep. `DTSDKName iphoneos26.5`, `DTXcodeBuild 17F113`.
+- `xcodebuild -exportArchive` → **EXPORT SUCCEEDED**, 202 MB `.ipa`, embedded profile
+  `iOS Team Store Provisioning Profile: Gunndamental.OpenIntelligence`, no `ProvisionedDevices`.
+- `fastlane/metadata/en-US/release_notes.txt` → **3,966 characters** rstripped, matching the live
+  ASC `whatsNew` exactly. It is 4,031 *bytes*; the difference is the `•` character, and reading the
+  byte count as the character count falsely suggests it is over the 4,000 limit.
+
+**Not run:** the upload itself, which the permission classifier blocks; any submission; any device
+verification of the twelve fixes; any benchmark; any profiling of the Documents tab; any macOS
+build. The compile warnings surfaced by Swift 6.4 were **not** acted on — a background task was
+filed for the actor-isolation drift they exposed, as Future Backlog.
 
 ## Blockers / Unknowns
 
@@ -139,14 +154,25 @@ actor-isolation drift they exposed, as Future Backlog.
 
 ## Exact Next Action
 
-**Install Xcode 26.6 from the Mac App Store** (`sudo mas install 497799835`, or the App Store app).
-It installs to `/Applications/Xcode.app` and coexists with the beta. Do **not** run `xcode-select`
-afterwards; the procedure uses `DEVELOPER_DIR` per command so the beta stays default for device work.
+**Upload build 376.** The archive is built, gated, exported and staged at
+`build/OpenIntelligence-5.0-376.ipa` (202 MB, gitignored). One command:
 
-Then follow `Docs/ai/RUNBOOK.md` → "Building a release locally when Xcode Cloud is unavailable",
-which is a five-step sequence ending in an upload of build 376. Steps 1-5 are already verified
-against the beta, so the only untested variable is the toolchain itself. **The `nm -u` gate must
-print `0`** — if it does not, the archive was built by Xcode 27 and must be discarded, not uploaded.
+```bash
+cd ~/Documents/GitHub/OpenIntelligence && LANG=en_US.UTF-8 LC_ALL=en_US.UTF-8 fastlane upload_release_build version:5.0 build:376 skip_build:true
+```
+
+The lane sees the staged `.ipa` and skips straight to `upload_to_testflight`. It waits for Apple to
+finish processing, which takes several minutes. **An agent cannot run this** — the Claude Code
+permission classifier blocks App Store Connect uploads, and working around it would defeat the point.
+
+Then, and only after processing completes, attaching the build and submitting for review is:
+
+```bash
+cd ~/Documents/GitHub/OpenIntelligence && LANG=en_US.UTF-8 LC_ALL=en_US.UTF-8 fastlane submit_release version:5.0 build:376
+```
+
+**That second command really does submit to App Store review**, because `submit_release` defaults
+`submit_for_review` to true and `reject_if_possible` to true. Do not run it to "just attach" a build.
 
 **Do not open Blockers 5 or 6 without new evidence.** Between them they have consumed four wrong
 diagnoses; each needs a capture or a profile before any code change.
