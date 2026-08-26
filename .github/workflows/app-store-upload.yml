@@ -144,6 +144,25 @@ jobs:
           openssl ec -in "$KEYFILE" -noout && echo "API key parses"
           echo "ASC_KEY_FILE=$KEYFILE" >> "$GITHUB_ENV"
 
+      # Apple returns a byte-identical bare 401 for a revoked key, a wrong
+      # issuer, a malformed token and a file that was never an ASC key. Run 26 of
+      # this workflow died three minutes into an archive with
+      # "Communication with Apple failed (401)" followed by a misleading
+      # "No profiles were found", because the secret held a key that predated
+      # the one now in use. scripts/asc_healthcheck.rb exists precisely to turn
+      # that into one clear line, so run it before spending the build.
+      - name: Check the App Store Connect credentials
+        env:
+          APP_STORE_CONNECT_API_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+        run: |
+          set -euo pipefail
+          export APP_STORE_CONNECT_API_KEY_PATH="$ASC_KEY_FILE"
+          if ! ruby scripts/asc_healthcheck.rb; then
+            echo "::error::The ASC_KEY_ID / ASC_ISSUER_ID / ASC_KEY_BASE64 secrets do not authenticate. Xcode cannot fetch provisioning profiles, so the archive would fail with a misleading 'No profiles were found'. Update the secrets from a key that works locally."
+            exit 1
+          fi
+
       # -allowProvisioningUpdates with the API key lets Xcode fetch or create the
       # App Store profiles for both the app and the LiveActivities extension,
       # which a fresh runner does not have.
