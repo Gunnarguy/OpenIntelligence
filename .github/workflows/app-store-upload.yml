@@ -220,7 +220,14 @@ jobs:
           fi
           echo "Gate passed: PCC compiled out."
 
+      # The auth flags are needed here too, not just on the archive. Without
+      # them export fails with "No Accounts" and then, misleadingly, "No
+      # profiles were found": a fresh runner has no Xcode account, so
+      # -allowProvisioningUpdates alone has nothing to authenticate with.
       - name: Export the App Store IPA
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
         run: |
           set -euo pipefail
           cat > "$RUNNER_TEMP/ExportOptions.plist" <<'PLIST'
@@ -241,7 +248,10 @@ jobs:
             -archivePath "$ARCHIVE" \
             -exportPath "$EXPORT" \
             -exportOptionsPlist "$RUNNER_TEMP/ExportOptions.plist" \
-            -allowProvisioningUpdates
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$ASC_KEY_FILE" \
+            -authenticationKeyID "$ASC_KEY_ID" \
+            -authenticationKeyIssuerID "$ASC_ISSUER_ID"
           ls -lh "$EXPORT"
 
       # A local rsync once copied swift-transformers/.build into the bundle and
