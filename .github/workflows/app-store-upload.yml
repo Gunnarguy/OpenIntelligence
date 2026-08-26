@@ -194,15 +194,19 @@ jobs:
       # App Store profiles for both the app and the LiveActivities extension,
       # which a fresh runner does not have.
       #
-      # CODE_SIGN_IDENTITY is pinned to "Apple Distribution" because the project
-      # leaves it empty and lets automatic signing choose. On a developer's Mac that
-      # resolves to the distribution identity already in the keychain; on a fresh
-      # runner it also provisioned *development* assets, and since
-      # -allowProvisioningUpdates creates what it cannot find, every run minted a new
-      # development certificate. Ten accumulated across runs 378 to 383 before the
-      # account hit Apple's cap and run 384 failed outright with "Choose a
-      # certificate to revoke". Pinning the identity means the archive asks only for
-      # the distribution certificate this job already imported.
+      # Do not pin CODE_SIGN_IDENTITY here. Tried in run 385 and it is wrong: with
+      # automatic signing the archive phase signs for *development* and
+      # `-exportArchive` re-signs for distribution afterwards, so forcing
+      # "Apple Distribution" produces "conflicting provisioning settings" and fails
+      # before it builds.
+      #
+      # The consequence is that a fresh runner with no certificate provisions a new
+      # development one on every run, because -allowProvisioningUpdates creates what
+      # it cannot find. Ten accumulated across runs 378 to 383 and run 384 hit
+      # Apple's cap: "Choose a certificate to revoke". The durable fix is to give the
+      # runner a development certificate to reuse, or to switch to manual signing
+      # with the App Store profiles supplied as secrets. Neither is done here because
+      # both need material only the owner can provide.
       - name: Archive
         env:
           ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
@@ -220,7 +224,6 @@ jobs:
             -authenticationKeyPath "$ASC_KEY_FILE" \
             -authenticationKeyID "$ASC_KEY_ID" \
             -authenticationKeyIssuerID "$ASC_ISSUER_ID" \
-            CODE_SIGN_IDENTITY="Apple Distribution" \
             CURRENT_PROJECT_VERSION=${{ inputs.build_number }}
 
       # The whole reason this workflow exists. Fail here rather than after a
