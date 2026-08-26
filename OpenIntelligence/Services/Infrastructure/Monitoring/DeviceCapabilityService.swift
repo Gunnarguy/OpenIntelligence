@@ -1066,12 +1066,22 @@ final class DeviceCapabilityService: @unchecked Sendable {
             } else if cpuBrand.contains("M5 Pro") {
                 return (.ultraAdvanced, "M5 Pro", 45)
             } else if cpuBrand.contains("M5") {
-                // Base M5 is `.advanced`, not `.ultraAdvanced`. Tier drives concurrency
-                // and batch ceilings, and returning the top tier here gave a fanless
-                // MacBook Air the same ceilings as a Mac Studio Ultra. Base M3 below is
-                // already `.advanced`; M4 and M5 had drifted from that precedent. TOPS
-                // still separates the variants (90 Ultra against 45 here).
-                return (.advanced, "M5", 45)
+                // Base M5 is `.ultraAdvanced`, same as M5 Pro and M5 Max.
+                //
+                // It was briefly `.advanced` to stop a fanless MacBook Air taking Mac
+                // Studio ceilings. That reasoning does not hold. `.advanced` is the
+                // A-series tier — every ceiling in it is commented "A19" or "A19 Pro" —
+                // so the demotion handed a Mac laptop iPhone-sized batches and
+                // concurrency. Base M5, M5 Pro and M5 Max all report the same 45 TOPS;
+                // only Ultra differs at 90. And thermal is already handled by
+                // measurement rather than by tier: `maxSafeGPUAccelerationLevel` returns
+                // 1.0 for every Mac, and `AdaptivePipelineOptimizer` subscribes to
+                // `thermalStateDidChangeNotification` and drops the optimisation level
+                // whenever the live state leaves `.nominal`. A static guess about
+                // cooling is redundant next to that, and `detectMacCapability`'s
+                // model-ID path already returned `.ultraAdvanced` for the same chip,
+                // so the two paths disagreed about one machine.
+                return (.ultraAdvanced, "M5", 45)
             } else if cpuBrand.contains("M4 Ultra") {
                 return (.ultraAdvanced, "M4 Ultra", 76)
             } else if cpuBrand.contains("M4 Max") {
@@ -1079,8 +1089,8 @@ final class DeviceCapabilityService: @unchecked Sendable {
             } else if cpuBrand.contains("M4 Pro") {
                 return (.ultraAdvanced, "M4 Pro", 38)
             } else if cpuBrand.contains("M4") {
-                // See the M5 note above: base variants sit at `.advanced`.
-                return (.advanced, "M4", 38)
+                // See the M5 note above. Base M4, M4 Pro and M4 Max all report 38 TOPS.
+                return (.ultraAdvanced, "M4", 38)
             } else if cpuBrand.contains("M3 Ultra") {
                 return (.ultraAdvanced, "M3 Ultra", 36)
             } else if cpuBrand.contains("M3 Max") {
@@ -1088,7 +1098,8 @@ final class DeviceCapabilityService: @unchecked Sendable {
             } else if cpuBrand.contains("M3 Pro") {
                 return (.ultraAdvanced, "M3 Pro", 18)
             } else if cpuBrand.contains("M3") {
-                return (.advanced, "M3", 18)
+                // Same 18 TOPS as M3 Pro and M3 Max. See the M5 note.
+                return (.ultraAdvanced, "M3", 18)
             } else if cpuBrand.contains("M2 Ultra") {
                 return (.ultraAdvanced, "M2 Ultra", 32)
             } else if cpuBrand.contains("M2 Max") {
@@ -1096,7 +1107,8 @@ final class DeviceCapabilityService: @unchecked Sendable {
             } else if cpuBrand.contains("M2 Pro") {
                 return (.ultraAdvanced, "M2 Pro", 16)
             } else if cpuBrand.contains("M2") {
-                return (.enhanced, "M2", 16)
+                // Same 16 TOPS as M2 Pro and M2 Max. See the M5 note.
+                return (.ultraAdvanced, "M2", 16)
             } else if cpuBrand.contains("M1 Ultra") {
                 return (.ultraAdvanced, "M1 Ultra", 22)
             } else if cpuBrand.contains("M1 Max") {
@@ -1128,7 +1140,9 @@ final class DeviceCapabilityService: @unchecked Sendable {
                 } else if cpuBrand.contains("Pro") {
                     return (.ultraAdvanced, "M\(generation) Pro", baseTops)
                 }
-                return (.advanced, "M\(generation)", baseTops)
+                // Base variants take the same tier as their Pro and Max siblings, per
+                // the M5 note above. On a Mac even a base chip is M-series.
+                return (.ultraAdvanced, "M\(generation)", baseTops)
             }
         }
 
