@@ -31,10 +31,10 @@ on:
         options: [ios, macos]
         default: ios
       build_number:
-        description: "CFBundleVersion to stamp. Must exceed the newest build on that platform's train (iOS 378, macOS 375 as of 2026-08-26)."
+        description: "CFBundleVersion to stamp. Use the SAME number for both platforms — the trains are separate, so iOS 384 and macOS 384 can coexist and matching them keeps the pair obvious. Must exceed the newest build on that platform's train."
         required: true
         type: string
-        default: "379"
+        default: "385"
       upload:
         description: "Upload to App Store Connect. Uncheck to archive and validate only."
         required: true
