@@ -1,17 +1,23 @@
 # Archive, gate, and upload a build to App Store Connect.
 #
-# Why this exists: Xcode Cloud hit its compute cap on 2026-08-25 with v5.0
-# unsubmitted, and the local path is unavailable to agents because the
-# permission classifier blocks App Store Connect uploads. The signing material
-# has been in repository secrets since 2026-06-19 and nothing used it:
-# release.yml only builds an unsigned Simulator snapshot.
+# Why this exists, and it is not the reason it first looked like.
 #
-# The toolchain is load-bearing. Every Private Cloud Compute path sits behind
-# `#if compiler(>=6.4)`. Xcode 26.x ships Swift 6.3 and compiles them out;
-# Xcode 27 ships Swift 6.4 and compiles them IN, which would contradict the
-# 5.0 release notes and the in-app copy. `latest-stable` is therefore not a
-# convenience, it is the safety property, and the nm gate below enforces the
-# result rather than trusting it.
+# The owner's Mac runs macOS 27.0 beta. Every archive stamps BuildMachineOSBuild
+# into Info.plist, and App Store ingestion rejects a prerelease stamp with
+# ITMS-90111 regardless of which Xcode produced the binary. Builds 376 and 377
+# were archived locally on Xcode 26.6 and both carry `26A5406e`, a prerelease
+# stamp, even though `altool --validate-app` returned VERIFY SUCCEEDED for both.
+# Validation is not ingestion. Learned in the OpenManual repository first.
+#
+# GitHub's runner images use released OS builds, so the stamp comes out clean.
+# That, not runner convenience, is the point of this workflow. Xcode Cloud would
+# also work and is compute-capped as of 2026-08-25.
+#
+# The toolchain is separately load-bearing. Every Private Cloud Compute path
+# sits behind `#if compiler(>=6.4)`: Xcode 26.x ships Swift 6.3 and compiles
+# them out, Xcode 27 ships Swift 6.4 and compiles them IN, which would
+# contradict the 5.0 release notes and the in-app copy. Three checks below
+# enforce the outcome rather than trusting the selection.
 
 name: App Store Upload
 
@@ -21,9 +27,11 @@ on:
       build_number:
         description: "CFBundleVersion to stamp. Must exceed the newest build on the train (377 as of 2026-08-25)."
         required: true
+        type: string
         default: "378"
       upload:
         description: "Upload to App Store Connect. Uncheck to archive and validate only."
+        required: true
         type: boolean
         default: true
 
@@ -32,7 +40,7 @@ permissions:
 
 jobs:
   upload:
-    name: Archive and upload
+    name: Archive, gate, upload
     runs-on: macos-26
     timeout-minutes: 90
 
@@ -44,34 +52,39 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # latest-stable never resolves to a beta, which is what keeps Swift below
-      # 6.4 and PCC compiled out.
-      - name: Select Xcode
-        uses: maxim-lobanov/setup-xcode@v1
-        with:
-          xcode-version: "latest-stable"
-
-      - name: Record toolchain
+      # The image ships several Xcodes. Pick the highest non-beta: a beta SDK is
+      # rejected at upload, and an Xcode older than 26 cannot compile against
+      # this app's iOS 26.0 deployment target at all.
+      - name: Select the newest released Xcode
         run: |
           set -euo pipefail
+          ls -d /Applications/Xcode*.app
+          NEWEST=$(ls -d /Applications/Xcode*.app | grep -iv beta | sort -V | tail -1)
+          echo "selecting $NEWEST"
+          sudo xcode-select -s "$NEWEST/Contents/Developer"
+
+      - name: Show the toolchain and OS
+        # Both of these are stamped into the binary. Printed so a future
+        # ITMS-90111 is diagnosable from the log rather than guessed at.
+        run: |
+          set -euo pipefail
+          sw_vers
           xcodebuild -version
           swift --version
-          SWIFT_MAJOR_MINOR="$(swift --version 2>&1 | sed -nE 's/.*Apple Swift version ([0-9]+\.[0-9]+).*/\1/p' | head -1)"
-          echo "Swift $SWIFT_MAJOR_MINOR"
-          # A belt-and-braces check. The nm gate after the archive is the real
-          # one, because it inspects the binary rather than the compiler banner.
-          if [ "$(printf '%s\n6.4\n' "$SWIFT_MAJOR_MINOR" | sort -V | head -1)" = "6.4" ]; then
-            echo "::error::Swift $SWIFT_MAJOR_MINOR satisfies #if compiler(>=6.4), which compiles PCC IN. Refusing to build a release on this toolchain."
+          xcodebuild -showsdks | grep -i iphoneos
+          SWIFT_VER="$(swift --version 2>&1 | sed -nE 's/.*Apple Swift version ([0-9]+\.[0-9]+).*/\1/p' | head -1)"
+          if [ "$(printf '%s\n6.4\n' "$SWIFT_VER" | sort -V | head -1)" = "6.4" ]; then
+            echo "::error::Swift $SWIFT_VER satisfies #if compiler(>=6.4), which compiles PCC IN. Refusing to build a release on this toolchain."
             exit 1
           fi
 
       # Same guard Xcode Cloud runs: stamps MARKETING_VERSION from CHANGELOG.md
-      # and refuses to build when [Unreleased] still has entries.
+      # and refuses to build while [Unreleased] still has entries.
       - name: Stamp version from CHANGELOG
         working-directory: ci_scripts
         run: sh ci_post_clone.sh
 
-      - name: Import signing certificate
+      - name: Import the distribution certificate
         env:
           DIST_CERT_P12_BASE64: ${{ secrets.DIST_CERT_P12_BASE64 }}
           DIST_CERT_PASSWORD: ${{ secrets.DIST_CERT_PASSWORD }}
@@ -91,18 +104,20 @@ jobs:
           echo "Identities available to codesign:"
           security find-identity -v -p codesigning | sed -E 's/[0-9A-F]{40}/<SHA1>/'
 
-      - name: Write App Store Connect API key
+      # ~/.appstoreconnect/private_keys is where altool, notarytool and
+      # Transporter auto-discover a key given only --apiKey and --apiIssuer.
+      - name: Write the App Store Connect key
         env:
           ASC_KEY_BASE64: ${{ secrets.ASC_KEY_BASE64 }}
           ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
         run: |
           set -euo pipefail
-          mkdir -p "$HOME/private_keys"
-          printf '%s' "$ASC_KEY_BASE64" | base64 --decode > "$HOME/private_keys/AuthKey_${ASC_KEY_ID}.p8"
-          chmod 600 "$HOME/private_keys/AuthKey_${ASC_KEY_ID}.p8"
-          # Confirm it parses without printing any key material.
-          openssl ec -in "$HOME/private_keys/AuthKey_${ASC_KEY_ID}.p8" -noout \
-            && echo "API key parses"
+          mkdir -p "$HOME/.appstoreconnect/private_keys"
+          KEYFILE="$HOME/.appstoreconnect/private_keys/AuthKey_${ASC_KEY_ID}.p8"
+          printf '%s' "$ASC_KEY_BASE64" | base64 --decode > "$KEYFILE"
+          chmod 600 "$KEYFILE"
+          openssl ec -in "$KEYFILE" -noout && echo "API key parses"
+          echo "ASC_KEY_FILE=$KEYFILE" >> "$GITHUB_ENV"
 
       # -allowProvisioningUpdates with the API key lets Xcode fetch or create the
       # App Store profiles for both the app and the LiveActivities extension,
@@ -121,13 +136,27 @@ jobs:
             -archivePath "$ARCHIVE" \
             -skipPackagePluginValidation \
             -allowProvisioningUpdates \
-            -authenticationKeyPath "$HOME/private_keys/AuthKey_${ASC_KEY_ID}.p8" \
+            -authenticationKeyPath "$ASC_KEY_FILE" \
             -authenticationKeyID "$ASC_KEY_ID" \
             -authenticationKeyIssuerID "$ASC_ISSUER_ID" \
             CURRENT_PROJECT_VERSION=${{ inputs.build_number }}
 
-      # The gate. 0 alone is not evidence: a broken grep also returns 0, so the
-      # control must be non-zero for the absence to mean anything.
+      # The whole reason this workflow exists. Fail here rather than after a
+      # round trip through App Store ingestion.
+      - name: Confirm the build machine stamp is not a prerelease
+        run: |
+          set -euo pipefail
+          APP="$ARCHIVE/Products/Applications/OpenIntelligence.app"
+          STAMP=$(/usr/libexec/PlistBuddy -c "Print :BuildMachineOSBuild" "$APP/Info.plist")
+          echo "BuildMachineOSBuild: $STAMP"
+          echo "DTXcodeBuild:        $(/usr/libexec/PlistBuddy -c 'Print :DTXcodeBuild' "$APP/Info.plist")"
+          case "$STAMP" in
+            *[a-z]) echo "::error::Prerelease OS stamp ($STAMP). App Store ingestion rejects this with ITMS-90111."; exit 1 ;;
+          esac
+          echo "Released OS stamp. Safe to submit."
+
+      # 0 alone is not evidence: a broken grep also returns 0, so the control
+      # must be non-zero for the absence to mean anything.
       - name: Gate on Private Cloud Compute symbols
         run: |
           set -euo pipefail
@@ -147,7 +176,7 @@ jobs:
           fi
           echo "Gate passed: PCC compiled out."
 
-      - name: Export
+      - name: Export the App Store IPA
         run: |
           set -euo pipefail
           cat > "$RUNNER_TEMP/ExportOptions.plist" <<'PLIST'
@@ -172,8 +201,8 @@ jobs:
           ls -lh "$EXPORT"
 
       # A local rsync once copied swift-transformers/.build into the bundle and
-      # App Store Connect rejected it as 90171 after a full upload. A fresh
-      # checkout has no .build, but the check is cheap and the failure was not.
+      # App Store Connect rejected it as 90171 after a full 202 MB upload. A
+      # fresh checkout has no .build, but the check is cheap and that was not.
       - name: Check bundle hygiene
         run: |
           set -euo pipefail
@@ -195,6 +224,15 @@ jobs:
             -f "$EXPORT/OpenIntelligence.ipa" -t ios \
             --apiKey "$ASC_KEY_ID" --apiIssuer "$ASC_ISSUER_ID"
 
+      # Kept before the upload so a failed upload still leaves the binary behind.
+      - name: Upload the IPA as an artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: OpenIntelligence-${{ inputs.build_number }}.ipa
+          path: ${{ env.EXPORT }}/*.ipa
+          if-no-files-found: error
+          retention-days: 14
+
       - name: Upload to App Store Connect
         if: ${{ inputs.upload }}
         env:
@@ -205,21 +243,10 @@ jobs:
           xcrun altool --upload-app \
             -f "$EXPORT/OpenIntelligence.ipa" -t ios \
             --apiKey "$ASC_KEY_ID" --apiIssuer "$ASC_ISSUER_ID"
-          echo "Uploaded build ${{ inputs.build_number }}. Processing takes a few minutes before it appears as VALID."
+          echo "Uploaded build ${{ inputs.build_number }}. Processing takes a few minutes before it reads VALID."
 
-      # Kept regardless of upload, so a failed run still leaves something to
-      # inspect rather than only a log.
-      - name: Upload ipa as a workflow artifact
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: OpenIntelligence-5.0-${{ inputs.build_number }}
-          path: ${{ env.EXPORT }}/*.ipa
-          if-no-files-found: warn
-          retention-days: 14
-
-      - name: Clean up keychain
+      - name: Clean up
         if: always()
         run: |
           security list-keychains -d user -s login.keychain-db || true
-          rm -f "$RUNNER_TEMP/build.keychain-db" "$HOME/private_keys/"*.p8 || true
+          rm -f "$RUNNER_TEMP/build.keychain-db" "$HOME/.appstoreconnect/private_keys/"*.p8 || true
