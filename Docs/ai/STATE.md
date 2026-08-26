@@ -174,25 +174,32 @@ filed for the actor-isolation drift they exposed, as Future Backlog.
 
 ## Exact Next Action
 
-**Add build 378 to the 5.0 iOS App Store version and submit for review.** It is uploaded and
-`VALID`. In App Store Connect directly, or:
+**Attach macOS build 379 to the macOS 5.0 version, then submit both platforms for review.** iOS 378
+is already attached. Both are uploaded and `VALID`, both built on GitHub runners, both carry
+`BuildMachineOSBuild: 25F84`, a released OS.
+
+| Platform | Build | State |
+|---|---|---|
+| iOS 5.0 | **378** | `VALID`, attached |
+| macOS 5.0 | **379** | `VALID`, **not attached** |
 
 ```bash
 cd ~/Documents/GitHub/OpenIntelligence && LANG=en_US.UTF-8 LC_ALL=en_US.UTF-8 fastlane submit_release version:5.0 build:378
 ```
 
-**That genuinely submits for review** — `submit_release` defaults `submit_for_review` and
-`reject_if_possible` to true. It is not a way to merely attach a build.
+```bash
+cd ~/Documents/GitHub/OpenIntelligence && LANG=en_US.UTF-8 LC_ALL=en_US.UTF-8 fastlane submit_release version:5.0 build:379 platform:osx
+```
 
-**Use 378 and nothing older.** 376 is on the train and `VALID`, and it will fail the moment it is
-added for review: it was archived on this Mac and carries `BuildMachineOSBuild: 26A5406e`, a
-prerelease stamp, which App Store ingestion rejects with `ITMS-90111`. 377 was built locally and
-never uploaded. 378 came off a GitHub runner and stamps `25F84`, a released OS.
+**Both genuinely submit for review** — `submit_release` defaults `submit_for_review` and
+`reject_if_possible` to true.
 
-**Releases now come from `.github/workflows/app-store-upload.yml`**, not from this machine. See
-`Docs/ai/RUNBOOK.md`. Verified end to end on 2026-08-26, run 32987827646: released-OS stamp,
-0 `PrivateCloudCompute` symbols against a control of 29, no stray build artifacts, validated and
-uploaded.
+**Never submit 376 or 377.** Both were archived on this Mac, which runs macOS 27.0 beta, so both
+stamp `26A5406e` and are rejected at review submission with `ITMS-90111`. `altool --validate-app`
+returns `VERIFY SUCCEEDED` for them anyway, which is why this took a day to find.
+
+**Releases come from `.github/workflows/app-store-upload.yml`**, `platform: ios | macos`. Verified
+on both: iOS run 32987827646, macOS run 32990777651.
 
 **Do not open Blockers 5 or 6 without new evidence.** Between them they have consumed four wrong
 diagnoses; each needs a capture or a profile before any code change.
