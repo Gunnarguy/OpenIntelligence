@@ -1,4 +1,4 @@
-> **Documentation status:** Updated for OpenIntelligence v5.0 on August 22, 2026. Entries are drawn from `Docs/USER_CHANGELOG.md`, which is the source this file follows.
+> **Documentation status:** Updated for OpenIntelligence v5.0 on August 25, 2026. Entries are drawn from `Docs/USER_CHANGELOG.md`, which is the source this file follows.
 
 # What's New
 

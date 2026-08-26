@@ -1,4 +1,4 @@
-> **Documentation status:** Source-verified for OpenIntelligence v5.0 on August 22, 2026. Entries added or revised this pass are checked against the code and commit that implements them; the vector-loss and self-heal fixes are additionally confirmed by real device console traces captured the same day, not simulator or code reading alone. Anything device-only that has *not* been traced, including Private Cloud Compute behaviour, is build-verified rather than device-verified and is called out where it matters.
+> **Documentation status:** Source-verified for OpenIntelligence v5.0 on August 25, 2026. Entries added or revised this pass are checked against the code and commit that implements them; the vector-loss and self-heal fixes are additionally confirmed by real device console traces captured the same day, not simulator or code reading alone. Anything device-only that has *not* been traced, including Private Cloud Compute behaviour, is build-verified rather than device-verified and is called out where it matters.
 
 
 # OpenIntelligence User-Facing Changelog

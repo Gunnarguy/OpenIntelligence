@@ -104,9 +104,29 @@ final class WhatsNewStore: ObservableObject {
             headline: "Documents were quietly losing parts of themselves, answers were built from a fraction of what was found, and the app was rewriting your library on every launch. This release is the search for all three.",
             items: [
                 .init(
+                    symbol: "scissors",
+                    title: "More than half of every document never reached the search index",
+                    detail: "A limit in the text handling cut every passage at about a quarter of what the model could actually read, and the length check returned the same number for every input, so nothing looked wrong. Across a real library, 90% of passages were cut short. This is the main reason your libraries offer to rebuild once."
+                ),
+                .init(
                     symbol: "brain",
                     title: "The search index was reading the wrong part of the model",
                     detail: "Every document you have ever added was indexed using one position of the AI model instead of averaging the whole passage. It was never broken enough to notice and it made search markedly worse. Your libraries will offer to rebuild once, and searching improves substantially afterwards."
+                ),
+                .init(
+                    symbol: "doc.richtext",
+                    title: "Two-column pages are read column by column, not straight across",
+                    detail: "Papers, reports and anything set in two columns were read across the gutter, so the end of a line on the left ran into the start of a line on the right. Pages could also come out in the wrong order. Both are fixed, and the stored text now matches what is on the page."
+                ),
+                .init(
+                    symbol: "checkmark.seal",
+                    title: "A finished answer can no longer be replaced by a worse one",
+                    detail: "A final editing pass could swap a complete, cited answer for a short stub, or strip its citations out, and nothing checked before it did. Every replacement is now checked first. An answer that claims your documents say nothing while citing them is caught and retried."
+                ),
+                .init(
+                    symbol: "books.vertical",
+                    title: "Reference lists stopped outranking the papers that cited them",
+                    detail: "A bibliography is the strongest keyword match on a page and the weakest evidence, so answers were being built from lists of author names. Reference sections now rank lower, and a document's tags are no longer generated from them."
                 ),
                 .init(
                     symbol: "text.magnifyingglass",
