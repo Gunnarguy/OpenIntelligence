@@ -170,12 +170,26 @@ struct ModelConfigurationSheet: View {
                 Slider(value: $temperature, in: 0 ... 2, step: 0.05) {
                     Text("Temperature")
                 }
+                .disabled(samplingStrategy == .greedy)
 
-                Text("Lower = more focused, higher = more creative")
-                    .font(.caption2)
-                    .foregroundStyle(.tertiary)
+                // Greedy always takes the single highest-probability token, so
+                // temperature has no effect on it at all. Every other parameter on this
+                // sheet is already gated on the strategy it belongs to — Top-K, Top-P and
+                // the seed each appear only where they apply — and temperature was the
+                // one that was not, so it stayed live and adjustable while doing nothing.
+                // Dimmed rather than hidden: it is a Core Parameter, and a control that
+                // vanishes is harder to understand than one that explains itself.
+                Text(
+                    samplingStrategy == .greedy
+                        ? "No effect on Predictable sampling, which always takes the most likely next word. Choose Balanced or Adaptive below to use this."
+                        : "Lower = more focused, higher = more creative"
+                )
+                .font(.caption2)
+                .foregroundStyle(samplingStrategy == .greedy ? .secondary : .tertiary)
             }
             .padding(.vertical, 4)
+            .opacity(samplingStrategy == .greedy ? 0.55 : 1)
+            .animation(.easeInOut(duration: 0.2), value: samplingStrategy)
 
             // Max Tokens
             VStack(alignment: .leading, spacing: 8) {

@@ -957,6 +957,38 @@ final class FloatingLegendWindowManager: NSObject {
             .receive(on: RunLoop.main)
             .sink { [weak self] _ in self?.reassertFrame() }
             .store(in: &cancellables)
+
+        // Rotation was not handled at all. The window manages its own frame in screen
+        // coordinates, so after a rotation it kept a frame computed for the previous
+        // orientation until something else happened to reassert it. Reported as black
+        // rectangles appearing around the HUD after rotating.
+        //
+        // Deliberately reuses `reassertFrame`, which is already guarded by `!isDragging`
+        // and rebuilds from the persisted centre, so dragging behaviour is untouched.
+        // The `.main` hop lets the rotation settle before the frame is recomputed; the
+        // overlay above reads its orientation the same way, from geometry after the
+        // change rather than from the notification itself.
+        NotificationCenter.default.publisher(for: UIDevice.orientationDidChangeNotification)
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in
+                DispatchQueue.main.async { self?.reassertFrame() }
+            }
+            .store(in: &cancellables)
+    }
+
+    /// Screen bounds oriented the way the interface currently is.
+    ///
+    /// `UIScreen.bounds` does not rotate: it reports the native portrait size in every
+    /// orientation. Clamping against it meant that in landscape the legend was held
+    /// inside a portrait-width region, and a centre persisted there could be out of
+    /// range on the way back. Both call sites below used it.
+    private func orientedBounds(in scene: UIWindowScene) -> CGRect {
+        let b = scene.screen.bounds
+        let long = max(b.width, b.height)
+        let short = min(b.width, b.height)
+        return scene.effectiveGeometry.interfaceOrientation.isLandscape
+            ? CGRect(x: 0, y: 0, width: long, height: short)
+            : CGRect(x: 0, y: 0, width: short, height: long)
     }
 
     private func reassertFrame() {
@@ -972,7 +1004,7 @@ final class FloatingLegendWindowManager: NSObject {
         let cy = d.object(forKey: "hudLegendPosY") as? Double ?? -1
         let center = CGPoint(x: cx >= 0 ? cx : 110, y: cy >= 0 ? cy : 145)
         let size = CGSize(width: contentSize.width + margin * 2, height: contentSize.height + margin * 2)
-        let b = scene.screen.bounds
+        let b = orientedBounds(in: scene)
         var origin = CGPoint(x: center.x - size.width / 2, y: center.y - size.height / 2)
         origin.x = min(max(origin.x, -size.width + 60), b.width - 60)
         origin.y = min(max(origin.y, 0), b.height - 60)
@@ -1018,7 +1050,8 @@ final class FloatingLegendWindowManager: NSObject {
     }
 
     private func clampAndPersist() {
-        guard let w = window, let b = w.windowScene?.screen.bounds else { return }
+        guard let w = window, let scene = w.windowScene else { return }
+        let b = orientedBounds(in: scene)
         var f = w.frame
         f.origin.x = min(max(f.origin.x, -f.width + 60), b.width - 60)
         f.origin.y = min(max(f.origin.y, 0), b.height - 60)
