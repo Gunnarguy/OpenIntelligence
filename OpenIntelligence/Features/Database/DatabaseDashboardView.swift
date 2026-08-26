@@ -33,6 +33,10 @@ struct DatabaseDashboardView: View {
     // pointed at. Set in `onAppear` because the active id is not known at property-initialiser
     // time; `.allLibraries` is the honest placeholder until it is.
     @State private var databaseScope: DatabaseScope = .allLibraries
+
+    /// Libraries with an analysis genuinely in flight, so the card can show a
+    /// spinner that corresponds to work actually happening.
+    @State private var analyzingContainerIds: Set<UUID> = []
     @State private var didSeedScope = false
     @State private var stats: SQLiteFullTextService.FTS5Statistics?
     @State private var indexInfo: SQLiteFullTextService.FTS5IndexInfo?
@@ -439,18 +443,94 @@ struct DatabaseDashboardView: View {
     /// Deliberately not built from `ContainerPill`. That view defaults `canDelete` to `true` and
     /// carries a long-press dialog with "Make Local Only" and "Delete Library" in it, so reusing
     /// it would put a data-destroying menu on a read-only statistics screen.
+    /// A scrolling row rather than a menu.
+    ///
+    /// A `.menu` picker shows the current selection and hides every alternative
+    /// behind a tap, then a second tap to choose — which is a lot of work to answer
+    /// "what else is there". With eight libraries the row is faster to scan and each
+    /// target is a full chip rather than a menu line. Matches `sectionPicker`
+    /// directly below it, so the two controls on this screen behave the same way.
     @ViewBuilder
     private var scopePicker: some View {
-        Picker("Scope", selection: $databaseScope) {
-            Text("All Libraries").tag(DatabaseScope.allLibraries)
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                scopeChip(
+                    label: "All Libraries",
+                    icon: "square.stack.3d.up",
+                    scope: .allLibraries,
+                    tint: .accentColor
+                )
 
-            ForEach(containerService.containers) { container in
-                Text(container.name).tag(DatabaseScope.library(container.id))
+                ForEach(containerService.containers) { container in
+                    scopeChip(
+                        label: container.name,
+                        icon: container.icon,
+                        scope: .library(container.id),
+                        tint: Color(hex: container.colorHex) ?? .accentColor
+                    )
+                }
             }
+            .padding(.horizontal, 2)
+            .padding(.vertical, 2)
         }
-        .pickerStyle(.menu)
         .accessibilityLabel("Statistics scope")
         .accessibilityHint("Choose whether the counts cover every library or one library by name")
+    }
+
+    /// Analyses one library on demand.
+    ///
+    /// `refreshIntelligence` opens the library's database and loads every chunk, so
+    /// this is deliberately per-library and user-initiated. Firing it for all of them
+    /// when the tab appears is the same read amplification `771461c` removed from
+    /// sync: eight libraries would mean eight database opens and a full chunk load
+    /// each, to populate cards most of which nobody is looking at.
+    @MainActor
+    private func analyzeLibrary(_ containerId: UUID) {
+        guard !analyzingContainerIds.contains(containerId) else { return }
+        analyzingContainerIds.insert(containerId)
+
+        Task { @MainActor in
+            await ragService.refreshIntelligence(for: containerId, force: true).value
+            analyzingContainerIds.remove(containerId)
+        }
+    }
+
+    @ViewBuilder
+    private func scopeChip(
+        label: String,
+        icon: String,
+        scope: DatabaseScope,
+        tint: Color
+    ) -> some View {
+        let isSelected = databaseScope == scope
+
+        Button {
+            guard databaseScope != scope else { return }
+            DSHaptics.light()
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.78)) {
+                databaseScope = scope
+            }
+        } label: {
+            HStack(spacing: 5) {
+                Image(systemName: icon)
+                    .font(.system(size: 11, weight: .medium))
+                Text(label)
+                    .font(.subheadline)
+                    .fontWeight(isSelected ? .semibold : .regular)
+                    .lineLimit(1)
+            }
+            .foregroundColor(isSelected ? tint : .secondary)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 7)
+            .background(
+                Capsule().fill(tint.opacity(isSelected ? 0.16 : 0.06))
+            )
+            .overlay(
+                Capsule().strokeBorder(tint.opacity(isSelected ? 0.5 : 0.0), lineWidth: 1)
+            )
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(isSelected ? [.isSelected] : [])
     }
 
     private var sectionPicker: some View {
@@ -805,7 +885,9 @@ struct DatabaseDashboardView: View {
             ForEach(containerService.containers) { container in
                 LibraryIntelligenceCard(
                     container: container,
-                    intelligenceReport: ragService.intelligenceReport(for: container.id)
+                    intelligenceReport: ragService.intelligenceReport(for: container.id),
+                    isAnalyzing: analyzingContainerIds.contains(container.id),
+                    onAnalyze: { analyzeLibrary(container.id) }
                 )
             }
 
@@ -2130,6 +2212,19 @@ private struct HealthIndicator: View {
 struct LibraryIntelligenceCard: View {
     let container: KnowledgeContainer
     let intelligenceReport: LibraryIntelligenceCenter.IntelligenceReport?
+    /// Whether an analysis is genuinely running for *this* library right now.
+    ///
+    /// Previously the card inferred it: a nil report plus `autoAdaptDimension` was
+    /// rendered as "Analyzing corpus…" with a spinner. Nothing was running. The
+    /// dashboard lists every library but only ever requested a report for the active
+    /// one, and `containerIntelligence` is in-memory and starts empty every launch,
+    /// so most cards showed a progress indicator that could never finish.
+    var isAnalyzing: Bool = false
+    /// Runs the analysis for this library on demand. It is not automatic because a
+    /// refresh opens the library's database and loads every chunk, and doing that for
+    /// every library on tab appear is the read-amplification `771461c` removed from
+    /// sync.
+    var onAnalyze: (() -> Void)?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -2215,13 +2310,43 @@ struct LibraryIntelligenceCard: View {
                         .padding(.top, 4)
                     }
                 }
-            } else if container.autoAdaptDimension {
+            } else if isAnalyzing {
                 HStack(spacing: 8) {
                     ProgressView()
                         .scaleEffect(0.7)
-                    Text("Analyzing corpus...")
+                    Text("Analyzing corpus…")
                         .font(.caption)
                         .foregroundColor(.secondary)
+                }
+            } else if container.autoAdaptDimension {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Not analyzed yet in this session.")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+
+                    Text("Reading a library's settings means opening it and loading every passage, so it runs when you ask rather than for all libraries at once.")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    if let onAnalyze {
+                        Button {
+                            DSHaptics.light()
+                            onAnalyze()
+                        } label: {
+                            HStack(spacing: 5) {
+                                Image(systemName: "wand.and.stars")
+                                    .font(.system(size: 11, weight: .semibold))
+                                Text("Analyze this library")
+                                    .font(.caption.weight(.medium))
+                            }
+                            .foregroundColor(.purple)
+                            .padding(.horizontal, 11)
+                            .padding(.vertical, 6)
+                            .background(Capsule().fill(Color.purple.opacity(0.12)))
+                        }
+                        .buttonStyle(.plain)
+                    }
                 }
             } else {
                 // Manual mode - show current directive

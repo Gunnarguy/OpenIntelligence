@@ -321,7 +321,68 @@ import NaturalLanguage
                 sampleText = String(sampleText.prefix(maxSampleChars))
             }
 
-            return try await generateTags(for: sampleText, documentName: documentName)
+            let tags = try await generateTags(for: sampleText, documentName: documentName)
+            return Self.discardingTagsSeenOnlyOnce(in: tags, across: chunks)
+        }
+
+        /// Drops tags that occur only once in the whole document.
+        ///
+        /// The reference-list exclusion above fixed the *last* chunk. It does nothing
+        /// about the **first**, which on a journal article carries the running header,
+        /// and the sampler always takes `sampleSource[0]`. Device evidence 2026-08-26:
+        /// the tag set for a dopamine and serotonin review came back as
+        /// `check, informative, nac, pfc, pychatry, updates, vta` — `nac`, `pfc` and
+        /// `vta` are real anatomy, while `pychatry` is the mangled `PCNPsychiatry`
+        /// masthead and `check` and `updates` are page furniture.
+        ///
+        /// Detecting a masthead directly is brittle; frequency is not. A word that
+        /// genuinely describes a document appears in it more than once, while header
+        /// and footer furniture appears exactly once per occurrence of the header —
+        /// and after extraction that is usually a single chunk. Matching is
+        /// word-boundary, so `"nac"` cannot be credited to "**nac**elle".
+        ///
+        /// Multi-word tags are kept unconditionally: a phrase like "dopamine
+        /// signalling" is meaningful even stated once, and the failure mode this
+        /// guards against is single stray tokens.
+        nonisolated static func discardingTagsSeenOnlyOnce(
+            in tags: ContentTags,
+            across chunks: [String]
+        ) -> ContentTags {
+            let corpus = chunks.joined(separator: " ").lowercased()
+            guard !corpus.isEmpty else { return tags }
+
+            func survives(_ tag: String) -> Bool {
+                let needle = tag.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !needle.isEmpty else { return false }
+                if needle.contains(" ") { return true }
+                return occurrences(of: needle, in: corpus) >= 2
+            }
+
+            return ContentTags(
+                topics: tags.topics.filter(survives),
+                actions: tags.actions.filter(survives),
+                emotions: tags.emotions,
+                objects: tags.objects.filter(survives)
+            )
+        }
+
+        /// Whole-word occurrence count. Same reason as every other matcher in this
+        /// release: `contains` would credit "min" to dopa**min**e.
+        private nonisolated static func occurrences(of word: String, in corpus: String) -> Int {
+            var count = 0
+            var index = corpus.startIndex
+            while let found = corpus.range(of: word, range: index ..< corpus.endIndex) {
+                let beforeOK = found.lowerBound == corpus.startIndex
+                    || !corpus[corpus.index(before: found.lowerBound)].isLetter
+                let afterOK = found.upperBound == corpus.endIndex
+                    || !corpus[found.upperBound].isLetter
+                if beforeOK && afterOK {
+                    count += 1
+                    if count >= 2 { return count }
+                }
+                index = found.upperBound
+            }
+            return count
         }
 
         // MARK: - NLTagger Fallback

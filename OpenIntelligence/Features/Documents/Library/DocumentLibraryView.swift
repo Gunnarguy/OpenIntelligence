@@ -1094,12 +1094,42 @@ struct DocumentLibraryView: View {
         // first mismatch check. Deliberately not run during onboarding, which is
         // importing these same files at that moment.
         .task {
+            // Timed because the Documents tab is reported slow to open and four
+            // separate readings of this path have failed to explain it. Reading has
+            // been tried; measuring has not. `.pipeline` is in
+            // `LoggingConfiguration.fileLogCategories`, so these reach a shareable
+            // trace instead of only an attached console.
+            let appearStarted = Date()
+
+            let countStarted = Date()
             await refreshCachedDocumentCount()
-            guard !onboardingStore.isChecklistVisible else { return }
+            let countMs = Date().timeIntervalSince(countStarted) * 1000
+
+            guard !onboardingStore.isChecklistVisible else {
+                Log.info(
+                    "[DocumentsTab] appear: docCount \(String(format: "%.0f", countMs))ms, "
+                        + "total \(String(format: "%.0f", Date().timeIntervalSince(appearStarted) * 1000))ms "
+                        + "(onboarding visible, samples skipped)",
+                    category: .pipeline
+                )
+                return
+            }
+
+            let samplesStarted = Date()
             let refreshed = await SampleDocumentManager.shared.refreshStaleSamples(in: ragService)
+            let samplesMs = Date().timeIntervalSince(samplesStarted) * 1000
+
             if !refreshed.isEmpty {
                 withAnimation { refreshedSampleNames = refreshed }
             }
+
+            Log.info(
+                "[DocumentsTab] appear: docCount \(String(format: "%.0f", countMs))ms, "
+                    + "staleSamples \(String(format: "%.0f", samplesMs))ms, "
+                    + "total \(String(format: "%.0f", Date().timeIntervalSince(appearStarted) * 1000))ms, "
+                    + "documents=\(ragService.documents.count), libraries=\(containerService.containers.count)",
+                category: .pipeline
+            )
         }
     }
 

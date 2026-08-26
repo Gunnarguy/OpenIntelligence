@@ -799,8 +799,14 @@ final class LibraryVisualizationEngine: ObservableObject {
         var bestMatch: (label: String, score: Int)?
         for pattern in patterns {
             var score = 0
+                // Whole words, not substrings. See ClusterLabelService: `contains`
+                // scored a neuroscience paper as "API Reference" because `"api"`
+                // matches inside ther**api**es, and as "Glossary" because `"term"`
+                // matches inside de**term**ined. Three copies of this taxonomy exist
+                // and all three had the defect; fixing one would have left the Atlas
+                // still mislabelling, because the labels come from a different copy.
             for term in pattern.terms {
-                if allText.lowercased().contains(term) {
+                if HybridSearchService.containsTerm(allText, term) {
                     score += 1
                 }
             }

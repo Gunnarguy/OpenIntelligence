@@ -141,6 +141,22 @@ actor BNNSVectorDatabase: VectorDatabase {
     // MARK: Load
 
     private func loadFromDisk(url: URL) {
+        // Timed because switching libraries is reported slow and four readings of the
+        // Documents tab have failed to explain it. This is the one place a switch pays
+        // for disk: `VectorStoreRouter.db(for:)` only constructs, and the vectors are
+        // read lazily on first access — which for a library switch is immediately.
+        // `.vectorDB` is not in `LoggingConfiguration.fileLogCategories`, so this logs
+        // to `.pipeline` deliberately: a number nobody can share settles nothing.
+        let loadStarted = Date()
+        defer {
+            let elapsedMs = Date().timeIntervalSince(loadStarted) * 1000
+            Log.info(
+                "[VectorLoad] \(url.deletingPathExtension().lastPathComponent): "
+                    + "\(String(format: "%.0f", elapsedMs))ms for \(self.chunks.count) chunk(s)",
+                category: .pipeline
+            )
+        }
+
         let fm = FileManager.default
         let bin = binaryURLs(from: url)
 

@@ -469,10 +469,23 @@ actor ClusterLabelService {
         // Score each pattern by how many terms match
         var bestMatch: (label: String, score: Int)?
 
+        // Whole words, not substrings.
+        //
+        // `allText.contains(term)` scored a neuroscience paper as "API Reference"
+        // because `"api"` matches inside ther**api**es and `"rest"` inside inte**rest**,
+        // and as "Glossary" because `"term"` matches inside de**term**ined. Observed on
+        // device 2026-08-26: a psychiatry review on dopamine and serotonin signalling
+        // clustered as "API Reference" and "Glossary" in the Semantic Atlas, labels with
+        // no relationship to the document.
+        //
+        // Fourth instance of this defect family in this release, after the
+        // specification keyword lists, `extractivePriorityScore`, and the PartNumber
+        // pattern. `containsTerm` is the shared matcher those fixes standardised on and
+        // it handles multi-word entries like `"unit test"` as phrases.
         for pattern in patterns {
             var score = 0
             for term in pattern.terms {
-                if allText.contains(term) {
+                if HybridSearchService.containsTerm(allText, term) {
                     score += 1
                 }
             }
