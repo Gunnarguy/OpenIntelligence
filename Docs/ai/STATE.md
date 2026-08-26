@@ -3,7 +3,7 @@
 Updated: 2026-08-25
 Branch/worktree: main. One uncommitted file: `Docs/ai/RUNBOOK.md`.
 Cross-tool handoff (if Claude access runs out): `HANDOFF.md` at repo root.
-Last verified commit: 2d135ac
+Last verified commit: ead29b6
 
 ## Objective
 
@@ -174,32 +174,25 @@ filed for the actor-isolation drift they exposed, as Future Backlog.
 
 ## Exact Next Action
 
-**Run the `App Store Upload` workflow with `build_number: 378`.** GitHub Actions tab, or:
-
-```bash
-gh workflow run app-store-upload.yml -f build_number=378 -f upload=true
-```
-
-**An agent cannot do this.** The permission classifier blocks App Store Connect uploads, `gh
-workflow run`, and even `gh workflow list`. It blocked fastlane and `altool` alike.
-
-**Builds 376 and 377 must not be submitted.** Both were archived on this Mac, which runs macOS 27.0
-beta, so both stamp `BuildMachineOSBuild: 26A5406e` and App Store ingestion rejects a prerelease
-stamp with `ITMS-90111`. `altool --validate-app` returned `VERIFY SUCCEEDED` for both, which is why
-this was not caught earlier: validation is not ingestion. 377 is otherwise correct and is the same
-source the workflow will build.
-
-The workflow gates on that stamp, on PCC symbols with a non-zero control, and on stray `.build`
-artifacts, so a bad build fails in CI rather than at Apple.
-
-Once 378 processes to `VALID`, attaching and submitting is:
+**Add build 378 to the 5.0 iOS App Store version and submit for review.** It is uploaded and
+`VALID`. In App Store Connect directly, or:
 
 ```bash
 cd ~/Documents/GitHub/OpenIntelligence && LANG=en_US.UTF-8 LC_ALL=en_US.UTF-8 fastlane submit_release version:5.0 build:378
 ```
 
-**That genuinely submits for App Store review** — `submit_release` defaults `submit_for_review` and
+**That genuinely submits for review** — `submit_release` defaults `submit_for_review` and
 `reject_if_possible` to true. It is not a way to merely attach a build.
+
+**Use 378 and nothing older.** 376 is on the train and `VALID`, and it will fail the moment it is
+added for review: it was archived on this Mac and carries `BuildMachineOSBuild: 26A5406e`, a
+prerelease stamp, which App Store ingestion rejects with `ITMS-90111`. 377 was built locally and
+never uploaded. 378 came off a GitHub runner and stamps `25F84`, a released OS.
+
+**Releases now come from `.github/workflows/app-store-upload.yml`**, not from this machine. See
+`Docs/ai/RUNBOOK.md`. Verified end to end on 2026-08-26, run 32987827646: released-OS stamp,
+0 `PrivateCloudCompute` symbols against a control of 29, no stray build artifacts, validated and
+uploaded.
 
 **Do not open Blockers 5 or 6 without new evidence.** Between them they have consumed four wrong
 diagnoses; each needs a capture or a profile before any code change.
