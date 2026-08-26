@@ -100,6 +100,10 @@ struct ContainerPickerStrip: View {
                 badgeText: documentCountText(for: container),
                 badgeStyle: .count,
                 onSelect: {
+                    // Marks the tap so the switch can be reported as an interval rather
+                    // than as a feeling. Switching libraries is the specific complaint,
+                    // and until now nothing on this path was timed at all.
+                    NavigationTiming.begin("library")
                     withAnimation {
                         containerService.setActive(container.id)
                     }

@@ -85,15 +85,38 @@ struct AboutView: View {
                         // on 4.8. Two places holding release copy is two places to drift,
                         // and this one already had. It also gives the update sheet a
                         // permanent home, so dismissing it does not lose the content.
+                        // Three highlights, not the whole release.
+                        //
+                        // This rendered every item in the release, which for 5.0 is
+                        // nineteen — the same content Version History already shows in
+                        // full, one screen away. Two surfaces printing the same changelog
+                        // at the same length is not two views of it, it is the same wall
+                        // twice. About is now the teaser and Version History the record.
                         VStack(alignment: .leading, spacing: 10) {
                             if let release = WhatsNewStore().releaseForCurrentVersion() {
-                                ForEach(release.items) { item in
+                                ForEach(release.items.prefix(3)) { item in
                                     releaseHighlight(
                                         icon: item.symbol,
                                         tint: .accentColor,
                                         title: item.title,
                                         detail: item.detail
                                     )
+                                }
+
+                                if release.items.count > 3 {
+                                    NavigationLink {
+                                        VersionHistoryView()
+                                    } label: {
+                                        HStack(spacing: 6) {
+                                            Text("See all \(release.items.count) changes in \(release.version)")
+                                                .font(.footnote.weight(.medium))
+                                            Image(systemName: "arrow.forward")
+                                                .font(.system(size: 10, weight: .semibold))
+                                        }
+                                        .foregroundStyle(Color.accentColor)
+                                        .padding(.top, 2)
+                                    }
+                                    .buttonStyle(.plain)
                                 }
                             } else {
                                 Text("Release notes for this version aren't available in the app. The App Store listing has the full list.")

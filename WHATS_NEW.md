@@ -9,6 +9,7 @@ Public release highlights for OpenIntelligence.
 Documents were quietly losing parts of themselves, answers were built from a fraction of what was found, and the app was rewriting your library on every launch. This release is the search for all three.
 
 ### Speed
+- **The Documents tab stopped waiting on a number it never showed you.** Opening the tab counted your cached documents before it would appear. That count feeds one row that stays hidden unless the count is above zero, and on the device this was traced on it was zero, so the row was never drawn. The count now loads quietly in the background and the tab opens straight away. It was costing between 29 and 393 milliseconds on every open, and it was the slowest single thing in a log of nearly six thousand lines.
 - **Deep Think answers roughly three times faster:** the same question went from four and a half minutes to eighty seconds, with a slightly longer answer. It was re-reading the same passages.
 - **The app starts faster:** a 43 MB model loaded on every launch before anything appeared, even if you never asked a question. It now loads when it is first needed.
 - **Deep Think stops when it runs out of new material:** on smaller libraries it repeated its first three reasoning passes word for word, about a third of the total time, learning nothing. It still reads everything it retrieved.
@@ -32,7 +33,7 @@ Documents were quietly losing parts of themselves, answers were built from a fra
 - **Switching between libraries no longer resets your place or flashes the screen:** the library picker was rebuilding itself from scratch on certain switches, which reset its scroll position and made the screen visibly redraw.
 
 ### Your Documents
-- **A document's auto-generated tags no longer come from its bibliography:** the app samples the start, middle and end of a document, and on a research paper the end is the reference list — so a third of what it read was author surnames. The same paper produced "dopamine, motivation, serotonin" on one import and "cho, merten, pychatry, zeng" on another.
+- **A document's auto-generated tags no longer come from its bibliography:** the app samples the start, middle and end of a document, and on a research paper the end is the reference list — so a third of what it read was author surnames. The same paper produced "dopamine, motivation, serotonin" on one import and "cho, merten, pychatry, zeng" on another. The bibliography half of this is fixed and confirmed on August 26, with 137 reference passages excluded on that same paper. The mangled "pychatry" is a separate problem that is still there: the journal prints its name sideways down the page edge, that strip scans badly, and the result gets treated as a heading. It is recorded and is not claimed as fixed.
 - **Tables in Word documents were being thrown away:** each one was read into rows and then dropped, so a document could import looking fine with all of its numbers missing.
 - **Images keep their layout:** every image became one unbroken line of text before anything downstream could read it.
 - **Photographing a page now matches importing it:** camera captures came out as flat text where the same page imported as table cells.

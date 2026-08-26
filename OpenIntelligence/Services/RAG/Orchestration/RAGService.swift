@@ -3671,18 +3671,63 @@ class RAGService: ObservableObject {
         }
     }
 
+    /// How many times `reloadWorkspaceData` has run this session. Printed with each
+    /// timing line so a capture shows the call *volume*, which is the part that turns
+    /// a handful of cheap operations into a visible stall.
+    @MainActor private static var reloadWorkspaceDataCallCount = 0
+
+    /// Instrumentation only — no behaviour change.
+    ///
+    /// A device capture on 2026-08-26 cleared the two things previously suspected of
+    /// making the Documents tab slow: the tab-appear task runs in 21 to 62ms and each
+    /// vector store load in 1 to 31ms. What the capture *showed* instead was volume:
+    /// 21 store loads across 7 databases, 15 replays of the persisted ingestion queue,
+    /// and a container change cascading into a sync pass over every library.
+    ///
+    /// This function is the common ancestor of all of it and `DocumentLibraryView`
+    /// calls it from seven places. But that it is *expensive* is still an inference,
+    /// not a measurement, and the last four attempts at this bug were confident
+    /// inferences. Its three parts are timed separately so the next capture names the
+    /// one that costs, rather than a change being made to vector code on a hunch.
     @MainActor
     func reloadWorkspaceData() {
-        vectorRouter.clearAll()
+        let reloadStarted = Date()
+        Self.reloadWorkspaceDataCallCount += 1
+        let callNumber = Self.reloadWorkspaceDataCallCount
 
+        let clearStarted = Date()
+        vectorRouter.clearAll()
+        let clearMs = Date().timeIntervalSince(clearStarted) * 1000
+
+        let snapshotStarted = Date()
         let loadedDocuments = loadDocumentsSnapshotFromDisk()
         applyLoadedDocuments(loadedDocuments)
+        let snapshotMs = Date().timeIntervalSince(snapshotStarted) * 1000
+
         if !FileManager.default.fileExists(atPath: AppSupportPaths.ingestionQueueURL().path), ingestionTask == nil {
             clearRuntimeIngestionQueueState()
         }
         Task {
+            // Timed inside its own task because it is async and runs off the
+            // synchronous part below. The coordinated read it performs is the single
+            // operation here capable of a multi-second stall: NSFileCoordinator on an
+            // iCloud-synced path is what CLAUDE.md opens by warning about.
+            let queueStarted = Date()
             await restorePersistedIngestionQueueIfNeeded()
+            Log.info(
+                "[WorkspaceReload] #\(callNumber) ingestionQueue "
+                    + "\(String(format: "%.0f", Date().timeIntervalSince(queueStarted) * 1000))ms",
+                category: .pipeline
+            )
         }
+
+        Log.info(
+            "[WorkspaceReload] #\(callNumber) clearAll \(String(format: "%.0f", clearMs))ms, "
+                + "docsSnapshot \(String(format: "%.0f", snapshotMs))ms, "
+                + "syncSection \(String(format: "%.0f", Date().timeIntervalSince(reloadStarted) * 1000))ms so far, "
+                + "documents=\(loadedDocuments.count)",
+            category: .pipeline
+        )
 
         let fingerprint = localIndexSyncFingerprint(for: loadedDocuments)
         guard fingerprint != lastLocalIndexSyncFingerprint else {

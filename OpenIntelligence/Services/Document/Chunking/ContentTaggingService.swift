@@ -238,6 +238,25 @@ import NaturalLanguage
                     Log.warning("[ContentTagging] Context overflow, retrying with shorter text", category: .llm)
                     return try await generateTags(for: String(text.prefix(2000)), documentName: documentName)
                 }
+                // A safety refusal reaches iOS 27 as `LanguageModelError.guardrailViolation`
+                // rather than `GenerationError.guardrailViolation`, so the typed branch
+                // above never matches it and every refusal was logged as an unexpected
+                // error. Exactly the defect already found and fixed for context overflow
+                // three lines up; this is the same shape, on the same catch.
+                //
+                // Observed 2026-08-26 on a peer-reviewed neuroscience paper, which the
+                // model declined as sensitive content: the log read "Unexpected error:
+                // May contain sensitive content", which describes a working fallback as a
+                // crash. The behaviour was always correct; only the label was wrong.
+                if FoundationModelErrorMapper.recoveryHint(for: error) == .contentFiltered {
+                    Log.info(
+                        "[ContentTagging] Content declined by the on-device safety filter, "
+                            + "using NLTagger fallback for \(documentName ?? "document")",
+                        category: .llm
+                    )
+                    return nlTaggerFallbackTags(for: text)
+                }
+
                 Log.warning("[ContentTagging] Unexpected error: \(error), using NLTagger fallback", category: .llm)
                 return nlTaggerFallbackTags(for: text)
             }

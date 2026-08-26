@@ -240,6 +240,11 @@ struct ContentView: View {
             }
         }
         .onChange(of: selectedTab) { oldTab, newTab in
+            // Stamp the tap so the destination can report how long it took to become
+            // usable. Every previous measurement of the Documents tab timed work that
+            // happens *after* the view appears, which is why they all came back fast
+            // while the tab still felt slow.
+            NavigationTiming.begin(String(describing: newTab))
             Log.warning("[TabBar] Selected tab changed from \(oldTab) to \(newTab)", category: .ui)
             DSHaptics.tabChanged()
         }

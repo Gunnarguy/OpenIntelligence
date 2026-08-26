@@ -1100,14 +1100,34 @@ struct DocumentLibraryView: View {
             // `LoggingConfiguration.fileLogCategories`, so these reach a shareable
             // trace instead of only an attached console.
             let appearStarted = Date()
+            // Interval from the tab tap to this task running: the part every previous
+            // measurement missed. Everything timed below happens *after* the view has
+            // already appeared, which is why each came back in milliseconds while the
+            // tab still felt slow.
+            let sinceTap = NavigationTiming.describe("documents")
 
-            let countStarted = Date()
-            await refreshCachedDocumentCount()
-            let countMs = Date().timeIntervalSince(countStarted) * 1000
+            // The cached-documents count is display-only: it decides whether an
+            // optional "Cached Documents" row appears, and nothing else reads it. It
+            // was the first thing awaited when this tab appeared, and it is what made
+            // the tab slow.
+            //
+            // Measured on device 2026-08-26: 44ms, 76ms and 393ms across three
+            // appearances, against 0 to 4ms for the tab switch itself and single-digit
+            // milliseconds for everything else on the path. `DocumentationCacheService`
+            // is an actor whose initialiser does synchronous disk I/O, so the first
+            // access pays for that and every access pays for the hop — to return a
+            // count that is zero, for a row that then does not render.
+            //
+            // A child task rather than a detached one: this inherits main-actor
+            // isolation, which the `@State` assignment inside requires. Nothing on
+            // screen waits for it, and the row appears when the count arrives. Four
+            // earlier attempts at this bug measured work that happens *after* the view
+            // appears and found it fast; this line was assumed cheap and never timed.
+            Task { await refreshCachedDocumentCount() }
 
             guard !onboardingStore.isChecklistVisible else {
                 Log.info(
-                    "[DocumentsTab] appear: docCount \(String(format: "%.0f", countMs))ms, "
+                    "[DocumentsTab] appear: \(sinceTap), "
                         + "total \(String(format: "%.0f", Date().timeIntervalSince(appearStarted) * 1000))ms "
                         + "(onboarding visible, samples skipped)",
                     category: .pipeline
@@ -1124,7 +1144,7 @@ struct DocumentLibraryView: View {
             }
 
             Log.info(
-                "[DocumentsTab] appear: docCount \(String(format: "%.0f", countMs))ms, "
+                "[DocumentsTab] appear: \(sinceTap), "
                     + "staleSamples \(String(format: "%.0f", samplesMs))ms, "
                     + "total \(String(format: "%.0f", Date().timeIntervalSince(appearStarted) * 1000))ms, "
                     + "documents=\(ragService.documents.count), libraries=\(containerService.containers.count)",
@@ -1344,6 +1364,26 @@ struct DocumentLibraryView: View {
             .onAppear {
                 Task { @MainActor in
                     await autoRefreshSharedWorkspaceIfNeeded()
+                }
+            }
+            // Times a library switch end to end. `state` is the moment SwiftUI sees the
+            // new selection; `settled` is after the run loop turn that renders it, which
+            // is the number that corresponds to what a switch feels like. Reported
+            // separately because they fail differently: a slow `state` means the work is
+            // upstream of the view, a slow `settled` means body evaluation is the cost.
+            .onChange(of: containerService.activeContainerId) { _, newId in
+                let stateMs = NavigationTiming.elapsedMilliseconds("library")
+                let switchStarted = Date()
+                DispatchQueue.main.async {
+                    let settledMs = Date().timeIntervalSince(switchStarted) * 1000
+                    let state = stateMs.map { String(format: "%.0f", $0) + "ms" } ?? "n/a"
+                    let docs = ragService.documents.filter { $0.containerId == newId }.count
+                    Log.info(
+                        "[LibrarySwitch] state \(state), "
+                            + "settled +\(String(format: "%.0f", settledMs))ms, "
+                            + "documents=\(docs)",
+                        category: .pipeline
+                    )
                 }
             }
             .onChange(of: workspaceSyncService.observedWorkspaceChangeCount) {
