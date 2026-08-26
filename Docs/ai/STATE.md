@@ -174,32 +174,38 @@ filed for the actor-isolation drift they exposed, as Future Backlog.
 
 ## Exact Next Action
 
-**Attach macOS build 379 to the macOS 5.0 version, then submit both platforms for review.** iOS 378
-is already attached. Both are uploaded and `VALID`, both built on GitHub runners, both carry
-`BuildMachineOSBuild: 25F84`, a released OS.
+**Ask the owner for the remaining visual changes, apply them, then build 380 (iOS) and 381 (macOS)
+and submit both.** Builds 378 and 379 are uploaded and `VALID` but **no longer current**: `a112d8a`
+landed device forward-scaling, the threadgroup-ceiling fix and the HUD memory row after them. More
+visual work is expected before submission, so do not build until it is in — a build superseded
+before submission is wasted runner time.
 
-| Platform | Build | State |
+| Platform | Uploaded | Current with `a112d8a`? |
 |---|---|---|
-| iOS 5.0 | **378** | `VALID`, attached |
-| macOS 5.0 | **379** | `VALID`, **not attached** |
+| iOS 5.0 | 378 `VALID`, attached | no |
+| macOS 5.0 | 379 `VALID`, not attached | no |
+
+Build with `.github/workflows/app-store-upload.yml`, `platform: ios | macos`:
 
 ```bash
-cd ~/Documents/GitHub/OpenIntelligence && LANG=en_US.UTF-8 LC_ALL=en_US.UTF-8 fastlane submit_release version:5.0 build:378
+gh workflow run app-store-upload.yml -f platform=ios -f build_number=380 -f upload=true
 ```
+
+Then submit, which genuinely submits for review:
 
 ```bash
-cd ~/Documents/GitHub/OpenIntelligence && LANG=en_US.UTF-8 LC_ALL=en_US.UTF-8 fastlane submit_release version:5.0 build:379 platform:osx
+cd ~/Documents/GitHub/OpenIntelligence && LANG=en_US.UTF-8 LC_ALL=en_US.UTF-8 fastlane submit_release version:5.0 build:380
 ```
 
-**Both genuinely submit for review** — `submit_release` defaults `submit_for_review` and
-`reject_if_possible` to true.
+**Never submit 376 or 377.** Archived on this Mac, which runs macOS 27.0 beta, so both stamp
+`26A5406e` and are rejected at review submission with `ITMS-90111`. `altool --validate-app` returns
+`VERIFY SUCCEEDED` for them regardless.
 
-**Never submit 376 or 377.** Both were archived on this Mac, which runs macOS 27.0 beta, so both
-stamp `26A5406e` and are rejected at review submission with `ITMS-90111`. `altool --validate-app`
-returns `VERIFY SUCCEEDED` for them anyway, which is why this took a day to find.
-
-**Releases come from `.github/workflows/app-store-upload.yml`**, `platform: ios | macos`. Verified
-on both: iOS run 32987827646, macOS run 32990777651.
+**Open, not blocking:** App Store screenshots. The simulator cannot run Core AI, so anything showing
+retrieval, a real answer or model status must be captured on the owner's device; the rest can come
+from a simulator. A before/after asset can be built from the device-captured pairs already in
+`CHANGELOG.md` (document tags, reading order, the dopamine query, r@1 0.000 → 0.571) without staging
+anything.
 
 **Do not open Blockers 5 or 6 without new evidence.** Between them they have consumed four wrong
 diagnoses; each needs a capture or a profile before any code change.
