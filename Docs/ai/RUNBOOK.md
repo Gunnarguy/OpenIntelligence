@@ -490,7 +490,38 @@ Fastlane lanes in `fastlane/Fastfile`, all *recorded*, none run from here:
 
 Each takes `platform: ios` (default) or `osx`.
 
-### Building a release locally when Xcode Cloud is unavailable
+### Do not build a release on this Mac. It cannot be submitted.
+
+**This machine runs a beta macOS, and that alone makes every archive it produces
+unsubmittable.** Xcode stamps `BuildMachineOSBuild` into `Info.plist` from the host OS, and App
+Store ingestion rejects a prerelease stamp with `ITMS-90111` **regardless of which Xcode built it**.
+Builds 376 and 377 were archived here on the release Xcode 26.6 and both carry `26A5406e`, whose
+trailing lowercase letter marks it prerelease.
+
+**`altool --validate-app` does not catch this.** It returned `VERIFY SUCCEEDED with no errors` for
+both. Validation is not ingestion, and treating a green validate as proof a build can ship is the
+mistake this section exists to stop.
+
+Check any archive before trusting it:
+
+```bash
+/usr/libexec/PlistBuddy -c "Print :BuildMachineOSBuild" <archive>/Products/Applications/OpenIntelligence.app/Info.plist
+```
+
+A trailing lowercase letter means prerelease. Discard the archive.
+
+**Use `.github/workflows/app-store-upload.yml` instead.** It is `workflow_dispatch` with a build
+number and an upload toggle, runs on GitHub's released-OS images so the stamp comes out clean, and
+fails loudly on a prerelease stamp before uploading anything. The signing material has been in
+repository secrets since 2026-06-19. The OpenManual repository hit this first and its release
+workflow exists for the same reason.
+
+Everything below describes the local archive mechanics. They are correct and were verified end to
+end, and they are still the right reference for what the workflow does — but the resulting binary
+cannot be submitted from this machine.
+
+#### Local archive mechanics, for reference
+
 
 **Why this exists.** On 2026-08-25 Xcode Cloud hit its compute cap mid-release. Runs #376 through
 #385 were each created and cancelled 5-9 seconds later with `startedDate: null` — never scheduled.

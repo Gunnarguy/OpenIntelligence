@@ -174,25 +174,32 @@ filed for the actor-isolation drift they exposed, as Future Backlog.
 
 ## Exact Next Action
 
-**Upload build 377.** Build 376 was uploaded and is `VALID`, but 377 supersedes it. The archive is built, gated, exported, **validated by Apple** and staged at
-`build/OpenIntelligence-5.0-377.ipa` (149 MB, gitignored). One command:
+**Run the `App Store Upload` workflow with `build_number: 378`.** GitHub Actions tab, or:
 
 ```bash
-cd ~/Documents/GitHub/OpenIntelligence && DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer LANG=en_US.UTF-8 LC_ALL=en_US.UTF-8 fastlane upload_release_build version:5.0 build:377 skip_build:true
+gh workflow run app-store-upload.yml -f build_number=378 -f upload=true
 ```
 
-The lane sees the staged `.ipa` and skips straight to `upload_to_testflight`. It waits for Apple to
-finish processing, which takes several minutes. **An agent cannot run this** — the Claude Code
-permission classifier blocks App Store Connect uploads, and working around it would defeat the point.
+**An agent cannot do this.** The permission classifier blocks App Store Connect uploads, `gh
+workflow run`, and even `gh workflow list`. It blocked fastlane and `altool` alike.
 
-Then, and only after processing completes, attaching the build and submitting for review is:
+**Builds 376 and 377 must not be submitted.** Both were archived on this Mac, which runs macOS 27.0
+beta, so both stamp `BuildMachineOSBuild: 26A5406e` and App Store ingestion rejects a prerelease
+stamp with `ITMS-90111`. `altool --validate-app` returned `VERIFY SUCCEEDED` for both, which is why
+this was not caught earlier: validation is not ingestion. 377 is otherwise correct and is the same
+source the workflow will build.
+
+The workflow gates on that stamp, on PCC symbols with a non-zero control, and on stray `.build`
+artifacts, so a bad build fails in CI rather than at Apple.
+
+Once 378 processes to `VALID`, attaching and submitting is:
 
 ```bash
-cd ~/Documents/GitHub/OpenIntelligence && LANG=en_US.UTF-8 LC_ALL=en_US.UTF-8 fastlane submit_release version:5.0 build:377
+cd ~/Documents/GitHub/OpenIntelligence && LANG=en_US.UTF-8 LC_ALL=en_US.UTF-8 fastlane submit_release version:5.0 build:378
 ```
 
-**That second command really does submit to App Store review**, because `submit_release` defaults
-`submit_for_review` to true and `reject_if_possible` to true. Do not run it to "just attach" a build.
+**That genuinely submits for App Store review** — `submit_release` defaults `submit_for_review` and
+`reject_if_possible` to true. It is not a way to merely attach a build.
 
 **Do not open Blockers 5 or 6 without new evidence.** Between them they have consumed four wrong
 diagnoses; each needs a capture or a profile before any code change.
