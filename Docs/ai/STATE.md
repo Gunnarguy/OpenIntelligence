@@ -3,7 +3,7 @@
 Updated: 2026-08-25
 Branch/worktree: main. One uncommitted file: `Docs/ai/RUNBOOK.md`.
 Cross-tool handoff (if Claude access runs out): `HANDOFF.md` at repo root.
-Last verified commit: cbae053
+Last verified commit: 2d135ac
 
 ## Objective
 
@@ -131,6 +131,13 @@ build. The compile warnings surfaced by Swift 6.4 were **not** acted on — a ba
 filed for the actor-isolation drift they exposed, as Future Backlog.
 
 ## Blockers / Unknowns
+0. **The test configuration does not link under Xcode 26.6.** `xcodebuild test` against an iOS 26.5
+   simulator fails with undefined `Tokenizers` symbols in `OpenIntelligenceEngine`; the same source
+   passes **333 tests, 3 skipped, 0 failures** under the Xcode 27 beta on iOS 27. **The archive
+   links Tokenizers correctly on 26.6**, so the shipping binary is unaffected, and Xcode Cloud only
+   ever ran archive actions, so this path had never been exercised. Not diagnosed. Run tests on the
+   beta until it is.
+
 
 1. **Xcode 26.6 is not installed, and installing it needs the owner's password.** No agent can do
    this. `mas install 497799835` invokes `sudo` and fails without a terminal. The owner reports that
@@ -167,11 +174,11 @@ filed for the actor-isolation drift they exposed, as Future Backlog.
 
 ## Exact Next Action
 
-**Upload build 376.** The archive is built, gated, exported, **validated by Apple** and staged at
-`build/OpenIntelligence-5.0-376.ipa` (149 MB, gitignored). One command:
+**Upload build 377.** Build 376 was uploaded and is `VALID`, but 377 supersedes it. The archive is built, gated, exported, **validated by Apple** and staged at
+`build/OpenIntelligence-5.0-377.ipa` (149 MB, gitignored). One command:
 
 ```bash
-cd ~/Documents/GitHub/OpenIntelligence && DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer LANG=en_US.UTF-8 LC_ALL=en_US.UTF-8 fastlane upload_release_build version:5.0 build:376 skip_build:true
+cd ~/Documents/GitHub/OpenIntelligence && DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer LANG=en_US.UTF-8 LC_ALL=en_US.UTF-8 fastlane upload_release_build version:5.0 build:377 skip_build:true
 ```
 
 The lane sees the staged `.ipa` and skips straight to `upload_to_testflight`. It waits for Apple to
@@ -181,7 +188,7 @@ permission classifier blocks App Store Connect uploads, and working around it wo
 Then, and only after processing completes, attaching the build and submitting for review is:
 
 ```bash
-cd ~/Documents/GitHub/OpenIntelligence && LANG=en_US.UTF-8 LC_ALL=en_US.UTF-8 fastlane submit_release version:5.0 build:376
+cd ~/Documents/GitHub/OpenIntelligence && LANG=en_US.UTF-8 LC_ALL=en_US.UTF-8 fastlane submit_release version:5.0 build:377
 ```
 
 **That second command really does submit to App Store review**, because `submit_release` defaults
