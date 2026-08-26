@@ -490,6 +490,88 @@ Fastlane lanes in `fastlane/Fastfile`, all *recorded*, none run from here:
 
 Each takes `platform: ios` (default) or `osx`.
 
+### Building a release locally when Xcode Cloud is unavailable
+
+**Why this exists.** On 2026-08-25 Xcode Cloud hit its compute cap mid-release. Runs #376 through
+#385 were each created and cancelled 5-9 seconds later with `startedDate: null` — never scheduled.
+That is not the workflow's `autoCancel`, because #385 had no successor push to cancel it. The last
+run to produce a build was #375.
+`[evidence_level: measured, confidence: exact, evidence_source: GET /v1/ciProducts/c6efe188/buildRuns?sort=-number]`
+
+**The toolchain is not optional, and the wrong one ships PCC.** The `Default` workflow builds with
+Xcode Version "Latest Release" = **Xcode 26.6 (17F113)** on macOS 26.6 (25G83). Every PCC path sits
+behind `#if compiler(>=6.4)` at **12 sites**. Xcode 26.6 ships Swift 6.3 and compiles them out;
+**Xcode 27 beta ships Swift 6.4 exactly and compiles them in.** A local Xcode 27 archive of
+`cbae053` linked **18** `FoundationModels.PrivateCloudComputeLanguageModel` symbols, including
+`__allocating_init()`, `isAvailable` and the `LanguageModel` conformance descriptor. Shipping that
+binary would contradict the v5.0 release notes and the in-app copy corrected in `8f76398`.
+`[evidence_level: measured, confidence: exact, evidence_source: nm -u + swift-demangle on the 2026-08-25 beta archive]`
+
+**Xcode 27 cannot be submitted regardless.** As of 2026-08-25 Xcode 27 is at beta 6 (27A5252f) with
+no Release Candidate. Beta Xcode and beta SDKs are accepted for **TestFlight only**; App Store
+submission requires a release or RC toolchain and otherwise fails `ITMS-90111`.
+
+**Build number.** Both the iOS and macOS 5.0 trains are at build **375**, so the next must be **376
+or higher**. `CURRENT_PROJECT_VERSION` in `project.pbxproj` reads 150 and is vestigial, because
+Xcode Cloud stamps its own. Override it on the command line; do not edit that file, which is
+hard-boundary.
+
+**Installing the release toolchain needs your password**, so no agent can do it. The Mac App Store
+offers Xcode 26.6 (`mas info 497799835`). `mas install 497799835` invokes `sudo` and fails without a
+terminal. Install from the App Store app, or:
+
+```bash
+sudo mas install 497799835
+```
+
+Do not `xcode-select` afterwards. Point one command at the release toolchain with `DEVELOPER_DIR`
+and leave the beta as the default for device work.
+
+**The procedure.** Steps 1-5 were run end to end on 2026-08-25 against the Xcode 27 beta and all
+succeeded, so everything except the toolchain swap is verified: archive, distribution signing,
+`app-store-connect` export and a 201 MB `.ipa`. The exported profile was
+`iOS Team Store Provisioning Profile: Gunndamental.OpenIntelligence`, with no `ProvisionedDevices`
+and `get-task-allow: false`.
+`[evidence_level: measured, confidence: exact, not_verified_on_26.6, evidence_source: ARCHIVE SUCCEEDED + EXPORT SUCCEEDED, 2026-08-25]`
+
+```bash
+rsync -a --delete --exclude 'BenchmarkRuns/' --exclude '.simulator-smoke.nosync/' --exclude 'Benchmarks/run/' --exclude '.git.nosync/' ./ /private/tmp/oi-src/
+```
+
+```bash
+DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcodebuild archive -project /private/tmp/oi-src/OpenIntelligence.xcodeproj -scheme OpenIntelligence -configuration Release -destination 'generic/platform=iOS' -archivePath /private/tmp/oi-rel/OpenIntelligence.xcarchive -derivedDataPath /private/tmp/oi-rel-dd -skipPackagePluginValidation CURRENT_PROJECT_VERSION=376
+```
+
+**Gate before exporting. This is the check that prevents shipping PCC.** It must print `0`. If it
+prints anything else the archive was built by Xcode 27 and must be discarded, not uploaded:
+
+```bash
+nm -u /private/tmp/oi-rel/OpenIntelligence.xcarchive/Products/Applications/OpenIntelligence.app/OpenIntelligence | grep -c PrivateCloudCompute
+```
+
+Then export, using an `ExportOptions.plist` with `method = app-store-connect`, `teamID =
+Z3E334EXZD`, `signingStyle = automatic` and `destination = export`. `destination = export` is what
+keeps the export local; `upload` would send it:
+
+```bash
+xcodebuild -exportArchive -archivePath /private/tmp/oi-rel/OpenIntelligence.xcarchive -exportPath /private/tmp/oi-rel-export -exportOptionsPlist /private/tmp/oi-rel/ExportOptions.plist
+```
+
+Upload through the existing lane rather than `altool`, by placing the `.ipa` where the lane expects
+it. The lane defaults to **version 4.5 and build 150** and will do the wrong thing silently if the
+arguments are omitted:
+
+```bash
+mkdir -p build && cp /private/tmp/oi-rel-export/OpenIntelligence.ipa build/OpenIntelligence-5.0-376.ipa && LANG=en_US.UTF-8 LC_ALL=en_US.UTF-8 fastlane upload_release_build version:5.0 build:376 skip_build:true
+```
+
+**macOS 5.0 is a second, unscoped build.** It sits in `PREPARE_FOR_SUBMISSION` at build 375 like
+iOS, and the Xcode Cloud workflow archives both platforms (`ARCHIVE/ANY_MAC` and `ARCHIVE/IOS`).
+`upload_release_build` is iOS-only, so a local macOS release needs its own archive with
+`-destination 'generic/platform=macOS'`, a Mac App Store export, and an upload path that does not
+exist in the Fastfile yet.
+`[evidence_level: code_verified, confidence: exact, evidence_source: fastlane/Fastfile upload_release_build; workflow actions]`
+
 ### App Store Connect credentials
 
 Check first. Do not diagnose from an error message.

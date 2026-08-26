@@ -152,6 +152,14 @@ something you want archived.
   in anything Gunnar has ever submitted. Apple has not shipped an Xcode 27 Release Candidate as of
   this writing, and App Store submissions historically open at the RC, not at a beta. Check
   `developer.apple.com/news/releases` for whether that's changed before assuming it hasn't.
+- **Xcode Cloud is compute-capped, and that is the v5.0 release gate.** Runs #376 through #385
+  (2026-08-25) were each created and cancelled 5-9 seconds later with `startedDate: null`, never
+  scheduled. That is not the workflow's `autoCancel`, because #385 had no successor push to cancel
+  it. The last run to produce a build was #375. **Checked 2026-08-25: Xcode 27 is still at beta 6
+  (27A5252f) with no Release Candidate**, which answers the standing question in the bullet above.
+  So the release must be built locally on **Xcode 26.6**, and `Docs/ai/RUNBOOK.md` carries the
+  procedure plus the `nm -u` gate that stops an Xcode 27 archive from shipping PCC. Installing 26.6
+  needs Gunnar's password; no agent can do it.
 - **The retrieval bottleneck is context budget, not ranking.** Measured at n=83: the reranker puts
   the right document first in ~61% of cases; MMR selects 30 chunks; **the prompt receives a median
   of 5**. Roughly 83% of what retrieval ranks never reaches the model, because five ~2,000-character
