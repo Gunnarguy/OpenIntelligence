@@ -40,6 +40,75 @@ enum GPUExecutionProfile: String, CaseIterable, Codable, Identifiable, Sendable 
         }
     }
 
+    /// Which compute units this profile permits, and what it changes.
+    ///
+    /// Exists so the picker can show the difference *before* a profile is chosen,
+    /// and so the ladder can be asserted monotonic in tests: climbing it must never
+    /// remove a unit. Maximum used to fail that, returning `.cpuAndGPU` for Core ML
+    /// while Performance returned `.all`.
+    struct Engagement: Equatable, Sendable {
+        let usesCPU: Bool
+        let usesNeuralEngine: Bool
+        let usesGPU: Bool
+        /// One sentence, in the user's terms, describing what selecting this does.
+        let summary: String
+        /// The concrete policy changes, for the expanded row.
+        let effects: [String]
+
+        var unitCount: Int {
+            (usesCPU ? 1 : 0) + (usesNeuralEngine ? 1 : 0) + (usesGPU ? 1 : 0)
+        }
+    }
+
+    var engagement: Engagement {
+        switch self {
+        case .efficiency:
+            return Engagement(
+                usesCPU: true, usesNeuralEngine: true, usesGPU: false,
+                summary: "Coolest and quietest. Keeps work on the Neural Engine and CPU and leaves the graphics processor alone.",
+                effects: [
+                    "Models run on CPU + Neural Engine",
+                    "PDF pages render on the CPU",
+                    "Vector maths stays on the CPU"
+                ]
+            )
+        case .balanced:
+            return Engagement(
+                usesCPU: true, usesNeuralEngine: true, usesGPU: true,
+                summary: "The default. Adds the graphics processor for rendering and for building the search index, while answering stays on the Neural Engine.",
+                effects: [
+                    "Models run on CPU + Neural Engine",
+                    "Indexing may use all three engines",
+                    "PDF pages render on the GPU",
+                    "Vector maths stays on the CPU"
+                ]
+            )
+        case .performance:
+            return Engagement(
+                usesCPU: true, usesNeuralEngine: true, usesGPU: true,
+                summary: "Everything is available to everything. Answering can now use the graphics processor too, and large searches move onto it.",
+                effects: [
+                    "Models may use all three engines",
+                    "Indexing may use all three engines",
+                    "PDF pages render on the GPU",
+                    "Large searches move to the GPU"
+                ]
+            )
+        case .maximum:
+            return Engagement(
+                usesCPU: true, usesNeuralEngine: true, usesGPU: true,
+                summary: "Performance, with the ceilings lifted. Same engines, more of them at once, and the most heat.",
+                effects: [
+                    "Models may use all three engines",
+                    "Indexing may use all three engines",
+                    "PDF pages render on the GPU",
+                    "Large searches move to the GPU",
+                    "Highest concurrency and GPU ceiling"
+                ]
+            )
+        }
+    }
+
     /// Compatibility value retained for existing pipeline policy and older app versions.
     var legacyLevel: Double {
         switch self {
@@ -726,13 +795,28 @@ final class DeviceCapabilityService: @unchecked Sendable {
             return .cpuOnly
         }
 
-        switch activeGPUExecutionProfile {
+        return Self.coreMLComputeUnits(for: activeGPUExecutionProfile)
+    }
+
+    /// Core ML compute units for a profile.
+    ///
+    /// Extracted `nonisolated static` so the tested branch is the shipping branch:
+    /// a test over a parallel copy of this decision would prove nothing about what
+    /// actually runs.
+    ///
+    /// Maximum previously returned `.cpuAndGPU`, which *excludes* the Neural Engine,
+    /// so choosing the highest setting removed hardware rather than adding it and
+    /// left Maximum strictly less capable than Performance. Nothing sits above
+    /// `.all`: it permits CPU, GPU and Neural Engine and lets Core ML place each
+    /// operation on whichever unit wins.
+    nonisolated static func coreMLComputeUnits(for profile: GPUExecutionProfile) -> MLComputeUnits {
+        switch profile {
         case .efficiency, .balanced:
+            // Neural Engine and CPU only. Leaving the GPU out is the point of the
+            // lower half of the ladder: the ANE is the efficient unit for this work.
             return .cpuAndNeuralEngine
-        case .performance:
+        case .performance, .maximum:
             return .all
-        case .maximum:
-            return .cpuAndGPU
         }
     }
 
@@ -746,13 +830,23 @@ final class DeviceCapabilityService: @unchecked Sendable {
             return .cpuAndNeuralEngine
         }
 
-        switch activeGPUExecutionProfile {
+        return Self.embeddingComputeUnits(for: activeGPUExecutionProfile)
+    }
+
+    /// Embedding compute units for a profile. Extracted for the same reason as
+    /// `coreMLComputeUnits(for:)`.
+    ///
+    /// Balanced was the only profile using all three engines: Performance and
+    /// Maximum both returned `.cpuAndGPU` and dropped the Neural Engine. On a
+    /// 384-dimension embedding model the ANE is typically the fastest and most
+    /// efficient unit available, so turning the profile up made document ingestion
+    /// worse — the workload where it matters most.
+    nonisolated static func embeddingComputeUnits(for profile: GPUExecutionProfile) -> MLComputeUnits {
+        switch profile {
         case .efficiency:
             return .cpuAndNeuralEngine
-        case .balanced:
+        case .balanced, .performance, .maximum:
             return .all
-        case .performance, .maximum:
-            return .cpuAndGPU
         }
     }
 

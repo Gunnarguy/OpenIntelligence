@@ -1492,7 +1492,7 @@ Text(deviceService.chipName)
                         .font(.caption)
                         .foregroundColor(.secondary)
                 } else if settings.ragQualityMode.canonical == .deepThink {
-                    Text("Deep Think chains \(max(4, agenticConfig.maxSteps - 2))–\(agenticConfig.maxSteps) serial reasoning sessions (device-optimized for the \(DeviceCapabilityService.shared.chipName)). Each session gets a fresh 4K-token window with compressed prior insights. Stops at \(Int(agenticConfig.confidenceThreshold * 100))% confidence.")
+                    Text("Deep Think runs up to \(agenticConfig.maxSteps) serial reasoning sessions on the \(DeviceCapabilityService.shared.chipName), and stops as soon as it has what it needs. Each session gets a fresh 4K-token window carrying compressed insights from the last. It ends early when the documents have nothing new left to add, or at \(Int(agenticConfig.confidenceThreshold * 100))% confidence — whichever comes first, so a straightforward question does not pay for sessions it never needed.")
                         .font(.caption)
                         .foregroundColor(.secondary)
                 } else {
@@ -1507,7 +1507,7 @@ Text(deviceService.chipName)
                         contextInfoPill(icon: "flame.fill", label: "Synthesis", value: "Exhaustive")
                     } else if settings.ragQualityMode.canonical == .deepThink {
                         contextInfoPill(icon: "square.3.layers.3d", label: "Per Session", value: "4K tokens")
-                        contextInfoPill(icon: "arrow.trianglehead.2.clockwise.rotate.90", label: "Sessions", value: "\(max(4, agenticConfig.maxSteps - 2))–\(agenticConfig.maxSteps) (\((agenticConfig.maxSteps * 4096) / 1000)K effective)")
+                        contextInfoPill(icon: "arrow.trianglehead.2.clockwise.rotate.90", label: "Sessions", value: "up to \(agenticConfig.maxSteps) (\((agenticConfig.maxSteps * 4096) / 1000)K max)")
                     } else {
                         contextInfoPill(icon: "square.3.layers.3d", label: "Single Pass", value: "4K tokens")
                         contextInfoPill(icon: "arrow.trianglehead.2.clockwise.rotate.90", label: "If Complex", value: "3 sessions (12K)")
@@ -1865,27 +1865,37 @@ Text(deviceService.chipName)
             }
 
             // Discrete profiles avoid implying a precise GPU percentage that Core ML cannot promise.
-            VStack(alignment: .leading, spacing: 6) {
-                HStack {
-                    Text("Execution Profile")
-                        .font(.caption.weight(.medium))
-                    Spacer()
-                    Picker("Execution Profile", selection: $gpuProfile) {
-                        ForEach(GPUExecutionProfile.allCases) { profile in
-                            Text(profile.displayName).tag(profile)
-                        }
-                    }
-                    .labelsHidden()
-                    .pickerStyle(.menu)
-                    .tint(gpuModeColor)
-                    .onChange(of: gpuProfile) { _, newValue in
-                        DeviceCapabilityService.shared.gpuExecutionProfile = newValue
+            VStack(alignment: .leading, spacing: 10) {
+                Text("Execution Profile")
+                    .font(.caption.weight(.medium))
+
+                HStack(spacing: 6) {
+                    ForEach(GPUExecutionProfile.allCases) { profile in
+                        executionProfileCard(profile)
                     }
                 }
 
-                Text(gpuProfileDescription)
-                    .font(.caption2)
-                    .foregroundColor(.secondary)
+                // What the selected profile actually does, listed rather than
+                // summarised, so switching between them reads as cause and effect.
+                VStack(alignment: .leading, spacing: 7) {
+                    Text(gpuProfile.engagement.summary)
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    ForEach(gpuProfile.engagement.effects, id: \.self) { effect in
+                        HStack(alignment: .firstTextBaseline, spacing: 6) {
+                            Image(systemName: "chevron.forward")
+                                .font(.system(size: 7, weight: .bold))
+                                .foregroundColor(gpuModeColor(for: gpuProfile).opacity(0.75))
+                            Text(effect)
+                                .font(.caption2)
+                                .foregroundColor(.secondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
+                }
+                .animation(.snappy(duration: 0.25), value: gpuProfile)
 
                 Text("Core ML changes apply when its model next loads; PDF and vector policies apply to the next operation.")
                     .font(.caption2)
@@ -2008,19 +2018,6 @@ Text(deviceService.chipName)
         }
     }
 
-    private var gpuProfileDescription: String {
-        switch gpuProfile {
-        case .efficiency:
-            return "Prefers CPU and Neural Engine paths; disables GPU PDF rendering and Metal vector search."
-        case .balanced:
-            return "Uses GPU-backed PDF rendering while keeping normal model work Neural Engine-focused."
-        case .performance:
-            return "Allows all Core ML compute units and enables Metal for sufficiently large vector workloads."
-        case .maximum:
-            return "Prefers CPU + GPU model execution and the most aggressive supported GPU policy."
-        }
-    }
-
     private var gpuThermalImpact: String {
         switch gpuProfile {
         case .efficiency: return "✅ Lowest"
@@ -2035,12 +2032,78 @@ Text(deviceService.chipName)
     }
 
     private var gpuModeColor: Color {
-        switch DeviceCapabilityService.shared.activeGPUExecutionProfile {
+        gpuModeColor(for: DeviceCapabilityService.shared.activeGPUExecutionProfile)
+    }
+
+    private func gpuModeColor(for profile: GPUExecutionProfile) -> Color {
+        switch profile {
         case .efficiency: return .blue
         case .balanced: return .green
         case .performance: return .orange
         case .maximum: return .red
         }
+    }
+
+    /// One profile card.
+    ///
+    /// A menu showed one option and hid three. The whole point of this control is
+    /// that the choice changes which silicon runs the work, so all four are on
+    /// screen with their engines visible before anything is tapped.
+    @ViewBuilder
+    private func executionProfileCard(_ profile: GPUExecutionProfile) -> some View {
+        let isSelected = gpuProfile == profile
+        let accent = gpuModeColor(for: profile)
+
+        Button {
+            guard gpuProfile != profile else { return }
+            DSHaptics.light()
+            withAnimation(.spring(response: 0.32, dampingFraction: 0.72)) {
+                gpuProfile = profile
+            }
+            DeviceCapabilityService.shared.gpuExecutionProfile = profile
+        } label: {
+            VStack(spacing: 5) {
+                Text(profile.displayName)
+                    .font(.system(size: 10, weight: isSelected ? .semibold : .medium))
+                    .foregroundColor(isSelected ? accent : .secondary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+
+                HStack(spacing: 2.5) {
+                    engineChip("CPU", isOn: profile.engagement.usesCPU, accent: accent, isSelected: isSelected)
+                    engineChip("ANE", isOn: profile.engagement.usesNeuralEngine, accent: accent, isSelected: isSelected)
+                    engineChip("GPU", isOn: profile.engagement.usesGPU, accent: accent, isSelected: isSelected)
+                }
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 9)
+            .background(
+                RoundedRectangle(cornerRadius: 9, style: .continuous)
+                    .fill(accent.opacity(isSelected ? 0.16 : 0.05))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 9, style: .continuous)
+                    .strokeBorder(accent.opacity(isSelected ? 0.55 : 0.0), lineWidth: 1)
+            )
+            .scaleEffect(isSelected ? 1.0 : 0.97)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("\(profile.displayName) execution profile")
+        .accessibilityHint(profile.engagement.summary)
+        .accessibilityAddTraits(isSelected ? [.isSelected] : [])
+    }
+
+    /// A single engine badge. Dimmed rather than hidden when a profile does not use
+    /// it, so the difference between profiles is visible at a glance.
+    private func engineChip(_ name: String, isOn: Bool, accent: Color, isSelected: Bool) -> some View {
+        Text(name)
+            .font(.system(size: 7, weight: .semibold, design: .rounded))
+            .foregroundColor(isOn ? (isSelected ? accent : .secondary) : .secondary.opacity(0.28))
+            .padding(.horizontal, 3.5)
+            .padding(.vertical, 1.5)
+            .background(
+                Capsule().fill(isOn ? accent.opacity(isSelected ? 0.20 : 0.08) : Color.clear)
+            )
     }
 
     @ViewBuilder
