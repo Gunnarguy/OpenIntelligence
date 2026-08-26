@@ -534,8 +534,21 @@ succeeded, so everything except the toolchain swap is verified: archive, distrib
 and `get-task-allow: false`.
 `[evidence_level: measured, confidence: exact, not_verified_on_26.6, evidence_source: ARCHIVE SUCCEEDED + EXPORT SUCCEEDED, 2026-08-25]`
 
+**`--exclude '.build'` is not optional, and leaving it out is how a local release fails at the
+very last step.** `OpenIntelligence/swift-transformers/` is bundled into the app as resources, and
+locally that directory contains a gitignored 150 MB `.build` of SwiftPM artifacts. Xcode Cloud
+clones fresh so it never has one; a local `rsync` without this exclusion copies it in, Xcode bundles
+it, and App Store Connect rejects the upload after the full build and a 202 MB transfer:
+
+> `Invalid bundle structure. The "OpenIntelligence.app/swift-transformers/.build/out/ModuleCache.noindex/MachO-….pcm"
+> binary file is not permitted. (90171)`
+
+Proven on 2026-08-25: 2,510 of the 2,536 `swift-transformers` entries in the rejected `.ipa` were
+`.build` artifacts. Excluding it drops the working copy from 3.6 GB to 525 MB.
+`[evidence_level: measured, confidence: exact, evidence_source: altool 90171 rejection; unzip -l of the rejected ipa]`
+
 ```bash
-rsync -a --delete --exclude 'BenchmarkRuns/' --exclude '.simulator-smoke.nosync/' --exclude 'Benchmarks/run/' --exclude '.git.nosync/' ./ /private/tmp/oi-src/
+rsync -a --delete --exclude '.build' --exclude '.build.nosync/' --exclude '.attic.nosync/' --exclude '.device-smoke.nosync/' --exclude '.simulator-smoke.nosync/' --exclude '.git.nosync/' --exclude 'BenchmarkRuns/' --exclude 'Benchmarks/run/' ./ /private/tmp/oi-src/
 ```
 
 ```bash

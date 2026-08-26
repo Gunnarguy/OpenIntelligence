@@ -57,9 +57,10 @@ No code changed. Diagnosis and one doc update.
 
 ## Active Constraints
 
-- **Build from a copy outside iCloud.** `rsync -a --delete --exclude 'BenchmarkRuns/' --exclude
-  '.simulator-smoke.nosync/' --exclude 'Benchmarks/run/' --exclude '.git.nosync/' ./ /private/tmp/oi-src/`
-  then build there. In place it deadlocks in `NSFileCoordinator`.
+- **Build from a copy outside iCloud, and the copy must exclude `.build`.** In place the build
+  deadlocks in `NSFileCoordinator`. Without `--exclude '.build'` the vendored
+  `swift-transformers/.build` is bundled into the app and App Store Connect rejects the upload with
+  `90171 Invalid bundle structure`. The full command is in `Docs/ai/RUNBOOK.md`.
 - **Never build the release with Xcode 27.** Swift 6.4 satisfies `#if compiler(>=6.4)` at 12 sites
   and links PCC in, contradicting the release notes and the copy fixed in `8f76398`. The `nm -u`
   gate in the RUNBOOK must print `0` before any export is uploaded.
@@ -106,8 +107,20 @@ Release build on **Xcode 26.6 (17F113)**, after it was installed:
 - **The gate:** `nm -u` → **0** `PrivateCloudCompute` symbols against **29** for
   `SystemLanguageModel`. The control matters: 0 with a live control is a real absence, not a broken
   grep. `DTSDKName iphoneos26.5`, `DTXcodeBuild 17F113`.
-- `xcodebuild -exportArchive` → **EXPORT SUCCEEDED**, 202 MB `.ipa`, embedded profile
+- `xcodebuild -exportArchive` → **EXPORT SUCCEEDED**, embedded profile
   `iOS Team Store Provisioning Profile: Gunndamental.OpenIntelligence`, no `ProvisionedDevices`.
+- **The first upload attempt failed and the cause was the build copy, not the build.**
+  `fastlane upload_release_build` transferred 202 MB and altool rejected it:
+  `90171 Invalid bundle structure … swift-transformers/.build/out/ModuleCache.noindex/MachO-….pcm
+  binary file is not permitted`. `OpenIntelligence/swift-transformers/` is bundled as app resources
+  and locally holds a gitignored 150 MB SwiftPM `.build`; **2,510 of the 2,536 `swift-transformers`
+  entries in that `.ipa` were build artifacts.** Xcode Cloud clones fresh so it never has one, which
+  is why this has never affected a Cloud build and would have failed on Xcode 27 identically. This
+  is the most likely cause of the owner's earlier failed local attempts.
+- After adding `--exclude '.build'` and rebuilding clean: working copy 3.6 GB → **525 MB**, app
+  bundle **166 MB**, `.ipa` 202 MB → **149 MB**, `.build` entries **0**, `.pcm` entries **0**.
+- `xcrun altool --validate-app` → **VERIFY SUCCEEDED with no errors.** Apple's validator accepts the
+  corrected build, so the rejection is fixed rather than merely absent from a local check.
 - `fastlane/metadata/en-US/release_notes.txt` → **3,966 characters** rstripped, matching the live
   ASC `whatsNew` exactly. It is 4,031 *bytes*; the difference is the `•` character, and reading the
   byte count as the character count falsely suggests it is over the 4,000 limit.
@@ -154,11 +167,11 @@ filed for the actor-isolation drift they exposed, as Future Backlog.
 
 ## Exact Next Action
 
-**Upload build 376.** The archive is built, gated, exported and staged at
-`build/OpenIntelligence-5.0-376.ipa` (202 MB, gitignored). One command:
+**Upload build 376.** The archive is built, gated, exported, **validated by Apple** and staged at
+`build/OpenIntelligence-5.0-376.ipa` (149 MB, gitignored). One command:
 
 ```bash
-cd ~/Documents/GitHub/OpenIntelligence && LANG=en_US.UTF-8 LC_ALL=en_US.UTF-8 fastlane upload_release_build version:5.0 build:376 skip_build:true
+cd ~/Documents/GitHub/OpenIntelligence && DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer LANG=en_US.UTF-8 LC_ALL=en_US.UTF-8 fastlane upload_release_build version:5.0 build:376 skip_build:true
 ```
 
 The lane sees the staged `.ipa` and skips straight to `upload_to_testflight`. It waits for Apple to
