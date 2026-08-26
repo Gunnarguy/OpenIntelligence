@@ -24,11 +24,17 @@ name: App Store Upload
 on:
   workflow_dispatch:
     inputs:
+      platform:
+        description: "Which store to build for. iOS and macOS are separate version records with separate build trains."
+        required: true
+        type: choice
+        options: [ios, macos]
+        default: ios
       build_number:
-        description: "CFBundleVersion to stamp. Must exceed the newest build on the train (377 as of 2026-08-25)."
+        description: "CFBundleVersion to stamp. Must exceed the newest build on that platform's train (iOS 378, macOS 375 as of 2026-08-26)."
         required: true
         type: string
-        default: "378"
+        default: "379"
       upload:
         description: "Upload to App Store Connect. Uncheck to archive and validate only."
         required: true
@@ -40,7 +46,7 @@ permissions:
 
 jobs:
   upload:
-    name: Archive, gate, upload
+    name: Archive, gate, upload (${{ inputs.platform }})
     runs-on: macos-26
     timeout-minutes: 90
 
@@ -51,6 +57,26 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      # iOS and macOS differ in destination, where the binary and Info.plist sit
+      # inside the .app, what the export produces, and what altool calls the
+      # platform. Resolved once here so the steps below stay single-purpose.
+      - name: Resolve platform settings
+        run: |
+          set -euo pipefail
+          if [ "${{ inputs.platform }}" = "macos" ]; then
+            echo "DEST=generic/platform=macOS"                                   >> "$GITHUB_ENV"
+            echo "PLIST_SUBPATH=Contents/Info.plist"                             >> "$GITHUB_ENV"
+            echo "BIN_SUBPATH=Contents/MacOS/OpenIntelligence"                   >> "$GITHUB_ENV"
+            echo "ALTOOL_TYPE=macos"                                             >> "$GITHUB_ENV"
+            echo "ARTIFACT_GLOB=*.pkg"                                           >> "$GITHUB_ENV"
+          else
+            echo "DEST=generic/platform=iOS"                                     >> "$GITHUB_ENV"
+            echo "PLIST_SUBPATH=Info.plist"                                      >> "$GITHUB_ENV"
+            echo "BIN_SUBPATH=OpenIntelligence"                                  >> "$GITHUB_ENV"
+            echo "ALTOOL_TYPE=ios"                                               >> "$GITHUB_ENV"
+            echo "ARTIFACT_GLOB=*.ipa"                                           >> "$GITHUB_ENV"
+          fi
 
       # The image ships several Xcodes. Pick the highest non-beta: a beta SDK is
       # rejected at upload, and an Xcode older than 26 cannot compile against
@@ -176,7 +202,7 @@ jobs:
             -project OpenIntelligence.xcodeproj \
             -scheme OpenIntelligence \
             -configuration Release \
-            -destination 'generic/platform=iOS' \
+            -destination "$DEST" \
             -archivePath "$ARCHIVE" \
             -skipPackagePluginValidation \
             -allowProvisioningUpdates \
@@ -191,9 +217,9 @@ jobs:
         run: |
           set -euo pipefail
           APP="$ARCHIVE/Products/Applications/OpenIntelligence.app"
-          STAMP=$(/usr/libexec/PlistBuddy -c "Print :BuildMachineOSBuild" "$APP/Info.plist")
+          STAMP=$(/usr/libexec/PlistBuddy -c "Print :BuildMachineOSBuild" "$APP/$PLIST_SUBPATH")
           echo "BuildMachineOSBuild: $STAMP"
-          echo "DTXcodeBuild:        $(/usr/libexec/PlistBuddy -c 'Print :DTXcodeBuild' "$APP/Info.plist")"
+          echo "DTXcodeBuild:        $(/usr/libexec/PlistBuddy -c 'Print :DTXcodeBuild' "$APP/$PLIST_SUBPATH")"
           case "$STAMP" in
             *[a-z]) echo "::error::Prerelease OS stamp ($STAMP). App Store ingestion rejects this with ITMS-90111."; exit 1 ;;
           esac
@@ -204,7 +230,7 @@ jobs:
       - name: Gate on Private Cloud Compute symbols
         run: |
           set -euo pipefail
-          BIN="$ARCHIVE/Products/Applications/OpenIntelligence.app/OpenIntelligence"
+          BIN="$ARCHIVE/Products/Applications/OpenIntelligence.app/$BIN_SUBPATH"
           test -f "$BIN" || { echo "::error::No binary at $BIN"; exit 1; }
           PCC="$(nm -u "$BIN" | grep -c PrivateCloudCompute || true)"
           CONTROL="$(nm -u "$BIN" | grep -c SystemLanguageModel || true)"
@@ -257,16 +283,21 @@ jobs:
       # A local rsync once copied swift-transformers/.build into the bundle and
       # App Store Connect rejected it as 90171 after a full 202 MB upload. A
       # fresh checkout has no .build, but the check is cheap and that was not.
+      # A local rsync once copied swift-transformers/.build into the bundle and
+      # App Store Connect rejected it as 90171 after a full 202 MB upload. This
+      # inspects the archived .app rather than the exported artifact, so it
+      # works for a macOS .pkg as well as an iOS .ipa.
       - name: Check bundle hygiene
         run: |
           set -euo pipefail
-          IPA="$EXPORT/OpenIntelligence.ipa"
-          STRAY="$(unzip -l "$IPA" | grep -cE '\.build/|\.pcm$' || true)"
-          echo "stray build artifacts in ipa: $STRAY"
-          if [ "$STRAY" -ne 0 ]; then
-            echo "::error::$STRAY build artifacts inside the ipa. App Store Connect rejects these as 90171."
+          APP="$ARCHIVE/Products/Applications/OpenIntelligence.app"
+          STRAY="$(find "$APP" \( -name '.build' -o -name '*.pcm' \) | head -20)"
+          if [ -n "$STRAY" ]; then
+            echo "$STRAY"
+            echo "::error::Build artifacts inside the app bundle. App Store Connect rejects these as 90171."
             exit 1
           fi
+          echo "No stray build artifacts."
 
       - name: Validate with App Store Connect
         env:
@@ -275,15 +306,15 @@ jobs:
         run: |
           set -euo pipefail
           xcrun altool --validate-app \
-            -f "$EXPORT/OpenIntelligence.ipa" -t ios \
+            -f "$(ls "$EXPORT"/$ARTIFACT_GLOB | head -1)" -t "$ALTOOL_TYPE" \
             --apiKey "$ASC_KEY_ID" --apiIssuer "$ASC_ISSUER_ID"
 
       # Kept before the upload so a failed upload still leaves the binary behind.
       - name: Upload the IPA as an artifact
         uses: actions/upload-artifact@v4
         with:
-          name: OpenIntelligence-${{ inputs.build_number }}.ipa
-          path: ${{ env.EXPORT }}/*.ipa
+          name: OpenIntelligence-${{ inputs.platform }}-${{ inputs.build_number }}
+          path: ${{ env.EXPORT }}/${{ env.ARTIFACT_GLOB }}
           if-no-files-found: error
           retention-days: 14
 
@@ -295,9 +326,9 @@ jobs:
         run: |
           set -euo pipefail
           xcrun altool --upload-app \
-            -f "$EXPORT/OpenIntelligence.ipa" -t ios \
+            -f "$(ls "$EXPORT"/$ARTIFACT_GLOB | head -1)" -t "$ALTOOL_TYPE" \
             --apiKey "$ASC_KEY_ID" --apiIssuer "$ASC_ISSUER_ID"
-          echo "Uploaded build ${{ inputs.build_number }}. Processing takes a few minutes before it reads VALID."
+          echo "Uploaded ${{ inputs.platform }} build ${{ inputs.build_number }}. Processing takes a few minutes before it reads VALID."
 
       - name: Clean up
         if: always()
