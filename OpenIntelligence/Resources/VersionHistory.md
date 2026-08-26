@@ -72,6 +72,8 @@ Documents were quietly losing parts of themselves, answers were built from a fra
 - **If you already had them, they update themselves once.** You will see a short re-import the first time you open Documents, and a notice explaining it. Nothing you imported yourself is touched, and samples you deleted stay deleted.
 
 ### Settings
+- **The hardware panel now shows free memory, and one of its numbers was nonsense.** The small floating readout in the corner listed processor, Neural Engine and graphics activity but never how much memory was left, which is the number that decides whether a large import will finish. It does now. Separately, the Hardware Envelope card claimed a limit of 1,073,741,824 simultaneous threads; the real figure is 1,024, and the wrong one came from multiplying three separate limits together instead of reading one.
+- **The app understands Apple chips that do not exist yet.** Chip support was written out by hand and stopped at the M5, so a Mac newer than that was labelled generically and given settings tuned for an M3. It now works out the generation from the chip itself and scales to match. Four other cases where an unrecognised device quietly switched off four parts of search have been closed as well; the only devices still treated as unsupported are ones that genuinely cannot run Apple Intelligence.
 
 - **Settings is a searchable list instead of one long scroll.** Fifteen stacked panels became about ten rows in sections. Nothing was removed. Type "temperature" and you land on it.
 - **The generation controls are reachable.** Temperature and response length were built with no way into them. Settings → Advanced, one tap. Both work on device and on Private Cloud Compute.

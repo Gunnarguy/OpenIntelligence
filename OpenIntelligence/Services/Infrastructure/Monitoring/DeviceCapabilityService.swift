@@ -993,8 +993,11 @@ final class DeviceCapabilityService: @unchecked Sendable {
             return (hostMac.tier, hostMac.chip, .mac, identifier, hostMac.tops)
         }
 
-        // Fallback for unknown devices
-        return (.unsupported, "Unknown", .unknown, identifier, 0)
+        // Fallback for a device family this build does not recognise. The app only
+        // runs on iOS and macOS, so an unmatched prefix means new hardware rather
+        // than old, and `.unsupported` would disable four retrieval features over a
+        // string this build has simply never seen. Full features at mid ceilings.
+        return (.advanced, "Apple Device", .unknown, identifier, 18)
         #endif
     }
 
@@ -1103,6 +1106,30 @@ final class DeviceCapabilityService: @unchecked Sendable {
             } else if cpuBrand.contains("M1") {
                 return (.enhanced, "M1", 11)
             }
+
+            // Forward scaling for Apple Silicon newer than this build knows about.
+            // The chain above is exact for M1 through M5; without this an M6 matched
+            // nothing and fell through to the generic "Apple Silicon" label at 18
+            // TOPS, which is an M3-era figure, so a brand-new Mac was named wrongly
+            // and given ceilings two generations stale. iPhone and iPad already
+            // compute forward from the identifier; this brings Mac in line.
+            //
+            // Base variants stay `.advanced` rather than `.ultraAdvanced`, matching
+            // the M3/M4/M5 precedent set when a fanless MacBook Air was found taking
+            // the same concurrency and batch ceilings as a Mac Studio. TOPS continues
+            // to separate the variants.
+            if let generation = appleSiliconGeneration(in: cpuBrand), generation >= 6 {
+                // ~15% per generation, anchored on M5's 45.
+                let baseTops = 45 + (generation - 5) * 7
+                if cpuBrand.contains("Ultra") {
+                    return (.ultraAdvanced, "M\(generation) Ultra", baseTops * 2)
+                } else if cpuBrand.contains("Max") {
+                    return (.ultraAdvanced, "M\(generation) Max", baseTops)
+                } else if cpuBrand.contains("Pro") {
+                    return (.ultraAdvanced, "M\(generation) Pro", baseTops)
+                }
+                return (.advanced, "M\(generation)", baseTops)
+            }
         }
 
         // Fallback - assume modern Apple Silicon if we can't determine
@@ -1126,7 +1153,13 @@ final class DeviceCapabilityService: @unchecked Sendable {
             .compactMap { Int($0) }
 
         guard numbers.count >= 2 else {
-            return (.unsupported, "iPhone (Unknown)", 0)
+            // An unparseable identifier on a device running this app means hardware
+            // newer than this build, not older. `.unsupported` would strip HyDE,
+            // parent-document retrieval, contextual compression and iterative
+            // retrieval via AdaptivePipelineOptimizer, so it is the wrong answer
+            // here. `.advanced` keeps every feature on at mid-range ceilings, which
+            // is the conservative choice for hardware we genuinely cannot identify.
+            return (.advanced, "iPhone", 40)
         }
 
         let major = numbers[0]
@@ -1188,7 +1221,13 @@ final class DeviceCapabilityService: @unchecked Sendable {
             .compactMap { Int($0) }
 
         guard numbers.count >= 2 else {
-            return (.unsupported, "iPad (Unknown)", .iPadAir, 0)
+            // An unparseable identifier on a device running this app means hardware
+            // newer than this build, not older. `.unsupported` would strip HyDE,
+            // parent-document retrieval, contextual compression and iterative
+            // retrieval via AdaptivePipelineOptimizer, so it is the wrong answer
+            // here. `.advanced` keeps every feature on at mid-range ceilings, which
+            // is the conservative choice for hardware we genuinely cannot identify.
+            return (.advanced, "iPad", .iPadAir, 18)
         }
 
         let major = numbers[0]
@@ -1229,7 +1268,11 @@ final class DeviceCapabilityService: @unchecked Sendable {
             if minor >= 8 {
                 return (.enhanced, "M2", .iPadAir, 16)
             }
-            return (.unsupported, "Unknown iPad14", .iPadAir, 0)
+            // An unenumerated minor inside a family this build knows is Apple
+            // Intelligence capable. Inherit the family rather than dropping to
+            // `.unsupported`, which would disable four retrieval features over a
+            // model number.
+            return (.enhanced, "iPad", .iPadAir, 16)
 
         case 15:
             // iPad Air M3 (2025) - 18 TOPS
@@ -1262,6 +1305,20 @@ final class DeviceCapabilityService: @unchecked Sendable {
 
     /// Detect Mac capability - all Apple Silicon Macs are capable
     /// Returns (tier, chipName, accurateTOPS)
+    /// Generation number out of an Apple Silicon brand string, e.g. "Apple M6 Max" -> 6.
+    ///
+    /// Deliberately anchored to a standalone `M<digits>` token so it cannot match the
+    /// `M` in an unrelated word, and so "M12" reads as twelve rather than one.
+    /// `nonisolated static` because it is a pure function over a string and is unit
+    /// tested without constructing the service.
+    nonisolated static func appleSiliconGeneration(in brandString: String) -> Int? {
+        guard let range = brandString.range(
+            of: "\\bM([0-9]+)\\b",
+            options: [.regularExpression]
+        ) else { return nil }
+        return Int(brandString[range].dropFirst())
+    }
+
     private static func detectMacCapability(identifier: String) -> (DeviceCapabilityTier, String, Int) {
         // Mac identifiers use format: MacXX,Y
         //
@@ -1419,8 +1476,12 @@ final class DeviceCapabilityService: @unchecked Sendable {
             return .unavailable
         }
 
+        // `maxThreadsPerThreadgroup` is an MTLSize of per-dimension maxima, not a
+        // volume. Multiplying the axes produced 1024 * 1024 * 1024 = 1,073,741,824,
+        // which the Hardware Envelope card displayed as a thread count. No
+        // threadgroup can hold a billion threads; the real ceiling is the width.
         let maxThreads = device.maxThreadsPerThreadgroup
-        let threadCount = Int(maxThreads.width * maxThreads.height * maxThreads.depth)
+        let threadCount = Int(maxThreads.width)
 
         return MetalHardwareSnapshot(
             deviceName: device.name,

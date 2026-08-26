@@ -717,6 +717,17 @@ private struct SiliconLegend: View {
     /// Set the first time the legend is dragged, so the hint never returns.
     @AppStorage("hudHasBeenDragged") private var hasDraggedLegend: Bool = false
 
+    /// Live available memory. Reads the same `SystemStateMonitor` snapshot the Live
+    /// System Monitor card reads, so the HUD and that card cannot disagree.
+    @ObservedObject private var systemState = SystemStateMonitor.shared
+
+    private var availableRAMText: String {
+        let megabytes = systemState.currentState.availableMemoryMB
+        return megabytes >= 1024
+            ? String(format: "%.1fG", Double(megabytes) / 1024.0)
+            : "\(megabytes)M"
+    }
+
     private var opacity: Double { 0.45 + 0.15 * min(intensity, 1.0) }
 
     var body: some View {
@@ -789,6 +800,25 @@ private struct SiliconLegend: View {
                             .foregroundColor(.white.opacity(0.35))
                             .frame(width: 40, alignment: .trailing)
                     }
+                }
+
+                // Available RAM. Not a compute percentage, so it follows Taptic in
+                // the read-only group rather than the bar rows above.
+                HStack(spacing: 3) {
+                    Image(systemName: "memorychip")
+                        .font(.system(size: 5, weight: .semibold))
+                        .foregroundColor(.green.opacity(0.65))
+                        .frame(width: 3, alignment: .center)
+
+                    Text("RAM")
+                        .font(.system(size: 6, weight: .semibold, design: .monospaced))
+                        .foregroundColor(.green.opacity(0.65))
+                        .frame(width: 24, alignment: .leading)
+
+                    Text(availableRAMText)
+                        .font(.system(size: 6, weight: .regular, design: .monospaced))
+                        .foregroundColor(.white.opacity(0.35))
+                        .frame(width: 40, alignment: .trailing)
                 }
             } else if !metricsSummary.isEmpty {
                 // Fallback to compact summary
