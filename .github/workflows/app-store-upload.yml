@@ -150,6 +150,7 @@ jobs:
           rm -f "$RUNNER_TEMP/dist.p12"
           echo "Identities available to codesign:"
           security find-identity -v -p codesigning | sed -E 's/[0-9A-F]{40}/<SHA1>/'
+          echo "::notice::If a run ever fails with 'Choose a certificate to revoke', the account has hit Apple's certificate cap. Check for development certificates created by earlier runs before revoking anything."
           if ! security find-identity -v -p codesigning | grep -q "Apple Distribution"; then
             echo "::warning::No Apple Distribution identity after import. Continuing on -allowProvisioningUpdates."
             restore
@@ -192,6 +193,16 @@ jobs:
       # -allowProvisioningUpdates with the API key lets Xcode fetch or create the
       # App Store profiles for both the app and the LiveActivities extension,
       # which a fresh runner does not have.
+      #
+      # CODE_SIGN_IDENTITY is pinned to "Apple Distribution" because the project
+      # leaves it empty and lets automatic signing choose. On a developer's Mac that
+      # resolves to the distribution identity already in the keychain; on a fresh
+      # runner it also provisioned *development* assets, and since
+      # -allowProvisioningUpdates creates what it cannot find, every run minted a new
+      # development certificate. Ten accumulated across runs 378 to 383 before the
+      # account hit Apple's cap and run 384 failed outright with "Choose a
+      # certificate to revoke". Pinning the identity means the archive asks only for
+      # the distribution certificate this job already imported.
       - name: Archive
         env:
           ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
@@ -209,6 +220,7 @@ jobs:
             -authenticationKeyPath "$ASC_KEY_FILE" \
             -authenticationKeyID "$ASC_KEY_ID" \
             -authenticationKeyIssuerID "$ASC_ISSUER_ID" \
+            CODE_SIGN_IDENTITY="Apple Distribution" \
             CURRENT_PROJECT_VERSION=${{ inputs.build_number }}
 
       # The whole reason this workflow exists. Fail here rather than after a
