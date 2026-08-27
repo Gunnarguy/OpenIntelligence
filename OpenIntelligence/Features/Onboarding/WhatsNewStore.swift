@@ -99,6 +99,56 @@ final class WhatsNewStore: ObservableObject {
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
     static let releases: [String: WhatsNewRelease] = [
+        // Keyed by CFBundleShortVersionString, and the key must exist or the sheet
+        // silently never appears: `showIfNeeded` marks an unknown version as seen and
+        // returns. macOS shipped 5.0 as build 379 and is missing everything here; iOS
+        // never shipped 5.0 at all, so on iPhone and iPad this is the first 5.x release.
+        "5.0.1": WhatsNewRelease(
+            version: "5.0.1",
+            headline: "Turning the performance up was making the app slower, Macs were being held to iPhone limits, and the Documents tab was waiting on a number it never showed you. This release is those three and the rest of what came after 5.0.",
+            items: [
+                .init(
+                    symbol: "gauge.with.dots.needle.67percent",
+                    title: "Turning performance up was making it slower",
+                    detail: "Efficiency, Balanced, Performance and Maximum were inverted: climbing the ladder removed hardware instead of adding it, so the setting meant to unlock the machine was quietly holding it back. Each option now says which of the CPU, GPU and Neural Engine it engages, and the selector shows you all four instead of hiding three behind a menu."
+                ),
+                .init(
+                    symbol: "desktopcomputer",
+                    title: "Macs were being given iPhone-sized limits",
+                    detail: "The app sorts devices into capability tiers, and base M4 and M5 Macs had been demoted for a reason that did not survive checking. They now sit alongside their Pro and Max siblings, which is what their actual throughput supports."
+                ),
+                .init(
+                    symbol: "cpu",
+                    title: "It understands Apple chips that do not exist yet",
+                    detail: "A chip this build has never heard of used to read as two generations old and fall back to the slowest settings. Newer silicon now scales forward instead. One hardware reading was also reporting a ceiling of 1,073,741,824 threads, which was three separate limits multiplied together."
+                ),
+                .init(
+                    symbol: "bolt.horizontal",
+                    title: "The Documents tab stopped waiting on a number it never showed you",
+                    detail: "Opening it counted your cached documents first, and that count feeds one row that stays hidden unless the count is above zero. On the device this was traced on it was zero, so the row was never drawn. It cost up to 393 milliseconds on every single open, and it was the slowest thing in a log of nearly six thousand lines."
+                ),
+                .init(
+                    symbol: "tag",
+                    title: "The Atlas was labelling a medical paper \"API Reference\"",
+                    detail: "Cluster labels were matched on letters rather than words, so \"api\" inside \"therapies\" and \"min\" inside \"dopamine\" were enough to name a group. The same mistake existed in three separate copies of the labelling code. A tag that appears only once in a document also no longer describes it."
+                ),
+                .init(
+                    symbol: "hourglass",
+                    title: "\"Analyzing corpus…\" was never analyzing anything",
+                    detail: "It was an empty state wearing a progress indicator, and it could not finish because nothing had been started. Choosing a library on the Database screen is also a row of buttons now rather than a menu, which matters when you have eight of them."
+                ),
+                .init(
+                    symbol: "slider.horizontal.3",
+                    title: "The Temperature slider did nothing on one setting",
+                    detail: "Greedy sampling always takes the most likely next word, so temperature has no effect on it, but the slider stayed live and looked like it was doing something. It is now disabled there and says why. The Deep Think card also described a minimum number of passes that never existed."
+                ),
+                .init(
+                    symbol: "rotate.right",
+                    title: "Rotating the device left black rectangles on screen",
+                    detail: "The floating hardware readout lives in its own window and was clamping itself against screen bounds that never rotate. The chip and haptic engine outlines stay put when you turn the device, because the hardware does not move. The readout itself now also shows free memory."
+                ),
+            ]
+        ),
         "5.0": WhatsNewRelease(
             version: "5.0",
             headline: "Documents were quietly losing parts of themselves, answers were built from a fraction of what was found, and the app was rewriting your library on every launch. This release is the search for all three.",

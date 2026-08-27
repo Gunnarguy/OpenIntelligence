@@ -26,6 +26,35 @@ This document provides a comprehensive, version-by-version breakdown of major ar
 
 ---
 
+## v5.0.1 - August 26, 2026
+
+Parity release. macOS reached the App Store as 5.0 build 379 and is missing everything in this
+section; iOS never shipped 5.0, so on iPhone and iPad this is the first 5.x release and the v5.0
+notes below are part of it.
+
+Apple closed the 5.0 build train the moment macOS 379 was approved
+(`Invalid Pre-Release Train ... 90186`), so a new version was required regardless of preference.
+
+- **The execution profile ladder was inverted.** Efficiency through Maximum removed hardware as it
+  climbed. Each profile now states which of CPU, GPU and Neural Engine it engages, and the selector
+  presents all four rather than hiding three in a menu.
+- **Mac capability tiering corrected.** Base M4 and M5 were demoted on reasoning that did not
+  survive checking; the demotion is withdrawn. Unknown future silicon scales forward instead of
+  falling back, and the threadgroup ceiling no longer reports 1024 cubed as a thread count.
+- **The Documents tab no longer blocks on a count nothing displays.** Measured at up to 393ms per
+  tab entry on device, for a row that never rendered.
+- **Cluster labelling matched substrings, not words**, in three separate copies: "api" inside
+  "therapies" named a medical paper "API Reference". A tag seen once no longer describes a document.
+- **"Analyzing corpus…" could never finish.** It was an empty state wearing a progress indicator.
+- **Temperature is disabled under greedy sampling**, which ignores it. The Deep Think card no longer
+  describes a session floor that does not exist.
+- **Rotation no longer leaves black rectangles.** The floating readout clamped against bounds that
+  never rotate; hardware outlines stay fixed because the hardware does not move. It also shows free
+  memory now.
+- **A safety refusal is no longer logged as an unexpected error.** On iOS 27 it arrives as a
+  different error type than the typed catch expected, the same defect previously fixed for context
+  overflow in that same block.
+
 ## v5.0 - August 10, 2026
 
 219 entries, 66 `[UI]`, 42 `[Orchestration]`, 39 `[General]`, 26 `[Retrieval]`, 23 `[Ingestion]`, 13 `[Indexing]`, 9 `[Infrastructure]`, 1 `[Chunking]`. Recounted from `CHANGELOG.md` on 2026-08-23. This figure has gone stale five times now, most recently
