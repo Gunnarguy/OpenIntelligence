@@ -150,6 +150,9 @@ OpenIntelligence.app.dSYM.zip
 
 # Private go-to-market notes (kept local only)
 Docs/reference/PRICING_STRATEGY.md
+# Post history and drafts. Local because it holds unpublished copy and a record of
+# claims that were withdrawn, neither of which belongs in a public repository.
+Docs/reference/LINKEDIN_POSTS.md
 
 # Local-only planning / scratch files
 Future
