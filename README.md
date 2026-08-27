@@ -207,9 +207,21 @@ Shipping on the App Store for iPhone, iPad, and Mac. Actively developed against 
 [public roadmap](https://gunzino.notion.site/OpenIntelligence-Public-Roadmap-e4446012bb8940e6b78a745aee688075)
 synced from the same database the work is planned in.
 
-Private Cloud Compute execution is confirmed on a physical device **from a local Xcode 27 build**. It has never been present in an App Store build: releases are produced by Xcode Cloud on the "Latest Release" toolchain, currently Xcode 26.6, which compiles the eleven `#if compiler(>=6.4)` sites out. Edge cases —
+Private Cloud Compute execution is confirmed on a physical device **from a local Xcode 27 build**.
+It has never been present in an App Store build, and the release pipeline enforces that rather than
+trusting it: every archive is checked with `nm -u` for `PrivateCloudCompute` symbols, against a live
+`SystemLanguageModel` count as a control so a dead binary cannot pass the gate vacuously. Releases
+build on the newest *released* Xcode, which ships Swift 6.3 and compiles the twelve
+`#if compiler(>=6.4)` sites out; Xcode 27 ships Swift 6.4 and would compile them in. Edge cases —
 quota exhaustion, mid-stream network transitions, background consent — are still
 unverified, and tracked as open items rather than quietly assumed.
+
+Releases are produced by [GitHub Actions](.github/workflows/app-store-upload.yml), not Xcode Cloud.
+This is not a preference. The maintainer's Mac runs a beta macOS, every local archive stamps a
+prerelease `BuildMachineOSBuild` into `Info.plist`, and App Store *ingestion* rejects that with
+ITMS-90111 even though `altool --validate-app` returns VERIFY SUCCEEDED and processing reaches
+`VALID`. Validation is not ingestion. GitHub's runner images use released OS builds, so the stamp
+comes out clean, and the workflow fails the build if it ever does not.
 
 ## License
 

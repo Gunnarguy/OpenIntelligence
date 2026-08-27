@@ -542,10 +542,33 @@ binary would contradict the v5.0 release notes and the in-app copy corrected in 
 no Release Candidate. Beta Xcode and beta SDKs are accepted for **TestFlight only**; App Store
 submission requires a release or RC toolchain and otherwise fails `ITMS-90111`.
 
-**Build number.** Both the iOS and macOS 5.0 trains are at build **375**, so the next must be **376
-or higher**. `CURRENT_PROJECT_VERSION` in `project.pbxproj` reads 150 and is vestigial, because
-Xcode Cloud stamps its own. Override it on the command line; do not edit that file, which is
-hard-boundary.
+**Build number.** As of 2026-08-26 both platforms are at build **387**, so the next must be **388
+or higher**. `CURRENT_PROJECT_VERSION` in `project.pbxproj` reads 150 and is vestigial, because CI
+stamps its own. Override it on the command line; do not edit that file, which is hard-boundary.
+
+**A shipped version closes its train on that platform, and nothing local warns you.** macOS 5.0 went
+live on 2026-08-26 as build 379. The very next macOS archive, build 386, was still stamped 5.0 and
+App Store Connect refused it at the validate step with two errors that say the same thing:
+
+```text
+Invalid Pre-Release Train. The train version '5.0' is closed for new build submissions (90186)
+CFBundleShortVersionString [5.0] must contain a higher version than the previously approved
+version [5.0] (90062)
+```
+
+Nothing catches this before the runner. `ci_scripts/ci_post_clone.sh` has a guard against stamping
+an already-shipped version, but it infers "already shipped" from whether `[Unreleased]` holds
+entries, and has no way to ask App Store Connect what is actually released. `[Unreleased]` was empty
+while 5.0 was live, so it stamped 5.0 and the guard stayed silent. Its own error text names the
+failure it cannot see.
+
+**One CHANGELOG heading stamps both platforms.** `ci_post_clone.sh` derives `MARKETING_VERSION` from
+the first `## <number>` heading and applies it to all 8 targets; the
+`MARKETING_VERSION[sdk=macosx*]` override was removed on 2026-07-30. A single commit therefore
+**cannot** produce iOS at one marketing version and macOS at another. If one platform's train closes,
+either both move up, or you ship the other platform from a build you already uploaded before the
+bump. On 2026-08-26 that meant iOS shipped 5.0 from build 386 while macOS shipped 5.0.1 from 387.
+`[evidence_level: measured, confidence: exact, evidence_source: Actions run 33023093330 validate step]`
 
 **Installing the release toolchain needs your password**, so no agent can do it. The Mac App Store
 offers Xcode 26.6 (`mas info 497799835`). `mas install 497799835` invokes `sudo` and fails without a
