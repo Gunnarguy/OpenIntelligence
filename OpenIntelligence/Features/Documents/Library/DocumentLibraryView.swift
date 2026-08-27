@@ -17,6 +17,8 @@ struct DocumentLibraryView: View {
     @ObservedObject var ragService: RAGService
     @ObservedObject var containerService: ContainerService
     @State private var showingFilePicker = false
+    /// True while a Finder drag hovers the library, driving the drop outline.
+    @State private var isDropTargeted = false
     @State private var showingProcessingSummary = false
     @State private var lastProcessedSummary: ProcessingSummary?
     @State private var showingContainerSettings = false
@@ -1356,6 +1358,26 @@ struct DocumentLibraryView: View {
             libraryContentView
             ingestionQueueOverlay
         }
+            // The whole library area is the drop target, so a Finder drag does
+            // not have to be aimed at the list or at the empty state.
+            .dropDestination(for: URL.self) { urls, _ in
+                handleDroppedFiles(urls)
+            } isTargeted: { targeted in
+                isDropTargeted = targeted
+            }
+            .overlay {
+                if isDropTargeted {
+                    RoundedRectangle(cornerRadius: 16)
+                        .strokeBorder(
+                            Color.accentColor,
+                            style: StrokeStyle(lineWidth: 3, dash: [8])
+                        )
+                        .padding(8)
+                        .allowsHitTesting(false)
+                        .transition(.opacity)
+                }
+            }
+            .animation(.easeOut(duration: 0.15), value: isDropTargeted)
             .navigationTitle("Documents")
             #if os(iOS)
             .navigationBarTitleDisplayMode(.large)
@@ -1483,13 +1505,54 @@ struct DocumentLibraryView: View {
     }
 
     /// Launches the file picker if the user still has document quota remaining.
+    ///
+    /// macOS opens `NSOpenPanel` directly rather than presenting `DocumentPicker`
+    /// in a sheet. A sheet would stack two windows for one action, and its
+    /// `onAppear` runs inside a CATransaction commit, where AppKit refuses to
+    /// start a modal panel at all.
     @MainActor
     private func presentDocumentPickerOrUpgrade() {
-        if !entitlementStore.canAddDocument(currentCount: ragService.documents.count) {
+        guard entitlementStore.canAddDocument(currentCount: ragService.documents.count) else {
             presentPlanSheet(for: .documentLimit)
-        } else {
-            showingFilePicker = true
+            return
         }
+        #if os(macOS)
+        MacDocumentImportPanel.present { urls in
+            reviewAndEnqueueDocuments(urls)
+        }
+        #else
+        showingFilePicker = true
+        #endif
+    }
+
+    /// Imports files dragged from Finder onto the library.
+    ///
+    /// Drops hand back the file's original location, so they take the same
+    /// copy-into-workspace path as the open panel rather than being referenced
+    /// in place. Returns `false` when nothing usable was dropped, which is what
+    /// makes the system play the standard rejection animation.
+    @MainActor
+    @discardableResult
+    private func handleDroppedFiles(_ urls: [URL]) -> Bool {
+        // Directories would be copied wholesale by `copyItem`, and the ingestion
+        // pipeline has no concept of a folder document, so drop them here.
+        let fileURLs = urls.filter { url in
+            guard url.isFileURL else { return false }
+            let isDirectory = (try? url.resourceValues(forKeys: [.isDirectoryKey]))?.isDirectory
+            return isDirectory != true
+        }
+        guard !fileURLs.isEmpty else { return false }
+
+        guard entitlementStore.canAddDocument(currentCount: ragService.documents.count) else {
+            presentPlanSheet(for: .documentLimit)
+            return false
+        }
+
+        let staged = ImportedFileStaging.copyIntoWorkspace(fileURLs)
+        guard !staged.isEmpty else { return false }
+
+        reviewAndEnqueueDocuments(staged)
+        return true
     }
 
     /// Ingests a picked document and unlocks the onboarding step once any content exists.

@@ -123,6 +123,43 @@ struct PhotoPicker: UIViewControllerRepresentable {
     }
 }
 #else
+/// Runs an `NSOpenPanel` without starting a nested modal loop.
+///
+/// SwiftUI fires `onAppear` inside a CATransaction commit, and AppKit refuses
+/// to start a modal loop there: it logs `Suppressing invocation of
+/// -[NSApplication runModalForWindow:]` and the panel never appears. A macOS
+/// capture on 2026-08-27 recorded exactly that for both pickers in this file,
+/// and because each one renders `Color.clear`, the user was left looking at an
+/// empty sheet with no way forward. `beginSheetModal(for:)` is asynchronous and
+/// is safe to call from anywhere.
+enum MacAttachmentPanel {
+    /// Calls `completion` with the chosen URLs, or an empty array on cancel.
+    static func present(
+        contentTypes: [UTType],
+        completion: @escaping ([URL]) -> Void
+    ) {
+        let panel = NSOpenPanel()
+        panel.allowsMultipleSelection = true
+        panel.canChooseDirectories = false
+        panel.canChooseFiles = true
+        panel.allowedContentTypes = contentTypes
+
+        let handle: (NSApplication.ModalResponse) -> Void = { response in
+            completion(response == .OK ? panel.urls : [])
+        }
+
+        if let window = NSApp.keyWindow ?? NSApp.mainWindow {
+            panel.beginSheetModal(for: window) { response in
+                MainActor.assumeIsolated { handle(response) }
+            }
+        } else {
+            panel.begin { response in
+                MainActor.assumeIsolated { handle(response) }
+            }
+        }
+    }
+}
+
 struct PhotoPicker: View {
     let onImagesPicked: ([URL]) -> Void
     @Environment(\.dismiss) var dismiss
@@ -130,15 +167,12 @@ struct PhotoPicker: View {
     var body: some View {
         Color.clear
             .onAppear {
-                let panel = NSOpenPanel()
-                panel.allowsMultipleSelection = true
-                panel.canChooseDirectories = false
-                panel.canChooseFiles = true
-                panel.allowedContentTypes = [.image]
-                if panel.runModal() == .OK {
-                    onImagesPicked(panel.urls)
+                MacAttachmentPanel.present(contentTypes: [.image]) { urls in
+                    if !urls.isEmpty {
+                        onImagesPicked(urls)
+                    }
+                    dismiss()
                 }
-                dismiss()
             }
     }
 }
@@ -435,75 +469,69 @@ struct ExtendedDocumentPicker: View {
     let onDocumentsPicked: ([URL]) -> Void
     @Environment(\.dismiss) var dismiss
 
+    /// Kept in sync with the iOS `ExtendedDocumentPicker` accepted types.
+    private static let acceptedContentTypes: [UTType] = {
+        var types: [UTType] = [
+            .pdf, .plainText, .text, .rtf, .commaSeparatedText,
+            .image, .jpeg, .png, .heic, .tiff,
+            .json, .html,
+            .audio, .mp3, .wav,
+            .movie, .mpeg4Movie, .quickTimeMovie,
+        ]
+        let byExtension = [
+            "md",
+            "doc", "docx", "xls", "xlsx", "ppt", "pptx",
+            "pages", "numbers", "key",
+            "swift", "py", "js", "ts",
+            "m4a",
+        ]
+        types.append(contentsOf: byExtension.compactMap { UTType(filenameExtension: $0) })
+        return types
+    }()
+
     var body: some View {
         Color.clear
             .onAppear {
-                let fileManager = FileManager.default
-                let documentsPath = fileManager.urls(for: .documentDirectory, in: .userDomainMask)[0]
-                let attachmentsDir = documentsPath.appendingPathComponent("ChatAttachments", isDirectory: true)
-                try? fileManager.createDirectory(at: attachmentsDir, withIntermediateDirectories: true)
-
-                let panel = NSOpenPanel()
-                panel.allowsMultipleSelection = true
-                panel.canChooseDirectories = false
-                panel.canChooseFiles = true
-                panel.allowedContentTypes = [
-                    .pdf,
-                    .plainText,
-                    .text,
-                    UTType(filenameExtension: "md") ?? .plainText,
-                    .rtf,
-                    UTType(filenameExtension: "doc") ?? .data,
-                    UTType(filenameExtension: "docx") ?? .data,
-                    UTType(filenameExtension: "xls") ?? .data,
-                    UTType(filenameExtension: "xlsx") ?? .data,
-                    UTType(filenameExtension: "ppt") ?? .data,
-                    UTType(filenameExtension: "pptx") ?? .data,
-                    UTType(filenameExtension: "pages") ?? .data,
-                    UTType(filenameExtension: "numbers") ?? .data,
-                    UTType(filenameExtension: "key") ?? .data,
-                    .commaSeparatedText,
-                    .image,
-                    .jpeg,
-                    .png,
-                    .heic,
-                    .tiff,
-                    UTType(filenameExtension: "swift") ?? .sourceCode,
-                    UTType(filenameExtension: "py") ?? .sourceCode,
-                    UTType(filenameExtension: "js") ?? .sourceCode,
-                    UTType(filenameExtension: "ts") ?? .sourceCode,
-                    UTType(filenameExtension: "json") ?? .json,
-                    UTType(filenameExtension: "html") ?? .html,
-                    .json,
-                    .audio,
-                    .mp3,
-                    UTType(filenameExtension: "m4a") ?? .audio,
-                    .wav,
-                    .movie,
-                    .mpeg4Movie,
-                    .quickTimeMovie
-                ]
-                if panel.runModal() == .OK {
-                    var copiedURLs: [URL] = []
-                    for url in panel.urls {
-                        // Use unique filename to avoid conflicts
-                        let uniqueName = "\(UUID().uuidString)_\(url.lastPathComponent)"
-                        let destinationURL = attachmentsDir.appendingPathComponent(uniqueName)
-                        do {
-                            if fileManager.fileExists(atPath: destinationURL.path) {
-                                try fileManager.removeItem(at: destinationURL)
-                            }
-                            try fileManager.copyItem(at: url, to: destinationURL)
-                            copiedURLs.append(destinationURL)
-                            Log.debug("[ExtendedDocumentPicker] Copied: \(url.lastPathComponent)", category: .ingestion)
-                        } catch {
-                            Log.error("[ExtendedDocumentPicker] Copy failed: \(error)", category: .ingestion)
-                        }
+                MacAttachmentPanel.present(contentTypes: Self.acceptedContentTypes) { urls in
+                    if !urls.isEmpty {
+                        onDocumentsPicked(Self.copyIntoAttachments(urls))
                     }
-                    onDocumentsPicked(copiedURLs)
+                    dismiss()
                 }
-                dismiss()
             }
+    }
+
+    /// Chat attachments live beside the conversation rather than in the document
+    /// workspace, so this keeps its own destination instead of reusing
+    /// `ImportedFileStaging`.
+    private static func copyIntoAttachments(_ urls: [URL]) -> [URL] {
+        let fileManager = FileManager.default
+        let documentsPath = fileManager.urls(for: .documentDirectory, in: .userDomainMask)[0]
+        let attachmentsDir = documentsPath.appendingPathComponent("ChatAttachments", isDirectory: true)
+        try? fileManager.createDirectory(at: attachmentsDir, withIntermediateDirectories: true)
+
+        var copiedURLs: [URL] = []
+        for url in urls {
+            // The panel hands back the original location, so a sandboxed build
+            // needs security-scoped access before reading it.
+            let scoped = url.startAccessingSecurityScopedResource()
+            defer { if scoped { url.stopAccessingSecurityScopedResource() } }
+
+            // Use unique filename to avoid conflicts
+            let uniqueName = "\(UUID().uuidString)_\(url.lastPathComponent)"
+            let destinationURL = attachmentsDir.appendingPathComponent(uniqueName)
+            do {
+                if fileManager.fileExists(atPath: destinationURL.path) {
+                    try fileManager.removeItem(at: destinationURL)
+                }
+                try fileManager.copyItem(at: url, to: destinationURL)
+                copiedURLs.append(destinationURL)
+                Log.debug("[ExtendedDocumentPicker] Copied: \(url.lastPathComponent)", category: .ingestion)
+            } catch {
+                Log.error("[ExtendedDocumentPicker] Copy failed: \(error)", category: .ingestion)
+            }
+        }
+        return copiedURLs
     }
 }
 #endif

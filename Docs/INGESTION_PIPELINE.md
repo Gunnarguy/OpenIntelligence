@@ -68,6 +68,42 @@ flowchart TD
 
 ---
 
+## 1.5 Import entry points *(added 2026-08-27)*
+
+Everything above starts at `A[Import File]`. Three surfaces reach it, and all three stage files the
+same way.
+
+| Surface | Platform | Mechanism |
+|---|---|---|
+| Library "Add Documents" | iOS | `UIDocumentPickerViewController` with `asCopy: true`, in a sheet |
+| Library "Add Documents" | macOS | `MacDocumentImportPanel` — `NSOpenPanel.beginSheetModal(for:)`, no sheet |
+| Finder drag-and-drop onto the library | macOS, iPadOS | `.dropDestination(for: URL.self)` on the library area |
+
+**All three copy into the app-managed workspace before ingesting**, through
+`ImportedFileStaging.copyIntoWorkspace` in
+[DocumentPicker.swift](../OpenIntelligence/Features/Documents/Components/DocumentPicker.swift).
+Importing by reference was rejected: a library pointing at files outside the workspace neither syncs
+across devices nor survives the original being moved. That function is also where the
+modification-date touch happens, which is what keeps `WorkspaceSyncService`'s 15-minute sweep from
+treating a just-imported file as stale — the behaviour §5 and the canonical source of truth both
+describe. A per-file failure is logged and skipped rather than aborting the batch.
+`[evidence_level: code_verified, confidence: exact]`
+
+**macOS never uses `NSOpenPanel.runModal()`.** `runModal()` starts a nested modal loop, and AppKit
+refuses to start one from inside a CATransaction commit, which is exactly where SwiftUI runs
+`onAppear`. Until 2026-08-27 all three macOS pickers did precisely that, so the panel was discarded
+before it appeared: a capture that day recorded three `Suppressing invocation of -[NSApplication
+runModalForWindow:]` warnings, an `_NSDetectedLayoutRecursion`, and 2,064 lines of `CUICatalog`
+window-chrome relayout from the orphaned sheet. `beginSheetModal(for:)` is asynchronous and has no
+such restriction. `[evidence_level: device_log_proven, confidence: exact, evidence_source: macOS capture 2026-08-27]`
+
+**Drops are filtered before staging.** Directories are excluded, because the pipeline has no concept
+of a folder document and `copyItem` would copy one wholesale. Quota is checked before any copy, so a
+drop that would exceed the document limit raises the paywall instead of half-importing.
+`[evidence_level: code_verified, confidence: exact]`
+
+---
+
 ## 2. Text Extraction Lanes
 
 ### PDF Ingestion

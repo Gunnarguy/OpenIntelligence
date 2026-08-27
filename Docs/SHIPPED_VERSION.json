@@ -15,32 +15,33 @@
     "Both values must match a '## <version>' heading in CHANGELOG.md; the sync workflows fail",
     "loudly if they do not, rather than publishing a guess.",
     "",
-    "2026-08-27: iOS 5.0 approved. Both platforms are now live at 5.0, so app_store is 5.0 and",
-    "the divergence recorded below is resolved. macOS 5.0.1 is still in review; app_store does",
-    "not move for it until it is approved. The note below is kept as the record of why the",
-    "number sat at 4.9 for a day.",
+    "2026-08-27 (later): macOS 5.0.1 is APPROVED AND LIVE, so in_review is now empty and",
+    "app_store_by_platform.macos is 5.0.1. app_store DELIBERATELY STAYS AT 5.0. The prior",
+    "ACTION note said to set app_store to 5.0.1, but its own next sentence says not to move it",
+    "past what iOS actually has, and iOS is still on 5.0. The platforms have simply swapped",
+    "roles: macOS now leads, iOS lags. The rule this file was created to enforce is to publish",
+    "the value that does not overclaim to a visitor on the lagging platform, so 5.0 it is.",
+    "Revisit when iOS reaches 5.0.1 or later.",
+    "",
+    "macOS 5.0.2 is being prepared: it is the first release where a Mac user can get a document",
+    "into the app at all. Both the Add Documents button and Finder drag-and-drop were broken or",
+    "absent in 5.0 and 5.0.1.",
+    "",
+    "2026-08-27: iOS 5.0 approved. Both platforms were live at 5.0 as of this date.",
     "",
     "2026-08-26: the two platforms diverged, which this schema cannot express in one number.",
     "macOS 5.0 (build 379) is APPROVED AND LIVE. iOS 5.0 (build 386) is IN REVIEW, so the",
     "newest version an iPhone or iPad user can install is still 4.9. app_store therefore stays",
     "at 4.9 on purpose: it is the value that does not overclaim to an iOS visitor, and",
-    "understating is the safe direction for the exact failure this file was created to stop.",
-    "The per-platform truth is in app_store_by_platform below, which no workflow reads yet.",
-    "",
-    "leave app_store alone -- iOS is still the constraint.",
-    "",
-    "ACTION WHEN macOS 5.0.1 CLEARS REVIEW: set app_store to 5.0.1 and add a '## 5.0.1' check.",
-    "iOS will then be the lagging platform, so do not move it past what iOS actually has."
+    "understating is the safe direction for the exact failure this file was created to stop."
   ],
   "app_store": "5.0",
   "app_store_by_platform": {
     "ios": "5.0",
-    "macos": "5.0"
+    "macos": "5.0.1"
   },
-  "preparing": "5.0.1",
-  "in_review": {
-    "macos": "5.0.1 (build 387)"
-  },
+  "preparing": "5.0.2",
+  "in_review": {},
   "updated": "2026-08-27",
-  "verified_against": "iOS 5.0 (build 386) approved and available for distribution 2026-08-27. macOS 5.0 (build 379) live since 2026-08-26. macOS 5.0.1 (build 387) still in review."
+  "verified_against": "macOS 5.0.1 approved and live on the App Store 2026-08-27 (reported by the owner). iOS 5.0 (build 386) live since 2026-08-27; iOS is now the lagging platform. macOS 5.0.2 in preparation, not yet submitted."
 }

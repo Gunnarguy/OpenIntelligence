@@ -2,6 +2,17 @@
 
 <!-- next-version: 5.1 -->
 
+## 5.0.2 - 2026-08-27
+
+### Fixed
+- **[UI]** **Add Documents on macOS opened nothing, because AppKit refuses to start a modal panel from the place SwiftUI called it.** All three macOS file pickers ran `NSOpenPanel.runModal()` from a SwiftUI `.onAppear`: `DocumentPicker`, and `PhotoPicker` and `ExtendedDocumentPicker` in `AttachmentPicker.swift`. `onAppear` fires inside a CATransaction commit, and AppKit will not start a nested modal loop there — it discards the call and logs `Suppressing invocation of -[NSApplication runModalForWindow:]`. A macOS capture on 2026-08-27 recorded **three** suppressions, an `_NSDetectedLayoutRecursion`, and **2,064 lines** of `CUICatalog` window-chrome relayout as the orphaned sheet churned, which is what the owner saw as the button "freaking out". **The two chat pickers render `Color.clear`**, so there the failure was an empty sheet with no button to fall back to. All three now use `beginSheetModal(for:)`, which is asynchronous and carries no such restriction, and the library's Add Documents button calls the panel directly rather than hosting it in a SwiftUI sheet — a sheet stacked two windows for one action. **The iOS pickers are untouched**: they use `UIDocumentPickerViewController` and were never on this path. `[evidence_level: device_log_proven + build_verified, confidence: exact, evidence_source: macOS capture 2026-08-27 — 3 runModal suppressions, 2064 CUICatalog lines; DocumentPicker.swift, AttachmentPicker.swift]`
+
+### Added
+- **[Ingestion]** **Files dragged from Finder into the library are imported.** The app had no drop target anywhere — `onDrop` and `dropDestination` appeared in no file — so the only way in was the picker, which on macOS was the broken path above. The whole library area is now the target, so a drop does not have to be aimed at the list or at the empty state, and it takes the same route as the picker: quota first, then directories filtered out, then a copy into the workspace, then the existing import review. **Directories are excluded deliberately** — the pipeline has no concept of a folder document and `copyItem` would have copied one wholesale. **Quota is checked before any copy**, so a drop that would exceed the document limit raises the paywall instead of half-importing. `[evidence_level: code_verified + build_verified, confidence: exact, unverified_on_device]`
+
+### Changed
+- **[Ingestion]** **One copy-into-workspace implementation instead of three.** The iOS picker, the macOS panel and the new drop handler each staged files by hand, and **only the macOS copy took security-scoped access** — the one place it was most needed, since panel selections and Finder drops both hand back the file's original location. `ImportedFileStaging.copyIntoWorkspace` is now the single path, so scoped access, the per-file skip-on-failure behaviour, and the modification-date touch that keeps `WorkspaceSyncService`'s 15-minute sweep from treating a fresh import as stale all happen identically on every surface. Importing by reference stays rejected: a library pointing outside the workspace neither syncs nor survives the original being moved. `[evidence_level: code_verified + build_verified, confidence: exact]`
+
 ## 5.0.1 - 2026-08-26
 
 Brings both platforms level. macOS 5.0 shipped as build 379 and is missing everything below;

@@ -7,6 +7,15 @@ This document provides a chronological history of user-facing changes, highlight
 
 ---
 
+## v5.0.2 - August 27, 2026
+Mac only. On the Mac there was no way to get a document into the app at all: the Add Documents
+button opened nothing, and dragging a file onto the window did nothing either. Both are fixed.
+iPhone and iPad are not affected by this release and are unchanged.
+
+### Getting Documents In
+- **The Add Documents button opened nothing.** The button asked macOS for a file picker at the one moment the system refuses to open one, so the request was discarded and no window ever appeared. The same fault hit the two file buttons inside a chat, where it was worse: those open into a panel that is otherwise empty, so there was no button to fall back to and no sign anything had gone wrong. All three now ask at a point the system accepts.
+- **You can now drag files from Finder straight into a library.** This had never worked, because nothing in the app was listening for a dropped file. The whole library area now accepts them, so a drop does not have to be aimed at anything precise, and dropped files go through the same size and quota checks and the same import review as files picked with the button. Folders are not accepted yet, so drop the files from inside them instead.
+
 ## v5.0.1 - August 26, 2026
 macOS 5.0 went to the App Store as an earlier build and is missing everything below. This release
 brings it level. On iPhone and iPad this is the first 5.x release, so the v5.0 notes below are part
