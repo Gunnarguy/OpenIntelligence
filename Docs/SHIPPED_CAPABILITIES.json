@@ -1,0 +1,83 @@
+{
+  "_comment": [
+    "What the app can actually do in a SHIPPING build, versus what merely exists in the tree.",
+    "",
+    "Companion to SHIPPED_VERSION.json, and it exists for the same reason. That file was",
+    "written after gunzino.me advertised a version nobody could install. On 2026-08-26 the same",
+    "failure was found in the other axis: nineteen places across three websites and the App",
+    "Store listing described Private Cloud Compute as a live capability. It has never been in",
+    "an App Store build. One of them, Fascinaiting's v4.6 release notes, stated outright that",
+    "'native PCC shipped in v4.6'.",
+    "",
+    "Nothing caught it, because a version number has a marker and a capability did not.",
+    "",
+    "HOW TO USE THIS. Before writing a capability into public copy -- App Store description,",
+    "What's New, any of the three websites, the README, or Settings -- check it here. A",
+    "capability with status 'built_not_enabled' must be described in the future tense.",
+    "",
+    "scripts/verify_capabilities.py checks that the code behind every declared capability still",
+    "exists. It cannot prove a capability works; it proves the implementation has not been",
+    "deleted or renamed while the public claim stayed up. That is the drift that actually",
+    "happened here: Settings advertised eight agentic tools when four were wired up.",
+    "",
+    "When a capability's status changes, update it here FIRST, then the copy."
+  ],
+  "capabilities": {
+    "on_device_retrieval": {
+      "status": "shipping",
+      "public_claim": "Reading, indexing, retrieval, ranking and verification all run on your device.",
+      "anchors": ["HybridSearchService", "BNNSVectorDatabase", "SQLiteFullTextService"]
+    },
+    "on_device_generation": {
+      "status": "shipping",
+      "public_claim": "Answers are written by the Apple Intelligence models already built into the device.",
+      "anchors": ["SystemLanguageModel", "LanguageModelSession"]
+    },
+    "abstention": {
+      "status": "shipping",
+      "public_claim": "When your files don't support an answer, it says so and stops.",
+      "anchors": ["case abstain", "case insufficientEvidence"]
+    },
+    "answer_verification": {
+      "status": "shipping",
+      "public_claim": "It checks the finished answer against the passages it actually used.",
+      "anchors": ["VerificationGateService", "SourceOnlyAnswerService", "ConfidenceCalibrationService"]
+    },
+    "vision_ocr": {
+      "status": "shipping",
+      "public_claim": "Images and scans, read with Vision OCR.",
+      "anchors": ["RecognizeDocumentsRequest"]
+    },
+    "media_transcription": {
+      "status": "shipping",
+      "public_claim": "Audio and video, transcribed on device.",
+      "anchors": ["SpeechAnalyzerService", "AudioTranscriptionService"]
+    },
+    "quality_modes": {
+      "status": "shipping",
+      "public_claim": "Choose Standard, Deep Think, or Maximum.",
+      "anchors": ["case deepThink", "case maximum"]
+    },
+    "per_library_sync": {
+      "status": "shipping",
+      "public_claim": "Choose Local Only or iCloud Drive for each library.",
+      "anchors": ["case localOnly", "case iCloudShared"]
+    },
+    "shortcuts_intents": {
+      "status": "shipping",
+      "public_claim": "Siri and Shortcuts actions for common document and library workflows.",
+      "anchors": [": AppIntent"],
+      "min_count": 11,
+      "note": "Counted, not estimated. Settings once advertised eight agentic tools when four were wired up; that is what a count guards against."
+    },
+    "private_cloud_compute": {
+      "status": "built_not_enabled",
+      "public_claim": "Optional Apple Private Cloud Compute support is built and will enable in a future release on iOS and macOS 27.",
+      "anchors": ["compiler(>=6.4)"],
+      "min_count": 12,
+      "note": "MUST be described in the future tense in all public copy. Every path sits behind #if compiler(>=6.4). Releases build on the newest RELEASED Xcode, which ships Swift 6.3 and compiles them out; Xcode 27 ships Swift 6.4 and would compile them in, but a beta toolchain cannot pass App Store ingestion (ITMS-90111). app-store-upload.yml fails the build if nm -u finds a PrivateCloudCompute symbol, checked against a live SystemLanguageModel count so a dead binary cannot pass vacuously. Flip to 'shipping' only when an App Store build actually contains it."
+    }
+  },
+  "updated": "2026-08-26",
+  "verified_by": "scripts/verify_capabilities.py"
+}

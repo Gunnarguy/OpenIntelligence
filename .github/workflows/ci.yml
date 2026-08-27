@@ -25,6 +25,12 @@ jobs:
           key: ${{ runner.os }}-spm-${{ hashFiles('**/Package.resolved') }}
           restore-keys: ${{ runner.os }}-spm-
 
+      # Runs before the build because it needs no toolchain and takes about a
+      # second. A public claim whose implementation has been deleted is worth
+      # failing fast on, and this catches nothing the build would have caught.
+      - name: Verify claimed capabilities still have their implementation
+        run: python3 scripts/verify_capabilities.py
+
       - name: Select Xcode
         run: |
           echo "=== Installed Xcodes ==="
