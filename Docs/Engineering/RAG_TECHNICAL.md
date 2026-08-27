@@ -12,9 +12,9 @@ This document provides the technical formulas, algorithms, and deep dive specifi
 
 > **Full Architecture**: See [ARCHITECTURE.md](../ARCHITECTURE.md). The current repo contains 107 Swift service files under `OpenIntelligence/Services`.
 
-> **Current State**: See [CURRENT_STATE_AND_GAPS.md](./CURRENT_STATE_AND_GAPS.md). The repo currently has 107 Swift service files under `OpenIntelligence/Services`. The 31-step pipeline below is a logical/audit view; the implementation is adaptive and does not run every step for every query.
+> **Current State**: See CURRENT_STATE_AND_GAPS.md *(that document no longer exists in this repository; noted 2026-08-27)*. The repo currently has 107 Swift service files under `OpenIntelligence/Services`. The 31-step pipeline below is a logical/audit view; the implementation is adaptive and does not run every step for every query.
 
-> **Research Links**: See [Docs/Research/RAG_AND_RETRIEVAL_2024_2026.md](./Research/RAG_AND_RETRIEVAL_2024_2026.md) and [Docs/Research/CAG_AND_CONTEXT_ENGINEERING_2024_2026.md](./Research/CAG_AND_CONTEXT_ENGINEERING_2024_2026.md).
+> **Research Links**: See [Docs/Research/RAG_AND_RETRIEVAL_2024_2026.md](../Research/RAG_AND_RETRIEVAL_2024_2026.md) and [Docs/Research/CAG_AND_CONTEXT_ENGINEERING_2024_2026.md](../Research/CAG_AND_CONTEXT_ENGINEERING_2024_2026.md).
 
 ---
 

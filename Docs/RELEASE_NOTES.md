@@ -388,6 +388,7 @@ Not user-facing, recorded because they change how the project is maintained.
 *   **Legacy Preservation:** Retained the immutability of `ChatMessage` while utilizing it inside `EvidenceThread` to prevent breaking existing sync and database schemas.
 *   **Diagnostics View:** Retained engineering diagnostic tools (`EvidenceThreadDebugView` and `EvidenceThreadDebugService`) for isolated persistence boundary testing.
 *   **Native Private Cloud Compute:** Integrated native `FoundationModels.PrivateCloudComputeLanguageModel` execution when running on iOS 27 / macOS 27+. Older OS versions use real local `SystemLanguageModel` execution; PCC is never simulated or mislabeled.
+    *   **Corrected 2026-08-27.** This entry describes what was integrated, and reads as though it shipped. It did not, and has not since. Every PCC path sits behind `#if compiler(>=6.4)`; App Store builds are produced on the newest *released* Xcode, which ships Swift 6.3 and compiles them out, and `app-store-upload.yml` fails the build if `nm -u` finds a `PrivateCloudCompute` symbol. Execution is confirmed on a physical device from a **local Xcode 27 build** only. The entry is corrected in place rather than deleted, so the record shows what was claimed and when it was withdrawn. See `Docs/SHIPPED_CAPABILITIES.json`.
 
 ---
 

@@ -18,33 +18,33 @@ All phases of the Evidence Threads implementation have been thoroughly reviewed 
 
 ### Phase 1B: iCloud Synchronization, Billing Quotas, and Siri App Intents
 - **iCloud Synchronization Sync Boundary**:
-  - *Evidence*: [WorkspaceSyncService.swift](file:///Users/gunnarhostetler/Documents/GitHub/OpenIntelligence/OpenIntelligence/Services/Infrastructure/Storage/WorkspaceSyncService.swift#L2103-L2178)
+  - *Evidence*: [WorkspaceSyncService.swift](../../../OpenIntelligence/Services/Infrastructure/Storage/WorkspaceSyncService.swift#L2103-L2178)
   - *Details*: Thread JSON storage has been successfully relocated to the synchronized `Application Support/EvidenceThreads/<containerId>/` directory (out of the local-only `LocalCache` directory). Bidirectional directory synchronization is performed in `synchronizeEvidenceThreads` via coordinated file I/O operations, resolving conflicts using modification dates.
   - *Confidence*: **High (10/10)**
   - *Evidence Level*: **Code Verified (Exact)**
 
 - **Monetization Quotas**:
-  - *Evidence*: [QuotaPolicy.swift](file:///Users/gunnarhostetler/Documents/GitHub/OpenIntelligence/OpenIntelligence/Services/Infrastructure/Configuration/QuotaPolicy.swift#L53-L81) and [RAGService.swift](file:///Users/gunnarhostetler/Documents/GitHub/OpenIntelligence/OpenIntelligence/Services/RAG/Orchestration/RAGService.swift#L697-L712)
+  - *Evidence*: [QuotaPolicy.swift](../../../OpenIntelligence/Services/Infrastructure/Configuration/QuotaPolicy.swift#L53-L81) and [RAGService.swift](../../../OpenIntelligence/Services/RAG/Orchestration/RAGService.swift#L697-L712)
   - *Details*: Implemented tier-specific limit constants (5 for Free, 20 for Pro, unlimited for Lifetime) and throwing `EvidenceThreadQuotaError`. The RAG creation flow enforces this limit during the `createNewThread(for:)` execution path.
   - *Confidence*: **High (10/10)**
   - *Evidence Level*: **Code Verified (Exact)**
 
 - **Siri App Intents & Snippets**:
-  - *Evidence*: [RAGAppIntents.swift](file:///Users/gunnarhostetler/Documents/GitHub/OpenIntelligence/OpenIntelligence/Services/Agentic/RAGAppIntents.swift#L790-L915)
+  - *Evidence*: [RAGAppIntents.swift](../../../OpenIntelligence/Services/Agentic/RAGAppIntents.swift#L790-L915)
   - *Details*: Successfully registered `ListEvidenceThreadsIntent` and `CreateNewEvidenceThreadIntent` App Intents. Visually backed by the `ThreadListSnippetView` component for presenting lists of active threads directly within the Siri and Shortcuts interfaces.
   - *Confidence*: **High (10/10)**
   - *Evidence Level*: **Code Verified (Exact)**
 
 ### Phase 1C: UI Integration
 - **Thread Sidebar & Chat Integration**:
-  - *Evidence*: [ThreadSidebarView.swift](file:///Users/gunnarhostetler/Documents/GitHub/OpenIntelligence/OpenIntelligence/Features/Chat/Conversation/ThreadSidebarView.swift#L18-L105) and [ChatScreen.swift](file:///Users/gunnarhostetler/Documents/GitHub/OpenIntelligence/OpenIntelligence/Features/Chat/Conversation/ChatScreen.swift#L1730-L1747)
+  - *Evidence*: [ThreadSidebarView.swift](../../../OpenIntelligence/Features/Chat/Conversation/ThreadSidebarView.swift#L18-L105) and [ChatScreen.swift](../../../OpenIntelligence/Features/Chat/Conversation/ChatScreen.swift#L1730-L1747)
   - *Details*: Integrated the `ThreadSidebarView` directly into the navigation hierarchy. The sidebar displays thread items, handles swipes to delete, and allows starting new threads. Creation and deletion callbacks safely route through coordinated state publishers, triggering immediate layout updates.
   - *Confidence*: **High (10/10)**
   - *Evidence Level*: **Code Verified (Exact)**
 
 ### Phase 1D: Edge Case & Session Persistence
 - **Container-Isolated Active State Persistence**:
-  - *Evidence*: [RAGService.swift](file:///Users/gunnarhostetler/Documents/GitHub/OpenIntelligence/OpenIntelligence/Services/RAG/Orchestration/RAGService.swift#L1126-L1127) and [RAGService.swift](file:///Users/gunnarhostetler/Documents/GitHub/OpenIntelligence/OpenIntelligence/Services/RAG/Orchestration/RAGService.swift#L525-L575)
+  - *Evidence*: [RAGService.swift](../../../OpenIntelligence/Services/RAG/Orchestration/RAGService.swift#L1126-L1127) and [RAGService.swift](../../../OpenIntelligence/Services/RAG/Orchestration/RAGService.swift#L525-L575)
   - *Details*: Active thread IDs are stored as a published dictionary mapping container IDs to their active thread IDs (`activeThreadIds`). When the user switches libraries or containers, the active thread for the newly selected container is immediately restored, avoiding any state bleeding or accidental history clearing.
   - *Confidence*: **High (10/10)**
   - *Evidence Level*: **Code Verified (Exact)**

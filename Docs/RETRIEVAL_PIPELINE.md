@@ -1,4 +1,4 @@
-# Retrieval Pipeline — source-verified at v4.6, shipped tree is v4.9
+# Retrieval Pipeline — source-verified at v4.6, shipped tree is v5.0
 
 > **Documentation status:** Source-verified on 2026-07-15 against v4.6. **Not re-verified since.** iOS/macOS 4.9 is the shipped version, and 4.8–4.9 changed retrieval behavior in ways this document does not yet describe. PCC device/distribution validation remains pending.
 > **Known drift as of 2026-08-05** — each of these is in `CHANGELOG.md` under 4.9 but not yet reflected below:
@@ -64,7 +64,7 @@ flowchart TD
 1. **Import**: Files enter through Apple platform document workflows.
 2. **Extraction**: Text, layout, and metadata are extracted.
 3. **Chunking**: Chunks are generated with metadata using semantic and structure-aware rules.
-4. **Indexing**: Chunks are written into local search (SQLite FTS5) and vector databases ([BNNSVectorDatabase.swift](file:///Users/gunnarhostetler/Documents/GitHub/OpenIntelligence/OpenIntelligence/Services/VectorStore/BNNSVectorDatabase.swift)).
+4. **Indexing**: Chunks are written into local search (SQLite FTS5) and vector databases ([BNNSVectorDatabase.swift](../OpenIntelligence/Services/VectorStore/BNNSVectorDatabase.swift)).
 5. **Query Analysis & Planning**: Incoming questions are classified, scoped, and prepared for retrieval.
 6. **Retrieval**: Candidate chunks are selected from the active library or workspace container.
 7. **Reranking and Packing**: Evidence is scored using a local Core ML TinyBERT cross-encoder (with proximity-based heuristic fallback if the model is absent), deduplicated (MMR), expanded with sibling context, and compressed.

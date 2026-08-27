@@ -11,8 +11,8 @@ This document maps the application architecture across all 30 core subsystems.
 - **Downstream Consumers**: onboarding, library/container management
 - **Gaps or Uncertainties**: Launch arguments are mapped to command-line overrides for debugging but their interaction with production plist configs is not fully documented.
 - **Owning Files**:
-  - [OpenIntelligenceApp](file://OpenIntelligence/App/OpenIntelligenceApp.swift)
-  - [OpenIntelligenceRuntimePaths](file://OpenIntelligence/Core/Support/OpenIntelligenceRuntimePaths.swift)
+  - [OpenIntelligenceApp](../../../OpenIntelligence/App/OpenIntelligenceApp.swift)
+  - [OpenIntelligenceRuntimePaths](../../../OpenIntelligence/Core/Support/OpenIntelligenceRuntimePaths.swift)
 - **Main Services / Views / Models**:
   - `Marker`
   - `OpenIntelligenceApp`
@@ -30,10 +30,10 @@ This document maps the application architecture across all 30 core subsystems.
 - **Downstream Consumers**: library/container management, chat UI
 - **Gaps or Uncertainties**: Tips view configurations are hardcoded and do not support remote content changes.
 - **Owning Files**:
-  - [OnboardingChecklistLauncher](file://OpenIntelligence/Features/Onboarding/OnboardingChecklistLauncher.swift)
-  - [OnboardingChecklistView](file://OpenIntelligence/Features/Onboarding/OnboardingChecklistView.swift)
-  - [OnboardingStateStore](file://OpenIntelligence/Features/Onboarding/OnboardingStateStore.swift)
-  - [AppTips](file://OpenIntelligence/Services/Infrastructure/Tips/AppTips.swift)
+  - [OnboardingChecklistLauncher](../../../OpenIntelligence/Features/Onboarding/OnboardingChecklistLauncher.swift)
+  - [OnboardingChecklistView](../../../OpenIntelligence/Features/Onboarding/OnboardingChecklistView.swift)
+  - [OnboardingStateStore](../../../OpenIntelligence/Features/Onboarding/OnboardingStateStore.swift)
+  - [AppTips](../../../OpenIntelligence/Services/Infrastructure/Tips/AppTips.swift)
 - **Main Services / Views / Models**:
   - `AppTipConfiguration`
   - `AtlasTip`
@@ -63,19 +63,19 @@ This document maps the application architecture across all 30 core subsystems.
 - **Downstream Consumers**: document import, retrieval
 - **Gaps or Uncertainties**: Folder layout projection calculations use PCA and projection caches which have edge-case memory spikes on huge libraries.
 - **Owning Files**:
-  - [ContainerPicker](file://OpenIntelligence/Features/Documents/Components/ContainerPicker.swift)
-  - [DocumentPicker](file://OpenIntelligence/Features/Documents/Components/DocumentPicker.swift)
-  - [DocumentRow](file://OpenIntelligence/Features/Documents/Components/DocumentRow.swift)
-  - [EmptyDocumentsView](file://OpenIntelligence/Features/Documents/Components/EmptyDocumentsView.swift)
-  - [ProcessingSummaryView](file://OpenIntelligence/Features/Documents/Components/ProcessingSummaryView.swift)
-  - [StatsFooter](file://OpenIntelligence/Features/Documents/Components/StatsFooter.swift)
-  - [DocumentDetailsView](file://OpenIntelligence/Features/Documents/Details/DocumentDetailsView.swift)
-  - [CachedDocsView](file://OpenIntelligence/Features/Documents/Library/CachedDocsView.swift)
-  - [SampleDocumentManager](file://OpenIntelligence/Features/Documents/Library/SampleDocumentManager.swift)
-  - [SemanticSearchView](file://OpenIntelligence/Features/Documents/Search/SemanticSearchView.swift)
-  - [LibraryIconSuggestionService](file://OpenIntelligence/Services/Infrastructure/Presentation/LibraryIconSuggestionService.swift)
-  - [ProjectionCache](file://OpenIntelligence/Services/Infrastructure/Presentation/ProjectionCache.swift)
-  - [ProjectionService](file://OpenIntelligence/Services/Infrastructure/Presentation/ProjectionService.swift)
+  - [ContainerPicker](../../../OpenIntelligence/Features/Documents/Components/ContainerPicker.swift)
+  - [DocumentPicker](../../../OpenIntelligence/Features/Documents/Components/DocumentPicker.swift)
+  - [DocumentRow](../../../OpenIntelligence/Features/Documents/Components/DocumentRow.swift)
+  - [EmptyDocumentsView](../../../OpenIntelligence/Features/Documents/Components/EmptyDocumentsView.swift)
+  - [ProcessingSummaryView](../../../OpenIntelligence/Features/Documents/Components/ProcessingSummaryView.swift)
+  - [StatsFooter](../../../OpenIntelligence/Features/Documents/Components/StatsFooter.swift)
+  - [DocumentDetailsView](../../../OpenIntelligence/Features/Documents/Details/DocumentDetailsView.swift)
+  - [CachedDocsView](../../../OpenIntelligence/Features/Documents/Library/CachedDocsView.swift)
+  - [SampleDocumentManager](../../../OpenIntelligence/Features/Documents/Library/SampleDocumentManager.swift)
+  - [SemanticSearchView](../../../OpenIntelligence/Features/Documents/Search/SemanticSearchView.swift)
+  - [LibraryIconSuggestionService](../../../OpenIntelligence/Services/Infrastructure/Presentation/LibraryIconSuggestionService.swift)
+  - [ProjectionCache](../../../OpenIntelligence/Services/Infrastructure/Presentation/ProjectionCache.swift)
+  - [ProjectionService](../../../OpenIntelligence/Services/Infrastructure/Presentation/ProjectionService.swift)
 - **Main Services / Views / Models**:
   - `AutoIntelligenceBadge`
   - `CachedDocRow`
@@ -105,8 +105,8 @@ This document maps the application architecture across all 30 core subsystems.
 - **Downstream Consumers**: OCR/extraction
 - **Gaps or Uncertainties**: Camera pose joint detection runs continuously on the main thread, causing thermal throttling on older devices.
 - **Owning Files**:
-  - [CameraVisionOverlayView](file://OpenIntelligence/Features/Camera/CameraVisionOverlayView.swift)
-  - [DocumentProcessor+DocumentIngestionEngine](file://OpenIntelligence/Services/Document/Processing/DocumentProcessor+DocumentIngestionEngine.swift)
+  - [CameraVisionOverlayView](../../../OpenIntelligence/Features/Camera/CameraVisionOverlayView.swift)
+  - [DocumentProcessor+DocumentIngestionEngine](../../../OpenIntelligence/Services/Document/Processing/DocumentProcessor+DocumentIngestionEngine.swift)
 - **Main Services / Views / Models**:
   - `AnimalWireframe`
   - `CameraPreviewLayer`
@@ -136,9 +136,9 @@ This document maps the application architecture across all 30 core subsystems.
 - **Downstream Consumers**: OCR/extraction
 - **Gaps or Uncertainties**: Live activity updates are throttled under high memory pressure, which might drop progress updates.
 - **Owning Files**:
-  - [IngestionLiveActivityAttributes](file://OpenIntelligence/Services/Infrastructure/Background/IngestionLiveActivityAttributes.swift)
-  - [IngestionLiveActivityService](file://OpenIntelligence/Services/Infrastructure/Background/IngestionLiveActivityService.swift)
-  - [IngestionQueueOverlay](file://OpenIntelligence/UI/Components/IngestionQueueOverlay.swift)
+  - [IngestionLiveActivityAttributes](../../../OpenIntelligence/Services/Infrastructure/Background/IngestionLiveActivityAttributes.swift)
+  - [IngestionLiveActivityService](../../../OpenIntelligence/Services/Infrastructure/Background/IngestionLiveActivityService.swift)
+  - [IngestionQueueOverlay](../../../OpenIntelligence/UI/Components/IngestionQueueOverlay.swift)
   - [IngestionLiveActivityWidget](file://OpenIntelligenceLiveActivities/IngestionLiveActivityWidget.swift)
 - **Main Services / Views / Models**:
   - `AggregatedMetrics`
@@ -169,27 +169,27 @@ This document maps the application architecture across all 30 core subsystems.
 - **Downstream Consumers**: semantic chunking
 - **Gaps or Uncertainties**: Spatial layout column alignment relies on heuristics that fail on complex nested multi-column tables.
 - **Owning Files**:
-  - [CameraManager](file://OpenIntelligence/Features/Camera/CameraManager.swift)
-  - [CaptureToRAGBridge](file://OpenIntelligence/Features/Camera/CaptureToRAGBridge.swift)
-  - [DocumentCaptureView](file://OpenIntelligence/Features/Camera/DocumentCaptureView.swift)
-  - [PageComplexityAnalyzer](file://OpenIntelligence/Services/Document/Chunking/PageComplexityAnalyzer.swift)
-  - [CoreMLDocumentClassifier](file://OpenIntelligence/Services/Document/Classification/CoreMLDocumentClassifier.swift)
-  - [CoreMLRegionDetector](file://OpenIntelligence/Services/Document/Classification/CoreMLRegionDetector.swift)
-  - [ImageUnderstandingService](file://OpenIntelligence/Services/Document/Classification/ImageUnderstandingService.swift)
-  - [YOLODetectionService](file://OpenIntelligence/Services/Document/Classification/YOLODetectionService.swift)
-  - [OCRConfiguration](file://OpenIntelligence/Services/Document/Config/OCRConfiguration.swift)
-  - [VisionOCRThrottle](file://OpenIntelligence/Services/Document/Config/VisionOCRThrottle.swift)
-  - [AudioTranscriptionService](file://OpenIntelligence/Services/Document/Extraction/AudioTranscriptionService.swift)
-  - [GazetteerService](file://OpenIntelligence/Services/Document/Extraction/GazetteerService.swift)
-  - [LanguageDetectionService](file://OpenIntelligence/Services/Document/Extraction/LanguageDetectionService.swift)
-  - [TranslationService](file://OpenIntelligence/Services/Document/Extraction/TranslationService.swift)
-  - [DocumentProcessor](file://OpenIntelligence/Services/Document/Processing/DocumentProcessor.swift)
-  - [IntelligentDocumentProcessor](file://OpenIntelligence/Services/Document/Processing/IntelligentDocumentProcessor.swift)
-  - [LayoutAwareExtractor](file://OpenIntelligence/Services/Document/Processing/LayoutAwareExtractor.swift)
-  - [StructuredDocumentParser](file://OpenIntelligence/Services/Document/Processing/StructuredDocumentParser.swift)
-  - [DeviceCapabilityService](file://OpenIntelligence/Services/Infrastructure/Monitoring/DeviceCapabilityService.swift)
-  - [ExtractiveQAService](file://OpenIntelligence/Services/RAG/Extraction/ExtractiveQAService.swift)
-  - [ExtractiveSummarizationService](file://OpenIntelligence/Services/RAG/Extraction/ExtractiveSummarizationService.swift)
+  - [CameraManager](../../../OpenIntelligence/Features/Camera/CameraManager.swift)
+  - [CaptureToRAGBridge](../../../OpenIntelligence/Features/Camera/CaptureToRAGBridge.swift)
+  - [DocumentCaptureView](../../../OpenIntelligence/Features/Camera/DocumentCaptureView.swift)
+  - [PageComplexityAnalyzer](../../../OpenIntelligence/Services/Document/Chunking/PageComplexityAnalyzer.swift)
+  - [CoreMLDocumentClassifier](../../../OpenIntelligence/Services/Document/Classification/CoreMLDocumentClassifier.swift)
+  - [CoreMLRegionDetector](../../../OpenIntelligence/Services/Document/Classification/CoreMLRegionDetector.swift)
+  - [ImageUnderstandingService](../../../OpenIntelligence/Services/Document/Classification/ImageUnderstandingService.swift)
+  - [YOLODetectionService](../../../OpenIntelligence/Services/Document/Classification/YOLODetectionService.swift)
+  - [OCRConfiguration](../../../OpenIntelligence/Services/Document/Config/OCRConfiguration.swift)
+  - [VisionOCRThrottle](../../../OpenIntelligence/Services/Document/Config/VisionOCRThrottle.swift)
+  - [AudioTranscriptionService](../../../OpenIntelligence/Services/Document/Extraction/AudioTranscriptionService.swift)
+  - [GazetteerService](../../../OpenIntelligence/Services/Document/Extraction/GazetteerService.swift)
+  - [LanguageDetectionService](../../../OpenIntelligence/Services/Document/Extraction/LanguageDetectionService.swift)
+  - [TranslationService](../../../OpenIntelligence/Services/Document/Extraction/TranslationService.swift)
+  - [DocumentProcessor](../../../OpenIntelligence/Services/Document/Processing/DocumentProcessor.swift)
+  - [IntelligentDocumentProcessor](../../../OpenIntelligence/Services/Document/Processing/IntelligentDocumentProcessor.swift)
+  - [LayoutAwareExtractor](../../../OpenIntelligence/Services/Document/Processing/LayoutAwareExtractor.swift)
+  - [StructuredDocumentParser](../../../OpenIntelligence/Services/Document/Processing/StructuredDocumentParser.swift)
+  - [DeviceCapabilityService](../../../OpenIntelligence/Services/Infrastructure/Monitoring/DeviceCapabilityService.swift)
+  - [ExtractiveQAService](../../../OpenIntelligence/Services/RAG/Extraction/ExtractiveQAService.swift)
+  - [ExtractiveSummarizationService](../../../OpenIntelligence/Services/RAG/Extraction/ExtractiveSummarizationService.swift)
 - **Main Services / Views / Models**:
   - `APIs`
   - `AdaptivePreprocessor`
@@ -219,13 +219,13 @@ This document maps the application architecture across all 30 core subsystems.
 - **Downstream Consumers**: embeddings, SQLite/FTS storage
 - **Gaps or Uncertainties**: Header boundaries are determined by text sizes, which are sometimes incorrectly estimated for scanned PDFs.
 - **Owning Files**:
-  - [DocumentChunk](file://OpenIntelligence/Core/Models/DocumentChunk.swift)
-  - [ChunkInspectorView](file://OpenIntelligence/Features/Diagnostics/Validation/ChunkInspectorView.swift)
-  - [NLChunkingDiagnosticsView](file://OpenIntelligence/Features/Telemetry/Diagnostics/NLChunkingDiagnosticsView.swift)
-  - [EntityIndexService](file://OpenIntelligence/Services/Document/Analysis/EntityIndexService.swift)
-  - [ContentTaggingService](file://OpenIntelligence/Services/Document/Chunking/ContentTaggingService.swift)
-  - [SemanticChunker](file://OpenIntelligence/Services/Document/Chunking/SemanticChunker.swift)
-  - [ParentDocumentService](file://OpenIntelligence/Services/RAG/Retrieval/ParentDocumentService.swift)
+  - [DocumentChunk](../../../OpenIntelligence/Core/Models/DocumentChunk.swift)
+  - [ChunkInspectorView](../../../OpenIntelligence/Features/Diagnostics/Validation/ChunkInspectorView.swift)
+  - [NLChunkingDiagnosticsView](../../../OpenIntelligence/Features/Telemetry/Diagnostics/NLChunkingDiagnosticsView.swift)
+  - [EntityIndexService](../../../OpenIntelligence/Services/Document/Analysis/EntityIndexService.swift)
+  - [ContentTaggingService](../../../OpenIntelligence/Services/Document/Chunking/ContentTaggingService.swift)
+  - [SemanticChunker](../../../OpenIntelligence/Services/Document/Chunking/SemanticChunker.swift)
+  - [ParentDocumentService](../../../OpenIntelligence/Services/RAG/Retrieval/ParentDocumentService.swift)
 - **Main Services / Views / Models**:
   - `ChunkAbstractionLevel`
   - `ChunkDetailSheet`
@@ -255,18 +255,18 @@ This document maps the application architecture across all 30 core subsystems.
 - **Downstream Consumers**: vector storage
 - **Gaps or Uncertainties**: AppleFMEmbeddingProvider relies on system-specific private APIs that might shift across iOS/macOS version boundaries.
 - **Owning Files**:
-  - [Embedding3DView](file://OpenIntelligence/Features/Telemetry/Visualizations/Embedding3DView.swift)
-  - [CoreAIEmbeddingBackend](file://OpenIntelligence/Services/AIPlatform/CoreAI/CoreAIEmbeddingBackend.swift)
-  - [CoreAIExecutionBackend](file://OpenIntelligence/Services/AIPlatform/CoreAI/CoreAIExecutionBackend.swift)
-  - [CoreAIModelRegistry](file://OpenIntelligence/Services/AIPlatform/CoreAI/CoreAIModelRegistry.swift)
-  - [AdaptiveEmbeddingOptimizer](file://OpenIntelligence/Services/Embedding/AdaptiveEmbeddingOptimizer.swift)
-  - [EmbeddingService](file://OpenIntelligence/Services/Embedding/EmbeddingService.swift)
-  - [AppleFMEmbeddingProvider](file://OpenIntelligence/Services/Embedding/Providers/AppleFMEmbeddingProvider.swift)
-  - [CoreAISentenceEmbeddingProvider](file://OpenIntelligence/Services/Embedding/Providers/CoreAISentenceEmbeddingProvider.swift)
-  - [CoreMLSentenceEmbeddingProvider](file://OpenIntelligence/Services/Embedding/Providers/CoreMLSentenceEmbeddingProvider.swift)
-  - [EmbeddingProvider](file://OpenIntelligence/Services/Embedding/Providers/EmbeddingProvider.swift)
-  - [NLContextualEmbeddingProvider](file://OpenIntelligence/Services/Embedding/Providers/NLContextualEmbeddingProvider.swift)
-  - [NLEmbeddingProvider](file://OpenIntelligence/Services/Embedding/Providers/NLEmbeddingProvider.swift)
+  - [Embedding3DView](../../../OpenIntelligence/Features/Telemetry/Visualizations/Embedding3DView.swift)
+  - [CoreAIEmbeddingBackend](../../../OpenIntelligence/Services/AIPlatform/CoreAI/CoreAIEmbeddingBackend.swift)
+  - [CoreAIExecutionBackend](../../../OpenIntelligence/Services/AIPlatform/CoreAI/CoreAIExecutionBackend.swift)
+  - [CoreAIModelRegistry](../../../OpenIntelligence/Services/AIPlatform/CoreAI/CoreAIModelRegistry.swift)
+  - [AdaptiveEmbeddingOptimizer](../../../OpenIntelligence/Services/Embedding/AdaptiveEmbeddingOptimizer.swift)
+  - [EmbeddingService](../../../OpenIntelligence/Services/Embedding/EmbeddingService.swift)
+  - [AppleFMEmbeddingProvider](../../../OpenIntelligence/Services/Embedding/Providers/AppleFMEmbeddingProvider.swift)
+  - [CoreAISentenceEmbeddingProvider](../../../OpenIntelligence/Services/Embedding/Providers/CoreAISentenceEmbeddingProvider.swift)
+  - [CoreMLSentenceEmbeddingProvider](../../../OpenIntelligence/Services/Embedding/Providers/CoreMLSentenceEmbeddingProvider.swift)
+  - [EmbeddingProvider](../../../OpenIntelligence/Services/Embedding/Providers/EmbeddingProvider.swift)
+  - [NLContextualEmbeddingProvider](../../../OpenIntelligence/Services/Embedding/Providers/NLContextualEmbeddingProvider.swift)
+  - [NLEmbeddingProvider](../../../OpenIntelligence/Services/Embedding/Providers/NLEmbeddingProvider.swift)
 - **Main Services / Views / Models**:
   - `AnnotationBubble`
   - `AnnotationCandidate`
@@ -296,9 +296,9 @@ This document maps the application architecture across all 30 core subsystems.
 - **Downstream Consumers**: retrieval
 - **Gaps or Uncertainties**: BNNSVectorDatabase uses metal buffers which can crash on older devices lacking unified memory support.
 - **Owning Files**:
-  - [VectorDatabase](file://OpenIntelligence/Services/VectorStore/VectorDatabase.swift)
-  - [VectorStoreRouter](file://OpenIntelligence/Services/VectorStore/VectorStoreRouter.swift)
-  - [VecturaVectorDatabase](file://OpenIntelligence/Services/VectorStore/VecturaVectorDatabase.swift)
+  - [VectorDatabase](../../../OpenIntelligence/Services/VectorStore/VectorDatabase.swift)
+  - [VectorStoreRouter](../../../OpenIntelligence/Services/VectorStore/VectorStoreRouter.swift)
+  - [VecturaVectorDatabase](../../../OpenIntelligence/Services/VectorStore/VecturaVectorDatabase.swift)
 - **Main Services / Views / Models**:
   - `InMemoryVectorDatabase`
   - `VectorDatabase`
@@ -319,12 +319,12 @@ This document maps the application architecture across all 30 core subsystems.
 - **Downstream Consumers**: retrieval, library/container management
 - **Gaps or Uncertainties**: Custom tokenizers inside FTS5 must match Swift-level unicode normalization exactly, otherwise keyword search hits might fail.
 - **Owning Files**:
-  - [DatabaseDashboardView](file://OpenIntelligence/Features/Database/DatabaseDashboardView.swift)
-  - [AdaptiveVisualizationsView](file://OpenIntelligence/Features/Telemetry/Visualizations/AdaptiveVisualizationsView.swift)
-  - [VisualizationsView](file://OpenIntelligence/Features/Telemetry/Visualizations/VisualizationsView.swift)
-  - [HyDEService](file://OpenIntelligence/Services/Query/Rewriting/HyDEService.swift)
-  - [HybridSearchService](file://OpenIntelligence/Services/RAG/Retrieval/HybridSearchService.swift)
-  - [SQLiteFullTextService](file://OpenIntelligence/Services/Storage/SQLiteFullTextService.swift)
+  - [DatabaseDashboardView](../../../OpenIntelligence/Features/Database/DatabaseDashboardView.swift)
+  - [AdaptiveVisualizationsView](../../../OpenIntelligence/Features/Telemetry/Visualizations/AdaptiveVisualizationsView.swift)
+  - [VisualizationsView](../../../OpenIntelligence/Features/Telemetry/Visualizations/VisualizationsView.swift)
+  - [HyDEService](../../../OpenIntelligence/Services/Query/Rewriting/HyDEService.swift)
+  - [HybridSearchService](../../../OpenIntelligence/Services/RAG/Retrieval/HybridSearchService.swift)
+  - [SQLiteFullTextService](../../../OpenIntelligence/Services/Storage/SQLiteFullTextService.swift)
 - **Main Services / Views / Models**:
   - `ActivityRow`
   - `AdaptiveVisualizationsView`
@@ -354,31 +354,31 @@ This document maps the application architecture across all 30 core subsystems.
 - **Downstream Consumers**: context packing, verification gates
 - **Gaps or Uncertainties**: HybridSearchService uses heuristic RRF weighting which is hardcoded and cannot adapt to changing query types automatically.
 - **Owning Files**:
-  - [KeychainStorage](file://OpenIntelligence/Core/Extensions/KeychainStorage.swift)
-  - [LaunchArguments](file://OpenIntelligence/Core/Extensions/LaunchArguments.swift)
-  - [CloudTransmission](file://OpenIntelligence/Core/Models/CloudTransmission.swift)
-  - [IngestionItem](file://OpenIntelligence/Core/Models/IngestionItem.swift)
-  - [IngestionRuntimeBridge](file://OpenIntelligence/Core/Models/IngestionRuntimeBridge.swift)
-  - [QueryRuntimeBridge](file://OpenIntelligence/Core/Models/QueryRuntimeBridge.swift)
-  - [RAGQuery](file://OpenIntelligence/Core/Models/RAGQuery.swift)
-  - [WorkspaceTier](file://OpenIntelligence/Core/Models/WorkspaceTier.swift)
-  - [EngineInterfaces](file://OpenIntelligence/Core/Protocols/EngineInterfaces.swift)
-  - [SpatialDocumentAnalyzer](file://OpenIntelligence/Services/Document/Analysis/SpatialDocumentAnalyzer.swift)
-  - [SpecificationDetector](file://OpenIntelligence/Services/Document/Analysis/SpecificationDetector.swift)
-  - [SpeechAnalyzerService](file://OpenIntelligence/Services/Document/Analysis/SpeechAnalyzerService.swift)
-  - [StreamingXMLProcessor](file://OpenIntelligence/Services/Document/Processing/StreamingXMLProcessor.swift)
-  - [BNNSGraphService](file://OpenIntelligence/Services/Infrastructure/Compute/BNNSGraphService.swift)
-  - [GPUComputeService](file://OpenIntelligence/Services/Infrastructure/Compute/GPUComputeService.swift)
-  - [QueryComplexityAnalyzer](file://OpenIntelligence/Services/Query/Analysis/QueryComplexityAnalyzer.swift)
-  - [QueryExecutionPlannerService](file://OpenIntelligence/Services/Query/Analysis/QueryExecutionPlannerService.swift)
-  - [QueryProfileService](file://OpenIntelligence/Services/Query/Analysis/QueryProfileService.swift)
-  - [QueryRouterService](file://OpenIntelligence/Services/Query/Routing/QueryRouterService.swift)
-  - [RAGService+KnowledgeRetrievalEngine](file://OpenIntelligence/Services/RAG/Orchestration/RAGService+KnowledgeRetrievalEngine.swift)
-  - [ContainerVocabularyService](file://OpenIntelligence/Services/RAG/Retrieval/ContainerVocabularyService.swift)
-  - [GraphIndexService](file://OpenIntelligence/Services/RAG/Retrieval/GraphIndexService.swift)
-  - [RAPTORSummaryRouter](file://OpenIntelligence/Services/RAG/Retrieval/RAPTORSummaryRouter.swift)
-  - [DomainIsolationService](file://OpenIntelligence/Services/RAG/Safety/DomainIsolationService.swift)
-  - [QualityAssuranceService](file://OpenIntelligence/Services/RAG/Safety/QualityAssuranceService.swift)
+  - [KeychainStorage](../../../OpenIntelligence/Core/Extensions/KeychainStorage.swift)
+  - [LaunchArguments](../../../OpenIntelligence/Core/Extensions/LaunchArguments.swift)
+  - [CloudTransmission](../../../OpenIntelligence/Core/Models/CloudTransmission.swift)
+  - [IngestionItem](../../../OpenIntelligence/Core/Models/IngestionItem.swift)
+  - [IngestionRuntimeBridge](../../../OpenIntelligence/Core/Models/IngestionRuntimeBridge.swift)
+  - [QueryRuntimeBridge](../../../OpenIntelligence/Core/Models/QueryRuntimeBridge.swift)
+  - [RAGQuery](../../../OpenIntelligence/Core/Models/RAGQuery.swift)
+  - [WorkspaceTier](../../../OpenIntelligence/Core/Models/WorkspaceTier.swift)
+  - [EngineInterfaces](../../../OpenIntelligence/Core/Protocols/EngineInterfaces.swift)
+  - [SpatialDocumentAnalyzer](../../../OpenIntelligence/Services/Document/Analysis/SpatialDocumentAnalyzer.swift)
+  - [SpecificationDetector](../../../OpenIntelligence/Services/Document/Analysis/SpecificationDetector.swift)
+  - [SpeechAnalyzerService](../../../OpenIntelligence/Services/Document/Analysis/SpeechAnalyzerService.swift)
+  - [StreamingXMLProcessor](../../../OpenIntelligence/Services/Document/Processing/StreamingXMLProcessor.swift)
+  - [BNNSGraphService](../../../OpenIntelligence/Services/Infrastructure/Compute/BNNSGraphService.swift)
+  - [GPUComputeService](../../../OpenIntelligence/Services/Infrastructure/Compute/GPUComputeService.swift)
+  - [QueryComplexityAnalyzer](../../../OpenIntelligence/Services/Query/Analysis/QueryComplexityAnalyzer.swift)
+  - [QueryExecutionPlannerService](../../../OpenIntelligence/Services/Query/Analysis/QueryExecutionPlannerService.swift)
+  - [QueryProfileService](../../../OpenIntelligence/Services/Query/Analysis/QueryProfileService.swift)
+  - [QueryRouterService](../../../OpenIntelligence/Services/Query/Routing/QueryRouterService.swift)
+  - [RAGService+KnowledgeRetrievalEngine](../../../OpenIntelligence/Services/RAG/Orchestration/RAGService+KnowledgeRetrievalEngine.swift)
+  - [ContainerVocabularyService](../../../OpenIntelligence/Services/RAG/Retrieval/ContainerVocabularyService.swift)
+  - [GraphIndexService](../../../OpenIntelligence/Services/RAG/Retrieval/GraphIndexService.swift)
+  - [RAPTORSummaryRouter](../../../OpenIntelligence/Services/RAG/Retrieval/RAPTORSummaryRouter.swift)
+  - [DomainIsolationService](../../../OpenIntelligence/Services/RAG/Safety/DomainIsolationService.swift)
+  - [QualityAssuranceService](../../../OpenIntelligence/Services/RAG/Safety/QualityAssuranceService.swift)
   - [OpenIntelligenceLiveActivitiesBundle](file://OpenIntelligenceLiveActivities/OpenIntelligenceLiveActivitiesBundle.swift)
 - **Main Services / Views / Models**:
   - `AlignedTableCell`
@@ -409,7 +409,7 @@ This document maps the application architecture across all 30 core subsystems.
 - **Downstream Consumers**: context packing
 - **Gaps or Uncertainties**: TinyBERT model inferences are run in batches which can cause latency spikes on large context sets.
 - **Owning Files**:
-  - [ContainerSettingsSheet+Sections](file://OpenIntelligence/Features/Documents/Settings/ContainerSettingsSheet+Sections.swift)
+  - [ContainerSettingsSheet+Sections](../../../OpenIntelligence/Features/Documents/Settings/ContainerSettingsSheet+Sections.swift)
 - **Main Services / Views / Models**:
   - `ChunkingPreview`
   - `RetrievalStyle`
@@ -425,7 +425,7 @@ This document maps the application architecture across all 30 core subsystems.
 - **Downstream Consumers**: generation
 - **Gaps or Uncertainties**: Token counting relies on Swift-level approximations which differ slightly from the model's actual vocabulary tokenizer.
 - **Owning Files**:
-  - [ContextPackingService](file://OpenIntelligence/Services/RAG/Retrieval/ContextPackingService.swift)
+  - [ContextPackingService](../../../OpenIntelligence/Services/RAG/Retrieval/ContextPackingService.swift)
 - **Main Services / Views / Models**:
   - `PackedContext`
 
@@ -440,43 +440,43 @@ This document maps the application architecture across all 30 core subsystems.
 - **Downstream Consumers**: citations/source rendering
 - **Gaps or Uncertainties**: Fallback mock services exist but their activation logic in the event of local model failure is not robustly implemented.
 - **Owning Files**:
-  - [DebugRAGValidationHarness](file://OpenIntelligence/App/DebugRAGValidationHarness.swift)
-  - [MarkdownRenderer](file://OpenIntelligence/Core/Extensions/MarkdownRenderer.swift)
-  - [LLMModelType](file://OpenIntelligence/Core/Models/LLMModelType.swift)
-  - [ModelResolutionState](file://OpenIntelligence/Core/Models/ModelResolutionState.swift)
-  - [RAGStructuredResponse](file://OpenIntelligence/Core/Models/RAGStructuredResponse.swift)
-  - [ToolCallBadge](file://OpenIntelligence/Features/Chat/Response/ToolCallBadge.swift)
-  - [UnifiedMetricsBar](file://OpenIntelligence/Features/Chat/Response/UnifiedMetricsBar.swift)
-  - [CoreValidationView](file://OpenIntelligence/Features/Diagnostics/Validation/CoreValidationView.swift)
-  - [ModelInfoCard](file://OpenIntelligence/Features/Settings/Components/ModelInfoCard.swift)
-  - [ModelSelectorSheet](file://OpenIntelligence/Features/Settings/Components/ModelSelectorSheet.swift)
-  - [ResponseTransformService](file://OpenIntelligence/Services/Agentic/ResponseTransformService.swift)
-  - [ToolCallCounter](file://OpenIntelligence/Services/Agentic/ToolCallCounter.swift)
-  - [WritingToolsService](file://OpenIntelligence/Services/Agentic/WritingToolsService.swift)
-  - [DocumentSummaryService](file://OpenIntelligence/Services/Document/Analysis/DocumentSummaryService.swift)
-  - [VisualCaptioningService](file://OpenIntelligence/Services/Document/Processing/VisualCaptioningService.swift)
-  - [LoggingConfiguration](file://OpenIntelligence/Services/Infrastructure/Configuration/LoggingConfiguration.swift)
-  - [ImagePlaygroundService](file://OpenIntelligence/Services/Infrastructure/Integration/ImagePlaygroundService.swift)
-  - [HardwareTelemetryState](file://OpenIntelligence/Services/Infrastructure/Monitoring/HardwareTelemetryState.swift)
-  - [AdaptivePipelineOptimizer](file://OpenIntelligence/Services/Infrastructure/Optimization/AdaptivePipelineOptimizer.swift)
-  - [ClusterLabelService](file://OpenIntelligence/Services/Infrastructure/Presentation/ClusterLabelService.swift)
-  - [LibraryVisualizationEngine](file://OpenIntelligence/Services/Infrastructure/Presentation/LibraryVisualizationEngine.swift)
-  - [AdapterManager](file://OpenIntelligence/Services/LLM/AdapterManager.swift)
-  - [LLMStreamingContext](file://OpenIntelligence/Services/LLM/LLMStreamingContext.swift)
-  - [LocalOpenAIServerLLMService](file://OpenIntelligence/Services/LLM/LocalOpenAIServerLLMService.swift)
-  - [ModelResolutionService](file://OpenIntelligence/Services/LLM/ModelResolutionService.swift)
-  - [PromptEvaluationService](file://OpenIntelligence/Services/LLM/PromptEvaluationService.swift)
-  - [SpecificationExtractor](file://OpenIntelligence/Services/Query/Analysis/SpecificationExtractor.swift)
-  - [QueryEnhancementService](file://OpenIntelligence/Services/Query/Enhancement/QueryEnhancementService.swift)
-  - [QueryRewriterService](file://OpenIntelligence/Services/Query/Rewriting/QueryRewriterService.swift)
-  - [SmartReplyService](file://OpenIntelligence/Services/Query/UX/SmartReplyService.swift)
-  - [SuggestedQuestionsService](file://OpenIntelligence/Services/Query/UX/SuggestedQuestionsService.swift)
-  - [RAGEngine](file://OpenIntelligence/Services/RAG/Orchestration/RAGEngine.swift)
-  - [IterativeRetrievalService](file://OpenIntelligence/Services/RAG/Retrieval/IterativeRetrievalService.swift)
-  - [AutoTuneService](file://OpenIntelligence/Services/RAG/Tuning/AutoTuneService.swift)
-  - [FullTextStorageService](file://OpenIntelligence/Services/Storage/FullTextStorageService.swift)
-  - [ModelStatusIndicator](file://OpenIntelligence/UI/Components/ModelStatusIndicator.swift)
-  - [Theme](file://OpenIntelligence/UI/DesignSystem/Theme.swift)
+  - [DebugRAGValidationHarness](../../../OpenIntelligence/App/DebugRAGValidationHarness.swift)
+  - [MarkdownRenderer](../../../OpenIntelligence/Core/Extensions/MarkdownRenderer.swift)
+  - [LLMModelType](../../../OpenIntelligence/Core/Models/LLMModelType.swift)
+  - [ModelResolutionState](../../../OpenIntelligence/Core/Models/ModelResolutionState.swift)
+  - [RAGStructuredResponse](../../../OpenIntelligence/Core/Models/RAGStructuredResponse.swift)
+  - [ToolCallBadge](../../../OpenIntelligence/Features/Chat/Response/ToolCallBadge.swift)
+  - [UnifiedMetricsBar](../../../OpenIntelligence/Features/Chat/Response/UnifiedMetricsBar.swift)
+  - [CoreValidationView](../../../OpenIntelligence/Features/Diagnostics/Validation/CoreValidationView.swift)
+  - [ModelInfoCard](../../../OpenIntelligence/Features/Settings/Components/ModelInfoCard.swift)
+  - [ModelSelectorSheet](../../../OpenIntelligence/Features/Settings/Components/ModelSelectorSheet.swift)
+  - [ResponseTransformService](../../../OpenIntelligence/Services/Agentic/ResponseTransformService.swift)
+  - [ToolCallCounter](../../../OpenIntelligence/Services/Agentic/ToolCallCounter.swift)
+  - [WritingToolsService](../../../OpenIntelligence/Services/Agentic/WritingToolsService.swift)
+  - [DocumentSummaryService](../../../OpenIntelligence/Services/Document/Analysis/DocumentSummaryService.swift)
+  - [VisualCaptioningService](../../../OpenIntelligence/Services/Document/Processing/VisualCaptioningService.swift)
+  - [LoggingConfiguration](../../../OpenIntelligence/Services/Infrastructure/Configuration/LoggingConfiguration.swift)
+  - [ImagePlaygroundService](../../../OpenIntelligence/Services/Infrastructure/Integration/ImagePlaygroundService.swift)
+  - [HardwareTelemetryState](../../../OpenIntelligence/Services/Infrastructure/Monitoring/HardwareTelemetryState.swift)
+  - [AdaptivePipelineOptimizer](../../../OpenIntelligence/Services/Infrastructure/Optimization/AdaptivePipelineOptimizer.swift)
+  - [ClusterLabelService](../../../OpenIntelligence/Services/Infrastructure/Presentation/ClusterLabelService.swift)
+  - [LibraryVisualizationEngine](../../../OpenIntelligence/Services/Infrastructure/Presentation/LibraryVisualizationEngine.swift)
+  - [AdapterManager](../../../OpenIntelligence/Services/LLM/AdapterManager.swift)
+  - [LLMStreamingContext](../../../OpenIntelligence/Services/LLM/LLMStreamingContext.swift)
+  - [LocalOpenAIServerLLMService](../../../OpenIntelligence/Services/LLM/LocalOpenAIServerLLMService.swift)
+  - [ModelResolutionService](../../../OpenIntelligence/Services/LLM/ModelResolutionService.swift)
+  - [PromptEvaluationService](../../../OpenIntelligence/Services/LLM/PromptEvaluationService.swift)
+  - [SpecificationExtractor](../../../OpenIntelligence/Services/Query/Analysis/SpecificationExtractor.swift)
+  - [QueryEnhancementService](../../../OpenIntelligence/Services/Query/Enhancement/QueryEnhancementService.swift)
+  - [QueryRewriterService](../../../OpenIntelligence/Services/Query/Rewriting/QueryRewriterService.swift)
+  - [SmartReplyService](../../../OpenIntelligence/Services/Query/UX/SmartReplyService.swift)
+  - [SuggestedQuestionsService](../../../OpenIntelligence/Services/Query/UX/SuggestedQuestionsService.swift)
+  - [RAGEngine](../../../OpenIntelligence/Services/RAG/Orchestration/RAGEngine.swift)
+  - [IterativeRetrievalService](../../../OpenIntelligence/Services/RAG/Retrieval/IterativeRetrievalService.swift)
+  - [AutoTuneService](../../../OpenIntelligence/Services/RAG/Tuning/AutoTuneService.swift)
+  - [FullTextStorageService](../../../OpenIntelligence/Services/Storage/FullTextStorageService.swift)
+  - [ModelStatusIndicator](../../../OpenIntelligence/UI/Components/ModelStatusIndicator.swift)
+  - [Theme](../../../OpenIntelligence/UI/DesignSystem/Theme.swift)
 - **Main Services / Views / Models**:
   - `Accent`
   - `ActiveParameters`
@@ -506,15 +506,15 @@ This document maps the application architecture across all 30 core subsystems.
 - **Downstream Consumers**: generation
 - **Gaps or Uncertainties**: Access to local Apple FMs requires specific entitlements that can cause silent app crashes if provisioning fails.
 - **Owning Files**:
-  - [BackendHealthDiagnosticsView](file://OpenIntelligence/Features/Diagnostics/Monitoring/BackendHealthDiagnosticsView.swift)
-  - [FoundationModelDynamicProfileRegistry](file://OpenIntelligence/Services/AIPlatform/AppleFoundationModels/FoundationModelDynamicProfileRegistry.swift)
-  - [FoundationModelErrorMapper](file://OpenIntelligence/Services/AIPlatform/AppleFoundationModels/FoundationModelErrorMapper.swift)
-  - [FoundationModelPromptCompiler](file://OpenIntelligence/Services/AIPlatform/AppleFoundationModels/FoundationModelPromptCompiler.swift)
-  - [FoundationModelRoute](file://OpenIntelligence/Services/AIPlatform/AppleFoundationModels/FoundationModelRoute.swift)
-  - [FoundationModelStructuredGenerator](file://OpenIntelligence/Services/AIPlatform/AppleFoundationModels/FoundationModelStructuredGenerator.swift)
-  - [FoundationModelTokenBudget](file://OpenIntelligence/Services/AIPlatform/AppleFoundationModels/FoundationModelTokenBudget.swift)
-  - [FoundationModelToolRegistry](file://OpenIntelligence/Services/AIPlatform/AppleFoundationModels/FoundationModelToolRegistry.swift)
-  - [FoundationModelTranscriptStore](file://OpenIntelligence/Services/AIPlatform/AppleFoundationModels/FoundationModelTranscriptStore.swift)
+  - [BackendHealthDiagnosticsView](../../../OpenIntelligence/Features/Diagnostics/Monitoring/BackendHealthDiagnosticsView.swift)
+  - [FoundationModelDynamicProfileRegistry](../../../OpenIntelligence/Services/AIPlatform/AppleFoundationModels/FoundationModelDynamicProfileRegistry.swift)
+  - [FoundationModelErrorMapper](../../../OpenIntelligence/Services/AIPlatform/AppleFoundationModels/FoundationModelErrorMapper.swift)
+  - [FoundationModelPromptCompiler](../../../OpenIntelligence/Services/AIPlatform/AppleFoundationModels/FoundationModelPromptCompiler.swift)
+  - [FoundationModelRoute](../../../OpenIntelligence/Services/AIPlatform/AppleFoundationModels/FoundationModelRoute.swift)
+  - [FoundationModelStructuredGenerator](../../../OpenIntelligence/Services/AIPlatform/AppleFoundationModels/FoundationModelStructuredGenerator.swift)
+  - [FoundationModelTokenBudget](../../../OpenIntelligence/Services/AIPlatform/AppleFoundationModels/FoundationModelTokenBudget.swift)
+  - [FoundationModelToolRegistry](../../../OpenIntelligence/Services/AIPlatform/AppleFoundationModels/FoundationModelToolRegistry.swift)
+  - [FoundationModelTranscriptStore](../../../OpenIntelligence/Services/AIPlatform/AppleFoundationModels/FoundationModelTranscriptStore.swift)
 - **Main Services / Views / Models**:
   - `AppleFoundationModelRoute`
   - `Arguments`
@@ -544,19 +544,19 @@ This document maps the application architecture across all 30 core subsystems.
 - **Downstream Consumers**: Apple Foundation Models
 - **Gaps or Uncertainties**: Force-routing to local-only when consent is pending does not fail gracefully, occasionally hanging the retrieval pipeline.
 - **Owning Files**:
-  - [LLMModel](file://OpenIntelligence/Core/Models/LLMModel.swift)
-  - [EngineSDKCompatibility](file://OpenIntelligence/Core/Support/EngineSDKCompatibility.swift)
-  - [ChatScreen](file://OpenIntelligence/Features/Chat/Conversation/ChatScreen.swift)
-  - [DeveloperDiagnosticsHubView](file://OpenIntelligence/Features/Diagnostics/Hub/DeveloperDiagnosticsHubView.swift)
-  - [PCCRouteEvaluator](file://OpenIntelligence/Features/Diagnostics/Validation/PCCRouteEvaluator.swift)
-  - [RAGPipelineAuditView](file://OpenIntelligence/Features/Diagnostics/Validation/RAGPipelineAuditView.swift)
-  - [AboutView](file://OpenIntelligence/Features/Settings/AboutView.swift)
-  - [OpenIntelligenceEngine](file://OpenIntelligence/SDK/OpenIntelligenceEngine.swift)
-  - [FoundationModelRoutePolicy](file://OpenIntelligence/Services/AIPlatform/AppleFoundationModels/FoundationModelRoutePolicy.swift)
-  - [FoundationModelSessionFactory](file://OpenIntelligence/Services/AIPlatform/AppleFoundationModels/FoundationModelSessionFactory.swift)
-  - [AgenticOrchestrator](file://OpenIntelligence/Services/Agentic/AgenticOrchestrator.swift)
-  - [QueryRuntimeCoordinator](file://OpenIntelligence/Services/RAG/Orchestration/QueryRuntimeCoordinator.swift)
-  - [CloudConsentPromptView](file://OpenIntelligence/UI/Components/CloudConsentPromptView.swift)
+  - [LLMModel](../../../OpenIntelligence/Core/Models/LLMModel.swift)
+  - [EngineSDKCompatibility](../../../OpenIntelligence/Core/Support/EngineSDKCompatibility.swift)
+  - [ChatScreen](../../../OpenIntelligence/Features/Chat/Conversation/ChatScreen.swift)
+  - [DeveloperDiagnosticsHubView](../../../OpenIntelligence/Features/Diagnostics/Hub/DeveloperDiagnosticsHubView.swift)
+  - [PCCRouteEvaluator](../../../OpenIntelligence/Features/Diagnostics/Validation/PCCRouteEvaluator.swift)
+  - [RAGPipelineAuditView](../../../OpenIntelligence/Features/Diagnostics/Validation/RAGPipelineAuditView.swift)
+  - [AboutView](../../../OpenIntelligence/Features/Settings/AboutView.swift)
+  - [OpenIntelligenceEngine](../../../OpenIntelligence/SDK/OpenIntelligenceEngine.swift)
+  - [FoundationModelRoutePolicy](../../../OpenIntelligence/Services/AIPlatform/AppleFoundationModels/FoundationModelRoutePolicy.swift)
+  - [FoundationModelSessionFactory](../../../OpenIntelligence/Services/AIPlatform/AppleFoundationModels/FoundationModelSessionFactory.swift)
+  - [AgenticOrchestrator](../../../OpenIntelligence/Services/Agentic/AgenticOrchestrator.swift)
+  - [QueryRuntimeCoordinator](../../../OpenIntelligence/Services/RAG/Orchestration/QueryRuntimeCoordinator.swift)
+  - [CloudConsentPromptView](../../../OpenIntelligence/UI/Components/CloudConsentPromptView.swift)
 - **Main Services / Views / Models**:
   - `AboutView`
   - `AccuracyModeBadge`
@@ -586,20 +586,20 @@ This document maps the application architecture across all 30 core subsystems.
 - **Downstream Consumers**: citations/source rendering
 - **Gaps or Uncertainties**: Accuracy calibration calculations use a custom formula which has not been validated on diverse datasets.
 - **Owning Files**:
-  - [RAGQualityMode](file://OpenIntelligence/Core/Models/RAGQualityMode.swift)
-  - [StructuredAnswer](file://OpenIntelligence/Core/Models/StructuredAnswer.swift)
-  - [ThinkingEvent](file://OpenIntelligence/Core/Models/ThinkingEvent.swift)
-  - [MessageBubbleV2](file://OpenIntelligence/Features/Chat/Conversation/MessageBubbleV2.swift)
-  - [AnswerIntelligenceView](file://OpenIntelligence/Features/Chat/Response/AnswerIntelligenceView.swift)
-  - [ResponseDetailsView](file://OpenIntelligence/Features/Chat/Response/ResponseDetailsView.swift)
-  - [ThinkingStreamView](file://OpenIntelligence/Features/Chat/Response/ThinkingStreamView.swift)
-  - [VerificationGatesOverlayView](file://OpenIntelligence/Features/Chat/Response/VerificationGatesOverlayView.swift)
-  - [GroundedAnswerPolicy](file://OpenIntelligence/Services/Query/Analysis/GroundedAnswerPolicy.swift)
-  - [ContextualCompressionService](file://OpenIntelligence/Services/Query/Enhancement/ContextualCompressionService.swift)
-  - [ConfidenceCalibrationService](file://OpenIntelligence/Services/RAG/Safety/ConfidenceCalibrationService.swift)
-  - [SourceOnlyAnswerService](file://OpenIntelligence/Services/RAG/Safety/SourceOnlyAnswerService.swift)
-  - [VerificationGateService](file://OpenIntelligence/Services/RAG/Safety/VerificationGateService.swift)
-  - [ConfidencePolicyService](file://OpenIntelligence/Services/RAG/Tuning/ConfidencePolicyService.swift)
+  - [RAGQualityMode](../../../OpenIntelligence/Core/Models/RAGQualityMode.swift)
+  - [StructuredAnswer](../../../OpenIntelligence/Core/Models/StructuredAnswer.swift)
+  - [ThinkingEvent](../../../OpenIntelligence/Core/Models/ThinkingEvent.swift)
+  - [MessageBubbleV2](../../../OpenIntelligence/Features/Chat/Conversation/MessageBubbleV2.swift)
+  - [AnswerIntelligenceView](../../../OpenIntelligence/Features/Chat/Response/AnswerIntelligenceView.swift)
+  - [ResponseDetailsView](../../../OpenIntelligence/Features/Chat/Response/ResponseDetailsView.swift)
+  - [ThinkingStreamView](../../../OpenIntelligence/Features/Chat/Response/ThinkingStreamView.swift)
+  - [VerificationGatesOverlayView](../../../OpenIntelligence/Features/Chat/Response/VerificationGatesOverlayView.swift)
+  - [GroundedAnswerPolicy](../../../OpenIntelligence/Services/Query/Analysis/GroundedAnswerPolicy.swift)
+  - [ContextualCompressionService](../../../OpenIntelligence/Services/Query/Enhancement/ContextualCompressionService.swift)
+  - [ConfidenceCalibrationService](../../../OpenIntelligence/Services/RAG/Safety/ConfidenceCalibrationService.swift)
+  - [SourceOnlyAnswerService](../../../OpenIntelligence/Services/RAG/Safety/SourceOnlyAnswerService.swift)
+  - [VerificationGateService](../../../OpenIntelligence/Services/RAG/Safety/VerificationGateService.swift)
+  - [ConfidencePolicyService](../../../OpenIntelligence/Services/RAG/Tuning/ConfidencePolicyService.swift)
 - **Main Services / Views / Models**:
   - `AnswerIntelligence`
   - `AnswerIntelligenceBadge`
@@ -629,26 +629,26 @@ This document maps the application architecture across all 30 core subsystems.
 - **Downstream Consumers**: chat UI
 - **Gaps or Uncertainties**: Text highlighting matches can slip alignment if the source document layout changes slightly.
 - **Owning Files**:
-  - [EvidenceSource](file://OpenIntelligence/Core/Models/EvidenceSource.swift)
-  - [ContextUsageIndicator](file://OpenIntelligence/Features/Chat/Response/ContextUsageIndicator.swift)
-  - [EnhancedCodeBlock](file://OpenIntelligence/Features/Chat/Response/EnhancedCodeBlock.swift)
-  - [GroundedAnswerView](file://OpenIntelligence/Features/Chat/Response/GroundedAnswerView.swift)
-  - [ReportMessageSheet](file://OpenIntelligence/Features/Chat/Response/ReportMessageSheet.swift)
-  - [RetrievalQualityView](file://OpenIntelligence/Features/Chat/Response/RetrievalQualityView.swift)
-  - [RetrievalSourcesTray](file://OpenIntelligence/Features/Chat/Response/RetrievalSourcesTray.swift)
-  - [SourceChipsView](file://OpenIntelligence/Features/Chat/Response/SourceChipsView.swift)
-  - [SourceFidelityStatus](file://OpenIntelligence/Features/Chat/Response/SourceFidelityStatus.swift)
-  - [StatusPillV2](file://OpenIntelligence/Features/Chat/Response/StatusPillV2.swift)
-  - [TimingBreakdownView](file://OpenIntelligence/Features/Chat/Response/TimingBreakdownView.swift)
-  - [VisualEvidenceCard](file://OpenIntelligence/Features/Chat/Response/VisualEvidenceCard.swift)
-  - [WritingToolsResultSheet](file://OpenIntelligence/Features/Chat/Response/WritingToolsResultSheet.swift)
-  - [RAGEvalCase](file://OpenIntelligence/Services/Evaluation/RAGEvalCase.swift)
-  - [RAGEvalMetrics](file://OpenIntelligence/Services/Evaluation/RAGEvalMetrics.swift)
-  - [RAGEvalRunner](file://OpenIntelligence/Services/Evaluation/RAGEvalRunner.swift)
-  - [VisualEvidenceSource](file://OpenIntelligence/Services/RAG/Evidence/VisualEvidenceSource.swift)
-  - [AgenticPolicyService](file://OpenIntelligence/Services/RAG/Tuning/AgenticPolicyService.swift)
-  - [EvidenceScoringPolicyService](file://OpenIntelligence/Services/RAG/Tuning/EvidenceScoringPolicyService.swift)
-  - [RetrievalPolicyService](file://OpenIntelligence/Services/RAG/Tuning/RetrievalPolicyService.swift)
+  - [EvidenceSource](../../../OpenIntelligence/Core/Models/EvidenceSource.swift)
+  - [ContextUsageIndicator](../../../OpenIntelligence/Features/Chat/Response/ContextUsageIndicator.swift)
+  - [EnhancedCodeBlock](../../../OpenIntelligence/Features/Chat/Response/EnhancedCodeBlock.swift)
+  - [GroundedAnswerView](../../../OpenIntelligence/Features/Chat/Response/GroundedAnswerView.swift)
+  - [ReportMessageSheet](../../../OpenIntelligence/Features/Chat/Response/ReportMessageSheet.swift)
+  - [RetrievalQualityView](../../../OpenIntelligence/Features/Chat/Response/RetrievalQualityView.swift)
+  - [RetrievalSourcesTray](../../../OpenIntelligence/Features/Chat/Response/RetrievalSourcesTray.swift)
+  - [SourceChipsView](../../../OpenIntelligence/Features/Chat/Response/SourceChipsView.swift)
+  - [SourceFidelityStatus](../../../OpenIntelligence/Features/Chat/Response/SourceFidelityStatus.swift)
+  - [StatusPillV2](../../../OpenIntelligence/Features/Chat/Response/StatusPillV2.swift)
+  - [TimingBreakdownView](../../../OpenIntelligence/Features/Chat/Response/TimingBreakdownView.swift)
+  - [VisualEvidenceCard](../../../OpenIntelligence/Features/Chat/Response/VisualEvidenceCard.swift)
+  - [WritingToolsResultSheet](../../../OpenIntelligence/Features/Chat/Response/WritingToolsResultSheet.swift)
+  - [RAGEvalCase](../../../OpenIntelligence/Services/Evaluation/RAGEvalCase.swift)
+  - [RAGEvalMetrics](../../../OpenIntelligence/Services/Evaluation/RAGEvalMetrics.swift)
+  - [RAGEvalRunner](../../../OpenIntelligence/Services/Evaluation/RAGEvalRunner.swift)
+  - [VisualEvidenceSource](../../../OpenIntelligence/Services/RAG/Evidence/VisualEvidenceSource.swift)
+  - [AgenticPolicyService](../../../OpenIntelligence/Services/RAG/Tuning/AgenticPolicyService.swift)
+  - [EvidenceScoringPolicyService](../../../OpenIntelligence/Services/RAG/Tuning/EvidenceScoringPolicyService.swift)
+  - [RetrievalPolicyService](../../../OpenIntelligence/Services/RAG/Tuning/RetrievalPolicyService.swift)
 - **Main Services / Views / Models**:
   - `AgenticPolicyService`
   - `AgenticReasoningPolicy`
@@ -678,16 +678,16 @@ This document maps the application architecture across all 30 core subsystems.
 - **Downstream Consumers**: chat persistence
 - **Gaps or Uncertainties**: Keyboard height observers cause layouts to jitter when rapidly scrolling chat histories.
 - **Owning Files**:
-  - [ChatMessage](file://OpenIntelligence/Core/Models/ChatMessage.swift)
-  - [ActivityView](file://OpenIntelligence/Features/Chat/Conversation/ActivityView.swift)
-  - [AttachmentPicker](file://OpenIntelligence/Features/Chat/Conversation/AttachmentPicker.swift)
-  - [ChatComposerV2](file://OpenIntelligence/Features/Chat/Conversation/ChatComposerV2.swift)
-  - [EventToasts](file://OpenIntelligence/Features/Chat/Conversation/EventToasts.swift)
-  - [MessageActionsBar](file://OpenIntelligence/Features/Chat/Conversation/MessageActionsBar.swift)
-  - [MessageListV2](file://OpenIntelligence/Features/Chat/Conversation/MessageListV2.swift)
-  - [ProcessingModels](file://OpenIntelligence/Features/Chat/Pipeline/ProcessingModels.swift)
-  - [InfoButtonView](file://OpenIntelligence/UI/Components/InfoButtonView.swift)
-  - [SurfaceCard](file://OpenIntelligence/UI/DesignSystem/SurfaceCard.swift)
+  - [ChatMessage](../../../OpenIntelligence/Core/Models/ChatMessage.swift)
+  - [ActivityView](../../../OpenIntelligence/Features/Chat/Conversation/ActivityView.swift)
+  - [AttachmentPicker](../../../OpenIntelligence/Features/Chat/Conversation/AttachmentPicker.swift)
+  - [ChatComposerV2](../../../OpenIntelligence/Features/Chat/Conversation/ChatComposerV2.swift)
+  - [EventToasts](../../../OpenIntelligence/Features/Chat/Conversation/EventToasts.swift)
+  - [MessageActionsBar](../../../OpenIntelligence/Features/Chat/Conversation/MessageActionsBar.swift)
+  - [MessageListV2](../../../OpenIntelligence/Features/Chat/Conversation/MessageListV2.swift)
+  - [ProcessingModels](../../../OpenIntelligence/Features/Chat/Pipeline/ProcessingModels.swift)
+  - [InfoButtonView](../../../OpenIntelligence/UI/Components/InfoButtonView.swift)
+  - [SurfaceCard](../../../OpenIntelligence/UI/DesignSystem/SurfaceCard.swift)
 - **Main Services / Views / Models**:
   - `ActionButton`
   - `ActionButtonStyle`
@@ -717,7 +717,7 @@ This document maps the application architecture across all 30 core subsystems.
 - **Downstream Consumers**: chat UI
 - **Gaps or Uncertainties**: Automatic cleanup thresholds for cached documents are static, risking device storage bloat.
 - **Owning Files**:
-  - [DocumentationCacheService](file://OpenIntelligence/Services/Storage/DocumentationCacheService.swift)
+  - [DocumentationCacheService](../../../OpenIntelligence/Services/Storage/DocumentationCacheService.swift)
 - **Main Services / Views / Models**:
   - `CachedDocMetadata`
   - `CachedDocument`
@@ -737,8 +737,8 @@ This document maps the application architecture across all 30 core subsystems.
 - **Downstream Consumers**: ingestion queue
 - **Gaps or Uncertainties**: OS-allocated background execution windows are short, often terminating large document indexing runs prematurely.
 - **Owning Files**:
-  - [BackgroundTaskService](file://OpenIntelligence/Services/Infrastructure/Background/BackgroundTaskService.swift)
-  - [SpotlightIndexService](file://OpenIntelligence/Services/Infrastructure/Background/SpotlightIndexService.swift)
+  - [BackgroundTaskService](../../../OpenIntelligence/Services/Infrastructure/Background/BackgroundTaskService.swift)
+  - [SpotlightIndexService](../../../OpenIntelligence/Services/Infrastructure/Background/SpotlightIndexService.swift)
 - **Main Services / Views / Models**:
   - `BackgroundTaskService`
   - `ContinuedIngestionExecutionMode`
@@ -762,16 +762,16 @@ This document maps the application architecture across all 30 core subsystems.
 - **Downstream Consumers**: library/container management
 - **Gaps or Uncertainties**: Conflict resolution uses a last-write-wins policy which can discard user edits in rapid multi-device sync scenarios.
 - **Owning Files**:
-  - [ContentView](file://OpenIntelligence/App/ContentView.swift)
-  - [KnowledgeContainer](file://OpenIntelligence/Core/Models/KnowledgeContainer.swift)
-  - [DocumentCard](file://OpenIntelligence/Features/Documents/Components/DocumentCard.swift)
-  - [DocumentLibraryView](file://OpenIntelligence/Features/Documents/Library/DocumentLibraryView.swift)
-  - [ContainerSettingsSheet](file://OpenIntelligence/Features/Documents/Settings/ContainerSettingsSheet.swift)
-  - [ConversationMemoryService](file://OpenIntelligence/Services/Agentic/ConversationMemoryService.swift)
-  - [TranscriptPersistenceService](file://OpenIntelligence/Services/Infrastructure/Background/TranscriptPersistenceService.swift)
-  - [ContainerService](file://OpenIntelligence/Services/Infrastructure/Integration/ContainerService.swift)
-  - [WorkspaceSyncService](file://OpenIntelligence/Services/Infrastructure/Storage/WorkspaceSyncService.swift)
-  - [BNNSVectorDatabase](file://OpenIntelligence/Services/VectorStore/BNNSVectorDatabase.swift)
+  - [ContentView](../../../OpenIntelligence/App/ContentView.swift)
+  - [KnowledgeContainer](../../../OpenIntelligence/Core/Models/KnowledgeContainer.swift)
+  - [DocumentCard](../../../OpenIntelligence/Features/Documents/Components/DocumentCard.swift)
+  - [DocumentLibraryView](../../../OpenIntelligence/Features/Documents/Library/DocumentLibraryView.swift)
+  - [ContainerSettingsSheet](../../../OpenIntelligence/Features/Documents/Settings/ContainerSettingsSheet.swift)
+  - [ConversationMemoryService](../../../OpenIntelligence/Services/Agentic/ConversationMemoryService.swift)
+  - [TranscriptPersistenceService](../../../OpenIntelligence/Services/Infrastructure/Background/TranscriptPersistenceService.swift)
+  - [ContainerService](../../../OpenIntelligence/Services/Infrastructure/Integration/ContainerService.swift)
+  - [WorkspaceSyncService](../../../OpenIntelligence/Services/Infrastructure/Storage/WorkspaceSyncService.swift)
+  - [BNNSVectorDatabase](../../../OpenIntelligence/Services/VectorStore/BNNSVectorDatabase.swift)
 - **Main Services / Views / Models**:
   - `AppSupportPaths`
   - `AutoIntelligencePanel`
@@ -801,19 +801,19 @@ This document maps the application architecture across all 30 core subsystems.
 - **Downstream Consumers**: library/container management
 - **Gaps or Uncertainties**: Quota stores cache states in Keychain but do not verify integrity against a remote server regularly.
 - **Owning Files**:
-  - [PlanUpgradeEntryPoint](file://OpenIntelligence/Features/Billing/PlanUpgradeEntryPoint.swift)
-  - [PlanUpgradeSheet](file://OpenIntelligence/Features/Billing/PlanUpgradeSheet.swift)
-  - [PrivacyPolicyView](file://OpenIntelligence/Features/Billing/PrivacyPolicyView.swift)
-  - [TermsOfServiceView](file://OpenIntelligence/Features/Billing/TermsOfServiceView.swift)
-  - [DocumentQuotaBanner](file://OpenIntelligence/Features/Documents/Components/DocumentQuotaBanner.swift)
-  - [BillingError](file://OpenIntelligence/Services/Billing/BillingError.swift)
-  - [BillingEvent](file://OpenIntelligence/Services/Billing/BillingEvent.swift)
-  - [BillingProduct](file://OpenIntelligence/Services/Billing/BillingProduct.swift)
-  - [BillingService](file://OpenIntelligence/Services/Billing/BillingService.swift)
-  - [EntitlementStore](file://OpenIntelligence/Services/Billing/EntitlementStore.swift)
-  - [MaximumModeQuotaStore](file://OpenIntelligence/Services/Billing/MaximumModeQuotaStore.swift)
-  - [MonetizationPolicy](file://OpenIntelligence/Services/Billing/MonetizationPolicy.swift)
-  - [QuotaPolicy](file://OpenIntelligence/Services/Infrastructure/Configuration/QuotaPolicy.swift)
+  - [PlanUpgradeEntryPoint](../../../OpenIntelligence/Features/Billing/PlanUpgradeEntryPoint.swift)
+  - [PlanUpgradeSheet](../../../OpenIntelligence/Features/Billing/PlanUpgradeSheet.swift)
+  - [PrivacyPolicyView](../../../OpenIntelligence/Features/Billing/PrivacyPolicyView.swift)
+  - [TermsOfServiceView](../../../OpenIntelligence/Features/Billing/TermsOfServiceView.swift)
+  - [DocumentQuotaBanner](../../../OpenIntelligence/Features/Documents/Components/DocumentQuotaBanner.swift)
+  - [BillingError](../../../OpenIntelligence/Services/Billing/BillingError.swift)
+  - [BillingEvent](../../../OpenIntelligence/Services/Billing/BillingEvent.swift)
+  - [BillingProduct](../../../OpenIntelligence/Services/Billing/BillingProduct.swift)
+  - [BillingService](../../../OpenIntelligence/Services/Billing/BillingService.swift)
+  - [EntitlementStore](../../../OpenIntelligence/Services/Billing/EntitlementStore.swift)
+  - [MaximumModeQuotaStore](../../../OpenIntelligence/Services/Billing/MaximumModeQuotaStore.swift)
+  - [MonetizationPolicy](../../../OpenIntelligence/Services/Billing/MonetizationPolicy.swift)
+  - [QuotaPolicy](../../../OpenIntelligence/Services/Infrastructure/Configuration/QuotaPolicy.swift)
 - **Main Services / Views / Models**:
   - `BenefitRow`
   - `BillingError`
@@ -843,8 +843,8 @@ This document maps the application architecture across all 30 core subsystems.
 - **Downstream Consumers**: billing/entitlements
 - **Gaps or Uncertainties**: StoreKit local validation ignores sandbox/production environment headers, causing subscription status lag in sandbox.
 - **Owning Files**:
-  - [StoreKitTestHarness](file://OpenIntelligence/Resources/StoreKit/StoreKitTestHarness.swift)
-  - [StoreKitBillingService](file://OpenIntelligence/Services/Billing/StoreKitBillingService.swift)
+  - [StoreKitTestHarness](../../../OpenIntelligence/Resources/StoreKit/StoreKitTestHarness.swift)
+  - [StoreKitBillingService](../../../OpenIntelligence/Services/Billing/StoreKitBillingService.swift)
 - **Main Services / Views / Models**:
   - `StoreKitBillingService`
   - `StoreKitTestHarness`
@@ -861,13 +861,13 @@ This document maps the application architecture across all 30 core subsystems.
 - **Downstream Consumers**: Apple Foundation Models
 - **Gaps or Uncertainties**: Model selection lists show unavailable models on unsupported legacy hardware.
 - **Owning Files**:
-  - [ColorPicker](file://OpenIntelligence/Features/Documents/Settings/ColorPicker.swift)
-  - [SFSymbolPicker](file://OpenIntelligence/Features/Documents/Settings/SFSymbolPicker.swift)
-  - [FeatureRow](file://OpenIntelligence/Features/Settings/Components/FeatureRow.swift)
-  - [InfoRow](file://OpenIntelligence/Features/Settings/Components/InfoRow.swift)
-  - [ModelConfigurationSheet](file://OpenIntelligence/Features/Settings/Components/ModelConfigurationSheet.swift)
-  - [ModelPipelineRow](file://OpenIntelligence/Features/Settings/Components/ModelPipelineRow.swift)
-  - [ModelPipelineStage](file://OpenIntelligence/Features/Settings/Components/ModelPipelineStage.swift)
+  - [ColorPicker](../../../OpenIntelligence/Features/Documents/Settings/ColorPicker.swift)
+  - [SFSymbolPicker](../../../OpenIntelligence/Features/Documents/Settings/SFSymbolPicker.swift)
+  - [FeatureRow](../../../OpenIntelligence/Features/Settings/Components/FeatureRow.swift)
+  - [InfoRow](../../../OpenIntelligence/Features/Settings/Components/InfoRow.swift)
+  - [ModelConfigurationSheet](../../../OpenIntelligence/Features/Settings/Components/ModelConfigurationSheet.swift)
+  - [ModelPipelineRow](../../../OpenIntelligence/Features/Settings/Components/ModelPipelineRow.swift)
+  - [ModelPipelineStage](../../../OpenIntelligence/Features/Settings/Components/ModelPipelineStage.swift)
 - **Main Services / Views / Models**:
   - `AccentColorPicker`
   - `AccentColorSettingsRow`
@@ -897,17 +897,17 @@ This document maps the application architecture across all 30 core subsystems.
 - **Downstream Consumers**: retrieval
 - **Gaps or Uncertainties**: Registering App Intents requires a strict limit of 10 shortcuts; exceeding this causes silent OS registration failure.
 - **Owning Files**:
-  - [ViewAnnotations](file://OpenIntelligence/Features/Chat/Conversation/ViewAnnotations.swift)
-  - [SettingsView](file://OpenIntelligence/Features/Settings/SettingsView.swift)
-  - [OIDocumentEntity](file://OpenIntelligence/Services/Agentic/Entities/OIDocumentEntity.swift)
-  - [OIEntityQueries](file://OpenIntelligence/Services/Agentic/Entities/OIEntityQueries.swift)
-  - [OILibraryEntity](file://OpenIntelligence/Services/Agentic/Entities/OILibraryEntity.swift)
-  - [RAGAppIntents](file://OpenIntelligence/Services/Agentic/RAGAppIntents.swift)
-  - [ScreenAwarenessIntents](file://OpenIntelligence/Services/Agentic/ScreenAwarenessIntents.swift)
-  - [VisualIntelligenceIntents](file://OpenIntelligence/Services/Agentic/VisualIntelligenceIntents.swift)
-  - [SettingsStore](file://OpenIntelligence/Services/Infrastructure/Configuration/SettingsStore.swift)
-  - [LLMService](file://OpenIntelligence/Services/LLM/LLMService.swift)
-  - [RAGService](file://OpenIntelligence/Services/RAG/Orchestration/RAGService.swift)
+  - [ViewAnnotations](../../../OpenIntelligence/Features/Chat/Conversation/ViewAnnotations.swift)
+  - [SettingsView](../../../OpenIntelligence/Features/Settings/SettingsView.swift)
+  - [OIDocumentEntity](../../../OpenIntelligence/Services/Agentic/Entities/OIDocumentEntity.swift)
+  - [OIEntityQueries](../../../OpenIntelligence/Services/Agentic/Entities/OIEntityQueries.swift)
+  - [OILibraryEntity](../../../OpenIntelligence/Services/Agentic/Entities/OILibraryEntity.swift)
+  - [RAGAppIntents](../../../OpenIntelligence/Services/Agentic/RAGAppIntents.swift)
+  - [ScreenAwarenessIntents](../../../OpenIntelligence/Services/Agentic/ScreenAwarenessIntents.swift)
+  - [VisualIntelligenceIntents](../../../OpenIntelligence/Services/Agentic/VisualIntelligenceIntents.swift)
+  - [SettingsStore](../../../OpenIntelligence/Services/Infrastructure/Configuration/SettingsStore.swift)
+  - [LLMService](../../../OpenIntelligence/Services/LLM/LLMService.swift)
+  - [RAGService](../../../OpenIntelligence/Services/RAG/Orchestration/RAGService.swift)
   - [Package](file://Package.swift)
 - **Main Services / Views / Models**:
   - `ActiveDocumentAnnotationModifier`
@@ -938,17 +938,17 @@ This document maps the application architecture across all 30 core subsystems.
 - **Downstream Consumers**: export/reporting
 - **Gaps or Uncertainties**: Metal hardware monitoring uses custom sampling rates which can inflate CPU overhead when the dashboard is active.
 - **Owning Files**:
-  - [NetworkMonitor](file://OpenIntelligence/Core/Extensions/NetworkMonitor.swift)
-  - [LiveSystemMonitorWrapper](file://OpenIntelligence/Features/Diagnostics/Monitoring/LiveSystemMonitorWrapper.swift)
-  - [RAGAccuracyView](file://OpenIntelligence/Features/Diagnostics/Validation/RAGAccuracyView.swift)
-  - [LiveTelemetryStatsView](file://OpenIntelligence/Features/Telemetry/Dashboard/LiveTelemetryStatsView.swift)
-  - [MotherboardHUDView](file://OpenIntelligence/Features/Telemetry/Dashboard/MotherboardHUDView.swift)
-  - [TelemetryDashboardView](file://OpenIntelligence/Features/Telemetry/Dashboard/TelemetryDashboardView.swift)
-  - [AppleEvaluationsBridge](file://OpenIntelligence/Services/Evaluation/AppleEvaluationsBridge.swift)
-  - [RAGEvalDataset](file://OpenIntelligence/Services/Evaluation/RAGEvalDataset.swift)
-  - [RAGEvalReportWriter](file://OpenIntelligence/Services/Evaluation/RAGEvalReportWriter.swift)
-  - [SystemStateMonitor](file://OpenIntelligence/Services/Infrastructure/Monitoring/SystemStateMonitor.swift)
-  - [TelemetryCenter](file://OpenIntelligence/Services/Infrastructure/Monitoring/TelemetryCenter.swift)
+  - [NetworkMonitor](../../../OpenIntelligence/Core/Extensions/NetworkMonitor.swift)
+  - [LiveSystemMonitorWrapper](../../../OpenIntelligence/Features/Diagnostics/Monitoring/LiveSystemMonitorWrapper.swift)
+  - [RAGAccuracyView](../../../OpenIntelligence/Features/Diagnostics/Validation/RAGAccuracyView.swift)
+  - [LiveTelemetryStatsView](../../../OpenIntelligence/Features/Telemetry/Dashboard/LiveTelemetryStatsView.swift)
+  - [MotherboardHUDView](../../../OpenIntelligence/Features/Telemetry/Dashboard/MotherboardHUDView.swift)
+  - [TelemetryDashboardView](../../../OpenIntelligence/Features/Telemetry/Dashboard/TelemetryDashboardView.swift)
+  - [AppleEvaluationsBridge](../../../OpenIntelligence/Services/Evaluation/AppleEvaluationsBridge.swift)
+  - [RAGEvalDataset](../../../OpenIntelligence/Services/Evaluation/RAGEvalDataset.swift)
+  - [RAGEvalReportWriter](../../../OpenIntelligence/Services/Evaluation/RAGEvalReportWriter.swift)
+  - [SystemStateMonitor](../../../OpenIntelligence/Services/Infrastructure/Monitoring/SystemStateMonitor.swift)
+  - [TelemetryCenter](../../../OpenIntelligence/Services/Infrastructure/Monitoring/TelemetryCenter.swift)
 - **Main Services / Views / Models**:
   - `AppleEvaluationsBridge`
   - `DeviceComponentLayout`
@@ -978,7 +978,7 @@ This document maps the application architecture across all 30 core subsystems.
 - **Downstream Consumers**: None
 - **Gaps or Uncertainties**: Trace exports are saved in plain text, which could compromise privacy if documents contain sensitive information.
 - **Owning Files**:
-  - [PipelineTraceExporter](file://OpenIntelligence/Features/Chat/Pipeline/PipelineTraceExporter.swift)
+  - [PipelineTraceExporter](../../../OpenIntelligence/Features/Chat/Pipeline/PipelineTraceExporter.swift)
 - **Main Services / Views / Models**:
   - `PipelineTraceExporter`
 
@@ -1008,7 +1008,7 @@ This document maps the application architecture across all 30 core subsystems.
 - **Downstream Consumers**: None
 - **Gaps or Uncertainties**: Tests lack mock configurations for testing Private Cloud Compute connection timeouts.
 - **Owning Files**:
-  - [ContainerScopingSelfTestsView](file://OpenIntelligence/Features/Diagnostics/Validation/ContainerScopingSelfTestsView.swift)
+  - [ContainerScopingSelfTestsView](../../../OpenIntelligence/Features/Diagnostics/Validation/ContainerScopingSelfTestsView.swift)
   - [OpenIntelligenceEngineTests](file://OpenIntelligenceTests/OpenIntelligenceEngineTests.swift)
   - [SemanticChunkerTests](file://OpenIntelligenceTests/Services/Document/Chunking/SemanticChunkerTests.swift)
   - [DocumentProcessorTests](file://OpenIntelligenceTests/Services/Document/Processing/DocumentProcessorTests.swift)

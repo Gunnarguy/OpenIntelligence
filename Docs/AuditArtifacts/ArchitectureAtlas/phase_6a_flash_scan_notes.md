@@ -8,34 +8,34 @@ A comprehensive documentation scan was executed using a high-velocity reasoning 
 ## Detailed Pronoun & Style Violations
 In accordance with the communication rules, all documentation, changelogs, and release notes must use objective, passive, or purely factual language, avoiding personal pronouns ("I", "we", "our", "us") and informal greetings. The following exact violations were identified during the scan:
 
-1. **[Docs/ARCHITECTURE.md:L9](file:///Users/gunnarhostetler/Documents/GitHub/OpenIntelligence/Docs/ARCHITECTURE.md#L9)**:
+1. **[Docs/ARCHITECTURE.md:L9](../../ARCHITECTURE.md#L9)**:
    - *Text*: `"I designed the codebase to expose the entire RAG pipeline..."`
    - *Rule Violation*: First-person singular pronoun `"I"`.
-2. **[Docs/PRIVACY_AND_ROUTING.md:L13](file:///Users/gunnarhostetler/Documents/GitHub/OpenIntelligence/Docs/PRIVACY_AND_ROUTING.md#L13)**:
+2. **[Docs/PRIVACY_AND_ROUTING.md:L13](../../PRIVACY_AND_ROUTING.md#L13)**:
    - *Text*: `"I built OpenIntelligence as a local-first application."`
    - *Rule Violation*: First-person singular pronoun `"I"`.
-3. **[Docs/PRIVACY_AND_ROUTING.md:L44](file:///Users/gunnarhostetler/Documents/GitHub/OpenIntelligence/Docs/PRIVACY_AND_ROUTING.md#L44)**:
+3. **[Docs/PRIVACY_AND_ROUTING.md:L44](../../PRIVACY_AND_ROUTING.md#L44)**:
    - *Text*: `"I built local user consent dialogs..."`
    - *Rule Violation*: First-person singular pronoun `"I"`.
-4. **[Docs/RETRIEVAL_PIPELINE.md:L10](file:///Users/gunnarhostetler/Documents/GitHub/OpenIntelligence/Docs/RETRIEVAL_PIPELINE.md#L10)**:
+4. **[Docs/RETRIEVAL_PIPELINE.md:L10](../../RETRIEVAL_PIPELINE.md#L10)**:
    - *Text*: `"I built this app to bias responses toward groundedness..."`
    - *Rule Violation*: First-person singular pronoun `"I"`.
-5. **[Docs/RETRIEVAL_PIPELINE.md:L55](file:///Users/gunnarhostetler/Documents/GitHub/OpenIntelligence/Docs/RETRIEVAL_PIPELINE.md#L55)**:
+5. **[Docs/RETRIEVAL_PIPELINE.md:L55](../../RETRIEVAL_PIPELINE.md#L55)**:
    - *Text*: `"I designed the app so that a query is answered..."`
    - *Rule Violation*: First-person singular pronoun `"I"`.
-6. **[Docs/RETRIEVAL_PIPELINE.md:L60](file:///Users/gunnarhostetler/Documents/GitHub/OpenIntelligence/Docs/RETRIEVAL_PIPELINE.md#L60)**:
+6. **[Docs/RETRIEVAL_PIPELINE.md:L60](../../RETRIEVAL_PIPELINE.md#L60)**:
    - *Text*: `"I included diagnostic and telemetry surfaces..."`
    - *Rule Violation*: First-person singular pronoun `"I"`.
-7. **[Docs/BILLING_AND_LIMITS.md:L12](file:///Users/gunnarhostetler/Documents/GitHub/OpenIntelligence/Docs/BILLING_AND_LIMITS.md#L12)**:
+7. **[Docs/BILLING_AND_LIMITS.md:L12](../../BILLING_AND_LIMITS.md#L12)**:
    - *Text*: `"I define these StoreKit product IDs centrally..."`
    - *Rule Violation*: First-person singular pronoun `"I"`.
-8. **[Docs/BILLING_AND_LIMITS.md:L47](file:///Users/gunnarhostetler/Documents/GitHub/OpenIntelligence/Docs/BILLING_AND_LIMITS.md#L47)**:
+8. **[Docs/BILLING_AND_LIMITS.md:L47](../../BILLING_AND_LIMITS.md#L47)**:
    - *Text*: `"I implemented a sticky paid-history protection state..."`
    - *Rule Violation*: First-person singular pronoun `"I"`.
-9. **[Docs/INGESTION_PIPELINE.md:L36](file:///Users/gunnarhostetler/Documents/GitHub/OpenIntelligence/Docs/INGESTION_PIPELINE.md#L36)**:
+9. **[Docs/INGESTION_PIPELINE.md:L36](../../INGESTION_PIPELINE.md#L36)**:
    - *Text*: `"I use StructuredDocumentParser.swift to resolve..."`
    - *Rule Violation*: First-person singular pronoun `"I"`.
-10. **[CHANGELOG.md:L99](file:///Users/gunnarhostetler/Documents/GitHub/OpenIntelligence/CHANGELOG.md#L99)**:
+10. **[CHANGELOG.md:L99](../../../CHANGELOG.md#L99)**:
     - *Text*: `"Shoutout to Tim for asking for this."`
     - *Rule Violation*: Informal personal greeting violating objective developer tone.
 

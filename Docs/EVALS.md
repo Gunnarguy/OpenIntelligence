@@ -203,7 +203,7 @@ prints a warning next to its timing line for exactly this reason.
 ---
 
 
-This document describes the formal evaluations framework implemented in OpenIntelligence. This framework is designed to validate the RAG pipeline's behavior, latency, and quality against the target quality gates defined in [WWDC26.md](file:///Users/gunnarhostetler/Documents/GitHub/OpenIntelligence/WWDC26.md).
+This document describes the formal evaluations framework implemented in OpenIntelligence. This framework is designed to validate the RAG pipeline's behavior, latency, and quality against the target quality gates defined in WWDC26.md *(that document no longer exists in this repository; noted 2026-08-27)*.
 
 ---
 

@@ -30,8 +30,8 @@ Current source code reflects Apple's modern platform context limits and models a
 
 Related docs:
 
-- [Current State and Gaps](./CURRENT_STATE_AND_GAPS.md)
-- [Apple Intelligence and Foundation Models Research](./Research/APPLE_INTELLIGENCE_AND_FOUNDATION_MODELS.md)
+- Current State and Gaps *(that document no longer exists in this repository; noted 2026-08-27)*
+- [Apple Intelligence and Foundation Models Research](../Research/APPLE_INTELLIGENCE_AND_FOUNDATION_MODELS.md)
 - [Hard Limits](./HARD_LIMITS.md)
 
 ---

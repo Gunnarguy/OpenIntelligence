@@ -32,16 +32,16 @@ A repository-wide inventory has been compiled based on file structures and key t
 *   **Scripts (`scripts/`)**: 18 python and bash utilities for benchmarks, schema audits, and deployment.
 
 ### 2. Major Modules & Feature Files
-*   **Ingestion Queue:** Managed in [RAGService.swift](file:///Users/gunnarhostetler/Documents/GitHub/OpenIntelligence/OpenIntelligence/Services/RAG/Orchestration/RAGService.swift#L4023-L4090) and [BackgroundTaskService.swift](file:///Users/gunnarhostetler/Documents/GitHub/OpenIntelligence/OpenIntelligence/Services/Infrastructure/Background/BackgroundTaskService.swift).
-*   **OCR & Extraction:** Handled by [DocumentProcessor.swift](file:///Users/gunnarhostetler/Documents/GitHub/OpenIntelligence/OpenIntelligence/Services/Document/Processing/DocumentProcessor.swift) and [LayoutAwareExtractor.swift](file:///Users/gunnarhostetler/Documents/GitHub/OpenIntelligence/OpenIntelligence/Services/Document/Processing/LayoutAwareExtractor.swift).
-*   **Semantic Chunking:** Controlled by [SemanticChunker.swift](file:///Users/gunnarhostetler/Documents/GitHub/OpenIntelligence/OpenIntelligence/Services/Document/Chunking/SemanticChunker.swift).
-*   **Vector & Lexical Storage:** Managed by [BNNSVectorDatabase.swift](file:///Users/gunnarhostetler/Documents/GitHub/OpenIntelligence/OpenIntelligence/Services/VectorStore/BNNSVectorDatabase.swift) and [SQLiteFullTextService.swift](file:///Users/gunnarhostetler/Documents/GitHub/OpenIntelligence/OpenIntelligence/Services/Storage/SQLiteFullTextService.swift).
-*   **Hybrid Search & Reranking:** Implemented in [HybridSearchService.swift](file:///Users/gunnarhostetler/Documents/GitHub/OpenIntelligence/OpenIntelligence/Services/RAG/Retrieval/HybridSearchService.swift).
-*   **Agentic Reasoning (Deep Think / Maximum):** Handled by [AgenticOrchestrator.swift](file:///Users/gunnarhostetler/Documents/GitHub/OpenIntelligence/OpenIntelligence/Services/Agentic/AgenticOrchestrator.swift).
-*   **Session Management & Transcripts:** Managed via [TranscriptPersistenceService.swift](file:///Users/gunnarhostetler/Documents/GitHub/OpenIntelligence/OpenIntelligence/Services/Infrastructure/Background/TranscriptPersistenceService.swift).
-*   **iCloud Synchronization:** Handled by [WorkspaceSyncService.swift](file:///Users/gunnarhostetler/Documents/GitHub/OpenIntelligence/OpenIntelligence/Services/Infrastructure/Storage/WorkspaceSyncService.swift).
-*   **StoreKit & Billing:** Gated via [EntitlementStore.swift](file:///Users/gunnarhostetler/Documents/GitHub/OpenIntelligence/OpenIntelligence/Services/Billing/EntitlementStore.swift) and [StoreKitBillingService.swift](file:///Users/gunnarhostetler/Documents/GitHub/OpenIntelligence/OpenIntelligence/Services/Billing/StoreKitBillingService.swift).
-*   **Siri App Intents:** Defined in [RAGAppIntents.swift](file:///Users/gunnarhostetler/Documents/GitHub/OpenIntelligence/OpenIntelligence/Services/Agentic/RAGAppIntents.swift), [ScreenAwarenessIntents.swift](file:///Users/gunnarhostetler/Documents/GitHub/OpenIntelligence/OpenIntelligence/Services/Agentic/ScreenAwarenessIntents.swift), and [VisualIntelligenceIntents.swift](file:///Users/gunnarhostetler/Documents/GitHub/OpenIntelligence/OpenIntelligence/Services/Agentic/VisualIntelligenceIntents.swift).
+*   **Ingestion Queue:** Managed in [RAGService.swift](../OpenIntelligence/Services/RAG/Orchestration/RAGService.swift#L4023-L4090) and [BackgroundTaskService.swift](../OpenIntelligence/Services/Infrastructure/Background/BackgroundTaskService.swift).
+*   **OCR & Extraction:** Handled by [DocumentProcessor.swift](../OpenIntelligence/Services/Document/Processing/DocumentProcessor.swift) and [LayoutAwareExtractor.swift](../OpenIntelligence/Services/Document/Processing/LayoutAwareExtractor.swift).
+*   **Semantic Chunking:** Controlled by [SemanticChunker.swift](../OpenIntelligence/Services/Document/Chunking/SemanticChunker.swift).
+*   **Vector & Lexical Storage:** Managed by [BNNSVectorDatabase.swift](../OpenIntelligence/Services/VectorStore/BNNSVectorDatabase.swift) and [SQLiteFullTextService.swift](../OpenIntelligence/Services/Storage/SQLiteFullTextService.swift).
+*   **Hybrid Search & Reranking:** Implemented in [HybridSearchService.swift](../OpenIntelligence/Services/RAG/Retrieval/HybridSearchService.swift).
+*   **Agentic Reasoning (Deep Think / Maximum):** Handled by [AgenticOrchestrator.swift](../OpenIntelligence/Services/Agentic/AgenticOrchestrator.swift).
+*   **Session Management & Transcripts:** Managed via [TranscriptPersistenceService.swift](../OpenIntelligence/Services/Infrastructure/Background/TranscriptPersistenceService.swift).
+*   **iCloud Synchronization:** Handled by [WorkspaceSyncService.swift](../OpenIntelligence/Services/Infrastructure/Storage/WorkspaceSyncService.swift).
+*   **StoreKit & Billing:** Gated via [EntitlementStore.swift](../OpenIntelligence/Services/Billing/EntitlementStore.swift) and [StoreKitBillingService.swift](../OpenIntelligence/Services/Billing/StoreKitBillingService.swift).
+*   **Siri App Intents:** Defined in [RAGAppIntents.swift](../OpenIntelligence/Services/Agentic/RAGAppIntents.swift), [ScreenAwarenessIntents.swift](../OpenIntelligence/Services/Agentic/ScreenAwarenessIntents.swift), and [VisualIntelligenceIntents.swift](../OpenIntelligence/Services/Agentic/VisualIntelligenceIntents.swift).
 
 ---
 
@@ -74,97 +74,97 @@ graph TD
 ### Architectural Stages & Specifications
 
 1.  **First Launch / Onboarding:**
-    *   *Responsible Files:* [OnboardingStateStore.swift](file:///Users/gunnarhostetler/Documents/GitHub/OpenIntelligence/OpenIntelligence/Features/Onboarding/OnboardingStateStore.swift), [OnboardingChecklistView.swift](file:///Users/gunnarhostetler/Documents/GitHub/OpenIntelligence/OpenIntelligence/Features/Onboarding/OnboardingChecklistView.swift).
+    *   *Responsible Files:* [OnboardingStateStore.swift](../OpenIntelligence/Features/Onboarding/OnboardingStateStore.swift), [OnboardingChecklistView.swift](../OpenIntelligence/Features/Onboarding/OnboardingChecklistView.swift).
     *   *Data Flow:* User options recorded in `UserDefaults`. Preloads sample documentation when onboarding tasks are marked complete.
     *   *Persistence:* Boolean checklist flags saved to `UserDefaults` keys (`onboarding.hasCompleted`, etc.).
     *   *Boundary:* Local-only; no cloud routing.
 2.  **Library / Container Creation:**
-    *   *Responsible Files:* [ContainerService.swift](file:///Users/gunnarhostetler/Documents/GitHub/OpenIntelligence/OpenIntelligence/Services/Infrastructure/Integration/ContainerService.swift), [KnowledgeContainer.swift](file:///Users/gunnarhostetler/Documents/GitHub/OpenIntelligence/OpenIntelligence/Core/Models/KnowledgeContainer.swift).
+    *   *Responsible Files:* [ContainerService.swift](../OpenIntelligence/Services/Infrastructure/Integration/ContainerService.swift), [KnowledgeContainer.swift](../OpenIntelligence/Core/Models/KnowledgeContainer.swift).
     *   *Data Flow:* Input parameters (name, color, icon) map to a `KnowledgeContainer` struct.
     *   *Persistence:* Saved to `containers.json` in the base directory. The selected container ID is stored in `UserDefaults` (`activeContainerId`).
     *   *Boundary:* Local-only by default; syncs to iCloud if `syncMode == .iCloudShared` (requires Pro/Lifetime).
 3.  **Document Import:**
-    *   *Responsible Files:* [DocumentPicker.swift](file:///Users/gunnarhostetler/Documents/GitHub/OpenIntelligence/OpenIntelligence/Features/Documents/Components/DocumentPicker.swift), [RAGService.swift](file:///Users/gunnarhostetler/Documents/GitHub/OpenIntelligence/OpenIntelligence/Services/RAG/Orchestration/RAGService.swift#L4600).
+    *   *Responsible Files:* [DocumentPicker.swift](../OpenIntelligence/Features/Documents/Components/DocumentPicker.swift), [RAGService.swift](../OpenIntelligence/Services/RAG/Orchestration/RAGService.swift#L4600).
     *   *Data Flow:* Source file URLs are passed to `addDocument`. The file is copied to `baseDir()/ImportedDocuments/` with unique suffix naming to avoid collision.
     *   *Persistence:* Physical file written to disk. Metadata recorded in `documents_metadata.json` and `documents_<containerId>.json`.
     *   *Boundary:* Local-only; physical files are synced to iCloud if library sync is active.
 4.  **Ingestion Queue:**
-    *   *Responsible Files:* [RAGService.swift](file:///Users/gunnarhostetler/Documents/GitHub/OpenIntelligence/OpenIntelligence/Services/RAG/Orchestration/RAGService.swift#L4023-L4090), [IngestionItem.swift](file:///Users/gunnarhostetler/Documents/GitHub/OpenIntelligence/OpenIntelligence/Core/Models/IngestionItem.swift).
+    *   *Responsible Files:* [RAGService.swift](../OpenIntelligence/Services/RAG/Orchestration/RAGService.swift#L4023-L4090), [IngestionItem.swift](../OpenIntelligence/Core/Models/IngestionItem.swift).
     *   *Data Flow:* Documents are appended to `ingestionItems` array and processed sequentially in `runIngestionLoop()`.
     *   *Persistence:* Serialized to `ingestion_queue.json` to allow recovery across app restarts.
     *   *Boundary:* Local-only.
 5.  **OCR / Extraction:**
-    *   *Responsible Files:* [DocumentProcessor.swift](file:///Users/gunnarhostetler/Documents/GitHub/OpenIntelligence/OpenIntelligence/Services/Document/Processing/DocumentProcessor.swift), [LayoutAwareExtractor.swift](file:///Users/gunnarhostetler/Documents/GitHub/OpenIntelligence/OpenIntelligence/Services/Document/Processing/LayoutAwareExtractor.swift).
+    *   *Responsible Files:* [DocumentProcessor.swift](../OpenIntelligence/Services/Document/Processing/DocumentProcessor.swift), [LayoutAwareExtractor.swift](../OpenIntelligence/Services/Document/Processing/LayoutAwareExtractor.swift).
     *   *Data Flow:* Reads raw PDF, docx, txt, image, or audio bytes. Uses Apple Vision framework for OCR if text extraction fails.
     *   *Persistence:* In-memory text structures during pipeline execution.
     *   *Boundary:* Local-only; no cloud offloading.
 6.  **Chunking:**
-    *   *Responsible Files:* [SemanticChunker.swift](file:///Users/gunnarhostetler/Documents/GitHub/OpenIntelligence/OpenIntelligence/Services/Document/Chunking/SemanticChunker.swift).
+    *   *Responsible Files:* [SemanticChunker.swift](../OpenIntelligence/Services/Document/Chunking/SemanticChunker.swift).
     *   *Data Flow:* Raw extracted text is divided into semantically bound sentences (280-400 words) using `NaturalLanguage` tags.
     *   *Persistence:* In-memory array of `ProcessedChunk` structures.
     *   *Boundary:* Local-only.
 7.  **Embedding:**
-    *   *Responsible Files:* [EmbeddingService.swift](file:///Users/gunnarhostetler/Documents/GitHub/OpenIntelligence/OpenIntelligence/Services/Embedding/EmbeddingService.swift).
+    *   *Responsible Files:* [EmbeddingService.swift](../OpenIntelligence/Services/Embedding/EmbeddingService.swift).
     *   *Data Flow:* String chunks are processed through CoreML Sentence Embedding to output a 384-dimensional floating-point array.
     *   *Persistence:* Temporary in-memory float arrays.
     *   *Boundary:* Local-only (runs on GPU or Neural Engine).
 8.  **Vector / Lexical Storage:**
-    *   *Responsible Files:* [BNNSVectorDatabase.swift](file:///Users/gunnarhostetler/Documents/GitHub/OpenIntelligence/OpenIntelligence/Services/VectorStore/BNNSVectorDatabase.swift), [SQLiteFullTextService.swift](file:///Users/gunnarhostetler/Documents/GitHub/OpenIntelligence/OpenIntelligence/Services/Storage/SQLiteFullTextService.swift).
+    *   *Responsible Files:* [BNNSVectorDatabase.swift](../OpenIntelligence/Services/VectorStore/BNNSVectorDatabase.swift), [SQLiteFullTextService.swift](../OpenIntelligence/Services/Storage/SQLiteFullTextService.swift).
     *   *Data Flow:* Text chunks and embeddings are stored concurrently.
     *   *Persistence:* Vectors saved atomically to `vector_database_<containerId>.json` (plus associated binary files). Text chunks are written to local SQLite FTS5 virtual tables.
     *   *Boundary:* Vector files are synced via iCloud; SQLite tables are local-only and rebuilt locally upon synchronization.
 9.  **Search / Retrieval:**
-    *   *Responsible Files:* [HybridSearchService.swift](file:///Users/gunnarhostetler/Documents/GitHub/OpenIntelligence/OpenIntelligence/Services/RAG/Retrieval/HybridSearchService.swift).
+    *   *Responsible Files:* [HybridSearchService.swift](../OpenIntelligence/Services/RAG/Retrieval/HybridSearchService.swift).
     *   *Data Flow:* Incoming query triggers concurrent cosine similarity vector search and SQLite FTS5 lexical keyword search.
     *   *Persistence:* In-memory list of `RetrievedChunk` candidates.
     *   *Boundary:* Local-only.
 10. **Reranking / Fusion:**
-    *   *Responsible Files:* [HybridSearchService.swift](file:///Users/gunnarhostetler/Documents/GitHub/OpenIntelligence/OpenIntelligence/Services/RAG/Retrieval/HybridSearchService.swift) (Reciprocal Rank Fusion).
+    *   *Responsible Files:* [HybridSearchService.swift](../OpenIntelligence/Services/RAG/Retrieval/HybridSearchService.swift) (Reciprocal Rank Fusion).
     *   *Data Flow:* Fuses rankings from lexical and vector results to prioritize factual and contextual matching.
     *   *Persistence:* In-memory reranked candidates.
     *   *Boundary:* Local-only.
 11. **Generation:**
-    *   *Responsible Files:* [LLMService.swift](file:///Users/gunnarhostetler/Documents/GitHub/OpenIntelligence/OpenIntelligence/Services/LLM/LLMService.swift), [FoundationModelSessionFactory.swift](file:///Users/gunnarhostetler/Documents/GitHub/OpenIntelligence/OpenIntelligence/Services/AIPlatform/AppleFoundationModels/FoundationModelSessionFactory.swift).
+    *   *Responsible Files:* [LLMService.swift](../OpenIntelligence/Services/LLM/LLMService.swift), [FoundationModelSessionFactory.swift](../OpenIntelligence/Services/AIPlatform/AppleFoundationModels/FoundationModelSessionFactory.swift).
     *   *Data Flow:* Compiles system prompt, packed context chunks, and chat history into a generation call.
     *   *Persistence:* Ephemeral in-memory generation output.
     *   *Boundary:* Dynamic routing. Standard prompts within the 4,096 token limit execute locally using `SystemLanguageModel.default`. Larger inputs or Deep Think/Maximum queries escalate to `PrivateCloudComputeLanguageModel` if allowed by the user.
 12. **Verification / Gating:**
-    *   *Responsible Files:* [QualityAssuranceService.swift](file:///Users/gunnarhostetler/Documents/GitHub/OpenIntelligence/OpenIntelligence/Services/RAG/Safety/QualityAssuranceService.swift).
+    *   *Responsible Files:* [QualityAssuranceService.swift](../OpenIntelligence/Services/RAG/Safety/QualityAssuranceService.swift).
     *   *Data Flow:* Validates that every generated assertion maps directly to the cited chunk identifiers.
     *   *Persistence:* In-memory validation results.
     *   *Boundary:* Local-only.
 13. **Citation Rendering:**
-    *   *Responsible Files:* [SourceChipsView.swift](file:///Users/gunnarhostetler/Documents/GitHub/OpenIntelligence/OpenIntelligence/Features/Chat/Response/SourceChipsView.swift), [GroundedAnswerView.swift](file:///Users/gunnarhostetler/Documents/GitHub/OpenIntelligence/OpenIntelligence/Features/Chat/Response/GroundedAnswerView.swift).
+    *   *Responsible Files:* [SourceChipsView.swift](../OpenIntelligence/Features/Chat/Response/SourceChipsView.swift), [GroundedAnswerView.swift](../OpenIntelligence/Features/Chat/Response/GroundedAnswerView.swift).
     *   *Data Flow:* Resolves claim citations against retrieved source documents.
     *   *Persistence:* Persistent only within the associated chat message structure.
     *   *Boundary:* Local-only.
 14. **Chat UI Rendering:**
-    *   *Responsible Files:* [ChatScreen.swift](file:///Users/gunnarhostetler/Documents/GitHub/OpenIntelligence/OpenIntelligence/Features/Chat/Conversation/ChatScreen.swift), [MessageListV2.swift](file:///Users/gunnarhostetler/Documents/GitHub/OpenIntelligence/OpenIntelligence/Features/Chat/Conversation/MessageListV2.swift).
+    *   *Responsible Files:* [ChatScreen.swift](../OpenIntelligence/Features/Chat/Conversation/ChatScreen.swift), [MessageListV2.swift](../OpenIntelligence/Features/Chat/Conversation/MessageListV2.swift).
     *   *Data Flow:* Displays the array of `ChatMessage` objects in a standard list.
     *   *Persistence:* Bound to `RAGService.chatHistories` memory cache.
     *   *Boundary:* Local-only.
 15. **Export / Trace Tools:**
-    *   *Responsible Files:* [PipelineTraceExporter.swift](file:///Users/gunnarhostetler/Documents/GitHub/OpenIntelligence/OpenIntelligence/Features/Chat/Pipeline/PipelineTraceExporter.swift).
+    *   *Responsible Files:* [PipelineTraceExporter.swift](../OpenIntelligence/Features/Chat/Pipeline/PipelineTraceExporter.swift).
     *   *Data Flow:* Serializes structured query details, timings, and retrieval fidelity into a markdown trace string.
     *   *Persistence:* Ephemeral text; can be written to user-selected export paths.
     *   *Boundary:* Local-only.
 16. **App Intents / Shortcuts Entry Points:**
-    *   *Responsible Files:* [RAGAppIntents.swift](file:///Users/gunnarhostetler/Documents/GitHub/OpenIntelligence/OpenIntelligence/Services/Agentic/RAGAppIntents.swift).
+    *   *Responsible Files:* [RAGAppIntents.swift](../OpenIntelligence/Services/Agentic/RAGAppIntents.swift).
     *   *Data Flow:* Triggers background queries or document imports via Siri/Shortcuts.
     *   *Persistence:* Updates active container documents and metadata.
     *   *Boundary:* Local execution with optional cloud escalation depending on query length.
 17. **StoreKit / Paywall Gates:**
-    *   *Responsible Files:* [EntitlementStore.swift](file:///Users/gunnarhostetler/Documents/GitHub/OpenIntelligence/OpenIntelligence/Services/Billing/EntitlementStore.swift).
+    *   *Responsible Files:* [EntitlementStore.swift](../OpenIntelligence/Services/Billing/EntitlementStore.swift).
     *   *Data Flow:* Reads receipt data to resolve active entitlement tiers (.free, .pro, .lifetime).
     *   *Persistence:* Values stored securely in Keychain and cached in `UserDefaults`.
     *   *Boundary:* Interacts with Apple App Store receipt validation.
 18. **iCloud Shared Workspace:**
-    *   *Responsible Files:* [WorkspaceSyncService.swift](file:///Users/gunnarhostetler/Documents/GitHub/OpenIntelligence/OpenIntelligence/Services/Infrastructure/Storage/WorkspaceSyncService.swift).
+    *   *Responsible Files:* [WorkspaceSyncService.swift](../OpenIntelligence/Services/Infrastructure/Storage/WorkspaceSyncService.swift).
     *   *Data Flow:* Replicates the workspace root folder to the iCloud Ubiquity Container.
     *   *Persistence:* Remote CloudKit/iCloud drive sync.
     *   *Boundary:* iCloud cloud boundaries.
 19. **Cloud / PCC Routing:**
-    *   *Responsible Files:* [FoundationModelRoutePolicy.swift](file:///Users/gunnarhostetler/Documents/GitHub/OpenIntelligence/OpenIntelligence/Services/AIPlatform/AppleFoundationModels/FoundationModelRoutePolicy.swift), [CloudConsentPromptView.swift](file:///Users/gunnarhostetler/Documents/GitHub/OpenIntelligence/OpenIntelligence/UI/Components/CloudConsentPromptView.swift).
+    *   *Responsible Files:* [FoundationModelRoutePolicy.swift](../OpenIntelligence/Services/AIPlatform/AppleFoundationModels/FoundationModelRoutePolicy.swift), [CloudConsentPromptView.swift](../OpenIntelligence/UI/Components/CloudConsentPromptView.swift).
     *   *Data Flow:* Routes queries to secure PCC servers if context exceeds 4,096 tokens and user consent is active.
     *   *Persistence:* User consent preferences saved in settings.
     *   *Boundary:* Apple Private Cloud Compute boundaries.
@@ -176,11 +176,11 @@ graph TD
 Conversational state in OpenIntelligence is managed through a hybrid in-memory and disk architecture. The following points detail the exact behavior identified:
 
 1.  **Is `ChatMessage` persisted anywhere?**
-    Yes. Although modern V2 UI views treat messages as live state, the backend persists them to disk inside `chat_history_<containerId>.json` via [RAGService.swift](file:///Users/gunnarhostetler/Documents/GitHub/OpenIntelligence/OpenIntelligence/Services/RAG/Orchestration/RAGService.swift#L765-L775).
+    Yes. Although modern V2 UI views treat messages as live state, the backend persists them to disk inside `chat_history_<containerId>.json` via [RAGService.swift](../OpenIntelligence/Services/RAG/Orchestration/RAGService.swift#L765-L775).
 2.  **Is ChatV2 persisted?**
     Yes. ChatV2 binds directly to the active container's history managed by `RAGService`, which serializes state on changes and preloads history on active container switches.
 3.  **Are legacy chat histories still used?**
-    No. The system uses the single unified model [ChatMessage.swift](file:///Users/gunnarhostetler/Documents/GitHub/OpenIntelligence/OpenIntelligence/Core/Models/ChatMessage.swift). Older legacy chat history files have been replaced by the container-isolated JSON model.
+    No. The system uses the single unified model [ChatMessage.swift](../OpenIntelligence/Core/Models/ChatMessage.swift). Older legacy chat history files have been replaced by the container-isolated JSON model.
 4.  **Are files like `chat_history_<containerId>.json` active?**
     Yes. They are active, loaded via `loadChatHistoryFromDisk(for:)`, and saved via `saveChatHistory(_:for:)`.
 5.  **Does switching libraries lose chat state?**
@@ -267,7 +267,7 @@ iCloud synchronization is managed by `WorkspaceSyncService` using an NSFileCoord
 
 ## Phase 5: Privacy, Routing, and PCC Audit
 
-OpenIntelligence implements a local-first privacy routing framework defined in [FoundationModelRoutePolicy.swift](file:///Users/gunnarhostetler/Documents/GitHub/OpenIntelligence/OpenIntelligence/Services/AIPlatform/AppleFoundationModels/FoundationModelRoutePolicy.swift):
+OpenIntelligence implements a local-first privacy routing framework defined in [FoundationModelRoutePolicy.swift](../OpenIntelligence/Services/AIPlatform/AppleFoundationModels/FoundationModelRoutePolicy.swift):
 
 ### Routing Rules & Context Caps
 

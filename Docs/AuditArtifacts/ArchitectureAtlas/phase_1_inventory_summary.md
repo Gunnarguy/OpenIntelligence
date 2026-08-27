@@ -82,6 +82,6 @@ All **505** discovered files have been successfully categorized based on our cla
 - **Capabilities or Xcode configurations modified**: **NO**
 
 All Phase 1 outputs have been written strictly inside the allowed directory `Docs/AuditArtifacts/ArchitectureAtlas/`.
-- `repo_inventory.csv` -> [repo_inventory.csv](file:///Users/gunnarhostetler/Documents/GitHub/OpenIntelligence/Docs/AuditArtifacts/ArchitectureAtlas/repo_inventory.csv)
-- `document_inventory.csv` -> [document_inventory.csv](file:///Users/gunnarhostetler/Documents/GitHub/OpenIntelligence/Docs/AuditArtifacts/ArchitectureAtlas/document_inventory.csv)
-- `config_inventory.csv` -> [config_inventory.csv](file:///Users/gunnarhostetler/Documents/GitHub/OpenIntelligence/Docs/AuditArtifacts/ArchitectureAtlas/config_inventory.csv)
+- `repo_inventory.csv` -> [repo_inventory.csv](repo_inventory.csv)
+- `document_inventory.csv` -> [document_inventory.csv](document_inventory.csv)
+- `config_inventory.csv` -> [config_inventory.csv](config_inventory.csv)

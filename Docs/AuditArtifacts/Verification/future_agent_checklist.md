@@ -6,8 +6,8 @@ Before modifying any source code in this repository, future agents must review t
 
 ## Pre-execution Check
 
-1.  **Read the Canonical Source of Truth:** Read [CANONICAL_OPENINTELLIGENCE_SOURCE_OF_TRUTH.md](file:///Users/gunnarhostetler/Documents/GitHub/OpenIntelligence/Docs/CANONICAL_OPENINTELLIGENCE_SOURCE_OF_TRUTH.md).
-2.  **Read the Consistency Audit:** Read [DOCUMENTATION_CONSISTENCY_AUDIT.md](file:///Users/gunnarhostetler/Documents/GitHub/OpenIntelligence/Docs/DOCUMENTATION_CONSISTENCY_AUDIT.md).
+1.  **Read the Canonical Source of Truth:** Read [CANONICAL_OPENINTELLIGENCE_SOURCE_OF_TRUTH.md](../../CANONICAL_OPENINTELLIGENCE_SOURCE_OF_TRUTH.md).
+2.  **Read the Consistency Audit:** Read [DOCUMENTATION_CONSISTENCY_AUDIT.md](../../DOCUMENTATION_CONSISTENCY_AUDIT.md).
 3.  **Check Workspace Status:** Run `git status --porcelain` to verify the state of the workspace and check for uncommitted files.
 4.  **Resolve Active Phase:** State which phase is being implemented (Phase 0 / 1A / 1B / 2 / 3 / 4 / 5).
 5.  **Allowed Files List:** Enumerate the exact files allowed to be modified under the active phase.

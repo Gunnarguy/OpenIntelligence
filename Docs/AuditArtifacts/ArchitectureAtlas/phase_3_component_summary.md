@@ -103,9 +103,9 @@ Five subsystems carry a **High** risk classification due to external integration
 - **Xcode configuration/StoreKit files modified**: **NO**
 
 All Phase 3 outputs have been written strictly inside the allowed directory `Docs/AuditArtifacts/ArchitectureAtlas/`.
-- `component_inventory.csv` -> [component_inventory.csv](file:///Users/gunnarhostetler/Documents/GitHub/OpenIntelligence/Docs/AuditArtifacts/ArchitectureAtlas/component_inventory.csv)
-- `subsystem_map.md` -> [subsystem_map.md](file:///Users/gunnarhostetler/Documents/GitHub/OpenIntelligence/Docs/AuditArtifacts/ArchitectureAtlas/subsystem_map.md)
-- `phase_3_component_summary.md` -> [phase_3_component_summary.md](file:///Users/gunnarhostetler/Documents/GitHub/OpenIntelligence/Docs/AuditArtifacts/ArchitectureAtlas/phase_3_component_summary.md)
+- `component_inventory.csv` -> [component_inventory.csv](component_inventory.csv)
+- `subsystem_map.md` -> [subsystem_map.md](subsystem_map.md)
+- `phase_3_component_summary.md` -> [phase_3_component_summary.md](phase_3_component_summary.md)
 
 ## Phase 3 Delta Repair Updates
 All components mapped in Phase 3 have been cross-verified against the recovered Phase 2 entity inventories. Evidence level and confidence metrics were appended to ensure compliance with the Superseding Evidence Protocol.

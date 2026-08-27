@@ -44,7 +44,7 @@
 *   **Context:** Writing DerivedData and test build files inside the iCloud-synced `~/Documents` folder generates tens of thousands of temporary files, causing sync conflicts (`* 2.*` files) and high CPU overhead on macOS file provider daemons.
 *   **Decision:** Never write Xcode DerivedData or any build output inside the repository unless the target folder name explicitly ends in `.nosync` (which iCloud ignores). Adopt the `-derivedDataPath BuildArtifacts.nosync/DerivedData` flag for all future `xcodebuild` invocations, and completely avoid writing to local `.simulator-*` and `.macos-debug` directories.
 *   **Status:** APPROVED
-*   **Evidence:** Added `.nosync` patterns to [.gitignore](file:///Users/gunnarhostetler/Documents/GitHub/OpenIntelligence/.gitignore), cleaned up 60,000+ conflict files/directories, and updated [build_simulator_smoke.sh](file:///Users/gunnarhostetler/Documents/GitHub/OpenIntelligence/scripts/build_simulator_smoke.sh) to write to `.simulator-smoke.nosync`.
+*   **Evidence:** Added `.nosync` patterns to [.gitignore](../.gitignore), cleaned up 60,000+ conflict files/directories, and updated [build_simulator_smoke.sh](../scripts/build_simulator_smoke.sh) to write to `.simulator-smoke.nosync`.
 
 ### DEC-08: Resolution of Corrupted Local Pull Request References
 *   **Context:** Git fetch operations failed with `fatal: bad object refs/pull/10` and `fatal: missing object for refs/pull/11` errors, preventing a clean baseline sync.

@@ -57,10 +57,10 @@ Apply the Documentation Reconciliation Workflow (`02_DOCUMENTATION_RECONCILIATIO
 - Redundant files superseded by the Architecture Atlas.
 
 ## 13. Link to document_claim_matrix.csv
-[document_claim_matrix.csv](file:///Users/gunnarhostetler/Documents/GitHub/OpenIntelligence/Docs/AuditArtifacts/ArchitectureAtlas/document_claim_matrix.csv)
+[document_claim_matrix.csv](AuditArtifacts/ArchitectureAtlas/document_claim_matrix.csv)
 
 ## 14. Link to document_contradictions.csv
-[document_contradictions.csv](file:///Users/gunnarhostetler/Documents/GitHub/OpenIntelligence/Docs/AuditArtifacts/ArchitectureAtlas/document_contradictions.csv)
+[document_contradictions.csv](AuditArtifacts/ArchitectureAtlas/document_contradictions.csv)
 
 ## 15. Link to documentation_cross_reference.csv
-[documentation_cross_reference.csv](file:///Users/gunnarhostetler/Documents/GitHub/OpenIntelligence/Docs/AuditArtifacts/ArchitectureAtlas/documentation_cross_reference.csv)
+[documentation_cross_reference.csv](AuditArtifacts/ArchitectureAtlas/documentation_cross_reference.csv)

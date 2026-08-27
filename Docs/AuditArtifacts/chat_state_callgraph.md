@@ -31,7 +31,7 @@ sequenceDiagram
 
 ## 2. Message Sanitization on Persistence
 
-The sanitization routine in [ChatMessage.swift](file:///Users/gunnarhostetler/Documents/GitHub/OpenIntelligence/OpenIntelligence/Core/Models/ChatMessage.swift#L111-L127) strips heavy resources to maintain a minimal disk profile:
+The sanitization routine in [ChatMessage.swift](../../OpenIntelligence/Core/Models/ChatMessage.swift#L111-L127) strips heavy resources to maintain a minimal disk profile:
 
 ```mermaid
 graph TD

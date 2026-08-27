@@ -22,9 +22,9 @@ Current document intelligence implementation:
 
 Related docs:
 
-- [Current State and Gaps](./CURRENT_STATE_AND_GAPS.md)
-- [Document Intelligence and OCR Research](./Research/DOCUMENT_INTELLIGENCE_AND_OCR.md)
-- [Core ML, Metal, and On-Device AI Research](./Research/COREML_METAL_ON_DEVICE_AI.md)
+- Current State and Gaps *(that document no longer exists in this repository; noted 2026-08-27)*
+- [Document Intelligence and OCR Research](../Research/DOCUMENT_INTELLIGENCE_AND_OCR.md)
+- [Core ML, Metal, and On-Device AI Research](../Research/COREML_METAL_ON_DEVICE_AI.md)
 
 ---
 

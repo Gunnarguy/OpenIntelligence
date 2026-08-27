@@ -17,10 +17,10 @@ This report presents a read-only adversarial verification pass against the prior
 *(5% deduction due to the risk of background Siri app intents blocking indefinitely on Private Cloud Compute consent dialogs).*
 
 ### Top 10 Unresolved Uncertainties
-1.  **Siri Background Deadlock:** What is the system behavior when a background Siri intent (e.g., [QueryDocumentsIntent](file:///Users/gunnarhostetler/Documents/GitHub/OpenIntelligence/OpenIntelligence/Services/Agentic/RAGAppIntents.swift#L28)) triggers a context window overflow (> 4,096 tokens) in a `.notDetermined` PCC consent state? The current codebase halts on a Swift CheckedContinuation that awaits a UI sheet resolution, which will block background intent execution until timed out by the OS.
-2.  **iCloud Auto-migration Sweeps:** Will future updates to [WorkspaceSyncService.swift](file:///Users/gunnarhostetler/Documents/GitHub/OpenIntelligence/OpenIntelligence/Services/Infrastructure/Storage/WorkspaceSyncService.swift) alter directory listing sweeps to include subdirectories of `LocalCache/`, accidentally pulling thread files into the sync boundary?
+1.  **Siri Background Deadlock:** What is the system behavior when a background Siri intent (e.g., [QueryDocumentsIntent](../OpenIntelligence/Services/Agentic/RAGAppIntents.swift#L28)) triggers a context window overflow (> 4,096 tokens) in a `.notDetermined` PCC consent state? The current codebase halts on a Swift CheckedContinuation that awaits a UI sheet resolution, which will block background intent execution until timed out by the OS.
+2.  **iCloud Auto-migration Sweeps:** Will future updates to [WorkspaceSyncService.swift](../OpenIntelligence/Services/Infrastructure/Storage/WorkspaceSyncService.swift) alter directory listing sweeps to include subdirectories of `LocalCache/`, accidentally pulling thread files into the sync boundary?
 3.  **Core Data / SwiftData Adoption:** Is there a parallel roadmap to migrate document metadata from JSON to SwiftData in Version 27, which would instantly deprecate local-only JSON thread files?
-4.  **Token Count Discrepancy:** Why does [FoundationModelRoutePolicy.swift](file:///Users/gunnarhostetler/Documents/GitHub/OpenIntelligence/OpenIntelligence/Services/AIPlatform/AppleFoundationModels/FoundationModelRoutePolicy.swift#L42) enforce a hardcoded 4,096-token on-device limit for routing standard/deep think queries, while [FoundationModelTokenBudget.swift](file:///Users/gunnarhostetler/Documents/GitHub/OpenIntelligence/OpenIntelligence/Services/AIPlatform/AppleFoundationModels/FoundationModelTokenBudget.swift#L29) declares the on-device Apple FM context size is 8,192 tokens?
+4.  **Token Count Discrepancy:** Why does [FoundationModelRoutePolicy.swift](../OpenIntelligence/Services/AIPlatform/AppleFoundationModels/FoundationModelRoutePolicy.swift#L42) enforce a hardcoded 4,096-token on-device limit for routing standard/deep think queries, while [FoundationModelTokenBudget.swift](../OpenIntelligence/Services/AIPlatform/AppleFoundationModels/FoundationModelTokenBudget.swift#L29) declares the on-device Apple FM context size is 8,192 tokens?
 5.  **StoreKit 2 Sandbox Compilation:** Will testing StoreKit 2 receipt validation fail in local CI pipelines without a StoreKit configuration file attached to the testing scheme?
 6.  **Concurrency Locking in Index:** Does writing to the thread `index.json` file concurrently with streaming token writes to `thread_<id>.json` introduce file lock contentions under `NSFileCoordinator`?
 7.  **Legacy Chat History Cleanup:** When migrating legacy `chat_history_<containerId>.json` files to Design B threads, are they completely deleted or moved to an offline quarantine path to prevent data loss?
@@ -29,16 +29,16 @@ This report presents a read-only adversarial verification pass against the prior
 10. **Entitlement Store Cache Invalidation:** Does purchasing a `doc_pack_addon` instantly refresh active thread limits, or does it require an app relaunch to recalculate limits?
 
 ### Top 10 Files to Be Manually Reviewed Before Implementation
-1.  [ChatMessage.swift](file:///Users/gunnarhostetler/Documents/GitHub/OpenIntelligence/OpenIntelligence/Core/Models/ChatMessage.swift) (Verify properties, coding keys, and chunk sanitization).
-2.  [RAGService.swift](file:///Users/gunnarhostetler/Documents/GitHub/OpenIntelligence/OpenIntelligence/Services/RAG/Orchestration/RAGService.swift) (Verify chat history save/load and trim logic).
-3.  [ChatScreen.swift](file:///Users/gunnarhostetler/Documents/GitHub/OpenIntelligence/OpenIntelligence/Features/Chat/Conversation/ChatScreen.swift) (Verify UI state binding, preloading, and lifecycle hooks).
-4.  [WorkspaceSyncService.swift](file:///Users/gunnarhostetler/Documents/GitHub/OpenIntelligence/OpenIntelligence/Services/Infrastructure/Storage/WorkspaceSyncService.swift) (Verify path-exclusion boundaries and coordinated file utilities).
-5.  [KnowledgeContainer.swift](file:///Users/gunnarhostetler/Documents/GitHub/OpenIntelligence/OpenIntelligence/Core/Models/KnowledgeContainer.swift) (Verify `AppSupportPaths` static directory structure).
-6.  [EntitlementStore.swift](file:///Users/gunnarhostetler/Documents/GitHub/OpenIntelligence/OpenIntelligence/Services/Billing/EntitlementStore.swift) (Verify quota limits, active tier evaluations, and legacy protection).
-7.  [FoundationModelRoutePolicy.swift](file:///Users/gunnarhostetler/Documents/GitHub/OpenIntelligence/OpenIntelligence/Services/AIPlatform/AppleFoundationModels/FoundationModelRoutePolicy.swift) (Verify 4K routing limit and query type mapping).
-8.  [RAGAppIntents.swift](file:///Users/gunnarhostetler/Documents/GitHub/OpenIntelligence/OpenIntelligence/Services/Agentic/RAGAppIntents.swift) (Verify background execution contexts and registered shortcut list).
-9.  [SettingsStore.swift](file:///Users/gunnarhostetler/Documents/GitHub/OpenIntelligence/OpenIntelligence/Services/Infrastructure/Configuration/SettingsStore.swift) (Verify PCC consent keys).
-10. [DocumentPicker.swift](file:///Users/gunnarhostetler/Documents/GitHub/OpenIntelligence/OpenIntelligence/Features/Documents/Components/DocumentPicker.swift) (Verify workspace directory interactions).
+1.  [ChatMessage.swift](../OpenIntelligence/Core/Models/ChatMessage.swift) (Verify properties, coding keys, and chunk sanitization).
+2.  [RAGService.swift](../OpenIntelligence/Services/RAG/Orchestration/RAGService.swift) (Verify chat history save/load and trim logic).
+3.  [ChatScreen.swift](../OpenIntelligence/Features/Chat/Conversation/ChatScreen.swift) (Verify UI state binding, preloading, and lifecycle hooks).
+4.  [WorkspaceSyncService.swift](../OpenIntelligence/Services/Infrastructure/Storage/WorkspaceSyncService.swift) (Verify path-exclusion boundaries and coordinated file utilities).
+5.  [KnowledgeContainer.swift](../OpenIntelligence/Core/Models/KnowledgeContainer.swift) (Verify `AppSupportPaths` static directory structure).
+6.  [EntitlementStore.swift](../OpenIntelligence/Services/Billing/EntitlementStore.swift) (Verify quota limits, active tier evaluations, and legacy protection).
+7.  [FoundationModelRoutePolicy.swift](../OpenIntelligence/Services/AIPlatform/AppleFoundationModels/FoundationModelRoutePolicy.swift) (Verify 4K routing limit and query type mapping).
+8.  [RAGAppIntents.swift](../OpenIntelligence/Services/Agentic/RAGAppIntents.swift) (Verify background execution contexts and registered shortcut list).
+9.  [SettingsStore.swift](../OpenIntelligence/Services/Infrastructure/Configuration/SettingsStore.swift) (Verify PCC consent keys).
+10. [DocumentPicker.swift](../OpenIntelligence/Features/Documents/Components/DocumentPicker.swift) (Verify workspace directory interactions).
 
 ### Chosen Storage Design
 **Design B (Isolated Thread Files)**  
@@ -71,7 +71,7 @@ Thread transcripts will be stored in individual `thread_<threadId>.json` files, 
 The repository file inventory has been verified by traversing the workspace tree, excluding non-tracked local directories (`.git/`, `.build/`, `.swiftpm/`, `.gemini/`):
 
 *   **Total Checked Files:** 543 files.
-*   **Source File Inventory:** [repo_file_inventory.csv](file:///Users/gunnarhostetler/Documents/GitHub/OpenIntelligence/Docs/AuditArtifacts/repo_file_inventory.csv)
+*   **Source File Inventory:** [repo_file_inventory.csv](AuditArtifacts/repo_file_inventory.csv)
 *   **Excluded Directories:**
     *   `.git/` (Git repository metadata directory).
     *   `.build/` (Local Swift Package Manager build products and dependencies).
@@ -86,7 +86,7 @@ The repository file inventory has been verified by traversing the workspace tree
 The codebase has been scanned to catalog all top-level types, protocols, extensions, and functions:
 
 *   **Total Cataloged Symbols:** 997 Swift symbols.
-*   **Symbol Inventory:** [swift_symbol_inventory.csv](file:///Users/gunnarhostetler/Documents/GitHub/OpenIntelligence/Docs/AuditArtifacts/swift_symbol_inventory.csv)
+*   **Symbol Inventory:** [swift_symbol_inventory.csv](AuditArtifacts/swift_symbol_inventory.csv)
 *   **Verification Statement:** Every first-party symbol has been successfully tagged by its functional area (chat, persistence, RAG, retrieval, citation, ingestion, sync, billing, routing, App Intents, export, diagnostics, UI, unknown). All symbols tagged "unknown" have been manually audited or verified as helper utilities.
 
 ---
@@ -97,26 +97,26 @@ Every major claim from the previous audit has been audited against the codebase 
 
 | Claimed Feature/Behavior | Status | Source Files | Exact Symbols / Functions | Evidence & Verification Notes |
 | :--- | :--- | :--- | :--- | :--- |
-| **ChatV2 Persistence** | **Contradicted** | [ChatMessage.swift](file:///Users/gunnarhostetler/Documents/GitHub/OpenIntelligence/OpenIntelligence/Core/Models/ChatMessage.swift) | Line 37 comment | Code comment states that ChatV2 only stores messages in-memory. However, `ChatScreen.swift` and `RAGService.swift` explicitly write to disk via `persistChatHistory`. The comment is stale. |
-| **chat_history_[containerId].json** | **Verified** | [KnowledgeContainer.swift](file:///Users/gunnarhostetler/Documents/GitHub/OpenIntelligence/OpenIntelligence/Core/Models/KnowledgeContainer.swift#L465) | `AppSupportPaths.chatHistoryURL` | Path resolves to `baseDir()/chat_history_\(containerId.uuidString).json`. |
-| **sanitizedForPersistence()** | **Verified** | [ChatMessage.swift](file:///Users/gunnarhostetler/Documents/GitHub/OpenIntelligence/OpenIntelligence/Core/Models/ChatMessage.swift#L111) | `sanitizedForPersistence` | Truncates retrieved chunks to 12 items and trims content to 600 characters. |
-| **pipelineTrace Exclusion** | **Verified** | [ChatMessage.swift](file:///Users/gunnarhostetler/Documents/GitHub/OpenIntelligence/OpenIntelligence/Core/Models/ChatMessage.swift#L85) | `CodingKeys` | `pipelineTrace` and `thinkingEvents` are omitted from `CodingKeys` to exclude them from disk persistence. |
-| **Active Container Switching** | **Verified** | [ChatScreen.swift](file:///Users/gunnarhostetler/Documents/GitHub/OpenIntelligence/OpenIntelligence/Features/Chat/Conversation/ChatScreen.swift#L552) | `.task(id: activeContainerId)` | Fires a reload that loads the target history on container switch. |
-| **Relaunch Restoration** | **Verified** | [ContainerService.swift](file:///Users/gunnarhostetler/Documents/GitHub/OpenIntelligence/OpenIntelligence/Services/Infrastructure/Integration/ContainerService.swift#L30) | `activeContainerId` | Restores active ID from `UserDefaults` and loads the history from disk. |
-| **iCloud Sync Boundaries** | **Contradicted** | [WorkspaceSyncService.swift](file:///Users/gunnarhostetler/Documents/GitHub/OpenIntelligence/OpenIntelligence/Services/Infrastructure/Storage/WorkspaceSyncService.swift#L1321) | `localContents` sync sweep | The prior audit claimed creating threads under `baseDir()/threads/` would be local-only. However, `WorkspaceSyncService` syncs everything in `baseDir()` except files in `localOnlyEntryNames`. Thus, `threads/` would sync, creating a risk. Storing threads in `LocalCache/EvidenceThreads` is required. |
-| **Auxiliary File Sync** | **Verified** | [WorkspaceSyncService.swift](file:///Users/gunnarhostetler/Documents/GitHub/OpenIntelligence/OpenIntelligence/Services/Infrastructure/Storage/WorkspaceSyncService.swift#L167) | `criticalMetadataFileNames` | Syncs `containers.json`, `documents_metadata.json`, and `ingestion_queue.json`. |
-| **Last-Write-Wins Sync** | **Verified** | [WorkspaceSyncService.swift](file:///Users/gunnarhostetler/Documents/GitHub/OpenIntelligence/OpenIntelligence/Services/Infrastructure/Storage/WorkspaceSyncService.swift#L2480) | `synchronizeAuxiliaryFile` | Evaluates file modification dates and overwrites local/remote data using the newest file. |
-| **PCC Routing** | **Verified** | [FoundationModelRoutePolicy.swift](file:///Users/gunnarhostetler/Documents/GitHub/OpenIntelligence/OpenIntelligence/Services/AIPlatform/AppleFoundationModels/FoundationModelRoutePolicy.swift#L23) | `determineRoute` | Routes to Private Cloud Compute if context token counts exceed limits. |
-| **Cloud Consent** | **Partially Supported**| [SettingsStore.swift](file:///Users/gunnarhostetler/Documents/GitHub/OpenIntelligence/OpenIntelligence/Services/Infrastructure/Configuration/SettingsStore.swift#L46) | `applePCCConsent` key | Prior audit claimed the `UserDefaults` key is `"applePCCConsent"`. The actual key is `"cloudConsent.applePCC"`. |
-| **StoreKit Gates** | **Verified** | [WorkspaceSyncService.swift](file:///Users/gunnarhostetler/Documents/GitHub/OpenIntelligence/OpenIntelligence/Services/Infrastructure/Storage/WorkspaceSyncService.swift#L445) | `isAtLeast(.pro)` gate | Restricts iCloud shared workspace sync to Pro and Lifetime subscribers. |
-| **App Shortcut Count** | **Verified** | [RAGAppIntents.swift](file:///Users/gunnarhostetler/Documents/GitHub/OpenIntelligence/OpenIntelligence/Services/Agentic/RAGAppIntents.swift#L267) | `RAGAppShortcutsProvider` | The provider registers exactly 9 shortcuts, leaving 1 slot free before hitting the system limit of 10. |
+| **ChatV2 Persistence** | **Contradicted** | [ChatMessage.swift](../OpenIntelligence/Core/Models/ChatMessage.swift) | Line 37 comment | Code comment states that ChatV2 only stores messages in-memory. However, `ChatScreen.swift` and `RAGService.swift` explicitly write to disk via `persistChatHistory`. The comment is stale. |
+| **chat_history_[containerId].json** | **Verified** | [KnowledgeContainer.swift](../OpenIntelligence/Core/Models/KnowledgeContainer.swift#L465) | `AppSupportPaths.chatHistoryURL` | Path resolves to `baseDir()/chat_history_\(containerId.uuidString).json`. |
+| **sanitizedForPersistence()** | **Verified** | [ChatMessage.swift](../OpenIntelligence/Core/Models/ChatMessage.swift#L111) | `sanitizedForPersistence` | Truncates retrieved chunks to 12 items and trims content to 600 characters. |
+| **pipelineTrace Exclusion** | **Verified** | [ChatMessage.swift](../OpenIntelligence/Core/Models/ChatMessage.swift#L85) | `CodingKeys` | `pipelineTrace` and `thinkingEvents` are omitted from `CodingKeys` to exclude them from disk persistence. |
+| **Active Container Switching** | **Verified** | [ChatScreen.swift](../OpenIntelligence/Features/Chat/Conversation/ChatScreen.swift#L552) | `.task(id: activeContainerId)` | Fires a reload that loads the target history on container switch. |
+| **Relaunch Restoration** | **Verified** | [ContainerService.swift](../OpenIntelligence/Services/Infrastructure/Integration/ContainerService.swift#L30) | `activeContainerId` | Restores active ID from `UserDefaults` and loads the history from disk. |
+| **iCloud Sync Boundaries** | **Contradicted** | [WorkspaceSyncService.swift](../OpenIntelligence/Services/Infrastructure/Storage/WorkspaceSyncService.swift#L1321) | `localContents` sync sweep | The prior audit claimed creating threads under `baseDir()/threads/` would be local-only. However, `WorkspaceSyncService` syncs everything in `baseDir()` except files in `localOnlyEntryNames`. Thus, `threads/` would sync, creating a risk. Storing threads in `LocalCache/EvidenceThreads` is required. |
+| **Auxiliary File Sync** | **Verified** | [WorkspaceSyncService.swift](../OpenIntelligence/Services/Infrastructure/Storage/WorkspaceSyncService.swift#L167) | `criticalMetadataFileNames` | Syncs `containers.json`, `documents_metadata.json`, and `ingestion_queue.json`. |
+| **Last-Write-Wins Sync** | **Verified** | [WorkspaceSyncService.swift](../OpenIntelligence/Services/Infrastructure/Storage/WorkspaceSyncService.swift#L2480) | `synchronizeAuxiliaryFile` | Evaluates file modification dates and overwrites local/remote data using the newest file. |
+| **PCC Routing** | **Verified** | [FoundationModelRoutePolicy.swift](../OpenIntelligence/Services/AIPlatform/AppleFoundationModels/FoundationModelRoutePolicy.swift#L23) | `determineRoute` | Routes to Private Cloud Compute if context token counts exceed limits. |
+| **Cloud Consent** | **Partially Supported**| [SettingsStore.swift](../OpenIntelligence/Services/Infrastructure/Configuration/SettingsStore.swift#L46) | `applePCCConsent` key | Prior audit claimed the `UserDefaults` key is `"applePCCConsent"`. The actual key is `"cloudConsent.applePCC"`. |
+| **StoreKit Gates** | **Verified** | [WorkspaceSyncService.swift](../OpenIntelligence/Services/Infrastructure/Storage/WorkspaceSyncService.swift#L445) | `isAtLeast(.pro)` gate | Restricts iCloud shared workspace sync to Pro and Lifetime subscribers. |
+| **App Shortcut Count** | **Verified** | [RAGAppIntents.swift](../OpenIntelligence/Services/Agentic/RAGAppIntents.swift#L267) | `RAGAppShortcutsProvider` | The provider registers exactly 9 shortcuts, leaving 1 slot free before hitting the system limit of 10. |
 
 ---
 
 ## 5. Resolution of the ChatV2 Persistence Contradiction
 
 ### The Contradiction
-A comment in [ChatMessage.swift](file:///Users/gunnarhostetler/Documents/GitHub/OpenIntelligence/OpenIntelligence/Core/Models/ChatMessage.swift#L37) says:  
+A comment in [ChatMessage.swift](../OpenIntelligence/Core/Models/ChatMessage.swift#L37) says:  
 `// Note: ChatV2 currently stores messages in-memory only (not persisted), so this is intentionally lightweight.`  
 However, the previous audit claimed ChatV2 persists via `chat_history_<containerId>.json`.
 

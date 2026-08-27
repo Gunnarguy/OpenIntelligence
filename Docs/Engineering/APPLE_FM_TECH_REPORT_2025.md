@@ -22,7 +22,7 @@ Current app-safe interpretation:
 
 See also:
 
-- [Apple Intelligence and Foundation Models Research](./Research/APPLE_INTELLIGENCE_AND_FOUNDATION_MODELS.md)
+- [Apple Intelligence and Foundation Models Research](../Research/APPLE_INTELLIGENCE_AND_FOUNDATION_MODELS.md)
 - [Private Cloud Compute](./PRIVATE_CLOUD_COMPUTE.md)
 - [Hard Limits](./HARD_LIMITS.md)
 
