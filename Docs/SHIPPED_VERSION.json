@@ -15,6 +15,11 @@
     "Both values must match a '## <version>' heading in CHANGELOG.md; the sync workflows fail",
     "loudly if they do not, rather than publishing a guess.",
     "",
+    "2026-08-27: iOS 5.0 approved. Both platforms are now live at 5.0, so app_store is 5.0 and",
+    "the divergence recorded below is resolved. macOS 5.0.1 is still in review; app_store does",
+    "not move for it until it is approved. The note below is kept as the record of why the",
+    "number sat at 4.9 for a day.",
+    "",
     "2026-08-26: the two platforms diverged, which this schema cannot express in one number.",
     "macOS 5.0 (build 379) is APPROVED AND LIVE. iOS 5.0 (build 386) is IN REVIEW, so the",
     "newest version an iPhone or iPad user can install is still 4.9. app_store therefore stays",
@@ -22,19 +27,20 @@
     "understating is the safe direction for the exact failure this file was created to stop.",
     "The per-platform truth is in app_store_by_platform below, which no workflow reads yet.",
     "",
-    "ACTION WHEN iOS 5.0 CLEARS REVIEW: set app_store to 5.0. If macOS 5.0.1 clears first,",
-    "leave app_store alone -- iOS is still the constraint."
+    "leave app_store alone -- iOS is still the constraint.",
+    "",
+    "ACTION WHEN macOS 5.0.1 CLEARS REVIEW: set app_store to 5.0.1 and add a '## 5.0.1' check.",
+    "iOS will then be the lagging platform, so do not move it past what iOS actually has."
   ],
-  "app_store": "4.9",
+  "app_store": "5.0",
   "app_store_by_platform": {
-    "ios": "4.9",
+    "ios": "5.0",
     "macos": "5.0"
   },
   "preparing": "5.0.1",
   "in_review": {
-    "ios": "5.0 (build 386)",
     "macos": "5.0.1 (build 387)"
   },
-  "updated": "2026-08-26",
-  "verified_against": "macOS 5.0 approved and live 2026-08-26 (build 379). iOS 5.0 build 386 and macOS 5.0.1 build 387 uploaded and submitted the same day; neither approved at time of writing."
+  "updated": "2026-08-27",
+  "verified_against": "iOS 5.0 (build 386) approved and available for distribution 2026-08-27. macOS 5.0 (build 379) live since 2026-08-26. macOS 5.0.1 (build 387) still in review."
 }
