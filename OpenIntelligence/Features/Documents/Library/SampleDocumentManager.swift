@@ -18,6 +18,28 @@ struct SampleDocumentDescriptor {
         let digest = SHA256.hash(data: Data(body.utf8))
         return digest.map { String(format: "%02x", $0) }.joined()
     }
+
+    /// True when `filename` is this sample as it actually sits in a library, including a
+    /// copy that managed storage renamed to `…-2.md`, `…-3.md` and so on.
+    ///
+    /// Managed storage uniquifies a colliding name by appending `-<n>` (`WorkspaceSyncService`,
+    /// counter from 2). Every call site here used to match `storageFilename` exactly, which
+    /// made those copies invisible: a refresh never deleted them, the import guard never
+    /// counted them, so each pass left one more behind. A capture on 2026-08-27 showed a
+    /// General library holding five documents for three samples, having previously reached
+    /// `-3`. Matching the numbered form as well is what stops them accumulating.
+    ///
+    /// Deliberately strict: only `<stem>-<digits>.<same extension>` matches. A user's own
+    /// `OpenIntelligence-Product-Guide-notes.md` is not a copy and is never touched.
+    func matchesStoredCopy(_ filename: String) -> Bool {
+        if filename == storageFilename { return true }
+        guard (filename as NSString).pathExtension == `extension` else { return false }
+        let stem = (storageFilename as NSString).deletingPathExtension
+        let candidate = (filename as NSString).deletingPathExtension
+        guard candidate.hasPrefix(stem + "-") else { return false }
+        let suffix = candidate.dropFirst(stem.count + 1)
+        return !suffix.isEmpty && suffix.allSatisfy(\.isNumber)
+    }
 }
 
 /// Handles authoring and importing curated sample documents for a better first-run experience.
@@ -296,7 +318,12 @@ OpenIntelligence does not send your documents to a developer-operated backend.
         let existingNames = await MainActor.run {
             Set(ragService.documents.map { $0.filename })
         }
-        let urls = allURLs.filter { !existingNames.contains($0.lastPathComponent) }
+        let urls = allURLs.filter { url in
+            guard let sample = samples.first(where: { $0.storageFilename == url.lastPathComponent }) else {
+                return !existingNames.contains(url.lastPathComponent)
+            }
+            return !existingNames.contains(where: { sample.matchesStoredCopy($0) })
+        }
 
         guard !urls.isEmpty else {
             onProgress?(allURLs.count, allURLs.count, "Already imported")
@@ -356,7 +383,7 @@ OpenIntelligence does not send your documents to a developer-operated backend.
         return samples.filter { sample in
             // Only offer to refresh a sample the user actually has. Never re-add one
             // they deleted on purpose.
-            guard importedNames.contains(sample.storageFilename) else { return false }
+            guard importedNames.contains(where: { sample.matchesStoredCopy($0) }) else { return false }
             let recorded = defaults.string(forKey: importedHashKey(for: sample))
             return recorded != sample.contentHash
         }
@@ -385,8 +412,13 @@ OpenIntelligence does not send your documents to a developer-operated backend.
         let stale = staleImportedSamples(in: ragService)
         guard !stale.isEmpty else { return [] }
 
-        let staleFilenames = Set(stale.map(\.storageFilename))
-        let doomed = ragService.documents.filter { staleFilenames.contains($0.filename) }
+        // Match numbered copies as well, not just the canonical name — otherwise a stray
+        // `…-2.md` from an earlier refresh survives this pass and the re-import below adds
+        // a fresh canonical copy beside it, which is exactly how a library reaches five
+        // documents for three samples.
+        let doomed = ragService.documents.filter { document in
+            stale.contains { $0.matchesStoredCopy(document.filename) }
+        }
 
         // Put them back where they were, never into whatever library is on screen.
         //
