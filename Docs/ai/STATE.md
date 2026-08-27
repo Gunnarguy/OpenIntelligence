@@ -1,12 +1,12 @@
 # Current State
 
-Updated: 2026-08-26
+Updated: 2026-08-27
 Branch/worktree: main
-Last verified commit: f9a99cd
+Last verified commit: 1bfb79c
 
 ## Objective
 
-v5.0 is shipped or in review on both platforms. There is no active engineering
+v5.0 is shipped on both platforms. macOS 5.0.1 is the only thing still in review. There is no active engineering
 objective. The next one should come from the Notion roadmap, not from what anyone
 last noticed.
 
@@ -14,7 +14,7 @@ last noticed.
 
 - **macOS 5.0, build 379: LIVE on the App Store**, approved 2026-08-26. Archived from `35d59a2`,
   so it does not contain the 17 changelog entries that landed after it.
-- **iOS 5.0, build 386: submitted, in review.** Archived from `2d86273`; contains everything.
+- **iOS 5.0, build 386: APPROVED AND LIVE**, 2026-08-27. Archived from `2d86273`; contains everything.
 - **macOS 5.0.1, build 387: submitted, in review.** Archived from `66c4f7e`.
 - **iOS 5.0.1, build 387: uploaded, unused.** A by-product of the shared version stamp. Harmless.
 - All three public websites corrected and pushed (see Completed).
@@ -38,6 +38,14 @@ last noticed.
   Fascinaiting's release notes claimed "native PCC shipped in v4.6", which is false. Corrected on
   `Gunzino` (6), `Fascinaiting` (9), `Gunnarguy-Portfolio` (4). Every `data-oi-version` anchor left
   intact so the version workflows keep working.
+
+- **2026-08-27, docs reconciliation** (`1bfb79c`): four subsystem docs said "shipped tree is
+  v4.9"; `RELEASE_NOTES.md` implied PCC shipped; **471 links across 20 files were absolute paths
+  into one developer's home directory** and dead in every clone and in the GitHub web UI. All
+  repo-relative now. Broken relative links repo-wide: 31 before, 0 after. `Docs/AuditArtifacts`
+  (58 files) marked historical rather than moved, because moving them would undo the link repair.
+- **2026-08-27** (`5ef0817`): `SHIPPED_VERSION.json` `app_store` moved 4.9 -> 5.0 once iOS was
+  approved. The three websites follow on their own daily crons.
 
 ## Active Constraints
 
@@ -84,9 +92,14 @@ last noticed.
 
 ## Exact Next Action
 
-None outstanding for an agent. When iOS 5.0 clears review, set `app_store` to `"5.0"` in
-`Docs/SHIPPED_VERSION.json`; all three websites follow within a day on their own crons. If macOS
-5.0.1 is approved first, leave it alone — iOS is the constraint.
+None outstanding for an agent. iOS 5.0 is live and `SHIPPED_VERSION.json` already reflects it.
+**When macOS 5.0.1 clears review**, set `app_store` to `"5.0.1"`; iOS then becomes the lagging
+platform, so do not move it past what iOS actually has.
+
+**Uncommitted work that is not this session's:** `AttachmentPicker.swift`,
+`DocumentPicker.swift` and `DocumentLibraryView.swift` carry macOS picker changes
+(`NSOpenPanel` modal handling, Finder drag-and-drop) dated 2026-08-27. Left unstaged
+deliberately. Do not commit them without asking whose they are.
 
 For the next work session, ask the owner or take a roadmap row from Notion. If the embedding arc is
 chosen, fix Blocker 2 first.
