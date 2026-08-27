@@ -13,10 +13,28 @@
     "Update app_store when a build actually goes live, not when it is submitted.",
     "Update preparing when a new numbered heading is added to CHANGELOG.md.",
     "Both values must match a '## <version>' heading in CHANGELOG.md; the sync workflows fail",
-    "loudly if they do not, rather than publishing a guess."
+    "loudly if they do not, rather than publishing a guess.",
+    "",
+    "2026-08-26: the two platforms diverged, which this schema cannot express in one number.",
+    "macOS 5.0 (build 379) is APPROVED AND LIVE. iOS 5.0 (build 386) is IN REVIEW, so the",
+    "newest version an iPhone or iPad user can install is still 4.9. app_store therefore stays",
+    "at 4.9 on purpose: it is the value that does not overclaim to an iOS visitor, and",
+    "understating is the safe direction for the exact failure this file was created to stop.",
+    "The per-platform truth is in app_store_by_platform below, which no workflow reads yet.",
+    "",
+    "ACTION WHEN iOS 5.0 CLEARS REVIEW: set app_store to 5.0. If macOS 5.0.1 clears first,",
+    "leave app_store alone -- iOS is still the constraint."
   ],
   "app_store": "4.9",
-  "preparing": "5.0",
-  "updated": "2026-08-13",
-  "verified_against": "App Store Connect download data, newest app_version 4.9 last seen 2026-08-06"
+  "app_store_by_platform": {
+    "ios": "4.9",
+    "macos": "5.0"
+  },
+  "preparing": "5.0.1",
+  "in_review": {
+    "ios": "5.0 (build 386)",
+    "macos": "5.0.1 (build 387)"
+  },
+  "updated": "2026-08-26",
+  "verified_against": "macOS 5.0 approved and live 2026-08-26 (build 379). iOS 5.0 build 386 and macOS 5.0.1 build 387 uploaded and submitted the same day; neither approved at time of writing."
 }
