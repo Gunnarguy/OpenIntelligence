@@ -1,5 +1,7 @@
 {
   "_comment": [
+    "2026-08-27 (latest): macOS 5.0.2 build 388 UPLOADED, awaiting review. app_store still 5.0.",
+    "",
     "What is live on the App Store, versus what is being prepared.",
     "",
     "This file exists because the three public websites had no way to tell those apart.",
@@ -41,7 +43,9 @@
     "macos": "5.0.1"
   },
   "preparing": "5.0.2",
-  "in_review": {},
+  "in_review": {
+    "macos": "5.0.2 (build 388)"
+  },
   "updated": "2026-08-27",
-  "verified_against": "macOS 5.0.1 approved and live on the App Store 2026-08-27 (reported by the owner). iOS 5.0 (build 386) live since 2026-08-27; iOS is now the lagging platform. macOS 5.0.2 in preparation, not yet submitted."
+  "verified_against": "macOS 5.0.2 (build 388) uploaded to App Store Connect 2026-08-27 via the App Store Upload workflow, run 33124470371; all gates passed including the prerelease build-machine-stamp check. macOS 5.0.1 live since 2026-08-27. iOS 5.0 (build 386) live; iOS remains the lagging platform, so app_store stays at 5.0."
 }

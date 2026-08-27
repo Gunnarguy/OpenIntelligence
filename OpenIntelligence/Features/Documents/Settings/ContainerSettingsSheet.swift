@@ -190,7 +190,7 @@ struct ContainerSettingsSheet: View {
     }
 
     var body: some View {
-        NavigationView {
+        NavigationStack {
             Form {
                 identitySection
                 storageSection
@@ -368,6 +368,15 @@ struct ContainerSettingsSheet: View {
                 Text(deleteMessageText)
             }
         }
+        #if os(macOS)
+        // A sheet with no explicit size is laid out from its content's intrinsic width,
+        // which for a Form full of cards and metrics collapses to a column narrow enough
+        // to hyphenate "Documents" into "Doc ume nts". iOS sheets fill the screen and
+        // never showed this. Sized here rather than at the call site so every presenter
+        // gets it.
+        .frame(minWidth: 620, idealWidth: 760, maxWidth: 900,
+               minHeight: 560, idealHeight: 760, maxHeight: .infinity)
+        #endif
     }
 
     @ViewBuilder
