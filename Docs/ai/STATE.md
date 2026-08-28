@@ -1,8 +1,8 @@
 # Current State
 
-Updated: 2026-08-27
+Updated: 2026-08-28
 Branch/worktree: main (primary checkout, `~/Documents/GitHub/OpenIntelligence`)
-Last verified commit: 55f31cb
+Last verified commit: 3afd57b
 
 ## Objective
 
@@ -105,7 +105,31 @@ None blocking. Three defects filed to Notion `Future Backlog`, each with a closi
    which had 0 conflict copies; 6 uncoordinated families had all 599. It qualifies for the active
    release under test 1; pull it forward when the next version is named.
 
-**Needs the owner's decision — Xcode Cloud is duplicating the release build and discarding it.**
+**RESOLVED 2026-08-28 — releases move to Xcode Cloud; GitHub Actions is now the redundant one.**
+The owner bought 100 Xcode Cloud hours. Xcode Cloud was always the working release path; Actions was
+the stopgap after the free 25 hours ran out, and Actions has now itself gone into paid overage. The
+ITMS-90111 prerelease-stamp problem that made local archives unsubmittable does not apply to Xcode
+Cloud, which runs on released macOS images (25G83).
+
+Workflow `E6B22BA8-D5A5-4664-941A-3EC1C3F50910` is enabled and now configured as:
+`xcodeVersion` **pinned to Xcode 26.6 (17F113)**, `clean: false`, and a `filesAndFoldersRule` with
+mode `DO_NOT_START_IF_ALL_FILES_MATCH` over `*.md`, `Docs`, `.claude`, `.agents`, `.codex`,
+`fastlane/metadata`, `.github`.
+
+**The pin is load-bearing and must not be set back to "Latest Release".** Twelve sites sit behind
+`#if compiler(>=6.4)`. Measured 2026-08-28: Xcode 26.6 ships Swift 6.3.3 so PCC compiles OUT; Xcode
+27 ships Swift 6.4 so it compiles IN, contradicting the App Store description, the README and the
+in-app copy. "Latest Release" becomes Xcode 27 the day Apple ships it, silently. Xcode 27 is at
+beta 6.
+
+`ci_scripts/ci_post_xcodebuild.sh` (`3afd57b`) is the proof that the pin is still working, since a
+pin can be changed in the ASC UI by accident. It gates on PCC symbols with a `SystemLanguageModel`
+control, the `BuildMachineOSBuild` stamp, and bundle xattrs. Every blind spot fails closed.
+
+**Do not delete `.github/workflows/app-store-upload.yml` until one release has actually shipped
+through Xcode Cloud.** Keeping it costs nothing; `ci.yml` is now ~36 s on Linux for docs commits.
+
+**Previously recorded here as needing a decision:**
 Workflow `Default` on product `c6efe188-583b-47d8-9db8-dc8e17ecc7c5`, workflow id
 `E6B22BA8-D5A5-4664-941A-3EC1C3F50910`: `isEnabled: true`, branch trigger `main`,
 `filesAndFoldersRule: null`, and **two ARCHIVE actions** (macOS and iOS). So every push to `main`
