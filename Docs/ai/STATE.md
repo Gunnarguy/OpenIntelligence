@@ -2,173 +2,127 @@
 
 Updated: 2026-08-28
 Branch/worktree: main (primary checkout, `~/Documents/GitHub/OpenIntelligence`)
-Last verified commit: 3afd57b
+Last verified commit: 26cf9f8
 
 ## Objective
 
-None active. macOS 5.0.2 is uploaded to App Store Connect and awaiting review. The objective that
-drove this session — make document import work on macOS — is complete and verified on device.
+None active. macOS 5.0.2 is live, iOS 5.0 is live, and 5.1 is open as the unified next version for
+both platforms. The two objectives this session ran on — make macOS document import work, and stop
+CI costing money — are both complete and verified.
 
 ## Status
 
-**macOS 5.0.2, build 389, uploaded 2026-08-27** (workflow run 33127559144, every gate passed).
-Build 388 (run 33124470371) was uploaded earlier the same day and is **superseded**; 389 is a strict
-superset. Uploading does not replace, so both sit in App Store Connect. **Submit 389.**
+**Shipped.** Read from App Store Connect 2026-08-28: iOS newest `READY_FOR_SALE` is **5.0**, macOS is
+**5.0.2**. Both platforms have 5.1 records in `PREPARE_FOR_SUBMISSION`. Nothing is in review.
 
-Working tree is clean. Nothing is staged or pending.
+**Releases build on Xcode Cloud. GitHub Actions is deleted.** Xcode Cloud was always the working
+release path; Actions was a stopgap after the free 25 compute hours ran out, and it then went into
+paid overage itself — 4,020 billed minutes against a 3,000 allowance, because macOS runners bill at
+10x and every push booted one. 100 Xcode Cloud hours were bought, so the reason for Actions is gone.
+Xcode Cloud run **427: SUCCEEDED**, both platforms.
+
+Working tree is clean.
 
 ## Completed
 
-Four user-facing defects, all macOS-only. iOS pickers were never on these paths.
-
-1. **Add Documents opened nothing** (`050bbe8`). All three macOS pickers called
-   `NSOpenPanel.runModal()` from a SwiftUI `.onAppear`, which fires inside a CATransaction commit
-   where AppKit refuses to start a nested modal loop. It discarded the call and logged
-   `Suppressing invocation of -[NSApplication runModalForWindow:]`. Now `beginSheetModal(for:)`.
+1. **Add Documents opened nothing on macOS** (`050bbe8`). All three macOS pickers called
+   `NSOpenPanel.runModal()` from a SwiftUI `.onAppear`, inside a CATransaction commit where AppKit
+   refuses to start a nested modal loop. Now `beginSheetModal(for:)`.
 2. **Finder drag-and-drop** (`050bbe8`). Never existed — `onDrop` and `dropDestination` appeared in
-   no file at `f861b91`. Added over the library area, routed through the same quota → copy → review
-   path as the picker. Directories are excluded deliberately.
-3. **Sample documents duplicated themselves** (`e2b5eef`). `refreshStaleSamples` matched
-   `storageFilename` exactly, so `-2`/`-3` copies from earlier passes were invisible to all three
-   call sites and accumulated. `SampleDocumentDescriptor.matchesStoredCopy(_:)` now matches the
-   numbered form; 7 regression tests pin the boundary.
-4. **Library Settings rendered as a split view** (`d5be5c5`). `ContainerSettingsSheet` used
-   `NavigationView`, which macOS resolves to two columns. Now `NavigationStack` plus an explicit
-   macOS frame on the sheet body.
+   no file. Directories are excluded deliberately.
+3. **Sample documents duplicated themselves** (`e2b5eef`). `matchesStoredCopy(_:)` recognises the
+   `-2`/`-3` form at all three call sites; 7 regression tests pin the boundary.
+4. **Library Settings rendered as a split view** (`d5be5c5`). `NavigationView` → `NavigationStack`.
+5. **CI cost**, first by splitting `ci.yml` (`55f31cb`), then by retiring Actions entirely
+   (`546df1f`).
+6. **Xcode Cloud release gates** (`3afd57b`), with a path fix in `26cf9f8`.
 
-Also: App Store copy for 5.0.2 (`a3a4575`), and `SHIPPED_VERSION.json` records 5.0.1 live and
-5.0.2/389 uploaded (`36b2f87`).
-
-5. **CI was billing 4,020 minutes against a 3,000 allowance** (`55f31cb`). `ci.yml` ran one macOS
-   job on every push to `main` with no path filter; GitHub bills macOS at 10x. Over the 30 runs to
-   2026-08-28 that was 402 wall minutes, and ~11 of those commits changed no Swift. The capability
-   guard (pure Python) moved to `ubuntu-latest` and still runs on every commit; the macOS build is
-   now gated on whether anything build-relevant changed, via an ignore-list so an unrecognised path
-   still builds. A `concurrency` group cancels superseded runs.
+Shipped as macOS 5.0.2 build 389. App Store copy in `a3a4575`.
 
 ## Active Constraints
 
-- **`app_store` in `Docs/SHIPPED_VERSION.json` stays at `5.0`** while iOS is the lagging platform.
-  macOS is 5.0.1 live. The file's own ACTION note says to set it to 5.0.1, which contradicts its
-  next sentence; the conservative reading is recorded in the file's `_comment`.
-- **`ci_scripts/ci_post_clone.sh` stamps `MARKETING_VERSION` from the first `## <number>` heading in
-  `CHANGELOG.md`** and refuses to build while `## [Unreleased]` holds any `-` or `###` line. Do not
-  hand-edit `project.pbxproj` for a version bump; the macOS-specific override was removed 2026-07-30.
-- **The App Store Upload workflow runs no tests.** A red suite reaches Apple unnoticed. Run
-  `xcodebuild test` locally before dispatching.
+- **The Xcode Cloud workflow is pinned to Xcode 26.6 (17F113) and must not go back to "Latest
+  Release".** Twelve sites sit behind `#if compiler(>=6.4)`. Measured 2026-08-28: Xcode 26.6 ships
+  Swift 6.3.3 so PCC compiles **out**; Xcode 27 ships Swift 6.4 so it compiles **in**, contradicting
+  the App Store description, the README and the in-app copy. Xcode 27 is at beta 6, so "Latest
+  Release" becomes it silently. `ci_scripts/ci_post_xcodebuild.sh` is the backstop proving the pin
+  still holds — verified against a real Xcode 27 binary where it found 18 PCC symbols and exited 1.
+- **`app_store` in `Docs/SHIPPED_VERSION.json` stays at `5.0`** while iOS lags. macOS is 5.0.2.
+  Per-platform truth lives in `app_store_by_platform`; understating is the safe direction and is why
+  that file exists.
+- **Put 5.1 entries under `## 5.1`, not `## [Unreleased]`.** `ci_post_clone.sh` stamps
+  `MARKETING_VERSION` from the first numbered heading and refuses to build when `[Unreleased]` holds
+  entries above an uncut heading.
+- **Paths in `ci_scripts/` must resolve from `$0`, not the working directory.** See Blockers.
+- **No `xcodebuild test` runs in CI any more.** The Xcode Cloud TestFlight entries are post-actions,
+  not test actions, and Actions is gone. Tests only run locally.
 
 ## Working Set
 
-Nothing uncommitted. Files to open if continuing this area:
+Nothing uncommitted. Files to open if continuing:
 
 | File | Why |
 |---|---|
-| `OpenIntelligence/Services/Infrastructure/Storage/WorkspaceSyncService.swift` | Holds all three filed defects: the reload loop, the uncoordinated writes, the unbounded ubiquity await at line ~461 |
-| `OpenIntelligence/Features/Documents/Settings/ContainerSettingsSheet.swift` | The one `NavigationView` already converted; the pattern for the other 17 |
-| `OpenIntelligence/Features/Documents/Components/DocumentPicker.swift` | `ImportedFileStaging`, now the single copy-into-workspace path for every surface |
-| `Docs/reference/LINKEDIN_POSTS.md` | Gitignored. Holds an unposted v5.x draft that supersedes the earlier unposted v5.0 draft |
+| `ci_scripts/ci_post_clone.sh` | Version stamp, capability guard, and the AFM canary whose `\|\| true` hides its own failure |
+| `ci_scripts/ci_post_xcodebuild.sh` | The three release gates; the PCC one is load-bearing |
+| `OpenIntelligence/Services/Infrastructure/Storage/WorkspaceSyncService.swift` | Holds all three filed defects |
+| `Docs/reference/LINKEDIN_POSTS.md` | Gitignored. Final v5.0 draft ready to post, plus all six published posts archived |
 
 ## Verification
 
 Commands run this session, with observed output:
 
-- `xcodebuild test -scheme OpenIntelligence -destination "platform=iOS Simulator,id=8FA2B3CE-5EB0-4339-8629-F40684EDCE2D" -derivedDataPath /private/tmp/oi-test-clean`
-  → `355 tests, 3 skipped, 0 failures`, `** TEST SUCCEEDED **`
-- `xcodebuild -scheme OpenIntelligence -destination "platform=macOS" -configuration Release -derivedDataPath /private/tmp/oi-mac-rel build`
-  → `** BUILD SUCCEEDED **`, 0 errors
-- `bash scripts/build_simulator_smoke.sh` → `Simulator smoke build succeeded`
-- GitHub Actions run 33127559144 → all steps success, `Uploaded macos build 389`
-- New `ci.yml` on `55f31cb` → `Capability claims` (ubuntu) succeeded; the macOS `Build` job was
-  correctly triggered because the commit touched `.github/workflows/`. Path filter dry-run over the
-  last 14 commits: 10 skip, 4 build, and both constructed edge cases resolve correctly
-  (`OpenIntelligence/Resources/VersionHistory.md` alone builds, `Docs/USER_CHANGELOG.md` alone skips).
-- **On device (owner's Mac, 2026-08-27):** capture of 43,576 lines during active use contains
-  **zero** `Suppressing invocation` lines; documents imported; 12 iCloud libraries synced. The owner
-  confirmed in conversation that file upload now works.
+- `xcodebuild build -configuration Debug -destination 'generic/platform=iOS Simulator'` on **Xcode
+  26.6** → `BUILD SUCCEEDED`, 0 errors
+- `xcodebuild build -configuration Release -destination 'generic/platform=iOS'` on **26.6** →
+  `BUILD SUCCEEDED`, 0 errors
+- `xcodebuild build -configuration Release -destination 'platform=macOS'` on **26.6** →
+  `BUILD SUCCEEDED`, 0 errors
+- `xcodebuild test` (iOS 27 simulator) → `355 tests, 3 skipped, 0 failures`
+- Xcode Cloud run **427** → SUCCEEDED, both Archive actions
+- On device: a 43,576-line macOS capture contains **zero** `Suppressing invocation` lines, documents
+  imported, 12 iCloud libraries synced; the owner confirmed import works
 
-**Not verified:** that Library Settings renders correctly. Layout is exactly what a build and a test
-suite cannot confirm, and screen access was unavailable. It shipped in 389 on reasoning alone.
+**Caveat on figures recorded earlier in this session:** the test run and several builds were made
+with **Xcode 27 beta**, not the 26.6 that ships. They were re-run on 26.6 and passed, but any number
+recorded before that re-run described a toolchain this project does not release with.
+
+**Not verified:** Library Settings layout. Layout is exactly what a build and a test suite cannot
+confirm.
 
 ## Blockers / Unknowns
 
-None blocking. Three defects filed to Notion `Future Backlog`, each with a closing condition:
+None blocking. Three defects filed in Notion:
 
-1. **[420 workspace reloads per import](https://app.notion.com/p/3ca49a74d54f81a6b8c1e4827a6585fa)** —
-   one import produced 420 sequential `[WorkspaceReload] #n` entries; 42% of a 23,045-line capture
-   was `CoreUI` window relayout, 0.5% was extraction. Verify by importing one file and counting
-   `WorkspaceReload` in the console. `WorkspaceSyncService.isSyncWriteInProgress` already exists and
-   is the shape of the gate needed.
-2. **[17 views still use NavigationView](https://app.notion.com/p/3ca49a74d54f81eb867cf24a119af0c1)** —
-   same split-view defect. Also: of 39 `.sheet(` presentations, exactly one sets a macOS frame.
-3. **[Six file families sync without NSFileCoordinator](https://app.notion.com/p/3ca49a74d54f8103b69be921f0335171)** —
-   **this one corrupts user data and has already done so.** `coordinatedMergeData` covers 4 paths,
-   which had 0 conflict copies; 6 uncoordinated families had all 599. It qualifies for the active
-   release under test 1; pull it forward when the next version is named.
+1. **[Six file families sync without NSFileCoordinator](https://app.notion.com/p/3ca49a74d54f8103b69be921f0335171)**
+   — **now `v5.1`**, promoted 2026-08-28. Corrupts user data and already has: 599 conflict copies,
+   136 unreadable zero-block files, 17 days of dead sync, and real chat history and vector indexes
+   destroyed when the container was cleaned. `coordinatedMergeData` covers 4 paths, which had 0
+   conflict copies; the 6 uncoordinated families had all 599.
+2. **[420 workspace reloads per import](https://app.notion.com/p/3ca49a74d54f81a6b8c1e4827a6585fa)**
+   — `Future Backlog`. Quality, not data loss.
+3. **[17 views still use NavigationView](https://app.notion.com/p/3ca49a74d54f81eb867cf24a119af0c1)**
+   — `Future Backlog`.
 
-**RESOLVED 2026-08-28 — releases move to Xcode Cloud; GitHub Actions is now the redundant one.**
-The owner bought 100 Xcode Cloud hours. Xcode Cloud was always the working release path; Actions was
-the stopgap after the free 25 hours ran out, and Actions has now itself gone into paid overage. The
-ITMS-90111 prerelease-stamp problem that made local archives unsubmittable does not apply to Xcode
-Cloud, which runs on released macOS images (25G83).
+**Worth checking, unresolved:** `ci_post_clone.sh` runs
+`sh ../scripts/probe_afm_advanced_canary.sh || true`. The capability guard added on the line below it
+used the same CWD-relative style and failed on Xcode Cloud with exit 2 — python3's "cannot open
+file" — breaking build 426. The guard now resolves from `$0` and build 427 passed, but the canary
+still uses the old style **and** swallows its own failure, so it may not have run on Xcode Cloud for
+some time without saying so. Verify by making it print and dropping the `|| true` for one run.
 
-Workflow `E6B22BA8-D5A5-4664-941A-3EC1C3F50910` is enabled and now configured as:
-`xcodeVersion` **pinned to Xcode 26.6 (17F113)**, `clean: false`, and a `filesAndFoldersRule` with
-mode `DO_NOT_START_IF_ALL_FILES_MATCH` over `*.md`, `Docs`, `.claude`, `.agents`, `.codex`,
-`fastlane/metadata`, `.github`.
-
-**The pin is load-bearing and must not be set back to "Latest Release".** Twelve sites sit behind
-`#if compiler(>=6.4)`. Measured 2026-08-28: Xcode 26.6 ships Swift 6.3.3 so PCC compiles OUT; Xcode
-27 ships Swift 6.4 so it compiles IN, contradicting the App Store description, the README and the
-in-app copy. "Latest Release" becomes Xcode 27 the day Apple ships it, silently. Xcode 27 is at
-beta 6.
-
-`ci_scripts/ci_post_xcodebuild.sh` (`3afd57b`) is the proof that the pin is still working, since a
-pin can be changed in the ASC UI by accident. It gates on PCC symbols with a `SystemLanguageModel`
-control, the `BuildMachineOSBuild` stamp, and bundle xattrs. Every blind spot fails closed.
-
-**Do not delete `.github/workflows/app-store-upload.yml` until one release has actually shipped
-through Xcode Cloud.** Keeping it costs nothing; `ci.yml` is now ~36 s on Linux for docs commits.
-
-**Previously recorded here as needing a decision:**
-Workflow `Default` on product `c6efe188-583b-47d8-9db8-dc8e17ecc7c5`, workflow id
-`E6B22BA8-D5A5-4664-941A-3EC1C3F50910`: `isEnabled: true`, branch trigger `main`,
-`filesAndFoldersRule: null`, and **two ARCHIVE actions** (macOS and iOS). So every push to `main`
-runs two full release archives. Since 2026-08-01 that is 52 runs and 641.9 minutes (10.7 h) against
-a 25 h allowance, plus 0.7 h on OpenScan, which shares the same allowance along with OpenResponses,
-OpenCone and OpenAssistant.
-
-Nothing consumes those archives. Builds 388 and 389 both shipped through
-`.github/workflows/app-store-upload.yml`, because a beta Mac stamps an unsubmittable
-`BuildMachineOSBuild` — that is structural, not a config bug, so Xcode Cloud cannot produce a
-submittable binary on this machine's toolchain either. Recommended action is to disable that
-workflow (`PATCH ciWorkflows/E6B22BA8-D5A5-4664-941A-3EC1C3F50910`, `attributes.isEnabled=false`);
-the conservative alternative is to add a `filesAndFoldersRule` so docs commits stop triggering it.
-**Not done: this is a change to the owner's App Store Connect configuration and needs explicit
-approval.** Query it with the ASC API using `APP_STORE_CONNECT_{API_KEY_ID,ISSUER_ID,API_KEY_PATH}`,
-which are already in the environment.
-
-Note `Docs/ai/RUNBOOK.md` contradicts itself on this: line ~488 still says "Xcode Cloud is the
-builder", line ~513 says to use the Actions workflow instead. The second is correct.
-
-**Owner's machine, repaired this session, not a code fix:** 136 files in
-`~/Library/Mobile Documents/iCloud~Gunndamental~OpenIntelligence/` had `st_size > 0, st_blocks == 0`
-and blocked any read forever, which had killed sync since 2026-08-10. Removing them took a full
-directory copy from a 7-minute timeout to 1 second. Casualties: `deleted_containers.json` (delete
-tombstones lost, so previously-deleted libraries may reappear once) and two vector index metadata
-files (General and Library 7 re-indexed themselves). Two libraries are both named "Library 5"
-(`FF9333D1…` populated, `0AA60E5A…` empty) from the merge.
+**Unexplained, did not recur:** build 424 failed with actor-isolation errors on
+`HybridSearchService.stableTieBreakKey`, `analyse` and `overridesLock`, in the **macOS archive only**
+— iOS archived fine in the same run. It does not reproduce locally in any combination tried (Xcode
+26.6 and 27, Debug and Release, iOS and macOS), and build 427 archived both platforms cleanly. If it
+returns, pull the Xcode Cloud build log rather than guessing at a fix.
 
 ## Exact Next Action
 
-None. The objective is complete and verified. There is no active objective.
+None. Both objectives are complete and verified, and there is no active objective.
 
-**Ask the owner whether to disable the Xcode Cloud `Default` workflow** (see Blockers). It is
-burning a shared 25-hour allowance on archives nothing uses, and it is the only outstanding item
-that costs money every time anyone pushes.
+Ask the user what to pick up, or take the `v5.1` roadmap row above: it is the only open row that
+loses user data, and it is now scoped to the open release.
 
-If macOS 5.0.2 clears review, set `app_store_by_platform.macos` to `"5.0.2"` in
-`Docs/SHIPPED_VERSION.json` and clear `in_review`; leave `app_store` at `5.0` until iOS catches up.
-
-Otherwise ask the user what to pick up, or take a roadmap item from the Notion database via the
-`notion-roadmap` skill. The three rows above are the highest-value candidates, and defect 3 is the
-only one that loses user data.
+If 5.1 work starts, write the first entry under `## 5.1` in `CHANGELOG.md` — not `[Unreleased]` —
+and leave `app_store` at `5.0` in `Docs/SHIPPED_VERSION.json` until iOS ships past it.
