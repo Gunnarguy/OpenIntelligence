@@ -99,3 +99,24 @@ echo "  iOS + macOS MARKETING_VERSION = $LATEST_VERSION  ($IOS_COUNT targets)"
 # Informational canary: alert (without failing) the moment Apple's SDK exposes
 # developer-selectable AFM 3 Core Advanced. See scripts/probe_afm_advanced_canary.sh
 sh ../scripts/probe_afm_advanced_canary.sh || true
+
+# ---------------------------------------------------------------------------
+# Capability guard, moved here from .github/workflows/ci.yml on 2026-08-28 when
+# GitHub Actions was retired in favour of Xcode Cloud.
+#
+# verify_capabilities.py checks that the code behind every publicly claimed
+# capability still exists, so a claim cannot outlive its implementation. It ran
+# on every Actions push; without this it would have run nowhere, and deleting
+# Actions would have quietly cost a protection rather than just cost nothing.
+#
+# It is pure Python plus grep, so it costs a second or two and needs no
+# toolchain. Failing here stops the build before xcodebuild starts, which is the
+# cheapest place to fail.
+# ---------------------------------------------------------------------------
+echo "Verifying claimed capabilities still have their implementation..."
+if ! command -v python3 >/dev/null 2>&1; then
+    echo "Error: python3 not found, so the capability guard cannot run."
+    echo "Refusing to build rather than skipping a check and reporting success."
+    exit 1
+fi
+python3 ../scripts/verify_capabilities.py
