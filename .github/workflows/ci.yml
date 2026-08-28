@@ -1,14 +1,99 @@
 name: CI
 
+# Cost note, because this is not obvious and it has already bitten.
+#
+# GitHub bills macOS runners at 10x Linux. This workflow used to be one macOS job
+# on every push to main with no path filter, so a commit touching only Markdown
+# still booted a Mac and compiled the whole app. Measured over the 30 runs to
+# 2026-08-28: 402 wall minutes, which is 4,020 billed minutes against a 3,000
+# monthly allowance, and roughly 11 of those 30 commits changed no Swift at all.
+#
+# So: the capability guard is pure Python and moves to Linux, where it costs 1x
+# and still runs on every commit -- including the docs commits it is most likely
+# to catch something in. The Mac is reserved for the thing that needs a Mac, and
+# only when something that can affect the build has changed.
+
 on:
   push:
     branches: ["main"]
   pull_request:
     branches: ["main"]
 
+# A newer push to the same ref makes an in-flight run pointless. Without this,
+# seven pushes in an evening means seven concurrent Macs.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
+  claims:
+    name: Capability claims
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      build_needed: ${{ steps.scope.outputs.build_needed }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # verify_capabilities.py imports json/pathlib/subprocess/sys and shells out
+      # to grep. It never needed Xcode, and it guards claims that live in docs, so
+      # it must keep running on exactly the commits the Mac job below skips.
+      - name: Verify claimed capabilities still have their implementation
+        run: python3 scripts/verify_capabilities.py
+
+      - name: Decide whether the Mac build is needed
+        id: scope
+        run: |
+          set -euo pipefail
+
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            BASE="${{ github.event.pull_request.base.sha }}"
+          else
+            BASE="${{ github.event.before }}"
+          fi
+
+          # A new branch, a force-push, or a missing base means we cannot tell what
+          # changed. Build, rather than skip and call an unverified commit green.
+          if [ -z "$BASE" ] || [ "$BASE" = "0000000000000000000000000000000000000000" ] || ! git cat-file -e "$BASE^{commit}" 2>/dev/null; then
+            echo "No usable base ref. Building."
+            echo "build_needed=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          CHANGED="$(git diff --name-only "$BASE" "${{ github.sha }}")"
+          echo "Changed files:"; echo "$CHANGED" | sed 's/^/  /'
+
+          # Anything under the app source tree counts, whatever its extension.
+          # OpenIntelligence/Resources/VersionHistory.md is a bundled resource, so
+          # a .md rule alone would let a resource deletion through as "docs only".
+          SRC="$(echo "$CHANGED" | grep -E '^OpenIntelligence' || true)"
+
+          # Ignore-list, not an allow-list: anything NOT matched here triggers a
+          # build. The failure mode is spending money, never calling an uncompiled
+          # commit green.
+          OTHER="$(echo "$CHANGED" \
+            | grep -vE '^OpenIntelligence' \
+            | grep -vE '^(Docs/|\.claude/|\.agents/|\.codex/|fastlane/metadata/|BenchmarkRuns/|Benchmarks/)' \
+            | grep -vE '\.(md|txt)$' \
+            | grep -vE '^\.gitignore$' || true)"
+
+          RELEVANT="$(printf '%s\n%s' "$SRC" "$OTHER" | grep -v '^$' || true)"
+
+          if [ -z "$RELEVANT" ]; then
+            echo "Only documentation changed. Skipping the macOS build."
+            echo "build_needed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "Build-relevant changes:"; echo "$RELEVANT" | sed 's/^/  /'
+            echo "build_needed=true" >> "$GITHUB_OUTPUT"
+          fi
+
   build:
     name: Build
+    needs: claims
+    if: needs.claims.outputs.build_needed == 'true'
     runs-on: macos-26
     timeout-minutes: 45
 
@@ -24,12 +109,6 @@ jobs:
             ~/Library/Caches/org.swift.swiftpm
           key: ${{ runner.os }}-spm-${{ hashFiles('**/Package.resolved') }}
           restore-keys: ${{ runner.os }}-spm-
-
-      # Runs before the build because it needs no toolchain and takes about a
-      # second. A public claim whose implementation has been deleted is worth
-      # failing fast on, and this catches nothing the build would have caught.
-      - name: Verify claimed capabilities still have their implementation
-        run: python3 scripts/verify_capabilities.py
 
       - name: Select Xcode
         run: |
