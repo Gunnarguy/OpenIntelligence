@@ -1,5 +1,7 @@
 {
   "_comment": [
+    "2026-08-27 (latest): macOS 5.0.2 build 389 UPLOADED and supersedes 388. Submit 389, not 388.",
+    "",
     "2026-08-27 (latest): macOS 5.0.2 build 388 UPLOADED, awaiting review. app_store still 5.0.",
     "",
     "What is live on the App Store, versus what is being prepared.",
@@ -44,8 +46,8 @@
   },
   "preparing": "5.0.2",
   "in_review": {
-    "macos": "5.0.2 (build 388)"
+    "macos": "5.0.2 (build 389; build 388 also uploaded but superseded)"
   },
   "updated": "2026-08-27",
-  "verified_against": "macOS 5.0.2 (build 388) uploaded to App Store Connect 2026-08-27 via the App Store Upload workflow, run 33124470371; all gates passed including the prerelease build-machine-stamp check. macOS 5.0.1 live since 2026-08-27. iOS 5.0 (build 386) live; iOS remains the lagging platform, so app_store stays at 5.0."
+  "verified_against": "macOS 5.0.2 build 389 uploaded to App Store Connect 2026-08-27 (workflow run 33127559144, all gates passed). Build 388 was uploaded earlier the same day (run 33124470371) and is superseded: 389 is a strict superset, adding the Library Settings split-view fix. Submit 389. macOS 5.0.1 live since 2026-08-27. iOS 5.0 live; iOS is the lagging platform so app_store stays 5.0."
 }
