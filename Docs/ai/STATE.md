@@ -2,7 +2,7 @@
 
 Updated: 2026-08-27
 Branch/worktree: main (primary checkout, `~/Documents/GitHub/OpenIntelligence`)
-Last verified commit: a3a4575
+Last verified commit: 55f31cb
 
 ## Objective
 
@@ -39,6 +39,13 @@ Four user-facing defects, all macOS-only. iOS pickers were never on these paths.
 Also: App Store copy for 5.0.2 (`a3a4575`), and `SHIPPED_VERSION.json` records 5.0.1 live and
 5.0.2/389 uploaded (`36b2f87`).
 
+5. **CI was billing 4,020 minutes against a 3,000 allowance** (`55f31cb`). `ci.yml` ran one macOS
+   job on every push to `main` with no path filter; GitHub bills macOS at 10x. Over the 30 runs to
+   2026-08-28 that was 402 wall minutes, and ~11 of those commits changed no Swift. The capability
+   guard (pure Python) moved to `ubuntu-latest` and still runs on every commit; the macOS build is
+   now gated on whether anything build-relevant changed, via an ignore-list so an unrecognised path
+   still builds. A `concurrency` group cancels superseded runs.
+
 ## Active Constraints
 
 - **`app_store` in `Docs/SHIPPED_VERSION.json` stays at `5.0`** while iOS is the lagging platform.
@@ -71,6 +78,10 @@ Commands run this session, with observed output:
   → `** BUILD SUCCEEDED **`, 0 errors
 - `bash scripts/build_simulator_smoke.sh` → `Simulator smoke build succeeded`
 - GitHub Actions run 33127559144 → all steps success, `Uploaded macos build 389`
+- New `ci.yml` on `55f31cb` → `Capability claims` (ubuntu) succeeded; the macOS `Build` job was
+  correctly triggered because the commit touched `.github/workflows/`. Path filter dry-run over the
+  last 14 commits: 10 skip, 4 build, and both constructed edge cases resolve correctly
+  (`OpenIntelligence/Resources/VersionHistory.md` alone builds, `Docs/USER_CHANGELOG.md` alone skips).
 - **On device (owner's Mac, 2026-08-27):** capture of 43,576 lines during active use contains
   **zero** `Suppressing invocation` lines; documents imported; 12 iCloud libraries synced. The owner
   confirmed in conversation that file upload now works.
@@ -94,6 +105,27 @@ None blocking. Three defects filed to Notion `Future Backlog`, each with a closi
    which had 0 conflict copies; 6 uncoordinated families had all 599. It qualifies for the active
    release under test 1; pull it forward when the next version is named.
 
+**Needs the owner's decision — Xcode Cloud is duplicating the release build and discarding it.**
+Workflow `Default` on product `c6efe188-583b-47d8-9db8-dc8e17ecc7c5`, workflow id
+`E6B22BA8-D5A5-4664-941A-3EC1C3F50910`: `isEnabled: true`, branch trigger `main`,
+`filesAndFoldersRule: null`, and **two ARCHIVE actions** (macOS and iOS). So every push to `main`
+runs two full release archives. Since 2026-08-01 that is 52 runs and 641.9 minutes (10.7 h) against
+a 25 h allowance, plus 0.7 h on OpenScan, which shares the same allowance along with OpenResponses,
+OpenCone and OpenAssistant.
+
+Nothing consumes those archives. Builds 388 and 389 both shipped through
+`.github/workflows/app-store-upload.yml`, because a beta Mac stamps an unsubmittable
+`BuildMachineOSBuild` — that is structural, not a config bug, so Xcode Cloud cannot produce a
+submittable binary on this machine's toolchain either. Recommended action is to disable that
+workflow (`PATCH ciWorkflows/E6B22BA8-D5A5-4664-941A-3EC1C3F50910`, `attributes.isEnabled=false`);
+the conservative alternative is to add a `filesAndFoldersRule` so docs commits stop triggering it.
+**Not done: this is a change to the owner's App Store Connect configuration and needs explicit
+approval.** Query it with the ASC API using `APP_STORE_CONNECT_{API_KEY_ID,ISSUER_ID,API_KEY_PATH}`,
+which are already in the environment.
+
+Note `Docs/ai/RUNBOOK.md` contradicts itself on this: line ~488 still says "Xcode Cloud is the
+builder", line ~513 says to use the Actions workflow instead. The second is correct.
+
 **Owner's machine, repaired this session, not a code fix:** 136 files in
 `~/Library/Mobile Documents/iCloud~Gunndamental~OpenIntelligence/` had `st_size > 0, st_blocks == 0`
 and blocked any read forever, which had killed sync since 2026-08-10. Removing them took a full
@@ -105,6 +137,10 @@ files (General and Library 7 re-indexed themselves). Two libraries are both name
 ## Exact Next Action
 
 None. The objective is complete and verified. There is no active objective.
+
+**Ask the owner whether to disable the Xcode Cloud `Default` workflow** (see Blockers). It is
+burning a shared 25-hour allowance on archives nothing uses, and it is the only outstanding item
+that costs money every time anyone pushes.
 
 If macOS 5.0.2 clears review, set `app_store_by_platform.macos` to `"5.0.2"` in
 `Docs/SHIPPED_VERSION.json` and clear `in_review`; leave `app_store` at `5.0` until iOS catches up.
