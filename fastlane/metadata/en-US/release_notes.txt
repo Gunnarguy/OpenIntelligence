@@ -1,65 +1,21 @@
-Documents were quietly losing parts of themselves, answers were built from a fraction of what was found, and the app rewrote your library on every launch. 5.0 is the fix for all three.
+On the Mac there was no way to get a document into the app. Both ways in were broken. This release fixes them.
 
 
-SEARCH
+GETTING DOCUMENTS IN
 
-• The part of the app that reads what a passage means was looking at one position in it instead of the whole thing. It reads all of it now.
-• A broken length check returned the same number for every input, so long passages were cut short before they were ever indexed.
-• Libraries you already have will offer to rebuild their index once, because anything indexed before this update was built the old way. Nothing is deleted and the library keeps working while you decide.
-• Keyword and meaning-based search combined stopped scoring worse than keyword search alone, and strong keyword matches are no longer dropped before ranking.
+• The Add Documents button opened nothing. It asked macOS for a file picker at the one moment the system refuses to open one, so the request was discarded and no window ever appeared. The same fault hit the two file buttons inside a chat, where it was worse: those open into a panel that is otherwise empty, so there was no button to fall back to and no sign anything had gone wrong.
+
+• You can now drag files from Finder straight into a library. This had never worked, because nothing in the app was listening for a dropped file. The whole library area accepts them, so a drop does not have to be aimed at anything precise, and dropped files go through the same size and quota checks and the same import review as files picked with the button. Folders are not accepted yet, so drop the files from inside them instead.
 
 
-ANSWERS
+LIBRARY SETTINGS
 
-• Deep Think was writing from a fraction of what it found, discarding its own best passages before the first word. It keeps them now, and says what it left out.
-• Citations are checked against the real source list. An answer could cite a source number past the end of its own list.
-• Deep Think is about three times faster, and stops when it runs out of new material instead of re-reading the same passages.
-• A long answer no longer fails at the last step after minutes of work.
+• Library Settings was unreadable on the Mac. It was drawn as a narrow strip down the left with a large blank area beside it, squeezed hard enough that words broke apart mid-way — "Documents" came out as "Doc ume nts". It was built on an older navigation container that macOS turns into a two-pane layout meant for a sidebar and a detail view, which is not what a settings screen wants. It now uses a single column at a sensible width. Other screens still use that older container and may show the same thing; those are being worked through separately.
 
 
 YOUR DOCUMENTS
 
-• Tables in Word documents were read and then thrown away. A file could import looking complete with all of its numbers missing.
-• Images keep their layout instead of collapsing into one line of text.
-• A page the reader knew it had read badly is no longer repaired and then discarded.
-• Importing certain files could deadlock the whole queue until you force-quit.
+• The built-in sample documents were quietly duplicating themselves. When a sample is corrected in a new version, the app replaces your copy with the updated one. It was deleting the original but not any duplicate an earlier update had already left behind, so each round added another. One library ended up with five documents for three samples. This matters beyond tidiness: the app answers out of these documents, so a duplicate meant the same passage counted twice when it decided what to quote. Existing duplicates are cleaned up on the next update, and documents you named yourself are never touched, even if the name looks similar.
 
 
-YOUR LIBRARIES
-
-• A document you import no longer loses its searchability to the app's own housekeeping, which deleted a just-built index and said nothing. If one is lost, the app says so and rebuilds in about four seconds.
-• "Remove Local Copies" is now "Remove All Documents", because that is what it did. It deleted from iCloud and your other devices while telling you Sync Now could bring them back. It could not.
-• Deleting a library from its settings screen no longer removes it here when iCloud refused.
-• Changing the embedding model no longer wipes your vectors before you agree to rebuild them.
-
-
-SPEED
-
-• The app starts faster. A 43 MB model loaded on every launch before anything appeared on screen.
-• iCloud stopped re-uploading libraries that had not changed. One launch could rewrite hundreds of megabytes identical to what was already there.
-• Leaving the chat no longer cancels the answer you were waiting for, and coming back keeps your place.
-
-
-SETTINGS
-
-• Settings is a searchable list instead of one long scroll. Type "temperature" and you land on it.
-• Temperature and response length are reachable. They were built with no way into them.
-• Choose Top-K, Top-P or Greedy. The app used to decide, and always picked the same one.
-• Turn on Reproducible answers and the same question returns the same answer.
-• Five switches that never controlled anything are no longer switches.
-• Tap any figure the app shows you and it explains itself, plainly first and in detail if you want it.
-
-
-THINGS WE WERE CLAIMING THAT WEREN'T TRUE
-
-• Settings listed eight agentic tools and all eight were the wrong ones. Four are wired up. Those four are what it names now.
-• We removed the claim that answers can run on Apple's Private Cloud Compute today. Shipped builds do not contain it yet.
-• Pages, Numbers and Keynote were advertised and never worked. They are no longer advertised, and importing one now fails clearly.
-• Speed figures that were never measured are gone, including from the sample documents the app reads back to you as fact.
-• Every remaining capability line was checked against the code that would have to run it.
-
-
-ALSO
-
-• The app icon follows your device's dark mode.
-• iPhone 17 and M5 hardware no longer reports itself as "A12 or Older".
+iPhone and iPad are unchanged by this release.

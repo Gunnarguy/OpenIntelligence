@@ -1,1 +1,1 @@
-Deep Think and Maximum now reason across your whole library and cite what they used. Every answer runs on your device. Nothing goes to a third-party AI provider.
+Importing on Mac works now: the Add Documents button opens, and you can drag files straight in from Finder. Everything still runs on your device.
