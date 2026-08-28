@@ -1,105 +1,114 @@
 # Current State
 
 Updated: 2026-08-27
-Branch/worktree: main
-Last verified commit: 1bfb79c
+Branch/worktree: main (primary checkout, `~/Documents/GitHub/OpenIntelligence`)
+Last verified commit: a3a4575
 
 ## Objective
 
-v5.0 is shipped on both platforms. macOS 5.0.1 is the only thing still in review. There is no active engineering
-objective. The next one should come from the Notion roadmap, not from what anyone
-last noticed.
+None active. macOS 5.0.2 is uploaded to App Store Connect and awaiting review. The objective that
+drove this session — make document import work on macOS — is complete and verified on device.
 
 ## Status
 
-- **macOS 5.0, build 379: LIVE on the App Store**, approved 2026-08-26. Archived from `35d59a2`,
-  so it does not contain the 17 changelog entries that landed after it.
-- **iOS 5.0, build 386: APPROVED AND LIVE**, 2026-08-27. Archived from `2d86273`; contains everything.
-- **macOS 5.0.1, build 387: submitted, in review.** Archived from `66c4f7e`.
-- **iOS 5.0.1, build 387: uploaded, unused.** A by-product of the shared version stamp. Harmless.
-- All three public websites corrected and pushed (see Completed).
+**macOS 5.0.2, build 389, uploaded 2026-08-27** (workflow run 33127559144, every gate passed).
+Build 388 (run 33124470371) was uploaded earlier the same day and is **superseded**; 389 is a strict
+superset. Uploading does not replace, so both sit in App Store Connect. **Submit 389.**
 
-## Completed this session
+Working tree is clean. Nothing is staged or pending.
 
-- `66c4f7e` — 5.0.1 cut. ASC closed the 5.0 train on macOS the moment 379 went live and refused
-  build 386 with `90186` / `90062`.
-- `1c5e31c` — README said releases come from Xcode Cloud (untrue since the compute cap) and cited
-  "eleven" PCC gates when there are twelve. RUNBOOK gained the train-closure lesson. ROADMAP.md
-  header reconciled from v4.9.
-- `d2382e2` — `Docs/SHIPPED_VERSION.json`: platforms diverged. `app_store` deliberately held at
-  `4.9` because iOS 5.0 is not approved; raising it would advertise to iOS visitors a version they
-  cannot install, which is the exact failure the file exists to prevent.
-- `f9a99cd` — `Docs/SHIPPED_CAPABILITIES.json` + `scripts/verify_capabilities.py`, wired into
-  `ci.yml`. Both failure paths tested.
-- **Notion**: the one open v5.0 row moved to `Future Backlog` (not closed; it is not closeable and
-  says why). Ten rows created — 8 Completed for the 5.0.1 work, 1 In Progress (Documents tab),
-  1 To Do (OCR spine banner). The stale "App Store build pins Xcode 26.5" row corrected in place.
-- **Three websites**, all pushed: 19 places described Private Cloud Compute as a live capability.
-  Fascinaiting's release notes claimed "native PCC shipped in v4.6", which is false. Corrected on
-  `Gunzino` (6), `Fascinaiting` (9), `Gunnarguy-Portfolio` (4). Every `data-oi-version` anchor left
-  intact so the version workflows keep working.
+## Completed
 
-- **2026-08-27, docs reconciliation** (`1bfb79c`): four subsystem docs said "shipped tree is
-  v4.9"; `RELEASE_NOTES.md` implied PCC shipped; **471 links across 20 files were absolute paths
-  into one developer's home directory** and dead in every clone and in the GitHub web UI. All
-  repo-relative now. Broken relative links repo-wide: 31 before, 0 after. `Docs/AuditArtifacts`
-  (58 files) marked historical rather than moved, because moving them would undo the link repair.
-- **2026-08-27** (`5ef0817`): `SHIPPED_VERSION.json` `app_store` moved 4.9 -> 5.0 once iOS was
-  approved. The three websites follow on their own daily crons.
+Four user-facing defects, all macOS-only. iOS pickers were never on these paths.
+
+1. **Add Documents opened nothing** (`050bbe8`). All three macOS pickers called
+   `NSOpenPanel.runModal()` from a SwiftUI `.onAppear`, which fires inside a CATransaction commit
+   where AppKit refuses to start a nested modal loop. It discarded the call and logged
+   `Suppressing invocation of -[NSApplication runModalForWindow:]`. Now `beginSheetModal(for:)`.
+2. **Finder drag-and-drop** (`050bbe8`). Never existed — `onDrop` and `dropDestination` appeared in
+   no file at `f861b91`. Added over the library area, routed through the same quota → copy → review
+   path as the picker. Directories are excluded deliberately.
+3. **Sample documents duplicated themselves** (`e2b5eef`). `refreshStaleSamples` matched
+   `storageFilename` exactly, so `-2`/`-3` copies from earlier passes were invisible to all three
+   call sites and accumulated. `SampleDocumentDescriptor.matchesStoredCopy(_:)` now matches the
+   numbered form; 7 regression tests pin the boundary.
+4. **Library Settings rendered as a split view** (`d5be5c5`). `ContainerSettingsSheet` used
+   `NavigationView`, which macOS resolves to two columns. Now `NavigationStack` plus an explicit
+   macOS frame on the sheet body.
+
+Also: App Store copy for 5.0.2 (`a3a4575`), and `SHIPPED_VERSION.json` records 5.0.1 live and
+5.0.2/389 uploaded (`36b2f87`).
 
 ## Active Constraints
 
-- **One CHANGELOG heading stamps both platforms.** The `MARKETING_VERSION[sdk=macosx*]` override
-  was removed 2026-07-30, so one commit cannot put the platforms on different marketing versions.
-- **A shipped version closes its train on that platform**, and nothing local warns you.
-  `ci_post_clone.sh`'s guard infers "already shipped" from whether `[Unreleased]` holds entries and
-  cannot ask App Store Connect.
-- **PCC must be written in the future tense everywhere.** Enforced by `SHIPPED_CAPABILITIES.json`.
-- **`xcodebuild test` hangs on this machine** in two distinct ways; see `Docs/ai/RUNBOOK.md` and
-  the `running-tests` memory. Run long tests under `nohup` so a session restart cannot kill them.
+- **`app_store` in `Docs/SHIPPED_VERSION.json` stays at `5.0`** while iOS is the lagging platform.
+  macOS is 5.0.1 live. The file's own ACTION note says to set it to 5.0.1, which contradicts its
+  next sentence; the conservative reading is recorded in the file's `_comment`.
+- **`ci_scripts/ci_post_clone.sh` stamps `MARKETING_VERSION` from the first `## <number>` heading in
+  `CHANGELOG.md`** and refuses to build while `## [Unreleased]` holds any `-` or `###` line. Do not
+  hand-edit `project.pbxproj` for a version bump; the macOS-specific override was removed 2026-07-30.
+- **The App Store Upload workflow runs no tests.** A red suite reaches Apple unnoticed. Run
+  `xcodebuild test` locally before dispatching.
 
 ## Working Set
 
-- `Docs/SHIPPED_VERSION.json` — the one file to edit when iOS 5.0 clears review.
-- `Docs/SHIPPED_CAPABILITIES.json`, `scripts/verify_capabilities.py` — the new guard.
-- `OpenIntelligence/Features/Documents/Library/DocumentLibraryView.swift` — carries the unread
-  `[LibrarySwitch]` instrumentation.
-- App Store copy, session scratchpad, not in the repo: `asc_whatsnew_universal.txt` (3,995 chars),
-  `asc_macos_whatsnew.txt` (2,962), `asc_description_v2.txt` (3,012), `asc_ios_whatsnew.txt`.
+Nothing uncommitted. Files to open if continuing this area:
+
+| File | Why |
+|---|---|
+| `OpenIntelligence/Services/Infrastructure/Storage/WorkspaceSyncService.swift` | Holds all three filed defects: the reload loop, the uncoordinated writes, the unbounded ubiquity await at line ~461 |
+| `OpenIntelligence/Features/Documents/Settings/ContainerSettingsSheet.swift` | The one `NavigationView` already converted; the pattern for the other 17 |
+| `OpenIntelligence/Features/Documents/Components/DocumentPicker.swift` | `ImportedFileStaging`, now the single copy-into-workspace path for every surface |
+| `Docs/reference/LINKEDIN_POSTS.md` | Gitignored. Holds an unposted v5.x draft that supersedes the earlier unposted v5.0 draft |
 
 ## Verification
 
-- `xcodebuild test` -> **348 tests, 3 skipped, 0 failures** at the 5.0.1 content.
-- `python3 scripts/verify_capabilities.py` -> 10/10 anchors present, 1.3s. Both failure modes
-  exercised deliberately: a renamed anchor reports MISSING, a count below its floor reports the
-  shortfall.
-- iOS 386/387 and macOS 387 -> released OS stamp, PCC symbols 0 against a `SystemLanguageModel`
-  control of 29, `UPLOAD SUCCEEDED`.
-- macOS 386 -> **rejected**, `90186` train closed. This is the evidence behind the 5.0.1 cut.
+Commands run this session, with observed output:
+
+- `xcodebuild test -scheme OpenIntelligence -destination "platform=iOS Simulator,id=8FA2B3CE-5EB0-4339-8629-F40684EDCE2D" -derivedDataPath /private/tmp/oi-test-clean`
+  → `355 tests, 3 skipped, 0 failures`, `** TEST SUCCEEDED **`
+- `xcodebuild -scheme OpenIntelligence -destination "platform=macOS" -configuration Release -derivedDataPath /private/tmp/oi-mac-rel build`
+  → `** BUILD SUCCEEDED **`, 0 errors
+- `bash scripts/build_simulator_smoke.sh` → `Simulator smoke build succeeded`
+- GitHub Actions run 33127559144 → all steps success, `Uploaded macos build 389`
+- **On device (owner's Mac, 2026-08-27):** capture of 43,576 lines during active use contains
+  **zero** `Suppressing invocation` lines; documents imported; 12 iCloud libraries synced. The owner
+  confirmed in conversation that file upload now works.
+
+**Not verified:** that Library Settings renders correctly. Layout is exactly what a build and a test
+suite cannot confirm, and screen access was unavailable. It shipped in 389 on reasoning alone.
 
 ## Blockers / Unknowns
 
-1. **The library-switch cost has never been measured.** The reported complaint was "SUPER slow
-   going library to library"; what shipped fixes *tab appear*, which is what the capture showed.
-   `.task` fires on tab entry only. Instrumentation is in builds 386/387. Verify by switching
-   libraries on device and reading `[LibrarySwitch] state ... settled ...`. A large `settled` puts
-   the cost in SwiftUI body evaluation, and `withAnimation` wrapping `containerService.setActive`
-   in `ContainerPicker.swift` is the first thing to examine.
-2. **Retrieval is nondeterministic** — two runs of one build return different evidence for the same
-   question (Notion, Retrieval, High). This **gates the embedding-benchmark arc**: no A/B is
-   trustworthy until it is fixed, so doing the benchmark first wastes the work.
-3. **`Docs/ROADMAP.md` body still predates v5.0.** Header reconciled only. Notion is authoritative.
+None blocking. Three defects filed to Notion `Future Backlog`, each with a closing condition:
+
+1. **[420 workspace reloads per import](https://app.notion.com/p/3ca49a74d54f81a6b8c1e4827a6585fa)** —
+   one import produced 420 sequential `[WorkspaceReload] #n` entries; 42% of a 23,045-line capture
+   was `CoreUI` window relayout, 0.5% was extraction. Verify by importing one file and counting
+   `WorkspaceReload` in the console. `WorkspaceSyncService.isSyncWriteInProgress` already exists and
+   is the shape of the gate needed.
+2. **[17 views still use NavigationView](https://app.notion.com/p/3ca49a74d54f81eb867cf24a119af0c1)** —
+   same split-view defect. Also: of 39 `.sheet(` presentations, exactly one sets a macOS frame.
+3. **[Six file families sync without NSFileCoordinator](https://app.notion.com/p/3ca49a74d54f8103b69be921f0335171)** —
+   **this one corrupts user data and has already done so.** `coordinatedMergeData` covers 4 paths,
+   which had 0 conflict copies; 6 uncoordinated families had all 599. It qualifies for the active
+   release under test 1; pull it forward when the next version is named.
+
+**Owner's machine, repaired this session, not a code fix:** 136 files in
+`~/Library/Mobile Documents/iCloud~Gunndamental~OpenIntelligence/` had `st_size > 0, st_blocks == 0`
+and blocked any read forever, which had killed sync since 2026-08-10. Removing them took a full
+directory copy from a 7-minute timeout to 1 second. Casualties: `deleted_containers.json` (delete
+tombstones lost, so previously-deleted libraries may reappear once) and two vector index metadata
+files (General and Library 7 re-indexed themselves). Two libraries are both named "Library 5"
+(`FF9333D1…` populated, `0AA60E5A…` empty) from the merge.
 
 ## Exact Next Action
 
-None outstanding for an agent. iOS 5.0 is live and `SHIPPED_VERSION.json` already reflects it.
-**When macOS 5.0.1 clears review**, set `app_store` to `"5.0.1"`; iOS then becomes the lagging
-platform, so do not move it past what iOS actually has.
+None. The objective is complete and verified. There is no active objective.
 
-**Uncommitted work that is not this session's:** `AttachmentPicker.swift`,
-`DocumentPicker.swift` and `DocumentLibraryView.swift` carry macOS picker changes
-(`NSOpenPanel` modal handling, Finder drag-and-drop) dated 2026-08-27. Left unstaged
-deliberately. Do not commit them without asking whose they are.
+If macOS 5.0.2 clears review, set `app_store_by_platform.macos` to `"5.0.2"` in
+`Docs/SHIPPED_VERSION.json` and clear `in_review`; leave `app_store` at `5.0` until iOS catches up.
 
-For the next work session, ask the owner or take a roadmap row from Notion. If the embedding arc is
-chosen, fix Blocker 2 first.
+Otherwise ask the user what to pick up, or take a roadmap item from the Notion database via the
+`notion-roadmap` skill. The three rows above are the highest-value candidates, and defect 3 is the
+only one that loses user data.
