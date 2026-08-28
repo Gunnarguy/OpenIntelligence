@@ -13,7 +13,7 @@ Route `retrieval_tuning_change`. Details in `Docs/AuditArtifacts/RepoOS/change_i
 
 **Same turn as the code change, not later:**
 - `Docs/RETRIEVAL_PIPELINE.md`, including its Mermaid diagram if the flow moved.
-- `CHANGELOG.md` under `[Unreleased]`, tagged `**[Retrieval]**`.
+- `CHANGELOG.md` under the section the preflight names in `documentation_targets.changelog_section`, which is **not always `[Unreleased]`**, tagged `**[Retrieval]**`.
 - Notion roadmap row, Component `Retrieval`, if this starts or finishes a tracked item.
 
 **Tests:** the retrieval suites, then `bash scripts/build_simulator_smoke.sh`.

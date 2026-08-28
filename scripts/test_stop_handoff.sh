@@ -21,7 +21,7 @@ mkdir -p "$STATE_DIR"
 PASS=0
 FAIL=0
 SESSIONS=()
-cleanup() { for s in ${SESSIONS[@]+"${SESSIONS[@]}"}; do rm -f "$STATE_DIR/session-$s.baseline" "$STATE_DIR/handoff-$s.done" "$STATE_DIR/notion-$s.receipts"; done; }
+cleanup() { for s in ${SESSIONS[@]+"${SESSIONS[@]}"}; do rm -f "$STATE_DIR/session-$s.baseline" "$STATE_DIR/handoff-$s.done" "$STATE_DIR/notion-$s.receipts" "$STATE_DIR/instructions-$s.log"; done; }
 trap cleanup EXIT
 
 # A commit whose diff to HEAD contains Swift under Services/, so a baseline pointing at it makes the
@@ -119,6 +119,34 @@ fi
 new_session once "$SWIFT_BASE" "$FUTURE" "definitely-not-the-current-fingerprint"
 run_hook "$id" > /dev/null
 check "$id" quiet "the block fires at most once per session"
+
+# --- the InstructionsLoaded addendum ---------------------------------------
+#
+# The chosen commit range changes files under Services/Document/, which .claude/rules/
+# ingestion-and-indexing.md governs. A log that does not mention that rule should produce the
+# addendum; a log that does should not; and no log at all should stay silent, because an absent log
+# means the hook was never registered rather than that nothing loaded.
+new_session instr-missing "$SWIFT_BASE" "$FUTURE" "definitely-not-the-current-fingerprint"
+echo '{"file":"'"$ROOT"'/CLAUDE.md","load_reason":"session_start","memory_type":"Project","trigger":"","globs":[],"parent":""}' > "$STATE_DIR/instructions-$id.log"
+check "$id" blocked "a rule governing the changed code that never loaded is reported" "ingestion-and-indexing.md"
+
+new_session instr-present "$SWIFT_BASE" "$FUTURE" "definitely-not-the-current-fingerprint"
+echo '{"file":"'"$ROOT"'/.claude/rules/ingestion-and-indexing.md","load_reason":"path_glob_match","memory_type":"Project","trigger":"x","globs":[],"parent":""}' > "$STATE_DIR/instructions-$id.log"
+out="$(run_hook "$id")"
+if printf '%s' "$out" | grep -q "ingestion-and-indexing.md"; then
+  FAIL=$((FAIL + 1)); echo "  FAIL  a rule that did load is not reported as missing"
+else
+  PASS=$((PASS + 1)); echo "  ok    a rule that did load is not reported as missing"
+fi
+
+new_session instr-nolog "$SWIFT_BASE" "$FUTURE" "definitely-not-the-current-fingerprint"
+rm -f "$STATE_DIR/instructions-$id.log"
+out="$(run_hook "$id")"
+if printf '%s' "$out" | grep -q "never appear in the InstructionsLoaded log"; then
+  FAIL=$((FAIL + 1)); echo "  FAIL  a session with no log is silent about unloaded rules"
+else
+  PASS=$((PASS + 1)); echo "  ok    a session with no log is silent about unloaded rules"
+fi
 
 new_session no-baseline-head "" "$FUTURE" "definitely-not-the-current-fingerprint"
 check "$id" blocked "a pre-2026-08-28 baseline still asks for the handoff" "Docs/ai/STATE.md was not updated"

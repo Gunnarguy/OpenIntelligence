@@ -12,7 +12,7 @@ paths:
 # Anything a user reads
 
 **Same turn as the change:** `WHATS_NEW.md` and `Docs/USER_CHANGELOG.md` for user-visible behavior.
-`CHANGELOG.md` under `[Unreleased]`, tagged `**[UI]**`.
+`CHANGELOG.md` under the section the preflight names in `documentation_targets.changelog_section`, which is **not always `[Unreleased]`**, tagged `**[UI]**`.
 
 ## Every claim here is a claim about code
 

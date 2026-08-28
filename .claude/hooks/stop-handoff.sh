@@ -14,6 +14,11 @@
 #      so this is evidence of an action, not a memory of intending one. A query leaves no receipt,
 #      which is the point: reading the board is not recording work on it.
 #
+# When it already has something to ask, it also appends any path-scoped rule that governs code this
+# session changed but never appears in the InstructionsLoaded log written by
+# .claude/hooks/instructions-loaded.sh. That distinguishes "the rule was read and ignored" from "the
+# rule never loaded", which look identical from outside and have opposite fixes.
+#
 # It is a net, not the workflow. The project-handoff and notion-roadmap skills are the workflow.
 #
 # Four guards against blocking a session it should not block:
@@ -123,6 +128,21 @@ SOURCE_CHANGED=no
 RECEIPTS="$STATE_DIR/notion-$SESSION_ID.receipts"
 if [ "$SOURCE_CHANGED" = "yes" ] && [ ! -s "$RECEIPTS" ]; then
   OBLIGATIONS+=("Source changed and no Notion write was recorded this session. Use the notion-roadmap skill: set the row this work tracks to In Progress or Completed, or file one. If this was a refactor or a fix no row tracks, say so in one line. New findings default to Future Backlog; the active release is scope-frozen.")
+fi
+
+# --- Addendum: a rule that governs the changed code but never loaded --------
+#
+# Deliberately not a fourth obligation. It cannot raise a block on its own, and only appears when
+# the session already owes something. The signal is real but not conclusive: the log covers only
+# loads after the hook was registered, and a rule loaded inside a subagent is not recorded here. A
+# check worth reading is worth reading; a check that stops a session on a maybe gets switched off.
+REPORT="$ROOT/scripts/instructions_report.sh"
+if [ "${#OBLIGATIONS[@]}" -gt 0 ] && [ -n "$CHANGED_PATHS" ] && [ -x "$REPORT" ]; then
+  UNLOADED="$(printf '%s\n' "$CHANGED_PATHS" |
+    bash "$REPORT" --session "$SESSION_ID" --unloaded 2>/dev/null | head -6 | tr '\n' ' ')" || UNLOADED=""
+  if [ -n "${UNLOADED// /}" ]; then
+    OBLIGATIONS+=("Worth checking, not blocking: these path-scoped rules govern code this session changed but never appear in the InstructionsLoaded log: $UNLOADED. Either their \`paths:\` globs are wrong or the files were reached without triggering a match. Run \`bash scripts/instructions_report.sh\` to see the full picture.")
+  fi
 fi
 
 [ "${#OBLIGATIONS[@]}" -gt 0 ] || exit 0

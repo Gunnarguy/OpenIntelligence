@@ -58,7 +58,7 @@ in practice.
 
 ## The enforcement layer, and what may not be quietly cut out of it
 
-Four pieces, each of which is load-bearing:
+Six pieces, each of which is load-bearing:
 
 | Piece | Fires | Does |
 |---|---|---|
@@ -66,6 +66,8 @@ Four pieces, each of which is load-bearing:
 | `scripts/enforce_docs_hook.sh` | git pre-commit | fails a commit whose staged source lacks those docs |
 | `.claude/hooks/notion-receipt.sh` | PostToolUse on Notion write tools | records that a roadmap write actually landed |
 | `.claude/hooks/stop-handoff.sh` | Stop | asks once for handoff, docs, and roadmap obligations left open |
+| `.claude/hooks/instructions-loaded.sh` | InstructionsLoaded | records which instruction file loaded, why (`session_start`, `path_glob_match`, `compact`, ...) and what triggered it |
+| `scripts/instructions_report.sh` | on demand, and from the Stop hook | names any path-scoped rule that governs changed code but never loaded |
 
 `required_docs.sh` is the executable copy of the table in
 `.agents/rules/01-docs-and-notion-sync.md`. Editing one without the other is how the two enforcement
@@ -79,6 +81,12 @@ bash scripts/test_enforce_docs_hook.sh
 
 ```bash
 bash scripts/test_stop_handoff.sh
+```
+
+To answer "did it actually read that rule?" rather than guess at it:
+
+```bash
+bash scripts/instructions_report.sh
 ```
 
 Run both after any change to the layer. Two of the defects they now pin were found by writing them:

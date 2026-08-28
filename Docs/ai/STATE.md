@@ -2,12 +2,15 @@
 
 Updated: 2026-08-28
 Branch/worktree: main (primary checkout, `~/Documents/GitHub/OpenIntelligence`)
-Last verified commit: f9c1376
+Last verified commit: 3d32a8b
 
 ## Objective
 
-Make the repository's documentation and roadmap rules mechanically enforced rather than advisory.
-Complete and verified; **nothing is committed yet**, see Exact Next Action.
+Make the repository's documentation and roadmap rules mechanically enforced rather than advisory,
+and make "did Claude actually read that rule?" a question with an answer.
+
+Complete and verified. The first half is committed as `3d32a8b`; the InstructionsLoaded half is
+uncommitted, see Working Set.
 
 ## Status
 
@@ -19,7 +22,8 @@ unified next version for both platforms. No Swift changed.
 pre-commit hook accepted **any** file under `Docs/` as satisfying **any** Swift change. Four pieces
 now make the obligations mechanical, and two live drift defects found while doing it are repaired.
 
-Working tree has 12 modified and 4 new files, all governance and documentation. Nothing committed.
+Six pieces now make the obligations mechanical. `3d32a8b` carries four of them; the two that answer
+the loading question are uncommitted.
 
 ## Completed
 
@@ -50,6 +54,18 @@ Working tree has 12 modified and 4 new files, all governance and documentation. 
    `.agents/rules/01-docs-and-notion-sync.md`. Both files tell agents never to invent a value, which
    makes a stale cache worse than none. Both re-read off the live data source and re-dated.
 
+7. **A path-scoped rule that never loads is indistinguishable from one that was read and ignored,
+   and they have opposite fixes.** `.claude/hooks/instructions-loaded.sh` records every instruction
+   file as it loads, with `load_reason` (`session_start`, `path_glob_match`, `nested_traversal`,
+   `include`, `compact`), the `paths:` globs that matched, and the triggering file.
+   `scripts/instructions_report.sh` reads that log against a set of changed paths and names any rule
+   that should have loaded and did not. The Stop hook appends the same finding when it already has
+   something to ask, and stays silent when no log exists, because an absent log means the hook was
+   not registered rather than that nothing loaded. Observed firing live.
+8. **Three rule files and `AGENTS.md` still sent changelog entries to `[Unreleased]`**, which the
+   open-section protocol superseded. All corrected to read the preflight's
+   `documentation_targets.changelog_section`.
+
 Roadmap row, filed and closed:
 [The pre-commit hook accepted any documentation file as satisfying any source change](https://app.notion.com/p/3ca49a74d54f81b3a02eeeaefbf54b5e)
 — `Future Backlog`, because tooling meets none of the three tests for the active release.
@@ -79,30 +95,30 @@ Roadmap row, filed and closed:
 
 ## Working Set
 
-Sixteen uncommitted files, all governance and documentation. Open these first:
+Committed in `3d32a8b`: the four-piece enforcement layer and its two test suites.
+
+Uncommitted, the InstructionsLoaded half:
 
 | File | Why |
 |---|---|
-| `scripts/required_docs.sh` | **New.** The table both enforcement points read |
-| `scripts/enforce_docs_hook.sh` | Rewritten. Symlinked as `.git/hooks/pre-commit` |
-| `scripts/test_enforce_docs_hook.sh` | **New.** 10 cases, real hook against a scratch git index |
-| `scripts/test_stop_handoff.sh` | **New.** 8 cases, real hook against synthetic session baselines |
-| `.claude/hooks/notion-receipt.sh` | **New.** Registered as `PostToolUse` in `.claude/settings.json` |
-| `.claude/hooks/stop-handoff.sh` | Rewritten around three obligations |
-| `.claude/hooks/session-start.sh` | Now records `head=` in the session baseline |
-| `CHANGELOG.md` | Marker on the `## 5.1` heading, plus four `[General]` entries under it |
-| `.agents/rules/01-docs-and-notion-sync.md` | Schema refresh and the changelog-target correction |
-| `.claude/skills/notion-roadmap/SKILL.md` | Schema refresh, re-dated 2026-08-28 |
-| `.claude/rules/repo-governance.md` | Describes the layer; previously said to leave the hook alone |
-| `Docs/RepoOS/00_REPO_COMMAND_CENTER.md`, `01_TASK_ROUTER.md`, `change_impact_matrix.csv` | Route 15 now covers `.claude/**` and the enforcement scripts |
-| `Docs/ai/STATE.md` | This file |
+| `.claude/hooks/instructions-loaded.sh` | **New.** Registered as `InstructionsLoaded` in `.claude/settings.json` |
+| `scripts/instructions_report.sh` | **New.** Reads that log; `--unloaded` is what the Stop hook calls |
+| `.claude/hooks/stop-handoff.sh` | Appends the unloaded-rule finding to an existing block |
+| `scripts/test_stop_handoff.sh` | Three new cases: rule missing, rule present, no log at all |
+| `.claude/rules/retrieval.md`, `orchestration-and-routing.md`, `user-facing-copy.md`, `AGENTS.md` | Changelog target corrected off `[Unreleased]` |
+| `.claude/rules/repo-governance.md`, `Docs/RepoOS/00_REPO_COMMAND_CENTER.md`, `01_TASK_ROUTER.md`, `change_impact_matrix.csv` | The layer is six pieces now, not four |
+| `CHANGELOG.md` | One more `[General]` entry under `## 5.1` |
+
+Read `.claude/rules/*.md` before changing any glob: `scripts/instructions_report.sh` parses that
+frontmatter itself and its glob translation (`**` crosses separators, `*` does not) must keep
+agreeing with how Claude Code matches.
 
 ## Verification
 
 Commands run this session, with observed output:
 
 - `bash scripts/test_enforce_docs_hook.sh` → **10 passed, 0 failed**
-- `bash scripts/test_stop_handoff.sh` → **8 passed, 0 failed**, no scratch files left behind
+- `bash scripts/test_stop_handoff.sh` → **11 passed, 0 failed**, no scratch files left behind
 - `python3 .codex/skills/route-openintelligence-work/scripts/test_repoos_router.py` → **29 tests, OK**
 - `python3 scripts/secret_scan.py` → no sensitive tokens
 - `bash scripts/check_icloud_conflicts.sh` → no iCloud damage
@@ -112,6 +128,8 @@ Commands run this session, with observed output:
   the right version; its `[Unreleased]` entry count is `0`
 - `notion-receipt.sh` fired **live** on the roadmap row created this session and recorded
   `database: openintelligence-roadmap`, confirming `.claude/settings.json` hot-reloads mid-session
+- `instructions-loaded.sh` fired **live**: reading `HybridSearchService.swift` logged
+  `path_glob_match Project .claude/rules/retrieval.md`, with the triggering file recorded
 
 **Not verified: no Swift was built or tested this session.** No Swift changed, so the app is exactly
 what commit `f9c1376` shipped, but that means nothing here re-confirms the app builds.
@@ -149,19 +167,17 @@ returns, pull the Xcode Cloud build log rather than guessing at a fix.
 
 ## Exact Next Action
 
-Commit the sixteen files listed in Working Set. Nothing is staged. There is no Swift in the change,
-so `scripts/enforce_docs_hook.sh` exits early and will not gate it; the `[General]` CHANGELOG entries
-are already written under `## 5.1`. Paths are enumerated rather than swept, per `CLAUDE.md`.
+Commit the fifteen uncommitted files in Working Set. Nothing is staged; no Swift is involved, so the
+pre-commit hook exits early.
 
 ```bash
-git add CHANGELOG.md Docs/ai/STATE.md Docs/RepoOS/00_REPO_COMMAND_CENTER.md Docs/RepoOS/01_TASK_ROUTER.md Docs/AuditArtifacts/RepoOS/change_impact_matrix.csv .agents/rules/01-docs-and-notion-sync.md .claude/settings.json .claude/rules/repo-governance.md .claude/skills/notion-roadmap/SKILL.md .claude/hooks/session-start.sh .claude/hooks/stop-handoff.sh .claude/hooks/notion-receipt.sh scripts/required_docs.sh scripts/enforce_docs_hook.sh scripts/test_enforce_docs_hook.sh scripts/test_stop_handoff.sh
+git add CHANGELOG.md AGENTS.md Docs/ai/STATE.md Docs/RepoOS/00_REPO_COMMAND_CENTER.md Docs/RepoOS/01_TASK_ROUTER.md Docs/AuditArtifacts/RepoOS/change_impact_matrix.csv .claude/settings.json .claude/hooks/instructions-loaded.sh .claude/hooks/stop-handoff.sh .claude/rules scripts/instructions_report.sh scripts/test_stop_handoff.sh
 ```
 
-Then, if picking up product work, take the `v5.1` roadmap row in Blockers: it is the only open row
-that loses user data and it is scoped to the open release.
+Then, for product work, take the `v5.1` roadmap row in Blockers: it is the only open row that loses
+user data and it is scoped to the open release.
 
-Not done, offered and not yet chosen: four maintenance improvements found while researching current
-Claude Code capability. In rough order of value — an `InstructionsLoaded` hook that logs which
-instruction files actually load, a `PostCompact` hook to replace the `SessionStart(source=compact)`
-replay, `permissions.deny` read rules for `build/`, `BenchmarkRuns/` and `Xrays/`, and using the
-`transcript_path` the Stop hook already receives to propose `CLAUDE.md` updates. None are started.
+**The layer is unproven where it matters most.** Every test drives the scripts directly. Nothing has
+yet observed the pre-commit hook refusing a real Swift commit, because no Swift has changed since it
+was written. The first 5.1 code change is the real test: if the hook fires and names the right
+document, it works; if it fires on something irrelevant, loosen it before it gets bypassed.

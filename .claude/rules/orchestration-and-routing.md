@@ -18,7 +18,7 @@ their approval. `EngineSDKCompatibility.swift` too. See `.claude/rules/hard-boun
 **Same turn as the code change:**
 - `Docs/PRIVACY_AND_ROUTING.md` and Atlas §10 for anything touching routing or consent.
 - Atlas service map for orchestration and agentic changes.
-- `CHANGELOG.md` under `[Unreleased]`, tagged `**[Orchestration]**` or `**[Shortcuts]**`.
+- `CHANGELOG.md` under the section the preflight names in `documentation_targets.changelog_section`, which is **not always `[Unreleased]`**, tagged `**[Orchestration]**` or `**[Shortcuts]**`.
 
 **Verification:** every use of `PrivateCloudComputeLanguageModel` must stay gated behind
 `EntitlementChecker`. Confirm with a repo-wide grep, then `bash scripts/build_simulator_smoke.sh`
