@@ -114,9 +114,31 @@ sh ../scripts/probe_afm_advanced_canary.sh || true
 # cheapest place to fail.
 # ---------------------------------------------------------------------------
 echo "Verifying claimed capabilities still have their implementation..."
-if ! command -v python3 >/dev/null 2>&1; then
-    echo "Error: python3 not found, so the capability guard cannot run."
+
+# Resolve from this script's own location, not the working directory.
+#
+# The first version of this used "../scripts/verify_capabilities.py", copying the
+# relative style the rest of this file uses for ../CHANGELOG.md. On Xcode Cloud it
+# exited 2 -- python3's "cannot open file" -- and failed build 426, because the
+# working directory Xcode Cloud runs post-clone scripts from is not guaranteed to
+# be ci_scripts. Deriving the path from $0 works from any directory.
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+GUARD="$SCRIPT_DIR/../scripts/verify_capabilities.py"
+
+if [ ! -f "$GUARD" ]; then
+    echo "Error: capability guard not found at $GUARD"
     echo "Refusing to build rather than skipping a check and reporting success."
     exit 1
 fi
-python3 ../scripts/verify_capabilities.py
+
+PY=""
+for candidate in python3 /usr/bin/python3; do
+    if command -v "$candidate" >/dev/null 2>&1; then PY="$candidate"; break; fi
+done
+if [ -z "$PY" ]; then
+    echo "Error: no python3 found, so the capability guard cannot run."
+    echo "Refusing to build rather than skipping a check and reporting success."
+    exit 1
+fi
+
+"$PY" "$GUARD"
