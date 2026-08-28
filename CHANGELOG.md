@@ -1,6 +1,15 @@
 ## [Unreleased]
 
-<!-- next-version: 5.1 -->
+<!-- next-version: 5.2 -->
+
+## 5.1
+
+<!-- Open. iOS and macOS unify here: iOS was 5.0, macOS reached 5.0.2, and both
+     App Store version records were created 2026-08-28. ci_post_clone.sh stamps
+     MARKETING_VERSION from this heading, so it must stay the first numbered
+     heading until 5.1 ships. Put 5.1 entries under this heading, not under
+     [Unreleased] -- entries in [Unreleased] above an uncut numbered heading are
+     what the ci_post_clone guard refuses to build. -->
 
 ## 5.0.2 - 2026-08-27
 

@@ -1,5 +1,7 @@
 {
   "_comment": [
+    "2026-08-28 (latest): macOS 5.0.2 is LIVE. iOS remains 5.0, so app_store stays 5.0 -- it is the value that does not overclaim to an iPhone visitor, which is the whole reason this file exists. Both platforms unify at 5.1 next; CHANGELOG.md now carries an open '## 5.1' heading so ci_post_clone.sh stamps a version that exists in ASC.",
+    "",
     "2026-08-27 (latest): macOS 5.0.2 build 389 UPLOADED and supersedes 388. Submit 389, not 388.",
     "",
     "2026-08-27 (latest): macOS 5.0.2 build 388 UPLOADED, awaiting review. app_store still 5.0.",
@@ -42,12 +44,10 @@
   "app_store": "5.0",
   "app_store_by_platform": {
     "ios": "5.0",
-    "macos": "5.0.1"
+    "macos": "5.0.2"
   },
-  "preparing": "5.0.2",
-  "in_review": {
-    "macos": "5.0.2 (build 389; build 388 also uploaded but superseded)"
-  },
-  "updated": "2026-08-27",
-  "verified_against": "macOS 5.0.2 build 389 uploaded to App Store Connect 2026-08-27 (workflow run 33127559144, all gates passed). Build 388 was uploaded earlier the same day (run 33124470371) and is superseded: 389 is a strict superset, adding the Library Settings split-view fix. Submit 389. macOS 5.0.1 live since 2026-08-27. iOS 5.0 live; iOS is the lagging platform so app_store stays 5.0."
+  "preparing": "5.1",
+  "in_review": {},
+  "updated": "2026-08-28",
+  "verified_against": "Read from App Store Connect 2026-08-28 via the API, per platform: iOS newest READY_FOR_SALE is 5.0; macOS newest READY_FOR_SALE is 5.0.2 (5.0.1 and 5.0 also live). 5.1 records exist for both platforms in PREPARE_FOR_SUBMISSION. Nothing is in review."
 }
