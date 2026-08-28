@@ -37,6 +37,19 @@
           }
         ]
       }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "notion-(update-page|create-pages|update-data-source|duplicate-page|move-pages)",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PROJECT_DIR}/.claude/hooks/notion-receipt.sh",
+            "timeout": 10,
+            "statusMessage": "Recording roadmap write"
+          }
+        ]
+      }
     ]
   }
 }

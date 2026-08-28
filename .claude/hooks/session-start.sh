@@ -55,9 +55,14 @@ DIRTY_N="$(count_lines "$PORCELAIN")"
 # the work most likely to need a handoff.
 BASELINE="$STATE_DIR/session-$SESSION_ID.baseline"
 if [ ! -f "$BASELINE" ] && [ "$GIT_OK" -eq 1 ]; then
+  # `head=` lets the Stop hook name WHICH paths the session touched, not merely that something
+  # changed: everything committed since this sha, unioned with whatever is still dirty. Added
+  # 2026-08-28. Baselines written before that lack the line, and the Stop hook falls back to the
+  # handoff question alone rather than guessing at a path list.
   {
     echo "fingerprint=$(repo_fingerprint)"
     echo "state_mtime=$(mtime_of "$STATE_MD")"
+    echo "head=$(git rev-parse HEAD 2>/dev/null)"
   } > "$BASELINE" 2>/dev/null || true
 fi
 

@@ -2,14 +2,33 @@
 
 <!-- next-version: 5.2 -->
 
-## 5.1
+## 5.1 <!-- unreleased -->
 
 <!-- Open. iOS and macOS unify here: iOS was 5.0, macOS reached 5.0.2, and both
      App Store version records were created 2026-08-28. ci_post_clone.sh stamps
      MARKETING_VERSION from this heading, so it must stay the first numbered
      heading until 5.1 ships. Put 5.1 entries under this heading, not under
      [Unreleased] -- entries in [Unreleased] above an uncut numbered heading are
-     what the ci_post_clone guard refuses to build. -->
+     what the ci_post_clone guard refuses to build.
+
+     The "unreleased" HTML comment ON THE HEADING LINE ABOVE is not decoration.
+     It is the only place in this repository that records "this numbered section
+     has not shipped yet". repoos_router.py reads it from the heading's own line
+     and nowhere else, which is why it cannot be written out here: a nested
+     comment would close this one early. Without that marker the router reported
+     5.1 as state=shipped on 2026-08-28 and told sessions to write into
+     [Unreleased], contradicting this very comment. Removing it from the heading
+     is what cutting the release means; remove it when 5.1 goes live, not
+     before. -->
+
+### Changed
+- **[General]** **The repository's documentation rules are now enforced by the tooling instead of by memory.** The pre-commit hook asked one question: had any `.swift` file changed, and had **any** of `WHATS_NEW.md`, `CHANGELOG.md` or `Docs/*` changed alongside it. Any document satisfied any source change, so staging an unrelated `Docs/ai/STATE.md` edit let a retrieval-engine rewrite through with `Docs/RETRIEVAL_PIPELINE.md` untouched, past a check whose own failure message read "Full Closed Loop Required". `scripts/required_docs.sh` now resolves each changed path to the specific documents it requires, from the table in `.agents/rules/01-docs-and-notion-sync.md` unioned with the RepoOS change-impact matrix, and both `scripts/enforce_docs_hook.sh` (pre-commit) and `.claude/hooks/stop-handoff.sh` (end of session) act on its output, so the two enforcement points cannot disagree. `WHATS_NEW.md` and `Docs/USER_CHANGELOG.md` are deliberately advisory rather than blocking: whether a change is user-visible is a judgment a path pattern cannot make, and a gate that blocks every commit touching a view gets bypassed within a week. `[evidence_level: code_verified + test_verified, confidence: exact, evidence_source: scripts/test_enforce_docs_hook.sh 10/10, scripts/test_stop_handoff.sh 8/8]`
+
+- **[General]** **The RepoOS router reported the open 5.1 release as already shipped, because the marker that says otherwise was written as prose.** `repoos_router.py` records "this numbered section has not shipped yet" with an `unreleased` HTML comment on the heading's own line, and nothing else in the repository records it. The `## 5.1` heading added on 2026-08-28 carried an explanatory comment on the following lines instead, so the router returned `state: shipped` and named `[Unreleased]` as the changelog target while the heading's own comment, `Docs/ai/STATE.md` and `Docs/SHIPPED_VERSION.json` all said the opposite. Filing new work against a released version is the error that got a build rejected by App Store Connect on 2026-07-28, and `CLAUDE.md` tells every session to read that exact field. The heading now carries the marker; the router reports `state: in_development`, `version: v5.1`, `last_shipped: v5.0.2`. `[evidence_level: artifact_derived, confidence: exact, evidence_source: preflight before and after; ci_post_clone.sh still extracts 5.1]`
+
+- **[General]** **A Notion roadmap write now leaves a receipt, so "did you update the roadmap?" has an answer other than recollection.** `.claude/hooks/notion-receipt.sh` fires on `PostToolUse` for the Notion write tools only, so querying the board leaves nothing behind, and records which database was touched, the page, and the resulting `Status` and `Target Release`. An update names a page rather than a database, so where the roadmap cannot be confirmed from the payload the receipt says `unconfirmed` rather than implying more than it saw. The Stop hook reads these and asks once per session for whatever is still open. `[evidence_level: code_verified, confidence: exact, evidence_source: hook driven with synthetic PostToolUse payloads; a create against the roadmap data source, an update, and a Read that correctly left no receipt]`
+
+- **[General]** **The Notion `Target Release` schema cached in two rule files stopped at `v5.0` while `v5.1` was already live in the database.** Both `.claude/skills/notion-roadmap/SKILL.md` and `.agents/rules/01-docs-and-notion-sync.md` present their option lists as complete and tell agents never to invent a value, which makes a stale cache worse than no cache. Both are re-read off the live data source and re-dated, and both now say the list is a cache to refresh when the active release changes. `[evidence_level: artifact_derived, confidence: exact, evidence_source: notion-fetch on the data source 2026-08-28]`
 
 ## 5.0.2 - 2026-08-27
 

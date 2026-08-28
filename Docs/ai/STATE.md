@@ -2,42 +2,57 @@
 
 Updated: 2026-08-28
 Branch/worktree: main (primary checkout, `~/Documents/GitHub/OpenIntelligence`)
-Last verified commit: 26cf9f8
+Last verified commit: f9c1376
 
 ## Objective
 
-None active. macOS 5.0.2 is live, iOS 5.0 is live, and 5.1 is open as the unified next version for
-both platforms. The two objectives this session ran on — make macOS document import work, and stop
-CI costing money — are both complete and verified.
+Make the repository's documentation and roadmap rules mechanically enforced rather than advisory.
+Complete and verified; **nothing is committed yet**, see Exact Next Action.
 
 ## Status
 
-**Shipped.** Read from App Store Connect 2026-08-28: iOS newest `READY_FOR_SALE` is **5.0**, macOS is
-**5.0.2**. Both platforms have 5.1 records in `PREPARE_FOR_SUBMISSION`. Nothing is in review.
+**Shipped app, unchanged this session.** iOS 5.0 and macOS 5.0.2 are live; 5.1 is open as the
+unified next version for both platforms. No Swift changed.
 
-**Releases build on Xcode Cloud. GitHub Actions is deleted.** Xcode Cloud was always the working
-release path; Actions was a stopgap after the free 25 compute hours ran out, and it then went into
-paid overage itself — 4,020 billed minutes against a 3,000 allowance, because macOS runners bill at
-10x and every push booted one. 100 Xcode Cloud hours were bought, so the reason for Actions is gone.
-Xcode Cloud run **427: SUCCEEDED**, both platforms.
+**Governance enforcement layer built and tested.** The rules in `AGENTS.md` rule 14 and
+`.agents/rules/01-docs-and-notion-sync.md` were real, but the checks behind them were not: the
+pre-commit hook accepted **any** file under `Docs/` as satisfying **any** Swift change. Four pieces
+now make the obligations mechanical, and two live drift defects found while doing it are repaired.
 
-Working tree is clean.
+Working tree has 12 modified and 4 new files, all governance and documentation. Nothing committed.
 
 ## Completed
 
-1. **Add Documents opened nothing on macOS** (`050bbe8`). All three macOS pickers called
-   `NSOpenPanel.runModal()` from a SwiftUI `.onAppear`, inside a CATransaction commit where AppKit
-   refuses to start a nested modal loop. Now `beginSheetModal(for:)`.
-2. **Finder drag-and-drop** (`050bbe8`). Never existed — `onDrop` and `dropDestination` appeared in
-   no file. Directories are excluded deliberately.
-3. **Sample documents duplicated themselves** (`e2b5eef`). `matchesStoredCopy(_:)` recognises the
-   `-2`/`-3` form at all three call sites; 7 regression tests pin the boundary.
-4. **Library Settings rendered as a split view** (`d5be5c5`). `NavigationView` → `NavigationStack`.
-5. **CI cost**, first by splitting `ci.yml` (`55f31cb`), then by retiring Actions entirely
-   (`546df1f`).
-6. **Xcode Cloud release gates** (`3afd57b`), with a path fix in `26cf9f8`.
+1. **The RepoOS router reported the open 5.1 release as `state: shipped`.** `repoos_router.py` reads
+   "this section has not shipped yet" from an `unreleased` HTML comment on the heading's own line
+   and nowhere else; the `## 5.1` heading carried explanatory prose on the lines below instead. It
+   therefore named `[Unreleased]` as the changelog target while the heading's own comment, this file
+   and `Docs/SHIPPED_VERSION.json` all said otherwise. `CLAUDE.md` tells every session to read that
+   exact field. Marker added to the heading line; the router now reports
+   `state: in_development, version: v5.1, last_shipped: v5.0.2`.
+2. **`scripts/required_docs.sh` (new).** The single executable copy of the path-to-document table,
+   the rule table unioned with the RepoOS change-impact matrix. Both enforcement points call it, so
+   they cannot disagree.
+3. **`scripts/enforce_docs_hook.sh` rewritten.** Fails a commit whose staged source lacks the
+   documents that source requires, names them and what required them, and enforces
+   `ci_post_clone.sh`'s empty-`[Unreleased]` invariant at commit time instead of at build time. Its
+   architecture-tag check now examines only added bullet lines: it previously grepped every `+` line,
+   so an unrelated tagged line elsewhere in the diff satisfied it.
+4. **`.claude/hooks/notion-receipt.sh` (new).** `PostToolUse` on the Notion **write** tools only, so
+   a query leaves no receipt. Records database, page, `Status`, `Target Release`. Where an update
+   names a page rather than a database it records `database: unconfirmed` rather than implying more
+   than it saw.
+5. **`.claude/hooks/stop-handoff.sh` rewritten** from one check to three obligations: handoff,
+   documentation, roadmap. All four original anti-loop guards are preserved. `session-start.sh` now
+   records `head=` in the baseline so the Stop hook can name *which* paths a session touched.
+6. **The Notion `Target Release` cache stopped at `v5.0` while `v5.1` was already live** in the
+   database, in both `.claude/skills/notion-roadmap/SKILL.md` and
+   `.agents/rules/01-docs-and-notion-sync.md`. Both files tell agents never to invent a value, which
+   makes a stale cache worse than none. Both re-read off the live data source and re-dated.
 
-Shipped as macOS 5.0.2 build 389. App Store copy in `a3a4575`.
+Roadmap row, filed and closed:
+[The pre-commit hook accepted any documentation file as satisfying any source change](https://app.notion.com/p/3ca49a74d54f81b3a02eeeaefbf54b5e)
+— `Future Backlog`, because tooling meets none of the three tests for the active release.
 
 ## Active Constraints
 
@@ -52,43 +67,58 @@ Shipped as macOS 5.0.2 build 389. App Store copy in `a3a4575`.
   that file exists.
 - **Put 5.1 entries under `## 5.1`, not `## [Unreleased]`.** `ci_post_clone.sh` stamps
   `MARKETING_VERSION` from the first numbered heading and refuses to build when `[Unreleased]` holds
-  entries above an uncut heading.
+  entries above an uncut heading. `scripts/enforce_docs_hook.sh` now rejects it at commit time too.
+- **Do not remove the `unreleased` HTML comment from the `## 5.1` heading line until 5.1 ships.** It
+  is the only record in this repository that the section is open, `repoos_router.py` reads it from
+  that line alone, and removing it is what "cutting the release" means.
+- **`scripts/required_docs.sh` and the table in `.agents/rules/01-docs-and-notion-sync.md` are one
+  fact in two files.** Change both in the same edit; the script is the copy that gets obeyed.
 - **Paths in `ci_scripts/` must resolve from `$0`, not the working directory.** See Blockers.
 - **No `xcodebuild test` runs in CI any more.** The Xcode Cloud TestFlight entries are post-actions,
   not test actions, and Actions is gone. Tests only run locally.
 
 ## Working Set
 
-Nothing uncommitted. Files to open if continuing:
+Sixteen uncommitted files, all governance and documentation. Open these first:
 
 | File | Why |
 |---|---|
-| `ci_scripts/ci_post_clone.sh` | Version stamp, capability guard, and the AFM canary whose `\|\| true` hides its own failure |
-| `ci_scripts/ci_post_xcodebuild.sh` | The three release gates; the PCC one is load-bearing |
-| `OpenIntelligence/Services/Infrastructure/Storage/WorkspaceSyncService.swift` | Holds all three filed defects |
-| `Docs/reference/LINKEDIN_POSTS.md` | Gitignored. Final v5.0 draft ready to post, plus all six published posts archived |
+| `scripts/required_docs.sh` | **New.** The table both enforcement points read |
+| `scripts/enforce_docs_hook.sh` | Rewritten. Symlinked as `.git/hooks/pre-commit` |
+| `scripts/test_enforce_docs_hook.sh` | **New.** 10 cases, real hook against a scratch git index |
+| `scripts/test_stop_handoff.sh` | **New.** 8 cases, real hook against synthetic session baselines |
+| `.claude/hooks/notion-receipt.sh` | **New.** Registered as `PostToolUse` in `.claude/settings.json` |
+| `.claude/hooks/stop-handoff.sh` | Rewritten around three obligations |
+| `.claude/hooks/session-start.sh` | Now records `head=` in the session baseline |
+| `CHANGELOG.md` | Marker on the `## 5.1` heading, plus four `[General]` entries under it |
+| `.agents/rules/01-docs-and-notion-sync.md` | Schema refresh and the changelog-target correction |
+| `.claude/skills/notion-roadmap/SKILL.md` | Schema refresh, re-dated 2026-08-28 |
+| `.claude/rules/repo-governance.md` | Describes the layer; previously said to leave the hook alone |
+| `Docs/RepoOS/00_REPO_COMMAND_CENTER.md`, `01_TASK_ROUTER.md`, `change_impact_matrix.csv` | Route 15 now covers `.claude/**` and the enforcement scripts |
+| `Docs/ai/STATE.md` | This file |
 
 ## Verification
 
 Commands run this session, with observed output:
 
-- `xcodebuild build -configuration Debug -destination 'generic/platform=iOS Simulator'` on **Xcode
-  26.6** → `BUILD SUCCEEDED`, 0 errors
-- `xcodebuild build -configuration Release -destination 'generic/platform=iOS'` on **26.6** →
-  `BUILD SUCCEEDED`, 0 errors
-- `xcodebuild build -configuration Release -destination 'platform=macOS'` on **26.6** →
-  `BUILD SUCCEEDED`, 0 errors
-- `xcodebuild test` (iOS 27 simulator) → `355 tests, 3 skipped, 0 failures`
-- Xcode Cloud run **427** → SUCCEEDED, both Archive actions
-- On device: a 43,576-line macOS capture contains **zero** `Suppressing invocation` lines, documents
-  imported, 12 iCloud libraries synced; the owner confirmed import works
+- `bash scripts/test_enforce_docs_hook.sh` → **10 passed, 0 failed**
+- `bash scripts/test_stop_handoff.sh` → **8 passed, 0 failed**, no scratch files left behind
+- `python3 .codex/skills/route-openintelligence-work/scripts/test_repoos_router.py` → **29 tests, OK**
+- `python3 scripts/secret_scan.py` → no sensitive tokens
+- `bash scripts/check_icloud_conflicts.sh` → no iCloud damage
+- Router preflight after the marker fix → `state: in_development`, `version: v5.1`,
+  `last_shipped: v5.0.2`, `changelog_section: ## 5.1`
+- `grep -m1 '^## [0-9]' CHANGELOG.md | awk '{print $2}'` → `5.1`, so `ci_post_clone.sh` still stamps
+  the right version; its `[Unreleased]` entry count is `0`
+- `notion-receipt.sh` fired **live** on the roadmap row created this session and recorded
+  `database: openintelligence-roadmap`, confirming `.claude/settings.json` hot-reloads mid-session
 
-**Caveat on figures recorded earlier in this session:** the test run and several builds were made
-with **Xcode 27 beta**, not the 26.6 that ships. They were re-run on 26.6 and passed, but any number
-recorded before that re-run described a toolchain this project does not release with.
+**Not verified: no Swift was built or tested this session.** No Swift changed, so the app is exactly
+what commit `f9c1376` shipped, but that means nothing here re-confirms the app builds.
 
-**Not verified:** Library Settings layout. Layout is exactly what a build and a test suite cannot
-confirm.
+**Not verified: the Stop hook has never fired for real.** Its 8 tests drive the real script with
+synthetic baselines, which is not the same as a live session ending. Its first real firing is the end
+of this one.
 
 ## Blockers / Unknowns
 
@@ -119,10 +149,19 @@ returns, pull the Xcode Cloud build log rather than guessing at a fix.
 
 ## Exact Next Action
 
-None. Both objectives are complete and verified, and there is no active objective.
+Commit the sixteen files listed in Working Set. Nothing is staged. There is no Swift in the change,
+so `scripts/enforce_docs_hook.sh` exits early and will not gate it; the `[General]` CHANGELOG entries
+are already written under `## 5.1`. Paths are enumerated rather than swept, per `CLAUDE.md`.
 
-Ask the user what to pick up, or take the `v5.1` roadmap row above: it is the only open row that
-loses user data, and it is now scoped to the open release.
+```bash
+git add CHANGELOG.md Docs/ai/STATE.md Docs/RepoOS/00_REPO_COMMAND_CENTER.md Docs/RepoOS/01_TASK_ROUTER.md Docs/AuditArtifacts/RepoOS/change_impact_matrix.csv .agents/rules/01-docs-and-notion-sync.md .claude/settings.json .claude/rules/repo-governance.md .claude/skills/notion-roadmap/SKILL.md .claude/hooks/session-start.sh .claude/hooks/stop-handoff.sh .claude/hooks/notion-receipt.sh scripts/required_docs.sh scripts/enforce_docs_hook.sh scripts/test_enforce_docs_hook.sh scripts/test_stop_handoff.sh
+```
 
-If 5.1 work starts, write the first entry under `## 5.1` in `CHANGELOG.md` — not `[Unreleased]` —
-and leave `app_store` at `5.0` in `Docs/SHIPPED_VERSION.json` until iOS ships past it.
+Then, if picking up product work, take the `v5.1` roadmap row in Blockers: it is the only open row
+that loses user data and it is scoped to the open release.
+
+Not done, offered and not yet chosen: four maintenance improvements found while researching current
+Claude Code capability. In rough order of value — an `InstructionsLoaded` hook that logs which
+instruction files actually load, a `PostCompact` hook to replace the `SessionStart(source=compact)`
+replay, `permissions.deny` read rules for `build/`, `BenchmarkRuns/` and `Xrays/`, and using the
+`transcript_path` the Stop hook already receives to propose `CLAUDE.md` updates. None are started.

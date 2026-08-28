@@ -17,7 +17,19 @@ OpenIntelligence is a local-first, privacy-preserving RAG application for Apple 
 Do NOT use as source of truth: `Docs/FULL_REPO_*`, `Docs/PRODUCT_POSITIONING_*`, interim delta-repair reports, or raw generated CSVs unless referenced by canonical docs (`Docs/AuditArtifacts/FinalReview/final_canonical_file_index.md` §5).
 
 ## Agent context system (Claude Code)
-`CLAUDE.md` is the always-loaded control plane and stays under 200 lines. `Docs/ai/` is the durable knowledge plane: `STATE.md` is the cross-session handoff carrying the current objective, what has been verified, and one exact next action, alongside `PROJECT.md`, `ARCHITECTURE.md`, `DECISIONS.md`, and `RUNBOOK.md`. Path-scoped rules in `.claude/rules/` restate this layer's obligations only for the files being edited, so they cost nothing at startup. `.claude/skills/` holds `project-orient`, `project-handoff`, `project-context-audit`, `notion-roadmap`, and `oi-claim-audit`. `.claude/hooks/` injects the startup brief, checkpoints before compaction, and asks for one handoff pass on Stop. Route `repoos_workspace_automation` covers `.claude/**`, `CLAUDE.md`, and `Docs/ai/**`. Installed 2026-08-07 from `Docs/ai/bootstrap/CLAUDE_CONTEXT_OS_V2.md`. `[evidence: code_verified, exact, file existence + hook smoke test + preflight re-run 2026-08-07]`
+`CLAUDE.md` is the always-loaded control plane and stays under 200 lines. `Docs/ai/` is the durable knowledge plane: `STATE.md` is the cross-session handoff carrying the current objective, what has been verified, and one exact next action, alongside `PROJECT.md`, `ARCHITECTURE.md`, `DECISIONS.md`, and `RUNBOOK.md`. Path-scoped rules in `.claude/rules/` restate this layer's obligations only for the files being edited, so they cost nothing at startup. `.claude/skills/` holds `project-orient`, `project-handoff`, `project-context-audit`, `notion-roadmap`, and `oi-claim-audit`. `.claude/hooks/` injects the startup brief, checkpoints before compaction, records Notion writes, and asks once on Stop for whatever the session left open. Route `repoos_workspace_automation` covers `.claude/**`, `CLAUDE.md`, `Docs/ai/**`, and the enforcement-layer scripts. Installed 2026-08-07 from `Docs/ai/bootstrap/CLAUDE_CONTEXT_OS_V2.md`. `[evidence: code_verified, exact, file existence + hook smoke test + preflight re-run 2026-08-07]`
+
+### Enforcement layer, added 2026-08-28
+The obligations above were prose until this date, and prose is what drifted. Four pieces now make them mechanical:
+
+| Piece | Fires | Does |
+|---|---|---|
+| `scripts/required_docs.sh` | called by the two hooks | resolves changed paths to the documents they require, from the table in `.agents/rules/01-docs-and-notion-sync.md` unioned with the RepoOS change-impact matrix |
+| `scripts/enforce_docs_hook.sh` | git pre-commit | fails a commit whose staged source lacks those documents; also enforces the CHANGELOG architecture tag and `ci_post_clone.sh`'s empty-`[Unreleased]` invariant at commit time |
+| `.claude/hooks/notion-receipt.sh` | PostToolUse on Notion write tools | records that a roadmap write actually landed, so "did you update Notion?" is answered by evidence rather than recollection |
+| `.claude/hooks/stop-handoff.sh` | Stop | asks once per session for the handoff, documentation, and roadmap obligations still open |
+
+What this replaced: the pre-commit hook accepted **any** file under `Docs/` as satisfying **any** Swift change, so a retrieval rewrite committed alongside an unrelated `Docs/ai/STATE.md` edit passed a check named "Full Closed Loop Required". Verified by `bash scripts/test_enforce_docs_hook.sh` and `bash scripts/test_stop_handoff.sh`, which drive the real scripts against synthetic git indexes and synthetic session baselines. `[evidence: code_verified + test_verified, exact, 10/10 and 8/8 assertions passing 2026-08-28]`
 
 ## Current high-risk subsystems
 Per `Docs/OPENINTELLIGENCE_ARCHITECTURE_ATLAS.md` §14 and `Docs/AuditArtifacts/ArchitectureAtlas/subsystem_map.md` (risk = HIGH):

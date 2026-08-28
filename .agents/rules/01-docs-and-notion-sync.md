@@ -24,7 +24,7 @@ CHANGELOG bullets always carry the architectural tag: `[Retrieval]`, `[Ingestion
 
 ## Active-release targeting (every task)
 
-Run the repository preflight before acting. It derives the active release from current artifacts and reports the exact targets. For every durable implementation, add the change to `CHANGELOG.md` under `[Unreleased]`, update the matching active-version section in `Docs/RELEASE_NOTES.md`, and use that same version for Notion `Target Release`. Read-only, diagnosis-only, pure-docs, and tests-only tasks report the targets but do not create empty or speculative release documentation changes. If the version is `unknown`, reconcile the canonical version markers before writing release documentation or Notion.
+Run the repository preflight before acting. It derives the active release from current artifacts and reports the exact targets, including `documentation_targets.changelog_section`. Write the entry into the section the preflight names, which is **not always `[Unreleased]`**: when the first numbered heading in `CHANGELOG.md` carries the `unreleased` HTML-comment marker on its own line, that heading is the open section and entries go under it. Entries left in `[Unreleased]` above an uncut numbered heading are what `ci_post_clone.sh` refuses to build, and `scripts/enforce_docs_hook.sh` now rejects that at commit time. Then update the matching active-version section in `Docs/RELEASE_NOTES.md`, and use that same version for Notion `Target Release`. Read-only, diagnosis-only, pure-docs, and tests-only tasks report the targets but do not create empty or speculative release documentation changes. If the version is `unknown`, reconcile the canonical version markers before writing release documentation or Notion.
 
 ## Notion Roadmap — when to touch it (unprompted)
 Database ID: `37f49a74-d54f-81b7-9424-dae1288c0043`; its data source ID is `37f49a74-d54f-81b0-92d9-000bce5e05fa` (different suffix — query tools take the data source ID, retrieve-database tools take the database ID). Never locate the roadmap via workspace search, and never answer roadmap questions from search results — other databases in the workspace have similar-looking rows (theirs use emoji statuses; this one does not). Follow the exact tool recipe in `.agents/workflows/sync-notion.md`.
@@ -38,7 +38,7 @@ Database ID: `37f49a74-d54f-81b7-9424-dae1288c0043`; its data source ID is `37f4
 - `Status`: `To Do` | `In Progress` | `Completed` — there is NO "Shipped" option.
 - `Component`: `Ingestion` | `Chunking` | `Indexing` | `Retrieval` | `Orchestration` | `Shortcuts` | `General` | `UI` | `Infrastructure`
 - `Priority`: `High` | `Medium` | `Low`
-- `Target Release`: `v4.0`, `v4.1`, `v4.2`, `v4.3`, `v4.3.1`, `v4.4`, `v4.5 (Phase 2B)`, `v4.6`, `v4.7 (iOS) / v3.0 (macOS)`, `v4.8 (iOS)`, `v4.9`, `v5.0`, `Future Backlog`. Read off the live data source 2026-08-05. Note the two split-numbering options are historical: from 4.9 onward both platforms share one version, so new rows use `v4.9` or `v5.0`, never a split label.
+- `Target Release`: `v4.0`, `v4.1`, `v4.2`, `v4.3`, `v4.3.1`, `v4.4`, `v4.5 (Phase 2B)`, `v4.6`, `v4.7 (iOS) / v3.0 (macOS)`, `v4.8 (iOS)`, `v4.9`, `v5.0`, `v5.1`, `Future Backlog`. Read off the live data source 2026-08-28. Note the two split-numbering options are historical: from 4.9 onward both platforms share one version, so new rows use a single label such as `v5.1`, never a split one. This list is a cache: it sat at `v5.0` while `v5.1` was already live in the database, so re-read the data source whenever the active release changes.
 - `Target OS`: `All (26.5 & 27)` | `iOS/macOS 26.5 Only` | `iOS/macOS 27+ Only`. **This property was missing from this file entirely** and is part of the schema.
 - Dates: `Added`, `Completed` (ISO dates).
 
@@ -46,3 +46,9 @@ Database ID: `37f49a74-d54f-81b7-9424-dae1288c0043`; its data source ID is `37f4
 1. Warning-free build: `bash scripts/build_simulator_smoke.sh` (AGENTS.md rule 14).
 2. Docs updated per the table above — confirm by listing them in your summary.
 3. Notion updated if a feature started/finished — state the row you touched.
+
+The table above is no longer enforced by good intentions. `scripts/required_docs.sh` is its
+executable copy: it resolves changed paths to the documents they require, and both the git
+pre-commit hook and the Claude Code Stop hook fail or ask against its output. Change the table here
+and change that script in the same edit, or the two will disagree and the script is the one that
+gets obeyed.
