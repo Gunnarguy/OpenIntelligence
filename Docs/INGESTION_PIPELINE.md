@@ -465,7 +465,69 @@ Both indexes are isolated by `container_id` to enforce library boundaries.
 - Converts preprocessed `CIImage` instances directly to raw `CGImage` pointers utilizing `CIContext`.
 - Vision's `RecognizeDocumentsRequest` and `RecognizeTextRequest` perform analysis directly on the raw `CGImage` memory block, accelerating extraction by 30%+ and avoiding OOM memory spikes.
 
+### macOS page rendering, corrected 2026-08-29
+
+The zero-copy claim above was true of the iOS branch and false of the macOS one. `renderPDFPageAsImage`
+has always had two implementations, and only the UIKit half did what this section describes.
+
+**What the macOS branch used to do.** `NSImage(size:)` + `lockFocus()`, then `tiffRepresentation` ->
+`NSBitmapImageRep(data:)` -> `.cgImage`. Two costs, both macOS-only and both invisible in the logs:
+
+- `lockFocus` is deprecated, and `AppKit/NSImage.h` gives the reason: it "is incompatible with
+  resolution-independent drawing". It sizes its backing store from the display's scale factor.
+- `tiffRepresentation` then encoded that whole raster to uncompressed TIFF in memory and
+  `NSBitmapImageRep(data:)` decoded it straight back. A full CPU serialize/deserialize round-trip,
+  per page. Exactly the "PNG serialization pass" the section above says the pipeline avoids.
+
+**Measured, not estimated.** A standalone AppKit probe on this host (`NSScreen.main.backingScaleFactor`
+= 2.0) reproducing the old code path at the default `scale = 5.0`:
+
+| | requested | actual raster | per-page bytes |
+|---|---|---|---|
+| `NSImage.lockFocus` + TIFF | 3060x3960 | **6120x7920** (4.0x the pixels, 16 bits per component) | **370 MB**, encoded then decoded |
+| `CGBitmapContext` (now) | 3060x3960 | 3060x3960 (1.0x) | 46 MB, no serialization |
+
+Eight times less raster, and roughly 740 MB of per-page memory traffic removed. The wall-clock effect
+on a real document has **not** been measured yet; do that on device before quoting a speedup.
+
+**What it does now.** A `CGBitmapContext` at explicit pixel dimensions, opaque, drawn into directly
+and read out with `makeImage()`. No oversize, no serialization, and no mutation of
+`NSGraphicsContext.current`, which `lockFocus` touches and which is process-global state shared with
+every concurrent Vision operation. A `CGBitmapContext` has the same bottom-left origin as the
+`lockFocus` context it replaces, so the existing transform and page orientation are unchanged.
+
+`[evidence_level: measured, confidence: exact, evidence_source: standalone AppKit probe on this host 2026-08-29; DocumentProcessor.swift renderPDFPageAsImage; MacOSX27.0.sdk AppKit/NSImage.h:294; macOS Debug build succeeded 2026-08-29]`
+
+**Per-page render timing is now logged.** The line reads
+`Rendered PDF page at WxHpx (N DPI) in X.Xms via <backend>, CPU raster[, post-process attached]`.
+Two things about it matter:
+
+- The old line ended in `[GPU-accelerated]`, which was a **string literal selected by the
+  `useGPUForPDFRendering` flag**, not a measurement. The raster is CPU work on both platforms, and
+  the Core Image chain that flag selects is lazy, so no GPU work has run when the line is emitted. A
+  tester reading `[ANE]` and `[GPU metal]` in the logs while Activity Monitor showed only CPU was
+  reading a claim about a setting, and it pointed the investigation away from the real bottleneck.
+- Paired with the existing `Page N: OCR extracted ... (Y.YYs)` line, it splits render cost from OCR
+  cost per page, which is the measurement that did not exist when a 210-page PDF took five hours on
+  a Mac and nothing in the log said which stage owned the time.
+
+**Known remaining gap, not fixed here.** `PageComplexityAnalyzer.renderPageForAnalysis` is
+`#if canImport(UIKit) ... #else return nil #endif`, and both production call sites reach it through
+`analyzeBatch`, which passes no `pageImage`. So Phase 4 of the complexity analysis — the Vision
+refinement that merges `imagePresence`, `tablePresence`, `chartPresence` and `figurePresence` — never
+runs on macOS, and `isMixedModeScanned` is permanently false there. Vision merges with `max(...)`, so
+absent it macOS scores pages as *less* visual than iOS would, never more. Tracked separately; it is a
+classification-accuracy defect rather than a performance one.
+
+`[evidence_level: code_verified, confidence: exact, evidence_source: PageComplexityAnalyzer.swift:1045-1072 and :294-307; DocumentProcessor.swift:3323 and :4049]`
+
 ### Page-Level JSON Checkpointing & State Persistence
+- **Scope, clarified 2026-08-29: this applies only to `importLargePDFStreamed`, which is entered when
+  `documentType == .pdf && fileSizeMB > 10` (`RAGService.swift:5666`).** Every PDF at or under 10 MB,
+  and every non-PDF of any size, takes the non-streamed path and has no checkpoint at all. Batch
+  granularity is 15 pages, so a resume can redo up to 14 pages. Queue restoration also sets
+  `resumedItem.progress = nil`, so a restored item displays zero progress even though the engine will
+  skip its completed batches — the work is there, the progress bar just does not say so.
 - To prevent data loss and avoid reprocessing from page 1 during large document ingestion:
 - Each page's intermediate `PageParseResult` is serialized to a Codable JSON format.
 - Ingestion state and progress are tracked in a session-level `ingestion_state.json` file inside the checkpoints folder:

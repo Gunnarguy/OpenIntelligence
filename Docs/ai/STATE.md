@@ -6,15 +6,15 @@ Last verified commit: adb0cda
 
 ## Objective
 
-**Make macOS ingestion usable.** An external tester on a fanless M5 MacBook Air ingested a 210-page,
+**Make macOS ingestion usable.** The render-path fix is **implemented, built and unit-tested**; it is
+not yet verified on device, which is what closes its row. An external tester on a fanless M5 MacBook Air ingested a 210-page,
 64 MB PDF on 2026-08-29. It completed, correctly, in **five hours**, producing ~5000 chunks. The
 owner has committed to the tester, in writing, that macOS ingestion performance and a pause control
 are top priority for `v5.1`.
 
-Diagnosis is done and is code-read, not measured. Three defects, all in `#if canImport(UIKit)` /
-`#elseif canImport(AppKit)` seams, none of them in the routing policy where they were first assumed
-to be. See "External device evidence" below. No source has been edited: this is a diagnosis, and the
-implementation gate has not been passed.
+Three defects, all in `#if canImport(UIKit)` / `#elseif canImport(AppKit)` seams, none of them in the
+routing policy where they were first assumed to be. See "External device evidence" below. The owner
+granted `PROCEED: IMPLEMENT` on 2026-08-29 and defect 1 is fixed in that session.
 
 ## Status
 
@@ -98,8 +98,29 @@ Working tree is clean. Nothing uncommitted in this repository.
 - Websites: gunzino.me, fascinaiting.me and gunnarguy.me each fetched live and confirmed to describe
   5.0 as shipped and PCC in the future tense.
 
-**Not run this session:** the full `xcodebuild test` suite, and `bash scripts/build_simulator_smoke.sh`.
-Only the three targeted test classes above were executed.
+### 2026-08-29, the macOS render fix
+
+- Standalone AppKit probe on this host, `backingScaleFactor` 2.0, reproducing the old code path:
+  `NSImage.lockFocus` rasters a 3060×3960 request at **6120×7920** (4.0× the pixels, 16 bits per
+  component) with a **370 MB** `tiffRepresentation`; the replacement `CGBitmapContext` produces
+  3060×3960 with a 46 MB backing store and no serialization. **8× less raster.**
+- macOS Debug build from `/private/tmp/oi-src` -> **BUILD SUCCEEDED**, 0 errors, 0 warnings.
+- `xcodebuild test` on iOS 27 sim `8FA2B3CE-…`, `-only-testing` DocumentProcessorTests +
+  SemanticChunkerTests + IngestionStageLedgerTests -> **35 tests, 0 failures**.
+- `bash scripts/build_simulator_smoke.sh` (from the copy, fresh DerivedData) -> **BUILD SUCCEEDED**,
+  ad-hoc codesign clean.
+- `python3 scripts/secret_scan.py` -> clean.
+- `bash scripts/enforce_docs_hook.sh` over the staged set -> exit 0.
+
+**Not run:** the full `xcodebuild test` suite, and the route's "large PDF (>10MB) manual ingest",
+which needs a device. **Not measured:** the wall-clock effect of the render
+fix on a real document. No speedup is claimed anywhere, deliberately — the per-page render timing now
+logged is what will measure it.
+
+**`xcodebuild` deadlocked on `~/Documents` again** at the start of this work: 7 log lines, 0% CPU,
+`sample` showed `-[DVTFilePath performCoordinatedReadRecursively:]` in `semaphore_wait_trap`. Building
+from a `ditto` copy at `/private/tmp/oi-src` fixed it, as the runbook says. `rsync` is blocked by the
+agent permission classifier in this environment; `ditto` is not.
 
 ## Blockers / Unknowns
 
@@ -132,14 +153,16 @@ a fanless MacBook Air (M5). 210-page, 64 MB PDF of *Science*: five hours, ~5000 
 correctly. CPU oscillating 400% to 100%, GPU idle in Activity Monitor, 33% battery in the first
 1h20m. Owner reports an 8-page document takes ~1 minute on iPhone against ~30 minutes on Mac.
 
-Three defects found, all verified by reading code and the MacOSX27.0 SDK headers
-`[evidence_level: code_read, confidence: high]`:
+Three defects found. Defect 1 is now measured; 2 and 3 are read from code and the MacOSX27.0 SDK
+headers `[evidence_level: code_read, confidence: high]`:
 
 1. **`renderPDFPageAsImage` macOS branch.** Uses deprecated `NSImage.lockFocus` plus a full
    `tiffRepresentation` -> `NSBitmapImageRep(data:)` CPU round-trip per page. `AppKit/NSImage.h:294`
    states the deprecation reason: the method "is incompatible with resolution-independent drawing",
-   so its backing store follows the display scale factor and is 4x the requested pixel count on a
-   Retina display. iOS renders the same page through `UIGraphicsImageRenderer` with an explicit
+   so its backing store follows the display scale factor. **Measured on this host with a standalone
+   AppKit probe:** a page requested at 3060x3960 rasters at 6120x7920, exactly 4.0x the pixels, and
+   its `tiffRepresentation` is 370 MB encoded and decoded per page, against 46 MB and no
+   serialization through the `CGBitmapContext` that replaced it. iOS renders the same page through `UIGraphicsImageRenderer` with an explicit
    `format.scale = 1.0` and no serialization at all. Filed `v5.1`.
 2. **`renderPageForAnalysis` returns `nil` on macOS** (`#else return nil`), and both production call
    sites reach it through `analyzeBatch`, which passes no `pageImage`. The Vision refinement pass in
@@ -149,33 +172,48 @@ Three defects found, all verified by reading code and the MacOSX27.0 SDK headers
    line whose dominant stages are CPU. This is why the logs pointed away from the bottleneck. Filed
    `Future Backlog`.
 
-**Two owner statements that the code contradicts, both told to the tester and worth correcting:**
+**One owner statement the code contradicts, and one this session got wrong:**
 
-- *"It SHOULD save the progress if you close out and reopen it."* It does not. `RAGService.swift:1186`
-  sets `stage = .paused` and `progress = nil` on restart, and `IngestionItem` has no checkpoint
-  field, so resuming re-runs the document from the start.
 - *"Macs treat everything as needing to be visually interpreted."* There are **zero** platform
   conditionals in `OpenIntelligence/Services/Document/`. Losing the Vision pass biases macOS toward
   classifying pages as *less* visual, not more. The slowness is mechanical, not a routing choice.
+- *"Progress is not preserved across a restart."* **This session claimed that and it was wrong.**
+  `importLargePDFStreamed` checkpoints `lastCompletedPage` to
+  `localCacheDir()/IngestionCheckpoints/<fingerprint>/ingestion_state.json` after every 15-page batch
+  and skips completed batches on re-entry (`RAGService+Streaming.swift:36-88`). The owner's statement
+  to the tester was correct for that 64MB document. The error came from grepping only
+  `Services/Storage/`; `Docs/INGESTION_PIPELINE.md` §5 had it documented correctly all along. What is
+  genuinely missing: no user-facing pause control, checkpointing gated on `fileSizeMB > 10 && .pdf`
+  (`RAGService.swift:5666`), and a restored item showing `progress = nil` so the UI looks like the
+  work was lost when it was not.
 
 ## Exact Next Action
 
-Instrument a macOS ingestion run before changing anything, so the fix is tuned against measurement
-rather than against the code-read diagnosis above. Then take the render path:
+**Get a macOS device run of the render fix.** Everything else is blocked on this number. Build the
+Mac app, ingest a large PDF, and read the new per-page line:
 
-[macOS renders every OCR page through deprecated lockFocus and a full TIFF round-trip](https://app.notion.com/p/3cb49a74d54f8150b2dbc1ef12d7f3e0)
-— `v5.1`. The fix Apple's own header names is
-`+[NSGraphicsContext graphicsContextWithBitmapImageRep:]`, which takes explicit pixel dimensions and
-removes both the 4x oversize and the TIFF round-trip in one change.
+```
+[DocumentProcessor] Rendered PDF page at WxHpx (N DPI) in X.Xms via CGBitmapContext, CPU raster
+```
 
-`DocumentProcessor.swift` is not a hard-boundary file, but the route is `core_ai_ios27_change` and
-carries `Approval: always`. **A source edit needs `PROCEED: IMPLEMENT` from the user first.**
+Paired with the existing `Page N: OCR extracted ... (Y.YYs)` line that splits render cost from OCR
+cost per page for the first time. That tells us whether the render path owned the five hours or only
+part of them, and it is what closes
+[the render row](https://app.notion.com/p/3cb49a74d54f8150b2dbc1ef12d7f3e0) (`In Progress`).
 
-The other open `v5.1` rows:
+Sending the same document back to the tester is the highest-value version of this, since his machine
+is fanless and the maintainer's is not.
 
-- [Ingestion cannot be paused, and restarting discards in-flight progress](https://app.notion.com/p/3cb49a74d54f819797e8cea0e96d62b9)
+Then, in order:
+
+- [Ingestion has no pause control, and only PDFs over 10MB checkpoint](https://app.notion.com/p/3cb49a74d54f819797e8cea0e96d62b9)
+  — `v5.1`. Start with the restored-progress display, which is cheap and stops a user cancelling a
+  resume that would have worked.
 - [Six file families sync without NSFileCoordinator](https://app.notion.com/p/3ca49a74d54f8103b69be921f0335171)
-  — the only open row that loses user data, with 599 conflict copies already observed.
+  — `v5.1`, the only open row that loses user data, with 599 conflict copies already observed.
+- [Vision pass never runs on macOS](https://app.notion.com/p/3cb49a74d54f81fbb47cec6d8ed526d8)
+  — `Future Backlog`. Re-measure after the render fix lands: adding the macOS Vision pass adds work,
+  so it should not go in until the render cost is known to be down.
 
 If 5.1 work starts, write entries under the existing `## 5.1` heading in `CHANGELOG.md`, **not**
 under `[Unreleased]`, and leave `app_store` at `5.0` in `Docs/SHIPPED_VERSION.json` until iOS ships

@@ -6939,6 +6939,27 @@ class DocumentProcessor {
             Log.info("[DocumentProcessor] PDF page has rotation=\(pageRotation)° — using cropBox for correct orientation", category: .ingestion)
         }
 
+        // Per-page render timing. This measurement was missing when a 210-page PDF took five
+        // hours on a Mac: the logs gave no way to separate render cost from OCR cost. Pair it
+        // with the "Page N: OCR extracted ..." timing the caller already emits to split them.
+        let renderStart = CFAbsoluteTimeGetCurrent()
+
+        // The raster is CPU work on BOTH platforms. `useGPUForPDFRendering` selects only the
+        // Core Image preprocessing chain attached afterwards, and CIImage is lazy, so no GPU
+        // work has actually run by the time this function returns. The old log line claimed
+        // "[GPU-accelerated]" at this point, which pointed a real investigation away from the
+        // true bottleneck.
+        let attachesOCRPostProcess = DeviceCapabilityService.shared.useGPUForPDFRendering
+
+        func logRender(_ backend: String) {
+            let ms = (CFAbsoluteTimeGetCurrent() - renderStart) * 1000
+            let suffix = attachesOCRPostProcess ? ", post-process attached" : ""
+            Log.debug(
+                "[DocumentProcessor] Rendered PDF page at \(Int(scaledSize.width))×\(Int(scaledSize.height))px (\(Int(72 * scale)) DPI) in \(String(format: "%.1f", ms))ms via \(backend), CPU raster\(suffix)",
+                category: .ingestion
+            )
+        }
+
         #if canImport(UIKit)
         // Use opaque format to avoid alpha channel overhead
         // This prevents the "AlphaPremulLast" warning and halves memory usage
@@ -6967,9 +6988,9 @@ class DocumentProcessor {
             ctx.restoreGState()
         }
 
-        // GPU-accelerated path: Use Metal-backed CIContext for image processing
-        // This offloads sharpening/contrast enhancement to GPU
-        if DeviceCapabilityService.shared.useGPUForPDFRendering {
+        logRender("UIGraphicsImageRenderer")
+
+        if attachesOCRPostProcess {
             guard let ciImage = CIImage(image: uiImage) else { return nil }
 
             // Report GPU activity to HUD
@@ -6978,41 +6999,65 @@ class DocumentProcessor {
             }
 
             // Apply GPU-accelerated preprocessing for better OCR
-            let processedImage = preprocessImageForOCR(ciImage)
-
-            Log.debug("[DocumentProcessor] Rendered PDF page at \(Int(scaledSize.width))×\(Int(scaledSize.height))px (\(Int(72 * scale)) DPI) [GPU-accelerated]", category: .ingestion)
-            return processedImage
+            return preprocessImageForOCR(ciImage)
         } else {
-            Log.debug("[DocumentProcessor] Rendered PDF page at \(Int(scaledSize.width))×\(Int(scaledSize.height))px (\(Int(72 * scale)) DPI)", category: .ingestion)
             return CIImage(image: uiImage)
         }
         #elseif canImport(AppKit)
-        guard scaledSize.width > 0 && scaledSize.height > 0 else { return nil }
+        // Draw straight into a bitmap we own, at exactly the pixel size we asked for.
+        //
+        // This replaces NSImage.lockFocus() + tiffRepresentation + NSBitmapImageRep(data:).
+        // AppKit/NSImage.h deprecates lockFocus with the reason "This method is incompatible
+        // with resolution-independent drawing": it sizes its backing store from the display's
+        // scale factor, so on a Retina display it silently allocated 4x the pixels requested.
+        // tiffRepresentation then encoded that whole raster to uncompressed TIFF in memory and
+        // NSBitmapImageRep(data:) decoded it straight back — a full CPU serialize/deserialize
+        // round-trip, per page. At scale 5 a US Letter page is 3060×3960px; under lockFocus at
+        // 2x backing scale it was 6120×7920, roughly 194MB, round-tripped 210 times for the
+        // document that took five hours.
+        //
+        // A CGBitmapContext has the same bottom-left origin as the lockFocus context it
+        // replaces, so the transform below is unchanged and page orientation is preserved. It
+        // also avoids touching NSGraphicsContext.current, which lockFocus mutates and which is
+        // process-global state shared with every concurrent Vision operation.
+        let pixelWidth = Int(scaledSize.width.rounded())
+        let pixelHeight = Int(scaledSize.height.rounded())
+        guard pixelWidth > 0, pixelHeight > 0 else { return nil }
 
-        let image = NSImage(size: scaledSize)
-        image.lockFocus()
-        NSColor.white.set()
-        NSBezierPath(rect: NSRect(origin: .zero, size: scaledSize)).fill()
-        if let ctx = NSGraphicsContext.current?.cgContext {
-            ctx.saveGState()
-            ctx.scaleBy(x: scale, y: scale)
-            page.draw(with: .cropBox, to: ctx)
-            ctx.restoreGState()
-        }
-        image.unlockFocus()
-
-        guard let tiff = image.tiffRepresentation,
-              let rep = NSBitmapImageRep(data: tiff),
-              let cgImage = rep.cgImage else {
+        guard let bitmapContext = CGContext(
+            data: nil,
+            width: pixelWidth,
+            height: pixelHeight,
+            bitsPerComponent: 8,
+            bytesPerRow: 0,  // let CoreGraphics choose an aligned stride
+            space: CGColorSpaceCreateDeviceRGB(),
+            // Opaque, matching format.opaque = true on the UIKit side. We draw on white.
+            bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue
+        ) else {
+            Log.warning("[DocumentProcessor] Could not create \(pixelWidth)×\(pixelHeight) bitmap context for PDF page render", category: .ingestion)
             return nil
         }
 
+        bitmapContext.setFillColor(CGColor(red: 1, green: 1, blue: 1, alpha: 1))
+        bitmapContext.fill(CGRect(x: 0, y: 0, width: pixelWidth, height: pixelHeight))
+
+        bitmapContext.saveGState()
+        bitmapContext.scaleBy(x: scale, y: scale)
+        // PDFPage.draw(with:to:) handles /Rotate internally when using .cropBox
+        page.draw(with: .cropBox, to: bitmapContext)
+        bitmapContext.restoreGState()
+
+        guard let cgImage = bitmapContext.makeImage() else {
+            Log.warning("[DocumentProcessor] Bitmap context produced no image for PDF page render", category: .ingestion)
+            return nil
+        }
+
+        logRender("CGBitmapContext")
+
         let ciImage = CIImage(cgImage: cgImage)
-        if DeviceCapabilityService.shared.useGPUForPDFRendering {
-            Log.debug("[DocumentProcessor] Rendered PDF page at \(Int(scaledSize.width))×\(Int(scaledSize.height))px (\(Int(72 * scale)) DPI) [GPU-accelerated]", category: .ingestion)
+        if attachesOCRPostProcess {
             return preprocessImageForOCR(ciImage)
         } else {
-            Log.debug("[DocumentProcessor] Rendered PDF page at \(Int(scaledSize.width))×\(Int(scaledSize.height))px (\(Int(72 * scale)) DPI)", category: .ingestion)
             return ciImage
         }
         #else
