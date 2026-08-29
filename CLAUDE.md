@@ -75,6 +75,12 @@ or documentation pass.
 - **Fixed is not closed.** A row moves to `Completed` only when its behaviour is verified where the
   defect appeared, which for this app usually means on device. Suite-green closes nothing. Say what
   would close a row at the moment you claim it is fixed.
+- **`Status` tracks the work; `Shipped On` tracks reach.** Decided 2026-08-28. A verified fix that is
+  live on one platform is `Completed` with `Shipped On` naming that platform, not held open because
+  the other platform has not had a release. The platforms diverged on 2026-08-26 — macOS reached
+  5.0.2 while iOS is on 5.0 — and before the property existed such a row had no honest state:
+  `Completed` lied to an iPhone user, `In Progress` lied to a Mac user. Leaving `Shipped On` empty
+  means *not recorded*, never *not shipped*.
 
 ## Commands
 

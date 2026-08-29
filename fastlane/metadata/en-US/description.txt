@@ -4,7 +4,7 @@ OpenIntelligence reads what you import and answers questions about it in plain l
 
 ANSWERS START IN YOUR FILES
 
-Not in a chatbot's imagination. OpenIntelligence searches your library first, pulls the exact passages that matter, and only then writes, using the Apple Intelligence models already built into your iPhone, iPad, and Mac. Your device already had the intelligence. This gives it your knowledge, and rules of evidence.
+Not in a chatbot's imagination. OpenIntelligence searches your library first, pulls the exact passages that matter, and only then writes, using Apple's on-device Apple Intelligence models. Requires an Apple Intelligence-capable device: iPhone 15 Pro or later, or an M1-or-later iPad or Mac, on iOS/iPadOS/macOS 26. Your device already had the intelligence. This gives it your knowledge, and rules of evidence.
 
 WHAT YOU CAN DO
 

@@ -72,7 +72,12 @@ close is a row that will still be open at the next release.
 ## Writing
 
 **Starting** work a row tracks: set `Status` to `In Progress`.
-**Finishing** it: set `Status` to `Completed` **and** `date:Completed:start` to today.
+**Finishing** it: set `Status` to `Completed` **and** `date:Completed:start` to today, **and set
+`Shipped On` to the platforms where the change is actually installable**.
+
+`Status` tracks the work; `Shipped On` tracks reach. A verified fix live on one platform is
+`Completed` with `Shipped On: macOS`, not held open because iOS has not had a release. Decided
+2026-08-28, and it is the reason the property exists: before it, such a row had no honest state.
 **No row exists** for durable work: create one.
 
 Update with `notion-update-page`, `command: "update_properties"`. Create with

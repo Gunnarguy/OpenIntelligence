@@ -148,18 +148,17 @@ When 5.1 work starts, the open row that meets the release bar is
 inverted, every surface that states the claim, which of the three websites sync themselves, and the
 ordering rule — ship first, then claim, and approval is the event, not submission.
 
-Two things are still unverified and neither is blocking:
-- `IngestionStageLedger` has never emitted on a real document. Ingest one on device and grep for
-  `[IngestionLedger]`.
-- **One semantic decision is open.** The roadmap now has `Shipped On`, so
-  [the Documents-tab row](https://app.notion.com/3c949a74d54f81d0911ac74bc4dafa3e) could move to
-  `Completed` with `Shipped On: macOS` — the work is done and live on macOS, and the iOS gap is now
-  expressible rather than hidden. It is still `In Progress` with a dated note saying why, written
-  before the property existed. Changing it means deciding that `Status` tracks the work and
-  `Shipped On` tracks reach; leaving it means `Status` waits for every platform. Either is coherent;
-  the board should pick one and say so in the skill.
-- `Shipped On` is populated on two rows only, both verified. Everywhere else it is empty, which
-  means *not recorded*, not *not shipped*. A bulk backfill is possible — every `Completed` row
-  targeted `v5.0` or earlier shipped to both platforms, except the split-numbered `v4.7 (iOS) /
-  v3.0 (macOS)` and `v4.8 (iOS)` options — but that is 200+ writes asserting a per-row fact, and it
-  was not done.
+One thing is still unverified and it is not blocking: `IngestionStageLedger` has never emitted on a
+real document. Ingest one on device and grep for `[IngestionLedger]`.
+
+Two roadmap decisions made this session, recorded so they are not re-litigated:
+
+- **`Status` tracks the work, `Shipped On` tracks reach.** Written into
+  `CLAUDE.md`, the `notion-roadmap` skill and the Antigravity rule, because all three carried the
+  closure rule. A verified fix live on one platform is `Completed` with `Shipped On` naming it,
+  rather than held open because the other platform has not had a release.
+- **`Shipped On` is backfilled on 88 rows and deliberately empty on 68.** The empty ones are
+  `v4.0`–`v4.5`. The only macOS versions documented anywhere in this repository are 2.5, 3.0, 4.8,
+  5.0 and 5.0.2, the earliest tied to iOS 4.6, so macOS parity before that cannot be established
+  from what is written down here and asserting it would be a guess. Empty means *not recorded*,
+  never *not shipped*. If the early macOS release history turns up, that is the gap to fill.

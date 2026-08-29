@@ -30,7 +30,7 @@ Run the repository preflight before acting. It derives the active release from c
 Database ID: `37f49a74-d54f-81b7-9424-dae1288c0043`; its data source ID is `37f49a74-d54f-81b0-92d9-000bce5e05fa` (different suffix — query tools take the data source ID, retrieve-database tools take the database ID). Never locate the roadmap via workspace search, and never answer roadmap questions from search results — other databases in the workspace have similar-looking rows (theirs use emoji statuses; this one does not). Follow the exact tool recipe in `.agents/workflows/sync-notion.md`.
 
 - **Starting a feature/task** → query the DB for a matching row. If found, set `Status` = `In Progress`. If not, create one (`Name` = feature summary, `Status` = `In Progress`, `Component`, `Priority`, `Target Release`, `Added` = today).
-- **Completing a feature/task** → set `Status` = `Completed` AND set the `Completed` date to today.
+- **Completing a feature/task** → set `Status` = `Completed`, set the `Completed` date to today, AND set `Shipped On` to the platforms where the change is actually installable. `Status` tracks the work; `Shipped On` tracks reach. A verified fix live on macOS only is `Completed` with `Shipped On: macOS`, not held open because iOS has not had a release.
 - **User mentions roadmap/plans/backlog** → pull current rows from the DB first; never answer from memory.
 - **Pure docs-only or refactor-only changes** → no Notion row required unless it closes a roadmap item.
 
