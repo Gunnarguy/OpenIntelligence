@@ -75,7 +75,7 @@
       "public_claim": "Optional Apple Private Cloud Compute support is built and will enable in a future release on iOS and macOS 27.",
       "anchors": ["compiler(>=6.4)"],
       "min_count": 12,
-      "note": "MUST be described in the future tense in all public copy. Every path sits behind #if compiler(>=6.4). Releases build on the newest RELEASED Xcode, which ships Swift 6.3 and compiles them out; Xcode 27 ships Swift 6.4 and would compile them in, but a beta toolchain cannot pass App Store ingestion (ITMS-90111). app-store-upload.yml fails the build if nm -u finds a PrivateCloudCompute symbol, checked against a live SystemLanguageModel count so a dead binary cannot pass vacuously. Flip to 'shipping' only when an App Store build actually contains it."
+      "note": "MUST be described in the future tense in all public copy. Every path sits behind #if compiler(>=6.4). Releases build on the newest RELEASED Xcode, which ships Swift 6.3 and compiles them out; Xcode 27 ships Swift 6.4 and would compile them in, but a beta toolchain cannot pass App Store ingestion (ITMS-90111). ci_scripts/ci_post_xcodebuild.sh fails the build if nm -u finds a PrivateCloudCompute symbol (this was app-store-upload.yml until GitHub Actions was retired on 2026-08-28), checked against a live SystemLanguageModel count so a dead binary cannot pass vacuously. Flip to 'shipping' only when an App Store build actually contains it, and see the PCC enable-day section in Docs/ai/RUNBOOK.md first: BOTH release guards are built to refuse that build and must be inverted in the same change, and the anchors below stop existing the moment the gates are removed."
     }
   },
   "updated": "2026-08-26",

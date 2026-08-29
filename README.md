@@ -216,12 +216,20 @@ build on the newest *released* Xcode, which ships Swift 6.3 and compiles the twe
 quota exhaustion, mid-stream network transitions, background consent — are still
 unverified, and tracked as open items rather than quietly assumed.
 
-Releases are produced by [GitHub Actions](.github/workflows/app-store-upload.yml), not Xcode Cloud.
-This is not a preference. The maintainer's Mac runs a beta macOS, every local archive stamps a
-prerelease `BuildMachineOSBuild` into `Info.plist`, and App Store *ingestion* rejects that with
-ITMS-90111 even though `altool --validate-app` returns VERIFY SUCCEEDED and processing reaches
-`VALID`. Validation is not ingestion. GitHub's runner images use released OS builds, so the stamp
-comes out clean, and the workflow fails the build if it ever does not.
+Releases are produced by **Xcode Cloud**, never from the maintainer's Mac. This is not a
+preference. That Mac runs a beta macOS, every local archive stamps a prerelease
+`BuildMachineOSBuild` into `Info.plist`, and App Store *ingestion* rejects that with ITMS-90111 even
+though `altool --validate-app` returns VERIFY SUCCEEDED and processing reaches `VALID`. Validation
+is not ingestion. Xcode Cloud builds on Apple's released images, so the stamp comes out clean.
+
+The same fact settles the toolchain question above: Xcode Cloud is pinned to the newest *released*
+Xcode, 26.6, which ships Swift 6.3.3 and compiles the twelve `#if compiler(>=6.4)` sites out.
+`ci_scripts/ci_post_xcodebuild.sh` fails the build if `nm -u` finds a `PrivateCloudCompute` symbol,
+so the binary cannot silently contradict this page.
+
+GitHub Actions ran releases for one stretch in August 2026, as a fallback after the free Xcode Cloud
+allowance ran out, and was retired on 2026-08-28 once paid Xcode Cloud capacity was in place. Its
+workflow no longer exists.
 
 ## License
 

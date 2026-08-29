@@ -510,10 +510,16 @@ Check any archive before trusting it:
 
 A trailing lowercase letter means prerelease. Discard the archive.
 
-**Use `.github/workflows/app-store-upload.yml` instead.** It is `workflow_dispatch` with a build
-number and an upload toggle, runs on GitHub's released-OS images so the stamp comes out clean, and
-fails loudly on a prerelease stamp before uploading anything. The signing material has been in
-repository secrets since 2026-06-19. The OpenManual repository hit this first and its release
+**Use Xcode Cloud instead. Do not archive releases on this machine.** Its builders run released
+OS images, so the stamp comes out clean, and `ci_scripts/ci_post_clone.sh` stamps the version while
+`ci_scripts/ci_post_xcodebuild.sh` gates the binary before it can be uploaded.
+
+**Corrected 2026-08-28.** This paragraph previously said to use
+`.github/workflows/app-store-upload.yml`. That workflow was retired in `546df1f` and
+`.github/workflows/` no longer exists, so following this section as written led nowhere. Actions ran
+releases for one stretch in August 2026, as a fallback after the free Xcode Cloud allowance was
+exhausted; paid Xcode Cloud capacity replaced it. The reason for not building locally is unchanged
+and is the paragraph above. The OpenManual repository hit this first and its release
 workflow exists for the same reason.
 
 Everything below describes the local archive mechanics. They are correct and were verified end to
@@ -683,6 +689,64 @@ LANG=en_US.UTF-8 LC_ALL=en_US.UTF-8 fastlane push_metadata version:5.0
 
 CI is `.github/workflows/ci.yml`, building on `macos-26` on push and PR to `main`, selecting the
 highest installed Xcode.
+
+
+## Enabling Private Cloud Compute (the iOS/macOS 27 release)
+
+Written 2026-08-28, before the fact, because two of this repository's own release guards are built
+to refuse exactly the build that enables PCC. They protect the current claim. On the day the claim
+changes they will block the release, and both failures look like something else.
+
+**iOS 27 shipping does not enable PCC by itself.** The gate is `#if compiler(>=6.4)`, which is
+resolved by the *compiler*, not the device. Every shipped binary was built on Xcode 26.6 / Swift
+6.3.3, so PCC is not in it. A user who updates to iOS 27 runs that same binary and gets nothing new.
+Enabling it takes four steps, and only the first is Apple's: iOS 27 ships → build on Xcode 27 →
+invert both guards → ship an app release.
+
+### The two guards that will stop you
+
+1. **`ci_scripts/ci_post_xcodebuild.sh` fails the build when `nm -u` finds a `PrivateCloudCompute`
+   symbol** — it asserts the count is `0`. That is correct today and exactly backwards on enable
+   day. Invert it rather than deleting it: it should then fail when the count is **zero**, so a
+   toolchain regression that silently compiles PCC back out cannot ship against the new copy. The
+   protection is symmetrical; only its direction changes.
+
+2. **`scripts/verify_capabilities.py` requires at least 12 occurrences of the anchor
+   `compiler(>=6.4)`**, and it runs in `ci_post_clone.sh` *before* `xcodebuild` starts. Delete the
+   gates and this fails first, reporting a missing capability anchor — which reads like the feature
+   was removed, at the moment you are shipping it. Update the anchor in
+   `Docs/SHIPPED_CAPABILITIES.json` in the same commit as the code, to something that exists in the
+   ungated build (`PrivateCloudComputeLanguageModel` is the natural choice).
+
+Also change the Xcode Cloud workflow's Xcode version from 26.6 to 27 in App Store Connect. That is a
+UI setting, not a file in this repository, so nothing here can check it for you — but guard 1,
+inverted, becomes the proof it happened.
+
+### Every surface that states the claim
+
+`Docs/SHIPPED_CAPABILITIES.json` is the single source: flip `private_cloud_compute.status` from
+`built_not_enabled` to `shipping` and rewrite `public_claim`, then bring these into line with it.
+All of them are correct in the *future* tense today, so this is a tense change, not a correction.
+
+| Surface | How it updates |
+|---|---|
+| `fastlane/metadata/en-US/description.txt` | Manual, then pushed to ASC. **Live App Store copy — do not push without the owner saying so.** |
+| `README.md` | Manual. Lines about the compiler gate, the route table, and the toolchain paragraph. |
+| `WHATS_NEW.md`, `Docs/USER_CHANGELOG.md` | Manual. `OpenIntelligence/Resources/VersionHistory.md` must stay byte-identical to `USER_CHANGELOG.md`; `VersionHistoryTests` asserts it. |
+| `Docs/PRIVACY_AND_ROUTING.md`, `Docs/RELEASE_NOTES.md`, `Docs/ROADMAP.md` | Manual. |
+| In-app Settings copy | `OpenIntelligence/Features/Settings/HowItWorksView.swift` carries its own `compiler(>=6.4)` branch. |
+| `Docs/SHIPPED_VERSION.json` | Update `app_store` and `app_store_by_platform` only when a build is actually live, never when it is submitted. |
+| **gunzino.me** | Hand-maintained; the PCC sentence is manual. Only the version number auto-syncs, from the first numbered `CHANGELOG.md` heading. |
+| **FascinAIting.me** | Pulls the Notion roadmap nightly. Update Notion and the site follows; never hand-edit its `roadmap.json`. |
+| **gunnarguy.me** | Syncs this repository's docs daily. Update the README and the site follows — but its checkout steps set `continue-on-error: true`, so a failed sync reports success having changed nothing. Verify the page, not the run. |
+
+### Order that avoids advertising something that is not live yet
+
+Ship first, then claim. `Docs/SHIPPED_VERSION.json` exists because gunzino.me once advertised a
+version nobody could install, and `Docs/SHIPPED_CAPABILITIES.json` exists because nineteen places
+described PCC as live when it had never shipped. The copy change belongs *after* App Store approval,
+not after upload — approval is the event, submission is not.
+
 
 ## Claude context system
 

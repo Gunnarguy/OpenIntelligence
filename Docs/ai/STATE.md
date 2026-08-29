@@ -2,53 +2,45 @@
 
 Updated: 2026-08-28
 Branch/worktree: main (primary checkout, `~/Documents/GitHub/OpenIntelligence`)
-Last verified commit: eb432d3
+Last verified commit: 9d80e7d
 
 ## Objective
 
-Make a stage that silently drops data visible on any document, with no ground truth and no benchmark.
-Complete for the transitions inside `DocumentProcessor`; **uncommitted**, see Exact Next Action.
+None active. Three pieces of work completed and committed today: the governance enforcement layer,
+ingestion drop accounting, and a claims audit across every public surface.
 
 ## Status
 
-The governance work from earlier today is committed (`3d32a8b`, `eb432d3`). This is the first
-product change since, and the first Swift change since the enforcement layer was built.
+**Live on the App Store, read from ASC 2026-08-28:** iOS **5.0** (approved 2026-08-27), macOS
+**5.0.2** (approved 2026-08-28). Nothing in review. `v5.1` records exist for both platforms in
+`PREPARE_FOR_SUBMISSION`.
 
-**The plan's headline justification did not survive contact with the code, and the finding that
-replaced it is better.** The 55% truncation I cited happens at *embed* time (a 128-token cap against
-a 512-token model), downstream of everything measured here, and `DocumentProcessor.verifyTokenizerCounts`
-already catches that class behaviourally. What was actually missing is narrower and was sitting in
-plain sight.
+**The platforms have diverged and it keeps getting lost.** macOS carries 5.0.1 and 5.0.2 fixes that
+iOS has never received, so "shipped" and "fixed for the user" are not the same statement right now.
+`Docs/SHIPPED_VERSION.json` is the per-platform record.
+
+**Claims audit result: the public copy was already right; the internal docs were not.** All three
+websites, the App Store description, the README's PCC statements, `SHIPPED_VERSION.json` and
+`SHIPPED_CAPABILITIES.json` correctly describe PCC in the future tense. Four documents still said
+GitHub Actions builds releases, and two described a two-day-stale release state. All corrected.
 
 ## Completed
 
-1. **`verifyContentCoverage` computed the volume metric and compared only the vocabulary one.** That
-   function has two metrics. `coverage`, a set intersection of unique words, had a `< 90` threshold.
-   `charRatio`, the same comparison by character volume, was computed, interpolated into the
-   **healthy-path debug line**, and compared against nothing anywhere in the file. The two fail
-   differently and that is the point: unique vocabulary saturates long before content does, so
-   truncating the back half of a document leaves `coverage` above 90 while half the text is gone.
-   `charRatio` now has a floor of 90% and a ceiling of 200%, and both numbers print on every warning.
-   The function's own comment reads "This catches bugs where content is silently dropped during
-   chunking."
-2. **`IngestionStageLedger` records each transition, so a loss names its own stage.**
-   `verifyContentCoverage` is one end-to-end comparison across four stages and can only say text was
-   lost. The ledger bands each transition: chunking may exceed 1.0 because overlap repeats text,
-   while metadata sanitising and token-limit splitting must conserve characters **exactly**. That
-   last band is checked in **words**, not characters: a split raises the chunk count while keeping
-   content, so no count distinguishes a healthy split from a truncation, but the splitter also
-   discards every `.!?` separator and injects `[Part N]` markers, so characters are not conserved
-   either. It also flags a run where every chunk came out the same length past three chunks. Every
-   reading counts `chunk.text`, never `chunk.metadata.characterCount`.
-3. **That band was wrong in `6004d97` and is fixed in the follow-up.** It asserted exact character
-   conservation and would have fired on the first document containing an oversized chunk — a false
-   alarm inside the instrument built against false confidence. Found by reading
-   `splitOversizedChunkByTokens`, not by running it.
+1. **Governance enforcement layer** (`3d32a8b`, `eb432d3`). Path-aware pre-commit doc enforcement,
+   Notion write receipts, an obligation-based Stop hook, and an `InstructionsLoaded` log that
+   answers whether a rule actually loaded. It gated its first real Swift commit correctly.
+2. **Ingestion drop accounting** (`6004d97`, `9d80e7d`). `verifyContentCoverage` computed a volume
+   metric and compared only the vocabulary one; `IngestionStageLedger` now bands each transition in
+   the unit that stage conserves. The `token-limited` band was wrong on first commit and fixed the
+   same day.
+3. **Claims audit.** Corrected `README.md`, `Docs/ROADMAP.md`, `Docs/README.md`, `Docs/ai/RUNBOOK.md`,
+   `Docs/RELEASE_NOTES.md` and the note in `Docs/SHIPPED_CAPABILITIES.json`. Wrote the PCC enable-day
+   procedure into the runbook.
 
-Roadmap row, deliberately left **In Progress**:
-[A content-loss check computed the volume metric and compared only the vocabulary one](https://app.notion.com/p/3ca49a74d54f813da47dee8ad5cd8442)
-— `Future Backlog`. Suite-green does not close it; its own closing condition is an `[IngestionLedger]`
-line from a real document on device.
+Notion, this session: two rows created, three updated. The row
+[Documents tab blocked its own appearance](https://app.notion.com/3c949a74d54f81d0911ac74bc4dafa3e)
+was **deliberately left In Progress** — its fix shipped in 5.0.1, macOS only, so it is still live for
+every iOS user. A dated note on the row explains that.
 
 ## Active Constraints
 
@@ -64,6 +56,11 @@ line from a real document on device.
 - **Put 5.1 entries under `## 5.1`, not `## [Unreleased]`.** `ci_post_clone.sh` stamps
   `MARKETING_VERSION` from the first numbered heading and refuses to build when `[Unreleased]` holds
   entries above an uncut heading. `scripts/enforce_docs_hook.sh` now rejects it at commit time too.
+- **iOS 27 shipping does not enable PCC.** The gate is `#if compiler(>=6.4)`, resolved by the
+  compiler, not the device. Every shipped binary was built on Xcode 26.6 / Swift 6.3.3, so PCC is not
+  in it, and a user updating to iOS 27 runs that same binary. Enabling it needs an app release built
+  on Xcode 27 — and **both release guards are built to refuse that build**. See "Enabling Private
+  Cloud Compute" in `Docs/ai/RUNBOOK.md` before touching the gates.
 - **Do not remove the `unreleased` HTML comment from the `## 5.1` heading line until 5.1 ships.** It
   is the only record in this repository that the section is open, `repoos_router.py` reads it from
   that line alone, and removing it is what "cutting the release" means.
@@ -140,20 +137,20 @@ returns, pull the Xcode Cloud build log rather than guessing at a fix.
 
 ## Exact Next Action
 
-Commit the six files in Working Set. This is the first Swift commit since the enforcement layer was
-built, so `scripts/enforce_docs_hook.sh` gates it for real: it requires `Docs/INGESTION_PIPELINE.md`
-and `CHANGELOG.md`, both of which are already updated.
+None. All three pieces are committed and verified; the working tree is clean.
 
-```bash
-git add OpenIntelligence/Services/Document/Processing/IngestionStageLedger.swift OpenIntelligence/Services/Document/Processing/DocumentProcessor.swift OpenIntelligenceTests/Services/Document/Processing/IngestionStageLedgerTests.swift Docs/INGESTION_PIPELINE.md CHANGELOG.md Docs/ai/STATE.md
-```
+When 5.1 work starts, the open row that meets the release bar is
+[Six file families sync without NSFileCoordinator](https://app.notion.com/p/3ca49a74d54f8103b69be921f0335171)
+— the only one that loses user data.
 
-Then, to close the roadmap row: ingest one real document on device and read the log for
-`[IngestionLedger]`. A healthy line reads roughly `chunked 1.xx, sanitized 1.000, token-limited 1.0x`
-— `sanitized` is measured in characters, `token-limited` in words.
+**On PCC enable day (targeted at the iOS/macOS 27 public release):** read
+"Enabling Private Cloud Compute" in `Docs/ai/RUNBOOK.md` first. It lists both guards that must be
+inverted, every surface that states the claim, which of the three websites sync themselves, and the
+ordering rule — ship first, then claim, and approval is the event, not submission.
 
-If a warning fires, read the named stage before touching the band. `sanitized` below 1.000 means
-`sanitizeProcessedChunkMetadata` has started touching `chunk.text`, which it does not do today.
-`token-limited` below 0.99 means `splitOversizedChunkByTokens` is losing words rather than splitting
-them, which its two flush paths currently prevent. Widening a band to silence a warning is the one
-response that is always wrong.
+Two things are still unverified and neither is blocking:
+- `IngestionStageLedger` has never emitted on a real document. Ingest one on device and grep for
+  `[IngestionLedger]`.
+- The `Target Release` property cannot express a macOS point release (no `v5.0.1` / `v5.0.2`) and
+  cannot say "shipped on macOS, pending on iOS". Both stale rows found today drifted for that reason.
+  Adding an option or a per-platform property is the owner's call on a published database.
