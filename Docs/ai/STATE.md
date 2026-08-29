@@ -35,10 +35,15 @@ plain sight.
    `verifyContentCoverage` is one end-to-end comparison across four stages and can only say text was
    lost. The ledger bands each transition: chunking may exceed 1.0 because overlap repeats text,
    while metadata sanitising and token-limit splitting must conserve characters **exactly**. That
-   last band is the sharp one, because a split raises the chunk count while keeping every character,
-   so no count distinguishes a healthy split from a truncation. It also flags a run where every chunk
-   came out the same length past three chunks. Every reading counts `chunk.text`, never
-   `chunk.metadata.characterCount`.
+   last band is checked in **words**, not characters: a split raises the chunk count while keeping
+   content, so no count distinguishes a healthy split from a truncation, but the splitter also
+   discards every `.!?` separator and injects `[Part N]` markers, so characters are not conserved
+   either. It also flags a run where every chunk came out the same length past three chunks. Every
+   reading counts `chunk.text`, never `chunk.metadata.characterCount`.
+3. **That band was wrong in `6004d97` and is fixed in the follow-up.** It asserted exact character
+   conservation and would have fired on the first document containing an oversized chunk — a false
+   alarm inside the instrument built against false confidence. Found by reading
+   `splitOversizedChunkByTokens`, not by running it.
 
 Roadmap row, deliberately left **In Progress**:
 [A content-loss check computed the volume metric and compared only the vocabulary one](https://app.notion.com/p/3ca49a74d54f813da47dee8ad5cd8442)
@@ -144,6 +149,11 @@ git add OpenIntelligence/Services/Document/Processing/IngestionStageLedger.swift
 ```
 
 Then, to close the roadmap row: ingest one real document on device and read the log for
-`[IngestionLedger]`. A healthy line reads `chunked 1.xx, sanitized 1.000, token-limited 1.000`. If
-`sanitized` or `token-limited` is anything other than 1.000, that is a real defect this session
-found and did not fix, not a band that needs widening.
+`[IngestionLedger]`. A healthy line reads roughly `chunked 1.xx, sanitized 1.000, token-limited 1.0x`
+— `sanitized` is measured in characters, `token-limited` in words.
+
+If a warning fires, read the named stage before touching the band. `sanitized` below 1.000 means
+`sanitizeProcessedChunkMetadata` has started touching `chunk.text`, which it does not do today.
+`token-limited` below 0.99 means `splitOversizedChunkByTokens` is losing words rather than splitting
+them, which its two flush paths currently prevent. Widening a band to silence a warning is the one
+response that is always wrong.

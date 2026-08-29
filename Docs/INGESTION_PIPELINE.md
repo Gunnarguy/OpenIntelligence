@@ -415,12 +415,24 @@ records each transition separately and gives each one a band, so a loss names it
 | Transition | Band | Why |
 |---|---|---|
 | extraction → chunked | ≥ 0.98 | overlap repeats text so the ratio may exceed 1.0; normalisation trims a little |
-| chunked → sanitized | exactly 1.0 | that pass sanitises *metadata*. If it moves the text, its name is wrong |
-| sanitized → token-limited | exactly 1.0 | that pass **splits** oversized chunks rather than truncating them |
+| chunked → sanitized | exactly 1.0 of characters | that pass rebuilds `ChunkMetadata` and never reads or writes `chunk.text` |
+| sanitized → token-limited | at least 0.99 of **words** | that pass splits rather than truncates, but it is not character-preserving |
 
-The last row is the sharpest. A split raises the chunk count while conserving every character, so a
-count alone cannot tell a healthy split from a truncation — both move the number and only one keeps
-the text. Conservation separates them.
+The last row is the sharp one, and it is checked in the wrong unit if you are not careful. A split
+raises the chunk count while conserving content, so a count alone cannot tell a healthy split from a
+truncation — both move the number and only one keeps the text.
+
+But `splitOversizedChunkByTokens` separates on `.!?\n` using `components(separatedBy:)`, which
+**discards every separator**, then rejoins with `". "`, injects `[Part N]` markers, and drops
+blank-line runs entirely. No word is lost — both flush paths are present — but the character count
+moves in both directions. This band was written as exact-characters on 2026-08-28 and corrected the
+same day, before it ever ran on a real document: it would have fired on the first document
+containing an oversized chunk, which is a false alarm inside the instrument built to stop false
+confidence. Words are what the stage conserves, so words are what is checked.
+
+**Noted and not changed:** that the splitter rewrites `!` and `?` to `.` and collapses blank lines is
+a real property of the text that reaches embedding. Changing it changes chunk content and therefore
+every vector, so it is a separate decision with its own blast radius, not a drive-by fix.
 
 The ledger also flags a run where every chunk came out the same length past three chunks. A stage
 that has stopped varying with its input can still conserve characters in aggregate, so no ratio sees

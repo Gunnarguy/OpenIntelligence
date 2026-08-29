@@ -67,6 +67,12 @@ struct IngestionStageReading: Sendable, Equatable {
     let chunkCount: Int
     /// Characters the stage was holding, counted from the text rather than from any recorded count.
     let characterCount: Int
+    /// Whitespace-separated words the stage was holding, counted the same way.
+    ///
+    /// Both units are recorded because the stages conserve different things. A stage that rewrites
+    /// separators changes the character count without losing a word, and asserting characters there
+    /// produces a false alarm; a stage that drops content loses both.
+    let wordCount: Int
 }
 
 /// What a stage was allowed to do to the text passing through it.
@@ -75,13 +81,24 @@ struct IngestionStageReading: Sendable, Equatable {
 /// document, and each is written with the reason it holds, so a future change either preserves the
 /// reason or changes the band deliberately.
 enum IngestionConservation: Sendable, Equatable {
-    /// Characters must survive exactly. Used for stages that rearrange or split but never remove.
+    /// Characters must survive exactly. Only for stages that do not touch the text at all.
     case exact
-    /// Characters may be lost, down to `floor` of the input, and may exceed 1.0.
+    /// Characters may fall to `floor` of the input, and may exceed 1.0.
     ///
-    /// Chunking is allowed to exceed 1.0 because overlap deliberately repeats text, and allowed to
-    /// fall slightly short because normalisation drops whitespace.
+    /// Chunking exceeds 1.0 because overlap deliberately repeats text.
     case atLeast(Double)
+    /// WORDS may fall to `floor` of the input, and may exceed 1.0.
+    ///
+    /// The unit matters, and getting it wrong is how this file shipped a false alarm on 2026-08-28.
+    /// `splitOversizedChunkByTokens` splits on `.!?\n` with `components(separatedBy:)`, which
+    /// DISCARDS every separator, then rejoins with `". "` and injects `[Part N]` markers. Blank-line
+    /// runs collapse to nothing. No word is lost — both flush paths are present — but the character
+    /// count moves in both directions and cannot be asserted. Words are the unit that survives, so
+    /// words are the unit checked.
+    case atLeastWords(Double)
+
+    /// Which reading this band applies to.
+    var usesWords: Bool { if case .atLeastWords = self { return true } else { return false } }
 
     func admits(_ ratio: Double) -> Bool {
         switch self {
@@ -91,15 +108,16 @@ enum IngestionConservation: Sendable, Equatable {
             // changes the count by one or two on a long document. The tolerance is tight enough
             // that a dropped sentence still fails.
             return abs(ratio - 1.0) <= 0.001
-        case .atLeast(let floor):
+        case .atLeast(let floor), .atLeastWords(let floor):
             return ratio >= floor
         }
     }
 
     var description: String {
         switch self {
-        case .exact: return "exactly 1.0"
-        case .atLeast(let floor): return "at least \(String(format: "%.3f", floor))"
+        case .exact: return "exactly 1.0 of its characters"
+        case .atLeast(let floor): return "at least \(String(format: "%.3f", floor)) of its characters"
+        case .atLeastWords(let floor): return "at least \(String(format: "%.3f", floor)) of its words"
         }
     }
 }
@@ -120,7 +138,7 @@ struct IngestionTransition: Sendable {
     /// One line, shaped so a device log can be grepped for it.
     var summary: String {
         String(
-            format: "%@ → %@ kept %.4f of its characters (%d → %d chars, %d → %d chunks), expected %@",
+            format: "%@ → %@ kept %.4f (%d → %d chars, %d → %d chunks), expected %@",
             from, to, ratio, charactersIn, charactersOut, chunksIn, chunksOut, conservation.description
         )
     }
@@ -152,10 +170,19 @@ struct IngestionStageLedger: Sendable {
         case sanitized
         /// After `enforceTokenLimitOnChunks`.
         ///
-        /// `.exact`. The stage SPLITS oversized chunks rather than truncating them, so chunk count
-        /// may rise while every character survives. That makes conservation the exactly right
-        /// invariant: a count alone cannot distinguish a split from a truncation, because both move
-        /// the number, and only one of them keeps the text.
+        /// Checked in WORDS, not characters, and this band was wrong when first written.
+        ///
+        /// The stage splits oversized chunks rather than truncating them, so chunk count may rise
+        /// while the content survives — which is exactly why a count cannot audit it, since a split
+        /// and a truncation both move the number and only one keeps the text. But the split is not
+        /// character-preserving: `splitOversizedChunkByTokens` separates on `.!?\n` with
+        /// `components(separatedBy:)`, discarding every separator, rejoins with `". "`, injects
+        /// `[Part N]` markers, and drops blank-line runs entirely. Asserting `.exact` on characters
+        /// here fires on the first document with an oversized chunk, which is a false alarm in the
+        /// instrument built to stop false confidence.
+        ///
+        /// Words are what actually survive. The floor sits just below 1.0 rather than at it because
+        /// the markers only ever add, so the true statement is "no word is lost".
         case tokenLimited = "token-limited"
 
         var conservationFromPredecessor: IngestionConservation {
@@ -163,7 +190,7 @@ struct IngestionStageLedger: Sendable {
             case .extraction: return .exact
             case .chunked: return .atLeast(0.98)
             case .sanitized: return .exact
-            case .tokenLimited: return .exact
+            case .tokenLimited: return .atLeastWords(0.99)
             }
         }
     }
@@ -176,9 +203,14 @@ struct IngestionStageLedger: Sendable {
     }
 
     /// Record the text handed to chunking. Call once, first.
-    mutating func recordExtraction(characters: Int) {
+    mutating func recordExtraction(characters: Int, words: Int) {
         readings.append(
-            IngestionStageReading(stage: Stage.extraction.rawValue, chunkCount: 0, characterCount: characters)
+            IngestionStageReading(
+                stage: Stage.extraction.rawValue,
+                chunkCount: 0,
+                characterCount: characters,
+                wordCount: words
+            )
         )
     }
 
@@ -191,7 +223,8 @@ struct IngestionStageLedger: Sendable {
             IngestionStageReading(
                 stage: stage.rawValue,
                 chunkCount: chunkTexts.count,
-                characterCount: chunkTexts.reduce(0) { $0 + $1.count }
+                characterCount: chunkTexts.reduce(0) { $0 + $1.count },
+                wordCount: chunkTexts.reduce(0) { $0 + $1.split(whereSeparator: \.isWhitespace).count }
             )
         )
         uniformChunkLengths = chunkTexts.count > 3 && Set(chunkTexts.map(\.count)).count == 1
@@ -204,15 +237,16 @@ struct IngestionStageLedger: Sendable {
             uniqueKeysWithValues: Stage.allCases.map { ($0.rawValue, $0.conservationFromPredecessor) }
         )
         return zip(readings, readings.dropFirst()).map { previous, current in
-            IngestionTransition(
+            let band = bands[current.stage] ?? .atLeast(0)
+            let inUnits = band.usesWords ? previous.wordCount : previous.characterCount
+            let outUnits = band.usesWords ? current.wordCount : current.characterCount
+            return IngestionTransition(
                 from: previous.stage,
                 to: current.stage,
-                // A zero-character input is not a violation of anything, it is an empty document.
-                // Reporting 1.0 keeps an empty file out of the anomaly list; the chunk-count checks
-                // below are what speak for a document that produced nothing.
-                ratio: previous.characterCount == 0 ? 1.0
-                    : Double(current.characterCount) / Double(previous.characterCount),
-                conservation: bands[current.stage] ?? .atLeast(0),
+                // A zero input is not a violation of anything, it is an empty document. Reporting 1.0
+                // keeps an empty file out of the anomaly list.
+                ratio: inUnits == 0 ? 1.0 : Double(outUnits) / Double(inUnits),
+                conservation: band,
                 charactersIn: previous.characterCount,
                 charactersOut: current.characterCount,
                 chunksIn: previous.chunkCount,

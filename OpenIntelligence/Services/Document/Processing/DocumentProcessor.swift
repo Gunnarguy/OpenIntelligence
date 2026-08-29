@@ -829,7 +829,10 @@ class DocumentProcessor {
         // FINISHED chunks and so can only say that text was lost; this records each transition, so a
         // loss names the stage that caused it. See IngestionStageLedger.swift.
         var stageLedger = IngestionStageLedger(documentName: filename)
-        stageLedger.recordExtraction(characters: chunkableText.count)
+        stageLedger.recordExtraction(
+            characters: chunkableText.count,
+            words: chunkableText.split(whereSeparator: \.isWhitespace).count
+        )
 
         let documentCategory = classifyDocumentCategory(
             text: chunkableText,

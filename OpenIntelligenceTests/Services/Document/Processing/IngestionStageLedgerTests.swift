@@ -41,19 +41,49 @@ final class IngestionStageLedgerTests: XCTestCase {
         XCTAssertFalse(chunking.admits(0.90))
     }
 
-    func testTheStagesThatMustNotLoseTextAreDeclaredExact() {
-        // The two post-passes rearrange and split. Neither has any business removing characters, and
-        // if one starts to, the band is what fails rather than the pipeline going quiet.
+    func testEachStageIsCheckedInTheUnitItActuallyConserves() {
+        // `sanitizeProcessedChunkMetadata` rebuilds ChunkMetadata and never reads or writes
+        // `chunk.text`, so characters are exactly conserved and anything else is a defect.
         XCTAssertEqual(IngestionStageLedger.Stage.sanitized.conservationFromPredecessor, .exact)
-        XCTAssertEqual(IngestionStageLedger.Stage.tokenLimited.conservationFromPredecessor, .exact)
+
+        // `splitOversizedChunkByTokens` is NOT character-preserving: it separates on `.!?\n` with
+        // `components(separatedBy:)`, which discards every separator, rejoins with ". ", injects
+        // `[Part N]` markers and drops blank-line runs. The first version of this file asserted
+        // `.exact` here and would have fired on the first document containing an oversized chunk.
+        // Words are what survive.
+        XCTAssertEqual(IngestionStageLedger.Stage.tokenLimited.conservationFromPredecessor, .atLeastWords(0.99))
+        XCTAssertTrue(IngestionStageLedger.Stage.tokenLimited.conservationFromPredecessor.usesWords)
+
         XCTAssertEqual(IngestionStageLedger.Stage.chunked.conservationFromPredecessor, .atLeast(0.98))
+        XCTAssertFalse(IngestionStageLedger.Stage.chunked.conservationFromPredecessor.usesWords)
+    }
+
+    func testTheSplittersRealRewriteIsNotReportedAsALoss() {
+        // The regression this file shipped and had to fix. Three sentences become three parts: every
+        // terminator is replaced, ". " is inserted, and a "[Part N]" marker is added to each. The
+        // character count moves; not one word is lost. This must be silent.
+        var ledger = IngestionStageLedger(documentName: "rewritten-by-splitter.pdf")
+        let original = "alpha beta gamma. delta epsilon zeta! eta theta iota?"
+        ledger.recordExtraction(characters: original.count, words: 9)
+        ledger.record(.chunked, chunkTexts: [original])
+        ledger.record(.sanitized, chunkTexts: [original])
+        ledger.record(.tokenLimited, chunkTexts: [
+            "[Part 1]\nalpha beta gamma. ",
+            "[Part 2]\ndelta epsilon zeta. ",
+            "[Part 3]\neta theta iota. "
+        ])
+
+        XCTAssertTrue(
+            ledger.anomalies.isEmpty,
+            "the splitter adds markers and rewrites separators; no word was lost, so nothing should fire"
+        )
     }
 
     // MARK: - Transitions
 
     func testAHealthyPipelineProducesNoAnomalies() {
         var ledger = IngestionStageLedger(documentName: "healthy.pdf")
-        ledger.recordExtraction(characters: 1000)
+        ledger.recordExtraction(characters: 1000, words: 200)
         // Overlap pushes the chunked total above the source, which is expected.
         ledger.record(.chunked, chunkTexts: [String(repeating: "a", count: 600), String(repeating: "b", count: 550)])
         ledger.record(.sanitized, chunkTexts: [String(repeating: "a", count: 600), String(repeating: "b", count: 550)])
@@ -68,13 +98,17 @@ final class IngestionStageLedgerTests: XCTestCase {
 
     func testASplitterThatTruncatesIsCaughtEvenThoughTheChunkCountRises() {
         // The failure this type exists for. Chunk count going UP is what a healthy split looks like,
-        // so any check based on counts alone reads this as success.
+        // so any check based on counts alone reads this as success. Measured in words, because that
+        // is the unit the splitter conserves.
         var ledger = IngestionStageLedger(documentName: "truncating-splitter.pdf")
-        ledger.recordExtraction(characters: 1000)
-        ledger.record(.chunked, chunkTexts: [String(repeating: "a", count: 1000)])
-        ledger.record(.sanitized, chunkTexts: [String(repeating: "a", count: 1000)])
+        let full = (1...100).map { "word\($0)" }.joined(separator: " ")
+        ledger.recordExtraction(characters: full.count, words: 100)
+        ledger.record(.chunked, chunkTexts: [full])
+        ledger.record(.sanitized, chunkTexts: [full])
+        // Half the words silently dropped while the chunk count rose from one to two.
         ledger.record(.tokenLimited, chunkTexts: [
-            String(repeating: "a", count: 250), String(repeating: "a", count: 200)
+            (1...25).map { "word\($0)" }.joined(separator: " "),
+            (26...50).map { "word\($0)" }.joined(separator: " ")
         ])
 
         let anomalies = ledger.anomalies
@@ -89,7 +123,7 @@ final class IngestionStageLedgerTests: XCTestCase {
         // The whole point of measuring transitions rather than end-to-end: the report must name the
         // stage, not merely report that something upstream lost text.
         var ledger = IngestionStageLedger(documentName: "lossy-sanitiser.pdf")
-        ledger.recordExtraction(characters: 1000)
+        ledger.recordExtraction(characters: 1000, words: 100)
         ledger.record(.chunked, chunkTexts: [String(repeating: "a", count: 1000)])
         ledger.record(.sanitized, chunkTexts: [String(repeating: "a", count: 700)])
         ledger.record(.tokenLimited, chunkTexts: [String(repeating: "a", count: 700)])
@@ -101,7 +135,7 @@ final class IngestionStageLedgerTests: XCTestCase {
         // A file that extracted nothing is a different problem, reported elsewhere. Dividing by it
         // must not manufacture a conservation failure on top.
         var ledger = IngestionStageLedger(documentName: "empty.txt")
-        ledger.recordExtraction(characters: 0)
+        ledger.recordExtraction(characters: 0, words: 0)
         ledger.record(.chunked, chunkTexts: [])
         XCTAssertTrue(ledger.anomalies.isEmpty)
     }
@@ -112,7 +146,7 @@ final class IngestionStageLedgerTests: XCTestCase {
         // A stage that has stopped varying with its input can still conserve characters perfectly,
         // so no ratio can see it. Only the distribution can.
         var ledger = IngestionStageLedger(documentName: "constant-chunker.pdf")
-        ledger.recordExtraction(characters: 2000)
+        ledger.recordExtraction(characters: 2000, words: 400)
         ledger.record(.chunked, chunkTexts: Array(repeating: String(repeating: "a", count: 500), count: 4))
         XCTAssertTrue(ledger.hasDegenerateChunkDistribution)
         XCTAssertTrue(ledger.anomalies.isEmpty, "characters are conserved; only the distribution is wrong")
@@ -120,7 +154,7 @@ final class IngestionStageLedgerTests: XCTestCase {
 
     func testTwoEqualChunksAreACoincidenceAndNotFlagged() {
         var ledger = IngestionStageLedger(documentName: "short.txt")
-        ledger.recordExtraction(characters: 1000)
+        ledger.recordExtraction(characters: 1000, words: 200)
         ledger.record(.chunked, chunkTexts: Array(repeating: String(repeating: "a", count: 500), count: 2))
         XCTAssertFalse(ledger.hasDegenerateChunkDistribution)
     }
@@ -132,7 +166,7 @@ final class IngestionStageLedgerTests: XCTestCase {
         // agreeing with a broken counter, and the tokenizer defect is the standing proof that a
         // counter in this pipeline can be wrong while looking plausible.
         var ledger = IngestionStageLedger(documentName: "counted.txt")
-        ledger.recordExtraction(characters: 10)
+        ledger.recordExtraction(characters: 10, words: 1)
         ledger.record(.chunked, chunkTexts: ["abcdefghij"])
         XCTAssertEqual(ledger.readings.last?.characterCount, 10)
         XCTAssertEqual(ledger.transitions.first?.ratio, 1.0)
