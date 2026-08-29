@@ -178,14 +178,24 @@ without help.
 - **fascinaiting.me** rendered `roadmap.json` pulled at 00:11Z, which still held one **`v5.0` row at
   `In Progress`** — the Documents-tab row closed later that day. Re-ran `notion_sync.yml`.
 
-Two workflow fragilities found while doing it, neither fixed, both in other repositories:
+Two workflow fragilities found while doing it. **Both are now fixed**, in their own repositories:
 
-1. `Fascinaiting/notion_sync.yml` pushes with no `pull --rebase`. The first re-run **failed on a
-   push race** with a concurrent commit to `main`, having already regenerated the file correctly.
-   On its nightly schedule that failure mode is silent: the roadmap simply stops updating.
-2. `Gunnarguy-Portfolio/sync-projects.yml` sets `continue-on-error: true` on every source checkout,
-   so a failed checkout still reports success having synced nothing. It behaved today, but a green
-   run is not evidence. **Verify the served content, not the run.**
+1. `Fascinaiting/notion_sync.yml` pushed with no `pull --rebase` and **failed on a push race** with
+   a concurrent commit to `main`, having already regenerated the file correctly. On its nightly
+   schedule that failure is silent: the roadmap simply stops updating and the site keeps serving the
+   last good pull. Fixed in `Fascinaiting@4461907e` — rebase and retry up to three times, fail loudly
+   after. Verified green, log reads `Pushed on attempt 1`.
+2. `Gunnarguy-Portfolio/sync-projects.yml` set `continue-on-error: true` on every source checkout, so
+   a failed checkout still reported success having synced nothing. Fixed in
+   `Gunnarguy-Portfolio@265306a` — a verify step records which sources landed and their HEAD sha, a
+   final step fails the run if any did not, and the push retries. `continue-on-error` is kept
+   deliberately: removing it trades a silent partial failure for a total one. Verified green, all
+   five sources reported with shas, guard step correctly `skipped`.
+
+   **The red path is unproven.** Both fixes were verified on the success path only; deliberately
+   breaking a checkout to watch the guard fire was not worth committing a broken workflow for. The
+   guard is wired and its condition evaluates — it is not absent — but the first real failure is
+   still the first real test.
 
 Also local, not blocking: `Gunnarguy-Portfolio` has uncommitted `styles.css` changes that block
 `git pull`, so that checkout silently lags `origin/main`.
