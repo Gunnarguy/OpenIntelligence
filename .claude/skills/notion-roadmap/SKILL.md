@@ -90,9 +90,25 @@ Never invent an option. These are the complete lists.
 | `Status` | `To Do`, `In Progress`, `Completed`. There is no "Shipped". |
 | `Component` | `Ingestion`, `Chunking`, `Indexing`, `Retrieval`, `Orchestration`, `Shortcuts`, `General`, `UI`, `Infrastructure` |
 | `Priority` | `High`, `Medium`, `Low` |
-| `Target Release` | `v4.0`, `v4.1`, `v4.2`, `v4.3`, `v4.3.1`, `v4.4`, `v4.5 (Phase 2B)`, `v4.6`, `v4.7 (iOS) / v3.0 (macOS)`, `v4.8 (iOS)`, `v4.9`, `v5.0`, `v5.1`, `Future Backlog` |
+| `Target Release` | `v4.0`, `v4.1`, `v4.2`, `v4.3`, `v4.3.1`, `v4.4`, `v4.5 (Phase 2B)`, `v4.6`, `v4.7 (iOS) / v3.0 (macOS)`, `v4.8 (iOS)`, `v4.9`, `v5.0`, `v5.0.1`, `v5.0.2`, `v5.1`, `Future Backlog` |
+| `Shipped On` | Multi-select: `iOS`, `macOS`. Added 2026-08-28. Empty means not recorded, **not** "not shipped". |
 | `Target OS` | `All (26.5 & 27)`, `iOS/macOS 26.5 Only`, `iOS/macOS 27+ Only`. Optional; leave unset rather than asserting one for dev tooling. |
 | Dates | `Added`, `Completed`, ISO dates, set through `date:<name>:start` |
+
+## `Shipped On`, and why a single `Target Release` was not enough
+
+The platforms diverged on 2026-08-26 and have not re-converged: macOS reached 5.0.2 while iOS is
+still on 5.0, so macOS carries fixes iOS has never received. Before this property existed a row for
+such a fix had no honest state — `Completed` lied to an iPhone user, `In Progress` lied to a Mac
+user — and two rows silently drifted for exactly that reason.
+
+Set `Shipped On` to the platforms where users can actually install the fix, which is not the same as
+where it was written. `Target Release` stays the version it landed in; `Shipped On` is where that
+version is live. A row can legitimately read `Target Release: v5.0.1`, `Shipped On: macOS`.
+
+`v5.0.1` and `v5.0.2` were added 2026-08-28 for the same reason: both are real macOS releases, and
+without them a macOS point-release fix had to be filed against `v5.0` or `Future Backlog`, neither
+of which is true.
 
 The two split-numbered `Target Release` options are historical. From 4.9 onward both platforms share
 one version, so new rows use a single label such as `v5.1` and never a split one.

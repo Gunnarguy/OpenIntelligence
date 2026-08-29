@@ -151,6 +151,15 @@ ordering rule — ship first, then claim, and approval is the event, not submiss
 Two things are still unverified and neither is blocking:
 - `IngestionStageLedger` has never emitted on a real document. Ingest one on device and grep for
   `[IngestionLedger]`.
-- The `Target Release` property cannot express a macOS point release (no `v5.0.1` / `v5.0.2`) and
-  cannot say "shipped on macOS, pending on iOS". Both stale rows found today drifted for that reason.
-  Adding an option or a per-platform property is the owner's call on a published database.
+- **One semantic decision is open.** The roadmap now has `Shipped On`, so
+  [the Documents-tab row](https://app.notion.com/3c949a74d54f81d0911ac74bc4dafa3e) could move to
+  `Completed` with `Shipped On: macOS` — the work is done and live on macOS, and the iOS gap is now
+  expressible rather than hidden. It is still `In Progress` with a dated note saying why, written
+  before the property existed. Changing it means deciding that `Status` tracks the work and
+  `Shipped On` tracks reach; leaving it means `Status` waits for every platform. Either is coherent;
+  the board should pick one and say so in the skill.
+- `Shipped On` is populated on two rows only, both verified. Everywhere else it is empty, which
+  means *not recorded*, not *not shipped*. A bulk backfill is possible — every `Completed` row
+  targeted `v5.0` or earlier shipped to both platforms, except the split-numbered `v4.7 (iOS) /
+  v3.0 (macOS)` and `v4.8 (iOS)` options — but that is 200+ writes asserting a per-row fact, and it
+  was not done.
