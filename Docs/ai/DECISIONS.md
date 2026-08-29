@@ -575,3 +575,33 @@ owner is the only person who has run it. **The app itself never misled anyone:**
 reads that snapshot, so nobody was offered PCC and then failed. The defect was confined to outward
 copy, corrected for marketing on 2026-08-21 and for in-app copy in `8f76398`.
 `[evidence_level: proven, confidence: exact, evidence_source: local compile probes against MacOSX26.5.sdk vs MacOSX27.0.sdk; swift-book Statements.md; Apple Xcode 26.6 and Xcode 27 beta 6 release notes; 21-agent verification pass]`
+
+## 2026-08-28 — `Status` tracks the work, `Shipped On` tracks reach
+
+**Context.** The platforms diverged on 2026-08-26 and have not re-converged: macOS reached 5.0.2
+while iOS is on 5.0, so macOS carries fixes iOS has never received. `CLAUDE.md` said a row moves to
+`Completed` only when its behaviour is verified where the defect appeared. Under that rule a fix
+verified and live on the Mac had **no honest state**: `Completed` lies to an iPhone user, `In
+Progress` lies to a Mac user. `Target Release` was also a single value whose options jumped from
+`v5.0` to `v5.1`, so a macOS point-release fix had to be filed against `v5.0` or `Future Backlog`,
+neither true. Two rows drifted for exactly this reason and were found by a claims audit.
+
+**Decision.** `Status` tracks whether the work is done. A new `Shipped On` multi-select (`iOS`,
+`macOS`) tracks where users can actually install it. A verified fix live on one platform is
+`Completed` with `Shipped On` naming that platform, not held open because the other platform has not
+had a release. `v5.0.1` and `v5.0.2` were added as `Target Release` options. Empty `Shipped On` means
+*not recorded*, never *not shipped*.
+
+**Alternatives rejected.** Keeping `Status` open until every platform ships — rows sit open on a
+technicality, which is what caused the drift. Encoding the platform in `Target Release` — it is a
+single-value select, so it cannot express "shipped on one, pending on the other". A per-platform
+status property — two `Status` columns invites them disagreeing about the same work.
+
+**Consequences.** The closure rule now lives in three places that must move together: `CLAUDE.md`,
+`.claude/skills/notion-roadmap/SKILL.md`, `.agents/rules/01-docs-and-notion-sync.md`. Backfill was
+taken from the changelog's own platform annotations and stops where the evidence stops: 88 rows set,
+and the 68 rows targeted `v4.0`–`v4.5` left empty because the only macOS versions documented anywhere
+in this repository are 2.5, 3.0, 4.8, 5.0 and 5.0.2, the earliest tied to iOS 4.6. The `v4.8 (iOS)`
+rows are `iOS, macOS` despite their label: iOS 4.8 was developer-rejected and never shipped, macOS
+4.8 was approved, and the iOS 4.9 binary carries every 4.8 entry.
+`[evidence_level: artifact_derived, confidence: exact, evidence_source: CHANGELOG heading annotations for 4.6/4.7/4.9; the 4.9 heading comment on the iOS 4.8 rejection; Docs/SHIPPED_VERSION.json; per-option row counts before and after the schema change, 224 rows unchanged]`

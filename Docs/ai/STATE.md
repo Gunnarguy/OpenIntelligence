@@ -1,201 +1,124 @@
 # Current State
 
 Updated: 2026-08-28
-Branch/worktree: main (primary checkout, `~/Documents/GitHub/OpenIntelligence`)
-Last verified commit: 786b70d
+Branch/worktree: main (primary checkout)
+Last verified commit: 81add91
 
 ## Objective
 
-None active. Three pieces of work completed and committed today: the governance enforcement layer,
-ingestion drop accounting, and a claims audit across every public surface.
+None active. Three objectives ran to completion this session and all are committed, pushed and
+verified. A fresh session should ask what to pick up, or take a roadmap row.
 
 ## Status
 
-**Live on the App Store, read from ASC 2026-08-28:** iOS **5.0** (approved 2026-08-27), macOS
-**5.0.2** (approved 2026-08-28). Nothing in review. `v5.1` records exist for both platforms in
-`PREPARE_FOR_SUBMISSION`.
+**Live on the App Store**, read from App Store Connect 2026-08-28: iOS **5.0** (approved 08-27),
+macOS **5.0.2** (approved 08-28). Nothing is in review. `v5.1` records exist for both platforms in
+`PREPARE_FOR_SUBMISSION` and have not shipped.
 
-**The platforms have diverged and it keeps getting lost.** macOS carries 5.0.1 and 5.0.2 fixes that
-iOS has never received, so "shipped" and "fixed for the user" are not the same statement right now.
-`Docs/SHIPPED_VERSION.json` is the per-platform record.
+**The platforms have diverged and it keeps causing errors.** macOS carries 5.0.1 and 5.0.2 fixes iOS
+has never received, so "shipped" and "fixed for the user" are different statements.
+`Docs/SHIPPED_VERSION.json` is the per-platform record; the Notion `Shipped On` property is the
+per-row one.
 
-**Claims audit result: the public copy was already right; the internal docs were not.** All three
-websites, the App Store description, the README's PCC statements, `SHIPPED_VERSION.json` and
-`SHIPPED_CAPABILITIES.json` correctly describe PCC in the future tense. Four documents still said
-GitHub Actions builds releases, and two described a two-day-stale release state. All corrected.
+**Public claims are accurate.** All three websites, the App Store description, `README.md`,
+`SHIPPED_VERSION.json` and `SHIPPED_CAPABILITIES.json` describe PCC correctly in the future tense and
+5.0 correctly as shipped. Verified live on 2026-08-28 after the sync fixes below.
 
 ## Completed
 
-1. **Governance enforcement layer** (`3d32a8b`, `eb432d3`). Path-aware pre-commit doc enforcement,
-   Notion write receipts, an obligation-based Stop hook, and an `InstructionsLoaded` log that
-   answers whether a rule actually loaded. It gated its first real Swift commit correctly.
+1. **Governance enforcement layer** (`3d32a8b`, `eb432d3`). `scripts/required_docs.sh` is the single
+   executable path-to-document table; `scripts/enforce_docs_hook.sh` fails a commit whose staged
+   source lacks its required docs and enforces `ci_post_clone.sh`'s empty-`[Unreleased]` invariant at
+   commit time. `.claude/hooks/notion-receipt.sh` receipts real Notion writes. The Stop hook checks
+   three obligations, not one. An `InstructionsLoaded` hook logs which rule files actually loaded.
 2. **Ingestion drop accounting** (`6004d97`, `9d80e7d`). `verifyContentCoverage` computed a volume
-   metric and compared only the vocabulary one; `IngestionStageLedger` now bands each transition in
-   the unit that stage conserves. The `token-limited` band was wrong on first commit and fixed the
-   same day.
-3. **Claims audit.** Corrected `README.md`, `Docs/ROADMAP.md`, `Docs/README.md`, `Docs/ai/RUNBOOK.md`,
-   `Docs/RELEASE_NOTES.md` and the note in `Docs/SHIPPED_CAPABILITIES.json`. Wrote the PCC enable-day
-   procedure into the runbook.
-
-Notion, this session: two rows created, three updated. The row
-[Documents tab blocked its own appearance](https://app.notion.com/3c949a74d54f81d0911ac74bc4dafa3e)
-was **deliberately left In Progress** — its fix shipped in 5.0.1, macOS only, so it is still live for
-every iOS user. A dated note on the row explains that.
+   metric (`charRatio`) and asserted only on the vocabulary one, so a 55% volume loss could pass
+   while unique-word coverage stayed above 90%. `IngestionStageLedger` now bands each transition in
+   the unit that stage actually conserves. **The `token-limited` band was wrong on first commit and
+   fixed the same day** — it asserted exact character conservation, and
+   `splitOversizedChunkByTokens` discards every `.!?` separator via `components(separatedBy:)`.
+3. **Claims audit and doc corrections** (`d5e9310`). Four documents said GitHub Actions builds
+   releases, including `README.md` linking to a workflow file that no longer exists and
+   `Docs/ai/RUNBOOK.md` telling a future session to ship with it. Corrected, plus a written PCC
+   enable-day procedure.
+4. **Roadmap schema and semantics** (`6f0620f`, `786b70d`). Added `v5.0.1`/`v5.0.2` and a `Shipped On`
+   multi-select; backfilled 88 rows. Rationale in `Docs/ai/DECISIONS.md` 2026-08-28.
+5. **Website sync repair.** Both public sites were serving stale generated artifacts. Root cause was
+   that the day's commits were unpushed, so the portfolio sync had nothing to copy. Both sync
+   workflows had silent-failure modes; both fixed in their own repositories (see Blockers).
 
 ## Active Constraints
 
-- **The Xcode Cloud workflow is pinned to Xcode 26.6 (17F113) and must not go back to "Latest
-  Release".** Twelve sites sit behind `#if compiler(>=6.4)`. Measured 2026-08-28: Xcode 26.6 ships
-  Swift 6.3.3 so PCC compiles **out**; Xcode 27 ships Swift 6.4 so it compiles **in**, contradicting
-  the App Store description, the README and the in-app copy. Xcode 27 is at beta 6, so "Latest
-  Release" becomes it silently. `ci_scripts/ci_post_xcodebuild.sh` is the backstop proving the pin
-  still holds — verified against a real Xcode 27 binary where it found 18 PCC symbols and exited 1.
-- **`app_store` in `Docs/SHIPPED_VERSION.json` stays at `5.0`** while iOS lags. macOS is 5.0.2.
-  Per-platform truth lives in `app_store_by_platform`; understating is the safe direction and is why
-  that file exists.
-- **Put 5.1 entries under `## 5.1`, not `## [Unreleased]`.** `ci_post_clone.sh` stamps
-  `MARKETING_VERSION` from the first numbered heading and refuses to build when `[Unreleased]` holds
-  entries above an uncut heading. `scripts/enforce_docs_hook.sh` now rejects it at commit time too.
 - **iOS 27 shipping does not enable PCC.** The gate is `#if compiler(>=6.4)`, resolved by the
-  compiler, not the device. Every shipped binary was built on Xcode 26.6 / Swift 6.3.3, so PCC is not
-  in it, and a user updating to iOS 27 runs that same binary. Enabling it needs an app release built
-  on Xcode 27 — and **both release guards are built to refuse that build**. See "Enabling Private
-  Cloud Compute" in `Docs/ai/RUNBOOK.md` before touching the gates.
-- **Do not remove the `unreleased` HTML comment from the `## 5.1` heading line until 5.1 ships.** It
-  is the only record in this repository that the section is open, `repoos_router.py` reads it from
-  that line alone, and removing it is what "cutting the release" means.
-- **`scripts/required_docs.sh` and the table in `.agents/rules/01-docs-and-notion-sync.md` are one
-  fact in two files.** Change both in the same edit; the script is the copy that gets obeyed.
-- **Paths in `ci_scripts/` must resolve from `$0`, not the working directory.** See Blockers.
-- **No `xcodebuild test` runs in CI any more.** The Xcode Cloud TestFlight entries are post-actions,
-  not test actions, and Actions is gone. Tests only run locally.
+  compiler, not the device. Shipped binaries were built on Xcode 26.6 / Swift 6.3.3, so PCC is not in
+  them and a user updating to iOS 27 gets nothing new. **Both release guards are built to refuse the
+  build that enables it** — read "Enabling Private Cloud Compute" in `Docs/ai/RUNBOOK.md` before
+  touching the gates.
+- **Do not remove the `unreleased` HTML comment from the `## 5.1` heading line** in `CHANGELOG.md`
+  until 5.1 ships. `repoos_router.py` reads it from that line and nowhere else; without it the router
+  reports 5.1 as already shipped.
+- **`Status` tracks the work; `Shipped On` tracks reach.** The rule lives in `CLAUDE.md`,
+  `.claude/skills/notion-roadmap/SKILL.md` and `.agents/rules/01-docs-and-notion-sync.md`. All three
+  must move together.
+- Releases are built by **Xcode Cloud**, pinned to Xcode 26.6. `.github/workflows/` no longer exists
+  in this repository.
 
 ## Working Set
 
-Six uncommitted files. Open these first:
-
-| File | Why |
+| Path | Why it matters |
 |---|---|
-| `OpenIntelligence/Services/Document/Processing/IngestionStageLedger.swift` | **New.** The bands live here, each with the reason it holds |
-| `OpenIntelligence/Services/Document/Processing/DocumentProcessor.swift` | Four `stageLedger` calls near lines 831–958; `verifyContentCoverage` near 6690 |
-| `OpenIntelligenceTests/Services/Document/Processing/IngestionStageLedgerTests.swift` | **New.** 10 cases. Imports `OpenIntelligenceEngine`, not `OpenIntelligence` |
-| `Docs/INGESTION_PIPELINE.md` | New §3.5, including the table of which guard is blind to what |
-| `CHANGELOG.md` | Two `[Ingestion]` entries under `## 5.1` |
-| `Docs/ai/STATE.md` | This file |
+| `OpenIntelligence/Services/Document/Processing/IngestionStageLedger.swift` | The per-stage conservation ledger. Its header explains what it does and does not replace. |
+| `OpenIntelligence/Services/Document/Processing/DocumentProcessor.swift` | Ledger is threaded at four points around lines 826–958. `verifyContentCoverage` is at 6653, `splitOversizedChunkByTokens` at 6539. |
+| `Docs/ai/RUNBOOK.md` | Contains the PCC enable-day procedure, including both guards that must be inverted. |
+| `Docs/SHIPPED_VERSION.json`, `Docs/SHIPPED_CAPABILITIES.json` | The two markers every public claim is checked against. |
+| `scripts/enforce_docs_hook.sh`, `scripts/required_docs.sh` | The pre-commit enforcement and its single source table. |
 
-**Do not loosen a band to make something pass.** Making the ledger agree with whatever broke is the
-exact failure it was written against; `IngestionStageLedgerTests` fails if `.exact` moves.
+Working tree is clean. Nothing uncommitted in this repository.
 
 ## Verification
 
-- `xcodebuild build -configuration Debug -destination 'generic/platform=iOS Simulator'` → **BUILD SUCCEEDED**
-- `xcodebuild test` on the iOS 27 simulator, `IngestionStageLedgerTests` + `DocumentProcessorTests` +
-  `SemanticChunkerTests` → **34 tests, 0 failures** (10 / 15 / 9)
-- Router preflight for this task → route `ingestion_change`, allowed `Services/Document/**` only
+- `bash scripts/test_enforce_docs_hook.sh` -> 10 passed, 0 failed.
+- `bash scripts/test_stop_handoff.sh` -> 8 passed, 0 failed.
+- `python3 .codex/skills/route-openintelligence-work/scripts/test_repoos_router.py` -> 29 tests, OK.
+- `xcodebuild test` on iOS 27 simulator, `-only-testing` IngestionStageLedgerTests +
+  DocumentProcessorTests + SemanticChunkerTests -> **35 tests, 0 failures**.
+- `python3 scripts/verify_capabilities.py` -> all declared capabilities have their implementation.
+- `python3 scripts/secret_scan.py` -> clean.
+- Notion: 224 rows, per-option `Target Release` counts identical before and after the schema change.
+- Websites: gunzino.me, fascinaiting.me and gunnarguy.me each fetched live and confirmed to describe
+  5.0 as shipped and PCC in the future tense.
 
-**The iCloud `NSFileCoordinator` deadlock recurred, and intermittently.** `xcodebuild build` succeeded
-from `~/Documents` at 16:59; `xcodebuild test` from the same directory minutes later hung at 0% CPU
-with 2.29s of CPU time and never built the test bundle. `sample` showed
-`DVTFilePath performCoordinatedReadRecursively:` → `NSFileCoordinator` → `semaphore_wait_trap` under
-`Xcode3Project initWithFilePath:`. The recorded fix worked unchanged: `rsync` to `/private/tmp/oi-src`
-and build there. Do not conclude from one successful build in `~/Documents` that the copy is
-unnecessary.
-
-**Not verified: the ledger has never run on a real document.** Every test drives the type directly
-with synthetic readings. Nothing has yet observed an `[IngestionLedger]` line from an actual ingest,
-which is the only thing that proves the four call sites are wired to the values they claim.
-
-**Not covered: chunking → embedding and embedding → index.** Both live in `RAGService.swift`, outside
-this route's `Services/Document/**` boundary. They need their own approval and are the next pass.
+**Not run this session:** the full `xcodebuild test` suite, and `bash scripts/build_simulator_smoke.sh`.
+Only the three targeted test classes above were executed.
 
 ## Blockers / Unknowns
 
-None blocking. Three defects filed in Notion:
+None blocking. Four open items, each with a verification path:
 
-1. **[Six file families sync without NSFileCoordinator](https://app.notion.com/p/3ca49a74d54f8103b69be921f0335171)**
-   — **now `v5.1`**, promoted 2026-08-28. Corrupts user data and already has: 599 conflict copies,
-   136 unreadable zero-block files, 17 days of dead sync, and real chat history and vector indexes
-   destroyed when the container was cleaned. `coordinatedMergeData` covers 4 paths, which had 0
-   conflict copies; the 6 uncoordinated families had all 599.
-2. **[420 workspace reloads per import](https://app.notion.com/p/3ca49a74d54f81a6b8c1e4827a6585fa)**
-   — `Future Backlog`. Quality, not data loss.
-3. **[17 views still use NavigationView](https://app.notion.com/p/3ca49a74d54f81eb867cf24a119af0c1)**
-   — `Future Backlog`.
-
-**Worth checking, unresolved:** `ci_post_clone.sh` runs
-`sh ../scripts/probe_afm_advanced_canary.sh || true`. The capability guard added on the line below it
-used the same CWD-relative style and failed on Xcode Cloud with exit 2 — python3's "cannot open
-file" — breaking build 426. The guard now resolves from `$0` and build 427 passed, but the canary
-still uses the old style **and** swallows its own failure, so it may not have run on Xcode Cloud for
-some time without saying so. Verify by making it print and dropping the `|| true` for one run.
-
-**Unexplained, did not recur:** build 424 failed with actor-isolation errors on
-`HybridSearchService.stableTieBreakKey`, `analyse` and `overridesLock`, in the **macOS archive only**
-— iOS archived fine in the same run. It does not reproduce locally in any combination tried (Xcode
-26.6 and 27, Debug and Release, iOS and macOS), and build 427 archived both platforms cleanly. If it
-returns, pull the Xcode Cloud build log rather than guessing at a fix.
+1. **`IngestionStageLedger` has never emitted on a real document.** Ingest a document on device and
+   grep the log for `[IngestionLedger]`. A healthy line reads roughly
+   `chunked 1.xx, sanitized 1.000, token-limited 1.0x`. If a warning fires, read the named stage
+   before touching the band — widening a band to silence a warning is always the wrong response.
+2. **The sync-workflow fixes are verified on the success path only.** `Fascinaiting@4461907e` (rebase
+   and retry the push) and `Gunnarguy-Portfolio@265306a` (verify each source checkout, fail the run
+   if one is missing) both ran green with everything healthy. Neither red path was exercised, because
+   proving it meant committing a broken workflow. The guards are wired and their conditions evaluate;
+   the first real failure is still their first real test.
+3. **`Shipped On` is empty on 68 rows targeted `v4.0`–`v4.5`.** The only macOS versions documented
+   anywhere in this repository are 2.5, 3.0, 4.8, 5.0 and 5.0.2, the earliest tied to iOS 4.6, so
+   macOS parity before that cannot be established from what is written down. Empty means *not
+   recorded*. If the early macOS release history turns up, that is the gap to fill.
+4. **`Gunnarguy-Portfolio` has uncommitted `styles.css` changes** that block `git pull`, so that
+   local checkout silently lags `origin/main`. Not this repository, and left alone deliberately.
 
 ## Exact Next Action
 
-None. All three pieces are committed and verified; the working tree is clean.
+None. All three objectives are complete and verified, and the working tree is clean. Ask the user
+what to pick up, or take the highest-value open roadmap row:
 
-When 5.1 work starts, the open row that meets the release bar is
 [Six file families sync without NSFileCoordinator](https://app.notion.com/p/3ca49a74d54f8103b69be921f0335171)
-— the only one that loses user data.
+— `v5.1`, the only open row that loses user data, with 599 conflict copies already observed.
 
-**On PCC enable day (targeted at the iOS/macOS 27 public release):** read
-"Enabling Private Cloud Compute" in `Docs/ai/RUNBOOK.md` first. It lists both guards that must be
-inverted, every surface that states the claim, which of the three websites sync themselves, and the
-ordering rule — ship first, then claim, and approval is the event, not submission.
-
-One thing is still unverified and it is not blocking: `IngestionStageLedger` has never emitted on a
-real document. Ingest one on device and grep for `[IngestionLedger]`.
-
-Two roadmap decisions made this session, recorded so they are not re-litigated:
-
-- **`Status` tracks the work, `Shipped On` tracks reach.** Written into
-  `CLAUDE.md`, the `notion-roadmap` skill and the Antigravity rule, because all three carried the
-  closure rule. A verified fix live on one platform is `Completed` with `Shipped On` naming it,
-  rather than held open because the other platform has not had a release.
-- **`Shipped On` is backfilled on 88 rows and deliberately empty on 68.** The empty ones are
-  `v4.0`–`v4.5`. The only macOS versions documented anywhere in this repository are 2.5, 3.0, 4.8,
-  5.0 and 5.0.2, the earliest tied to iOS 4.6, so macOS parity before that cannot be established
-  from what is written down here and asserting it would be a guess. Empty means *not recorded*,
-  never *not shipped*. If the early macOS release history turns up, that is the gap to fill.
-
-
-## Website sync, 2026-08-28
-
-The public sites were stale, not wrong at the source. Both stale artifacts were **generated** files
-downstream of things already corrected in this repository and in Notion, and neither regenerates
-without help.
-
-- **gunnarguy.me** served `Docs/ROADMAP.md` from before today's correction: *"iOS 5.0 (build 386)
-  and macOS 5.0.1 (build 387) are in review"*. That is the "5.0 still in development" the owner
-  reported. Root cause was simpler than the sync: **all seven of the day's commits were unpushed**,
-  so `sync-projects.yml` had nothing new to copy. Pushed, re-ran the sync, verified against
-  `origin/main` rather than the local checkout.
-- **fascinaiting.me** rendered `roadmap.json` pulled at 00:11Z, which still held one **`v5.0` row at
-  `In Progress`** — the Documents-tab row closed later that day. Re-ran `notion_sync.yml`.
-
-Two workflow fragilities found while doing it. **Both are now fixed**, in their own repositories:
-
-1. `Fascinaiting/notion_sync.yml` pushed with no `pull --rebase` and **failed on a push race** with
-   a concurrent commit to `main`, having already regenerated the file correctly. On its nightly
-   schedule that failure is silent: the roadmap simply stops updating and the site keeps serving the
-   last good pull. Fixed in `Fascinaiting@4461907e` — rebase and retry up to three times, fail loudly
-   after. Verified green, log reads `Pushed on attempt 1`.
-2. `Gunnarguy-Portfolio/sync-projects.yml` set `continue-on-error: true` on every source checkout, so
-   a failed checkout still reported success having synced nothing. Fixed in
-   `Gunnarguy-Portfolio@265306a` — a verify step records which sources landed and their HEAD sha, a
-   final step fails the run if any did not, and the push retries. `continue-on-error` is kept
-   deliberately: removing it trades a silent partial failure for a total one. Verified green, all
-   five sources reported with shas, guard step correctly `skipped`.
-
-   **The red path is unproven.** Both fixes were verified on the success path only; deliberately
-   breaking a checkout to watch the guard fire was not worth committing a broken workflow for. The
-   guard is wired and its condition evaluates — it is not absent — but the first real failure is
-   still the first real test.
-
-Also local, not blocking: `Gunnarguy-Portfolio` has uncommitted `styles.css` changes that block
-`git pull`, so that checkout silently lags `origin/main`.
+If 5.1 work starts, write entries under the existing `## 5.1` heading in `CHANGELOG.md`, **not**
+under `[Unreleased]`, and leave `app_store` at `5.0` in `Docs/SHIPPED_VERSION.json` until iOS ships
+past it.
