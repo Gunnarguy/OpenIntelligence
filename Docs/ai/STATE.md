@@ -1,13 +1,20 @@
 # Current State
 
-Updated: 2026-08-28
+Updated: 2026-08-29
 Branch/worktree: main (primary checkout)
-Last verified commit: 81add91
+Last verified commit: adb0cda
 
 ## Objective
 
-None active. Three objectives ran to completion this session and all are committed, pushed and
-verified. A fresh session should ask what to pick up, or take a roadmap row.
+**Make macOS ingestion usable.** An external tester on a fanless M5 MacBook Air ingested a 210-page,
+64 MB PDF on 2026-08-29. It completed, correctly, in **five hours**, producing ~5000 chunks. The
+owner has committed to the tester, in writing, that macOS ingestion performance and a pause control
+are top priority for `v5.1`.
+
+Diagnosis is done and is code-read, not measured. Three defects, all in `#if canImport(UIKit)` /
+`#elseif canImport(AppKit)` seams, none of them in the routing policy where they were first assumed
+to be. See "External device evidence" below. No source has been edited: this is a diagnosis, and the
+implementation gate has not been passed.
 
 ## Status
 
@@ -72,6 +79,9 @@ per-row one.
 | `Docs/ai/RUNBOOK.md` | Contains the PCC enable-day procedure, including both guards that must be inverted. |
 | `Docs/SHIPPED_VERSION.json`, `Docs/SHIPPED_CAPABILITIES.json` | The two markers every public claim is checked against. |
 | `scripts/enforce_docs_hook.sh`, `scripts/required_docs.sh` | The pre-commit enforcement and its single source table. |
+| `OpenIntelligence/Services/Document/Processing/DocumentProcessor.swift:6923-7018` | `renderPDFPageAsImage`. The UIKit and AppKit branches are not equivalent; the AppKit one is the macOS bottleneck. |
+| `OpenIntelligence/Services/Document/Chunking/PageComplexityAnalyzer.swift:1045-1072` | `renderPageForAnalysis` returns `nil` on macOS, which disables the Vision pass at `:298`. |
+| `OpenIntelligence/Services/Infrastructure/Monitoring/DeviceCapabilityService.swift:412-470` | Vision concurrency and cooldown ceilings, chosen from the chip with no thermal input. |
 
 Working tree is clean. Nothing uncommitted in this repository.
 
@@ -110,14 +120,62 @@ None blocking. Four open items, each with a verification path:
    recorded*. If the early macOS release history turns up, that is the gap to fill.
 4. **`Gunnarguy-Portfolio` has uncommitted `styles.css` changes** that block `git pull`, so that
    local checkout silently lags `origin/main`. Not this repository, and left alone deliberately.
+5. **The macOS ingestion diagnosis has not been measured.** Every claim in "External device evidence"
+   below is read from source and from Apple's SDK headers. Nobody has instrumented a macOS ingestion
+   run to confirm how the five hours actually divide between the render path, OCR and embedding. Do
+   that before tuning anything, or the fix gets tuned against a guess.
+
+## External device evidence, 2026-08-29
+
+First real observation of the macOS ingestion path under load, from a free-lifetime-cohort tester on
+a fanless MacBook Air (M5). 210-page, 64 MB PDF of *Science*: five hours, ~5000 chunks, completed
+correctly. CPU oscillating 400% to 100%, GPU idle in Activity Monitor, 33% battery in the first
+1h20m. Owner reports an 8-page document takes ~1 minute on iPhone against ~30 minutes on Mac.
+
+Three defects found, all verified by reading code and the MacOSX27.0 SDK headers
+`[evidence_level: code_read, confidence: high]`:
+
+1. **`renderPDFPageAsImage` macOS branch.** Uses deprecated `NSImage.lockFocus` plus a full
+   `tiffRepresentation` -> `NSBitmapImageRep(data:)` CPU round-trip per page. `AppKit/NSImage.h:294`
+   states the deprecation reason: the method "is incompatible with resolution-independent drawing",
+   so its backing store follows the display scale factor and is 4x the requested pixel count on a
+   Retina display. iOS renders the same page through `UIGraphicsImageRenderer` with an explicit
+   `format.scale = 1.0` and no serialization at all. Filed `v5.1`.
+2. **`renderPageForAnalysis` returns `nil` on macOS** (`#else return nil`), and both production call
+   sites reach it through `analyzeBatch`, which passes no `pageImage`. The Vision refinement pass in
+   `PageComplexityAnalyzer` therefore never runs on macOS, and `isMixedModeScanned` is permanently
+   false there. Filed `Future Backlog`.
+3. **`[GPU-accelerated]` is a string literal** selected by a config flag, appended to a macOS log
+   line whose dominant stages are CPU. This is why the logs pointed away from the bottleneck. Filed
+   `Future Backlog`.
+
+**Two owner statements that the code contradicts, both told to the tester and worth correcting:**
+
+- *"It SHOULD save the progress if you close out and reopen it."* It does not. `RAGService.swift:1186`
+  sets `stage = .paused` and `progress = nil` on restart, and `IngestionItem` has no checkpoint
+  field, so resuming re-runs the document from the start.
+- *"Macs treat everything as needing to be visually interpreted."* There are **zero** platform
+  conditionals in `OpenIntelligence/Services/Document/`. Losing the Vision pass biases macOS toward
+  classifying pages as *less* visual, not more. The slowness is mechanical, not a routing choice.
 
 ## Exact Next Action
 
-None. All three objectives are complete and verified, and the working tree is clean. Ask the user
-what to pick up, or take the highest-value open roadmap row:
+Instrument a macOS ingestion run before changing anything, so the fix is tuned against measurement
+rather than against the code-read diagnosis above. Then take the render path:
 
-[Six file families sync without NSFileCoordinator](https://app.notion.com/p/3ca49a74d54f8103b69be921f0335171)
-— `v5.1`, the only open row that loses user data, with 599 conflict copies already observed.
+[macOS renders every OCR page through deprecated lockFocus and a full TIFF round-trip](https://app.notion.com/p/3cb49a74d54f8150b2dbc1ef12d7f3e0)
+— `v5.1`. The fix Apple's own header names is
+`+[NSGraphicsContext graphicsContextWithBitmapImageRep:]`, which takes explicit pixel dimensions and
+removes both the 4x oversize and the TIFF round-trip in one change.
+
+`DocumentProcessor.swift` is not a hard-boundary file, but the route is `core_ai_ios27_change` and
+carries `Approval: always`. **A source edit needs `PROCEED: IMPLEMENT` from the user first.**
+
+The other open `v5.1` rows:
+
+- [Ingestion cannot be paused, and restarting discards in-flight progress](https://app.notion.com/p/3cb49a74d54f819797e8cea0e96d62b9)
+- [Six file families sync without NSFileCoordinator](https://app.notion.com/p/3ca49a74d54f8103b69be921f0335171)
+  — the only open row that loses user data, with 599 conflict copies already observed.
 
 If 5.1 work starts, write entries under the existing `## 5.1` heading in `CHANGELOG.md`, **not**
 under `[Unreleased]`, and leave `app_store` at `5.0` in `Docs/SHIPPED_VERSION.json` until iOS ships
