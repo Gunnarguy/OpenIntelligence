@@ -2,7 +2,7 @@
 
 Updated: 2026-08-28
 Branch/worktree: main (primary checkout, `~/Documents/GitHub/OpenIntelligence`)
-Last verified commit: 9d80e7d
+Last verified commit: 786b70d
 
 ## Objective
 
@@ -162,3 +162,30 @@ Two roadmap decisions made this session, recorded so they are not re-litigated:
   5.0 and 5.0.2, the earliest tied to iOS 4.6, so macOS parity before that cannot be established
   from what is written down here and asserting it would be a guess. Empty means *not recorded*,
   never *not shipped*. If the early macOS release history turns up, that is the gap to fill.
+
+
+## Website sync, 2026-08-28
+
+The public sites were stale, not wrong at the source. Both stale artifacts were **generated** files
+downstream of things already corrected in this repository and in Notion, and neither regenerates
+without help.
+
+- **gunnarguy.me** served `Docs/ROADMAP.md` from before today's correction: *"iOS 5.0 (build 386)
+  and macOS 5.0.1 (build 387) are in review"*. That is the "5.0 still in development" the owner
+  reported. Root cause was simpler than the sync: **all seven of the day's commits were unpushed**,
+  so `sync-projects.yml` had nothing new to copy. Pushed, re-ran the sync, verified against
+  `origin/main` rather than the local checkout.
+- **fascinaiting.me** rendered `roadmap.json` pulled at 00:11Z, which still held one **`v5.0` row at
+  `In Progress`** — the Documents-tab row closed later that day. Re-ran `notion_sync.yml`.
+
+Two workflow fragilities found while doing it, neither fixed, both in other repositories:
+
+1. `Fascinaiting/notion_sync.yml` pushes with no `pull --rebase`. The first re-run **failed on a
+   push race** with a concurrent commit to `main`, having already regenerated the file correctly.
+   On its nightly schedule that failure mode is silent: the roadmap simply stops updating.
+2. `Gunnarguy-Portfolio/sync-projects.yml` sets `continue-on-error: true` on every source checkout,
+   so a failed checkout still reports success having synced nothing. It behaved today, but a green
+   run is not evidence. **Verify the served content, not the run.**
+
+Also local, not blocking: `Gunnarguy-Portfolio` has uncommitted `styles.css` changes that block
+`git pull`, so that checkout silently lags `origin/main`.
