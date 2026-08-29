@@ -6,8 +6,8 @@ Last verified commit: adb0cda
 
 ## Objective
 
-**Make macOS ingestion usable.** The render-path fix is **implemented, built and unit-tested**; it is
-not yet verified on device, which is what closes its row. An external tester on a fanless M5 MacBook Air ingested a 210-page,
+**Make macOS ingestion usable.** Two fixes are **implemented, built and suite-verified**; neither is
+verified on device, which is what closes their rows. An external tester on a fanless M5 MacBook Air ingested a 210-page,
 64 MB PDF on 2026-08-29. It completed, correctly, in **five hours**, producing ~5000 chunks. The
 owner has committed to the tester, in writing, that macOS ingestion performance and a pause control
 are top priority for `v5.1`.
@@ -117,6 +117,32 @@ which needs a device. **Not measured:** the wall-clock effect of the render
 fix on a real document. No speedup is claimed anywhere, deliberately — the per-page render timing now
 logged is what will measure it.
 
+### 2026-08-29, restored-progress reporting
+
+- Full `xcodebuild test` on iOS 27 sim -> **380 tests, 3 skipped, 0 failures**. The three skips are
+  in `EmbeddingProviderAgreementTests` and `LayoutReadingOrderTests` and are unrelated to this work.
+- macOS Debug build with the wiring -> **BUILD SUCCEEDED**, 0 errors.
+- `bash scripts/build_simulator_smoke.sh` -> **BUILD SUCCEEDED**, ad-hoc codesign clean.
+- `RestoredIngestionProgressTests` -> 14 cases, 0 failures.
+- Repo-wide grep required by `.claude/rules/orchestration-and-routing.md`: all three
+  `PrivateCloudComputeLanguageModel` uses remain gated by `EntitlementChecker`
+  (`FoundationModelRoutePolicy.swift:124`, `FoundationModelSessionFactory.swift:89`,
+  `FoundationModelCapabilityProvider.swift:39`).
+
+**`RAGService.swift` is a Tier-2 hard-boundary file** (`Docs/RepoOS/03_FORBIDDEN_EDIT_BOUNDARIES.md`
+line 32). The owner approved the named change on 2026-08-29 after being shown the exact diff. The
+edit is two assignments inside the `.paused` branch of queue restore. **The streaming contract the
+boundary exists to protect — page batching, `db.persist()` cadence, incremental FTS5 appends, the
+`localCacheDir()/IngestionCheckpoints` location — is untouched.**
+
+**Two `.claude/rules/` files that govern this code never loaded during the work.**
+`scripts/instructions_report.sh` shows `ingestion-and-indexing.md` and `orchestration-and-routing.md`
+as matched-but-`NOT LOADED`. The globs are correct; the loader keys off Read/Edit/Write and every
+edit in this session went through Bash. Between them those rules carried four requirements the
+session would otherwise have missed: the ingestion Mermaid, the **full** suite rather than the
+preflight's targeted classes, the Atlas service map, and the PCC gating grep. All four were
+satisfied only because the Stop hook fired. Filed as a `Future Backlog` row.
+
 **`xcodebuild` deadlocked on `~/Documents` again** at the start of this work: 7 log lines, 0% CPU,
 `sample` showed `-[DVTFilePath performCoordinatedReadRecursively:]` in `semaphore_wait_trap`. Building
 from a `ditto` copy at `/private/tmp/oi-src` fixed it, as the runbook says. `rsync` is blocked by the
@@ -189,8 +215,9 @@ headers `[evidence_level: code_read, confidence: high]`:
 
 ## Exact Next Action
 
-**Get a macOS device run of the render fix.** Everything else is blocked on this number. Build the
-Mac app, ingest a large PDF, and read the new per-page line:
+**Get a macOS device run.** Everything else is blocked on this. It closes both open fixes at once:
+build the Mac app, ingest a large PDF, read the new per-page render line, then quit mid-ingest and
+reopen to confirm the restored item reports its true page count instead of zero.
 
 ```
 [DocumentProcessor] Rendered PDF page at WxHpx (N DPI) in X.Xms via CGBitmapContext, CPU raster
@@ -207,8 +234,8 @@ is fanless and the maintainer's is not.
 Then, in order:
 
 - [Ingestion has no pause control, and only PDFs over 10MB checkpoint](https://app.notion.com/p/3cb49a74d54f819797e8cea0e96d62b9)
-  — `v5.1`. Start with the restored-progress display, which is cheap and stops a user cancelling a
-  resume that would have worked.
+  — `v5.1`. The restored-progress display is **done**; what remains on this row is the pause button
+  itself and the `fileSizeMB > 10 && .pdf` gate on checkpointing.
 - [Six file families sync without NSFileCoordinator](https://app.notion.com/p/3ca49a74d54f8103b69be921f0335171)
   — `v5.1`, the only open row that loses user data, with 599 conflict copies already observed.
 - [Vision pass never runs on macOS](https://app.notion.com/p/3cb49a74d54f81fbb47cec6d8ed526d8)

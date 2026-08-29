@@ -15,7 +15,8 @@ The ingestion pipeline converts raw files (PDFs, images, text documents) into se
 ```mermaid
 flowchart TD
     QLOAD[Load coordinated ingestion queue] --> QMERGE[Merge deletion-wins tombstones]
-    QMERGE --> QDECIDE{Interrupted work remains?}
+    QMERGE --> QRESTORE[Read ingestion_state.json: report pages already indexed]
+    QRESTORE --> QDECIDE{Interrupted work remains?}
     QDECIDE -- Continue --> A
     QDECIDE -- Stop or Discard --> QTOMB[Persist tombstone and suppress automatic repair]
     EMPTY[Metadata exists but vector index is empty] --> SINGLE[Sequential single-flight repair queue]
@@ -525,9 +526,27 @@ classification-accuracy defect rather than a performance one.
 - **Scope, clarified 2026-08-29: this applies only to `importLargePDFStreamed`, which is entered when
   `documentType == .pdf && fileSizeMB > 10` (`RAGService.swift:5666`).** Every PDF at or under 10 MB,
   and every non-PDF of any size, takes the non-streamed path and has no checkpoint at all. Batch
-  granularity is 15 pages, so a resume can redo up to 14 pages. Queue restoration also sets
-  `resumedItem.progress = nil`, so a restored item displays zero progress even though the engine will
-  skip its completed batches — the work is there, the progress bar just does not say so.
+  granularity is 15 pages, so a resume can redo up to 14 pages.
+- **A restored item now reports the progress it kept, fixed 2026-08-29.** Queue restoration used to
+  set `resumedItem.progress = nil` alongside `stage = .paused`, so a document that had already
+  indexed 150 of 210 pages came back displaying nothing. The work was never lost, but the UI gave a
+  user every reason to believe it was — and cancelling is the one action that genuinely destroys it,
+  because discarding a queue item deletes the checkpoint directory while a restart does not.
+  `DocumentProcessor.restoredIngestionProgress(for:knownPageCount:)` reads the state file during
+  restore and supplies both the detail line and the progress fraction.
+
+  Two properties of that reader are deliberate and worth keeping. **It never parses the document:**
+  `restorePersistedIngestionQueueIfNeeded()` is `@MainActor` and runs during launch, so the page
+  total is taken from the interrupted run's own persisted `metrics.pageCount` rather than from
+  reopening a potentially very large PDF on the main actor. Its only I/O is one `stat` and one small
+  JSON read. And **it distinguishes a corrupt state file from an absent one**: no checkpoint, a
+  not-yet-started checkpoint (`lastCompletedPage == -1`), and a fingerprint that no longer matches
+  all return `nil` silently because all three genuinely mean "nothing preserved", but a state file
+  that exists and will not decode logs a warning, because that means a resume is about to redo work
+  it did not have to. When the page total is unknown the fraction stays `nil` and the bar stays
+  indeterminate rather than showing a fabricated 0%.
+
+  `[evidence_level: code_verified, confidence: exact, evidence_source: RAGService.swift restorePersistedIngestionQueueIfNeeded; DocumentProcessor.swift restoredIngestionProgress; RestoredIngestionProgressTests, 14 cases]`
 - To prevent data loss and avoid reprocessing from page 1 during large document ingestion:
 - Each page's intermediate `PageParseResult` is serialized to a Codable JSON format.
 - Ingestion state and progress are tracked in a session-level `ingestion_state.json` file inside the checkpoints folder:

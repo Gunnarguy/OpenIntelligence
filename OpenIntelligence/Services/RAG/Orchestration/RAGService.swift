@@ -1184,8 +1184,21 @@ class RAGService: ObservableObject {
 
                 if item.isLeased(to: currentDeviceID, at: now) || !item.hasActiveLease(at: now) {
                     resumedItem.stage = .paused
-                    resumedItem.detail = "Paused after app restart"
-                    resumedItem.progress = nil
+                    // A restart does not lose streamed-PDF progress: `importLargePDFStreamed` skips
+                    // any batch whose `endPage <= lastCompletedPage`. Report what is preserved, so a
+                    // user does not cancel a resume that would have worked — discarding a queue item
+                    // deletes the checkpoint directory, whereas a restart does not.
+                    //
+                    // The page total comes from the interrupted run's own persisted metrics rather
+                    // than from reopening the document, because this function is `@MainActor` and
+                    // runs during launch. When there is no checkpoint, `restored` is nil and both
+                    // assignments below are exactly what they were before.
+                    let restored = documentProcessor.restoredIngestionProgress(
+                        for: item.url,
+                        knownPageCount: item.metrics.pageCount
+                    )
+                    resumedItem.detail = restored?.detail ?? "Paused after app restart"
+                    resumedItem.progress = restored?.fraction
                     resumedItem.startedAt = nil
                     resumedItem.finishedAt = nil
                     resumedItem.errorMessage = nil

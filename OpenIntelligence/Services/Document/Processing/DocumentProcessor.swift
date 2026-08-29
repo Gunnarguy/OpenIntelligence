@@ -9770,6 +9770,99 @@ extension DocumentProcessor {
         Log.info("[Checkpoint] Cleaned up temporary page checkpoints for \(url.lastPathComponent) (fingerprint: \(fingerprint))", category: .ingestion)
     }
 
+    // MARK: - Restored Progress Reporting
+
+    /// What a previously interrupted streaming ingestion already committed for a document.
+    ///
+    /// This exists because the queue restore path resets `progress` to `nil` when it marks an item
+    /// `.paused` after an app restart, so a document that had already indexed 150 of 210 pages came
+    /// back displaying nothing at all. The work was never lost — `importLargePDFStreamed` skips any
+    /// batch whose `endPage <= lastCompletedPage` — but the UI gave a user every reason to believe
+    /// it was, and cancelling is the one action that actually does destroy it, because discarding a
+    /// queue item deletes the checkpoint directory while a restart does not.
+    struct RestoredIngestionProgress: Sendable, Equatable {
+        /// Pages already committed. `lastCompletedPage` is a zero-based index, so this is that + 1.
+        let pagesCompleted: Int
+        /// `nil` when the document could not be opened to count its pages.
+        let totalPages: Int?
+        let chunksIndexed: Int
+
+        /// `nil` rather than a guess when the page total is unknown; the caller should leave the
+        /// progress bar indeterminate instead of inventing a fraction.
+        var fraction: Double? {
+            guard let totalPages, totalPages > 0 else { return nil }
+            return min(1.0, Double(pagesCompleted) / Double(totalPages))
+        }
+
+        var detail: String {
+            if let totalPages, totalPages > 0 {
+                return "Paused after app restart — \(pagesCompleted) of \(totalPages) pages already indexed, resuming from there"
+            }
+            return "Paused after app restart — \(pagesCompleted) page\(pagesCompleted == 1 ? "" : "s") already indexed, resuming from there"
+        }
+    }
+
+    /// Read-only resolution of a document's checkpoint directory.
+    ///
+    /// Deliberately does **not** create anything, unlike `checkpointDirectoryURL(for:)` above. This
+    /// is called once per persisted item during queue restoration, and probing must not leave an
+    /// empty directory behind for every document that never had a checkpoint. It shares the
+    /// location with `checkpointsDirectoryURL`; the two must not drift.
+    private func existingCheckpointDirectoryURL(for fingerprint: String) -> URL? {
+        let dir = AppSupportPaths.localCacheDir()
+            .appendingPathComponent("IngestionCheckpoints", isDirectory: true)
+            .appendingPathComponent(fingerprint, isDirectory: true)
+        return FileManager.default.fileExists(atPath: dir.path) ? dir : nil
+    }
+
+    /// Returns what an interrupted ingestion already completed for this document, or `nil` when
+    /// there is no checkpoint to resume from.
+    ///
+    /// `nil` legitimately means "no preserved progress" in three different situations, and the
+    /// caller should treat all three the same: the document never had a checkpoint (it did not meet
+    /// the `fileSizeMB > 10 && .pdf` gate in `importLargePDFStreamed`), the checkpoint was cleaned
+    /// up on completion or discard, or the file changed on disk so its fingerprint no longer
+    /// matches. A corrupt state file is the one case that is **not** silent: it warns, because a
+    /// checkpoint that exists and cannot be read means a resume is about to redo work it did not
+    /// have to, and that should never pass unnoticed.
+    ///
+    /// **This deliberately performs no document parsing.** Its caller is
+    /// `RAGService.restorePersistedIngestionQueueIfNeeded()`, which is `@MainActor` and runs during
+    /// launch, so opening the PDF here to count its pages would put a parse of a potentially very
+    /// large file on the main actor at the worst possible moment. The page total is passed in
+    /// instead: the persisted `IngestionItem` already carries `metrics.pageCount` from the run that
+    /// was interrupted. When it is unknown, `totalPages` stays `nil`, `fraction` stays `nil`, and
+    /// the caller shows an indeterminate bar with an honest detail line rather than a made-up
+    /// percentage. The only I/O this does is one `stat` and one small JSON read.
+    ///
+    /// - Parameter knownPageCount: the document's page count if it is already known. Values at or
+    ///   below zero are treated as unknown, since `PipelineMetrics.pageCount` defaults to `0`.
+    func restoredIngestionProgress(for url: URL, knownPageCount: Int? = nil) -> RestoredIngestionProgress? {
+        let fingerprint = computeDocumentFingerprint(at: url)
+        guard let checkpointDir = existingCheckpointDirectoryURL(for: fingerprint) else { return nil }
+
+        let stateURL = checkpointDir.appendingPathComponent("ingestion_state.json")
+        guard let data = try? Data(contentsOf: stateURL) else { return nil }
+
+        guard let state = try? JSONDecoder().decode(StreamingIngestionState.self, from: data) else {
+            Log.warning(
+                "[Checkpoint] Found an unreadable ingestion_state.json for \(url.lastPathComponent) (fingerprint: \(fingerprint)); the resume will restart this document from page 1",
+                category: .ingestion
+            )
+            return nil
+        }
+
+        // -1 is the initial value written when a streaming session starts, meaning no batch has
+        // been committed yet. There is nothing to report and nothing to skip.
+        guard state.lastCompletedPage >= 0 else { return nil }
+
+        return RestoredIngestionProgress(
+            pagesCompleted: state.lastCompletedPage + 1,
+            totalPages: knownPageCount.flatMap { $0 > 0 ? $0 : nil },
+            chunksIndexed: state.totalChunks
+        )
+    }
+
     // MARK: - Codable Checkpoint Mappings
 
     struct CodableDetectedEntity: Codable, Sendable {
