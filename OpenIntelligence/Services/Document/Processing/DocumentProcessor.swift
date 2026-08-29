@@ -825,6 +825,12 @@ class DocumentProcessor {
         // Step D: Strip page break sentinels for chunking — chunker must see continuous text
         let chunkableText = normalizedText.replacingOccurrences(of: Self.pageBreakSentinel, with: "\n\n")
 
+        // Per-stage conservation ledger. `verifyContentCoverage` below compares this text against the
+        // FINISHED chunks and so can only say that text was lost; this records each transition, so a
+        // loss names the stage that caused it. See IngestionStageLedger.swift.
+        var stageLedger = IngestionStageLedger(documentName: filename)
+        stageLedger.recordExtraction(characters: chunkableText.count)
+
         let documentCategory = classifyDocumentCategory(
             text: chunkableText,
             filename: filename,
@@ -937,7 +943,10 @@ class DocumentProcessor {
             emitProgress(stage: "chunking", detail: "✅ Created \(processedChunks.count) semantic chunks", page: nil, totalPages: nil)
         }
 
+        stageLedger.record(.chunked, chunkTexts: processedChunks.map(\.text))
+
         processedChunks = sanitizeProcessedChunkMetadata(processedChunks)
+        stageLedger.record(.sanitized, chunkTexts: processedChunks.map(\.text))
 
         let chunkingTime = Date().timeIntervalSince(chunkingStartTime)
 
@@ -945,6 +954,8 @@ class DocumentProcessor {
         // This is a safety net that catches any chunks that slipped through chunking config limits
         emitProgress(stage: "validate", detail: "🔐 Validating token limits...", page: nil, totalPages: nil)
         processedChunks = enforceTokenLimitOnChunks(processedChunks)
+        stageLedger.record(.tokenLimited, chunkTexts: processedChunks.map(\.text))
+        stageLedger.emit()
 
         // CONTENT COVERAGE VERIFICATION: Ensure we captured all the source content
         // This catches bugs where content is silently dropped during chunking
@@ -6678,24 +6689,70 @@ class DocumentProcessor {
         let total = originalWords.count
         let coverage = total > 0 ? Double(covered) / Double(total) * 100 : 100
 
-        // Also check character count as secondary metric
+        // Volume, as opposed to vocabulary. Whitespace is excluded from both sides so reflow and
+        // re-indentation cannot move the number.
         let originalChars = original.filter { !$0.isWhitespace }.count
         let chunkChars = chunks.reduce(0) { $0 + $1.text.filter { !$0.isWhitespace }.count }
         // Account for overlap - chunks may duplicate some content
         let charRatio = originalChars > 0 ? Double(chunkChars) / Double(originalChars) * 100 : 100
 
-        if coverage < 90 {
-            let missing = originalWords.subtracting(chunkWords)
-            let sampleMissing = Array(missing.prefix(10)).joined(separator: ", ")
-            Log.warning(
-                "[DocumentProcessor] ⚠️ LOW CONTENT COVERAGE: \(String(format: "%.1f", coverage))% of unique words captured " +
-                "(\(covered)/\(total)). Missing samples: \(sampleMissing)...",
-                category: .ingestion
-            )
-        } else {
+        // WHY `charRatio` IS CHECKED AND NOT ONLY LOGGED
+        //
+        // `coverage` above is a set intersection of unique words, and unique vocabulary saturates
+        // long before content does. Truncate the back half of a real document and almost every
+        // distinct three-letter-or-longer word still appears in the front half, so word coverage
+        // stays above 90 and this function stays silent while half the document is gone. Volume is
+        // the metric that moves in that case, and until 2026-08-28 it was computed here, formatted
+        // into the healthy-path debug line, and compared against nothing at all.
+        //
+        // Two bounds, because both directions are real failures seen in this project:
+        //   - Below 90%: text was dropped between extraction and the finished chunks.
+        //   - Above 200%: chunks are duplicating content far beyond what overlap explains. Legitimate
+        //     overlap runs roughly 115–125% at the configured word overlap, so 200 leaves wide margin
+        //     and still catches the duplicate-import shape that put five files in the library for
+        //     three samples.
+        let coverageIsLow = coverage < 90
+        let volumeIsLow = charRatio < 90
+        let volumeIsImplausible = charRatio > 200
+
+        guard coverageIsLow || volumeIsLow || volumeIsImplausible else {
             Log.debug(
                 "[DocumentProcessor] ✅ Content coverage: \(String(format: "%.1f", coverage))% words, " +
                 "\(String(format: "%.0f", charRatio))% chars (includes overlap)",
+                category: .ingestion
+            )
+            return
+        }
+
+        // Both numbers on every warning, whichever bound tripped. A warning that reports only the
+        // metric that failed makes the other one unavailable at exactly the moment it is diagnostic:
+        // high word coverage beside low volume is the truncation signature specifically, and is a
+        // different fault from both being low.
+        let readings = "\(String(format: "%.1f", coverage))% of unique words (\(covered)/\(total)), " +
+            "\(String(format: "%.0f", charRatio))% of characters"
+
+        if volumeIsLow {
+            Log.warning(
+                "[DocumentProcessor] ⚠️ CONTENT VOLUME LOST: \(readings). " +
+                "Chunks hold \(chunkChars) non-whitespace characters against \(originalChars) extracted. " +
+                "High word coverage beside low volume means the document was truncated rather than filtered.",
+                category: .ingestion
+            )
+        }
+        if volumeIsImplausible {
+            Log.warning(
+                "[DocumentProcessor] ⚠️ CONTENT DUPLICATED: \(readings). " +
+                "Chunks hold \(chunkChars) non-whitespace characters against \(originalChars) extracted, " +
+                "which overlap alone does not explain.",
+                category: .ingestion
+            )
+        }
+        if coverageIsLow {
+            let missing = originalWords.subtracting(chunkWords)
+            let sampleMissing = Array(missing.prefix(10)).joined(separator: ", ")
+            Log.warning(
+                "[DocumentProcessor] ⚠️ LOW CONTENT COVERAGE: \(readings). " +
+                "Missing samples: \(sampleMissing)...",
                 category: .ingestion
             )
         }

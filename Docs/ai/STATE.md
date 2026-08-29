@@ -2,73 +2,48 @@
 
 Updated: 2026-08-28
 Branch/worktree: main (primary checkout, `~/Documents/GitHub/OpenIntelligence`)
-Last verified commit: 3d32a8b
+Last verified commit: eb432d3
 
 ## Objective
 
-Make the repository's documentation and roadmap rules mechanically enforced rather than advisory,
-and make "did Claude actually read that rule?" a question with an answer.
-
-Complete and verified. The first half is committed as `3d32a8b`; the InstructionsLoaded half is
-uncommitted, see Working Set.
+Make a stage that silently drops data visible on any document, with no ground truth and no benchmark.
+Complete for the transitions inside `DocumentProcessor`; **uncommitted**, see Exact Next Action.
 
 ## Status
 
-**Shipped app, unchanged this session.** iOS 5.0 and macOS 5.0.2 are live; 5.1 is open as the
-unified next version for both platforms. No Swift changed.
+The governance work from earlier today is committed (`3d32a8b`, `eb432d3`). This is the first
+product change since, and the first Swift change since the enforcement layer was built.
 
-**Governance enforcement layer built and tested.** The rules in `AGENTS.md` rule 14 and
-`.agents/rules/01-docs-and-notion-sync.md` were real, but the checks behind them were not: the
-pre-commit hook accepted **any** file under `Docs/` as satisfying **any** Swift change. Four pieces
-now make the obligations mechanical, and two live drift defects found while doing it are repaired.
-
-Six pieces now make the obligations mechanical. `3d32a8b` carries four of them; the two that answer
-the loading question are uncommitted.
+**The plan's headline justification did not survive contact with the code, and the finding that
+replaced it is better.** The 55% truncation I cited happens at *embed* time (a 128-token cap against
+a 512-token model), downstream of everything measured here, and `DocumentProcessor.verifyTokenizerCounts`
+already catches that class behaviourally. What was actually missing is narrower and was sitting in
+plain sight.
 
 ## Completed
 
-1. **The RepoOS router reported the open 5.1 release as `state: shipped`.** `repoos_router.py` reads
-   "this section has not shipped yet" from an `unreleased` HTML comment on the heading's own line
-   and nowhere else; the `## 5.1` heading carried explanatory prose on the lines below instead. It
-   therefore named `[Unreleased]` as the changelog target while the heading's own comment, this file
-   and `Docs/SHIPPED_VERSION.json` all said otherwise. `CLAUDE.md` tells every session to read that
-   exact field. Marker added to the heading line; the router now reports
-   `state: in_development, version: v5.1, last_shipped: v5.0.2`.
-2. **`scripts/required_docs.sh` (new).** The single executable copy of the path-to-document table,
-   the rule table unioned with the RepoOS change-impact matrix. Both enforcement points call it, so
-   they cannot disagree.
-3. **`scripts/enforce_docs_hook.sh` rewritten.** Fails a commit whose staged source lacks the
-   documents that source requires, names them and what required them, and enforces
-   `ci_post_clone.sh`'s empty-`[Unreleased]` invariant at commit time instead of at build time. Its
-   architecture-tag check now examines only added bullet lines: it previously grepped every `+` line,
-   so an unrelated tagged line elsewhere in the diff satisfied it.
-4. **`.claude/hooks/notion-receipt.sh` (new).** `PostToolUse` on the Notion **write** tools only, so
-   a query leaves no receipt. Records database, page, `Status`, `Target Release`. Where an update
-   names a page rather than a database it records `database: unconfirmed` rather than implying more
-   than it saw.
-5. **`.claude/hooks/stop-handoff.sh` rewritten** from one check to three obligations: handoff,
-   documentation, roadmap. All four original anti-loop guards are preserved. `session-start.sh` now
-   records `head=` in the baseline so the Stop hook can name *which* paths a session touched.
-6. **The Notion `Target Release` cache stopped at `v5.0` while `v5.1` was already live** in the
-   database, in both `.claude/skills/notion-roadmap/SKILL.md` and
-   `.agents/rules/01-docs-and-notion-sync.md`. Both files tell agents never to invent a value, which
-   makes a stale cache worse than none. Both re-read off the live data source and re-dated.
+1. **`verifyContentCoverage` computed the volume metric and compared only the vocabulary one.** That
+   function has two metrics. `coverage`, a set intersection of unique words, had a `< 90` threshold.
+   `charRatio`, the same comparison by character volume, was computed, interpolated into the
+   **healthy-path debug line**, and compared against nothing anywhere in the file. The two fail
+   differently and that is the point: unique vocabulary saturates long before content does, so
+   truncating the back half of a document leaves `coverage` above 90 while half the text is gone.
+   `charRatio` now has a floor of 90% and a ceiling of 200%, and both numbers print on every warning.
+   The function's own comment reads "This catches bugs where content is silently dropped during
+   chunking."
+2. **`IngestionStageLedger` records each transition, so a loss names its own stage.**
+   `verifyContentCoverage` is one end-to-end comparison across four stages and can only say text was
+   lost. The ledger bands each transition: chunking may exceed 1.0 because overlap repeats text,
+   while metadata sanitising and token-limit splitting must conserve characters **exactly**. That
+   last band is the sharp one, because a split raises the chunk count while keeping every character,
+   so no count distinguishes a healthy split from a truncation. It also flags a run where every chunk
+   came out the same length past three chunks. Every reading counts `chunk.text`, never
+   `chunk.metadata.characterCount`.
 
-7. **A path-scoped rule that never loads is indistinguishable from one that was read and ignored,
-   and they have opposite fixes.** `.claude/hooks/instructions-loaded.sh` records every instruction
-   file as it loads, with `load_reason` (`session_start`, `path_glob_match`, `nested_traversal`,
-   `include`, `compact`), the `paths:` globs that matched, and the triggering file.
-   `scripts/instructions_report.sh` reads that log against a set of changed paths and names any rule
-   that should have loaded and did not. The Stop hook appends the same finding when it already has
-   something to ask, and stays silent when no log exists, because an absent log means the hook was
-   not registered rather than that nothing loaded. Observed firing live.
-8. **Three rule files and `AGENTS.md` still sent changelog entries to `[Unreleased]`**, which the
-   open-section protocol superseded. All corrected to read the preflight's
-   `documentation_targets.changelog_section`.
-
-Roadmap row, filed and closed:
-[The pre-commit hook accepted any documentation file as satisfying any source change](https://app.notion.com/p/3ca49a74d54f81b3a02eeeaefbf54b5e)
-— `Future Backlog`, because tooling meets none of the three tests for the active release.
+Roadmap row, deliberately left **In Progress**:
+[A content-loss check computed the volume metric and compared only the vocabulary one](https://app.notion.com/p/3ca49a74d54f813da47dee8ad5cd8442)
+— `Future Backlog`. Suite-green does not close it; its own closing condition is an `[IngestionLedger]`
+line from a real document on device.
 
 ## Active Constraints
 
@@ -95,48 +70,41 @@ Roadmap row, filed and closed:
 
 ## Working Set
 
-Committed in `3d32a8b`: the four-piece enforcement layer and its two test suites.
-
-Uncommitted, the InstructionsLoaded half:
+Six uncommitted files. Open these first:
 
 | File | Why |
 |---|---|
-| `.claude/hooks/instructions-loaded.sh` | **New.** Registered as `InstructionsLoaded` in `.claude/settings.json` |
-| `scripts/instructions_report.sh` | **New.** Reads that log; `--unloaded` is what the Stop hook calls |
-| `.claude/hooks/stop-handoff.sh` | Appends the unloaded-rule finding to an existing block |
-| `scripts/test_stop_handoff.sh` | Three new cases: rule missing, rule present, no log at all |
-| `.claude/rules/retrieval.md`, `orchestration-and-routing.md`, `user-facing-copy.md`, `AGENTS.md` | Changelog target corrected off `[Unreleased]` |
-| `.claude/rules/repo-governance.md`, `Docs/RepoOS/00_REPO_COMMAND_CENTER.md`, `01_TASK_ROUTER.md`, `change_impact_matrix.csv` | The layer is six pieces now, not four |
-| `CHANGELOG.md` | One more `[General]` entry under `## 5.1` |
+| `OpenIntelligence/Services/Document/Processing/IngestionStageLedger.swift` | **New.** The bands live here, each with the reason it holds |
+| `OpenIntelligence/Services/Document/Processing/DocumentProcessor.swift` | Four `stageLedger` calls near lines 831–958; `verifyContentCoverage` near 6690 |
+| `OpenIntelligenceTests/Services/Document/Processing/IngestionStageLedgerTests.swift` | **New.** 10 cases. Imports `OpenIntelligenceEngine`, not `OpenIntelligence` |
+| `Docs/INGESTION_PIPELINE.md` | New §3.5, including the table of which guard is blind to what |
+| `CHANGELOG.md` | Two `[Ingestion]` entries under `## 5.1` |
+| `Docs/ai/STATE.md` | This file |
 
-Read `.claude/rules/*.md` before changing any glob: `scripts/instructions_report.sh` parses that
-frontmatter itself and its glob translation (`**` crosses separators, `*` does not) must keep
-agreeing with how Claude Code matches.
+**Do not loosen a band to make something pass.** Making the ledger agree with whatever broke is the
+exact failure it was written against; `IngestionStageLedgerTests` fails if `.exact` moves.
 
 ## Verification
 
-Commands run this session, with observed output:
+- `xcodebuild build -configuration Debug -destination 'generic/platform=iOS Simulator'` → **BUILD SUCCEEDED**
+- `xcodebuild test` on the iOS 27 simulator, `IngestionStageLedgerTests` + `DocumentProcessorTests` +
+  `SemanticChunkerTests` → **34 tests, 0 failures** (10 / 15 / 9)
+- Router preflight for this task → route `ingestion_change`, allowed `Services/Document/**` only
 
-- `bash scripts/test_enforce_docs_hook.sh` → **10 passed, 0 failed**
-- `bash scripts/test_stop_handoff.sh` → **11 passed, 0 failed**, no scratch files left behind
-- `python3 .codex/skills/route-openintelligence-work/scripts/test_repoos_router.py` → **29 tests, OK**
-- `python3 scripts/secret_scan.py` → no sensitive tokens
-- `bash scripts/check_icloud_conflicts.sh` → no iCloud damage
-- Router preflight after the marker fix → `state: in_development`, `version: v5.1`,
-  `last_shipped: v5.0.2`, `changelog_section: ## 5.1`
-- `grep -m1 '^## [0-9]' CHANGELOG.md | awk '{print $2}'` → `5.1`, so `ci_post_clone.sh` still stamps
-  the right version; its `[Unreleased]` entry count is `0`
-- `notion-receipt.sh` fired **live** on the roadmap row created this session and recorded
-  `database: openintelligence-roadmap`, confirming `.claude/settings.json` hot-reloads mid-session
-- `instructions-loaded.sh` fired **live**: reading `HybridSearchService.swift` logged
-  `path_glob_match Project .claude/rules/retrieval.md`, with the triggering file recorded
+**The iCloud `NSFileCoordinator` deadlock recurred, and intermittently.** `xcodebuild build` succeeded
+from `~/Documents` at 16:59; `xcodebuild test` from the same directory minutes later hung at 0% CPU
+with 2.29s of CPU time and never built the test bundle. `sample` showed
+`DVTFilePath performCoordinatedReadRecursively:` → `NSFileCoordinator` → `semaphore_wait_trap` under
+`Xcode3Project initWithFilePath:`. The recorded fix worked unchanged: `rsync` to `/private/tmp/oi-src`
+and build there. Do not conclude from one successful build in `~/Documents` that the copy is
+unnecessary.
 
-**Not verified: no Swift was built or tested this session.** No Swift changed, so the app is exactly
-what commit `f9c1376` shipped, but that means nothing here re-confirms the app builds.
+**Not verified: the ledger has never run on a real document.** Every test drives the type directly
+with synthetic readings. Nothing has yet observed an `[IngestionLedger]` line from an actual ingest,
+which is the only thing that proves the four call sites are wired to the values they claim.
 
-**Not verified: the Stop hook has never fired for real.** Its 8 tests drive the real script with
-synthetic baselines, which is not the same as a live session ending. Its first real firing is the end
-of this one.
+**Not covered: chunking → embedding and embedding → index.** Both live in `RAGService.swift`, outside
+this route's `Services/Document/**` boundary. They need their own approval and are the next pass.
 
 ## Blockers / Unknowns
 
@@ -167,17 +135,15 @@ returns, pull the Xcode Cloud build log rather than guessing at a fix.
 
 ## Exact Next Action
 
-Commit the fifteen uncommitted files in Working Set. Nothing is staged; no Swift is involved, so the
-pre-commit hook exits early.
+Commit the six files in Working Set. This is the first Swift commit since the enforcement layer was
+built, so `scripts/enforce_docs_hook.sh` gates it for real: it requires `Docs/INGESTION_PIPELINE.md`
+and `CHANGELOG.md`, both of which are already updated.
 
 ```bash
-git add CHANGELOG.md AGENTS.md Docs/ai/STATE.md Docs/RepoOS/00_REPO_COMMAND_CENTER.md Docs/RepoOS/01_TASK_ROUTER.md Docs/AuditArtifacts/RepoOS/change_impact_matrix.csv .claude/settings.json .claude/hooks/instructions-loaded.sh .claude/hooks/stop-handoff.sh .claude/rules scripts/instructions_report.sh scripts/test_stop_handoff.sh
+git add OpenIntelligence/Services/Document/Processing/IngestionStageLedger.swift OpenIntelligence/Services/Document/Processing/DocumentProcessor.swift OpenIntelligenceTests/Services/Document/Processing/IngestionStageLedgerTests.swift Docs/INGESTION_PIPELINE.md CHANGELOG.md Docs/ai/STATE.md
 ```
 
-Then, for product work, take the `v5.1` roadmap row in Blockers: it is the only open row that loses
-user data and it is scoped to the open release.
-
-**The layer is unproven where it matters most.** Every test drives the scripts directly. Nothing has
-yet observed the pre-commit hook refusing a real Swift commit, because no Swift has changed since it
-was written. The first 5.1 code change is the real test: if the hook fires and names the right
-document, it works; if it fires on something irrelevant, loosen it before it gets bypassed.
+Then, to close the roadmap row: ingest one real document on device and read the log for
+`[IngestionLedger]`. A healthy line reads `chunked 1.xx, sanitized 1.000, token-limited 1.000`. If
+`sanitized` or `token-limited` is anything other than 1.000, that is a real defect this session
+found and did not fix, not a band that needs widening.

@@ -370,6 +370,72 @@ One cold-start caveat, recorded because it cost a run. On the **first** attempt 
 
 ---
 
+## 3.5 Stage conservation, added 2026-08-28
+
+Three guards now sit on this path, and they answer different questions. Confusing them is how the
+third one came to exist.
+
+| Guard | Asks | Blind to |
+|---|---|---|
+| `verifyTokenizerCounts` | does the token counter vary with its input? | anything after tokenisation |
+| `verifyContentCoverage` | did the finished chunks keep the extracted text? | **which stage** lost it |
+| `IngestionStageLedger` | did each transition conserve its input? | anything outside `DocumentProcessor` |
+
+### The metric that was computed and never compared
+
+`verifyContentCoverage` measured two things and asserted on one. `coverage` is a set intersection of
+unique words and had a `< 90` threshold. `charRatio` — the same comparison by character volume — was
+computed, formatted into the **healthy-path debug line**, and never compared against anything.
+
+Those two metrics fail differently, and the difference is the whole point. Unique vocabulary
+saturates long before content does: truncate the back half of a real document and nearly every
+distinct three-letter-or-longer word still appears in the front half, so `coverage` stays above 90
+and the function stays silent while half the document is gone. `charRatio` is the number that moves
+in that case, and it was the number with no threshold.
+
+It now has two bounds. Below 90% means text was dropped between extraction and the finished chunks.
+Above 200% means chunks are duplicating content beyond what overlap explains; configured overlap puts
+a healthy document around 115–125%, so the ceiling has wide margin and still catches the
+duplicate-import shape. Both numbers are reported on every warning whichever bound trips, because
+high word coverage beside low volume is the truncation signature specifically, and is a different
+fault from both being low.
+
+`[evidence_level: code_verified, confidence: exact, evidence_source: DocumentProcessor.verifyContentCoverage before 2026-08-28 — charRatio assigned once, interpolated into one Log.debug, no comparison anywhere in the file]`
+
+### Localising a loss to its stage
+
+`verifyContentCoverage` is a single end-to-end comparison across four stages: the structure-aware
+path or the semantic fallback, then `sanitizeProcessedChunkMetadata`, then
+`enforceTokenLimitOnChunks`. It can say text was lost and cannot say where, which leaves a bisect by
+hand.
+
+[IngestionStageLedger.swift](../OpenIntelligence/Services/Document/Processing/IngestionStageLedger.swift)
+records each transition separately and gives each one a band, so a loss names its own stage:
+
+| Transition | Band | Why |
+|---|---|---|
+| extraction → chunked | ≥ 0.98 | overlap repeats text so the ratio may exceed 1.0; normalisation trims a little |
+| chunked → sanitized | exactly 1.0 | that pass sanitises *metadata*. If it moves the text, its name is wrong |
+| sanitized → token-limited | exactly 1.0 | that pass **splits** oversized chunks rather than truncating them |
+
+The last row is the sharpest. A split raises the chunk count while conserving every character, so a
+count alone cannot tell a healthy split from a truncation — both move the number and only one keeps
+the text. Conservation separates them.
+
+The ledger also flags a run where every chunk came out the same length past three chunks. A stage
+that has stopped varying with its input can still conserve characters in aggregate, so no ratio sees
+it; this is the same argument `verifyTokenizerCounts` makes one layer down, applied to the chunker.
+
+Every reading counts `chunk.text` directly and never `chunk.metadata.characterCount`. A defect in a
+counter is one of the things being hunted, and auditing a stage with the count that stage recorded
+makes the audit agree with the bug.
+
+**Not covered:** chunking → embedding and embedding → index. Both live in `RAGService.swift`, outside
+the `Services/Document/**` edit boundary the RepoOS router sets for ingestion work. They are the
+natural next pass.
+
+`[evidence_level: code_verified + test_verified, confidence: exact, evidence_source: IngestionStageLedgerTests, 10 cases]`
+
 ## 4. Dual Index Storage
 
 Once chunks are generated and validated, they are written to two separate storage engines:
