@@ -159,8 +159,21 @@ delegated analysis and rejected for that reason.
 - macOS Debug build and `bash scripts/build_simulator_smoke.sh` -> both **SUCCEEDED**.
 - No on-disk format change, so no re-index.
 
+**The app hung after 169 minutes and the trace explains it.** `clearAll()` spawned one unstructured
+`Task` per cached store per tick with no in-flight check, and `BNNSVectorDatabase` is an `actor`, so
+they serialize. Over that session **162,712 reload tasks were spawned, 76,391 completed and 86,321
+never ran** — a 53% backlog growing without bound. The app stopped responding and was force-quit; no
+crash report exists, consistent with a hang rather than a fault. An earlier guess that this was
+main-thread blocking was **wrong** — the actor keeps reloads off the main thread; the failure is
+queue growth, not UI blocking.
+
+The committed fix addresses this directly: an idle tick with no on-disk change now spawns **zero**
+tasks, so the backlog cannot form. That is a stronger result than the commit message claims, which
+framed it only as saving redundant reads.
+
 **Root cause is untouched.** The 1.68 s trigger and the orphan guard are both in
-`WorkspaceSyncService.swift`, Tier-2 hard boundary, not named in any approval.
+`WorkspaceSyncService.swift`, Tier-2 hard boundary, not named in any approval. Until that is fixed
+the timer keeps firing; it is simply cheap now.
 
 ### 2026-08-29, OCR language narrowing
 
