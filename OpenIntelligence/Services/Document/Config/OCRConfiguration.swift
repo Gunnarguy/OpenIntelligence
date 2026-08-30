@@ -117,15 +117,21 @@ enum OCRConfiguration {
 
     /// Narrow the recognition language list to the languages a document actually contains.
     ///
-    /// Vision loads a model per recognition language, and the default list here carries thirteen
-    /// including four CJK variants. Handing all of them to an English-language document pays for
-    /// twelve models that cannot match anything.
+    /// The default list carries thirteen languages including four CJK variants, and every request
+    /// received all of them alongside `automaticallyDetectsLanguage = true`.
     ///
-    /// Apple's header on `automaticallyDetectsLanguage` is explicit about which side to prefer:
-    /// "as the language correction cannot always guarantee the correct detection, it is advisable
-    /// to set the languages, if you have domain knowledge of what language to expect." During
-    /// ingestion we do have that knowledge — the PDFKit text layer is already mined for custom
-    /// words before Vision runs, and the same text identifies the language.
+    /// **The documented reason to narrow is accuracy, not speed.** Apple's header on
+    /// `automaticallyDetectsLanguage` says the flag makes Vision "identify the script/langauge …
+    /// and use the appropiate model for recognition and language correction", so it was already
+    /// choosing a model — but then: "as the language correction cannot always guarantee the correct
+    /// detection, it is advisable to set the languages, if you have domain knowledge of what
+    /// language to expect." A wrong auto-detection applies language correction against the wrong
+    /// lexicon, which damages text rather than merely slowing it down. During ingestion we do have
+    /// the domain knowledge: the PDFKit text layer is already mined for custom words before Vision
+    /// runs, and the same text identifies the language.
+    ///
+    /// There is very likely a speed benefit too — fewer candidates, and the per-request script
+    /// detection no longer runs — but Apple does not quantify it and neither do we.
     ///
     /// **Returns `nil` whenever narrowing is not clearly safe**, and the caller then keeps the full
     /// list. The asymmetry is deliberate: narrowing wrongly costs recognition accuracy on text that

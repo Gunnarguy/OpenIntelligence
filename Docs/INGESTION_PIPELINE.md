@@ -526,17 +526,27 @@ classification-accuracy defect rather than a performance one.
 
 ### OCR language narrowing, added 2026-08-29
 
-Vision loads a model per recognition language. `OCRConfiguration.recognitionLanguages` carries
-thirteen — including `ja-JP`, `ko-KR`, `zh-Hans` and `zh-Hant` — and until now every
-`VNRecognizeTextRequest` in the codebase received all of them, so an English-language document paid
-for twelve models that could not match anything. The same call also set
-`automaticallyDetectsLanguage = true`, which asserts the opposite of an explicit list: auto-detection
-exists for when the language is unknown, the list for when it is known.
+`OCRConfiguration.recognitionLanguages` carries thirteen languages — including `ja-JP`, `ko-KR`,
+`zh-Hans` and `zh-Hant` — and until now every `VNRecognizeTextRequest` in the codebase received all
+of them, alongside `automaticallyDetectsLanguage = true`.
 
-Apple's header is explicit about which side to prefer:
+**The documented reason to narrow is accuracy, not speed**, and an earlier draft of this section had
+that backwards. Apple's header describes what the flag does:
 
-> "…as the language correction cannot always guarantee the correct detection, it is advisable to set
-> the languages, if you have domain knowledge of what language to expect. The default value is NO."
+> "Language detection will try to automatically identify the script/langauge during the detection and
+> use the appropiate model for recognition and language correction… it will for instance determine if
+> text is latin vs chinese **so you don't have to pick the language model in the first case**. But as
+> the language correction cannot always guarantee the correct detection, it is advisable to set the
+> languages, if you have domain knowledge of what language to expect. The default value is NO."
+
+Two things follow. Vision was already identifying the script and selecting a model, so "thirteen
+models were being loaded" was never established and should not be claimed. What Apple *does* state is
+that the auto-detection **can be wrong**, and a wrong detection applies language correction against
+the wrong lexicon — which corrupts text rather than merely slowing it down. Setting the languages is
+the documented remedy.
+
+A speed benefit is likely as well: fewer candidates to correct against, and the per-request script
+detection no longer runs at all. Apple does not quantify it, and neither does this document.
 
 During PDF ingestion that knowledge is already available. Phase 1.5 of
 `extractTextFromPDFWithPages` already joins the first 50 pages of PDFKit text to mine
@@ -572,7 +582,9 @@ Call sites outside PDF ingestion — the camera capture path, `IntelligentDocume
 
 `[evidence_level: code_verified, confidence: exact, evidence_source: iPhoneOS27.0.sdk VNRecognizeTextRequest.h:72; OCRConfiguration.narrowedRecognitionLanguages; DocumentProcessor phase 1.6; OCRLanguageNarrowingTests, 12 cases]`
 
-**The wall-clock saving is not yet measured.** Twelve fewer models is a strong prior, not a figure.
+**No performance figure is claimed.** The correctness argument stands on Apple's own text; the
+speed argument is a plausible prior that only a device trace can settle, and the log line above
+exists so that trace can attribute it.
 
 ### Page-Level JSON Checkpointing & State Persistence
 - **Scope, clarified 2026-08-29: this applies only to `importLargePDFStreamed`, which is entered when

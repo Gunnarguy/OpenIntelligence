@@ -124,6 +124,19 @@ logged is what will measure it.
 - macOS Debug build -> **BUILD SUCCEEDED**, 0 errors.
 - `bash scripts/build_simulator_smoke.sh` -> **BUILD SUCCEEDED**, ad-hoc codesign clean.
 
+**Applies to both iOS and macOS** — no platform conditional anywhere in the change. It is the first
+fix this session that reaches iOS users; the render-path fix was macOS-only by construction.
+
+**A claim made in the first draft was corrected the same day.** The change was originally argued on
+cost — thirteen languages meaning thirteen models loaded. Re-reading the full header paragraph shows
+`automaticallyDetectsLanguage` already made Vision "identify the script/langauge … and use the
+appropiate model", so Vision was picking one on its own and the cost of a longer list is undocumented
+and unmeasured. The documented reason to set the languages is the warning that follows it:
+auto-detection "cannot always guarantee the correct detection", and a wrong guess applies language
+correction against the wrong lexicon, which corrupts text rather than merely slowing it down. **The
+change is right; the justification was wrong.** Corrected in `CHANGELOG.md`, `INGESTION_PIPELINE.md`,
+`DECISIONS.md`, the code comments, the roadmap row and the audit artifact.
+
 Came out of an audit of the ingestion path against Apple's SDK headers rather than from a bug
 report. **`Docs/ai/DECISIONS.md` and the artifact linked from the roadmap rows carry the reasoning;
 the short version is that four independent controls all govern how many pixels of each character

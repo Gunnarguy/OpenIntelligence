@@ -612,10 +612,16 @@ rows are `iOS, macOS` despite their label: iOS 4.8 was developer-rejected and ne
 
 **Context.** `OCRConfiguration` applied all thirteen recognition languages — four of them CJK — to
 every `VNRecognizeTextRequest` in the codebase, and set `automaticallyDetectsLanguage = true`
-alongside them. Vision loads a model per language, so an English document paid for twelve that could
-not match anything. The two settings also contradict each other: auto-detection exists for when the
-language is unknown, an explicit list for when it is known. Apple's header takes a side — "it is
-advisable to set the languages, if you have domain knowledge of what language to expect."
+alongside them.
+
+**The reason to narrow is accuracy, and the first draft of this entry had it backwards.** Apple's
+header says the flag makes Vision "identify the script/langauge … and use the appropiate model …
+so you don't have to pick the language model in the first case" — so Vision was already selecting a
+model, and "thirteen models were being loaded" was never established. What Apple does state is the
+warning that follows: "as the language correction cannot always guarantee the correct detection, it
+is advisable to set the languages, if you have domain knowledge of what language to expect." A wrong
+auto-detection applies language correction against the wrong lexicon, which corrupts text rather
+than merely slowing it down.
 
 **Decision.** During PDF ingestion, detect the document language once from the PDFKit text layer
 already being mined for custom vocabulary, and pass only the detected languages.
@@ -638,9 +644,11 @@ app whose users' documents are not knowable. Drop the CJK entries from the curat
 would silently stop supporting those languages rather than stop loading them when absent.
 
 **Consequences.** Call sites without a prior text layer — camera capture, `IntelligentDocumentProcessor`
-— pass no languages and are unchanged, so this helps ingestion and nothing else. The saving is
-unmeasured: twelve fewer models is a prior, not a figure, and the log line reports which branch ran
-so a device trace can settle it.
+— pass no languages and are unchanged, so this helps PDF ingestion and nothing else. It applies to
+**both platforms**: neither `OCRConfiguration` nor the changed region of `DocumentProcessor` contains
+a platform conditional. No performance figure is claimed. A speed benefit is likely — fewer
+candidates for language correction, and the per-request script detection no longer runs — but Apple
+does not quantify it and the log line reports which branch ran so a device trace can.
 
 **This is one of four controls, and the only one changed.** Render scale, `minimumTextHeight` and
 Vision concurrency all govern the same underlying quantity and are all set to maximum. They are

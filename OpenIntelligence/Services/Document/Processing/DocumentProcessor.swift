@@ -3369,13 +3369,14 @@ class DocumentProcessor {
         Log.debug("[DocumentProcessor] Dynamic vocabulary: \(documentCustomWords.count - OCRConfiguration.universalCustomWords.count) document-specific terms extracted", category: .ingestion)
 
         // PHASE 1.6: LANGUAGE NARROWING
-        // The same rough text tells us what language this document is in. Vision loads a model per
-        // recognition language and the default list carries thirteen, four of them CJK, so an
-        // English document was paying for twelve models that cannot match anything. Detection runs
-        // once per document, not per page, and hops to the main actor once for a service that is
-        // isolated there. `narrowedRecognitionLanguages(matching:)` returns nil when narrowing is not
-        // clearly safe, including here when the text layer was garbled and roughDocumentText is
-        // empty.
+        // The same rough text tells us what language this document is in, so Vision does not have
+        // to guess it again on every request. Apple's reason to set the languages explicitly is
+        // accuracy rather than speed: `automaticallyDetectsLanguage` "cannot always guarantee the
+        // correct detection", and a wrong guess applies language correction against the wrong
+        // lexicon, which corrupts text instead of merely slowing it down. Detection runs once per
+        // document, not per page, and hops to the main actor once for a service isolated there.
+        // `narrowedRecognitionLanguages(matching:)` returns nil when narrowing is not clearly safe,
+        // including here when the text layer was garbled and roughDocumentText is empty.
         let languageProfile = await MainActor.run {
             LanguageDetectionService.shared.analyzeDocument(roughDocumentText)
         }
