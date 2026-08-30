@@ -115,6 +115,17 @@ The OpenIntelligence Architecture Atlas is the canonical representation of the r
 - **NO CloudKit**: No explicit CloudKit database APIs are in use. `[evidence: code_verified, exact, WorkspaceSyncService.swift]`
 - **NO SQLite Sync**: The `SQLiteFullTextService.swift` is completely local-only. `[evidence: code_verified, exact, SQLiteFullTextService.swift]`
 - **Ingestion Checkpoints**: Saved under `localCacheDir()/IngestionCheckpoints/` to guarantee they are strictly local-only and excluded from iCloud syncing paths. `[evidence: code_verified, exact, DocumentProcessor.swift]`
+- **Vector store refresh is change-gated, added 2026-08-29**: `VectorStoreRouter.clearAll()` is
+  called by `reloadWorkspaceData()` to pick up sync-driven file changes. It compares each container's
+  on-disk signature (size + modification date across `BNNSVectorDatabase.binaryFileURLs`) and reloads
+  only the stores that actually changed. **It never evicts**: `BNNSVectorDatabase` is memory-mapped,
+  so dropping an instance while a caller holds a reference would permit two live mappings of one
+  file — the reason the method reloads in place. Measured on 2026-08-29, an idle Mac produced
+  **2,848 vector loads in 164 seconds**, the same store re-read 288 times, because the refresh was
+  unconditional and its caller fires every 1.68 s. The gate makes the idle case free; a genuine
+  change still reloads immediately. It bounds the symptom only — the 1.68 s trigger is a workspace
+  timer meeting a container whose orphaned state never resolves, and that lives in
+  `WorkspaceSyncService`. `[evidence: measured, exact, pipeline_trace.log 19:45:24-19:48:08 on the maintainer's Mac; VectorStoreRouter.clearAll]`
 - **Benchmark runs stand down from queue merging**: `mergeIngestionQueueIfNeeded` returns early while
   `OpenIntelligenceRuntimePaths.areOverridesPinned` is set. `localRoot` there resolves through
   `applicationSupportRoot()`, which does not consult the storage override, so every benchmark run

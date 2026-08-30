@@ -6,8 +6,21 @@ Last verified commit: adb0cda
 
 ## Objective
 
-**Make macOS ingestion usable.** Three fixes are **implemented, built and suite-verified**; none is
-verified on device, which is what closes their rows. An external tester on a fanless M5 MacBook Air ingested a 210-page,
+**Make macOS ingestion usable.** Four fixes are **implemented, built and suite-verified**. Three of
+the four are now confirmed on the maintainer's Mac from `pipeline_trace.log`; the idle-churn fix is
+the newest and is not yet confirmed running.
+
+**The render fix is measured and it was never the bottleneck.** Live trace, 2026-08-29:
+`Rendered PDF page at 2976x3897px (360 DPI) in 12.0ms via CGBitmapContext, CPU raster`, across seven
+pages at 13-32ms. A five-hour ingest cannot be explained by 15ms per page, so the remaining cost is
+Vision recognition, not rasterisation. Do not attribute the tester's five hours to the render path.
+
+**The language narrowing does not run on any modern OS.** `extractStructuredPDFContent` branches to
+`extractWithStructuredParsing` on iOS/macOS 26+, and phase 1.6 was added to the pre-26 fallback
+`extractTextFromPDFWithPages` instead. `OCR languages narrowed` appears **zero** times across every
+trace snapshot. The fix is to hoist the detection into `extractStructuredPDFContent` before the
+branch; the three OCR call sites already read `currentDocumentRecognitionLanguages` and need no
+further change. **Not yet done.** An external tester on a fanless M5 MacBook Air ingested a 210-page,
 64 MB PDF on 2026-08-29. It completed, correctly, in **five hours**, producing ~5000 chunks. The
 owner has committed to the tester, in writing, that macOS ingestion performance and a pause control
 are top priority for `v5.1`.
@@ -116,6 +129,38 @@ Working tree is clean. Nothing uncommitted in this repository.
 which needs a device. **Not measured:** the wall-clock effect of the render
 fix on a real document. No speedup is claimed anywhere, deliberately — the per-page render timing now
 logged is what will measure it.
+
+### 2026-08-29, idle vector-reload churn
+
+Measured on the maintainer's Mac with the app open and untouched, from a continuous capture that
+survives the trace file's rotation (`/private/tmp/oi-trace-archive/continuous.log`):
+
+| Window | Vector loads | Workspace reloads |
+|---|---|---|
+| 164 s | 2,848 (17.4/s) | 271 (1.7/s) |
+| 886 s | 11,749 (13.3/s) | 2,266 (2.6/s) |
+
+**11 distinct vector stores** were reloaded on every tick, the same store re-read 288 times in under
+three minutes. Interval between ticks was 1.68 s +/- 0.2 across 14 consecutive samples, regular
+enough to be a timer rather than filesystem noise.
+
+Chain: a workspace timer fires -> `reloadWorkspaceData()` -> `VectorStoreRouter.clearAll()` reloaded
+**every** cached store unconditionally -> one memory-mapped read per store per tick. The trigger is
+container `3CE9F7D5` sitting permanently orphaned (182 chunks, no documents in metadata), which the
+sync guard refuses to delete because "an import may still be writing" — transient by assumption,
+permanent in fact.
+
+`clearAll()` now compares each container's on-disk signature and reloads only what changed. **It
+still never evicts**: `BNNSVectorDatabase` is memory-mapped and the original comment keeps every
+instance "to prevent multiple instances for the same URL". An eviction-based fix was proposed by a
+delegated analysis and rejected for that reason.
+
+- Full `xcodebuild test` -> **392 tests, 3 skipped, 0 failures**.
+- macOS Debug build and `bash scripts/build_simulator_smoke.sh` -> both **SUCCEEDED**.
+- No on-disk format change, so no re-index.
+
+**Root cause is untouched.** The 1.68 s trigger and the orphan guard are both in
+`WorkspaceSyncService.swift`, Tier-2 hard boundary, not named in any approval.
 
 ### 2026-08-29, OCR language narrowing
 

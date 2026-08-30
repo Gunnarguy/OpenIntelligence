@@ -691,6 +691,46 @@ CI is `.github/workflows/ci.yml`, building on `macos-26` on push and PR to `main
 highest installed Xcode.
 
 
+## A local device build on Xcode 27 already enables PCC, and nothing local warns you
+
+*Found 2026-08-29, while installing a debug build on a physical iPhone to test ingestion changes.*
+
+`DEVELOPER_DIR=/Applications/Xcode-beta.app` is Xcode 27 / **Swift 6.4**, so `#if compiler(>=6.4)`
+is **true** and every PCC path compiles in. The development provisioning profile also carries
+`com.apple.developer.private-cloud-compute`, so `EntitlementChecker.hasEntitlement` returns true and
+the routing is genuinely reachable — not dead code.
+
+**The guards in the section below do not catch this.** `ci_post_clone.sh` and
+`ci_post_xcodebuild.sh` run in Xcode Cloud. A local `xcodebuild` for a device runs neither, so a
+routine "put it on my phone to test something else" install quietly changes where queries can
+execute, on a real library.
+
+Check any bundle before installing it. Note that a **Debug** build puts the code in
+`<App>.debug.dylib`, not in the app binary, so checking only the executable reports a clean zero:
+
+```bash
+APP=/path/to/OpenIntelligence.app
+find "$APP" -type f -perm +111 -exec sh -c \
+  'file "$1" | grep -q Mach-O && echo "$(nm -u "$1" 2>/dev/null | grep -ci PrivateCloudCompute) $1"' _ {} \;
+```
+
+On 2026-08-29 that reported **19** for `OpenIntelligence.debug.dylib` and **0** for
+`OpenIntelligence`, which is why the executable-only check is worth calling out.
+
+**To match the shipped PCC posture, build with `/Applications/Xcode.app`** — Xcode 26.6 / Swift
+6.3.3, the toolchain every released binary uses. `#if compiler(>=6.4)` is false there and the count
+is zero across the whole bundle. Use it for any device build whose purpose is to test something
+other than PCC, so one install does not change two variables at once.
+
+```bash
+DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcodebuild \
+  -project /private/tmp/oi-src/OpenIntelligence.xcodeproj -scheme OpenIntelligence \
+  -configuration Debug -destination "generic/platform=iOS" \
+  -derivedDataPath /private/tmp/oi-device-dd -skipPackagePluginValidation -allowProvisioningUpdates build
+```
+
+`[evidence_level: measured, confidence: exact, evidence_source: nm -u across every Mach-O in both bundles, 2026-08-29; xcrun swift --version for both Xcode installs]`
+
 ## Enabling Private Cloud Compute (the iOS/macOS 27 release)
 
 Written 2026-08-28, before the fact, because two of this repository's own release guards are built

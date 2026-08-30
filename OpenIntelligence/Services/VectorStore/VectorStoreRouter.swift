@@ -195,6 +195,9 @@ final class VectorStoreRouter {
     func invalidateAndClearStorage(containerId: UUID) {
         // Remove from cache
         stores.removeValue(forKey: containerId)
+        // Drop the remembered signature too. Keeping it would let a later re-add be compared
+        // against the pre-deletion state and skip a reload it genuinely needs.
+        lastSeenDiskSignature.removeValue(forKey: containerId)
 
         // Delete all persisted vector database files (binary + legacy JSON)
         let legacyURL = AppSupportPaths.vectorsFileURL(containerId: containerId)
@@ -211,14 +214,72 @@ final class VectorStoreRouter {
         }
     }
 
-    /// Clear all cached stores.
+    /// On-disk signature of a store's backing files, used to skip reloads that would be no-ops.
+    /// Size and modification date together: mtime alone misses a same-second rewrite, size alone
+    /// misses an in-place edit that preserves length.
+    private var lastSeenDiskSignature: [UUID: [String: String]] = [:]
+
+    /// Number of consecutive `clearAll()` calls that found nothing changed. Logged when it becomes
+    /// large, because a silent no-op repeated hundreds of times is indistinguishable from a working
+    /// cache until someone reads a trace.
+    private var consecutiveNoOpSweeps: Int = 0
+
+    /// Current on-disk signature for a container's vector files, or `nil` if none exist yet.
+    private func diskSignature(for containerId: UUID) -> [String: String] {
+        let legacyURL = AppSupportPaths.vectorsFileURL(containerId: containerId)
+        var signature: [String: String] = [:]
+        for fileURL in BNNSVectorDatabase.binaryFileURLs(from: legacyURL) {
+            guard let attrs = try? FileManager.default.attributesOfItem(atPath: fileURL.path) else { continue }
+            let size = (attrs[.size] as? Int64) ?? -1
+            let modified = (attrs[.modificationDate] as? Date)?.timeIntervalSince1970 ?? -1
+            signature[fileURL.lastPathComponent] = "\(size)@\(modified)"
+        }
+        return signature
+    }
+
+    /// Refresh cached stores from disk.
+    ///
+    /// **Reloads only the stores whose files actually changed.** The instances themselves are never
+    /// evicted: `BNNSVectorDatabase` is memory-mapped, and dropping one while a caller still holds a
+    /// reference would allow two live instances mapping the same file. That invariant is why this
+    /// method reloads in place rather than clearing the dictionary, and it must be preserved.
+    ///
+    /// The check exists because this is called from `reloadWorkspaceData()`, which on 2026-08-29 was
+    /// observed firing every 1.68 seconds indefinitely while the app sat idle — a workspace timer
+    /// meeting a container whose orphaned state never resolves. Each call reloaded *every* cached
+    /// store unconditionally, producing 2,848 vector loads in 164 idle seconds with the same store
+    /// re-read 288 times. Comparing the on-disk signature first makes the idle case free while a
+    /// genuine sync-driven change still reloads immediately.
+    ///
+    /// This bounds the damage; it does not fix the cause. The 1.68s trigger lives in
+    /// `WorkspaceSyncService`.
     func clearAll() {
-        // Keep ALL database instances to prevent multiple instances for the same URL,
-        // but reload their state from disk asynchronously to reflect any sync/file updates.
-        for (_, db) in stores {
+        var reloaded = 0
+        for (containerId, db) in stores {
+            let signature = diskSignature(for: containerId)
+            guard lastSeenDiskSignature[containerId] != signature else { continue }
+            lastSeenDiskSignature[containerId] = signature
+            reloaded += 1
             Task {
                 try? await db.reload()
             }
+        }
+
+        if reloaded == 0 {
+            consecutiveNoOpSweeps += 1
+            // Powers of two, so a runaway caller is visible in the log without the log becoming the
+            // new source of churn.
+            if consecutiveNoOpSweeps > 8, consecutiveNoOpSweeps & (consecutiveNoOpSweeps - 1) == 0 {
+                Log.info(
+                    "[VectorStoreRouter] \(consecutiveNoOpSweeps) consecutive refreshes found no on-disk change across \(stores.count) store(s); something is calling clearAll() repeatedly",
+                    category: .vectorDB
+                )
+            }
+        } else {
+            if consecutiveNoOpSweeps > 0 {
+                Log.debug("[VectorStoreRouter] Refreshed \(reloaded)/\(stores.count) store(s) after \(consecutiveNoOpSweeps) no-op sweep(s)", category: .vectorDB)
+            }
+            consecutiveNoOpSweeps = 0
         }
     }
 
