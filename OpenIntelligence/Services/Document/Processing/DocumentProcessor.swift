@@ -421,6 +421,12 @@ class DocumentProcessor {
     /// Reset on each processDocument() call.
     private var currentDocumentCustomWords: [String] = OCRConfiguration.universalCustomWords
 
+    /// The languages this document is known to contain, narrowed from the full recognition list by
+    /// `OCRConfiguration.narrowedRecognitionLanguages(matching:)`. `nil` means not narrowed: keep all of
+    /// `OCRConfiguration.recognitionLanguages` and let Vision detect. Per-document state, so it
+    /// resets with the rest of it.
+    private var currentDocumentRecognitionLanguages: [String]?
+
     init(targetChunkSize: Int = 350, chunkOverlap: Int = 60) {
         self.targetChunkSize = targetChunkSize
         self.chunkOverlap = chunkOverlap
@@ -567,6 +573,7 @@ class DocumentProcessor {
         // Reset ALL per-document state to prevent vocabulary/entity leaks between documents
         lastDetectedEntities = []
         currentDocumentCustomWords = OCRConfiguration.universalCustomWords
+        currentDocumentRecognitionLanguages = nil
         // Reset StructuredDocumentParser singleton state
         if #available(iOS 26.0, *) {
             await StructuredDocumentParser.shared.setDocumentCustomWords(OCRConfiguration.universalCustomWords)
@@ -3360,6 +3367,27 @@ class DocumentProcessor {
         let documentCustomWords = OCRConfiguration.customWords(forDocumentText: roughDocumentText)
         self.currentDocumentCustomWords = documentCustomWords
         Log.debug("[DocumentProcessor] Dynamic vocabulary: \(documentCustomWords.count - OCRConfiguration.universalCustomWords.count) document-specific terms extracted", category: .ingestion)
+
+        // PHASE 1.6: LANGUAGE NARROWING
+        // The same rough text tells us what language this document is in. Vision loads a model per
+        // recognition language and the default list carries thirteen, four of them CJK, so an
+        // English document was paying for twelve models that cannot match anything. Detection runs
+        // once per document, not per page, and hops to the main actor once for a service that is
+        // isolated there. `narrowedRecognitionLanguages(matching:)` returns nil when narrowing is not
+        // clearly safe, including here when the text layer was garbled and roughDocumentText is
+        // empty.
+        let languageProfile = await MainActor.run {
+            LanguageDetectionService.shared.analyzeDocument(roughDocumentText)
+        }
+        self.currentDocumentRecognitionLanguages = OCRConfiguration.narrowedRecognitionLanguages(matching: languageProfile)
+        let detectedSummary = "\(languageProfile.primaryLanguage.displayName) @ \(String(format: "%.2f", languageProfile.primaryLanguage.confidence))"
+        if let narrowed = self.currentDocumentRecognitionLanguages {
+            Log.info("[DocumentProcessor] OCR languages narrowed \(OCRConfiguration.recognitionLanguages.count) -> \(narrowed.count) [\(narrowed.joined(separator: ", "))] (detected \(detectedSummary))", category: .ingestion)
+        } else {
+            // Logged at info, not debug. A silent fallback to the most expensive setting is the
+            // failure shape this repository keeps rediscovering; the expensive path must say so.
+            Log.info("[DocumentProcessor] OCR languages NOT narrowed, keeping all \(OCRConfiguration.recognitionLanguages.count) (detected \(detectedSummary))", category: .ingestion)
+        }
 
         // Result container for parallel extraction
         struct PageExtractionResult: Sendable {
@@ -7467,7 +7495,7 @@ class DocumentProcessor {
             }
 
             // === CENTRALIZED OCR CONFIGURATION (via OCRConfiguration factory) ===
-            OCRConfiguration.configureRequest(request, customWords: self.currentDocumentCustomWords)
+            OCRConfiguration.configureRequest(request, customWords: self.currentDocumentCustomWords, languages: self.currentDocumentRecognitionLanguages)
 
             // Limit concurrent Vision OCR to prevent Metal race conditions
             VisionOCRThrottle.performSync {
@@ -7699,7 +7727,7 @@ class DocumentProcessor {
             }
 
             // === CENTRALIZED OCR CONFIGURATION (via OCRConfiguration factory) ===
-            OCRConfiguration.configureRequest(request, customWords: self.currentDocumentCustomWords)
+            OCRConfiguration.configureRequest(request, customWords: self.currentDocumentCustomWords, languages: self.currentDocumentRecognitionLanguages)
 
             // Limit concurrent Vision OCR to prevent Metal race conditions
             VisionOCRThrottle.performSync {
@@ -7767,7 +7795,7 @@ class DocumentProcessor {
             }
 
             // === CENTRALIZED OCR CONFIGURATION (via OCRConfiguration factory) ===
-            OCRConfiguration.configureRequest(request, customWords: self.currentDocumentCustomWords)
+            OCRConfiguration.configureRequest(request, customWords: self.currentDocumentCustomWords, languages: self.currentDocumentRecognitionLanguages)
 
             // Limit concurrent Vision OCR to prevent Metal race conditions
             VisionOCRThrottle.performSync {

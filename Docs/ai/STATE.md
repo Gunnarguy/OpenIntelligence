@@ -6,7 +6,7 @@ Last verified commit: adb0cda
 
 ## Objective
 
-**Make macOS ingestion usable.** Two fixes are **implemented, built and suite-verified**; neither is
+**Make macOS ingestion usable.** Three fixes are **implemented, built and suite-verified**; none is
 verified on device, which is what closes their rows. An external tester on a fanless M5 MacBook Air ingested a 210-page,
 64 MB PDF on 2026-08-29. It completed, correctly, in **five hours**, producing ~5000 chunks. The
 owner has committed to the tester, in writing, that macOS ingestion performance and a pause control
@@ -117,6 +117,20 @@ which needs a device. **Not measured:** the wall-clock effect of the render
 fix on a real document. No speedup is claimed anywhere, deliberately — the per-page render timing now
 logged is what will measure it.
 
+### 2026-08-29, OCR language narrowing
+
+- Full `xcodebuild test` -> **392 tests, 3 skipped, 0 failures** (380 before, plus 12 new).
+- `OCRLanguageNarrowingTests` -> 12 cases, 0 failures.
+- macOS Debug build -> **BUILD SUCCEEDED**, 0 errors.
+- `bash scripts/build_simulator_smoke.sh` -> **BUILD SUCCEEDED**, ad-hoc codesign clean.
+
+Came out of an audit of the ingestion path against Apple's SDK headers rather than from a bug
+report. **`Docs/ai/DECISIONS.md` and the artifact linked from the roadmap rows carry the reasoning;
+the short version is that four independent controls all govern how many pixels of each character
+reach Vision, and all four were set to maximum.** This change addresses one of them. The other
+three are filed and deliberately not started, because attributing the tester's five hours to any one
+of them is still inference.
+
 ### 2026-08-29, restored-progress reporting
 
 - Full `xcodebuild test` on iOS 27 sim -> **380 tests, 3 skipped, 0 failures**. The three skips are
@@ -215,9 +229,16 @@ headers `[evidence_level: code_read, confidence: high]`:
 
 ## Exact Next Action
 
-**Get a macOS device run.** Everything else is blocked on this. It closes both open fixes at once:
-build the Mac app, ingest a large PDF, read the new per-page render line, then quit mid-ingest and
-reopen to confirm the restored item reports its true page count instead of zero.
+**Get a macOS device run.** Everything else is blocked on this. It closes all three open fixes at
+once: build the Mac app, ingest a large PDF, then
+
+1. read the per-page render line for render-vs-OCR cost,
+2. check `OCR languages narrowed 13 -> N` fired rather than `NOT narrowed`,
+3. quit mid-ingest and reopen, and confirm the restored item reports its true page count.
+
+**Do not tune any further OCR threshold before that run.** The remaining three controls
+(render scale, `minimumTextHeight`, Vision concurrency) are filed with the evidence, and changing
+them now would be tuning against a guess.
 
 ```
 [DocumentProcessor] Rendered PDF page at WxHpx (N DPI) in X.Xms via CGBitmapContext, CPU raster
@@ -233,6 +254,12 @@ is fanless and the maintainer's is not.
 
 Then, in order:
 
+- [Render scale and minimumTextHeight both max out the same quantity](https://app.notion.com/p/3cc49a74d54f816f8ee4d2ed6e687cb3)
+  — `Future Backlog`. Blocked on the device run above; the two controls must be coupled to one
+  derived target rather than tuned separately.
+- [Retrieval is nondeterministic, which makes every quality change unfalsifiable](https://app.notion.com/p/3cc49a74d54f81d7a88dffe679ce9bb1)
+  — `Future Backlog`, and it gates every other retrieval row including contextual retrieval and the
+  embedding migration. Two runs of one build return different evidence for one question.
 - [Ingestion has no pause control, and only PDFs over 10MB checkpoint](https://app.notion.com/p/3cb49a74d54f819797e8cea0e96d62b9)
   — `v5.1`. The restored-progress display is **done**; what remains on this row is the pause button
   itself and the `fileSizeMB > 10 && .pdf` gate on checkpointing.

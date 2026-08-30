@@ -605,3 +605,44 @@ in this repository are 2.5, 3.0, 4.8, 5.0 and 5.0.2, the earliest tied to iOS 4.
 rows are `iOS, macOS` despite their label: iOS 4.8 was developer-rejected and never shipped, macOS
 4.8 was approved, and the iOS 4.9 binary carries every 4.8 entry.
 `[evidence_level: artifact_derived, confidence: exact, evidence_source: CHANGELOG heading annotations for 4.6/4.7/4.9; the 4.9 heading comment on the iOS 4.8 rejection; Docs/SHIPPED_VERSION.json; per-option row counts before and after the schema change, 224 rows unchanged]`
+
+---
+
+## 2026-08-29 — Narrow Vision's OCR language set, but only when the detection is confident
+
+**Context.** `OCRConfiguration` applied all thirteen recognition languages — four of them CJK — to
+every `VNRecognizeTextRequest` in the codebase, and set `automaticallyDetectsLanguage = true`
+alongside them. Vision loads a model per language, so an English document paid for twelve that could
+not match anything. The two settings also contradict each other: auto-detection exists for when the
+language is unknown, an explicit list for when it is known. Apple's header takes a side — "it is
+advisable to set the languages, if you have domain knowledge of what language to expect."
+
+**Decision.** During PDF ingestion, detect the document language once from the PDFKit text layer
+already being mined for custom vocabulary, and pass only the detected languages.
+`narrowedRecognitionLanguages(matching:)` returns `nil` — meaning keep all thirteen — whenever
+narrowing is not clearly safe: primary confidence at or below 0.8, an undetermined language, an
+empty text layer, or a language the curated list does not cover. Chinese narrows to both scripts
+rather than choosing between Hans and Hant.
+
+**Why the asymmetry, which is the part that cannot be read off the code.** The two errors are not
+comparable. Narrowing wrongly means Vision has no model for text that is present, so that text is
+lost and no later stage can tell it ever existed — the silent-discard failure this pipeline has
+produced four separate times. Keeping the full list wrongly only costs time, which is visible in a
+log and recoverable on the next run. So the function is built to decline, and a future change that
+makes it eager will look like an optimisation while being a regression. The tests exist mainly to
+pin the declining cases for that reason.
+
+**Alternatives.** Detect per page, which multiplies a fixed per-document cost by the page count for
+a property that rarely varies within a document. Hardcode English, which is wrong for a local-first
+app whose users' documents are not knowable. Drop the CJK entries from the curated list, which
+would silently stop supporting those languages rather than stop loading them when absent.
+
+**Consequences.** Call sites without a prior text layer — camera capture, `IntelligentDocumentProcessor`
+— pass no languages and are unchanged, so this helps ingestion and nothing else. The saving is
+unmeasured: twelve fewer models is a prior, not a figure, and the log line reports which branch ran
+so a device trace can settle it.
+
+**This is one of four controls, and the only one changed.** Render scale, `minimumTextHeight` and
+Vision concurrency all govern the same underlying quantity and are all set to maximum. They are
+filed on the roadmap with the evidence and deliberately not started, because attributing the
+observed five-hour ingest to any one of them is inference until a run is instrumented.

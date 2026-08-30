@@ -28,6 +28,8 @@ flowchart TD
     B -- PDF Size >= 10MB --> STREAM[Batched Streaming Ingestion]
     C -- Yes --> D[PDFKit Extraction]
     C -- No --> E[Vision OCR Fallback]
+    D --> PRIME[Mine rough text: custom words + narrow OCR language set]
+    PRIME --> E
     B -- Text/Markdown --> F[Direct Text Read]
     B -- Image --> IMG[Structured parse, then OCR + classification]
     B -- CSV --> CSVL[RFC 4180 parse to pipe rows]
@@ -521,6 +523,56 @@ absent it macOS scores pages as *less* visual than iOS would, never more. Tracke
 classification-accuracy defect rather than a performance one.
 
 `[evidence_level: code_verified, confidence: exact, evidence_source: PageComplexityAnalyzer.swift:1045-1072 and :294-307; DocumentProcessor.swift:3323 and :4049]`
+
+### OCR language narrowing, added 2026-08-29
+
+Vision loads a model per recognition language. `OCRConfiguration.recognitionLanguages` carries
+thirteen — including `ja-JP`, `ko-KR`, `zh-Hans` and `zh-Hant` — and until now every
+`VNRecognizeTextRequest` in the codebase received all of them, so an English-language document paid
+for twelve models that could not match anything. The same call also set
+`automaticallyDetectsLanguage = true`, which asserts the opposite of an explicit list: auto-detection
+exists for when the language is unknown, the list for when it is known.
+
+Apple's header is explicit about which side to prefer:
+
+> "…as the language correction cannot always guarantee the correct detection, it is advisable to set
+> the languages, if you have domain knowledge of what language to expect. The default value is NO."
+
+During PDF ingestion that knowledge is already available. Phase 1.5 of
+`extractTextFromPDFWithPages` already joins the first 50 pages of PDFKit text to mine
+document-specific vocabulary; phase 1.6 now runs `LanguageDetectionService.analyzeDocument` over
+that same string, once per document, and `OCRConfiguration.narrowedRecognitionLanguages(matching:)`
+turns the result into a subset of the curated list. `configureRequest` takes it as an optional
+`languages:` parameter and disables `automaticallyDetectsLanguage` when it is present.
+
+**The function is deliberately reluctant.** It returns `nil` — meaning *keep all thirteen* — whenever
+narrowing is not clearly safe: a primary detection at or below `0.8` confidence, an undetermined
+language, an empty rough text layer (which is what a garbled-text-layer document produces), or a
+detected language the curated list does not cover at all. The asymmetry is the whole design.
+Narrowing wrongly costs recognition accuracy on text that is never recovered; keeping the full list
+only costs time. A future edit that makes this eager would look like an optimisation and be a
+regression.
+
+Chinese narrows to **both** scripts. Coarse detection cannot separate Hans from Hant, and choosing
+wrong there loses the text outright, so the prefix match keeps both. Eleven models dropped, not
+twelve.
+
+Both outcomes log at `info`, not `debug`:
+
+```
+[DocumentProcessor] OCR languages narrowed 13 -> 2 [en-US, en-GB] (detected English @ 0.98)
+[DocumentProcessor] OCR languages NOT narrowed, keeping all 13 (detected Unknown @ 0.00)
+```
+
+The second line matters more than the first. A silent fallback to the most expensive setting is the
+failure shape this repository keeps rediscovering, so the expensive path has to say so.
+
+Call sites outside PDF ingestion — the camera capture path, `IntelligentDocumentProcessor` — pass no
+`languages:` argument and are unchanged, because there is no prior text layer there to detect from.
+
+`[evidence_level: code_verified, confidence: exact, evidence_source: iPhoneOS27.0.sdk VNRecognizeTextRequest.h:72; OCRConfiguration.narrowedRecognitionLanguages; DocumentProcessor phase 1.6; OCRLanguageNarrowingTests, 12 cases]`
+
+**The wall-clock saving is not yet measured.** Twelve fewer models is a strong prior, not a figure.
 
 ### Page-Level JSON Checkpointing & State Persistence
 - **Scope, clarified 2026-08-29: this applies only to `importLargePDFStreamed`, which is entered when

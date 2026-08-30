@@ -115,17 +115,87 @@ enum OCRConfiguration {
 
     // MARK: - Factory Methods (Single Source of Truth)
 
+    /// Narrow the recognition language list to the languages a document actually contains.
+    ///
+    /// Vision loads a model per recognition language, and the default list here carries thirteen
+    /// including four CJK variants. Handing all of them to an English-language document pays for
+    /// twelve models that cannot match anything.
+    ///
+    /// Apple's header on `automaticallyDetectsLanguage` is explicit about which side to prefer:
+    /// "as the language correction cannot always guarantee the correct detection, it is advisable
+    /// to set the languages, if you have domain knowledge of what language to expect." During
+    /// ingestion we do have that knowledge — the PDFKit text layer is already mined for custom
+    /// words before Vision runs, and the same text identifies the language.
+    ///
+    /// **Returns `nil` whenever narrowing is not clearly safe**, and the caller then keeps the full
+    /// list. The asymmetry is deliberate: narrowing wrongly costs recognition accuracy on text that
+    /// can never be recovered, while keeping the full list only costs time. `nil` is returned when
+    /// the primary detection is not confident, when the language is undetermined, and when the
+    /// detected language is not one this list covers at all.
+    ///
+    /// - Parameter profile: from `LanguageDetectionService.analyzeDocument(_:)`.
+    /// - Returns: a subset of `recognitionLanguages` in the same order, or `nil` to keep them all.
+    nonisolated static func narrowedRecognitionLanguages(matching profile: DocumentLanguageProfile) -> [String]? {
+        // A low-confidence primary means we do not actually have the domain knowledge Apple's
+        // guidance is predicated on, so do not act as though we do.
+        guard profile.primaryLanguage.isConfident else { return nil }
+
+        // Include secondary languages generously. A document with any real amount of a second
+        // language should keep that language's model; the saving comes from dropping the ten
+        // that are not present at all, not from being strict about the eleventh.
+        let candidates = profile.languages(above: 0.15)
+
+        let prefixes = Set(candidates.compactMap { language -> String? in
+            guard language.code != .undetermined else { return nil }
+            return languagePrefix(language.code.rawValue)
+        })
+        guard !prefixes.isEmpty else { return nil }
+
+        // Filter the curated list rather than synthesising codes, so the ordering, the regional
+        // variants and the "what Vision actually accepts" question all stay answered in one place.
+        // A prefix match keeps both scripts for Chinese, which is correct: the coarse detection
+        // cannot tell Hans from Hant, and guessing wrong there is exactly the unrecoverable kind
+        // of error this function refuses to make.
+        let narrowed = recognitionLanguages.filter { prefixes.contains(languagePrefix($0)) }
+        guard !narrowed.isEmpty else { return nil }
+
+        return narrowed
+    }
+
+    /// The part of a language identifier before any region or script subtag: `en-GB` -> `en`,
+    /// `zh-Hans` -> `zh`, `en` -> `en`.
+    nonisolated private static func languagePrefix(_ identifier: String) -> String {
+        String(identifier.prefix { $0 != "-" })
+    }
+
     /// Configure a VNRecognizeTextRequest with maximum accuracy settings.
     /// Every VNRecognizeTextRequest in the codebase MUST go through this.
     ///
-    /// - Parameter customWords: Document-specific vocabulary (from `customWords(forDocumentText:)`)
-    /// - Returns: Fully configured request ready to perform
-    nonisolated static func configureRequest(_ request: VNRecognizeTextRequest, customWords: [String]? = nil) {
+    /// - Parameters:
+    ///   - customWords: Document-specific vocabulary (from `customWords(forDocumentText:)`)
+    ///   - languages: The languages this document is known to contain, from
+    ///     `recognitionLanguages(matching:)`. Pass `nil` — the default, and what every call site
+    ///     outside PDF ingestion does — to keep the full list and let Vision detect.
+    nonisolated static func configureRequest(
+        _ request: VNRecognizeTextRequest,
+        customWords: [String]? = nil,
+        languages: [String]? = nil
+    ) {
         request.revision = VNRecognizeTextRequestRevision3
         request.recognitionLevel = .accurate
         request.usesLanguageCorrection = true
-        request.automaticallyDetectsLanguage = true
-        request.recognitionLanguages = recognitionLanguages
+
+        if let languages, !languages.isEmpty {
+            // We know what to expect, so stop asking Vision to guess. Setting both an explicit list
+            // and `automaticallyDetectsLanguage` asserts two contradictory things: auto-detection
+            // exists for when the language is unknown, the list for when it is known.
+            request.automaticallyDetectsLanguage = false
+            request.recognitionLanguages = languages
+        } else {
+            request.automaticallyDetectsLanguage = true
+            request.recognitionLanguages = recognitionLanguages
+        }
+
         request.minimumTextHeight = 0.0  // Detect ALL text including tiny footnotes
         request.customWords = customWords ?? universalCustomWords
     }
