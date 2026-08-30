@@ -524,6 +524,46 @@ classification-accuracy defect rather than a performance one.
 
 `[evidence_level: code_verified, confidence: exact, evidence_source: PageComplexityAnalyzer.swift:1045-1072 and :294-307; DocumentProcessor.swift:3323 and :4049]`
 
+### The live OCR request, corrected 2026-08-30
+
+**The primary OCR path uses `RecognizeDocumentsRequest`, not `VNRecognizeTextRequest`.** An audit on
+2026-08-29 asserted the opposite and was wrong. `extractStructuredPDFContent` routes every OS 26+
+device — which is every shipping device — through `extractWithStructuredParsing` and on to
+`StructuredDocumentParser`, which builds `RecognizeDocumentsRequest` directly and never calls
+`OCRConfiguration.configureRequest`. The older `VNRecognizeTextRequest` survives in six places: the
+text-layer validation sample, camera capture, `LayoutAwareExtractor`, and pre-26 fallbacks.
+
+Two consequences, both fixed here.
+
+**The language narrowing added on 2026-08-29 never executed.** It was placed in
+`extractTextFromPDFWithPages`, the pre-26 fallback branch, and it configured `OCRConfiguration`,
+which the live request does not use. Verified against a live trace: `OCR languages narrowed`
+appeared zero times across every capture. Detection is now hoisted into
+`extractStructuredPDFContent` above the version branch, made idempotent, and threaded through
+`parsePageImage(_:pageNumber:customWords:recognitionLanguages:...)` into
+`request.textRecognitionOptions`. `automaticallyDetectLanguage` is now derived —
+`(recognitionLanguages == nil)` — rather than hardcoded `true` beside an explicit thirteen-language
+list, which asserted both halves of a contradiction.
+
+**`minimumTextHeightFraction` was `0.0` on the live request too**, with the comment "Detect all text
+sizes". It is now `0.004`.
+
+The value is a fraction of **image height**, so it is invariant to render scale: a 6 pt glyph on a
+792 pt page is 0.0076 of the image whether rasterised at 144 or 432 DPI. One constant is therefore
+safe across every render setting. `0.004` corresponds to roughly **3 pt** text on US Letter and
+**2.4 pt** on A5 — below the smallest legible print in any real document.
+
+Apple's header for the identically-named property on `VNRecognizeTextRequest` is the primary source
+for what `0.0` costs: "the image gets processed at the highest possible resolution with no
+downscaling. With that the processing time will be the longest and the memory usage the highest."
+The new API's property carries the same name, type and documented meaning.
+
+`[evidence_level: code_verified, confidence: exact, evidence_source: StructuredDocumentParser.swift RecognizeDocumentsRequest configuration; DocumentProcessor.extractStructuredPDFContent branch; iPhoneOS27.0.sdk VNRecognizeTextRequest.h:77 for the 0.0 semantics; live pipeline_trace.log showing zero narrowing lines before this change]`
+
+**Direction of caution.** Text below the floor is not recognised at all and no later stage can tell
+it was there. This is a number to lower if it proves wrong, never to raise casually. **No wall-clock
+figure is claimed**; the per-page render timing already logged is what will measure it.
+
 ### OCR language narrowing, added 2026-08-29
 
 `OCRConfiguration.recognitionLanguages` carries thirteen languages — including `ja-JP`, `ko-KR`,

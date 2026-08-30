@@ -598,10 +598,30 @@ actor StructuredDocumentParser {
     ///   - preferFullResolution: Use the original 360 DPI page image for structure parsing
     ///     instead of the default 180 DPI downscaled pass. Reserved for high-risk pages
     ///     where small table cells or degraded text layers need maximum OCR fidelity.
+    /// Smallest text this pipeline intends to read, as a fraction of image height.
+    ///
+    /// `minimumTextHeightFraction` is relative to image height, so it is **invariant to render
+    /// scale** — a 6 pt glyph on a 792 pt page is 0.0076 of the image whether that image was
+    /// rasterised at 144 or 432 DPI. That makes a single constant safe across render settings.
+    ///
+    /// 0.004 corresponds to roughly 3 pt text on US Letter (792 pt) and 2.4 pt on A5 (595 pt) —
+    /// below the smallest legible print in any real document, so nothing readable is excluded.
+    ///
+    /// **The previous value was `0.0`, which is not a neutral default.** Apple's header for the
+    /// identically-named property on `VNRecognizeTextRequest` states that at 0.0 "the image gets
+    /// processed at the highest possible resolution with no downscaling. With that the processing
+    /// time will be the longest and the memory usage the highest." Raising it lets Vision downscale
+    /// before recognition, which is the documented performance lever.
+    ///
+    /// Conservative on purpose: text below this height is not recognised at all and no later stage
+    /// can tell it was there. Lower it before raising it.
+    private static let minimumTextHeightFraction: Float = 0.004
+
     func parsePageImage(
         _ image: CIImage,
         pageNumber: Int,
         customWords: [String],
+        recognitionLanguages: [String]? = nil,
         nativeWordCount: Int? = nil,
         preferFullResolution: Bool = false
     ) async throws -> StructuredPageContent {
@@ -664,11 +684,19 @@ actor StructuredDocumentParser {
         // per-call so concurrent document ingestion cannot clobber vocabulary via actor state.
         request.textRecognitionOptions.customWords = customWords
         request.textRecognitionOptions.useLanguageCorrection = true
-        request.textRecognitionOptions.automaticallyDetectLanguage = true
-        request.textRecognitionOptions.minimumTextHeightFraction = 0.0  // Detect all text sizes
+        request.textRecognitionOptions.minimumTextHeightFraction = Self.minimumTextHeightFraction
+
         // Recognition languages in priority order - Latin first to prevent CJK misrecognition
-        // of bullet symbols and other non-text glyphs
-        request.textRecognitionOptions.recognitionLanguages = OCRConfiguration.recognitionLanguages.compactMap {
+        // of bullet symbols and other non-text glyphs.
+        //
+        // When the caller has detected the document's language we say so and stop asking Vision to
+        // guess. Apple's guidance is explicit that this is the accuracy-preserving choice, not just
+        // the cheaper one: auto-detection "cannot always guarantee the correct detection", and a
+        // wrong guess applies language correction against the wrong lexicon, which corrupts
+        // recognised text rather than merely slowing it down.
+        let languages = recognitionLanguages ?? OCRConfiguration.recognitionLanguages
+        request.textRecognitionOptions.automaticallyDetectLanguage = (recognitionLanguages == nil)
+        request.textRecognitionOptions.recognitionLanguages = languages.compactMap {
             Locale.Language(identifier: $0)
         }
 

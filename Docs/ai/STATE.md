@@ -15,12 +15,18 @@ the newest and is not yet confirmed running.
 pages at 13-32ms. A five-hour ingest cannot be explained by 15ms per page, so the remaining cost is
 Vision recognition, not rasterisation. Do not attribute the tester's five hours to the render path.
 
-**The language narrowing does not run on any modern OS.** `extractStructuredPDFContent` branches to
-`extractWithStructuredParsing` on iOS/macOS 26+, and phase 1.6 was added to the pre-26 fallback
-`extractTextFromPDFWithPages` instead. `OCR languages narrowed` appears **zero** times across every
-trace snapshot. The fix is to hoist the detection into `extractStructuredPDFContent` before the
-branch; the three OCR call sites already read `currentDocumentRecognitionLanguages` and need no
-further change. **Not yet done.** An external tester on a fanless M5 MacBook Air ingested a 210-page,
+**The primary OCR request is `RecognizeDocumentsRequest`, not `VNRecognizeTextRequest`** — built in
+`StructuredDocumentParser`, never through `OCRConfiguration.configureRequest`. The 2026-08-29 audit
+said the opposite and was wrong. That made the language narrowing shipped in `209a045` doubly inert:
+wrong branch *and* wrong request type. Fixed 2026-08-30 — detection hoisted above the version branch
+and threaded into `request.textRecognitionOptions`.
+
+**`minimumTextHeightFraction` was `0.0` on the live request and is now `0.004`.** This is audit
+finding 01, and it was sitting on the path that actually runs rather than the one the audit
+inspected. The value is a fraction of image height, invariant to render scale: ~3 pt text on US
+Letter, ~2.4 pt on A5. Conservative on purpose — text below the floor is never recognised and
+nothing downstream can tell it was there, so lower it if wrong, never raise it casually. **No
+wall-clock figure is claimed**; the per-page render timing is what will measure it. An external tester on a fanless M5 MacBook Air ingested a 210-page,
 64 MB PDF on 2026-08-29. It completed, correctly, in **five hours**, producing ~5000 chunks. The
 owner has committed to the tester, in writing, that macOS ingestion performance and a pause control
 are top priority for `v5.1`.

@@ -3163,6 +3163,39 @@ class DocumentProcessor {
     /// Extract text from PDF with page tracking for semantic chunking
     /// Uses spatial-aware extraction to handle multi-column layouts correctly
     /// ADAPTIVE OCR: Pre-scans pages to classify complexity, skips OCR for simple pages
+    /// Detect the document's language once and narrow Vision's recognition set accordingly.
+    ///
+    /// Idempotent: does nothing if a previous stage already detected for this document. That
+    /// matters because `extractStructuredPDFContent` calls this before branching, and its pre-26
+    /// fallback `extractTextFromPDFWithPages` is also reachable directly from
+    /// `extractTextWithPageInfo`.
+    ///
+    /// Reads the PDFKit text layer of the first 50 pages — the same text already mined for custom
+    /// vocabulary — so it adds one language pass and no additional I/O. Hops to the main actor once
+    /// per document for `LanguageDetectionService`, which is isolated there.
+    private func detectDocumentRecognitionLanguagesIfNeeded(pdfDocument: PDFDocument, pageCount: Int) async {
+        guard currentDocumentRecognitionLanguages == nil else { return }
+
+        let roughText = (0..<min(pageCount, 50)).compactMap { pdfDocument.page(at: $0)?.string }
+            .joined(separator: "\n")
+        guard !roughText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            Log.info("[DocumentProcessor] OCR languages NOT narrowed, keeping all \(OCRConfiguration.recognitionLanguages.count) (no text layer to detect from)", category: .ingestion)
+            return
+        }
+
+        let profile = await MainActor.run { LanguageDetectionService.shared.analyzeDocument(roughText) }
+        currentDocumentRecognitionLanguages = OCRConfiguration.narrowedRecognitionLanguages(matching: profile)
+
+        let detected = "\(profile.primaryLanguage.displayName) @ \(String(format: "%.2f", profile.primaryLanguage.confidence))"
+        if let narrowed = currentDocumentRecognitionLanguages {
+            Log.info("[DocumentProcessor] OCR languages narrowed \(OCRConfiguration.recognitionLanguages.count) -> \(narrowed.count) [\(narrowed.joined(separator: ", "))] (detected \(detected))", category: .ingestion)
+        } else {
+            // Info, not debug: a silent fallback to the most expensive setting is the failure shape
+            // this pipeline keeps rediscovering.
+            Log.info("[DocumentProcessor] OCR languages NOT narrowed, keeping all \(OCRConfiguration.recognitionLanguages.count) (detected \(detected))", category: .ingestion)
+        }
+    }
+
     private func extractTextFromPDFWithPages(url: URL) async throws -> (text: String, pageInfo: PageInfo) {
         let pdfDocument = try loadPDF(url: url, context: "PDF")
 
@@ -3368,27 +3401,8 @@ class DocumentProcessor {
         self.currentDocumentCustomWords = documentCustomWords
         Log.debug("[DocumentProcessor] Dynamic vocabulary: \(documentCustomWords.count - OCRConfiguration.universalCustomWords.count) document-specific terms extracted", category: .ingestion)
 
-        // PHASE 1.6: LANGUAGE NARROWING
-        // The same rough text tells us what language this document is in, so Vision does not have
-        // to guess it again on every request. Apple's reason to set the languages explicitly is
-        // accuracy rather than speed: `automaticallyDetectsLanguage` "cannot always guarantee the
-        // correct detection", and a wrong guess applies language correction against the wrong
-        // lexicon, which corrupts text instead of merely slowing it down. Detection runs once per
-        // document, not per page, and hops to the main actor once for a service isolated there.
-        // `narrowedRecognitionLanguages(matching:)` returns nil when narrowing is not clearly safe,
-        // including here when the text layer was garbled and roughDocumentText is empty.
-        let languageProfile = await MainActor.run {
-            LanguageDetectionService.shared.analyzeDocument(roughDocumentText)
-        }
-        self.currentDocumentRecognitionLanguages = OCRConfiguration.narrowedRecognitionLanguages(matching: languageProfile)
-        let detectedSummary = "\(languageProfile.primaryLanguage.displayName) @ \(String(format: "%.2f", languageProfile.primaryLanguage.confidence))"
-        if let narrowed = self.currentDocumentRecognitionLanguages {
-            Log.info("[DocumentProcessor] OCR languages narrowed \(OCRConfiguration.recognitionLanguages.count) -> \(narrowed.count) [\(narrowed.joined(separator: ", "))] (detected \(detectedSummary))", category: .ingestion)
-        } else {
-            // Logged at info, not debug. A silent fallback to the most expensive setting is the
-            // failure shape this repository keeps rediscovering; the expensive path must say so.
-            Log.info("[DocumentProcessor] OCR languages NOT narrowed, keeping all \(OCRConfiguration.recognitionLanguages.count) (detected \(detectedSummary))", category: .ingestion)
-        }
+        // PHASE 1.6: LANGUAGE NARROWING (idempotent; usually already done by the caller)
+        await detectDocumentRecognitionLanguagesIfNeeded(pdfDocument: pdfDocument, pageCount: pageCount)
 
         // Result container for parallel extraction
         struct PageExtractionResult: Sendable {
@@ -3827,6 +3841,14 @@ class DocumentProcessor {
         guard pageCount > 0 else {
             throw DocumentProcessingError.emptyDocument
         }
+
+        // Detect the document language BEFORE the version branch.
+        //
+        // This was originally added inside `extractTextFromPDFWithPages`, which is only the
+        // pre-26 fallback below — so on every shipping OS it never ran. Verified against a live
+        // trace on 2026-08-29: `OCR languages narrowed` appeared zero times. Both branches need it,
+        // so it belongs here.
+        await detectDocumentRecognitionLanguagesIfNeeded(pdfDocument: pdfDocument, pageCount: pageCount)
 
         // Check if structured parsing is available (iOS 26+)
         if #available(iOS 26.0, *) {
@@ -4385,6 +4407,9 @@ class DocumentProcessor {
                     // the shared singleton clobbers vocabulary mid-parse for the first document.
                     // Capturing here binds this task to doc1's vocabulary regardless of doc2.
                     let capturedCustomWords = currentDocumentCustomWords
+                    // Captured alongside the vocabulary for the same reason: these run concurrently
+                    // and must not read actor state that a later document could have replaced.
+                    let capturedLanguages = currentDocumentRecognitionLanguages
                     let capturedComplexity = pageComplexity[pageIndex + 1]
 
                     group.addTask {
@@ -4449,6 +4474,7 @@ class DocumentProcessor {
                                 pageImage,
                                 pageNumber: pageNumber,
                                 customWords: capturedCustomWords,
+                                recognitionLanguages: capturedLanguages,
                                 nativeWordCount: nativeCount,
                                 preferFullResolution: renderData.preferHighResolutionStructure
                             )
