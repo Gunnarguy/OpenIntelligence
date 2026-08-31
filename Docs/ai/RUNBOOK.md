@@ -691,6 +691,47 @@ CI is `.github/workflows/ci.yml`, building on `macos-26` on push and PR to `main
 highest installed Xcode.
 
 
+## iOS and macOS need different App Store release notes, and the lane cannot do it yet
+
+*Added 2026-08-31.*
+
+The platforms have diverged, so one set of notes is wrong for at least one of them. On 2026-08-31,
+macOS was coming from 5.0.2 and iOS from **5.0** — meaning iPhone and iPad had never received 5.0.1
+(17 entries) or 5.0.2 (5 entries), most of which are cross-platform UI and infrastructure fixes that
+only reached the Mac. An iPhone user installing 5.1 gets roughly twenty fixes that a Mac user
+already had, and none of the macOS-only render work matters to them.
+
+**`push_metadata` hardcodes `metadata_path: fastlane_path("metadata")`,** so it cannot select copy
+per platform. Until that lane takes a path, the procedure is:
+
+- `fastlane/metadata/` is canonical **and holds the macOS notes**. `push_metadata ... platform:osx`
+  is correct as-is.
+- `fastlane/metadata-ios/en-US/` holds the iOS `release_notes.txt` and `promotional_text.txt`.
+  `name.txt` and `description.txt` there are **symlinks** into `fastlane/metadata/en-US/`, so the
+  shared identity fields cannot drift between platforms.
+- To push iOS, swap the two files in, run the lane, and restore. Use a `trap` so a failure mid-run
+  cannot leave the canonical copy holding iOS text:
+
+```bash
+M=fastlane/metadata/en-US
+cp "$M/release_notes.txt" /tmp/mac_rn.bak; cp "$M/promotional_text.txt" /tmp/mac_pt.bak
+trap 'cp /tmp/mac_rn.bak "$M/release_notes.txt"; cp /tmp/mac_pt.bak "$M/promotional_text.txt"' EXIT
+cp fastlane/metadata-ios/en-US/release_notes.txt "$M/release_notes.txt"
+cp fastlane/metadata-ios/en-US/promotional_text.txt "$M/promotional_text.txt"
+fastlane push_metadata version:<v> platform:ios
+```
+
+**Do not reach for `fastlane run deliver` with `api_key_path`.** That option expects a JSON wrapper;
+`APP_STORE_CONNECT_API_KEY_PATH` points at the raw `.p8`, and the run dies with
+`JSON::ParserError: invalid number: '-----BEGIN'` before contacting Apple. The lane's
+`app_store_connect_api_key(key_id:issuer_id:key_filepath:)` is what handles the `.p8` correctly.
+
+**The durable fix is one line in the Fastfile** — give `push_metadata` a `metadata_path` derived
+from `platform`. `fastlane/Fastfile` is not in the `app_store_copy_update` route's allowed edits, so
+it needs the owner to name the file.
+
+`[evidence_level: measured, confidence: exact, evidence_source: both platform pushes run 2026-08-31; deliver logs confirming platform=ios and platform=osx against app_version 5.1]`
+
 ## A local device build on Xcode 27 already enables PCC, and nothing local warns you
 
 *Found 2026-08-29, while installing a debug build on a physical iPhone to test ingestion changes.*

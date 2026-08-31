@@ -1,0 +1,45 @@
+Two releases went out on the Mac that iPhone and iPad never received. This one brings them across, along with the changes made since.
+
+
+OPENING AND MOVING AROUND
+
+• The Documents tab made you wait while it counted your cached documents. That count fed a single row which stays hidden unless the number is above zero, and on the device this was traced on it was always zero, so the row was never drawn. You waited for a number that was then thrown away. It now loads in the background and the tab opens straight away.
+
+• Switching libraries was the slow thing people actually noticed, and nothing on that path was being measured, so four separate attempts to find the cause had missed it. It is measured now, and faster.
+
+• "Analyzing corpus…" was an empty state wearing a progress spinner. It could never finish, because nothing was running behind it.
+
+
+THINGS THAT WERE TELLING YOU THE WRONG THING
+
+• The Semantic Atlas labelled a neuroscience paper "API Reference" and "Glossary". The fault was in three separate places, not one.
+
+• Turning the execution profile up removed hardware instead of adding it, and the control itself was a dropdown showing one option while hiding three, on a setting whose only purpose is choosing between them.
+
+• The Deep Think card described a minimum number of reasoning steps that does not exist.
+
+• Temperature stayed adjustable under a sampling mode that ignores it entirely.
+
+• The hardware panel reported a limit of 1,073,741,824 threads, which is 1024 cubed and not a real ceiling. It also now reports free memory rather than a number that looked like it but was not.
+
+
+DOCUMENTS
+
+• Refreshing one of the built-in samples left the old copy behind, so the library grew a duplicate every time you did it.
+
+• A tag that appears exactly once in a document no longer gets treated as a description of the whole thing.
+
+
+TEXT RECOGNITION
+
+• The app was asking the system to guess what language each page was written in, on every page, while also handing it a list of thirteen languages. Those two instructions contradict each other, and a wrong guess means your text is corrected against the wrong dictionary, which damages it rather than just slowing things down. The language is now worked out once, from the document itself.
+
+• Page images went to text recognition at the highest possible resolution with no downscaling, which is the slowest setting available. Recognition now scales to what is needed to read the smallest print a real document contains.
+
+
+IF YOU QUIT MID-IMPORT
+
+• A large PDF interrupted by quitting the app came back showing zero progress, as though the work was gone. It never was: the app resumes from the last page it finished. But the screen said otherwise, and removing the item is the one action that does discard that progress. A resumed import now tells you how far it got.
+
+
+Everything still runs on your device.
