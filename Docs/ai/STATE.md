@@ -306,46 +306,52 @@ headers `[evidence_level: code_read, confidence: high]`:
 
 ## Exact Next Action
 
-**Get a macOS device run.** Everything else is blocked on this. It closes all three open fixes at
-once: build the Mac app, ingest a large PDF, then
+**Rebuild the macOS app in Xcode and ingest one document.** Nearly free, and it validates three
+separate changes at once that are currently only build-verified:
 
-1. read the per-page render line for render-vs-OCR cost,
-2. check `OCR languages narrowed 13 -> N` fired rather than `NOT narrowed`,
-3. quit mid-ingest and reopen, and confirm the restored item reports its true page count.
+1. `OCR languages narrowed 13 -> N` — this string has **never** appeared in any trace. If it fires,
+   the language work is finally on the live path after two failed attempts.
+2. `[VectorLoad]` lines should almost vanish while idle. Before the fix an idle Mac logged 13.3/s.
+3. The per-page render line plus the existing per-page OCR line give the first render-vs-OCR split
+   with `minimumTextHeightFraction` at 0.004 instead of 0.0.
 
-**Do not tune any further OCR threshold before that run.** The remaining three controls
-(render scale, `minimumTextHeight`, Vision concurrency) are filed with the evidence, and changing
-them now would be tuning against a guess.
+A continuous trace capture that survives log rotation can be restarted with:
 
+```bash
+nohup tail -F -n +1 "$HOME/Library/Containers/Gunndamental.OpenIntelligence/Data/Documents/pipeline_trace.log" >> /private/tmp/oi-trace-archive/continuous.log &
 ```
-[DocumentProcessor] Rendered PDF page at WxHpx (N DPI) in X.Xms via CGBitmapContext, CPU raster
-```
 
-Paired with the existing `Page N: OCR extracted ... (Y.YYs)` line that splits render cost from OCR
-cost per page for the first time. That tells us whether the render path owned the five hours or only
-part of them, and it is what closes
-[the render row](https://app.notion.com/p/3cb49a74d54f8150b2dbc1ef12d7f3e0) (`In Progress`).
+The app's own trace file is capped and rotates; before this fix it turned over every ~2 minutes,
+which is why reading it live kept failing.
 
-Sending the same document back to the tester is the highest-value version of this, since his machine
-is fanless and the maintainer's is not.
+## Then, from the board
 
-Then, in order:
+Three open `v5.1` rows:
 
-- [Render scale and minimumTextHeight both max out the same quantity](https://app.notion.com/p/3cc49a74d54f816f8ee4d2ed6e687cb3)
-  — `Future Backlog`. Blocked on the device run above; the two controls must be coupled to one
-  derived target rather than tuned separately.
-- [Retrieval is nondeterministic, which makes every quality change unfalsifiable](https://app.notion.com/p/3cc49a74d54f81d7a88dffe679ce9bb1)
-  — `Future Backlog`, and it gates every other retrieval row including contextual retrieval and the
-  embedding migration. Two runs of one build return different evidence for one question.
-- [Ingestion has no pause control, and only PDFs over 10MB checkpoint](https://app.notion.com/p/3cb49a74d54f819797e8cea0e96d62b9)
-  — `v5.1`. The restored-progress display is **done**; what remains on this row is the pause button
-  itself and the `fileSizeMB > 10 && .pdf` gate on checkpointing.
 - [Six file families sync without NSFileCoordinator](https://app.notion.com/p/3ca49a74d54f8103b69be921f0335171)
-  — `v5.1`, the only open row that loses user data, with 599 conflict copies already observed.
-- [Vision pass never runs on macOS](https://app.notion.com/p/3cb49a74d54f81fbb47cec6d8ed526d8)
-  — `Future Backlog`. Re-measure after the render fix lands: adding the macOS Vision pass adds work,
-  so it should not go in until the render cost is known to be down.
+  — **the only open row that loses user data**, 599 conflict copies observed. Untouched.
+- [macOS lockFocus render path](https://app.notion.com/p/3cb49a74d54f8150b2dbc1ef12d7f3e0)
+  — `In Progress`. Fixed and measured at 12-16 ms/page; closes on a device run.
+- [No pause control, and only PDFs over 10MB checkpoint](https://app.notion.com/p/3cb49a74d54f819797e8cea0e96d62b9)
+  — the restored-progress half is done; the button and the `>10MB && .pdf` gate remain.
 
-If 5.1 work starts, write entries under the existing `## 5.1` heading in `CHANGELOG.md`, **not**
-under `[Unreleased]`, and leave `app_store` at `5.0` in `Docs/SHIPPED_VERSION.json` until iOS ships
-past it.
+**`WorkspaceSyncService.swift` is the highest-leverage single file.** It holds the
+NSFileCoordinator row *and* the root cause of the idle churn — the orphan guard that treats a
+permanent condition as transient ("an import may still be writing"). Two of the three open v5.1
+concerns live there. It is Tier-2 hard boundary and needs the owner to name it.
+
+**Everything on retrieval quality is blocked behind
+[determinism](https://app.notion.com/p/3cc49a74d54f81d7a88dffe679ce9bb1).** Two runs of one build
+return different evidence for one question, so no A/B in the RAG stack is trustworthy — including
+judgements about what already shipped.
+
+## Standing cautions from this session
+
+- **Render was never the five hours.** Measured 12-16 ms/page. The cost is Vision recognition.
+- **Trace the live path before editing.** Two commits this session fixed the wrong file because
+  `OCRConfiguration` was assumed to configure the request that `StructuredDocumentParser` actually
+  builds. Audit finding 05 was withdrawn for the same reason.
+- **The published audit** is at https://claude.ai/code/artifact/88d98937-8c95-4bb1-a5f6-17819430cf84
+  and is kept current, including its withdrawn findings.
+- Three of this session's four code changes are **build- and suite-verified only**. None is device
+  verified.
