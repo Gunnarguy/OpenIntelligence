@@ -10,7 +10,7 @@
 | Area                            | Source                                                                                                  | Why It Matters for OpenIntelligence                                                                     |
 | ------------------------------- | ------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
 | Structured document recognition | [RecognizeDocumentsRequest](https://developer.apple.com/documentation/vision/recognizedocumentsrequest) | Apple's newer Vision API for document structure, including words, lines, paragraphs, tables, and lists. |
-| OCR                             | [VNRecognizeTextRequest](https://developer.apple.com/documentation/vision/vnrecognizetextrequest)       | Current OCR path used by the repo for text observations and confidence.                                 |
+| OCR (secondary since 2026-08-30) | [VNRecognizeTextRequest](https://developer.apple.com/documentation/vision/vnrecognizetextrequest)       | **No longer the primary path.** Retained for the text-layer validation sample, camera capture, `LayoutAwareExtractor` and pre-26 fallbacks. Historically the OCR path used by the repo for text observations and confidence.                                 |
 | PDF parsing                     | [PDFDocument](https://developer.apple.com/documentation/pdfkit/pdfdocument)                             | Native source for reading PDFs, page counts, selections, and text layers.                               |
 | Natural Language                | [Natural Language](https://developer.apple.com/documentation/naturallanguage)                           | Tokenization, language detection, tagging, named entities, and embeddings.                              |
 | Embeddings                      | [NLEmbedding](https://developer.apple.com/documentation/naturallanguage/nlembedding)                    | Apple's local word/sentence embedding API where it meets product needs.                                 |
@@ -32,6 +32,17 @@
 
 ## Future Upgrade Path
 
-Evaluate `RecognizeDocumentsRequest` for table/list-heavy documents where deployment target and API availability allow it. The current repo still relies heavily on `VNRecognizeTextRequest`, custom layout reconstruction, and OCR confidence handling, which is defensible but should be tested on representative real-world PDFs and scans.
+**Superseded 2026-08-30: this section's premise was wrong and is corrected in place rather than deleted.**
+
+`RecognizeDocumentsRequest` is **already the primary OCR path**, not a future upgrade.
+`extractStructuredPDFContent` routes every OS 26+ device — which is every shipping device — to
+`extractWithStructuredParsing`, and from there to `StructuredDocumentParser`, which constructs
+`RecognizeDocumentsRequest` directly and never calls `OCRConfiguration.configureRequest`. An audit on
+2026-08-29 asserted the opposite, and two fixes were consequently applied to a file the live path
+never calls. Trace the request the app actually builds before drawing conclusions from this document.
+
+The original wording follows, kept as the record of what was claimed: *Evaluate
+`RecognizeDocumentsRequest` for table/list-heavy documents where deployment target and API
+availability allow it. The current repo still relies heavily on `VNRecognizeTextRequest`, custom layout reconstruction, and OCR confidence handling, which is defensible but should be tested on representative real-world PDFs and scans.
 
 For table-heavy manuals and dense technical documents, the next evaluation should measure whether the current flattened text plus FTS5/BM25 path preserves row/column relationships well enough. If not, add a table-aware representation before claiming robust tabular reasoning.

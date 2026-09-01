@@ -1,6 +1,6 @@
 # Handoff
 
-Written 2026-08-22, kept current through commit `e7e51da`, because Gunnar expects to run out of Claude usage this
+Written 2026-08-22, **refreshed 2026-09-01 and current through commit `0a90bfe`**, because Gunnar expects to run out of Claude usage this
 week and wants whatever picks this repo up next — Gemini/Antigravity, Codex, a different tool
 entirely, or just himself six months from now — to land somewhere useful without re-deriving three
 weeks of work. Nothing here requires Claude-specific tooling to read: it's plain markdown, and every
@@ -75,7 +75,59 @@ honestly — several defects fixed this cycle were exactly that promise being si
   check `THIRD_PARTY_NOTICES.md`, grep the whole repo, and check primary vendor docs before you
   delete, not just the one file that prompted the question.
 
-## Current state, as of `e7e51da` (2026-08-22)
+## Current state, as of `0a90bfe` (2026-09-01)
+
+**Shipped:** iOS **5.0** (approved 2026-08-27), macOS **5.0.2** (approved 2026-08-28). Nothing in
+review. `v5.1` records exist for both platforms in `PREPARE_FOR_SUBMISSION` with metadata pushed but
+no binary. `Docs/SHIPPED_VERSION.json` is the per-platform record.
+
+**The platforms have diverged and it is the single most load-bearing fact here.** macOS carries
+5.0.1 and 5.0.2; iOS never received either. Most of 5.0.1's seventeen entries are cross-platform
+fixes that only reached the Mac, so an iPhone user installing 5.1 gets roughly twenty fixes a Mac
+user already has. This is why the App Store release notes are per-platform
+(`fastlane/metadata/` is macOS, `fastlane/metadata-ios/` is iOS) and why the Notion `Shipped On`
+property exists alongside `Status`.
+
+**Roadmap, verified against Notion 2026-08-31:** v5.0 closed at 57 rows, every one `Completed` with
+`Shipped On` recorded. v5.1 has 6 rows: 3 Completed, 1 In Progress, 2 To Do. Future Backlog is 70
+rows, all `To Do` — a sweep on 2026-08-31 cleared every stale `In Progress` and every `Completed`
+row that had been left there.
+
+**The one open row that loses user data** is
+[Six file families sync without NSFileCoordinator](https://app.notion.com/p/3ca49a74d54f8103b69be921f0335171),
+599 conflict copies observed, untouched. `WorkspaceSyncService.swift` is the highest-leverage file
+in the repository: it holds that row *and* the orphan guard behind the idle-churn defect below. It
+is Tier-2 hard boundary and needs the owner to name it.
+
+**What landed 2026-08-29 to 09-01, all build- and suite-verified, none device-verified:**
+
+- macOS PDF rendering moved off deprecated `NSImage.lockFocus` and a TIFF round-trip to a
+  `CGBitmapContext`. Measured: 4.0x oversize and 370 MB per page removed. **Render was never the
+  bottleneck** — it measures 12-16 ms/page on a live trace, so a five-hour ingest is Vision
+  recognition, not rasterisation. Do not re-derive this.
+- A paused import now reports the pages it already finished. It always resumed correctly; the screen
+  said zero, which steered users toward the one destructive action.
+- OCR now narrows to the detected language and sets `minimumTextHeightFraction` to 0.004 instead of
+  0.0. **Both were first applied to the wrong file** — `OCRConfiguration` is not what the live path
+  builds; `StructuredDocumentParser` constructs `RecognizeDocumentsRequest` directly. Trace the
+  request the app actually builds before editing OCR settings.
+- `VectorStoreRouter.clearAll()` reloads only stores whose files changed. An idle Mac was spawning
+  162,712 reload tasks against 76,391 completions — a 53% backlog that grew without bound until the
+  app hung after 169 minutes.
+- All 20 macOS app icon slots regenerated: they were full-bleed opaque squares where macOS needs
+  824-of-1024 inset behind a superellipse, and the dark variant carried the light icon's blue on its
+  edges.
+
+**Benchmark runs are archived, not on disk.** 90 directories, 474 MB, in
+`~/OpenIntelligence-BenchmarkArchive/BenchmarkRuns-2026-09-01.tar.gz`, verified byte-identical before
+deletion. `BenchmarkRuns/LEDGER.md` still indexes them and explains how to read one.
+
+---
+
+## Historical state, as of `e7e51da` (2026-08-22)
+
+*Kept as the record of what was true then. 120 commits have landed since; prefer the section above.*
+
 
 **v5.0 was re-scoped on 2026-08-21** from 25 open roadmap rows to 11, cut to only what loses data,
 breaks an advertised capability, or blocks shipping — the rest moved to Future Backlog, including
@@ -231,7 +283,7 @@ something you want archived.
   two UI fixes. `CHANGELOG.md`'s `## 5.0` section and `BenchmarkRuns/LEDGER.md` are that session's
   durable output; treat them as more reliable than trying to reconstruct it from the transcript.
 
-## Notion roadmap — v5.0 rows, snapshotted 2026-08-21 (fetch fresh if you can; this will drift)
+## Notion roadmap — v5.0 rows, snapshotted 2026-08-21 (STALE: v5.0 has since closed at 57 rows and v5.1 opened; fetch fresh)
 
 Database `37f49a74-d54f-81b7-9424-dae1288c0043`. Query the data source URL above, or open it in a
 browser if your tool has no Notion integration at all.

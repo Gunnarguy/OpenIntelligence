@@ -1,5 +1,20 @@
 # Benchmark run ledger
 
+> **The run directories this ledger indexes are archived, not on disk. Archived 2026-09-01 at the
+> owner's instruction.** 90 directories, 1,374 files, 474 MB, including all 53 `results.jsonl`, are
+> in `~/OpenIntelligence-BenchmarkArchive/BenchmarkRuns-2026-09-01.tar.gz` (59 MB). The archive was
+> verified before deletion: file count and `results.jsonl` count matched disk exactly, `gzip -t`
+> passed over every member, and five randomly chosen `results.jsonl` compared byte-identical against
+> the originals, the largest at 18 MB. **Every row below still refers to a real run**; to read one,
+> extract it rather than assuming it is gone. `LEDGER.md` and `PROGRESSION.md` are the only tracked
+> files in `BenchmarkRuns/` and were deliberately left in place.
+>
+> `.gitignore:34` is `BenchmarkRuns/*` with `LEDGER.md` and `PROGRESSION.md` negated back in, so the
+> run contents are ignored and were never recoverable from git. Checking `git check-ignore
+> BenchmarkRuns` on the *directory* reports "not ignored" and is misleading; the pattern targets the
+> contents. That distinction is worth knowing, because it is how three runs were lost on 2026-08-19.
+
+
 `results.jsonl` records **what happened**. It does not record **what the run was testing, against
 which commit, or what it settled**. Sixty-two run directories existed before this file with none of
 that, which makes them unreadable a week later and impossible to sequence work from.
