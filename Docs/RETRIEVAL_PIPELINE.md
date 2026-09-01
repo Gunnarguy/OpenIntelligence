@@ -1,6 +1,12 @@
-# Retrieval Pipeline — source-verified at v4.6, shipped tree is v5.0
+# Retrieval Pipeline — narrative source-verified at v4.6; claims re-checked 2026-09-01
 
-> **Documentation status:** Source-verified on 2026-07-15 against v4.6. **Not re-verified since.** iOS/macOS 4.9 is the shipped version, and 4.8–4.9 changed retrieval behavior in ways this document does not yet describe. PCC device/distribution validation remains pending.
+> **Documentation status:** Sections 1–5 source-verified 2026-07-15 against v4.6 and **not re-narrated since**; 4.8–4.9 changed retrieval behaviour in ways they do not describe. The numbered items 12–20 are individually dated and evidence-tagged and are the current record.
+>
+> **Shipped versions, corrected 2026-09-01:** **iOS 5.0** (approved 2026-08-27) and **macOS 5.0.2** (approved 2026-08-28). The platforms have diverged; macOS carries 5.0.1 and 5.0.2 fixes iOS has never received. This block previously said "iOS/macOS 4.9 is the shipped version" while the title said v5.0, which were wrong and contradictory respectively. `Docs/SHIPPED_VERSION.json` is the per-platform record. PCC device/distribution validation remains pending.
+>
+> **Claims re-checked against source 2026-09-01, all holding:** the seven `RetrievalTraceCollector` stages and their order; `executeFullRetrievalPipeline` taking a defaulted `trace` parameter (item 19); the collector defaulting to `nil` everywhere, so production pays a nil check; the Core ML TinyBERT cross-encoder with heuristic fallback in the flow diagram, which is loaded at `RAGEngine.swift:82` and invoked at `:331`; and every referenced document existing.
+>
+> **The benchmark directories cited in items 12 and 19 — `BenchmarkRuns/20260811-133233-matrix` and `BenchmarkRuns/paired-retry` — are archived, not deleted.** All 90 run directories are in `~/OpenIntelligence-BenchmarkArchive/BenchmarkRuns-2026-09-01.tar.gz`, verified byte-identical before removal. Extract to read them; see `BenchmarkRuns/LEDGER.md`.
 > **Known drift as of 2026-08-05** — each of these is in `CHANGELOG.md` under 4.9 but not yet reflected below:
 > - Gate E measures query coverage as the better of combined-evidence and best-single-chunk, not the per-chunk maximum.
 > - `DomainIsolationService` relaxes only the cross-domain-mixing clause when the retrieved chunks all come from one `documentId`.
@@ -171,3 +177,14 @@ Diagnostic and telemetry surfaces are included for inspecting chunks, retrieval 
 
     `[evidence_level: measured, confidence: exact_for_the_gap, cause_unattributed_pending_instrumented_run, evidence_source: BenchmarkRuns/paired-retry stage_summaries, 8 cases, pool_limit 10, qasper_external_v1]`
 
+20. **Retrieval is nondeterministic, which subordinates every measurement in this document** *(added 2026-09-01)*: two runs of one build return different retrieved evidence, and different answers, for the same question against the same library.
+
+    That does not invalidate the per-stage machinery in item 12 — the stages, the metrics and the attribution logic are all sound. It invalidates **comparison**. Every figure above that contrasts one thing with another assumes the only difference between two runs is the change under test, and right now that assumption does not hold. Item 19's Standard-versus-Deep-Think table, item 16's arm inversion, and any future A/B over fusion weights, reranking or contextual retrieval all inherit the problem.
+
+    **The practical rule until this is fixed:** treat a single run as an observation, never as a measurement, and do not attribute a difference between two runs to a code change without establishing that the same run repeats. Item 12's warning about attribution was about *which stage* lost recall; this is a level beneath it, about whether the numbers are stable enough to attribute at all.
+
+    The cause is upstream of tie-breaking and is not yet identified. Tracked as a `Future Backlog` row at High priority because it gates every other retrieval row, including the embedding migration and contextual retrieval. `[evidence_level: observed, confidence: high, evidence_source: repeated runs of a single build returning different retrieved evidence and different answers for one question]`
+
+21. **The cross-encoder reranker is real and lives in `Orchestration`, not `Retrieval`** *(added 2026-09-01)*: stated here because a search scoped to `Services/RAG/Retrieval/` finds only heuristic scoring and reads as though no reranker exists. It does. `RAGEngine.swift:82` loads `ReRankerModel` at launch and `rerankWithCrossEncoder` runs at `:331` whenever the model and its tokenizer are both present, falling through to fusion order when either is missing. It is bound to `cross-encoder/ms-marco-TinyBERT-L2-v2` by exact path in `THIRD_PARTY_NOTICES.md`.
+
+    The flow diagram in section 2 has always shown this correctly as "Core ML TinyBERT Reranker / Heuristic Fallback". An audit on 2026-08-29 nonetheless concluded the reranker was absent, and that claim reached a published document and a roadmap row before `Docs/ai/ARCHITECTURE.md` contradicted it. `[evidence_level: code_verified, confidence: exact, evidence_source: RAGEngine.swift:82 and :331; Resources/MLModels/ReRankerModel.mlpackage]`
