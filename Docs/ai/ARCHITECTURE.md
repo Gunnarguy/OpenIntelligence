@@ -5,7 +5,8 @@ reference and this file exists to get you to the right part of it, and to the ri
 without reading the whole set.
 
 `[evidence_level: code_verified, confidence: high, evidence_source: directory listing of
-OpenIntelligence/Services, file existence checks 2026-08-07]`
+OpenIntelligence/Services, file existence checks 2026-08-07; claim-by-claim re-verification against
+source 2026-09-01 — reranker model, trace stages, referenced documents and target membership]`
 
 ## Targets, and why it matters
 
@@ -55,7 +56,14 @@ reranks with a cross-encoder, and returns a top-K → `Services/RAG/Orchestratio
 citations back to the chunks that produced it.
 
 The stage names in that pipeline are enumerated in `RetrievalTraceCollector.Stage`: `vector`,
-`lexical`, `fusion`, `boosted`, `rerank`, `final`.
+`lexical`, `fusion`, `boosted`, `candidates`, `rerank`, `final`. (`candidates` was missing from this
+list until 2026-09-01.)
+
+The reranker is a real Core ML cross-encoder, not a heuristic: `RAGEngine` loads `ReRankerModel`
+at launch and `rerankWithCrossEncoder` runs when both the model and its tokenizer are present,
+falling through to fusion order when either is missing. Worth stating explicitly, because a search
+scoped to `Services/RAG/Retrieval/` finds only heuristic scoring and reads as though no reranker
+exists — an error made on 2026-08-29 and carried into a published audit.
 
 ## Persistence
 
@@ -97,5 +105,9 @@ in the path, which is a product guarantee rather than a current state.
   pointing at `.git.nosync` for the same reason.
 - **`RAGAppIntents.swift` uses 9 of 10 available Siri shortcut slots.** The tenth is close to a
   one-way door.
-- **The evaluation harness has never measured retrieval.** See `Docs/ai/STATE.md`; that is the
-  current work.
+- **Retrieval measurement exists but is not yet trustworthy.** The harness does measure it —
+  `BenchmarkRuns/LEDGER.md` carries nDCG and MRR@10 figures — so the older claim that it never had
+  is withdrawn as of 2026-09-01. The live problem is different and worse: retrieval is
+  **nondeterministic**, two runs of one build returning different evidence for one question, so no
+  A/B between components is trustworthy, including judgements about what already shipped. That is
+  the current work. See `Docs/ai/STATE.md`.
