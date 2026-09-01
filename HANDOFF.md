@@ -1,6 +1,6 @@
 # Handoff
 
-Written 2026-08-22, **refreshed 2026-09-01 and current through commit `0a90bfe`**, because Gunnar expects to run out of Claude usage this
+Written 2026-08-22, **refreshed 2026-09-01 and current through commit `845c7b9`**, because Gunnar expects to run out of Claude usage this
 week and wants whatever picks this repo up next — Gemini/Antigravity, Codex, a different tool
 entirely, or just himself six months from now — to land somewhere useful without re-deriving three
 weeks of work. Nothing here requires Claude-specific tooling to read: it's plain markdown, and every

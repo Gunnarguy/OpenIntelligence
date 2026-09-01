@@ -1,357 +1,146 @@
 # Current State
 
-Updated: 2026-08-29
+Updated: 2026-09-01
 Branch/worktree: main (primary checkout)
-Last verified commit: adb0cda
+Last verified commit: 845c7b9
 
 ## Objective
 
-**Make macOS ingestion usable.** Four fixes are **implemented, built and suite-verified**. Three of
-the four are now confirmed on the maintainer's Mac from `pipeline_trace.log`; the idle-churn fix is
-the newest and is not yet confirmed running.
+**Make macOS ingestion usable, then close the one open defect that loses user data.**
 
-**The render fix is measured and it was never the bottleneck.** Live trace, 2026-08-29:
-`Rendered PDF page at 2976x3897px (360 DPI) in 12.0ms via CGBitmapContext, CPU raster`, across seven
-pages at 13-32ms. A five-hour ingest cannot be explained by 15ms per page, so the remaining cost is
-Vision recognition, not rasterisation. Do not attribute the tester's five hours to the render path.
-
-**The primary OCR request is `RecognizeDocumentsRequest`, not `VNRecognizeTextRequest`** — built in
-`StructuredDocumentParser`, never through `OCRConfiguration.configureRequest`. The 2026-08-29 audit
-said the opposite and was wrong. That made the language narrowing shipped in `209a045` doubly inert:
-wrong branch *and* wrong request type. Fixed 2026-08-30 — detection hoisted above the version branch
-and threaded into `request.textRecognitionOptions`.
-
-**`minimumTextHeightFraction` was `0.0` on the live request and is now `0.004`.** This is audit
-finding 01, and it was sitting on the path that actually runs rather than the one the audit
-inspected. The value is a fraction of image height, invariant to render scale: ~3 pt text on US
-Letter, ~2.4 pt on A5. Conservative on purpose — text below the floor is never recognised and
-nothing downstream can tell it was there, so lower it if wrong, never raise it casually. **No
-wall-clock figure is claimed**; the per-page render timing is what will measure it. An external tester on a fanless M5 MacBook Air ingested a 210-page,
-64 MB PDF on 2026-08-29. It completed, correctly, in **five hours**, producing ~5000 chunks. The
-owner has committed to the tester, in writing, that macOS ingestion performance and a pause control
-are top priority for `v5.1`.
-
-Three defects, all in `#if canImport(UIKit)` / `#elseif canImport(AppKit)` seams, none of them in the
-routing policy where they were first assumed to be. See "External device evidence" below. The owner
-granted `PROCEED: IMPLEMENT` on 2026-08-29 and defect 1 is fixed in that session.
+The first half is written and unverified: five code changes landed 2026-08-29 to 09-01, all
+build- and suite-verified, **none device-verified**. The second half — iCloud sync without
+`NSFileCoordinator` — has not been started and needs the owner to name a hard-boundary file.
 
 ## Status
 
-**Live on the App Store**, read from App Store Connect 2026-08-28: iOS **5.0** (approved 08-27),
-macOS **5.0.2** (approved 08-28). Nothing is in review. `v5.1` records exist for both platforms in
-`PREPARE_FOR_SUBMISSION` and have not shipped.
+**Live on the App Store:** iOS **5.0** (approved 2026-08-27), macOS **5.0.2** (approved 2026-08-28).
+Nothing in review.
 
-**The platforms have diverged and it keeps causing errors.** macOS carries 5.0.1 and 5.0.2 fixes iOS
-has never received, so "shipped" and "fixed for the user" are different statements.
-`Docs/SHIPPED_VERSION.json` is the per-platform record; the Notion `Shipped On` property is the
-per-row one.
+**v5.1 has metadata but no binary.** Release notes, promotional text and app name were pushed to
+both platform records on 2026-08-31 and verified in the `deliver` logs. Cutting a build is an open
+task nobody has done.
 
-**Public claims are accurate.** All three websites, the App Store description, `README.md`,
-`SHIPPED_VERSION.json` and `SHIPPED_CAPABILITIES.json` describe PCC correctly in the future tense and
-5.0 correctly as shipped. Verified live on 2026-08-28 after the sync fixes below.
+**The platforms have diverged and it is the most load-bearing fact in this repository.** macOS
+carries 5.0.1 and 5.0.2; iOS never received either. Most of 5.0.1's seventeen entries are
+cross-platform fixes that only reached the Mac, so an iPhone user installing 5.1 gets roughly twenty
+fixes a Mac user already has. This is why App Store copy is per-platform and why the Notion
+`Shipped On` property exists alongside `Status`.
 
-## Completed
+**Notion v5.1**, read 2026-09-01: 6 rows — 3 `Completed`, 1 `In Progress`, 2 `To Do`. Future Backlog
+is 70 rows, all `To Do`. v5.0 closed at 57 rows, every one with `Shipped On` recorded.
 
-1. **Governance enforcement layer** (`3d32a8b`, `eb432d3`). `scripts/required_docs.sh` is the single
-   executable path-to-document table; `scripts/enforce_docs_hook.sh` fails a commit whose staged
-   source lacks its required docs and enforces `ci_post_clone.sh`'s empty-`[Unreleased]` invariant at
-   commit time. `.claude/hooks/notion-receipt.sh` receipts real Notion writes. The Stop hook checks
-   three obligations, not one. An `InstructionsLoaded` hook logs which rule files actually loaded.
-2. **Ingestion drop accounting** (`6004d97`, `9d80e7d`). `verifyContentCoverage` computed a volume
-   metric (`charRatio`) and asserted only on the vocabulary one, so a 55% volume loss could pass
-   while unique-word coverage stayed above 90%. `IngestionStageLedger` now bands each transition in
-   the unit that stage actually conserves. **The `token-limited` band was wrong on first commit and
-   fixed the same day** — it asserted exact character conservation, and
-   `splitOversizedChunkByTokens` discards every `.!?` separator via `components(separatedBy:)`.
-3. **Claims audit and doc corrections** (`d5e9310`). Four documents said GitHub Actions builds
-   releases, including `README.md` linking to a workflow file that no longer exists and
-   `Docs/ai/RUNBOOK.md` telling a future session to ship with it. Corrected, plus a written PCC
-   enable-day procedure.
-4. **Roadmap schema and semantics** (`6f0620f`, `786b70d`). Added `v5.0.1`/`v5.0.2` and a `Shipped On`
-   multi-select; backfilled 88 rows. Rationale in `Docs/ai/DECISIONS.md` 2026-08-28.
-5. **Website sync repair.** Both public sites were serving stale generated artifacts. Root cause was
-   that the day's commits were unpushed, so the portfolio sync had nothing to copy. Both sync
-   workflows had silent-failure modes; both fixed in their own repositories (see Blockers).
+## Completed this cycle
+
+All five are **build-verified and suite-verified only**. Treat every one as unconfirmed on hardware.
+
+1. **macOS PDF rendering** (`961f446`). `renderPDFPageAsImage` used deprecated `NSImage.lockFocus`
+   plus a TIFF encode/decode round-trip. Measured with a standalone AppKit probe: 4.0× oversize
+   (3060×3960 requested, 6120×7920 produced) and 370 MB per page. Now a `CGBitmapContext`.
+   **Render was never the bottleneck** — it measures 12–16 ms/page on a live trace, so a five-hour
+   ingest is Vision recognition, not rasterisation. Do not re-derive this.
+2. **Restored progress** (`7e717a1`). A paused import showed zero although it always resumed
+   correctly, steering users toward removal, which is the one action that discards the checkpoint.
+3. **OCR settings on the live path** (`209a045`, then `d610183`). Language narrowed to the detected
+   language; `minimumTextHeightFraction` 0.0 → 0.004. **The first commit fixed the wrong file** —
+   see Active Constraints.
+4. **Idle vector churn** (`46aa57e`). `VectorStoreRouter.clearAll()` reloaded every store on a
+   1.68 s timer. Measured: 162,712 reload tasks spawned against 76,391 completed, a 53% backlog that
+   grew without bound until the app hung after 169 minutes. Now compares on-disk signatures first.
+5. **macOS app icon** (`0a90bfe`). All 20 mac slots were full-bleed opaque squares where macOS needs
+   824-of-1024 inset behind a superellipse; the dark variant carried the light icon's blue on its
+   antialiased edges. Regenerated. iOS slots were correct and untouched.
+
+Plus `scripts/verify_doc_claims.py` (`845c7b9`), wired into `scripts/enforce_docs_hook.sh`.
 
 ## Active Constraints
 
-- **iOS 27 shipping does not enable PCC.** The gate is `#if compiler(>=6.4)`, resolved by the
-  compiler, not the device. Shipped binaries were built on Xcode 26.6 / Swift 6.3.3, so PCC is not in
-  them and a user updating to iOS 27 gets nothing new. **Both release guards are built to refuse the
-  build that enables it** — read "Enabling Private Cloud Compute" in `Docs/ai/RUNBOOK.md` before
-  touching the gates.
-- **Do not remove the `unreleased` HTML comment from the `## 5.1` heading line** in `CHANGELOG.md`
-  until 5.1 ships. `repoos_router.py` reads it from that line and nowhere else; without it the router
-  reports 5.1 as already shipped.
-- **`Status` tracks the work; `Shipped On` tracks reach.** The rule lives in `CLAUDE.md`,
-  `.claude/skills/notion-roadmap/SKILL.md` and `.agents/rules/01-docs-and-notion-sync.md`. All three
-  must move together.
-- Releases are built by **Xcode Cloud**, pinned to Xcode 26.6. `.github/workflows/` no longer exists
-  in this repository.
+- **`OCRConfiguration.configureRequest` is NOT the live OCR path.** `extractStructuredPDFContent`
+  routes every OS 26+ device to `StructuredDocumentParser`, which builds `RecognizeDocumentsRequest`
+  directly. Two commits fixed settings in the wrong file before this was noticed. **Trace the
+  request the app actually builds before editing any OCR setting.**
+- **The cross-encoder reranker exists** at `RAGEngine.swift:82` (model load) and `:331`
+  (`rerankWithCrossEncoder`). A search scoped to `Services/RAG/Retrieval/` finds only heuristic
+  scoring and reads as absence. That error reached a published document.
+- **Three assertions of absence were wrong this cycle**, each from a too-narrow grep, and in all
+  three the repository's own documentation was already correct. Read the owning document for a
+  subsystem before concluding something does not exist; `repoos_router.py preflight` names it.
+- **`minimumTextHeightFraction` is conservative on purpose.** Text below the floor is not recognised
+  and nothing downstream can tell it was there. Lower it if wrong; never raise it casually.
+- **Do not remove the `unreleased` HTML comment from the `## 5.1` heading** in `CHANGELOG.md`.
+  `repoos_router.py` reads it from that line and nowhere else.
+- **Benchmark runs are archived, not on disk.** 90 directories, 474 MB, in
+  `~/OpenIntelligence-BenchmarkArchive/BenchmarkRuns-2026-09-01.tar.gz`, verified byte-identical
+  before deletion. `BenchmarkRuns/LEDGER.md` still indexes them.
 
 ## Working Set
 
-| Path | Why it matters |
+| File | Why it matters |
 |---|---|
-| `OpenIntelligence/Services/Document/Processing/IngestionStageLedger.swift` | The per-stage conservation ledger. Its header explains what it does and does not replace. |
-| `OpenIntelligence/Services/Document/Processing/DocumentProcessor.swift` | Ledger is threaded at four points around lines 826–958. `verifyContentCoverage` is at 6653, `splitOversizedChunkByTokens` at 6539. |
-| `Docs/ai/RUNBOOK.md` | Contains the PCC enable-day procedure, including both guards that must be inverted. |
-| `Docs/SHIPPED_VERSION.json`, `Docs/SHIPPED_CAPABILITIES.json` | The two markers every public claim is checked against. |
-| `scripts/enforce_docs_hook.sh`, `scripts/required_docs.sh` | The pre-commit enforcement and its single source table. |
-| `OpenIntelligence/Services/Document/Processing/DocumentProcessor.swift:6923-7018` | `renderPDFPageAsImage`. The UIKit and AppKit branches are not equivalent; the AppKit one is the macOS bottleneck. |
-| `OpenIntelligence/Services/Document/Chunking/PageComplexityAnalyzer.swift:1045-1072` | `renderPageForAnalysis` returns `nil` on macOS, which disables the Vision pass at `:298`. |
-| `OpenIntelligence/Services/Infrastructure/Monitoring/DeviceCapabilityService.swift:412-470` | Vision concurrency and cooldown ceilings, chosen from the chip with no thermal input. |
-
-Working tree is clean. Nothing uncommitted in this repository.
+| `OpenIntelligence/Services/Infrastructure/Storage/WorkspaceSyncService.swift` | Holds the `NSFileCoordinator` data-loss row **and** the orphan guard behind the idle churn. Tier-2 hard boundary; needs the owner to name it. |
+| `OpenIntelligence/Services/Document/Processing/StructuredDocumentParser.swift` | Builds the live `RecognizeDocumentsRequest`. Any OCR change goes here, not `OCRConfiguration`. |
+| `OpenIntelligence/Services/VectorStore/VectorStoreRouter.swift` | `clearAll()` now signature-gated. Never evict: `BNNSVectorDatabase` is memory-mapped and two instances must not map one file. |
+| `OpenIntelligence/Services/Document/Processing/DocumentProcessor.swift` | `renderPDFPageAsImage`, the phase-1.6 language detection, `restoredIngestionProgress`. |
+| `fastlane/metadata/` and `fastlane/metadata-ios/` | macOS and iOS App Store copy. iOS push is a documented swap-and-restore; see `Docs/ai/RUNBOOK.md`. |
+| `scripts/verify_doc_claims.py` | New gate. Four checks; deliberately cannot verify prose. |
 
 ## Verification
 
-- `bash scripts/test_enforce_docs_hook.sh` -> 10 passed, 0 failed.
-- `bash scripts/test_stop_handoff.sh` -> 8 passed, 0 failed.
-- `python3 .codex/skills/route-openintelligence-work/scripts/test_repoos_router.py` -> 29 tests, OK.
-- `xcodebuild test` on iOS 27 simulator, `-only-testing` IngestionStageLedgerTests +
-  DocumentProcessorTests + SemanticChunkerTests -> **35 tests, 0 failures**.
-- `python3 scripts/verify_capabilities.py` -> all declared capabilities have their implementation.
-- `python3 scripts/secret_scan.py` -> clean.
-- Notion: 224 rows, per-option `Target Release` counts identical before and after the schema change.
-- Websites: gunzino.me, fascinaiting.me and gunnarguy.me each fetched live and confirmed to describe
-  5.0 as shipped and PCC in the future tense.
+Run 2026-08-31 to 09-01, output read:
 
-### 2026-08-29, the macOS render fix
+- `xcodebuild test` (iOS 27 sim, full suite) → **392 tests, 3 skipped, 0 failures**. The 3 skips are
+  in `EmbeddingProviderAgreementTests` and `LayoutReadingOrderTests` and are unrelated.
+- macOS Debug build → **BUILD SUCCEEDED**, 0 errors.
+- `bash scripts/build_simulator_smoke.sh` → **BUILD SUCCEEDED**.
+- Device build on **Xcode 26.6** → SUCCEEDED, **zero PCC symbols across all six binaries**, installed
+  on the owner's iPhone 16 Pro Max.
+- `python3 scripts/verify_doc_claims.py` → **181 claims checked, all pass**.
+- `python3 scripts/secret_scan.py` → clean.
+- `fastlane push_metadata version:5.1` → ran for `platform:ios` and `platform:osx`, both
+  `finished successfully`.
 
-- Standalone AppKit probe on this host, `backingScaleFactor` 2.0, reproducing the old code path:
-  `NSImage.lockFocus` rasters a 3060×3960 request at **6120×7920** (4.0× the pixels, 16 bits per
-  component) with a **370 MB** `tiffRepresentation`; the replacement `CGBitmapContext` produces
-  3060×3960 with a 46 MB backing store and no serialization. **8× less raster.**
-- macOS Debug build from `/private/tmp/oi-src` -> **BUILD SUCCEEDED**, 0 errors, 0 warnings.
-- `xcodebuild test` on iOS 27 sim `8FA2B3CE-…`, `-only-testing` DocumentProcessorTests +
-  SemanticChunkerTests + IngestionStageLedgerTests -> **35 tests, 0 failures**.
-- `bash scripts/build_simulator_smoke.sh` (from the copy, fresh DerivedData) -> **BUILD SUCCEEDED**,
-  ad-hoc codesign clean.
-- `python3 scripts/secret_scan.py` -> clean.
-- `bash scripts/enforce_docs_hook.sh` over the staged set -> exit 0.
-
-**Not run:** the full `xcodebuild test` suite, and the route's "large PDF (>10MB) manual ingest",
-which needs a device. **Not measured:** the wall-clock effect of the render
-fix on a real document. No speedup is claimed anywhere, deliberately — the per-page render timing now
-logged is what will measure it.
-
-### 2026-08-29, idle vector-reload churn
-
-Measured on the maintainer's Mac with the app open and untouched, from a continuous capture that
-survives the trace file's rotation (`/private/tmp/oi-trace-archive/continuous.log`):
-
-| Window | Vector loads | Workspace reloads |
-|---|---|---|
-| 164 s | 2,848 (17.4/s) | 271 (1.7/s) |
-| 886 s | 11,749 (13.3/s) | 2,266 (2.6/s) |
-
-**11 distinct vector stores** were reloaded on every tick, the same store re-read 288 times in under
-three minutes. Interval between ticks was 1.68 s +/- 0.2 across 14 consecutive samples, regular
-enough to be a timer rather than filesystem noise.
-
-Chain: a workspace timer fires -> `reloadWorkspaceData()` -> `VectorStoreRouter.clearAll()` reloaded
-**every** cached store unconditionally -> one memory-mapped read per store per tick. The trigger is
-container `3CE9F7D5` sitting permanently orphaned (182 chunks, no documents in metadata), which the
-sync guard refuses to delete because "an import may still be writing" — transient by assumption,
-permanent in fact.
-
-`clearAll()` now compares each container's on-disk signature and reloads only what changed. **It
-still never evicts**: `BNNSVectorDatabase` is memory-mapped and the original comment keeps every
-instance "to prevent multiple instances for the same URL". An eviction-based fix was proposed by a
-delegated analysis and rejected for that reason.
-
-- Full `xcodebuild test` -> **392 tests, 3 skipped, 0 failures**.
-- macOS Debug build and `bash scripts/build_simulator_smoke.sh` -> both **SUCCEEDED**.
-- No on-disk format change, so no re-index.
-
-**The app hung after 169 minutes and the trace explains it.** `clearAll()` spawned one unstructured
-`Task` per cached store per tick with no in-flight check, and `BNNSVectorDatabase` is an `actor`, so
-they serialize. Over that session **162,712 reload tasks were spawned, 76,391 completed and 86,321
-never ran** — a 53% backlog growing without bound. The app stopped responding and was force-quit; no
-crash report exists, consistent with a hang rather than a fault. An earlier guess that this was
-main-thread blocking was **wrong** — the actor keeps reloads off the main thread; the failure is
-queue growth, not UI blocking.
-
-The committed fix addresses this directly: an idle tick with no on-disk change now spawns **zero**
-tasks, so the backlog cannot form. That is a stronger result than the commit message claims, which
-framed it only as saving redundant reads.
-
-**Root cause is untouched.** The 1.68 s trigger and the orphan guard are both in
-`WorkspaceSyncService.swift`, Tier-2 hard boundary, not named in any approval. Until that is fixed
-the timer keeps firing; it is simply cheap now.
-
-### 2026-08-29, OCR language narrowing
-
-- Full `xcodebuild test` -> **392 tests, 3 skipped, 0 failures** (380 before, plus 12 new).
-- `OCRLanguageNarrowingTests` -> 12 cases, 0 failures.
-- macOS Debug build -> **BUILD SUCCEEDED**, 0 errors.
-- `bash scripts/build_simulator_smoke.sh` -> **BUILD SUCCEEDED**, ad-hoc codesign clean.
-
-**Applies to both iOS and macOS** — no platform conditional anywhere in the change. It is the first
-fix this session that reaches iOS users; the render-path fix was macOS-only by construction.
-
-**A claim made in the first draft was corrected the same day.** The change was originally argued on
-cost — thirteen languages meaning thirteen models loaded. Re-reading the full header paragraph shows
-`automaticallyDetectsLanguage` already made Vision "identify the script/langauge … and use the
-appropiate model", so Vision was picking one on its own and the cost of a longer list is undocumented
-and unmeasured. The documented reason to set the languages is the warning that follows it:
-auto-detection "cannot always guarantee the correct detection", and a wrong guess applies language
-correction against the wrong lexicon, which corrupts text rather than merely slowing it down. **The
-change is right; the justification was wrong.** Corrected in `CHANGELOG.md`, `INGESTION_PIPELINE.md`,
-`DECISIONS.md`, the code comments, the roadmap row and the audit artifact.
-
-Came out of an audit of the ingestion path against Apple's SDK headers rather than from a bug
-report. **`Docs/ai/DECISIONS.md` and the artifact linked from the roadmap rows carry the reasoning;
-the short version is that four independent controls all govern how many pixels of each character
-reach Vision, and all four were set to maximum.** This change addresses one of them. The other
-three are filed and deliberately not started, because attributing the tester's five hours to any one
-of them is still inference.
-
-### 2026-08-29, restored-progress reporting
-
-- Full `xcodebuild test` on iOS 27 sim -> **380 tests, 3 skipped, 0 failures**. The three skips are
-  in `EmbeddingProviderAgreementTests` and `LayoutReadingOrderTests` and are unrelated to this work.
-- macOS Debug build with the wiring -> **BUILD SUCCEEDED**, 0 errors.
-- `bash scripts/build_simulator_smoke.sh` -> **BUILD SUCCEEDED**, ad-hoc codesign clean.
-- `RestoredIngestionProgressTests` -> 14 cases, 0 failures.
-- Repo-wide grep required by `.claude/rules/orchestration-and-routing.md`: all three
-  `PrivateCloudComputeLanguageModel` uses remain gated by `EntitlementChecker`
-  (`FoundationModelRoutePolicy.swift:124`, `FoundationModelSessionFactory.swift:89`,
-  `FoundationModelCapabilityProvider.swift:39`).
-
-**`RAGService.swift` is a Tier-2 hard-boundary file** (`Docs/RepoOS/03_FORBIDDEN_EDIT_BOUNDARIES.md`
-line 32). The owner approved the named change on 2026-08-29 after being shown the exact diff. The
-edit is two assignments inside the `.paused` branch of queue restore. **The streaming contract the
-boundary exists to protect — page batching, `db.persist()` cadence, incremental FTS5 appends, the
-`localCacheDir()/IngestionCheckpoints` location — is untouched.**
-
-**Two `.claude/rules/` files that govern this code never loaded during the work.**
-`scripts/instructions_report.sh` shows `ingestion-and-indexing.md` and `orchestration-and-routing.md`
-as matched-but-`NOT LOADED`. The globs are correct; the loader keys off Read/Edit/Write and every
-edit in this session went through Bash. Between them those rules carried four requirements the
-session would otherwise have missed: the ingestion Mermaid, the **full** suite rather than the
-preflight's targeted classes, the Atlas service map, and the PCC gating grep. All four were
-satisfied only because the Stop hook fired. Filed as a `Future Backlog` row.
-
-**`xcodebuild` deadlocked on `~/Documents` again** at the start of this work: 7 log lines, 0% CPU,
-`sample` showed `-[DVTFilePath performCoordinatedReadRecursively:]` in `semaphore_wait_trap`. Building
-from a `ditto` copy at `/private/tmp/oi-src` fixed it, as the runbook says. `rsync` is blocked by the
-agent permission classifier in this environment; `ditto` is not.
+**Not verified:** every behavioural claim above, on any device. No ingestion has been run against
+any of the five changes.
 
 ## Blockers / Unknowns
 
-None blocking. Four open items, each with a verification path:
-
-1. **`IngestionStageLedger` has never emitted on a real document.** Ingest a document on device and
-   grep the log for `[IngestionLedger]`. A healthy line reads roughly
-   `chunked 1.xx, sanitized 1.000, token-limited 1.0x`. If a warning fires, read the named stage
-   before touching the band — widening a band to silence a warning is always the wrong response.
-2. **The sync-workflow fixes are verified on the success path only.** `Fascinaiting@4461907e` (rebase
-   and retry the push) and `Gunnarguy-Portfolio@265306a` (verify each source checkout, fail the run
-   if one is missing) both ran green with everything healthy. Neither red path was exercised, because
-   proving it meant committing a broken workflow. The guards are wired and their conditions evaluate;
-   the first real failure is still their first real test.
-3. **`Shipped On` is empty on 68 rows targeted `v4.0`–`v4.5`.** The only macOS versions documented
-   anywhere in this repository are 2.5, 3.0, 4.8, 5.0 and 5.0.2, the earliest tied to iOS 4.6, so
-   macOS parity before that cannot be established from what is written down. Empty means *not
-   recorded*. If the early macOS release history turns up, that is the gap to fill.
-4. **`Gunnarguy-Portfolio` has uncommitted `styles.css` changes** that block `git pull`, so that
-   local checkout silently lags `origin/main`. Not this repository, and left alone deliberately.
-5. **The macOS ingestion diagnosis has not been measured.** Every claim in "External device evidence"
-   below is read from source and from Apple's SDK headers. Nobody has instrumented a macOS ingestion
-   run to confirm how the five hours actually divide between the render path, OCR and embedding. Do
-   that before tuning anything, or the fix gets tuned against a guess.
-
-## External device evidence, 2026-08-29
-
-First real observation of the macOS ingestion path under load, from a free-lifetime-cohort tester on
-a fanless MacBook Air (M5). 210-page, 64 MB PDF of *Science*: five hours, ~5000 chunks, completed
-correctly. CPU oscillating 400% to 100%, GPU idle in Activity Monitor, 33% battery in the first
-1h20m. Owner reports an 8-page document takes ~1 minute on iPhone against ~30 minutes on Mac.
-
-Three defects found. Defect 1 is now measured; 2 and 3 are read from code and the MacOSX27.0 SDK
-headers `[evidence_level: code_read, confidence: high]`:
-
-1. **`renderPDFPageAsImage` macOS branch.** Uses deprecated `NSImage.lockFocus` plus a full
-   `tiffRepresentation` -> `NSBitmapImageRep(data:)` CPU round-trip per page. `AppKit/NSImage.h:294`
-   states the deprecation reason: the method "is incompatible with resolution-independent drawing",
-   so its backing store follows the display scale factor. **Measured on this host with a standalone
-   AppKit probe:** a page requested at 3060x3960 rasters at 6120x7920, exactly 4.0x the pixels, and
-   its `tiffRepresentation` is 370 MB encoded and decoded per page, against 46 MB and no
-   serialization through the `CGBitmapContext` that replaced it. iOS renders the same page through `UIGraphicsImageRenderer` with an explicit
-   `format.scale = 1.0` and no serialization at all. Filed `v5.1`.
-2. **`renderPageForAnalysis` returns `nil` on macOS** (`#else return nil`), and both production call
-   sites reach it through `analyzeBatch`, which passes no `pageImage`. The Vision refinement pass in
-   `PageComplexityAnalyzer` therefore never runs on macOS, and `isMixedModeScanned` is permanently
-   false there. Filed `Future Backlog`.
-3. **`[GPU-accelerated]` is a string literal** selected by a config flag, appended to a macOS log
-   line whose dominant stages are CPU. This is why the logs pointed away from the bottleneck. Filed
-   `Future Backlog`.
-
-**One owner statement the code contradicts, and one this session got wrong:**
-
-- *"Macs treat everything as needing to be visually interpreted."* There are **zero** platform
-  conditionals in `OpenIntelligence/Services/Document/`. Losing the Vision pass biases macOS toward
-  classifying pages as *less* visual, not more. The slowness is mechanical, not a routing choice.
-- *"Progress is not preserved across a restart."* **This session claimed that and it was wrong.**
-  `importLargePDFStreamed` checkpoints `lastCompletedPage` to
-  `localCacheDir()/IngestionCheckpoints/<fingerprint>/ingestion_state.json` after every 15-page batch
-  and skips completed batches on re-entry (`RAGService+Streaming.swift:36-88`). The owner's statement
-  to the tester was correct for that 64MB document. The error came from grepping only
-  `Services/Storage/`; `Docs/INGESTION_PIPELINE.md` §5 had it documented correctly all along. What is
-  genuinely missing: no user-facing pause control, checkpointing gated on `fileSizeMB > 10 && .pdf`
-  (`RAGService.swift:5666`), and a restored item showing `progress = nil` so the UI looks like the
-  work was lost when it was not.
+1. **Nothing from this cycle is device-confirmed.** Verification path: the Exact Next Action below.
+2. **The idle-churn root cause is untouched.** The 1.68 s timer still fires and container
+   `3CE9F7D5` is still detected as permanently orphaned — it is merely cheap now. The guard treats a
+   permanent condition as transient ("an import may still be writing"). Fix is in
+   `WorkspaceSyncService.swift`, which needs naming.
+3. **Retrieval is nondeterministic.** Two runs of one build return different evidence for one
+   question. This blocks every quality change in the RAG stack, including judging what already
+   shipped. Verification path: run a fixed query set twice against one build and diff the retrieved
+   chunk ids. Tracked at
+   [determinism](https://app.notion.com/p/3cc49a74d54f81d7a88dffe679ce9bb1).
+4. **`scripts/test_stop_handoff.sh` has a failing assertion.** It guards the hook that tells a
+   session which documents it owes. Cheap, and worth fixing given this cycle was largely doc drift.
 
 ## Exact Next Action
 
-**Rebuild the macOS app in Xcode and ingest one document.** Nearly free, and it validates three
-separate changes at once that are currently only build-verified:
+**Rebuild the macOS app in Xcode, ingest one large PDF, and read the trace.** This is two minutes of
+the owner's time and it closes three of the five changes at once.
 
-1. `OCR languages narrowed 13 -> N` — this string has **never** appeared in any trace. If it fires,
-   the language work is finally on the live path after two failed attempts.
-2. `[VectorLoad]` lines should almost vanish while idle. Before the fix an idle Mac logged 13.3/s.
-3. The per-page render line plus the existing per-page OCR line give the first render-vs-OCR split
-   with `minimumTextHeightFraction` at 0.004 instead of 0.0.
-
-A continuous trace capture that survives log rotation can be restarted with:
+Start a capture that survives the log's rotation first:
 
 ```bash
-nohup tail -F -n +1 "$HOME/Library/Containers/Gunndamental.OpenIntelligence/Data/Documents/pipeline_trace.log" >> /private/tmp/oi-trace-archive/continuous.log &
+mkdir -p /private/tmp/oi-trace-archive && nohup tail -F -n +1 "$HOME/Library/Containers/Gunndamental.OpenIntelligence/Data/Documents/pipeline_trace.log" >> /private/tmp/oi-trace-archive/continuous.log &
 ```
 
-The app's own trace file is capped and rotates; before this fix it turned over every ~2 minutes,
-which is why reading it live kept failing.
+Three lines decide three open questions:
 
-## Then, from the board
+| Look for | Decides |
+|---|---|
+| `OCR languages narrowed 13 -> N` | Whether the language work is finally on the live path. **This string has never appeared in any trace.** If it says `NOT narrowed`, detection is not firing. |
+| `Rendered PDF page ... in N ms via CGBitmapContext` paired with `Page N: OCR extracted ... (N.NNs)` | The first render-versus-OCR cost split, at `minimumTextHeightFraction` 0.004. |
+| `[VectorLoad]` frequency while idle | Was 13.3/s before `46aa57e`. Should be near zero. |
 
-Three open `v5.1` rows:
+Then quit mid-ingest and reopen: the restored item must report its true page count rather than zero,
+which closes `7e717a1`.
 
-- [Six file families sync without NSFileCoordinator](https://app.notion.com/p/3ca49a74d54f8103b69be921f0335171)
-  — **the only open row that loses user data**, 599 conflict copies observed. Untouched.
-- [macOS lockFocus render path](https://app.notion.com/p/3cb49a74d54f8150b2dbc1ef12d7f3e0)
-  — `In Progress`. Fixed and measured at 12-16 ms/page; closes on a device run.
-- [No pause control, and only PDFs over 10MB checkpoint](https://app.notion.com/p/3cb49a74d54f819797e8cea0e96d62b9)
-  — the restored-progress half is done; the button and the `>10MB && .pdf` gate remain.
-
-**`WorkspaceSyncService.swift` is the highest-leverage single file.** It holds the
-NSFileCoordinator row *and* the root cause of the idle churn — the orphan guard that treats a
-permanent condition as transient ("an import may still be writing"). Two of the three open v5.1
-concerns live there. It is Tier-2 hard boundary and needs the owner to name it.
-
-**Everything on retrieval quality is blocked behind
-[determinism](https://app.notion.com/p/3cc49a74d54f81d7a88dffe679ce9bb1).** Two runs of one build
-return different evidence for one question, so no A/B in the RAG stack is trustworthy — including
-judgements about what already shipped.
-
-## Standing cautions from this session
-
-- **Render was never the five hours.** Measured 12-16 ms/page. The cost is Vision recognition.
-- **Trace the live path before editing.** Two commits this session fixed the wrong file because
-  `OCRConfiguration` was assumed to configure the request that `StructuredDocumentParser` actually
-  builds. Audit finding 05 was withdrawn for the same reason.
-- **The published audit** is at https://claude.ai/code/artifact/88d98937-8c95-4bb1-a5f6-17819430cf84
-  and is kept current, including its withdrawn findings.
-- Three of this session's four code changes are **build- and suite-verified only**. None is device
-  verified.
+**After that**, the highest-value work is
+[Six file families sync without NSFileCoordinator](https://app.notion.com/p/3ca49a74d54f8103b69be921f0335171)
+— the only open row anywhere that loses user data, 599 conflict copies observed. It lives in
+`WorkspaceSyncService.swift` along with blocker 2, so one naming unblocks both. **Ask the owner to
+name that file before editing it.**
