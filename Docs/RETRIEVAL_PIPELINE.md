@@ -2,7 +2,7 @@
 
 > **Documentation status:** Sections 1–5 source-verified 2026-07-15 against v4.6 and **not re-narrated since**; 4.8–4.9 changed retrieval behaviour in ways they do not describe. The numbered items 12–20 are individually dated and evidence-tagged and are the current record.
 >
-> **Shipped versions, corrected 2026-09-01:** **iOS 5.0** (approved 2026-08-27) and **macOS 5.0.2** (approved 2026-08-28). The platforms have diverged; macOS carries 5.0.1 and 5.0.2 fixes iOS has never received. This block previously said "iOS/macOS 4.9 is the shipped version" while the title said v5.0, which were wrong and contradictory respectively. `Docs/SHIPPED_VERSION.json` is the per-platform record. PCC device/distribution validation remains pending.
+> **Shipped versions, corrected 2026-09-01:** **iOS 5.0** (approved 2026-08-27) and **macOS 5.0.2** (approved 2026-08-28). The platforms have diverged; macOS carries 5.0.1 and 5.0.2 fixes iOS has never received. This block previously said "iOS/macOS 4.9 is the shipped version" while the title said v5.0, which were wrong and contradictory respectively. `Docs/SHIPPED_VERSION.json` is the per-platform record. PCC device/distribution validation remains pending. <!-- verify-doc-claims: ignore, this line quotes the withdrawn claim -->
 >
 > **Claims re-checked against source 2026-09-01, all holding:** the seven `RetrievalTraceCollector` stages and their order; `executeFullRetrievalPipeline` taking a defaulted `trace` parameter (item 19); the collector defaulting to `nil` everywhere, so production pays a nil check; the Core ML TinyBERT cross-encoder with heuristic fallback in the flow diagram, which is loaded at `RAGEngine.swift:82` and invoked at `:331`; and every referenced document existing.
 >
@@ -83,7 +83,7 @@ flowchart TD
 
 12. **Per-stage retrieval measurement** *(added 2026-08-08)*: A `RetrievalTraceCollector` may be attached to a query. It records the rank-ordered output of each retrieval stage, and `RetrievalStageEvaluator` scores recall@1/3/5/10, MRR, nDCG@5/10 and precision@5 **per stage** rather than once at the end.
 
-    Seven stages, in pipeline order: `vector`, `lexical`, `fusion`, `boosted`, `candidates`, `rerank`, `final`. The first five are recorded by `HybridSearchService` in both its search paths; `rerank` is recorded by `RAGService` after `RAGEngine.rerank`, because that is where reranking runs; `final` is recorded at the `queryWithAudit` boundary from the chunks on the response.
+    `RetrievalTraceCollector.Stage` has seven cases, in pipeline order: `vector`, `lexical`, `fusion`, `boosted`, `candidates`, `rerank`, `final`. The first five are recorded by `HybridSearchService` in both its search paths; `rerank` is recorded by `RAGService` after `RAGEngine.rerank`, because that is where reranking runs; `final` is recorded at the `queryWithAudit` boundary from the chunks on the response.
 
     The split matters for attribution. Reranking cannot recover a chunk the first stage never returned, so a single end-of-pipeline number cannot tell a first-stage regression from a reranker regression, and a later stage can mask an earlier one. A recall drop between `boosted` and `candidates` means top-K truncation is too tight; a drop between `candidates` and `rerank` means the cross-encoder demoted the right chunk.
 

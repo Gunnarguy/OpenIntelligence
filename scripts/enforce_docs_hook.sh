@@ -133,6 +133,29 @@ if is_staged "CHANGELOG.md"; then
 fi
 
 # ---------------------------------------------------------------------------
+# Documentation claims must still match source.
+#
+# The check above enforces that a document was *touched*. This one enforces that
+# what it says is *true*. Added 2026-09-01 after a claim-by-claim re-read found
+# two foundational documents asserting a shipped version eight weeks out of date,
+# disagreeing with each other about an enum's cases, and citing paths that no
+# longer existed -- all mechanically checkable, none caught.
+#
+# Only runs when a checked document or Swift source is staged, so an unrelated
+# commit does not pay for it.
+# ---------------------------------------------------------------------------
+if [ -x "$REPO_ROOT/scripts/verify_doc_claims.py" ] \
+   && git diff --cached --name-only | grep -qE '\.(md|swift|json)$'; then
+  if ! CLAIM_OUT="$(python3 "$REPO_ROOT/scripts/verify_doc_claims.py" 2>&1)"; then
+    echo "======================================================================"
+    echo "Documentation claims no longer match source."
+    echo "$CLAIM_OUT"
+    echo "======================================================================"
+    exit 1
+  fi
+fi
+
+# ---------------------------------------------------------------------------
 # Advisories. These never block.
 # ---------------------------------------------------------------------------
 ADVICE=()
