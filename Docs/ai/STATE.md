@@ -48,7 +48,7 @@ hold the resized sets that were uploaded. Leave the whole folder out of every `g
 
 - **Learning set, docs only, all pushed (2026-09-02).** `Docs/Engineering/FULL_SYSTEM_TRACE.md` is the
   execution trace with file:line and requested silicon per stage; `Docs/STUDY_GUIDE.md` is the course over
-  the 612-term word bank; `Docs/Audio/PASS_1` to `PASS_5` is the spoken version, five passes each one level
+  the 612-term word bank; the five `PASS_*` files under `Docs/Audio/` are the spoken version, five passes each one level
   deeper, 76 minutes, with the word bank in `Audio/Reference_word_bank/` for lookup only. Two source
   documents live under `Docs/Research/`. One finding filed to Future Backlog as
   [The SpeechAnalyzer transcription branch never compiles](https://app.notion.com/p/3cf49a74d54f812c962cf52805ffdb34):
