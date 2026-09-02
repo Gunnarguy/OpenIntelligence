@@ -25,7 +25,7 @@ The app icon includes light and dark appearances, so it follows the device's app
 
 **It runs on your device.** Ingestion, indexing, retrieval, ranking, and
 verification are all local. Nothing is uploaded to make search work. There is no
-account, no server of ours, and no third-party AI service anywhere in the path.
+account, no server of mine, and no third-party AI service anywhere in the path.
 
 On iOS and macOS 27+, in a build compiled with Xcode 27, you can optionally allow Apple **Private Cloud Compute** to
 write the final answer — and only after you have seen exactly which excerpts

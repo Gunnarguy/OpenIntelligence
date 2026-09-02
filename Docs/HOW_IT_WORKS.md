@@ -431,7 +431,7 @@ Questions and documents do not share vocabulary. Embedding the raw question sear
 *Every answer is verified against its own evidence before it is shown. All nine checks are deterministic and run on your device, even when the writing happened elsewhere.*
 
 > **In plain words**
-> In plain terms the nine checks ask: *did we find anything good enough to answer with? does every sentence trace back to a page? do the numbers match? do the pages contradict each other? does the answer actually resemble what the pages say? did we mix up two similar-looking things? is it well formed? did we answer the whole question or only half? are these pages even about the same subject?*
+> In plain terms the nine checks ask: *did it find anything good enough to answer with? does every sentence trace back to a page? do the numbers match? do the pages contradict each other? does the answer actually resemble what the pages say? did it mix up two similar-looking things? is it well formed? did it answer the whole question or only half? are these pages even about the same subject?*
 > Fail an important one and the app refuses to answer rather than guessing.
 
 | Check | Name | What it verifies |

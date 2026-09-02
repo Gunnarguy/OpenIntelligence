@@ -11,7 +11,7 @@
 
 ## Start here
 
-**This file is the single entry point for "how good is this engine, and how do we know".** Nothing
+**This file is the single entry point for "how good is this engine, and how do I know".** Nothing
 about measurement should live anywhere else without being linked from here.
 
 If you read one thing, read [What has actually been measured](#what-has-actually-been-measured-as-of-2026-08-12).

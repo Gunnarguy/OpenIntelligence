@@ -58,7 +58,7 @@ Memorise this first. It is the spine every module hangs from.
 
 **What it is.** The walls and rooms. What a library is, what stays on the device, and which stages can invent things and which cannot.
 
-**In the bank's words.** Before looking at the machinery, we need to know where the walls, rooms, and rules are. These concepts define what the app is, what belongs to one library, and which steps are rule-based versus model-generated.
+**In the bank's words.** Before looking at the machinery, you need to know where the walls, rooms, and rules are. These concepts define what the app is, what belongs to one library, and which steps are rule-based versus model-generated.
 
 **Why it exists.** Everything else in the app assumes these boundaries. A **knowledge container** (a library) scopes every store, so one library's chunks can never answer another library's question. **Local-first** is a concrete promise: ingestion, indexing, retrieval and ranking never leave the device; only the final answer may reach Private Cloud Compute, and only after consent. The **deterministic versus generative** split is the reason the app can be honest about hallucination: extraction, chunking, search, fusion, gates and citations are rule-based and cannot invent; only the two generative stages (query rewriting and answer synthesis) can, so they are the only stages the gates police.
 

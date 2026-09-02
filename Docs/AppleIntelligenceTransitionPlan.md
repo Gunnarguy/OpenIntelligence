@@ -162,7 +162,7 @@ To implement these changes safely without breaking current runtime behaviors, th
 ---
 
 ### Phase 2: v4.1+ Releases (Future / Deferred Backlog)
-*Core AI integration has been completed and verified on the transition branch, with other items deferred to the next release cycle when we expand iOS 27+ support:*
+*Core AI integration has been completed and verified on the transition branch, with other items deferred to the next release cycle when I expand iOS 27+ support:*
 
 *   **Core AI Sentence Embeddings with Core ML Fallback** (Completed)
     - *Implementation*: Integrated native `.aimodel` representations with dynamic compile-time and runtime availability guards, and a fallback to Core ML. Added shared instance caching, awaitable model readiness checks, and picker alerts to address race conditions on iOS 27 / macOS 27 devices.

@@ -7,7 +7,7 @@ OpenIntelligence differentiates itself through transparency and privacy, but its
 
 **Corrected Privacy Claims:**
 - **Local-First, Not 100% Local:** OpenIntelligence executes embeddings (CoreML) and standard inference (up to 4,096 tokens via Apple Foundation Models) directly on-device. However, it dynamically routes larger contexts and "Deep Think/Maximum" queries to Apple’s Private Cloud Compute (PCC) via `PrivateCloudComputeLanguageModel` and `FoundationModelRoutePolicy`.
-- **Consent-Gated Cloud Routing:** We do not claim "zero-knowledge" or "documents never leave the device." Instead, we emphasize **visible processing boundaries** and **transparent routing**. The `CloudConsentPromptView` ensures users have strict control before any data escalates to Apple's PCC servers.
+- **Consent-Gated Cloud Routing:** The app does not claim "zero-knowledge" or "documents never leave the device." Instead, it emphasizes **visible processing boundaries** and **transparent routing**. The `CloudConsentPromptView` ensures users have strict control before any data escalates to Apple's PCC servers.
 - **Core Truth:** OpenIntelligence is a "transparent, local-first orchestration engine" that defaults to device privacy but safely scales to Apple’s secure cloud when required.
 
 ## 2. Licensing & Proprietary Wording
@@ -20,7 +20,7 @@ An audit of the persistence layer reveals significant constraints for implementi
 - **Current State:** `ChatMessage` is currently held **in-memory only** (noted in `ChatMessage.swift`) and is not durably persisted between sessions in the modern V2 UI. 
 - **Persistence Substrate:** The app does not currently use SwiftData or CoreData. Libraries (`KnowledgeContainer`), documents, and legacy chat histories rely on `Codable` structs saved to local JSON files (e.g., `containers.json`, `chat_history_<containerId>.json`) or SQLite vector backends. 
 - **Implementation Decision:** Introducing SwiftData solely for Evidence Threads would fracture the storage paradigm. Threads should be implemented using `Codable` backed by robust JSON or SQLite storage to maintain consistency with the existing data layer.
-- **iCloud Sync:** `WorkspaceSyncService` currently handles library replication. We cannot assume immediate iCloud support for live chat threads due to file-conflict complexities. Sync must be deferred to a later phase.
+- **iCloud Sync:** `WorkspaceSyncService` currently handles library replication. I cannot assume immediate iCloud support for live chat threads due to file-conflict complexities. Sync must be deferred to a later phase.
 
 ## 4. Revised Evidence Threads MVP
 The rollout must be phased safely, starting with local-only storage.
@@ -49,7 +49,7 @@ The rollout must be phased safely, starting with local-only storage.
 - Implement safe merge strategies for concurrent thread edits across devices.
 
 ## 5. Positioning Refresh
-To escape the generic "chat with PDFs" category, we position the app around inspectability and evidence.
+To escape the generic "chat with PDFs" category, I position the app around inspectability and evidence.
 
 **Core Messaging Pillars:**
 - "Private evidence engine for Apple files."

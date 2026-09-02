@@ -43,7 +43,7 @@ To escape the "PDF chatbot" category, OpenIntelligence must be positioned as an 
 Currently, the chat architecture (`ChatMessage.swift` and `ChatScreen.swift`) treats queries largely as ephemeral point-in-time interactions scoped to an active `containerId`. While a `ChatMessage` heavily stores its `retrievedChunks` and `pipelineTrace`, the overarching conversational session is fragile. If the user clears the chat or switches libraries, that train of thought is lost. There is no durable "Thread" or "Session" object to group a continuous line of investigation into a retainable, shareable asset.
 
 ## 5. Evidence Threads MVP Design
-To pivot to a durable workflow, we must introduce the **Evidence Thread**.
+To pivot to a durable workflow, the app must introduce the **Evidence Thread**.
 - **Data Model:** A new SwiftData entity, `EvidenceThread`, which has a one-to-many relationship with `ChatMessage`.
 - **Properties:**
   - `id`: UUID
@@ -60,7 +60,7 @@ To pivot to a durable workflow, we must introduce the **Evidence Thread**.
 4. **Synthesis & Export:** The user can tap "Summarize Thread" to generate a cohesive brief of their findings, and export the entire thread (including source citations) via an extended `PipelineTraceExporter`.
 
 ## 7. App Intents Integration
-The current `RAGAppIntents.swift` provides excellent zero-friction entry points (`QueryDocumentsIntent`, `AskDocumentIntent`). We can supercharge this workflow by adding:
+The current `RAGAppIntents.swift` provides excellent zero-friction entry points (`QueryDocumentsIntent`, `AskDocumentIntent`). This workflow can be supercharged by adding:
 - **`ContinueEvidenceThreadIntent`:** Allows a user to dictate a follow-up question to a specific active thread via Siri while on the go.
 - **`SummarizeThreadIntent`:** "Hey Siri, summarize my Q3 Revenue evidence thread."
 This makes the evidence gathering process ambient and continuous.
