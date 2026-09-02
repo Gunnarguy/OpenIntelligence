@@ -1,6 +1,6 @@
 # Current State
 
-Updated: 2026-09-02, 13:20
+Updated: 2026-09-02, 13:40
 Branch/worktree: main (primary checkout)
 Last verified commit: 9c6335f
 
@@ -8,7 +8,10 @@ Last verified commit: 9c6335f
 
 **Ship v5.1 to both platforms, then leave the app on the back burner for a few weeks.**
 
-Everything the owner asked for is done except the submission itself, which waits on their word.
+The owner gave the word to submit on 2026-09-02 at 13:30. The agent's `fastlane submit_latest`
+call was blocked by the Claude Code auto-mode permission classifier, twice, as a plain command.
+Everything else is closed; the two submission commands are in the Exact Next Action and take
+about three minutes from the owner's terminal.
 
 ## Status
 
@@ -112,7 +115,7 @@ look at the owner's iPhone.
 
 ## Blockers / Unknowns
 
-1. **Submission waits on the owner.** Nothing else blocks it.
+1. **Submission is blocked for the agent, not the owner.** The auto-mode classifier denies `fastlane submit_latest` from this harness. The owner runs it, or adds a Bash permission rule for it in `.claude/settings.local.json` (machine-local; the repo-governance rule forbids the agent broadening that allowlist itself).
 2. **The `SpeechAnalyzer` path never compiles** (`SpeechAnalyzerService.swift`, `#if
    canImport(SpeechAnalyzer)`, no such module in the iOS 27 SDK). Transcription works through
    `SFSpeechRecognizer`. Future Backlog, **not yet a Notion row**.
@@ -120,27 +123,32 @@ look at the owner's iPhone.
 
 ## Exact Next Action
 
-**Submit on the owner's word. Nothing else is pending.**
+**Owner runs the two submissions, then the agent sets automatic release.**
 
-1. Optional: `GET appStoreVersions/{id}/build` for both records should read the build 433 ids above.
-2. Submit macOS, then iOS with the metadata swap, from the repo root with the
-   `APP_STORE_CONNECT_*` env loaded:
+1. From the repo root, with the `APP_STORE_CONNECT_*` env loaded (it is in `~/.zshrc`):
 
    ```bash
    fastlane submit_latest version:5.1 platform:osx
    ```
 
    ```bash
-   M=fastlane/metadata/en-US
-   cp "$M/release_notes.txt" /tmp/mac_rn.bak; cp "$M/promotional_text.txt" /tmp/mac_pt.bak
-   trap 'cp /tmp/mac_rn.bak "$M/release_notes.txt"; cp /tmp/mac_pt.bak "$M/promotional_text.txt"' EXIT
-   cp fastlane/metadata-ios/en-US/release_notes.txt "$M/release_notes.txt"
-   cp fastlane/metadata-ios/en-US/promotional_text.txt "$M/promotional_text.txt"
-   fastlane submit_latest version:5.1 platform:ios
+   bash /private/tmp/submit_ios_5_1.sh
    ```
 
-   `submit_latest` uses `skip_screenshots: true`, so the new iOS screenshots survive it. Both lanes
-   must report build 433. Confirm `git status` is clean afterwards.
-3. When Apple approves: remove the `unreleased` marker from the `## 5.1` heading, update
-   `Docs/SHIPPED_VERSION.json`, set `Shipped On` to `iOS, macOS` on the five v5.1 Notion rows, and
-   commit.
+   The helper swaps the iOS release notes into `fastlane/metadata/en-US/`, submits, and restores the
+   macOS copy on exit (the body is the swap block in `Docs/ai/RUNBOOK.md`, "iOS and macOS need
+   different App Store release notes"; recreate it from there if `/private/tmp` was cleared). Each
+   lane must print "existing processed build 433". Both records should then read
+   `WAITING_FOR_REVIEW` from `GET apps/6756559175/appStoreVersions?filter[versionString]=5.1`, and
+   `git status` must be clean.
+2. `deliver` sets the version to manual release. Because the owner wants nothing waiting on them,
+   `PATCH appStoreVersions/{id}` with `attributes.releaseType = "AFTER_APPROVAL"` on both records
+   (`6783e646…` macOS, `8a5c273c…` iOS) after step 1, and read it back. Editable while waiting for
+   review.
+3. When Apple approves and the versions go live: remove the `unreleased` marker from the `## 5.1`
+   heading in `CHANGELOG.md`, update `Docs/SHIPPED_VERSION.json`, set `Shipped On` to `iOS, macOS`
+   on the five v5.1 Notion rows, and commit. Then the app goes on the back burner; the first row of
+   the next release is the NSFileCoordinator sync row.
+4. Optional, whenever the preview master turns up: upload
+   `OpenIntelligence-Ingestion-ULTRA-SHARP-30FPS.mp4` to a new `IPHONE_67` preview set on the iOS
+   localization `3b8a2fff…`. Until then Apple scales the 6.5-inch preview to 6.9-inch.

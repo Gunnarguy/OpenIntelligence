@@ -81,8 +81,9 @@ honestly — several defects fixed this cycle were exactly that promise being si
 review. **v5.1 is staged, not submitted:** both platform records are in `PREPARE_FOR_SUBMISSION`
 with metadata verified against the local files, new iPhone screenshots on the iOS record, and the
 Xcode Cloud build 433 of commit `9c6335f` attached on both platforms.
-The same commit is installed on the owner's iPhone. It waits only on the owner's word to submit;
-the exact commands are in `Docs/ai/STATE.md`. `Docs/SHIPPED_VERSION.json` is the per-platform record.
+The same commit is installed on the owner's iPhone. The owner gave the word to submit; the agent's
+submission command was blocked by its own permission classifier, so the two commands are in
+`Docs/ai/STATE.md` for the owner to run. `Docs/SHIPPED_VERSION.json` is the per-platform record.
 
 **The platforms have diverged and it is the single most load-bearing fact here.** macOS carries
 5.0.1 and 5.0.2; iOS never received either. Most of 5.0.1's seventeen entries are cross-platform

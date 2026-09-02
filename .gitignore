@@ -285,3 +285,6 @@ CLAUDE.local.md
 # LLVM coverage artifact dropped in the repo root by `xcodebuild test`.
 default.profraw
 *.profraw
+
+# Release screenshot masters live outside git
+5.1 Screenshots/
