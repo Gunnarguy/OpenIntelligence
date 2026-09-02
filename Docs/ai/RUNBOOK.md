@@ -691,6 +691,31 @@ CI is `.github/workflows/ci.yml`, building on `macos-26` on push and PR to `main
 highest installed Xcode.
 
 
+## Staging a release without submitting it
+
+*Verified 2026-09-02, both platforms.*
+
+Xcode Cloud uploads a build on every push to `main`, so the binary usually exists before anyone
+decides to ship. Attaching it to the version record is one API call per platform and does not
+submit anything; the record stays `PREPARE_FOR_SUBMISSION` and the owner can still change
+screenshots or copy in App Store Connect before review.
+
+```bash
+# JWT as in scripts/asc_healthcheck.rb, then:
+# PATCH /v1/appStoreVersions/<versionId>/relationships/build  {"data":{"type":"builds","id":"<buildId>"}}
+# -> HTTP 204. Read it back with GET /v1/appStoreVersions/<versionId>/build.
+```
+
+Find the build ids with `GET /v1/builds?filter[app]=6756559175&filter[version]=<n>&include=preReleaseVersion`;
+the included `preReleaseVersion.attributes.platform` is the only field that says which of the two
+same-numbered builds is iOS and which is macOS. Both must be `processingState: VALID`.
+
+`submit_latest` picks the newest processed build for the version on its own, so a staged build
+needs no extra argument at submission time; the attach step exists so that the App Store Connect UI
+shows the release complete while it waits.
+
+`[evidence_level: measured, confidence: exact, evidence_source: PATCH returned 204 for both 5.1 records on 2026-09-02; GET read back the attached ids]`
+
 ## iOS and macOS need different App Store release notes, and the lane cannot do it yet
 
 *Added 2026-08-31.*

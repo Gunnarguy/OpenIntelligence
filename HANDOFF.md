@@ -1,6 +1,6 @@
 # Handoff
 
-Written 2026-08-22, **refreshed 2026-09-01 and current through commit `845c7b9`**, because Gunnar expects to run out of Claude usage this
+Written 2026-08-22, **refreshed 2026-09-02 and current through commit `2154df3`**, because Gunnar expects to run out of Claude usage this
 week and wants whatever picks this repo up next — Gemini/Antigravity, Codex, a different tool
 entirely, or just himself six months from now — to land somewhere useful without re-deriving three
 weeks of work. Nothing here requires Claude-specific tooling to read: it's plain markdown, and every
@@ -75,11 +75,13 @@ honestly — several defects fixed this cycle were exactly that promise being si
   check `THIRD_PARTY_NOTICES.md`, grep the whole repo, and check primary vendor docs before you
   delete, not just the one file that prompted the question.
 
-## Current state, as of `0a90bfe` (2026-09-01)
+## Current state, as of `2154df3` (2026-09-02)
 
 **Shipped:** iOS **5.0** (approved 2026-08-27), macOS **5.0.2** (approved 2026-08-28). Nothing in
-review. `v5.1` records exist for both platforms in `PREPARE_FOR_SUBMISSION` with metadata pushed but
-no binary. `Docs/SHIPPED_VERSION.json` is the per-platform record.
+review. **v5.1 is staged, not submitted:** both platform records are in `PREPARE_FOR_SUBMISSION`
+with metadata verified against the local files and Xcode Cloud build 432 (commit `845c7b9`)
+attached, as of 2026-09-02. It is waiting on the owner's screenshots and a word to submit; the exact
+commands are in `Docs/ai/STATE.md`. `Docs/SHIPPED_VERSION.json` is the per-platform record.
 
 **The platforms have diverged and it is the single most load-bearing fact here.** macOS carries
 5.0.1 and 5.0.2; iOS never received either. Most of 5.0.1's seventeen entries are cross-platform
@@ -88,10 +90,11 @@ user already has. This is why the App Store release notes are per-platform
 (`fastlane/metadata/` is macOS, `fastlane/metadata-ios/` is iOS) and why the Notion `Shipped On`
 property exists alongside `Status`.
 
-**Roadmap, verified against Notion 2026-08-31:** v5.0 closed at 57 rows, every one `Completed` with
-`Shipped On` recorded. v5.1 has 6 rows: 3 Completed, 1 In Progress, 2 To Do. Future Backlog is 70
-rows, all `To Do` — a sweep on 2026-08-31 cleared every stale `In Progress` and every `Completed`
-row that had been left there.
+**Roadmap, verified against Notion 2026-09-02:** v5.0 closed at 57 rows, every one `Completed` with
+`Shipped On` recorded. v5.1 has 4 rows, all `Completed`, `Shipped On` empty until live. Two rows
+were moved to Future Backlog on 2026-09-02 with dated notes: the ingestion pause control (a
+feature) and the NSFileCoordinator sync row (real data loss, first in line for the next release,
+not started). Future Backlog is 72 rows, all `To Do`.
 
 **The one open row that loses user data** is
 [Six file families sync without NSFileCoordinator](https://app.notion.com/p/3ca49a74d54f8103b69be921f0335171),
@@ -99,7 +102,7 @@ row that had been left there.
 in the repository: it holds that row *and* the orphan guard behind the idle-churn defect below. It
 is Tier-2 hard boundary and needs the owner to name it.
 
-**What landed 2026-08-29 to 09-01, all build- and suite-verified, none device-verified:**
+**What landed 2026-08-29 to 09-01, all in build 432. The owner ran a large-PDF ingest on the Mac on 2026-09-02 and reported it working; that is the device evidence, by the owner's word:**
 
 - macOS PDF rendering moved off deprecated `NSImage.lockFocus` and a TIFF round-trip to a
   `CGBitmapContext`. Measured: 4.0x oversize and 370 MB per page removed. **Render was never the
