@@ -1,6 +1,6 @@
 # Current State
 
-Updated: 2026-09-02, 13:40
+Updated: 2026-09-02, 14:10
 Branch/worktree: main (primary checkout)
 Last verified commit: 9c6335f
 
@@ -8,20 +8,18 @@ Last verified commit: 9c6335f
 
 **Ship v5.1 to both platforms, then leave the app on the back burner for a few weeks.**
 
-The owner gave the word to submit on 2026-09-02 at 13:30. The agent's `fastlane submit_latest`
-call was blocked by the Claude Code auto-mode permission classifier, twice, as a plain command.
-Everything else is closed; the two submission commands are in the Exact Next Action and take
-about three minutes from the owner's terminal.
+Submitted. The owner ran both `submit_latest` lanes on 2026-09-02 at about 13:50 after the agent's
+attempt was blocked by the auto-mode permission classifier. Nothing is pending on anyone until
+Apple reviews.
 
 ## Status
 
 **Live on the App Store:** iOS **5.0** (approved 2026-08-27), macOS **5.0.2** (approved 2026-08-28).
 
-**v5.1 is staged on both platforms, not submitted.** Both records are `PREPARE_FOR_SUBMISSION`
-with copy verified exact against the repo and screenshots replaced on iOS. **Attached build: Xcode Cloud 433, commit `9c6335f`**, run #433 `COMPLETE SUCCEEDED` at 12:35 on
-2026-09-02, both platforms `VALID`, attached with HTTP 204 and read back: iOS `7527f51b-28f3-422f-b8cf-7675373db901`,
-macOS `5dc4c892-6719-44ea-8e27-b8976bbadd21`. Build 432 is superseded; it lacks the sample rewrite
-and the What's New entries.
+**v5.1 is in review on both platforms, set to release automatically on approval.** Read back
+from App Store Connect at 14:05 on 2026-09-02: iOS and macOS both `WAITING_FOR_REVIEW`,
+`releaseType = AFTER_APPROVAL`, build 433 attached (iOS `7527f51b…`, macOS `5dc4c892…`), commit
+`9c6335f`. No `earliestReleaseDate` is set, so approval means live.
 
 | Platform | Version record | Screenshots on the record |
 |---|---|---|
@@ -115,40 +113,35 @@ look at the owner's iPhone.
 
 ## Blockers / Unknowns
 
-1. **Submission is blocked for the agent, not the owner.** The auto-mode classifier denies `fastlane submit_latest` from this harness. The owner runs it, or adds a Bash permission rule for it in `.claude/settings.local.json` (machine-local; the repo-governance rule forbids the agent broadening that allowlist itself).
-2. **The `SpeechAnalyzer` path never compiles** (`SpeechAnalyzerService.swift`, `#if
+1. **Somewhere the owner can see says 5.1 is expected on September 16, and no search found it.**
+   Not in this repo (every text type), not in `Gunzino`, `Fascinaiting`, `Gunnarguy-Portfolio`,
+   `OpenIntelligence-Public` or `SocialPosting` checkouts, not in the Notion Public Roadmap, Product
+   Hub or Posts pages, not in GitHub issues or releases, not in Spotlight's full-text index, and
+   App Store Connect has no such field (`earliestReleaseDate` is empty). Unchecked: the live
+   `gunzino.me/openintelligence` and `fascinaiting.me` pages, which may differ from their checkouts.
+   The owner said to drop it. If it resurfaces, fix it at the source and note where it was.
+2. **`fastlane submit_latest` is blocked for the agent** by the auto-mode classifier, twice as a
+   plain command. Future submissions come from the owner's terminal unless they add a Bash
+   permission rule for it in `.claude/settings.local.json`.
+3. **The `SpeechAnalyzer` path never compiles** (`SpeechAnalyzerService.swift`, `#if
    canImport(SpeechAnalyzer)`, no such module in the iOS 27 SDK). Transcription works through
    `SFSpeechRecognizer`. Future Backlog, **not yet a Notion row**.
-3. **`scripts/test_stop_handoff.sh` has a failing assertion.** Unrelated to shipping.
+4. **`scripts/test_stop_handoff.sh` has a failing assertion.** Unrelated to shipping.
 
 ## Exact Next Action
 
-**Owner runs the two submissions, then the agent sets automatic release.**
+**Nothing until Apple approves.** The app is on the back burner. When both versions read
+`READY_FOR_SALE` (`GET apps/6756559175/appStoreVersions?filter[versionString]=5.1`):
 
-1. From the repo root, with the `APP_STORE_CONNECT_*` env loaded (it is in `~/.zshrc`):
+1. Remove the `unreleased` HTML comment from the `## 5.1` heading in `CHANGELOG.md`. Update
+   `Docs/SHIPPED_VERSION.json` for both platforms. Change `## v5.1 - unreleased` in
+   `Docs/USER_CHANGELOG.md` to the approval date and copy the file byte-for-byte to
+   `OpenIntelligence/Resources/VersionHistory.md` (`VersionHistoryTests` enforces this); do the same
+   heading in `WHATS_NEW.md`.
+2. Set `Shipped On` to `iOS, macOS` on the five v5.1 Notion rows.
+3. Commit. The next release's first row is
+   [Six file families sync without NSFileCoordinator](https://app.notion.com/p/3ca49a74d54f8103b69be921f0335171);
+   it needs the owner to name `WorkspaceSyncService.swift` and a `v5.2` option in `Target Release`.
 
-   ```bash
-   fastlane submit_latest version:5.1 platform:osx
-   ```
-
-   ```bash
-   bash /private/tmp/submit_ios_5_1.sh
-   ```
-
-   The helper swaps the iOS release notes into `fastlane/metadata/en-US/`, submits, and restores the
-   macOS copy on exit (the body is the swap block in `Docs/ai/RUNBOOK.md`, "iOS and macOS need
-   different App Store release notes"; recreate it from there if `/private/tmp` was cleared). Each
-   lane must print "existing processed build 433". Both records should then read
-   `WAITING_FOR_REVIEW` from `GET apps/6756559175/appStoreVersions?filter[versionString]=5.1`, and
-   `git status` must be clean.
-2. `deliver` sets the version to manual release. Because the owner wants nothing waiting on them,
-   `PATCH appStoreVersions/{id}` with `attributes.releaseType = "AFTER_APPROVAL"` on both records
-   (`6783e646…` macOS, `8a5c273c…` iOS) after step 1, and read it back. Editable while waiting for
-   review.
-3. When Apple approves and the versions go live: remove the `unreleased` marker from the `## 5.1`
-   heading in `CHANGELOG.md`, update `Docs/SHIPPED_VERSION.json`, set `Shipped On` to `iOS, macOS`
-   on the five v5.1 Notion rows, and commit. Then the app goes on the back burner; the first row of
-   the next release is the NSFileCoordinator sync row.
-4. Optional, whenever the preview master turns up: upload
-   `OpenIntelligence-Ingestion-ULTRA-SHARP-30FPS.mp4` to a new `IPHONE_67` preview set on the iOS
-   localization `3b8a2fff…`. Until then Apple scales the 6.5-inch preview to 6.9-inch.
+If Apple rejects, the record returns to `DEVELOPER_REJECTED`, which is editable; fix, push, and
+re-attach the new build per the RUNBOOK staging note before resubmitting.
