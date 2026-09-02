@@ -50,9 +50,9 @@ hold the resized sets that were uploaded. Leave the whole folder out of every `g
   execution trace with file:line and requested silicon per stage; `Docs/STUDY_GUIDE.md` is the course over
   the 612-term word bank; `Docs/Audio/PASS_1` to `PASS_5` is the spoken version, five passes each one level
   deeper, 76 minutes, with the word bank in `Audio/Reference_word_bank/` for lookup only. Two source
-  documents live under `Docs/Research/`. One finding for Future Backlog, not yet a Notion row: the
-  `SpeechAnalyzer` transcription branch never compiles (`canImport` of a module that does not exist);
-  `SFSpeechRecognizer` runs instead, so nothing is broken.
+  documents live under `Docs/Research/`. One finding filed to Future Backlog as
+  [The SpeechAnalyzer transcription branch never compiles](https://app.notion.com/p/3cf49a74d54f812c962cf52805ffdb34):
+  `canImport` of a module that does not exist; `SFSpeechRecognizer` runs instead, so nothing is broken.
 
 - **`9c6335f`**: the three sample documents in `SampleDocumentManager.swift` rewritten from source
   (the audit and every source is in the CHANGELOG 5.1 entry and the Notion row), and `WhatsNewStore`
