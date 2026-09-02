@@ -1,6 +1,6 @@
 # Handoff
 
-Written 2026-08-22, **refreshed 2026-09-02 and current through commit `2154df3`**, because Gunnar expects to run out of Claude usage this
+Written 2026-08-22, **refreshed 2026-09-02 and current through commit `9c6335f`**, because Gunnar expects to run out of Claude usage this
 week and wants whatever picks this repo up next — Gemini/Antigravity, Codex, a different tool
 entirely, or just himself six months from now — to land somewhere useful without re-deriving three
 weeks of work. Nothing here requires Claude-specific tooling to read: it's plain markdown, and every
@@ -75,13 +75,14 @@ honestly — several defects fixed this cycle were exactly that promise being si
   check `THIRD_PARTY_NOTICES.md`, grep the whole repo, and check primary vendor docs before you
   delete, not just the one file that prompted the question.
 
-## Current state, as of `2154df3` (2026-09-02)
+## Current state, as of `9c6335f` (2026-09-02)
 
 **Shipped:** iOS **5.0** (approved 2026-08-27), macOS **5.0.2** (approved 2026-08-28). Nothing in
 review. **v5.1 is staged, not submitted:** both platform records are in `PREPARE_FOR_SUBMISSION`
-with metadata verified against the local files and Xcode Cloud build 432 (commit `845c7b9`)
-attached, as of 2026-09-02. It is waiting on the owner's screenshots and a word to submit; the exact
-commands are in `Docs/ai/STATE.md`. `Docs/SHIPPED_VERSION.json` is the per-platform record.
+with metadata verified against the local files, new iPhone screenshots on the iOS record, and the
+Xcode Cloud build 433 of commit `9c6335f` attached on both platforms.
+The same commit is installed on the owner's iPhone. It waits only on the owner's word to submit;
+the exact commands are in `Docs/ai/STATE.md`. `Docs/SHIPPED_VERSION.json` is the per-platform record.
 
 **The platforms have diverged and it is the single most load-bearing fact here.** macOS carries
 5.0.1 and 5.0.2; iOS never received either. Most of 5.0.1's seventeen entries are cross-platform
@@ -91,7 +92,7 @@ user already has. This is why the App Store release notes are per-platform
 property exists alongside `Status`.
 
 **Roadmap, verified against Notion 2026-09-02:** v5.0 closed at 57 rows, every one `Completed` with
-`Shipped On` recorded. v5.1 has 4 rows, all `Completed`, `Shipped On` empty until live. Two rows
+`Shipped On` recorded. v5.1 has 5 rows, all `Completed`, `Shipped On` empty until live; the fifth, added 2026-09-02, is the sample-document rewrite that removed a false Private Cloud Compute claim users were being cited. Two rows
 were moved to Future Backlog on 2026-09-02 with dated notes: the ingestion pause control (a
 feature) and the NSFileCoordinator sync row (real data loss, first in line for the next release,
 not started). Future Backlog is 72 rows, all `To Do`.
