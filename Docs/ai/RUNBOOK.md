@@ -740,6 +740,15 @@ lands in `FAILED` with `IMAGE_BAD_FILE_EXTENSION`. Only `.jpg` and `.png` are ac
 captures arrive as `IMG_nnnn.jpeg`; convert with `sips -s format png` and upload the PNGs. Eight
 images lost one round trip to this on 2026-09-02.
 
+**Every iPhone size is its own set, and previews are separate from screenshots.** Apple requires
+only 6.9-inch (or 6.5-inch when 6.9 is absent) and scales the rest down from it, so an empty 6.5 or
+6.3 slot is not a defect. Replacing the 6.5-inch set alone, as happened first on 2026-09-02, leaves
+the 6.9-inch tab empty and looks like nothing was uploaded. App preview videos live in
+`appPreviewSets` (`previewType`, e.g. `IPHONE_65`), untouched by screenshot work; the 6.9-inch
+preview uses the same 886x1920 file as 6.5-inch and is scaled from it when absent. **Apple's hosted
+preview (`videoUrl`, an HLS playlist) tops out at 332x720 and is not a recovery source for the
+original.** Keep preview masters somewhere findable; the 5.1 one was on no indexed volume.
+
 Order within a set is creation order, so upload in the order the store should show them. The
 scripts used (`asc_upload_shots.rb`, `asc_delete_old_set.rb`, on top of the JWT helper from
 `scripts/asc_healthcheck.rb`) lived in the session scratchpad; they are about 60 lines to recreate.

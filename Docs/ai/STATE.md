@@ -1,6 +1,6 @@
 # Current State
 
-Updated: 2026-09-02, 12:40
+Updated: 2026-09-02, 13:20
 Branch/worktree: main (primary checkout)
 Last verified commit: 9c6335f
 
@@ -23,7 +23,7 @@ and the What's New entries.
 | Platform | Version record | Screenshots on the record |
 |---|---|---|
 | macOS | `6783e646-64be-4c6b-92f7-11036ea1d9aa` | 7 desktop, unchanged |
-| iOS | `8a5c273c-147a-46b6-975d-98756c4a2dcc` | 8 iPhone 6.9" (`APP_IPHONE_67`, from `5.1 Screenshots/`, uploaded as PNG) and 5 iPad 12.9", unchanged. The old 6.5" set was deleted after all eight read `COMPLETE`. |
+| iOS | `8a5c273c-147a-46b6-975d-98756c4a2dcc` | iPhone: 8 each at 6.9" (`APP_IPHONE_67`, 1320x2868, set `38baacdb…`), 6.5" (`APP_IPHONE_65`, 1284x2778, set `869cfd6d…`) and 6.3" (`APP_IPHONE_61`, 1206x2622, set `819b8c49…`), the two smaller sets resampled and centre-cropped by 12 px and 1 px from the originals. iPad 12.9": 5, unchanged. The original 6.5" screenshot set was deleted. **App preview video** `OpenIntelligence-Ingestion-ULTRA-SHARP-30FPS.mp4` (5.4 MB, 886x1920) sits only on the 6.5" preview set `cd4bf817…`; Apple scales it to 6.9" automatically per its spec, and the 6.9" preview slot stays empty until the owner supplies the original file, which is on no indexed volume of this Mac (Spotlight by name, by 886 px width, and by portrait 1920 px movie all empty). Apple's hosted copy is a 332x720 player transcode and cannot be re-uploaded. |
 
 **Installed on the owner's iPhone 16 Pro Max** on 2026-09-02 at 12:22: Debug build of `9c6335f` on
 Xcode 26.6, stamped `MARKETING_VERSION=5.1`, zero Private Cloud Compute symbols across all six
@@ -39,7 +39,9 @@ which passes the data-loss test and is **first in line for the next release** bu
 and needs the owner to name `WorkspaceSyncService.swift`.
 
 **`5.1 Screenshots/` at the repo root is untracked and not ignored.** Eight `IMG_*.jpeg` from the
-owner's phone. Leave it out of every `git add`; the PNG conversions live only in the scratchpad.
+owner's phone that are PNG data misnamed (`file` says PNG, Display P3, no alpha). `PNG/` holds
+byte-identical copies with the right extension; `PNG-6.5in-1284x2778/` and `PNG-6.3in-1206x2622/`
+hold the resized sets that were uploaded. Leave the whole folder out of every `git add`.
 
 ## Completed this cycle
 
