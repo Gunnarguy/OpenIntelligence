@@ -1,0 +1,80 @@
+Module 6. Lexical indexing, SQLite, and vector persistence.
+
+What it is. Two filing systems for the same cards: SQLite F T S five for exact words, a memory-mapped vector store for meaning, plus the machinery that searches the vectors.
+
+In the word bank's own words. The app keeps several filing systems. One remembers exact words, one remembers meaning coordinates, and one remembers facts about where everything came from.
+
+Why it exists. Neither index is enough alone. Exact identifiers, part numbers and rare words are B M twenty-five's territory; paraphrase is the vector's. F T S five keeps nine tables, and the chunks table weights section title at 10, section path at 5 and content at 1 so a match in a heading outranks the same word in prose. Vectors live in the vectors dot bin file, memory-mapped so a library's embeddings cost no heap; norms are in the norms dot bin file. Writes are atomic file swaps. write-ahead logging lets reads continue during a write.
+
+Where it runs. F T S five is C P U and disk, inside an actor, with a 3 second busy timeout. Vector similarity has a two-level switch: at 1,000 or more vectors and a Metal device present, the mapped buffer goes to a Metal kernel with no copy; below that, C P U Accelerate, using one V D S P matrix multiply when the count exceeds the device's batch threshold (16 on M-series) and per-vector V D S P dot product otherwise. The user's G P U profile does not gate this path.
+
+Corrections to the earlier documents.
+OI-0155 caveat says the route also depends on the user G P U policy. It does not; the conditions are the 1,000 count and is GPU Available. The profile gates Core M L units and the maximal marginal relevance matrix.
+
+The word bank for this module. 49 concepts. For each one you will hear the term, its status, and one plain description.
+
+1,000-chunk G P U threshold. Conditional. The documented switching point near which large exact vector search becomes eligible for Metal. It avoids paying G P U overhead on small libraries while exposing parallelism on larger ones.
+the norms dot bin file. Core. The binary file of precomputed L two norms corresponding to stored vectors. Precomputing avoids recalculating vector lengths for every question and supports efficient cosine similarity.
+the vectors dot bin file. Core. The contiguous binary file of Float32 embedding coordinates for one library. A flat layout supports memory mapping and high-throughput matrix or dot-product operations without object overhead.
+Atomic vector-store persistence. Core. Writing replacement metadata, vector, and norm artifacts through temporary files and coordinated replacement rather than mutating live files in place. A crash between independent writes could pair new metadata with old vectors and make source identity incorrect.
+B M twenty-five. Core. A probabilistic lexical ranking function that rewards informative query-term matches while accounting for term frequency, corpus rarity, and field or document length. Exact words, codes, names, and measurements often carry decisive meaning that dense vectors blur. B M twenty-five is the exact-language half of hybrid retrieval.
+B M twenty-five b. Core. The parameter controlling document-length normalization; the fallback implementation uses approximately 0 point 5. It determines how strongly long chunks are penalized relative to average length.
+B M twenty-five k1. Core. The parameter controlling how quickly additional term occurrences saturate; the fallback implementation uses approximately 1 point 5. It sets the balance between a single precise match and many repeated matches.
+BNNSVectorDatabase. Core. The default exact vector store using compact metadata, contiguous Float32 vectors, precomputed norms, memory mapping, Accelerate/BNNS, and optional Metal acceleration. It provides a serverless search store optimized for Apple unified memory and the corpus sizes expected on device.
+Busy timeout. Core. The wait period, approximately three seconds, allowed when SQLite is temporarily locked. Immediate failure on short-lived contention would turn normal concurrent ingestion and reads into user-visible errors.
+chunk structured table. Core. A relational store for structured elements associated with a chunk. Tables, lists, warnings, and detected data need machine-readable recovery beyond the flattened search string.
+chunk table rows table. Core. A table storing individual recovered table rows as rows rather than only as one flattened chunk. Exact lookup often depends on preserving the relationship among cells in one row.
+chunks table. Core. The F T S five surface containing chunk identity, source relations, structural fields, and content used for lexical retrieval. Chunks are the operational retrieval unit, so lexical ranking must return the same identities used by vector search.
+Container column scoping. Core. Using a container U U I D column in shared tables rather than one SQLite file per library. A shared schema simplifies migrations and global maintenance while queries still enforce library isolation.
+Content weight. Core. The baseline B M twenty-five weight, approximately 1, for ordinary chunk body text. Body text remains searchable but does not overpower more intentional structural fields.
+C P U vector path. Core. Accelerate or BNNS dot-product search used below the configured large-corpus threshold. G P U setup has fixed overhead, so C P U SIMD can be faster for smaller libraries.
+Document-length normalization. Core. The B M twenty-five adjustment that prevents long passages from winning merely because they contain more words and therefore more opportunities to match. A concise specification row can be more relevant than a long chapter that mentions the term incidentally.
+document content table. Core. A relational store for raw or normalized full document text used for direct extraction and citation reconstruction. The chunk index alone may not preserve enough contiguous text for exact source views or rebuilds.
+document meta table. Core. A relational table for counts, dates, size, container identity, and other document metadata. Metadata needs exact typed access and updates rather than full-text tokenization.
+document pages table. Core. An F T S five surface for page-level text and boundaries. Page search, citation navigation, and cross-reference repair need evidence at page granularity.
+documents table. Core. An F T S five surface for whole-document text. Some searches and diagnostics need document-level matching in addition to chunk-level precision.
+documents vocab. Support. An F T S five vocabulary view exposing terms learned from the active library. Query expansion can use the corpus's own language instead of a generic synonym list that may introduce unrelated concepts.
+Exact vector scan. Core. Comparing the query against every stored vector rather than traversing an approximate neighbor graph. At local corpus scale, exact search avoids approximate-recall loss and complex index maintenance while remaining fast with mmap and Apple SIMD/G P U hardware.
+F T S column weight. Core. A per-column multiplier supplied to B M twenty-five so matches in high-signal metadata count more than body-text matches. A query matching a section heading or section path is usually more intentional than one buried in prose.
+F T S five. Core. SQLite's full-text-search virtual table engine. Normal SQL substring matching is too slow and does not provide relevance ranking, tokenization, or corpus statistics needed for lexical retrieval.
+G P U vector path. Conditional. Metal compute search over the memory-mapped vector buffer for sufficiently large candidate sets and an enabled execution profile. Large batches expose enough parallel arithmetic to offset command-buffer setup and accelerate similarity computation.
+HNSW. Historical. Hierarchical Navigable Small World approximate-nearest-neighbor indexing associated with the optional Vectura path. Approximate graphs can reduce search work at very large scale, but they add index complexity and may sacrifice recall.
+Inverse document frequency. Core. A weight that increases when a term is rare across the corpus and decreases when it is common. Rare identifiers and technical terms discriminate relevant passages better than words occurring everywhere.
+Inverted index. Core. A mapping from each indexed term to the rows and positions where it appears. It lets the database jump directly to matching chunks rather than scan every passage.
+Memory mapping. Core. Mapping a file into virtual address space so vector bytes can be accessed through pointers without reading the whole file into a heap array. Large libraries remain searchable with low resident memory and without a copy on every query.
+Metal buffer pool. Support. A cache of reusable size-bucketed MTLBuffers with device-tier memory limits. Repeated allocation can dominate short G P U operations and increase memory fragmentation.
+Metal residency set. Conditional. A Metal 4 facility that can keep frequently reused buffers resident for lower page-fault overhead. Persistent vector workloads benefit when buffers do not repeatedly migrate or fault into G P U-visible memory.
+Nine-column chunks F T S schema. Core. The chunk search table whose nine columns align exactly with the B M twenty-five weight vector. Column order is part of the scoring contract. A missing weight shifts every later weight and silently changes ranking.
+Partial top K selection. Core. Maintaining only the highest-scoring candidates while scanning instead of sorting every corpus score. The engine needs perhaps tens of hits, not a complete ordering of thousands, so partial selection reduces memory and sorting work.
+persistent JSON vector-store label. Historical. A legacy configuration name that now routes to the BNNS binary/memory-mapped implementation rather than a vectors-inside-JSON database. Keeping the stored enum value preserves compatibility with existing libraries and settings.
+Porter tokenizer. Core. The F T S tokenizer configuration that applies English stemming so related word forms share a root. A question using run can match a passage using running, improving lexical recall beyond exact surface strings.
+Section-path boost. Core. The current intermediate B M twenty-five column weight, approximately 5, for a match in the section hierarchy. A section path preserves topic context that may not be repeated in every chunk body.
+Section-title boost. Core. The current high B M twenty-five column weight, approximately 10, for a match in the chunk section title. Headings are concise semantic labels and often answer navigation-style queries directly.
+SQLite. Core. The embedded relational database that stores document text, metadata, chunks, pages, structured content, table rows, vocabulary, and query cache. It provides transactional local persistence and queryable structure without a server.
+SQLite transaction. Core. A group of database writes that either commit together or roll back together. Document metadata, chunks, pages, and structured rows must not become partially visible.
+SQLiteFullTextService. Core. The actor that owns the shared SQLite connection, schema, transactions, F T S queries, metadata access, and container filters. One serialized database owner prevents connection races and keeps schema and ranking policy centralized.
+Stemming. Core. Reduction of inflected words to a common search stem. Lexical retrieval otherwise treats many grammatical variants as unrelated terms.
+Term frequency. Core. How often a query term appears in one searchable row or field. Repeated occurrence increases relevance, but with diminishing returns so keyword stuffing does not dominate indefinitely.
+UNINDEXED F T S column. Core. A field stored in an F T S row for retrieval or joining but excluded from term indexing. IDs and control metadata must travel with hits without polluting the searchable vocabulary.
+Vector metadata JSON. Core. The file mapping vector positions to chunk/document identities and metadata required to reconstruct results. The binary float array alone has no source identity, page, text, or deletion semantics.
+Vector Database protocol. Core. The abstraction for storing, loading, searching, deleting, and auditing chunk vectors. Retrieval and S D K code can depend on one contract while the physical store or migration backend changes.
+Vector Store Router. Core. The service that resolves the concrete vector store for a library from its configured vector database kind. One library must consistently read and write one store implementation, and migrations need a controlled switch point.
+Vectura Vector Database. Conditional. An optional adapter for the Vectura/HNSW-style store retained for compatible libraries or migration paths. It preserves access to previously configured approximate stores without making them the default architecture.
+Virtual table. Core. A SQLite table whose behavior is implemented by an extension such as F T S five rather than ordinary row storage. It exposes full-text indexing and ranking through SQL while maintaining its own inverted index internally.
+Write-ahead logging (write-ahead logging). Core. A SQLite journaling mode that writes changes to a separate log before merging them into the main database. It improves read/write concurrency and crash recovery for a UI that may query while ingestion persists data.
+
+Can you explain it? Say each of these out loud. If you cannot, go back.
+1. List the nine tables.
+2. Give the three F T S column weights and the tokenizer.
+3. Explain memory mapping and what it saves.
+4. State both conditions for the G P U path and both tiers of the C P U path.
+5. Explain why two live instances must never map one file.
+
+Quiz.
+Question 1. What are the two conditions for vector search to use the G P U? Pause here if you want to answer first. ... The answer. At least 1,000 vectors in the container, and a Metal device with a command queue. The G P U execution profile is not consulted on this path.
+Question 2. What does the C P U path do above the batch threshold? Pause here if you want to answer first. ... The answer. One V D S P matrix multiply over the whole mapped buffer, then normalisation by the stored norms. Below the threshold it loops V D S P dot product per vector. The threshold is 16 on M-series and Int.max on unsupported devices.
+Question 3. Which F T S five columns are indexed and how are they weighted? Pause here if you want to answer first. ... The answer. section title (10), section path (5) and content (1), tokenised with porter unicode61. IDs, page number and structure type are UNINDEXED.
+Question 4. How many SQLite tables are there and name three? Pause here if you want to answer first. ... The answer. Nine: documents, chunks, document pages, documents vocab, chunk structured, chunk table rows, document content, document meta, semantic query cache.
+Question 5. What does the busy timeout do? Pause here if you want to answer first. ... The answer. PRAGMA busy timeout equals 3000 makes a writer wait up to three seconds for a lock instead of failing immediately, which matters when ingestion and a query touch the database together.
+
+End of module 6.

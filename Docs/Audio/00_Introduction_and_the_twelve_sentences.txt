@@ -1,0 +1,20 @@
+OpenIntelligence Study Guide. Audio edition. Written on the second of September, twenty twenty-six, from the repository at commit two seven three b zero zero seven.
+
+This is a course over your own app. Its job is that you can explain every component and the reason it exists, to a non-technical person, to an engineer, and at a whiteboard, without notes. It has seventeen modules in pipeline order. Each module gives you what the part is, why it exists, where it runs, the concepts that belong to it, corrections where the earlier documents got it wrong, a checklist of things to explain out loud, and a quiz. In the quiz, each question is followed by a short pause cue before the answer, so you can stop and answer first.
+
+A word on the status labels you will hear. Core means the concept runs on the default path. Conditional means it runs only in some modes or for some inputs. Support means diagnostics and evaluation. Dormant means the code exists but is not on any shipping path. Future means a reserved name. Historical means superseded, and misleading if taught as current.
+
+Before the modules, the whole thing in twelve sentences. Learn these first; every module hangs from them.
+
+One. A file is enqueued as a durable ticket and processed one document at a time.
+Two. Its text is extracted by type: text layer, three hundred sixty D P I O C R, structured table parsing, X M L, C S V, or on-device speech.
+Three. The text is cut into chunks of at most three hundred ten words, validated at four hundred thirty tokens by the real tokenizer, each with a contextual prefix.
+Four. Each chunk becomes a normalised three hundred eighty-four dimension vector, on Core M L or Core A I, with the unit chosen by the G P U profile.
+Five. Chunks are written to SQLite F T S five and to a memory-mapped vector file; summaries and entities are derived on top.
+Six. A question is profiled and planned first: intent, complexity, mode, and whether it is agentic.
+Seven. Vector search and B M twenty-five run in parallel and are fused with reciprocal rank fusion at k equals sixty.
+Eight. A cross-encoder reranks the shortlist; a similarity floor and maximal marginal relevance cut it; neighbours are added.
+Nine. Evidence is packed under the real token budget, strongest first and last.
+Ten. A post-retrieval plan chooses abstain, deterministic, on-device, or Private Cloud Compute, and only then asks for consent.
+Eleven. The model streams a typed answer with citations; nine deterministic gates decide what survives.
+Twelve. What comes back is inspectable: claims, byte-offset citations, the completed route, and a trace.

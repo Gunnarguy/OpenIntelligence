@@ -1,0 +1,41 @@
+Module 3. Document analysis, adaptation, and derived knowledge.
+
+What it is. Reading between the lines. Summaries, entities, classifications and specifications derived from the document so that later stages have more than raw text to work with.
+
+In the word bank's own words. After reading the file, the app adds labels: what kind of document is this, what names and codes are important, where are the references, and should it also make a short summary?
+
+Why it exists. Some questions are about a document, not about a passage in it. RAPTOR-lite adds one summary chunk per document (the L one level) so an overview question can be routed to summaries instead of forty near-identical body chunks. GraphRAG-lite builds an entity index so a question about a name, part number or drug can expand to the chunks that mention it even when the wording differs. Classification and specification detection let the retrieval stage boost the right kind of chunk for the right kind of question.
+
+Where it runs. After embedding, in the ingestion loop: vocabulary learning and Vision-entity learning at Steps 4 point 1 and 4.1b, the document summary at Step 4 point 5 (one language model call, only when summaries are enabled), content tags at Step 5 on i O S 26 and later.
+
+The word bank for this module. 15 concepts. For each one you will hear the term, its status, and one plain description.
+
+Chunk abstraction level. Core. Metadata distinguishing detail L zero, document summary L one, and reserved future cluster or library summaries L two-L3. Queries at different scopes need different evidence granularity. Explicit levels prevent a broad summary from competing invisibly with a precise detail chunk.
+Content tagging. Conditional. Foundation Models extraction of topics, actions, emotions, and objects with an NLTagger fallback and timeout. Tags improve library navigation and retrieval vocabulary, but must not block ingestion if the model is unavailable.
+Derived metadata. Core. The set of section, page, offsets, keywords, entities, abbreviations, structure, numeric flags, siblings, bounds, table data, and abstraction level attached to a chunk. Ranking, expansion, citation, and verification need more than text and a vector. Metadata carries the document relationships that embeddings discard.
+Document classification. Conditional. Assignment of a broad document category or structural class from text and visual signals. Category can guide chunking, suggestions, and diagnostics without hardcoding a domain-specific parser.
+Document summary chunk. Conditional. A short level-1 summary generated from representative detail chunks, embedded, and indexed as a special chunk. Overview questions should not require retrieving dozens of detail passages. A summary provides an abstraction-level entry point.
+Entity extraction. Core. Identification of names, organizations, places, and other salient terms attached to chunk metadata. Entities provide high-signal lexical fields and enable cross-document expansion without another full vector search.
+Entity index. Conditional. A persisted forward and reverse mapping between normalized entity names and chunk IDs, with document and container scope. It enables O(1)-style cross-document correlation and GraphRAG-lite expansion from entities already found in relevant chunks.
+Entity normalization. Conditional. Lowercasing and removal of periods, hyphens, and whitespace to align variants such as U.S.A. and USA or Core Data and Core Data. Exact string identity would fragment the entity graph into spelling variants.
+GraphRAG-lite. Conditional. Expansion from retrieved chunks to other chunks connected by shared entities or explicit document relationships. Vector similarity may miss a relevant passage that uses a different wording but shares an important named entity or reference.
+Predictive pre-scan. Core. A sample-based analysis of early pages or characters that estimates code, mathematics, lists, tables, columns, and vocabulary before the full import. Chunking and O C R configuration are expensive to change after every page has been embedded. A pre-scan selects a reasonable plan up front.
+RAPTOR-lite. Conditional. A shallow hierarchical retrieval design using level-0 detail chunks and level-1 document summaries. It offers fast overview routing without the cost and complexity of recursively clustering and summarizing the whole corpus.
+Reference-list detection. Core. Identification of bibliography or reference sections so they can be penalized, excluded from samples, or treated differently. Reference pages contain dense names and numbers that can dominate retrieval despite not answering the question.
+Representative-text sampling. Conditional. Selection of the first chunk, high-semantic-density chunks, and the final chunk within a strict character budget for summary generation. Feeding the entire document exceeds context, while only taking the beginning misses conclusions and dense middle sections.
+Spatial document analysis. Conditional. Analysis of page positions and regions to connect visual or structured elements with surrounding text. Diagrams, captions, and table context can be lost if spatial relationships are discarded too early.
+Specification detection. Core. Domain-agnostic recognition of structural patterns such as codes, standards, measurements, grades, part numbers, percentages, ranges, and ratios. Exact values are often more reliably extracted by shape than inferred by a model. The detector also flags spec-heavy passages for ranking boosts.
+
+Can you explain it? Say each of these out loud. If you cannot, go back.
+1. Explain RAPTOR-lite as it exists here, not as the paper describes it.
+2. Say what GraphRAG-lite indexes and when it is used.
+3. Explain why summaries are optional and what turns them on.
+4. Describe what the predictive pre-scan looks at.
+
+Quiz.
+Question 1. What is RAPTOR-lite in this app? Pause here if you want to answer first. ... The answer. A single summary chunk per document, the L one level, generated by one language model call after embedding and stored so overview queries can be routed to summaries first. There is no full recursive tree; L two and L3 are reserved names.
+Question 2. What does GraphRAG-lite give retrieval? Pause here if you want to answer first. ... The answer. An entity index and graph edges between chunks, used for entity expansion and graph-hop context allocation at query time.
+Question 3. When is a document summary generated? Pause here if you want to answer first. ... The answer. At ingestion Step 4 point 5, only when enable Document Summaries is on. It costs one language model call per document.
+Question 4. What does content tagging do and which framework does it? Pause here if you want to answer first. ... The answer. It runs Apple's on-device tagging and entity recognition (Natural Language) over the ingested text so keywords, authors and section headers are attached to each chunk record, where B M twenty-five column weights can favour them.
+
+End of module 3.

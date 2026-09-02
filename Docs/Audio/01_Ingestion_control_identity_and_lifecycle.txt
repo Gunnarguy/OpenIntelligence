@@ -1,0 +1,47 @@
+Module 1. Ingestion control, identity, and lifecycle.
+
+What it is. The receiving dock. A file becomes a durable work ticket that survives backgrounding, crashes and restarts.
+
+In the word bank's own words. This is the receiving dock. It makes a work ticket for every file, remembers where the job stopped, prevents duplicate work, and makes sure deleting a job really wins over accidentally restarting it.
+
+Why it exists. i O S will kill the app mid-import, and a user will quit it. So ingestion is not a function call; it is a state machine with a checkpoint, a lease and a heartbeat, persisted so that a restart resumes from the last completed stage. Deletion wins over resumption because a user removing a document must never see it come back. Content hashes and stable document IDs stop the same file being indexed twice. The whole thing runs one document at a time; the parallelism you see in Activity Monitor is inside a document, across pages and embedding batches.
+
+Where it runs. Enqueue happens on the main actor (RAGService.enqueue Documents). run Ingestion Loop then processes the queue serially. Stages go queued, loading, extracting, chunking, analyzing, embedding, indexing, storing, complete, each one published to the Live Activity within 0 point 5 second.
+
+The word bank for this module. 19 concepts. For each one you will hear the term, its status, and one plain description.
+
+Atomic ingestion commit. Core. The final publication of mutually consistent document metadata, lexical rows, chunks, and vector artifacts only after the new set is ready. Publishing pieces independently creates states where SQLite says chunks exist but vectors are missing, or vectors refer to obsolete chunk identities.
+Background continued processing. Conditional. An i O S 26 BGContinuedProcessingTask path that can continue a user-initiated import or query after the app leaves the foreground, with C P U/G P U resource policy and persisted status. Long O C R and Maximum queries should not be discarded merely because the user switches apps.
+Cancellation tombstone. Core. A durable record that a queue item or document was intentionally discarded. Without a tombstone, sync or queue merge can resurrect work that another device or user explicitly removed.
+Checkpoint. Core. A durable record of ingestion progress, commonly at page or batch boundaries, that lets a large document continue without restarting at page one. Mobile apps are interrupted frequently. Without checkpoints, long PDFs would repeat extraction and embedding, increasing time, heat, and duplicate risk.
+Content hash. Core. A cryptographic or stable digest of source content used to identify unchanged files and artifacts. Hashes prevent duplicate ingestion, detect stale checkpoints, and support sync signatures without rereading or trusting filenames.
+Deduplication. Core. The prevention or merging of logically repeated documents, chunks, or evidence based on IDs, hashes, source identity, or content overlap. Duplicates waste storage and context, distort rank metrics, and make one source appear more supported simply because it was indexed twice.
+Deletion-wins policy. Core. A merge rule under which an explicit deletion marker defeats an older surviving copy. Distributed replicas otherwise tend to resurrect deleted files because one device still has the last full record.
+Deterministic U U I D. Support. A U U I D generated from a stable string hash for cases that need reproducible identifiers. Reproducible IDs let derived artifacts reconnect after reload without a central server assigning identity.
+Document enqueue. Core. The act of adding one or more URLs to the persistent ingestion queue instead of processing them directly in the UI callback. Queueing makes imports cancellable, resumable, observable, and safe across app backgrounding or termination.
+Foreground background-time fallback. Conditional. A shorter UIApplication background task used as a handoff window when the continued-processing task has not yet taken ownership. It closes the timing gap between app backgrounding and scheduler launch, reducing abrupt cancellation.
+Heartbeat. Core. A periodic timestamp proving that the worker holding an ingestion lease is still alive. It distinguishes slow but active O C R from a dead task whose lease should be reclaimed.
+Ingestion lease. Core. A time-bounded ownership marker indicating that one worker currently owns a queue item. After a crash or termination, an eternal processing flag would strand the item. A lease can expire so another run can safely resume it.
+Ingestion stage state machine. Core. The ordered states queued, loading, transcribing, extracting, chunking, analyzing, adapting, reindexing, embedding, indexing, storing, complete, cancelled, and failed. Explicit states make progress and recovery auditable. A generic percentage cannot tell whether a failure corrupted extraction or merely failed to persist vectors.
+Ingestion Context. Core. The reason and policy context for an import, such as user initiated, automatic rebuild, or onboarding. The same file-processing machinery may require different UI, tuning, retry, or self-healing behavior depending on why it runs.
+Ingestion Item. Core. The persisted state machine record for one imported file, including stage, progress, timestamps, lease, heartbeat, file identity, errors, and events. A long import needs an explicit durable state rather than an in-memory task. It lets the app distinguish paused, failed, cancelled, and genuinely active work.
+Resumable ingestion. Core. The combined behavior of queue persistence, stable identity, leases, heartbeats, checkpoints, and stage-aware restart. It converts import from an all-or-nothing transaction into recoverable work while still protecting against double processing.
+Stable document ID. Core. A U U I D that continues to identify the logical document across checkpoints, sync, rebuilds, and derived chunks. Page-only or filename-only identity can create duplicates or attach rebuilt chunks to the wrong document. Stable identity is also the anchor for citations and deletion.
+Streaming ingestion lane. Conditional. A bounded-memory path for large files that processes and flushes a page batch at a time instead of retaining the entire document working set. A hundreds-page P D F can exceed the process memory budget if all rendered pages and intermediate structures coexist.
+Weighted progress. Support. A mapping from stages to unequal progress contributions, with extraction receiving the largest share and storage the smallest. Import work is not evenly distributed. Weighted progress prevents the UI from sitting at 10 percent for most of a P D F or jumping from 50 to 100 during a tiny final write.
+
+Can you explain it? Say each of these out loud. If you cannot, go back.
+1. Recite the stage order.
+2. Explain why a paused import must show its true page count (the removal trap).
+3. Say what a tombstone is and which rule it enforces.
+4. Explain the 20 second i Cloud materialisation guard and what it protects.
+5. Say how many documents ingest concurrently and where the real parallelism is.
+
+Quiz.
+Question 1. How many documents does the app ingest at once? Pause here if you want to answer first. ... The answer. One. run Ingestion Loop pulls the next queued item and awaits add Document before taking another. Parallelism exists inside a document: page extraction task groups and embedding batches.
+Question 2. What happens to an import if you quit the app halfway? Pause here if you want to answer first. ... The answer. The item's checkpoint and stage are persisted; on relaunch the item is restored as queued or paused with its real progress and resumes from the last completed stage. Removing it is the one action that discards the checkpoint.
+Question 3. What is a cancellation tombstone? Pause here if you want to answer first. ... The answer. A record that a document was deleted, kept so that a resumed or re-synced import cannot resurrect it. Deletion wins.
+Question 4. Where does a document's full text go before it is chunked? Pause here if you want to answer first. ... The answer. Into the F T S five documents table, from inside process Document. Chunk rows arrive later, after embedding. A failure in between leaves a document searchable at document level and absent from both chunk indexes.
+Question 5. What does the i Cloud materialisation guard do? Pause here if you want to answer first. ... The answer. If the file is an i Cloud placeholder, ingestion waits up to 20 seconds for it to download before reading. Without it, a placeholder reads as an empty or partial file.
+
+End of module 1.

@@ -1,0 +1,57 @@
+Module 16. Dormant, future, superseded, and commonly misnamed mechanisms.
+
+What it is. The blueprint shelf. Things that are in the source but not in the machine that runs today, and old names that mislead if taught as current.
+
+In the word bank's own words. Some blueprints are in the workshop but are not part of the machine that runs today. This section labels them clearly so you do not mistake a plan for a working gear.
+
+Why it exists. A repository accumulates scaffolds, reserved enums and superseded names, and a document that teaches them as live behaviour is the most expensive kind of wrong. The bank's status vocabulary exists for this: Core, Conditional, Support, Dormant, Future, Historical. Learn the dormant list as carefully as the core list, because interviewers ask about exactly these.
+
+Where it runs. Nowhere. That is the point.
+
+Corrections to the earlier documents.
+Add to the dormant list: the Speech Analyzer transcription branch (guarded by a module that does not exist; never compiles).
+Add to the historical list: the C P U and G P U Maximum profile (removed the Neural Engine; fixed 2026-08-26) and the NSImage.lock Focus mac O S render path (4 times oversize, 370 megabytes per page; replaced by a CGBitmapContext).
+
+The word bank for this module. 25 concepts. For each one you will hear the term, its status, and one plain description.
+
+18-of-20 zero-hallucination result. Historical. A withdrawn accuracy claim from an invalidly fast synthetic run where generation likely did not execute as assumed. Untrustworthy evaluation evidence should be removed rather than updated cosmetically.
+32K Private Cloud Compute window. Historical. A compatibility fallback and historical documentation value for potential cloud context. The public shipping runtime has not verified this as an active Open Intelligence production limit.
+3B versus 20B selector. Historical. The withdrawn implication that the app can choose between exact on-device parameter-count tiers. The framework exposes availability and execution, not a reliable selector or attestation for these sizes.
+AFM 3 Core Advanced label. Historical. A withdrawn user-facing model-tier name not selectable or observable through the public S D K. A precise name implied control the app did not have.
+Approximate confidence probability. Historical. The mistaken interpretation that a displayed heuristic confidence value is a statistically calibrated probability of truth. Calibration requires held-out outcome frequencies and reliability analysis.
+Automatic online self-training. Historical. The idea that the app continuously retrains or autonomously changes its models from ordinary user activity. The current engine adjusts policy and configuration but does not train the bundled embedding or reranker models on user documents.
+Auto Tune Service. Support. The service intended to update selected retrieval thresholds or policies from measured evaluation data under explicit constraints. Tuning should be evidence-driven and bounded rather than silently self-modifying from user answers.
+Bundled Core M L generative backend. Historical. A removed custom local generative model path distinct from Apple Foundation Models. The current product relies on the system language model and deterministic analysis paths.
+Default HNSW architecture. Historical. The incorrect generalization that Open Intelligence always uses an approximate HNSW vector index. The default current store is BNNSVectorDatabase exact scan; HNSW belongs only to the optional Vectura path.
+Dynamic Foundation Model profiles. Dormant. A registry intended to describe runtime Foundation Model capability profiles. It anticipated a more observable model-tier A P I.
+Embedding-based chunk boundary detection. Dormant. The implemented path that would compare adjacent sentence embeddings and split where semantic similarity falls. It could add language-independent topical boundaries beyond headings and transition phrases.
+Fixed 384-dimensional architecture. Historical. The oversimplified claim that all Open Intelligence embeddings are 384-dimensional. 384 is the default MiniLM space, while configured Natural Language providers use 512 and the dormant AppleFM scaffold declares 1,024.
+Late chunking. Historical. A research technique that embeds a long document jointly and pools token states for each later chunk span. It could preserve cross-chunk context, but that is not what the current Semantic Chunker does.
+Live Neural Engine utilization. Future. A hypothetical percentage or occupancy metric for the Apple Neural Engine. No public A P I currently supplies live Neural Engine utilization to this app.
+Local GGUF backend. Historical. A previously supported or considered local generative model format removed from the current architecture. The app consolidated on Apple Intelligence and On-Device Analysis rather than maintaining bundled third-party generative runtimes.
+Local MLX generative backend. Historical. A removed local generative model path based on MLX-style execution. Maintaining several model runtimes increased complexity and fragmented routing.
+Model judges. Historical. The withdrawn claim that a separate model grades answer correctness. No implemented model-as-judge service exists in the active engine; deterministic verification and benchmark ground truth serve different roles.
+Neural extractive QA model. Dormant. The planned Core M L start/end-span model represented by a stub protocol implementation. The design is present, but the active answer path uses heuristic extraction and specification logic.
+Private Cloud Compute simulation. Historical. The withdrawn description that older OS versions simulate Private Cloud Compute. A simulation would misstate privacy and route behavior.
+Production Private Cloud Compute. Dormant. The source architecture for live Private Cloud Compute completion. The route is intended for oversized evidence and deeper reasoning, but current App Store binaries were built without the required S D K path.
+RAPTOR L two/L3 hierarchy. Future. Section- and corpus-level abstraction layers above current document summaries. They could support hierarchical retrieval across very large libraries.
+Single 29-step pipeline. Historical. The older documentation shorthand that represented the engine as one fixed numbered sequence. Current execution branches by file type, intent, quality mode, evidence, device state, and route, so no one number captures every path.
+Single recursive thought loop. Historical. The oversimplified label for several distinct mechanisms: execution planning, iterative retrieval, recursive multi-session RAG, Self-RAG, critique/refinement, and deterministic verification. Collapsing them hides which component retrieves, which reasons, which stores facts, and which enforces truth.
+Unmeasured speed multipliers. Historical. Withdrawn claims such as 1,000x, 240x, 100x, or 4x improvements without supporting benchmark artifacts. Mechanism changes can be real while exact performance factors remain unproven.
+Zero latency. Historical. The withdrawn description of on-device generation as having no latency. Physical-device measurements show nonzero time to first token and throughput limits.
+
+Can you explain it? Say each of these out loud. If you cannot, go back.
+1. Name every Dormant item and say what runs instead.
+2. Name every Future item.
+3. Explain why HNSW is not used and what is used instead (exact scan over mmap).
+4. Say what the advanced20B alias actually executes.
+5. Explain the difference between Private Cloud Compute in source and Private Cloud Compute in a shipped build.
+
+Quiz.
+Question 1. Why is there no approximate nearest-neighbour index? Pause here if you want to answer first. ... The answer. Because an exact scan over memory-mapped, normalised vectors on Accelerate or Metal is fast enough at the library sizes a phone holds, and it has no recall loss. HNSW is a reserved name.
+Question 2. What does the Apple Foundation Models embedding provider do today? Pause here if you want to answer first. ... The answer. Nothing usable. It is a 1,024-dimension placeholder scaffold and must not be described as a shipped embedder.
+Question 3. Which transcription path never runs? Pause here if you want to answer first. ... The answer. The Speech Analyzer branch. SFSpeechRecognizer with on-device recognition runs instead.
+Question 4. What is the difference between Private Cloud Compute existing in source and Private Cloud Compute being in production? Pause here if you want to answer first. ... The answer. The route compiles under Swift 6 point 4 and i O S 27, but a given App Store build may carry zero Private Cloud Compute symbols and i O S 26 users always get the on-device route. Say which build you mean.
+Question 5. What replaced the bundled Core M L generative backend? Pause here if you want to answer first. ... The answer. Nothing bundled. Generation is the system language model through Foundation Models; deterministic extraction handles what does not need a model.
+
+End of module 16.

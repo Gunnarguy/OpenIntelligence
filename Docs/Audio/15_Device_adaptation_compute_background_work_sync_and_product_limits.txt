@@ -1,0 +1,75 @@
+Module 15. Device adaptation, compute, background work, sync, and product limits.
+
+What it is. The power manager and janitor. How hard the device may work, what runs in the background, how libraries sync, and what the tiers limit.
+
+In the word bank's own words. This is the power manager and janitor. It decides how hard the phone can work, keeps local and shared copies safe, and makes long jobs survive when possible.
+
+Why it exists. One configuration cannot serve a fanless Mac Book Air and an i Phone in a hot car. Device Capability Service detects the chip, memory and Metal limits once and hands every subsystem an envelope: batch sizes, concurrency, agentic depth, cooldowns. The G P U execution profile is the user's lever on top of that. Thermal and memory pressure degrade the pipeline, critical thermal to minimal mode. Background tasks are registered so ingestion and index maintenance can continue when i O S allows. Sync exists so a library is the same on every device, and the guard that waits for i Cloud to materialise a file is what stops a placeholder being indexed as an empty document.
+
+Where it runs. Detection is C P U and one Metal device query at first access. Five BGTaskScheduler registrations on i O S only: continued ingestion, continued query, index maintenance (4 h, needs power), Spotlight reindex (2 h), app refresh (30 min). The 1 point 68-second idle timer in Workspace Sync Service is the open defect: its damage is bounded, its cause is not fixed.
+
+Corrections to the earlier documents.
+OI-0558 G P U execution profile: it governs Core M L units, ingestion embedding units, the maximal marginal relevance matrix and concurrency ceilings. It does not govern the vector-search G P U path.
+
+The word bank for this module. 44 concepts. For each one you will hear the term, its status, and one plain description.
+
+Adaptive Pipeline Optimizer. Core. The runtime policy that adjusts enhancement features, candidate limits, context, rerank batch, agentic steps, cooldowns, timeout, thresholds, and maximal marginal relevance from device state and query complexity. The engine should degrade gracefully under critical heat or memory pressure instead of crashing or silently returning partial work.
+Balanced optimization level. Conditional. A reduced configuration that disables some repeated work and lowers candidate/context limits. It trades a modest amount of quality work for sustained responsiveness.
+Balanced profile. Core. The default profile allowing G P U for indexing and page rendering while keeping answer generation primarily on C P U plus Neural Engine policy. It captures most throughput gains without enabling every high-heat path.
+BGTaskScheduler maintenance. Conditional. Scheduled background tasks for index maintenance, Spotlight reindexing, and app refresh. Search artifacts and OS integrations need upkeep that should not block foreground use.
+BNNSGraphService. Core. The Accelerate-based service for batch normalization, matrix cosine similarity, softmax, reciprocal rank fusion arithmetic, and pairwise similarity. It centralizes optimized vector math and provides a C P U/Apple-Silicon path below or beside Metal.
+Continued ingestion task. Conditional. A BGContinuedProcessingTask carrying user-started document ingestion through background execution. Large imports should survive app switching and preserve visible progress.
+Continued query task. Conditional. A BGContinuedProcessingTask carrying a long Deep Think or Maximum query after the app backgrounds. A long answer should not disappear simply because the user leaves the app.
+Core M L compute units. Core. The allowed hardware set such as C P U and Neural Engine or all units for a model invocation. It expresses execution preference while Apple retains the final scheduling decision.
+Debounced workspace change. Core. Waiting briefly, about two seconds, to combine rapid local-change notifications into one sync pass. Ingestion writes many related artifacts and should not launch a full merge for each one.
+Device capability tier. Core. The baseline, enhanced, advanced, ultra-advanced, or unsupported classification derived from hardware identity. The tier provides a stable policy input for candidate breadth, concurrency, and agentic limits.
+Device Capability Service. Core. The central detector and policy source for chip, device tier, form factor, memory, Metal limits, batch sizes, concurrency, and G P U profile. One hardcoded pipeline configuration would underuse Macs and destabilize thermally constrained phones.
+Efficiency profile. Core. The profile keeping models on C P U plus Neural Engine and avoiding G P U vector/render work where possible. It minimizes heat and contention for sustained battery use.
+Efficient optimization level. Conditional. A power-saving configuration that disables HyDE, hypothetical document embedding,, compression, and iterative retrieval and reduces batch/candidate limits. Expensive auxiliary model calls are the first features to remove under resource pressure.
+Full optimization level. Core. The runtime state with the device-tier base configuration and all permitted quality features enabled. It maximizes quality when thermal and memory conditions allow.
+G P U execution profile. Core. The user policy Efficiency, Balanced, Performance, or Maximum controlling which workloads may use G P U and at what concurrency. A discrete policy communicates real behavior without implying an exact utilization percentage the app cannot guarantee.
+GPUComputeService. Conditional. The Metal service providing batch cosine similarity, normalization, and maximal marginal relevance diversity kernels with C P U fallback. Large vector batches are highly parallel and can benefit from custom compute kernels.
+Hardware execution envelope. Core. The resolved snapshot of chip, memory, Metal limits, compute route, O C R concurrency, render slots, embedding batch, vector batch, and G P U concurrency. Pipeline decisions need the concrete device constraints that produced them.
+i Cloud-shared sync mode. Conditional. A per-library policy that mirrors supported workspace artifacts through the app's i Cloud container. It enables multi-device continuity while retaining explicit library-level control.
+Ingestion Live Activity. Conditional. The lock-screen or Dynamic Island progress representation for active ingestion. Long imports benefit from durable progress without reopening the app.
+Local-only sync mode. Core. A library policy that keeps its artifacts in the device application-support workspace and excludes them from i Cloud sharing. Some users or corpora require strict device locality independent of general app settings.
+Logging Configuration. Support. The centralized control over log levels, categories, file buffering, redaction, and shareable trace inclusion. Diagnostic evidence must be useful without leaking arbitrary document content or flooding storage.
+Maximum G P U profile. Core. The highest concurrency and G P U-ceiling policy using the same engines as Performance with fewer internal limits. It exists for hardware and users who prioritize maximum throughput over heat and battery.
+Maximum-mode quota. Conditional. The tracked allowance for high-cost Maximum queries under the relevant product tier. Maximum can use substantially more local model sessions and background time than Standard.
+Memory pressure. Core. The runtime condition nominal, warning, or critical indicating process or system memory stress. Image and model buffers can cause jetsam termination before ordinary Swift errors occur.
+Metal Performance Shaders. Conditional. Apple G P U primitives and infrastructure used alongside custom Metal kernels. They support optimized matrix and buffer operations on unified-memory hardware.
+Minimal optimization level. Conditional. The emergency configuration retaining only essential retrieval and generation with small limits and no agentic steps. Critical thermal state needs a deterministic safe mode rather than a best-effort full pipeline.
+Neural Engine. Core. Apple's dedicated machine-learning accelerator available through Core M L scheduling. Embedding, O C R, and model inference can run efficiently without treating C P U or G P U as the only compute resources.
+Performance profile. Core. The profile allowing all compute units and moving sufficiently large searches to G P U. It prioritizes latency when the user accepts higher energy and thermal cost.
+Query timeout. Core. The maximum wall-clock allowance for a query configuration. Retrieval or model loops need a hard latency boundary and a path to cancellation or partial result.
+Quota Policy. Core. The centralized limits for libraries, documents, and feature access by workspace tier. Scattered magic limits create inconsistent behavior and difficult migrations.
+Settings Store. Core. The persisted central source for user model, routing, quality, G P U, RAG tuning, privacy, and presentation settings. Query execution must snapshot one coherent setting state rather than reread mutable UI values during the run.
+Shared vector-store materialization guard. Core. The rule that sync aborts if i Cloud reports a vector store but the file contents have not downloaded and cannot be read. An unavailable shared file can look like an empty library and cause destructive overwrite.
+Spotlight indexing. Conditional. Publishing document and library metadata to Core Spotlight for OS-level discovery. Users can find an indexed document from system search without exposing the corpus to a remote service.
+Step cooldown. Conditional. A short delay inserted between expensive stages under the resolved adaptive policy. Cooldowns allow heat, memory, and asynchronous hardware work to settle during sustained multi-step queries.
+Store Kit entitlement. Core. The verified purchase or subscription state controlling library count, document limits, sync, and higher-cost modes. Product limits must be enforced consistently across UI and engine entry points.
+Sync bootstrap conflict. Conditional. The state where both local and i Cloud workspaces contain meaningful independent libraries and the engine cannot safely choose one automatically. Blind replacement could delete unique documents or duplicate libraries.
+Sync merge plan. Conditional. The deterministic mapping of source libraries/documents to canonical identities across local and shared roots. Merging must preserve identity, deletion, and source-container relations rather than concatenate files.
+Sync write-in-progress guard. Core. The process-wide flag preventing local change notifications from recursively starting another sync while a sync write is active. Sync writes themselves create filesystem changes that could otherwise trigger loops.
+Thermal state. Core. The Process Info classification nominal, fair, serious, or critical. Sustained O C R, embedding, and model work can heat mobile devices and trigger throttling or termination.
+TOPS lookup. Support. A device-identifier table of approximate or projected trillion-operations-per-second figures shown for explanatory hardware context. Apple exposes no public live Neural Engine occupancy or throughput measurement A P I.
+Unified memory. Core. Apple's memory architecture in which C P U and G P U can access the same physical memory pool. It enables near-zero-copy vector and image paths but also means every subsystem competes within one process memory budget.
+V D S P. Core. Accelerate's vectorized digital signal processing primitives used for dot products, sums, division, clipping, and matrix multiplication. It provides highly optimized SIMD arithmetic without handwritten C P U loops.
+Vector sync signature cache. Support. A conservative signature of file attributes and document/source sets recorded after a sync proves local and shared vector stores already match. It avoids repeatedly deserializing every vector record merely to decide that no write is necessary.
+Workspace Sync Service. Conditional. The per-library i Cloud workspace synchronizer for containers, documents, vector artifacts, queue state, tombstones, and conflict resolution. Users need the same indexed library across devices without a custom backend.
+
+Can you explain it? Say each of these out loud. If you cannot, go back.
+1. Name the five tiers and what detects them.
+2. Give the compute-unit request for each G P U profile on the query path and on ingestion.
+3. List the five background task identifiers with their intervals.
+4. Explain what critical thermal does and what memory pressure does.
+5. Describe the 1 point 68-second churn: what it was, what bounded it, what is still open.
+
+Quiz.
+Question 1. What does the device capability ladder scale? Pause here if you want to answer first. ... The answer. Agentic step concurrency (3 to 32), step cooldown (100 milliseconds to 0), vector batch size (128 to 16,384), embedding batch (8 to 512), the matrix-multiply threshold, Vision concurrency (2 to 64), P D F render concurrency (1 to 64, capped by memory), embedding concurrency (2 to 64).
+Question 2. Which background tasks are registered and when may they run? Pause here if you want to answer first. ... The answer. Continued ingestion and continued query (system-scheduled), index maintenance no earlier than 4 hours and only on external power, Spotlight reindex no earlier than 2 hours, app refresh no earlier than 30 minutes. i O S only.
+Question 3. What happens at critical thermal state? Pause here if you want to answer first. ... The answer. Adaptive Pipeline Optimizer switches to minimal mode for device protection. Serious thermal no longer throttles; critical memory pressure switches to efficient mode.
+Question 4. What was the idle churn? Pause here if you want to answer first. ... The answer. reload Workspace Data fired every 1 point 68 seconds while idle because a container's orphaned state never resolved, reloading every vector store each time: 2,848 loads in 164 idle seconds. The router now compares an on-disk signature first, so the reload is free, but the timer still fires.
+Question 5. How does the app know which chip it is on? Pause here if you want to answer first. ... The answer. utsname for the device model, sysctlbyname("machdep.cpu.brand string") for the chip name on Mac, physical memory, and a Metal device query for G P U limits, parsed into a tier and a TOPS figure by lookup.
+
+End of module 15.

@@ -1,0 +1,67 @@
+Module 5. Embeddings and vector semantics.
+
+What it is. Turning meaning into coordinates. Every chunk gets a 384-number position; the question gets one too; nearby means related.
+
+In the word bank's own words. Each chunk gets a location on a map of meaning. The question gets a location too, and nearby locations may talk about similar things.
+
+Why it exists. Lexical search cannot find SAE 0W-20 synthetic when the question says what oil does my car take. A dense embedding can, because the two land near each other. 384 dimensions is the model's fixed width (MiniLM-L6-v2) and small enough that a whole library stays memory-mappable on a phone. Vectors are L two-normalised at write time so cosine similarity collapses to a dot product at search time. The embedding fingerprint on each library records model, dimension and pooling so two incompatible vector spaces can never be mixed.
+
+Where it runs. Core M L by default, with the Core M L compute units setting chosen from the G P U execution profile: the lower two profiles request C P U plus Neural Engine, the upper two request all units, and Core M L places each layer. On i O S 27 and mac O S 27 the default becomes the Core AI provider, which exposes no placement at all. The model is not loaded at launch; it loads on the first embed. Batches over four texts run in a task group sized by the device tier.
+
+Corrections to the earlier documents.
+OI-0570 Neural Engine, status Core: no line places work on the Neural Engine. Five lines permit it. Say "requested", never "runs on".
+OI-0126 Core AI provider is Conditional in the bank, but on i O S 27 and mac O S 27 Settings Store makes it the default and migrates saved Core M L defaults, so on those systems it is the primary path.
+OI-0122 Apple Foundation Models embedding provider: a 1,024-dimension placeholder that must never be described as shipped. The bank has this right.
+
+The word bank for this module. 33 concepts. For each one you will hear the term, its status, and one plain description.
+
+Apple Foundation Models embedding provider. Dormant. A nominal 1,024-dimensional provider scaffold intended for future Apple Foundation Models embedding support. The abstraction anticipates a native Apple embedding capability while preserving the provider interface.
+Attention mask. Core. A tensor marking which token positions are real input and which are padding. Pooling padded positions would dilute the passage vector and make output depend on batch padding rather than text.
+Attention-masked mean pooling. Core. Averaging token-state vectors while excluding padded positions according to the attention mask. The model exports token embeddings, not a trustworthy ready-made sentence vector. Correct pooling is load-bearing for retrieval quality.
+Bi-encoder. Core. An architecture that encodes the query and each passage independently into vectors, then compares those vectors. Independent passage vectors can be precomputed once during ingestion, making corpus-wide retrieval fast enough on device.
+Core AI sentence provider. Conditional. An i O S/mac O S 27 provider for the same 384-dimensional model through Apple's newer Core AI compilation path when available. It creates a future-facing execution path without changing the vector space or forcing a library rebuild solely because the runtime backend changed.
+Core M L sentence provider. Core. The default provider that loads the bundled embedding model, builds tensors, runs inference, pools token states, and normalizes the result. Core M L provides a supported on-device execution layer and lets Apple schedule work across C P U, G P U, and Neural Engine.
+Cosine similarity. Core. The normalized dot product measuring the angle between query and passage vectors, conventionally in the range minus one to one. It compares semantic direction without allowing vector magnitude to dominate.
+Default MiniLM provider. Core. The shipped 384-dimensional MiniLM-L6-v2 sentence embedder executed through Core M L. It offers a compact, local semantic space with manageable storage and fast exact similarity on Apple hardware.
+Document-chunk embedding. Core. The vector generated from a chunk's contextualized text during ingestion. It is the reusable semantic representation searched by every later question.
+Dot product. Core. The sum of coordinate-wise products between two vectors. With normalized embeddings it is the computational core of cosine similarity and maps efficiently to Accelerate, BNNS, and Metal.
+Embedding. Core. A fixed-length numeric representation of a passage or question whose geometry approximates semantic similarity. It lets the engine retrieve conceptually related text even when the user and document use different words.
+Embedding batch. Core. A group of passages processed together through one provider invocation. Batching amortizes model setup and uses matrix-oriented hardware more efficiently than one passage at a time.
+Embedding concurrency. Support. The number of embedding operations allowed to execute simultaneously. Too little concurrency underuses hardware, while too much competes for memory and can destabilize Core M L or Vision workloads.
+Embedding dimension. Core. The number of coordinates in one vector, such as 384 or 512. Similarity requires both vectors to occupy the same dimensional space. A mismatch is a hard incompatibility rather than a small quality difference.
+Embedding fingerprint. Core. A persisted identity for the provider, model, dimension, tokenizer, pooling behavior, and related vector-space-defining settings. It prevents the engine from mixing vectors that look structurally valid but are semantically incompatible.
+Embedding space. Core. The coordinate system learned by one model and preprocessing recipe. Equal vector lengths do not guarantee comparability. Different models, tokenizers, or pooling rules can produce unrelated geometries even at the same dimension.
+Embedding translation target. Conditional. An optional language into which embedding text is translated before vectorization while preserving original source text for display and citation. Cross-language retrieval can improve when all vectors share one embedding language, but the quoted evidence must remain faithful to the original.
+Embedding validation. Core. Checks for expected dimension, finite values, nonempty output, and other integrity conditions. NaN values, wrong widths, or silent truncation can poison every similarity result while still serializing successfully.
+Embedding Provider. Core. The protocol that standardizes model identity, vector dimension, sequence limit, availability, batching, and embedding generation across implementations. A library must know exactly which coordinate system produced its vectors while allowing the engine to select an available implementation.
+Embedding Service. Core. The actor that owns provider selection, model loading, validation, batching, caching, and error handling for embeddings. One authority prevents documents and queries from accidentally using different providers or vector dimensions.
+L two norm. Core. The Euclidean length of a vector, calculated as the square root of the sum of squared coordinates. Vector length must be known to normalize embeddings and compute cosine similarity efficiently.
+L two normalization. Core. Dividing every coordinate by the vector's L two norm so its length becomes one. For unit vectors, cosine similarity reduces to a dot product, which is faster and more numerically consistent across providers.
+NLContextualEmbedding provider. Conditional. A 512-dimensional Natural Language framework provider retained as a compatibility option. It allows a system embedding path on supported OS versions but represents a different vector space from MiniLM.
+NLEmbedding provider. Conditional. A 512-dimensional compatibility provider that averages available word embeddings from Apple's Natural Language framework. It supplies a fallback semantic representation where the preferred sentence model is unavailable.
+Provider agreement test. Support. A test that compares output shape and semantic behavior across compatible embedding backends. A new runtime backend should preserve the vector space expected by existing libraries rather than merely compile.
+Query embedding. Core. The vector generated from the user's effective search query. It places the question in the same semantic space as document chunks so nearest passages can be found.
+Re-embedding. Core. Regenerating every chunk vector in a library under a new embedding fingerprint. Changing the model, dimension, tokenizer, or pooling invalidates all old similarities, so partial migration would mix coordinate systems.
+Semantic query cache. Support. A local table storing embeddings or semantic results for previously seen normalized questions. Repeated questions can skip model embedding work and reduce latency and energy.
+Sentence embedding. Core. An embedding model optimized to place sentence- or passage-level meanings into one shared vector space. A token-level model output is not directly searchable as one passage. Sentence embedding reduces a sequence into one comparable vector.
+Special tokens. Core. Model-specific boundary tokens such as classification and separator markers inserted around content. The pretrained model expects the same input framing it saw during training, and those tokens consume part of the sequence limit.
+Token IDs. Core. Integer vocabulary identifiers produced by the paired tokenizer for each model input token. The model consumes numbers rather than strings, and their meaning depends entirely on the tokenizer-model pairing.
+Token-state tensor. Core. The model output containing one contextual vector for every input token position. A sentence model must derive one passage representation from these many token-level states.
+Zero-vector fallback. Support. A correctly sized all-zero embedding returned or substituted when a noncritical provider failure must not corrupt array shape. It prevents crashes and dimension mismatch, while downstream validation can identify that the semantic representation carries no information.
+
+Can you explain it? Say each of these out loud. If you cannot, go back.
+1. Say why 384 and what fixes it.
+2. Explain attention-masked mean pooling in one sentence.
+3. Explain why normalising at write time makes search cheaper.
+4. Give the compute-unit request for each of the four G P U profiles.
+5. Say what the fingerprint prevents.
+6. Name the four providers and their status.
+
+Quiz.
+Question 1. Why are vectors normalised when they are stored? Pause here if you want to answer first. ... The answer. So that cosine similarity, which needs both norms, becomes a plain dot product at search time. The norms are stored separately in the norms dot bin file for the C P U path that uses raw dot products.
+Question 2. What does the Efficiency profile ask Core M L to use for embeddings? Pause here if you want to answer first. ... The answer. C P U and Neural Engine: the G P U is excluded on purpose because the Neural Engine is the efficient unit for this work. Balanced, Performance and Maximum ask for all units during ingestion.
+Question 3. What was the ladder bug fixed on 2026-08-26? Pause here if you want to answer first. ... The answer. Maximum requested C P U and G P U, which excludes the Neural Engine, so the top profile did less than Performance. It now requests all units.
+Question 4. When does the embedding model load? Pause here if you want to answer first. ... The answer. On the first embed call, not at launch. Only the tokenizer loads at start-up, because token counting is needed before any embedding.
+Question 5. What is an embedding fingerprint? Pause here if you want to answer first. ... The answer. A record on the library of the provider, dimension and pooling recipe used to build its vectors. A different fingerprint means a different coordinate space, so ingestion is blocked until the library is rebuilt.
+
+End of module 5.

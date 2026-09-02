@@ -1,0 +1,55 @@
+Module 9. Context selection, compression, and token packing.
+
+What it is. Deciding what the model actually reads. A hard token budget, an order that fights the model's blind spot, and optional compression.
+
+In the word bank's own words. This is packing a suitcase. The app cannot bring the whole library, so it chooses the most useful evidence and fits it into the model’s limited space.
+
+Why it exists. The on-device model has a 4,096-token window and every token spent on evidence is one not available for the answer. So there is a budget: window minus instructions, tools, question, conversation, a 256-token safety reserve and the reserved output. Chunks that do not fit are trimmed and their IDs recorded, not silently forgotten. Lost-in-the-middle ordering puts the strongest evidence first and last because models attend poorly to the middle. Contextual compression keeps only the sentences that matter, at the cost of a model call and a one-second cooldown to protect the Foundation Models rate budget.
+
+Where it runs. C P U. Context Packing Service and the token budget in Foundation Model Token Budget, which reads the real window from System Language Model.default.context Size on i O S 26 and later instead of assuming 4,096.
+
+The word bank for this module. 27 concepts. For each one you will hear the term, its status, and one plain description.
+
+4,096-token on-device limit. Core. The governing on-device Apple Foundation Models context ceiling used by the engine. A naive top-20 chunk set plus prompt and output schema can overflow, causing failure or lost evidence.
+Available context tokens. Core. The remainder after all fixed prompt, question, tool, safety, and output costs are subtracted from the model limit. This is the actual capacity the retrieval evidence is allowed to consume.
+Compression expansion guard. Core. Rejecting a compression output when it contains more estimated tokens than the original. Expansion indicates the model paraphrased or hallucinated instead of extracting.
+Compression passthrough. Core. Returning the original chunk unchanged when it is short, the model is unavailable, compression fails, time expires, or the output is unsafe. Compression is an optimization and must not become a single point of evidence loss.
+Compression ratio. Conditional. The fraction of estimated tokens retained after contextual compression. It measures whether a compression call actually saved context rather than expanded or duplicated it.
+Compression time budget. Core. A total wall-clock cap for compressing a batch of chunks. Multiple model calls can dominate query latency and accumulate session context.
+Context window. Core. The maximum token sequence the language model can consider in one session, including instructions, tools, evidence, conversation, and output framing. The corpus cannot fit, so every upstream retrieval and packing decision exists to choose what occupies this scarce space.
+Context Packing Service. Core. The deterministic service that chooses and orders core hits, parents, siblings, graph neighbors, and compressed content under a token ceiling. Retrieval rank alone does not solve budget, diversity, sequence, or supporting-context requirements.
+Contextual compression. Conditional. Using Apple Foundation Models to extract only query-relevant sentences from retrieved chunks while attempting to preserve exact wording. Chunks often contain both useful and irrelevant text, and the 4,096-token window rewards higher evidence density.
+Core evidence chunk. Core. A high-ranked retrieved passage treated as an anchor that should survive packing if possible. The packer must preserve the strongest direct evidence before spending tokens on context around it.
+Evidence packet. Core. The final minimized collection of source passages, labels, identifiers, and metadata supplied to the answer stage. It is the boundary between retrieval and generation and defines what the model is allowed to know for this answer.
+Fresh compression session. Core. Resetting the Foundation Models session between chunk compression calls. Retaining the transcript across chunks accumulates tokens and can overflow the 4,096-token context after several calls.
+Graph-hop allocation. Conditional. Budget reserved for relationship-derived evidence reached through references or entities. Graph evidence can complete an answer but is usually less directly ranked than the anchor that led to it.
+Information-density rescue. Core. Selecting source sentences with numbers, entities, colons, codes, or other high-value signals when compression returns no relevant content. Blindly taking the first characters can lose a specification located in the middle or end of the passage.
+Intent-specific packing. Core. Changing evidence allocation and ordering based on whether the user requested a lookup, procedure, comparison, summary, or investigation. The same top-ranked chunks should not be packed identically for every answer shape.
+Lost-in-the-Middle mitigation. Core. Ordering evidence so high-value passages are placed at context positions less likely to be ignored, commonly at the beginning and end rather than burying all strong evidence centrally. Language models can underuse information located in the middle of long prompts.
+Neighbor allocation. Core. Budget reserved for adjacent or sibling passages. Procedural order and local definitions often cross one chunk boundary.
+NO RELEVANT CONTENT sentinel. Conditional. The exact compression response indicating that the model found no useful sentence in a chunk. A sentinel is easier to distinguish from an empty or malformed response than free-form language.
+Parent allocation. Core. Budget reserved for larger source spans surrounding core chunks. A precise hit may be uninterpretable without its defining paragraph or table context.
+Query-echo stripping. Core. Removing an echoed user question from model-compressed text. An echoed query can fool later keyword scoring into treating an irrelevant passage as highly relevant.
+Question-token cost. Core. The actual or estimated tokens occupied by the user question and effective rewritten form. A long multi-part question leaves less room for evidence and can trigger decomposition.
+Reserved output tokens. Core. Capacity withheld from input so the model has room to produce the answer and structured fields. Packing evidence to the absolute context ceiling can leave no generation budget and cause truncation or failure.
+Safety-token reserve. Core. Additional headroom for tokenizer-estimation error, framework wrappers, and variable structured-decoding overhead. A budget that is correct only on average is unsafe under a hard model limit.
+Source sentence selection. Core. Choosing exact sentences from evidence to maximize query relevance and information density before generation. Retrieval can identify the right chunk while the actual answer sentence remains buried among unrelated prose.
+System-prompt overhead. Core. Tokens consumed by behavioral instructions, grounding rules, output format, and answer policy. Those instructions are necessary but leave less room for source evidence, so they must be measured in the same budget.
+Token budget. Core. The explicit accounting of total context limit, instructions, tool schemas, question, conversation, evidence, safety margin, and reserved output. Character or chunk counts are not enough because model capacity is consumed by tokens across every prompt component.
+Tool-schema overhead. Conditional. Tokens used to describe registered Foundation Models tools and their arguments. Tool calling expands capability but directly competes with evidence for the context window.
+
+Can you explain it? Say each of these out loud. If you cannot, go back.
+1. Write the evidence-capacity equation from memory.
+2. Give the constants: 4,096, 3,200, 256, 1 point 4 and 2 point 5 characters per token.
+3. Explain lost-in-the-middle ordering.
+4. Say what happens to a chunk that does not fit.
+5. Explain the compression cooldown.
+
+Quiz.
+Question 1. What is the default token budget and where does it come from? Pause here if you want to answer first. ... The answer. 3,200 tokens of a 4,096 base window, with a 256-token safety reserve. The real window is read from the system model at runtime and can be larger.
+Question 2. How does the app estimate tokens from characters? Pause here if you want to answer first. ... The answer. 1 point 4 characters per token on device and 2 point 5 for the cloud fallback estimate, both deliberately conservative.
+Question 3. What happens to evidence that does not fit the budget? Pause here if you want to answer first. ... The answer. The packer stops adding chunks once used Tokens plus tokens would exceed the budget and records the trimmed chunk IDs, which the retrieval diagnostics can show. Skipped siblings are counted separately.
+Question 4. Why is there a one-second sleep after contextual compression? Pause here if you want to answer first. ... The answer. To let the Foundation Models rate budget recover before the generation call, because compression already spent a model call.
+Question 5. Is extractive QA used? Pause here if you want to answer first. ... The answer. No. The neural span model is a stub that returns nil and the code always proceeds to generation. The bank labels it Dormant, which is correct.
+
+End of module 9.

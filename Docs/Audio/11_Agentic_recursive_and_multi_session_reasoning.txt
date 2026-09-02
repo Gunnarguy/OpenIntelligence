@@ -1,0 +1,68 @@
+Module 11. Agentic, recursive, and multi-session reasoning.
+
+What it is. Thinking in loops. When one pass is not enough: plan, search, read, note, search again, then write, then check.
+
+In the word bank's own words. For hard questions, the app becomes a research team. It makes a checklist, searches one piece at a time, writes facts into a notebook, checks what is missing, and stops when the notebook is good enough.
+
+Why it exists. A 3B-parameter model with a 4,096-token window cannot answer a multi-hop question in one pass. So the orchestrator breaks the work into sessions, each a fresh window, and carries a Fact Bank between them instead of the raw transcript. Escalation is decided by measured retrieval quality against a per-profile threshold, not by guessing complexity up front. Every loop has three kinds of stop: a step cap, a confidence target, and a wall clock (180 seconds for recursive research) because thermal state will stop a phone before the maths does. Internal planning and analysis calls are pinned to the device; only the final synthesis may reach Private Cloud Compute.
+
+Where it runs. Orchestration is C P U. Every model call is on-device Foundation Models. Re-retrieval reuses module 08. Backoff comes from the thermal and memory state and a per-tier step cooldown.
+
+The word bank for this module. 40 concepts. For each one you will hear the term, its status, and one plain description.
+
+Agentic configuration. Conditional. The limits and policy for maximum sessions, retrieval passes, tools, time, evidence thresholds, and stopping behavior. An open-ended model loop needs deterministic resource and safety boundaries.
+Agentic phase. Conditional. A named state such as planning, searching, expanding, analyzing, synthesizing, refining, reformulating, or verifying. Explicit phases make the loop observable and allow deterministic policy to control what actions are legal next.
+Agentic Orchestrator. Conditional. The multi-session controller for planning, repeated retrieval, evidence assessment, query reformulation, fact accumulation, synthesis, refinement, and verification. Complex questions need an adaptive loop whose next action depends on evidence found so far.
+Analyzing phase. Conditional. Evaluating evidence, extracting facts, resolving source identities, and identifying missing coverage. The loop must distinguish evidence quantity from answer completeness.
+Chain Link. Conditional. A structured reasoning-chain output containing reasoning, a condensed insight, next focus, and cumulative confidence. It gives the next session a small explicit state rather than an unbounded transcript.
+Convergence. Conditional. The state in which additional retrieval passes no longer add material facts or improve coverage enough to justify continued work. Maximum mode needs evidence-driven stopping rather than endless use of its high session allowance.
+Conversation summary. Conditional. A compressed representation of older dialogue that preserves entities, decisions, and unresolved questions. It lets long conversations retain continuity without replaying every message verbatim.
+Conversation Memory Service. Conditional. The service that summarizes and retrieves recent conversation context for standalone rewriting and continuity. Follow-up questions need prior entities and constraints, but full chat history cannot consume the entire model context.
+Coverage map. Conditional. The record of which subquestions or required answer dimensions have supporting facts. The loop needs a concrete definition of completeness to know when to stop.
+Critique step. Conditional. A focused pass identifying unsupported claims, omissions, contradictions, or weak reasoning in a draft. Targeted critique gives the refinement phase a concrete repair objective.
+Default agentic profile. Conditional. The ordinary Deep Think multi-session configuration. It balances evidence depth and runtime for questions that exceed Standard.
+Evidence gap. Conditional. A specific required fact, facet, comparison side, or condition that is not yet supported by the current corpus evidence. Naming the gap enables targeted retrieval instead of generic more searching.
+Evidence-driven stopping. Core. Stopping based on coverage, confidence, novelty, contradictions, and improvement rather than a fixed number of thoughts. A fixed loop count wastes work on easy questions and may stop too early on hard ones.
+Evidence Thread. Core. A local per-library conversation thread containing messages, title, timestamps, and metadata. It persists the user-visible evidence conversation separately from transient model sessions.
+Expanding phase. Conditional. Adding parents, siblings, cross-references, entities, graph neighbors, or broader candidates around promising hits. Initial search often finds an anchor rather than the complete answer.
+Fact. Conditional. An atomic evidence-backed proposition stored in the Fact Bank. Atomic facts can be deduplicated, checked for contradictions, mapped to sources, and combined deliberately.
+Fact deduplication. Conditional. Merging or rejecting semantically repeated facts encountered across sessions. Repeated discovery should increase confidence or coverage, not consume state as if it were new information.
+Fact provenance. Conditional. The source IDs, chunks, pages, or evidence labels attached to a Fact Bank fact. A recursive loop must not detach a condensed fact from the source that justified it.
+Fact Bank. Conditional. The cumulative source-backed state that stores facts discovered across subquestions and sessions together with provenance. Passing compact facts forward lets recursive RAG retain knowledge without carrying every full transcript or chunk into each new session.
+Fast agentic profile. Conditional. A reduced multi-session configuration for limited deeper work. It provides some decomposition and verification without the full latency of thorough reasoning.
+Hard session cap. Core. The absolute maximum number of agentic model sessions allowed even if convergence never occurs. Deterministic safety bounds protect battery, heat, latency, quota, and cancellation behavior.
+LLM call count. Support. The number of separate model invocations used to produce an answer. It differentiates a Standard single pass from recursive RAG and helps explain latency and energy.
+Memory turn limit. Core. The mode-dependent number of recent conversation turns retained or considered, roughly 5, 10, or 20. More context improves continuity but competes with document evidence and can introduce stale assumptions.
+Planning phase. Conditional. The step that interprets the request, identifies subquestions, and chooses an initial evidence strategy. Searching before defining requirements can produce many relevant passages that still fail to answer the whole question.
+Reasoned Insight. Conditional. A structured output containing analysis, one key insight, discovered terms, and confidence. It standardizes what an intermediate evidence-analysis session passes forward.
+Reasoned Synthesis. Conditional. A structured final integration of multiple insights with key points, confidence, and sources. The last step must reconcile accumulated findings rather than simply concatenate them.
+Reasoning session. Conditional. One bounded Language Model Session call dedicated to a particular agentic objective. Fresh focused sessions avoid transcript overflow and isolate evidence assessment from final answer writing.
+Reasoning trace. Support. A user-facing or diagnostic sequence of named progress events and condensed intermediate outcomes. It explains what stages ran without exposing raw hidden chain-of-thought.
+Reasoning-chain token total. Support. The sum of tokens consumed across every model call in recursive execution. One 4,096-token limit per session does not describe the total computational work of the answer.
+Recursive RAG. Conditional. A pattern that makes several bounded retrieval and language-model calls, passing condensed facts or insights forward instead of forcing the full problem into one context window. Multiple 4,096-token sessions can collectively examine more evidence while each call remains within the local limit.
+Refining phase. Conditional. Improving an initial synthesis in response to verification failures, omissions, or unsupported claims. A generated answer can be mostly correct but require targeted repair rather than a full restart.
+Reformulating phase. Conditional. Changing the search query or decomposition when evidence is weak, redundant, or off-target. Repeating the same failed retrieval cannot discover a different lexical or semantic neighborhood.
+Searching phase. Conditional. The execution of hybrid retrieval for the current query or subquestion. The loop remains grounded by gathering source evidence before making claims.
+Self-RAG. Conditional. A self-evaluation pattern in which the model or orchestration layer checks whether evidence supports the answer and may retrieve or revise again. Generation quality depends on the evidence and can be improved by explicitly detecting unsupported or incomplete output.
+Standard reasoning chain. Conditional. A bounded multi-step reasoning sequence used within some Standard answer paths without invoking the full agentic orchestrator. A question can benefit from structured evidence analysis and synthesis while still avoiding open-ended retrieval loops.
+Synthesizing phase. Conditional. Combining accumulated source-backed facts into a coherent answer. Multiple subquestions and documents require composition after their evidence is independently gathered.
+Thinking Event. Support. A typed progress event with phase, title, detail, icons, counters, confidence, and generation state. Typed events keep the live UI and S D K synchronized with the actual pipeline rather than parsing log strings.
+Thorough agentic profile. Conditional. A broader configuration with more retrieval and reasoning allowance. Cross-topic or incomplete-evidence questions may need more passes and source expansion.
+Unlimited agentic profile. Conditional. The Maximum-mode configuration with a high but still finite safety cap, including up to roughly 50 sessions in current source. Maximum should stop when evidence converges, but a hard ceiling protects against pathological loops.
+Verifying phase. Conditional. Running source and claim checks over the agentic synthesis. More model calls do not make an answer trustworthy by themselves; the final output still needs deterministic gates.
+
+Can you explain it? Say each of these out loud. If you cannot, go back.
+1. Give the four profiles with their step cap, confidence target and escalation threshold.
+2. Explain the two execute Recursive Research call sites and how to tell them apart in a log.
+3. Give the reasoning-chain session counts.
+4. Explain what Maximum does differently (0 point 98, 50 sessions, 3 chunks each, Fact Bank).
+5. Say why tools are disabled inside Maximum sessions.
+
+Quiz.
+Question 1. What are the agentic profiles? Pause here if you want to answer first. ... The answer. fast: 2 steps, 0 point 70 confidence, 0 point 25 escalation. default: 5, 0 point 85, 0 point 35. thorough: 8, 0 point 95, 0 point 45. unlimited: 50, 0 point 98, 0 point 50.
+Question 2. How do you tell which recursive-research call site ran? Pause here if you want to answer first. ... The answer. By the iteration denominator in the log. One site passes max Iterations: 5, the other max Iterations: 3; the default is 7 and is not used by either.
+Question 3. What stops a Maximum run? Pause here if you want to answer first. ... The answer. Reaching 0 point 98 confidence, saturation (no novelty), cancellation, or the session cap, which is 50 scaled down to the evidence pool at three chunks per session. A 180-second budget bounds each recursive research phase.
+Question 4. Which agentic calls may go to Private Cloud Compute? Pause here if you want to answer first. ... The answer. Only the final synthesis, through the post-retrieval plan. Planning and evidence analysis set execution Context equals on device only and allow Private Cloud Compute equals false.
+Question 5. What is the Fact Bank for? Pause here if you want to answer first. ... The answer. It carries source-backed facts between sessions so each new 4,096-token window starts from distilled evidence instead of the previous transcript, which is what used to overflow at 4,521 tokens.
+
+End of module 11.

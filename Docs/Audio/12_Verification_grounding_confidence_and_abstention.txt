@@ -1,0 +1,68 @@
+Module 12. Verification, grounding, confidence, and abstention.
+
+What it is. The nine checks. Deterministic gates that decide whether the generated answer is allowed to stand.
+
+In the word bank's own words. This is the fact-checking desk. It asks whether every important sentence is really supported, whether numbers match, and whether the safest answer is “I do not have enough evidence.”.
+
+Why it exists. The generative stage can invent. So after it, rule-based gates run in a fixed order: A retrieval confidence, B evidence coverage (every claim cites), C numeric sanity, D contradiction sweep, E semantic grounding (the response embedded and compared to its best source), F quote faithfulness, G generation quality, H answer completeness, with I domain isolation applied before synthesis. Unsupported claims are removed or the app abstains with a Not Enough Evidence answer. Confidence is calibrated from several inputs; fidelity is specifically how well the cited sources support the text. They are different numbers on purpose.
+
+Where it runs. C P U inside the Verification Gate Service actor. Gate E costs one embedding call. Thresholds: tau Normal 0 point 40, tau Touchy 0 point 55, margin 0 point 03, semantic grounding 0 point 50; a strict profile raises all four. The mode's confidence bar is 0 point 50, 0 point 60, 0 point 80.
+
+The word bank for this module. 40 concepts. For each one you will hear the term, its status, and one plain description.
+
+Absence assertion. Core. The explicit claim that requested information is not present in the corpus, supported by sufficiently broad retrieval and search checks. Saying not found is itself a factual assertion and should not be issued after a shallow miss.
+Abstention. Core. The deliberate decision to say the documents do not support an answer instead of guessing. A grounded system needs a valid no-answer outcome; otherwise every retrieval miss becomes a hallucination opportunity.
+Abstention threshold. Core. The calibrated confidence floor below which the answer is refused, made stricter from Standard to Maximum and for touchy queries. A higher-effort mode should not merely search more; it should demand stronger evidence before asserting.
+Answer replacement guard. Core. A safeguard preventing a later transformation or fallback from replacing a stronger grounded answer with a weaker or unsupported one. Multi-stage pipelines can regress after producing a correct extractive answer.
+Bibliography penalty. Core. A reduction or exclusion applied to chunks recognized as references when the query seeks substantive findings rather than citations. A bibliography contains query terms and author names but usually does not state the evidence being asked about.
+Calibration caveat. Core. The fact that configured calibration is a heuristic policy unless validated against held-out outcome frequencies. A displayed 80 percent should not be interpreted as a statistically proven 0 point 80 probability without empirical calibration data.
+Calibration parameters. Core. The slope, intercept, penalties, and conservative/default parameter set used to adjust confidence. Central parameters make confidence behavior testable and mode-dependent.
+Claim verification verdict. Core. The supported, partial, or unsupported classification attached to one answer claim. A single global confidence hides which exact assertions are reliable.
+Confidence calibration. Core. Transforming raw signals using configured parameters and verification results to produce a more conservative answer confidence. Raw model and similarity scores have different scales and can be overconfident.
+Confidence policy. Core. The per-query thresholds and calibration parameters derived from answer intent, touchy status, and quality mode. Confidence and abstention decisions should change coherently with risk and requested effort.
+Critical gate. Core. A verification gate whose failure can independently force abstention, currently including retrieval confidence, numeric sanity, and semantic grounding. Some failures invalidate the answer regardless of how well other dimensions scored.
+Domain Isolation Service. Core. The service that classifies claim/evidence domains and penalizes or blocks support crossing incompatible domains. Common terms can make an unrelated medical, legal, automotive, or computing passage appear semantically relevant.
+Evidence-first mode. Core. A policy that treats retrieved source content as the primary answer authority and model output as a constrained transformation. It reverses the unsafe pattern of generating first and searching for citations afterward.
+Fidelity. Core. The degree to which the visible answer remains locked to and fully supported by the cited sources. Confidence can reflect overall certainty, while fidelity specifically communicates source support.
+Gate A: Retrieval Confidence. Core. The check that the retrieved evidence has sufficient relevance and separation to justify answering. No downstream phrasing can compensate for an evidence set that never found the answer.
+Gate B: Evidence Coverage. Core. The claim-by-claim check that answer assertions are supported by supplied evidence. An answer can cite sources globally while individual claims remain unsupported.
+Gate C: Numeric Sanity. Core. The critical check that numbers, units, ranges, and exact values in the answer are present and consistent with evidence. Numeric hallucinations are especially dangerous because a small digit or unit change can invert meaning.
+Gate D: Contradiction Sweep. Core. The check for conflicts among the answer, evidence passages, and potentially conflicting source statements. A high-similarity source can still disagree with another relevant source or with the generated claim.
+Gate E: Semantic Grounding. Core. The critical semantic check that the answer meaning remains close to the evidence meaning. Exact token overlap alone misses paraphrased fabrication, while semantic comparison can detect drift.
+Gate F: Quote Faithfulness. Core. The check that quoted or extractive language actually appears in the attributed source and has not been materially altered. Quotation marks and citations imply a stronger provenance guarantee than ordinary synthesis.
+Gate G: Generation Quality. Core. The check for empty, malformed, repetitive, truncated, or otherwise unusable model output. An answer can be grounded yet still fail as a response because the stream or schema was incomplete.
+Gate H: Answer Completeness. Core. The check that the response addresses the requested facets rather than answering only an easy subset. Partial coverage can be misleading when presented as a complete answer.
+Gate I: Domain Isolation. Core. The check that specialized evidence and claims remain within the correct domain, document context, and citation scope. Shared words across medical, engineering, legal, and general domains can create plausible but cross-domain false support.
+Missing-information list. Core. The explicit fields, facts, or support the question requested but the corpus did not provide. A refusal is more useful when it identifies the gap rather than returning a generic failure.
+Not Enough Evidence. Core. The UI state for abstention or evidence too weak to safely verify an answer. The absence of a confident answer is itself important information about the corpus.
+Numeric-unit verification. Core. Comparing numbers together with their units, qualifiers, ranges, and source context rather than checking digits alone. 5 mg and 5 m L are not interchangeable, and maximum versus typical changes the claim.
+Partially Supported. Core. The UI state indicating useful answer content remains but some details did not receive full verification. It exposes uncertainty instead of flattening mixed claim support into one green badge.
+Partially supported claim. Core. A claim for which evidence supports the main point but not every detail or degree of certainty. The engine can preserve useful information while explicitly lowering trust rather than pretending full support.
+Precision lock. Conditional. A high-confidence state where deterministic or source-only evidence is strong enough to answer directly and block unnecessary generative rewriting. Exact values can be degraded by paraphrase or accidental number changes.
+Quote-span verification. Core. Checking that a cited quote exists in the source text at the attributed location or within an accepted normalized match. A fabricated quote with a real citation is more misleading than an uncited paraphrase.
+Raw confidence. Core. An uncalibrated score derived from model output, retrieval scores, claim support, or extraction strength. It is an internal signal, not automatically a probability that the answer is true.
+Reliability mode. Core. A user/runtime setting that favors grounded fallback, verification, and explicit uncertainty over permissive output. The product promise depends on failing safely when evidence or generation is weak.
+Scientific-domain claim check. Conditional. Special handling for research claims, statistical language, methods, results, and citation sections. Scientific text has recurring structures where bibliography or background language can be mistaken for study findings.
+Source-Locked. Core. The UI state indicating all material claims passed source grounding at the required fidelity threshold. It gives the user a stronger and more specific trust signal than a generic confidence number.
+Source-only verification. Core. Checking that the final answer can be reconstructed or supported from source passages without relying on model memory. Citations are meaningful only when the cited text actually entails the claim.
+Source Only Answer Service. Core. A fallback and verification service that constructs or validates an answer exclusively from retrieved source sentences. When generative grounding is uncertain, the safest useful result may be a concise extractive answer rather than no response or a fluent guess.
+Supported claim. Core. A claim whose meaning and material details are directly justified by mapped evidence. It is eligible to remain in a source-locked answer.
+Unsupported claim. Core. A claim with no adequate evidence mapping or a contradiction with supplied evidence. It must not survive merely because the overall answer sounds plausible.
+Verification configuration. Core. The threshold bundle for normal, touchy, margin, semantic grounding, and critical-category behavior. One centralized configuration prevents separate answer paths from using contradictory safety standards.
+Verification Gate Service. Core. The deterministic post-generation service that evaluates retrieval confidence, evidence coverage, numeric sanity, contradictions, semantic grounding, quotes, generation quality, completeness, and domain isolation. A language model can produce fluent unsupported claims even from good evidence. Verification is the final enforcement boundary.
+
+Can you explain it? Say each of these out loud. If you cannot, go back.
+1. Recite gates A to I in order with one phrase each.
+2. Give the four default thresholds and the touchy categories.
+3. Explain why Gate E is called the real hallucination killer and what it costs.
+4. Distinguish confidence from fidelity.
+5. Say what the app does when gates fail.
+
+Quiz.
+Question 1. What does Gate A check? Pause here if you want to answer first. ... The answer. That the top rerank score is at least tau (0 point 40, or 0 point 55 for touchy categories) and the margin between the top two scores is at least 0 point 03. Weak or ambiguous retrieval fails before the answer is even read.
+Question 2. What does Gate E do? Pause here if you want to answer first. ... The answer. Embeds the generated response and compares it with the best-matching source chunk. Below 0 point 50 cosine similarity the answer is semantically ungrounded and treated as likely hallucination.
+Question 3. Why was Maximum's verification threshold lowered from 0 point 98 to 0 point 80? Pause here if you want to answer first. ... The answer. Because 0 point 98 was unreachable in practice, so every Maximum answer failed verification.
+Question 4. What is the difference between confidence and fidelity? Pause here if you want to answer first. ... The answer. Confidence is a calibrated trust signal from retrieval scores, gate results and session depth. Fidelity is how well the cited sources support the text. A confident answer with low fidelity is exactly what the gates exist to catch.
+Question 5. What happens when a claim fails Gate B? Pause here if you want to answer first. ... The answer. It has no citation, so it is marked unsupported and removed or the answer is downgraded to partially supported; if too little survives, the app abstains.
+
+End of module 12.

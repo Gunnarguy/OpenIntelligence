@@ -1,0 +1,73 @@
+Module 7. Query understanding, intent, and execution planning.
+
+What it is. Understanding the question before searching. What kind of answer is wanted, how hard it is, and what plan to run.
+
+In the word bank's own words. This is the dispatcher. It listens to the question and decides whether it is a tiny fact hunt, a comparison, a summary, a procedure, or a big investigation.
+
+Why it exists. The same pipeline cannot serve what is the torque spec and summarise this contract equally. Intent classification routes overview questions to summaries and lookups to chunks; complexity decides whether a single pass will do or the planner should escalate; query rewriting and HyDE, hypothetical document embedding, exist because users write short, vague questions and the index was built from long, specific text. The semantic query cache exists because the same question is asked twice more often than you would think. All of this is resolved once, up front, into a Query Execution Plan by Query Runtime Coordinator, which also decides Private Cloud Compute eligibility and whether the run is agentic.
+
+Where it runs. C P U for classification and planning; a Foundation Models call for rewriting when it is enabled. Query Runtime Coordinator.resolve Context is the first thing query Internal does.
+
+The word bank for this module. 45 concepts. For each one you will hear the term, its status, and one plain description.
+
+Agentic query. Conditional. A request or mode whose answer is produced through multiple retrieval and reasoning sessions rather than one generation pass. Some questions require evidence discovery, gap assessment, reformulation, and synthesis that cannot be decided upfront.
+Answer intent. Core. The classification of the form of answer requested, such as lookup, table lookup, procedure, comparison, summary, investigation, computation, or findings. The correct evidence and response shape differ radically between an exact value and a broad synthesis.
+Compare intent. Core. A request to contrast two or more entities, documents, methods, or states. Comparison requires balanced evidence for each side and explicit dimensions rather than one globally highest-ranked passage.
+Complex query. Conditional. A multi-part, comparative, explanatory, or otherwise broad request that warrants more candidates and context. The probability that one passage covers the whole answer decreases as the question spans more concepts.
+Compute intent. Conditional. A request to calculate a result from values found in the corpus. The engine must retrieve exact operands, preserve units, and distinguish source facts from the derived calculation.
+Constrained-synthesis prompt mode. Core. A prompt mode allowing composition across evidence while requiring source-grounded claims and citations. Procedures, comparisons, and explanations need synthesis but still must remain bounded by retrieved context.
+Container vocabulary expansion. Conditional. Expansion using terms actually present in the active library's F T S vocabulary. Corpus-native language is less likely than generic synonyms to pull retrieval into unrelated domains.
+Cross-reference query. Conditional. A question whose evidence may be located at a page, table, figure, or section referenced by another retrieved passage. Technical manuals frequently answer through see page X rather than repeating the data.
+Decomposed execution. Conditional. A plan that breaks the question into smaller subquestions whose evidence can be retrieved and combined. One embedding for a multi-clause question can average away important components and retrieve passages that address only one part.
+Descriptive keyword. Core. A non-identity query term that states the requested property, such as reference, capacity, route, or dosage. The entity identifies the thing; the descriptive keyword identifies which attribute of that thing is wanted.
+Direct execution. Core. A plan that sends one effective query through the normal retrieval, packing, generation, and verification path. It minimizes latency when decomposition is unnecessary.
+Direct-extraction prompt mode. Conditional. A model prompt that asks for an answer copied or tightly derived from the evidence rather than free-form synthesis. Even when deterministic extraction cannot decide, lookup-style questions should minimize unsupported paraphrase.
+Entity extraction from query. Core. Detecting names, model numbers, standards, dates, products, and other high-value anchors in the question. Entities often determine which exact record or document the user means and guide disambiguation.
+Findings intent. Conditional. A research-style request for reported findings, authors, studies, outcomes, or evidence patterns. Research documents require evidence aggregation and source attribution rather than a generic topical answer.
+Forced agentic execution. Conditional. A user action such as Go Deeper that explicitly reruns or continues a question through the agentic path. The user can request additional search and reasoning even when the initial planner chose Standard.
+Grounded Answer Policy. Core. The policy deciding whether an intent should use deterministic extraction, direct-extraction prompting, constrained synthesis, and source-only verification. It keeps exact lookup from being needlessly generated and ensures high-risk answer shapes receive the right verification.
+HyDE, hypothetical document embedding,. Conditional. Hypothetical Document Embeddings, where a model writes a plausible answer-like passage whose embedding is used as an additional retrieval query. A short or abstract question may embed poorly, while a hypothetical answer can occupy the semantic region of relevant documents.
+Hypothetical document. Conditional. The generated answer-like text used by HyDE, hypothetical document embedding, only as a retrieval probe. It enriches semantic vocabulary without being treated as evidence or shown as a sourced answer.
+Investigate intent. Conditional. A broad exploratory request that may require multiple evidence threads, relationships, and iterative retrieval. The answer cannot usually be reduced to one value or one top passage.
+Keyword search intent. Core. A signal that exact terms, codes, quoted phrases, or short identifiers are central to the question. Dense embeddings can blur rare identifiers, so lexical candidates and lower extractive thresholds deserve more weight.
+Lookup intent. Core. A request for a specific fact, value, code, date, name, or short answer. Lookup questions benefit from high precision, exact identifiers, structured extraction, and lower tolerance for synthesis.
+Overview query. Conditional. A question asking what a document, corpus, or topic is generally about rather than for one local detail. Fine-grained chunks can overfit incidental mentions, while summary chunks better represent whole-document themes.
+Planner escalation. Conditional. Automatic promotion from a nominal Standard request to the agentic path when the execution planner predicts that one pass is insufficient. It allows complexity rather than the mode label alone to control work.
+Primary entity. Core. The strongest identity-bearing token or phrase in a lookup, such as 1688, a device model, or a named product. A candidate containing the primary entity can resolve ambiguity among otherwise similar specifications.
+Procedure intent. Core. A request for ordered steps, instructions, setup, troubleshooting, or a process. Procedures need adjacent sequence context and should not be answered from one isolated matching sentence.
+Query complexity. Core. A classification such as trivial, standard, complex, or agentic derived from length, conjunctions, comparisons, reasoning markers, entities, and intent. Complexity controls how much retrieval, rewriting, context, time, and model work is justified.
+Query decomposition. Conditional. Splitting one complex request into atomic subquestions or facets. Separate retrieval probes reduce semantic averaging and make missing coverage visible.
+Query expansion. Conditional. Adding synonyms, related terms, entities, abbreviations, or corpus vocabulary to improve recall. The relevant passage may use a technical term the user does not know or an acronym the user spelled out.
+Query normalization. Core. Cleaning and canonicalizing the user question for stable comparison, tokenization, cache lookup, and downstream heuristics. Whitespace, punctuation, casing, and conversational phrasing can create accidental differences that do not change intent.
+Query rewriting. Conditional. Producing a cleaner, standalone, retrieval-oriented version of the user's question. Conversational pronouns, ellipsis, vague phrasing, and extra words can lower both lexical and dense retrieval quality.
+Query variation. Conditional. An alternative phrasing generated after weak or repetitive retrieval. A different wording can access lexical or semantic neighborhoods missed by the original expression.
+Query Execution Plan. Core. The explicit decision about direct execution, decomposition, tool use, agentic escalation, and response strategy for one question. A profile describes the question; a plan says what the engine will actually do about it.
+Query Profile. Core. The per-question summary of word count, entities, answer intent, search intent, routing classification, complexity, and other decision signals. Every conditional stage needs one coherent interpretation of the question instead of independently reclassifying it.
+Response strategy. Core. The plan to use deterministic extraction, constrained synthesis, extractive summarization, or agentic synthesis. The safest and cheapest answer mechanism depends on intent and evidence structure.
+Routing classification. Core. A query label describing whether the request is direct, cross-topic, overview, or otherwise needs a specialized retrieval route. Search architecture should respond to the shape of the information need, not just the words in the query.
+Search intent. Core. The classification of how evidence is likely to be found, including semantic, keyword, hybrid, or overview-oriented search. A model number should lean lexical while a paraphrased concept needs dense retrieval; overview questions may target summaries.
+Semantic search intent. Core. A signal that meaning and paraphrase matter more than exact surface terms. The document may express the answer with different vocabulary than the user.
+Specification-heavy query. Conditional. A question likely to require codes, measurements, standards, capacities, or other exact technical values. These questions need structured and numeric evidence boosts and stricter unit verification.
+Standalone rewrite. Conditional. A rewrite that resolves references such as it, that one, or the previous result into an explicit question. Retrieval does not see the human conversational context unless it is incorporated into the query.
+State-lookup query. Conditional. A request about indicator colors, solid/flashing states, status lights, or similar mappings. The requested answer depends on co-occurrence of a state and its meaning, so generic semantic similarity can choose the wrong row.
+Subquestion. Conditional. One atomic information requirement derived from a larger user question. Coverage and stopping can be measured per requirement rather than by answer length or source count.
+Summarize intent. Core. A request to condense a document, section, topic, or result set. A summary should maximize coverage and reduce redundancy rather than retrieve only the single strongest exact hit.
+Table-lookup intent. Core. A lookup whose answer is expected in a row, cell, key-value table, or other structured record. Flattened prose ranking can retrieve the right table but return the wrong cell. Structured lookup preserves the requested relationship.
+Touchy query. Core. A query containing safety-critical categories or terms such as dosage, pressure, warning, hazard, maximum, or failure. Wrong precision on a critical limit has a higher cost than a minor descriptive omission, so thresholds should be stricter.
+Trivial query. Core. A short and simple request that can use a reduced candidate set and skip expensive enhancement stages. Running HyDE, hypothetical document embedding,, iterative retrieval, or agentic sessions on every easy lookup adds latency without proportional quality.
+
+Can you explain it? Say each of these out loud. If you cannot, go back.
+1. Name the three ways a run becomes agentic.
+2. Explain HyDE, hypothetical document embedding, in one sentence and say what it costs.
+3. Say what the semantic query cache stores and what it skips.
+4. Explain why routing is decided after retrieval, not here.
+5. Define a touchy query and what it changes.
+
+Quiz.
+Question 1. What are the three agentic paths? Pause here if you want to answer first. ... The answer. agentic (Deep Think or Maximum selected), forced agentic (the user pressed Go Deeper), planner escalated (the planner escalated a Standard query). is Agentic is true for all three.
+Question 2. What is HyDE, hypothetical document embedding,? Pause here if you want to answer first. ... The answer. Hypothetical document embedding: the model writes a plausible answer passage, and that passage is embedded instead of the bare question, because passages land closer to passages than questions do. It costs a language model call before retrieval.
+Question 3. What does the semantic query cache skip on a hit? Pause here if you want to answer first. ... The answer. Query embedding (Step 2). The cached vector is reused; the rest of the pipeline still runs.
+Question 4. What does the Query Runtime Coordinator resolve? Pause here if you want to answer first. ... The answer. Quality mode, Private Cloud Compute eligibility, adaptive configuration, the query profile and execution plan, and the agentic decision, all before any search.
+Question 5. What is a touchy query? Pause here if you want to answer first. ... The answer. A query in a category such as medical, legal, financial, safety or dosage. It raises the Gate A retrieval-confidence bar from 0 point 40 to 0 point 55.
+
+End of module 7.

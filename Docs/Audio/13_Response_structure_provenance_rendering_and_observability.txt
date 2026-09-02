@@ -1,0 +1,62 @@
+Module 13. Response structure, provenance, rendering, and observability.
+
+What it is. What comes back and how you can inspect it. Typed answers, citations to byte offsets, the route badge, and the trace that records every stage.
+
+In the word bank's own words. The final report includes the answer, the receipts, the source labels, and clues showing how the machine got there.
+
+Why it exists. An answer you cannot audit is a guess with good typography. So the response is a Structured Answer of claims with evidence IDs, citations map to character ranges in the source (the tokenizer pass in ingestion is what makes that exact), the route badge says which model completed, the retrieval diagnostics show what was dropped, and the pipeline trace log records every stage with timings. Evidence threads persist so a conversation's sources survive relaunch.
+
+Where it runs. C P U. The trace file is pipeline trace.log in the app container's Documents folder; it rotates, so long captures use tail -F into an archive. The hardware heads-up display's Neural Engine pulse is synthetic: no public A P I reports Neural Engine occupancy.
+
+The word bank for this module. 35 concepts. For each one you will hear the term, its status, and one plain description.
+
+Enhanced code block. Conditional. The response component that renders code with language labels, scrolling, and copy behavior. Code answers need formatting that preserves whitespace and supports practical reuse.
+Evidence ID. Core. The stable identifier linking a claim citation to one source record and ultimately one chunk. Human-readable source numbers can change with ordering; a stable ID preserves identity underneath.
+Evidence quote cap. Core. The response policy limiting stored evidence excerpts to roughly 240 characters. A concise quote is sufficient for inspection while bounding response size and accidental overexposure.
+Evidence record. Core. A response-level source object containing evidence ID, page, quote, document name, and section path. Claims need a stable source representation independent of the transient Retrieved Chunk object graph.
+Evidence-thread persistence. Core. Saving user messages, answers, citations, and metadata into the selected local thread. A verified answer should remain reproducible and inspectable after the transient query task ends.
+Execution-route metadata. Core. The user-facing path name, reason, policy version, and icon describing where synthesis ran. Route truth should come from execution evidence rather than the model picker.
+Grounded answer view. Core. The response surface that presents answer text together with citations and source-grounding information. Grounding must be visible at the point the user reads the claim.
+Hardware telemetry pulse. Support. A short-lived signal indicating that O C R, vector similarity, reranking, or another workload is active on the conceptual hardware display. It makes otherwise invisible local computation understandable to the user.
+Inline citation. Core. A source marker embedded next to the claim it supports inside the answer text. Claim-local citations reduce ambiguity compared with a detached source list.
+Markdown renderer. Core. The block-aware renderer for headings, lists, code, tables, emphasis, links, and horizontal rules in model responses. Technical answers lose usability or meaning if structured text is displayed as one plain string.
+OICitation. Core. The S D K citation value containing source name, optional page, and optional quote. External clients need a small stable citation contract independent of internal chunk models.
+OIEngine. Core. The reusable public S D K facade for library management, ingestion, querying, streaming, progress, citations, diagnostics, and availability. It defines a stable product boundary above the internal RAGService mega-orchestrator.
+OIQueryProgressEvent. Support. The S D K-safe version of live query progress with phase, title, detail, icon, counters, and confidence. A reusable engine must expose progress without requiring the app's Swift U I types.
+OIQueryResult. Core. The S D K result containing answer, citations, confidence, abstained state, warnings, model name, quality mode, reasoning trace, and diagnostics. S D K clients need the same provenance and route truth available to the first-party UI.
+Pipeline signpost. Support. A lightweight os-signpost marker around important pipeline intervals. Signposts allow Instruments to measure stage latency without parsing text logs.
+Pipeline trace. Support. A chronological record of stage events, decisions, timing, route attempts, and selected evidence for one execution. A multi-stage engine cannot be debugged reliably from a final answer alone.
+Pipeline Trace Exporter. Support. The feature that serializes shareable pipeline evidence from instrumented query execution. Device-only failures require a reproducible artifact rather than a verbal report.
+RAG audit feature flags. Support. Booleans recording whether rewrite, expansion, HyDE, hypothetical document embedding,, iterative retrieval, routing, summaries, parent retrieval, corrective retrieval, compression, graph packing, cascade, multi-vector, or unlimited reasoning actually ran. Configured capability is not the same as executed capability.
+RAGAuditSnapshot. Support. The detailed per-query snapshot of provider, dimensions, chunk policy, retrieval configuration, score distribution, candidate counts, context budget, route, features, and recursive metrics. It preserves the exact operating conditions needed to reproduce or compare one query.
+RAGResponse. Core. The internal response object carrying answer text, retrieved chunks, confidence, abstention state, reasoning trace, metadata, and diagnostics. The engine needs a richer result than a string so verification, UI, S D K, and evaluation can agree on what happened.
+Refuse flag. Core. The explicit Boolean marking that the engine declined to provide a substantive answer. A refusal should be machine-readable rather than inferred from wording.
+Response metadata. Core. The attached route, token budget, model, timing, retrieval, quality-mode, and feature information describing how the answer was produced. The same answer text can have very different trust and cost implications depending on execution path and evidence.
+Response transformation. Conditional. A post-answer operation such as rewriting, summarizing, or formatting the verified response through an approved service. Users may want a different presentation while preserving the underlying sourced result.
+Retrieval diagnostics. Support. Counts and timings for candidates, reranked chunks, context chunks, embedding provider, warnings, and feature flags. A bad answer can originate in extraction, retrieval, packing, or generation, and diagnostics narrow the failing stage.
+Retrieval Log Entry. Support. A timestamped record of the query, active library, and chunks returned by retrieval. It supports inspection of what the answer stage actually received.
+Retrieval Trace Collector. Support. A per-query thread-safe collector of rank-ordered output at vector, lexical, fusion, boosted, candidate, rerank, and final stages. Counts cannot show whether the correct chunk survived. Stage traces preserve identity and order for recall and ranking metrics.
+Source chip. Core. The tappable UI representation of a response evidence source. It lets the user inspect the actual document passage rather than trust the model or badge.
+Structured answer type. Core. The lookup, table lookup, procedure, compare, summarize, investigate, compute, findings, or refused label stored with the answer. The response renderer and evaluator need to know the intended answer shape.
+Structured Answer. Core. The durable claim-oriented answer model containing refusal state, answer type, answer text, atomic claims, evidence records, missing information, and debug data. It is the provenance contract between generation, verification, storage, and rendering.
+Telemetry Center. Support. The central emitter of typed runtime telemetry events for system, pipeline, and user-visible diagnostics. Structured telemetry keeps monitoring decoupled from UI and raw print statements.
+Thinking stream. Support. The live UI sequence of typed progress events during retrieval, reasoning, generation, and verification. Long Deep Think and Maximum queries need observable progress without exposing private raw reasoning.
+Timing breakdown. Support. The display and data model separating retrieval, generation, and other stage durations. Total latency alone cannot show which subsystem should be optimized.
+Token-budget metadata. Core. The total, prompt, evidence, generation, and remaining token counts attached to a response. It explains why some evidence was compressed or omitted and makes hard model constraints observable.
+Unified metrics bar. Support. The response UI combining timing, model route, confidence, retrieval, context, and source metrics. The user needs one place to understand the answer's operating evidence without opening raw diagnostics.
+Writing Tools integration. Conditional. The local service exposing proofread, rewrite, and summarize operations for answer or user text. Presentation changes can use Apple intelligence features without entering the retrieval pipeline again.
+
+Can you explain it? Say each of these out loud. If you cannot, go back.
+1. Explain how a citation reaches a character range.
+2. Say what the route badge reads and why it reflects the receipt, not the selection.
+3. Name three things the retrieval diagnostics sheet shows.
+4. Say where the pipeline trace lives and why it needs an archive tail.
+5. Explain what the heads-up display can and cannot measure.
+
+Quiz.
+Question 1. Why can citations point at a sentence rather than a page? Pause here if you want to answer first. ... The answer. Because the tokenizer validation pass at ingestion records exact byte offsets for each chunk, and claims carry evidence IDs that map back to those offsets.
+Question 2. Why does the route badge read from the execution receipt? Pause here if you want to answer first. ... The answer. Because the selected model is user intent and the completed route is what actually ran; a Private Cloud Compute plan can fall back to on-device, and the badge must show the fallback, not the wish.
+Question 3. What does the pipeline trace record and where is it? Pause here if you want to answer first. ... The answer. Every query and ingestion stage with timings and counts, in pipeline trace.log under the app container's Documents folder. It rotates, so a long run is captured with tail -F into an archive file.
+Question 4. Can the app show live Neural Engine utilisation? Pause here if you want to answer first. ... The answer. No. There is no public A P I for it. The heads-up display shows a synthetic activity pulse and device lookup data.
+
+End of module 13.

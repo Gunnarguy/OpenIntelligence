@@ -1,0 +1,20 @@
+The interview drills.
+
+The ninety second version. OpenIntelligence turns your files into a private, searchable knowledge base on the device. Ingestion extracts, chunks and embeds every document into two indexes, one for exact words and one for meaning. A question is searched both ways in parallel, fused, reranked by a cross-encoder, and packed under a hard token budget. Apple's on-device model writes a typed answer with citations, and nine deterministic gates decide what is allowed to stand. Only the final answer may leave the device, to Private Cloud Compute, and only after the app shows you exactly what would be sent and you agree.
+
+The five minute version. The twelve sentences from the introduction, each expanded with one number: three hundred ten words, five hundred ten tokens, three hundred eighty-four dimensions, one thousand vectors, k equals sixty, zero point seven and zero point three, four thousand ninety-six and three thousand two hundred, zero point four zero and zero point five five, nine gates, one hundred eighty seconds.
+
+At the whiteboard. Draw the two indexes, the parallel search, the fusion, the shortlist, the budget, the plan, the model, the gates. Then be asked, where does the Neural Engine run? And answer honestly: the code requests it on five lines and Apple decides; nothing in the app can measure it.
+
+Every correction in one place.
+
+It is taught that audio goes through Speech Analyzer. The source says that branch never compiles. Transcription runs on S F Speech Recognizer, on device, in six hundred second segments.
+It is taught that embeddings run on the Neural Engine. The source says they are requested, not placed. Efficiency and Balanced request C P U and Neural Engine; Performance and Maximum request all units; Core M L decides. Core A I exposes nothing.
+It is taught that the G P U profile decides whether vector search uses Metal. It does not. The switch is one thousand vectors and a Metal device. The profile gates Core M L units and the maximal marginal relevance matrix.
+It is taught that Recognize Documents Request does O C R. It parses structure and tables. V N Recognize Text Request does O C R.
+It is taught that page rendering is zero-copy. The P N G round trip is skipped; a full-page bitmap is still allocated per page.
+It is taught that the Maximum verification bar is zero point nine eight. It is zero point eight zero. The zero point nine eight target lives in the agentic loop, not the gate.
+It is taught that there is an advanced on-device model. Selecting it executes the default model. No advanced model exists in the S D K.
+It is taught that Core A I is a fallback. On i O S twenty-seven and mac O S twenty-seven it is the default, and saved Core M L defaults are migrated to it.
+
+End of the study guide.

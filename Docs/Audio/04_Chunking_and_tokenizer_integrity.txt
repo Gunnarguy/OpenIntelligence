@@ -1,0 +1,47 @@
+Module 4. Chunking and tokenizer integrity.
+
+What it is. Cutting the document into index cards that fit the embedding model, without slicing a table in half.
+
+In the word bank's own words. This is where a big book becomes useful index cards. The cards must be small enough to fit, but large enough to still make sense.
+
+Why it exists. The embedding model reads at most 510 word-piece tokens and silently truncates anything longer, filing an embedding of the first 510 tokens under the identity of the whole chunk. That is index corruption nothing downstream can detect. So the chunker caps at 310 words, leaves room for a contextual prefix, and then the real tokenizer validates every chunk at 430 tokens plus 80 reserved for the prefix. Overlap keeps a sentence on a cut from being lost; tables and lists are atomic. The contextual prefix exists because a chunk read alone has lost what it is about, and that measurably hurts retrieval.
+
+Where it runs. C P U. Semantic Chunker builds chunks; Document Processor.enforce Token Limit On Chunks validates them with the Rust-backed tokenizer that the embedding provider also uses for counting.
+
+The word bank for this module. 21 concepts. For each one you will hear the term, its status, and one plain description.
+
+510-token embedding ceiling. Core. The maximum safe sequence length used by the default sentence embedder after reserving model special tokens. Exceeding it risks silent truncation and index corruption.
+Actual tokenizer validation. Core. Counting the exact word-piece tokens with the tokenizer paired to the embedding model before accepting a chunk. Word count is only an estimate. A chunk that exceeds the model sequence limit may be silently truncated, creating an embedding that represents only its beginning.
+Atomic structural block. Core. A table, list, warning, or other structure that the chunker avoids splitting internally. A cell without its header or a warning without its conditions can become misleading evidence.
+Chunk. Core. A passage-sized retrieval unit derived from a document, carrying content, source identity, metadata, and usually an embedding. Whole documents are too broad for precise ranking and too large for model context. Chunks make retrieval granular while retaining enough local meaning.
+Chunk offset. Core. The character or byte start and end positions locating a chunk or selected sentence inside source content. Exact offsets enable source jumping, citation quotes, and post-retrieval sentence selection without fuzzy text searches.
+Chunk overlap. Core. Repeated trailing context from one passage at the beginning of the next. Overlap protects facts and sentences near a boundary from being split out of both useful retrieval units.
+Chunk semantic type. Core. A label such as prose, structural table, semantic table, list item, or warning. Different structures deserve different ranking, packing, and verification treatment.
+Contextual prefix. Core. A short document and section label prepended to the text used for embedding. A passage removed from its document can lose its subject. Prefixes restore that context in the vector without altering the quoted source text.
+Cross-reference metadata. Conditional. References from one chunk to a page, table, figure, section, chapter, appendix, or step. Manuals often answer a question indirectly by pointing elsewhere. Capturing the edge lets the graph fetch the target evidence.
+Linguistic transition boundary. Core. A break triggered by a small set of English discourse phrases such as However or In conclusion. Transitions often signal a new argument or summary and can improve passage coherence.
+Maximum chunk size. Core. The hard ceiling, currently designed around no more than about 310 words before additional tokenizer validation. An overlong passage risks embedding truncation and consumes too much generation context.
+Mixed chunk strategy compatibility. Core. The ability to retain chunks made with different sizes or overlap settings in one vector space. Chunk boundaries change what a vector represents but do not change the coordinate system, so old and new chunks remain comparable.
+Parent content. Core. A larger source span retained beside the smaller retrieval chunk. Small chunks rank precisely, but generation and citations may need the surrounding paragraph or row context to interpret them correctly.
+Section-heading boundary. Core. A forced or preferred chunk break around detected headings. A heading defines local topic and is also valuable retrieval metadata. Crossing it can mix unrelated sections.
+Semantic density. Support. A heuristic indication of how information-rich a passage is. Density helps choose representative chunks for document summaries and can support diagnostics or prioritization.
+Semantic Chunker. Core. The chunk-building service that uses sentence boundaries, section headings, structural blocks, and linguistic transition phrases to form bounded passages. It preserves coherent units better than fixed character slicing and supplies metadata required by later stages.
+Sentence boundary. Core. A Natural Language tokenizer boundary used as the smallest ordinary prose split point. Breaking inside a sentence harms meaning, offsets, and citation quality.
+Sibling group. Core. Metadata linking chunks created from the same section, page, or structural parent. Retrieval can recover one precise hit and then restore adjacent context without broadening the search globally.
+Target chunk size. Core. The preferred word count toward which the chunker accumulates content. A target balances semantic completeness against retrieval precision and embedding limits.
+Tokenizer-model pairing. Core. The requirement that the tokenizer vocabulary and preprocessing recipe match the model that consumes the token IDs. A valid tensor produced by the wrong tokenizer does not represent the intended text and can destroy retrieval quality without crashing.
+Word-piece token. Core. A model vocabulary unit that may be a whole word, fragment, punctuation mark, or symbol. Embedding sequence limits are measured in tokens, not words or characters, so technical text can consume capacity unexpectedly quickly.
+
+Can you explain it? Say each of these out loud. If you cannot, go back.
+1. Give the numbers: 310, 260, 50, 100, 510, 80, 430, and say what each is.
+2. Explain why a word count is not a token count and what went wrong when a padding block made the counter a constant.
+3. Say why chunk strategy can change mid-library but the embedding model cannot.
+4. Explain what the contextual prefix contains and why it is prepended before embedding.
+
+Quiz.
+Question 1. Why is the chunk ceiling 310 words? Pause here if you want to answer first. ... The answer. The model's usable limit is 510 tokens. At roughly 1 point 5 tokens per word that is about 340 words, minus about 30 words of contextual prefix, which leaves 310.
+Question 2. What does the tokenizer validation step do, and why was it added? Pause here if you want to answer first. ... The answer. It encodes every chunk with the real tokenizer and splits any chunk over 430 tokens (510 minus 80 reserved for the prefix). It was added after a padding block turned the token counter into a constant and 55% of every document was truncated at embedding while every log line read healthy.
+Question 3. What happens to a chunk that is still too long after splitting? Pause here if you want to answer first. ... The answer. It is logged as oversized and the model truncates it at embedding. The tail is lost silently.
+Question 4. Why can chunk size change without a rebuild while an embedding change requires one? Pause here if you want to answer first. ... The answer. Similarity is defined across chunks of any size in the same vector space. Changing the model, dimension, tokenizer or pooling changes the coordinate space itself, so old and new vectors cannot be compared. Embedding changes are blocked during ingestion and force a full re-embed.
+
+End of module 4.

@@ -1,0 +1,94 @@
+Module 10. Model execution, routing, tools, and generation.
+
+What it is. Choosing which model answers, building the session, and generating. The plan, the route, the session, the stream.
+
+In the word bank's own words. Now the app chooses which answering engine is allowed to run, gives it the evidence and rules, and records what engine actually completed the answer.
+
+Why it exists. Where the answer runs is a decision with privacy, cost and quality consequences, so it is made explicitly and after retrieval by Model Execution Planner: abstain if the evidence is insufficient, deterministic if a rule-based extractor can answer, Private Cloud Compute only if the capability exists, the network is up, the user is present or has consented, and either the local budget does not fit or the query complexity asks for it. Every Private Cloud Compute plan carries an on-device fallback. The minimised payload is built before consent is requested, so the user is asked about the exact text that would leave. Structured generation with @Generable exists so the answer arrives as typed claims with citations, not prose to be parsed.
+
+Where it runs. Planning is C P U. Generation is Language Model Session.stream Response on System Language Model.default; Apple places the on-device model and the app cannot move it. Private Cloud Compute needs i O S 27 or mac O S 27, the entitlement, availability and quota, and is built with Swift 6 point 4. The advanced on-device route executes the same default model; no advanced model exists in the S D K.
+
+Corrections to the earlier documents.
+OI-0341 advanced20B alias: selecting it runs the default model and telemetry reports on device. The bank's status labels are right; do not describe a 20B on-device model as real.
+OI-0378 Private Cloud Compute target: the code path exists and compiles with Swift 6 point 4, but whether a given App Store build carries Private Cloud Compute symbols is a build fact, not a source fact. The ledger records builds with zero Private Cloud Compute symbols.
+
+The word bank for this module. 62 concepts. For each one you will hear the term, its status, and one plain description.
+
+@Generable. Core. The Foundation Models annotation defining a type the framework can produce through constrained decoding. It enforces field presence and types at generation time rather than repairing malformed free-form output afterward.
+@Guide. Core. A field-level natural-language constraint attached to a generable property. The type says what data shape is required, while the guide says what semantic content belongs in the field.
+Abstain execution target. Core. A plan target that intentionally returns no unsupported answer. No available model should be allowed to convert absent or contradictory evidence into fluent certainty.
+Active model. Core. The model or analysis path that is actually executing or most recently completed. Fallback, framework availability, or route policy may make it differ from the selected label.
+Adapter Manager. Support. The compatibility layer coordinating available LLM service adapters. It decouples the RAG engine from one backend implementation and contains legacy transitions.
+advanced20B preference alias. Historical. A compatibility value that currently resolves to the on-device route rather than a selectable twenty-billion-parameter tier. It preserves stored preferences while avoiding false model identity claims.
+Apple Foundation Models. Core. Apple's on-device generative model framework used for local answer generation, constrained structures, tools, and auxiliary model tasks. It supplies a private, system-managed language model without bundling a large generative model inside the app.
+Atomic claim. Core. One independently verifiable assertion in the answer rather than a paragraph containing several facts. Verification and evidence mapping are more reliable when each claim can be supported or rejected separately.
+Citation namespace. Core. The one-to-one mapping among prompt source labels, model citations, retrieved chunks, response chips, and source views. A cited answer is unsafe if S3 in the text can refer to a different source than chip 3 below it.
+Cloud consent. Dormant. The user decision allow once, allow and remember, or deny for a specific provider and minimized payload. Even privacy-preserving cloud compute should not receive document evidence without an explicit user policy.
+Cloud transmission record. Dormant. The audit record of provider, model, prompt preview, character counts, chunk count, content hashes, estimated bytes, plan ID, and route reason. A cloud badge alone cannot show what left the device or why.
+Constrained decoding. Core. Model decoding restricted to a declared output schema. It eliminates a class of parsing failures and lets downstream verification operate over explicit claims and citations.
+core3B preference alias. Historical. A compatibility value that now means on-device execution, not selection of an observable three-billion-parameter model. Older settings and UI values must continue to resolve without claiming an A P I capability Apple does not expose.
+Deterministic execution target. Core. A plan target that returns an extractive or otherwise code-produced answer without generative synthesis. When source structure already yields the answer, generation adds risk and latency without value.
+DirectRAGAnswer. Conditional. A smaller structured answer shape without the explicit reasoning field. Exact or constrained paths may need less output overhead and less hidden analysis text.
+Evidence source label. Core. A compact identifier such as S1, S2, or an evidence ID attached to each excerpt in the prompt. The model needs an unambiguous namespace it can cite, and downstream code needs to map that label back to the exact chunk.
+Execution attempt. Core. One timed try against a target with a result such as succeeded, partial, failed, or skipped. A receipt needs the full chain to explain fallback and attest the completed route.
+Execution context. Core. The user/runtime policy automatic, on-device only, prefer cloud, or cloud only. It defines a privacy and routing constraint independent of answer quality mode.
+Execution fallback. Core. The approved alternative target used when the intended target cannot complete. A fallback must preserve user privacy policy and be explicit in telemetry.
+Fail-closed routing. Core. The rule that denied, unknown, unsupported, unavailable, or exhausted cloud conditions choose a permitted local fallback or abstention rather than optimistically transmit. Privacy and authorization uncertainty must never be interpreted as permission.
+Foundation Model preference. Core. The preference automatic, on-device aliases, or Private Cloud Compute used by model-route policy. It captures a user route choice while retaining compatibility with historical model labels.
+Foundation Model tool. Conditional. A typed callable operation exposed to the language model during a session. Tools let the model request deterministic retrieval or document operations instead of fabricating results.
+Foundation Model Session Factory. Core. The central creator of Apple Foundation Models sessions for answer generation and auxiliary use cases. Central construction keeps instructions, tools, use-case policy, routing, and transcript behavior consistent.
+Foundation Model Tool Registry. Conditional. The central registry of the app's approved Foundation Models tools and their schemas. An allowlisted registry controls capability, prompt overhead, and auditability.
+Inference Config. Core. The per-query bundle of generation parameters, Foundation Model preference, execution context, cloud permission, quality mode, prompts, and attached execution plan. All model calls in a query, including agentic synthesis, need one consistent expression of user and policy intent.
+Language Model Session. Core. A Foundation Models conversation/inference session that carries instructions, tools, transcript state, and generation calls. A session is the framework boundary for model interaction and may accumulate context across calls.
+LLMService. Core. The service that compiles requests, selects or invokes the active language-model backend, streams text, requests structured output, and records generation metrics. Retrieval should not know framework-specific session details, and UI should not directly own model state.
+Local OpenAI-compatible server backend. Conditional. A developer or alternative backend that calls a user-specified local OpenAI-compatible server rather than Apple Foundation Models. It can support testing or external local inference without changing the RAG retrieval contract.
+Matched terms. Support. The query concepts the model reports finding in the supplied sources. They provide an additional diagnostic signal about whether generation used the intended evidence.
+Maximum generation tokens. Core. The cap on how many output tokens a model call may produce. It bounds latency and prevents output from consuming capacity needed by later chained calls or UI.
+Minimized cloud payload. Dormant. Only the selected evidence and prompt material required for the question, rather than the whole library. Late routing and data minimization reduce exposure and make consent concrete.
+Model availability state. Core. The resolved condition available, simulator unsupported, unsupported device, Apple Intelligence disabled, model preparing, or another unavailable reason. Model execution must fail explicitly and intelligibly rather than enter a path that cannot produce output.
+Model Execution Plan. Core. The immutable post-retrieval plan naming the intended synthesis target, reason, token estimates, fallback target, and policy version. Routing should be a checkable decision based on the exact minimized evidence payload, not a vague pre-query preference.
+Model Execution Receipt. Core. The immutable record of intended, actual, and completed targets, attempts, quota, fallback reason, policy, and timing for one answer. It proves how the answer was produced and prevents UI route claims from being inferred from settings.
+Model Resolution Service. Support. The observable single source of truth for what the user selected, what is actually active, the execution path, fallback reason, status, parameters, and history. A model picker label is not proof of the model or route that completed a query.
+On-device execution target. Core. A plan target that invokes the local System Language Model. It preserves the local-first guarantee and is the only generative target in shipping App Store builds.
+Partial stream completion. Core. A route outcome in which meaningful output was delivered before the stream failed or ended prematurely. Discarding all partial text can be worse than preserving an explicitly marked incomplete answer.
+Private Cloud Compute quota state. Dormant. The framework-reported or normalized condition available, limit reached, unsupported, or unknown. Cloud execution must not be attempted when authorization or capacity is uncertain.
+Private Cloud Compute reasoning level. Dormant. The none, moderate, or deep reasoning request associated with a Private Cloud Compute route. Cloud execution could allocate more reasoning effort according to query mode.
+Private Cloud Compute suppression cooldown. Support. A temporary period after route failure during which the engine avoids retrying Private Cloud Compute and forces local execution. Repeatedly attempting an unavailable route wastes latency and can create loops.
+Policy version. Support. A version identifier attached to route plans and receipts. Routing logic evolves, and historical results need to be interpreted under the policy that produced them.
+Post-retrieval routing. Core. Choosing deterministic, on-device, abstain, or potential cloud synthesis only after evidence size and quality are known. Before retrieval, the engine does not know whether the answer fits locally or what exact content would leave the device.
+Private Cloud Compute target. Dormant. The source-level route for Apple Private Cloud Compute on compatible compiler, OS, entitlement, availability, quota, foreground, network, and consent conditions. It is designed to handle evidence packets that exceed the on-device route while preserving Apple's privacy architecture.
+Prompt compiler. Core. The component that turns query intent, evidence excerpts, source labels, grounding rules, answer format, and route constraints into model instructions and prompt content. Prompt text is an executable interface to the model and must stay synchronized with citation and verification expectations.
+RAGAnswer. Core. The structured model output containing reasoning, direct answer, confidence, citations, atomic claims, and matched terms. It carries the information needed to render, audit, and verify a model response.
+Reasoning-first field order. Conditional. Placing a reasoning or analysis field before the final answer in a generable type. Field order can encourage the model to identify supporting facts before committing to the answer.
+Registered retrieval tools. Conditional. The current group of approximately six model-callable tools for document search and related deterministic operations. They support agentic evidence gathering while keeping model actions inside the app's local data boundary.
+Response-tail trimming. Core. Removing obvious unfinished artifacts, duplicated schema fragments, or partial trailing structures after a terminated stream. A preserved partial answer should not expose broken serialization or misleading half-sentences.
+Route reason. Core. The policy explanation for why a target was intended, such as exact extraction, local fit, user choice, or context overflow. A route without a reason is difficult to audit or reproduce.
+Selected model. Core. The model family or execution preference the user requested. User intent must be distinguished from the route the runtime can actually honor.
+Session transcript. Core. The accumulated instructions, prompts, tool calls, tool outputs, and model responses within a Language Model Session. The model sees this history on later calls, consuming context and influencing behavior.
+Session use case. Core. A label distinguishing general answer generation from query enhancement, content tagging, contextual compression, or other focused work. Different tasks require different instructions and should not contaminate one shared transcript.
+Streaming generation. Core. Receiving model output incrementally rather than waiting for the complete answer. It improves perceived latency, enables live progress, and can preserve meaningful partial text if a later error occurs.
+Structured generation. Core. Requesting a typed output object instead of unconstrained text. Claims, citations, confidence, matched terms, and refusal state become machine-readable and do not depend on fragile JSON parsing.
+System Language Model.default. Core. The system-provided default on-device Apple language model exposed by Foundation Models. The OS owns model availability, updates, and final hardware scheduling, so the app must query capability rather than assume a named parameter count.
+Temperature. Core. The sampling parameter controlling output randomness, with lower values making generation more deterministic. Grounded question answering benefits from consistency and low creative drift, especially for exact values.
+Time to first token. Support. The elapsed time from query execution start or generation request to the first delivered model token. It distinguishes retrieval/setup latency from model streaming responsiveness.
+Tokens per second. Support. Generated token count divided by active generation duration. It measures streaming throughput on a named device and route, not answer quality.
+Tool call. Conditional. One model request to execute an approved deterministic tool with typed arguments. It separates deciding what to look up from actually reading the corpus.
+Tool-call counter. Support. A query-scoped count of model tool invocations. Tool loops need hard observability and limits to prevent runaway repeated searches.
+Top-p. Support. Nucleus-sampling configuration limiting token choices to a cumulative probability mass. It can constrain sampling diversity when the backend supports it.
+Transcript persistence. Support. Saving selected model transcript or query progress state for diagnostics or continuation. Long-running and background queries need recoverable state, while debugging needs evidence of what the engine actually sent and received.
+
+Can you explain it? Say each of these out loud. If you cannot, go back.
+1. Recite the planner's four targets and the full Private Cloud Compute condition.
+2. Explain why consent comes after retrieval.
+3. Say what the session factory does with a saved transcript and why it prewarms.
+4. Give the temperature per mode and the two Generation Options fields.
+5. Explain selected model versus completed route.
+
+Quiz.
+Question 1. Under what conditions does the planner choose Private Cloud Compute? Pause here if you want to answer first. ... The answer. Capability allows Private Cloud Compute, the network is available, the app is foreground-interactive or consent is granted, and either the local token budget does not fit or the query's complexity requests cloud synthesis. Otherwise on-device, with the reason recorded.
+Question 2. What is the minimised cloud payload? Pause here if you want to answer first. ... The answer. The retrieved chunks in rank order, each cut to a character allowance of at least 240 and at most an even share of the maximum, with document name and page. It is built before consent so the prompt can show what would be sent.
+Question 3. What does the route policy do when a plan is attached? Pause here if you want to answer first. ... The answer. The plan wins: deterministic, on-device and abstain targets run locally; a Private Cloud Compute target runs on Private Cloud Compute with reasoning none for Standard, moderate for Deep Think, deep for Maximum.
+Question 4. What does choosing the advanced on-device model actually run? Pause here if you want to answer first. ... The answer. System Language Model.default. The S D K exposes no advanced model, so the session factory runs the default and reports the route as on-device so telemetry does not claim a tier that never ran.
+Question 5. What are the generation temperatures? Pause here if you want to answer first. ... The answer. 0 point 4 in Standard, 0 point 4 in Deep Think, 0 point 3 in Maximum, passed with maximum Response Tokens in Generation Options.
+
+End of module 10.

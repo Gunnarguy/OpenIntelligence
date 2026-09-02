@@ -1,0 +1,58 @@
+Module 14. Evaluation, benchmarks, and quality measurement.
+
+What it is. Measuring whether any of this works. Fixtures, metrics, and the two lessons that made most earlier figures unusable.
+
+In the word bank's own words. This is the test track. It checks not only whether the final answer was right, but exactly where the correct evidence was lost if it was wrong.
+
+Why it exists. Retrieval quality claims are unfalsifiable without a harness, which is why the benchmark harness came first in the retrieval plan. Two lessons dominate. First, chunk-level retrieval scored against document-level ground truth produces nonsense: it reported an n D C G of 2 point 131. Second, retrieval is nondeterministic: two runs of one build return different evidence for one question, so no A/B is trustworthy until that is fixed. And twice now, one real document on real hardware has beaten the whole synthetic suite at finding a defect.
+
+Where it runs. RAGEvalRunner and the evaluation services on the mac O S Debug build. Runs live under Benchmark Runs/ and are archived, never deleted; LEDGER.md indexes them and is the only citable source for a number.
+
+The word bank for this module. 31 concepts. For each one you will hear the term, its status, and one plain description.
+
+Abstention accuracy. Support. How often the engine correctly refuses unanswerable questions and answers answerable ones. Always answering and always refusing are both poor systems; the decision boundary must be measured.
+Answer accuracy. Support. The proportion of cases judged correct under the dataset scoring rule. It gives a headline outcome but must be decomposed because retrieval, synthesis, and errors can produce the same aggregate.
+Benchmark baseline. Support. A frozen reference result and configuration against which later runs are compared. Without a baseline, code changes can alter quality while individual runs still look plausible.
+Benchmark ledger. Support. The chronological record of benchmark runs, versions, configurations, and findings. Evaluation conclusions need provenance and should survive the machine that produced them.
+Completed-route attestation. Support. The invariant that the target claimed as completed appears in the attempt chain with an attesting success or allowed partial outcome. A UI cannot truthfully say Private Cloud Compute or on-device completed based only on the intended plan.
+Credited relevance. Support. The evaluation rule mapping retrieved chunks to ground-truth evidence with exact or accepted equivalence criteria. Chunk boundaries and parent expansion can produce evidence that is relevant without sharing the exact original chunk ID.
+Distractor document. Support. An irrelevant or partially related document included with the target source during evaluation. Retrieval quality cannot be measured if the corpus contains only the answer document.
+Error rate. Support. The proportion of cases that terminate through an execution, timeout, parsing, or infrastructure error rather than a valid answer or abstention. Infrastructure failures should not be hidden inside answer-quality metrics.
+Evaluation case. Support. One question with corpus scope, expected answer or evidence, answerability, and scoring metadata. Quality must be measured against explicit ground truth rather than selected anecdotes.
+Evaluation dataset. Support. A versioned collection of evaluation cases with schema validation and attribution. A stable corpus allows before-and-after comparisons and prevents cherry-picking.
+Evaluation report writer. Support. The component that serializes metrics, case outcomes, configuration, and warnings into a durable report. A console summary is insufficient for later audit and comparison.
+Evidence level. Support. A label distinguishing code-verified, test-verified, simulator-verified, device-verified, measured, inferred, or unverified claims. A source file proves implementation, not necessarily runtime behavior or performance.
+Exact match. Support. A strict answer metric indicating whether the normalized output exactly equals the expected answer. It is useful for short factual lookups where paraphrase should not change the value.
+Exact sign test. Support. A nonparametric test of whether wins and losses between two paired systems are symmetric, ignoring ties. It quantifies whether one retrieval arm consistently beats another without assuming normally distributed metric differences.
+Fail-closed route invariant. Support. The requirement that denied consent and unavailable, exhausted, unsupported, or unknown cloud quota do not complete on Private Cloud Compute. Authorization uncertainty must never become a cloud attempt.
+Fallback attribution invariant. Support. The requirement that a completed target different from the intended target has an explicit fallback reason and attempt history. Silent fallback makes route badges and debugging misleading.
+Hallucination rate. Support. The proportion of answers containing unsupported material under the evaluation definition. A system can improve exact match by answering more aggressively while becoming less safe.
+Mean reciprocal rank (mean reciprocal rank). Support. The average reciprocal position of the first relevant result. It captures how quickly the pipeline surfaces at least one usable evidence item.
+Normalized discounted cumulative gain (n D C G). Support. A ranking metric that rewards placing highly relevant items early while supporting graded relevance. It evaluates more of the ranking than first-hit mean reciprocal rank and respects relevance strength.
+Paired comparison. Support. Comparing two retrieval configurations on the same cases rather than only comparing aggregate means. Per-case wins, losses, and ties show whether an apparent improvement is consistent or driven by a few outliers.
+Physical-device verification. Support. Testing user-visible and hardware-dependent behavior on a real supported device rather than only in the simulator. Apple Intelligence, thermal behavior, Neural Engine scheduling, Private Cloud Compute, background processing, and memory pressure differ materially from simulation.
+Precision at k. Support. The fraction of the top k results that are relevant. High recall with mostly irrelevant evidence wastes context and can confuse generation.
+QASPER fixture. Support. The external research-paper question-answering benchmark adapted into local Markdown fixtures with distractor papers. Externally authored questions reduce the self-authored-fixture bias that made earlier tests too easy.
+Quality matrix. Support. A batch evaluation across modes, routes, or configurations that produces comparable rows and columns. Many quality regressions are interactions rather than one isolated setting.
+RAGEvalRunner. Support. The harness that ingests fixtures, runs queries, captures outputs and stage traces, and aggregates metrics. Manual testing cannot consistently measure hundreds of stage-level outcomes.
+Recall at k. Support. The fraction of relevant evidence items present in the top k results. It measures whether the retrieval stage found the needed chunks before later ranking or generation.
+Route invariant. Support. A Boolean property that must hold for execution receipts, such as completed route attempted, fallback attributed, and denied/unknown cloud failing closed. Routing truth is a correctness property separate from answer content.
+Stage survival. Support. Whether the relevant chunk remains present from vector/lexical through fusion, boosts, truncation, reranking, and final retrieval. A stage can preserve counts while dropping the only correct evidence item.
+Synthetic fixture bias. Support. The tendency of tests authored alongside their expected questions to flatter the same assumptions and vocabulary built into the engine. A perfect score on self-authored examples can hide weak generalization and abstention.
+Tiny research suite. Support. A compact synthetic suite covering exact lookup, missing information, multi-hop retrieval, rank retrieval, and lost-in-the-middle behavior. Small deterministic cases are fast regression tests even though they cannot estimate real-world accuracy.
+Token F1. Support. The harmonic mean of token-level answer precision and recall against the expected answer. It gives partial credit to substantively correct answers that differ in wording.
+
+Can you explain it? Say each of these out loud. If you cannot, go back.
+1. Define recall@k, precision@k, mean reciprocal rank and n D C G in one line each.
+2. Explain the chunk-versus-document ground truth pitfall.
+3. State the nondeterminism blocker and how to verify it.
+4. Say why runs are never deleted.
+5. Explain what a distractor document tests.
+
+Quiz.
+Question 1. Why did n D C G once report 2 point 131? Pause here if you want to answer first. ... The answer. Chunk-level results were scored against document-level ground truth, so multiple chunks from one relevant document each counted as a hit and the score exceeded its own ceiling.
+Question 2. What is the nondeterminism blocker? Pause here if you want to answer first. ... The answer. Two runs of one build return different retrieved chunk IDs for one question. Until the cause upstream of tie-breaking is found, no retrieval A/B is trustworthy. Verify by running a fixed query set twice and diffing the chunk IDs.
+Question 3. Why must benchmark run directories never be deleted? Pause here if you want to answer first. ... The answer. Benchmark Runs/ is gitignored, so a deleted run is gone and its the results file was the only evidence behind whatever the ledger cites. Three directories were lost this way on 2026-08-19.
+Question 4. What is the difference between a synthetic fixture and a device run? Pause here if you want to answer first. ... The answer. A synthetic fixture tests the pipeline the way it was configured in the harness; a device run tests the configuration the app actually uses. Twice, one real document on real hardware found what the whole suite missed.
+
+End of module 14.
