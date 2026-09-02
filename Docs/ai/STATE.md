@@ -46,6 +46,14 @@ hold the resized sets that were uploaded. Leave the whole folder out of every `g
 
 ## Completed this cycle
 
+- **Learning set, docs only, all pushed (2026-09-02).** `Docs/Engineering/FULL_SYSTEM_TRACE.md` is the
+  execution trace with file:line and requested silicon per stage; `Docs/STUDY_GUIDE.md` is the course over
+  the 612-term word bank; `Docs/Audio/PASS_1` to `PASS_5` is the spoken version, five passes each one level
+  deeper, 76 minutes, with the word bank in `Audio/Reference_word_bank/` for lookup only. Two source
+  documents live under `Docs/Research/`. One finding for Future Backlog, not yet a Notion row: the
+  `SpeechAnalyzer` transcription branch never compiles (`canImport` of a module that does not exist);
+  `SFSpeechRecognizer` runs instead, so nothing is broken.
+
 - **`9c6335f`**: the three sample documents in `SampleDocumentManager.swift` rewritten from source
   (the audit and every source is in the CHANGELOG 5.1 entry and the Notion row), and `WhatsNewStore`
   given its missing 5.0.2 and 5.1 entries. Docs moved in the same commit: `CHANGELOG.md`,
