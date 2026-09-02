@@ -103,6 +103,68 @@ final class WhatsNewStore: ObservableObject {
         // silently never appears: `showIfNeeded` marks an unknown version as seen and
         // returns. macOS shipped 5.0 as build 379 and is missing everything here; iOS
         // never shipped 5.0 at all, so on iPhone and iPad this is the first 5.x release.
+        "5.1": WhatsNewRelease(
+            version: "5.1",
+            headline: "Importing a large document on the Mac had become slow enough to be unusable, and the app kept working away while idle. This release is those two, better text recognition on every platform, and built-in guides that finally describe the app you are running. On iPhone and iPad it also brings across the two Mac-only releases before it.",
+            items: [
+                .init(
+                    symbol: "doc.richtext",
+                    title: "The Mac was drawing every PDF page four times too large",
+                    detail: "Each page was rendered at four times the resolution requested, then copied through an uncompressed image format and straight back, once per page. On a Retina display that was roughly 370 MB written and read per page, for nothing. The iPhone never did this. Each page is now drawn once, at the size asked for."
+                ),
+                .init(
+                    symbol: "moon.zzz",
+                    title: "An idle app was re-reading every search index seventeen times a second",
+                    detail: "A background timer kept finding one library in a state it could not resolve and reloaded every index on each pass whether or not anything had changed. Left running for a few hours it built a backlog it could never clear and stopped responding. Indexes are now re-read only when they have actually changed on disk."
+                ),
+                .init(
+                    symbol: "arrow.clockwise.circle",
+                    title: "A paused import no longer looks lost",
+                    detail: "Quitting during a large PDF import and reopening showed the document at zero, as though the work was gone. It never was: the app has always resumed from the last page it finished. But the screen said otherwise, and removing the item is the one action that does discard that progress. A resumed import now reports how many pages it already has."
+                ),
+                .init(
+                    symbol: "character.book.closed",
+                    title: "Text recognition is told the document's language instead of guessing it",
+                    detail: "The app was asking the system to guess each page's language while also handing it a list of thirteen to choose from. A wrong guess corrects words against the wrong dictionary, which damages text rather than just slowing things down. The language is now worked out once from the document itself. Page images also go to recognition scaled to what is needed to read the smallest real print, instead of at the slowest possible setting."
+                ),
+                .init(
+                    symbol: "book.pages",
+                    title: "The built-in guides describe this version of the app",
+                    detail: "The three sample documents said complex questions were sent to Private Cloud Compute, which nothing in this build does, and knew nothing about how importing works. They are rewritten from the code: every format the app reads, what happens during an import and after a quit, what each quality mode actually changes, and what Private Cloud Compute will add when it arrives with iOS and macOS 27. If you already imported them, they update in place."
+                ),
+                .init(
+                    symbol: "app.badge",
+                    title: "The Mac icon is no longer a square",
+                    detail: "Every Mac icon was a solid square filling the whole tile, and the dark version still carried a thin blue rim from the light one. Both are redrawn to sit inside the rounded shape macOS expects. The iPhone and iPad icons were already correct."
+                ),
+            ]
+        ),
+        "5.0.2": WhatsNewRelease(
+            version: "5.0.2",
+            headline: "Mac only. There was no way to get a document into the app: the Add Documents button opened nothing, and dragging a file onto the window did nothing either. Both are fixed.",
+            items: [
+                .init(
+                    symbol: "folder.badge.plus",
+                    title: "The Add Documents button opened nothing",
+                    detail: "The button asked macOS for a file picker at the one moment the system refuses to open one, so the request was discarded and no window ever appeared. The two file buttons inside a chat had the same fault. All three now ask at a point the system accepts."
+                ),
+                .init(
+                    symbol: "arrow.down.doc",
+                    title: "Drag files from Finder straight into a library",
+                    detail: "Nothing in the app was listening for a dropped file. The whole library area now accepts them, and dropped files go through the same size and plan checks and the same import review as picked ones. Folders are not accepted yet; drop the files from inside them."
+                ),
+                .init(
+                    symbol: "sidebar.left",
+                    title: "Library Settings was unreadable on the Mac",
+                    detail: "The screen was drawn as a narrow strip beside a large blank area, squeezed hard enough to break words apart. It was built on an older navigation container that macOS turns into a two-pane layout. It now uses a single column at a sensible width."
+                ),
+                .init(
+                    symbol: "doc.on.doc",
+                    title: "The built-in samples were quietly duplicating themselves",
+                    detail: "When a sample is corrected in a new version the app replaces your copy, but it was deleting the original and not the duplicate an earlier update had left behind, so each round added one more. Existing duplicates are cleaned up on the next update, and documents you named yourself are never touched."
+                ),
+            ]
+        ),
         "5.0.1": WhatsNewRelease(
             version: "5.0.1",
             headline: "Turning the performance up was making the app slower, Macs were being held to iPhone limits, and the Documents tab was waiting on a number it never showed you. This release is those three and the rest of what came after 5.0.",

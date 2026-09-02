@@ -716,6 +716,36 @@ shows the release complete while it waits.
 
 `[evidence_level: measured, confidence: exact, evidence_source: PATCH returned 204 for both 5.1 records on 2026-09-02; GET read back the attached ids]`
 
+## Replacing App Store screenshots through the API
+
+*Verified 2026-09-02 on the iOS 5.1 record.*
+
+`push_metadata` hardcodes `skip_screenshots: true`, and changing that means editing `fastlane/Fastfile`,
+which needs the owner to name it. The API route needs nothing in the repo:
+
+1. **Find the display type from the pixel size, not the device.** fastlane's table in
+   `deliver/lib/deliver/app_screenshot.rb` (`DEVICE_RESOLUTIONS`) is the local source; a 6.9-inch
+   iPhone capture at 1320x2868 belongs to `APP_IPHONE_67`, which also covers 1290x2796. There is no
+   `APP_IPHONE_69`. iPad 13-inch captures at 2048x2732 are `APP_IPAD_PRO_3GEN_129`.
+2. `POST appScreenshotSets` with that `screenshotDisplayType` under the localization
+   (`GET appStoreVersions/<id>/appStoreVersionLocalizations` gives the id), or reuse an existing set.
+3. Per image: `POST appScreenshots` (`fileName`, `fileSize`) returns `uploadOperations`; `PUT` each
+   byte range to its URL with the headers given; then `PATCH appScreenshots/<id>` with
+   `uploaded: true` and the file's MD5 as `sourceFileChecksum`.
+4. Poll `assetDeliveryState.state` until every image is `COMPLETE`. Only then delete the superseded
+   set with `DELETE appScreenshotSets/<id>`.
+
+**`.jpeg` is rejected after upload, not before.** Every step above succeeds and the asset then
+lands in `FAILED` with `IMAGE_BAD_FILE_EXTENSION`. Only `.jpg` and `.png` are accepted. iPhone
+captures arrive as `IMG_nnnn.jpeg`; convert with `sips -s format png` and upload the PNGs. Eight
+images lost one round trip to this on 2026-09-02.
+
+Order within a set is creation order, so upload in the order the store should show them. The
+scripts used (`asc_upload_shots.rb`, `asc_delete_old_set.rb`, on top of the JWT helper from
+`scripts/asc_healthcheck.rb`) lived in the session scratchpad; they are about 60 lines to recreate.
+
+`[evidence_level: measured, confidence: exact, evidence_source: eight FAILED assets with IMAGE_BAD_FILE_EXTENSION, then eight COMPLETE after PNG conversion, iOS 5.1 localization 3b8a2fff, 2026-09-02]`
+
 ## iOS and macOS need different App Store release notes, and the lane cannot do it yet
 
 *Added 2026-08-31.*

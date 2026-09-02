@@ -11,6 +11,10 @@ This document provides a chronological history of user-facing changes, highlight
 Most of this release is about the Mac, where importing a large document had become slow enough to be
 unusable. The text recognition changes apply to iPhone and iPad as well.
 
+### Built-in Guides
+- **The three sample documents now describe the app you are running.** They said complex questions were sent to Private Cloud Compute, which nothing in this build does; they listed fewer formats than the app reads; they described the quality modes by where they run rather than by what they change; and they said nothing about importing, which is where most of the recent work went. All three are rewritten from the code: every format, what happens during an import and after a quit, what each quality mode actually changes, the plan limits, the measured speeds, and what Private Cloud Compute will add when it arrives with iOS and macOS 27. If you already imported them, they update in place.
+- **The What's New screen has entries for 5.0.2 and 5.1.** Updating to either used to show nothing, because neither release had been written for it.
+
 ### Appearance
 - **The Mac app icon was a square, and its dark version had a blue rim.** Every Mac icon slot was a solid square filling the whole tile, with no transparency at the corners. Mac icons are supposed to sit inside a rounded shape with a margin around it, which is why yours looked like a hard tile in the Dock next to everything else. The dark version had a second problem: it had been made by repainting the background behind the bulb without redrawing the edges, so a thin line of the original blue was still there along every outline. Both are redrawn. The iPhone and iPad icons were already correct and are unchanged.
 

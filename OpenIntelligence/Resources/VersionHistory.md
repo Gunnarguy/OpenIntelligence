@@ -7,6 +7,30 @@ This document provides a chronological history of user-facing changes, highlight
 
 ---
 
+## v5.1 - unreleased
+Most of this release is about the Mac, where importing a large document had become slow enough to be
+unusable. The text recognition changes apply to iPhone and iPad as well.
+
+### Built-in Guides
+- **The three sample documents now describe the app you are running.** They said complex questions were sent to Private Cloud Compute, which nothing in this build does; they listed fewer formats than the app reads; they described the quality modes by where they run rather than by what they change; and they said nothing about importing, which is where most of the recent work went. All three are rewritten from the code: every format, what happens during an import and after a quit, what each quality mode actually changes, the plan limits, the measured speeds, and what Private Cloud Compute will add when it arrives with iOS and macOS 27. If you already imported them, they update in place.
+- **The What's New screen has entries for 5.0.2 and 5.1.** Updating to either used to show nothing, because neither release had been written for it.
+
+### Appearance
+- **The Mac app icon was a square, and its dark version had a blue rim.** Every Mac icon slot was a solid square filling the whole tile, with no transparency at the corners. Mac icons are supposed to sit inside a rounded shape with a margin around it, which is why yours looked like a hard tile in the Dock next to everything else. The dark version had a second problem: it had been made by repainting the background behind the bulb without redrawing the edges, so a thin line of the original blue was still there along every outline. Both are redrawn. The iPhone and iPad icons were already correct and are unchanged.
+
+### Speed
+- **Every PDF page was drawn at four times the resolution it asked for, then copied through an uncompressed image format and back.** The Mac used a drawing method Apple deprecated for exactly this reason: it sizes its canvas from the display rather than from the request, so on a Retina screen a page asked for at 3060x3960 was actually drawn at 6120x7920. That result was then encoded to an uncompressed image in memory and decoded straight back, once per page. Measured on this hardware, roughly 370 MB written and read per page, for nothing. The iPhone never did this; its half of the code was already correct. Each page is now drawn once, at the size requested. The wall-clock effect on a full document has not been measured and no speed multiple is claimed here.
+- **With the app open and doing nothing, it was re-reading every library's search index about seventeen times a second.** A background timer kept finding one library in a state it could not resolve, and each pass reloaded every index whether or not anything had changed. Over a measured 164 idle seconds that was 2,848 index reads, the same index re-read 288 times. Left running for about three hours it accumulated a backlog of queued work it could never finish and the app stopped responding. Indexes are now re-read only when they have actually changed on disk.
+
+### Reliability
+- **A large import paused by quitting the app looked like it had lost everything.** Reopening showed the document sitting at zero. The work was never lost: the app has always resumed from the last page it committed. But the screen said otherwise, and removing the item *is* the one action that discards that progress, so the display was steering people toward the only destructive choice available. A resumed import now reports how many pages it already finished.
+
+### Text Recognition
+- **The app asked the system to guess each page's language while also handing it a list of thirteen to choose from.** Those two instructions contradict each other. Apple's own guidance is to state the languages when you know them, because the automatic guess is not guaranteed correct, and a wrong guess means text is corrected against the wrong dictionary, which damages it rather than merely slowing it down. The language is now determined once per document from the text the file already contains, and only that language is used.
+- **Page images went to text recognition at the highest possible resolution with no downscaling.** That is the slowest and most memory-hungry setting the system offers, and it was set deliberately with a comment saying it caught all text sizes. Recognition now scales down to what is needed to read roughly three-point type, which is smaller than the fine print in any real document.
+
+---
+
 ## v5.0.2 - August 27, 2026
 Mac only. On the Mac there was no way to get a document into the app at all: the Add Documents
 button opened nothing, and dragging a file onto the window did nothing either. Both are fixed.
