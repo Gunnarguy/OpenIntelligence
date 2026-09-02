@@ -1,0 +1,107 @@
+OpenIntelligence. Pass two. The beginner's tour.
+
+Same route as pass one. This time I will give you the real name of each part, say what it actually is, and say why it was built. I will still avoid numbers except the few worth remembering. When I use a technical word, I will define it in the same breath.
+
+Let me start with the shape of the whole thing, because it helps to know there are two halves.
+
+The first half is called ingestion. That is everything that happens when a document goes in: reading it, cutting it up, filing it. Ingestion happens once per document, and it is slow, and that is fine, because it only happens once.
+
+The second half is called the query pipeline. That is everything that happens when you ask a question: understanding it, searching, choosing evidence, writing, checking. This has to be fast, because you are standing there waiting.
+
+The app as a whole is a kind of system called retrieval-augmented generation, usually shortened to RAG. The name means exactly what it says. Retrieval first: go and find the relevant pieces of your own documents. Then generation: have a language model write an answer using only those pieces. The retrieval part is what makes the answer about your documents. The generation part is what makes it readable. Keep those two words apart in your head, because almost every design decision in the app comes from keeping them apart.
+
+One more idea before we walk. Some stages in this app are deterministic, meaning the same input always produces the same output, like a calculator. Cutting text, searching, ranking, checking citations, all deterministic. Other stages are generative, meaning a language model is asked to produce text, and it could produce something that is not true. There are only two generative stages in the whole app: rewriting your question, and writing the answer. Everything else is a calculator. That matters because a calculator cannot hallucinate. Only the two generative stages can, and so the checking is aimed at them.
+
+Now the tour.
+
+Ingestion, step one. The queue.
+
+When you add a file, it becomes an ingestion item in a queue. The queue is durable, which means it is saved to disk with the item's stage and progress. If the app is killed, the item is restored on the next launch and continues from the last stage it finished. Items go through stages with names you will see on screen: queued, loading, extracting, chunking, analyzing, embedding, indexing, storing, complete. The queue processes one document at a time. Inside a single document there is plenty of parallel work, but the documents themselves go one after another. Two rules protect you here. If you delete a document, that deletion wins over any half-finished import that might try to bring it back. And if you add the same file twice, the app notices by its content and does not index it twice.
+
+Ingestion, step two. Extraction.
+
+This is getting the words out. The app picks a method by file type. For a P D F with a real text layer, it copies the text directly. But it does not trust the text layer blindly, because scanned P D Fs often carry a garbage text layer that would poison the index quietly. So it first samples a page, looks at it as an image, reads it, and compares. If the text layer is nonsense, every page goes through O C R instead.
+
+O C R stands for optical character recognition, which is the phone looking at a picture and reading the letters. The app renders each page as a high-resolution image and hands it to Apple's Vision framework with the accurate setting and language correction turned on. It tells Vision which languages the document is in, because loading recognisers for thirteen languages on every page used to be a big waste. A separate pass reads tables as rows and columns so that a number keeps its column heading.
+
+Office files are unzipped and their internal X M L is read directly. Spreadsheets and C S V files are parsed as tables. Audio and video are transcribed by Apple's speech recogniser, with on-device recognition required, so the audio never leaves the phone. Every one of these runs on the device.
+
+Ingestion, step three. Chunking.
+
+Chunking is cutting the text into pieces small enough to file and find. A chunk is at most three hundred and ten words. That number is not arbitrary. The model that reads chunks in the next step can only see about five hundred tokens at a time, and a token is roughly two thirds of a word, so three hundred and ten words with a little headroom fits. Chunks overlap by up to fifty words so nothing on a boundary is lost. Tables and lists are kept whole. And each chunk gets a short prefix naming the document and section it came from, because a chunk read on its own has lost what it is about, and that measurably hurts search.
+
+There is one more check here that exists because of a real disaster. Words are not tokens, and the model does not complain when a chunk is too long. It silently keeps the first five hundred tokens and throws the rest away. Once, a bug made the token counter always return the same number, and more than half of every document was silently thrown away while every log said everything was fine. So now the app runs every chunk through the real tokenizer before embedding it and splits anything that is too long.
+
+Ingestion, step four. Embedding.
+
+Embedding is the map of meaning from pass one. An embedding model reads a chunk and produces a list of three hundred and eighty-four numbers. Those numbers are the chunk's coordinates on the map. Chunks about similar things get similar coordinates. The model is a small one that runs on the device. The list is scaled so that comparing two chunks is a single multiplication, which matters later for speed.
+
+Why three hundred and eighty-four? It is the width this particular model produces, and it is small enough that a whole library's worth of coordinates can stay in a file that the phone can read without loading it all into memory.
+
+Ingestion, step five. Indexing.
+
+Now each chunk is filed twice.
+
+The first filing system is a full-text search index. It is built on SQLite, which is a small database engine inside the phone, using a feature called F T S five, which is a fast index of exact words. The ranking formula it uses is called B M twenty-five. You do not need to know the formula. You need to know what it is good at: exact words, part numbers, names, codes. And you need to know that words in a section title count more than the same word buried in a paragraph, because the app told the index to weight them that way.
+
+The second filing system is the vector store, which is where the coordinates live. The word vector just means the list of numbers. The vectors for a library are written to one flat file and read by memory mapping, which means the phone reads the file directly as if it were memory, without copying it. That is how a library of tens of thousands of chunks costs almost no memory to search.
+
+On top of the two indexes, the app derives a few extra things: a one-paragraph summary of each document, so a question like summarise this can be answered from summaries rather than from forty similar chunks; and a list of names and entities, so a question about a specific name can be expanded to every chunk that mentions it.
+
+When both indexes are written and saved, the item is complete.
+
+That is ingestion. Now the query pipeline.
+
+Query, step one. Understanding the question.
+
+Before anything is searched, the app profiles your question. What kind of answer do you want: a lookup, a summary, a comparison, a procedure? How complex is it? Which quality mode did you pick? The three modes are Standard, Deep Think, and Maximum. Standard is one pass through the pipeline. Deep Think and Maximum are agentic, a word I will explain in a moment. Out of this profiling comes a plan for the query, and a decision about whether it will run as a single pass or as a loop.
+
+The app may also rewrite your question. Users type short vague questions and the index was built from long specific text, so a model can be asked to expand the question, or to write a short imaginary answer whose coordinates are then used for the search. That trick has a name, hypothetical document embedding, and it exists because a paragraph lands closer to other paragraphs on the map than a question does.
+
+Query, step two. Search, twice, at the same time.
+
+The question's coordinates are computed with the same embedding model. Then two searches run in parallel. One is the vector search: find the chunks whose coordinates are nearest. The other is the keyword search through F T S five. Each returns a ranked list of candidates, more than you will ultimately need.
+
+The two lists are merged with a method called reciprocal rank fusion. The idea is simple. A chunk gets points for being near the top of either list, and more points the higher it is. A chunk near the top of both lists ends up first. The merge only uses positions, not scores, which is the whole point: the two searches produce scores that mean completely different things, and positions are the only thing they have in common.
+
+Query, step three. Rerank.
+
+Now the second, slower reader from pass one. It is called a cross-encoder. The first search compared the question's coordinates to each chunk's coordinates separately, which is fast but shallow. The cross-encoder reads the question and one chunk together, as a pair, and judges how well that chunk answers that question. It is far more accurate and far slower, so it only runs on the short list from the merge, never on the whole library. The list is reordered by its judgement.
+
+Query, step four. Filtering and spreading.
+
+Chunks below a similarity floor are dropped. The floor is lower in Deep Think and lower again in Maximum, because those modes prefer to gather more and let later steps sort it out. Then a step called maximal marginal relevance, or M M R, spreads the results: it penalises a chunk for being nearly identical to one already chosen, so five copies of the same paragraph do not crowd out a second document. Then the app pulls neighbouring chunks, and the parent section when it helps, because a fact often continues across a cut.
+
+Query, step five. Packing the desk.
+
+The language model on the device has a fixed window of about four thousand tokens, and every token spent on evidence is one not available for the answer. So there is a budget. The app subtracts the instructions, the question, a safety margin and the space reserved for the answer, and fills what is left with the best chunks, strongest first and last. Chunks that do not fit are set aside and recorded, so the diagnostics can show you what was left out.
+
+Query, step six. Deciding where to write.
+
+Only now, after retrieval, does the app decide which model writes the answer. It builds an execution plan with four possible outcomes. Abstain, if there is not enough evidence. Deterministic, if a rule can extract the answer directly, say a single value from a table. On device, which is the normal case. Or Private Cloud Compute, which is Apple's outside room. The outside room is chosen only when the evidence does not fit the local window or the question is complex enough to need it, and only if the network is up and you have consented. Before it asks you, it builds the exact trimmed set of chunks that would be sent and shows you that. If you decline, it writes on the device. Every cloud plan has an on-device fallback.
+
+Query, step seven. Generation.
+
+The model is Apple's on-device language model, reached through a framework called Foundation Models. The app opens a session, gives it instructions, gives it the packed evidence and your question, and streams the answer back word by word so you see it as it forms. The answer is not free text. It is a structured answer: a list of claims, each with the identifiers of the chunks that support it. That structure is what makes the next step possible.
+
+Query, step eight. Verification.
+
+Nine checks, called gates, lettered A to I, run in order. They are all deterministic. Gate A asks whether retrieval was confident enough at all. Gate B asks whether every claim cites evidence. Gate C checks that numbers in the answer appear in the sources. Gate D looks for contradictions between sources. Gate E, the strongest one, puts the answer itself on the map of meaning and checks that it lands near its own evidence; an answer far from its evidence is treated as invented. F checks quotes, G checks the writing, H checks the answer is complete, and I, applied earlier, keeps evidence from unrelated domains out. Claims that fail are removed or marked unsupported. If too little survives, the app says it does not have enough evidence.
+
+Query, step nine. What you get.
+
+A typed answer with citations that jump to the exact character range in the source. A label saying which model actually completed the answer, on device or cloud, based on what ran rather than what was requested. A diagnostics view showing how many chunks were found, kept, dropped and packed. And a trace log on disk recording every stage with timings, for when something goes wrong.
+
+Now the word agentic.
+
+In Standard mode, the pipeline runs once. In Deep Think and Maximum, an orchestrator takes over. It runs the pipeline, reads what came back, decides whether it has enough, and if not, rewrites the question or breaks it into sub-questions and searches again. It carries a notebook of facts between rounds, because the model's window is small and a fresh session is opened for each round. It stops when it is confident enough, when new searches stop finding anything new, when a time budget runs out, or when it hits a hard cap on rounds. All of the thinking happens on the device. Only the final write-up may go to the outside room, through the same plan and consent as before.
+
+Last thing for this pass. The hardware.
+
+Your phone has three kinds of processor: the C P U, the G P U, and the Neural Engine. People love to say which one runs what, and most of what gets said is not something the app can know. Here is what is actually true. The app can explicitly use the G P U for one thing: comparing your question's coordinates against a very large library, using a small program called a Metal kernel. It does that when the library has a thousand or more chunks. For the embedding model and the reranker, the app can only ask Apple's Core M L framework which processors it is allowed to use, and Core M L decides. For O C R, speech, and the language model itself, the app has no say at all; Apple's frameworks decide and do not report back. So when someone asks where the Neural Engine runs, the honest answer is: the app requests it in a few places, and Apple decides.
+
+That is the beginner's tour. You now know the real names: ingestion and query, deterministic and generative, chunk, embedding, vector, F T S five and B M twenty-five, reciprocal rank fusion, cross-encoder, M M R, token budget, execution plan, Private Cloud Compute, Foundation Models, structured answer, the nine gates, and agentic.
+
+In pass three, an engineer who built this walks a newcomer through it with the numbers, the decisions, and the things that go wrong.
+
+End of pass two.

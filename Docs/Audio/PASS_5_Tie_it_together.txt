@@ -1,0 +1,64 @@
+OpenIntelligence. Pass five. Tying it together.
+
+You have now heard the same machine four times: as a library, as a pipeline with names, as an engineer's walkthrough with numbers, and as a researcher's briefing. This last pass is short. It gives you the thread that runs through all four, then the three versions to say out loud, then a way to test yourself.
+
+The thread.
+
+Everything in this app comes from one promise and one danger.
+
+The promise is that your documents stay yours. So: one private container per library, all reading and filing on the device, memory-mapped vectors so a phone can hold a library, and a single outside room, Apple's Private Cloud Compute, used only after retrieval, only after the app has built and shown you the exact payload, only with your consent, and always with an on-device fallback.
+
+The danger is that a language model invents. So: two indexes instead of one, so the right evidence is found more often. A cross-encoder second opinion. A similarity floor and diversity so the desk is not filled with the wrong or the same thing. A hard token budget so nothing is silently dropped without being recorded. Only two generative stages, and nine deterministic gates aimed at them. Citations to character ranges, so every claim can be checked. And an honest label of which model actually completed the answer.
+
+If you remember nothing else, remember that every part of the app is one of those two things: keeping the promise, or defending against the danger.
+
+The twelve sentences, once more.
+
+One. A file is enqueued as a durable ticket and processed one document at a time.
+Two. Its text is extracted by type: text layer, three hundred and sixty D P I O C R, structured table parsing, X M L, C S V, or on-device speech.
+Three. The text is cut into chunks of at most three hundred and ten words, validated at four hundred and thirty tokens by the real tokenizer, each with a contextual prefix.
+Four. Each chunk becomes a normalised three hundred and eighty-four dimension vector, on Core M L or Core A I, with the unit chosen by the G P U profile.
+Five. Chunks are written to SQLite F T S five and to a memory-mapped vector file; summaries and entities are derived on top.
+Six. A question is profiled and planned first: intent, complexity, mode, and whether it is agentic.
+Seven. Vector search and B M twenty-five run in parallel and are fused with reciprocal rank fusion at k equals sixty.
+Eight. A cross-encoder reranks the shortlist; a similarity floor and maximal marginal relevance cut it; neighbours are added.
+Nine. Evidence is packed under the real token budget, strongest first and last.
+Ten. A post-retrieval plan chooses abstain, deterministic, on-device, or Private Cloud Compute, and only then asks for consent.
+Eleven. The model streams a typed answer with citations; nine deterministic gates decide what survives.
+Twelve. What comes back is inspectable: claims, byte-offset citations, the completed route, and a trace.
+
+The ninety-second version. Say this one from memory.
+
+OpenIntelligence turns your files into a private, searchable knowledge base on the device. Ingestion extracts, chunks and embeds every document into two indexes, one for exact words and one for meaning. A question is searched both ways in parallel, fused, reranked by a cross-encoder, and packed under a hard token budget. Apple's on-device model writes a typed answer with citations, and nine deterministic gates decide what is allowed to stand. Only the final answer may leave the device, to Private Cloud Compute, and only after the app shows you exactly what would be sent and you agree.
+
+The five-minute version. The twelve sentences, each expanded with one number. Three hundred and ten words. Five hundred and ten tokens. Three hundred and eighty-four dimensions. One thousand vectors. K equals sixty. Zero point seven and zero point three. Four thousand and ninety-six and three thousand two hundred. Zero point four zero and zero point five five. Nine gates. One hundred and eighty seconds.
+
+At the whiteboard. Draw two indexes. Draw the parallel search and the merge. Draw the shortlist and the second reader. Draw the desk with its budget. Draw the plan with its four outcomes. Draw the model. Draw the gates. Then, when someone asks where the Neural Engine runs, say: the code requests it on five lines, Apple decides, and nothing in the app can measure it. That answer is more impressive than a confident wrong one.
+
+The self-test. Ten questions. Pause after each and answer out loud before I give the answer.
+
+One. How many documents ingest at once, and where is the parallelism? Pause. One document at a time; parallelism is inside a document, across pages and embedding batches.
+
+Two. How does the app decide a P D F needs O C R? Pause. It samples the page with the most native text, renders it, runs a quick O C R pass, and if the native text is garbled it routes every page through O C R.
+
+Three. Why three hundred and ten words? Pause. Five hundred and ten usable tokens at about one and a half tokens per word is about three hundred and forty words, minus thirty for the contextual prefix.
+
+Four. What are the two conditions for vector search to use the G P U? Pause. At least one thousand vectors, and a Metal device with a command queue. The G P U profile is not consulted.
+
+Five. What are the fusion constants? Pause. Reciprocal rank fusion with k sixty, vector weight zero point seven, keyword weight zero point three.
+
+Six. Why run the cross-encoder only on a shortlist? Pause. It reads question and passage together, so it cannot precompute anything and costs one inference per pair. Accurate on ninety, impossible on a library.
+
+Seven. When does the planner choose Private Cloud Compute? Pause. Capability allows it, the network is up, the user is present or has consented, and either the local budget does not fit or the complexity asks for it. Always with an on-device fallback.
+
+Eight. What does Gate E do? Pause. Embeds the answer and compares it to its best source chunk; below zero point five zero it is treated as ungrounded.
+
+Nine. Which speech A P I actually transcribes audio? Pause. S F Speech Recognizer with on-device recognition required. The Speech Analyzer branch never compiles.
+
+Ten. Where does the Neural Engine run? Pause. The app requests it on five lines through Core M L compute units and Apple decides; nothing in the app can measure it.
+
+If you got eight or more, you can explain this app. If you got fewer, go back to pass three, which is where the numbers live, and listen to it once more.
+
+The word bank is still available as a reference, one file per module, in the reference folder next to these passes. It is a dictionary, not a lesson. Use it to look up a term you heard and want defined, not as something to listen to end to end.
+
+End of pass five. End of the course.

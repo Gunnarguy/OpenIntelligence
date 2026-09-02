@@ -1,0 +1,67 @@
+OpenIntelligence. Pass one. The story, told as simply as I can tell it.
+
+This is the first of five passes. Each pass tells the same story again, one level deeper. This one uses no technical words at all. If a technical word appears, I will say what it means the moment it appears. You can stop after this pass and you will have the whole picture, just drawn in crayon.
+
+Here is the story.
+
+Imagine a library. Not a public library. A private one, inside your phone, that only you can enter. Nobody else has a key. Nothing you put in it ever leaves the building unless you personally carry it out the door. That is the first and most important thing about this app. Everything happens inside the building.
+
+The library has a loading dock, a reading room, a card catalog, a map on the wall, a desk, a writer, and a fact-checker. Let me walk you through what each one does, in the order things happen.
+
+Part one. Putting a document into the library.
+
+You hand a file to the loading dock. It might be a P D F, a Word document, a spreadsheet, a photo of a page, or a voice recording. The dock does not read it yet. It writes a ticket for it, puts the ticket in a queue, and works on one ticket at a time. Why a ticket? Because your phone is allowed to interrupt the library whenever it likes. If you switch apps or the battery dies halfway through, the ticket remembers exactly where the work stopped, and it picks up from there next time. Nothing gets done twice, and nothing gets lost.
+
+The ticket goes to the reading room. Here the library has to get the words out of the file. If the file already contains real text, the reader copies it. If the file is a photo of a page, the reader has to look at the picture and read it the way you would read a sign across the street. If the page has a table, the reader is careful to keep the rows and columns lined up, because the number forty in the price column means something different from the number forty in the quantity column. If the file is a recording, a listener writes down what was said. All of this happens inside the building. The library never sends your page to anyone to be read.
+
+Now the library has a long stretch of text. It cannot file the whole document as one thing, because later it will need to find one small fact inside it. So it cuts the text into index cards. Each card holds a paragraph or two. The cards overlap a little at the edges, so a sentence that lands right on a cut is not sliced in half and lost. And the library never cuts a table in half, for the reason we just talked about.
+
+Here is the one genuinely strange idea in the whole app, and it is worth slowing down for.
+
+On the wall of the library there is a map. Not a map of places. A map of meanings. Two things sit close together on this map if they mean similar things. The word dog and the word puppy are neighbours. The word dog and the phrase tax return are on opposite sides of the map. Every index card gets a pin on this map, placed according to what the card is about. Later, when you ask a question, your question gets a pin too, and the library simply looks at which cards are pinned nearby. That is how it can find a card that says S A E zero W twenty synthetic when you asked what oil your car takes, even though those two phrases share no words at all. They are neighbours on the map of meaning.
+
+So each card is filed twice. Once in the card catalog, which is an ordinary index of exact words. And once on the map of meaning, as a pin. Two filing systems for the same card. Keep that in mind, because the whole rest of the story depends on it.
+
+When every card is filed both ways, the ticket is stamped complete, and your document is in the library.
+
+Part two. Asking a question.
+
+You walk up to the desk and ask a question. Before anyone goes looking for anything, the librarian reads your question carefully and decides what kind of question it is. Are you looking up one fact? Do you want a summary of a whole book? Are you comparing two things? Is this a quick question or a hard one? The librarian also decides how hard to try. You can ask for a quick answer, a careful answer, or a maximum effort answer, and that choice changes how much of the library gets searched.
+
+Then the search begins, and it begins in two places at once.
+
+One helper goes to the card catalog and looks for cards containing the exact words you used. This helper is very good at names, part numbers, dates, and rare words.
+
+At the same time, another helper puts a pin for your question on the map of meaning and gathers the cards pinned nearby. This helper is very good at understanding what you meant, even when you used different words.
+
+The two helpers come back with two piles. The librarian shuffles them together into one ranked pile, giving credit to a card for being near the top of either helper's pile. A card that both helpers found rises to the top.
+
+Now a second, slower reader looks at the top of the pile. This reader takes your question and each card together, side by side, and decides how well that specific card answers that specific question. This reader is too slow to look at the whole library, but on a short pile it is much smarter than either helper. It reorders the pile.
+
+Then the librarian does two small tidying jobs. Cards that clearly do not answer the question are set aside. And if five cards at the top all say almost the same thing from the same page, some are swapped for cards from other books, so the answer is not lopsided. Sometimes the librarian also pulls the card just before and just after a good one, because a fact often continues onto the next card.
+
+Part three. Writing the answer.
+
+The best cards go onto the desk. The desk is small. It only fits so many cards, and that limit is real and fixed. So the librarian arranges the strongest cards first and last, because the writer, like all of us, pays less attention to the middle of a pile.
+
+Now a decision. Usually the writer sits at this desk, inside the building, and writes the answer right here. But sometimes the pile is too big for this desk, or the question is genuinely hard. The library has an arrangement with one outside reading room, run by Apple, that is built so that not even Apple can look at what is read there. If the librarian thinks that room is needed, it stops, shows you exactly which cards would be carried over, and asks your permission. If you say no, the writer works at the small desk and does the best it can. Nothing ever leaves without you seeing it and saying yes.
+
+The writer reads the cards on the desk and writes the answer. Every sentence of the answer has to point back at a card. Not a book, a card. Not a page, a line on a card.
+
+Then the fact-checker arrives. The fact-checker does not trust the writer at all. It goes through the answer sentence by sentence and asks: is this sentence actually on one of the cards? Does this number match the card? Does this sentence contradict another card? Is the answer even about the same subject as the cards? Anything the fact-checker cannot find on a card gets struck out. If too much gets struck out, the library tells you honestly that it does not have enough in the building to answer, rather than making something up.
+
+What you get back is the answer, with a little sticky note on every claim that jumps you to the exact line on the exact card it came from. And a small label that tells you where the writer sat: at the desk inside, or in the outside room you approved.
+
+Part four. Why the library is built this way.
+
+Every piece of this exists because of one promise and one danger.
+
+The promise is that your documents stay yours. That is why there is a building with one key, why the reading and filing all happen inside, and why the one outside room is used only with your permission and only after you have seen what would go.
+
+The danger is that a writer can invent things. A writer that sounds confident and is wrong is worse than no writer. That is why there are two filing systems, so the right cards are found more often. That is why there is a second slow reader. That is why every sentence must point at a card. And that is why the fact-checker exists and has the final say.
+
+That is the whole story. A loading dock with tickets, a reading room, index cards, a card catalog and a map of meaning, two helpers searching at once, a slow careful reader, a small desk, a writer who must cite cards, a fact-checker with the last word, and one outside room you must approve.
+
+In pass two we walk the same route again, and this time I will tell you the real names of each of these things and why each one was built the way it was.
+
+End of pass one.

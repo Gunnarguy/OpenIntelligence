@@ -1,0 +1,77 @@
+OpenIntelligence. Pass four. A researcher briefs an expert.
+
+This pass assumes everything in passes one to three. It is dense on purpose. Formulas, exact thresholds, loop internals, the status of every dormant path, and the corrections to the two earlier documents about this app. If a line here disagrees with anything you heard earlier, this line is the one that was checked against source.
+
+Part one. The retrieval formulas as implemented.
+
+Cosine similarity. Cos of q and d equals q dot d over the product of their L two norms. Vectors are unit-normalised at write time, so at query time this reduces to q dot d, computed by V D S P dot product per vector or V D S P matrix multiply over the mapped buffer, or by the Metal batch cosine kernel above one thousand documents. Norms are still stored, in the norms file, for the C P U matrix path, which computes raw dot products and normalises after.
+
+B M twenty-five. Score of q and d equals the sum over query terms of I D F of t, times f of t in d, times k one plus one, over f of t in d plus k one times one minus b plus b times document length over average document length. The F T S five implementation is invoked with per-column weights: ten point zero for section title, five point zero for section path, one point zero for content, and zero for every unindexed column. The fallback in-process implementation uses k one of approximately one point five and b of approximately zero point five, with I D F computed as log of total documents minus document frequency plus zero point five over document frequency plus zero point five, plus one.
+
+Reciprocal rank fusion. R R F of d equals the sum over result lists r of one over k plus rank of d in r, with k equal to sixty exactly, and the two lists weighted zero point seven for vector and zero point three for keyword before summation. Ties are broken deterministically by chunk identifier, because Swift's sort is not stable and equal scores are routine.
+
+Maximal marginal relevance. M M R of d equals lambda times relevance of d to q, minus one minus lambda times the maximum similarity between d and any already selected document. Lambda is zero point six zero, zero point five five, zero point five zero by mode. The pairwise matrix is computed on Metal when candidates exceed fifty and the profile permits Metal vector operations.
+
+Evidence capacity. Available evidence tokens equals model context minus instructions minus tool schema overhead minus question minus conversation minus safety reserve minus reserved output. Base context four thousand and ninety-six, default budget three thousand two hundred, safety reserve two hundred and fifty-six, character-to-token ratio one point four on device and two point five for the cloud estimate. The context size is read from the system model at runtime on i O S twenty-six and later.
+
+Part two. Candidate flow through a Standard query, with the cuts.
+
+Initial top K thirty. Vector candidates K times three, ninety; the multiplier drops to two above K of fifty. F T S candidates min of K times three and sixty. Structured row candidates min of K times three and thirty-six. Fused list. Lexical survivors re-attached up to max of four and K over six. Keyword-match boost capped at zero point two zero, five hundredths per weighted match, with any keyword matching more than thirty percent of candidates treated as having zero discriminative value. Rerank over K times three, keep K times three. Similarity floor zero point two eight, dynamic upward for procedural queries. Multi-document guarantee. M M R. Parent, sibling and cross-reference expansion. Compression. Budget trim. The trimmed identifiers and skipped sibling count are recorded on the audit snapshot.
+
+Part three. The reranker.
+
+A cross-encoder Core M L model with its own Rust-backed tokenizer. Pairs are encoded to a maximum length of five hundred and twelve. Prediction is called per pair inside a task group, on the basis that the Core M L prediction call is thread-safe with internal synchronisation. Compute units all, low-precision accumulation on G P U allowed. Loaded once at engine initialisation in a detached task; if the load fails, rerank is skipped and heuristic scoring applies. The model file is the re-ranker model package in the app's M L models directory. The architecture name is not stated in code; the word bank calls it Tiny BERT and that name was not verified here.
+
+Part four. The gate configuration.
+
+Gate A, retrieval confidence: top rerank score at least tau, and top-one minus top-two margin at least mu. Tau normal zero point four zero, lowered from zero point five five because keyword-heavy queries often carry low semantic scores even when B M twenty-five found the right content. Tau touchy zero point five five for the categories medical, legal, financial, safety, dosage, drug, medication. Mu zero point zero three. Gate B, every claim cites at least one evidence identifier. Gate C, numbers in the response must appear in the candidate set, using the full candidate set rather than only the packed context, because the model may reference a number from a chunk that was trimmed. Gate D, contradiction sweep across sources. Gate E, semantic grounding: response embedding versus best source chunk, floor zero point five zero, plus a topical alignment check and a relative grounding check. Gate F, quote faithfulness, including abbreviation cross-contamination. Gate G, generation quality. Gate H, answer completeness for multi-hop and comparison intents. Gate I, domain isolation, applied before synthesis. A strict configuration exists at zero point six five, zero point seven five, zero point one zero, zero point six zero, with regulatory and compliance added to the touchy set. Mode-level confidence thresholds zero point five zero, zero point six zero, zero point eight zero.
+
+Part five. The planner, exactly.
+
+Model execution planner dot make plan. Target abstain when evidence is insufficient. Target deterministic when a rule-based extractor can answer. Target Private Cloud Compute when capability dot can use P C C, and constraints dot network available, and constraints dot is foreground interactive or constraints dot consent granted, and not local budget dot fits or complexity requests P C C. Reason recorded as local context exceeded or complex synthesis. Otherwise on device, with reason network unavailable, consent unavailable, or local context fits. Fallback target on device for every cloud plan. Three stages: retrieve deterministic, synthesise target, verify deterministic. Context budget is the cloud budget when the target is cloud, else local.
+
+Cloud evidence minimiser. Chunks sorted by rank. Per-chunk allowance equals min of remaining and max of two hundred and forty and maximum characters over min of chunk count and eight. Text is prefix-cut to the allowance. Items carry source identifier, document name, page number and text.
+
+Route policy. With a plan: deterministic, on device, and abstain map to on device; cloud maps to cloud with reasoning none for exact lookup and Standard, moderate for Deep Think, deep for Maximum. Without a plan: manual preference core three B or advanced twenty B forces on device; manual cloud preference forces cloud; automatic reads the on-device limit from the system model and routes to the cloud only when the estimate exceeds it, the cloud is allowed, and is P C C available returns true. Is P C C available requires the compiler at six point four or later, i O S or mac O S twenty-seven, the Private Cloud Compute entitlement, and the cloud model reporting available with quota not reached. The installed toolchain is Swift six point four, so this compiles.
+
+Session factory. On device: system language model default, availability guard, session from saved transcript with prewarm when a transcript exists and tools are enabled, else session with compiled instructions. On device advanced: executes the default model, corrects the reported route to on device. Cloud: Private Cloud Compute language model with entitlement and quota guards, i O S twenty-seven only. Generation options: temperature from mode, maximum response tokens from settings when positive. Stream response with a continuation prompt path for partial completions.
+
+Part six. The agentic internals.
+
+Agentic config profiles: fast, max steps two, confidence zero point seven zero, escalation zero point two five. Default, five, zero point eight five, zero point three five. Thorough, eight, zero point nine five, zero point four five. Unlimited, fifty, zero point nine eight, zero point five zero.
+
+Retrieval quality is evaluated by a function that scores the initial chunks against the query and is re-run after each expansion. Hard irrelevance exit at lexical relevance below zero point one zero combined with an invalid semantic intent. Semantic mismatch downgrades quality to moderate through the policy service.
+
+Recursive research: default maximum iterations seven, time budget one hundred and eighty seconds, decisions taken per iteration over accumulated context, actions search or answer. Two call sites: the fallback on a reasoning miss passes five; the verification-loop retry passes three.
+
+Reasoning chain config: light three sessions, standard four, deep five, unlimited fifty, each session a four thousand and ninety-six token window. Deep Think's effective session count comes from the reasoning policy. Rotating contexts of routed chunks with stride equal to chunks per session; the earlier stride of half that, described as fifty percent overlap for continuity, is gone.
+
+True unlimited reasoning: target confidence zero point nine eight, maximum sessions fifty, chunks per session three, coverage passes equal to ceiling of pool size over three, effective sessions equal to min of requested and the evidence-scaled ceiling. Fact bank decomposes the query into sub-questions. Running synthesis periodically. Termination reasons: target reached, saturation, cancellation, maximum sessions. Tools disabled inside these sessions.
+
+Internal calls: execution context on device only, cloud disallowed, temperature zero point seven, instruction to be concise and precise. Final synthesis through generate with proper consent, which calls make post-retrieval model plan.
+
+Recorded hazards in the source: context overflow at four thousand five hundred and twenty-one tokens on a four thousand and ninety-six limit, root cause the transcript being carried between sessions; citations resolved against the wrong array for the life of the chain, now fixed; a shorter re-ordered list turning citations past its end into dangling references; a fabricated zero point seven zero match score that was hardcoded on the audit snapshot rather than measured, confirmed downstream as exactly zero point seven on all eighty-two rows of a Deep Think run.
+
+Part seven. Backoff and the ladder.
+
+Adaptive pipeline optimiser: thermal critical forces minimal; memory pressure critical forces efficient; serious thermal no longer throttles; battery no longer triggers degradation on its own; on Mac only thermal and memory matter. Is constrained: thermal or memory not nominal, plus low battery on i O S. Agentic step cooldown one hundred milliseconds on baseline down to zero on ultra advanced. Device tiers: baseline A seventeen Pro, enhanced A eighteen, advanced A nineteen, ultra advanced M-series, unsupported. TOPS are looked up per chip: thirty-five for A seventeen Pro, thirty-five and thirty-eight for A eighteen and A eighteen Pro, thirty-eight for every M four, forty-five for every M five. A new Mac was once tiered as M three era because the lookup did not know M five; fixed late August.
+
+Compute units by profile. Query-side models: efficiency and balanced C P U and Neural Engine; performance and maximum all. Ingestion embedder: efficiency C P U and Neural Engine; balanced, performance, maximum all. The historical maximum returned C P U and G P U on both, excluding the Neural Engine.
+
+Vector search G P U gate: count at least one thousand and is G P U available, where available means a Metal device and a command queue exist. Threadgroup kernel at one thousand documents or more when safe, else SIMD kernel. C P U path: matrix multiply when count is at least the batch matrix multiply threshold, sixteen on ultra advanced and Int max on unsupported; else per-vector dot product. M M R matrix G P U gate: candidates above fifty, use Metal for vector ops enabled, G P U available.
+
+Part eight. Dormant, future, historical, as verified.
+
+Dormant: the Speech Analyzer transcription branch, guarded by can-import of a module that does not exist, calling results for U R L on an actor that declares analyze sequence instead. The Apple Foundation Models embedding provider, a one thousand and twenty-four dimension placeholder. The neural extractive Q A span model, a stub returning nil; generation always runs. Future: live Neural Engine utilisation; no public A P I. H N S W; exact scan over mapped vectors is used instead. L two and L three abstraction levels of the summary tree. Historical: the bundled Core M L generative backend, removed; the advanced twenty B alias as a distinct model; the C P U and G P U maximum profile; the N S Image lock focus render path; the zero point nine eight maximum verification threshold; the zero point five five tau normal.
+
+Part nine. Corrections to the two earlier documents.
+
+The Opus walkthrough. It says audio and video go through Speech Analyzer. Wrong in every build; the branch never compiles and S F Speech Recognizer runs. It says embeddings are generated on the Neural Engine through the newer inference path where available, falling back to Core M L. The newer path is real and is the default on the twenty-seven systems, but on the Neural Engine is a request, made only on the Core M L path, and only on the lower two profiles as C P U plus Neural Engine; the upper two request all units. It says Recognize Documents Request handles scans and photos. O C R is V N Recognize Text Request; Recognize Documents Request is the structure parser. It says page rendering is zero-copy. The P N G round trip is skipped; a page bitmap is still allocated. It says nine SQLite tables. Confirmed. It is thin on hardware placement throughout.
+
+The Terra word bank. All one hundred and fifty-three cited source paths exist. It anchors transcription to the S F Speech Recognizer service, which is correct and better than the Opus page. It calls the Core A I provider conditional; on the twenty-seven systems it is the default. Its caveat on the one thousand chunk G P U threshold says the route also depends on user G P U policy; it does not. It labels the Neural Engine core; no line places work there, five permit it. It labels live Neural Engine utilisation future, correct. It labels neural extractive Q A dormant, correct. Its pipeline recitation places the post-retrieval model plan at step ten, which matches the source order. It names the reranker Tiny BERT, unverified. Its R R F constant, approximately sixty, is exactly sixty.
+
+The Antigravity inventories used to build the trace: six ran, five verified line by line, one discarded for wrong line numbers and a wrong description of the app initialiser.
+
+That is the researcher's pass. Pass five ties it together and gives you the three versions to say out loud.
+
+End of pass four.
