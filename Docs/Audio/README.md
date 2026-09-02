@@ -4,20 +4,20 @@ Plain text written to be read aloud by a text-to-speech app such as ElevenLabs R
 no file paths or line numbers, identifiers spoken as words, abbreviations spelled out, and a pause
 cue before every quiz answer.
 
-## The course: five passes, about two hours
+## The course: five passes, about 75 to 90 minutes
 
 Each pass tells the whole machine end to end, one level deeper than the last. Stop after any pass
 and you have a complete picture at that depth.
 
 | Pass | File | Voice | About |
 |---|---|---|---|
-| 1 | `PASS_1_The_story.txt` | Explained like you're five, one analogy carried all the way through, no technical words | 15 min |
-| 2 | `PASS_2_The_beginner_tour.txt` | The same route with the real names of every part and why each exists | 30 min |
-| 3 | `PASS_3_The_engineer_to_a_newcomer.txt` | The numbers, the decisions, where it runs, what each stage drops | 40 min |
-| 4 | `PASS_4_The_researcher_to_an_expert.txt` | Formulas, exact thresholds, loop internals, dormant paths, corrections to the earlier documents | 25 min |
-| 5 | `PASS_5_Tie_it_together.txt` | The thread through all of it, the three spoken versions, a ten-question self-test | 10 min |
+| 1 | `PASS_1_The_story.txt` | Explained like you're five, one analogy carried all the way through, no technical words | 11 min |
+| 2 | `PASS_2_The_beginner_tour.txt` | The same route with the real names of every part and why each exists | 18 min |
+| 3 | `PASS_3_The_engineer_to_a_newcomer.txt` | The numbers, the decisions, where it runs, what each stage drops | 23 min |
+| 4 | `PASS_4_The_researcher_to_an_expert.txt` | Formulas, exact thresholds, loop internals, dormant paths, corrections to the earlier documents | 17 min |
+| 5 | `PASS_5_Tie_it_together.txt` | The thread through all of it, the three spoken versions, a ten-question self-test | 8 min |
 
-`STUDY_GUIDE_AUDIO_FULL.txt` is the five passes in one paste.
+`STUDY_GUIDE_AUDIO_FULL.txt` is the five passes in one paste: 11,445 words, about 76 minutes at 150 words a minute.
 
 ## The reference: the word bank, not for listening end to end
 
