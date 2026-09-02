@@ -33,6 +33,7 @@ Step-by-step execution mechanics for ingestion and query retrieval.
 | [RETRIEVAL_PIPELINE.md](RETRIEVAL_PIPELINE.md) | **Active Specification** — source-verified at v4.6, tree is v5.0 | The query loop, reciprocal rank fusion, Lost-in-the-Middle context packing, and verification gates. Its header lists the 4.8–4.9 retrieval changes it does not yet describe. |
 | [INGESTION_PIPELINE.md](INGESTION_PIPELINE.md) | **Active Specification** — source-verified at v4.6, tree is v5.0 | Vision OCR preprocessing, semantic chunking, subword validation, SQLite/BNNS storage. Header lists the 4.9 atomic-write changes not yet described. |
 | [RAG_TECHNICAL.md](Engineering/RAG_TECHNICAL.md) | **Deep-Dive Specification** | Code examples, class interfaces, parameters, algorithms (MMR, TinyBERT cross-encoders). |
+| [FULL_SYSTEM_TRACE.md](Engineering/FULL_SYSTEM_TRACE.md) | **Active Reference** — source-verified 2026-09-01 at `4840078` | **The execution trace**: launch, navigation, ingestion, a Standard query, the agentic modes, every hardware-unit request and the concurrency map, the iOS/macOS split, and a claims audit of the two earlier walkthroughs. Read this for *which unit runs what and how the code decides*. |
 | [STORAGE_AND_PIPELINE_TRACE.md](Engineering/STORAGE_AND_PIPELINE_TRACE.md) | *Historical Reference* | Prototype data flows, relational schema, legacy iCloud Drive sync boundaries. |
 
 ---

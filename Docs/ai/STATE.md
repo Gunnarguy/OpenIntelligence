@@ -2,7 +2,7 @@
 
 Updated: 2026-09-01
 Branch/worktree: main (primary checkout)
-Last verified commit: 845c7b9
+Last verified commit: 4840078
 
 ## Objective
 
@@ -53,6 +53,14 @@ All five are **build-verified and suite-verified only**. Treat every one as unco
 
 Plus `scripts/verify_doc_claims.py` (`845c7b9`), wired into `scripts/enforce_docs_hook.sh`.
 
+6. **Full system trace written, uncommitted** (2026-09-01). `Docs/Engineering/FULL_SYSTEM_TRACE.md`
+   is the execution trace from launch to answer with file:line, thread, requested silicon unit,
+   constants and drop points per stage, plus a claims audit of the two earlier walkthroughs (the
+   Opus 5 page `How OpenIntelligence Works` and the GPT-5.6 Terra `Audio Study Guide`, the latter
+   saved at the repo root by the owner). Indexed in `Docs/README.md`. Published privately at
+   https://claude.ai/code/artifact/aaca04a3-ec47-4f25-8529-0a42b80f2d2a. Every symbol in its §11
+   verify command was run and hit. Committed 2026-09-02.
+
 ## Active Constraints
 
 - **`OCRConfiguration.configureRequest` is NOT the live OCR path.** `extractStructuredPDFContent`
@@ -83,6 +91,7 @@ Plus `scripts/verify_doc_claims.py` (`845c7b9`), wired into `scripts/enforce_doc
 | `OpenIntelligence/Services/Document/Processing/DocumentProcessor.swift` | `renderPDFPageAsImage`, the phase-1.6 language detection, `restoredIngestionProgress`. |
 | `fastlane/metadata/` and `fastlane/metadata-ios/` | macOS and iOS App Store copy. iOS push is a documented swap-and-restore; see `Docs/ai/RUNBOOK.md`. |
 | `scripts/verify_doc_claims.py` | New gate. Four checks; deliberately cannot verify prose. |
+| `Docs/Engineering/FULL_SYSTEM_TRACE.md` | Uncommitted. The execution trace; open it before asserting where any stage runs or what it drops. Its §11 command re-verifies every cited symbol. |
 
 ## Verification
 
@@ -94,7 +103,7 @@ Run 2026-08-31 to 09-01, output read:
 - `bash scripts/build_simulator_smoke.sh` → **BUILD SUCCEEDED**.
 - Device build on **Xcode 26.6** → SUCCEEDED, **zero PCC symbols across all six binaries**, installed
   on the owner's iPhone 16 Pro Max.
-- `python3 scripts/verify_doc_claims.py` → **181 claims checked, all pass**.
+- `python3 scripts/verify_doc_claims.py` → **159 claims checked, all pass** (re-run 2026-09-01 after adding the trace document; the earlier run reported 181).
 - `python3 scripts/secret_scan.py` → clean.
 - `fastlane push_metadata version:5.1` → ran for `platform:ios` and `platform:osx`, both
   `finished successfully`.
@@ -114,7 +123,19 @@ any of the five changes.
    shipped. Verification path: run a fixed query set twice against one build and diff the retrieved
    chunk ids. Tracked at
    [determinism](https://app.notion.com/p/3cc49a74d54f81d7a88dffe679ce9bb1).
-4. **`scripts/test_stop_handoff.sh` has a failing assertion.** It guards the hook that tells a
+4. **The `SpeechAnalyzer` transcription path never compiles.** `SpeechAnalyzerService.swift:17,94,141,160`
+   guards it with `#if canImport(SpeechAnalyzer)`; no module of that name exists in the Xcode 27
+   iOS SDK (the actor lives in `Speech.framework`), and the code calls `analyzer.results(for:)`,
+   which the SDK does not declare. Every build takes `legacyTranscription` →
+   `AudioTranscriptionService` (`SFSpeechRecognizer`, on-device required). Transcription still
+   works, so this is **Future Backlog**, not v5.1; it is **not yet a Notion row**. Verification
+   path: `ls .../iPhoneOS.sdk/System/Library/Frameworks | grep -i speech` shows only
+   `Speech.framework`. Full detail in `Docs/Engineering/FULL_SYSTEM_TRACE.md` §3.2.
+5. **Two owner-saved files sit untracked at the repo root**:
+   `OpenIntelligence_Audio_Study_Guide_2026-08-27.md` and its `_TTS_Pack` zip. They are reference
+   material, not source. Ask whether to move them under `Docs/Research/` or gitignore them before
+   any `git add` touches the root.
+6. **`scripts/test_stop_handoff.sh` has a failing assertion.** It guards the hook that tells a
    session which documents it owes. Cheap, and worth fixing given this cycle was largely doc drift.
 
 ## Exact Next Action
