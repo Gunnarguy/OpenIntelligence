@@ -49,6 +49,9 @@ and [How It Works told iOS 26 users the app asks before sending](https://app.not
   source documents live under `Docs/Research/`. One finding filed to Future Backlog as
   [The SpeechAnalyzer transcription branch never compiles](https://app.notion.com/p/3cf49a74d54f812c962cf52805ffdb34):
   `canImport` of a module that does not exist; `SFSpeechRecognizer` runs instead, so nothing is broken.
+  `Docs/EdgeToEdge/` (2026-09-02) is the owner's complete explainer: all 612 word-bank concepts, seven-rung
+  module ladders, three rungs per concept, symbols grepped and constants verified; the full paste is
+  `EdgeToEdge/EDGE_TO_EDGE_FULL.md`. Thirteen corrections to the earlier documents are tabled in `00_START_HERE.md`.
 - **Release guards are version-aware.** `ci_scripts/ci_post_xcodebuild.sh` Gate 1: below 5.2 fail
   on any `PrivateCloudCompute` symbol, from 5.2 fail on zero, always against a live
   `SystemLanguageModel` control. `ci_scripts/ci_post_clone.sh`: fail fast when the CHANGELOG
