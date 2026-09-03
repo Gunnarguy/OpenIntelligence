@@ -2,7 +2,7 @@
 
 This index organizes the repository's documentation by purpose, lifecycle state, and the code it maps to.
 
-> **Reconciled 2026-09-02 against the shipped tree.** 5.1 is recorded as shipped on both platforms (macOS approved 2026-09-02; the same build was still in Apple's review queue for iOS when the owner chose to record it). 5.2, the Private Cloud Compute release, is fully staged and waits only on the release Xcode 27 reaching Xcode Cloud; `Docs/ai/RUNBOOK.md` "Enabling Private Cloud Compute" is the release-day list and `Docs/SHIPPED_VERSION.json` is the per-platform record.
+> **Reconciled 2026-09-02 against the shipped tree.** 5.1 is live on both platforms (both approved 2026-09-02, build 433). 5.2, the Private Cloud Compute release, is fully staged and waits only on the release Xcode 27 reaching Xcode Cloud; `Docs/ai/RUNBOOK.md` "Enabling Private Cloud Compute" is the release-day list and `Docs/SHIPPED_VERSION.json` is the per-platform record.
 >
 > Lifecycle state describes the **document**, not the code. A document can be an Active Reference and still be verified at an older version; where that is true, the entry says which version, and the document's own header carries the detail.
 

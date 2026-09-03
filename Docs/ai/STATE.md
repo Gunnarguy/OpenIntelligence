@@ -1,6 +1,6 @@
 # Current State
 
-Updated: 2026-09-02, 19:40
+Updated: 2026-09-02, 22:50
 Branch/worktree: main (primary checkout)
 Last verified commit: a70fab8
 
@@ -11,11 +11,15 @@ Last verified commit: a70fab8
 
 ## Status
 
-**Shipped:** 5.1 on both platforms per `Docs/SHIPPED_VERSION.json`. Apple's actual state at
-14:05 on 2026-09-02: macOS 5.1 `READY_FOR_SALE` (build 433, released automatically); iOS 5.1
-`WAITING_FOR_REVIEW` with the same build, release type `AFTER_APPROVAL`. **The owner chose to
-record iOS as shipped before approval**; `in_review.ios` in the file records the truth. Nothing
-further happens to 5.1 when Apple approves it.
+**Shipped:** iOS 5.1 and macOS 5.1, both `READY_FOR_SALE` on 2026-09-02, build 433. Nothing is in
+review.
+
+**5.2 records exist and carry their copy.** The owner created both version records on
+2026-09-02 at 22:37 (macOS `b5d4f680-79de-4fd6-9221-dbe8b8393bdc`, iOS
+`b724cdfc-444c-4c70-b5ba-fd0255443cf3`), `PREPARE_FOR_SUBMISSION`, release type `AFTER_APPROVAL`,
+screenshots and the iPhone preview carried over from 5.1. `push_metadata version:5.2` ran for both
+platforms at 22:42 and What's New, promotional text and the present-tense description read back
+exact. **Release day is therefore: repoint toolchain, build, attach, submit.**
 
 **5.2 is fully staged in this commit and cannot be built until Apple publishes the release Xcode
 27.** The Xcode Cloud `Default` workflow is pinned by id to Xcode 26.6 (Swift 6.3). Every push to
@@ -24,7 +28,7 @@ requires Swift 6.4"; that is intended. Xcode Cloud offers Xcode 27 beta 6 today
 (`27A5252f`); betas cannot be submitted and the owner declined a TestFlight rehearsal.
 
 **Release day is scripted.** `Docs/ai/RUNBOOK.md`, "Enabling Private Cloud Compute", "Release day,
-in order": five steps, three of them one command each. The scheduled routine
+in order": the records and copy are already done, so it is repoint, build, attach, submit. The scheduled routine
 `openintelligence-51-pcc-flip` (renamed in description to the 5.2 release routine, daily at 09:00
 from now) runs steps 1 to 4 the morning Xcode 27 appears and reports; the owner runs the two
 submit commands because the permission classifier blocks `fastlane submit_latest` from an agent.

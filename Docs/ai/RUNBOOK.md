@@ -868,11 +868,14 @@ it. 5.2 is the first build on Xcode 27 / Swift 6.4, and its only job is to turn 
    `ci_post_clone.sh` confirms Swift 6.4, `ci_post_xcodebuild.sh` Gate 1 confirms the archive
    carries `PrivateCloudCompute` symbols. Both fail loudly otherwise; a green run is the proof.
 
-4. **Create the 5.2 records and push the copy.** Both platform records, with the 5.2
-   `release_notes.txt`, `promotional_text.txt` and the present-tense `description.txt` already in
-   `fastlane/metadata/` (macOS) and `fastlane/metadata-ios/` (iOS, via the swap in "iOS and macOS
-   need different App Store release notes"). Attach the processed build to both records: "Staging a
-   release without submitting it".
+4. **Attach the processed build to both 5.2 records.** The records already exist (created by the
+   owner 2026-09-02; macOS `b5d4f680…`, iOS `b724cdfc…`) with the 5.2 copy pushed and verified
+   exact the same evening, and release type `AFTER_APPROVAL`. Attach per "Staging a release
+   without submitting it". If any metadata file changes after 2026-09-02, re-run
+   `push_metadata version:5.2` for both platforms first; the iOS and macOS 5.2 files are identical
+   so no swap is needed. **Run fastlane with `LANG=en_US.UTF-8 LC_ALL=en_US.UTF-8`**: under the
+   agent shell's default US-ASCII locale, `deliver` dies on the bullet characters in the notes with
+   `invalid byte sequence in US-ASCII` before contacting Apple.
 
 5. **Submit**, from the owner's terminal, the same two commands as 5.1:
 

@@ -1,5 +1,7 @@
 {
   "_comment": [
+    "2026-09-02 (latest): iOS 5.1 APPROVED AND LIVE, so both platforms are genuinely at 5.1 and in_review is empty. 5.2 version records were created in App Store Connect by the owner on 2026-09-02 (both PREPARE_FOR_SUBMISSION, release type AFTER_APPROVAL, screenshots and the iPhone preview carried over).",
+    "",
     "2026-09-02 (latest): 5.1 recorded as SHIPPED ON BOTH at the owner's explicit decision. macOS 5.1 is READY_FOR_SALE (build 433); iOS 5.1 is WAITING_FOR_REVIEW with the same build and the owner chose to claim it now rather than wait. This is the one entry in this file that deliberately runs ahead of App Store Connect. 5.2 is being prepared: the Private Cloud Compute release, first build on Xcode 27.",
     "",
     "2026-09-02 (latest): macOS 5.1 is APPROVED AND LIVE (build 433, automatic release). iOS 5.1 is WAITING_FOR_REVIEW with the same build; app_store stays 5.0 until iOS goes live, per the rule below. 5.2 is the Private Cloud Compute release and waits on Xcode 27 reaching Xcode Cloud's 'Latest Release'.",
@@ -51,9 +53,7 @@
     "macos": "5.1"
   },
   "preparing": "5.2",
-  "in_review": {
-    "ios": "5.1"
-  },
+  "in_review": {},
   "updated": "2026-09-02",
-  "verified_against": "Read from App Store Connect 2026-09-02 via the API: macOS 5.1 READY_FOR_SALE (build 433); iOS 5.1 WAITING_FOR_REVIEW (build 433). ios=5.1 is the owner's decision, not Apple's state; in_review records the truth."
+  "verified_against": "Read from App Store Connect 2026-09-02 22:40 via the API: iOS 5.1 and macOS 5.1 both READY_FOR_SALE (build 433). 5.2 records exist for both platforms in PREPARE_FOR_SUBMISSION with no build."
 }

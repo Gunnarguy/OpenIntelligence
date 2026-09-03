@@ -23,8 +23,7 @@
 
 ## 5.1
 
-<!-- Shipped 2026-09-02 (macOS approved, iOS in review with the same build; the owner chose to
-     record it as shipped on both). Historical note follows. iOS and macOS unify here: iOS was 5.0, macOS reached 5.0.2, and both
+<!-- Shipped 2026-09-02 on both platforms, build 433. Historical note follows. iOS and macOS unify here: iOS was 5.0, macOS reached 5.0.2, and both
      App Store version records were created 2026-08-28. ci_post_clone.sh stamps
      MARKETING_VERSION from this heading, so it must stay the first numbered
      heading until 5.1 ships. Put 5.1 entries under this heading, not under
