@@ -104,7 +104,7 @@ not started). Future Backlog is 72 rows, all `To Do`.
 in the repository: it holds that row *and* the orphan guard behind the idle-churn defect below. It
 is Tier-2 hard boundary and needs the owner to name it.
 
-**What landed 2026-08-29 to 09-01, all in build 432. The owner ran a large-PDF ingest on the Mac on 2026-09-02 and reported it working; that is the device evidence, by the owner's word:**
+**What landed 2026-08-29 to 09-01, in builds 432 and 433 (433 is what shipped as 5.1). The owner ran a large-PDF ingest on the Mac on 2026-09-02 and reported it working; that is the device evidence, by the owner's word:**
 
 - macOS PDF rendering moved off deprecated `NSImage.lockFocus` and a TIFF round-trip to a
   `CGBitmapContext`. Measured: 4.0x oversize and 370 MB per page removed. **Render was never the
