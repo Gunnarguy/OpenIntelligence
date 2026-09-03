@@ -4,6 +4,22 @@
 
 Public release highlights for OpenIntelligence.
 
+## 5.2
+The release that turns on Private Cloud Compute. Nothing about how the app reads, searches or checks
+your files changes; what changes is that one step, the writing of the answer, can now leave the
+device when it needs to, and only after you say so. Requires iOS, iPadOS or macOS 27.
+
+### Private Cloud Compute
+- **When a question needs more room than the model on your device can hold, the writing step can now go to Apple's Private Cloud Compute.** Reading your files, searching them, choosing what to cite and checking the finished answer against the passages still happen on your device, exactly as before. Every release since 4.6 has carried this support compiled out, waiting on iOS and macOS 27. This is the first build made with the toolchain that compiles it in.
+- **Nothing leaves without asking.** Before anything is sent, a sheet shows what would go: how many passages, how large, and why. Allow it once, allow it always, or keep everything on the device. You can also pin routing to On-Device in Settings and the question never comes up.
+- **Every answer says where it was written.** Expand the metrics bar under an answer to see On-Device or Private Cloud Compute.
+- **Apple's servers keep nothing after the answer.** The connection is end-to-end encrypted and the request is not accessible to Apple or to the developer; these are Apple's stated properties of Private Cloud Compute, and the app adds nothing to the request beyond the passages you approved.
+- **Measured on an iPhone with the A18 Pro:** roughly 86 tokens per second from Private Cloud Compute, against 27 on the device. Those figures were taken on a local build with the iOS 27 toolchain and are the same figures the earlier release notes cited.
+
+### Honesty
+- **How It Works and the About screen said the app asks before sending to Private Cloud Compute, on builds that could not send anything.** The check they read answered a different question, whether the operating system has Apple Intelligence, which is true of every iPhone that can run the app. It now answers the real one: whether this build can route to Private Cloud Compute. On a system older than 27 those screens say so plainly.
+- **The built-in guides, the Glossary and the Settings capability list now describe the build you are running.** Each of them picks its wording on the same condition the code uses, so a build with Private Cloud Compute says it is on and a build without it says it is not.
+
 ## 5.1
 Most of this release is about the Mac, where importing a large document had become slow enough to be
 unusable. The text recognition changes apply to iPhone and iPad as well.

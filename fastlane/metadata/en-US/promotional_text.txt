@@ -1,1 +1,1 @@
-Large documents import far faster on Mac, and the app no longer works away in the background while idle. Text recognition got quicker and more accurate.
+Private Cloud Compute is on. Questions too big for the on-device model can be written on Apple's servers, after you approve exactly what would be sent.

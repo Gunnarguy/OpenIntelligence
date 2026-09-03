@@ -1,1 +1,1 @@
-iPhone and iPad catch up on two Mac-only releases: a faster Documents tab, clearer library switching, and better text recognition.
+Private Cloud Compute is on. Questions too big for the on-device model can be written on Apple's servers, after you approve exactly what would be sent.

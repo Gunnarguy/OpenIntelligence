@@ -410,7 +410,9 @@ extension GlossaryTermID {
                 icon: "number",
                 section: .answering,
                 plain: "The unit a language model reads and writes in, roughly three quarters of a word. It matters because a model can only hold so many at a time, so a limit of 4,096 is a real ceiling on how much can be considered at once.",
-                technical: "Apple's on-device model and Private Cloud Compute both cap a session at 4,096 tokens (Apple TN3193). That single budget covers the instructions, the retrieved passages, your question and the answer together.",
+                technical: DeviceCapabilities.pccRoutingCompiledIn
+                    ? "Apple's on-device model caps a session at 4,096 tokens (Apple TN3193); Private Cloud Compute reports its own window at runtime and Settings shows the live figure. Either budget covers the instructions, the retrieved passages, your question and the answer together."
+                    : "Apple's on-device model caps a session at 4,096 tokens (Apple TN3193). That single budget covers the instructions, the retrieved passages, your question and the answer together.",
                 seeAlso: [.contextWindow, .languageModel],
                 synonyms: ["tokens", "4096", "budget", "limit"]
             )
@@ -422,7 +424,9 @@ extension GlossaryTermID {
                 icon: "rectangle.compress.vertical",
                 section: .answering,
                 plain: "The most a model can hold in mind at once: instructions, the passages found in your files, your question and its answer, all sharing the same space. When a question needs more than fits, something has to be left out, which is why finding the right passages matters more than having a bigger model.",
-                technical: "Fixed at 4,096 tokens for both on-device and Private Cloud Compute sessions (Apple TN3193). `ContextPackingService` selects and truncates retrieved passages to fit that budget before generation begins.",
+                technical: DeviceCapabilities.pccRoutingCompiledIn
+                    ? "4,096 tokens on the device (Apple TN3193); Private Cloud Compute reports its own window at runtime. `ContextPackingService` selects and truncates retrieved passages to fit the active budget before generation begins."
+                    : "Fixed at 4,096 tokens on the device (Apple TN3193). `ContextPackingService` selects and truncates retrieved passages to fit that budget before generation begins.",
                 seeAlso: [.token, .languageModel, .privateCloudCompute],
                 synonyms: ["context", "window", "context length", "4096", "packing"]
             )
@@ -449,7 +453,7 @@ extension GlossaryTermID {
                 term: "Private Cloud Compute",
                 icon: "cloud",
                 section: .answering,
-                plain: "Apple's servers, for the one case where a question needs more room than this device's model has. It is used for the writing step only, one request at a time, and only after you approve that request. Your files are not uploaded. The passages the answer needs are.",
+                plain: (DeviceCapabilities.pccRoutingCompiledIn ? "" : "Not in this version: support is built and arrives with iOS and macOS 27; every answer is written on this device. When it is on: ") + "Apple's servers, for the one case where a question needs more room than this device's model has. It is used for the writing step only, one request at a time, and only after you approve that request. Your files are not uploaded. The passages the answer needs are.",
                 technical: "`CloudEvidenceMinimizer` bounds the payload to a selected set of source IDs, names, page numbers and passage text. The consent sheet shows the provider, the model, prompt size, context size, chunk count and total estimated bytes before anything leaves. Setting routing to On-Device means this path is never taken.",
                 seeAlso: [.onDevice, .routing, .contextWindow, .languageModel],
                 synonyms: ["pcc", "cloud", "apple", "consent", "routing", "escalate"]
@@ -497,7 +501,9 @@ extension GlossaryTermID {
                 term: "Routing",
                 icon: "signpost.right.and.left",
                 section: .answering,
-                plain: "The decision behind every answer about where it gets written: on this device, or on Apple's Private Cloud Compute, only after you approve it. You can pin it to always stay on-device in Settings.",
+                plain: DeviceCapabilities.pccRoutingCompiledIn
+                    ? "The decision behind every answer about where it gets written: on this device, or on Apple's Private Cloud Compute, only after you approve it. You can pin it to always stay on-device in Settings."
+                    : "The decision behind every answer about where it gets written. In this version the answer is always on this device; Private Cloud Compute is built and arrives with iOS and macOS 27, and the picker already lets you pin routing to On-Device for then.",
                 technical: "On-Device, Private Cloud Compute, and Hybrid (decided per query from the evidence actually retrieved) are the three routes most people see. Setting routing to On-Device removes Private Cloud Compute as an option entirely rather than merely preferring the other path.",
                 seeAlso: [.onDevice, .privateCloudCompute],
                 synonyms: ["route", "routed", "hybrid"]

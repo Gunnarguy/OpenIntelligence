@@ -17948,7 +17948,7 @@ extension RAGService {
                         if hasAppleIntelligenceOS {
                             capabilities.supportsAppleIntelligence =
                                 capabilities.deviceChip.supportsAppleIntelligence
-                            capabilities.supportsPrivateCloudCompute = true
+                            capabilities.supportsPrivateCloudCompute = DeviceCapabilities.pccRoutingCompiledIn && capabilities.iOSMajor >= 27
                             capabilities.supportsWritingTools = true
                             capabilities.supportsImagePlayground =
                                 capabilities.deviceChip.supportsAppleIntelligence
@@ -18019,7 +18019,7 @@ extension RAGService {
                 #endif
 
                 // iOS 26 includes all iOS 18.1+ features
-                capabilities.supportsPrivateCloudCompute = true
+                capabilities.supportsPrivateCloudCompute = DeviceCapabilities.pccRoutingCompiledIn && capabilities.iOSMajor >= 27
                 capabilities.supportsWritingTools = true
                 capabilities.supportsImagePlayground =
                     capabilities.deviceChip.supportsAppleIntelligence
@@ -18028,7 +18028,7 @@ extension RAGService {
                 // but no Foundation Models yet
                 capabilities.supportsAppleIntelligence =
                     capabilities.deviceChip.supportsAppleIntelligence
-                capabilities.supportsPrivateCloudCompute = true
+                capabilities.supportsPrivateCloudCompute = DeviceCapabilities.pccRoutingCompiledIn && capabilities.iOSMajor >= 27
                 capabilities.supportsWritingTools = true
                 capabilities.supportsImagePlayground =
                     capabilities.deviceChip.supportsAppleIntelligence
@@ -18045,7 +18045,7 @@ extension RAGService {
             if hasAppleIntelligenceOS {
                 capabilities.supportsAppleIntelligence =
                     capabilities.deviceChip.supportsAppleIntelligence
-                capabilities.supportsPrivateCloudCompute = true
+                capabilities.supportsPrivateCloudCompute = DeviceCapabilities.pccRoutingCompiledIn && capabilities.iOSMajor >= 27
                 capabilities.supportsWritingTools = true
                 capabilities.supportsImagePlayground =
                     capabilities.deviceChip.supportsAppleIntelligence
@@ -18281,6 +18281,22 @@ enum DeviceChip: String {
 // MARK: - Device Capabilities Structure
 
 struct DeviceCapabilities {
+    /// True only in a build whose toolchain compiled the Private Cloud Compute paths in.
+    ///
+    /// `supportsPrivateCloudCompute` used to be set from the OS alone ("iOS 18.1+ has Apple
+    /// Intelligence, so it has PCC"), which is true of every iPhone that can run this app and
+    /// says nothing about whether *this binary* can route a request there. Four screens read it
+    /// as the latter and told 5.1 users the app would ask before sending, in a build that could
+    /// not send. The flag now means "compiled in, and on an OS that has the API"; the runtime
+    /// entitlement and quota checks stay in `FoundationModelRoutePolicy.isPCCAvailable`.
+    static let pccRoutingCompiledIn: Bool = {
+        #if compiler(>=6.4)
+        return true
+        #else
+        return false
+        #endif
+    }()
+
     // Device Information
     var deviceChip: DeviceChip = .a14Bionic
     var iOSVersion: String = "Unknown"

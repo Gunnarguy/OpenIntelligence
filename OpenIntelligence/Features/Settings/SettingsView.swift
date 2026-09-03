@@ -930,7 +930,9 @@ Text(label)
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Private Cloud Compute")
                         .font(.headline)
-                    Text("Larger context window than the device")
+                    Text(DeviceCapabilities.pccRoutingCompiledIn
+                        ? "Apple's servers for the writing step only, after you approve each request"
+                        : "Built, and arrives with iOS and macOS 27. Nothing leaves this device in this version.")
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
@@ -2348,7 +2350,9 @@ Text(deviceService.chipName)
             // list is shown to users as what the active mode is doing, so an
             // unimplemented row is a false claim, not a roadmap teaser. Both are
             // tracked on the roadmap; re-add each one when it actually runs.
-            items.append(.init(id: "pcc-escalation", icon: "cloud.lock.fill", label: "Private Cloud Compute", desc: "Context-heavy queries escalate to Apple's secure enclaves", color: .purple))
+            if DeviceCapabilities.pccRoutingCompiledIn {
+                items.append(.init(id: "pcc-escalation", icon: "cloud.lock.fill", label: "Private Cloud Compute", desc: "An oversized request can be written on Apple's servers, after you approve it", color: .purple))
+            }
             items.append(.init(id: "native-spotlight", icon: "magnifyingglass", label: "Spotlight Indexing", desc: "Your documents are indexed into Apple Core Spotlight", color: .purple))
             items.append(.init(id: "intent-route", icon: "signpost.right.and.left", label: "Intent Routing", desc: "Classifies query as lookup/procedure/compare/summarize", color: .purple))
             items.append(.init(id: "multi-query", icon: "magnifyingglass.circle.fill", label: "Multi-Query Expansion", desc: "LLM generates diverse search queries for broader retrieval", color: .purple))

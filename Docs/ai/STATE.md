@@ -1,155 +1,129 @@
 # Current State
 
-Updated: 2026-09-02, 14:10
+Updated: 2026-09-02, 19:40
 Branch/worktree: main (primary checkout)
-Last verified commit: 9c6335f
+Last verified commit: a70fab8
 
 ## Objective
 
-**Ship v5.1 to both platforms, then leave the app on the back burner for a few weeks.**
-
-Submitted. The owner ran both `submit_latest` lanes on 2026-09-02 at about 13:50 after the agent's
-attempt was blocked by the auto-mode permission classifier. Nothing is pending on anyone until
-Apple reviews.
+**5.2, the Private Cloud Compute release, is staged so that release day is attach and submit.**
+5.1 is recorded as shipped on both platforms. The app is otherwise on the back burner.
 
 ## Status
 
-**Live on the App Store:** iOS **5.0** (approved 2026-08-27), macOS **5.0.2** (approved 2026-08-28).
+**Shipped:** 5.1 on both platforms per `Docs/SHIPPED_VERSION.json`. Apple's actual state at
+14:05 on 2026-09-02: macOS 5.1 `READY_FOR_SALE` (build 433, released automatically); iOS 5.1
+`WAITING_FOR_REVIEW` with the same build, release type `AFTER_APPROVAL`. **The owner chose to
+record iOS as shipped before approval**; `in_review.ios` in the file records the truth. Nothing
+further happens to 5.1 when Apple approves it.
 
-**v5.1 is in review on both platforms, set to release automatically on approval.** Read back
-from App Store Connect at 14:05 on 2026-09-02: iOS and macOS both `WAITING_FOR_REVIEW`,
-`releaseType = AFTER_APPROVAL`, build 433 attached (iOS `7527f51b…`, macOS `5dc4c892…`), commit
-`9c6335f`. No `earliestReleaseDate` is set, so approval means live.
+**5.2 is fully staged in this commit and cannot be built until Apple publishes the release Xcode
+27.** The Xcode Cloud `Default` workflow is pinned by id to Xcode 26.6 (Swift 6.3). Every push to
+`main` from now until release day fails in `ci_post_clone.sh` in seconds with "version 5.2
+requires Swift 6.4"; that is intended. Xcode Cloud offers Xcode 27 beta 6 today
+(`27A5252f`); betas cannot be submitted and the owner declined a TestFlight rehearsal.
 
-| Platform | Version record | Screenshots on the record |
-|---|---|---|
-| macOS | `6783e646-64be-4c6b-92f7-11036ea1d9aa` | 7 desktop, unchanged |
-| iOS | `8a5c273c-147a-46b6-975d-98756c4a2dcc` | iPhone: 8 each at 6.9" (`APP_IPHONE_67`, 1320x2868, set `38baacdb…`), 6.5" (`APP_IPHONE_65`, 1284x2778, set `869cfd6d…`) and 6.3" (`APP_IPHONE_61`, 1206x2622, set `819b8c49…`), the two smaller sets resampled and centre-cropped by 12 px and 1 px from the originals. iPad 12.9": 5, unchanged. The original 6.5" screenshot set was deleted. **App preview video** `OpenIntelligence-Ingestion-ULTRA-SHARP-30FPS.mp4` (5.4 MB, 886x1920) sits only on the 6.5" preview set `cd4bf817…`; Apple scales it to 6.9" automatically per its spec, and the 6.9" preview slot stays empty until the owner supplies the original file, which is on no indexed volume of this Mac (Spotlight by name, by 886 px width, and by portrait 1920 px movie all empty). Apple's hosted copy is a 332x720 player transcode and cannot be re-uploaded. |
+**Release day is scripted.** `Docs/ai/RUNBOOK.md`, "Enabling Private Cloud Compute", "Release day,
+in order": five steps, three of them one command each. The scheduled routine
+`openintelligence-51-pcc-flip` (renamed in description to the 5.2 release routine, daily at 09:00
+from now) runs steps 1 to 4 the morning Xcode 27 appears and reports; the owner runs the two
+submit commands because the permission classifier blocks `fastlane submit_latest` from an agent.
+After approval the routine runs step 6, the claim flip.
 
-**Installed on the owner's iPhone 16 Pro Max** on 2026-09-02 at 12:22: Debug build of `9c6335f` on
-Xcode 26.6, stamped `MARKETING_VERSION=5.1`, zero Private Cloud Compute symbols across all six
-Mach-O files, installed and launched over the wireless tunnel with `devicectl`. The 5.1 What's New
-sheet should have appeared on first launch because the previous install was 5.0.
-
-**Notion v5.1**, written 2026-09-02: 5 rows, all `Completed`, `Shipped On` empty until live. The
-new row is
-[the sample documents told users questions go to PCC](https://app.notion.com/p/3cf49a74d54f81ed8cc8c81aaa8eff9e).
-Two rows moved to Future Backlog with dated notes: the ingestion pause control (a feature) and
-[Six file families sync without NSFileCoordinator](https://app.notion.com/p/3ca49a74d54f8103b69be921f0335171),
-which passes the data-loss test and is **first in line for the next release** but was never started
-and needs the owner to name `WorkspaceSyncService.swift`.
-
-**`5.1 Screenshots/` at the repo root is untracked and not ignored.** Eight `IMG_*.jpeg` from the
-owner's phone that are PNG data misnamed (`file` says PNG, Display P3, no alpha). `PNG/` holds
-byte-identical copies with the right extension; `PNG-6.5in-1284x2778/` and `PNG-6.3in-1206x2622/`
-hold the resized sets that were uploaded. Leave the whole folder out of every `git add`.
+**Notion.** v5.1: 5 rows `Completed`, `Shipped On: iOS, macOS`. v5.2 (option added 2026-09-02):
+[Private Cloud Compute ships](https://app.notion.com/p/3cf49a74d54f8185ae8ddaf991244d0a) `To Do`,
+and [How It Works told iOS 26 users the app asks before sending](https://app.notion.com/p/3d049a74d54f81439d82f10955226ba0)
+`Completed` in code, `Shipped On` empty until 5.2 is live. Future Backlog 73.
 
 ## Completed this cycle
 
-- **Learning set, docs only, all pushed (2026-09-02).** `Docs/Engineering/FULL_SYSTEM_TRACE.md` is the
-  execution trace with file:line and requested silicon per stage; `Docs/STUDY_GUIDE.md` is the course over
-  the 612-term word bank; the five `PASS_*` files under `Docs/Audio/` are the spoken version, five passes each one level
-  deeper, 76 minutes, with the word bank in `Audio/Reference_word_bank/` for lookup only. Two source
-  documents live under `Docs/Research/`. One finding filed to Future Backlog as
-  [The SpeechAnalyzer transcription branch never compiles](https://app.notion.com/p/3cf49a74d54f812c962cf52805ffdb34):
-  `canImport` of a module that does not exist; `SFSpeechRecognizer` runs instead, so nothing is broken.
-
-- **`9c6335f`**: the three sample documents in `SampleDocumentManager.swift` rewritten from source
-  (the audit and every source is in the CHANGELOG 5.1 entry and the Notion row), and `WhatsNewStore`
-  given its missing 5.0.2 and 5.1 entries. Docs moved in the same commit: `CHANGELOG.md`,
-  `Docs/USER_CHANGELOG.md`, `WHATS_NEW.md`, `OpenIntelligence/Resources/VersionHistory.md` (byte
-  copy of `USER_CHANGELOG.md`, enforced by `VersionHistoryTests`).
-- PCC in the samples is written as built, compiled out, and arriving with iOS and macOS 27, the
-  same framing as the App Store description. The owner asked for it "as if working"; it was written
-  accurately instead because a cited yes from the library would contradict the metrics bar under
-  the same answer. If the owner reaffirms, the three sentences to change are the PCC bullet in
-  "What makes OpenIntelligence different", the "Not in this build" paragraph in the PCC guide, and
-  the "Where the work runs" bullet in the architecture guide.
-- iOS screenshots replaced through the API; procedure now in the RUNBOOK.
-- `513127c` earlier the same day: build 432 attached, roadmap triage, RUNBOOK staging note.
+- **Release guards are version-aware.** `ci_scripts/ci_post_xcodebuild.sh` Gate 1: below 5.2 fail
+  on any `PrivateCloudCompute` symbol, from 5.2 fail on zero, always against a live
+  `SystemLanguageModel` control. `ci_scripts/ci_post_clone.sh`: fail fast when the CHANGELOG
+  version is 5.2+ and the runner's Swift is below 6.4. The `## 5.2` heading is the single switch.
+- **`scripts/xcode_cloud_toolchain.rb`** lists Xcode Cloud's toolchains and repoints the workflow
+  (`--set 'Xcode 27'`). API PATCH verified accepted 2026-09-02.
+- **In-app copy flips on the compiler.** `DeviceCapabilities.pccRoutingCompiledIn` (RAGService)
+  drives `supportsPrivateCloudCompute`, which now means "this build can route to PCC and the OS is
+  27"; before, it meant "the OS has Apple Intelligence" and four screens misread it. The metrics
+  bar footer, Settings PCC row and capability list, Glossary token/context/PCC/routing entries, and
+  the three sample guides (`SamplePCCCopy`, seven interpolation points) all read it.
+- **5.2 copy written:** `CHANGELOG.md` `## 5.2 <!-- unreleased -->` with four entries;
+  `Docs/USER_CHANGELOG.md` `## v5.2 - unreleased` (byte-copied to
+  `OpenIntelligence/Resources/VersionHistory.md`); `WHATS_NEW.md`; `WhatsNewStore` 5.2 sheet;
+  `fastlane/metadata*/en-US/release_notes.txt` and `promotional_text.txt` (both platforms, same
+  text); `description.txt` PCC sentence in present tense (per-version in ASC, so safe to push to
+  the 5.2 records only).
+- **5.1 cut:** `unreleased` marker off `## 5.1`; `Docs/RELEASE_NOTES.md` v5.1 section;
+  `USER_CHANGELOG` dated; `SHIPPED_VERSION.json` 5.1 both, preparing 5.2.
+- **Site patches held, not applied:** `Docs/Release/5.2/sites/{Fascinaiting,Gunzino,Gunnarguy-Portfolio}.patch`,
+  each verified with `git apply --check` in its checkout. They flip every future-tense PCC sentence
+  on the three sites; apply after 5.2 approval (routine step 6). Fascinaiting's roadmap re-synced
+  today (236 rows, `shipped_on` exported, 5.1 lane now Shipped).
 
 ## Active Constraints
 
-- **Do not remove the `unreleased` HTML comment from the `## 5.1` heading in `CHANGELOG.md` until
-  5.1 is approved and live.** `repoos_router.py` reads it there. Removing it is what "cutting the
-  release" means in this repository. `ci_post_clone.sh` stamps `MARKETING_VERSION` from that heading.
-- **Do not build a release on this Mac.** Its beta macOS stamps a prerelease `BuildMachineOSBuild`
-  that App Store ingestion rejects after a green validate. Xcode Cloud is the builder.
-- **`OCRConfiguration.configureRequest` is not the live OCR path.** `StructuredDocumentParser`
-  builds the `RecognizeDocumentsRequest` on OS 26+. Two commits fixed the wrong file.
-- **`push_metadata` cannot pick copy per platform.** iOS is pushed by the swap-and-restore in
-  `Docs/ai/RUNBOOK.md` ("iOS and macOS need different App Store release notes"). Fixing that is one
-  line in `fastlane/Fastfile`, which the owner must name.
-- **Screenshots are per platform and per display type.** Replacing them with `deliver` needs
-  `skip_screenshots: false` and a `screenshots_path`; `push_metadata` hardcodes `skip_screenshots:
-  true`. Uploading through the API directly is also fine: `appScreenshotSets` per localization.
-- **Benchmark runs are archived, not on disk**, in
-  `~/OpenIntelligence-BenchmarkArchive/BenchmarkRuns-2026-09-01.tar.gz`. `BenchmarkRuns/LEDGER.md`
-  still indexes them.
+- **`fastlane/metadata*` now hold 5.2 copy.** Running `push_metadata version:5.1` would overwrite
+  the live 5.1 listing with 5.2 text. Do not.
+- **Do not repoint Xcode Cloud at a beta.** `xcode_cloud_toolchain.rb` warns; the owner declined
+  the rehearsal.
+- **Do not remove the `unreleased` marker from `## 5.2`** until 5.2 is live (router reads it).
+- **Do not build a release on this Mac** (prerelease `BuildMachineOSBuild`, ITMS-90111).
+- **The Gunnarguy-Portfolio checkout carries another session's uncommitted changes** (four
+  `snapshot.html`, `Analytics.astro`). Stay out of it; apply the patch there only via the routine.
+- **`fastlane/Fastfile` is unchanged**; the iOS metadata swap remains manual (RUNBOOK).
 
 ## Working Set
 
 | File | Why it matters |
 |---|---|
-| `CHANGELOG.md` | `## 5.1 <!-- unreleased -->` heading. Marker comes off when 5.1 is live, and the next heading is `5.2` per the `next-version` comment. |
-| `fastlane/metadata/en-US/` | macOS copy, canonical. Matches App Store Connect as of 2026-09-02. |
-| `fastlane/metadata-ios/en-US/` | iOS `release_notes.txt` and `promotional_text.txt`. Matches App Store Connect as of 2026-09-02. |
-| `fastlane/Fastfile` | `submit_latest` submits with the newest processed build; it also re-pushes metadata from `fastlane/metadata/`, so the iOS swap applies to it too. |
-| `Docs/ai/RUNBOOK.md` | Release section, the iOS swap, and the new "stage a build without submitting" note. |
-| `Docs/SHIPPED_VERSION.json` | Per-platform shipped record. Update when 5.1 is approved. |
-| `HANDOFF.md` | Cross-tool handoff. Current-state section refreshed 2026-09-02. |
+| `Docs/ai/RUNBOOK.md` "Enabling Private Cloud Compute" | The release-day list. Read it before doing anything on 5.2. |
+| `scripts/xcode_cloud_toolchain.rb` | Step 1 and 2 of release day. |
+| `ci_scripts/ci_post_clone.sh`, `ci_scripts/ci_post_xcodebuild.sh` | The guards; their messages name the fix when they fail. |
+| `CHANGELOG.md` | `## 5.2 <!-- unreleased -->` first; the marker comes off when live. `next-version: 5.3`. |
+| `Docs/Release/5.2/sites/*.patch` | The website flips, held. |
+| `Docs/SHIPPED_CAPABILITIES.json` | `private_cloud_compute.status` flips to `shipping` at approval, not before. |
+| `OpenIntelligence/Services/RAG/Orchestration/RAGService.swift` | `DeviceCapabilities.pccRoutingCompiledIn`. |
+| `OpenIntelligence/Features/Documents/Library/SampleDocumentManager.swift` | `SamplePCCCopy`. |
 
 ## Verification
 
-Run 2026-09-02, output read:
+Run 2026-09-02 evening, output read, all against the staged 5.2 tree:
 
-- `bash scripts/build_simulator_smoke.sh` → **Simulator smoke build succeeded** (second attempt;
-  the first hung at the header on 1.1 GB of stale `.simulator-smoke.nosync/DerivedData`).
-- `xcodebuild test` on the iOS 27 simulator `8FA2B3CE…`, DerivedData `/private/tmp/oi-build` →
-  **392 tests, 3 skipped, 0 failures**. Took five attempts: four stalled at the header while
-  another session's OpenManual test loop and then an idle Xcode held the SwiftPM lock.
-- `python3 scripts/verify_doc_claims.py` → 162 claims, all pass. `python3 scripts/secret_scan.py` → clean.
-- Device build, Xcode 26.6, `generic/platform=iOS`, `MARKETING_VERSION=5.1` → **BUILD SUCCEEDED**;
-  `nm -u | grep -ci PrivateCloudCompute` → 0 on all six Mach-O files; `devicectl install` and
-  `launch` succeeded.
-- App Store Connect API: eight `appScreenshots` in set `38baacdb…` all `COMPLETE` at 1320x2868;
-  old set `b9708d9b…` deleted with HTTP 204.
+- `bash scripts/build_simulator_smoke.sh` → **Simulator smoke build succeeded**.
+- `xcodebuild test`, iOS 27 simulator → **392 tests, 3 skipped, 0 failures**.
+- `python3 scripts/verify_doc_claims.py` → all pass. `scripts/secret_scan.py` → clean.
+  `scripts/verify_capabilities.py` → all anchors present. `bash scripts/test_enforce_docs_hook.sh`
+  → 10 passed.
+- Guard logic dry-run: `sort -V` compare marks 5.1 and 5.1.1 as PCC-forbidden, 5.2/5.10/6.0 as
+  PCC-required; release Xcode reports Swift 6.3 (fails the 5.2 clone check), Xcode-beta reports
+  6.4 (passes).
+- `repoos_router.py preflight` → active release `v5.2`, in_development, last shipped `v5.1`.
+- `git apply --check` of each site patch in its own checkout → applies cleanly.
 
-**Not verified:** the refreshed samples appearing in a library that held the old ones (the closing
-condition on the Notion row); the What's New sheet actually rendering on the phone. Both are one
-look at the owner's iPhone.
+**Not verified:** any PCC behaviour on a 5.2 binary, because none exists yet. The compiled-in
+copy branches were parsed, built (the simulator build uses Xcode-beta, Swift 6.4, so
+`pccRoutingCompiledIn` was `true` there and the suite passed with it) but not read on a device.
 
 ## Blockers / Unknowns
 
-1. **Somewhere the owner can see says 5.1 is expected on September 16, and no search found it.**
-   Not in this repo (every text type), not in `Gunzino`, `Fascinaiting`, `Gunnarguy-Portfolio`,
-   `OpenIntelligence-Public` or `SocialPosting` checkouts, not in the Notion Public Roadmap, Product
-   Hub or Posts pages, not in GitHub issues or releases, not in Spotlight's full-text index, and
-   App Store Connect has no such field (`earliestReleaseDate` is empty). Unchecked: the live
-   `gunzino.me/openintelligence` and `fascinaiting.me` pages, which may differ from their checkouts.
-   The owner said to drop it. If it resurfaces, fix it at the source and note where it was.
-2. **`fastlane submit_latest` is blocked for the agent** by the auto-mode classifier, twice as a
-   plain command. Future submissions come from the owner's terminal unless they add a Bash
-   permission rule for it in `.claude/settings.local.json`.
-3. **The `SpeechAnalyzer` path never compiles** (`SpeechAnalyzerService.swift`, `#if
-   canImport(SpeechAnalyzer)`, no such module in the iOS 27 SDK). Transcription works through
-   `SFSpeechRecognizer`. Future Backlog, **not yet a Notion row**.
-4. **`scripts/test_stop_handoff.sh` has a failing assertion.** Unrelated to shipping.
+1. **Apple has not published the release Xcode 27.** Everything waits on it. The routine checks
+   daily.
+2. **Xcode Cloud will fail every push until release day.** Expected; the failure message says why.
+   If a 5.1 hotfix is ever needed, see the RUNBOOK caveat.
+3. **PCC context window.** Glossary and Settings no longer assert a number for PCC; the app reads
+   it from the SDK at runtime. Nobody has recorded what iOS 27 reports. Read it from Settings on
+   the first 5.2 device install.
+4. **The 5.2 What's New says "Requires iOS, iPadOS or macOS 27"** for the PCC step; on 26 the
+   same binary runs fully on device. True by construction (`#available(iOS 27)` inside the
+   compiled-in paths); confirm on the first 5.2 build on an iOS 26 device if one is at hand.
 
 ## Exact Next Action
 
-**Nothing until Apple approves.** The app is on the back burner. When both versions read
-`READY_FOR_SALE` (`GET apps/6756559175/appStoreVersions?filter[versionString]=5.1`):
+**Nothing today.** The routine runs at 09:00 daily. When it reports that Xcode 27 is on Xcode
+Cloud and the build is attached, run the two submit commands it prints. If the routine has not
+fired by the day after Apple's iOS 27 release, run step 1 by hand:
 
-1. Remove the `unreleased` HTML comment from the `## 5.1` heading in `CHANGELOG.md`. Update
-   `Docs/SHIPPED_VERSION.json` for both platforms. Change `## v5.1 - unreleased` in
-   `Docs/USER_CHANGELOG.md` to the approval date and copy the file byte-for-byte to
-   `OpenIntelligence/Resources/VersionHistory.md` (`VersionHistoryTests` enforces this); do the same
-   heading in `WHATS_NEW.md`.
-2. Set `Shipped On` to `iOS, macOS` on the five v5.1 Notion rows.
-3. Commit. The next release's first row is
-   [Six file families sync without NSFileCoordinator](https://app.notion.com/p/3ca49a74d54f8103b69be921f0335171);
-   it needs the owner to name `WorkspaceSyncService.swift` and a `v5.2` option in `Target Release`.
-
-If Apple rejects, the record returns to `DEVELOPER_REJECTED`, which is editable; fix, push, and
-re-attach the new build per the RUNBOOK staging note before resubmitting.
+```bash
+ruby scripts/xcode_cloud_toolchain.rb
+```

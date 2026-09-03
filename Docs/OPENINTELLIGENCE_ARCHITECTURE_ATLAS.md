@@ -151,6 +151,21 @@ The OpenIntelligence Architecture Atlas is the canonical representation of the r
 - **Consent Persistence**: `cloudConsent.applePCC` is the canonical remembered decision and wins over stale `pcc.setting` compatibility state. Startup loads/migrates consent but never creates a consent record or opens the sheet; only a finalized post-retrieval transmission record can populate `pendingCloudConsent`. `[evidence_level: code_verified+test_verified, confidence: high_pending_physical_device_validation, evidence_source: SettingsStore.swift, RAGService.swift, PCCConsentPreferenceMigrationTests.swift]`
 - **GPU Execution Policy**: `GPUExecutionProfile` migrates the old numeric preference into four discrete profiles. `DeviceCapabilityService` is the shared policy source for Core ML preferences, PDF rendering, large Metal vector/MMR gates, and background GPU eligibility. The UI reports policy rather than claiming exact utilization. `[evidence_level: code_verified+test_verified, confidence: high_pending_device_thermal_validation, evidence_source: DeviceCapabilityService.swift, SettingsView.swift, RAGEngine.swift, BNNSVectorDatabase.swift]`
 
+### `DeviceCapabilities.supportsPrivateCloudCompute` means "this build can route to PCC" (2026-09-02)
+
+Until 5.1 the flag was set from the operating system alone in `RAGService.checkDeviceCapabilities`
+("iOS 18.1+ has Apple Intelligence, so it has PCC"), which is true of every device that can run the
+app and says nothing about whether the binary contains the routing. Four screens read it as the
+latter: `HowItWorksView.leavingExplanation`, the About capability list, `ModelInfoCard`, and the
+Settings PCC window row, so every 5.0 and 5.1 build on iOS 26 told users the app would ask before
+sending a request, while all twelve `#if compiler(>=6.4)` sites were compiled out. The flag is now
+`DeviceCapabilities.pccRoutingCompiledIn && iOSMajor >= 27`, where `pccRoutingCompiledIn` is a
+static resolved by the same compiler condition; entitlement and quota stay in
+`FoundationModelRoutePolicy.isPCCAvailable`. The metrics bar footer, the Settings capability list,
+the Glossary and the sample guides (`SamplePCCCopy`) choose their wording on the same static, so one
+binary cannot describe two builds.
+`[evidence_level: code_verified, confidence: high, evidence_source: RAGService.swift DeviceCapabilities.pccRoutingCompiledIn and the four assignments in checkDeviceCapabilities; ci_scripts/ci_post_xcodebuild.sh Gate 1]`
+
 ## 11. Billing/Entitlement Boundaries
 - **UserDefaults**: `EntitlementStore.swift` relies on UserDefaults for limits. `[evidence: code_verified, exact, EntitlementStore.swift]`
 - **Keychain**: Strictly used for API keys, not entitlements. `[evidence: code_verified, exact]`

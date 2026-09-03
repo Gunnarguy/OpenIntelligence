@@ -1,0 +1,38 @@
+--- a/index.html
++++ b/index.html
+@@ -117,7 +117,7 @@
+               {
+                 "@type": "Question",
+                 "name": "Does my data leave my device?",
+-                "acceptedAnswer": { "@type": "Answer", "text": "Not unless you approve it. Document ingestion, embedding, search, and answer verification always run on your device using Apple's foundation models, and answers are generated on-device by default. Optional Apple Private Cloud Compute support for long evidence-heavy requests is built and will enable in a future release on iOS, iPadOS, and macOS 27. When it does, it will cover the final synthesis only, after the app shows you exactly what would be sent and you give permission. Every answer already displays a badge showing the route that actually ran, and today every route is local. On older OS versions, every query runs entirely on device." }
++                "acceptedAnswer": { "@type": "Answer", "text": "Not unless you approve it. Document ingestion, embedding, search, and answer verification always run on your device using Apple's foundation models, and answers are generated on-device by default. On iOS, iPadOS, and macOS 27, a long evidence-heavy request can use Apple Private Cloud Compute for the final synthesis only, after the app shows you exactly what would be sent and you give permission. Every answer displays a badge showing the route that actually ran. On older OS versions, every query runs entirely on device." }
+               },
+               {
+                 "@type": "Question",
+@@ -457,7 +457,7 @@
+           <p class="eyebrow" style="margin-bottom: 1rem;">Open Source &middot; Built on Apple Intelligence</p>
+           <h1 id="hero-title" style="text-align: center; margin-bottom: 1.5rem;">Ask your files anything. Inspect every answer.</h1>
+           <p class="hero-subheadline" style="text-align: center; margin-bottom: 2rem;">
+-            OpenIntelligence turns your PDFs, Office documents, spreadsheets, presentations, notes, scans, code, and audio or video recordings into searchable libraries on iPhone, iPad, and Mac &mdash; then answers with citations you can tap to verify. Retrieval and verification always run on your device, and on-device answering works in airplane mode with no account and no API keys. Every answer carries a badge showing the route that actually ran, read from an execution receipt rather than from what was requested, and today that route is always on-device. Optional Apple Private Cloud Compute for long, evidence-heavy requests is built and will enable in a future release on iOS and macOS 27, only after the app shows you exactly what would be sent and you approve it. Under the hood: an open-source 29-step RAG engine built on Apple's foundation models, with Vision OCR ingestion and Metal-accelerated retrieval.
++            OpenIntelligence turns your PDFs, Office documents, spreadsheets, presentations, notes, scans, code, and audio or video recordings into searchable libraries on iPhone, iPad, and Mac &mdash; then answers with citations you can tap to verify. Retrieval and verification always run on your device, and on-device answering works in airplane mode with no account and no API keys. Every answer carries a badge showing the route that actually ran, read from an execution receipt rather than from what was requested. On iOS and macOS 27, a long, evidence-heavy request can optionally use Apple Private Cloud Compute, only after the app shows you exactly what would be sent and you approve it; on older systems every route is on-device. Under the hood: an open-source 29-step RAG engine built on Apple's foundation models, with Vision OCR ingestion and Metal-accelerated retrieval.
+           </p>
+           
+           <div class="app-store-badges" style="display: flex; gap: 1rem; justify-content: center; margin-bottom: 3rem; align-items: center; flex-wrap: wrap;">
+@@ -513,7 +513,7 @@
+               <svg viewBox="0 0 448 512" fill="currentColor" style="width: 1.5rem; height: 1.5rem;"><path d="M400 96H48C21.5 96 0 117.5 0 144v48c0 26.5 21.5 48 48 48h352c26.5 0 48-21.5 48-48v-48c0-26.5-21.5-48-48-48zm-304 72a16 16 0 1 1 0-32 16 16 0 0 1 0 32zm48 0a16 16 0 1 1 0-32 16 16 0 0 1 0 32zm256-72H48C21.5 288 0 309.5 0 336v48c0 26.5 21.5 48 48 48h352c26.5 0 48-21.5 48-48v-48c0-26.5-21.5-48-48-48zm-304 72a16 16 0 1 1 0-32 16 16 0 0 1 0 32zm48 0a16 16 0 1 1 0-32 16 16 0 0 1 0 32z"/></svg>
+             </div>
+             <h3 style="font-family: var(--font-mono); font-size: 1.1rem;">Execution Policy Control</h3>
+-            <p style="color: var(--muted); font-size: 0.9rem;">Choose Hybrid, On-Device, or Private Cloud Compute as a persistent policy. Until PCC enables on iOS and macOS 27, every policy resolves on-device. Routing decisions happen after retrieval, based on the evidence actually found — and every answer shows a receipt-backed badge for the route that completed it.</p>
++            <p style="color: var(--muted); font-size: 0.9rem;">Choose Hybrid, On-Device, or Private Cloud Compute as a persistent policy. On systems older than iOS and macOS 27, every policy resolves on-device. Routing decisions happen after retrieval, based on the evidence actually found — and every answer shows a receipt-backed badge for the route that completed it.</p>
+           </article>
+ 
+           <article class="capability-card" style="background: var(--lift-02); border: 1px solid var(--line); border-radius: 12px; padding: 1.5rem; display: flex; flex-direction: column; gap: 0.75rem;">
+@@ -994,7 +994,7 @@
+         </div>
+         <details style="border: 1px solid var(--line); border-radius: 10px; padding: 1rem 1.25rem; margin-bottom: 0.75rem;">
+           <summary style="cursor: pointer; font-family: var(--font-mono); font-weight: 600;">Does my data leave my device?</summary>
+-          <p style="color: var(--muted); margin-top: 0.75rem;">Not unless you approve it. Document ingestion, embedding, search, and answer verification always run on your device using Apple's foundation models, and answers are generated on-device by default. Optional Apple Private Cloud Compute support for long evidence-heavy requests is built and will enable in a future release on iOS, iPadOS, and macOS 27. When it does, it will cover the final synthesis only, after the app shows you exactly what would be sent and you give permission. Every answer already displays a badge showing the route that actually ran, and today every route is local. On older OS versions, every query runs entirely on device.</p>
++          <p style="color: var(--muted); margin-top: 0.75rem;">Not unless you approve it. Document ingestion, embedding, search, and answer verification always run on your device using Apple's foundation models, and answers are generated on-device by default. On iOS, iPadOS, and macOS 27, a long evidence-heavy request can use Apple Private Cloud Compute for the final synthesis only, after the app shows you exactly what would be sent and you give permission. Every answer displays a badge showing the route that actually ran. On older OS versions, every query runs entirely on device.</p>
+         </details>
+         <details style="border: 1px solid var(--line); border-radius: 10px; padding: 1rem 1.25rem; margin-bottom: 0.75rem;">
+           <summary style="cursor: pointer; font-family: var(--font-mono); font-weight: 600;">Does OpenIntelligence work offline?</summary>

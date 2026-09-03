@@ -26,56 +26,86 @@
     "on_device_retrieval": {
       "status": "shipping",
       "public_claim": "Reading, indexing, retrieval, ranking and verification all run on your device.",
-      "anchors": ["HybridSearchService", "BNNSVectorDatabase", "SQLiteFullTextService"]
+      "anchors": [
+        "HybridSearchService",
+        "BNNSVectorDatabase",
+        "SQLiteFullTextService"
+      ]
     },
     "on_device_generation": {
       "status": "shipping",
       "public_claim": "Answers are written by the Apple Intelligence models already built into the device.",
-      "anchors": ["SystemLanguageModel", "LanguageModelSession"]
+      "anchors": [
+        "SystemLanguageModel",
+        "LanguageModelSession"
+      ]
     },
     "abstention": {
       "status": "shipping",
       "public_claim": "When your files don't support an answer, it says so and stops.",
-      "anchors": ["case abstain", "case insufficientEvidence"]
+      "anchors": [
+        "case abstain",
+        "case insufficientEvidence"
+      ]
     },
     "answer_verification": {
       "status": "shipping",
       "public_claim": "It checks the finished answer against the passages it actually used.",
-      "anchors": ["VerificationGateService", "SourceOnlyAnswerService", "ConfidenceCalibrationService"]
+      "anchors": [
+        "VerificationGateService",
+        "SourceOnlyAnswerService",
+        "ConfidenceCalibrationService"
+      ]
     },
     "vision_ocr": {
       "status": "shipping",
       "public_claim": "Images and scans, read with Vision OCR.",
-      "anchors": ["RecognizeDocumentsRequest"]
+      "anchors": [
+        "RecognizeDocumentsRequest"
+      ]
     },
     "media_transcription": {
       "status": "shipping",
       "public_claim": "Audio and video, transcribed on device.",
-      "anchors": ["SpeechAnalyzerService", "AudioTranscriptionService"]
+      "anchors": [
+        "SpeechAnalyzerService",
+        "AudioTranscriptionService"
+      ]
     },
     "quality_modes": {
       "status": "shipping",
       "public_claim": "Choose Standard, Deep Think, or Maximum.",
-      "anchors": ["case deepThink", "case maximum"]
+      "anchors": [
+        "case deepThink",
+        "case maximum"
+      ]
     },
     "per_library_sync": {
       "status": "shipping",
       "public_claim": "Choose Local Only or iCloud Drive for each library.",
-      "anchors": ["case localOnly", "case iCloudShared"]
+      "anchors": [
+        "case localOnly",
+        "case iCloudShared"
+      ]
     },
     "shortcuts_intents": {
       "status": "shipping",
       "public_claim": "Siri and Shortcuts actions for common document and library workflows.",
-      "anchors": [": AppIntent"],
+      "anchors": [
+        ": AppIntent"
+      ],
       "min_count": 11,
       "note": "Counted, not estimated. Settings once advertised eight agentic tools when four were wired up; that is what a count guards against."
     },
     "private_cloud_compute": {
       "status": "built_not_enabled",
       "public_claim": "Optional Apple Private Cloud Compute support is built and will enable in a future release on iOS and macOS 27.",
-      "anchors": ["compiler(>=6.4)"],
+      "anchors": [
+        "compiler(>=6.4)",
+        "PrivateCloudComputeLanguageModel"
+      ],
       "min_count": 12,
-      "note": "MUST be described in the future tense in all public copy. Every path sits behind #if compiler(>=6.4). Releases build on the newest RELEASED Xcode, which ships Swift 6.3 and compiles them out; Xcode 27 ships Swift 6.4 and would compile them in, but a beta toolchain cannot pass App Store ingestion (ITMS-90111). ci_scripts/ci_post_xcodebuild.sh fails the build if nm -u finds a PrivateCloudCompute symbol (this was app-store-upload.yml until GitHub Actions was retired on 2026-08-28), checked against a live SystemLanguageModel count so a dead binary cannot pass vacuously. Flip to 'shipping' only when an App Store build actually contains it, and see the PCC enable-day section in Docs/ai/RUNBOOK.md first: BOTH release guards are built to refuse that build and must be inverted in the same change, and the anchors below stop existing the moment the gates are removed."
+      "note": "MUST be described in the future tense in all public copy until a 5.2 App Store build is live. Every path sits behind #if compiler(>=6.4); Xcode 26.6 (Swift 6.3.3) compiles them out, Xcode 27 (Swift 6.4) in. Since 2026-09-02 ci_scripts/ci_post_xcodebuild.sh is version-aware: below 5.2 it fails on any PrivateCloudCompute symbol, from 5.2 it fails on zero, both against a live SystemLanguageModel control; ci_post_clone.sh fails fast when a 5.2+ version meets a Swift < 6.4 runner. Flip status to 'shipping' and rewrite public_claim only when 5.2 is READY_FOR_SALE, then bring the surfaces listed in Docs/ai/RUNBOOK.md ('Enabling Private Cloud Compute') into line."
     }
   },
   "updated": "2026-08-26",

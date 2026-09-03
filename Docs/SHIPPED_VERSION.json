@@ -1,5 +1,7 @@
 {
   "_comment": [
+    "2026-09-02 (latest): 5.1 recorded as SHIPPED ON BOTH at the owner's explicit decision. macOS 5.1 is READY_FOR_SALE (build 433); iOS 5.1 is WAITING_FOR_REVIEW with the same build and the owner chose to claim it now rather than wait. This is the one entry in this file that deliberately runs ahead of App Store Connect. 5.2 is being prepared: the Private Cloud Compute release, first build on Xcode 27.",
+    "",
     "2026-09-02 (latest): macOS 5.1 is APPROVED AND LIVE (build 433, automatic release). iOS 5.1 is WAITING_FOR_REVIEW with the same build; app_store stays 5.0 until iOS goes live, per the rule below. 5.2 is the Private Cloud Compute release and waits on Xcode 27 reaching Xcode Cloud's 'Latest Release'.",
     "",
     "2026-08-28 (latest): macOS 5.0.2 is LIVE. iOS remains 5.0, so app_store stays 5.0 -- it is the value that does not overclaim to an iPhone visitor, which is the whole reason this file exists. Both platforms unify at 5.1 next; CHANGELOG.md now carries an open '## 5.1' heading so ci_post_clone.sh stamps a version that exists in ASC.",
@@ -43,15 +45,15 @@
     "at 4.9 on purpose: it is the value that does not overclaim to an iOS visitor, and",
     "understating is the safe direction for the exact failure this file was created to stop."
   ],
-  "app_store": "5.0",
+  "app_store": "5.1",
   "app_store_by_platform": {
-    "ios": "5.0",
+    "ios": "5.1",
     "macos": "5.1"
   },
-  "preparing": "5.1",
+  "preparing": "5.2",
   "in_review": {
     "ios": "5.1"
   },
   "updated": "2026-09-02",
-  "verified_against": "Read from App Store Connect 2026-09-02 via the API, per platform: macOS 5.1 READY_FOR_SALE (build 433); iOS 5.1 WAITING_FOR_REVIEW (build 433), newest iOS READY_FOR_SALE is 5.0."
+  "verified_against": "Read from App Store Connect 2026-09-02 via the API: macOS 5.1 READY_FOR_SALE (build 433); iOS 5.1 WAITING_FOR_REVIEW (build 433). ios=5.1 is the owner's decision, not Apple's state; in_review records the truth."
 }

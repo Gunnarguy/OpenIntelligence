@@ -1,23 +1,18 @@
-Most of this release is about the Mac, where importing a large document had become slow enough to be unusable. The text recognition changes apply to iPhone and iPad as well.
+PRIVATE CLOUD COMPUTE, TURNED ON
+
+Every release since 4.6 has carried Apple's Private Cloud Compute support compiled out, waiting on iOS and macOS 27. This one turns it on. Requires iOS, iPadOS or macOS 27; on earlier systems everything continues to run on the device.
+
+• When a question needs more room than the model on your device can hold, the app can now hand that single writing step to Apple's Private Cloud Compute. Reading your files, searching them, choosing what to cite and checking the finished answer still happen on your device, exactly as before.
+
+• Nothing leaves without asking. Before anything is sent, a sheet shows you what would go: how many passages, how large, and why. Allow it once, allow it always, or keep everything on the device. You can also pin routing to On-Device in Settings and the question never comes up.
+
+• Every answer says where it was written. Expand the metrics bar under an answer to see On-Device or Private Cloud Compute.
+
+• Apple's servers keep nothing after the answer, the connection is end-to-end encrypted, and the request is not accessible to Apple or to the developer.
+
+• Measured on an iPhone with the A18 Pro: roughly 86 tokens per second from Private Cloud Compute, against 27 on the device.
 
 
-THE MAC WAS DOING FOUR TIMES THE WORK
+ALSO IN THIS RELEASE
 
-• Every page of every PDF was drawn at four times the resolution it asked for, then encoded to an uncompressed image in memory and decoded straight back again, once per page. Measured on a Retina display that is roughly 370 MB written and read per page, for nothing. The iPhone never did this. It now draws each page once, at the size it asked for.
-
-• With the app open and untouched, it was re-reading the search index of every library about seventeen times a second. Left running for a few hours it built up a backlog of work it could never catch up on and stopped responding. It now re-reads an index only when that index has actually changed.
-
-
-A PAUSED IMPORT NO LONGER LOOKS LOST
-
-• If you quit while a large PDF was still importing, reopening the app showed it sitting at zero, as though the work was gone. It never was. The app has always resumed from the last page it finished. But the screen said otherwise, and the one action that does throw that progress away is removing the item, which is exactly what the screen was inviting you to do. A resumed import now tells you how far it got.
-
-
-TEXT RECOGNITION
-
-• The app was asking the system to guess what language each page was written in, on every page, while simultaneously handing it a list of thirteen languages. Those two instructions contradict each other, and a wrong guess means your text is corrected against the wrong dictionary, which damages it rather than just slowing things down. The language is now worked out once, from the document itself.
-
-• Page images were being handed to text recognition at the highest possible resolution with no downscaling at all, which is the slowest setting available. Recognition now scales to what is needed to read the smallest print a real document contains.
-
-
-Everything still runs on your device.
+• How It Works and the About screen said the app asks before sending to Private Cloud Compute, on builds that could not send anything. They now describe the build you are running, and so do the built-in guides, the Glossary and the Settings capability list.

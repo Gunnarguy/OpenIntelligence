@@ -42,6 +42,54 @@ struct SampleDocumentDescriptor {
     }
 }
 
+/// The Private Cloud Compute wording the samples use, chosen by the same compiler condition
+/// that decides whether the PCC code is in the binary. A guide the engine retrieves and cites
+/// as fact must describe the build it ships in, and until 2026-09-02 these strings were fixed.
+enum SamplePCCCopy {
+    static let compiledIn: Bool = {
+        #if compiler(>=6.4)
+        return true
+        #else
+        return false
+        #endif
+    }()
+
+    /// Product Guide, "What makes OpenIntelligence different", point 3.
+    static let productGuideBullet: String = compiledIn
+        ? "**It runs on your device, and asks before it ever leaves.** Reading, indexing, searching and answering happen on Apple silicon, and the app works with no connection at all. On iOS, iPadOS and macOS 27, a question too large for the on-device model can be written on Apple's Private Cloud Compute, but only after a sheet shows you exactly what would be sent and you approve it. The guide \"Apple Intelligence and Private Cloud Compute\" in this library explains it."
+        : "**It runs on your device.** Reading, indexing, searching and answering all happen on Apple silicon. In this version every answer is produced on-device, and the app works with no connection at all. Support for Apple's Private Cloud Compute is built into the app and arrives with iOS and macOS 27; the guide \"Apple Intelligence and Private Cloud Compute\" in this library explains what that will add."
+
+    /// Product Guide, "Reading an answer", metrics bar bullet fragment.
+    static let routeFragment: String = compiledIn
+        ? "the route the query took (on-device, or Private Cloud Compute after you approved it)"
+        : "the route the query took (on-device in this version)"
+
+    /// Architecture guide, "Where the work runs", second bullet and the paragraph after it.
+    static let architectureStatus: String = compiledIn
+        ? "- **Private Cloud Compute** is Apple's server-side inference on Apple silicon servers, with no data retention and no access for the developer. This build includes it, on iOS, iPadOS and macOS 27. It is used for one step only, writing the answer, and only when the packed evidence will not fit the on-device window. Measured on an iPhone with the A18 Pro: roughly 86 tokens per second from Private Cloud Compute with 2.2 to 2.5 seconds to first token.\n\nNothing is sent without asking. A consent sheet shows the request that would leave the device and its estimated size, and offers Always Allow or Just Once. Pin routing to On-Device in Settings and the sheet never appears. The metrics bar under every answer names the route it actually took."
+        : "- **Private Cloud Compute** is Apple's server-side inference on Apple silicon servers, with no data retention and no access for the developer. Support for it is built into this app and is compiled out of App Store builds by the toolchain those builds use, so nothing escalates today and every answer is produced on this device. It arrives with iOS and macOS 27. On a local build with that toolchain, the same iPhone measured roughly 86 tokens per second from Private Cloud Compute with 2.2 to 2.5 seconds to first token. That measurement is real, and it was taken on a build that is not the one you are running.\n\nWhen Private Cloud Compute is enabled, nothing is sent without asking. A consent sheet shows the request that would leave the device and its estimated size, and offers Always Allow or Just Once. The metrics bar under every answer names the route it actually took."
+
+    /// PCC guide, "What stays on the device?" heading line.
+    static let staysOnDeviceIntro: String = compiledIn
+        ? "Everything except one optional step:"
+        : "In this version, everything:"
+
+    /// PCC guide, the generation line in that list.
+    static let staysOnDeviceGeneration: String = compiledIn
+        ? "- answer generation with the on-device Foundation Model, unless you approve one request going to Private Cloud Compute"
+        : "- answer generation with the on-device Foundation Model"
+
+    /// PCC guide, the section that used to be "When does Private Cloud Compute arrive?".
+    static let availabilitySection: String = compiledIn
+        ? "## When is Private Cloud Compute used?\n\n**Only when you allow it, and only for the writing step.** On iOS, iPadOS and macOS 27 this build can route a request there when the packed evidence will not fit the on-device model:\n\n- **Nothing is sent without asking.** A consent sheet appears before anything leaves the device, showing the request that would be sent and its estimated size, with Always Allow and Just Once.\n- **You can switch it off.** Pin routing to On-Device in Settings and every answer stays here; the sheet never appears.\n- **Every answer names its route.** Expand the metrics bar to see whether it ran on the device or on Private Cloud Compute.\n- **It is fast.** Measured on an iPhone with the A18 Pro, roughly 86 tokens per second from Private Cloud Compute, against 27 on the device.\n\nOn a system older than 27, every answer is produced on this device and the metrics bar says so."
+        : "## When does Private Cloud Compute arrive?\n\n**Not in this build.** Support is built into the app and is compiled out of App Store builds by the toolchain they use, so every answer today is produced on this device, and the metrics bar under each answer will say so. It arrives with iOS and macOS 27.\n\nWhen it is enabled, this is what changes:\n\n- **Nothing is sent without asking.** A consent sheet appears before anything leaves the device, showing the request that would be sent and its estimated size, with Always Allow and Just Once.\n- **Routing becomes a choice the app can make** for questions that need more than the device can give: complex multi-step reasoning across several files, synthesis that exceeds the on-device token budget, or Deep Think and Maximum runs with heavy context.\n- **Every answer still names its route.** Expand the metrics bar to see whether it ran on the device or on Private Cloud Compute.\n- **It is fast.** Measured on a local build with the iOS 27 toolchain, an iPhone with the A18 Pro received roughly 86 tokens per second from Private Cloud Compute, against 27 on the device."
+
+    /// PCC guide, privacy summary lines two and three.
+    static let privacyLines: String = compiledIn
+        ? "- Storage, indexing, retrieval and answer checking are local. The writing step is local unless you approve one request to Private Cloud Compute.\n- Private Cloud Compute is Apple's zero-retention encrypted infrastructure, and it asks first."
+        : "- Storage, indexing, retrieval and answering are local in this version.\n- Private Cloud Compute, when it arrives, is Apple's zero-retention encrypted infrastructure, and it asks first."
+}
+
 /// Handles authoring and importing curated sample documents for a better first-run experience.
 @MainActor
 final class SampleDocumentManager {
@@ -64,7 +112,7 @@ It stands apart in four ways:
 
 1. **It answers from your library.** Before it writes a word, the app retrieves the relevant passages from your own files, and the answer is built from those passages.
 2. **It keeps the evidence visible.** Every answer carries source cards, filenames and excerpts, plus a metrics bar that shows how the answer was produced. You can audit it instead of trusting it.
-3. **It runs on your device.** Reading, indexing, searching and answering all happen on Apple silicon. In this version every answer is produced on-device, and the app works with no connection at all. Support for Apple's Private Cloud Compute is built into the app and arrives with iOS and macOS 27; the guide "Apple Intelligence and Private Cloud Compute" in this library explains what that will add.
+3. \#(SamplePCCCopy.productGuideBullet)
 4. **It is Apple-native throughout.** Foundation Models for language, Vision for text recognition, Speech for transcription, Core ML for embeddings and re-ranking, Accelerate and Metal for the vector math. Swift end to end.
 
 The short version: grounded answers, visible evidence, your device, Apple's own AI.
@@ -140,7 +188,7 @@ It is weakest on questions your library says nothing about. When the evidence is
 ## Reading an answer
 
 - **Source cards** under the answer open the passages it was built from.
-- **The metrics bar** expands to show the route the query took (on-device in this version), the token budget it used against the model's window, the execution steps that ran, and the passages that were retrieved.
+- **The metrics bar** expands to show \#(SamplePCCCopy.routeFragment), the token budget it used against the model's window, the execution steps that ran, and the passages that were retrieved.
 - **Response details** list each claim in the answer with its verification verdict.
 - **The Silicon HUD** is a small floating readout of live CPU, GPU and Neural Engine activity. It is on by default, can be turned off in Settings under Appearance, and can be dragged anywhere. It sits over the place on the board where that silicon physically is.
 
@@ -180,9 +228,7 @@ The plans are about scale and organisation. The core idea does not change with t
 Every stage of OpenIntelligence runs on your device: parsing, text recognition, chunking, embedding, indexing, retrieval, re-ranking, packing, generation and verification.
 
 - **Answer generation** uses Apple's on-device Foundation Model through the FoundationModels framework. Measured on an iPhone with the A18 Pro: roughly 27 tokens per second, with 2.2 to 3.2 seconds before the first token appears. The app asks the system for the model's real context window rather than assuming one. On current hardware that window is 4,096 tokens, which is the figure the rest of this document uses.
-- **Private Cloud Compute** is Apple's server-side inference on Apple silicon servers, with no data retention and no access for the developer. Support for it is built into this app and is compiled out of App Store builds by the toolchain those builds use, so nothing escalates today and every answer is produced on this device. It arrives with iOS and macOS 27. On a local build with that toolchain, the same iPhone measured roughly 86 tokens per second from Private Cloud Compute with 2.2 to 2.5 seconds to first token. That measurement is real, and it was taken on a build that is not the one you are running.
-
-When Private Cloud Compute is enabled, nothing is sent without asking. A consent sheet shows the request that would leave the device and its estimated size, and offers Always Allow or Just Once. The metrics bar under every answer names the route it actually took.
+\#(SamplePCCCopy.architectureStatus)
 
 ---
 
@@ -255,14 +301,14 @@ This matters because the product runs on Apple's own AI infrastructure, on hardw
 
 ## What stays on the device?
 
-In this version, everything:
+\#(SamplePCCCopy.staysOnDeviceIntro)
 
 - document parsing and text recognition
 - chunking and indexing
 - semantic and keyword retrieval
 - embedding on the Neural Engine, and vector math through Accelerate on the CPU with Metal for larger libraries
 - evidence packing
-- answer generation with the on-device Foundation Model
+\#(SamplePCCCopy.staysOnDeviceGeneration)
 - verification of the answer against the evidence
 
 The app needs no connection to do any of it. On a plane, in a dead zone, in a locked-down office, your library still answers.
@@ -282,16 +328,7 @@ For OpenIntelligence it means the same grounded pipeline with more headroom for 
 
 ---
 
-## When does Private Cloud Compute arrive?
-
-**Not in this build.** Support is built into the app and is compiled out of App Store builds by the toolchain they use, so every answer today is produced on this device, and the metrics bar under each answer will say so. It arrives with iOS and macOS 27.
-
-When it is enabled, this is what changes:
-
-- **Nothing is sent without asking.** A consent sheet appears before anything leaves the device, showing the request that would be sent and its estimated size, with Always Allow and Just Once.
-- **Routing becomes a choice the app can make** for questions that need more than the device can give: complex multi-step reasoning across several files, synthesis that exceeds the on-device token budget, or Deep Think and Maximum runs with heavy context.
-- **Every answer still names its route.** Expand the metrics bar to see whether it ran on the device or on Private Cloud Compute.
-- **It is fast.** Measured on a local build with the iOS 27 toolchain, an iPhone with the A18 Pro received roughly 86 tokens per second from Private Cloud Compute, against 27 on the device.
+\#(SamplePCCCopy.availabilitySection)
 
 ---
 
@@ -309,8 +346,7 @@ OpenIntelligence never sends your documents to a developer-operated backend.
 ## Privacy summary
 
 - No developer-operated server is involved in any part of the workflow.
-- Storage, indexing, retrieval and answering are local in this version.
-- Private Cloud Compute, when it arrives, is Apple's zero-retention encrypted infrastructure, and it asks first.
+\#(SamplePCCCopy.privacyLines)
 - Your documents are your library, not training data.
 """#
         ),

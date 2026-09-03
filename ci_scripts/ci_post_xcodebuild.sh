@@ -16,8 +16,9 @@
 # with the wrong toolchain contradicts all three, and it does so silently: it
 # compiles, it archives, it validates, it uploads. Nothing fails.
 #
-# The workflow is pinned to Xcode 26.6 for exactly this reason. This script is
-# the check that the pin is still doing its job. A pin can be changed in the App
+# Until 5.1 the workflow was pinned to Xcode 26.6 for exactly this reason, and
+# this script was the check that the pin was still doing its job. From 5.2 the
+# same script checks the opposite: see Gate 1. A pin can be changed in the App
 # Store Connect UI by anyone, including by accident, and "Latest Release" will
 # become Xcode 27 the day Apple ships it. The pin is the intent; this is the
 # proof.
@@ -75,32 +76,57 @@ fi
 echo "binary:  $BIN"
 echo
 
-# --- Gate 1: Private Cloud Compute must be compiled out ---------------------
+# --- Gate 1: the binary must agree with the version it is stamped with -----
 #
 # The control is load-bearing. If FoundationModels is not linked at all, `nm -u`
 # finds no PCC symbols for a reason that has nothing to do with the toolchain,
-# and a bare "PCC == 0" check would pass while proving nothing. Requiring a
-# non-zero control makes the gate prove it can see what it is looking for.
+# and a bare count check would pass while proving nothing. Requiring a non-zero
+# control makes the gate prove it can see what it is looking for.
+#
+# Which direction the gate points is decided by the version, not by hand.
+# Until 5.1 the release notes said PCC is compiled out, so any PCC symbol was a
+# contradiction. From 5.2 the notes say it is on, so ZERO PCC symbols is the
+# contradiction: a toolchain regression that quietly compiled it back out would
+# ship against copy that promises it. Same gate, both directions, one switch:
+# the first numbered heading in CHANGELOG.md, which ci_post_clone.sh stamps
+# into CFBundleShortVersionString. Written 2026-09-02, when 5.2 was staged.
 PCC="$(nm -u "$BIN" 2>/dev/null | grep -c PrivateCloudCompute || true)"
 CONTROL="$(nm -u "$BIN" 2>/dev/null | grep -c SystemLanguageModel || true)"
-
-echo "PrivateCloudCompute symbols: $PCC (must be 0)"
+VERSION="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$PLIST" 2>/dev/null || echo '')"
+echo "version:                     ${VERSION:-<absent>}"
 echo "SystemLanguageModel symbols: $CONTROL (control, must be > 0)"
-
 if [ "$CONTROL" -eq 0 ]; then
     echo "ERROR: control is 0, so this check proves nothing."
     echo "       FoundationModels is not linked as expected. Investigate before shipping."
     exit 1
 fi
-
-if [ "$PCC" -ne 0 ]; then
-    echo "ERROR: $PCC PrivateCloudCompute symbols are linked into this binary."
-    echo "       This build would ship PCC into a release whose notes say it does not."
-    echo "       Almost certainly the workflow's Xcode version is no longer 26.6."
-    echo "       Check the pin in App Store Connect before doing anything else."
+if [ -z "$VERSION" ]; then
+    echo "ERROR: no CFBundleShortVersionString, so the gate cannot know which way to point."
     exit 1
 fi
-echo "PASS: PCC compiled out."
+# Semantic compare: PCC_EXPECTED=1 when version >= 5.2
+PCC_EXPECTED="$(printf '%s\n5.2\n' "$VERSION" | sort -V | head -1 | { read -r lowest; [ "$lowest" = "5.2" ] && echo 1 || echo 0; })"
+if [ "$PCC_EXPECTED" -eq 1 ]; then
+    echo "PrivateCloudCompute symbols: $PCC (version $VERSION: must be > 0)"
+    if [ "$PCC" -eq 0 ]; then
+        echo "ERROR: version $VERSION promises Private Cloud Compute and this binary has none."
+        echo "       The toolchain compiled the #if compiler(>=6.4) sites out. Almost certainly"
+        echo "       the workflow's Xcode version is still 26.6; 5.2 needs Xcode 27."
+        echo "       ruby scripts/xcode_cloud_toolchain.rb   lists and sets it."
+        exit 1
+    fi
+    echo "PASS: PCC compiled in, as $VERSION requires."
+else
+    echo "PrivateCloudCompute symbols: $PCC (version $VERSION: must be 0)"
+    if [ "$PCC" -ne 0 ]; then
+        echo "ERROR: $PCC PrivateCloudCompute symbols are linked into this binary."
+        echo "       This build would ship PCC into a release whose notes say it does not."
+        echo "       Almost certainly the workflow's Xcode version is no longer 26.6."
+        echo "       Check the pin in App Store Connect before doing anything else."
+        exit 1
+    fi
+    echo "PASS: PCC compiled out, as $VERSION requires."
+fi
 echo
 
 # --- Gate 2: the build machine stamp must not be prerelease -----------------

@@ -1,6 +1,6 @@
 # Handoff
 
-Written 2026-08-22, **refreshed 2026-09-02 and current through commit `9c6335f`**, because Gunnar expects to run out of Claude usage this
+Written 2026-08-22, **refreshed 2026-09-02 evening and current through the 5.2 staging commit**, because Gunnar expects to run out of Claude usage this
 week and wants whatever picks this repo up next — Gemini/Antigravity, Codex, a different tool
 entirely, or just himself six months from now — to land somewhere useful without re-deriving three
 weeks of work. Nothing here requires Claude-specific tooling to read: it's plain markdown, and every
@@ -75,15 +75,15 @@ honestly — several defects fixed this cycle were exactly that promise being si
   check `THIRD_PARTY_NOTICES.md`, grep the whole repo, and check primary vendor docs before you
   delete, not just the one file that prompted the question.
 
-## Current state, as of `9c6335f` (2026-09-02)
+## Current state, as of the 5.2 staging commit (2026-09-02)
 
-**Shipped:** iOS **5.0** (approved 2026-08-27), macOS **5.0.2** (approved 2026-08-28). Nothing in
-review. **v5.1 is staged, not submitted:** both platform records are in `PREPARE_FOR_SUBMISSION`
-with metadata verified against the local files, new iPhone screenshots on the iOS record, and the
-Xcode Cloud build 433 of commit `9c6335f` attached on both platforms.
-The same commit is installed on the owner's iPhone. Submitted by the owner on 2026-09-02; both
-platforms are Waiting for Review and release automatically on approval. Post-approval housekeeping
-is in `Docs/ai/STATE.md`. `Docs/SHIPPED_VERSION.json` is the per-platform record.
+**Shipped:** 5.1 on both platforms per `Docs/SHIPPED_VERSION.json` (macOS approved 2026-09-02;
+iOS recorded as shipped the same day at the owner's decision while the same build sat in review).
+**5.2, the Private Cloud Compute release, is fully staged** and cannot be built until Apple
+publishes the release Xcode 27: the release guards, the in-app copy, the App Store copy and the
+website patches are all in `main`, and `Docs/ai/RUNBOOK.md` "Enabling Private Cloud Compute" is the
+five-step release-day list a daily routine executes. Every push to `main` fails fast in
+`ci_post_clone.sh` until the toolchain is repointed; that is intended.
 
 **The platforms have diverged and it is the single most load-bearing fact here.** macOS carries
 5.0.1 and 5.0.2; iOS never received either. Most of 5.0.1's seventeen entries are cross-platform

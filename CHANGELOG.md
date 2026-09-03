@@ -1,10 +1,30 @@
 ## [Unreleased]
 
-<!-- next-version: 5.2 -->
+<!-- next-version: 5.3 -->
 
-## 5.1 <!-- unreleased -->
+## 5.2 <!-- unreleased -->
 
-<!-- Open. iOS and macOS unify here: iOS was 5.0, macOS reached 5.0.2, and both
+<!-- The Private Cloud Compute release. Every path has been in the tree since 4.6 behind
+     `#if compiler(>=6.4)`; this is the first build on Xcode 27, which compiles them in.
+     ci_post_clone.sh refuses to build this heading on a Swift < 6.4 runner, and
+     ci_post_xcodebuild.sh refuses to archive it without PrivateCloudCompute symbols. The
+     "unreleased" marker on the heading line comes off when 5.2 is live, exactly as for 5.1. -->
+
+### Added
+- **[Orchestration]** **Private Cloud Compute is on.** Nothing in the code changed to make it so: the twelve `#if compiler(>=6.4)` sites compile in on Xcode 27, `FoundationModelRoutePolicy.isPCCAvailable` checks the entitlement and quota, `RAGService` minimises the payload and suspends on `CloudConsentPromptView` before anything leaves, and the metrics bar names the route. What changed is the toolchain the release is built with, and the guards that enforce it (below). `[evidence_level: code_verified, confidence: high, evidence_source: FoundationModelRoutePolicy.swift:121-133, RAGService.swift:3542-3558, UnifiedMetricsBar.swift:4493-4495]`
+- **[Infrastructure]** **`scripts/xcode_cloud_toolchain.rb` lists the Xcode versions Xcode Cloud offers and repoints the `Default` workflow at one.** The workflow is pinned by id in App Store Connect, invisible to the repo; the toolchain decides whether PCC ships; release day is now one command instead of a UI hunt. Verified the API accepts the PATCH with an idempotent write on 2026-09-02. `[evidence_level: measured, confidence: exact, evidence_source: PATCH ciWorkflows/E6B22BA8 -> HTTP 200]`
+
+### Changed
+- **[Infrastructure]** **Both release guards are version-aware instead of hard-wired to "PCC out".** `ci_post_xcodebuild.sh` Gate 1 reads `CFBundleShortVersionString`: below 5.2 it fails on any `PrivateCloudCompute` symbol, from 5.2 it fails on zero, both against the live `SystemLanguageModel` control. `ci_post_clone.sh` fails in seconds when a 5.2+ version meets a Swift < 6.4 runner, naming the fix. The first numbered heading of this file is the single switch. `[evidence_level: code_verified, confidence: high, evidence_source: ci_scripts/ci_post_xcodebuild.sh Gate 1, ci_scripts/ci_post_clone.sh]`
+- **[General]** **In-app copy chooses its tense on the same compiler condition the code uses.** The three sample guides, the Glossary's token and context-window entries, the metrics bar footer, the Settings capability list and the Private Cloud Compute row all read one `#if compiler(>=6.4)` flag, so a binary that carries PCC says so and one that does not says that. Until now several of these said the present-tense thing in every build. `[evidence_level: code_verified, confidence: high, evidence_source: SampleDocumentManager.swift PCCCopy, Glossary.swift, UnifiedMetricsBar.swift, SettingsView.swift]`
+
+### Fixed
+- **[General]** **How It Works and the About screen told every iOS 26 user that the app asks before sending a request to Private Cloud Compute, in builds that could not send one.** `DeviceCapabilities.supportsPrivateCloudCompute` meant "the OS has Apple Intelligence", which is true of every iOS 26 device, and four screens read it as "this build can route to PCC". It now means the latter: compiled in, and running on iOS or macOS 27. `[evidence_level: code_verified, confidence: high, evidence_source: RAGService.swift checkDeviceCapabilities, HowItWorksView.swift leavingExplanation, ModelInfoCard.swift, AboutView.swift]`
+
+## 5.1
+
+<!-- Shipped 2026-09-02 (macOS approved, iOS in review with the same build; the owner chose to
+     record it as shipped on both). Historical note follows. iOS and macOS unify here: iOS was 5.0, macOS reached 5.0.2, and both
      App Store version records were created 2026-08-28. ci_post_clone.sh stamps
      MARKETING_VERSION from this heading, so it must stay the first numbered
      heading until 5.1 ships. Put 5.1 entries under this heading, not under

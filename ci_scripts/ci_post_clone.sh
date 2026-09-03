@@ -123,6 +123,26 @@ echo "Verifying claimed capabilities still have their implementation..."
 # working directory Xcode Cloud runs post-clone scripts from is not guaranteed to
 # be ci_scripts. Deriving the path from $0 works from any directory.
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+# --- 5.2 and later need Swift 6.4 (Xcode 27) --------------------------------
+#
+# Every Private Cloud Compute path sits behind `#if compiler(>=6.4)`. A 5.2+
+# archive built by an older toolchain would pass every step for fourteen
+# minutes and then fail ci_post_xcodebuild.sh's Gate 1. Fail here instead, in
+# seconds, with the cause named. Added 2026-09-02 when 5.2 was staged ahead of
+# the Xcode 27 release, so that every push until then fails fast rather than
+# producing a 5.2 build that cannot ship.
+SWIFT_VER="$(swift --version 2>/dev/null | sed -nE 's/.*Swift version ([0-9]+\.[0-9]+).*/\1/p' | head -1)"
+NEEDS_64="$(printf '%s\n5.2\n' "$LATEST_VERSION" | sort -V | head -1 | { read -r lowest; [ "$lowest" = "5.2" ] && echo 1 || echo 0; })"
+if [ "$NEEDS_64" -eq 1 ]; then
+    if [ -z "$SWIFT_VER" ] || [ "$(printf '%s\n6.4\n' "$SWIFT_VER" | sort -V | head -1)" != "6.4" ]; then
+        echo "ERROR: version $LATEST_VERSION requires Swift 6.4 (Xcode 27) so Private Cloud Compute compiles in."
+        echo "       This runner has Swift ${SWIFT_VER:-unknown}. Repoint the workflow's Xcode version:"
+        echo "       ruby scripts/xcode_cloud_toolchain.rb --set 'Xcode 27'"
+        exit 1
+    fi
+    echo "Swift $SWIFT_VER satisfies the 5.2+ requirement (>= 6.4)."
+fi
+
 GUARD="$SCRIPT_DIR/../scripts/verify_capabilities.py"
 
 if [ ! -f "$GUARD" ]; then

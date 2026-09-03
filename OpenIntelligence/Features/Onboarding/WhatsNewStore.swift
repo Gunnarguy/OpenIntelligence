@@ -103,6 +103,32 @@ final class WhatsNewStore: ObservableObject {
         // silently never appears: `showIfNeeded` marks an unknown version as seen and
         // returns. macOS shipped 5.0 as build 379 and is missing everything here; iOS
         // never shipped 5.0 at all, so on iPhone and iPad this is the first 5.x release.
+        "5.2": WhatsNewRelease(
+            version: "5.2",
+            headline: "Private Cloud Compute is on. Every release since 4.6 carried it compiled out, waiting on iOS and macOS 27. Reading, searching and checking your files still never leave the device; the one step that can, writing the answer, asks you first.",
+            items: [
+                .init(
+                    symbol: "cloud.fill",
+                    title: "Questions too big for the on-device model can be written on Apple's servers",
+                    detail: "When the passages that answer a question will not fit the model on your device, the writing step can go to Apple's Private Cloud Compute. Everything before it, reading your files, searching them and choosing what to cite, and everything after it, checking the answer against those passages, still happens here. Requires iOS, iPadOS or macOS 27."
+                ),
+                .init(
+                    symbol: "hand.raised.fill",
+                    title: "Nothing leaves without asking",
+                    detail: "Before anything is sent, a sheet shows what would go: how many passages, how large, and why. Allow it once, allow it always, or keep everything on the device. Pin routing to On-Device in Settings and the question never comes up."
+                ),
+                .init(
+                    symbol: "signpost.right.and.left.fill",
+                    title: "Every answer says where it was written",
+                    detail: "Expand the metrics bar under an answer to see On-Device or Private Cloud Compute. Apple's servers keep nothing after the answer, the connection is end-to-end encrypted, and the request is not accessible to Apple or to the developer."
+                ),
+                .init(
+                    symbol: "text.badge.checkmark",
+                    title: "The app now describes the build you are running",
+                    detail: "How It Works and the About screen used to say the app asks before sending to Private Cloud Compute, on builds that could not send anything. They read the wrong check. The built-in guides, the Glossary and the Settings capability list now pick their wording on the same condition the code uses."
+                ),
+            ]
+        ),
         "5.1": WhatsNewRelease(
             version: "5.1",
             headline: "Importing a large document on the Mac had become slow enough to be unusable, and the app kept working away while idle. This release is those two, better text recognition on every platform, and built-in guides that finally describe the app you are running. On iPhone and iPad it also brings across the two Mac-only releases before it.",

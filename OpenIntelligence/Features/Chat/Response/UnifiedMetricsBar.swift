@@ -4492,7 +4492,9 @@ struct UnifiedMetricsBar: View {
             }
             Text(execution == .privateCloudCompute
                 ? "Routed to Private Cloud Compute servers."
-                : "On-device model. Complex queries may route to PCC.")
+                : DeviceCapabilities.pccRoutingCompiledIn
+                    ? "On-device model. An oversized request can route to Private Cloud Compute after you approve it."
+                    : "On-device model. Nothing leaves this device in this version.")
                 .font(.system(size: 10))
                 .foregroundStyle(.secondary)
         }

@@ -26,6 +26,27 @@ This document provides a comprehensive, version-by-version breakdown of major ar
 
 ---
 
+## v5.1 - September 2, 2026
+
+The release that unified the platforms again: macOS came from 5.0.2 and iOS from 5.0, so on iPhone
+and iPad it also carries everything in 5.0.1 and 5.0.2. Build 433, commit `9c6335f`. macOS approved
+2026-09-02 and released automatically; iOS submitted the same day with the same build.
+
+- **macOS ingestion made usable.** PDF pages rendered through a `CGBitmapContext` at the requested
+  size instead of a deprecated `lockFocus` path that drew at 4x and round-tripped an uncompressed
+  TIFF per page (measured 370 MB per page). An idle Mac stopped re-reading every vector store
+  seventeen times a second (`VectorStoreRouter.clearAll` now compares on-disk signatures).
+- **Text recognition** is told the document's language once, detected from its own text, instead
+  of guessing per page against a list of thirteen; `minimumTextHeightFraction` 0.004 replaces 0.0.
+- **A resumed import** shows its real page count instead of zero.
+- **The three built-in sample guides** were rewritten from source, removing a Private Cloud
+  Compute claim users were being cited, and the in-app What's New sheet gained its 5.0.2 and 5.1
+  entries.
+- **The macOS app icon** was redrawn to sit inside the rounded shape macOS expects.
+
+Verification: simulator smoke build; `xcodebuild test` on the iOS 27 simulator, 392 tests, 3
+skipped, 0 failures; `verify_doc_claims.py` 162 pass; owner-verified large-PDF ingest on the Mac.
+
 ## v5.0.1 - August 26, 2026
 
 Parity release. macOS reached the App Store as 5.0 build 379 and is missing everything in this

@@ -1,0 +1,93 @@
+--- a/openintelligence/index.html
++++ b/openintelligence/index.html
+@@ -7,10 +7,10 @@
+     <title>OpenIntelligence | On-Device Document AI for iPhone and Mac</title>
+     <meta name="description" content="Ask your PDFs, documents, and media questions on iPhone, iPad, and Mac. Indexing, retrieval, and answers run on-device and work offline, with citations." />
+     <meta property="og:title" content="OpenIntelligence | Ask Your Files Anything and Inspect Every Answer" />
+-    <meta property="og:description" content="Search private files and media, inspect cited answers, and keep retrieval and verification local. Consent-gated Apple Private Cloud Compute synthesis arrives with iOS and macOS 27." />
++    <meta property="og:description" content="Search private files and media, inspect cited answers, and keep retrieval and verification local. Consent-gated Apple Private Cloud Compute synthesis on iOS and macOS 27." />
+     <meta name="twitter:card" content="summary_large_image" />
+     <meta name="twitter:title" content="OpenIntelligence | Ask Your Files Anything and Inspect Every Answer" />
+-    <meta name="twitter:description" content="Search private files and media, inspect cited answers, and keep retrieval and verification local. Consent-gated Apple Private Cloud Compute synthesis arrives with iOS and macOS 27." />
++    <meta name="twitter:description" content="Search private files and media, inspect cited answers, and keep retrieval and verification local. Consent-gated Apple Private Cloud Compute synthesis on iOS and macOS 27." />
+     <meta name="twitter:image" content="https://gunzino.me/assets/og/openintelligence_og.png" />
+     <meta property="og:type" content="website" />
+     <meta property="og:url" content="https://gunzino.me/openintelligence/" />
+@@ -308,10 +308,7 @@
+             indexing, retrieval, and verification all stay on-device, and the
+             answer itself is written by the Apple Intelligence models already
+             built into the device. Nothing is sent to a third-party AI provider.
+-            Optional Apple Private Cloud Compute support for longer
+-            evidence-heavy questions is built and will enable in a future
+-            release on iOS and macOS 27. When it does, the app will show exactly
+-            what would be sent and ask you to approve it first.
++            On iOS and macOS 27, longer evidence-heavy questions can optionally use Apple Private Cloud Compute; the app shows exactly what would be sent and asks you to approve it first.
+           </p>
+         </div>
+ 
+@@ -369,11 +366,7 @@
+             <h4>Execution policy control</h4>
+             <p>
+               Every answer identifies its route, read from an execution receipt
+-              rather than from what was requested. Today every route is local.
+-              Private Cloud Compute is built but not enabled in a shipping
+-              build; when it is, it will be limited to final synthesis after
+-              disclosure and consent, with retrieval and verification staying
+-              local either way.
++              rather than from what was requested. On iOS and macOS 27, Private Cloud Compute is limited to final synthesis after disclosure and consent, with retrieval and verification staying local either way. On older systems every route is local.
+             </p>
+           </div>
+         </div>
+@@ -395,9 +388,7 @@
+                 document processing
+               </li>
+               <li>
+-                <strong>Answer paths:</strong> on-device synthesis using the
+-                Apple Intelligence models already on the device. Private Cloud
+-                Compute is built but not enabled in a shipping build
++                <strong>Answer paths:</strong> on-device synthesis using the Apple Intelligence models already on the device, or consent-gated Private Cloud Compute on iOS and macOS 27
+                 </li>
+                 <li>
+                   <strong>Retrieval:</strong> agentic RAG with SQLite FTS5, local
+--- a/openintelligence/support/index.html
++++ b/openintelligence/support/index.html
+@@ -33,7 +33,7 @@
+             "name": "OpenIntelligence",
+             "applicationCategory": "ProductivityApplication",
+             "operatingSystem": "iOS, iPadOS, macOS",
+-            "description": "Private document intelligence with local retrieval and verification and cited answers. Consent-gated Apple Private Cloud Compute synthesis arrives with iOS and macOS 27.",
++            "description": "Private document intelligence with local retrieval and verification and cited answers. Consent-gated Apple Private Cloud Compute synthesis on iOS and macOS 27.",
+             "url": "https://gunzino.me/openintelligence/",
+             "downloadUrl": "https://apps.apple.com/app/apple-store/id6756559175?pt=127101782&ct=Gunzino_Site&mt=8"
+           },
+@@ -62,7 +62,7 @@
+                 "name": "Does OpenIntelligence send my documents to the cloud?",
+                 "acceptedAnswer": {
+                   "@type": "Answer",
+-                  "text": "Ingestion, indexing, retrieval, reranking, and evidence verification stay on-device. Once iOS and macOS 27 ship, Apple Private Cloud Compute can be used for final synthesis only after the app discloses the exact evidence payload and receives permission under the selected consent setting. Today every route runs on-device. No third-party AI API is involved in that route."
++                  "text": "Ingestion, indexing, retrieval, reranking, and evidence verification stay on-device. On iOS and macOS 27, Apple Private Cloud Compute can be used for final synthesis only after the app discloses the exact evidence payload and receives permission under the selected consent setting. On older systems every route runs on-device. No third-party AI API is involved in that route."
+                 }
+               },
+               {
+@@ -280,10 +280,7 @@
+         <h3>Does OpenIntelligence send my documents to the cloud?</h3>
+         <p>
+         Ingestion, indexing, retrieval, reranking, and evidence verification
+-        stay on-device. Once iOS and macOS 27 ship, Apple Private Cloud Compute can be
+-        used for final synthesis only after the app discloses the exact evidence
+-        payload and receives permission under the selected consent setting. No
+-        third-party AI API is involved in that route.
++        stay on-device. On iOS and macOS 27, Apple Private Cloud Compute can be used for final synthesis only after the app discloses the exact evidence payload and receives permission under the selected consent setting. No third-party AI API is involved in that route.
+         </p>
+ 
+         <h3>How do I delete my data?</h3>
+@@ -298,8 +295,7 @@
+         <p>
+         Core functionality is available without login or an API key.
+         OpenIntelligence provides an on-device answer path and exposes the route
+-        used for each answer. Optional Private Cloud Compute synthesis is
+-        consent-gated and arrives with iOS and macOS 27.
++        used for each answer. Optional Private Cloud Compute synthesis is consent-gated, on iOS and macOS 27.
+         </p>
+ 
+         <h2>Links</h2>

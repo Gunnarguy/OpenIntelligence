@@ -1,0 +1,20 @@
+--- a/src/content/projects/openintelligence.md
++++ b/src/content/projects/openintelligence.md
+@@ -123,7 +123,7 @@
+       },
+       {
+         "name": "Answer",
+-        "detail": "Apple Foundation Models on device, 27 tokens/sec on an A18 Pro. Private Cloud Compute is built and compiled out until iOS and macOS 27.",
++        "detail": "Apple Foundation Models on device, 27 tokens/sec on an A18 Pro. Private Cloud Compute on iOS and macOS 27, consent-gated, for the final synthesis only.",
+         "where": "apple"
+       },
+       {
+@@ -138,7 +138,7 @@
+ 
+ **Why:** I wanted private document search that did more than produce a confident paragraph. I wanted to ask a question, inspect the evidence behind the answer, and know whether it ran on my device or used an Apple-managed route. That became OpenIntelligence: a native document workspace built around retrieval, citations, verification, and explicit execution policy.
+ 
+-**Private Cloud Compute routing:** Version {{version}} decides where final synthesis runs only after retrieval, when the evidence and real context size are known. Every route in a shipping build resolves on-device today; the PCC path is built and compiled out until iOS and macOS 27, and when it enables a long evidence-heavy request will use it only after the app shows the exact payload and receives permission. Retrieval and verification stay local, and every answer carries a route badge.
++**Private Cloud Compute routing:** Version {{version}} decides where final synthesis runs only after retrieval, when the evidence and real context size are known. On iOS and macOS 27 a long evidence-heavy request uses Private Cloud Compute only after the app shows the exact payload and receives permission; on older systems every route resolves on-device. Retrieval and verification stay local, and every answer carries a route badge.
+ 
+ **Local retrieval & verification:** Parsing, Vision OCR, indexing, SQLite FTS5 and vector search, reranking, evidence packing, citation checks, and abstention all run on-device. The app still works in airplane mode through its on-device answer path and does not require an account or API key.
+ 
