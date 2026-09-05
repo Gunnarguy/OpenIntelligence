@@ -7,6 +7,7 @@
 
 import Combine
 import CoreSpotlight
+import StoreKit
 import SwiftUI
 
 struct ContentView: View {
@@ -19,6 +20,9 @@ struct ContentView: View {
     @StateObject private var onboardingStore: OnboardingStateStore
     @StateObject private var whatsNewStore: WhatsNewStore
     @StateObject private var entitlementStore: EntitlementStore
+    /// Asks for a rating after the third verified answer; see ReviewPromptService.
+    @ObservedObject private var reviewPrompt = ReviewPromptService.shared
+    @Environment(\.requestReview) private var requestReview
     @State private var selectedTab: Tab = .chat
     @State private var previousScenePhase: ScenePhase = .inactive
     @State private var showVisualValidationDashboard = false
@@ -146,6 +150,17 @@ struct ContentView: View {
         // Documents tried to create a new library (it reads settings.useHighAccuracyEmbeddings).
         .environmentObject(settingsStore)
         .environmentObject(modelResolutionService)
+        // The rating request, two seconds after a verified answer has landed so
+        // the sheet never covers the answer itself. StoreKit decides whether
+        // it actually appears (at most three times a year).
+        .onChange(of: reviewPrompt.wantsPrompt) { _, wants in
+            guard wants else { return }
+            Task { @MainActor in
+                try? await Task.sleep(for: .seconds(2))
+                requestReview()
+                reviewPrompt.didAsk()
+            }
+        }
         // Proactively refresh StoreKit products once the root view appears.
         // In production this fetches App Store Connect products; in DEBUG/simulator,
         // this will emit a single warning if no StoreKit configuration is present.

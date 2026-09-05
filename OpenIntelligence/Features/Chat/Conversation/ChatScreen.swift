@@ -2787,6 +2787,9 @@ struct ChatScreen: View {
                     // flushStreamingBufferToVisibleText already handled cleanup when isFinal arrived
                     // No need to reset again here - would race with final flush
                     self.appendAndPersistMessage(assistant, for: capturedUsedContainerId)
+                    // A finished answer is the only moment the app asks for a rating,
+                    // and only when the verifier let it through.
+                    ReviewPromptService.shared.noteAnswer(gatingDecision: response.metadata.gatingDecision)
 
                     if let genStart = self.generatingStartTS {
                         self.generatingElapsedFinal = Date().timeIntervalSince(genStart)
