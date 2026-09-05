@@ -88,6 +88,8 @@ Every mechanism in this app is one of two things. It keeps the promise, that you
 
 `EDGE_TO_EDGE_FULL.md` beside this file is all seventeen concatenated, for one paste.
 
+`VERIFICATION-2026-09-05.md` beside it is the re-check against HEAD `d28f1b1` three days later: what still holds, two anchors that moved, and one count corrected (registered tools are six).
+
 ## Sources
 
 - `Docs/Engineering/FULL_SYSTEM_TRACE.md`, the execution trace with file:line for every number here.
