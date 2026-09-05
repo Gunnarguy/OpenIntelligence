@@ -61,3 +61,43 @@ that grep.
 The 384 dimension is the default (MiniLM); module 16 is right that "always 384" oversimplifies, and
 the page says "by default". Placement of any Core ML or Foundation Models work on a specific unit
 remains a request, not a fact, exactly as module 05 says. Nothing on device was run.
+
+## Second pass, same day: the quality modes, value by value
+
+Requested after the page went up, because the modes table is the whole app in one place. Every
+cell was re-read from source rather than from the trace. Four things the first pass got wrong or
+under-stated, and where the truth is:
+
+| Claim | Correction | Source |
+| --- | --- | --- |
+| Deep Think runs "up to 5 steps" and stops at 0.85 | Deep Think does not use `RAGQualityMode.agenticConfig` (`.thorough`) at all. `RAGService` takes `DeviceCapabilityService.optimizedAgenticConfig()` for every non-Maximum run: 5 steps / 0.85 on `.baseline` (A17 Pro), 8 / 0.90 on `.enhanced`, 10 / 0.92 on `.advanced`, `min(32, 12 × RAM/16 GB)` / 0.95 on `.ultraAdvanced`. Only Maximum takes the mode's own profile, `.unlimited` (50 / 0.98). | `RAGService.swift:8528-8535`, `DeviceCapabilityService.swift:985-1032`, `RAGQualityMode.swift:178-183` |
+| "Up to 7 iterations" of recursive research | 7 is the default parameter and no call site uses it. The main path passes 5; the verification loop passes 3. Budget 180 s per pass. | `AgenticOrchestrator.swift:683, 3625, 2757, 2761` |
+| Cooldown "100 ms on baseline, 0 on M-series" | 100 / 50 / 25 / 0 ms across the four tiers. | `DeviceCapabilityService.swift`, `agenticStepCooldownMs` |
+| Deep Think adds "a verification loop" | Only when the device profile grants 8 or more steps (`config.maxSteps >= 8 && !config.isUnlimited`); an A17 Pro never runs it, Maximum never does. | `AgenticOrchestrator.swift:735-737, 837-839` |
+
+Facts the modules and the trace state that this pass confirmed, and the page now shows: sessions
+per chain 3 / 4 / 5 / 50, chosen from the step count (≥ 8 → `.deep`, ≥ 5 → `.standard`, else
+`.light`) so Deep Think runs 4 sessions on an A17 Pro and 5 above it, with a policy cap of
+`min(8, sessions + 4)` = 8 and early stopping allowed after 4; Maximum caps at
+`min(50, max(8, ⌈chunks ÷ 3⌉ × 1.5))` with no early stop before 8 and stops on `confidenceReached`,
+`contentSaturated`, the cap, or cancellation; tools are attached in Deep Think and switched off
+inside Maximum's sessions. The two numbers that read alike are different gates: Maximum's loop
+stops at 0.98 (`executeTrueUnlimitedReasoning(targetConfidence: 0.98)`) and its verification bar
+is 0.80 (`verificationConfidenceThreshold`, whose comment reads "0.98 was unreachable"). Both are
+correct; neither is the other.
+
+From `ConfidencePolicyService.swift`, not previously on any page: strictness lift 0 / +0.05 /
++0.10 applied to every gate threshold (capped at 0.60 / 0.75 / 0.10 / 0.60); calibration default /
+conservative / conservative; abstention floor 0.35 / 0.45 / 0.55; extractive-first questions halve
+the verification bar (floor 0.25) and lower the abstention floor by 0.05; touchy topics use
+`min(0.80, max(abstention + 0.15, pass bar))`. From `RAGQualityMode.swift`: query expansions off /
+8 / 12, neighbouring chunks 2 / 3 / 5, contextual compression off / on / off, conversation turns
+5 / 10 / 20, specification boost 1.2 / 1.3 / 1.5. From `QuotaPolicy.swift`: free-tier Maximum is 3
+uses a day.
+
+Two properties in `RAGQualityMode.swift` are read by nothing outside their own file and belong in
+module 16: `maxRetrievalIterations` (2 / 5 / 20) and `preferSummariesForOverview`. Two strings in
+the app itself overstate: the pipeline log prints `confTarget 85%` for every Deep Think run
+regardless of tier (`RAGService.swift:8515`), and the Settings copy says Maximum "utilizes
+exhaustive Neural Engine synthesis" (`SettingsView.swift:1488`), which module 05 explains is a
+request the app cannot verify.
