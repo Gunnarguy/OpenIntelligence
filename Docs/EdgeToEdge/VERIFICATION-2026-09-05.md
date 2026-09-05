@@ -101,3 +101,27 @@ the app itself overstate: the pipeline log prints `confTarget 85%` for every Dee
 regardless of tier (`RAGService.swift:8515`), and the Settings copy says Maximum "utilizes
 exhaustive Neural Engine synthesis" (`SettingsView.swift:1488`), which module 05 explains is a
 request the app cannot verify.
+
+## The showcase, corrected the same day
+
+`fascinaiting.me`'s "Under the Hood" playground and its 4,300 lines of script were removed on
+2026-09-05 and replaced by `/how-it-runs.html`, which is now linked from every page's navigation.
+Beyond the historical labels already noted, the playground's data contained nodes named
+"MoE Expert Router" ("a gating linear layer outputs probabilities, routing to the top 2 experts")
+and "MoE Verification" ("the 20B MoE model verifies the draft sequence"), each with invented Swift,
+presented under the heading "On-Device Technical Trace". Nothing in the source routes experts. The
+mixture-of-experts architecture is Apple's *server* model's (PT-MoE, per Apple's 2025 report), which
+the app reaches only through `PrivateCloudComputeLanguageModel` and never inspects; `CHANGELOG.md`
+(the entry that begins "Corrected a key platform misconception") had already withdrawn the idea of
+a local 20B model, and module 16 marks the 3B/20B selector Historical. Four present-tense sentences
+on the homepage still carried "29-step RAG engine (6 ingestion steps plus a 23-step query loop)";
+the count was deleted from each, with no other word changed.
+
+The page's statements about Private Cloud Compute are quoted from Apple's own pages, fetched and
+read on 2026-09-05: the `PrivateCloudComputeLanguageModel` documentation (OS 27, managed entitlement,
+`contextSize`, `quotaUsage`, `isAvailable`, all of which the source reads), the Private Cloud
+Compute security post (data held only until the response returns; never available to Apple staff;
+requests encrypted only to attested nodes in a public transparency log), the entitlement eligibility
+page (App Store Small Business Program, under two million first-time downloads), and the 2025
+foundation models report (on-device ≈3B dense with KV-cache sharing and 2-bit QAT; server PT-MoE).
+`Docs/Engineering/APPLE_FM_TECH_REPORT_2025.md` summarises the same report and agrees.
