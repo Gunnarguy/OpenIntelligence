@@ -23,6 +23,9 @@ device when it needs to, and only after you say so. Requires iOS, iPadOS or macO
 - **How It Works and the About screen said the app asks before sending to Private Cloud Compute, on builds that could not send anything.** The check they read answered a different question, whether the operating system has Apple Intelligence, which is true of every iPhone that can run the app. It now answers the real one: whether this build can route to Private Cloud Compute. On a system older than 27 those screens say so plainly.
 - **The built-in guides, the Glossary and the Settings capability list now describe the build you are running.** Each of them picks its wording on the same condition the code uses, so a build with Private Cloud Compute says it is on and a build without it says it is not.
 
+### Ratings
+- **The app now asks for an App Store rating, once, after your third verified answer.** It never asks on launch, never after an answer it could not verify or declined to give, and never twice within four months; Apple's own sheet decides whether to show at all and caps it at three times a year. If you would rather not be asked, dismiss it once and it stays away.
+
 ## v5.1 - September 2, 2026
 Most of this release is about the Mac, where importing a large document had become slow enough to be
 unusable. The text recognition changes apply to iPhone and iPad as well.
