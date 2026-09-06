@@ -544,6 +544,14 @@ behind `#if compiler(>=6.4)` at **12 sites**. Xcode 26.6 ships Swift 6.3 and com
 binary would contradict the v5.0 release notes and the in-app copy corrected in `8f76398`.
 `[evidence_level: measured, confidence: exact, evidence_source: nm -u + swift-demangle on the 2026-08-25 beta archive]`
 
+**Repointed 2026-09-05.** The `Default` workflow now builds with **Xcode 27 beta 6 (27A5252f)**,
+set with `ruby scripts/xcode_cloud_toolchain.rb --set 'Xcode 27'` and confirmed by the script's
+read-back. The reason: once `CHANGELOG.md` gained the `## 5.2` heading, `ci_post_clone.sh` refused
+every Swift 6.3 runner by design, so each Xcode Cloud run from 2026-09-02 to 2026-09-05 stopped at
+the guard and reported `action_required` on GitHub. The pin is TestFlight-only until Xcode Cloud
+offers the Xcode 27 release; run the same command again then, before any App Store submission.
+`[evidence_level: measured, confidence: exact, evidence_source: xcode_cloud_toolchain.rb listing and PATCH read-back, 2026-09-05]`
+
 **Xcode 27 cannot be submitted regardless.** As of 2026-08-25 Xcode 27 is at beta 6 (27A5252f) with
 no Release Candidate. Beta Xcode and beta SDKs are accepted for **TestFlight only**; App Store
 submission requires a release or RC toolchain and otherwise fails `ITMS-90111`.
