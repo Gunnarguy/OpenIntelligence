@@ -552,6 +552,12 @@ the guard and reported `action_required` on GitHub. The pin is TestFlight-only u
 offers the Xcode 27 release; run the same command again then, before any App Store submission.
 `[evidence_level: measured, confidence: exact, evidence_source: xcode_cloud_toolchain.rb listing and PATCH read-back, 2026-09-05]`
 
+**A docs-only push does not start the workflow.** Pushes whose head touched only `Docs/` (`a70fab8`,
+`05cb939`, `06b5219`) produced no Xcode Cloud run and no GitHub check, while every push carrying a source
+change did within twenty seconds. To build after a pin change, push a source change or press Start Build
+in App Store Connect.
+`[evidence_level: measured, confidence: high, evidence_source: GitHub check-runs per head commit, 2026-09-05]`
+
 **Xcode 27 cannot be submitted regardless.** As of 2026-08-25 Xcode 27 is at beta 6 (27A5252f) with
 no Release Candidate. Beta Xcode and beta SDKs are accepted for **TestFlight only**; App Store
 submission requires a release or RC toolchain and otherwise fails `ITMS-90111`.

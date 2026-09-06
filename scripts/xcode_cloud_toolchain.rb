@@ -68,5 +68,6 @@ if ARGV[0] == '--set'
   _, wf2 = api(:get, "ciWorkflows/#{WORKFLOW}?include=xcodeVersion")
   after = (wf2['included'] || []).find { |i| i['type'] == 'ciXcodeVersions' }
   puts "Repointed. Workflow now builds with: #{after['attributes']['name']} (#{after['attributes']['version']})"
-  puts 'The next push to main builds with it. To build without pushing, start the workflow from App Store Connect.'
+  puts 'The next push to main that changes source builds with it; a docs-only push does not start the workflow.'
+  puts 'To build without pushing, start the workflow from App Store Connect (Xcode Cloud tab, Start Build, branch main).'
 end
