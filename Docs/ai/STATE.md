@@ -109,6 +109,8 @@ other build directories are correctly named `.build.nosync`, `.simulator-smoke.n
   always fell through to classification with a **fabricated full-frame bounding box**.
   `LiveObjectDetectionService` replaces it with five OS detectors, four of which return real
   geometry. `Docs/INGESTION_PIPELINE.md` §2.8.
+- **Three Model Parameters sliders stopped claiming to do something Apple cannot do.** See
+  the constraint below before touching them.
 - **Adaptive generation profiles, opt-in and off by default.** The registry was a placeholder that
   would have replaced the app's real instructions with "You are a helpful assistant"; it now
   produces generation parameters only. `Docs/OPENINTELLIGENCE_ARCHITECTURE_ATLAS.md`,
@@ -122,6 +124,17 @@ other build directories are correctly named `.build.nosync`, `.simulator-smoke.n
   into the iOS app and run for nobody. Turning it on reverses a deliberate product decision and
   cannot be verified in a simulator. The detector behind it is now correct, so enabling it is small
   once it is decided.
+- **Do NOT delete Frequency, Presence or Repetition Penalty from Model Parameters.** They do
+  nothing: `GenerationOptions` in the iOS 27 SDK exposes exactly `samplingMode`, `temperature`,
+  `maximumResponseTokens` and `toolCallingMode`, and the string "penalty" does not occur anywhere
+  in the FoundationModels interface, so Apple Intelligence ignores all three. They are still
+  collected by `ChatScreen`, persisted by `SettingsStore` and threaded into `InferenceConfig`
+  before being dropped at the point `GenerationOptions` is built. **Deleting them is the obvious
+  move and it is wrong**, which a session on 2026-09-11 proposed out loud before reading the
+  comment three lines above the sliders: their consumer `LocalOpenAIServerLLMService` is
+  scaffolding for the roadmap row "Bring-your-own local model on Mac (third-party model host)",
+  which is still open. Zero call sites is what an open roadmap row looks like. What was actually
+  wrong was the footer claiming they affect sampling, and that is now fixed.
 - **Adaptive profiles are unmeasured.** Retrieval is nondeterministic, so no A/B here is
   trustworthy. The values are reasoned, not measured. Do not claim they improve answers.
 - **Adaptive profiles apply to Standard only, and that was a correction.** The gate sits **below**
