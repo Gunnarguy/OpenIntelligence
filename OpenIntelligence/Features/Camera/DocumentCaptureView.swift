@@ -479,10 +479,13 @@ class SmartCaptureManager: NSObject, ObservableObject {
         var sceneLabels: [String] = []
         var detectedObjects: [String] = []
 
-        // YOLO object detection (80 COCO classes with bounding boxes)
-        let yoloObjects = await YOLODetectionService.shared.detectObjects(in: image, confidenceThreshold: 0.4)
-        for obj in yoloObjects {
-            detectedObjects.append(obj.label)
+        // Object detection using the detectors the OS ships. This was YOLODetectionService,
+        // which searched the bundle for a YOLOv3 model that has never existed in this repository
+        // and therefore always fell through to a two-request fallback. See
+        // LiveObjectDetectionService for what replaced it and why.
+        let detected = await LiveObjectDetectionService.shared.detectObjects(in: image, confidenceThreshold: 0.4)
+        for object in detected {
+            detectedObjects.append(object.label)
         }
 
         // Accurate text recognition

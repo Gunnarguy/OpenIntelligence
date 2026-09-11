@@ -7,7 +7,7 @@ This document provides a chronological history of user-facing changes, highlight
 
 ---
 
-## v5.2 - unreleased
+## v5.2 - September 10, 2026
 The release that turns on Private Cloud Compute. Nothing about how the app reads, searches or checks
 your files changes; what changes is that one step, the writing of the answer, can now leave the
 device when it needs to, and only after you say so. Requires iOS, iPadOS or macOS 27.

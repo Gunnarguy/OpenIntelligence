@@ -1,6 +1,6 @@
 # Ingestion Pipeline — source-verified at v4.6, shipped tree is v5.0
 
-> **Documentation status:** Source-verified on 2026-07-15 against v4.6. **Not re-verified since.** **iOS 5.1** and **macOS 5.1** are the shipped versions (both approved 2026-09-02, build 433); `Docs/SHIPPED_VERSION.json` is the per-platform record. Corrected 2026-09-01, having said 4.9 since July; 5.1 recorded 2026-09-02. PCC Dynamic Routing does not change ingestion; indexed content remains local until a later query explicitly selects and consents to a minimized PCC synthesis envelope.
+> **Documentation status:** Source-verified on 2026-07-15 against v4.6. **Not re-verified since.** **iOS 5.2** and **macOS 5.2** are the shipped versions (both READY_FOR_SALE 2026-09-10, build 451, the Private Cloud Compute release); `Docs/SHIPPED_VERSION.json` is the per-platform record. Corrected 2026-09-01, having said 4.9 since July; 5.1 recorded 2026-09-02, 5.2 recorded 2026-09-11. PCC Dynamic Routing does not change ingestion; indexed content remains local until a later query explicitly selects and consents to a minimized PCC synthesis envelope.
 > **Known drift as of 2026-08-05** — in `CHANGELOG.md` under 4.9 but not yet described below: all five workspace metadata writes are now atomic read-modify-writes through `coordinatedMergeData(at:transform:)`, closing the race where an ingestion completing mid-sync-pass left a fully intact document on disk with no metadata row pointing at it. `WorkspaceSyncService` also no longer deletes an index for a library that still has documents.
 > **Source of truth:** Codebase audit in `Docs/AUDIT/`, plus `CHANGELOG.md` 4.8–4.9 for ingestion and sync.
 > **Scope:** Describes shipped behavior unless explicitly labeled experimental, developer-only, or scaffolded.
@@ -359,6 +359,86 @@ One cold-start caveat, recorded because it cost a run. On the **first** attempt 
 **Still uncovered: whether transcription of real speech works at all.** No automated test exercises `.mp3`, `.wav`, `.mp4`, `.mov` or `.m4a` with actual speech in it. That needs a committed sample or a human with an audio session.
 
 ---
+
+## 2.7 Entity detection: Vision already did the work, and it was discarded
+
+*Corrected 2026-09-11.*
+
+`RecognizeDocumentsRequest` runs data detection during the same pass that produces the transcript
+and returns the results on `DocumentObservation.Container.Text.detectedData`, as
+`[DataDetectorMatch]`. Each match carries a `boundingRegion` and a
+`DataDetector.Match.SemanticDetails` value, which is a nine-case enum of **parsed** results.
+
+`StructuredDocumentParser.extractDetectedData` read none of it. It took the `Text` value, used only
+`.transcript`, and re-derived entities from five hand-written regexes, under a comment saying that
+full integration "requires additional API verification". The results of the work Vision had already
+done were dropped on the floor.
+
+**What the regexes could and could not see.** They matched email addresses, US-format phone numbers,
+`http(s)` URLs, three currency symbols, and two numeric date shapes. So a European invoice produced
+no amounts, an international phone number produced nothing, and a postal address was invisible.
+
+**What Apple's detector returns**, verified against `DataDetection.swiftinterface` in the iOS 27 SDK
+on 2026-09-11: `link`, `emailAddress`, `phoneNumber`, `postalAddress` (with street, city, state,
+postal code and region split out), `calendarEvent` (`Date` values plus time zones and an all-day
+flag), `moneyAmount` (`Decimal` plus a `Locale.Currency`), `measurement` (value plus candidate
+dimensions), `flightNumber`, `shipmentTrackingNumber`, and `paymentIdentifier`.
+
+The difference is not only breadth. Apple returns parsed values rather than matched substrings, so
+an amount arrives as a number and a currency instead of as whatever characters sat between two
+separators. `DetectedEntity` now keeps both: `value` is the normalised form, `rawText` is the text as
+printed on the page, because a reader may later search for either.
+
+**The regexes are kept, not deleted**, and run only for the entity types Apple returned nothing for.
+`detectedData` is empty whenever the structured parse degraded to plain-text recognition, and that
+is exactly the low-quality scan where one email address may be the only thing on the page worth
+extracting.
+
+**A limit worth stating.** `extractDetectedData` is called from `parseTable` only, so entities are
+still harvested from **table cells and not from paragraphs**. Most documents are not tables. Closing
+that gap means carrying a page-level entity list through `StructuredPageContent` into
+`DocumentProcessor`'s chunk metadata, which touches several element-construction paths including the
+markdown-table and PDF-text lanes. It is tracked separately rather than bundled in here.
+
+`[evidence_level: code_verified, confidence: exact, evidence_source: StructuredDocumentParser.swift extractDetectedData/entity(from:in:)/patternEntities; iPhoneOS27.0.sdk DataDetection.swiftinterface SemanticDetails; Vision.swiftinterface DocumentObservation.Container.Text.detectedData]`
+
+## 2.8 Object detection: the model it looked for was never in the bundle
+
+*Corrected 2026-09-11.*
+
+`YOLODetectionService` was written against Apple's downloadable YOLOv3 CoreML model. `loadModel()`
+searched the resource bundle for `YOLOv3Tiny`, `YOLOv3`, `YOLOv3TinyInt8LUT` and `YOLOv3Int8LUT` as
+`.mlmodelc`. **None of those files exist in this repository and none ever did.** `isModelLoaded` was
+therefore permanently false, the 80-entry COCO class list the service carried was read by no code
+path, and every call fell through to a fallback of `VNClassifyImageRequest` plus
+`VNRecognizeAnimalsRequest`.
+
+Image classification returns labels with **no spatial extent**. The fallback gave each one
+`CGRect(x: 0, y: 0, width: 1, height: 1)` so it would satisfy the overlay's box-drawing code. A
+feature described as object detection with bounding boxes could, at best, box an animal, and would
+otherwise have drawn five rectangles around the entire frame stacked on one another.
+
+`LiveObjectDetectionService` replaces it with detectors that ship in the OS and need no download:
+
+| Request | Returns | Box |
+|---|---|---|
+| `DetectHumanRectanglesRequest` | people, with an upper-body flag | yes |
+| `DetectFaceRectanglesRequest` | faces | yes |
+| `RecognizeAnimalsRequest` | species label | yes |
+| `DetectBarcodesRequest` | decoded payload, symbology | yes |
+| `ClassifyImageRequest` | scene and object labels | **no** |
+
+Scene labels now carry `isSceneLevel` instead of a fabricated full-frame rectangle, so a caller
+renders them as text. Each detector runs through `VisionOCRThrottle` separately, so one failing does
+not lose the rest of the frame's results. A CoreML detector is still supported through
+`configure(withModelNamed:)` and merges with the built-ins rather than replacing them; nothing
+searches for a model that is not there.
+
+**This does not make the camera reachable.** `ChatScreen` still passes `onVisionCapture: nil` and
+the presenting `fullScreenCover` is still commented out, so the detector is correct and still
+unreached. That is tracked separately as a product decision, not a defect.
+
+`[evidence_level: build_verified, confidence: high, evidence_source: LiveObjectDetectionService.swift; request and observation shapes read from iPhoneOS27.0.sdk Vision.swiftinterface 2026-09-11]`
 
 ## 3. Chunking & Token Gating
 

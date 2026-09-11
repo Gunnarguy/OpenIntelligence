@@ -9154,6 +9154,34 @@ class RAGService: ObservableObject {
         let raptorSummariesEnabled = runtimeContext.raptorSummariesEnabled
         let raptorRoutingEnabled = runtimeContext.raptorRoutingEnabled
         let adaptiveConfig = runtimeContext.adaptiveConfig
+
+        // Adaptive generation profile, chosen from what the question is asking for rather than
+        // from the quality mode alone. `RAGQualityMode` carries one temperature for every
+        // question asked in that mode, so Standard answers a serial-number lookup and an
+        // open-ended comparison identically; the answer intent is a better signal and is already
+        // resolved by this point.
+        //
+        // **Off unless the owner turns it on.** `UserDefaults.bool(forKey:)` returns false for an
+        // absent key, so an install that has never seen this setting behaves exactly as it did
+        // before. It is opt-in because its effect on answer quality is unmeasured, and currently
+        // unmeasurable in this repository: retrieval is nondeterministic, two runs of one build
+        // return different evidence and different answers, and no A/B here is trustworthy yet.
+        // Shipping it on by default would be changing everyone's answers on a hypothesis.
+        #if canImport(FoundationModels)
+        if UserDefaults.standard.bool(forKey: "adaptiveInferenceProfiles") {
+            let intent = initialQueryProfile.answerIntent
+            let previousTemperature = inferenceConfig.temperature
+            let previousMaxTokens = inferenceConfig.maxTokens
+            inferenceConfig = inferenceConfig.applyingAdaptiveProfile(for: intent)
+            let rationale = FoundationModelDynamicProfileRegistry.profile(for: intent).generation.rationale
+            Log.info(
+                "[AdaptiveProfile] intent=\(intent.rawValue) "
+                    + "temperature \(previousTemperature) -> \(inferenceConfig.temperature), "
+                    + "maxTokens \(previousMaxTokens) -> \(inferenceConfig.maxTokens) [\(rationale)]",
+                category: .llm
+            )
+        }
+        #endif
         // Track query context for potential "Go Deeper" re-query
         await MainActor.run {
             self.lastQueryUsedAgentic = useAgentic

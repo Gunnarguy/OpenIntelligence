@@ -29,6 +29,11 @@ struct ModelConfigurationSheet: View {
     @State private var showSystemPromptEditor = false
     @State private var selectedPreset: InferencePreset?
 
+    /// Read by `RAGService` straight from `UserDefaults` under this key, so the toggle and the
+    /// pipeline cannot drift apart through an intermediate copy. Absent means false, which is
+    /// what makes this off for every existing install.
+    @AppStorage("adaptiveInferenceProfiles") private var adaptiveProfiles = false
+
     init() {
         // Initialize with placeholder values - actual values loaded in onAppear
         _temperature = State(initialValue: 0.7)
@@ -53,6 +58,9 @@ struct ModelConfigurationSheet: View {
 
                 // Presets
                 presetsSection
+
+                // Adaptive profiles
+                adaptiveProfilesSection
 
                 // Core Parameters
                 coreParametersSection
@@ -151,6 +159,43 @@ struct ModelConfigurationSheet: View {
             Text("Quick Presets")
         } footer: {
             Text("Presets adjust multiple parameters for common use cases. You can fine-tune individual values below.")
+        }
+    }
+
+    @ViewBuilder
+    private var adaptiveProfilesSection: some View {
+        Section {
+            Toggle(isOn: $adaptiveProfiles) {
+                Label("Adapt to the question", systemImage: "wand.and.stars")
+            }
+            if adaptiveProfiles {
+                VStack(alignment: .leading, spacing: 6) {
+                    profileRow("Looking up a value, or a calculation", "0.10", "400")
+                    profileRow("Following a procedure", "0.30", "900")
+                    profileRow("Comparing or investigating", "0.35", "1400")
+                    profileRow("Summarizing", "0.40", "1000")
+                }
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .padding(.vertical, 2)
+            }
+        } header: {
+            Text("Adaptive Profiles")
+        } footer: {
+            Text(
+                adaptiveProfiles
+                    ? "Temperature and length are chosen per question and override the values below. Your saved settings are not changed, and turning this off restores them immediately."
+                    : "Off. Every question uses the values below. Turn this on to let the app pick a temperature and length from what the question is asking for, so a value lookup answers the same way twice and an open comparison gets room to work."
+            )
+        }
+    }
+
+    @ViewBuilder
+    private func profileRow(_ name: String, _ temperature: String, _ tokens: String) -> some View {
+        HStack {
+            Text(name)
+            Spacer()
+            Text("\(temperature) · \(tokens) tok").monospacedDigit()
         }
     }
 

@@ -16,6 +16,7 @@
 		F0A100252F1A000100AA1001 /* OpenIntelligenceLiveActivitiesBundle.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0A100212F1A000100AA1001 /* OpenIntelligenceLiveActivitiesBundle.swift */; };
 		F0A100262F1A000100AA1001 /* OpenIntelligenceActivityIcon.png in Resources */ = {isa = PBXBuildFile; fileRef = F0A100222F1A000100AA1001 /* OpenIntelligenceActivityIcon.png */; };
 		E0A100302F0F5F5F00AABA0C /* Tokenizers in Frameworks */ = {isa = PBXBuildFile; productRef = E0A100312F0F5F5F00AABA0C /* Tokenizers */; };
+		E0A100322F0F5F5F00AABA0C /* Tokenizers in Frameworks */ = {isa = PBXBuildFile; productRef = E0A100312F0F5F5F00AABA0C /* Tokenizers */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -253,6 +254,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				B016E7B72F0F5F5F00AABA0C /* TransformersTokenizers in Frameworks */,
+				E0A100322F0F5F5F00AABA0C /* Tokenizers in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -396,6 +398,7 @@
 			name = OpenIntelligence;
 			packageProductDependencies = (
 				B016E7B62F0F5F5F00AABA0C /* TransformersTokenizers */,
+				E0A100312F0F5F5F00AABA0C /* Tokenizers */,
 			);
 			productName = OpenIntelligence;
 			productReference = B0D565DE2E98AC50001274A2 /* OpenIntelligence.app */;

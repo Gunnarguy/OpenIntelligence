@@ -11,6 +11,7 @@
 //
 
 import Foundation
+import DataDetection
 import os
 import Vision
 import CoreImage
@@ -96,6 +97,11 @@ struct DetectedEntity: Sendable, Equatable, Hashable {
         case date
         case money
         case measurement
+        // Apple's detector returns these three and the regex sweep never could. They are
+        // separate cases rather than `.unknown` so a chunk's metadata says what it found.
+        case flightNumber
+        case shipmentTracking
+        case paymentIdentifier
         case unknown
     }
 
@@ -113,6 +119,9 @@ struct DetectedEntity: Sendable, Equatable, Hashable {
         case .date: return "Date: \(value)"
         case .money: return "Amount: \(value)"
         case .measurement: return "Measurement: \(value)"
+        case .flightNumber: return "Flight: \(value)"
+        case .shipmentTracking: return "Tracking: \(value)"
+        case .paymentIdentifier: return "Payment: \(value)"
         case .unknown: return value
         }
     }
@@ -1271,79 +1280,129 @@ actor StructuredDocumentParser {
 
     // MARK: - Vision DataDetection Entity Extraction
 
-    /// Extract detected entities from Vision's automatic data detection
-    /// This uses DataDetection to find emails, phones, dates, URLs, etc.
+    /// Entities in a block of recognised text, taken from Apple's own detector first.
     ///
-    /// NOTE: Vision's detectedData API in iOS 26 provides DataDetectorMatch objects.
-    /// For now, we extract basic text-based entities using regex patterns.
-    /// Full DataDetection integration requires additional API verification.
+    /// `RecognizeDocumentsRequest` runs data detection during the same pass that produces the
+    /// transcript and returns the results on `Container.Text.detectedData`. This function used to
+    /// ignore that property completely and re-derive entities from five hand-written regexes,
+    /// under a comment saying full integration "requires additional API verification". That
+    /// verification is done: `DataDetectorMatch.match.details` is a `SemanticDetails` enum with
+    /// nine cases, read from the iOS 27 SDK's `DataDetection.swiftinterface` on 2026-09-11.
+    ///
+    /// Reading it is strictly better and costs nothing, because Vision has already done the work:
+    ///
+    ///   * it returns **parsed values** rather than matched substrings, so an amount arrives as a
+    ///     `Decimal` with a `Locale.Currency` and an event as a `Date`, instead of as whatever
+    ///     characters happened to sit between two separators
+    ///   * it covers postal addresses, measurements, flight numbers, shipment tracking numbers and
+    ///     payment identifiers. The regexes attempted none of those
+    ///   * it is not anglocentric. The phone pattern matched US formats only and the money pattern
+    ///     matched exactly three currencies, so a European invoice yielded nothing at all
+    ///
+    /// The regexes are kept rather than deleted, and run only for the types Apple returned nothing
+    /// for. `detectedData` is empty whenever the structured parse degraded to plain text
+    /// recognition, and that is exactly the low-quality scan where one email address may be the
+    /// only thing on the page worth extracting.
     private func extractDetectedData(from text: DocumentObservation.Container.Text) -> [DetectedEntity] {
-        var entities: [DetectedEntity] = []
         let transcript = text.transcript
+        var entities = text.detectedData.compactMap { Self.entity(from: $0.match, in: transcript) }
+        let covered = Set(entities.map(\.type))
+        entities.append(contentsOf: Self.patternEntities(in: transcript, excluding: covered))
+        return entities
+    }
 
-        // Use regex-based extraction for common entity types
-        // This is more reliable than the evolving DataDetection API
+    /// One `DetectedEntity` from one of Apple's matches, or nil when the match carries nothing
+    /// worth indexing.
+    ///
+    /// `match.range` indexes into the transcript it was produced from, so `rawText` keeps the text
+    /// as it appears on the page while `value` holds the normalised form. Both are kept because a
+    /// reader may later search for either: the phone number as printed, or as Apple parsed it.
+    nonisolated private static func entity(
+        from match: DataDetector.Match,
+        in transcript: String
+    ) -> DetectedEntity? {
+        let raw = match.range.map { String(transcript[$0]) } ?? ""
 
-        // Email pattern
-        let emailPattern = #"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}"#
-        if let emailRegex = try? NSRegularExpression(pattern: emailPattern, options: []) {
-            let range = NSRange(transcript.startIndex..., in: transcript)
-            for match in emailRegex.matches(in: transcript, options: [], range: range) {
-                if let matchRange = Range(match.range, in: transcript) {
-                    let email = String(transcript[matchRange])
-                    entities.append(DetectedEntity(type: .email, value: email, rawText: email))
-                }
-            }
+        func made(_ type: DetectedEntity.EntityType, _ value: String) -> DetectedEntity? {
+            let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty else { return nil }
+            return DetectedEntity(type: type, value: trimmed, rawText: raw.isEmpty ? trimmed : raw)
         }
 
-        // Phone pattern (US format and international)
-        let phonePattern = #"(?:\+?1[-.]?)?\(?\d{3}\)?[-.]?\d{3}[-.]?\d{4}"#
-        if let phoneRegex = try? NSRegularExpression(pattern: phonePattern, options: []) {
-            let range = NSRange(transcript.startIndex..., in: transcript)
-            for match in phoneRegex.matches(in: transcript, options: [], range: range) {
-                if let matchRange = Range(match.range, in: transcript) {
-                    let phone = String(transcript[matchRange])
-                    entities.append(DetectedEntity(type: .phoneNumber, value: phone, rawText: phone))
-                }
+        switch match.details {
+        case .link(let link):
+            return made(.url, link.url.absoluteString)
+        case .emailAddress(let email):
+            return made(.email, email.emailAddress)
+        case .phoneNumber(let phone):
+            return made(.phoneNumber, phone.phoneNumber)
+        case .postalAddress(let address):
+            return made(.address, address.fullAddress)
+        case .calendarEvent(let event):
+            // An event with no start date is not a date anyone can search for.
+            guard let start = event.startDate else { return nil }
+            let formatter = event.allDay ? Self.eventDayFormatter : Self.eventInstantFormatter
+            return made(.date, formatter.string(from: start))
+        case .moneyAmount(let money):
+            return made(.money, "\(money.amount) \(money.currency.identifier)")
+        case .measurement(let measurement):
+            // `possibleDimensions` is ordered by likelihood and is empty for a bare quantity.
+            // A number with no unit is still worth keeping; it is what the page said.
+            let symbol = measurement.possibleDimensions.first?.symbol
+            let value = symbol.map { "\(measurement.value) \($0)" } ?? "\(measurement.value)"
+            return made(.measurement, value)
+        case .flightNumber(let flight):
+            return made(.flightNumber, "\(flight.airlineCode)\(flight.flightNumber)")
+        case .shipmentTrackingNumber(let shipment):
+            return made(.shipmentTracking, "\(shipment.carrier) \(shipment.trackingNumber)")
+        case .paymentIdentifier(let payment):
+            return made(.paymentIdentifier, payment.identifier)
+        @unknown default:
+            // A category Apple adds later. Dropping it loses an entity; guessing at its shape
+            // would put an unlabelled string into chunk metadata, which is worse.
+            return nil
+        }
+    }
+
+    /// Dates are written ISO 8601 so they sort, and so a query typed as `2026-09-11` matches the
+    /// same characters that were indexed.
+    nonisolated private static let eventDayFormatter: ISO8601DateFormatter = {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withFullDate]
+        return formatter
+    }()
+
+    nonisolated private static let eventInstantFormatter: ISO8601DateFormatter = {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withFullDate, .withTime, .withColonSeparatorInTime]
+        return formatter
+    }()
+
+    /// The original regex sweep, kept as a fallback and run per type only when Apple's detector
+    /// returned nothing of that type. `extractDetectedData` records why it is not simply deleted.
+    nonisolated private static func patternEntities(
+        in transcript: String,
+        excluding covered: Set<DetectedEntity.EntityType>
+    ) -> [DetectedEntity] {
+        let patterns: [(DetectedEntity.EntityType, String)] = [
+            (.email, #"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}"#),
+            (.phoneNumber, #"(?:\+?1[-.]?)?\(?\d{3}\)?[-.]?\d{3}[-.]?\d{4}"#),
+            (.url, #"https?://[^\s<>"']+"#),
+            (.money, #"(?:[$€£]\s*\d+(?:[.,]\d{2})?|\d+(?:[.,]\d{2})?\s*(?:USD|EUR|GBP))"#),
+            (.date, #"\d{1,2}[/-]\d{1,2}[/-]\d{2,4}|\d{4}[/-]\d{1,2}[/-]\d{1,2}"#)
+        ]
+
+        var entities: [DetectedEntity] = []
+        let whole = NSRange(transcript.startIndex..., in: transcript)
+
+        for (type, pattern) in patterns where !covered.contains(type) {
+            guard let regex = try? NSRegularExpression(pattern: pattern) else { continue }
+            for match in regex.matches(in: transcript, range: whole) {
+                guard let range = Range(match.range, in: transcript) else { continue }
+                let value = String(transcript[range])
+                entities.append(DetectedEntity(type: type, value: value, rawText: value))
             }
         }
-
-        // URL pattern
-        let urlPattern = #"https?://[^\s<>"']+"#
-        if let urlRegex = try? NSRegularExpression(pattern: urlPattern, options: []) {
-            let range = NSRange(transcript.startIndex..., in: transcript)
-            for match in urlRegex.matches(in: transcript, options: [], range: range) {
-                if let matchRange = Range(match.range, in: transcript) {
-                    let url = String(transcript[matchRange])
-                    entities.append(DetectedEntity(type: .url, value: url, rawText: url))
-                }
-            }
-        }
-
-        // Money pattern (USD, EUR, GBP)
-        let moneyPattern = #"(?:[$€£]\s*\d+(?:[.,]\d{2})?|\d+(?:[.,]\d{2})?\s*(?:USD|EUR|GBP))"#
-        if let moneyRegex = try? NSRegularExpression(pattern: moneyPattern, options: []) {
-            let range = NSRange(transcript.startIndex..., in: transcript)
-            for match in moneyRegex.matches(in: transcript, options: [], range: range) {
-                if let matchRange = Range(match.range, in: transcript) {
-                    let money = String(transcript[matchRange])
-                    entities.append(DetectedEntity(type: .money, value: money, rawText: money))
-                }
-            }
-        }
-
-        // Date patterns (common formats)
-        let datePattern = #"\d{1,2}[/-]\d{1,2}[/-]\d{2,4}|\d{4}[/-]\d{1,2}[/-]\d{1,2}"#
-        if let dateRegex = try? NSRegularExpression(pattern: datePattern, options: []) {
-            let range = NSRange(transcript.startIndex..., in: transcript)
-            for match in dateRegex.matches(in: transcript, options: [], range: range) {
-                if let matchRange = Range(match.range, in: transcript) {
-                    let date = String(transcript[matchRange])
-                    entities.append(DetectedEntity(type: .date, value: date, rawText: date))
-                }
-            }
-        }
-
         return entities
     }
 

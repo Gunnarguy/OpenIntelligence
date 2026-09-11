@@ -1,6 +1,6 @@
 # Privacy and Model Routing — source-verified at v4.6, shipped tree is v5.0
 
-> **Documentation status:** Source-verified on 2026-07-15 against v4.6. **Not re-verified since.** **iOS 5.1** and **macOS 5.1** are the shipped versions (both approved 2026-09-02, build 433); `Docs/SHIPPED_VERSION.json` is the per-platform record. Corrected 2026-09-01, having said 4.9 since July; 5.1 recorded 2026-09-02. Native PCC execution is owner-confirmed on a physical device (2026-07-28). Signed physical-device installation, Archive/TestFlight entitlement propagation, quota-exhaustion, network-transition, and background/App Intent validation remain pending.
+> **Documentation status:** Source-verified on 2026-07-15 against v4.6. **Not re-verified since.** **iOS 5.2** and **macOS 5.2** are the shipped versions (both READY_FOR_SALE 2026-09-10, build 451, the Private Cloud Compute release); `Docs/SHIPPED_VERSION.json` is the per-platform record. Corrected 2026-09-01, having said 4.9 since July; 5.1 recorded 2026-09-02, 5.2 recorded 2026-09-11. Native PCC execution is owner-confirmed on a physical device (2026-07-28). Signed physical-device installation, Archive/TestFlight entitlement propagation, quota-exhaustion, network-transition, and background/App Intent validation remain pending.
 > **Note on the routing picker:** until 2026-07-30 the stored routing policy did not govern Deep Think or Maximum, and an On-Device selection could still send a minimized envelope to PCC. Consent was never bypassed. Fixed in `6f29d2d`; see `Docs/CANONICAL_OPENINTELLIGENCE_SOURCE_OF_TRUTH.md` §8. If you are reading this document to answer a question about what a routing setting guaranteed *before* that date, the answer differs from what is described below.
 > **Source of truth:** `Docs/CANONICAL_OPENINTELLIGENCE_SOURCE_OF_TRUTH.md` and the current implementation.
 
@@ -148,3 +148,22 @@ Telemetry may include identifiers, public target names, counts, budgets, hashes,
 ## Validation boundary
 
 The source implementation and Swift parsing are complete. Production readiness is not yet claimed until the following pass on a signed iOS 27 device and distribution artifact: entitlement inspection, native PCC execution, intended-versus-actual receipt confirmation, consent allow/deny/revoke, App Intent/background behavior, quota approach/exhaustion, offline and mid-request network changes, and physical-device thermal/battery checks. `[evidence_level: code_verified, confidence: exact_for_unverified_status, evidence_source: PCC dynamic routing test matrix]`
+
+
+## Adaptive profiles do not change routing (added 2026-09-11)
+
+`FoundationModelDynamicProfileRegistry` chooses `temperature` and `maxTokens` from the answer
+intent. It has no effect on **where** a request runs.
+
+Routing stays entirely in `FoundationModelRoutePolicy`, which reads the explicit model preference
+first, then the execution plan, then the context estimate against the on-device window. The
+registry is not consulted there and cannot escalate a request to Private Cloud Compute, cannot
+suppress one, and cannot alter the consent prompt. A profile changes how the chosen model samples,
+not which model is chosen or what leaves the device.
+
+This is worth stating because the registry's previous shape could have affected routing
+indirectly: it produced a full replacement `systemPrompt`, and prompt length feeds the token
+estimate that the planless routing branch compares against the on-device context window. Producing
+generation parameters only removes that coupling.
+
+`[evidence_level: code_verified, confidence: exact, evidence_source: FoundationModelDynamicProfileRegistry.swift returns FoundationModelGenerationProfile only; FoundationModelRoutePolicy.determineRoute has no reference to it]`

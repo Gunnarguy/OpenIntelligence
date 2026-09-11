@@ -85,9 +85,22 @@ def set_target_project(path: Path) -> None:
 ENGINE_TARGET = "E0A100072F0F5F5F00AABA0C"
 ENGINE_FRAMEWORKS_PHASE = "E0A100062F0F5F5F00AABA0C"
 
+# Both targets need it, and for the same reason read from opposite ends.
+#
+# The Engine needs it because it never had it. The APP needs it because declaring the product
+# explicitly on the Engine stops Xcode inferring it for the app: before this change the app
+# linked Tokenizers through automatic transitive resolution, and adding an explicit declaration
+# anywhere in the project turned that inference off. Measured 2026-09-11: with only the Engine
+# wired, the Engine linked and `Ld OpenIntelligence.app/OpenIntelligence.debug.dylib` then failed
+# with exactly the symbols the Engine had just stopped failing on. Wiring one and not the other
+# moves the failure rather than fixing it.
+APP_TARGET = "B0D565DD2E98AC50001274A2"
+APP_FRAMEWORKS_PHASE = "B0D565DB2E98AC50001274A2"
+
 # Stable ids chosen to be absent from the file; verified before use rather than assumed.
 BUILD_FILE_ID = "E0A100302F0F5F5F00AABA0C"
 PRODUCT_DEP_ID = "E0A100312F0F5F5F00AABA0C"
+APP_BUILD_FILE_ID = "E0A100322F0F5F5F00AABA0C"
 
 PRODUCT = "Tokenizers"
 
@@ -98,6 +111,32 @@ def read() -> str:
     return PBXPROJ.read_text()
 
 
+def target_block(src: str, ident: str, name: str) -> str:
+    """A whole PBXNativeTarget block. No character cap, deliberately.
+
+    A capped regex over this file is what produced a confidently wrong diagnosis on 2026-09-10:
+    the window ended before `packageProductDependencies` and its absence was reported as the
+    target not declaring the dependency.
+    """
+    start = src.find(f"{ident} /* {name} */ = {{")
+    if start < 0:
+        sys.exit(f"target {name} ({ident}) not found; the project layout has changed")
+    end = src.find("\n\t\t};", start)
+    if end < 0:
+        sys.exit(f"could not find the end of the {name} target block")
+    return src[start:end]
+
+
+def declares_tokenizers(src: str, ident: str, name: str) -> bool:
+    """Whether this target's own packageProductDependencies names the Tokenizers product.
+
+    Scoped to the target block rather than the file, because `TransformersTokenizers` contains
+    the string `Tokenizers` and a naive search matches it everywhere.
+    """
+    deps = re.search(r"packageProductDependencies = \((.*?)\);", target_block(src, ident, name), re.S)
+    return bool(deps and re.search(r"/\* Tokenizers \*/", deps.group(1)))
+
+
 def already_applied(src: str) -> bool:
     """True when the Engine target already declares the Tokenizers product.
 
@@ -105,14 +144,13 @@ def already_applied(src: str) -> bool:
     because `TransformersTokenizers` contains the string `Tokenizers` and a naive search finds
     it everywhere.
     """
-    block = engine_target_block(src)
-    deps = re.search(r"packageProductDependencies = \((.*?)\);", block, re.S)
-    if not deps:
-        return False
-    return bool(re.search(r"/\* Tokenizers \*/", deps.group(1)))
+    return (
+        declares_tokenizers(src, ENGINE_TARGET, "OpenIntelligenceEngine")
+        and declares_tokenizers(src, APP_TARGET, "OpenIntelligence")
+    )
 
 
-def engine_target_block(src: str) -> str:
+def _unused_engine_target_block(src: str) -> str:
     """The whole PBXNativeTarget block for the Engine. No character cap, deliberately.
 
     A capped regex over this file is what produced a confidently wrong diagnosis on 2026-09-10:
@@ -129,30 +167,47 @@ def engine_target_block(src: str) -> str:
 
 
 def preflight(src: str) -> None:
-    for ident in (BUILD_FILE_ID, PRODUCT_DEP_ID):
+    for ident in (BUILD_FILE_ID, PRODUCT_DEP_ID, APP_BUILD_FILE_ID):
         if ident in src:
             sys.exit(f"id {ident} is already used in the project; pick another before applying")
-    if f"{ENGINE_FRAMEWORKS_PHASE} /* Frameworks */" not in src:
-        sys.exit(f"Engine Frameworks phase {ENGINE_FRAMEWORKS_PHASE} not found")
-    block = engine_target_block(src)
-    if "packageProductDependencies = (" not in block:
-        sys.exit(
-            "the Engine target has no packageProductDependencies block. That is NOT the defect "
-            "this script fixes, so it refuses rather than guessing at the right edit."
-        )
+    for phase, label in ((ENGINE_FRAMEWORKS_PHASE, "Engine"), (APP_FRAMEWORKS_PHASE, "app")):
+        if f"{phase} /* Frameworks */" not in src:
+            sys.exit(f"{label} Frameworks phase {phase} not found")
+    for ident, name in ((ENGINE_TARGET, "OpenIntelligenceEngine"), (APP_TARGET, "OpenIntelligence")):
+        if "packageProductDependencies = (" not in target_block(src, ident, name):
+            sys.exit(
+                f"the {name} target has no packageProductDependencies block. That is NOT the "
+                "defect this script fixes, so it refuses rather than guessing at the right edit."
+            )
+
+
+def _append_into(src: str, pattern: str, line: str, what: str, search_from: int = 0) -> str:
+    """Append one entry inside a `( ... );` list, preserving the file's tab indentation."""
+    match = re.compile(pattern, re.S).search(src, search_from)
+    if not match:
+        sys.exit(f"could not parse {what}")
+    return (
+        src[: match.start(2)]
+        + match.group(2).rstrip("\t\n ")
+        + f"\n\t\t\t\t{line}\n\t\t\t"
+        + src[match.end(2) :]
+    )
 
 
 def apply(src: str) -> str:
-    # 1. PBXBuildFile entry, placed beside the existing TransformersTokenizers ones.
+    # 1. One PBXBuildFile per consuming target. They cannot be shared between build phases,
+    #    which is why TransformersTokenizers already has two entries pointing at one productRef.
     anchor = "/* End PBXBuildFile section */"
-    entry = (
-        f"\t\t{BUILD_FILE_ID} /* {PRODUCT} in Frameworks */ = {{isa = PBXBuildFile; "
+    entries = "".join(
+        f"\t\t{ident} /* {PRODUCT} in Frameworks */ = {{isa = PBXBuildFile; "
         f"productRef = {PRODUCT_DEP_ID} /* {PRODUCT} */; }};\n"
+        for ident in (BUILD_FILE_ID, APP_BUILD_FILE_ID)
     )
-    src = src.replace(anchor, entry + anchor, 1)
+    src = src.replace(anchor, entries + anchor, 1)
 
-    # 2. The product dependency itself. No `package` key: the product is resolved from the
-    #    package graph via the local swift-transformers reference, which depends on it.
+    # 2. The product dependency itself, shared by both targets. No `package` key: the product
+    #    is resolved from the package graph through the local swift-transformers reference,
+    #    which is what depends on swift-tokenizers.
     anchor = "/* End XCSwiftPackageProductDependency section */"
     entry = (
         f"\t\t{PRODUCT_DEP_ID} /* {PRODUCT} */ = {{\n"
@@ -162,32 +217,27 @@ def apply(src: str) -> str:
     )
     src = src.replace(anchor, entry + anchor, 1)
 
-    # 3. Into the Engine's Frameworks build phase.
-    phase = re.search(
-        rf"({re.escape(ENGINE_FRAMEWORKS_PHASE)} /\* Frameworks \*/ = \{{.*?files = \()(.*?)(\);)",
-        src,
-        re.S,
-    )
-    if not phase:
-        sys.exit("could not parse the Engine Frameworks build phase")
-    src = (
-        src[: phase.start(2)]
-        + phase.group(2).rstrip("\t\n ")
-        + f"\n\t\t\t\t{BUILD_FILE_ID} /* {PRODUCT} in Frameworks */,\n\t\t\t"
-        + src[phase.end(2) :]
-    )
+    # 3. Into each target's Frameworks build phase.
+    for phase, build_file, label in (
+        (ENGINE_FRAMEWORKS_PHASE, BUILD_FILE_ID, "the Engine"),
+        (APP_FRAMEWORKS_PHASE, APP_BUILD_FILE_ID, "the app"),
+    ):
+        src = _append_into(
+            src,
+            rf"({re.escape(phase)} /\* Frameworks \*/ = \{{.*?files = \()(.*?)(\);)",
+            f"{build_file} /* {PRODUCT} in Frameworks */,",
+            f"{label} Frameworks build phase",
+        )
 
-    # 4. Into the Engine target's packageProductDependencies.
-    start = src.find(f"{ENGINE_TARGET} /* OpenIntelligenceEngine */ = {{")
-    deps = re.compile(r"(packageProductDependencies = \()(.*?)(\);)", re.S).search(src, start)
-    if not deps:
-        sys.exit("could not parse the Engine target's packageProductDependencies")
-    src = (
-        src[: deps.start(2)]
-        + deps.group(2).rstrip("\t\n ")
-        + f"\n\t\t\t\t{PRODUCT_DEP_ID} /* {PRODUCT} */,\n\t\t\t"
-        + src[deps.end(2) :]
-    )
+    # 4. Into each target's packageProductDependencies.
+    for ident, name in ((ENGINE_TARGET, "OpenIntelligenceEngine"), (APP_TARGET, "OpenIntelligence")):
+        src = _append_into(
+            src,
+            r"(packageProductDependencies = \()(.*?)(\);)",
+            f"{PRODUCT_DEP_ID} /* {PRODUCT} */,",
+            f"the {name} target's packageProductDependencies",
+            search_from=src.find(f"{ident} /* {name} */ = {{"),
+        )
     return src
 
 

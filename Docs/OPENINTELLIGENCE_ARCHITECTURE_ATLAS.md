@@ -487,3 +487,31 @@ no test coverage. This section exists so that decision is made against what the 
 ## 21. App Icon Appearance Boundary
 
 - The `OpenIntelligence/Resources/Assets/Assets.xcassets/AppIcon.appiconset` catalog retains the existing light icon and adds a universal iOS `luminosity=dark` rendition using `AppIcon-dark-1024.png`. Xcode's asset compiler packages the dark rendition as `UIAppearanceDark`; runtime selection on a physical device remains unverified. `[evidence_level: build_verified, confidence: high_pending_device_validation, evidence_source: AppIcon.appiconset/Contents.json; xcrun actool; /usr/bin/assetutil --info]`
+
+
+## Adaptive generation profiles (added 2026-09-11)
+
+`RAGService` resolves its `InferenceConfig` through `QueryRuntimeCoordinator.resolveContext`, and
+immediately after unpacking it there is now one optional adjustment, gated on
+`UserDefaults.bool(forKey: "adaptiveInferenceProfiles")`.
+
+When on, `InferenceConfig.applyingAdaptiveProfile(for:)` replaces `temperature` and `maxTokens`
+using the resolved `AnswerIntent`. When off, which is the default and the state of every install
+that has not opted in, the line does nothing: `UserDefaults.bool(forKey:)` returns false for an
+absent key.
+
+Three properties of the design, each load-bearing:
+
+1. **It reads the intent, not the quality mode.** `RAGQualityMode.temperature` is one value for
+   every question asked in that mode. The intent distinguishes a value lookup from an
+   investigation, which is the distinction that matters for sampling.
+2. **It is pure.** `applyingAdaptiveProfile` returns a modified copy and writes nothing.
+   `AutoTuneService` adjusts the same two settings by persisting them into `UserDefaults`, which
+   overwrites what the owner set by hand and is not undone by turning the feature off. It has zero
+   call sites and should keep them.
+3. **It is opt-in because it cannot be verified here.** Retrieval is nondeterministic
+   (`Docs/ai/DECISIONS.md`), so two runs of one build return different evidence and different
+   answers. The profile values are reasoned, not measured, and shipping them on by default would be
+   changing every answer on a hypothesis.
+
+`[evidence_level: test_verified, confidence: high, evidence_source: RAGService.swift adaptive gate; FoundationModelDynamicProfileRegistry.swift; AdaptiveInferenceProfileTests.swift, 9 cases]`
