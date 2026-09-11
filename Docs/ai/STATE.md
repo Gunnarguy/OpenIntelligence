@@ -150,6 +150,13 @@ Run 2026-09-11 from `/private/tmp/oi-src` against the iOS 27 simulator, output r
   model rather than at an ingestion hang, but that is a lead and not a finding. **Verify it on a
   device** by importing an audio file with no speech and watching the ingestion queue. It is
   unrelated to anything in this cycle: nothing here touches audio or transcription.
+- **macOS**: `xcodebuild -destination "platform=macOS" build` — **`** BUILD SUCCEEDED **`, exit 0,
+  zero errors.** Run because this repository has a documented history of the `#else` half of a
+  `canImport(UIKit)` pair diverging silently, and because `LiveObjectDetectionService` sits in
+  `Services/Document/Classification` with no `#if os(iOS)` guard, so it compiles for both
+  platforms. Its Vision and DataDetection requests were checked against the **native macOS**
+  `.swiftinterface` (not the Catalyst one) before being used: `RecognizeDocumentsRequest` is
+  `@available(macOS 26.0, iOS 26.0, ...)` and `DataDetector.MatchType` carries the same cases.
 - `plutil -lint OpenIntelligence.xcodeproj/project.pbxproj` — OK.
 - `python3 scripts/verify_capabilities.py` — all declared capabilities still have their
   implementation, `private_cloud_compute shipping ok (19 occurrences)`.
