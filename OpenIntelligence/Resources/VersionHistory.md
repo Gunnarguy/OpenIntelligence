@@ -7,6 +7,18 @@ This document provides a chronological history of user-facing changes, highlight
 
 ---
 
+## v5.3 - unreleased
+
+### Reading your documents
+- **The app now uses Apple's own detector to find the real things inside a document, instead of its own pattern matching.** When a page is read, addresses, phone numbers, dates, amounts of money, measurements, flight numbers and tracking numbers are recognised for what they are rather than matched as text that looks roughly right. The patterns it used before only understood US phone numbers and three currencies, so a European invoice produced no amounts at all and a postal address was never recognised. An amount is now recorded together with the currency it is in, and a date in a standard form, rather than as whatever characters happened to sit on the page, which is what makes them findable later.
+- **Known limit, stated plainly:** this currently applies to text inside tables. Prose on the same page does not yet contribute.
+
+### Answering
+- **New, and off until you turn it on: Adapt to the question.** In Model Parameters, this lets the app choose how careful or how expansive an answer should be from what you actually asked. Looking up a value or a figure becomes near-repeatable, so asking the same question twice gives the same number. Comparing two things, or investigating a topic, gets more room to work. Your own saved settings are not changed, and turning it off restores them immediately.
+- **Why it is off by default:** nobody has shown it produces better answers yet. It is a setting you can judge for yourself, not a change made on your behalf.
+
+---
+
 ## v5.2 - September 10, 2026
 The release that turns on Private Cloud Compute. Nothing about how the app reads, searches or checks
 your files changes; what changes is that one step, the writing of the answer, can now leave the
