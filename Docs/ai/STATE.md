@@ -183,15 +183,37 @@ nothing presents the camera.
 
 ## Exact Next Action
 
-Run the suite once more from the out-of-iCloud copy and read the final count. The last full run
-predates the adaptive-profile commit, so those 9 tests have not executed yet:
+**No code work is outstanding and nothing is half-done.** The 5.3 working set is committed,
+the iOS suite is green at 416 passed / 0 failed, and macOS builds clean. A fresh session should
+not re-run the suite to find out where things stand; read the Verification block above.
+
+**The one thing waiting is a push.** Five commits sit on local `main`, zero behind `origin/main`,
+so it is a clean fast-forward. Pushing triggers an Xcode Cloud build stamped **5.3**, which now
+matches the App Store Connect record that already exists on both platforms. That is deliberately
+left to the owner rather than done by an agent.
 
 ```bash
-rsync -a --delete --exclude='.build*' --exclude='build' --exclude='*.nosync' --exclude='.git' OpenIntelligence OpenIntelligence.xcodeproj OpenIntelligenceTests OpenIntelligenceLiveActivities Package.swift Package.resolved Info.plist Docs CHANGELOG.md ci_scripts /private/tmp/oi-src/ && cd /private/tmp/oi-src && xcodebuild test -scheme OpenIntelligence -destination "platform=iOS Simulator,id=25E29FA1-6A22-4A86-AE9F-A6F48411E6D0" -derivedDataPath /private/tmp/oi-fast-dd
+gtimeout 60 git push origin main
 ```
 
-Then, in the owner's hands rather than an agent's:
+Then four decisions, each the owner's rather than an agent's:
 
-1. **Decide the camera.** Enabling it is two edits and reverses a deliberate decision.
-2. **Decide the two unsuffixed build directories** at the repo root, which iCloud is syncing.
-3. **Decide whether the three site patches go out**, now that PCC is genuinely shipping.
+1. **The camera.** The detector behind it is correct and tested; the UI is off behind
+   `onVisionCapture: nil` in `ChatScreen` and a commented-out `fullScreenCover`, labelled
+   "v2 feature - disabled for v1 App Store release". Enabling it is two edits, reverses a
+   deliberate product decision, and cannot be exercised in a simulator.
+2. **`.build` (582 MB) and `build/` (444 MB)** at the repository root, which lack the `.nosync`
+   suffix every other build directory has, so iCloud syncs roughly a gigabyte of build output.
+   This is the same mechanism that starved builds against the checkout.
+3. **The three site patches** under `Docs/Release/5.2/sites/`, now that PCC genuinely ships.
+   Each target repository deploys on push.
+4. **Promotional text for the sale**, which fires 2026-09-15 with no further action. Adding the
+   deadline to the App Store listing is editable while a version is live.
+
+**The one open question that needs a device, not a decision:**
+`IngestionFormatCoverageTests/testSilentAudio_FailsLoudlyInsteadOfProducingAnEmptyDocument` hangs
+its full 60-second timeout on this simulator and was skipped by name for the green run. Import an
+audio file containing no speech on a real device and watch the ingestion queue. Either ingestion
+genuinely hangs on speechless audio, which is a real defect, or this simulator has no speech model,
+which the `com.apple.linguisticdata` asset failures in the log suggest. Nothing in this cycle
+touches audio.
