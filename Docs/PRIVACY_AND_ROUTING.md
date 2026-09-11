@@ -120,6 +120,27 @@ Background and App Intent execution never waits for a foreground consent sheet. 
 
 ## Route telemetry
 
+### What Apple reports, as distinct from what the app decided
+
+`LanguageModelSession.usage` (iOS/macOS 27) is the only outcome-based evidence available about a
+generation. `LanguageModelSession.Response` declares `content`, `rawContent`, `transcriptEntries`
+and `usage`, and **nothing naming the backend**, so there is no way to ask Apple which model
+served a request. `actualRoute` remains the app's own record of what it selected, which is a
+statement of intent.
+
+`usage.output.reasoningTokenCount` is the useful counterpart. Apple's capability table lists
+reasoning as unsupported on-device and available in multiple levels on Private Cloud Compute, so a
+non-zero reasoning count is positive evidence that a reasoning-capable backend did the work. Zero
+reasoning tokens on a route recorded as PCC with Deep Think or Maximum selected is a contradiction
+worth investigating rather than a value to display.
+
+This is telemetry of counts and public target names, which section 8 permits. It records no query,
+document, transcript or reasoning **content**, which section 8 forbids.
+
+`[evidence_level: code_verified, confidence: exact, evidence_source: FoundationModels.swiftinterface, Xcode 27A266a: LanguageModelSession.usage is @available(iOS 27.0, macOS 27.0, ...); Usage.Output declares totalTokenCount and reasoningTokenCount; Usage.Input declares totalTokenCount and cachedTokenCount; Response declares no backend field]`
+
+
+
 `ModelExecutionReceipt` is the durable route truth. It records plan/policy IDs, timestamps, reason codes, intended target, attempts, actual target, fallback reason, completed target, quota category, and verification result. `ResponseMetadata.executionRoute` is a compatibility summary derived from the completed receipt.
 
 Telemetry may include identifiers, public target names, counts, budgets, hashes, quota categories, reason codes, and verification status. It must not include raw query text, document text, transcript content, or generated reasoning. Historical responses remain readable because receipt metadata is optional. `[evidence_level: code_verified, confidence: high, evidence_source: ModelExecutionReceipt.swift, RAGQuery.swift, LLMService.swift]`

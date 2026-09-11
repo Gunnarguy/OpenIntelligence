@@ -126,6 +126,42 @@ enum LLMStreamingContext {
 // Moved to FoundationModelToolRegistry.swift
 
 /// Response from an LLM generation request
+/// What Apple reports about the work it actually did for one generation.
+///
+/// Every figure here comes from `LanguageModelSession.usage`, new in iOS and macOS 27. Until this
+/// existed the app could only report what it *asked* for; these are what the model spent.
+///
+/// `reasoningTokens` is the useful one and the reason this type exists. It is the only signal in
+/// the public SDK that distinguishes a model that reasoned from one that answered directly, which
+/// makes it the cheapest available proof that Private Cloud Compute did the work rather than a
+/// silent on-device fallback. `LanguageModelSession.Response` carries no route or backend field,
+/// so the app's own `actualRoute` is otherwise the only claim about where an answer came from,
+/// and it is a claim about intent rather than an observation of outcome.
+/// `[evidence_level: code_verified, confidence: exact, evidence_source:
+/// FoundationModels.swiftinterface, Xcode 27A266a: LanguageModelSession.usage is
+/// @available(iOS 27.0, macOS 27.0, ...), Usage.Output declares totalTokenCount and
+/// reasoningTokenCount, Usage.Input declares totalTokenCount and cachedTokenCount]`
+struct GenerationUsage: Equatable {
+    /// Tokens the model produced, as Apple counts them, not as the app counts words.
+    let outputTokens: Int
+    /// Of those, the ones spent reasoning rather than writing. Zero on the on-device model,
+    /// which does not support reasoning at all.
+    let reasoningTokens: Int
+    /// Tokens in the prompt Apple actually processed.
+    let inputTokens: Int
+    /// Of those, the ones served from cache rather than recomputed. Nothing in the app has ever
+    /// looked at prompt caching; this is the first measurement of it.
+    let cachedInputTokens: Int
+
+    /// True when the model demonstrably reasoned. Not a substitute for the route, but the only
+    /// outcome-based evidence available that a reasoning-capable backend served the request.
+    var didReason: Bool { reasoningTokens > 0 }
+
+    var summary: String {
+        "in=\(inputTokens)(cached \(cachedInputTokens)) out=\(outputTokens) reasoning=\(reasoningTokens)"
+    }
+}
+
 struct LLMResponse {
     let text: String
     let tokensGenerated: Int
@@ -135,6 +171,9 @@ struct LLMResponse {
     let toolCallsMade: Int  // Number of tool calls executed (for agentic RAG metrics)
     let structuredRAGGeneration: StructuredRAGGeneration?
     let executionReceipt: ModelExecutionReceipt?
+    /// Apple's own accounting for this generation. `nil` below iOS/macOS 27, where the API does
+    /// not exist, and `nil` on the non-Apple paths.
+    let usage: GenerationUsage?
 
     init(
         text: String,
@@ -144,7 +183,8 @@ struct LLMResponse {
         modelName: String?,
         toolCallsMade: Int,
         structuredRAGGeneration: StructuredRAGGeneration? = nil,
-        executionReceipt: ModelExecutionReceipt? = nil
+        executionReceipt: ModelExecutionReceipt? = nil,
+        usage: GenerationUsage? = nil
     ) {
         self.text = text
         self.tokensGenerated = tokensGenerated
@@ -154,6 +194,7 @@ struct LLMResponse {
         self.toolCallsMade = toolCallsMade
         self.structuredRAGGeneration = structuredRAGGeneration
         self.executionReceipt = executionReceipt
+        self.usage = usage
     }
 
     var tokensPerSecond: Float? {
@@ -509,6 +550,31 @@ struct LLMResponse {
         /// nothing to interleave with. Handing the session back means callers
         /// use the instance they created rather than re-reading state a
         /// reentrant call may already have cleared.
+        /// Apple's accounting for the work just done, or `nil` where the API does not exist.
+        ///
+        /// Read from the **session** rather than a `Response`, which is what makes this usable on
+        /// both generation paths. The streaming path never sees a `Response` object, so a
+        /// `Response.usage`-only approach would have covered the structured path and silently
+        /// skipped the streaming one, which is the same shape as the reasoning-level omission this
+        /// helper exists to let us measure.
+        ///
+        /// Call it immediately after generation finishes and before any other work reuses the
+        /// session, since these counters describe the session's most recent generation.
+        private func readUsage(from session: LanguageModelSession) -> GenerationUsage? {
+            #if compiler(>=6.4)
+                if #available(iOS 27.0, macOS 27.0, *) {
+                    let u = session.usage
+                    return GenerationUsage(
+                        outputTokens: u.output.totalTokenCount,
+                        reasoningTokens: u.output.reasoningTokenCount,
+                        inputTokens: u.input.totalTokenCount,
+                        cachedInputTokens: u.input.cachedTokenCount
+                    )
+                }
+            #endif
+            return nil
+        }
+
         private func ensureSession(
             route: AppleFoundationModelRoute,
             systemPrompt: String? = nil,
@@ -1071,6 +1137,17 @@ struct LLMResponse {
                     pccQuotaAtPlanning: plan.pccQuotaAtPlanning
                 )
             }
+            let usage = readUsage(from: session)
+            if let usage {
+                // Logged next to the route because the two answer different questions: the route
+                // is what the app asked for, reasoning tokens are what the model actually spent.
+                // A PCC route with zero reasoning tokens on a Deep Think query is the signal that
+                // something fell back without saying so.
+                Log.info(
+                    "[FM] usage \(usage.summary) route=\(actualRoute) path=streaming",
+                    category: .llm
+                )
+            }
             return LLMResponse(
                 text: responseText,
                 tokensGenerated: finalTokenCount,
@@ -1078,7 +1155,8 @@ struct LLMResponse {
                 totalTime: totalTime,
                 modelName: executionBasedModelName,
                 toolCallsMade: toolCalls,
-                executionReceipt: executionReceipt
+                executionReceipt: executionReceipt,
+                usage: usage
             )
         }
 
@@ -1191,6 +1269,13 @@ struct LLMResponse {
                     pccQuotaAtPlanning: plan.pccQuotaAtPlanning
                 )
             }
+            let usage = readUsage(from: session)
+            if let usage {
+                Log.info(
+                    "[FM] usage \(usage.summary) route=\(actualRoute) path=structured",
+                    category: .llm
+                )
+            }
             return LLMResponse(
                 text: response.text,
                 tokensGenerated: response.tokensGenerated,
@@ -1199,7 +1284,8 @@ struct LLMResponse {
                 modelName: response.modelName,
                 toolCallsMade: response.toolCallsMade,
                 structuredRAGGeneration: response.structuredRAGGeneration,
-                executionReceipt: executionReceipt
+                executionReceipt: executionReceipt,
+                usage: usage
             )
         }
         /// Detects if a response was cut off mid-sentence or mid-thought
