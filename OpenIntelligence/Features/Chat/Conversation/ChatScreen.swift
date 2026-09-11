@@ -155,8 +155,9 @@ private final class ContinuedQueryCoordinator: ObservableObject {
     private func awaitTrackedQueryCompletion() async -> Bool {
         while !Task.isCancelled {
             if let trackedSessionId,
-               trackedSessionId == lastFinishedSessionId,
-               let lastFinishedSuccess {
+                trackedSessionId == lastFinishedSessionId,
+                let lastFinishedSuccess
+            {
                 return lastFinishedSuccess
             }
 
@@ -171,7 +172,8 @@ private final class ContinuedQueryCoordinator: ObservableObject {
     }
 
     private static func makeQueryPreview(from query: String) -> String {
-        let collapsed = query
+        let collapsed =
+            query
             .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
             .trimmingCharacters(in: .whitespacesAndNewlines)
 
@@ -203,7 +205,7 @@ struct ChatScreen: View {
     @State private var streamingText: String = ""
     @State private var streamingBuffer: String = ""
     @State private var streamingPumpTask: Task<Void, Never>? = nil
-    @State private var currentQueryTask: Task<Void, Never>? = nil // Track current query for cancellation
+    @State private var currentQueryTask: Task<Void, Never>? = nil  // Track current query for cancellation
     @State private var currentQuerySessionId: UUID? = nil
     @State private var queryStart: Date? = nil
     @State private var hasReceivedStreamToken: Bool = false
@@ -264,6 +266,23 @@ struct ChatScreen: View {
 
     // Vision Capture overlay
     @State private var showVisionCapture: Bool = false
+
+    /// Opens the live camera screen, or nil on a platform that has no camera screen.
+    ///
+    /// Computed here rather than written inline into the `ChatComposerV2` argument list, because
+    /// `CameraVisionOverlayView` lives inside `#if os(iOS)` and a conditional-compilation block in
+    /// an argument position is more fragile than a property that resolves before the call.
+    ///
+    /// `AttachmentPicker` guards its Scan Document button on `if let onVisionCapture`, so nil here
+    /// removes the button rather than showing one that does nothing. Passing nil is what "disabled"
+    /// meant for this feature from v1 until 2026-09-11.
+    private var visionCaptureAction: (() -> Void)? {
+        #if os(iOS)
+            return { showVisionCapture = true }
+        #else
+            return nil
+        #endif
+    }
     @State private var showPlanSheet: Bool = false
     @State private var planEntryPoint: PlanUpgradeEntryPoint = .maximumModeLimit
     @State private var showMaximumModeLimitDialog: Bool = false
@@ -323,7 +342,7 @@ struct ChatScreen: View {
         // Prefer real audit data when available
         if let audit = ragService.lastAuditSnapshot {
             // Convert chars to tokens (audit has contextChars)
-            return max(1, audit.contextChars / 3) // ~3 chars per token conservative
+            return max(1, audit.contextChars / 3)  // ~3 chars per token conservative
         }
         return estimatedContextTokens
     }
@@ -345,7 +364,10 @@ struct ChatScreen: View {
     /// Build the primary metrics bar when consolidatedMetricsData is available
     @ViewBuilder
     private func primaryMetricsBar(metricsData: ConsolidatedMetrics) -> some View {
-        let deepThinkTokens = isProcessing ? ragService.deepThinkLiveTokens : (ragService.lastAuditSnapshot?.totalTokensAcrossCalls ?? ragService.deepThinkLiveTokens)
+        let deepThinkTokens =
+            isProcessing
+            ? ragService.deepThinkLiveTokens
+            : (ragService.lastAuditSnapshot?.totalTokensAcrossCalls ?? ragService.deepThinkLiveTokens)
         let audit = ragService.lastAuditSnapshot
         let liveReasoningEvent = thinkingEvents.last
 
@@ -437,7 +459,8 @@ struct ChatScreen: View {
             isProcessing: isProcessing,
             qualityMode: effectiveQualityMode,
             isLLMActivelyGenerating: ragService.isLLMResponding,
-            contextTokens: auditSnapshot?.isRecursiveRAG == true ? max(liveTokens, auditSnapshot?.totalTokensAcrossCalls ?? 0) : actualContextTokensUsed,
+            contextTokens: auditSnapshot?.isRecursiveRAG == true
+                ? max(liveTokens, auditSnapshot?.totalTokensAcrossCalls ?? 0) : actualContextTokensUsed,
             maxContextTokens: maxContextTokensForUI,
             tokensGenerated: liveTokens,
             tokensPerSecond: liveTokensPerSecondForMetrics,
@@ -525,9 +548,9 @@ struct ChatScreen: View {
                 onDiscardPaused: { ragService.discardPausedIngestionQueue() },
                 onStopAndDismiss: { ragService.stopAndDismissIngestionQueue() }
             )
-                .padding(.horizontal, 16)
-                .padding(.bottom, 88)
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
+            .padding(.horizontal, 16)
+            .padding(.bottom, 88)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
 
             // Motherboard HUD - Full-screen X-ray overlay
             if settings.showSiliconHUD {
@@ -538,7 +561,7 @@ struct ChatScreen: View {
             }
 
             writingToolsProgressOverlay
-            
+
             if showThreadSidebar {
                 ThreadSidebarView(
                     ragService: ragService,
@@ -556,13 +579,27 @@ struct ChatScreen: View {
                 .zIndex(100)
             }
         }
-        // MARK: - Vision Capture (v2 feature - disabled for v1 App Store release)
-        // .fullScreenCover(isPresented: $showVisionCapture) {
-        //     CameraVisionOverlayView(
-        //         ragService: ragService,
-        //         containerService: ragService.containerService
-        //     )
-        // }
+        // MARK: - Vision Capture
+        //
+        // Enabled 2026-09-11, having been commented out since v1. What changed is the detector
+        // behind it, not the screen. `YOLODetectionService` searched the bundle for four YOLOv3
+        // `.mlmodelc` files that have never existed in this repository, so it always fell through
+        // to scene classification, which carries no spatial extent, and handed each label a
+        // full-frame rectangle so the overlay had something to draw. The screen could not have
+        // boxed anything except an animal. `LiveObjectDetectionService` replaced it with detectors
+        // that ship in the OS, four of which return real geometry.
+        //
+        // iOS only: `CameraVisionOverlayView` is inside `#if os(iOS)` and has no macOS equivalent.
+        // `NSCameraUsageDescription` is set via INFOPLIST_KEY in the project, so the permission
+        // prompt has copy to show.
+        #if os(iOS)
+            .fullScreenCover(isPresented: $showVisionCapture) {
+                CameraVisionOverlayView(
+                    ragService: ragService,
+                    containerService: ragService.containerService
+                )
+            }
+        #endif
         .navigationTitle("Chat")
         .imagePlaygroundSupport()
         #if os(iOS)
@@ -603,7 +640,7 @@ struct ChatScreen: View {
 
             // Don't load persisted history in screenshot demo mode - let seedFullDemoContent() handle it
             #if DEBUG
-            if didSeedScreenshotDemo { return }
+                if didSeedScreenshotDemo { return }
             #endif
             let activeId = ragService.containerService.activeContainerId
             let isSameChatContainer = (lastLoadedChatContainerId == activeId)
@@ -639,7 +676,7 @@ struct ChatScreen: View {
                 guard !Task.isCancelled,
                     ragService.containerService.activeContainerId == activeId
                 else { return }
-                
+
                 lastLoadedChatContainerId = activeId
                 await recalcActiveCounts()
 
@@ -649,7 +686,7 @@ struct ChatScreen: View {
                 thinkingEvents = []
                 speedHistory = []
             }
-            
+
             if !isSameDocsContainer {
                 // Immediately clear old suggested questions so stale pills never flash
                 dynamicSuggestedQuestions = []
@@ -701,274 +738,279 @@ struct ChatScreen: View {
 
     private var chatPresentationLayer: some View {
         chatLifecycleLayer
-        .toolbar {
-            #if os(iOS)
-                ToolbarItem(placement: .topBarLeading) {
-                    Button {
-                        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                            showThreadSidebar.toggle()
-                        }
-                    } label: {
-                        Image(systemName: "sidebar.left")
-                            .imageScale(.large)
-                    }
-                }
-                
-                // MARK: - AI Hub (RAG Transforms + Image Playground)
-                ToolbarItem(placement: .topBarTrailing) {
-                    aiHubToolbarButton
-                }
-
-                // MARK: - Chat Actions (New / Clear)
-                ToolbarItem(placement: .topBarTrailing) {
-                    Menu {
+            .toolbar {
+                #if os(iOS)
+                    ToolbarItem(placement: .topBarLeading) {
                         Button {
-                            guard !isProcessing else { return }
-                            newChat()
+                            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                                showThreadSidebar.toggle()
+                            }
                         } label: {
-                            Label("New Chat", systemImage: "square.and.pencil")
+                            Image(systemName: "sidebar.left")
+                                .imageScale(.large)
                         }
-                        .disabled(messages.isEmpty)
+                    }
 
-                        Button(role: .destructive) {
-                            guard !isProcessing else { return }
-                            clearChat()
+                    // MARK: - AI Hub (RAG Transforms + Image Playground)
+                    ToolbarItem(placement: .topBarTrailing) {
+                        aiHubToolbarButton
+                    }
+
+                    // MARK: - Chat Actions (New / Clear)
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Menu {
+                            Button {
+                                guard !isProcessing else { return }
+                                newChat()
+                            } label: {
+                                Label("New Chat", systemImage: "square.and.pencil")
+                            }
+                            .disabled(messages.isEmpty)
+
+                            Button(role: .destructive) {
+                                guard !isProcessing else { return }
+                                clearChat()
+                            } label: {
+                                Label("Clear Chat", systemImage: "trash")
+                            }
+                            .disabled(messages.isEmpty)
                         } label: {
-                            Label("Clear Chat", systemImage: "trash")
+                            Image(systemName: "ellipsis.circle")
+                                .imageScale(.large)
+                                .opacity(messages.isEmpty ? 0.5 : 1.0)
                         }
                         .disabled(messages.isEmpty)
-                    } label: {
-                        Image(systemName: "ellipsis.circle")
-                            .imageScale(.large)
-                            .opacity(messages.isEmpty ? 0.5 : 1.0)
+                        .animation(nil, value: messages.count)
                     }
-                    .disabled(messages.isEmpty)
-                    .animation(nil, value: messages.count)
-                }
-            #else
-                ToolbarItem(placement: .navigation) {
-                    Button {
-                        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                            showThreadSidebar.toggle()
-                        }
-                    } label: {
-                        Image(systemName: "sidebar.left")
-                            .imageScale(.large)
-                    }
-                }
-                
-                ToolbarItem {
-                    Menu {
+                #else
+                    ToolbarItem(placement: .navigation) {
                         Button {
-                            guard !isProcessing else { return }
-                            newChat()
+                            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                                showThreadSidebar.toggle()
+                            }
                         } label: {
-                            Label("New Chat", systemImage: "square.and.pencil")
+                            Image(systemName: "sidebar.left")
+                                .imageScale(.large)
                         }
-                        .disabled(messages.isEmpty)
-
-                        Button(role: .destructive) {
-                            guard !isProcessing else { return }
-                            clearChat()
-                        } label: {
-                            Label("Clear Chat", systemImage: "trash")
-                        }
-                        .disabled(messages.isEmpty)
-                    } label: {
-                        Image(systemName: "ellipsis.circle")
-                            .imageScale(.large)
-                            .opacity(messages.isEmpty ? 0.5 : 1.0)
                     }
-                    .disabled(messages.isEmpty)
-                    .animation(nil, value: messages.count)
+
+                    ToolbarItem {
+                        Menu {
+                            Button {
+                                guard !isProcessing else { return }
+                                newChat()
+                            } label: {
+                                Label("New Chat", systemImage: "square.and.pencil")
+                            }
+                            .disabled(messages.isEmpty)
+
+                            Button(role: .destructive) {
+                                guard !isProcessing else { return }
+                                clearChat()
+                            } label: {
+                                Label("Clear Chat", systemImage: "trash")
+                            }
+                            .disabled(messages.isEmpty)
+                        } label: {
+                            Image(systemName: "ellipsis.circle")
+                                .imageScale(.large)
+                                .opacity(messages.isEmpty ? 0.5 : 1.0)
+                        }
+                        .disabled(messages.isEmpty)
+                        .animation(nil, value: messages.count)
+                    }
+                #endif
+            }
+            .sheet(isPresented: $showRetrievedDetails) {
+                if let meta = currentMetadata {
+                    ChatResponseDetailsView(
+                        metadata: meta,
+                        retrievedChunks: currentRetrievedChunks,
+                        structuredAnswer: currentStructuredAnswer
+                    )
+                } else {
+                    VStack(alignment: .leading, spacing: DSSpacing.md) {
+                        Text("Retrieved Sources")
+                            .font(DSTypography.title)
+                        if currentRetrievedChunks.isEmpty {
+                            Text("Searching…")
+                                .font(DSTypography.body)
+                                .foregroundColor(DSColors.secondaryText)
+                        } else {
+                            SourceChipsView(chunks: currentRetrievedChunks) {}
+                        }
+                    }
+                    .padding()
                 }
-            #endif
-        }
-        .sheet(isPresented: $showRetrievedDetails) {
-            if let meta = currentMetadata {
-                ChatResponseDetailsView(
-                    metadata: meta,
-                    retrievedChunks: currentRetrievedChunks,
-                    structuredAnswer: currentStructuredAnswer
+            }
+            .sheet(isPresented: $showPlanSheet) {
+                PlanUpgradeSheet(entryPoint: planEntryPoint)
+            }
+            .sheet(item: $activeCloudConsent) { record in
+                CloudConsentPromptView(record: record) { decision in
+                    Task { await ragService.resolveCloudConsent(decision: decision) }
+                }
+                .interactiveDismissDisabled(true)
+                #if os(iOS)
+                    .presentationDetents([.height(580), .large])
+                    .presentationDragIndicator(.hidden)
+                    .presentationCornerRadius(24)
+                    .presentationBackground(.ultraThinMaterial)
+                #endif
+            }
+            .confirmationDialog(
+                "Maximum mode limit reached",
+                isPresented: $showMaximumModeLimitDialog,
+                titleVisibility: .visible
+            ) {
+                Button("Switch to Standard") {
+                    settings.ragQualityMode = .standard
+                    ragService.resetDeepThinkLiveMetrics()
+                }
+                Button("Switch to Deep Think") {
+                    settings.ragQualityMode = .deepThink
+                    ragService.resetDeepThinkLiveMetrics()
+                }
+                Button("See Plans") {
+                    presentMaximumModePaywall()
+                }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text(maximumModeLimitDialogMessage)
+            }
+            .alert(
+                "Enjoying OpenIntelligence?",
+                isPresented: $showFriendlyReviewPrompt
+            ) {
+                Button("I love it! ❤️") {
+                    requestReview()
+                }
+                Button("Write a Review ✍️") {
+                    openURL(OpenIntelligenceLinks.writeReviewURL)
+                }
+                Button("Needs improvement 💬") {
+                    openURL(OpenIntelligenceLinks.feedbackMailtoURL(source: "In-App Feedback Prompt"))
+                }
+                Button("Maybe later", role: .cancel) {}
+            } message: {
+                Text(
+                    "OpenIntelligence is fully on-device and private. A quick rating or review helps the app grow and keeps me building!"
                 )
-            } else {
-                VStack(alignment: .leading, spacing: DSSpacing.md) {
-                    Text("Retrieved Sources")
-                        .font(DSTypography.title)
-                    if currentRetrievedChunks.isEmpty {
-                        Text("Searching…")
-                            .font(DSTypography.body)
-                            .foregroundColor(DSColors.secondaryText)
-                    } else {
-                        SourceChipsView(chunks: currentRetrievedChunks) {}
-                    }
+            }
+            .alert(
+                "Help Me Improve",
+                isPresented: $showFeedbackEmailPrompt
+            ) {
+                Button("Send Feedback 💬") {
+                    openURL(OpenIntelligenceLinks.feedbackMailtoURL(source: "In-App Negative Feedback"))
                 }
-                .padding()
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text(
+                    "I'm sorry that answer wasn't helpful. Please send me your feedback so I can improve OpenIntelligence!"
+                )
             }
-        }
-        .sheet(isPresented: $showPlanSheet) {
-            PlanUpgradeSheet(entryPoint: planEntryPoint)
-        }
-        .sheet(item: $activeCloudConsent) { record in
-            CloudConsentPromptView(record: record) { decision in
-                Task { await ragService.resolveCloudConsent(decision: decision) }
-            }
-            .interactiveDismissDisabled(true)
-#if os(iOS)
-            .presentationDetents([.height(580), .large])
-            .presentationDragIndicator(.hidden)
-            .presentationCornerRadius(24)
-            .presentationBackground(.ultraThinMaterial)
-#endif
-        }
-        .confirmationDialog(
-            "Maximum mode limit reached",
-            isPresented: $showMaximumModeLimitDialog,
-            titleVisibility: .visible
-        ) {
-            Button("Switch to Standard") {
-                settings.ragQualityMode = .standard
-                ragService.resetDeepThinkLiveMetrics()
-            }
-            Button("Switch to Deep Think") {
-                settings.ragQualityMode = .deepThink
-                ragService.resetDeepThinkLiveMetrics()
-            }
-            Button("See Plans") {
-                presentMaximumModePaywall()
-            }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text(maximumModeLimitDialogMessage)
-        }
-        .alert(
-            "Enjoying OpenIntelligence?",
-            isPresented: $showFriendlyReviewPrompt
-        ) {
-            Button("I love it! ❤️") {
-                requestReview()
-            }
-            Button("Write a Review ✍️") {
-                openURL(OpenIntelligenceLinks.writeReviewURL)
-            }
-            Button("Needs improvement 💬") {
-                openURL(OpenIntelligenceLinks.feedbackMailtoURL(source: "In-App Feedback Prompt"))
-            }
-            Button("Maybe later", role: .cancel) {}
-        } message: {
-            Text("OpenIntelligence is fully on-device and private. A quick rating or review helps the app grow and keeps me building!")
-        }
-        .alert(
-            "Help Me Improve",
-            isPresented: $showFeedbackEmailPrompt
-        ) {
-            Button("Send Feedback 💬") {
-                openURL(OpenIntelligenceLinks.feedbackMailtoURL(source: "In-App Negative Feedback"))
-            }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text("I'm sorry that answer wasn't helpful. Please send me your feedback so I can improve OpenIntelligence!")
-        }
     }
 
     var body: some View {
         chatPresentationLayer
-        .onAppear {
-            let ragService = self.ragService
-            continuedQueryCoordinator.expirationHandler = { [weak ragService] in
-                ragService?.cancelActiveGeneration(resetSession: true)
-                Task { @MainActor in
-                    self.currentQueryTask?.cancel()
-                    self.currentQueryTask = nil
-                    self.currentQuerySessionId = nil
-                    self.isProcessing = false
-                    self.stage = .idle
-                    self.resetStreamingState()
-                    self.generationStart = nil
+            .onAppear {
+                let ragService = self.ragService
+                continuedQueryCoordinator.expirationHandler = { [weak ragService] in
+                    ragService?.cancelActiveGeneration(resetSession: true)
+                    Task { @MainActor in
+                        self.currentQueryTask?.cancel()
+                        self.currentQueryTask = nil
+                        self.currentQuerySessionId = nil
+                        self.isProcessing = false
+                        self.stage = .idle
+                        self.resetStreamingState()
+                        self.generationStart = nil
+                    }
+                }
+                continuedQueryCoordinator.handleScenePhaseChange(scenePhase, isProcessing: isProcessing)
+                // Seed screenshot demo FIRST before loading persisted history
+                seedScreenshotDemoIfNeeded()
+                entitlementStore.refreshTransientState()
+                isAppeared = true
+                if needsSuggestedQuestionsRefresh || dynamicSuggestedQuestions.isEmpty {
+                    needsSuggestedQuestionsRefresh = false
+                    refreshDynamicQuestions()
                 }
             }
-            continuedQueryCoordinator.handleScenePhaseChange(scenePhase, isProcessing: isProcessing)
-            // Seed screenshot demo FIRST before loading persisted history
-            seedScreenshotDemoIfNeeded()
-            entitlementStore.refreshTransientState()
-            isAppeared = true
-            if needsSuggestedQuestionsRefresh || dynamicSuggestedQuestions.isEmpty {
-                needsSuggestedQuestionsRefresh = false
-                refreshDynamicQuestions()
+            .onDisappear {
+                isAppeared = false
             }
-        }
-        .onDisappear {
-            isAppeared = false
-        }
-        .onReceive(NotificationCenter.default.publisher(for: Notification.Name("ActiveModelRouteResolved"))) { notification in
-            guard let pathString = notification.userInfo?["executionPath"] as? String else { return }
-            switch pathString {
-            case "onDevice":
-                self.execution = .onDevice
-            case "privateCloudCompute":
-                self.execution = .privateCloudCompute
-            default:
-                break
+            .onReceive(NotificationCenter.default.publisher(for: Notification.Name("ActiveModelRouteResolved"))) {
+                notification in
+                guard let pathString = notification.userInfo?["executionPath"] as? String else { return }
+                switch pathString {
+                case "onDevice":
+                    self.execution = .onDevice
+                case "privateCloudCompute":
+                    self.execution = .privateCloudCompute
+                default:
+                    break
+                }
             }
-        }
-        // MARK: - NSUserActivity / Handoff
-        .userActivity("com.openintelligence.chat") { activity in
-            activity.title = "Chat with Documents"
-            activity.isEligibleForSearch = true
-            activity.isEligibleForHandoff = true
-            #if os(iOS)
-            activity.isEligibleForPrediction = true
+            // MARK: - NSUserActivity / Handoff
+            .userActivity("com.openintelligence.chat") { activity in
+                activity.title = "Chat with Documents"
+                activity.isEligibleForSearch = true
+                activity.isEligibleForHandoff = true
+                #if os(iOS)
+                    activity.isEligibleForPrediction = true
+                #endif
+                if let containerId = ragService.containerService.activeContainerId as UUID? {
+                    activity.userInfo = ["containerId": containerId]
+                }
+            }
+            // MARK: - Translation Overlay
+            #if !targetEnvironment(macCatalyst)
+                .translationPresentation(isPresented: $showTranslation, text: translationText)
             #endif
-            if let containerId = ragService.containerService.activeContainerId as UUID? {
-                activity.userInfo = ["containerId": containerId]
+            // MARK: - WritingTools Result Sheet
+            .sheet(isPresented: $showWritingToolsResult) {
+                WritingToolsResultSheet(
+                    title: writingToolsTitle,
+                    result: writingToolsResult,
+                    onCopy: {
+                        #if canImport(UIKit)
+                            UIPasteboard.general.string = writingToolsResult
+                        #endif
+                        DSHaptics.success()
+                        toastManager.show(
+                            ToastItem(title: "Copied to clipboard", icon: "doc.on.doc", tint: .green),
+                            duration: 1.5
+                        )
+                    },
+                    onInsertAsReply: {
+                        showWritingToolsResult = false
+                        let writingMessage = ChatMessage(
+                            role: .assistant,
+                            content: "**\(writingToolsTitle):**\n\n\(writingToolsResult)"
+                        )
+                        messages.append(writingMessage)
+                    },
+                    onFeedback: { isPositive in
+                        // Log quality signal to pipeline observability.
+                        // When LanguageModelSession.logFeedbackAttachment is wired through the
+                        // service layer, re-route here for official Apple FM telemetry.
+                        let signal = isPositive ? "positive" : "negative"
+                        Log.info("[AIHub] User feedback '\(signal)' for \(writingToolsTitle)", category: .pipeline)
+                        DSHaptics.selection()
+                        toastManager.show(
+                            ToastItem(
+                                title: isPositive ? "Thanks for the feedback!" : "Got it — we'll improve",
+                                icon: isPositive ? "hand.thumbsup.fill" : "hand.thumbsdown.fill",
+                                tint: isPositive ? .green : .orange
+                            ),
+                            duration: 2.0
+                        )
+                    }
+                )
+                .presentationDetents([.medium, .large])
             }
-        }
-        // MARK: - Translation Overlay
-        #if !targetEnvironment(macCatalyst)
-            .translationPresentation(isPresented: $showTranslation, text: translationText)
-        #endif
-        // MARK: - WritingTools Result Sheet
-        .sheet(isPresented: $showWritingToolsResult) {
-            WritingToolsResultSheet(
-                title: writingToolsTitle,
-                result: writingToolsResult,
-                onCopy: {
-                    #if canImport(UIKit)
-                    UIPasteboard.general.string = writingToolsResult
-                    #endif
-                    DSHaptics.success()
-                    toastManager.show(
-                        ToastItem(title: "Copied to clipboard", icon: "doc.on.doc", tint: .green),
-                        duration: 1.5
-                    )
-                },
-                onInsertAsReply: {
-                    showWritingToolsResult = false
-                    let writingMessage = ChatMessage(
-                        role: .assistant,
-                        content: "**\(writingToolsTitle):**\n\n\(writingToolsResult)"
-                    )
-                    messages.append(writingMessage)
-                },
-                onFeedback: { isPositive in
-                    // Log quality signal to pipeline observability.
-                    // When LanguageModelSession.logFeedbackAttachment is wired through the
-                    // service layer, re-route here for official Apple FM telemetry.
-                    let signal = isPositive ? "positive" : "negative"
-                    Log.info("[AIHub] User feedback '\(signal)' for \(writingToolsTitle)", category: .pipeline)
-                    DSHaptics.selection()
-                    toastManager.show(
-                        ToastItem(
-                            title: isPositive ? "Thanks for the feedback!" : "Got it — we'll improve",
-                            icon: isPositive ? "hand.thumbsup.fill" : "hand.thumbsdown.fill",
-                            tint: isPositive ? .green : .orange
-                        ),
-                        duration: 2.0
-                    )
-                }
-            )
-            .presentationDetents([.medium, .large])
-        }
     }
 
     private var streamingTokensApprox: Int {
@@ -1033,9 +1075,9 @@ struct ChatScreen: View {
     private var inferredModelName: String {
         // Screenshot demo always shows "Apple Intelligence"
         #if DEBUG
-        if didSeedScreenshotDemo {
-            return "Apple Intelligence"
-        }
+            if didSeedScreenshotDemo {
+                return "Apple Intelligence"
+            }
         #endif
         // Use settings EnvironmentObject
         switch settings.selectedModel {
@@ -1049,9 +1091,9 @@ struct ChatScreen: View {
     /// Quality mode - returns Deep Think during screenshot demo for consistent visuals
     private var effectiveQualityMode: RAGQualityMode {
         #if DEBUG
-        if didSeedScreenshotDemo {
-            return .deepThink
-        }
+            if didSeedScreenshotDemo {
+                return .deepThink
+            }
         #endif
         return settings.ragQualityMode
     }
@@ -1171,15 +1213,16 @@ struct ChatScreen: View {
 
         // Conversation history (last 4 turns, 300 chars each max - mirrors RAGService injection)
         // RAGService injects: "PREVIOUS CONVERSATION:\nUser: ...\nAssistant: ...\n\nCURRENT QUESTION: "
-        let historyMessages = messages
+        let historyMessages =
+            messages
             .filter { $0.role != .system }
-            .suffix(4) // Last 4 turns (2 user + 2 assistant typically)
+            .suffix(4)  // Last 4 turns (2 user + 2 assistant typically)
         let historyTokens = historyMessages.reduce(0) { acc, msg in
             let truncatedLength = min(msg.content.count, 300)
-            return acc + estimateTokens(truncatedLength + 15) // +15 for "User: " or "Assistant: " prefix
+            return acc + estimateTokens(truncatedLength + 15)  // +15 for "User: " or "Assistant: " prefix
         }
 
-        let historyFramingTokens = historyMessages.isEmpty ? 0 : 30 // "PREVIOUS CONVERSATION:\n" + "\nCURRENT QUESTION: "
+        let historyFramingTokens = historyMessages.isEmpty ? 0 : 30  // "PREVIOUS CONVERSATION:\n" + "\nCURRENT QUESTION: "
 
         // Current prompt length
         let lastUserTokens = estimateTokens(
@@ -1233,13 +1276,20 @@ struct ChatScreen: View {
 
             let wantsHero = LaunchArguments.has("--screenshot-chat-hero") || LaunchArguments.has("screenshot-chat-hero")
             let wantsDemo = LaunchArguments.has("--screenshot-chat-demo") || LaunchArguments.has("screenshot-chat-demo")
-            let wantsSources = LaunchArguments.has("--screenshot-chat-sources") || LaunchArguments.has("screenshot-chat-sources")
-            let wantsDetails = LaunchArguments.has("--screenshot-chat-details") || LaunchArguments.has("screenshot-chat-details")
-            let wantsConsent = LaunchArguments.has("--screenshot-cloud-consent") || LaunchArguments.has("screenshot-cloud-consent")
-            let wantsThinking = LaunchArguments.has("--screenshot-chat-thinking") || LaunchArguments.has("screenshot-chat-thinking")
-            let wantsFullDemo = LaunchArguments.has("--screenshot-chat-full") || LaunchArguments.has("screenshot-chat-full")
+            let wantsSources =
+                LaunchArguments.has("--screenshot-chat-sources") || LaunchArguments.has("screenshot-chat-sources")
+            let wantsDetails =
+                LaunchArguments.has("--screenshot-chat-details") || LaunchArguments.has("screenshot-chat-details")
+            let wantsConsent =
+                LaunchArguments.has("--screenshot-cloud-consent") || LaunchArguments.has("screenshot-cloud-consent")
+            let wantsThinking =
+                LaunchArguments.has("--screenshot-chat-thinking") || LaunchArguments.has("screenshot-chat-thinking")
+            let wantsFullDemo =
+                LaunchArguments.has("--screenshot-chat-full") || LaunchArguments.has("screenshot-chat-full")
 
-            guard wantsHero || wantsDemo || wantsSources || wantsDetails || wantsConsent || wantsThinking || wantsFullDemo else { return }
+            guard
+                wantsHero || wantsDemo || wantsSources || wantsDetails || wantsConsent || wantsThinking || wantsFullDemo
+            else { return }
             didSeedScreenshotDemo = true
 
             // IMPORTANT: Clear ALL state first to override any persisted chat history
@@ -1286,9 +1336,9 @@ struct ChatScreen: View {
                 ChatMessage(
                     role: .assistant,
                     content:
-                    "• Privacy-first: Your docs stay on-device by default, with Apple Private Cloud Compute for eligible higher-capacity requests.\n" +
-                        "• Fast, grounded answers: Hybrid search + re-ranking helps keep responses tied to your library.\n" +
-                        "• Review path: citations, evidence snippets, and warning signals make source checks easier."
+                        "• Privacy-first: Your docs stay on-device by default, with Apple Private Cloud Compute for eligible higher-capacity requests.\n"
+                        + "• Fast, grounded answers: Hybrid search + re-ranking helps keep responses tied to your library.\n"
+                        + "• Review path: citations, evidence snippets, and warning signals make source checks easier."
                 ),
             ]
 
@@ -1326,21 +1376,24 @@ struct ChatScreen: View {
                         rank: 1,
                         title: "Prototype Scope",
                         page: 1,
-                        snippet: "The prototype supports local document import, library isolation, retrieval, citations, and evidence review.",
+                        snippet:
+                            "The prototype supports local document import, library isolation, retrieval, citations, and evidence review.",
                         score: 0.86
                     ),
                     makeChunk(
                         rank: 2,
                         title: "Design Pillars",
                         page: 1,
-                        snippet: "Local-first files, source-backed answers, and visible retrieval diagnostics are the core design pillars.",
+                        snippet:
+                            "Local-first files, source-backed answers, and visible retrieval diagnostics are the core design pillars.",
                         score: 0.81
                     ),
                     makeChunk(
                         rank: 3,
                         title: "Roadmap Tasks",
                         page: 1,
-                        snippet: "Improve ingestion coverage, benchmark retrieval behavior, and document known build limitations.",
+                        snippet:
+                            "Improve ingestion coverage, benchmark retrieval behavior, and document known build limitations.",
                         score: 0.77
                     ),
                 ]
@@ -1366,15 +1419,19 @@ struct ChatScreen: View {
             // 5) Thinking events timeline (Deep Think / Maximum mode showcase)
             if wantsThinking {
                 thinkingEvents = [
-                    ThinkingEvent(kind: .planning, title: "Query analysis", detail: "Identified: roadmap summary request"),
-                    ThinkingEvent(kind: .queryRewrite, title: "Multi-query expansion", detail: "Generated 4 search variations"),
-                    ThinkingEvent(kind: .vectorSearch, title: "Semantic search", detail: "384-dim embeddings • cosine similarity"),
+                    ThinkingEvent(
+                        kind: .planning, title: "Query analysis", detail: "Identified: roadmap summary request"),
+                    ThinkingEvent(
+                        kind: .queryRewrite, title: "Multi-query expansion", detail: "Generated 4 search variations"),
+                    ThinkingEvent(
+                        kind: .vectorSearch, title: "Semantic search", detail: "384-dim embeddings • cosine similarity"),
                     ThinkingEvent(kind: .bm25, title: "Keyword search", detail: "BM25 scoring • k1=1.2, b=0.75"),
                     ThinkingEvent(kind: .rrf, title: "RRF fusion", detail: "Merged rankings • k=60"),
                     ThinkingEvent(kind: .mmr, title: "MMR diversification", detail: "λ=0.6 • reduced redundancy"),
                     ThinkingEvent(kind: .rerank, title: "Re-ranking", detail: "Cross-encoder • top 5 → 3"),
                     ThinkingEvent(kind: .context, title: "Context ready", detail: "3 chunks • 847 words"),
-                    ThinkingEvent(kind: .generation, title: "Generating response", detail: "Apple Intelligence • on-device"),
+                    ThinkingEvent(
+                        kind: .generation, title: "Generating response", detail: "Apple Intelligence • on-device"),
                 ]
             }
         #endif
@@ -1387,7 +1444,8 @@ struct ChatScreen: View {
         thinkingEvents = [
             ThinkingEvent(kind: .planning, title: "Query analysis", detail: "Identified: roadmap + privacy request"),
             ThinkingEvent(kind: .queryRewrite, title: "Multi-query expansion", detail: "Generated 4 search variations"),
-            ThinkingEvent(kind: .vectorSearch, title: "Semantic search", detail: "384-dim embeddings • cosine similarity"),
+            ThinkingEvent(
+                kind: .vectorSearch, title: "Semantic search", detail: "384-dim embeddings • cosine similarity"),
             ThinkingEvent(kind: .bm25, title: "Keyword search", detail: "BM25 scoring • k1=1.2, b=0.75"),
             ThinkingEvent(kind: .rrf, title: "RRF fusion", detail: "Merged rankings • k=60"),
             ThinkingEvent(kind: .mmr, title: "MMR diversification", detail: "λ=0.6 • reduced redundancy"),
@@ -1413,7 +1471,7 @@ struct ChatScreen: View {
             reasoningTrace: [
                 "🔍 Analyzing query intent: roadmap + privacy information requested",
                 "📚 Retrieved 3 highly relevant chunks from roadmap brief",
-                "🧠 Synthesizing multi-source response with citations"
+                "🧠 Synthesizing multi-source response with citations",
             ]
         )
 
@@ -1422,21 +1480,21 @@ struct ChatScreen: View {
             ChatMessage(
                 role: .assistant,
                 content: """
-                Based on your documents, here's a comprehensive overview:
+                    Based on your documents, here's a comprehensive overview:
 
-                ## Roadmap Items
-                • **Ingestion**: expand parsing coverage and document normalization
-                • **Retrieval**: improve hybrid search, re-ranking, and context selection
-                • **Review**: make citations, source snippets, and warnings easier to inspect
+                    ## Roadmap Items
+                    • **Ingestion**: expand parsing coverage and document normalization
+                    • **Retrieval**: improve hybrid search, re-ranking, and context selection
+                    • **Review**: make citations, source snippets, and warnings easier to inspect
 
-                ## Privacy Architecture
-                All processing happens **on-device by default**. When additional compute is needed, Apple's Private Cloud Compute ensures your data never leaves Apple's secure enclaves.
+                    ## Privacy Architecture
+                    All processing happens **on-device by default**. When additional compute is needed, Apple's Private Cloud Compute ensures your data never leaves Apple's secure enclaves.
 
-                The hybrid search combines semantic understanding with keyword matching for accurate, grounded responses. [S1] [S2]
-                """,
+                    The hybrid search combines semantic understanding with keyword matching for accurate, grounded responses. [S1] [S2]
+                    """,
                 metadata: demoMetadata,
                 retrievedChunks: nil
-            )
+            ),
         ]
 
         // Source chunks for the sources tray
@@ -1479,14 +1537,16 @@ struct ChatScreen: View {
                 rank: 2,
                 title: "Privacy Architecture",
                 page: 1,
-                snippet: "Privacy-first: Data stays on-device or Apple PCC. No third-party cloud. Secure enclave processing.",
+                snippet:
+                    "Privacy-first: Data stays on-device or Apple PCC. No third-party cloud. Secure enclave processing.",
                 score: 0.88
             ),
             makeChunk(
                 rank: 3,
                 title: "Hybrid Search",
                 page: 2,
-                snippet: "Combines semantic embeddings with BM25 keyword matching. MMR ensures diverse, non-redundant results.",
+                snippet:
+                    "Combines semantic embeddings with BM25 keyword matching. MMR ensures diverse, non-redundant results.",
                 score: 0.84
             ),
         ]
@@ -1592,7 +1652,7 @@ struct ChatScreen: View {
                 "Import a document from the Documents tab to get started.",
                 "What file types does OpenIntelligence handle best?",
                 "How do answers stay tied to the source?",
-                "When does processing stay on-device?"
+                "When does processing stay on-device?",
             ]
         }
 
@@ -1629,7 +1689,7 @@ struct ChatScreen: View {
             "How does OpenIntelligence work around the 4,096-token model limit?",
             "What file types does OpenIntelligence handle best?",
             "Why is OpenIntelligence different from a generic AI chat app?",
-            "When does processing stay on-device, and when does Apple Private Cloud Compute step in?"
+            "When does processing stay on-device, and when does Apple Private Cloud Compute step in?",
         ]
     }
 
@@ -1687,7 +1747,8 @@ struct ChatScreen: View {
                 if force {
                     hasValidCache = false
                 } else {
-                    hasValidCache = await suggestedQuestionsService.hasValidCache(for: containerId, documentCount: documents.count)
+                    hasValidCache = await suggestedQuestionsService.hasValidCache(
+                        for: containerId, documentCount: documents.count)
                 }
 
                 let sampleChunks: [DocumentChunk]
@@ -1711,7 +1772,9 @@ struct ChatScreen: View {
                 // Verify we're still on the same container — prevents race where
                 // a slow LLM generation from container A overwrites container B's state
                 guard ragService.containerService.activeContainerId == containerId else {
-                    Log.debug("[ChatScreen] Discarding stale questions for container \(containerId.uuidString.prefix(8)) — user switched")
+                    Log.debug(
+                        "[ChatScreen] Discarding stale questions for container \(containerId.uuidString.prefix(8)) — user switched"
+                    )
                     return
                 }
 
@@ -1789,7 +1852,8 @@ struct ChatScreen: View {
                 duration: 4.0
             )
         } catch {
-            Log.error("[ChatScreen] Failed to create new thread: \(error.localizedDescription)", category: .initialization)
+            Log.error(
+                "[ChatScreen] Failed to create new thread: \(error.localizedDescription)", category: .initialization)
         }
     }
 
@@ -1864,7 +1928,8 @@ struct ChatScreen: View {
 
         // Find the user message that preceded this assistant response
         if let index = messages.firstIndex(where: { $0.id == message.id }),
-           index > 0 {
+            index > 0
+        {
             let previousMessage = messages[index - 1]
             if previousMessage.role == .user {
                 // Remove the assistant response we're regenerating
@@ -2055,7 +2120,7 @@ struct ChatScreen: View {
                 onStop: stopGeneration,
                 onAttach: nil,
                 onSendWithAttachments: sendMessageWithAttachments,
-                onVisionCapture: nil
+                onVisionCapture: visionCaptureAction
             )
         }
     }
@@ -2079,7 +2144,8 @@ struct ChatScreen: View {
             .scrollDismissesKeyboard(.interactively)
             .onTapGesture {
                 #if canImport(UIKit)
-                UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+                    UIApplication.shared.sendAction(
+                        #selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
                 #endif
             }
         } else {
@@ -2094,18 +2160,18 @@ struct ChatScreen: View {
                 onGoDeeper: { goDeeper() },
                 onThumbsUp: {
                     #if canImport(FoundationModels)
-                    if #available(iOS 26.0, *) {
-                        ragService.submitPositiveFeedback()
-                    }
+                        if #available(iOS 26.0, *) {
+                            ragService.submitPositiveFeedback()
+                        }
                     #endif
                     DSHaptics.success()
                     triggerThumbsUpReviewPrompt()
                 },
                 onThumbsDown: {
                     #if canImport(FoundationModels)
-                    if #available(iOS 26.0, *) {
-                        ragService.submitNegativeFeedback()
-                    }
+                        if #available(iOS 26.0, *) {
+                            ragService.submitNegativeFeedback()
+                        }
                     #endif
                     DSHaptics.warning()
                     showFeedbackEmailPrompt = true
@@ -2366,7 +2432,8 @@ struct ChatScreen: View {
                     // Show success before sending query
                     toastManager.show(
                         ToastItem(
-                            title: "Added \(successCount) \(successCount == 1 ? "document" : "documents") • Querying...",
+                            title:
+                                "Added \(successCount) \(successCount == 1 ? "document" : "documents") • Querying...",
                             icon: "checkmark.circle.fill",
                             tint: .green,
                             haptic: false
@@ -2510,7 +2577,7 @@ struct ChatScreen: View {
                 cancelInFlightQueryWork()
                 // Brief yield to let cancellation propagate
                 Task { @MainActor in
-                    try? await Task.sleep(nanoseconds: 50_000_000) // 50ms
+                    try? await Task.sleep(nanoseconds: 50_000_000)  // 50ms
                 }
             } else {
                 cancelInFlightQueryWork(resetLLMSession: false)
@@ -2643,7 +2710,7 @@ struct ChatScreen: View {
                     self.generatingElapsedFinal = nil
                     self.continuedQueryCoordinator.markEmbedding()
                     // StatusPillV2 shows stage - no toast needed
-                    DSHaptics.processingPulse() // Feel the pipeline starting
+                    DSHaptics.processingPulse()  // Feel the pipeline starting
                 }
                 try? await Task.sleep(nanoseconds: 250_000_000)
 
@@ -2659,7 +2726,7 @@ struct ChatScreen: View {
                     }
                     self.continuedQueryCoordinator.markSearching()
                     // StatusPillV2 shows stage - no toast needed
-                    DSHaptics.processingPulse() // Feel the search starting
+                    DSHaptics.processingPulse()  // Feel the search starting
                 }
 
                 let config = InferenceConfig(
@@ -2718,7 +2785,7 @@ struct ChatScreen: View {
                     }
                     self.continuedQueryCoordinator.markGenerating()
                     // StatusPillV2 shows stage - no toast needed
-                    DSHaptics.messageReceived() // Feel the response starting
+                    DSHaptics.messageReceived()  // Feel the response starting
                 }
 
                 let response = try await capturedService.query(
@@ -2731,7 +2798,7 @@ struct ChatScreen: View {
 
                 await MainActor.run {
                     guard self.currentQuerySessionId == querySessionId,
-                          self.ragService.containerService.activeContainerId == capturedUsedContainerId
+                        self.ragService.containerService.activeContainerId == capturedUsedContainerId
                     else { return }
                     self.currentRetrievedChunks = response.retrievedChunks
                     self.currentMetadata = response.metadata
@@ -2742,7 +2809,7 @@ struct ChatScreen: View {
                 if let first = response.metadata.timeToFirstToken {
                     await MainActor.run {
                         guard self.currentQuerySessionId == querySessionId,
-                              self.ragService.containerService.activeContainerId == capturedUsedContainerId
+                            self.ragService.containerService.activeContainerId == capturedUsedContainerId
                         else { return }
                         self.ttft = first
                     }
@@ -2847,7 +2914,7 @@ struct ChatScreen: View {
 
                             await MainActor.run {
                                 guard !self.isProcessing,
-                                      self.ragService.containerService.activeContainerId == capturedUsedContainerId
+                                    self.ragService.containerService.activeContainerId == capturedUsedContainerId
                                 else { return }
                                 self.followUpSuggestions = suggestions
                                 self.followUpSuggestionsTask = nil
@@ -2869,7 +2936,7 @@ struct ChatScreen: View {
                         return
                     }
 
-                    if case let RAGServiceError.maximumModeQuotaReached(limit) = error {
+                    if case RAGServiceError.maximumModeQuotaReached(let limit) = error {
                         self.stage = .idle
                         self.resetStreamingState()
                         self.generationStart = nil
@@ -2933,9 +3000,9 @@ struct ChatScreen: View {
 
     private var canPresentScheduledReviewPrompt: Bool {
         #if DEBUG
-        if didSeedScreenshotDemo {
-            return false
-        }
+            if didSeedScreenshotDemo {
+                return false
+            }
         #endif
 
         return scenePhase == .active
@@ -2945,7 +3012,7 @@ struct ChatScreen: View {
             && !showRetrievedDetails
             && !showPlanSheet
             && !showVisionCapture
-                && !writingToolsProcessing
+            && !writingToolsProcessing
             && !showWritingToolsResult
             && !showTranslation
             && !showMaximumModeLimitDialog
@@ -2957,11 +3024,13 @@ struct ChatScreen: View {
         renderedResponse: String,
         qualityMode: RAGQualityMode
     ) {
-        guard AppReviewPromptTracker.registerSuccessfulAnswer(
-            qualityMode: qualityMode,
-            retrievedChunkCount: response.retrievedChunks.count,
-            responseLength: renderedResponse.count
-        ) else { return }
+        guard
+            AppReviewPromptTracker.registerSuccessfulAnswer(
+                qualityMode: qualityMode,
+                retrievedChunkCount: response.retrievedChunks.count,
+                responseLength: renderedResponse.count
+            )
+        else { return }
 
         reviewPromptTask?.cancel()
         reviewPromptTask = Task { @MainActor in
@@ -2983,7 +3052,8 @@ struct ChatScreen: View {
         if lastPrompted == currentVersion { return }
 
         if let lastPromptAttemptedAt = UserDefaults.standard.object(forKey: "appReview.lastPromptAttemptedAt") as? Date,
-           Date().timeIntervalSince(lastPromptAttemptedAt) < AppReviewPromptPolicy.minimumPromptCooldown {
+            Date().timeIntervalSince(lastPromptAttemptedAt) < AppReviewPromptPolicy.minimumPromptCooldown
+        {
             return
         }
 
@@ -3209,7 +3279,8 @@ struct ChatScreen: View {
         let hasCitations = trimmed.range(of: #"\[S\d+\]"#, options: .regularExpression) != nil
         if hasCitations { return true }
 
-        let sentenceCount = trimmed
+        let sentenceCount =
+            trimmed
             .components(separatedBy: CharacterSet(charactersIn: ".!?"))
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { $0.count >= 20 }
@@ -3218,10 +3289,9 @@ struct ChatScreen: View {
         if sentenceCount >= 4 { return true }
         if sentenceCount >= 3 && trimmed.count >= 240 { return true }
 
-        let hasStructuredLayout = trimmed.contains("\n### ") ||
-            trimmed.contains("\n## ") ||
-            trimmed.contains("\n- ") ||
-            trimmed.contains("\n1. ")
+        let hasStructuredLayout =
+            trimmed.contains("\n### ") || trimmed.contains("\n## ") || trimmed.contains("\n- ")
+            || trimmed.contains("\n1. ")
 
         return hasStructuredLayout && sentenceCount >= 2 && trimmed.count >= 220
     }
@@ -3244,15 +3314,17 @@ struct ChatScreen: View {
             case .rebuildBlockedByQueue:
                 // Names the reason rather than the failure, because this one is waitable: the
                 // queue drains on its own and the rebuild then succeeds.
-                return "This library's search index needs rebuilding, but some documents are still importing. Try again once the import finishes."
+                return
+                    "This library's search index needs rebuilding, but some documents are still importing. Try again once the import finishes."
             case .modelNotAvailable:
                 return "The selected model isn't available right now."
             case .routingAbstained:
                 // Deliberately does not blame the model. The planner declined to
                 // route; the model is usually fine.
                 return "I couldn't work out how to answer that from what your documents returned. Try rephrasing."
-            case let .maximumModeQuotaReached(limit):
-                return "Maximum is capped at \(limit) uses per day on Free. Switch modes or upgrade for unlimited Maximum."
+            case .maximumModeQuotaReached(let limit):
+                return
+                    "Maximum is capped at \(limit) uses per day on Free. Switch modes or upgrade for unlimited Maximum."
             case .cloudConsentDenied:
                 return "Cloud processing was declined. Switch to on-device or try again."
             case .cloudConsentUnavailable:
@@ -3413,7 +3485,9 @@ struct CompactChatHeader: View {
             // Bottom row: Model status + Quality mode picker + Stats
             HStack(spacing: 10) {
                 // Always show quality mode picker - Deep Think is useful for all users
-                QualityModeQuickPicker(selectedMode: $settings.ragQualityMode, onMaximumModeBlocked: onMaximumModeBlocked) { _, _ in
+                QualityModeQuickPicker(
+                    selectedMode: $settings.ragQualityMode, onMaximumModeBlocked: onMaximumModeBlocked
+                ) { _, _ in
                     // Reset stale Deep Think/Maximum metrics when mode changes
                     ragService.resetDeepThinkLiveMetrics()
                 }
@@ -3432,9 +3506,9 @@ struct CompactChatHeader: View {
             .padding(.horizontal, 16)
         }
         .padding(.vertical, 10)
-.onAppear {
-    deviceCapabilities = RAGService.checkDeviceCapabilities()
-}
+        .onAppear {
+            deviceCapabilities = RAGService.checkDeviceCapabilities()
+        }
     }
 
     // MARK: - Library Picker Strip
@@ -3766,7 +3840,8 @@ private struct FirstQueryPromptView: View {
         }
 
         guard !prompts.isEmpty else {
-            return "No grounded suggestions are ready yet. Ask about a specific warning, requirement, step, setting, or value in this library."
+            return
+                "No grounded suggestions are ready yet. Ask about a specific warning, requirement, step, setting, or value in this library."
         }
 
         guard !questionDetails.isEmpty else {
@@ -3774,7 +3849,8 @@ private struct FirstQueryPromptView: View {
         }
 
         if libraryDocumentCount > sourceDocumentCount && sourceDocumentCount > 0 {
-            return "This batch is pulled from \(sourceDocumentCount) of \(libraryDocumentCount) docs in this library. Refresh for a different slice."
+            return
+                "This batch is pulled from \(sourceDocumentCount) of \(libraryDocumentCount) docs in this library. Refresh for a different slice."
         }
 
         return "Suggestions are generated from specific passages in this library."
@@ -3782,7 +3858,7 @@ private struct FirstQueryPromptView: View {
 
     private func sourceLine(for prompt: String) -> String? {
         guard let detail = questionDetails[prompt],
-              let primaryDoc = detail.relevantDocuments.first
+            let primaryDoc = detail.relevantDocuments.first
         else {
             return nil
         }
@@ -3900,7 +3976,9 @@ private struct FirstQueryPromptView: View {
                         .background {
                             if #available(iOS 26.0, *) {
                                 Color.clear
-                                    .glassEffect(.regular.interactive(), in: RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
+                                    .glassEffect(
+                                        .regular.interactive(),
+                                        in: RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous))
                             } else {
                                 RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous)
                                     .fill(DSColors.surface)
@@ -4017,7 +4095,7 @@ private enum AppReviewPromptTracker {
         now: Date = Date()
     ) -> Bool {
         guard retrievedChunkCount >= AppReviewPromptPolicy.minimumRetrievedSources,
-              responseLength >= AppReviewPromptPolicy.minimumMeaningfulResponseCharacters
+            responseLength >= AppReviewPromptPolicy.minimumMeaningfulResponseCharacters
         else {
             return false
         }
@@ -4027,7 +4105,8 @@ private enum AppReviewPromptTracker {
         guard defaults.string(forKey: Keys.lastPromptedVersion) != currentVersion else { return false }
 
         if let lastPromptAttemptedAt = defaults.object(forKey: Keys.lastPromptAttemptedAt) as? Date,
-           now.timeIntervalSince(lastPromptAttemptedAt) < AppReviewPromptPolicy.minimumPromptCooldown {
+            now.timeIntervalSince(lastPromptAttemptedAt) < AppReviewPromptPolicy.minimumPromptCooldown
+        {
             return false
         }
 
@@ -4076,8 +4155,8 @@ private enum AppReviewPromptTracker {
     }
 }
 
-private extension RAGQualityMode {
-    var qualifiesForReviewAcceleration: Bool {
+extension RAGQualityMode {
+    fileprivate var qualifiesForReviewAcceleration: Bool {
         switch canonical {
         case .deepThink, .maximum:
             return true

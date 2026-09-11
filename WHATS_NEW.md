@@ -5,8 +5,11 @@
 Public release highlights for OpenIntelligence.
 
 ## 5.3
-Two changes to how the app reads documents and how it decides to answer. One is on for everyone;
-the other is a setting you turn on yourself if you want it.
+The camera comes back on, the app reads documents with Apple's own detector, and there is a new
+setting for how answers are written that you turn on yourself if you want it.
+
+### Your Camera
+- **Scan Document returns to the attachment menu, and the live view draws boxes around what it finds.** People, faces, animals and barcodes are outlined where they actually are, with a label. A description of the whole scene appears as text rather than a box, because it describes the picture and not a place in it. The screen has been in the app since v1, switched off. What was missing was a detector that could find anything: the old one looked for a model file the app has never contained, fell back to describing the entire frame, and drew a rectangle around all of it. **It has not been tried on real hardware yet.**
 
 ### Reading your documents
 - **Apple's own detector now finds the real things inside a page**, instead of the app's own pattern matching. Addresses, phone numbers, dates, amounts, measurements, flight numbers and tracking numbers are recognised as what they are. The old patterns understood US phone numbers and three currencies only, so a European invoice produced no amounts and a postal address was never found. An amount is recorded with the currency it is in, and a date in a standard form, rather than as whatever characters sat on the page, which is what makes them findable later. This applies to text inside tables today; prose on the same page does not yet contribute.

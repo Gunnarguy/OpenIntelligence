@@ -9,6 +9,10 @@ This document provides a chronological history of user-facing changes, highlight
 
 ## v5.3 - unreleased
 
+### Your Camera
+- **Scan Document is back in the attachment menu, and the live view now draws boxes around what it finds.** Point the camera and people, faces, animals and barcodes are outlined where they actually are, with a label. Scene descriptions of the whole frame appear as text rather than as a box, because they describe the picture rather than a place in it. The screen itself has been in the app since v1 and was switched off; what was missing was a detector that could find anything. The one it had looked for a model file the app has never contained, so it fell back to describing the whole frame and drew a rectangle around all of it.
+- **Not yet tried on real hardware.** It builds and the detectors are Apple's own, but nobody has pointed a phone at a room with it. Tell us what it does.
+
 ### Reading your documents
 - **The app now uses Apple's own detector to find the real things inside a document, instead of its own pattern matching.** When a page is read, addresses, phone numbers, dates, amounts of money, measurements, flight numbers and tracking numbers are recognised for what they are rather than matched as text that looks roughly right. The patterns it used before only understood US phone numbers and three currencies, so a European invoice produced no amounts at all and a postal address was never recognised. An amount is now recorded together with the currency it is in, and a date in a standard form, rather than as whatever characters happened to sit on the page, which is what makes them findable later.
 - **Known limit, stated plainly:** this currently applies to text inside tables. Prose on the same page does not yet contribute.

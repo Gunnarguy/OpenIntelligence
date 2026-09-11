@@ -118,12 +118,16 @@ other build directories are correctly named `.build.nosync`, `.simulator-smoke.n
 
 ## Active Constraints
 
-- **The camera UI is deliberately unreachable and was left that way.** `ChatScreen` passes
-  `onVisionCapture: nil` and the presenting `fullScreenCover` is commented out, labelled "v2
-  feature - disabled for v1 App Store release". About 4,300 lines under `Features/Camera/` compile
-  into the iOS app and run for nobody. Turning it on reverses a deliberate product decision and
-  cannot be verified in a simulator. The detector behind it is now correct, so enabling it is small
-  once it is decided.
+- **The camera UI is ON as of 2026-09-11, and has never run on real hardware.** It had been off
+  since v1 at three independent points: `ChatScreen` passed `onVisionCapture: nil`,
+  `AttachmentPicker` guards its Scan Document button on `if let onVisionCapture`, and the
+  presenting `fullScreenCover` was commented out. All three are now live, the presenter inside
+  `#if os(iOS)`. **This is the single least-verified thing in the tree.** A live camera feed cannot
+  be exercised in a simulator, so about 4,300 lines under `Features/Camera/` went from running for
+  nobody to running for every iOS user on the strength of a clean build. Before 5.3 ships, point a
+  phone at a room: check the boxes land on the right things, that the Vision-to-SwiftUI coordinate
+  flip is right way up, that the permission prompt appears, and that dismissing the screen tears
+  the `AVCaptureSession` down rather than leaving the camera running.
 - **Do NOT delete Frequency, Presence or Repetition Penalty from Model Parameters.** They do
   nothing: `GenerationOptions` in the iOS 27 SDK exposes exactly `samplingMode`, `temperature`,
   `maximumResponseTokens` and `toolCallingMode`, and the string "penalty" does not occur anywhere
