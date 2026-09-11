@@ -14,6 +14,7 @@ This document provides a chronological history of user-facing changes, highlight
 - **Known limit, stated plainly:** this currently applies to text inside tables. Prose on the same page does not yet contribute.
 
 ### Answering
+- **Three sliders in Model Parameters were telling you they did something they cannot do.** Frequency Penalty, Presence Penalty and Repetition Penalty sat under a line saying they affect how the model picks words. Apple's generation API has no penalty setting of any kind, so Apple Intelligence ignores all three, on this device and on Private Cloud Compute. They now say so. They are still there, and still adjustable, because they are for a local model host on Mac that is not built yet.
 - **New, and off until you turn it on: Adapt to the question.** In Model Parameters, this lets the app choose how careful or how expansive an answer should be from what you actually asked. Looking up a value or a figure becomes near-repeatable, so asking the same question twice gives the same number. Comparing two things, or investigating a topic, gets more room to work. Your own saved settings are not changed, and turning it off restores them immediately.
 - **Applies to Standard.** Deep Think and Maximum choose their own settings and are unaffected.
 - **Why it is off by default:** nobody has shown it produces better answers yet. It is a setting you can judge for yourself, not a change made on your behalf.

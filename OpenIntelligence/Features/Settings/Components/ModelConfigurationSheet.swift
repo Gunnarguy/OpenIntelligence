@@ -470,7 +470,10 @@ struct ModelConfigurationSheet: View {
                     Text("Repetition Penalty")
                 }
 
-                Text("Additional penalty for repeated sequences (1.0 = off)")
+                // Marked rather than removed, per the section comment above: unlike the other
+                // two, this one is not read even by `LocalOpenAIServerLLMService`, so it would
+                // still do nothing on the day the local model host ships.
+                Text("Additional penalty for repeated sequences (1.0 = off). Not sent anywhere, including to the planned local model host.")
                     .font(.caption2)
                     .foregroundStyle(.tertiary)
             }
@@ -478,7 +481,17 @@ struct ModelConfigurationSheet: View {
         } header: {
             Text("Advanced Parameters")
         } footer: {
-            Text("These parameters affect token sampling behavior. Defaults work well for most use cases.")
+            // The previous text here said these "affect token sampling behavior", which is false
+            // for every model this app can currently run. That sentence is the reason the screen
+            // reads as confusing: three sliders that move, save, and change nothing. The comment
+            // above this section already described this footer as the defect and as fixed; it was
+            // not. Saying so plainly costs one sentence and is cheaper than the controls.
+            Text(
+                "Apple Intelligence ignores all three. Apple's generation API takes a sampling "
+                + "mode, a temperature and a response length, and has no penalty setting of any "
+                + "kind, so these change nothing on this device or on Private Cloud Compute. "
+                + "They are here for a local model host on Mac, which is not built yet."
+            )
         }
     }
 
