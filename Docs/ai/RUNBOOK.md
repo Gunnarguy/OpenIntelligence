@@ -27,11 +27,18 @@ what `build_simulator_smoke.sh` calls; plain invocation reports and exits 1 if d
 1. **Clone outside `~/Documents`.** The existing checkout is inside it, which is the source of most
    failures on this list, and `DECISIONS.md` records that as a live problem rather than a choice.
    A new clone should not repeat it.
-2. **Xcode 27.** The existing machine has it at `/Applications/Xcode-beta.app`. The iOS deployment
-   target is 26.0 and the tests need an iOS 27 simulator runtime, which is a separate download in
-   Xcode's Platforms pane.
-3. **SwiftPM resolves on first build.** The only dependency is vendored in-tree at
-   `OpenIntelligence/swift-transformers`, so there is no network fetch to fail.
+2. **Xcode 27.** Since 2026-09-10 the release is installed at `/Applications/Xcode.app`
+   (27.0, build `27A266a`, Swift 6.4) and `xcode-select` points at it. `/Applications/Xcode-beta.app`
+   is **gone**; commands in this file used to name it and would now fail. The iOS deployment target
+   is 26.0 and the tests need an iOS 27 simulator runtime, a separate download in Xcode's Platforms
+   pane; `iPhone 18 Pro` and `iPhone 18 Pro Max` on iOS 27.0 are installed.
+   `[evidence_level: measured, confidence: exact, evidence_source: PlistBuddy on Xcode.app version.plist, xcrun simctl list, 2026-09-10]`
+3. **SwiftPM does fetch from the network.** The in-tree package at
+   `OpenIntelligence/swift-transformers` is a **shim**, not the dependency: its only source file is
+   `@_exported import Tokenizers`, and it depends on
+   `https://github.com/DePasqualeOrg/swift-tokenizers.git`, pinned at 0.7.1 in `Package.resolved`.
+   A clone with no network cannot resolve. This file previously said the opposite.
+   `[evidence_level: code_verified, confidence: exact, evidence_source: OpenIntelligence/swift-transformers/Package.swift, Package.resolved]`
 4. **Fastlane needs Ruby.** `Gemfile` and `Gemfile.lock` are tracked; `bundle install` if you are
    doing release work. Credentials come from `.env.appstore`, which is not in the repository.
 
@@ -84,7 +91,18 @@ routing behavior from a simulator run is wrong.
 ## Test
 
 Scheme `OpenIntelligence`, test target `OpenIntelligenceTests`, Xcode 27 at
-`/Applications/Xcode-beta.app`.
+`/Applications/Xcode.app`.
+
+> **Blocked as of 2026-09-10.** `xcodebuild test` cannot link `OpenIntelligenceEngine.framework`:
+> every `Tokenizers.*` symbol is undefined. The Engine's sources `import Tokenizers` directly, but
+> the target declares only the `TransformersTokenizers` shim that re-exports it, and Xcode links a
+> product's transitive package dependencies into an **application** target and not into a
+> **framework** target. `Tokenizers_<hash>_PackageProduct.framework` is built and sits unused in the
+> same `PackageFrameworks` directory. The app, the simulator smoke build and Xcode Cloud are all
+> unaffected, because only the test bundle links the Engine as a standalone unit. The fix is to add
+> the `Tokenizers` product to that target's `packageProductDependencies`, which needs
+> `project.pbxproj` and therefore the owner naming the file.
+> `[evidence_level: measured, confidence: exact, evidence_source: full Ld command line, clean -derivedDataPath, Xcode 27.0, iOS 27 simulator, 2026-09-10]`
 
 ```bash
 xcodebuild test -scheme OpenIntelligence -destination "platform=iOS Simulator,id=<UDID>" -derivedDataPath /private/tmp/oi-build
@@ -98,7 +116,7 @@ xcodebuild test -scheme OpenIntelligence -destination "platform=iOS Simulator,id
    runtimes are reinstalled, so query for a current one:
 
    ```bash
-   DEVELOPER_DIR=/Applications/Xcode-beta.app/Contents/Developer xcrun simctl list devices available
+   DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcrun simctl list devices available
    ```
 
    Plain `xcrun simctl` uses the wrong Xcode and hides the iOS 27 runtime.
@@ -129,7 +147,7 @@ The real signal is in each report: `Failed to persist ingestion queue: You don't
 save the file "ingestion_queue.json"` (curly apostrophe, so grep for `have permission to save`).
 
 ```bash
-DEVELOPER_DIR=/Applications/Xcode-beta.app/Contents/Developer xcodebuild -scheme OpenIntelligence -destination "platform=macOS" -configuration Debug -derivedDataPath /private/tmp/oi-mac-nosbx -skipPackagePluginValidation CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO build
+DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcodebuild -scheme OpenIntelligence -destination "platform=macOS" -configuration Debug -derivedDataPath /private/tmp/oi-mac-nosbx -skipPackagePluginValidation CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO build
 ```
 
 *Recorded 2026-08-09.* These are the same flags `scripts/build_simulator_smoke.sh` already uses, and
@@ -399,14 +417,14 @@ There is no lint gate, and this matters mainly so you do not mistake one for exi
 
 `.swift-format` is tracked at the repository root. The binary resolves inside the Xcode 27
 toolchain at
-`/Applications/Xcode-beta.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swift-format`.
+`/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swift-format`.
 Nothing in `.github/workflows/` or `scripts/` invokes it.
 
 *Verified 2026-08-07:* the tree does not currently pass. 20 of 25 sampled files under
 `OpenIntelligence/` emit warnings, mostly `[Indentation]`.
 
 ```bash
-/Applications/Xcode-beta.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swift-format lint --configuration .swift-format <file>
+/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swift-format lint --configuration .swift-format <file>
 ```
 
 So do not run `swift-format --in-place` across the tree as a tidy-up. It would reformat hundreds of
@@ -814,7 +832,7 @@ it needs the owner to name the file.
 
 *Found 2026-08-29, while installing a debug build on a physical iPhone to test ingestion changes.*
 
-`DEVELOPER_DIR=/Applications/Xcode-beta.app` is Xcode 27 / **Swift 6.4**, so `#if compiler(>=6.4)`
+`DEVELOPER_DIR=/Applications/Xcode.app` is Xcode 27 / **Swift 6.4**, so `#if compiler(>=6.4)`
 is **true** and every PCC path compiles in. The development provisioning profile also carries
 `com.apple.developer.private-cloud-compute`, so `EntitlementChecker.hasEntitlement` returns true and
 the routing is genuinely reachable — not dead code.

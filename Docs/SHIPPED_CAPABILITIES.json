@@ -98,16 +98,16 @@
       "note": "Counted, not estimated. Settings once advertised eight agentic tools when four were wired up; that is what a count guards against."
     },
     "private_cloud_compute": {
-      "status": "built_not_enabled",
-      "public_claim": "Optional Apple Private Cloud Compute support is built and will enable in a future release on iOS and macOS 27.",
+      "status": "shipping",
+      "public_claim": "Optional Apple Private Cloud Compute support is live on iOS and macOS 27. Retrieval, indexing and ranking stay on device; only the final answer may reach Apple's servers, after you consent.",
       "anchors": [
         "compiler(>=6.4)",
         "PrivateCloudComputeLanguageModel"
       ],
       "min_count": 12,
-      "note": "MUST be described in the future tense in all public copy until a 5.2 App Store build is live. Every path sits behind #if compiler(>=6.4); Xcode 26.6 (Swift 6.3.3) compiles them out, Xcode 27 (Swift 6.4) in. Since 2026-09-02 ci_scripts/ci_post_xcodebuild.sh is version-aware: below 5.2 it fails on any PrivateCloudCompute symbol, from 5.2 it fails on zero, both against a live SystemLanguageModel control; ci_post_clone.sh fails fast when a 5.2+ version meets a Swift < 6.4 runner. Flip status to 'shipping' and rewrite public_claim only when 5.2 is READY_FOR_SALE, then bring the surfaces listed in Docs/ai/RUNBOOK.md ('Enabling Private Cloud Compute') into line."
+      "note": "Flipped to 'shipping' on 2026-09-10, when iOS 5.2 and macOS 5.2 both reached READY_FOR_SALE with build 451, read from the App Store Connect API. Public copy may now use the present tense. Every path still sits behind #if compiler(>=6.4): Xcode 26.6 (Swift 6.3.3) compiles them out, Xcode 27 (Swift 6.4) in, so a build made with an older toolchain would silently lose this capability while the claim stayed true-looking. ci_scripts/ci_post_xcodebuild.sh is the guard: from 5.2 it fails on zero PrivateCloudCompute symbols against a live SystemLanguageModel control. At runtime the capability is additionally gated on iOS/macOS 27 and on the entitlement and quota check in FoundationModelRoutePolicy.isPCCAvailable, so a 26 device running this binary stays fully on-device and the in-app copy says so."
     }
   },
-  "updated": "2026-08-26",
-  "verified_by": "scripts/verify_capabilities.py"
+  "updated": "2026-09-10",
+  "verified_by": "App Store Connect API, 2026-09-10: iOS 5.2 and macOS 5.2 both READY_FOR_SALE, build 451."
 }

@@ -104,7 +104,9 @@ Build and test, from `Docs/ai/RUNBOOK.md`, which records what has and has not be
 bash scripts/build_simulator_smoke.sh
 ```
 
-Xcode 27 lives at `/Applications/Xcode-beta.app`. Scheme `OpenIntelligence`, test target
+Xcode 27.0 (`27A266a`, Swift 6.4) is the installed release at `/Applications/Xcode.app` and is
+what `xcode-select` points at; `/Applications/Xcode-beta.app` was removed on 2026-09-10.
+Scheme `OpenIntelligence`, test target
 `OpenIntelligenceTests`. `xcodebuild test` needs an explicit iOS 27 simulator destination and a
 `-derivedDataPath` outside `~/Documents`; the exact invocation is in the runbook.
 

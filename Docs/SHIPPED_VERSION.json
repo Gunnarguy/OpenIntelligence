@@ -1,5 +1,7 @@
 {
   "_comment": [
+    "2026-09-10 (latest): 5.2 IS LIVE ON BOTH PLATFORMS. iOS 5.2 and macOS 5.2 are both READY_FOR_SALE with build 451, read from the App Store Connect API on 2026-09-10. The platforms are unified, so app_store and both per-platform values move together to 5.2 with nothing overclaimed. This is the Private Cloud Compute release: Docs/SHIPPED_CAPABILITIES.json private_cloud_compute flipped from built_not_enabled to shipping in the same edit. preparing moves to 5.3, and CHANGELOG.md now carries an open '## 5.3 <!-- unreleased -->' heading so ci_post_clone.sh stamps a version that does not already exist in App Store Connect.",
+    "",
     "2026-09-02 (latest): iOS 5.1 APPROVED AND LIVE, so both platforms are genuinely at 5.1 and in_review is empty. 5.2 version records were created in App Store Connect by the owner on 2026-09-02 (both PREPARE_FOR_SUBMISSION, release type AFTER_APPROVAL, screenshots and the iPhone preview carried over).",
     "",
     "2026-09-02 (latest): 5.1 recorded as SHIPPED ON BOTH at the owner's explicit decision. macOS 5.1 is READY_FOR_SALE (build 433); iOS 5.1 is WAITING_FOR_REVIEW with the same build and the owner chose to claim it now rather than wait. This is the one entry in this file that deliberately runs ahead of App Store Connect. 5.2 is being prepared: the Private Cloud Compute release, first build on Xcode 27.",
@@ -47,13 +49,13 @@
     "at 4.9 on purpose: it is the value that does not overclaim to an iOS visitor, and",
     "understating is the safe direction for the exact failure this file was created to stop."
   ],
-  "app_store": "5.1",
+  "app_store": "5.2",
   "app_store_by_platform": {
-    "ios": "5.1",
-    "macos": "5.1"
+    "ios": "5.2",
+    "macos": "5.2"
   },
-  "preparing": "5.2",
+  "preparing": "5.3",
   "in_review": {},
-  "updated": "2026-09-02",
-  "verified_against": "Read from App Store Connect 2026-09-02 22:40 via the API: iOS 5.1 and macOS 5.1 both READY_FOR_SALE (build 433). 5.2 records exist for both platforms in PREPARE_FOR_SUBMISSION with no build."
+  "updated": "2026-09-10",
+  "verified_against": "Read from App Store Connect 2026-09-10 via the API: iOS 5.2 and macOS 5.2 both READY_FOR_SALE (build 451), release type AFTER_APPROVAL. 5.1 and 5.0/5.0.2 remain READY_FOR_SALE as prior versions. No version is in review."
 }
