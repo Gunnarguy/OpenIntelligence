@@ -2,7 +2,7 @@
 
 Updated: 2026-09-11, 09:10
 Branch/worktree: main (primary checkout)
-Last verified commit: see `git log -1`; this file was written against the 5.3 working set below.
+Last verified commit: ec42c3e (plus the commit that carries this correction)
 
 ## Objective
 
@@ -219,7 +219,8 @@ nothing presents the camera.
 the iOS suite is green at 416 passed / 0 failed, and macOS builds clean. A fresh session should
 not re-run the suite to find out where things stand; read the Verification block above.
 
-**The one thing waiting is a push.** Five commits sit on local `main`, zero behind `origin/main`,
+**The one thing waiting is a push.** Local `main` is ahead of `origin/main` and zero behind
+(count with `git rev-list --count origin/main..main`; do not trust a number written here),
 so it is a clean fast-forward. Pushing triggers an Xcode Cloud build stamped **5.3**, which now
 matches the App Store Connect record that already exists on both platforms. That is deliberately
 left to the owner rather than done by an agent.
