@@ -126,8 +126,14 @@ other build directories are correctly named `.build.nosync`, `.simulator-smoke.n
   be exercised in a simulator, so about 4,300 lines under `Features/Camera/` went from running for
   nobody to running for every iOS user on the strength of a clean build. Before 5.3 ships, point a
   phone at a room: check the boxes land on the right things, that the Vision-to-SwiftUI coordinate
-  flip is right way up, that the permission prompt appears, and that dismissing the screen tears
-  the `AVCaptureSession` down rather than leaving the camera running.
+  flip is right way up, and that the permission prompt appears.
+  **Session teardown is already written and does not need re-investigating:**
+  `CameraVisionOverlayView` pairs `.onAppear { cameraManager.startSession() }` with
+  `.onDisappear { cameraManager.stopSession() }`, and `CameraManager.stopSession` calls
+  `stopRunning()`. So the failure worth watching for is not a missing teardown, it is
+  `.onDisappear` not firing on some dismissal path; the symptom is the green camera indicator
+  staying lit after the screen closes. `CameraManager` has no `deinit` fallback, which is worth
+  adding only if that symptom is ever actually seen.
 - **Do NOT delete Frequency, Presence or Repetition Penalty from Model Parameters.** They do
   nothing: `GenerationOptions` in the iOS 27 SDK exposes exactly `samplingMode`, `temperature`,
   `maximumResponseTokens` and `toolCallingMode`, and the string "penalty" does not occur anywhere
