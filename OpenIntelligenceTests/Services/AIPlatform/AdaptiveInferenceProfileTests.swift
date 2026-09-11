@@ -46,9 +46,11 @@ import XCTest
         }
 
         func testEveryIntentResolvesToAProfile() {
-            // `profile(for:)` switches exhaustively, so a new `AnswerIntent` case breaks the build
-            // rather than silently falling into a default. This asserts the enum stays covered even
-            // if someone adds a `default:` later.
+            // What this proves, and what it does not. `profile(for:)` switches exhaustively today,
+            // so a new `AnswerIntent` case breaks the build rather than falling into a default, and
+            // that guarantee comes from the compiler, not from here. This asserts only that every
+            // case resolves to a profile carrying a stated rationale. It would still pass if
+            // someone added `default: return .grounded`, so it is not a guard against that.
             for intent in AnswerIntent.allCases {
                 XCTAssertFalse(
                     FoundationModelDynamicProfileRegistry.profile(for: intent).generation.rationale.isEmpty,

@@ -1287,7 +1287,7 @@ actor StructuredDocumentParser {
     /// ignore that property completely and re-derive entities from five hand-written regexes,
     /// under a comment saying full integration "requires additional API verification". That
     /// verification is done: `DataDetectorMatch.match.details` is a `SemanticDetails` enum with
-    /// nine cases, read from the iOS 27 SDK's `DataDetection.swiftinterface` on 2026-09-11.
+    /// ten cases, read from the iOS 27 SDK's `DataDetection.swiftinterface` on 2026-09-11.
     ///
     /// Reading it is strictly better and costs nothing, because Vision has already done the work:
     ///

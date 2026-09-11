@@ -101,7 +101,7 @@ other build directories are correctly named `.build.nosync`, `.simulator-smoke.n
 - **Vision's data detection is used instead of being recomputed badly.**
   `StructuredDocumentParser.extractDetectedData` ignored
   `DocumentObservation.Container.Text.detectedData` and re-derived entities from five regexes that
-  matched US phone numbers and three currencies. It now reads Apple's nine parsed categories, keeps
+  matched US phone numbers and three currencies. It now reads Apple's ten parsed categories, keeps
   the regexes as a per-type fallback for when the parse degraded to plain text, and gained
   `flightNumber`, `shipmentTracking` and `paymentIdentifier` cases. `Docs/INGESTION_PIPELINE.md` §2.7.
 - **Object detection stopped looking for a model that has never been in the bundle.**
@@ -124,6 +124,15 @@ other build directories are correctly named `.build.nosync`, `.simulator-smoke.n
   once it is decided.
 - **Adaptive profiles are unmeasured.** Retrieval is nondeterministic, so no A/B here is
   trustworthy. The values are reasoned, not measured. Do not claim they improve answers.
+- **Adaptive profiles apply to Standard only, and that was a correction.** The gate sits **below**
+  the `if useAgentic` return in `RAGService`. Deep Think and Maximum leave through
+  `executeAgenticQuery`, which reads neither the config nor the mutated local for generation: it
+  builds `optimizedConfig` from `qualityMode.agenticConfig` and hands that to
+  `AgenticOrchestrator`. The first version placed the gate above that branch, where it mutated a
+  local the agentic path never reads **while logging `temperature 0.4 -> 0.35` as though it had
+  taken effect**. Found by an adversarial review of the diff after it was committed. Do not move
+  the gate back up without changing where `AgenticOrchestrator` gets its parameters; the log would
+  start lying again.
 - **Entities still come from table cells only.** `extractDetectedData` is called from `parseTable`
   and nowhere else, so paragraphs contribute none. Most documents are not tables.
 - **`fastlane/metadata*` hold 5.2 copy.** Running `push_metadata version:5.1` would overwrite the

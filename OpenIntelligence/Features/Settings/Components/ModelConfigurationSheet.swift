@@ -171,7 +171,7 @@ struct ModelConfigurationSheet: View {
             if adaptiveProfiles {
                 VStack(alignment: .leading, spacing: 6) {
                     profileRow("Looking up a value, or a calculation", "0.10", "400")
-                    profileRow("Following a procedure", "0.30", "900")
+                    profileRow("Following a procedure, or reporting findings", "0.30", "900")
                     profileRow("Comparing or investigating", "0.35", "1400")
                     profileRow("Summarizing", "0.40", "1000")
                 }
@@ -184,7 +184,7 @@ struct ModelConfigurationSheet: View {
         } footer: {
             Text(
                 adaptiveProfiles
-                    ? "Temperature and length are chosen per question and override the values below. Your saved settings are not changed, and turning this off restores them immediately."
+                    ? "Temperature and length are chosen per question and override the values below. Applies to Standard; Deep Think and Maximum set their own. Your saved settings are not changed, and turning this off restores them immediately."
                     : "Off. Every question uses the values below. Turn this on to let the app pick a temperature and length from what the question is asking for, so a value lookup answers the same way twice and an open comparison gets room to work."
             )
         }

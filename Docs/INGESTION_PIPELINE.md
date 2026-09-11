@@ -367,7 +367,7 @@ One cold-start caveat, recorded because it cost a run. On the **first** attempt 
 `RecognizeDocumentsRequest` runs data detection during the same pass that produces the transcript
 and returns the results on `DocumentObservation.Container.Text.detectedData`, as
 `[DataDetectorMatch]`. Each match carries a `boundingRegion` and a
-`DataDetector.Match.SemanticDetails` value, which is a nine-case enum of **parsed** results.
+`DataDetector.Match.SemanticDetails` value, which is a ten-case enum of **parsed** results.
 
 `StructuredDocumentParser.extractDetectedData` read none of it. It took the `Text` value, used only
 `.transcript`, and re-derived entities from five hand-written regexes, under a comment saying that

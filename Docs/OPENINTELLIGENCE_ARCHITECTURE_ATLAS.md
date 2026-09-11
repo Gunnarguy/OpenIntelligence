@@ -509,9 +509,16 @@ Three properties of the design, each load-bearing:
    `AutoTuneService` adjusts the same two settings by persisting them into `UserDefaults`, which
    overwrites what the owner set by hand and is not undone by turning the feature off. It has zero
    call sites and should keep them.
-3. **It is opt-in because it cannot be verified here.** Retrieval is nondeterministic
+3. **It reaches the Standard path only.** The gate sits **below** the `if useAgentic` return.
+   Deep Think and Maximum leave through `executeAgenticQuery`, which reads neither this
+   `inferenceConfig` nor the `config` parameter for generation; it builds `optimizedConfig` from
+   `qualityMode.agenticConfig`. Placing the gate above that branch, which is where it was first
+   written, mutated a local the agentic path never reads while logging the change as though it had
+   landed. That is this repository's recurring failure shape: a stage reports healthy while the
+   value it claims to have set goes nowhere.
+4. **It is opt-in because it cannot be verified here.** Retrieval is nondeterministic
    (`Docs/ai/DECISIONS.md`), so two runs of one build return different evidence and different
    answers. The profile values are reasoned, not measured, and shipping them on by default would be
    changing every answer on a hypothesis.
 
-`[evidence_level: test_verified, confidence: high, evidence_source: RAGService.swift adaptive gate; FoundationModelDynamicProfileRegistry.swift; AdaptiveInferenceProfileTests.swift, 9 cases]`
+`[evidence_level: test_verified, confidence: high, evidence_source: RAGService.swift adaptive gate; FoundationModelDynamicProfileRegistry.swift; AdaptiveInferenceProfileTests.swift, 10 cases]`
