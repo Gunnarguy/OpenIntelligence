@@ -111,7 +111,7 @@ struct AgenticConfig: Sendable {
 
     /// Whether this is an "unlimited" configuration (keep going until confident)
     var isUnlimited: Bool {
-        maxSteps >= 50 // Practical "unlimited" - 50+ steps is extreme
+        maxSteps >= 50  // Practical "unlimited" - 50+ steps is extreme
     }
 
     nonisolated static let defaultConfig = AgenticConfig(
@@ -119,7 +119,7 @@ struct AgenticConfig: Sendable {
         maxTotalTokens: 16000,
         streamIntermediateResults: true,
         confidenceThreshold: 0.85,
-        escalationThreshold: 0.35 // If top result < 35% similarity, try harder
+        escalationThreshold: 0.35  // If top result < 35% similarity, try harder
     )
 
     nonisolated static let fast = AgenticConfig(
@@ -135,18 +135,18 @@ struct AgenticConfig: Sendable {
         maxTotalTokens: 32000,
         streamIntermediateResults: true,
         confidenceThreshold: 0.95,
-        escalationThreshold: 0.45 // Higher bar = more likely to escalate
+        escalationThreshold: 0.45  // Higher bar = more likely to escalate
     )
 
     /// Unlimited Deep Think - keeps reasoning until 98% confident or thermal limit
     /// Since Neural Engine uses disk-backed weights (not RAM), we can go much deeper
     /// Only thermal throttling and user patience are the real limits
     nonisolated static let unlimited = AgenticConfig(
-        maxSteps: 50, // Realistically 5-15 minutes - thermal will stop us first
-            maxTotalTokens: 200_000, // 50 sessions × 4K = 200K+ effective tokens
+        maxSteps: 50,  // Realistically 5-15 minutes - thermal will stop us first
+        maxTotalTokens: 200_000,  // 50 sessions × 4K = 200K+ effective tokens
         streamIntermediateResults: true,
-        confidenceThreshold: 0.98, // Only stop when VERY confident
-        escalationThreshold: 0.50 // Aggressive escalation - always try harder
+        confidenceThreshold: 0.98,  // Only stop when VERY confident
+        escalationThreshold: 0.50  // Aggressive escalation - always try harder
     )
 }
 
@@ -202,7 +202,8 @@ final class AgenticOrchestrator: Sendable {
     /// Uses unlimited reasoning chain when AgenticConfig.isUnlimited is true
     private var reasoningChainConfig: ReasoningChainConfig {
         if config.isUnlimited {
-            Log.info("[Agentic] Using UNLIMITED reasoning chain (up to 50 sessions until 98% confident)", category: .llm)
+            Log.info(
+                "[Agentic] Using UNLIMITED reasoning chain (up to 50 sessions until 98% confident)", category: .llm)
             return .unlimited
         }
         // Map maxSteps to appropriate chain config
@@ -233,7 +234,7 @@ final class AgenticOrchestrator: Sendable {
                 type: kind.toStepType,
                 input: "",
                 output: "\(kind.rawValue)|\(title): \(detail)",
-                tokensUsed: 0, // No tokens for pipeline events
+                tokensUsed: 0,  // No tokens for pipeline events
                 duration: 0,
                 timestamp: Date()
             )
@@ -334,7 +335,8 @@ final class AgenticOrchestrator: Sendable {
                 "[Agentic] Query expansion \(searchQueries) returned 0 chunks. Retrying with the original query before judging relevance.",
                 category: .retrieval
             )
-            await detailedForwarder?(.retrieval, "Retrying", "Expansion found nothing — searching your original wording")
+            await detailedForwarder?(
+                .retrieval, "Retrying", "Expansion found nothing — searching your original wording")
 
             let (retryStep, retryChunks) = try await executeMultiQuerySearch(
                 queries: [query],
@@ -373,20 +375,25 @@ final class AgenticOrchestrator: Sendable {
             ragService: ragService
         )
 
-        Log.info("[Agentic] Relevance check: lexical=\(String(format: "%.0f%%", lexicalRelevance * 100)), intent=\(intentValid)", category: .retrieval)
+        Log.info(
+            "[Agentic] Relevance check: lexical=\(String(format: "%.0f%%", lexicalRelevance * 100)), intent=\(intentValid)",
+            category: .retrieval)
 
         // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
         // HARD EXIT: If both checks fail, don't try to salvage - just say "not found"
         // This prevents the "8 sessions of philosophical rambling" problem
         // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
         if lexicalRelevance < AgenticPolicyService.hardIrrelevanceLexicalThreshold() && !intentValid {
-            Log.warning("[Agentic] HARD EXIT: Retrieved content is irrelevant (lexical=\(String(format: "%.0f%%", lexicalRelevance * 100)), intent=false)", category: .retrieval)
+            Log.warning(
+                "[Agentic] HARD EXIT: Retrieved content is irrelevant (lexical=\(String(format: "%.0f%%", lexicalRelevance * 100)), intent=false)",
+                category: .retrieval)
 
             let notFoundStep = ThinkingStep(
                 id: UUID(),
                 type: .analyzing,
                 input: "Relevance check",
-                output: "Retrieved content doesn't match the query. The documents may not contain information about this topic.",
+                output:
+                    "Retrieved content doesn't match the query. The documents may not contain information about this topic.",
                 tokensUsed: 0,
                 duration: 0.1,
                 timestamp: Date()
@@ -396,21 +403,21 @@ final class AgenticOrchestrator: Sendable {
 
             // Return honest "not found" instead of hallucinating
             let notFoundAnswer = """
-            I couldn't find information about "\(query)" in your documents.
+                I couldn't find information about "\(query)" in your documents.
 
-            The retrieved content didn't match your question.
+                The retrieved content didn't match your question.
 
-            **Suggestions:**
-            - Check if your documents contain information about this topic
-            - Try rephrasing your question with different keywords
-            """
+                **Suggestions:**
+                - Check if your documents contain information about this topic
+                - Try rephrasing your question with different keywords
+                """
 
             return AgenticResult(
                 finalAnswer: notFoundAnswer,
                 steps: steps,
                 totalTokens: totalTokens,
                 totalDuration: Date().timeIntervalSince(startTime),
-                confidence: 0.0, // Honest: we found nothing
+                confidence: 0.0,  // Honest: we found nothing
                 sourcesUsed: 0,
                 retrievedChunks: []
             )
@@ -418,18 +425,23 @@ final class AgenticOrchestrator: Sendable {
 
         // Downgrade quality if semantic intent doesn't match but lexical has some overlap
         if !intentValid && (retrievalQuality == .excellent || retrievalQuality == .good) {
-            Log.info("[Agentic] Semantic intent mismatch - downgrading from \(retrievalQuality.description) to moderate", category: .llm)
+            Log.info(
+                "[Agentic] Semantic intent mismatch - downgrading from \(retrievalQuality.description) to moderate",
+                category: .llm)
             retrievalQuality = AgenticPolicyService.downgradedForSemanticMismatch(retrievalQuality)
         }
 
-        Log.info("[Agentic] Retrieval quality: \(retrievalQuality.description), Intent valid: \(intentValid)", category: .llm)
+        Log.info(
+            "[Agentic] Retrieval quality: \(retrievalQuality.description), Intent valid: \(intentValid)", category: .llm
+        )
 
         // Emit evaluation step so user sees the reasoning
         let evalStep = ThinkingStep(
             id: UUID(),
             type: .analyzing,
             input: "Evaluating \(initialChunks.count) results",
-            output: "Confidence: \(retrievalQuality.description) (\(String(format: "%.0f%%", retrievalQuality.confidenceScore * 100)))\nSemantic match: \(intentValid ? "✓" : "✗") \(intentReason)",
+            output:
+                "Confidence: \(retrievalQuality.description) (\(String(format: "%.0f%%", retrievalQuality.confidenceScore * 100)))\nSemantic match: \(intentValid ? "✓" : "✗") \(intentReason)",
             tokensUsed: 0,
             duration: 0.05,
             timestamp: Date()
@@ -460,7 +472,8 @@ final class AgenticOrchestrator: Sendable {
             }
 
             if !expandedChunks.isEmpty {
-                for chunk in expandedChunks where !allRetrievedChunks.contains(where: { $0.chunk.id == chunk.chunk.id }) {
+                for chunk in expandedChunks where !allRetrievedChunks.contains(where: { $0.chunk.id == chunk.chunk.id })
+                {
                     allRetrievedChunks.append(chunk)
                 }
                 retrievalQuality = evaluateRetrievalQuality(chunks: allRetrievedChunks, query: query)
@@ -487,7 +500,9 @@ final class AgenticOrchestrator: Sendable {
             }
             // Re-evaluate quality with cross-referenced chunks included
             retrievalQuality = evaluateRetrievalQuality(chunks: allRetrievedChunks, query: query)
-            Log.info("[Agentic] Cross-reference resolution added \(crossRefChunks.count) chunks, quality: \(retrievalQuality.description)", category: .llm)
+            Log.info(
+                "[Agentic] Cross-reference resolution added \(crossRefChunks.count) chunks, quality: \(retrievalQuality.description)",
+                category: .llm)
         }
 
         // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -521,8 +536,8 @@ final class AgenticOrchestrator: Sendable {
                 let unlimitedResult = try await executeTrueUnlimitedReasoning(
                     query: query,
                     allChunks: allChunksForMultiChain,
-                    targetConfidence: config.confidenceThreshold, // 0.98 for unlimited
-                    maxSessions: config.maxSteps, // 50 for unlimited
+                    targetConfidence: config.confidenceThreshold,  // 0.98 for unlimited
+                    maxSessions: config.maxSteps,  // 50 for unlimited
                     onStep: onStep
                 )
 
@@ -569,7 +584,9 @@ final class AgenticOrchestrator: Sendable {
                         addressesQuestion: verification.addressesQuestion
                     )
 
-                    Log.info("[Agentic] Maximum Mode: Calibrated confidence \(Int(sessionConfidence * 100))% → \(Int(finalConfidence * 100))% (addresses question: \(verification.addressesQuestion))", category: .llm)
+                    Log.info(
+                        "[Agentic] Maximum Mode: Calibrated confidence \(Int(sessionConfidence * 100))% → \(Int(finalConfidence * 100))% (addresses question: \(verification.addressesQuestion))",
+                        category: .llm)
 
                     return AgenticResult(
                         finalAnswer: unlimitedResult.finalAnswer,
@@ -712,8 +729,11 @@ final class AgenticOrchestrator: Sendable {
                     !cleanRecursiveAnswer.isEmpty,
                     !answerIndicatesRetrievalMiss(recursiveResult.finalAnswer),
                     !looksLikeRawEvidenceDump(cleanRecursiveAnswer),
-                    Self.shouldAcceptReplacement(previous: chainResult.finalAnswer, replacement: cleanRecursiveAnswer) {
-                    Log.info("[Agentic] Recursive research found answer after \(recursiveResult.steps.count) steps", category: .llm)
+                    Self.shouldAcceptReplacement(previous: chainResult.finalAnswer, replacement: cleanRecursiveAnswer)
+                {
+                    Log.info(
+                        "[Agentic] Recursive research found answer after \(recursiveResult.steps.count) steps",
+                        category: .llm)
                     steps.append(contentsOf: recursiveResult.steps)
                     return AgenticResult(
                         finalAnswer: recursiveResult.finalAnswer,
@@ -725,7 +745,9 @@ final class AgenticOrchestrator: Sendable {
                         retrievedChunks: recursiveResult.retrievedChunks
                     )
                 }
-                Log.debug("[Agentic] Recursive research also couldn't find answer - using original chain result", category: .llm)
+                Log.debug(
+                    "[Agentic] Recursive research also couldn't find answer - using original chain result",
+                    category: .llm)
             }
 
             // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -749,18 +771,18 @@ final class AgenticOrchestrator: Sendable {
                 )
             }
 
-                // Report the array the chain actually laboured over, not the pre-routing
-                // accumulation. `initialSources:` above already does this and says why; these two
-                // returns were left on `allRetrievedChunks`, so the two disagreed.
-                //
-                // The chain labels sources by global position in `routedChunks` (see
-                // `labelOffset`), so a citation of `[S13]` is valid against that array. Handing
-                // back a shorter, differently-ordered list silently turns every citation past its
-                // end into a dangling reference.
-                //
-                // Device 2026-08-19: 20 chunks entered the pipeline, the reasoning trace cited
-                // `[S13]` and `[S17]`, and 12 chunks were reported. Nothing was hallucinated —
-                // the citations were right and the source list was the wrong one.
+            // Report the array the chain actually laboured over, not the pre-routing
+            // accumulation. `initialSources:` above already does this and says why; these two
+            // returns were left on `allRetrievedChunks`, so the two disagreed.
+            //
+            // The chain labels sources by global position in `routedChunks` (see
+            // `labelOffset`), so a citation of `[S13]` is valid against that array. Handing
+            // back a shorter, differently-ordered list silently turns every citation past its
+            // end into a dangling reference.
+            //
+            // Device 2026-08-19: 20 chunks entered the pipeline, the reasoning trace cited
+            // `[S13]` and `[S17]`, and 12 chunks were reported. Nothing was hallucinated —
+            // the citations were right and the source list was the wrong one.
             return AgenticResult(
                 finalAnswer: chainResult.finalAnswer,
                 steps: steps,
@@ -790,14 +812,14 @@ final class AgenticOrchestrator: Sendable {
                 logStepTokens("Refined Search", refinedStep.tokensUsed)
 
                 // Merge unique chunks from refined search
-                for chunk in refinedChunks where !allRetrievedChunks.contains(where: { $0.chunk.id == chunk.chunk.id }) {
+                for chunk in refinedChunks where !allRetrievedChunks.contains(where: { $0.chunk.id == chunk.chunk.id })
+                {
                     allRetrievedChunks.append(chunk)
                 }
                 Log.debug("[Agentic] Merged to \(allRetrievedChunks.count) total chunks", category: .retrieval)
 
                 await onStep?(refinedStep)
             }
-
 
             // CRITICAL: Sort chunks by relevance before passing to reasoning chain
             // Merged chunks from multiple sources may not be in order
@@ -851,18 +873,18 @@ final class AgenticOrchestrator: Sendable {
                 )
             }
 
-                // Report the array the chain actually laboured over, not the pre-routing
-                // accumulation. `initialSources:` above already does this and says why; these two
-                // returns were left on `allRetrievedChunks`, so the two disagreed.
-                //
-                // The chain labels sources by global position in `routedChunks` (see
-                // `labelOffset`), so a citation of `[S13]` is valid against that array. Handing
-                // back a shorter, differently-ordered list silently turns every citation past its
-                // end into a dangling reference.
-                //
-                // Device 2026-08-19: 20 chunks entered the pipeline, the reasoning trace cited
-                // `[S13]` and `[S17]`, and 12 chunks were reported. Nothing was hallucinated —
-                // the citations were right and the source list was the wrong one.
+            // Report the array the chain actually laboured over, not the pre-routing
+            // accumulation. `initialSources:` above already does this and says why; these two
+            // returns were left on `allRetrievedChunks`, so the two disagreed.
+            //
+            // The chain labels sources by global position in `routedChunks` (see
+            // `labelOffset`), so a citation of `[S13]` is valid against that array. Handing
+            // back a shorter, differently-ordered list silently turns every citation past its
+            // end into a dangling reference.
+            //
+            // Device 2026-08-19: 20 chunks entered the pipeline, the reasoning trace cited
+            // `[S13]` and `[S17]`, and 12 chunks were reported. Nothing was hallucinated —
+            // the citations were right and the source list was the wrong one.
             return AgenticResult(
                 finalAnswer: chainResult.finalAnswer,
                 steps: steps,
@@ -991,12 +1013,16 @@ final class AgenticOrchestrator: Sendable {
             )
 
             if speculativeResult.confidence >= effectiveThreshold {
-                Log.info("[Agentic] Speculative RAG succeeded with \(String(format: "%.0f%%", speculativeResult.confidence * 100)) confidence (threshold: \(String(format: "%.0f%%", effectiveThreshold * 100)))", category: .llm)
+                Log.info(
+                    "[Agentic] Speculative RAG succeeded with \(String(format: "%.0f%%", speculativeResult.confidence * 100)) confidence (threshold: \(String(format: "%.0f%%", effectiveThreshold * 100)))",
+                    category: .llm)
                 return speculativeResult
             }
 
             // Speculative RAG didn't meet threshold - fall back to deeper retrieval
-            Log.info("[Agentic] Speculative RAG \(String(format: "%.0f%%", speculativeResult.confidence * 100)) < threshold \(String(format: "%.0f%%", effectiveThreshold * 100)) → escalating to deeper retrieval", category: .llm)
+            Log.info(
+                "[Agentic] Speculative RAG \(String(format: "%.0f%%", speculativeResult.confidence * 100)) < threshold \(String(format: "%.0f%%", effectiveThreshold * 100)) → escalating to deeper retrieval",
+                category: .llm)
 
             // Try decomposition if it makes sense, otherwise do recursive search
             if queryBenefitsFromDecomposition(query) {
@@ -1012,7 +1038,8 @@ final class AgenticOrchestrator: Sendable {
                 )
             } else {
                 // Single-topic query - try harder with multiple reformulations
-                Log.info("[Agentic] Single-topic, low confidence → trying alternative search strategies", category: .llm)
+                Log.info(
+                    "[Agentic] Single-topic, low confidence → trying alternative search strategies", category: .llm)
 
                 await detailedForwarder?(.retrieval, "Fallback search", "Broadening with lower threshold")
 
@@ -1026,7 +1053,8 @@ final class AgenticOrchestrator: Sendable {
                 )
 
                 if !broaderChunks.isEmpty {
-                    for chunk in broaderChunks where !allRetrievedChunks.contains(where: { $0.chunk.id == chunk.chunk.id }) {
+                    for chunk in broaderChunks
+                    where !allRetrievedChunks.contains(where: { $0.chunk.id == chunk.chunk.id }) {
                         allRetrievedChunks.append(chunk)
                     }
                 }
@@ -1058,7 +1086,7 @@ final class AgenticOrchestrator: Sendable {
                     steps: steps,
                     totalTokens: totalTokens,
                     totalDuration: Date().timeIntervalSince(startTime),
-                    confidence: 0.4, // Low but we tried our best
+                    confidence: 0.4,  // Low but we tried our best
                     sourcesUsed: allRetrievedChunks.count,
                     retrievedChunks: allRetrievedChunks
                 )
@@ -1085,7 +1113,7 @@ final class AgenticOrchestrator: Sendable {
         "too", "very", "just", "also", "now", "what", "which", "who", "whom",
         "this", "that", "these", "those", "am", "it", "its", "i", "me", "my",
         "myself", "we", "our", "ours", "ourselves", "you", "your", "yours",
-        "he", "him", "his", "she", "her", "hers", "they", "them", "their"
+        "he", "him", "his", "she", "her", "hers", "they", "them", "their",
     ]
 
     /// Check if query keywords appear in retrieved chunks (simple but effective)
@@ -1096,7 +1124,7 @@ final class AgenticOrchestrator: Sendable {
             .components(separatedBy: CharacterSet.alphanumerics.inverted)
             .filter { $0.count >= 3 && !Self.stopWords.contains($0) }
 
-        guard !queryWords.isEmpty else { return 0.5 } // Can't evaluate, assume ok
+        guard !queryWords.isEmpty else { return 0.5 }  // Can't evaluate, assume ok
 
         // Build combined chunk text
         let chunkText = chunks.prefix(5)
@@ -1112,7 +1140,9 @@ final class AgenticOrchestrator: Sendable {
         }
 
         let relevance = Float(matchCount) / Float(queryWords.count)
-        Log.debug("[LexicalRelevance] \(matchCount)/\(queryWords.count) keywords found = \(String(format: "%.0f%%", relevance * 100))", category: .retrieval)
+        Log.debug(
+            "[LexicalRelevance] \(matchCount)/\(queryWords.count) keywords found = \(String(format: "%.0f%%", relevance * 100))",
+            category: .retrieval)
 
         return relevance
     }
@@ -1197,18 +1227,18 @@ final class AgenticOrchestrator: Sendable {
         ragService: RAGService
     ) async throws -> String? {
         let prompt = """
-        You are helping improve a search query.The original query found some results, but they may not be ideal.
+            You are helping improve a search query.The original query found some results, but they may not be ideal.
 
-        Original query: \(originalQuery)
+            Original query: \(originalQuery)
 
-        Content found(excerpt):
-            \(retrievedContext.prefix(800))
+            Content found(excerpt):
+                \(retrievedContext.prefix(800))
 
-        Based on the vocabulary and terminology in the retrieved content, suggest ONE improved search query.
-            IMPORTANT: The improved query must be about the SAME topic as the original query.
-            Use key terms from the documents that relate to the original question.
-            Output ONLY the new query phrase, nothing else .
-        """
+            Based on the vocabulary and terminology in the retrieved content, suggest ONE improved search query.
+                IMPORTANT: The improved query must be about the SAME topic as the original query.
+                Use key terms from the documents that relate to the original question.
+                Output ONLY the new query phrase, nothing else .
+            """
 
         let response = try await ragService.generateWithFreshSession(prompt: prompt, maxTokens: 128)
         let reformulated = response.text.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -1264,7 +1294,8 @@ final class AgenticOrchestrator: Sendable {
         // ultimately allowed to run. Deriving the ratio from the assumed destination makes the
         // budget most generous exactly when the device is the destination and least able to hold it.
         let contextSize = FoundationModelTokenBudget.contextSize(isAppleFMOnDevice: true)
-        let overhead = FoundationModelTokenBudget.estimateTokens(for: systemPrompt, isAppleFMOnDevice: true)
+        let overhead =
+            FoundationModelTokenBudget.estimateTokens(for: systemPrompt, isAppleFMOnDevice: true)
             + FoundationModelTokenBudget.estimateTokens(for: query, isAppleFMOnDevice: true)
             + outputReserve
             + Self.evidenceSafetyReserve
@@ -1399,16 +1430,16 @@ final class AgenticOrchestrator: Sendable {
 
         // Deep Think mode: thorough synthesis with actionable details
         let systemPrompt = """
-        Answer using ONLY the provided excerpts [S1], [S2], etc.
-        Rules:
-        1) Cite sources as [S1], [S2] etc. (NOT URLs)
-        2) Extract specific values: numbers, measurements, specs, ratings when present
-        3) Be thorough — pull every relevant detail from the excerpts
-        4) Write naturally and intelligently — match your format to what the user actually asked
-        5) Read OCR'd text carefully for model numbers, specs, and data
-        6) NEVER say "I don't have information" — always provide what IS there
-        7) ABBREVIATIONS: If an [Abbreviations] glossary appears, use those EXACT expansions. Never expand an abbreviation differently than the glossary defines it.
-        """
+            Answer using ONLY the provided excerpts [S1], [S2], etc.
+            Rules:
+            1) Cite sources as [S1], [S2] etc. (NOT URLs)
+            2) Extract specific values: numbers, measurements, specs, ratings when present
+            3) Be thorough — pull every relevant detail from the excerpts
+            4) Write naturally and intelligently — match your format to what the user actually asked
+            5) Read OCR'd text carefully for model numbers, specs, and data
+            6) NEVER say "I don't have information" — always provide what IS there
+            7) ABBREVIATIONS: If an [Abbreviations] glossary appears, use those EXACT expansions. Never expand an abbreviation differently than the glossary defines it.
+            """
 
         let outputReserve = 800
         let budget = evidenceTokenBudget(
@@ -1455,7 +1486,7 @@ final class AgenticOrchestrator: Sendable {
             prompt: query,
             context: context,
             systemPrompt: systemPrompt,
-            maxTokens: outputReserve, // Conservative to stay within 4096 total
+            maxTokens: outputReserve,  // Conservative to stay within 4096 total
             disableTools: true,
             // Citations resolve positionally, so the model must be handed the same ordered subset
             // that was rendered into the prompt.
@@ -1488,7 +1519,7 @@ final class AgenticOrchestrator: Sendable {
 
         // Format chunks EXACTLY like Standard mode's assembleContext with [S1], [S2] notation
         var contextBuilder = ""
-        let maxContextChars = 2800 // Reduced to account for enhanced prompt
+        let maxContextChars = 2800  // Reduced to account for enhanced prompt
 
         // SENTENCE-LEVEL EXTRACTION: Instead of packing 3-4 whole chunks and
         // hoping the answer is in one of them, extract only query-relevant
@@ -1504,16 +1535,18 @@ final class AgenticOrchestrator: Sendable {
         contextBuilder = extraction.context
         let usedChunks = extraction.sourcesUsed
 
-        Log.info("[Deep Think] Sentence extraction: \(extraction.sentencesIncluded) sentences from \(usedChunks) sources, \(contextBuilder.count) chars", category: .llm)
+        Log.info(
+            "[Deep Think] Sentence extraction: \(extraction.sentencesIncluded) sentences from \(usedChunks) sources, \(contextBuilder.count) chars",
+            category: .llm)
 
         // Deep Think mode: comprehensive multi-source synthesis
         let systemPrompt = """
-        Answer using excerpts [S1], [S2]. Extract ALL specific values, numbers, specs.
-        Read OCR'd text carefully. Write naturally. Cite [S1], [S2] only.
-        NEVER say "I don't have information" — provide what IS there.
-        ABBREVIATIONS: If an [Abbreviations] glossary appears, use those EXACT expansions.
-        If vague, interpret based on document topics.
-        """
+            Answer using excerpts [S1], [S2]. Extract ALL specific values, numbers, specs.
+            Read OCR'd text carefully. Write naturally. Cite [S1], [S2] only.
+            NEVER say "I don't have information" — provide what IS there.
+            ABBREVIATIONS: If an [Abbreviations] glossary appears, use those EXACT expansions.
+            If vague, interpret based on document topics.
+            """
 
         // Generate using the main RAGService pipeline which handles:
         // - PCC consent prompts
@@ -1524,7 +1557,7 @@ final class AgenticOrchestrator: Sendable {
             prompt: query,
             context: contextBuilder,
             systemPrompt: systemPrompt,
-            maxTokens: 800, // Conservative to stay within 4096 total
+            maxTokens: 800,  // Conservative to stay within 4096 total
             disableTools: true,
             // This path renders `chunks` into `contextBuilder`, so the rendered-evidence
             // fallback already keeps it from abstaining. Passing the chunks themselves
@@ -1588,14 +1621,14 @@ final class AgenticOrchestrator: Sendable {
 
         // Even for low-confidence, extract maximum value from available excerpts
         let systemPrompt = """
-        The available excerpts may not directly answer the query, but extract MAXIMUM value:
-        - Cite sources [S1], [S2] for everything mentioned
-        - Include ANY procedures, specifications, or actions found
-        - Note related topics that might help the user
-        - Be specific about what the excerpts DO cover
-        - Include all technical details found, even if tangential
-        - ABBREVIATIONS: If an [Abbreviations] glossary appears, use those EXACT expansions
-        """
+            The available excerpts may not directly answer the query, but extract MAXIMUM value:
+            - Cite sources [S1], [S2] for everything mentioned
+            - Include ANY procedures, specifications, or actions found
+            - Note related topics that might help the user
+            - Be specific about what the excerpts DO cover
+            - Include all technical details found, even if tangential
+            - ABBREVIATIONS: If an [Abbreviations] glossary appears, use those EXACT expansions
+            """
 
         let response = try await ragService.generateWithProperConsent(
             prompt: query,
@@ -1643,7 +1676,8 @@ final class AgenticOrchestrator: Sendable {
                 id: UUID(),
                 type: .planning,
                 input: query,
-                output: plannedSubQueries.enumerated().map { "\($0.offset + 1). \($0.element)" }.joined(separator: "\n"),
+                output: plannedSubQueries.enumerated().map { "\($0.offset + 1). \($0.element)" }.joined(
+                    separator: "\n"),
                 tokensUsed: 0,
                 duration: 0,
                 timestamp: Date()
@@ -1662,7 +1696,6 @@ final class AgenticOrchestrator: Sendable {
         var searchResults: [(query: String, result: String)] = [(query, initialSearchOutput)]
 
         for subQuery in subQueries.prefix(config.maxSteps - 2) {
-
 
             guard totalTokens < config.maxTotalTokens else { break }
 
@@ -1685,7 +1718,7 @@ final class AgenticOrchestrator: Sendable {
         }
 
         // Final synthesis
-        _ = compressSearchResults(searchResults) // Compressed for potential future use
+        _ = compressSearchResults(searchResults)  // Compressed for potential future use
         let synthesisStep = try await executeSynthesisStep(
             query: query,
             steps: steps,
@@ -1712,17 +1745,17 @@ final class AgenticOrchestrator: Sendable {
         let startTime = Date()
 
         let planningPrompt = """
-        You are a research planning assistant. Break down this query into 2-4 focused sub-questions that can be answered independently.
+            You are a research planning assistant. Break down this query into 2-4 focused sub-questions that can be answered independently.
 
-        Query: \(query)
+            Query: \(query)
 
-        Output format:
-        1. [First sub-question]
-        2. [Second sub-question]
-        ...
+            Output format:
+            1. [First sub-question]
+            2. [Second sub-question]
+            ...
 
-        Keep each sub-question focused and searchable. Do not answer the questions, just list them.
-        """
+            Keep each sub-question focused and searchable. Do not answer the questions, just list them.
+            """
 
         // Use a fresh, minimal session for planning
         let response = try await ragService.generateWithFreshSession(
@@ -1785,19 +1818,20 @@ final class AgenticOrchestrator: Sendable {
         )
 
         // Format for LLM consumption - include more context since we have better chunks
-        var searchResult = chunks.isEmpty
+        var searchResult =
+            chunks.isEmpty
             ? "No relevant information found for: \(subQuery)"
             : "Found \(chunks.count) relevant chunks (re-ranked by relevance):\n\n"
 
-            for (index, retrieved) in chunks.prefix(10).enumerated() {
-
+        for (index, retrieved) in chunks.prefix(10).enumerated() {
 
             searchResult += "[\(index + 1)] From \(retrieved.sourceDocument)"
             if let page = retrieved.pageNumber {
                 searchResult += " (Page \(page))"
             }
             searchResult += " (Relevance: \(String(format: "%.1f%%", retrieved.similarityScore * 100))):\n"
-            let fullText = (retrieved.chunk.parentContent ?? retrieved.chunk.content).trimmingCharacters(in: .whitespacesAndNewlines)
+            let fullText = (retrieved.chunk.parentContent ?? retrieved.chunk.content).trimmingCharacters(
+                in: .whitespacesAndNewlines)
             // Include more text since our chunks are better quality now
             let preview = fullText.count > 1000 ? String(fullText.prefix(1000)) + " [...]" : fullText
             searchResult += preview
@@ -1850,20 +1884,20 @@ final class AgenticOrchestrator: Sendable {
         }
 
         let prompt = """
-        Write concrete search phrases for the exact question below.
+            Write concrete search phrases for the exact question below.
 
-        Rules:
-        - Keep the same entities, units, and objects from the question.
-        - Do not add placeholders, brackets, examples, or unknown make/model text.
-        - Return only search phrases, one per line.
+            Rules:
+            - Keep the same entities, units, and objects from the question.
+            - Do not add placeholders, brackets, examples, or unknown make/model text.
+            - Return only search phrases, one per line.
 
-        Question: \(originalQuery)
+            Question: \(originalQuery)
 
-        1. \(originalQuery)
-        2.
-        3.
-        4.
-        """
+            1. \(originalQuery)
+            2.
+            3.
+            4.
+            """
 
         // Multi-query expansion is an *optimization*: it widens retrieval with
         // extra search phrasings. It is not load-bearing — `deterministicSearchQueries`
@@ -1912,10 +1946,12 @@ final class AgenticOrchestrator: Sendable {
 
         // Try JSON array first
         if let jsonStart = response.text.firstIndex(of: "["),
-           let jsonEnd = response.text.lastIndex(of: "]") {
+            let jsonEnd = response.text.lastIndex(of: "]")
+        {
             let jsonString = String(response.text[jsonStart...jsonEnd])
             if let data = jsonString.data(using: .utf8),
-               let parsed = try? JSONSerialization.jsonObject(with: data) as? [String] {
+                let parsed = try? JSONSerialization.jsonObject(with: data) as? [String]
+            {
                 for q in parsed { appendIfUseful(q) }
             }
         }
@@ -1935,7 +1971,8 @@ final class AgenticOrchestrator: Sendable {
                     var lastEnd = fullText.startIndex
                     for match in matches {
                         if let matchRange = Range(match.range, in: fullText) {
-                            let segment = String(fullText[lastEnd..<matchRange.lowerBound]).trimmingCharacters(in: .whitespacesAndNewlines)
+                            let segment = String(fullText[lastEnd..<matchRange.lowerBound]).trimmingCharacters(
+                                in: .whitespacesAndNewlines)
                             if !segment.isEmpty && segment.count > 3 {
                                 splitQueries.append(segment)
                             }
@@ -1969,7 +2006,7 @@ final class AgenticOrchestrator: Sendable {
         }
 
         Log.info("[MultiQuery] Generated \(queries.count) search queries: \(queries)", category: .retrieval)
-        return Array(queries.prefix(5)) // Cap at 5 to limit latency
+        return Array(queries.prefix(5))  // Cap at 5 to limit latency
     }
 
     private func plannerSubQueries(for query: String) async -> [String] {
@@ -1994,8 +2031,12 @@ final class AgenticOrchestrator: Sendable {
         var queries: [String] = [original]
 
         let hasFuelTerm = ["gas", "gasoline", "fuel"].contains { lower.contains($0) }
-        let hasCapacityTerm = ["capacity", "capacities", "hold", "holds", "holding", "volume", "amount", "how many", "how much"].contains { lower.contains($0) }
-        let hasLiquidUnit = ["gallon", "gallons", "gal", "liter", "liters", "litre", "litres"].contains { lower.contains($0) }
+        let hasCapacityTerm = [
+            "capacity", "capacities", "hold", "holds", "holding", "volume", "amount", "how many", "how much",
+        ].contains { lower.contains($0) }
+        let hasLiquidUnit = ["gallon", "gallons", "gal", "liter", "liters", "litre", "litres"].contains {
+            lower.contains($0)
+        }
 
         if hasFuelTerm && (hasCapacityTerm || hasLiquidUnit) {
             queries.append("fuel gasoline gal capacity")
@@ -2012,9 +2053,10 @@ final class AgenticOrchestrator: Sendable {
             "what", "which", "when", "where", "why", "how", "many", "much",
             "does", "this", "that", "these", "those", "the", "and", "for",
             "with", "from", "can", "could", "would", "should", "have", "has",
-            "had", "its", "into", "about"
+            "had", "its", "into", "about",
         ]
-        let keyTerms = lower
+        let keyTerms =
+            lower
             .components(separatedBy: CharacterSet.alphanumerics.inverted)
             .filter { $0.count > 2 && !stopWords.contains($0) }
 
@@ -2033,7 +2075,7 @@ final class AgenticOrchestrator: Sendable {
         let rejectedFragments = [
             "[", "]", "{", "}", "<", ">",
             "make and model", "car make", "specific make", "specific model",
-            "insert", "placeholder", "example", "your query", "search phrase"
+            "insert", "placeholder", "example", "your query", "search phrase",
         ]
         guard !rejectedFragments.contains(where: { lower.contains($0) }) else { return false }
         guard lower != originalQuery.lowercased() else { return false }
@@ -2060,7 +2102,9 @@ final class AgenticOrchestrator: Sendable {
         if originalTerms.contains("gas") && candidateTerms.intersection(["fuel", "gasoline"]).isEmpty == false {
             return true
         }
-        if originalTerms.contains("gallons") && candidateTerms.intersection(["gal", "liters", "capacity"]).isEmpty == false {
+        if originalTerms.contains("gallons")
+            && candidateTerms.intersection(["gal", "liters", "capacity"]).isEmpty == false
+        {
             return true
         }
         if originalTerms.contains("hold") && candidateTerms.intersection(["capacity", "volume"]).isEmpty == false {
@@ -2110,7 +2154,7 @@ final class AgenticOrchestrator: Sendable {
             let chunks = try await ragService.executeFullRetrievalPipeline(
                 query: query,
                 topK: 15,
-                minSimilarity: 0.05, // Very low - we'll use RRF to rank
+                minSimilarity: 0.05,  // Very low - we'll use RRF to rank
                 qualityMode: qualityMode,
                 onDetailedEvent: onDetailedEvent  // Always forward events
             )
@@ -2125,7 +2169,7 @@ final class AgenticOrchestrator: Sendable {
         // Reciprocal Rank Fusion across all query results
         // Track both RRF score (for multi-query consensus) AND original reranker score (for relevance)
         var chunkScores: [UUID: (chunk: RetrievedChunk, rrfScore: Float, maxRerankerScore: Float)] = [:]
-        let k: Float = 60.0 // RRF constant
+        let k: Float = 60.0  // RRF constant
 
         for results in allResults {
             for (rank, chunk) in results.enumerated() {
@@ -2178,7 +2222,9 @@ final class AgenticOrchestrator: Sendable {
         // Log top chunk for debugging - this should now show the most RELEVANT chunk
         if let topChunk = resultChunks.first {
             let preview = String(topChunk.chunk.content.prefix(80)).replacingOccurrences(of: "\n", with: " ")
-            Log.debug("[MultiQuery] Top chunk (reranker score \(String(format: "%.2f", topChunk.similarityScore))): \(preview)...", category: .retrieval)
+            Log.debug(
+                "[MultiQuery] Top chunk (reranker score \(String(format: "%.2f", topChunk.similarityScore))): \(preview)...",
+                category: .retrieval)
         }
 
         // Format for logging
@@ -2196,7 +2242,9 @@ final class AgenticOrchestrator: Sendable {
             timestamp: startTime
         )
 
-        Log.info("[MultiQuery] Fused \(allResults.map { $0.count }.reduce(0, +)) results into \(resultChunks.count) unique chunks", category: .retrieval)
+        Log.info(
+            "[MultiQuery] Fused \(allResults.map { $0.count }.reduce(0, +)) results into \(resultChunks.count) unique chunks",
+            category: .retrieval)
 
         return (step, resultChunks)
     }
@@ -2238,14 +2286,14 @@ final class AgenticOrchestrator: Sendable {
         }.joined(separator: "\n---\n")
 
         let prompt = """
-        Question: \(query)
+            Question: \(query)
 
-        Retrieved content:
-        \(chunkPreviews)
+            Retrieved content:
+            \(chunkPreviews)
 
-        Does this content contain information to answer the question?
-        Reply with ONLY one word: YES or NO
-        """
+            Does this content contain information to answer the question?
+            Reply with ONLY one word: YES or NO
+            """
 
         let response = try await ragService.generateWithFreshSession(
             prompt: prompt,
@@ -2255,7 +2303,9 @@ final class AgenticOrchestrator: Sendable {
         let answer = response.text.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
         let isValid = answer.contains("yes")
 
-        Log.debug("[SemanticValidation] Query '\(query.prefix(40))...' → \(isValid ? "VALID" : "INVALID")", category: .retrieval)
+        Log.debug(
+            "[SemanticValidation] Query '\(query.prefix(40))...' → \(isValid ? "VALID" : "INVALID")",
+            category: .retrieval)
 
         return (isValid, isValid ? "Content matches intent" : "Content does not address the question")
     }
@@ -2283,23 +2333,41 @@ final class AgenticOrchestrator: Sendable {
             // QUOTED: "given in 'Recommended lubricants and capacities' on page 9-7"
             // NOTE: In raw strings #"..."#, \u{} is literal text, NOT a Unicode escape.
             // ICU regex (NSRegularExpression) uses \x{HHHH} for Unicode code points.
-            (pattern: #"(?:given|found|listed|shown|described|specified|provided|included|explained)\s+(?:in|under|at)\s+['"\x{201C}\x{201D}]([^'"\x{201C}\x{201D}\n]{3,80})['"\x{201C}\x{201D}]"#,
-             options: NSRegularExpression.Options.caseInsensitive, group: 1),
+            (
+                pattern:
+                    #"(?:given|found|listed|shown|described|specified|provided|included|explained)\s+(?:in|under|at)\s+['"\x{201C}\x{201D}]([^'"\x{201C}\x{201D}\n]{3,80})['"\x{201C}\x{201D}]"#,
+                options: NSRegularExpression.Options.caseInsensitive, group: 1
+            ),
             // QUOTED: "see 'Section Name'" or "refer to 'Section Name'"
-            (pattern: #"(?:see|refer\s+to|check|consult)\s+['"\x{201C}\x{201D}]([^'"\x{201C}\x{201D}\n]{3,80})['"\x{201C}\x{201D}]"#,
-             options: .caseInsensitive, group: 1),
+            (
+                pattern:
+                    #"(?:see|refer\s+to|check|consult)\s+['"\x{201C}\x{201D}]([^'"\x{201C}\x{201D}\n]{3,80})['"\x{201C}\x{201D}]"#,
+                options: .caseInsensitive, group: 1
+            ),
             // QUOTED: "in the 'Section Name' section/table/chapter"
-            (pattern: #"in\s+(?:the\s+)?['"\x{201C}\x{201D}]([^'"\x{201C}\x{201D}\n]{3,80})['"\x{201C}\x{201D}]\s+(?:section|table|chapter|page)"#,
-             options: .caseInsensitive, group: 1),
+            (
+                pattern:
+                    #"in\s+(?:the\s+)?['"\x{201C}\x{201D}]([^'"\x{201C}\x{201D}\n]{3,80})['"\x{201C}\x{201D}]\s+(?:section|table|chapter|page)"#,
+                options: .caseInsensitive, group: 1
+            ),
             // UNQUOTED (case-insensitive): "given in recommended lubricants and capacities on page 9-7"
-            (pattern: #"(?:given|found|listed|shown|described|specified|provided|included|explained)\s+(?:in|under|at)\s+(?:the\s+)?([a-z][a-z]+(?:\s+[a-z&,]+){2,10})\s+on\s+page"#,
-             options: .caseInsensitive, group: 1),
+            (
+                pattern:
+                    #"(?:given|found|listed|shown|described|specified|provided|included|explained)\s+(?:in|under|at)\s+(?:the\s+)?([a-z][a-z]+(?:\s+[a-z&,]+){2,10})\s+on\s+page"#,
+                options: .caseInsensitive, group: 1
+            ),
             // UNQUOTED: "see section name on page X" or "refer to section name on page X"
-            (pattern: #"(?:see|refer\s+to|check|consult)\s+(?:the\s+)?([a-z][a-z]+(?:\s+[a-z&,]+){2,10})\s+on\s+page"#,
-             options: .caseInsensitive, group: 1),
+            (
+                pattern:
+                    #"(?:see|refer\s+to|check|consult)\s+(?:the\s+)?([a-z][a-z]+(?:\s+[a-z&,]+){2,10})\s+on\s+page"#,
+                options: .caseInsensitive, group: 1
+            ),
             // CATCH-ALL: "given in <any text> on page" — most permissive fallback
-            (pattern: #"(?:given|found|listed|shown|described|specified|provided)\s+(?:in|under|at)\s+(?:the\s+)?(.{5,80})\s+on\s+page"#,
-             options: .caseInsensitive, group: 1),
+            (
+                pattern:
+                    #"(?:given|found|listed|shown|described|specified|provided)\s+(?:in|under|at)\s+(?:the\s+)?(.{5,80})\s+on\s+page"#,
+                options: .caseInsensitive, group: 1
+            ),
         ].compactMap { item -> (regex: NSRegularExpression, captureGroup: Int)? in
             let (pattern, options, group) = item
             guard let regex = try? NSRegularExpression(pattern: pattern, options: options) else {
@@ -2321,12 +2389,14 @@ final class AgenticOrchestrator: Sendable {
                 let matches = regex.matches(in: content, range: range)
                 for match in matches {
                     guard match.numberOfRanges > group,
-                          let captureRange = Range(match.range(at: group), in: content) else { continue }
+                        let captureRange = Range(match.range(at: group), in: content)
+                    else { continue }
                     let reference = String(content[captureRange])
                         .trimmingCharacters(in: .whitespacesAndNewlines)
                     // Skip very short references or pure page numbers
                     if reference.count >= 5,
-                       reference.range(of: #"^\d+[-–]?\d*$"#, options: .regularExpression) == nil {
+                        reference.range(of: #"^\d+[-–]?\d*$"#, options: .regularExpression) == nil
+                    {
                         referencedSections.insert(reference)
                     }
                 }
@@ -2335,8 +2405,11 @@ final class AgenticOrchestrator: Sendable {
 
         guard !referencedSections.isEmpty else { return [] }
 
-        Log.info("[CrossRef] Found \(referencedSections.count) cross-references: \(referencedSections.joined(separator: ", "))", category: .retrieval)
-        await onDetailedEvent?(.retrieval, "Cross-references", "Following \(referencedSections.count) document references")
+        Log.info(
+            "[CrossRef] Found \(referencedSections.count) cross-references: \(referencedSections.joined(separator: ", "))",
+            category: .retrieval)
+        await onDetailedEvent?(
+            .retrieval, "Cross-references", "Following \(referencedSections.count) document references")
 
         var additionalChunks: [RetrievedChunk] = []
 
@@ -2370,11 +2443,14 @@ final class AgenticOrchestrator: Sendable {
                 addedFromSection += 1
             }
 
-            Log.info("[CrossRef] '\(section.prefix(40))': retrieved \(sectionChunks.count) chunks, \(addedFromSection) new", category: .retrieval)
+            Log.info(
+                "[CrossRef] '\(section.prefix(40))': retrieved \(sectionChunks.count) chunks, \(addedFromSection) new",
+                category: .retrieval)
         }
 
         if !additionalChunks.isEmpty {
-            await onDetailedEvent?(.retrieval, "Cross-ref resolved", "+\(additionalChunks.count) chunks from referenced sections")
+            await onDetailedEvent?(
+                .retrieval, "Cross-ref resolved", "+\(additionalChunks.count) chunks from referenced sections")
 
             let crossRefStep = ThinkingStep(
                 id: UUID(),
@@ -2418,22 +2494,23 @@ final class AgenticOrchestrator: Sendable {
 
         await onDetailedEvent?(.agentic, "Graph expansion", "Extracting entities for hop search")
 
-        let contextText = initialChunks
+        let contextText =
+            initialChunks
             .map { $0.chunk.parentContent ?? $0.chunk.content }
             .joined(separator: "\n")
 
         let entityPrompt = """
-        Extract 3-5 important terms from this text that would be good search queries. Look for:
-        - Product names, model numbers, or device names
-        - Technical terms, features, or specifications
-        - Actions, buttons, or UI elements mentioned
-        - Error codes or status indicators
+            Extract 3-5 important terms from this text that would be good search queries. Look for:
+            - Product names, model numbers, or device names
+            - Technical terms, features, or specifications
+            - Actions, buttons, or UI elements mentioned
+            - Error codes or status indicators
 
-        Return a JSON array of strings, like: ["term1", "term2", "term3"]
+            Return a JSON array of strings, like: ["term1", "term2", "term3"]
 
-        Text:
-        \(contextText.prefix(2000))
-        """
+            Text:
+            \(contextText.prefix(2000))
+            """
 
         let response = try await ragService.generateWithFreshSession(
             prompt: entityPrompt,
@@ -2448,7 +2525,9 @@ final class AgenticOrchestrator: Sendable {
             entities = heuristicEntityFallback(from: contextText, excluding: query)
         }
 
-        await onDetailedEvent?(.parentDoc, "Entity hop", "Searching \(entities.count) entities: \(entities.prefix(3).joined(separator: ", "))")
+        await onDetailedEvent?(
+            .parentDoc, "Entity hop",
+            "Searching \(entities.count) entities: \(entities.prefix(3).joined(separator: ", "))")
 
         var expandedChunks: [RetrievedChunk] = []
 
@@ -2471,7 +2550,8 @@ final class AgenticOrchestrator: Sendable {
 
         await onDetailedEvent?(.parentDoc, "Graph complete", "+\(expandedChunks.count) chunks from entity hops")
 
-        let output = entities.isEmpty
+        let output =
+            entities.isEmpty
             ? "No graph entities identified"
             : "Entities: \(entities.joined(separator: ", ")) → +\(expandedChunks.count) chunks"
 
@@ -2491,16 +2571,18 @@ final class AgenticOrchestrator: Sendable {
     private func parseEntityList(from text: String) -> [String] {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         if let data = trimmed.data(using: .utf8),
-           let list = try? JSONDecoder().decode([String].self, from: data)
+            let list = try? JSONDecoder().decode([String].self, from: data)
         {
             return list.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
         }
 
-        let cleaned = trimmed
+        let cleaned =
+            trimmed
             .replacingOccurrences(of: #"[\n\r]"#, with: ",", options: .regularExpression)
             .replacingOccurrences(of: #"[\[\]\"]"#, with: "", options: .regularExpression)
 
-        return cleaned
+        return
+            cleaned
             .split(separator: ",")
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
@@ -2533,16 +2615,16 @@ final class AgenticOrchestrator: Sendable {
         let startTime = Date()
 
         let analysisPrompt = """
-        Analyze these search results to answer the original question.
+            Analyze these search results to answer the original question.
 
-        Original Question: \(query)
+            Original Question: \(query)
 
-        Search Results:
-        \(searchResults)
+            Search Results:
+            \(searchResults)
 
-        Provide a comprehensive answer based on the evidence. Rate your confidence (0.0-1.0) at the end.
-        Format: [Answer text] CONFIDENCE: [0.X]
-        """
+            Provide a comprehensive answer based on the evidence. Rate your confidence (0.0-1.0) at the end.
+            Format: [Answer text] CONFIDENCE: [0.X]
+            """
 
         let response = try await ragService.generateWithFreshSession(
             prompt: analysisPrompt,
@@ -2568,13 +2650,13 @@ final class AgenticOrchestrator: Sendable {
         let startTime = Date()
 
         let refinementPrompt = """
-        The current answer may be incomplete or uncertain. Search for additional evidence to strengthen it.
+            The current answer may be incomplete or uncertain. Search for additional evidence to strengthen it.
 
-        Question: \(query)
-        Current Answer: \(currentAnswer.prefix(500))
+            Question: \(query)
+            Current Answer: \(currentAnswer.prefix(500))
 
-        What additional information would make this answer more complete? Provide refined answer with updated confidence.
-        """
+            What additional information would make this answer more complete? Provide refined answer with updated confidence.
+            """
 
         let response = try await ragService.generateWithFreshSession(
             prompt: refinementPrompt,
@@ -2600,10 +2682,10 @@ final class AgenticOrchestrator: Sendable {
         let startTime = Date()
 
         let systemPrompt = """
-        Synthesize findings into a comprehensive answer. Cite [S1], [S2] when available.
-        Format with ### section headers, bullets only for actual lists, **bold** sparingly for key terms.
-        Separate sections with blank lines for readability.
-        """
+            Synthesize findings into a comprehensive answer. Cite [S1], [S2] when available.
+            Format with ### section headers, bullets only for actual lists, **bold** sparingly for key terms.
+            Separate sections with blank lines for readability.
+            """
 
         let outputReserve = 800
         let budget = evidenceTokenBudget(
@@ -2689,17 +2771,19 @@ final class AgenticOrchestrator: Sendable {
     private func extractConfidence(from text: String) -> Float {
         // Look for CONFIDENCE: 0.X pattern
         if let range = text.range(of: #"CONFIDENCE:\s*(0?\.\d+|1\.0)"#, options: .regularExpression) {
-            let confidenceStr = text[range].replacingOccurrences(of: "CONFIDENCE:", with: "").trimmingCharacters(in: .whitespaces)
+            let confidenceStr = text[range].replacingOccurrences(of: "CONFIDENCE:", with: "").trimmingCharacters(
+                in: .whitespaces)
             return Float(confidenceStr) ?? 0.5
         }
-        return 0.5 // Default confidence if not specified
+        return 0.5  // Default confidence if not specified
     }
 
     private func countSources(in searchResult: String) -> Int {
         // Count citation patterns like [1], [Doc: X], etc.
         let pattern = #"\[(?:Doc:|Source:|\d+)"#
         let regex = try? NSRegularExpression(pattern: pattern)
-        return regex?.numberOfMatches(in: searchResult, range: NSRange(searchResult.startIndex..., in: searchResult)) ?? 0
+        return regex?.numberOfMatches(in: searchResult, range: NSRange(searchResult.startIndex..., in: searchResult))
+            ?? 0
     }
 
     // MARK: - Recursive Research Loop
@@ -2865,7 +2949,7 @@ final class AgenticOrchestrator: Sendable {
                     retrievedChunks: allRetrievedChunks
                 )
 
-            case let .search(searchQuery):
+            case .search(let searchQuery):
                 // LLM wants more information - execute search
                 Log.debug("[RecursiveResearch] LLM requested search: \(searchQuery)", category: .llm)
 
@@ -2904,7 +2988,7 @@ final class AgenticOrchestrator: Sendable {
                     accumulatedContext = String(accumulatedContext.suffix(6000))
                 }
 
-            case let .thinking(thought):
+            case .thinking(let thought):
                 // LLM is thinking but hasn't decided - log and continue
                 let thinkingStep = ThinkingStep(
                     id: UUID(),
@@ -2937,7 +3021,7 @@ final class AgenticOrchestrator: Sendable {
             steps: steps,
             totalTokens: totalTokens,
             totalDuration: Date().timeIntervalSince(startTime),
-            confidence: 0.6, // Lower confidence since we hit iteration limit
+            confidence: 0.6,  // Lower confidence since we hit iteration limit
             sourcesUsed: allRetrievedChunks.count,
             retrievedChunks: allRetrievedChunks
         )
@@ -2971,18 +3055,18 @@ final class AgenticOrchestrator: Sendable {
         let truncatedContext = String(currentContext.prefix(2000))
 
         let prompt = """
-        QUESTION: \(query)
+            QUESTION: \(query)
 
-        CONTEXT:
-        \(truncatedContext)
+            CONTEXT:
+            \(truncatedContext)
 
-        Reply with ONE of these two lines and nothing else:
-        [ANSWER] then the answer itself
-        [SEARCH: the specific words to look up] if the context above is not enough
+            Reply with ONE of these two lines and nothing else:
+            [ANSWER] then the answer itself
+            [SEARCH: the specific words to look up] if the context above is not enough
 
-        Write real search words. Do not reply with the word "query".
-        Iteration \(iteration)/7.
-        """
+            Write real search words. Do not reply with the word "query".
+            Iteration \(iteration)/7.
+            """
 
         Log.debug("[RecursiveResearch] Decision prompt: \(prompt.count) chars", category: .llm)
 
@@ -3020,8 +3104,8 @@ final class AgenticOrchestrator: Sendable {
         // Check for [SEARCH: query] token
         let searchPattern = #"\[SEARCH:\s*(.+?)\]"#
         if let regex = try? NSRegularExpression(pattern: searchPattern, options: .caseInsensitive),
-           let match = regex.firstMatch(in: trimmed, range: NSRange(trimmed.startIndex..., in: trimmed)),
-           let queryRange = Range(match.range(at: 1), in: trimmed)
+            let match = regex.firstMatch(in: trimmed, range: NSRange(trimmed.startIndex..., in: trimmed)),
+            let queryRange = Range(match.range(at: 1), in: trimmed)
         {
             let searchQuery = String(trimmed[queryRange])
                 .trimmingCharacters(in: .whitespacesAndNewlines)
@@ -3037,7 +3121,7 @@ final class AgenticOrchestrator: Sendable {
             // alone is not a guarantee on a small model.
             let placeholders: Set<String> = [
                 "query", "the query", "your query", "search query", "search terms",
-                "the specific words to look up", "keywords", "search"
+                "the specific words to look up", "keywords", "search",
             ]
             if placeholders.contains(searchQuery.lowercased()) {
                 Log.warning(
@@ -3065,8 +3149,8 @@ final class AgenticOrchestrator: Sendable {
 
         // Short system prompt to maximize context budget
         let systemPrompt = """
-        Provide best answer with available data. Cite [S1], [S2]. Note any gaps.
-        """
+            Provide best answer with available data. Cite [S1], [S2]. Note any gaps.
+            """
 
         // Truncate to fit 4096 token limit
         let contextToUse = String(accumulatedContext.prefix(3500))
@@ -3099,7 +3183,7 @@ final class AgenticOrchestrator: Sendable {
         ]
 
         let lowercased = answer.lowercased()
-        var confidence: Float = 0.8 // Base confidence
+        var confidence: Float = 0.8  // Base confidence
 
         for indicator in lowConfidenceIndicators {
             if lowercased.contains(indicator) {
@@ -3130,7 +3214,8 @@ final class AgenticOrchestrator: Sendable {
     private func looksLikeRawEvidenceDump(_ answer: String) -> Bool {
         let trimmed = answer.trimmingCharacters(in: .whitespacesAndNewlines)
         guard trimmed.hasPrefix("[S") else { return false }
-        let sourcePrefixedBlocks = trimmed
+        let sourcePrefixedBlocks =
+            trimmed
             .components(separatedBy: "\n")
             .filter { $0.trimmingCharacters(in: .whitespaces).hasPrefix("[S") }
             .count
@@ -3602,10 +3687,14 @@ final class AgenticOrchestrator: Sendable {
 
             if verification.action == "retry" && !answerIndicatesRetrievalMiss(currentAnswer) {
                 strikeCount += 1
-                Log.info("[Agentic] Self-RAG: Verification suggests retry (Strike \(strikeCount)/\(maxStrikes))", category: .llm)
+                Log.info(
+                    "[Agentic] Self-RAG: Verification suggests retry (Strike \(strikeCount)/\(maxStrikes))",
+                    category: .llm)
 
                 if strikeCount >= maxStrikes {
-                    Log.warning("[Agentic] Self-RAG: Max verification strikes reached. Refusing further retries.", category: .llm)
+                    Log.warning(
+                        "[Agentic] Self-RAG: Max verification strikes reached. Refusing further retries.",
+                        category: .llm)
                     break
                 }
 
@@ -3641,7 +3730,9 @@ final class AgenticOrchestrator: Sendable {
                 // Check if the retry returned an empty response
                 let cleanNewAnswer = newAnswer.trimmingCharacters(in: .whitespacesAndNewlines)
                 if cleanNewAnswer.isEmpty {
-                    Log.warning("[Agentic] Self-RAG: Retry returned an empty answer. Keeping the previous non-empty answer.", category: .llm)
+                    Log.warning(
+                        "[Agentic] Self-RAG: Retry returned an empty answer. Keeping the previous non-empty answer.",
+                        category: .llm)
                     currentSteps.append(contentsOf: recursiveResult.steps)
                     currentTokens += recursiveResult.totalTokens
                     // Do NOT update currentAnswer to empty. Leave currentAnswer as it was.
@@ -3650,14 +3741,19 @@ final class AgenticOrchestrator: Sendable {
 
                 // Check semantic delta
                 let delta = semanticDelta(newAnswer, currentAnswer)
-                Log.debug("[Agentic] Semantic delta between verification attempts: \(String(format: "%.4f", delta))", category: .llm)
+                Log.debug(
+                    "[Agentic] Semantic delta between verification attempts: \(String(format: "%.4f", delta))",
+                    category: .llm)
 
                 if delta < 0.10 {
-                    Log.warning("[Agentic] Self-RAG: Semantic delta too low (\(String(format: "%.4f", delta)) < 0.10). Refusing further retries.", category: .llm)
+                    Log.warning(
+                        "[Agentic] Self-RAG: Semantic delta too low (\(String(format: "%.4f", delta)) < 0.10). Refusing further retries.",
+                        category: .llm)
                     currentSteps.append(contentsOf: recursiveResult.steps)
                     currentTokens += recursiveResult.totalTokens
                     if Self.shouldAcceptReplacement(previous: currentAnswer, replacement: newAnswer) {
-                        logAnswerReplacement(previous: currentAnswer, replacement: newAnswer, reason: "semantic delta below 0.10")
+                        logAnswerReplacement(
+                            previous: currentAnswer, replacement: newAnswer, reason: "semantic delta below 0.10")
                         currentAnswer = newAnswer
                     }
                     break
@@ -3667,7 +3763,9 @@ final class AgenticOrchestrator: Sendable {
                     currentSteps.append(contentsOf: recursiveResult.steps)
                     currentTokens += recursiveResult.totalTokens
                     if Self.shouldAcceptReplacement(previous: currentAnswer, replacement: newAnswer) {
-                        logAnswerReplacement(previous: currentAnswer, replacement: newAnswer, reason: "recursive research returned an answer")
+                        logAnswerReplacement(
+                            previous: currentAnswer, replacement: newAnswer,
+                            reason: "recursive research returned an answer")
                         currentAnswer = newAnswer
                     }
                     // Update sources/chunks
@@ -3703,7 +3801,9 @@ final class AgenticOrchestrator: Sendable {
         sourceChunks: [RetrievedChunk],
         ragService: RAGService
     ) async -> SelfRAGVerification {
-        Log.info("[Self-RAG 2.0] Starting verification: query=\(query.prefix(50))..., answer=\(answer.count) chars", category: .llm)
+        Log.info(
+            "[Self-RAG 2.0] Starting verification: query=\(query.prefix(50))..., answer=\(answer.count) chars",
+            category: .llm)
 
         // 1. Check if answer addresses the question (semantic relevance)
         let addressScore = computeAnswerRelevance(query: query, answer: answer)
@@ -3745,11 +3845,14 @@ final class AgenticOrchestrator: Sendable {
             action: action
         )
 
-        Log.info("[Self-RAG 2.0] Verification complete: \(action) (relevance=\(Int(addressScore * 100))%, citations=\(citationResult.verified)/\(citationResult.totalCitations), confidence=\(Int(calibrated * 100))%)", category: .llm)
+        Log.info(
+            "[Self-RAG 2.0] Verification complete: \(action) (relevance=\(Int(addressScore * 100))%, citations=\(citationResult.verified)/\(citationResult.totalCitations), confidence=\(Int(calibrated * 100))%)",
+            category: .llm)
 
         return SelfRAGVerification(
             addressesQuestion: addressesQuestion,
-            citationsVerified: citationResult.verified == citationResult.totalCitations && citationResult.totalCitations > 0,
+            citationsVerified: citationResult.verified == citationResult.totalCitations
+                && citationResult.totalCitations > 0,
             verifiedCitationCount: citationResult.verified,
             unverifiedCitationCount: citationResult.totalCitations - citationResult.verified,
             calibratedConfidence: calibrated,
@@ -3766,27 +3869,29 @@ final class AgenticOrchestrator: Sendable {
         let answerLower = answer.lowercased()
 
         // Extract key terms from query (remove stop words)
-        let stopWords: Set<String> = ["what", "how", "why", "when", "where", "who", "which",
-                                       "does", "do", "is", "are", "was", "were", "the", "a", "an",
-                                       "of", "in", "to", "for", "and", "or", "on", "with", "this", "that",
-                                       "kind", "type", "take", "use", "need", "require", "should", "can"]
+        let stopWords: Set<String> = [
+            "what", "how", "why", "when", "where", "who", "which",
+            "does", "do", "is", "are", "was", "were", "the", "a", "an",
+            "of", "in", "to", "for", "and", "or", "on", "with", "this", "that",
+            "kind", "type", "take", "use", "need", "require", "should", "can",
+        ]
         let queryTerms = queryLower.split(separator: " ")
             .map { String($0).trimmingCharacters(in: .punctuationCharacters) }
             .filter { $0.count > 2 && !stopWords.contains($0) }
 
         // CRITICAL FIX: If query is about specs/types, check if answer has technical content
         // E.g., "what oil" → answer has "0W-20", "SAE", viscosity = GREAT match
-        let isSpecQuery = queryLower.contains("what") || queryLower.contains("which") ||
-                          queryLower.contains("type") || queryLower.contains("kind") ||
-                          queryLower.contains("specification") || queryLower.contains("grade")
+        let isSpecQuery =
+            queryLower.contains("what") || queryLower.contains("which") || queryLower.contains("type")
+            || queryLower.contains("kind") || queryLower.contains("specification") || queryLower.contains("grade")
 
         // Technical content patterns (indicates answer is providing actual specs)
         let technicalPatterns = [
-            #"\d+[wW]-\d+"#,           // Oil viscosity: 0W-20, 5W-30
-            #"[A-Z]{2,}[\s-]?\d+"#,    // Spec codes: SAE, API SN, ACEA
+            #"\d+[wW]-\d+"#,  // Oil viscosity: 0W-20, 5W-30
+            #"[A-Z]{2,}[\s-]?\d+"#,  // Spec codes: SAE, API SN, ACEA
             #"\d+\.?\d*\s*(mm|cm|l|L|gal|qt|oz|psi|bar|kpa|°|degrees)"#,  // Measurements
             #"\d+\.?\d*\s*(hp|kw|nm|lb|kg|mph|km/h)"#,  // Power/speed units
-            #"[A-Z]\d{1,3}[A-Z]?"#,    // Part codes: M5, B48, etc.
+            #"[A-Z]\d{1,3}[A-Z]?"#,  // Part codes: M5, B48, etc.
         ]
 
         var hasTechnicalContent = false
@@ -3833,7 +3938,7 @@ final class AgenticOrchestrator: Sendable {
             "insufficient information",
             "not enough information",
             "cannot be determined",
-            "no information available"
+            "no information available",
         ]
         let hedgingCount = hedgingMarkers.filter { answerLower.contains($0) }.count
         let hedgingPenalty: Float = min(Float(hedgingCount) * 0.15, 0.40)
@@ -3869,10 +3974,10 @@ final class AgenticOrchestrator: Sendable {
 
     /// Citation verification result
     private struct CitationVerificationResult {
-        let verified: Int           // Citations that exist in sources
-        let totalCitations: Int     // Total [S1], [S2], etc. found
-        let groundingScore: Float   // 0-1, how well citations are grounded
-        let details: [String]       // Per-citation verification details
+        let verified: Int  // Citations that exist in sources
+        let totalCitations: Int  // Total [S1], [S2], etc. found
+        let groundingScore: Float  // 0-1, how well citations are grounded
+        let details: [String]  // Per-citation verification details
     }
 
     /// Verify that citations [S1], [S2], etc. actually reference content from sources
@@ -3889,7 +3994,8 @@ final class AgenticOrchestrator: Sendable {
         var dangling: Set<Int> = []
         for match in regex.matches(in: text, range: range) where match.numberOfRanges > 1 {
             guard let numberRange = Range(match.range(at: 1), in: text),
-                  let index = Int(text[numberRange]) else { continue }
+                let index = Int(text[numberRange])
+            else { continue }
             if index < 1 || index > sourceCount { dangling.insert(index) }
         }
         return dangling.sorted()
@@ -3914,14 +4020,16 @@ final class AgenticOrchestrator: Sendable {
         var citationNumbers: Set<Int> = []
         for match in matches {
             if let range = Range(match.range(at: 1), in: answer),
-               let num = Int(answer[range]) {
+                let num = Int(answer[range])
+            {
                 citationNumbers.insert(num)
             }
         }
 
         guard !citationNumbers.isEmpty else {
             // No citations = can't verify, but not necessarily bad
-            return CitationVerificationResult(verified: 0, totalCitations: 0, groundingScore: 0.5, details: ["No citations found"])
+            return CitationVerificationResult(
+                verified: 0, totalCitations: 0, groundingScore: 0.5, details: ["No citations found"])
         }
 
         // Verify each citation exists in sources
@@ -3938,7 +4046,9 @@ final class AgenticOrchestrator: Sendable {
                 let citationMarker = "[S\(citationNum)]"
                 if let markerRange = answer.range(of: citationMarker) {
                     // Extract ~50 chars before the citation marker
-                    let start = answer.index(markerRange.lowerBound, offsetBy: -50, limitedBy: answer.startIndex) ?? answer.startIndex
+                    let start =
+                        answer.index(markerRange.lowerBound, offsetBy: -50, limitedBy: answer.startIndex)
+                        ?? answer.startIndex
                     let claimText = String(answer[start..<markerRange.lowerBound]).lowercased()
 
                     // Check if key words from the claim appear in the source
@@ -3953,7 +4063,8 @@ final class AgenticOrchestrator: Sendable {
                         }
                     }
 
-                    let claimGrounded = claimWords.isEmpty || Float(matchedWords) / Float(max(claimWords.count, 1)) >= 0.3
+                    let claimGrounded =
+                        claimWords.isEmpty || Float(matchedWords) / Float(max(claimWords.count, 1)) >= 0.3
                     if claimGrounded {
                         verified += 1
                         details.append("[S\(citationNum)]: ✓ Verified in source")
@@ -4058,7 +4169,7 @@ final class AgenticOrchestrator: Sendable {
         Log.info("[Speculative-RAG] Generating \(candidateCount) candidate answers", category: .llm)
 
         var candidates: [(answer: String, tokens: Int)] = []
-        let temperatures: [Float] = [0.3, 0.6, 0.8] // Vary temperature for diversity
+        let temperatures: [Float] = [0.3, 0.6, 0.8]  // Vary temperature for diversity
 
         for i in 0..<min(candidateCount, temperatures.count) {
             let temp = temperatures[i]
@@ -4134,7 +4245,8 @@ final class AgenticOrchestrator: Sendable {
             id: UUID(),
             type: .refining,
             input: "Selecting best answer",
-            output: "Selected answer with \(String(format: "%.0f%%", best.score * 100)) grounding score: \(best.reason)",
+            output:
+                "Selected answer with \(String(format: "%.0f%%", best.score * 100)) grounding score: \(best.reason)",
             tokensUsed: 5,
             duration: 0.02,
             timestamp: Date()
@@ -4168,15 +4280,15 @@ final class AgenticOrchestrator: Sendable {
         // For now, we get diversity from multiple calls (LLM has inherent randomness)
         return try await ragService.generateWithFreshSession(
             prompt: """
-            Using ONLY the excerpts below, answer the question. Cite [S1], [S2], etc.
+                Using ONLY the excerpts below, answer the question. Cite [S1], [S2], etc.
 
-            EXCERPTS:
-            \(context)
+                EXCERPTS:
+                \(context)
 
-            QUESTION: \(query)
+                QUESTION: \(query)
 
-            ANSWER:
-            """,
+                ANSWER:
+                """,
             maxTokens: 500
         )
     }
@@ -4186,18 +4298,19 @@ final class AgenticOrchestrator: Sendable {
         answer: String,
         sourceContext: String
     ) -> (score: Float, reason: String) {
-        var score: Float = 0.5 // Base score
+        var score: Float = 0.5  // Base score
 
         // Check for citations
         let citationPattern = #"\[S\d+\]"#
         let citationRegex = try? NSRegularExpression(pattern: citationPattern)
-        let citationCount = citationRegex?.numberOfMatches(
-            in: answer,
-            range: NSRange(answer.startIndex..., in: answer)
-        ) ?? 0
+        let citationCount =
+            citationRegex?.numberOfMatches(
+                in: answer,
+                range: NSRange(answer.startIndex..., in: answer)
+            ) ?? 0
 
         if citationCount > 0 {
-            score += 0.15 * Float(min(citationCount, 3)) // Up to +0.45 for citations
+            score += 0.15 * Float(min(citationCount, 3))  // Up to +0.45 for citations
         }
 
         // Check for key term overlap with source
@@ -4284,36 +4397,36 @@ struct ReasoningChainConfig: Sendable {
     /// Light config for Standard mode - faster with 3 sessions
     /// 3 × 4096 = 12K+ effective tokens (vs single 4K)
     nonisolated static let light = ReasoningChainConfig(
-        sessionCount: 3,        // 3 × 4096 = 12K+ effective tokens
+        sessionCount: 3,  // 3 × 4096 = 12K+ effective tokens
         maxContextPerSession: 3200,
-        maxInsightLength: 1500   // Keep full findings, not snippets
+        maxInsightLength: 1500  // Keep full findings, not snippets
     )
 
     nonisolated static let standard = ReasoningChainConfig(
-        sessionCount: 4,        // 4 × 4096 = 16K+ effective tokens
+        sessionCount: 4,  // 4 × 4096 = 16K+ effective tokens
         maxContextPerSession: 3500,
-        maxInsightLength: 2000   // Keep full findings, not snippets
+        maxInsightLength: 2000  // Keep full findings, not snippets
     )
 
     nonisolated static let deep = ReasoningChainConfig(
-        sessionCount: 5,        // 5 × 4096 = 20K+ effective tokens
+        sessionCount: 5,  // 5 × 4096 = 20K+ effective tokens
         maxContextPerSession: 3500,
-        maxInsightLength: 2500   // Keep full findings, not snippets
+        maxInsightLength: 2500  // Keep full findings, not snippets
     )
 
     /// Unlimited config - Maximum mode: up to 50 sessions until 98% confident
     /// Since Neural Engine is disk-backed, memory isn't the limit - thermal/user patience is
     /// 50 sessions × 4K = 200K+ effective tokens (realistically takes 5-15 minutes)
     nonisolated static let unlimited = ReasoningChainConfig(
-        sessionCount: 50, // 50 × 4096 = 200K+ effective tokens
+        sessionCount: 50,  // 50 × 4096 = 200K+ effective tokens
         maxContextPerSession: 3500,
-        maxInsightLength: 3000   // Preserve maximum detail between sessions
+        maxInsightLength: 3000  // Preserve maximum detail between sessions
     )
 
     /// Per-cluster config for multi-chain Maximum mode
     /// Each cluster gets its own chain with focused context
     nonisolated static let clusterChain = ReasoningChainConfig(
-        sessionCount: 8, // 8 sessions per cluster
+        sessionCount: 8,  // 8 sessions per cluster
         maxContextPerSession: 3200,
         maxInsightLength: 2000
     )
@@ -4345,7 +4458,7 @@ struct MultiChainConfig: Sendable {
         minDocsPerCluster: 2,
         sessionsPerCluster: 8,
         synthesisSessions: 4,
-        maxParallelChains: 3 // Run 3 at a time to avoid thermal throttling
+        maxParallelChains: 3  // Run 3 at a time to avoid thermal throttling
     )
 
     /// Light multi-chain for faster exploration
@@ -4371,7 +4484,7 @@ struct MultiChainResult: Sendable {
         let clusterName: String
         let documents: [String]
         let insight: String
-        let chainInsights: [String] // Individual session insights for reasoning trace
+        let chainInsights: [String]  // Individual session insights for reasoning trace
         let tokensUsed: Int
         let sessionsRun: Int
     }
@@ -4496,7 +4609,8 @@ extension AgenticOrchestrator {
 
         func menuLabel(_ candidate: RetrievedChunk) -> String {
             if let section = candidate.chunk.metadata.sectionTitle?
-                .trimmingCharacters(in: .whitespacesAndNewlines), !section.isEmpty {
+                .trimmingCharacters(in: .whitespacesAndNewlines), !section.isEmpty
+            {
                 return section
             }
             // No structured section: the opening of the text is still a better menu entry than an
@@ -4521,13 +4635,13 @@ extension AgenticOrchestrator {
         guard listed >= 4 else { return chunks }
 
         let prompt = """
-        QUESTION: \(query)
+            QUESTION: \(query)
 
-        SECTIONS AVAILABLE:
-        \(menu)
-        Which sections would answer the question? Reply with their numbers only, most useful first,
-        at most 8, separated by commas. No other text.
-        """
+            SECTIONS AVAILABLE:
+            \(menu)
+            Which sections would answer the question? Reply with their numbers only, most useful first,
+            at most 8, separated by commas. No other text.
+            """
 
         // Do NOT swallow the error with `try?`. The first device run of this feature failed and
         // logged only "unavailable", which named the symptom and hid the cause, so a second run was
@@ -4580,7 +4694,9 @@ extension AgenticOrchestrator {
             return chunks
         }
 
-        let reordered = selected.map { chunks[$0] } + chunks.enumerated()
+        let reordered =
+            selected.map { chunks[$0] }
+            + chunks.enumerated()
             .filter { !seen.contains($0.offset) }
             .map(\.element)
 
@@ -4589,15 +4705,16 @@ extension AgenticOrchestrator {
                 + "(\(selected.map { String($0 + 1) }.joined(separator: ","))); reordered, none dropped",
             category: .llm
         )
-        await onStep?(ThinkingStep(
-            id: UUID(),
-            type: .searching,
-            input: "Choosing sections to read",
-            output: "Selected \(selected.count) of \(listed) available sections",
-            tokensUsed: response.tokensGenerated,
-            duration: 0.2,
-            timestamp: Date()
-        ))
+        await onStep?(
+            ThinkingStep(
+                id: UUID(),
+                type: .searching,
+                input: "Choosing sections to read",
+                output: "Selected \(selected.count) of \(listed) available sections",
+                tokensUsed: response.tokensGenerated,
+                duration: 0.2,
+                timestamp: Date()
+            ))
         return reordered
     }
 
@@ -4633,7 +4750,9 @@ extension AgenticOrchestrator {
         var saturationStreak = 0
         var usedWindowSources: Set<String> = []
 
-        Log.info("[ReasoningChain] Starting \(reasoningPolicy.isDeepThinkMode ? "dynamic 4-8" : String(config.sessionCount))-session chain for: \(query.prefix(40))... (confidence reporting: \(reasoningPolicy.shouldReportConfidence), threshold: \(Int(reasoningPolicy.confidenceThreshold * 100))%)", category: .llm)
+        Log.info(
+            "[ReasoningChain] Starting \(reasoningPolicy.isDeepThinkMode ? "dynamic 4-8" : String(config.sessionCount))-session chain for: \(query.prefix(40))... (confidence reporting: \(reasoningPolicy.shouldReportConfidence), threshold: \(Int(reasoningPolicy.confidenceThreshold * 100))%)",
+            category: .llm)
 
         // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
         // CHUNK ROTATION: Each session sees a sliding window of chunks
@@ -4651,7 +4770,9 @@ extension AgenticOrchestrator {
         // Session 2+ (with insights): context ≤ 2200 + insights ≤ 1200 + prompt ~300 = 3700 (fits)
         // buildChainPrompt handles the per-session budget split (4000 for S1, 2200 for S2+)
         let maxChunksPerSession = (reasoningPolicy.isUnlimitedMode || reasoningPolicy.isDeepThinkMode) ? 4 : 6
-        let contextBudget = reasoningPolicy.isUnlimitedMode ? 3000 : (reasoningPolicy.isDeepThinkMode ? 3500 : (config.maxContextPerSession - 500))
+        let contextBudget =
+            reasoningPolicy.isUnlimitedMode
+            ? 3000 : (reasoningPolicy.isDeepThinkMode ? 3500 : (config.maxContextPerSession - 500))
 
         // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
         // SESSION CONTEXT ROTATION: Different sessions see different chunks
@@ -4683,7 +4804,8 @@ extension AgenticOrchestrator {
         let stride = max(1, chunksPerSession)
 
         // Use dynamic max for Deep Think mode (can go up to 8 sessions)
-        let effectiveMaxSessions = reasoningPolicy.isDeepThinkMode ? reasoningPolicy.maxSessionsForMode : config.sessionCount
+        let effectiveMaxSessions =
+            reasoningPolicy.isDeepThinkMode ? reasoningPolicy.maxSessionsForMode : config.sessionCount
 
         // Build ALL session contexts upfront; each session gets a sliding window
         var sessionContexts: [String] = []
@@ -4744,9 +4866,13 @@ extension AgenticOrchestrator {
                     }
                 }
                 ctx = rawContext
-                Log.debug("[ReasoningChain] Session \(sessionContexts.count + 1): keyword extraction returned \(trimmedCtx.count) chars, below the \(minimumUsefulContext) needed; using raw chunk content (\(ctx.count) chars)", category: .retrieval)
+                Log.debug(
+                    "[ReasoningChain] Session \(sessionContexts.count + 1): keyword extraction returned \(trimmedCtx.count) chars, below the \(minimumUsefulContext) needed; using raw chunk content (\(ctx.count) chars)",
+                    category: .retrieval)
             } else {
-                Log.debug("[ReasoningChain] Session \(sessionContexts.count + 1): \(extraction.sentencesIncluded) sentences from \(extraction.sourcesUsed) sources (\(ctx.count) chars)", category: .retrieval)
+                Log.debug(
+                    "[ReasoningChain] Session \(sessionContexts.count + 1): \(extraction.sentencesIncluded) sentences from \(extraction.sourcesUsed) sources (\(ctx.count) chars)",
+                    category: .retrieval)
             }
 
             sessionContexts.append(ctx)
@@ -4784,12 +4910,18 @@ extension AgenticOrchestrator {
 
         // For logging, use the first session's context
         let sharedContext = sessionContexts.first ?? ""
-        Log.debug("[ReasoningChain] Built \(sessionContexts.count) rotating contexts (first: \(sharedContext.count) chars, \(chunksPerSession) chunks/session, stride \(stride))", category: .retrieval)
+        Log.debug(
+            "[ReasoningChain] Built \(sessionContexts.count) rotating contexts (first: \(sharedContext.count) chars, \(chunksPerSession) chunks/session, stride \(stride))",
+            category: .retrieval)
 
         if reasoningPolicy.isUnlimitedMode {
-            Log.info("[ReasoningChain] UNLIMITED MODE: Will keep reasoning until \(Int(reasoningPolicy.confidenceThreshold * 100))% confident or \(config.sessionCount) sessions max", category: .llm)
+            Log.info(
+                "[ReasoningChain] UNLIMITED MODE: Will keep reasoning until \(Int(reasoningPolicy.confidenceThreshold * 100))% confident or \(config.sessionCount) sessions max",
+                category: .llm)
         } else if reasoningPolicy.isDeepThinkMode {
-            Log.info("[ReasoningChain] DEEP THINK MODE: Dynamic 4-8 sessions, targeting \(Int(reasoningPolicy.confidenceThreshold * 100))% confidence", category: .llm)
+            Log.info(
+                "[ReasoningChain] DEEP THINK MODE: Dynamic 4-8 sessions, targeting \(Int(reasoningPolicy.confidenceThreshold * 100))% confidence",
+                category: .llm)
         }
 
         // Run one session per distinct window, not one per session the mode allows.
@@ -4805,9 +4937,13 @@ extension AgenticOrchestrator {
             actualSessionCount = sessionNum
 
             if reasoningPolicy.isUnlimitedMode {
-                Log.debug("[ReasoningChain] Session \(sessionNum) (unlimited mode, confidence: \(Int(cumulativeConfidence * 100))%)", category: .llm)
+                Log.debug(
+                    "[ReasoningChain] Session \(sessionNum) (unlimited mode, confidence: \(Int(cumulativeConfidence * 100))%)",
+                    category: .llm)
             } else if reasoningPolicy.isDeepThinkMode {
-                Log.debug("[ReasoningChain] Session \(sessionNum)/4-8 (deep think, confidence: \(Int(cumulativeConfidence * 100))%)", category: .llm)
+                Log.debug(
+                    "[ReasoningChain] Session \(sessionNum)/4-8 (deep think, confidence: \(Int(cumulativeConfidence * 100))%)",
+                    category: .llm)
             } else {
                 Log.debug("[ReasoningChain] Session \(sessionNum)/\(config.sessionCount)", category: .llm)
             }
@@ -4832,8 +4968,9 @@ extension AgenticOrchestrator {
                     )
 
                     if cumulativeConfidence >= reasoningPolicy.confidenceThreshold,
-                       evidenceTracker.subQuestionConfidence >= evidenceCoverageTarget,
-                       noveltyExhausted {
+                        evidenceTracker.subQuestionConfidence >= evidenceCoverageTarget,
+                        noveltyExhausted
+                    {
                         let modeName = reasoningPolicy.isUnlimitedMode ? "Maximum" : "Deep Think"
                         Log.info(
                             "[ReasoningChain] \(modeName) mode: stopping at \(Int(cumulativeConfidence * 100))% confidence, coverage=\(Int(evidenceTracker.subQuestionConfidence * 100))%, sourceCoverage=\(Int(sourceCoverage * 100))%, lowNovelty=\(lowNoveltyStreak), saturation=\(saturationStreak)",
@@ -4843,7 +4980,9 @@ extension AgenticOrchestrator {
                     }
                 } else if cumulativeConfidence >= reasoningPolicy.confidenceThreshold {
                     let modeName = reasoningPolicy.isUnlimitedMode ? "Maximum" : "Deep Think"
-                    Log.info("[ReasoningChain] \(modeName) mode: Stopping at \(Int(cumulativeConfidence * 100))% confidence (threshold: \(Int(reasoningPolicy.confidenceThreshold * 100))%)", category: .llm)
+                    Log.info(
+                        "[ReasoningChain] \(modeName) mode: Stopping at \(Int(cumulativeConfidence * 100))% confidence (threshold: \(Int(reasoningPolicy.confidenceThreshold * 100))%)",
+                        category: .llm)
                     break
                 }
             }
@@ -4865,13 +5004,17 @@ extension AgenticOrchestrator {
             }
 
             // DEBUG: Log what context is actually being passed
-            Log.debug("[ReasoningChain] Session \(sessionNum) context (\(sessionContext.count) chars): \(sessionContext.prefix(500))...", category: .retrieval)
+            Log.debug(
+                "[ReasoningChain] Session \(sessionNum) context (\(sessionContext.count) chars): \(sessionContext.prefix(500))...",
+                category: .retrieval)
 
             // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
             // Build session prompt based on position in chain
             // For unlimited/deep think mode, dynamically determine if this should be the "final" session
             // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-            let effectiveSessionCount = (reasoningPolicy.isUnlimitedMode || reasoningPolicy.isDeepThinkMode) ? max(effectiveMaxSessions, sessionNum + 3) : config.sessionCount
+            let effectiveSessionCount =
+                (reasoningPolicy.isUnlimitedMode || reasoningPolicy.isDeepThinkMode)
+                ? max(effectiveMaxSessions, sessionNum + 3) : config.sessionCount
 
             // For unlimited mode, use sliding window of recent insights to prevent context overflow
             // Keep only the last 3 insights (each ~500 chars) to stay well under 4096 token limit
@@ -4887,19 +5030,24 @@ extension AgenticOrchestrator {
                 // first place the prompt can be garbled. It also fires exactly at
                 // session 5 (`chainInsights.count > 3`), which is where degraded,
                 // JSON-shaped insights started in device runs.
-                let condensedOld = "Prior findings (\(oldInsightsCount) sessions): " +
-                    chainInsights.prefix(oldInsightsCount)
-                        .filter { $0.trimmingCharacters(in: .whitespacesAndNewlines).count > 20 }
-                        .map { truncateAtSentenceBoundary($0, limit: 250) }
-                        .joined(separator: " | ")
-                insightsForPrompt = [truncateAtSentenceBoundary(condensedOld, limit: 800)]
+                let condensedOld =
+                    "Prior findings (\(oldInsightsCount) sessions): "
+                    + chainInsights.prefix(oldInsightsCount)
+                    .filter { $0.trimmingCharacters(in: .whitespacesAndNewlines).count > 20 }
+                    .map { truncateAtSentenceBoundary($0, limit: 250) }
+                    .joined(separator: " | ")
+                insightsForPrompt =
+                    [truncateAtSentenceBoundary(condensedOld, limit: 800)]
                     + Array(chainInsights.suffix(2))
-                Log.debug("[ReasoningChain] \(reasoningPolicy.isUnlimitedMode ? "Unlimited" : "Deep Think") mode: condensed \(chainInsights.count) insights to \(insightsForPrompt.count) for prompt", category: .llm)
+                Log.debug(
+                    "[ReasoningChain] \(reasoningPolicy.isUnlimitedMode ? "Unlimited" : "Deep Think") mode: condensed \(chainInsights.count) insights to \(insightsForPrompt.count) for prompt",
+                    category: .llm)
             } else {
                 insightsForPrompt = chainInsights
             }
 
-            let sessionObjective = reasoningPolicy.usesEvidenceDrivenStopping
+            let sessionObjective =
+                reasoningPolicy.usesEvidenceDrivenStopping
                 ? buildSessionObjective(
                     query: query,
                     factBank: evidenceTracker,
@@ -4914,7 +5062,8 @@ extension AgenticOrchestrator {
                 query: query,
                 context: sessionContext,
                 previousInsights: insightsForPrompt,
-                maxInsightLength: reasoningPolicy.isUnlimitedMode ? 600 : (reasoningPolicy.isDeepThinkMode ? 800 : config.maxInsightLength),
+                maxInsightLength: reasoningPolicy.isUnlimitedMode
+                    ? 600 : (reasoningPolicy.isDeepThinkMode ? 800 : config.maxInsightLength),
                 sessionObjective: sessionObjective,
                 evidenceState: evidenceStateLine(evidenceTracker)
             )
@@ -4972,19 +5121,25 @@ extension AgenticOrchestrator {
                         sourceChunks: chunks,
                         forceOnDevice: true
                     )
-                    break // Success - exit retry loop
+                    break  // Success - exit retry loop
                 } catch {
                     let errorDesc = error.localizedDescription.lowercased()
-                    let isContextOverflow = errorDesc.contains("context") || errorDesc.contains("exceeded") ||
-                                           errorDesc.contains("4096") || errorDesc.contains("token")
+                    let isContextOverflow =
+                        errorDesc.contains("context") || errorDesc.contains("exceeded") || errorDesc.contains("4096")
+                        || errorDesc.contains("token")
 
                     if isContextOverflow && retryCount < maxRetries {
-                        Log.warning("[ReasoningChain] Session \(sessionNum) context overflow, retry \(retryCount + 1)/\(maxRetries) with reduced prompt", category: .llm)
+                        Log.warning(
+                            "[ReasoningChain] Session \(sessionNum) context overflow, retry \(retryCount + 1)/\(maxRetries) with reduced prompt",
+                            category: .llm)
 
                         // Reduce prompt by truncating context and insights more aggressively
-                        let reductionFactor = 1.0 - (Double(retryCount + 1) * 0.3) // 70%, then 40%
-                        let reducedInsights = insightsForPrompt.map { String($0.prefix(Int(Double($0.count) * reductionFactor))) }
-                        let reducedContext = String(sessionContext.prefix(Int(Double(sessionContext.count) * reductionFactor)))
+                        let reductionFactor = 1.0 - (Double(retryCount + 1) * 0.3)  // 70%, then 40%
+                        let reducedInsights = insightsForPrompt.map {
+                            String($0.prefix(Int(Double($0.count) * reductionFactor)))
+                        }
+                        let reducedContext = String(
+                            sessionContext.prefix(Int(Double(sessionContext.count) * reductionFactor)))
 
                         // Rebuild prompt with reduced content
                         let (reducedPrompt, _) = buildChainPrompt(
@@ -5040,7 +5195,9 @@ extension AgenticOrchestrator {
                         )
                         break
                     }
-                    Log.warning("[ReasoningChain] Session \(sessionNum) failed, terminating chain early: \(error)", category: .llm)
+                    Log.warning(
+                        "[ReasoningChain] Session \(sessionNum) failed, terminating chain early: \(error)",
+                        category: .llm)
                     // Return result with what we've accumulated so far
                     return ReasoningChainResult(
                         finalAnswer: cleanupFinalAnswer(chainInsights.last ?? "Unable to complete analysis."),
@@ -5089,7 +5246,9 @@ extension AgenticOrchestrator {
                             + "\(effectiveMaxSessions) reasoning sessions."
                     )
                 }
-                Log.warning("[ReasoningChain] Session \(sessionNum) exhausted retries, using accumulated insights", category: .llm)
+                Log.warning(
+                    "[ReasoningChain] Session \(sessionNum) exhausted retries, using accumulated insights",
+                    category: .llm)
                 return ReasoningChainResult(
                     finalAnswer: cleanupFinalAnswer(chainInsights.last ?? "Unable to complete analysis."),
                     chainInsights: chainInsights,
@@ -5113,12 +5272,14 @@ extension AgenticOrchestrator {
             // If the model says "ANSWER COMPLETE" or "NOT FOUND", stop early
             // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
             let responseText = successResponse.text.uppercased()
-            let isAnswerComplete = responseText.contains("ANSWER COMPLETE") ||
-                                   responseText.contains("NOT FOUND IN DOCUMENTS") ||
-                                   responseText.contains("DOCUMENTS DO NOT CONTAIN")
+            let isAnswerComplete =
+                responseText.contains("ANSWER COMPLETE") || responseText.contains("NOT FOUND IN DOCUMENTS")
+                || responseText.contains("DOCUMENTS DO NOT CONTAIN")
 
             if isAnswerComplete && sessionNum >= 2 {
-                Log.info("[ReasoningChain] Early termination: model signaled answer complete — breaking to synthesis", category: .llm)
+                Log.info(
+                    "[ReasoningChain] Early termination: model signaled answer complete — breaking to synthesis",
+                    category: .llm)
                 // Don't append a near-empty termination response to insights.
                 // Break out of the session loop and let synthesis handle the final answer.
                 // This ensures Deep Think and Maximum modes always run their synthesis pass
@@ -5152,7 +5313,8 @@ extension AgenticOrchestrator {
             // and cause synthesis to include garbage like "No new information found."
             let isEmptyInsight = isUnusableInsight(insight)
             if isEmptyInsight && !isFinalSession {
-                Log.debug("[ReasoningChain] Session \(sessionNum) returned empty/refusal insight — skipping", category: .llm)
+                Log.debug(
+                    "[ReasoningChain] Session \(sessionNum) returned empty/refusal insight — skipping", category: .llm)
                 continue
             }
 
@@ -5205,7 +5367,8 @@ extension AgenticOrchestrator {
             // Do this BEFORE appending insight so we can compare with previous insights
             if let conf = parseConfidence(from: successResponse.text) {
                 if let evidenceConfidence {
-                    let blendedConfidence = min((evidenceConfidence * 0.8) + (conf * 0.2), reasoningPolicy.maxConfidence)
+                    let blendedConfidence = min(
+                        (evidenceConfidence * 0.8) + (conf * 0.2), reasoningPolicy.maxConfidence)
                     cumulativeConfidence = max(cumulativeConfidence, blendedConfidence)
                 } else {
                     cumulativeConfidence = (cumulativeConfidence + conf) / 2
@@ -5246,9 +5409,10 @@ extension AgenticOrchestrator {
 
                 if chainInsights.count >= minSessionsForRepetitionCheck {
                     // Use more unique words (min 4 chars, take more words for better sampling)
-                    let currentWords = Set(insight.lowercased().split(separator: " ")
-                        .filter { $0.count > 4 && !Self.commonStopWords.contains(String($0)) }
-                        .prefix(100))
+                    let currentWords = Set(
+                        insight.lowercased().split(separator: " ")
+                            .filter { $0.count > 4 && !Self.commonStopWords.contains(String($0)) }
+                            .prefix(100))
                     var similarityCount = 0
                     var maxOverlapRatio: Float = 0
                     var consecutiveSimilar = 0
@@ -5256,9 +5420,10 @@ extension AgenticOrchestrator {
 
                     // Check last 4 previous insights (not including current)
                     for prevInsight in chainInsights.suffix(4) {
-                        let prevWords = Set(prevInsight.lowercased().split(separator: " ")
-                            .filter { $0.count > 4 && !Self.commonStopWords.contains(String($0)) }
-                            .prefix(100))
+                        let prevWords = Set(
+                            prevInsight.lowercased().split(separator: " ")
+                                .filter { $0.count > 4 && !Self.commonStopWords.contains(String($0)) }
+                                .prefix(100))
                         let overlap = currentWords.intersection(prevWords).count
                         let overlapRatio = Float(overlap) / Float(max(currentWords.count, 1))
                         maxOverlapRatio = max(maxOverlapRatio, overlapRatio)
@@ -5280,7 +5445,8 @@ extension AgenticOrchestrator {
                     let forceTerminationCount = reasoningPolicy.repetitionForceTerminationCount
                     let requireConsecutive = reasoningPolicy.repetitionRequiresConsecutive
 
-                    let shouldForceTerminate = requireConsecutive
+                    let shouldForceTerminate =
+                        requireConsecutive
                         ? (consecutiveSimilar >= forceTerminationCount || maxOverlapRatio > forceTerminationThreshold)
                         : (similarityCount >= forceTerminationCount || maxOverlapRatio > forceTerminationThreshold)
 
@@ -5289,40 +5455,52 @@ extension AgenticOrchestrator {
                         // Don't boost confidence — the answer may be completely wrong.
                         // Just set a termination flag so the loop exits.
                         repetitionBonus = 0.0
-                        Log.info("[ReasoningChain] Strong repetition detected (\(similarityCount)/4 similar, consecutive: \(consecutiveSimilar), max overlap: \(Int(maxOverlapRatio * 100))%) - stopping to avoid loops", category: .llm)
+                        Log.info(
+                            "[ReasoningChain] Strong repetition detected (\(similarityCount)/4 similar, consecutive: \(consecutiveSimilar), max overlap: \(Int(maxOverlapRatio * 100))%) - stopping to avoid loops",
+                            category: .llm)
 
                         // FIXED: Do NOT set confidence to threshold. That caused 85% confidence
                         // on wrong answers just because the LLM repeated itself.
                         // Instead, just break out of the session loop.
                         let minSessionsBeforeForceStop = reasoningPolicy.minSessionsBeforeRepetitionStop
                         if sessionNum >= minSessionsBeforeForceStop {
-                            Log.info("[ReasoningChain] Forcing early termination due to repetition loop (after \(sessionNum) sessions)", category: .llm)
+                            Log.info(
+                                "[ReasoningChain] Forcing early termination due to repetition loop (after \(sessionNum) sessions)",
+                                category: .llm)
                             // DON'T touch cumulativeConfidence — keep it at whatever it actually is
                             // The loop will exit because we'll set a flag below
-                            chainInsights.append(insight) // Save last insight before breaking
-                            break // Exit the session loop immediately
+                            chainInsights.append(insight)  // Save last insight before breaking
+                            break  // Exit the session loop immediately
                         } else {
-                            Log.info("[ReasoningChain] Repetition detected but continuing (session \(sessionNum) < \(minSessionsBeforeForceStop) minimum)", category: .llm)
+                            Log.info(
+                                "[ReasoningChain] Repetition detected but continuing (session \(sessionNum) < \(minSessionsBeforeForceStop) minimum)",
+                                category: .llm)
                         }
                     } else if similarityCount >= 2 || maxOverlapRatio > 0.60 {
                         // Moderate repetition - slight penalty, not bonus
-                        repetitionBonus = 0.0 // Don't reward repetition
-                        Log.info("[ReasoningChain] Moderate repetition detected (overlap: \(Int(maxOverlapRatio * 100))%) - no confidence boost", category: .llm)
+                        repetitionBonus = 0.0  // Don't reward repetition
+                        Log.info(
+                            "[ReasoningChain] Moderate repetition detected (overlap: \(Int(maxOverlapRatio * 100))%) - no confidence boost",
+                            category: .llm)
                     }
                 }
 
                 // 5. Exhaustion bonus (up to 15%) - if we're deep in sessions, boost confidence
                 // Only kicks in after 10+ sessions (conservative for Maximum mode)
-                let exhaustionBonus: Float = sessionNum >= 15 ? 0.15 : (sessionNum >= 12 ? 0.10 : (sessionNum >= 10 ? 0.05 : 0))
+                let exhaustionBonus: Float =
+                    sessionNum >= 15 ? 0.15 : (sessionNum >= 12 ? 0.10 : (sessionNum >= 10 ? 0.05 : 0))
 
                 // Only calculate confidence normally if we haven't forced termination
                 let confidenceCap = reasoningPolicy.maxConfidence
                 if cumulativeConfidence < confidenceCap {
-                    let estimatedConfidence = sessionContribution + lengthContribution + citationBonus + repetitionBonus + exhaustionBonus
+                    let estimatedConfidence =
+                        sessionContribution + lengthContribution + citationBonus + repetitionBonus + exhaustionBonus
                     cumulativeConfidence = max(cumulativeConfidence, min(estimatedConfidence, confidenceCap))
                 }
 
-                Log.info("[ReasoningChain] Confidence: \(Int(cumulativeConfidence * 100))% (session: \(Int(sessionContribution * 100))%, length: \(Int(lengthContribution * 100))%, citations: \(Int(citationBonus * 100))%, repetition: \(Int(repetitionBonus * 100))%, exhaustion: \(Int(exhaustionBonus * 100))%)", category: .llm)
+                Log.info(
+                    "[ReasoningChain] Confidence: \(Int(cumulativeConfidence * 100))% (session: \(Int(sessionContribution * 100))%, length: \(Int(lengthContribution * 100))%, citations: \(Int(citationBonus * 100))%, repetition: \(Int(repetitionBonus * 100))%, exhaustion: \(Int(exhaustionBonus * 100))%)",
+                    category: .llm)
             }
 
             // Append insight AFTER confidence check (so we compare with previous insights)
@@ -5332,10 +5510,11 @@ extension AgenticOrchestrator {
             // Session 0 was labelled `.searching` and therefore displayed as
             // RETRIEVAL, but retrieval completed before the chain started; session 0
             // is the initial *analysis* pass over that evidence.
-            let stepType: ThinkingStep.StepType = switch sessionIndex {
-            case config.sessionCount - 1: .synthesizing
-            default: .analyzing
-            }
+            let stepType: ThinkingStep.StepType =
+                switch sessionIndex {
+                case config.sessionCount - 1: .synthesizing
+                default: .analyzing
+                }
 
             let step = ThinkingStep(
                 id: UUID(),
@@ -5360,12 +5539,14 @@ extension AgenticOrchestrator {
         // This ensures we get a comprehensive answer, not just the last insight
         let finalAnswer: String
         if reasoningPolicy.isUnlimitedMode, chainInsights.count >= 3 {
-            Log.info("[ReasoningChain] Running exhaustive synthesis for Maximum mode (\(chainInsights.count) insights)...", category: .llm)
+            Log.info(
+                "[ReasoningChain] Running exhaustive synthesis for Maximum mode (\(chainInsights.count) insights)...",
+                category: .llm)
 
             // CRITICAL: Apple FM API enforces 4096 token limit for BOTH on-device AND PCC
             // (TN3193: The 65K server capacity is NOT exposed via FoundationModels framework)
             // Budget: ~1500 tokens for insights, ~500 for prompt overhead, ~2000 for output
-            let maxInsightChars = 5000 // ~1250 tokens for insights (conservative)
+            let maxInsightChars = 5000  // ~1250 tokens for insights (conservative)
             var condensedInsights: [String] = []
             var totalChars = 0
 
@@ -5384,11 +5565,13 @@ extension AgenticOrchestrator {
                 }
             }
 
-            Log.info("[ReasoningChain] Synthesis will use \(condensedInsights.count)/\(chainInsights.count) insights (\(totalChars) chars)", category: .llm)
+            Log.info(
+                "[ReasoningChain] Synthesis will use \(condensedInsights.count)/\(chainInsights.count) insights (\(totalChars) chars)",
+                category: .llm)
 
             let insightsSummary = condensedInsights.enumerated()
                 .map { "[\($0.offset + 1)] \($0.element)" }
-.joined(separator: "\n\n")
+                .joined(separator: "\n\n")
 
             // PCC can handle much larger prompts (65K context)
             // Structure the prompt for comprehensive synthesis
@@ -5411,15 +5594,18 @@ extension AgenticOrchestrator {
             exhaustiveSystemPrompt += "If findings are about something else, note that clearly. "
             exhaustiveSystemPrompt += "Include all specific values, numbers, and specifications. "
             exhaustiveSystemPrompt += "Write in detailed prose with complete sentences and natural paragraphs. "
-            exhaustiveSystemPrompt += "Use ### headers and **bold** sparingly for key terms. Only use bullets for actual lists."
+            exhaustiveSystemPrompt +=
+                "Use ### headers and **bold** sparingly for key terms. Only use bullets for actual lists."
 
             // Apple FM API: 4096 token limit applies to BOTH on-device and PCC
             // The 65K server capacity is internal to Apple, not exposed to developers (TN3193)
             // Budget: Total 4096 = ~1500 prompt + ~1500 insights + ~1000 buffer → leaves ~1000-1500 for output
-            let synthesisMaxTokens = 1500 // Realistic within 4096 total budget
+            let synthesisMaxTokens = 1500  // Realistic within 4096 total budget
 
             do {
-                Log.info("[ReasoningChain] Exhaustive synthesis: requesting up to \(synthesisMaxTokens) tokens (4096 total limit)", category: .llm)
+                Log.info(
+                    "[ReasoningChain] Exhaustive synthesis: requesting up to \(synthesisMaxTokens) tokens (4096 total limit)",
+                    category: .llm)
                 let synthesisResponse = try await ragService.generateWithProperConsent(
                     prompt: exhaustivePrompt,
                     context: "",
@@ -5432,17 +5618,22 @@ extension AgenticOrchestrator {
                 // Clean up the synthesis output
                 finalAnswer = cleanupFinalAnswer(synthesisResponse.text)
                 totalTokens += synthesisResponse.tokensGenerated
-                Log.info("[ReasoningChain] Exhaustive synthesis: generated \(synthesisResponse.tokensGenerated) tokens (\(finalAnswer.count) chars)", category: .llm)
+                Log.info(
+                    "[ReasoningChain] Exhaustive synthesis: generated \(synthesisResponse.tokensGenerated) tokens (\(finalAnswer.count) chars)",
+                    category: .llm)
             } catch {
-                Log.warning("[ReasoningChain] Exhaustive synthesis failed, using last insight: \(error)", category: .llm)
-                finalAnswer = cleanupFinalAnswer(chainInsights.last ?? "Unable to synthesize answer from reasoning chain.")
+                Log.warning(
+                    "[ReasoningChain] Exhaustive synthesis failed, using last insight: \(error)", category: .llm)
+                finalAnswer = cleanupFinalAnswer(
+                    chainInsights.last ?? "Unable to synthesize answer from reasoning chain.")
             }
         } else if reasoningPolicy.isDeepThinkMode, chainInsights.count >= 2 {
             // DEEP THINK MODE: Run a synthesis pass to combine all session findings.
             // Without this, the answer is just the last raw insight (which might be
             // "No new information found" if the last session had no new details).
             // Synthesis merges ALL accumulated findings into one comprehensive answer.
-            Log.info("[ReasoningChain] Running Deep Think synthesis (\(chainInsights.count) insights)...", category: .llm)
+            Log.info(
+                "[ReasoningChain] Running Deep Think synthesis (\(chainInsights.count) insights)...", category: .llm)
 
             // Budget for Deep Think synthesis: keep it tight within 4096
             let maxInsightChars = 3000
@@ -5471,26 +5662,28 @@ extension AgenticOrchestrator {
 
             if condensedInsights.isEmpty {
                 // All insights were empty/trivial — fall back to last one
-                finalAnswer = cleanupFinalAnswer(chainInsights.last ?? "Unable to synthesize answer from reasoning chain.")
+                finalAnswer = cleanupFinalAnswer(
+                    chainInsights.last ?? "Unable to synthesize answer from reasoning chain.")
             } else {
                 let insightsSummary = condensedInsights.enumerated()
                     .map { "[\($0.offset + 1)] \($0.element)" }
                     .joined(separator: "\n")
 
                 let synthesisPrompt = """
-                QUESTION: \(query)
+                    QUESTION: \(query)
 
-                ALL FINDINGS:
-                \(insightsSummary)
+                    ALL FINDINGS:
+                    \(insightsSummary)
 
-                Write a comprehensive, detailed answer to: "\(query)"
-                Combine ALL findings into flowing prose with complete sentences and full paragraphs.
-                Use ### section headers to organize topics. Use **bold** sparingly for key terms only.
-                Write naturally — use paragraphs for explanations, and bullets only for actual sequential steps or specification lists.
-                Include every relevant detail found across all sessions. Cite as [S1], [S2].
-                """
+                    Write a comprehensive, detailed answer to: "\(query)"
+                    Combine ALL findings into flowing prose with complete sentences and full paragraphs.
+                    Use ### section headers to organize topics. Use **bold** sparingly for key terms only.
+                    Write naturally — use paragraphs for explanations, and bullets only for actual sequential steps or specification lists.
+                    Include every relevant detail found across all sessions. Cite as [S1], [S2].
+                    """
 
-                let synthesisSystemPrompt = "Combine all research findings into one comprehensive, well-written answer. Write in detailed prose with complete sentences and natural paragraphs. Use ### headers to organize sections. Use **bold** sparingly for key terms only. Only use bullet points for actual lists of items."
+                let synthesisSystemPrompt =
+                    "Combine all research findings into one comprehensive, well-written answer. Write in detailed prose with complete sentences and natural paragraphs. Use ### headers to organize sections. Use **bold** sparingly for key terms only. Only use bullet points for actual lists of items."
 
                 do {
                     let synthesisResponse = try await ragService.generateWithProperConsent(
@@ -5504,9 +5697,13 @@ extension AgenticOrchestrator {
                     )
                     finalAnswer = cleanupFinalAnswer(synthesisResponse.text)
                     totalTokens += synthesisResponse.tokensGenerated
-                    Log.info("[ReasoningChain] Deep Think synthesis: \(synthesisResponse.tokensGenerated) tokens (\(finalAnswer.count) chars)", category: .llm)
+                    Log.info(
+                        "[ReasoningChain] Deep Think synthesis: \(synthesisResponse.tokensGenerated) tokens (\(finalAnswer.count) chars)",
+                        category: .llm)
                 } catch {
-                    Log.warning("[ReasoningChain] Deep Think synthesis failed, using combined insights: \(error)", category: .llm)
+                    Log.warning(
+                        "[ReasoningChain] Deep Think synthesis failed, using combined insights: \(error)",
+                        category: .llm)
                     // Fallback: concatenate all non-trivial insights
                     finalAnswer = cleanupFinalAnswer(condensedInsights.joined(separator: "\n\n"))
                 }
@@ -5517,9 +5714,13 @@ extension AgenticOrchestrator {
         }
 
         if reasoningPolicy.isUnlimitedMode {
-            Log.info("[ReasoningChain] UNLIMITED MODE completed: \(actualSessionCount) sessions, \(totalTokens) tokens, \(Int(cumulativeConfidence * 100))% confidence", category: .llm)
+            Log.info(
+                "[ReasoningChain] UNLIMITED MODE completed: \(actualSessionCount) sessions, \(totalTokens) tokens, \(Int(cumulativeConfidence * 100))% confidence",
+                category: .llm)
         } else {
-            Log.info("[ReasoningChain] Completed \(actualSessionCount) sessions, \(totalTokens) total tokens", category: .llm)
+            Log.info(
+                "[ReasoningChain] Completed \(actualSessionCount) sessions, \(totalTokens) total tokens", category: .llm
+            )
         }
 
         return ReasoningChainResult(
@@ -5586,7 +5787,7 @@ extension AgenticOrchestrator {
         let supportTerms: [String]
         let evidenceKind: EvidenceKind
         var relevanceScore: Float  // 0-1, higher = more relevant to query
-        let sessionAdded: Int      // When it was added (for recency bonus)
+        let sessionAdded: Int  // When it was added (for recency bonus)
         /// Source markers ([S1], [S2] …) captured from the originating sentence.
         ///
         /// Held separately rather than left inline in `content`, because every
@@ -5644,7 +5845,9 @@ extension AgenticOrchestrator {
         mutating func initializeWithQuery(_ query: String) {
             // Extract query terms for relevance scoring
             let words = query.lowercased().split(separator: " ").map(String.init)
-            let stopWords = Set(["what", "how", "why", "does", "do", "the", "a", "an", "is", "are", "of", "in", "to", "and", "or", "for"])
+            let stopWords = Set([
+                "what", "how", "why", "does", "do", "the", "a", "an", "is", "are", "of", "in", "to", "and", "or", "for",
+            ])
             queryTerms = Set(words.filter { $0.count > 2 && !stopWords.contains($0) })
 
             // Decompose into sub-questions (heuristic-based)
@@ -5658,7 +5861,10 @@ extension AgenticOrchestrator {
             let lower = query.lowercased()
 
             // Extract key topic words for sub-question generation
-            let stopWords = Set(["what", "how", "why", "does", "do", "the", "a", "an", "is", "are", "of", "in", "to", "and", "or", "for", "on", "with", "about"])
+            let stopWords = Set([
+                "what", "how", "why", "does", "do", "the", "a", "an", "is", "are", "of", "in", "to", "and", "or", "for",
+                "on", "with", "about",
+            ])
             let topicWords = lower.split(separator: " ")
                 .map(String.init)
                 .filter { $0.count > 3 && !stopWords.contains($0) }
@@ -5681,7 +5887,7 @@ extension AgenticOrchestrator {
                 ("harm", ["harm", "risk", "negative", "damage", "concern"]),
                 ("cognitive", ["cognitive", "mental", "brain", "thinking", "memory", "attention"]),
                 ("how", ["mechanism", "process", "method", "how"]),
-                ("why", ["reason", "cause", "because", "why"])
+                ("why", ["reason", "cause", "because", "why"]),
             ]
 
             for (pattern, keywords) in dimensions where lower.contains(pattern) {
@@ -5712,10 +5918,11 @@ extension AgenticOrchestrator {
 
             for i in 0..<subQuestions.count {
                 // Split sub-question into keywords
-                let questionWords = Set(subQuestions[i].question.lowercased()
-                    .split(separator: " ")
-                    .map(String.init)
-                    .filter { $0.count > 3 })
+                let questionWords = Set(
+                    subQuestions[i].question.lowercased()
+                        .split(separator: " ")
+                        .map(String.init)
+                        .filter { $0.count > 3 })
 
                 // Check for ANY overlap (loose matching)
                 let matchCount = questionWords.intersection(factWords).count
@@ -5732,7 +5939,7 @@ extension AgenticOrchestrator {
 
         /// Calculate relevance score for a fact against the query
         private func scoreRelevance(_ fact: String, session: Int) -> Float {
-            var score: Float = 0.3 // Base score
+            var score: Float = 0.3  // Base score
 
             let factLower = fact.lowercased()
 
@@ -5741,7 +5948,9 @@ extension AgenticOrchestrator {
             score += Float(matchingTerms.count) / Float(max(1, queryTerms.count)) * 0.4
 
             // Evidence markers (0-0.2)
-            let evidenceMarkers = ["found", "showed", "demonstrated", "significant", "effect", "improved", "increased", "decreased"]
+            let evidenceMarkers = [
+                "found", "showed", "demonstrated", "significant", "effect", "improved", "increased", "decreased",
+            ]
             if evidenceMarkers.contains(where: { factLower.contains($0) }) {
                 score += 0.15
             }
@@ -5770,7 +5979,7 @@ extension AgenticOrchestrator {
             // Extract content based on query intent
             let newFacts = extractFactsFromInsight(insight)
             var existingKeys = Set(scoredFacts.map { normalizedFactKey($0.content) })
-            let answeredBefore = subQuestions.filter(\ .answered).count
+            let answeredBefore = subQuestions.filter(\.answered).count
             var addedFacts = 0
             var noveltyScores: [Float] = []
 
@@ -5781,15 +5990,16 @@ extension AgenticOrchestrator {
                 existingKeys.insert(normalizedKey)
                 noveltyScores.append(noveltyScore(for: factContent))
                 let score = scoreRelevance(factContent, session: currentSession)
-                scoredFacts.append(ScoredFact(
-                    content: factContent,
-                    normalizedClaim: normalizedKey,
-                    supportTerms: supportTerms(for: factContent),
-                    evidenceKind: evidenceKind(for: factContent),
-                    relevanceScore: score,
-                    sessionAdded: currentSession,
-                    sources: factSources
-                ))
+                scoredFacts.append(
+                    ScoredFact(
+                        content: factContent,
+                        normalizedClaim: normalizedKey,
+                        supportTerms: supportTerms(for: factContent),
+                        evidenceKind: evidenceKind(for: factContent),
+                        relevanceScore: score,
+                        sessionAdded: currentSession,
+                        sources: factSources
+                    ))
                 addedFacts += 1
 
                 // Check if this fact addresses any sub-questions
@@ -5799,8 +6009,9 @@ extension AgenticOrchestrator {
             // Compress using RELEVANCE-BASED eviction
             compressIntelligently()
 
-            let answeredAfter = subQuestions.filter(\ .answered).count
-            let averageNovelty = noveltyScores.isEmpty
+            let answeredAfter = subQuestions.filter(\.answered).count
+            let averageNovelty =
+                noveltyScores.isEmpty
                 ? 0
                 : noveltyScores.reduce(0, +) / Float(noveltyScores.count)
 
@@ -5818,7 +6029,9 @@ extension AgenticOrchestrator {
 
             while totalChars > maxChars && scoredFacts.count > 3 {
                 // Find the lowest relevance fact
-                if let minIndex = scoredFacts.enumerated().min(by: { $0.element.relevanceScore < $1.element.relevanceScore })?.offset {
+                if let minIndex = scoredFacts.enumerated().min(by: {
+                    $0.element.relevanceScore < $1.element.relevanceScore
+                })?.offset {
                     scoredFacts.remove(at: minIndex)
                     totalChars = scoredFacts.map(\.content).joined().count
                 } else {
@@ -5892,12 +6105,16 @@ extension AgenticOrchestrator {
 
                 case .conceptual:
                     // COMPLETENESS: explanatory and contextual content
-                    let hasExplanation = ["because", "therefore", "means", "indicates", "suggests",
-                                          "however", "although", "while", "this", "these"]
-                        .contains { sentence.lowercased().contains($0) }
-                    let hasContext = ["context", "background", "generally", "typically", "often",
-                                      "can", "may", "include", "involve", "relate"]
-                        .contains { sentence.lowercased().contains($0) }
+                    let hasExplanation = [
+                        "because", "therefore", "means", "indicates", "suggests",
+                        "however", "although", "while", "this", "these",
+                    ]
+                    .contains { sentence.lowercased().contains($0) }
+                    let hasContext = [
+                        "context", "background", "generally", "typically", "often",
+                        "can", "may", "include", "involve", "relate",
+                    ]
+                    .contains { sentence.lowercased().contains($0) }
                     let isSubstantive = sentence.count > 50
                     shouldKeep = hasExplanation || hasContext || isSubstantive
 
@@ -5906,9 +6123,11 @@ extension AgenticOrchestrator {
                     let hasNumber = sentence.contains(where: { $0.isNumber })
                     let hasPercent = sentence.contains("%")
                     let hasCitation = sentence.contains("(") && sentence.contains(")")
-                    let hasKeyTerms = ["found", "showed", "improved", "increased", "decreased", "significant",
-                                       "because", "therefore", "however", "suggests", "indicates"]
-                        .contains { sentence.lowercased().contains($0) }
+                    let hasKeyTerms = [
+                        "found", "showed", "improved", "increased", "decreased", "significant",
+                        "because", "therefore", "however", "suggests", "indicates",
+                    ]
+                    .contains { sentence.lowercased().contains($0) }
                     let isSubstantive = sentence.count > 60
                     shouldKeep = hasNumber || hasPercent || hasCitation || hasKeyTerms || isSubstantive
                 }
@@ -5917,10 +6136,11 @@ extension AgenticOrchestrator {
                     let maxLen = queryIntent == .conceptual ? 200 : 150
                     // Capture attribution from the *full* sentence before truncating.
                     let ownSources = sourceMarkers(in: sentence)
-                    extracted.append((
-                        String(sentence.prefix(maxLen)),
-                        ownSources.isEmpty ? insightSources : ownSources
-                    ))
+                    extracted.append(
+                        (
+                            String(sentence.prefix(maxLen)),
+                            ownSources.isEmpty ? insightSources : ownSources
+                        ))
                 }
             }
 
@@ -6000,7 +6220,7 @@ extension AgenticOrchestrator {
             "about", "after", "also", "among", "been", "being", "could", "from", "into", "just",
             "more", "much", "only", "over", "same", "some", "than", "that", "their", "there",
             "these", "they", "this", "very", "were", "what", "when", "where", "which", "with",
-            "would"
+            "would",
         ]
 
         /// Get fact bank as context string (sorted by relevance)
@@ -6016,10 +6236,11 @@ extension AgenticOrchestrator {
             // findings, and a device run with 13 claims squeezed the findings from
             // 1622 characters to 430, producing a 258-character answer covering two
             // of the neurotransmitters when the evidence supported more.
-            return "CLAIM BANK:\n" + sorted.map { fact in
-                let sourceSummary = fact.sources.isEmpty ? "" : " " + fact.sources.joined(separator: " ")
-                return "• \(fact.content)\(sourceSummary)"
-            }.joined(separator: "\n")
+            return "CLAIM BANK:\n"
+                + sorted.map { fact in
+                    let sourceSummary = fact.sources.isEmpty ? "" : " " + fact.sources.joined(separator: " ")
+                    return "• \(fact.content)\(sourceSummary)"
+                }.joined(separator: "\n")
         }
 
         /// Get REAL confidence based on sub-question coverage
@@ -6129,8 +6350,10 @@ extension AgenticOrchestrator {
 
         var factBank = FactBank()
         factBank.queryIntent = queryIntent
-        factBank.initializeWithQuery(query) // Decompose query into sub-questions
-        Log.info("[Unlimited] FactBank: QueryIntent=\(queryIntent.rawValue), \(factBank.subQuestions.count) sub-questions", category: .llm)
+        factBank.initializeWithQuery(query)  // Decompose query into sub-questions
+        Log.info(
+            "[Unlimited] FactBank: QueryIntent=\(queryIntent.rawValue), \(factBank.subQuestions.count) sub-questions",
+            category: .llm)
 
         var currentAnswer = ""
         var confidence: Float = unlimitedPolicy.initialConfidence
@@ -6147,15 +6370,17 @@ extension AgenticOrchestrator {
         // and neither novelty nor saturation can express it.
         var coveragePlateauStreak = 0
         var bestCoverage: Float = -1
-        var consecutiveFailures = 0 // Track empty/failed responses from model
+        var consecutiveFailures = 0  // Track empty/failed responses from model
         var expansionCount = 0
-        let maxExpansions = 3 // Allow up to 3 retrieval expansions (theoretically unlimited chunks)
+        let maxExpansions = 3  // Allow up to 3 retrieval expansions (theoretically unlimited chunks)
 
         // Mutable chunk pool - can EXPAND during reasoning via adaptive retrieval
         var sortedChunks = allChunks.sorted { $0.similarityScore > $1.similarityScore }
-        var usedChunkIds = Set<UUID>() // Track which chunks we've already processed
+        var usedChunkIds = Set<UUID>()  // Track which chunks we've already processed
 
-        Log.info("[Unlimited] Starting TRUE unlimited reasoning: target=\(Int(targetConfidence * 100))%, max=\(effectiveMaxSessions) sessions, chunks=\(sortedChunks.count)", category: .llm)
+        Log.info(
+            "[Unlimited] Starting TRUE unlimited reasoning: target=\(Int(targetConfidence * 100))%, max=\(effectiveMaxSessions) sessions, chunks=\(sortedChunks.count)",
+            category: .llm)
 
         // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
         // THE UNLIMITED LOOP - runs until confidence OR exhaustion
@@ -6199,9 +6424,11 @@ extension AgenticOrchestrator {
                 coveragePlateauStreak += 1
             }
 
-            let completed = confidence >= targetConfidence
+            let completed =
+                confidence >= targetConfidence
                 && factBank.subQuestionConfidence >= evidenceCoverageTarget
-            let converged = noveltyExhausted
+            let converged =
+                noveltyExhausted
                 && sessionNum >= unlimitedPolicy.minimumSessionsBeforeConvergence
             // A flat coverage streak is *observed and logged, but not acted on*.
             //
@@ -6252,17 +6479,21 @@ extension AgenticOrchestrator {
                         factBank: factBank
                     )
 
-                    await detailedForwarder?(.iterative, "Adaptive expansion", "Generating \(expansionQueries.count) new search queries")
+                    await detailedForwarder?(
+                        .iterative, "Adaptive expansion", "Generating \(expansionQueries.count) new search queries")
 
                     var newChunks: [RetrievedChunk] = []
                     for (idx, expQuery) in expansionQueries.enumerated() {
-                        await detailedForwarder?(.retrieval, "Expansion \(idx + 1)/\(expansionQueries.count)", "\"\(expQuery.prefix(40))...\"")
+                        await detailedForwarder?(
+                            .retrieval, "Expansion \(idx + 1)/\(expansionQueries.count)",
+                            "\"\(expQuery.prefix(40))...\"")
 
                         // Use full retrieval pipeline with event forwarding for Maximum mode visibility
                         if let chunks = try? await ragService.executeFullRetrievalPipeline(
                             query: expQuery,
                             topK: 20,
-                            minSimilarity: RetrievalPolicyService.agenticMinSimilarity(for: qualityMode, stage: .fallback),
+                            minSimilarity: RetrievalPolicyService.agenticMinSimilarity(
+                                for: qualityMode, stage: .fallback),
                             qualityMode: qualityMode,
                             onDetailedEvent: detailedForwarder
                         ) {
@@ -6277,11 +6508,15 @@ extension AgenticOrchestrator {
                         sortedChunks.append(contentsOf: newChunks)
                         sortedChunks.sort { $0.similarityScore > $1.similarityScore }
                         expansionCount += 1
-                        saturationStreak = 0 // Reset saturation
+                        saturationStreak = 0  // Reset saturation
 
-                        Log.info("[Unlimited] EXPANSION \(expansionCount)/\(maxExpansions): Added \(newChunks.count) new chunks (total: \(sortedChunks.count))", category: .llm)
+                        Log.info(
+                            "[Unlimited] EXPANSION \(expansionCount)/\(maxExpansions): Added \(newChunks.count) new chunks (total: \(sortedChunks.count))",
+                            category: .llm)
 
-                        await detailedForwarder?(.iterative, "Expansion complete", "+\(newChunks.count) chunks (pool: \(sortedChunks.count))")
+                        await detailedForwarder?(
+                            .iterative, "Expansion complete", "+\(newChunks.count) chunks (pool: \(sortedChunks.count))"
+                        )
 
                         // Emit expansion step
                         let expansionStep = ThinkingStep(
@@ -6299,13 +6534,17 @@ extension AgenticOrchestrator {
                     } else {
                         // No new chunks found - truly saturated
                         terminationReason = .contentSaturated
-                        Log.info("[Unlimited] Session \(sessionNum): No new content found after expansion - STOPPING", category: .llm)
+                        Log.info(
+                            "[Unlimited] Session \(sessionNum): No new content found after expansion - STOPPING",
+                            category: .llm)
                         break
                     }
                 } else {
                     // Max expansions reached - all avenues exhausted
                     terminationReason = .contentSaturated
-                    Log.info("[Unlimited] Session \(sessionNum): Max expansions (\(maxExpansions)) reached - STOPPING", category: .llm)
+                    Log.info(
+                        "[Unlimited] Session \(sessionNum): Max expansions (\(maxExpansions)) reached - STOPPING",
+                        category: .llm)
                     break
                 }
             }
@@ -6334,7 +6573,7 @@ extension AgenticOrchestrator {
             // 2500 chars, extract query-relevant sentences from the session's chunks.
             // This fits targeted data from all available chunks instead of
             // truncating mid-sentence. Universal across all document types.
-            let maxContextChars = 2500 // ~600 tokens, leaves room for prompt + response
+            let maxContextChars = 2500  // ~600 tokens, leaves room for prompt + response
             let extraction = await ragService.extractRelevantSentences(
                 from: sessionChunks,
                 query: query,
@@ -6342,7 +6581,9 @@ extension AgenticOrchestrator {
                 compact: true
             )
             let context = extraction.context
-            Log.debug("[Unlimited] Session \(sessionNum): \(extraction.sentencesIncluded) sentences from \(extraction.sourcesUsed) sources (\(context.count) chars)", category: .retrieval)
+            Log.debug(
+                "[Unlimited] Session \(sessionNum): \(extraction.sentencesIncluded) sentences from \(extraction.sourcesUsed) sources (\(context.count) chars)",
+                category: .retrieval)
 
             // Asking the model to reason over nothing produces a request for context,
             // not a finding. `executeReasoningChain` has skipped empty windows for a
@@ -6388,11 +6629,11 @@ extension AgenticOrchestrator {
             // Adaptive temperature: higher early (exploration), lower late (precision)
             let adaptiveTemp: Float
             if sessionNum <= 3 {
-                adaptiveTemp = 0.7 // Early: divergent, exploratory
+                adaptiveTemp = 0.7  // Early: divergent, exploratory
             } else if sessionNum <= 8 {
-                adaptiveTemp = 0.5 // Middle: balanced
+                adaptiveTemp = 0.5  // Middle: balanced
             } else {
-                adaptiveTemp = 0.3 // Late: focused, precise
+                adaptiveTemp = 0.3  // Late: focused, precise
             }
 
             // Execute LLM call - tools DISABLED to prevent context overflow
@@ -6401,24 +6642,24 @@ extension AgenticOrchestrator {
             let response: LLMResponse
             do {
                 response = try await ragService.generateWithProperConsent(
-                prompt: prompt,
-                context: "",
-                systemPrompt: systemPrompt,
-                maxTokens: 1000,
-                disableTools: true,
-                temperature: adaptiveTemp,
-                // Same defect that made Deep Think inert, in Maximum's own loop:
-                // `context` is deliberately empty because the prompt already embeds
-                // the evidence, so with no chunks the planner saw `chunkCount == 0`,
-                // judged `insufficientEvidence`, and abstained on every session.
-                // A device run retrieved 103 chunks at 84/72/67% and then reported
-                // "Integrating 0 insights" before bailing in 17.8s.
-                //
-                // `sortedChunks` rather than `allChunks`: this loop grows its pool
-                // through adaptive retrieval when it saturates, so the live pool is
-                // what the planner must judge.
-                sourceChunks: sortedChunks,
-                forceOnDevice: true
+                    prompt: prompt,
+                    context: "",
+                    systemPrompt: systemPrompt,
+                    maxTokens: 1000,
+                    disableTools: true,
+                    temperature: adaptiveTemp,
+                    // Same defect that made Deep Think inert, in Maximum's own loop:
+                    // `context` is deliberately empty because the prompt already embeds
+                    // the evidence, so with no chunks the planner saw `chunkCount == 0`,
+                    // judged `insufficientEvidence`, and abstained on every session.
+                    // A device run retrieved 103 chunks at 84/72/67% and then reported
+                    // "Integrating 0 insights" before bailing in 17.8s.
+                    //
+                    // `sortedChunks` rather than `allChunks`: this loop grows its pool
+                    // through adaptive retrieval when it saturates, so the live pool is
+                    // what the planner must judge.
+                    sourceChunks: sortedChunks,
+                    forceOnDevice: true
                 )
             } catch is CancellationError {
                 throw CancellationError()
@@ -6476,7 +6717,8 @@ extension AgenticOrchestrator {
             // rawLen=385, cleanLen=385" and stopped with "model unavailable", while
             // the model went on to generate the synthesis three seconds later. It had
             // been handed an empty context window and said so.
-            let hardFailure = response.tokensGenerated == 0
+            let hardFailure =
+                response.tokensGenerated == 0
                 || responseTextLength == 0
                 || insightLength == 0
             let unusable = !hardFailure && isUnusableInsight(insight)
@@ -6505,7 +6747,9 @@ extension AgenticOrchestrator {
 
             if isEmpty {
                 consecutiveFailures += 1
-                Log.warning("[Unlimited] Session \(sessionNum): EMPTY RESPONSE DETECTED (failure \(consecutiveFailures)/3) - tokens=\(response.tokensGenerated), rawLen=\(responseTextLength), cleanLen=\(insightLength)", category: .llm)
+                Log.warning(
+                    "[Unlimited] Session \(sessionNum): EMPTY RESPONSE DETECTED (failure \(consecutiveFailures)/3) - tokens=\(response.tokensGenerated), rawLen=\(responseTextLength), cleanLen=\(insightLength)",
+                    category: .llm)
 
                 // Stop after 3 consecutive failures to avoid infinite loop
                 if consecutiveFailures >= 3 {
@@ -6561,9 +6805,11 @@ extension AgenticOrchestrator {
                 newlyAnsweredSubQuestions: factUpdate.newlyAnsweredSubQuestions
             ) {
                 saturationStreak += 1
-                Log.info("[Unlimited] Session \(sessionNum): High saturation (\(Int(saturationScore * 100))%), streak=\(saturationStreak)", category: .llm)
+                Log.info(
+                    "[Unlimited] Session \(sessionNum): High saturation (\(Int(saturationScore * 100))%), streak=\(saturationStreak)",
+                    category: .llm)
             } else {
-                saturationStreak = 0 // Reset streak on valuable session
+                saturationStreak = 0  // Reset streak on valuable session
             }
 
             // Confidence can only go UP (ratchet)
@@ -6579,7 +6825,7 @@ extension AgenticOrchestrator {
                     previousAnswer: currentAnswer,
                     sourceChunks: sortedChunks
                 )
-                totalTokens += 200 // Estimate for synthesis
+                totalTokens += 200  // Estimate for synthesis
             }
 
             // Every session here is a reasoning pass over evidence that was already
@@ -6633,11 +6879,13 @@ extension AgenticOrchestrator {
             currentAnswer: currentAnswer,
             sourceChunks: sortedChunks
         )
-        totalTokens += 500 // Estimate for final synthesis
+        totalTokens += 500  // Estimate for final synthesis
 
         let totalDuration = Date().timeIntervalSince(startTime)
 
-        Log.info("[Unlimited] COMPLETE: \(allInsights.count) sessions, \(Int(confidence * 100))% confident, \(terminationReason.rawValue), \(String(format: "%.1f", totalDuration))s", category: .llm)
+        Log.info(
+            "[Unlimited] COMPLETE: \(allInsights.count) sessions, \(Int(confidence * 100))% confident, \(terminationReason.rawValue), \(String(format: "%.1f", totalDuration))s",
+            category: .llm)
 
         // Emit completion step
         let completionStep = ThinkingStep(
@@ -6695,11 +6943,14 @@ extension AgenticOrchestrator {
         currentAnswer: String
     ) -> (prompt: String, systemPrompt: String) {
         // Keep insight summary very compact - just hints, not full content
-        let insightSummary = previousInsights.isEmpty ? "" :
-            "Prior findings: " + previousInsights.suffix(2).map { String($0.prefix(150)) }.joined(separator: " | ")
+        let insightSummary =
+            previousInsights.isEmpty
+            ? ""
+            : "Prior findings: " + previousInsights.suffix(2).map { String($0.prefix(150)) }.joined(separator: " | ")
 
         // Core instruction for all sessions: document-grounded, anti-hallucination
-        let coreInstruction = "Report ONLY facts found in these documents. Never invent statistics, studies, or claims not in the text."
+        let coreInstruction =
+            "Report ONLY facts found in these documents. Never invent statistics, studies, or claims not in the text."
 
         if sessionNum == 1 {
             // First session: Initial exploration
@@ -6732,7 +6983,8 @@ extension AgenticOrchestrator {
             )
         } else if sessionNum <= 15 {
             // Middle sessions: Build depth - use currentAnswer summary
-            let answerHint = currentAnswer.isEmpty ? "" : "Current summary covers: \(String(currentAnswer.prefix(300)))..."
+            let answerHint =
+                currentAnswer.isEmpty ? "" : "Current summary covers: \(String(currentAnswer.prefix(300)))..."
             return (
                 """
                 Q: \(query)
@@ -6790,20 +7042,21 @@ extension AgenticOrchestrator {
         let prevSummary = previousAnswer.isEmpty ? "" : "PRIOR:\n\(String(previousAnswer.prefix(400)))...\n\n"
 
         let prompt = """
-        Q: \(query)
+            Q: \(query)
 
-        \(factContext)
+            \(factContext)
 
-        \(freshContext)
+            \(freshContext)
 
-        \(prevSummary)Synthesize into a coherent answer. Preserve all facts, numbers, and citations.
-        If the question was vague, interpret it based on the facts gathered.
-        """
+            \(prevSummary)Synthesize into a coherent answer. Preserve all facts, numbers, and citations.
+            If the question was vague, interpret it based on the facts gathered.
+            """
 
         let response = try await ragService.generateWithProperConsent(
             prompt: prompt,
             context: "",
-            systemPrompt: "Synthesize facts into clear answers. Preserve all data. Only include facts from the documents. Never fabricate statistics or research claims. Reply in plain prose only — never JSON, key-value pairs, or field names.",
+            systemPrompt:
+                "Synthesize facts into clear answers. Preserve all data. Only include facts from the documents. Never fabricate statistics or research claims. Reply in plain prose only — never JSON, key-value pairs, or field names.",
             maxTokens: 1000,
             disableTools: true,
             sourceChunks: sourceChunks,
@@ -6839,7 +7092,7 @@ extension AgenticOrchestrator {
         // No concatenation. Optional refinement REPLACES, never appends.
         // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-        let factContext = factBank.asContext() // Already compressed to ~1500 chars
+        let factContext = factBank.asContext()  // Already compressed to ~1500 chars
 
         // Gather supplementary context from recent insights (non-overlapping with FactBank)
         let supplementary: String
@@ -6886,29 +7139,31 @@ extension AgenticOrchestrator {
             supplementary = ""
         }
 
-        Log.info("[Synthesis] Single-pass synthesis with Fact Bank (\(factBank.summary)), \(allInsights.count) insights", category: .llm)
+        Log.info(
+            "[Synthesis] Single-pass synthesis with Fact Bank (\(factBank.summary)), \(allInsights.count) insights",
+            category: .llm)
 
         // ── PASS 1: Comprehensive answer from ALL evidence ──
         let synthesisPrompt = """
-        Q: \(query)
+            Q: \(query)
 
-        DOCUMENT FINDINGS:
-        \(factContext)\(supplementary)
+            DOCUMENT FINDINGS:
+            \(factContext)\(supplementary)
 
-        Write a thorough answer using ONLY the document findings above:
-        - Include ALL specific values, numbers, names, and details from the findings
-        - Use **bold** sparingly for key terms only — do NOT bold every noun or defined term
-        - Organize by topic/theme with clear headings
-        - Include practical details, caveats, or limitations ONLY if mentioned in the findings
-        - Do NOT invent facts, statistics, or research claims not in the findings
-        - Do NOT add "research perspective" or "future research" sections
-        - Every statement must trace back to the document findings
-        - Carry through the [S1], [S2] markers attached to each claim above. Cite only
-          markers that appear in the findings; never invent one.
-        - Preserve any uncertainty the findings express. If a finding questions a term
-          or notes a possible source error, keep that qualification.
-        Never repeat the same information twice.
-        """
+            Write a thorough answer using ONLY the document findings above:
+            - Include ALL specific values, numbers, names, and details from the findings
+            - Use **bold** sparingly for key terms only — do NOT bold every noun or defined term
+            - Organize by topic/theme with clear headings
+            - Include practical details, caveats, or limitations ONLY if mentioned in the findings
+            - Do NOT invent facts, statistics, or research claims not in the findings
+            - Do NOT add "research perspective" or "future research" sections
+            - Every statement must trace back to the document findings
+            - Carry through the [S1], [S2] markers attached to each claim above. Cite only
+              markers that appear in the findings; never invent one.
+            - Preserve any uncertainty the findings express. If a finding questions a term
+              or notes a possible source error, keep that qualification.
+            Never repeat the same information twice.
+            """
 
         // A throw here discards everything the run produced: up to 50 sessions and,
         // on one device trace, 26 minutes of work. `currentAnswer` is the running
@@ -6917,12 +7172,13 @@ extension AgenticOrchestrator {
         let coreResponse: LLMResponse
         do {
             coreResponse = try await ragService.generateWithProperConsent(
-            prompt: synthesisPrompt,
-            context: "",
-            systemPrompt: "Document analyst. Answer using ONLY the provided findings. Never fabricate facts or statistics. Use **bold** sparingly for key terms only. Never repeat content. Reply in plain prose only — never JSON, key-value pairs, or field names.",
-            maxTokens: Self.synthesisOutputTokenReserve,  // must match supplementaryCharBudget
-            disableTools: true,
-            sourceChunks: sourceChunks
+                prompt: synthesisPrompt,
+                context: "",
+                systemPrompt:
+                    "Document analyst. Answer using ONLY the provided findings. Never fabricate facts or statistics. Use **bold** sparingly for key terms only. Never repeat content. Reply in plain prose only — never JSON, key-value pairs, or field names.",
+                maxTokens: Self.synthesisOutputTokenReserve,  // must match supplementaryCharBudget
+                disableTools: true,
+                sourceChunks: sourceChunks
             )
         } catch is CancellationError {
             throw CancellationError()
@@ -6944,21 +7200,21 @@ extension AgenticOrchestrator {
         // that it might have missed something or contain repetition.
         if allInsights.count > 8 && finalAnswer.count > 800 {
             let refinementPrompt = """
-            Q: \(query)
+                Q: \(query)
 
-            FACT BANK (all known facts):
-            \(factContext)
+                FACT BANK (all known facts):
+                \(factContext)
 
-            DRAFT ANSWER:
-            \(String(finalAnswer.prefix(1800)))
+                DRAFT ANSWER:
+                \(String(finalAnswer.prefix(1800)))
 
-            Improve this draft:
-            1. Add any facts from the FACT BANK that are missing from the draft
-            2. Remove any duplicated or repeated content
-            3. Remove any claims not supported by the FACT BANK
-            4. Keep the same structure and formatting
-            Return the improved complete answer.
-            """
+                Improve this draft:
+                1. Add any facts from the FACT BANK that are missing from the draft
+                2. Remove any duplicated or repeated content
+                3. Remove any claims not supported by the FACT BANK
+                4. Keep the same structure and formatting
+                Return the improved complete answer.
+                """
 
             // This pass is optional by design -- it only replaces the answer when it
             // comes back substantial. A throw should therefore cost nothing at all,
@@ -6966,7 +7222,8 @@ extension AgenticOrchestrator {
             let refinedResponse = try? await ragService.generateWithProperConsent(
                 prompt: refinementPrompt,
                 context: "",
-                systemPrompt: "Editor. Only include facts from the FACT BANK. Remove repetition. Remove unsupported claims. Reply in plain prose only — never JSON, key-value pairs, or field names.",
+                systemPrompt:
+                    "Editor. Only include facts from the FACT BANK. Remove repetition. Remove unsupported claims. Reply in plain prose only — never JSON, key-value pairs, or field names.",
                 maxTokens: Self.synthesisOutputTokenReserve,  // must match supplementaryCharBudget
                 disableTools: true,
                 sourceChunks: sourceChunks
@@ -6985,7 +7242,8 @@ extension AgenticOrchestrator {
             // and an editor following that instruction strips citation markers, which look
             // exactly like unsupported cruft. The guard belongs here most of all.
             if refined.count > finalAnswer.count / 2,
-               Self.shouldAcceptReplacement(previous: finalAnswer, replacement: refined) {
+                Self.shouldAcceptReplacement(previous: finalAnswer, replacement: refined)
+            {
                 finalAnswer = refined  // REPLACE, never append
             }
         }
@@ -6993,7 +7251,8 @@ extension AgenticOrchestrator {
         // ── Final cross-pass deduplication ──
         finalAnswer = deduplicateSynthesizedAnswer(finalAnswer)
 
-        Log.info("[Synthesis] Final answer: \(finalAnswer.count) chars from \(allInsights.count) insights", category: .llm)
+        Log.info(
+            "[Synthesis] Final answer: \(finalAnswer.count) chars from \(allInsights.count) insights", category: .llm)
 
         return finalAnswer
     }
@@ -7041,10 +7300,13 @@ extension AgenticOrchestrator {
 
         // Clamp total sessions to 30 max, adjusting sessions per cluster if necessary
         let maxAllowedSessions = 30
-        let sessionsPerCluster = max(1, min(config.sessionsPerCluster, maxAllowedSessions / max(1, documentClusters.count)))
+        let sessionsPerCluster = max(
+            1, min(config.sessionsPerCluster, maxAllowedSessions / max(1, documentClusters.count)))
         let totalExpectedSessions = documentClusters.count * sessionsPerCluster
 
-        Log.info("[MultiChain] Created \(documentClusters.count) document clusters from \(allChunks.count) chunks (clamped to 8 clusters, \(sessionsPerCluster) sessions/cluster, max 30 total)", category: .llm)
+        Log.info(
+            "[MultiChain] Created \(documentClusters.count) document clusters from \(allChunks.count) chunks (clamped to 8 clusters, \(sessionsPerCluster) sessions/cluster, max 30 total)",
+            category: .llm)
 
         // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
         // STEP 2: Run parallel reasoning chains per cluster
@@ -7056,9 +7318,11 @@ extension AgenticOrchestrator {
 
         for batchStart in stride(from: 0, to: documentClusters.count, by: batchSize) {
             let batchEnd = min(batchStart + batchSize, documentClusters.count)
-            let batch = Array(documentClusters[batchStart ..< batchEnd])
+            let batch = Array(documentClusters[batchStart..<batchEnd])
 
-            Log.info("[MultiChain] Processing batch \(batchStart / batchSize + 1): clusters \(batchStart + 1)-\(batchEnd)", category: .llm)
+            Log.info(
+                "[MultiChain] Processing batch \(batchStart / batchSize + 1): clusters \(batchStart + 1)-\(batchEnd)",
+                category: .llm)
 
             // Run this batch in parallel
             let batchResults = await withTaskGroup(of: (Int, MultiChainResult.ClusterInsight?).self) { group in
@@ -7123,7 +7387,8 @@ extension AgenticOrchestrator {
             }
         }
 
-        Log.info("[MultiChain] Completed \(clusterInsights.count) cluster chains, \(totalTokens) tokens", category: .llm)
+        Log.info(
+            "[MultiChain] Completed \(clusterInsights.count) cluster chains, \(totalTokens) tokens", category: .llm)
 
         // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
         // STEP 3: Final synthesis across all cluster insights
@@ -7137,7 +7402,7 @@ extension AgenticOrchestrator {
             tokensUsed: 0,
             duration: 0.1,
             timestamp: Date(),
-            confidence: 0.88 // All sessions done, now synthesizing
+            confidence: 0.88  // All sessions done, now synthesizing
         )
         await onStep?(synthesisStep)
 
@@ -7166,7 +7431,9 @@ extension AgenticOrchestrator {
         )
         await onStep?(completionStep)
 
-        Log.info("[MultiChain] COMPLETE: \(totalSessions) sessions, \(totalTokens) tokens, \(String(format: "%.1f", totalDuration))s", category: .llm)
+        Log.info(
+            "[MultiChain] COMPLETE: \(totalSessions) sessions, \(totalTokens) tokens, \(String(format: "%.1f", totalDuration))s",
+            category: .llm)
 
         return MultiChainResult(
             finalAnswer: finalAnswer.text,
@@ -7174,7 +7441,7 @@ extension AgenticOrchestrator {
             totalTokens: totalTokens,
             totalSessions: totalSessions,
             totalDuration: totalDuration,
-            confidence: 0.95 // Multi-chain is inherently high confidence
+            confidence: 0.95  // Multi-chain is inherently high confidence
         )
     }
 
@@ -7199,7 +7466,8 @@ extension AgenticOrchestrator {
 
         guard !profiles.isEmpty else { return [] }
 
-        let numClusters = min(maxClusters, max(1, Int(ceil(Double(profiles.count) / Double(max(1, minDocsPerCluster))))))
+        let numClusters = min(
+            maxClusters, max(1, Int(ceil(Double(profiles.count) / Double(max(1, minDocsPerCluster))))))
         var clusterProfiles: [[DocumentSemanticProfile]] = Array(repeating: [], count: numClusters)
         var clusterTerms: [[String: Int]] = Array(repeating: [:], count: numClusters)
 
@@ -7230,13 +7498,14 @@ extension AgenticOrchestrator {
 
         return clusterProfiles.enumerated().compactMap { index, profilesInCluster in
             guard !profilesInCluster.isEmpty else { return nil }
-            let clusterChunks = profilesInCluster
-                .flatMap(\ .chunks)
+            let clusterChunks =
+                profilesInCluster
+                .flatMap(\.chunks)
                 .sorted { $0.similarityScore > $1.similarityScore }
 
             return DocumentCluster(
                 name: semanticClusterName(index: index, terms: clusterTerms[index]),
-                documents: profilesInCluster.map(\ .documentName),
+                documents: profilesInCluster.map(\.documentName),
                 chunks: clusterChunks
             )
         }
@@ -7339,14 +7608,15 @@ extension AgenticOrchestrator {
     }
 
     private func semanticClusterName(index: Int, terms: [String: Int]) -> String {
-        let topTerms = terms
+        let topTerms =
+            terms
             .sorted { lhs, rhs in
                 if lhs.value == rhs.value {
                     return lhs.key < rhs.key
                 }
                 return lhs.value > rhs.value
             }
-            .map(\ .key)
+            .map(\.key)
             .prefix(2)
 
         guard !topTerms.isEmpty else {
@@ -7369,7 +7639,9 @@ extension AgenticOrchestrator {
             throw AgenticError.serviceUnavailable
         }
 
-        Log.info("[MultiChain] Cluster \(clusterIndex + 1) (\(clusterName)): \(chunks.count) chunks, \(sessionsPerCluster) sessions", category: .llm)
+        Log.info(
+            "[MultiChain] Cluster \(clusterIndex + 1) (\(clusterName)): \(chunks.count) chunks, \(sessionsPerCluster) sessions",
+            category: .llm)
 
         // Use the per-cluster chain config
         let clusterConfig = ReasoningChainConfig(
@@ -7397,7 +7669,7 @@ extension AgenticOrchestrator {
                 )
                 await onStep?(taggedStep)
             },
-            forceConfidenceReporting: true // Multi-chain = Maximum mode, always report confidence
+            forceConfidenceReporting: true  // Multi-chain = Maximum mode, always report confidence
         )
 
         let docNames = Array(Set(chunks.map { $0.sourceDocument }))
@@ -7444,45 +7716,48 @@ extension AgenticOrchestrator {
         // Output reserve: 1500 tokens, safety: 100 tokens
         // Available for content: 4096 - 640 - 200 - 1500 - 100 = 1656 tokens ≈ 2300 chars
         // But Maximum mode chains multiple sessions, so first session can be tighter
-        let maxChars = 4500 // ~3200 tokens - first session uses more, refinements use less
+        let maxChars = 4500  // ~3200 tokens - first session uses more, refinements use less
         if synthesisInput.count > maxChars {
             synthesisInput = String(synthesisInput.prefix(maxChars)) + "\n[...truncated for synthesis]"
         }
 
         let synthesisPrompt = """
-        \(synthesisInput)
+            \(synthesisInput)
 
-        TASK: Synthesize ALL findings into ONE comprehensive answer.
-        Integrate across clusters. Include specific values and data. Use **bold** sparingly for key terms only.
-        Never repeat content. Cite [S1], [S2].
+            TASK: Synthesize ALL findings into ONE comprehensive answer.
+            Integrate across clusters. Include specific values and data. Use **bold** sparingly for key terms only.
+            Never repeat content. Cite [S1], [S2].
 
-        SYNTHESIS:
-        """
+            SYNTHESIS:
+            """
 
         let systemPrompt = """
-        Synthesize document findings. Include ALL specific values, numbers, and data points.
-        Cross-reference multiple sources. Never repeat content. Use **bold** sparingly for key terms only.
-        Cite as [S1], [S2]. Write like a domain expert — format naturally for the content.
-        """
+            Synthesize document findings. Include ALL specific values, numbers, and data points.
+            Cross-reference multiple sources. Never repeat content. Use **bold** sparingly for key terms only.
+            Cite as [S1], [S2]. Write like a domain expert — format naturally for the content.
+            """
 
         var totalTokens = 0
         var finalAnswer = ""
 
         // Run synthesis sessions - each session REFINES the previous, not concatenates
-        for sessionIdx in 0 ..< synthesisSessions {
+        for sessionIdx in 0..<synthesisSessions {
             let isLast = sessionIdx == synthesisSessions - 1
-            let prompt = sessionIdx == 0 ? synthesisPrompt : """
-            Your previous synthesis attempt:
-            \(String(finalAnswer.prefix(3000)))
+            let prompt =
+                sessionIdx == 0
+                ? synthesisPrompt
+                : """
+                Your previous synthesis attempt:
+                \(String(finalAnswer.prefix(3000)))
 
-            IMPROVE THIS SYNTHESIS by:
-            - Removing redundant/repeated content
-            - Improving paragraph flow and transitions
-            - Adding any missing details from the original findings
-            - Making it more coherent and readable
+                IMPROVE THIS SYNTHESIS by:
+                - Removing redundant/repeated content
+                - Improving paragraph flow and transitions
+                - Adding any missing details from the original findings
+                - Making it more coherent and readable
 
-            Produce a CLEAN, REFINED version (not additions - a complete rewrite):
-            """
+                Produce a CLEAN, REFINED version (not additions - a complete rewrite):
+                """
 
             let response = try await ragService.generateWithProperConsent(
                 prompt: prompt,
@@ -7540,7 +7815,7 @@ extension AgenticOrchestrator {
 
         // Also try some query variations to catch different aspects
         let queryVariations = generateQueryVariations(query: query)
-        for (idx, variation) in queryVariations.prefix(3).enumerated() { // Limit to 3 variations
+        for (idx, variation) in queryVariations.prefix(3).enumerated() {  // Limit to 3 variations
             await onDetailedEvent?(.retrieval, "Variation \(idx + 1)/3", "\"\(variation.prefix(30))...\"")
             let variantChunks = try await ragService.executeFullRetrievalPipeline(
                 query: variation,
@@ -7558,7 +7833,8 @@ extension AgenticOrchestrator {
 
         await onDetailedEvent?(.retrieval, "Gathering complete", "\(allChunks.count) chunks for analysis")
 
-        Log.info("[MultiChain] Gathered \(allChunks.count) total chunks for multi-chain processing", category: .retrieval)
+        Log.info(
+            "[MultiChain] Gathered \(allChunks.count) total chunks for multi-chain processing", category: .retrieval)
         return allChunks
     }
 
@@ -7614,7 +7890,8 @@ extension AgenticOrchestrator {
         let originalTerms = Set(originalQuery.lowercased().split(separator: " ").map(String.init))
         let newTerms = factWords.subtracting(originalTerms)
             .filter { term in
-                !["about", "which", "these", "there", "their", "would", "could", "should", "found", "showed"].contains(term)
+                !["about", "which", "these", "there", "their", "would", "could", "should", "found", "showed"].contains(
+                    term)
             }
 
         // Build expansion queries from new terms (only if we have room)
@@ -7631,7 +7908,7 @@ extension AgenticOrchestrator {
             let gapPatterns = [
                 "limitations of",
                 "conflicting evidence",
-                "alternative view"
+                "alternative view",
             ]
             let queryCore = originalQuery.split(separator: " ").suffix(3).joined(separator: " ")
             for pattern in gapPatterns.prefix(5 - queries.count) {
@@ -7639,7 +7916,9 @@ extension AgenticOrchestrator {
             }
         }
 
-        Log.info("[Expansion] Generated \(queries.count) queries: \(factBank.unansweredQuestions.count) gaps + new terms", category: .llm)
+        Log.info(
+            "[Expansion] Generated \(queries.count) queries: \(factBank.unansweredQuestions.count) gaps + new terms",
+            category: .llm)
         return queries
     }
 
@@ -7697,13 +7976,17 @@ extension AgenticOrchestrator {
         } else {
             // For sessions with insights, provide a CONCISE summary of findings so far.
             // Don't dump the full text — just the key answer and supporting details.
-            let rawSummary = "PRIOR FINDINGS:\n" + previousInsights.enumerated()
+            let rawSummary =
+                "PRIOR FINDINGS:\n"
+                + previousInsights.enumerated()
                 .map { "[\($0.offset + 1)] \(truncateAtSentenceBoundary($0.element, limit: 400))" }
                 .joined(separator: "\n")
 
             if rawSummary.count > maxInsightSummaryChars {
                 insightSummary = truncateAtSentenceBoundary(rawSummary, limit: maxInsightSummaryChars)
-                Log.debug("[ReasoningChain] Truncated insight summary from \(rawSummary.count) to \(maxInsightSummaryChars) chars", category: .llm)
+                Log.debug(
+                    "[ReasoningChain] Truncated insight summary from \(rawSummary.count) to \(maxInsightSummaryChars) chars",
+                    category: .llm)
             } else {
                 insightSummary = rawSummary
             }
@@ -7718,14 +8001,18 @@ extension AgenticOrchestrator {
         // cannot rot into filler. It tells the session what to hunt rather than what was found.
         let evidenceStateBlock = evidenceState.map { "\($0)\n" } ?? ""
 
-        let objectiveBlock = sessionObjective.map { """
-        SESSION OBJECTIVE:
-        \($0)
+        let objectiveBlock =
+            sessionObjective.map {
+                """
+                SESSION OBJECTIVE:
+                \($0)
 
-        """ } ?? ""
+                """
+            } ?? ""
 
         // Context budget: session 1 gets full context, later sessions share with insights
-        let contextForPrompt = previousInsights.isEmpty
+        let contextForPrompt =
+            previousInsights.isEmpty
             ? String(context.prefix(4000))
             : String(context.prefix(2200))
 
@@ -7734,55 +8021,58 @@ extension AgenticOrchestrator {
             // SESSION 1: Extract ALL relevant information from documents
             // CRITICAL: Don't say "find THE answer" — questions can have multiple parts.
             // "What does pressing the button do?" might have 5+ answers (record, stop, connect, reset, etc.)
-            let systemPrompt = "You are a document analysis assistant. Extract all relevant information from the provided documents in clear, detailed prose. Write in complete sentences and natural paragraphs."
+            let systemPrompt =
+                "You are a document analysis assistant. Extract all relevant information from the provided documents in clear, detailed prose. Write in complete sentences and natural paragraphs."
             let prompt = """
-            QUESTION: \(query)
+                QUESTION: \(query)
 
-            \(objectiveBlock)DOCUMENTS:
-            \(contextForPrompt)
+                \(objectiveBlock)DOCUMENTS:
+                \(contextForPrompt)
 
-            Write a detailed answer using the information found in these documents.
-            Include every relevant detail, value, specification, and procedure.
-            Write in complete sentences and natural paragraphs — not just bullet points.
-            Use bullet points only for actual lists of items (like steps or specifications).
-            Cite sources as [S1], [S2].
-            """
+                Write a detailed answer using the information found in these documents.
+                Include every relevant detail, value, specification, and procedure.
+                Write in complete sentences and natural paragraphs — not just bullet points.
+                Use bullet points only for actual lists of items (like steps or specifications).
+                Cite sources as [S1], [S2].
+                """
             return (prompt, systemPrompt)
 
         case 1:
             // SESSION 2: Add NEW details not yet covered
-            let systemPrompt = "You are a document analyst. Write ONLY new details from these documents. Never restate prior findings."
+            let systemPrompt =
+                "You are a document analyst. Write ONLY new details from these documents. Never restate prior findings."
             let prompt = """
-            QUESTION: \(query)
+                QUESTION: \(query)
 
-            \(evidenceStateBlock)\(insightSummary)
-            \(objectiveBlock)ADDITIONAL DOCUMENTS:
-            \(contextForPrompt)
+                \(evidenceStateBlock)\(insightSummary)
+                \(objectiveBlock)ADDITIONAL DOCUMENTS:
+                \(contextForPrompt)
 
-            Using these additional documents, write ONLY new details about: "\(query)"
-            Do NOT repeat or rephrase anything from prior findings above.
-            Focus exclusively on details, values, or procedures NOT already covered.
-            Write in complete sentences and full paragraphs. Cite as [S1], [S2].
-            """
+                Using these additional documents, write ONLY new details about: "\(query)"
+                Do NOT repeat or rephrase anything from prior findings above.
+                Focus exclusively on details, values, or procedures NOT already covered.
+                Write in complete sentences and full paragraphs. Cite as [S1], [S2].
+                """
             return (prompt, systemPrompt)
 
         case sessionCount - 1:
             // FINAL SESSION: Clean synthesis of ALL accumulated findings
-            let systemPrompt = "Combine all research findings into one comprehensive, well-written answer. Write in detailed prose with complete sentences and natural paragraphs. Use ### headers to organize sections. Use **bold** sparingly for key terms only."
+            let systemPrompt =
+                "Combine all research findings into one comprehensive, well-written answer. Write in detailed prose with complete sentences and natural paragraphs. Use ### headers to organize sections. Use **bold** sparingly for key terms only."
             let prompt = """
-            QUESTION: \(query)
+                QUESTION: \(query)
 
-            \(evidenceStateBlock)\(insightSummary)
-            \(objectiveBlock)DOCUMENTS:
-            \(contextForPrompt)
+                \(evidenceStateBlock)\(insightSummary)
+                \(objectiveBlock)DOCUMENTS:
+                \(contextForPrompt)
 
-            Write a comprehensive answer to: "\(query)"
-            Combine ALL findings into detailed, flowing prose.
-            Use ### section headers to organize topics. Use **bold** sparingly for key terms only.
-            Write in complete sentences and full paragraphs — not just bullet lists.
-            Use bullet points only for actual sequential steps or specification lists.
-            Include every relevant detail found. Cite as [S1], [S2].
-            """
+                Write a comprehensive answer to: "\(query)"
+                Combine ALL findings into detailed, flowing prose.
+                Use ### section headers to organize topics. Use **bold** sparingly for key terms only.
+                Write in complete sentences and full paragraphs — not just bullet lists.
+                Use bullet points only for actual sequential steps or specification lists.
+                Include every relevant detail found. Cite as [S1], [S2].
+                """
             return (prompt, systemPrompt)
 
         default:
@@ -7796,21 +8086,22 @@ extension AgenticOrchestrator {
             // [ ... ` — inventing a schema whose key mirrored the instruction. The
             // wording below avoids naming a field, and the output format is stated
             // outright rather than implied.
-            let systemPrompt = "You are a document analyst. Describe what these documents add beyond the prior findings. Do not repeat what was already found. Reply with plain prose only — never JSON, key-value pairs, or tool-call syntax."
+            let systemPrompt =
+                "You are a document analyst. Describe what these documents add beyond the prior findings. Do not repeat what was already found. Reply with plain prose only — never JSON, key-value pairs, or tool-call syntax."
             let prompt = """
-            QUESTION: \(query)
+                QUESTION: \(query)
 
-            \(evidenceStateBlock)\(insightSummary)
-            \(objectiveBlock)ADDITIONAL DOCUMENTS:
-            \(contextForPrompt)
+                \(evidenceStateBlock)\(insightSummary)
+                \(objectiveBlock)ADDITIONAL DOCUMENTS:
+                \(contextForPrompt)
 
-            Using these additional documents, describe what they add about: "\(query)"
-            Write details, values, procedures, or context from these documents that are NOT already in prior findings.
-            Do NOT repeat or rephrase information already covered above.
-            If the documents contain relevant details not yet mentioned, describe them thoroughly.
-            Write in complete sentences and full paragraphs, as plain prose.
-            Do not reply with JSON, field names, or any structured format. Cite as [S1], [S2].
-            """
+                Using these additional documents, describe what they add about: "\(query)"
+                Write details, values, procedures, or context from these documents that are NOT already in prior findings.
+                Do NOT repeat or rephrase information already covered above.
+                If the documents contain relevant details not yet mentioned, describe them thoroughly.
+                Write in complete sentences and full paragraphs, as plain prose.
+                Do not reply with JSON, field names, or any structured format. Cite as [S1], [S2].
+                """
             return (prompt, systemPrompt)
         }
     }
@@ -7827,17 +8118,21 @@ extension AgenticOrchestrator {
 
         if sessionIndex == sessionCount - 1 {
             if unanswered.isEmpty {
-                return "Synthesize only what is supported by the accumulated evidence. If any detail is still weakly supported, qualify it instead of guessing."
+                return
+                    "Synthesize only what is supported by the accumulated evidence. If any detail is still weakly supported, qualify it instead of guessing."
             }
 
-            return "Before final synthesis, verify whether these remaining gaps are actually answered: \(unanswered.joined(separator: "; ")). If not, state that the documents do not fully resolve them instead of inferring beyond the evidence."
+            return
+                "Before final synthesis, verify whether these remaining gaps are actually answered: \(unanswered.joined(separator: "; ")). If not, state that the documents do not fully resolve them instead of inferring beyond the evidence."
         }
 
         if unanswered.isEmpty {
-            return "Pressure-test the current answer. Look for contradictions, missing qualifiers, numeric details, edge cases, and source-backed caveats instead of repeating the same summary."
+            return
+                "Pressure-test the current answer. Look for contradictions, missing qualifiers, numeric details, edge cases, and source-backed caveats instead of repeating the same summary."
         }
 
-        return "Prioritize coverage for these unresolved sub-questions: \(unanswered.joined(separator: "; ")). Surface contradictions or missing evidence explicitly instead of repeating prior findings."
+        return
+            "Prioritize coverage for these unresolved sub-questions: \(unanswered.joined(separator: "; ")). Surface contradictions or missing evidence explicitly instead of repeating prior findings."
     }
 
     /// Extract insight from response - keep FULL content, just clean up formatting
@@ -7847,8 +8142,8 @@ extension AgenticOrchestrator {
 
         // Clean up common LLM artifacts and markers (including truncated versions)
         let markersToRemove = [
-            "REASONING:", "ONING:", "ASONING:", "SONING:", // Truncated REASONING
-            "INSIGHT:", "NSIGHT:", "SIGHT:", // Truncated INSIGHT
+            "REASONING:", "ONING:", "ASONING:", "SONING:",  // Truncated REASONING
+            "INSIGHT:", "NSIGHT:", "SIGHT:",  // Truncated INSIGHT
             "ANALYSIS:", "OBSERVATION:", "CONCLUSION:",
             "Re Reasoning:", "Re REASONING:",
             "[new details found]", "[additional specifics]",
@@ -7910,7 +8205,7 @@ extension AgenticOrchestrator {
             "YOUR ANSWER:",
             "FINAL ANSWER:",
             "Answer:",
-            "ANSWER:"
+            "ANSWER:",
         ]
 
         for marker in answerMarkers {
@@ -7924,7 +8219,7 @@ extension AgenticOrchestrator {
         if let arrowRange = cleanedText.range(of: "→") {
             let afterArrow = String(cleanedText[arrowRange.upperBound...])
                 .trimmingCharacters(in: .whitespacesAndNewlines)
-            if afterArrow.count > 50 { // Make sure there's substantial content
+            if afterArrow.count > 50 {  // Make sure there's substantial content
                 return afterArrow
             }
         }
@@ -7947,7 +8242,9 @@ extension AgenticOrchestrator {
     /// This catches cross-pass duplication that per-LLM-call dedup can't see.
     private func deduplicateSynthesizedAnswer(_ text: String) -> String {
         // Split into paragraphs (sections separated by blank lines)
-        let paragraphs = text.components(separatedBy: "\n\n").filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
+        let paragraphs = text.components(separatedBy: "\n\n").filter {
+            !$0.trimmingCharacters(in: .whitespaces).isEmpty
+        }
         guard paragraphs.count > 1 else { return text }
 
         var kept: [String] = []
@@ -7955,7 +8252,8 @@ extension AgenticOrchestrator {
 
         for paragraph in paragraphs {
             // Create a fingerprint: lowercased, stripped of formatting, first 120 chars
-            let stripped = paragraph
+            let stripped =
+                paragraph
                 .replacingOccurrences(of: "**", with: "")
                 .replacingOccurrences(of: "*", with: "")
                 .lowercased()
@@ -7993,7 +8291,9 @@ extension AgenticOrchestrator {
 
         // Safety: if we removed more than 60%, keep the original
         if kept.count < paragraphs.count * 2 / 5 {
-            Log.info("[Synthesis] Dedup would remove \(paragraphs.count - kept.count)/\(paragraphs.count) paragraphs — aborting", category: .llm)
+            Log.info(
+                "[Synthesis] Dedup would remove \(paragraphs.count - kept.count)/\(paragraphs.count) paragraphs — aborting",
+                category: .llm)
             return text
         }
 
@@ -8021,8 +8321,8 @@ extension AgenticOrchestrator {
     private func supplementaryCharBudget(factContextChars: Int, queryChars: Int) -> Int {
         let window = FoundationModelTokenBudget.contextSize(isAppleFMOnDevice: true)
         let outputReserveTokens = Self.synthesisOutputTokenReserve
-        let serviceOverheadTokens = 200         // system prompt + LLMService wrapper
-        let instructionChars = 900              // the fixed instruction text below the findings
+        let serviceOverheadTokens = 200  // system prompt + LLMService wrapper
+        let instructionChars = 900  // the fixed instruction text below the findings
 
         let inputTokens = max(0, window - outputReserveTokens - serviceOverheadTokens)
         let inputChars = Int(Double(inputTokens) * Double(FoundationModelTokenBudget.onDeviceCharsPerToken))
@@ -8136,10 +8436,11 @@ extension AgenticOrchestrator {
             let promptWords = meaningfulWords(systemPrompt)
             var stripped = 0
             while stripped < 2,
-                  let sentenceEnd = result.firstIndex(where: { $0 == "." || $0 == "\n" }) {
+                let sentenceEnd = result.firstIndex(where: { $0 == "." || $0 == "\n" })
+            {
                 let head = meaningfulWords(String(result[..<sentenceEnd]))
                 guard !head.isEmpty, head.count <= 24,
-                      Double(head.intersection(promptWords).count) / Double(head.count) >= 0.7
+                    Double(head.intersection(promptWords).count) / Double(head.count) >= 0.7
                 else { break }
                 result = String(result[result.index(after: sentenceEnd)...])
                     .trimmingCharacters(in: .whitespacesAndNewlines)
@@ -8190,9 +8491,10 @@ extension AgenticOrchestrator {
         //    opening quote of the first string value, leaving the prose intact.
         let envelopePattern = "^[\\s\\{\\[]*(?:\"[A-Za-z_][A-Za-z0-9_ ]*\"\\s*:\\s*[\\s\\{\\[]*)+\"?"
         if let regex = try? NSRegularExpression(pattern: envelopePattern),
-           let match = regex.firstMatch(in: result, range: NSRange(result.startIndex..., in: result)),
-           match.range.length > 0,
-           let range = Range(match.range, in: result) {
+            let match = regex.firstMatch(in: result, range: NSRange(result.startIndex..., in: result)),
+            match.range.length > 0,
+            let range = Range(match.range, in: result)
+        {
             result = String(result[range.upperBound...]).trimmingCharacters(in: .whitespacesAndNewlines)
             strippedEnvelope = true
         }
@@ -8218,7 +8520,9 @@ extension AgenticOrchestrator {
 
         // 4. Drop a conversational lead-in ("Got it, here's a detailed breakdown of…:")
         //    so it does not consume budget as a PRIOR FINDINGS prefix downstream.
-        let preambleStarters = ["got it", "sure,", "sure!", "certainly", "of course", "absolutely", "here's", "here is"]
+        let preambleStarters = [
+            "got it", "sure,", "sure!", "certainly", "of course", "absolutely", "here's", "here is",
+        ]
         if let firstLineEnd = result.firstIndex(where: { $0 == "\n" }) {
             let firstLine = String(result[..<firstLineEnd]).trimmingCharacters(in: .whitespaces)
             let lowered = firstLine.lowercased()
@@ -8274,14 +8578,16 @@ extension AgenticOrchestrator {
         // answer is too thin to stand on its own, and say nothing about why the
         // information is missing, because that is not known.
         let upperText = result.uppercased()
-        let reportsNotFound = upperText.contains("NOT FOUND IN DOCUMENTS")
+        let reportsNotFound =
+            upperText.contains("NOT FOUND IN DOCUMENTS")
             || upperText.contains("DOCUMENTS DO NOT CONTAIN")
             || upperText.contains("COULDN'T FIND")
             || upperText.contains("COULD NOT FIND")
             || upperText.contains("NO INFORMATION FOUND")
             || upperText.contains("NOT AVAILABLE IN")
         if isFinalAnswer, reportsNotFound, result.count < 160 {
-            return result + "\n\nYou could try rephrasing the question, checking the original document directly, or adding a document that covers this topic."
+            return result
+                + "\n\nYou could try rephrasing the question, checking the original document directly, or adding a document that covers this topic."
         }
 
         // Handle refusal/ethics responses that snuck through
@@ -8376,8 +8682,9 @@ extension AgenticOrchestrator {
             let matches = markdownLinkRegex.matches(in: result, options: [], range: nsRange)
             for match in matches.reversed() {
                 guard let fullRange = Range(match.range, in: result),
-                      let labelRange = Range(match.range(at: 1), in: result),
-                      let urlRange = Range(match.range(at: 2), in: result) else { continue }
+                    let labelRange = Range(match.range(at: 1), in: result),
+                    let urlRange = Range(match.range(at: 2), in: result)
+                else { continue }
                 let label = String(result[labelRange])
                 let rawURL = String(result[urlRange])
                 let fixed = Self.repairURL(rawURL)
@@ -8427,8 +8734,9 @@ extension AgenticOrchestrator {
 
         for pattern in patterns {
             if let regex = try? NSRegularExpression(pattern: pattern, options: .caseInsensitive),
-               let match = regex.firstMatch(in: text, range: NSRange(text.startIndex..., in: text)),
-               let topicRange = Range(match.range(at: 1), in: text) {
+                let match = regex.firstMatch(in: text, range: NSRange(text.startIndex..., in: text)),
+                let topicRange = Range(match.range(at: 1), in: text)
+            {
                 let topic = String(text[topicRange]).trimmingCharacters(in: .whitespacesAndNewlines)
                 if topic.count > 3 && topic.count < 100 {
                     return topic
@@ -8450,9 +8758,9 @@ extension AgenticOrchestrator {
 
         for pattern in patterns {
             if let regex = try? NSRegularExpression(pattern: pattern, options: .caseInsensitive),
-               let match = regex.firstMatch(in: text, range: NSRange(text.startIndex..., in: text)),
-               let numRange = Range(match.range(at: 1), in: text),
-               let value = Float(text[numRange])
+                let match = regex.firstMatch(in: text, range: NSRange(text.startIndex..., in: text)),
+                let numRange = Range(match.range(at: 1), in: text),
+                let value = Float(text[numRange])
             {
                 return value > 1 ? value / 100 : value
             }
@@ -8530,7 +8838,8 @@ extension RAGService {
             let insightPreview = step.output
                 .replacingOccurrences(of: "\n", with: " ")
                 .trimmingCharacters(in: .whitespacesAndNewlines)
-            let detail = insightPreview.isEmpty
+            let detail =
+                insightPreview.isEmpty
                 ? "Processing..."
                 : String(insightPreview.prefix(80)) + (insightPreview.count > 80 ? "..." : "")
 
@@ -8587,15 +8896,32 @@ extension RAGService {
         systemPrompt: String,
         maxTokens: Int,
         disableTools: Bool = false,
-        temperature: Float = 0.5,
+        // Optional so "the caller tuned this step deliberately" and "the caller said nothing" are
+        // distinguishable, which they were not when the default was a literal 0.5. Exactly one of
+        // the twelve call sites in this file passes a value; the rest were silently taking 0.5,
+        // so the comment below about exploration versus synthesis described an intent the code had
+        // stopped expressing.
+        temperature: Float? = nil,
         qualityMode: RAGQualityMode = .deepThink,
         sourceChunks: [RetrievedChunk] = [],
         forceOnDevice: Bool = false
     ) async throws -> LLMResponse {
         try Task.checkCancellation()
+
+        // Precedence: a step that named its own temperature keeps it, then the query's adaptive
+        // profile, then the old default. This is what carries adaptive profiles into Deep Think and
+        // Maximum, which previously could not reach them at all.
+        //
+        // `maxTokens` is deliberately NOT taken from the profile here. The agentic path runs many
+        // sessions with per-step budgets chosen for what each step is doing, and a single
+        // intent-derived ceiling applied to all of them would truncate mid-chain work that has
+        // nothing to do with how long the final answer should be.
+        let profile = await MainActor.run { self.activeAdaptiveProfile }
+        let effectiveTemperature = temperature ?? profile?.temperature ?? 0.5
+
         var config = InferenceConfig(
             maxTokens: maxTokens,
-            temperature: temperature, // Adaptive: higher for exploration, lower for synthesis
+            temperature: effectiveTemperature,
             systemPrompt: systemPrompt
         )
         // Tools disabled for Maximum mode sessions to prevent context overflow
@@ -8636,7 +8962,8 @@ extension RAGService {
         // execution local and trims the context to the local budget.
         let budgetPin = forceOnDevice && !userRouting.explicitlyPrefersPCC
         if !isAppleFM || !networkAvailable || pccSuppressed
-            || userRouting.requiresOnDevice || budgetPin {
+            || userRouting.requiresOnDevice || budgetPin
+        {
             config.allowPrivateCloudCompute = false
             config.executionContext = .onDeviceOnly
         }
@@ -8692,8 +9019,9 @@ extension RAGService {
                     800,
                     min(
                         12_000,
-                        Int(Double(plan.contextBudget.remaining + plan.contextBudget.evidence) *
-                            FoundationModelTokenBudget.cloudFallbackCharsPerToken)
+                        Int(
+                            Double(plan.contextBudget.remaining + plan.contextBudget.evidence)
+                                * FoundationModelTokenBudget.cloudFallbackCharsPerToken)
                     )
                 )
             )
@@ -8713,11 +9041,13 @@ extension RAGService {
                 )
             } catch let error as RAGServiceError {
                 if plan.fallback.target == .onDevice,
-                   case .cloudConsentDenied(_) = error {
+                    case .cloudConsentDenied(_) = error
+                {
                     config.allowPrivateCloudCompute = false
                     config.executionContext = .onDeviceOnly
                 } else if plan.fallback.target == .onDevice,
-                          case .cloudConsentUnavailable(_) = error {
+                    case .cloudConsentUnavailable(_) = error
+                {
                     config.allowPrivateCloudCompute = false
                     config.executionContext = .onDeviceOnly
                 } else {
@@ -8754,11 +9084,11 @@ extension RAGService {
                 category: .llm
             )
             let abstention = """
-            I couldn't find enough supporting evidence in this library to answer that reliably.
+                I couldn't find enough supporting evidence in this library to answer that reliably.
 
-            Rather than guess, I'm stopping here. You could try rephrasing the question, \
-            selecting a different library, or adding a document that covers it.
-            """
+                Rather than guess, I'm stopping here. You could try rephrasing the question, \
+                selecting a different library, or adding a document that covers it.
+                """
             return LLMResponse(
                 text: abstention,
                 tokensGenerated: 0,

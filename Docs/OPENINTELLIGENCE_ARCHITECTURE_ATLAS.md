@@ -509,13 +509,29 @@ Three properties of the design, each load-bearing:
    `AutoTuneService` adjusts the same two settings by persisting them into `UserDefaults`, which
    overwrites what the owner set by hand and is not undone by turning the feature off. It has zero
    call sites and should keep them.
-3. **It reaches the Standard path only.** The gate sits **below** the `if useAgentic` return.
-   Deep Think and Maximum leave through `executeAgenticQuery`, which reads neither this
-   `inferenceConfig` nor the `config` parameter for generation; it builds `optimizedConfig` from
-   `qualityMode.agenticConfig`. Placing the gate above that branch, which is where it was first
-   written, mutated a local the agentic path never reads while logging the change as though it had
-   landed. That is this repository's recurring failure shape: a stage reports healthy while the
-   value it claims to have set goes nowhere.
+3. **It reaches every mode, by two different routes.** *Corrected 2026-09-11; it reached Standard
+   only when first written.* On the Standard path the gate sits **below** the `if useAgentic`
+   return and mutates `inferenceConfig` directly. Deep Think and Maximum leave before that point
+   through `executeAgenticQuery`, which reads neither `inferenceConfig` nor the `config` parameter
+   for generation: it builds `optimizedConfig` from `qualityMode.agenticConfig`. Placing the gate
+   above the branch, which is where it was first written, mutated a local the agentic path never
+   reads **while logging the change as though it had landed**, which is this repository's recurring
+   failure shape.
+
+   The agentic path is served instead by `RAGService.activeAdaptiveProfile`, resolved in
+   `executeAgenticQuery` and held for the life of the query, then cleared. That is the same pattern
+   as `activeUserRoutingPreference`, and for the same reason: the agentic path generates across
+   many sessions, so threading a per-query value down through `AgenticOrchestrator` to every call
+   site costs far more than the fact it carries. `generateWithProperConsent` takes
+   `temperature: Float?` and resolves explicit step value → profile → `0.5`.
+
+   **`maxTokens` is deliberately not taken from the profile on the agentic path.** Those sessions
+   carry per-step budgets chosen for what each step does, and one intent-derived ceiling applied
+   across all of them would truncate mid-chain work unrelated to final answer length.
+
+   A finding from making that parameter optional: **exactly one of the twelve call sites passed a
+   temperature.** The comment reading "Adaptive: higher for exploration, lower for synthesis"
+   described an intent the code had stopped expressing.
 4. **It is opt-in because it cannot be verified here.** Retrieval is nondeterministic
    (`Docs/ai/DECISIONS.md`), so two runs of one build return different evidence and different
    answers. The profile values are reasoned, not measured, and shipping them on by default would be

@@ -167,3 +167,30 @@ estimate that the planless routing branch compares against the on-device context
 generation parameters only removes that coupling.
 
 `[evidence_level: code_verified, confidence: exact, evidence_source: FoundationModelDynamicProfileRegistry.swift returns FoundationModelGenerationProfile only; FoundationModelRoutePolicy.determineRoute has no reference to it]`
+
+
+## A reasoning profile you write yourself (added 2026-09-11)
+
+`ContextOptions.ReasoningLevel` has a fourth case besides `light`, `moderate` and `deep`:
+`custom(String)`. It carries free text describing how the model should approach the problem. The
+named levels are a dial; this is a sentence. `AppleFoundationModelRoute.reasoningLevel` reads
+`UserDefaults` key `customReasoningProfile` and substitutes `.custom(...)` when it is non-empty.
+
+**What this does and does not touch, since it is text the owner wrote reaching Apple's servers:**
+
+- It applies **only on the Private Cloud Compute route.** Apple's capability table lists reasoning
+  as unsupported on-device and `GenerationOptions` carries no equivalent, so an on-device answer has
+  no reasoning level to replace. Pinned by `testAProfileDoesNotLeakOntoTheOnDeviceRoute`.
+- It **cannot start reasoning that was not already going to happen.** `.none` means the query type
+  does not warrant the spend, and the substitution is skipped for it. Without that guard a profile
+  reading "think very hard about everything" would convert every cheap lookup into a billed PCC
+  reasoning request. Pinned by `testAProfileDoesNotStartReasoningWhereThereWasNone`.
+- It changes **nothing about routing**: not whether a request goes to PCC, not the consent prompt,
+  not what evidence is attached. It describes how the model should think once a request has already
+  been approved and sent.
+- The text is **sent to Apple as part of the request** on a PCC route, under the same end-to-end
+  encrypted, non-retained terms as the rest of that request. Anyone writing a profile should
+  understand it leaves the device exactly as the question and the approved passages do. The
+  Model Parameters footer says where it applies; this is the privacy statement behind it.
+
+`[evidence_level: test_verified, confidence: high, evidence_source: FoundationModelRoute.swift reasoningLevel; CustomReasoningProfileTests, 6 cases; ReasoningLevel.custom read from iPhoneOS27.0.sdk FoundationModels.swiftinterface]`

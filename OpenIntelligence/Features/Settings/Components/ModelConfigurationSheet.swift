@@ -34,6 +34,11 @@ struct ModelConfigurationSheet: View {
     /// what makes this off for every existing install.
     @AppStorage("adaptiveInferenceProfiles") private var adaptiveProfiles = false
 
+    /// Read by `AppleFoundationModelRoute.reasoningLevel` straight from `UserDefaults` under this
+    /// key, so the field and the route cannot drift apart through an intermediate copy. Empty means
+    /// "use Apple's named levels", which is what every existing install has.
+    @AppStorage("customReasoningProfile") private var customReasoningProfile = ""
+
     init() {
         // Initialize with placeholder values - actual values loaded in onAppear
         _temperature = State(initialValue: 0.7)
@@ -61,6 +66,9 @@ struct ModelConfigurationSheet: View {
 
                 // Adaptive profiles
                 adaptiveProfilesSection
+
+                // A reasoning profile written by the owner
+                customReasoningSection
 
                 // Core Parameters
                 coreParametersSection
@@ -184,8 +192,42 @@ struct ModelConfigurationSheet: View {
         } footer: {
             Text(
                 adaptiveProfiles
-                    ? "Temperature and length are chosen per question and override the values below. Applies to Standard; Deep Think and Maximum set their own. Your saved settings are not changed, and turning this off restores them immediately."
+                    ? "Temperature and length are chosen per question and override the values below. Deep Think and Maximum use the temperature but keep their own per-step lengths. Your saved settings are not changed, and turning this off restores them immediately."
                     : "Off. Every question uses the values below. Turn this on to let the app pick a temperature and length from what the question is asking for, so a value lookup answers the same way twice and an open comparison gets room to work."
+            )
+        }
+    }
+
+    @ViewBuilder
+    private var customReasoningSection: some View {
+        Section {
+            TextField(
+                "How should it think through a problem?",
+                text: $customReasoningProfile,
+                axis: .vertical
+            )
+            .lineLimit(3...8)
+            .font(.callout)
+
+            if !customReasoningProfile.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                Button("Clear", role: .destructive) {
+                    customReasoningProfile = ""
+                }
+            }
+        } header: {
+            Text("Your Own Reasoning Profile")
+        } footer: {
+            // Says where it does and does not apply, because a setting that silently does nothing
+            // in the mode someone happens to be using is the failure the penalty sliders already
+            // demonstrated on this same screen.
+            Text(
+                "Apple's reasoning control takes three fixed levels or a description you write yourself. "
+                    + "Write one and it replaces the level for questions that reason: for example, "
+                    + "\"work backwards from the conclusion and say which step is weakest\", or "
+                    + "\"check every number against the source before using it\".\n\n"
+                    + "Reasoning only happens on Private Cloud Compute. Apple's on-device model does not "
+                    + "support it at all, so this changes nothing about a question answered on this device, "
+                    + "and nothing in Standard, which does not ask for reasoning in the first place."
             )
         }
     }
@@ -212,7 +254,7 @@ struct ModelConfigurationSheet: View {
                         .foregroundStyle(.secondary)
                 }
 
-                Slider(value: $temperature, in: 0 ... 2, step: 0.05) {
+                Slider(value: $temperature, in: 0...2, step: 0.05) {
                     Text("Temperature")
                 }
                 .disabled(samplingStrategy == .greedy)
@@ -246,10 +288,12 @@ struct ModelConfigurationSheet: View {
                         .foregroundStyle(.secondary)
                 }
 
-                Slider(value: Binding(
-                    get: { Double(maxTokens) },
-                    set: { maxTokens = Int($0) }
-                ), in: 64 ... 4096, step: 64) {
+                Slider(
+                    value: Binding(
+                        get: { Double(maxTokens) },
+                        set: { maxTokens = Int($0) }
+                    ), in: 64...4096, step: 64
+                ) {
                     Text("Max Tokens")
                 }
 
@@ -298,7 +342,7 @@ struct ModelConfigurationSheet: View {
                     }
                     Slider(
                         value: Binding(get: { Double(topK) }, set: { topK = Int($0) }),
-                        in: 1 ... 100,
+                        in: 1...100,
                         step: 1
                     ) { Text("Top-K") }
                     Text("Choose from the \(topK) most likely next words.")
@@ -315,7 +359,7 @@ struct ModelConfigurationSheet: View {
                         Spacer()
                         Text(String(format: "%.2f", topP)).monospacedDigit().foregroundStyle(.secondary)
                     }
-                    Slider(value: $topP, in: 0.05 ... 0.99, step: 0.05) { Text("Top-P") }
+                    Slider(value: $topP, in: 0.05...0.99, step: 0.05) { Text("Top-P") }
                     Text("Probability mass to sample from. Lower is more focused.")
                         .font(.caption2)
                         .foregroundStyle(.tertiary)
@@ -331,7 +375,7 @@ struct ModelConfigurationSheet: View {
                     Label("Reproducible answers", systemImage: "lock.rotation")
                 }
                 if useFixedSeed {
-                    Stepper(value: $seedValue, in: 0 ... 9999) {
+                    Stepper(value: $seedValue, in: 0...9999) {
                         HStack {
                             Text("Seed")
                             Spacer()
@@ -350,7 +394,9 @@ struct ModelConfigurationSheet: View {
         } header: {
             Text("Sampling")
         } footer: {
-            Text("How the model chooses each next word. Apple's API takes one strategy at a time, so picking one replaces the other two.")
+            Text(
+                "How the model chooses each next word. Apple's API takes one strategy at a time, so picking one replaces the other two."
+            )
         }
     }
 
@@ -426,7 +472,7 @@ struct ModelConfigurationSheet: View {
                         .foregroundStyle(.secondary)
                 }
 
-                Slider(value: $frequencyPenalty, in: 0 ... 2, step: 0.1) {
+                Slider(value: $frequencyPenalty, in: 0...2, step: 0.1) {
                     Text("Frequency Penalty")
                 }
 
@@ -446,7 +492,7 @@ struct ModelConfigurationSheet: View {
                         .foregroundStyle(.secondary)
                 }
 
-                Slider(value: $presencePenalty, in: 0 ... 2, step: 0.1) {
+                Slider(value: $presencePenalty, in: 0...2, step: 0.1) {
                     Text("Presence Penalty")
                 }
 
@@ -466,16 +512,18 @@ struct ModelConfigurationSheet: View {
                         .foregroundStyle(.secondary)
                 }
 
-                Slider(value: $repetitionPenalty, in: 1 ... 2, step: 0.05) {
+                Slider(value: $repetitionPenalty, in: 1...2, step: 0.05) {
                     Text("Repetition Penalty")
                 }
 
                 // Marked rather than removed, per the section comment above: unlike the other
                 // two, this one is not read even by `LocalOpenAIServerLLMService`, so it would
                 // still do nothing on the day the local model host ships.
-                Text("Additional penalty for repeated sequences (1.0 = off). Not sent anywhere, including to the planned local model host.")
-                    .font(.caption2)
-                    .foregroundStyle(.tertiary)
+                Text(
+                    "Additional penalty for repeated sequences (1.0 = off). Not sent anywhere, including to the planned local model host."
+                )
+                .font(.caption2)
+                .foregroundStyle(.tertiary)
             }
             .padding(.vertical, 4)
         } header: {
@@ -488,9 +536,9 @@ struct ModelConfigurationSheet: View {
             // not. Saying so plainly costs one sentence and is cheaper than the controls.
             Text(
                 "Apple Intelligence ignores all three. Apple's generation API takes a sampling "
-                + "mode, a temperature and a response length, and has no penalty setting of any "
-                + "kind, so these change nothing on this device or on Private Cloud Compute. "
-                + "They are here for a local model host on Mac, which is not built yet."
+                    + "mode, a temperature and a response length, and has no penalty setting of any "
+                    + "kind, so these change nothing on this device or on Private Cloud Compute. "
+                    + "They are here for a local model host on Mac, which is not built yet."
             )
         }
     }
@@ -570,7 +618,8 @@ struct ModelConfigurationSheet: View {
         if contextLength <= window {
             return "Fits on this device (\(window.formatted()) tokens on-device)."
         }
-        return "Above this device's \(window.formatted())-token window. Requests this large can only run on Private Cloud Compute, and will fail if it is unavailable or you have chosen On-Device."
+        return
+            "Above this device's \(window.formatted())-token window. Requests this large can only run on Private Cloud Compute, and will fail if it is unavailable or you have chosen On-Device."
     }
 
     private func applySettings() {
@@ -800,13 +849,17 @@ enum SystemPromptTemplate: String, CaseIterable, Identifiable {
         case .assistant:
             return "You are a helpful assistant."
         case .expert:
-            return "You are an expert in the subject matter being discussed. Provide detailed, accurate, and well-reasoned responses."
+            return
+                "You are an expert in the subject matter being discussed. Provide detailed, accurate, and well-reasoned responses."
         case .teacher:
-            return "You are a calm and knowledgeable teacher. Explain concepts clearly with examples, and check for understanding."
+            return
+                "You are a calm and knowledgeable teacher. Explain concepts clearly with examples, and check for understanding."
         case .coder:
-            return "You are an experienced software developer. Provide clean, well-documented code with explanations. Follow best practices and consider edge cases."
+            return
+                "You are an experienced software developer. Provide clean, well-documented code with explanations. Follow best practices and consider edge cases."
         case .concise:
-            return "Be concise. Give direct answers without unnecessary elaboration. Use bullet points when appropriate."
+            return
+                "Be concise. Give direct answers without unnecessary elaboration. Use bullet points when appropriate."
         }
     }
 }

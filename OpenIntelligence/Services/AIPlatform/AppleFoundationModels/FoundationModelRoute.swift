@@ -47,6 +47,34 @@ import Foundation
             /// maximumResponseTokens and toolCallingMode]`
             var reasoningLevel: FoundationModels.ContextOptions.ReasoningLevel? {
                 guard case .privateCloudCompute(let reasoning) = self else { return nil }
+
+                // A reasoning profile the owner wrote themselves, if there is one.
+                //
+                // `ContextOptions.ReasoningLevel` has a fourth case besides light, moderate and
+                // deep: `custom(String)`. It takes free text describing how the model should
+                // approach the problem, which is a capability this app had never used. The three
+                // named levels are a dial; `custom` is a sentence.
+                //
+                // It applies only where reasoning applies at all, which is the Private Cloud
+                // Compute route: Apple's capability table lists reasoning as unsupported
+                // on-device, and `GenerationOptions` has no equivalent knob. A profile written
+                // here therefore changes nothing about a question answered on the device, and the
+                // settings copy says so rather than letting someone write one and wonder why
+                // nothing happened.
+                //
+                // `.none` still wins. That case means the query type does not warrant reasoning
+                // spend at all, and a custom profile is a description of *how* to reason rather
+                // than an instruction to start.
+                if reasoning != .none {
+                    let custom =
+                        UserDefaults.standard
+                        .string(forKey: "customReasoningProfile")?
+                        .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+                    if !custom.isEmpty {
+                        return .custom(custom)
+                    }
+                }
+
                 switch reasoning {
                 case .none: return nil
                 case .light: return .light
