@@ -31,19 +31,22 @@ struct OnboardingChecklistLauncher: View {
                         .foregroundStyle(Color.accentColor)
                 }
                 .padding(.horizontal, 18)
-                    .padding(.vertical, 14)
-                    .background(
-                        .ultraThinMaterial,
-                        in: RoundedRectangle(cornerRadius: 22, style: .continuous)
-                    )
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 22, style: .continuous)
-                            .stroke(Color.white.opacity(0.15), lineWidth: 1)
-                    )
+                .padding(.vertical, 14)
+                .background(
+                    .ultraThinMaterial,
+                    in: RoundedRectangle(cornerRadius: 22, style: .continuous)
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 22, style: .continuous)
+                        // Was `Color.white.opacity(0.15)`, which is very nearly invisible on a
+                        // light background: the pill sits on `.ultraThinMaterial` over whatever
+                        // is behind it, so a white hairline only reads against a dark one.
+                        .stroke(Color.primary.opacity(0.15), lineWidth: 1)
+                )
             }
             .buttonStyle(.plain)
-                .shadow(color: Color.black.opacity(0.25), radius: 18, x: 0, y: 8)
-                .accessibilityLabel("Open onboarding checklist")
+            .shadow(color: Color.black.opacity(0.25), radius: 18, x: 0, y: 8)
+            .accessibilityLabel("Open onboarding checklist")
 
             // Dismiss permanently button
             Button(action: onDismissPermanently) {

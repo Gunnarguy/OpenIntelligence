@@ -15,6 +15,9 @@ setting for how answers are written that you turn on yourself if you want it.
 
 - **The camera uses every lens your phone has, so it focuses close up.** It only ever used the main camera before, and anything nearer than that lens can focus stayed blurry. Phones with more than one lens can pass the job to a wider one that focuses closer, which is what macro is, but only if the app asks for all of them together. On a single-camera phone nothing changes.
 
+### Getting Started
+- **The welcome screens follow your light or dark setting.** They were always dark whatever the rest of the app did, so in light mode you got a white app with one navy screen in front of it — and the clock and battery vanished, because iOS draws them in dark ink on a light screen and that screen was nearly black. Light is its own design rather than the dark one flipped: warm off-white settling into a faint blue-grey, with the glow behind it eased back.
+
 ### Reading your documents
 - **Apple's own detector now finds the real things inside a page**, instead of the app's own pattern matching. Addresses, phone numbers, dates, amounts, measurements, flight numbers and tracking numbers are recognised as what they are. The old patterns understood US phone numbers and three currencies only, so a European invoice produced no amounts and a postal address was never found. An amount is recorded with the currency it is in, and a date in a standard form, rather than as whatever characters sat on the page, which is what makes them findable later. This applies to text inside tables today; prose on the same page does not yet contribute.
 

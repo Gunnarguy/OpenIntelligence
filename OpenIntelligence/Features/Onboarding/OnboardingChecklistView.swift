@@ -31,6 +31,9 @@ private struct PipelineLogEntry: Identifiable {
 /// Page 1 - Welcome with real-world use cases.
 /// Page 2 - Live pipeline theater: compact metrics dashboard + streaming log.
 struct OnboardingChecklistView: View {
+    @Environment(\.colorScheme) private var colorScheme
+    private var palette: OnboardingPalette { OnboardingPalette(colorScheme) }
+
     @EnvironmentObject private var onboardingStore: OnboardingStateStore
     @ObservedObject var ragService: RAGService
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -81,7 +84,7 @@ struct OnboardingChecklistView: View {
                     } label: {
                         Text("Skip")
                             .font(.body.weight(.medium))
-                            .foregroundStyle(.white.opacity(0.7))
+                            .foregroundStyle(palette.ink(0.7))
                             .padding(.horizontal, 16)
                             .padding(.vertical, 8)
                     }
@@ -139,7 +142,7 @@ struct OnboardingChecklistView: View {
             HStack(spacing: 8) {
                 ForEach(0..<totalPages, id: \.self) { index in
                     Capsule()
-                        .fill(index == currentPage ? Color.white : Color.white.opacity(0.3))
+                        .fill(index == currentPage ? palette.ink : palette.ink(0.3))
                         .frame(width: index == currentPage ? 24 : 8, height: 8)
                         .animation(.spring(response: 0.3), value: currentPage)
                 }
@@ -156,10 +159,10 @@ struct OnboardingChecklistView: View {
                         Text("See It in Action").font(.headline)
                         Image(systemName: "play.fill").font(.system(size: 13))
                     }
-                    .foregroundStyle(.black)
+                    .foregroundStyle(palette.buttonLabel)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 16)
-                    .background(Color.white, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    .background(palette.ink, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
                 }
                 .buttonStyle(.plain)
                 .padding(.horizontal, 32)
@@ -171,7 +174,7 @@ struct OnboardingChecklistView: View {
                 } label: {
                     Text("I'll add my own documents")
                         .font(.subheadline.weight(.medium))
-                        .foregroundStyle(.white.opacity(0.7))
+                        .foregroundStyle(palette.ink(0.7))
                 }
                 .buttonStyle(.plain)
             } else if processingComplete {
@@ -184,10 +187,10 @@ struct OnboardingChecklistView: View {
                         Image(systemName: "bubble.left.and.text.bubble.right.fill").font(.system(size: 14))
                         Text("Start Asking").font(.headline)
                     }
-                    .foregroundStyle(.black)
+                    .foregroundStyle(palette.buttonLabel)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 16)
-                    .background(Color.white, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    .background(palette.ink, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
                 }
                 .buttonStyle(.plain)
                 .padding(.horizontal, 32)
@@ -202,10 +205,10 @@ struct OnboardingChecklistView: View {
                         Image(systemName: "arrow.clockwise").font(.system(size: 13))
                         Text("Retry").font(.headline)
                     }
-                    .foregroundStyle(.black)
+                    .foregroundStyle(palette.buttonLabel)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 16)
-                    .background(Color.white, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    .background(palette.ink, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
                 }
                 .buttonStyle(.plain)
                 .padding(.horizontal, 32)
@@ -244,15 +247,15 @@ struct OnboardingChecklistView: View {
 
             Text("Built for Your Files")
                 .font(.caption.weight(.semibold))
-                .foregroundStyle(.white.opacity(0.88))
+                .foregroundStyle(palette.ink(0.88))
                 .padding(.horizontal, 12)
                 .padding(.vertical, 6)
                 .background(
                     Capsule(style: .continuous)
-                        .fill(Color.white.opacity(0.12))
+                        .fill(palette.ink(0.12))
                         .overlay(
                             Capsule(style: .continuous)
-                                .stroke(Color.white.opacity(0.15), lineWidth: 1)
+                                .stroke(palette.ink(0.15), lineWidth: 1)
                         )
                 )
                 .padding(.bottom, 18)
@@ -266,7 +269,7 @@ struct OnboardingChecklistView: View {
                     .blur(radius: 20)
                 Image(systemName: "brain.head.profile")
                     .font(.system(size: 56, weight: .light))
-                    .foregroundStyle(LinearGradient(colors: [.white, .white.opacity(0.8)], startPoint: .top, endPoint: .bottom))
+                    .foregroundStyle(LinearGradient(colors: [palette.ink, palette.ink(0.8)], startPoint: .top, endPoint: .bottom))
             }
             .padding(.bottom, 16)
             .opacity(showHeadline ? 1 : 0)
@@ -275,7 +278,7 @@ struct OnboardingChecklistView: View {
             VStack(spacing: 10) {
                 Text("Your documents.\nClear answers.")
                     .font(.title.bold())
-                    .foregroundStyle(.white)
+                    .foregroundStyle(palette.ink)
                     .multilineTextAlignment(.center)
                     .fixedSize(horizontal: false, vertical: true)
                     .opacity(showHeadline ? 1 : 0)
@@ -283,7 +286,7 @@ struct OnboardingChecklistView: View {
 
                 Text("Import PDFs, Office files, scans, images, code, and transcripts. Every answer stays tied to the source.")
                     .font(.subheadline)
-                    .foregroundStyle(.white.opacity(0.75))
+                    .foregroundStyle(palette.ink(0.75))
                     .multilineTextAlignment(.center)
                     .fixedSize(horizontal: false, vertical: true)
                     .padding(.horizontal, 36)
@@ -334,12 +337,12 @@ struct OnboardingChecklistView: View {
                 // rather than what is happening. This says what the user is looking at.
                 Text(processingComplete ? "Your library is ready" : "Building your library")
                     .font(.title3.bold())
-                    .foregroundStyle(.white)
+                    .foregroundStyle(palette.ink)
                     .multilineTextAlignment(.center)
                     .fixedSize(horizontal: false, vertical: true)
                 Text(stageExplainer)
                     .font(.caption)
-                    .foregroundStyle(.white.opacity(0.6))
+                    .foregroundStyle(palette.ink(0.6))
                     .multilineTextAlignment(.center)
                     .animation(.easeInOut(duration: 0.3), value: stageExplainer)
                     .contentTransition(.numericText())
@@ -367,8 +370,8 @@ struct OnboardingChecklistView: View {
                     .padding(.top, 10)
             } else if isProcessing {
                 HStack(spacing: 8) {
-                    ProgressView().scaleEffect(0.6).tint(.white)
-                    Text(processingStatus).font(.caption).foregroundStyle(.white.opacity(0.6))
+                    ProgressView().scaleEffect(0.6).tint(palette.ink)
+                    Text(processingStatus).font(.caption).foregroundStyle(palette.ink(0.6))
                     Spacer()
                 }
                 .padding(.horizontal, 20)
@@ -406,20 +409,20 @@ struct OnboardingChecklistView: View {
 
         return HStack(spacing: 0) {
             dashCounter(value: fmtNumber(words), label: "Words", icon: "textformat", color: .orange, term: .words)
-            Rectangle().fill(Color.white.opacity(0.08)).frame(width: 1, height: 28)
+            Rectangle().fill(palette.ink(0.08)).frame(width: 1, height: 28)
             dashCounter(value: fmtNumber(chunks), label: "Chunks", icon: "square.split.2x2", color: .purple, term: .chunk)
-            Rectangle().fill(Color.white.opacity(0.08)).frame(width: 1, height: 28)
+            Rectangle().fill(palette.ink(0.08)).frame(width: 1, height: 28)
             dashCounter(value: fmtNumber(vectors), label: "Vectors", icon: "brain.head.profile", color: .green, term: .vector)
-            Rectangle().fill(Color.white.opacity(0.08)).frame(width: 1, height: 28)
+            Rectangle().fill(palette.ink(0.08)).frame(width: 1, height: 28)
             dashCounter(value: timeMs > 0 ? fmtMs(timeMs) : "0s", label: "Time", icon: "clock", color: .cyan, term: .importTime)
         }
         .padding(.vertical, 8)
         .background(
             RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(Color.white.opacity(0.06))
+                .fill(palette.ink(0.06))
                 .overlay(
                     RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .stroke(Color.white.opacity(0.06), lineWidth: 1)
+                        .stroke(palette.ink(0.06), lineWidth: 1)
                 )
         )
     }
@@ -440,13 +443,13 @@ struct OnboardingChecklistView: View {
                     .symbolEffect(.pulse, options: .repeating, value: isProcessing && !processingComplete)
                 Text(value)
                     .font(.system(size: 14, weight: .bold, design: .monospaced))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(palette.ink)
                     .contentTransition(.numericText())
             }
             Text(label)
                 .font(.system(size: 8, weight: .medium))
-                .foregroundStyle(.white.opacity(0.4))
-                .definitionUnderline(.white.opacity(0.28))
+                .foregroundStyle(palette.ink(0.4))
+                .definitionUnderline(palette.ink(0.28))
         }
         .frame(maxWidth: .infinity)
         .contentShape(Rectangle())
@@ -484,14 +487,14 @@ struct OnboardingChecklistView: View {
             Text(label)
                 .font(.system(size: 9, weight: isActive ? .bold : .medium))
         }
-        .foregroundStyle(isComplete ? .white : (isActive ? .white : .white.opacity(0.4)))
+        .foregroundStyle(isComplete || isActive ? palette.ink : palette.ink(0.4))
         .padding(.horizontal, 8)
         .padding(.vertical, 5)
         .background {
             ZStack {
                 Capsule().fill(
                     isComplete ? Color.green.opacity(0.5) :
-                        (isActive ? Color.accentColor.opacity(0.5) : Color.white.opacity(0.06))
+                        (isActive ? Color.accentColor.opacity(0.5) : palette.ink(0.06))
                 )
                 
                 if pulse {
@@ -511,7 +514,7 @@ struct OnboardingChecklistView: View {
     private var chevronDot: some View {
         Image(systemName: "chevron.right")
             .font(.system(size: 6, weight: .bold))
-            .foregroundStyle(.white.opacity(0.2))
+            .foregroundStyle(palette.ink(0.2))
     }
 
     // MARK: - Active Documents Ticker
@@ -538,16 +541,16 @@ struct OnboardingChecklistView: View {
                     }
                     Text(item.filename)
                         .font(.system(size: 11, weight: .medium))
-                        .foregroundStyle(.white.opacity(item.stage.isTerminal ? 0.5 : 0.9))
+                        .foregroundStyle(palette.ink(item.stage.isTerminal ? 0.5 : 0.9))
                         .lineLimit(1)
                     if !item.stage.isTerminal {
                         Text("\u{00b7} \(item.stage.displayName)")
                             .font(.system(size: 10))
-                            .foregroundStyle(.white.opacity(0.4))
+                            .foregroundStyle(palette.ink(0.4))
                         if let detail = compactDetail(for: item) {
                             Text("\u{00b7} \(detail)")
                                 .font(.system(size: 9, design: .monospaced))
-                                .foregroundStyle(.white.opacity(0.3))
+                                .foregroundStyle(palette.ink(0.3))
                         }
                     }
                     Spacer(minLength: 0)
@@ -578,11 +581,11 @@ struct OnboardingChecklistView: View {
                     .foregroundStyle(Color.accentColor)
                 Text("PIPELINE")
                     .font(.system(size: 8, weight: .bold, design: .monospaced))
-                    .foregroundStyle(.white.opacity(0.3))
+                    .foregroundStyle(palette.ink(0.3))
                 Spacer()
                 Text("\(logEntries.count)")
                     .font(.system(size: 8, design: .monospaced))
-                    .foregroundStyle(.white.opacity(0.2))
+                    .foregroundStyle(palette.ink(0.2))
             }
             .padding(.bottom, 3)
 
@@ -610,7 +613,7 @@ struct OnboardingChecklistView: View {
 
                 if logEntries.count > 6 {
                     LinearGradient(
-                        colors: [Color(red: 0.04, green: 0.07, blue: 0.15).opacity(0.95), .clear],
+                        colors: [palette.logFadeTop, .clear],
                         startPoint: .top, endPoint: .bottom
                     )
                     .frame(height: 14)
@@ -621,7 +624,7 @@ struct OnboardingChecklistView: View {
         .padding(8)
         .background(
             RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .fill(Color.white.opacity(0.03))
+                .fill(palette.ink(0.03))
         )
     }
 
@@ -638,14 +641,14 @@ struct OnboardingChecklistView: View {
 
             VStack(spacing: 6) {
                 Text("Your documents are ready")
-                    .font(.title3.bold()).foregroundStyle(.white)
+                    .font(.title3.bold()).foregroundStyle(palette.ink)
 
                 let items = localIngestionItems
                 let totalChunks = items.reduce(0) { $0 + $1.metrics.chunkCount }
                 let totalWords = items.reduce(0) { $0 + $1.metrics.totalWords }
                 if totalChunks > 0 {
                     Text("\(items.count) docs \u{00b7} \(totalWords.formatted()) words \u{00b7} \(totalChunks) chunks")
-                        .font(.caption).foregroundStyle(.white.opacity(0.5))
+                        .font(.caption).foregroundStyle(palette.ink(0.5))
                 }
             }
 
@@ -656,11 +659,11 @@ struct OnboardingChecklistView: View {
             // what it must not be. It states mechanism and names the single exception.
             onDevicePanel
 
-            Rectangle().fill(Color.white.opacity(0.08)).frame(height: 1).padding(.horizontal, 16)
+            Rectangle().fill(palette.ink(0.08)).frame(height: 1).padding(.horizontal, 16)
 
             VStack(spacing: 10) {
                 Text("Try asking something like:")
-                    .font(.subheadline.weight(.medium)).foregroundStyle(.white.opacity(0.6))
+                    .font(.subheadline.weight(.medium)).foregroundStyle(palette.ink(0.6))
                 VStack(spacing: 6) {
                     ExampleQuestionPill(text: "How does OpenIntelligence work around the 4,096-token limit?", icon: "cpu.fill", color: .orange)
                     ExampleQuestionPill(text: "What file types does OpenIntelligence handle best?", icon: "tag.fill", color: .blue)
@@ -707,12 +710,12 @@ struct OnboardingChecklistView: View {
                     .foregroundStyle(.green)
                 Text("That all ran here")
                     .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(palette.ink)
             }
 
             Text("Reading those files, splitting them up and building the search index happened on this device. No account, no upload, no server.")
                 .font(.caption)
-                .foregroundStyle(.white.opacity(0.7))
+                .foregroundStyle(palette.ink(0.7))
                 .fixedSize(horizontal: false, vertical: true)
 
             // Naming the actual silicon makes the claim concrete rather than reassuring.
@@ -755,9 +758,9 @@ struct OnboardingChecklistView: View {
 
             Text("The only thing that can ever leave is a question you approve, and only to Apple's Private Cloud Compute.")
                 .font(.caption)
-                .foregroundStyle(.white.opacity(0.45))
+                .foregroundStyle(palette.ink(0.45))
                 .fixedSize(horizontal: false, vertical: true)
-                .definitionUnderline(.white.opacity(0.22))
+                .definitionUnderline(palette.ink(0.22))
                 .contentShape(Rectangle())
                 .definedTerm(.privateCloudCompute)
         }
@@ -765,7 +768,7 @@ struct OnboardingChecklistView: View {
         .padding(14)
         .background(
             RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .fill(Color.white.opacity(0.06))
+                .fill(palette.ink(0.06))
                 .overlay(
                     RoundedRectangle(cornerRadius: 14, style: .continuous)
                         .stroke(Color.green.opacity(0.22), lineWidth: 1)
@@ -793,13 +796,13 @@ struct OnboardingChecklistView: View {
             if totalWords > 0, smoothTimeMs > 0 {
                 Text("\(totalWords.formatted()) words read, split and made searchable in \(fmtMs(smoothTimeMs)), on this device.")
                     .font(.system(size: 10))
-                    .foregroundStyle(.white.opacity(0.4))
+                    .foregroundStyle(palette.ink(0.4))
                     .fixedSize(horizontal: false, vertical: true)
             }
 
             Text("Those batch sizes were chosen for this device, not defaults.")
                 .font(.system(size: 10))
-                .foregroundStyle(.white.opacity(0.35))
+                .foregroundStyle(palette.ink(0.35))
                 .fixedSize(horizontal: false, vertical: true)
 
             Button {
@@ -961,9 +964,9 @@ struct OnboardingChecklistView: View {
     private func logEntryForStageChange(item: IngestionItem) -> PipelineLogEntry? {
         let fn = item.filename
         switch item.stage {
-        case .queued: return PipelineLogEntry(icon: "clock", color: .white.opacity(0.5), text: "[\(fn)] Queued in pipeline")
+        case .queued: return PipelineLogEntry(icon: "clock", color: palette.ink(0.5), text: "[\(fn)] Queued in pipeline")
         case .paused: return PipelineLogEntry(icon: "pause.circle", color: .orange, text: "[\(fn)] Paused after app restart")
-        case .loading: return PipelineLogEntry(icon: "arrow.down.circle", color: .white.opacity(0.6), text: "[\(fn)] Allocating secure local memory buffer...")
+        case .loading: return PipelineLogEntry(icon: "arrow.down.circle", color: palette.ink(0.6), text: "[\(fn)] Allocating secure local memory buffer...")
         case .transcribing: return PipelineLogEntry(icon: "waveform", color: .orange, text: "[\(fn)] Transcribing audio via Whisper...")
         case .extracting: return PipelineLogEntry(icon: "doc.text.magnifyingglass", color: .blue, text: "[\(fn)] Parsing layout & extracting raw text...")
         case .chunking: return PipelineLogEntry(icon: "rectangle.split.3x1", color: .purple, text: "[\(fn)] Running semantic sentence chunking...")
@@ -1123,6 +1126,9 @@ struct OnboardingChecklistView: View {
 // MARK: - Pipeline Log Row
 
 private struct PipelineLogRow: View {
+    @Environment(\.colorScheme) private var colorScheme
+    private var palette: OnboardingPalette { OnboardingPalette(colorScheme) }
+
     let entry: PipelineLogEntry
 
     var body: some View {
@@ -1134,7 +1140,7 @@ private struct PipelineLogRow: View {
 
             Text(entry.text)
                 .font(.system(size: 10, weight: .regular, design: .monospaced))
-                .foregroundStyle(.white.opacity(0.7))
+                .foregroundStyle(palette.ink(0.7))
                 .lineLimit(2)
                 .fixedSize(horizontal: false, vertical: true)
 
@@ -1142,7 +1148,7 @@ private struct PipelineLogRow: View {
 
             Text(timestampString(entry.timestamp))
                 .font(.system(size: 8, design: .monospaced))
-                .foregroundStyle(.white.opacity(0.2))
+                .foregroundStyle(palette.ink(0.2))
         }
         .padding(.vertical, 2)
     }
@@ -1161,6 +1167,9 @@ private struct PipelineLogRow: View {
 // MARK: - Use Case Card
 
 private struct UseCaseCard: View {
+    @Environment(\.colorScheme) private var colorScheme
+    private var palette: OnboardingPalette { OnboardingPalette(colorScheme) }
+
     let icon: String
     let iconColor: Color
     let docType: String
@@ -1173,16 +1182,16 @@ private struct UseCaseCard: View {
                 Image(systemName: icon).font(.system(size: 16, weight: .semibold)).foregroundStyle(iconColor)
             }
             VStack(alignment: .leading, spacing: 3) {
-                Text(docType).font(.subheadline.weight(.semibold)).foregroundStyle(.white)
-                Text("\"\(exampleQuestion)\"").font(.caption).foregroundStyle(.white.opacity(0.6)).italic().lineLimit(2)
+                Text(docType).font(.subheadline.weight(.semibold)).foregroundStyle(palette.ink)
+                Text("\"\(exampleQuestion)\"").font(.caption).foregroundStyle(palette.ink(0.6)).italic().lineLimit(2)
             }
             Spacer(minLength: 0)
-            Image(systemName: "arrow.right").font(.system(size: 11, weight: .semibold)).foregroundStyle(.white.opacity(0.3))
+            Image(systemName: "arrow.right").font(.system(size: 11, weight: .semibold)).foregroundStyle(palette.ink(0.3))
         }
         .padding(.horizontal, 16).padding(.vertical, 14)
         .background(
-            RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Color.white.opacity(0.08))
-                .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(Color.white.opacity(0.08), lineWidth: 1))
+            RoundedRectangle(cornerRadius: 14, style: .continuous).fill(palette.ink(0.08))
+                .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(palette.ink(0.08), lineWidth: 1))
         )
     }
 }
@@ -1190,6 +1199,9 @@ private struct UseCaseCard: View {
 // MARK: - Example Question Pill
 
 private struct ExampleQuestionPill: View {
+    @Environment(\.colorScheme) private var colorScheme
+    private var palette: OnboardingPalette { OnboardingPalette(colorScheme) }
+
     let text: String
     let icon: String
     let color: Color
@@ -1197,12 +1209,12 @@ private struct ExampleQuestionPill: View {
     var body: some View {
         HStack(spacing: 10) {
             Image(systemName: icon).font(.system(size: 12)).foregroundStyle(color)
-            Text(text).font(.subheadline).foregroundStyle(.white.opacity(0.85))
+            Text(text).font(.subheadline).foregroundStyle(palette.ink(0.85))
             Spacer(minLength: 0)
         }
         .padding(.horizontal, 16).padding(.vertical, 12)
         .background(
-            RoundedRectangle(cornerRadius: 12, style: .continuous).fill(Color.white.opacity(0.06))
+            RoundedRectangle(cornerRadius: 12, style: .continuous).fill(palette.ink(0.06))
                 .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).stroke(color.opacity(0.2), lineWidth: 1))
         )
     }
@@ -1211,10 +1223,13 @@ private struct ExampleQuestionPill: View {
 // MARK: - Splash Backdrop
 
 private struct SplashBackdrop: View {
+    @Environment(\.colorScheme) private var colorScheme
+    private var palette: OnboardingPalette { OnboardingPalette(colorScheme) }
+
     var body: some View {
         ZStack {
             LinearGradient(
-                colors: [Color(red: 0.03, green: 0.05, blue: 0.12), Color(red: 0.05, green: 0.11, blue: 0.22), Color(red: 0.08, green: 0.16, blue: 0.31)],
+                colors: palette.backdropStops,
                 startPoint: .topLeading, endPoint: .bottomTrailing
             ).ignoresSafeArea()
             ZStack {
@@ -1224,7 +1239,7 @@ private struct SplashBackdrop: View {
             }
             .compositingGroup()
             .ignoresSafeArea()
-            Color.black.opacity(0.35).ignoresSafeArea()
+            palette.scrim.ignoresSafeArea()
         }
     }
 }

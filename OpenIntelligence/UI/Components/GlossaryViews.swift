@@ -192,8 +192,8 @@ struct GlossaryTermSheet: View {
                 }
         }
         #if os(iOS)
-        .presentationDetents([.medium, .large])
-        .presentationDragIndicator(.visible)
+            .presentationDetents([.medium, .large])
+            .presentationDragIndicator(.visible)
         #endif
     }
 }
@@ -294,7 +294,11 @@ struct DefinitionUnderline: ViewModifier {
 
 extension View {
     /// Hints that a definition is available, without spending an icon on it.
-    func definitionUnderline(_ color: Color = .white.opacity(0.35)) -> some View {
+    /// The default was `.white.opacity(0.35)`, which silently gave any caller that did not pass a
+    /// colour a white underline regardless of appearance. Onboarding always passed one explicitly,
+    /// so the default was invisible until someone relied on it on a light screen. `Color.primary`
+    /// adapts, and a caller drawing over a dark canvas can still pass white.
+    func definitionUnderline(_ color: Color = .primary.opacity(0.35)) -> some View {
         modifier(DefinitionUnderline(color: color))
     }
 }
