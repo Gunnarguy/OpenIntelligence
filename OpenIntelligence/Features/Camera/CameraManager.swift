@@ -51,6 +51,20 @@
         /// because the delegate callback is `nonisolated`.
         nonisolated(unsafe) private var lastLiveAnalysis: CFTimeInterval = 0
 
+        /// Whether the previous frame contained a human or an animal at all.
+        ///
+        /// Body-pose estimation is the most expensive pair of requests in the batch and produces
+        /// nothing whatsoever when there is no body in frame, which is the common case: pointing
+        /// the camera at a document ran full human **and** animal skeleton estimation on every
+        /// frame to return two empty arrays. Measured symptom, from the owner's device: 3 FPS on a
+        /// page of text.
+        ///
+        /// Gating on the previous frame costs one frame of latency before a skeleton appears and is
+        /// self-correcting, because the cheap rectangle requests that set these flags still run
+        /// every frame. Same queue-serialisation argument as `lastLiveAnalysis` above.
+        nonisolated(unsafe) private var sawHumanLastFrame = false
+        nonisolated(unsafe) private var sawAnimalLastFrame = false
+
         /// The device being captured from, kept so rotation can be coordinated against it.
         private var videoDevice: AVCaptureDevice?
 
@@ -897,12 +911,17 @@
             let lensSmudgeDetected = false
 
             // Limit concurrent Vision requests to prevent Metal race conditions
+            // Pose estimation only when there was a body in the previous frame. See
+            // `sawHumanLastFrame`. The six requests below are the ones worth running unconditionally.
+            var requests: [VNRequest] = [
+                textRequest, documentRequest, classifyRequest, animalRequest, faceRequest, humanRequest,
+            ]
+            if sawHumanLastFrame { requests.append(humanPoseRequest) }
+            if sawAnimalLastFrame { requests.append(animalPoseRequest) }
+
             VisionOCRThrottle.performSync {
                 do {
-                    try requestHandler.perform([
-                        textRequest, documentRequest, classifyRequest, animalRequest, faceRequest, humanRequest,
-                        humanPoseRequest, animalPoseRequest,
-                    ])
+                    try requestHandler.perform(requests)
                 } catch {
                     Log.debug("Frame analysis Vision failed: \(error)", category: .pipeline)
                 }
@@ -932,6 +951,13 @@
                 // aspect-fill crop, and this is the only place that knows it for certain.
                 sourceSize: ciImage.extent.size
             )
+
+            // Decide whether the next frame is worth running pose estimation on. The rectangle
+            // requests that produce these are cheap and ran unconditionally above, so this cannot
+            // latch off: a person walking into frame is detected as a rectangle first and gets a
+            // skeleton on the frame after.
+            sawHumanLastFrame = regions.contains { $0.type == .human }
+            sawAnimalLastFrame = regions.contains { $0.type == .object }
 
             DispatchQueue.main.async { [weak self] in
                 self?.onFrameAnalyzed?(frameAnalysis)

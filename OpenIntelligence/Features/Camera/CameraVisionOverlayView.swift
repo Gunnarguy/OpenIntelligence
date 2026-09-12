@@ -42,7 +42,15 @@
         @State private var aestheticsScore: Float?
         @State private var sceneLabels: [String] = []
         @State private var detectedObjects: [String] = []
-        @State private var showMetricsHUD = true
+        /// The diagnostics panel: FPS, threshold, eight per-type counters and a confidence slider,
+        /// inside an `.ultraThinMaterial` card that re-blurs the live video every frame.
+        ///
+        /// **Off by default as of 2026-09-11.** It was on, and on a phone it covered roughly 40% of
+        /// the viewfinder, so the first thing anyone saw when opening the camera was a wall of
+        /// instrumentation over the thing they were trying to point at. It is genuinely useful when
+        /// tuning detection, which is why it is still one tap away on the chart button, but it is a
+        /// developer's view of the screen rather than a user's.
+        @State private var showMetricsHUD = false
         @State private var confidenceThreshold: Float = 0.5
         @State private var frameRate: Double = 0
         @State private var lastFrameTime: Date = Date()
@@ -324,21 +332,31 @@
             VStack(spacing: 8) {
                 // Scene labels
                 if !sceneLabels.isEmpty {
-                    HStack {
-                        Image(systemName: "photo")
-                            .foregroundColor(.pink)
-                        Text("Scene:")
-                            .font(.caption.bold())
-                            .foregroundColor(.white)
-                        ForEach(sceneLabels.prefix(3), id: \.self) { label in
-                            Text(label)
-                                .font(.caption)
-                                .padding(.horizontal, 8)
-                                .padding(.vertical, 4)
-                                .background(Capsule().fill(Color.pink.opacity(0.8)))
+                    // A plain `HStack` here could not fit three long classifications on a phone,
+                    // so SwiftUI compressed them into each other: "Computer" rendered on top of
+                    // "Consumer Electronics". `FlowLayout` is already used for the detected-object
+                    // chips immediately below and wraps instead of overlapping.
+                    VStack(alignment: .leading, spacing: 6) {
+                        HStack(spacing: 4) {
+                            Image(systemName: "photo")
+                                .foregroundColor(.pink)
+                            Text("Scene:")
+                                .font(.caption.bold())
                                 .foregroundColor(.white)
+                            Spacer()
                         }
-                        Spacer()
+
+                        FlowLayout(spacing: 6) {
+                            ForEach(sceneLabels.prefix(3), id: \.self) { label in
+                                Text(label)
+                                    .font(.caption)
+                                    .lineLimit(1)
+                                    .padding(.horizontal, 8)
+                                    .padding(.vertical, 4)
+                                    .background(Capsule().fill(Color.pink.opacity(0.8)))
+                                    .foregroundColor(.white)
+                            }
+                        }
                     }
                 }
 
@@ -1242,31 +1260,50 @@
                     .shadow(color: region.type.color.opacity(0.4), radius: 3)
                     .animation(.interpolatingSpring(stiffness: 200, damping: 25), value: frame)
 
-                // Type label with confidence
-                HStack(spacing: 4) {
-                    Image(systemName: region.type.icon)
-                        .font(.system(size: 10, weight: .bold))
+                // Type label.
+                //
+                // **Text regions get no label.** Every box used to carry one, at a fixed -24pt
+                // offset with no collision handling, so a page of printed text produced one capsule
+                // per recognised line all stacked on top of each other. A photo of a document
+                // showed nine overlapping capsules covering the thing being read. The box itself
+                // already says where the line is and the Live Text panel already says what it says,
+                // so the capsule was adding occlusion and no information.
+                //
+                // The label stays for the types that are few and genuinely need naming: a document
+                // edge, a recognised animal, a face, a person.
+                if region.type != .text {
+                    HStack(spacing: 4) {
+                        Image(systemName: region.type.icon)
+                            .font(.system(size: 10, weight: .bold))
 
-                    if let preview = region.preview {
-                        Text(preview.prefix(15))
-                            .font(.system(size: 10, weight: .medium))
-                            .lineLimit(1)
+                        if let preview = region.preview {
+                            Text(preview.prefix(15))
+                                .font(.system(size: 10, weight: .medium))
+                                .lineLimit(1)
+                        }
+
+                        // Confidence, but only where it varies. `VNRecognizeTextRequest` in `.fast`
+                        // mode reports 0.5 for essentially every observation, so the old
+                        // unconditional percentage rendered a literal "50%" on every capsule on
+                        // screen: the same number, repeated, meaning nothing.
+                        if region.confidence > 0, region.type != .document {
+                            Text(String(format: "%.0f%%", region.confidence * 100))
+                                .font(.system(size: 9, weight: .bold).monospacedDigit())
+                                .foregroundColor(.white.opacity(0.8))
+                        }
                     }
-
-                    // Confidence indicator
-                    Text(String(format: "%.0f%%", region.confidence * 100))
-                        .font(.system(size: 9, weight: .bold).monospacedDigit())
-                        .foregroundColor(.white.opacity(0.8))
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(
+                        Capsule()
+                            .fill(region.type.color.opacity(0.9))
+                            .shadow(color: .black.opacity(0.3), radius: 2)
+                    )
+                    // Below the top edge when the box is near the top of the screen, so the label
+                    // is not pushed behind the navigation bar or off-screen entirely.
+                    .offset(x: 4, y: frame.minY < 28 ? 4 : -24)
                 }
-                .foregroundColor(.white)
-                .padding(.horizontal, 8)
-                .padding(.vertical, 4)
-                .background(
-                    Capsule()
-                        .fill(region.type.color.opacity(0.9))
-                        .shadow(color: .black.opacity(0.3), radius: 2)
-                )
-                .offset(x: 4, y: -24)
             }
             .frame(width: frame.width, height: frame.height)
             .position(x: frame.midX, y: frame.midY)
