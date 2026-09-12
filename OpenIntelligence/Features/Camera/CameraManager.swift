@@ -121,6 +121,109 @@
 
         // MARK: - Session Configuration
 
+        /// The most capable rear camera on this device, preferring a **virtual** device over a
+        /// single physical one.
+        ///
+        /// **This is what makes close-up focus work, and it is not a setting.** The session used
+        /// `AVCaptureDevice.default(.builtInWideAngleCamera, ...)`, which is one physical camera
+        /// with one minimum focus distance. Bring the phone closer than that and the image simply
+        /// goes soft, because there is nothing for it to do about it.
+        ///
+        /// A virtual device is several cameras presented as one, and it re-picks among them per
+        /// scene. `AVCaptureDevice.h` describes the mechanism directly: when the scene requires
+        /// focus to go beyond the limits of the active camera, the device switches to one with a
+        /// shorter focal length and a smaller minimum focus distance, called the *fallback primary
+        /// constituent device*. On a phone whose virtual device includes the ultra-wide, that
+        /// fallback is what everyone calls auto-macro. It is automatic, it cannot be requested
+        /// directly, and it is unreachable while a single physical camera is selected.
+        ///
+        /// Ordered most capable first. A triple camera carries ultra-wide, wide and telephoto, so
+        /// it has both the macro fallback and the reach; dual-wide has the macro fallback without
+        /// the telephoto; `builtInDualCamera` is wide plus telephoto with **no** ultra-wide, so it
+        /// gets no macro; the single wide is the last resort and behaves as before.
+        private static func bestAvailableRearCamera() -> AVCaptureDevice? {
+            let preferred: [AVCaptureDevice.DeviceType] = [
+                .builtInTripleCamera,
+                .builtInDualWideCamera,
+                .builtInDualCamera,
+                .builtInWideAngleCamera,
+            ]
+
+            let discovery = AVCaptureDevice.DiscoverySession(
+                deviceTypes: preferred,
+                mediaType: .video,
+                position: .back
+            )
+
+            // `DiscoverySession` returns devices in the order its `deviceTypes` were given, so the
+            // first match is already the most capable available. Falling back through the list is
+            // what keeps this working on a non-Pro phone, which has no triple camera.
+            for type in preferred {
+                if let match = discovery.devices.first(where: { $0.deviceType == type }) {
+                    let constituents =
+                        match.isVirtualDevice
+                        ? match.constituentDevices.map(\.localizedName).joined(separator: ", ")
+                        : "single physical camera"
+                    Log.info(
+                        "[CameraManager] Using \(match.localizedName) [\(constituents)], "
+                            + "minimum focus \(match.minimumFocusDistance)mm",
+                        category: .ingestion
+                    )
+                    return match
+                }
+            }
+            return nil
+        }
+
+        /// Continuous autofocus, and a starting zoom that means what the user expects.
+        ///
+        /// Two separate things, both easy to get wrong on a virtual device.
+        ///
+        /// **Focus.** `.continuousAutoFocus` is what lets the device re-evaluate as the subject
+        /// moves, which is also what triggers the fallback to a closer-focusing camera described in
+        /// `bestAvailableRearCamera`. `autoFocusRangeRestriction` is deliberately left alone:
+        /// restricting it to `.far` is exactly how you would disable macro by accident.
+        ///
+        /// **Zoom.** On a virtual device, `videoZoomFactor` 1.0 is the *widest* constituent, so on
+        /// a triple camera the preview opens on the ultra-wide, which reads as the camera being
+        /// zoomed way out and distorted at the edges. `virtualDeviceSwitchOverVideoZoomFactors`
+        /// gives the factor at which each next camera takes over, and its first entry is where the
+        /// main wide camera begins. Starting there is what makes the preview open at the familiar
+        /// 1x rather than 0.5x, computed from the device instead of hardcoded, because the factors
+        /// differ between phones.
+        private func configureFocusAndZoom(on device: AVCaptureDevice) {
+            do {
+                try device.lockForConfiguration()
+                defer { device.unlockForConfiguration() }
+
+                if device.isFocusModeSupported(.continuousAutoFocus) {
+                    device.focusMode = .continuousAutoFocus
+                }
+                if device.isSmoothAutoFocusSupported {
+                    // Damps the focus hunting that otherwise shows up as pulsing in a live preview.
+                    device.isSmoothAutoFocusEnabled = true
+                }
+                if device.isExposureModeSupported(.continuousAutoExposure) {
+                    device.exposureMode = .continuousAutoExposure
+                }
+
+                if device.isVirtualDevice,
+                    let wideStart = device.virtualDeviceSwitchOverVideoZoomFactors.first?.doubleValue,
+                    wideStart >= device.minAvailableVideoZoomFactor,
+                    wideStart <= device.maxAvailableVideoZoomFactor
+                {
+                    device.videoZoomFactor = wideStart
+                }
+            } catch {
+                // A camera that will not lock is still a camera. Focus stays on whatever default
+                // the system chose rather than the session failing to start.
+                Log.warning(
+                    "[CameraManager] Could not configure focus: \(error.localizedDescription)",
+                    category: .ingestion
+                )
+            }
+        }
+
         /// Applies the horizon-level rotation angle to the video data output, and keeps applying it
         /// as the device turns.
         ///
@@ -167,7 +270,7 @@
             session.sessionPreset = .high
 
             // Video input
-            guard let videoDevice = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .back),
+            guard let videoDevice = Self.bestAvailableRearCamera(),
                 let videoInput = try? AVCaptureDeviceInput(device: videoDevice)
             else {
                 Log.error("[CameraManager] Failed to configure video input", category: .ingestion)
@@ -179,6 +282,7 @@
                 session.addInput(videoInput)
             }
             self.videoDevice = videoDevice
+            configureFocusAndZoom(on: videoDevice)
 
             // Video output for real-time analysis
             let videoOutput = AVCaptureVideoDataOutput()
@@ -245,9 +349,11 @@
         }
 
         func setFlash(_ enabled: Bool) {
-            guard let device = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .back),
-                device.hasTorch
-            else { return }
+            // The device the session is actually running, not a fresh lookup of the wide camera.
+            // Since the session moved to a virtual device, a hardcoded `.builtInWideAngleCamera`
+            // here would lock and configure a *different* `AVCaptureDevice` than the one capturing,
+            // which is the kind of mismatch that works right up until it does not.
+            guard let device = videoDevice, device.hasTorch else { return }
 
             do {
                 try device.lockForConfiguration()

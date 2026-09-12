@@ -220,14 +220,21 @@ struct ModelConfigurationSheet: View {
             // Says where it does and does not apply, because a setting that silently does nothing
             // in the mode someone happens to be using is the failure the penalty sliders already
             // demonstrated on this same screen.
+            // Two different things are called reasoning and conflating them produced a footer
+            // saying this app does not reason on device, which is the opposite of what it does.
+            // Deep Think and Maximum run their own multi-session reasoning and four of those call
+            // sites pass `forceOnDevice: true`. What is PCC-only is Apple's *model-internal*
+            // reasoning setting, which is the thing this field writes.
             Text(
-                "Apple's reasoning control takes three fixed levels or a description you write yourself. "
-                    + "Write one and it replaces the level for questions that reason: for example, "
+                "Apple's model has a reasoning setting with three fixed levels, or a description you "
+                    + "write yourself. Write one here and it replaces the level: for example, "
                     + "\"work backwards from the conclusion and say which step is weakest\", or "
                     + "\"check every number against the source before using it\".\n\n"
-                    + "Reasoning only happens on Private Cloud Compute. Apple's on-device model does not "
-                    + "support it at all, so this changes nothing about a question answered on this device, "
-                    + "and nothing in Standard, which does not ask for reasoning in the first place."
+                    + "This is separate from the app's own reasoning. Deep Think and Maximum think "
+                    + "across many steps on this device, and that is unaffected by what you write here. "
+                    + "What this changes is how hard Apple's model works inside a single answer, which "
+                    + "Apple only allows on Private Cloud Compute, so it applies to answers written "
+                    + "there and not to ones written on the device."
             )
         }
     }

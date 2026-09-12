@@ -178,9 +178,19 @@ named levels are a dial; this is a sentence. `AppleFoundationModelRoute.reasonin
 
 **What this does and does not touch, since it is text the owner wrote reaching Apple's servers:**
 
-- It applies **only on the Private Cloud Compute route.** Apple's capability table lists reasoning
-  as unsupported on-device and `GenerationOptions` carries no equivalent, so an on-device answer has
-  no reasoning level to replace. Pinned by `testAProfileDoesNotLeakOntoTheOnDeviceRoute`.
+- **It is not the app's reasoning, and the distinction matters.** Deep Think and Maximum run their
+  own multi-session reasoning through `executeReasoningChain`, `executeTrueUnlimitedReasoning`,
+  `executeMultiChainReasoning` and `executeRecursiveResearch`, and four of those call sites pass
+  `forceOnDevice: true`. That reasoning happens on the device and a written profile does not touch
+  it. What this field controls is Apple's **model-internal** reasoning setting, the effort spent
+  inside one generation.
+- It therefore applies **only on the Private Cloud Compute route.** Apple's capability table lists
+  that setting as unsupported on-device and `GenerationOptions` carries no equivalent, so an
+  on-device generation has no reasoning level to replace. Pinned by
+  `testAProfileDoesNotLeakOntoTheOnDeviceRoute`. **Read carefully:** this says Apple's model does
+  not expose a reasoning dial on device. It does not say this app does not reason on device, which
+  is the opposite of true and is exactly the conflation the first draft of the settings copy
+  shipped.
 - It **cannot start reasoning that was not already going to happen.** `.none` means the query type
   does not warrant the spend, and the substitution is skipped for it. Without that guard a profile
   reading "think very hard about everything" would convert every cheap lookup into a billed PCC
