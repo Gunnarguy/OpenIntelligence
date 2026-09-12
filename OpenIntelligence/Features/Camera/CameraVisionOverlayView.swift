@@ -153,8 +153,19 @@
 
         private var filteredRegions: [DetectedRegion] {
             detectedRegions.filter { region in
-                // Apply confidence threshold
-                guard region.confidence >= confidenceThreshold else { return false }
+                // One slider across every detector, whose confidences are not on comparable
+                // scales. Text from `.fast` recognition reports a flat 0.5, face and human
+                // rectangles report high values, and image classification reports genuinely low
+                // ones: a correct "Refrigerator" often lands near 0.3. Judging all of them against
+                // the same 0.5 default would hide object detection completely, which is the
+                // failure this exemption exists to prevent, and the reader would conclude the
+                // detector found nothing rather than that the slider was mis-scaled for it.
+                //
+                // Objects are gated instead where they are produced, at a classification
+                // confidence of 0.25 in `CameraManager.classify`.
+                if region.type != .object {
+                    guard region.confidence >= confidenceThreshold else { return false }
+                }
 
                 // Apply type filter
                 if selectedRegionType != .all && region.type != selectedRegionType {

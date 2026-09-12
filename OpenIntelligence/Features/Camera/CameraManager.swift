@@ -65,6 +65,22 @@
         nonisolated(unsafe) private var sawHumanLastFrame = false
         nonisolated(unsafe) private var sawAnimalLastFrame = false
 
+        /// True while a frame is being analysed. See the guard in `captureOutput`.
+        nonisolated(unsafe) private var analysisInFlight = false
+
+        /// Labels for salient objects, keyed by a coarsely quantised bounding box.
+        ///
+        /// Naming a salient object costs a `VNClassifyImageRequest` on a crop of the frame, and
+        /// re-running that every frame for an object sitting still on a counter is pure waste.
+        /// Quantising the box to a 5% grid means a stationary object hits the cache and a moving one
+        /// is re-read as it crosses a cell boundary, which is roughly when its appearance has
+        /// changed enough to be worth re-reading anyway.
+        ///
+        /// Cleared wholesale past a size bound rather than evicted one at a time: this is a live
+        /// camera, the working set is whatever is in front of the lens right now, and an LRU would
+        /// be machinery in service of nothing.
+        nonisolated(unsafe) private var objectLabelCache: [String: String] = [:]
+
         /// The device being captured from, kept so rotation can be coordinated against it.
         private var videoDevice: AVCaptureDevice?
 
@@ -771,13 +787,148 @@
             // nothing at all, at the cost of a task allocation and two main-actor hops per
             // delivered frame, competing with SwiftUI's own rendering thirty times a second.
 
-            // Perform analysis directly (we're already on analysisQueue)
+            // A second guard, because the analysis is now `async` and no longer blocks this queue
+            // for its whole duration. The throttle above bounds how often a frame is *started*;
+            // this bounds how many can be in flight, which without it would let a slow frame
+            // overlap the next one and compound.
+            guard !analysisInFlight else { return }
+            analysisInFlight = true
+
             let ciImage = CIImage(cvPixelBuffer: pixelBuffer)
-            performFrameAnalysis(ciImage: ciImage)
+            Task.detached(priority: .userInitiated) { [weak self] in
+                guard let self else { return }
+                await self.performFrameAnalysis(ciImage: ciImage)
+                self.analysisInFlight = false
+            }
+        }
+
+        /// Turns unlabelled salient-object boxes into named, boxed detections.
+        ///
+        /// **This is the general object detector, and it exists because Apple does not ship one.**
+        /// Vision's full request list contains nothing that finds arbitrary objects and names them.
+        /// The only requests producing a *labelled* box are people, faces, cat/dog, barcodes and
+        /// text. `ClassifyImageRequest` knows roughly a thousand categories but has no spatial
+        /// extent at all: it describes the whole frame, which is why pointing the camera at a
+        /// kitchen produced the chips "Structure, Wood Processed, Furniture" and not one box.
+        ///
+        /// Two halves of the answer ship separately.
+        /// `VNGenerateObjectnessBasedSaliencyImageRequest` returns `salientObjects`, real boxes
+        /// around things that stand out, carrying no labels. `VNClassifyImageRequest` returns
+        /// labels for whatever image it is given. So: take each salient box, crop the frame to it,
+        /// and classify the crop. The label that comes back describes that region rather than the
+        /// scene, and the box says where it is.
+        ///
+        /// **What this is not.** Saliency finds what stands out, not an inventory. A cluttered
+        /// counter yields the few objects that draw the eye, not thirty labelled items, and a flat
+        /// evenly-lit wall yields nothing. Calling the result "everything in frame" would be the
+        /// same overclaim as the YOLO service that searched for a model file this app has never
+        /// contained.
+        ///
+        /// Bounded at `limit` boxes because each one costs a request, and cached by position
+        /// because a stationary object should be named once rather than every frame.
+        /// Written against the **Swift Vision API** (`GenerateObjectnessBasedSaliencyImageRequest`,
+        /// `ClassifyImageRequest`), not the `VN*` classes the rest of this file uses. Those are not
+        /// deprecated, but they are the Objective-C-era surface from iOS 11; the Swift one arrived
+        /// for iOS 18 and is value-typed, `async` and Sendable-correct. New work goes on the
+        /// current API. Migrating the other eight requests in `performFrameAnalysis` is a separate
+        /// job, tracked rather than smuggled in alongside a feature.
+        private nonisolated func labelledSalientObjects(
+            in ciImage: CIImage,
+            salient: [RectangleObservation],
+            limit: Int
+        ) async -> [DetectedRegion] {
+            guard !salient.isEmpty else { return [] }
+
+            // Biggest first: a large salient region is more likely to be the subject than a small
+            // one, and the limit should spend itself on the things worth naming.
+            let candidates =
+                salient
+                .filter { $0.confidence > 0.2 }
+                .sorted {
+                    let a = $0.boundingBox.cgRect
+                    let b = $1.boundingBox.cgRect
+                    return (a.width * a.height) > (b.width * b.height)
+                }
+                .prefix(limit)
+
+            let extent = ciImage.extent
+            var results: [DetectedRegion] = []
+
+            for observation in candidates {
+                let box = observation.boundingBox.cgRect
+
+                // A sliver is not an object, and cropping to one produces a classification of
+                // nothing in particular.
+                guard box.width > 0.05, box.height > 0.05 else { continue }
+
+                let key = String(
+                    format: "%.2f,%.2f,%.2f,%.2f",
+                    (box.minX * 20).rounded() / 20, (box.minY * 20).rounded() / 20,
+                    (box.width * 20).rounded() / 20, (box.height * 20).rounded() / 20
+                )
+
+                let named: (label: String, confidence: Float)?
+                if let cached = objectLabelCache[key] {
+                    // Cached entries carry their confidence so a re-seen object does not lose the
+                    // number its label was earned with.
+                    let parts = cached.split(separator: "\u{1}", maxSplits: 1)
+                    named = parts.count == 2 ? (String(parts[0]), Float(parts[1]) ?? 0) : nil
+                } else {
+                    named = await Self.classify(ciImage: ciImage, normalizedBox: box, extent: extent)
+                    if objectLabelCache.count > 200 { objectLabelCache.removeAll(keepingCapacity: true) }
+                    if let named { objectLabelCache[key] = "\(named.label)\u{1}\(named.confidence)" }
+                }
+
+                guard let named else { continue }
+                results.append(
+                    DetectedRegion(
+                        type: .object,
+                        boundingBox: box,
+                        confidence: named.confidence,
+                        preview: named.label
+                    )
+                )
+            }
+
+            return results
+        }
+
+        /// The top classification for one crop of a frame, or nil when nothing is confident enough.
+        private nonisolated static func classify(
+            ciImage: CIImage,
+            normalizedBox: CGRect,
+            extent: CGRect
+        ) async -> (label: String, confidence: Float)? {
+            // Vision's normalized space and CIImage's coordinate space share a lower-left origin,
+            // so this conversion needs no flip. `VNImageRectForNormalizedRect` is used rather than
+            // multiplying by hand because it is the same function Vision uses internally.
+            let pixelRect = VNImageRectForNormalizedRect(
+                normalizedBox, Int(extent.width), Int(extent.height)
+            ).intersection(extent)
+            guard !pixelRect.isNull, pixelRect.width > 1, pixelRect.height > 1 else { return nil }
+
+            let crop = ciImage.cropped(to: pixelRect)
+
+            // Swift Vision API: the request is a value type and carries its own `perform(on:)`,
+            // so there is no handler object and no results-casting through `Any`.
+            guard
+                let results = try? await ClassifyImageRequest().perform(on: crop),
+                let best = results.first(where: { $0.confidence > 0.25 })
+            else { return nil }
+
+            // The classification confidence, not the saliency score. "How sure are we this is a
+            // refrigerator" is the number a reader of the label cares about; "how much does this
+            // region stand out" is an implementation detail of how the box was found.
+            return (
+                best.identifier
+                    .replacingOccurrences(of: "_", with: " ")
+                    .capitalized,
+                best.confidence
+            )
         }
 
         /// Perform frame analysis (called from capture output)
-        private nonisolated func performFrameAnalysis(ciImage: CIImage) {
+        private nonisolated func performFrameAnalysis(ciImage: CIImage) async {
             let requestHandler = VNImageRequestHandler(ciImage: ciImage, options: [:])
 
             var regions: [DetectedRegion] = []
@@ -925,6 +1076,22 @@
                 } catch {
                     Log.debug("Frame analysis Vision failed: \(error)", category: .pipeline)
                 }
+            }
+
+            // General object detection, assembled from two requests because Apple ships no single
+            // one that does it. Saliency finds boxes around whatever stands out and gives them no
+            // names; classification names an image and gives it no box. Cropping to each salient
+            // box and classifying the crop produces a named box, which is the thing Vision has no
+            // request for. See `labelledSalientObjects`.
+            //
+            // Four at most. Each costs a classification, and the point is to name what the camera
+            // is looking at, not to inventory a room.
+            if let saliency = try? await GenerateObjectnessBasedSaliencyImageRequest().perform(on: ciImage) {
+                regions += await labelledSalientObjects(
+                    in: ciImage,
+                    salient: saliency.salientObjects,
+                    limit: 4
+                )
             }
 
             // Extract scene labels and object names from regions
