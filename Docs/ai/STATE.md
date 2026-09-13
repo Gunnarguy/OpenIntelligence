@@ -118,6 +118,13 @@ other build directories are correctly named `.build.nosync`, `.simulator-smoke.n
 
 ## Active Constraints
 
+- **The camera is EXPERIMENTAL, and the owner has said so explicitly (2026-09-13).** Treat the
+  whole `Features/Camera` surface as work in progress rather than a settled feature: it was
+  unreachable from v1 until 2026-09-11, everything in it was built and repaired across two days,
+  and its detection behaviour has been observed by one person on one phone. The user-facing notes
+  label it experimental in the section heading. **Do not quietly promote it** to settled language in
+  a later pass, and do not cite it as a shipped capability in Settings copy, the App Store listing
+  or the roadmap until it has real use behind it.
 - **The camera UI is ON as of 2026-09-11, and has never run on real hardware.** It had been off
   since v1 at three independent points: `ChatScreen` passed `onVisionCapture: nil`,
   `AttachmentPicker` guards its Scan Document button on `if let onVisionCapture`, and the

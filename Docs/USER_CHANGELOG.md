@@ -9,7 +9,8 @@ This document provides a chronological history of user-facing changes, highlight
 
 ## v5.3 - unreleased
 
-### Your Camera
+### Your Camera (experimental)
+- **This one is an experiment, and that is worth saying before the rest of it.** The camera screen existed from v1 and was switched off the whole time; this is the first release where anyone can open it. Everything below was built and checked in a matter of days, the parts that can be tested without a camera are tested, and the parts that need a real lens pointed at a real room have been tried by one person on one phone. Expect it to find things it should not and miss things it should. It is off in no sense: you will see the button. But judge it as something being tried rather than something finished, and tell us what it does wrong.
 - **Look at Something is in the attachment menu, and the live view draws boxes around what it finds.** Point the camera and text, documents, people, faces, animals and everyday objects are outlined where they are, with a name. The screen has been in the app since v1, switched off. The button used to say "Scan Document", which described one of the things it does and set the wrong expectation for the rest.
 - **It names objects now, not just the room.** Before, pointing it at a kitchen gave you three words about the whole picture and no boxes, because Apple's camera intelligence has no single step that finds a thing and tells you what it is: one part finds what stands out but cannot name it, another names a picture but cannot say where anything is. The app now runs the first to find each object, cuts that piece out of the picture, and runs the second on just that piece, so the name belongs to the box it sits on.
 - **What it will not do, said plainly:** it finds what stands out, not a list of everything present. A cluttered counter gives you the few things that catch the eye rather than thirty labels, and a blank wall gives you nothing.
