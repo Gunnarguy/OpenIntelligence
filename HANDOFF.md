@@ -12,6 +12,33 @@ lives in `AGENTS.md`, `Docs/ai/STATE.md`, or `BenchmarkRuns/LEDGER.md`, those fi
 trust if this one goes stale — pointer docs rot faster than the things they point at, and nobody is
 under instruction to keep this one current the way `STATE.md` is.
 
+## What changed since this file was last refreshed (2026-09-13)
+
+The sections below were written on 2026-08-22 and 2026-09-02 and several of their central claims
+have since been overtaken by events. Four corrections, because each one inverts something this file
+still asserts further down:
+
+- **5.2 shipped on both platforms, and Private Cloud Compute is genuinely in it.** The section
+  "What's been proven this cycle" says PCC has never reached a user. That was true when written and
+  is false now. Xcode 27.0 released, the Xcode Cloud toolchain was repointed, and the
+  `#if compiler(>=6.4)` guards that used to compile PCC out are satisfied.
+- **Xcode 27 is the installed release**, `27A266a`, at `/Applications/Xcode.app`, and
+  `/Applications/Xcode-beta.app` no longer exists. Anything below describing Xcode 27 as a beta, or
+  naming the beta path, is stale.
+- **5.3 is open and is where new work goes.** `CHANGELOG.md`'s 5.3 heading carries an `unreleased`
+  marker that `repoos_router.py` reads from that line and nowhere else.
+- **The camera is a Debug-build feature on purpose.** `ChatScreen.visionCaptureAction` is
+  `#if os(iOS) && DEBUG`. Roughly 4,300 lines under `Features/Camera/` compile into every build and
+  the screen cannot be reached from a Release one. It is experimental by the owner's own
+  description; removing that gate is what releasing it means, and `Docs/ai/STATE.md` lists what
+  would have to be true first. Do not remove it to tidy a diff.
+
+**19 commits are unpushed** as of `e6dfe30`, by the owner's choice rather than by oversight. Count
+it yourself with `git rev-list --count origin/main..main` rather than trusting that number; it moves
+every commit. Pushing triggers an Xcode Cloud build stamped 5.3.
+
+`Docs/ai/STATE.md` is fresher than this file and is what to trust where the two disagree.
+
 ## Read this first, in order
 
 | # | Read | Why |
@@ -75,7 +102,7 @@ honestly — several defects fixed this cycle were exactly that promise being si
   check `THIRD_PARTY_NOTICES.md`, grep the whole repo, and check primary vendor docs before you
   delete, not just the one file that prompted the question.
 
-## Current state, as of the 5.2 staging commit (2026-09-02)
+## State at the 5.2 staging commit (2026-09-02) — historical, superseded by the block at the top
 
 **Shipped:** 5.1 on both platforms per `Docs/SHIPPED_VERSION.json` (macOS approved 2026-09-02;
 iOS recorded as shipped the same day at the owner's decision while the same build sat in review).
@@ -202,7 +229,10 @@ something you want archived.
 
 ## What's been proven this cycle — read before re-investigating any of it
 
-- **PCC has never shipped to a single user, and it's not a code bug.** Xcode Cloud's `Default`
+- **SUPERSEDED 2026-09-13: PCC shipped in 5.2 on both platforms.** What follows was true when
+  written on 2026-08-22 and is kept because the mechanism is worth understanding, not because
+  it still describes the app. **PCC had never shipped to a single user, and it was not a code
+  bug.** Xcode Cloud's `Default`
   workflow builds with Xcode Version = "Latest Release", currently **Xcode 26.6**. Every PCC code
   path sits behind `#if compiler(>=6.4)`, which only Xcode 27 satisfies, so it compiles out of every
   App Store build. PCC genuinely works — verified on a local Xcode 27 device archive — it just isn't

@@ -1,14 +1,38 @@
 # Current State
 
-Updated: 2026-09-11, 09:10
+Updated: 2026-09-13
 Branch/worktree: main (primary checkout)
-Last verified commit: ec42c3e (plus the commit that carries this correction)
+Last verified commit: e6dfe30, plus the commit that carries this handoff
 
 ## Objective
 
 **5.2 is live on both platforms. 5.3 is open and is where new work goes.** The repository can run
 its own test suite again, and the two things that blocked everything on 2026-09-10 (no release
 Xcode, no working test action) are both resolved.
+
+### Read this first if you are picking up 5.3
+
+**Nothing is half-finished and nothing is broken.** The working tree is clean, the suite is green
+(**440 executed, 0 failures**, re-run 2026-09-13 with the gate in place), macOS builds, and every
+change is committed. The commits are **not pushed**,
+by the owner's choice rather than by oversight, and pushing is the single outstanding mechanical
+action.
+
+**The camera is gated off for release and that is deliberate.** `ChatScreen.visionCaptureAction` is
+`#if os(iOS) && DEBUG`, so the action is nil in a Release build, `AttachmentPicker`'s
+`if let onVisionCapture` guard never renders the menu item, and the screen cannot be reached.
+Measured against a Release build rather than assumed: the screen's own `Vision Capture` string is
+**absent** from the Release binary and present in Debug, checked alongside a control string that
+appears in both, so the instrument is known to work. The button's `Look at Something` label **is**
+still in the Release binary, because `AttachmentPicker` compiles unconditionally; it is unreachable
+rather than absent, which is a distinction worth keeping straight if anyone greps a build.
+
+The owner's decision on 2026-09-13: the work is experimental and "should probably wait".
+Removing that `#if DEBUG` is what releasing the feature means; the constraint below says what would
+have to be true first. Do not remove it to tidy a diff.
+
+**Four decisions belong to the owner and have been carried for several sessions.** They are listed
+under Exact Next Action. None of them blocks anything; they are simply not an agent's to make.
 
 ## Status
 
@@ -173,6 +197,25 @@ other build directories are correctly named `.build.nosync`, `.simulator-smoke.n
 
 ## Verification
 
+Run 2026-09-13 from `/private/tmp/oi-src` against the iOS 27 simulator
+(`25E29FA1-6A22-4A86-AE9F-A6F48411E6D0`, iPhone 18 Pro), output read:
+
+- `xcodebuild test` — **`** TEST SUCCEEDED **`, exit 0, 440 executed, 3 skipped, 0 failures.**
+  This is the run that covers the camera release gate. `CameraOverlayGeometryTests` 15/15 and
+  `LiveObjectDetectionTests` 7/7, so gating the screen out of Release removed no coverage: the
+  geometry and the detector are tested independently of whether anything presents them.
+  **The three skips are the tests' own guards, not a clean pass:**
+  `EmbeddingProviderAgreementTests.testCoreAIAndCoreMLAgreeOnTheSameText`,
+  `EmbeddingProviderAgreementTests.testShortTextsRemainDistinguishable` and
+  `LayoutReadingOrderTests.testInterleavedContentStreamIsReorderedByGeometry`.
+  **A fourth test did not run at all** and is excluded at the command line:
+  `IngestionFormatCoverageTests/testSilentAudio_FailsLoudlyInsteadOfProducingAnEmptyDocument`,
+  passed to `-skip-testing:` because it hangs its full 60-second timeout here. It is not counted in
+  the 440. See the open device question at the end of this file.
+- `xcodebuild -configuration Release build` — **`** BUILD SUCCEEDED **`**, which is what the gate
+  was checked against: `Vision Capture` absent from the Release binary, present in Debug, with a
+  control string present in both.
+
 Run 2026-09-11 from `/private/tmp/oi-src` against the iOS 27 simulator, output read:
 
 - `xcodebuild test` — **`** TEST SUCCEEDED **`, exit 0, 416 passed, 0 failed.** The first green
@@ -222,38 +265,47 @@ nothing presents the camera.
 
 ## Exact Next Action
 
-**No code work is outstanding and nothing is half-done.** The 5.3 working set is committed,
-the iOS suite is green at 416 passed / 0 failed, and macOS builds clean. A fresh session should
-not re-run the suite to find out where things stand; read the Verification block above.
+**No code work is outstanding.** The tree is clean, the suite is green, macOS builds. Do not re-run
+the suite to discover where things stand; read the Verification block above.
 
-**The one thing waiting is a push.** Local `main` is ahead of `origin/main` and zero behind
-(count with `git rev-list --count origin/main..main`; do not trust a number written here),
-so it is a clean fast-forward. Pushing triggers an Xcode Cloud build stamped **5.3**, which now
-matches the App Store Connect record that already exists on both platforms. That is deliberately
-left to the owner rather than done by an agent.
+**One mechanical action, whenever the owner wants it:**
 
 ```bash
 gtimeout 60 git push origin main
 ```
 
-Then four decisions, each the owner's rather than an agent's:
+Local `main` is ahead of `origin/main` and zero behind, so it fast-forwards. Pushing triggers an
+Xcode Cloud build stamped **5.3**, which matches the App Store Connect records that already exist on
+both platforms. Deliberately left to the owner.
 
-1. **The camera.** The detector behind it is correct and tested; the UI is off behind
-   `onVisionCapture: nil` in `ChatScreen` and a commented-out `fullScreenCover`, labelled
-   "v2 feature - disabled for v1 App Store release". Enabling it is two edits, reverses a
-   deliberate product decision, and cannot be exercised in a simulator.
-2. **`.build` (582 MB) and `build/` (444 MB)** at the repository root, which lack the `.nosync`
-   suffix every other build directory has, so iCloud syncs roughly a gigabyte of build output.
-   This is the same mechanism that starved builds against the checkout.
-3. **The three site patches** under `Docs/Release/5.2/sites/`, now that PCC genuinely ships.
-   Each target repository deploys on push.
-4. **Promotional text for the sale**, which fires 2026-09-15 with no further action. Adding the
-   deadline to the App Store listing is editable while a version is live.
+**Four decisions that are the owner's, carried across several sessions:**
 
-**The one open question that needs a device, not a decision:**
-`IngestionFormatCoverageTests/testSilentAudio_FailsLoudlyInsteadOfProducingAnEmptyDocument` hangs
-its full 60-second timeout on this simulator and was skipped by name for the green run. Import an
-audio file containing no speech on a real device and watch the ingestion queue. Either ingestion
-genuinely hangs on speechless audio, which is a real defect, or this simulator has no speech model,
-which the `com.apple.linguisticdata` asset failures in the log suggest. Nothing in this cycle
-touches audio.
+1. **The camera's release gate.** Currently `#if os(iOS) && DEBUG`. Before removing it: run the
+   screen on a device through every dismissal path and confirm the camera indicator goes out each
+   time, because a path where `.onDisappear` does not fire leaves the capture session live; and
+   decide whether an in-app "experimental" label should accompany it, since someone who never reads
+   release notes gets no signal that the feature is new.
+2. **The system prompt**, which is set to "You are an extremely unhelpful assistant…". The default is
+   "You are a helpful assistant." It reaches `FoundationModelPromptCompiler` on every Standard answer,
+   so if it is live it is degrading answers more than any setting on the Model Parameters screen.
+3. **`MARKETING_VERSION`**, still `5.2` across all 8 targets, so a local build's splash says 5.2 while
+   the code is 5.3. Cosmetic and local only: Xcode Cloud stamps from `CHANGELOG.md` and gets it right.
+   `project.pbxproj` is a hard-boundary file and needs naming in an approval.
+4. **`.build` (582 MB) and `build/` (444 MB)** at the repository root, which lack the `.nosync` suffix
+   every other build directory has, so iCloud syncs roughly a gigabyte of build output. This is the
+   same mechanism that starved builds against the checkout.
+
+**And one question that needs a design answer rather than a decision:** a custom reasoning profile
+currently reaches only Apple's model-internal effort dial, which is PCC-only. The app's own
+reasoning, the multi-session chains in Deep Think and Maximum pinned on-device at four call sites,
+is driven by this app's prompts and is untouched by what the owner writes in that field. Feeding
+that text into `executeReasoningChain`'s prompts is what would make the feature match its name. It
+was deliberately not attempted: those prompts are the product, and answer quality cannot be A/B
+tested here.
+
+**The open question that needs a device, not a decision:**
+`IngestionFormatCoverageTests/testSilentAudio_FailsLoudlyInsteadOfProducingAnEmptyDocument` hangs its
+full 60-second timeout on this simulator and is skipped by name in every run recorded above. Import
+an audio file with no speech on a real device and watch the ingestion queue. Either ingestion hangs
+on speechless audio, which is a real defect, or this simulator has no speech model, which the
+`com.apple.linguisticdata` asset failures in the log suggest. Nothing in this cycle touches audio.

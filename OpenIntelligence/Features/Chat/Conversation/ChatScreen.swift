@@ -273,11 +273,35 @@ struct ChatScreen: View {
     /// `CameraVisionOverlayView` lives inside `#if os(iOS)` and a conditional-compilation block in
     /// an argument position is more fragile than a property that resolves before the call.
     ///
-    /// `AttachmentPicker` guards its Scan Document button on `if let onVisionCapture`, so nil here
-    /// removes the button rather than showing one that does nothing. Passing nil is what "disabled"
-    /// meant for this feature from v1 until 2026-09-11.
+    /// `AttachmentPicker` guards its button on `if let onVisionCapture`, so nil here removes the
+    /// menu item rather than showing one that does nothing. Passing nil is what "disabled" meant
+    /// for this feature from v1 until 2026-09-11.
+    ///
+    /// **Debug builds only, decided 2026-09-13.** The owner's words: the camera work is
+    /// experimental and "should probably wait". Shipping it in 5.3 would put a live camera feature
+    /// in front of strangers having never run outside one person's hands on one phone, and its
+    /// riskiest property is one nobody has observed: `CameraVisionOverlayView` pairs `.onAppear`
+    /// with `.onDisappear { cameraManager.stopSession() }`, which is correct code, but a dismissal
+    /// path where `.onDisappear` does not fire leaves the capture session running. On a stranger's
+    /// phone that is a lit camera indicator and a flat battery, reported through a review rather
+    /// than to us.
+    ///
+    /// A compile-time gate rather than a setting, because a setting still ships the screen and
+    /// leaves it one tap from anyone who goes looking. `#if DEBUG` keeps it on the owner's own
+    /// device builds, which is where the remaining testing has to happen anyway.
+    ///
+    /// Measured on a Release build rather than assumed: `CameraVisionOverlayView`'s own
+    /// `Vision Capture` string is absent from the Release binary, because nothing can set
+    /// `showVisionCapture` true and the optimiser strips the presenter. `AttachmentPicker`'s
+    /// `Look at Something` label does survive, since that file compiles unconditionally, so the
+    /// menu item is **unreachable rather than absent**. It cannot render: its `if let
+    /// onVisionCapture` guard is handed nil.
+    ///
+    /// **Removing the `#if DEBUG` is what releasing this feature means.** Do not remove it to
+    /// silence a diff or to make a screenshot; the notes in `CHANGELOG.md` and `Docs/ai/STATE.md`
+    /// describe what would have to be true first.
     private var visionCaptureAction: (() -> Void)? {
-        #if os(iOS)
+        #if os(iOS) && DEBUG
             return { showVisionCapture = true }
         #else
             return nil

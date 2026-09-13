@@ -93,16 +93,17 @@ routing behavior from a simulator run is wrong.
 Scheme `OpenIntelligence`, test target `OpenIntelligenceTests`, Xcode 27 at
 `/Applications/Xcode.app`.
 
-> **Blocked as of 2026-09-10.** `xcodebuild test` cannot link `OpenIntelligenceEngine.framework`:
-> every `Tokenizers.*` symbol is undefined. The Engine's sources `import Tokenizers` directly, but
-> the target declares only the `TransformersTokenizers` shim that re-exports it, and Xcode links a
-> product's transitive package dependencies into an **application** target and not into a
-> **framework** target. `Tokenizers_<hash>_PackageProduct.framework` is built and sits unused in the
-> same `PackageFrameworks` directory. The app, the simulator smoke build and Xcode Cloud are all
-> unaffected, because only the test bundle links the Engine as a standalone unit. The fix is to add
-> the `Tokenizers` product to that target's `packageProductDependencies`, which needs
-> `project.pbxproj` and therefore the owner naming the file.
-> `[evidence_level: measured, confidence: exact, evidence_source: full Ld command line, clean -derivedDataPath, Xcode 27.0, iOS 27 simulator, 2026-09-10]`
+> **Was blocked 2026-09-10, fixed 2026-09-11 in `33a3779`. The suite runs.** For a day
+> `xcodebuild test` could not link `OpenIntelligenceEngine.framework`: every `Tokenizers.*` symbol
+> was undefined. The Engine's sources `import Tokenizers` directly, but the target declared only the
+> `TransformersTokenizers` shim that re-exports it, and Xcode links a product's transitive package
+> dependencies into an **application** target and not into a **framework** target.
+> `Tokenizers_<hash>_PackageProduct.framework` was built and sat unused in the same
+> `PackageFrameworks` directory. The app, the simulator smoke build and Xcode Cloud were never
+> affected, because only the test bundle links the Engine as a standalone unit. The fix added the
+> `Tokenizers` product to `packageProductDependencies` on **both** targets, which is the part worth
+> remembering: wiring only the Engine moved the identical failure to the app.
+> `[evidence_level: measured, confidence: exact, evidence_source: full Ld command line before the fix; green suite after it, Xcode 27.0, iOS 27 simulator]`
 
 ```bash
 xcodebuild test -scheme OpenIntelligence -destination "platform=iOS Simulator,id=<UDID>" -derivedDataPath /private/tmp/oi-build
