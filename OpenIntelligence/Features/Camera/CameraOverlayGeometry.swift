@@ -179,3 +179,60 @@
         }
     }
 #endif
+
+#if os(iOS)
+    /// Carries a skeleton's identity from one frame to the next.
+    ///
+    /// Same problem and same shape as `RegionIdentityTracker`, for the same reason: `DetectedPose`
+    /// used `let id = UUID()` and is rebuilt every frame, so SwiftUI replaced the whole skeleton
+    /// view each time and the stable joint and bone ids inside it bought nothing, because their
+    /// parent had not survived either.
+    ///
+    /// Matched on the pose's bounding box. Two people in frame keep their own skeletons as they
+    /// move past each other, and a person who leaves and returns gets a new one, which is correct:
+    /// interpolating a skeleton across a gap would drag it through space it never occupied.
+    struct PoseIdentityTracker {
+
+        private let minimumOverlap: CGFloat
+        private var previous: [(id: UUID, isHuman: Bool, box: CGRect)] = []
+
+        init(minimumOverlap: CGFloat = 0.3) {
+            self.minimumOverlap = minimumOverlap
+        }
+
+        mutating func assigningStableIDs(to poses: [DetectedPose]) -> [DetectedPose] {
+            var available = Set(previous.indices)
+            var result: [DetectedPose] = []
+            result.reserveCapacity(poses.count)
+
+            for pose in poses {
+                var bestIndex: Int?
+                var bestScore = minimumOverlap
+
+                // A human skeleton never matches an animal one, however much their boxes overlap:
+                // a person standing over a dog should not hand the dog their limbs.
+                for index in available where previous[index].isHuman == pose.isHuman {
+                    let score = RegionIdentityTracker.intersectionOverUnion(previous[index].box, pose.boundingBox)
+                    if score >= bestScore {
+                        bestScore = score
+                        bestIndex = index
+                    }
+                }
+
+                if let bestIndex {
+                    available.remove(bestIndex)
+                    result.append(pose.withID(previous[bestIndex].id))
+                } else {
+                    result.append(pose)
+                }
+            }
+
+            previous = result.map { (id: $0.id, isHuman: $0.isHuman, box: $0.boundingBox) }
+            return result
+        }
+
+        mutating func reset() {
+            previous.removeAll()
+        }
+    }
+#endif

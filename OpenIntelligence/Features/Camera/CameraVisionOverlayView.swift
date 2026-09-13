@@ -28,6 +28,10 @@
         /// actually interpolate. See `RegionIdentityTracker`.
         @State private var identityTracker = RegionIdentityTracker()
 
+        /// Same job for skeletons. Without it the pose view is replaced every frame and the stable
+        /// joint and bone ids inside it achieve nothing, because their parent did not survive.
+        @State private var poseTracker = PoseIdentityTracker()
+
         /// Pixel size of the frame Vision analysed, reported per frame by `CameraManager`.
         /// `CameraOverlayGeometry` needs it to undo the preview layer's `.resizeAspectFill` crop;
         /// `.zero` makes the geometry return `.zero` rather than divide by it.
@@ -563,15 +567,32 @@
             // The size Vision analysed, needed to undo the preview's aspect-fill crop.
             analysedSourceSize = analysis.sourceSize
 
+            // Carry skeleton identity across frames so the wireframe interpolates between samples
+            // instead of being rebuilt at each one. Humans and animals are tracked separately so a
+            // person standing over a dog cannot inherit the dog's limbs.
+            let trackedHuman = poseTracker.assigningStableIDs(to: analysis.humanPoses)
+            let trackedAnimal = poseTracker.assigningStableIDs(to: analysis.animalPoses)
+
+            // Geometry animates. Text does not.
+            //
+            // The chip rows and the OCR panel used to sit inside this block, and they are
+            // `ForEach(id: \.self)` over strings, so a changed array is an insert and a remove
+            // rather than a move. Animating that crossfades the old set against the new, and at ten
+            // updates a second both are on screen at once: "Appliance" printed over "Machine",
+            // "1 person" over "2 skeletons". It read as a layout bug and was a transition.
+            //
+            // There is nothing to interpolate between two different words anyway, so they are
+            // assigned outside the animation and simply replace each other.
+            sceneLabels = analysis.sceneLabels
+            detectedObjects = analysis.detectedObjects
+            liveOCRText = analysis.recognizedText
+            regionCounts = counts
+            aestheticsScore = analysis.aestheticsScore
+
             withAnimation(.interpolatingSpring(stiffness: 300, damping: 30)) {
                 detectedRegions = trackedRegions
-                liveOCRText = analysis.recognizedText
-                aestheticsScore = analysis.aestheticsScore
-                sceneLabels = analysis.sceneLabels
-                detectedObjects = analysis.detectedObjects
-                regionCounts = counts
-                humanPoses = analysis.humanPoses
-                animalPoses = analysis.animalPoses
+                humanPoses = trackedHuman
+                animalPoses = trackedAnimal
             }
         }
 
@@ -817,29 +838,50 @@
     }
 
     /// Skeleton joint for pose detection
+    ///
+    /// **Identity is the joint's anatomical name, not a fresh UUID.** A left elbow in this frame
+    /// and a left elbow in the next are the same elbow, moved. Handing SwiftUI a new `UUID()` each
+    /// frame, which is what this did, meant every joint was destroyed and recreated ten times a
+    /// second, so no position could ever be interpolated and the skeleton teleported between
+    /// samples. Combined with a 4-point blur on each joint that read as motion blur, when it was
+    /// really blurred dots jumping.
     struct PoseJoint: Identifiable {
-        let id = UUID()
+        var id: String { name }
         let name: String
         let position: CGPoint  // Normalized 0-1 coordinates
         let confidence: Float
     }
 
     /// Connection between two joints for wireframe
+    ///
+    /// Identified by the pair of joints it spans. `CameraManager` builds these from a fixed
+    /// `connectionPairs` topology, so "left shoulder to left elbow" names one bone for the life of
+    /// the skeleton and survives from frame to frame.
     struct PoseConnection: Identifiable {
-        let id = UUID()
+        let id: String
         let from: CGPoint
         let to: CGPoint
         let confidence: Float
     }
 
     /// Detected pose (human or animal)
+    ///
+    /// The id is assigned by `PoseIdentityTracker` from the previous frame's poses, so one person
+    /// keeps one skeleton view as they move. Without it the pose view is rebuilt every frame and
+    /// the stable joint ids above buy nothing, because their parent did not survive either.
     struct DetectedPose: Identifiable {
-        let id = UUID()
+        var id: UUID = UUID()
         let isHuman: Bool
         let joints: [PoseJoint]
         let connections: [PoseConnection]
         let boundingBox: CGRect
         let confidence: Float
+
+        func withID(_ id: UUID) -> DetectedPose {
+            var copy = self
+            copy.id = id
+            return copy
+        }
     }
 
     /// Result from frame analysis
@@ -987,10 +1029,23 @@
         var body: some View {
             GeometryReader { geometry in
                 ForEach(filteredRegions) { region in
-                    // Use silhouettes for humans and faces, bounding box for others
+                    // Faces get an oval, everything else a box.
+                    //
+                    // `.human` used to get `HumanSilhouetteOverlay`, which drew a mannequin from
+                    // hardcoded fractions of the bounding box: head ellipse at 35% of its width,
+                    // shoulders at 60%, waist at 40% of its height, hips at 55%, legs as
+                    // rectangles. None of that was measured, so it drew the same figure every time
+                    // stretched to whatever rectangle came back, and it could not match a pose
+                    // because it never looked at one.
+                    //
+                    // What made it read as wrong rather than merely stylised is that the real pose
+                    // **is** available and already drawn beside it: `PoseWireframeOverlay` renders
+                    // measured joints from `VNDetectHumanBodyPoseRequest`. Two overlays claimed to
+                    // describe the same body and disagreed, and the invented one was the louder.
+                    // The box says where the person is; the wireframe says what they are doing.
                     switch region.type {
                     case .human:
-                        HumanSilhouetteOverlay(
+                        RegionBoundingBox(
                             region: region,
                             containerSize: geometry.size,
                             sourceSize: sourceSize
@@ -1048,55 +1103,18 @@
                     )
                     let facePath = Path(ellipseIn: faceRect)
 
-                    // Eyes (two small ovals)
-                    let eyeY = rect.minY + rect.height * 0.35
-                    let eyeWidth = rect.width * 0.15
-                    let eyeHeight = rect.height * 0.08
-                    let eyeSpacing = rect.width * 0.25
-
-                    let leftEyeRect = CGRect(
-                        x: rect.midX - eyeSpacing - eyeWidth / 2,
-                        y: eyeY - eyeHeight / 2,
-                        width: eyeWidth,
-                        height: eyeHeight
-                    )
-                    let rightEyeRect = CGRect(
-                        x: rect.midX + eyeSpacing - eyeWidth / 2,
-                        y: eyeY - eyeHeight / 2,
-                        width: eyeWidth,
-                        height: eyeHeight
-                    )
-                    let leftEyePath = Path(ellipseIn: leftEyeRect)
-                    let rightEyePath = Path(ellipseIn: rightEyeRect)
-
-                    // Nose (simple line/triangle)
-                    var nosePath = Path()
-                    let noseTop = rect.minY + rect.height * 0.42
-                    let noseBottom = rect.minY + rect.height * 0.58
-                    let noseWidth = rect.width * 0.08
-                    nosePath.move(to: CGPoint(x: rect.midX, y: noseTop))
-                    nosePath.addLine(to: CGPoint(x: rect.midX - noseWidth, y: noseBottom))
-                    nosePath.addLine(to: CGPoint(x: rect.midX + noseWidth, y: noseBottom))
-
-                    // Mouth (curved line)
-                    var mouthPath = Path()
-                    let mouthY = rect.minY + rect.height * 0.72
-                    let mouthWidth = rect.width * 0.25
-                    mouthPath.move(to: CGPoint(x: rect.midX - mouthWidth, y: mouthY))
-                    mouthPath.addQuadCurve(
-                        to: CGPoint(x: rect.midX + mouthWidth, y: mouthY),
-                        control: CGPoint(x: rect.midX, y: mouthY + rect.height * 0.08)
-                    )
+                    // The eyes, nose and mouth that used to be drawn here were invented: fixed
+                    // fractions of the bounding box, with no `DetectFaceLandmarksRequest` run
+                    // anywhere in the app to place them. They could not line up with a real face
+                    // because nothing had measured one, so a detected face wore a smiley doodle
+                    // that drifted off it. The oval stays, because the face rectangle IS measured
+                    // and inscribing an ellipse in it claims nothing the rectangle does not.
 
                     // Draw glow layer
                     context.fill(facePath, with: .color(faceColor.opacity(0.15)))
 
                     // Draw strokes
                     context.stroke(facePath, with: .color(faceColor), style: StrokeStyle(lineWidth: 2.5))
-                    context.fill(leftEyePath, with: .color(faceColor.opacity(0.8)))
-                    context.fill(rightEyePath, with: .color(faceColor.opacity(0.8)))
-                    context.stroke(nosePath, with: .color(faceColor.opacity(0.7)), style: StrokeStyle(lineWidth: 1.5))
-                    context.stroke(mouthPath, with: .color(faceColor.opacity(0.7)), style: StrokeStyle(lineWidth: 2))
                 }
                 .shadow(color: .cyan.opacity(0.6), radius: 6)
 
@@ -1113,120 +1131,6 @@
     }
 
     // MARK: - Human Silhouette Overlay
-
-    struct HumanSilhouetteOverlay: View {
-        let region: DetectedRegion
-        let containerSize: CGSize
-        /// Pixel size of the analysed frame, so the aspect-fill crop can be undone.
-        let sourceSize: CGSize
-
-        private var frame: CGRect {
-            // Was four lines of hand-rolled arithmetic, repeated identically in five places, that
-            // stretched Vision's normalized space onto the view's bounds. The preview layer is
-            // `.resizeAspectFill`, so those are different spaces. See `CameraOverlayGeometry`.
-            return CameraOverlayGeometry.viewRect(
-                normalized: region.boundingBox,
-                sourceSize: sourceSize,
-                viewSize: containerSize
-            )
-        }
-
-        var body: some View {
-            ZStack {
-                // Silhouette shape - human figure approximation
-                Canvas { context, size in
-                    let rect = frame
-
-                    // Head (oval at top)
-                    let headWidth = rect.width * 0.35
-                    let headHeight = rect.height * 0.15
-                    let headRect = CGRect(
-                        x: rect.midX - headWidth / 2,
-                        y: rect.minY,
-                        width: headWidth,
-                        height: headHeight
-                    )
-                    let headPath = Path(ellipseIn: headRect)
-
-                    // Body (tapered shape)
-                    var bodyPath = Path()
-                    let shoulderY = rect.minY + headHeight
-                    let shoulderWidth = rect.width * 0.6
-                    let hipY = rect.minY + rect.height * 0.55
-                    let hipWidth = rect.width * 0.45
-                    let waistY = rect.minY + rect.height * 0.4
-                    let waistWidth = rect.width * 0.35
-
-                    bodyPath.move(to: CGPoint(x: rect.midX - shoulderWidth / 2, y: shoulderY))
-                    bodyPath.addQuadCurve(
-                        to: CGPoint(x: rect.midX - waistWidth / 2, y: waistY),
-                        control: CGPoint(x: rect.midX - shoulderWidth / 2, y: (shoulderY + waistY) / 2)
-                    )
-                    bodyPath.addQuadCurve(
-                        to: CGPoint(x: rect.midX - hipWidth / 2, y: hipY),
-                        control: CGPoint(x: rect.midX - waistWidth / 2.5, y: (waistY + hipY) / 2)
-                    )
-                    bodyPath.addLine(to: CGPoint(x: rect.midX + hipWidth / 2, y: hipY))
-                    bodyPath.addQuadCurve(
-                        to: CGPoint(x: rect.midX + waistWidth / 2, y: waistY),
-                        control: CGPoint(x: rect.midX + waistWidth / 2.5, y: (waistY + hipY) / 2)
-                    )
-                    bodyPath.addQuadCurve(
-                        to: CGPoint(x: rect.midX + shoulderWidth / 2, y: shoulderY),
-                        control: CGPoint(x: rect.midX + shoulderWidth / 2, y: (shoulderY + waistY) / 2)
-                    )
-                    bodyPath.closeSubpath()
-
-                    // Legs (two rectangles)
-                    let legWidth = rect.width * 0.18
-                    let legSpacing = rect.width * 0.08
-                    let legTop = hipY - rect.height * 0.02
-                    let legBottom = rect.maxY
-
-                    let leftLeg = Path(
-                        roundedRect: CGRect(
-                            x: rect.midX - legSpacing - legWidth,
-                            y: legTop,
-                            width: legWidth,
-                            height: legBottom - legTop
-                        ), cornerRadius: legWidth / 3)
-
-                    let rightLeg = Path(
-                        roundedRect: CGRect(
-                            x: rect.midX + legSpacing,
-                            y: legTop,
-                            width: legWidth,
-                            height: legBottom - legTop
-                        ), cornerRadius: legWidth / 3)
-
-                    // Draw with glow
-                    let silhouetteColor = Color.mint
-
-                    // Glow layer
-                    context.fill(headPath, with: .color(silhouetteColor.opacity(0.3)))
-                    context.fill(bodyPath, with: .color(silhouetteColor.opacity(0.3)))
-                    context.fill(leftLeg, with: .color(silhouetteColor.opacity(0.3)))
-                    context.fill(rightLeg, with: .color(silhouetteColor.opacity(0.3)))
-
-                    // Stroke layer
-                    context.stroke(headPath, with: .color(silhouetteColor), style: StrokeStyle(lineWidth: 2))
-                    context.stroke(bodyPath, with: .color(silhouetteColor), style: StrokeStyle(lineWidth: 2))
-                    context.stroke(leftLeg, with: .color(silhouetteColor), style: StrokeStyle(lineWidth: 2))
-                    context.stroke(rightLeg, with: .color(silhouetteColor), style: StrokeStyle(lineWidth: 2))
-                }
-                .shadow(color: .mint.opacity(0.6), radius: 8)
-
-                // Label
-                Text("Person")
-                    .font(.system(size: 11, weight: .bold))
-                    .foregroundColor(.white)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 5)
-                    .background(Capsule().fill(Color.mint.opacity(0.85)))
-                    .position(x: frame.midX, y: frame.minY - 16)
-            }
-        }
-    }
 
     struct RegionBoundingBox: View {
         let region: DetectedRegion
@@ -1311,9 +1215,25 @@
                             .fill(region.type.color.opacity(0.9))
                             .shadow(color: .black.opacity(0.3), radius: 2)
                     )
-                    // Below the top edge when the box is near the top of the screen, so the label
-                    // is not pushed behind the navigation bar or off-screen entirely.
-                    .offset(x: 4, y: frame.minY < 28 ? 4 : -24)
+                    // Kept on screen in both axes.
+                    //
+                    // The y clamp already moved a label below its box when the box was near the
+                    // top. The x offset was a flat 4, which is fine until a box extends past the
+                    // left edge, and saliency produces exactly that: a whole television is one
+                    // salient object whose rectangle starts off-screen. Its label went with it and
+                    // arrived sliced in half.
+                    //
+                    // Offsets here are relative to the box's own top-left, so pushing the label
+                    // right by `-frame.minX` puts it back at the screen edge. `min` against the
+                    // container keeps a box that starts off-screen *right* from doing the same
+                    // thing in the other direction.
+                    .offset(
+                        x: min(
+                            max(4, 4 - frame.minX),
+                            max(4, containerSize.width - frame.minX - 120)
+                        ),
+                        y: frame.minY < 28 ? 4 : -24
+                    )
                 }
             }
             .frame(width: frame.width, height: frame.height)
@@ -1553,25 +1473,63 @@
         let confidence: Float
 
         var body: some View {
-            Canvas { context, size in
-                var path = Path()
-                path.move(to: from)
-                path.addLine(to: to)
+            ZStack {
+                BoneShape(from: from, to: to)
+                    .stroke(
+                        // Was drawn at full opacity regardless of confidence, so a 20%-confident
+                        // limb kept a solid halo even as its core faded out and read as certain.
+                        glowColor.opacity(Double(confidence) * 0.5),
+                        style: StrokeStyle(lineWidth: lineWidth + 4, lineCap: .round)
+                    )
 
-                // Glow effect
-                context.stroke(
-                    path,
-                    with: .color(glowColor),
-                    style: StrokeStyle(lineWidth: lineWidth + 4, lineCap: .round)
-                )
+                BoneShape(from: from, to: to)
+                    .stroke(
+                        color.opacity(Double(confidence)),
+                        style: StrokeStyle(lineWidth: lineWidth, lineCap: .round)
+                    )
+            }
+            // Matches the joints exactly, so a bone and the joints at its ends move together
+            // rather than arriving at slightly different times, which would make the skeleton
+            // appear to stretch.
+            .animation(.linear(duration: 0.1), value: from)
+            .animation(.linear(duration: 0.1), value: to)
+        }
+    }
 
-                // Main line
-                context.stroke(
-                    path,
-                    with: .color(color.opacity(Double(confidence))),
-                    style: StrokeStyle(lineWidth: lineWidth, lineCap: .round)
+    /// A single bone, as an animatable `Shape`.
+    ///
+    /// **Why not the `Canvas` this replaced.** A `Canvas` draws imperatively: SwiftUI cannot
+    /// interpolate what happens inside the closure, so the line jumped to each new position the
+    /// instant a frame arrived, ten times a second, no matter what animation wrapped it. A `Shape`
+    /// exposes `animatableData`, so the endpoints themselves interpolate and the limb sweeps.
+    ///
+    /// It is also far cheaper. Each bone previously allocated a **full-size `Canvas`**, and a human
+    /// skeleton has sixteen of them, so one person put sixteen screen-sized drawing surfaces on top
+    /// of the preview and two people put thirty-two.
+    struct BoneShape: Shape {
+        var from: CGPoint
+        var to: CGPoint
+
+        /// Both endpoints, so a bone whose ends move different distances interpolates correctly
+        /// rather than pivoting about one of them.
+        var animatableData: AnimatablePair<AnimatablePair<CGFloat, CGFloat>, AnimatablePair<CGFloat, CGFloat>> {
+            get {
+                AnimatablePair(
+                    AnimatablePair(from.x, from.y),
+                    AnimatablePair(to.x, to.y)
                 )
             }
+            set {
+                from = CGPoint(x: newValue.first.first, y: newValue.first.second)
+                to = CGPoint(x: newValue.second.first, y: newValue.second.second)
+            }
+        }
+
+        func path(in rect: CGRect) -> Path {
+            var path = Path()
+            path.move(to: from)
+            path.addLine(to: to)
+            return path
         }
     }
 
@@ -1584,24 +1542,36 @@
 
         var body: some View {
             ZStack {
-                // Outer glow
+                // A crisp ring instead of a 4-point Gaussian blur.
+                //
+                // The blurred disc is what read as motion blur. It was not motion blur: the joint
+                // was a soft smudge, and because every joint got a fresh `UUID()` each frame it
+                // teleported rather than moved, so a soft dot appearing in a new place ten times a
+                // second looked like something smeared. A stroked ring has a defined edge, which is
+                // what makes movement legible at all.
                 Circle()
-                    .fill(glowColor)
-                    .frame(width: size + 6, height: size + 6)
-                    .blur(radius: 4)
+                    .stroke(glowColor.opacity(0.55), lineWidth: 1.5)
+                    .frame(width: size + 5, height: size + 5)
 
-                // Inner circle
                 Circle()
                     .fill(color.opacity(Double(confidence)))
                     .frame(width: size, height: size)
 
-                // Highlight
                 Circle()
                     .fill(Color.white.opacity(0.6))
                     .frame(width: size * 0.4, height: size * 0.4)
                     .offset(x: -size * 0.15, y: -size * 0.15)
             }
             .position(position)
+            // Linear, and matched to the analysis interval rather than sprung.
+            //
+            // Vision runs at 10 FPS while the display refreshes at 60 or 120, so nine frames in ten
+            // have no new data. Interpolating each joint linearly across exactly that 0.1s gap
+            // means the skeleton is drawn continuously between samples and arrives at the next one
+            // just as it lands. A spring would be wrong here: samples are evenly spaced, so a
+            // spring would overshoot each position and wobble back, adding motion that the body
+            // being tracked never made.
+            .animation(.linear(duration: 0.1), value: position)
         }
     }
 

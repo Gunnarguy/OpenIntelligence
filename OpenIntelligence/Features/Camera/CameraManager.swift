@@ -1385,6 +1385,9 @@
 
                     connections.append(
                         PoseConnection(
+                            // The bone's anatomical identity, so it survives from frame to frame
+                            // and SwiftUI can move it rather than replace it.
+                            id: "\(from.rawValue.rawValue)-\(to.rawValue.rawValue)",
                             from: fromPos,
                             to: toPos,
                             confidence: confidence
@@ -1518,6 +1521,9 @@
 
                     connections.append(
                         PoseConnection(
+                            // The bone's anatomical identity, so it survives from frame to frame
+                            // and SwiftUI can move it rather than replace it.
+                            id: "\(from.rawValue.rawValue)-\(to.rawValue.rawValue)",
                             from: fromPos,
                             to: toPos,
                             confidence: confidence
