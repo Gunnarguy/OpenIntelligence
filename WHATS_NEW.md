@@ -5,21 +5,12 @@
 Public release highlights for OpenIntelligence.
 
 ## 5.3
-The camera comes back on, the app reads documents with Apple's own detector, and there is a new
-setting for how answers are written that you turn on yourself if you want it.
-
-### Your Camera (experimental)
-- **Worth saying first: this is an experiment.** The camera screen existed from v1 and was switched off the whole time; this is the first release where it opens at all. What can be tested without a lens is tested; what needs a real camera pointed at a real room has been tried by one person on one phone. Expect it to find things it should not and miss things it should, and judge it as something being tried rather than something finished.
-- **Look at Something, in the attachment menu, draws boxes around what it finds and names them.** Text, documents, people, faces, animals and everyday objects are outlined where they are. The screen has been in the app since v1, switched off, and the button used to say "Scan Document", which described one thing it does and set the wrong expectation for the rest.
-- **It names objects, not just the room.** Apple's camera intelligence has no single step that finds a thing and tells you what it is: one part finds what stands out but cannot name it, another names a picture but cannot say where anything is. The app runs the first to find each object, cuts that piece out, and runs the second on just that piece. **It finds what stands out, not a list of everything present** — a cluttered counter gives the few things that catch the eye, a blank wall gives nothing.
-- **The boxes land on the thing they found, which on the first build with the camera on they did not.** Four reasons, compounding. Nothing had ever told the camera which way up the phone was held, so every frame was analysed sideways and every box came out turned a quarter turn with width and height swapped. The boxes were rebuilt from scratch each update rather than moved, so they blinked rather than followed. The drawing ignored that the preview crops the sides off the picture to fill the screen, pulling every box inward and worst at the edges. And the limit meant to cap analysis at ten times a second sat in code nothing calls, so eight analyses ran on every frame and fell behind the scene. All four are fixed, and the arithmetic is covered by tests. **Where the boxes land on a real scene has still not been checked on hardware.**
-
-- **The camera uses every lens your phone has, so it focuses close up.** It only ever used the main camera before, and anything nearer than that lens can focus stayed blurry. Phones with more than one lens can pass the job to a wider one that focuses closer, which is what macro is, but only if the app asks for all of them together. On a single-camera phone nothing changes.
+The app reads documents with Apple's own detector, the welcome screens follow your light or dark
+setting, and there is a new setting for how answers are written that you turn on yourself if you
+want it.
 
 ### Getting Started
 - **The welcome screens follow your light or dark setting.** They were always dark whatever the rest of the app did, so in light mode you got a white app with one navy screen in front of it — and the clock and battery vanished, because iOS draws them in dark ink on a light screen and that screen was nearly black. Light is its own design rather than the dark one flipped: warm off-white settling into a faint blue-grey, with the glow behind it eased back.
-
-- **The skeletons move smoothly, and the cartoon body outline is gone.** What looked like motion blur was a blur: joints were soft blurred dots, and the skeleton was thrown away and rebuilt ten times a second, so they appeared in new places rather than travelling there. They are crisp now and glide between readings. The cartoon outline drawn over people, a head and shoulders and two legs at fixed proportions, is removed: it was the same figure every time regardless of how someone stood, and the real body tracking was already drawn beside it.
 
 ### Reading your documents
 - **Apple's own detector now finds the real things inside a page**, instead of the app's own pattern matching. Addresses, phone numbers, dates, amounts, measurements, flight numbers and tracking numbers are recognised as what they are. The old patterns understood US phone numbers and three currencies only, so a European invoice produced no amounts and a postal address was never found. An amount is recorded with the currency it is in, and a date in a standard form, rather than as whatever characters sat on the page, which is what makes them findable later. This applies to text inside tables today; prose on the same page does not yet contribute.

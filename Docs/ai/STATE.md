@@ -29,7 +29,11 @@ rather than absent, which is a distinction worth keeping straight if anyone grep
 
 The owner's decision on 2026-09-13: the work is experimental and "should probably wait".
 Removing that `#if DEBUG` is what releasing the feature means; the constraint below says what would
-have to be true first. Do not remove it to tidy a diff.
+have to be true first. Do not remove it to tidy a diff. **The camera's user-facing notes are held,
+not shipped:** `Docs/USER_CHANGELOG.md` is copied byte for byte into
+`OpenIntelligence/Resources/VersionHistory.md` and rendered in Settings, so its "Your Camera"
+section would have told every 5.3 user about a button their build does not have. The section now
+lives in `Docs/Release/5.3/camera_user_notes_held.md` for whichever release carries the camera.
 
 **Four decisions belong to the owner and have been carried for several sessions.** They are listed
 under Exact Next Action. None of them blocks anything; they are simply not an agent's to make.
