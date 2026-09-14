@@ -45,6 +45,13 @@ note rather than deleting them, so the record shows what was claimed and when it
 
 ## One structure, every release — the drift this fixes
 
+**The reference is `Docs/Release/APP_STORE_METADATA_HISTORY.md`.** It holds every version of the App Store copy this
+repository has pushed since 2.1.1, per platform, with the commit and the date it went live. Read
+its two newest entries before writing a release's copy, and append the new version's copy there in
+the same commit as the `fastlane/metadata*` change; `scripts/required_docs.sh` fails the commit
+without it. `WHATS_NEW.md` and `Docs/USER_CHANGELOG.md` are the sources for content; the history is
+the source for form. Never rewrite an old entry's text: it is what the store showed.
+
 Past releases used at least three different shapes for the same information: `v4.9`/`v4.8` used
 `### Section` headings with `*   ` (asterisk, three spaces) bullets; `v4.7`/`v4.6` used no section
 headings at all, just a flat list of `**Bold Label:** explanation` bullets; spacing between the

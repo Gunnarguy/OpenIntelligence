@@ -47,6 +47,12 @@ simulator because Foundation Models is device-only, so the row stays In Progress
 TestFlight build shows the pair under that predicate on the owner's phone with no debugger. That
 is the first thing to do once build 454 or later is installed.
 
+**The App Store copy has a history now, and a gate.** `Docs/Release/APP_STORE_METADATA_HISTORY.md` holds every version of the store
+copy since 2.1.1, per platform, with live dates; read its two newest entries before writing 5.3's
+copy and append 5.3's there. A change under `fastlane/metadata*` without that append fails
+pre-commit (`scripts/required_docs.sh`, 2026-09-14). One thing it surfaced: the 5.2 iOS and macOS
+release notes diverged on 2026-09-10 and the repo does not record which text the iOS listing shows.
+
 **Four decisions belong to the owner and have been carried for several sessions.** They are listed
 under Exact Next Action. None of them blocks anything; they are simply not an agent's to make.
 

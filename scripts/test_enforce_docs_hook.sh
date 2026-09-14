@@ -146,6 +146,15 @@ stage "CHANGELOG.md" "$CL_GOOD"
 check pass "retrieval source with its pipeline doc and a tagged changelog passes"
 
 new_index
+stage "fastlane/metadata/en-US/release_notes.txt" "Version 9.9 notes"
+check fail "App Store copy alone is blocked, and names the history file" "Docs/Release/APP_STORE_METADATA_HISTORY.md"
+
+new_index
+stage "fastlane/metadata-ios/en-US/release_notes.txt" "Version 9.9 notes, iOS"
+stage "Docs/Release/APP_STORE_METADATA_HISTORY.md" "### 9.9 appended"
+check pass "App Store copy with its history entry passes, no Swift staged"
+
+new_index
 stage "OpenIntelligence/Services/Storage/Synthetic.swift" "// changed"
 stage "CHANGELOG.md" "$CL_GOOD"
 check fail "storage change requires the Atlas, which the router alone does not cover" "Docs/OPENINTELLIGENCE_ARCHITECTURE_ATLAS.md"

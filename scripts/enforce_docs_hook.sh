@@ -35,7 +35,8 @@ RESOLVER="$REPO_ROOT/scripts/required_docs.sh"
 # for code that no longer exists.
 staged="$(git diff --cached --name-only --diff-filter=ACMR 2>/dev/null)"
 [ -n "$staged" ] || exit 0
-printf '%s\n' "$staged" | grep -qE '\.swift$' || exit 0
+# Swift source, or the App Store copy: the two kinds of path scripts/required_docs.sh maps.
+printf '%s\n' "$staged" | grep -qE '\.swift$|^fastlane/metadata(-ios)?/' || exit 0
 
 is_staged() { printf '%s\n' "$staged" | grep -qxF "$1"; }
 

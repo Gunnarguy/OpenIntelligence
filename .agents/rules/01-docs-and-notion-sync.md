@@ -13,6 +13,7 @@ When you edit files matching a pattern below, update the listed docs in the same
 | `Services/Storage/**`, `Services/VectorStore/**` | Atlas §9 + storage sections, `CHANGELOG.md` | Indexing |
 | `Services/AIPlatform/**`, `Services/LLM/**` | `Docs/PRIVACY_AND_ROUTING.md`, Atlas §10, `CHANGELOG.md` | Orchestration |
 | `Services/RAG/Orchestration/**`, `Services/Agentic/**` | Atlas service map, `CHANGELOG.md` | Orchestration |
+| `fastlane/metadata/**`, `fastlane/metadata-ios/**` (the App Store copy) | `Docs/Release/APP_STORE_METADATA_HISTORY.md`: append the version, platforms, live date, commit and text verbatim | General |
 | `RAGAppIntents.swift`, `Services/Agentic/Entities/**` | Atlas §12, `CHANGELOG.md` | Shortcuts |
 | `Services/Billing/**`, `Features/Billing/**` | `Docs/BILLING_AND_LIMITS.md`, `CHANGELOG.md` | General |
 | `EvidenceThread*`, `ThreadSidebarView.swift` | Atlas §15, canonical §11, `CHANGELOG.md` | Orchestration |

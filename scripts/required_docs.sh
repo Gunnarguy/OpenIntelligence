@@ -41,8 +41,12 @@ emit_advisory() { printf 'advisory\t%s\t%s\n' "$1" "$2"; }
 paths="$(cat)"
 [ -n "$paths" ] || exit 0
 
+# Two kinds of path carry requirements: Swift source, and the App Store copy under fastlane/metadata*,
+# which is the one non-Swift path whose history is otherwise lost the moment it changes. Anything
+# else exits here with nothing to say.
 swift_paths="$(printf '%s\n' "$paths" | grep -E '\.swift$' || true)"
-[ -n "$swift_paths" ] || exit 0
+metadata_paths="$(printf '%s\n' "$paths" | grep -E '^fastlane/metadata(-ios)?/' || true)"
+[ -n "$swift_paths$metadata_paths" ] || exit 0
 
 # ---------------------------------------------------------------------------
 # The table. `case` takes the FIRST matching branch, so narrower patterns come first: a file under
@@ -68,6 +72,10 @@ while IFS= read -r f; do
       emit_advisory "WHATS_NEW.md" "$f"
       emit_advisory "Docs/USER_CHANGELOG.md" "$f" ;;
     OpenIntelligenceTests/*) : ;;
+    fastlane/metadata/* | fastlane/metadata-ios/*)
+      # The store copy is overwritten in place every release. Its history lives in one file, and a
+      # push that does not append to it is a push nobody can look up later (added 2026-09-14).
+      emit "Docs/Release/APP_STORE_METADATA_HISTORY.md" "$f" ;;
     *) : ;;
   esac
 
@@ -79,7 +87,7 @@ while IFS= read -r f; do
       emit "Docs/CANONICAL_OPENINTELLIGENCE_SOURCE_OF_TRUTH.md" "$f"
       emit "CHANGELOG.md" "$f" ;;
   esac
-done <<< "$swift_paths"
+done <<< "$(printf '%s\n' "$swift_paths" "$metadata_paths")"
 
 # ---------------------------------------------------------------------------
 # Second source: the RepoOS router's change-impact matrix.

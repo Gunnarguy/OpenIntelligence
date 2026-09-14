@@ -539,6 +539,7 @@ Fastlane lanes in `fastlane/Fastfile`, all *recorded*, none run from here:
 | Lane | Does |
 |---|---|
 | `push_metadata` | Metadata only, to a version already in App Store Connect. Editable while Waiting for Review. |
+| (before any of these) | Read the two newest entries in `Docs/Release/APP_STORE_METADATA_HISTORY.md` for the copy's shape, then append the new version there; pre-commit requires it for any change under `fastlane/metadata*`. |
 | `upload_release_metadata` | Upload release metadata for the App Store version. |
 | `upload_release_build` | Build and upload to App Store Connect. |
 | `submit_latest` | Push metadata and submit using the newest build ASC has already processed. Xcode Cloud is the builder. |
@@ -828,6 +829,12 @@ scripts used (`asc_upload_shots.rb`, `asc_delete_old_set.rb`, on top of the JWT 
 ## iOS and macOS need different App Store release notes, and the lane cannot do it yet
 
 *Added 2026-08-31.*
+
+*2026-09-14:* every version of the store copy this repo ever pushed, per platform, is in
+`Docs/Release/APP_STORE_METADATA_HISTORY.md`. It records the divergence this section is about: on 2026-09-10 the 5.2 notes were
+rewritten in `fastlane/metadata/` only, and `fastlane/metadata-ios/` still holds the 2026-09-02
+text. Write the next release's copy against the two newest entries there, and append the new one;
+`scripts/required_docs.sh` fails the commit otherwise.
 
 The platforms have diverged, so one set of notes is wrong for at least one of them. On 2026-08-31,
 macOS was coming from 5.0.2 and iOS from **5.0** — meaning iPhone and iPad had never received 5.0.1
