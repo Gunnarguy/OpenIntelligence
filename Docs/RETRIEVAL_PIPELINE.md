@@ -188,3 +188,31 @@ Diagnostic and telemetry surfaces are included for inspecting chunks, retrieval 
 21. **The cross-encoder reranker is real and lives in `Orchestration`, not `Retrieval`** *(added 2026-09-01)*: stated here because a search scoped to `Services/RAG/Retrieval/` finds only heuristic scoring and reads as though no reranker exists. It does. `RAGEngine.swift:82` loads `ReRankerModel` at launch and `rerankWithCrossEncoder` runs at `:331` whenever the model and its tokenizer are both present, falling through to fusion order when either is missing. It is bound to `cross-encoder/ms-marco-TinyBERT-L2-v2` by exact path in `THIRD_PARTY_NOTICES.md`.
 
     The flow diagram in section 2 has always shown this correctly as "Core ML TinyBERT Reranker / Heuristic Fallback". An audit on 2026-08-29 nonetheless concluded the reranker was absent, and that claim reached a published document and a roadmap row before `Docs/ai/ARCHITECTURE.md` contradicted it. `[evidence_level: code_verified, confidence: exact, evidence_source: RAGEngine.swift:82 and :331; Resources/MLModels/ReRankerModel.mlpackage]`
+
+## Suggested questions
+
+`Services/Query/UX/SuggestedQuestionsService.swift` writes the chips on the Chat tab's empty state.
+It is retrieval-adjacent rather than retrieval: it reads chunks, never the index. Three paths,
+in the order they are tried:
+
+1. **The curated set**, for the sample workspace. Hand-written questions that skip generation.
+   Since 2026-09-14 the workspace is recognised by sample *identity* (`sampleIdentity(for:)`):
+   each canonical sample filename or a numbered copy of it (`<stem>-<digits>.md`, which managed
+   storage produces when a filename collides), with all three samples present. Before that the
+   check was an exact filename match and one numbered copy switched the curated set off.
+2. **Model-written questions**, per document, at ingestion for user documents and on demand for
+   a library whose bank is empty. Accepted only when at least two survive passage grounding.
+3. **Template questions** from specifications, procedures, warnings, definitions and terms.
+   Since 2026-09-14 these fail closed when the model is present: an empty model result shows no
+   question rather than a raw template. They still ship on a device with no model, and a bank that
+   holds no model-written question is rebuilt once per launch when the model becomes available
+   (`shouldRebuildBank`), because the sample library's bank is built on first launch, when Apple
+   Intelligence is least likely to be ready, and used to be kept forever. `isAcceptableTemplateTopic`
+   rejects lone abstract words, article-plus-word phrases and runs of the document's own title, and
+   the research templates key on `documentCategory == .scientificPaper` rather than the word
+   "study" in a passage.
+
+Sample duplicates are removed by `SampleDocumentManager.removeNumberedSampleCopies`, on every refresh
+pass and only when the canonical file is also present.
+
+`[evidence_level: code_verified, confidence: exact, evidence_source: SuggestedQuestionsService.swift sampleIdentity, isSampleWorkspace(filenames:), shouldRebuildBank, isAcceptableTemplateTopic, generateQuestionsForDocumentOnly; SampleDocumentManager.swift numberedCopiesToRemove; SuggestedQuestionsSampleWorkspaceTests and SampleDocumentCopyCleanupTests, 2026-09-14]`

@@ -10,6 +10,7 @@ setting, and there is a new setting for how answers are written that you turn on
 want it.
 
 ### Getting Started
+- **The sample library's suggested questions are back.** They are hand-written, and a leftover duplicate of one sample document ("RAG Technical Architecture 2") was enough to switch them off and replace them with questions built from templates, which is where "What is nothing?" came from. Duplicates are cleaned up on the next visit to Documents, the hand-written set shows even when a duplicate is present, and a library whose questions were built before Apple Intelligence was ready gets them rebuilt by the model the next time it can. When the model has nothing good to say about a document, the app now shows no suggestion rather than a bad one.
 - **The welcome screens follow your light or dark setting.** They were always dark whatever the rest of the app did, so in light mode you got a white app with one navy screen in front of it — and the clock and battery vanished, because iOS draws them in dark ink on a light screen and that screen was nearly black. Light is its own design rather than the dark one flipped: warm off-white settling into a faint blue-grey, with the glow behind it eased back.
 
 ### Reading your documents

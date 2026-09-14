@@ -477,8 +477,50 @@ OpenIntelligence never sends your documents to a developer-operated backend.
     /// replacing it.
     ///
     /// - Returns: the display names refreshed, for the notice shown to the user.
+    /// The numbered copies to delete: a `<stem>-<digits>` copy of a sample whose canonical file is
+    /// also present. A lone numbered copy is kept, since it is the only copy the user has, and
+    /// `SuggestedQuestionsService.sampleIdentity` treats it as the sample anyway. Pure, so tested.
+    nonisolated static func numberedCopiesToRemove(existingFilenames: [String], samples: [SampleDocumentDescriptor]) -> [String] {
+        let existing = Set(existingFilenames)
+        var doomed: [String] = []
+        for sample in samples where existing.contains(sample.storageFilename) {
+            doomed.append(contentsOf: existingFilenames.filter { $0 != sample.storageFilename && sample.matchesStoredCopy($0) })
+        }
+        return doomed
+    }
+
+    /// Removes numbered sample copies that sit beside their canonical file.
+    ///
+    /// `refreshStaleSamples` only ever ran this cleanup for samples whose *content* was stale, so
+    /// a copy left by an earlier refresh survived once the content was current; a library at five
+    /// documents for three samples on 2026-09-14 was that. This runs on every refresh pass.
+    @discardableResult
+    func removeNumberedSampleCopies(in ragService: RAGService) async -> [String] {
+        let filenames = await MainActor.run { ragService.documents.map(\.filename) }
+        let doomedNames = Set(Self.numberedCopiesToRemove(existingFilenames: filenames, samples: samples))
+        guard !doomedNames.isEmpty else { return [] }
+        let doomed = await MainActor.run { ragService.documents.filter { doomedNames.contains($0.filename) } }
+        var removed: [String] = []
+        for document in doomed {
+            do {
+                try await ragService.removeDocument(document)
+                removed.append(document.filename)
+            } catch {
+                Log.error(
+                    "[SampleDocumentManager] Could not remove duplicate sample copy '\(document.filename)': \(error.localizedDescription)",
+                    category: .ingestion
+                )
+            }
+        }
+        if !removed.isEmpty {
+            Log.info("[SampleDocumentManager] Removed \(removed.count) numbered sample copies: \(removed.joined(separator: ", "))", category: .ingestion)
+        }
+        return removed
+    }
+
     @discardableResult
     func refreshStaleSamples(in ragService: RAGService) async -> [String] {
+        await removeNumberedSampleCopies(in: ragService)
         let stale = staleImportedSamples(in: ragService)
         guard !stale.isEmpty else { return [] }
 

@@ -56,6 +56,18 @@ copy and append 5.3's there. A change under `fastlane/metadata*` without that ap
 pre-commit (`scripts/required_docs.sh`, 2026-09-14). One thing it surfaced: the 5.2 iOS and macOS
 release notes diverged on 2026-09-10 and the repo does not record which text the iOS listing shows.
 
+**The sample library's suggested questions are fixed in code and not yet seen on the phone.**
+Roadmap row "The sample library shows 'What is nothing?'", pulled into v5.3 at the owner's word on
+2026-09-14. Three causes, all closed: the curated set was keyed on an exact filename match and one
+numbered copy (`RAG-Technical-Architecture-2.md`) switched it off; numbered sample copies survived
+once the samples were current; the template fallback failed open and its bank was permanent. Now
+sample identity matches numbered copies, `removeNumberedSampleCopies` runs on every refresh pass
+(deleting a copy only beside its canonical), a bank with no model-written question is rebuilt once
+per launch when the model is available, an empty model result shows nothing rather than templates,
+and `isAcceptableTemplateTopic` rejects the four strings from the screenshot by test. **Closes on
+the owner's phone:** open the General library after visiting Documents once (the refresh pass runs
+there), and the hand-written questions should be back; a re-import must leave three documents.
+
 **Four decisions belong to the owner and have been carried for several sessions.** They are listed
 under Exact Next Action. None of them blocks anything; they are simply not an agent's to make.
 
@@ -221,6 +233,20 @@ other build directories are correctly named `.build.nosync`, `.simulator-smoke.n
   future-tense PCC copy on three live sites, each of which deploys on push. Held for the owner.
 
 ## Verification
+
+Run 2026-09-14, later, from `/private/tmp/oi-src` against the iOS 27 simulator, output read, with
+the suggested-questions fix in the tree:
+
+- `xcodebuild test` — **`** TEST SUCCEEDED **`, exit 0, 467 executed, 3 skipped, 0 failures.**
+  21 new cases: `SuggestedQuestionsSampleWorkspaceTests` 16 (sample identity, the workspace check,
+  the rebuild decision, the four junk topics from the screenshot) and
+  `SampleDocumentCopyCleanupTests` 5 (which numbered copies go, and that a lone one never does).
+  Same three self-skipping guards; the silent-audio test excluded by name as before.
+- **macOS**: `xcodebuild -destination "platform=macOS" build` — **`** BUILD SUCCEEDED **`, exit 0.**
+  `SampleDocumentManager` is in the app target for both platforms and `SuggestedQuestionsService`
+  is in the Engine, so both halves compiled for the Mac.
+- `bash scripts/build_simulator_smoke.sh` — **`** BUILD SUCCEEDED **`, exit 0**, the route's required
+  smoke build: compiles, strips, codesigns.
 
 Run 2026-09-14 from `/private/tmp/oi-src` against the iOS 27 simulator, output read, with the
 routing line in the tree:

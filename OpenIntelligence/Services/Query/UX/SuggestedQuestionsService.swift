@@ -117,6 +117,15 @@ actor SuggestedQuestionsService {
     /// Maximum cache age before regeneration (5 minutes)
     private static let cacheMaxAge: TimeInterval = 300
 
+    /// Containers whose template-only bank has already been offered to the model this launch.
+    private var bankRebuildAttempted: Set<UUID> = []
+
+    /// A bank deserves a second pass when the model can write questions now and never has for
+    /// this library. Empty banks are the on-demand path's business, not this one's.
+    static func shouldRebuildBank(_ bank: [SuggestedQuestion], modelAvailable: Bool) -> Bool {
+        modelAvailable && !bank.isEmpty && !bank.contains(where: \.isLLMGenerated)
+    }
+
     /// Known filenames for the curated sample workspace (matches SampleDocumentManager).
     private static let sampleDocumentFilenames: Set<String> = [
         "OpenIntelligence-Product-Guide.md",
@@ -205,11 +214,45 @@ actor SuggestedQuestionsService {
         ),
     ]
 
+    /// The canonical sample filename a stored filename stands for, or nil when it is not a sample.
+    ///
+    /// Managed storage uniquifies a colliding filename by appending `-2`, `-3` and so on
+    /// (`WorkspaceSyncService`), and a sample refresh can leave such a copy behind. Until
+    /// 2026-09-14 every check in this file compared filenames exactly, so one
+    /// `RAG-Technical-Architecture-2.md` made the library stop being the sample workspace: the
+    /// curated questions were skipped and the on-demand template bank took over, which is how the
+    /// owner's phone came to show "What is nothing?". Deliberately strict, as in
+    /// `SampleDocumentManager.matchesStoredCopy`: only `<stem>-<digits>.<same extension>` matches,
+    /// so a user's own `OpenIntelligence-Product-Guide-notes.md` is not a sample.
+    static func sampleIdentity(for filename: String) -> String? {
+        if sampleDocumentFilenames.contains(filename) { return filename }
+        let ext = (filename as NSString).pathExtension
+        let candidate = (filename as NSString).deletingPathExtension
+        for canonical in sampleDocumentFilenames {
+            guard (canonical as NSString).pathExtension == ext else { continue }
+            let stem = (canonical as NSString).deletingPathExtension
+            guard candidate.hasPrefix(stem + "-") else { continue }
+            let suffix = candidate.dropFirst(stem.count + 1)
+            if !suffix.isEmpty, suffix.allSatisfy(\.isNumber) { return canonical }
+        }
+        return nil
+    }
+
+    /// Whether a set of filenames is the sample workspace: every document is a sample, canonical
+    /// or numbered copy, and every sample is represented at least once. Pure, so it is tested.
+    static func isSampleWorkspace(filenames: [String]) -> Bool {
+        guard !filenames.isEmpty else { return false }
+        var identities: Set<String> = []
+        for filename in filenames {
+            guard let identity = sampleIdentity(for: filename) else { return false }
+            identities.insert(identity)
+        }
+        return identities == sampleDocumentFilenames
+    }
+
     /// Detect whether the library consists only of the curated sample documents.
     private func isSampleWorkspace(documents: [Document]) -> Bool {
-        guard documents.count == Self.sampleDocumentFilenames.count else { return false }
-        let filenames = Set(documents.map { $0.filename })
-        return filenames == Self.sampleDocumentFilenames
+        Self.isSampleWorkspace(filenames: documents.map { $0.filename })
     }
 
     // MARK: - Persistent Suggested Questions Bank
@@ -267,7 +310,7 @@ actor SuggestedQuestionsService {
         chunks: [DocumentChunk],
         in containerId: UUID
     ) async {
-        let isSample = Self.sampleDocumentFilenames.contains(document.filename)
+        let isSample = Self.sampleIdentity(for: document.filename) != nil
         if isSample {
             Log.info("[SuggestedQuestions] Skipping question generation for sample document '\(document.filename)' during ingestion.")
             return
@@ -326,7 +369,15 @@ actor SuggestedQuestionsService {
                     documents: [document],
                     avoidTexts: []
                 )
-                questions = polishedQuestions.isEmpty ? contentQuestions : polishedQuestions
+                // Fail closed. The header of this file promises that weak document-shaped prompts
+                // are dropped rather than padded, and until 2026-09-14 this line did the opposite:
+                // when the model declined every template, the raw templates shipped, which is
+                // where "What is the silicon?" came from. With the model present, its silence is
+                // the answer. The raw templates survive only below, for a device with no model.
+                questions = polishedQuestions
+                if questions.isEmpty {
+                    Log.info("[SuggestedQuestions] Model produced no grounded question for '\(document.filename)'; showing none rather than templates")
+                }
             } else {
                 questions = contentQuestions
             }
@@ -488,6 +539,24 @@ actor SuggestedQuestionsService {
         if bank.isEmpty && !documents.isEmpty && !sampleChunks.isEmpty {
             bank = await generateInitialBank(for: containerId, documents: documents, sampleChunks: sampleChunks)
         }
+
+        // A bank generated while the model was unavailable is all templates, and until 2026-09-14
+        // it was served forever: nothing ever asked again. The sample library hits this exactly,
+        // because its bank is built on first launch, when Apple Intelligence is least likely to be
+        // ready. Rebuild once per launch when the model is here and the bank has never seen it.
+        #if canImport(FoundationModels)
+        if #available(iOS 26.0, *),
+           !documents.isEmpty, !sampleChunks.isEmpty,
+           !bankRebuildAttempted.contains(containerId),
+           Self.shouldRebuildBank(bank, modelAvailable: await isSystemLLMAvailable) {
+            bankRebuildAttempted.insert(containerId)
+            Log.info("[SuggestedQuestions] Bank of \(bank.count) has no model-written question and the model is available; rebuilding once")
+            // `generateInitialBank` has already saved the rebuilt bank, empty or not, so the
+            // in-memory copy must agree with the disk: an empty rebuild means no chips, which is
+            // the fail-closed contract, not a reason to keep serving the templates it replaced.
+            bank = await generateInitialBank(for: containerId, documents: documents, sampleChunks: sampleChunks)
+        }
+        #endif
 
         // Filter out questions for documents that no longer exist
         let docNames = Set(documents.map { displayDocumentName($0.filename) })
@@ -824,6 +893,39 @@ actor SuggestedQuestionsService {
         }
         
         return signals >= 5
+    }
+
+    /// Rejects the topics the templates turned into "What is nothing?", "What is the silicon?",
+    /// "What is unlimited maximum?" and "What is the role of Product Guide?" on 2026-09-14: a lone
+    /// abstract word, a phrase that is only an article plus such a word, or a phrase lifted from
+    /// the document's own title. Applied on top of `isValidConceptualTopic`, which checks shape
+    /// and never meaning. Pure and static so the four strings are pinned by a test.
+    static func isAcceptableTemplateTopic(_ topic: String, documentName: String) -> Bool {
+        let words = topic
+            .trimmingCharacters(in: .whitespacesAndNewlines.union(.punctuationCharacters))
+            .split(separator: " ")
+            .map { $0.lowercased() }
+        guard !words.isEmpty else { return false }
+        let articles: Set<String> = ["the", "a", "an", "this", "that", "these", "those", "its", "your", "our"]
+        let content = words.filter { !articles.contains($0) }
+        guard !content.isEmpty else { return false }
+        // Words that name nothing in particular. A topic made only of these is not a subject.
+        let abstractWords: Set<String> = [
+            "nothing", "something", "everything", "anything", "none", "all", "more", "less", "most",
+            "silicon", "device", "devices", "answer", "answers", "question", "questions", "work",
+            "maximum", "minimum", "unlimited", "standard", "hybrid", "automatic", "fastest",
+            "yes", "no", "today", "version", "versions", "step", "steps", "way", "ways", "thing", "things",
+        ]
+        if content.allSatisfy({ abstractWords.contains($0) }) { return false }
+        // A phrase that is a run of the document's own title is the title, not a subject in it.
+        let titleWords = documentName
+            .replacingOccurrences(of: #"[-_.]"#, with: " ", options: .regularExpression)
+            .split(separator: " ")
+            .map { $0.lowercased() }
+        if !titleWords.isEmpty, content.count <= 3, content.allSatisfy({ titleWords.contains($0) }) {
+            return false
+        }
+        return true
     }
 
     private func isValidConceptualTopic(_ topic: String) -> Bool {
@@ -1814,6 +1916,9 @@ actor SuggestedQuestionsService {
         guard passageLooksDefinitional(passage.content, topic: topic) else {
             return nil
         }
+        guard Self.isAcceptableTemplateTopic(topic, documentName: passage.documentName) else {
+            return nil
+        }
 
         let lowerTopic = topic.lowercased()
         let blockedTopicFragments = [
@@ -2005,13 +2110,13 @@ actor SuggestedQuestionsService {
 
     private func extractFindingsQuestion(from passage: GroundedPassage) -> QuestionDraft? {
         let lower = passage.content.lowercased()
+        // The category, and only the category. The word "study" appears in product prose ("study
+        // your documents") and turned a product guide into "What does the study say about ...?".
         let researchLike = passage.chunk.metadata.documentCategory == .scientificPaper
-            || lower.contains("study")
-            || lower.contains("participants")
-            || lower.contains("findings")
 
         guard researchLike else { return nil }
-        guard let topic = passageTopic(for: passage) ?? documentTopic(from: passage.documentName) else {
+        guard let topic = passageTopic(for: passage) ?? documentTopic(from: passage.documentName),
+              Self.isAcceptableTemplateTopic(topic, documentName: passage.documentName) else {
             return nil
         }
 
@@ -2050,6 +2155,7 @@ actor SuggestedQuestionsService {
         for term in terms {
             guard term.count >= 4 && term.count <= 40 else { continue }
             guard isValidConceptualTopic(term) else { continue }
+            guard Self.isAcceptableTemplateTopic(term, documentName: passage.documentName) else { continue }
             
             // Find the sentence containing this term to extract context
             let matchingSentence = sentences.first { sentence in
@@ -2057,8 +2163,6 @@ actor SuggestedQuestionsService {
             }?.lowercased() ?? ""
             
             let isResearch = passage.chunk.metadata.documentCategory == .scientificPaper
-                || passage.content.lowercased().contains("study")
-                || passage.content.lowercased().contains("research")
                 
             if isResearch {
                 if matchingSentence.contains("limit") || matchingSentence.contains("caveat") || matchingSentence.contains("weakness") {
