@@ -273,9 +273,16 @@ nothing presents the camera.
 **No code work is outstanding.** The tree is clean, the suite is green, macOS builds. Do not re-run
 the suite to discover where things stand; read the Verification block above.
 
-**Pushed 2026-09-14.** `origin/main` is at `4dd8320` or later. That push triggers an Xcode Cloud
-build stamped **5.3** against records that already exist on both platforms, on the Xcode 27 release
-toolchain (`27A266a`, confirmed via `scripts/xcode_cloud_toolchain.rb` the same day).
+**Pushed 2026-09-14.** `origin/main` is at `4dd8320` or later. That push started Xcode Cloud
+build **#453**, stamped 5.3, on the Xcode 27 release toolchain (`27A266a`). **It succeeded**: Archive
+iOS, Archive macOS and both TestFlight Internal Testing actions all `SUCCEEDED`, finished 15:21Z,
+and two build-453 artifacts are `VALID` in App Store Connect under the 5.3 records, read from the
+API the same day. The build before it, **#452 on 2026-09-11, failed** on macOS at
+`PrepareBuildForAppStoreConnect` because the 5.3 version records did not exist in App Store Connect
+yet; the owner created them afterwards, which is why #453 got through. Neither 5.3 record has been
+submitted; both are `PREPARE_FOR_SUBMISSION`. No Xcode Cloud build lister exists in `scripts/`;
+`load` the first 50 lines of `scripts/xcode_cloud_toolchain.rb` for its `api` helper and GET
+`ciWorkflows/<WORKFLOW>/buildRuns?sort=-number` through `zsh -ic`.
 
 **The websites, fixed 2026-09-14.** All three sites read `Docs/SHIPPED_VERSION.json` from GitHub on
 a daily schedule, so with 5.2 unpushed they published "5.1" and "Private Cloud Compute is built but
