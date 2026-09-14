@@ -654,3 +654,37 @@ does not quantify it and the log line reports which branch ran so a device trace
 Vision concurrency all govern the same underlying quantity and are all set to maximum. They are
 filed on the roadmap with the evidence and deliberately not started, because attributing the
 observed five-hour ingest to any one of them is inference until a run is instrumented.
+
+## 2026-09-13 - The camera stays behind `#if os(iOS) && DEBUG` until it has been watched on a device
+
+**Decision.** `ChatScreen.visionCaptureAction` returns nil outside Debug builds, so the attachment
+menu never renders "Look at Something" in a Release build and `CameraVisionOverlayView` cannot be
+presented. 5.3 ships with the camera code compiled in and no way to open it. The owner's words on
+2026-09-13: the camera work is experimental and "should probably wait".
+
+**Why a compile-time gate rather than a setting.** A setting still ships the screen and leaves it one
+tap from anyone who goes looking, and this screen's riskiest property is one nobody has observed:
+`.onDisappear` stops the capture session, which is correct code, but a dismissal path where
+`.onDisappear` does not fire leaves the camera running. On a stranger's phone that is a lit camera
+indicator and a flat battery, reported through a review. One person on one phone is not evidence
+that every dismissal path fires. `#if DEBUG` keeps the screen on the owner's device builds, which is
+where that testing has to happen anyway.
+
+**What "gated" means, measured.** The screen's own `Vision Capture` string is absent from a Release
+binary and present in Debug, compared alongside a control string present in both. The menu label
+`Look at Something` survives into Release because `AttachmentPicker` compiles unconditionally, so the
+item is unreachable rather than absent. A present string is not proof a feature is reachable, and
+the distinction is recorded so that nobody greps a build and concludes the gate failed.
+
+**Consequences.** The user-facing notes written for the camera are held in
+`Docs/Release/5.3/camera_user_notes_held.md`, not shipped, because `Docs/USER_CHANGELOG.md` is copied
+into `Resources/VersionHistory.md` and rendered in Settings, where it would have described a button
+the build does not have. The roadmap row that tracked the camera stack moved from v5.3 to Future
+Backlog. The detector, the geometry and their 22 tests stay in every build. Removing the gate is what
+releasing the feature means; it should come with the held notes and a device pass over every
+dismissal path, not with a diff tidy.
+
+**Alternatives.** Ship it labelled experimental: rejected, because a label does not stop a capture
+session. Delete the 4,300 lines: rejected, because two days of measured repairs are in them and the
+screen works in Debug. A runtime flag read from UserDefaults: rejected for the reason above and
+because it is the mechanism that made every earlier "disabled" feature here reachable by accident.

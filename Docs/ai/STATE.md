@@ -1,6 +1,6 @@
 # Current State
 
-Updated: 2026-09-13
+Updated: 2026-09-14
 Branch/worktree: main (primary checkout)
 Last verified commit: e6dfe30, plus the commit that carries this handoff
 
@@ -34,7 +34,9 @@ have to be true first. Do not remove it to tidy a diff. **The camera's user-faci
 not shipped:** `Docs/USER_CHANGELOG.md` is copied byte for byte into
 `OpenIntelligence/Resources/VersionHistory.md` and rendered in Settings, so its "Your Camera"
 section would have told every 5.3 user about a button their build does not have. The section now
-lives in `Docs/Release/5.3/camera_user_notes_held.md` for whichever release carries the camera.
+lives in `Docs/Release/5.3/camera_user_notes_held.md` for whichever release carries the camera. The
+roadmap row "The entire camera stack is dead code" carries a dated note for all of this and moved from
+v5.3 to Future Backlog on 2026-09-14; the rationale is in `Docs/ai/DECISIONS.md` under 2026-09-13.
 
 **Four decisions belong to the owner and have been carried for several sessions.** They are listed
 under Exact Next Action. None of them blocks anything; they are simply not an agent's to make.
