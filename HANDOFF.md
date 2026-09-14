@@ -33,9 +33,10 @@ still asserts further down:
   description; removing that gate is what releasing it means, and `Docs/ai/STATE.md` lists what
   would have to be true first. Do not remove it to tidy a diff.
 
-**19 commits are unpushed** as of `e6dfe30`, by the owner's choice rather than by oversight. Count
-it yourself with `git rev-list --count origin/main..main` rather than trusting that number; it moves
-every commit. Pushing triggers an Xcode Cloud build stamped 5.3.
+**Pushed 2026-09-14** (`a4a8c6d..4dd8320`, 21 commits). Until that push GitHub still carried
+`Docs/SHIPPED_VERSION.json` = 5.1, and all three websites read that file from GitHub on a schedule,
+so they advertised 5.1 and a not-yet-enabled Private Cloud Compute for four days after 5.2 shipped
+with it. The sites were corrected and pushed the same day; `Docs/ai/STATE.md` has the detail.
 
 `Docs/ai/STATE.md` is fresher than this file and is what to trust where the two disagree.
 

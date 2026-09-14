@@ -14,9 +14,10 @@ Xcode, no working test action) are both resolved.
 
 **Nothing is half-finished and nothing is broken.** The working tree is clean, the suite is green
 (**440 executed, 0 failures**, re-run 2026-09-13 with the gate in place), macOS builds, and every
-change is committed. The commits are **not pushed**,
-by the owner's choice rather than by oversight, and pushing is the single outstanding mechanical
-action.
+change is committed **and pushed** (2026-09-14, 21 commits, `a4a8c6d..4dd8320`, a clean
+fast-forward). That push is what put `Docs/SHIPPED_VERSION.json` = 5.2 on GitHub. Until then every
+site workflow read 5.1 from origin and published it, four days after 5.2 went live; see "The
+websites" under Exact Next Action.
 
 **The camera is gated off for release and that is deliberate.** `ChatScreen.visionCaptureAction` is
 `#if os(iOS) && DEBUG`, so the action is nil in a Release build, `AttachmentPicker`'s
@@ -272,15 +273,22 @@ nothing presents the camera.
 **No code work is outstanding.** The tree is clean, the suite is green, macOS builds. Do not re-run
 the suite to discover where things stand; read the Verification block above.
 
-**One mechanical action, whenever the owner wants it:**
+**Pushed 2026-09-14.** `origin/main` is at `4dd8320` or later. That push triggers an Xcode Cloud
+build stamped **5.3** against records that already exist on both platforms, on the Xcode 27 release
+toolchain (`27A266a`, confirmed via `scripts/xcode_cloud_toolchain.rb` the same day).
 
-```bash
-gtimeout 60 git push origin main
-```
-
-Local `main` is ahead of `origin/main` and zero behind, so it fast-forwards. Pushing triggers an
-Xcode Cloud build stamped **5.3**, which matches the App Store Connect records that already exist on
-both platforms. Deliberately left to the owner.
+**The websites, fixed 2026-09-14.** All three sites read `Docs/SHIPPED_VERSION.json` from GitHub on
+a daily schedule, so with 5.2 unpushed they published "5.1" and "Private Cloud Compute is built but
+not enabled" for four days after 5.2 shipped with it. Gunzino's `App Store Versions` check, the one
+job that compares against the real App Store, had failed every morning since 2026-09-12 for exactly
+that. Fixed by: the three patches under `Docs/Release/5.2/sites/` (Gunzino and Portfolio applied
+unchanged; Fascinaiting's hero had been reworded since and was redone by hand), version anchors
+moved to 5.2, Fascinaiting's timeline given a released 5.2 entry and a 5.3 in-development entry so
+its version check passes against `preparing`, Fascinaiting's stranded local commit (`Add Claude
+Code kit`, 2026-09-08, held back by its pre-push overlap guard behind seven bot commits) rebased and
+pushed, and all three sites pushed. Gunzino's build gate compares the served Astro pages against
+the hand-written HTML by text, which is why both had to change identically. The site patches are
+applied and can be treated as historical.
 
 **Four decisions that are the owner's, carried across several sessions:**
 
