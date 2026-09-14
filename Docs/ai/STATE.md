@@ -46,8 +46,9 @@ see `Docs/ai/RUNBOOK.md` "Reading the route from Console.app". It cannot be exer
 simulator because Foundation Models is device-only, so the row stays In Progress until the next
 TestFlight build shows the pair under that predicate on the owner's phone with no debugger. That
 is the first thing to do once a TestFlight build at or after `aff80be` is installed: Xcode Cloud
-canceled #454 (that commit) when the next push arrived and is building #455 from `595c660`, which
-contains it.
+canceled #454 (that commit) when the next push arrived; **#455**, built from `595c660` which
+contains it, `SUCCEEDED` on both platforms at 21:51Z on 2026-09-14 and both build-455 artifacts are
+`VALID` in App Store Connect. Install build 455 from TestFlight and run the Console procedure.
 
 **The App Store copy has a history now, and a gate.** `Docs/Release/APP_STORE_METADATA_HISTORY.md` holds every version of the store
 copy since 2.1.1, per platform, with live dates; read its two newest entries before writing 5.3's
