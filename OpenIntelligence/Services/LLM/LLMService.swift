@@ -689,6 +689,11 @@ struct LLMResponse {
             let (actualRoute, session) = try ensureSession(
                 route: targetRoute, systemPrompt: config.systemPrompt, disableTools: config.disableTools)
 
+            // The one line a TestFlight build writes to the unified log about routing. Everything
+            // else in this function logs through the `Log` facade, which a Release build never
+            // shows anyone; see RouteLog.swift for why this bypasses it and what it may carry.
+            RouteLog.started(route: actualRoute, plan: config.modelExecutionPlan)
+
             let executionBasedModelName: String
             switch actualRoute {
             case .onDevice:
@@ -1137,6 +1142,7 @@ struct LLMResponse {
                     pccQuotaAtPlanning: plan.pccQuotaAtPlanning
                 )
             }
+            RouteLog.completed(actualTarget: actualTarget, receipt: executionReceipt)
             let usage = readUsage(from: session)
             if let usage {
                 // Logged next to the route because the two answer different questions: the route
@@ -1205,6 +1211,9 @@ struct LLMResponse {
             let (actualRoute, session) = try ensureSession(
                 route: targetRoute, systemPrompt: structuredConfig.systemPrompt, disableTools: true)
 
+            // Same unified-log line as the streaming path; see RouteLog.swift.
+            RouteLog.started(route: actualRoute, plan: config.modelExecutionPlan)
+
             let executionBasedModelName: String
             switch actualRoute {
             case .onDevice:
@@ -1269,6 +1278,7 @@ struct LLMResponse {
                     pccQuotaAtPlanning: plan.pccQuotaAtPlanning
                 )
             }
+            RouteLog.completed(actualTarget: actualTarget, receipt: executionReceipt)
             let usage = readUsage(from: session)
             if let usage {
                 Log.info(

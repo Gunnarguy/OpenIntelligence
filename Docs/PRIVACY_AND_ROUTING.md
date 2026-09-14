@@ -145,6 +145,31 @@ document, transcript or reasoning **content**, which section 8 forbids.
 
 Telemetry may include identifiers, public target names, counts, budgets, hashes, quota categories, reason codes, and verification status. It must not include raw query text, document text, transcript content, or generated reasoning. Historical responses remain readable because receipt metadata is optional. `[evidence_level: code_verified, confidence: high, evidence_source: ModelExecutionReceipt.swift, RAGQuery.swift, LLMService.swift]`
 
+### The unified-log line, so a TestFlight build can be observed at all
+
+Until 2026-09-14 a Release build wrote **nothing** about routing to the unified logging system.
+Every route-naming statement went through the `Log` facade, whose only console output is a
+`print()` inside `#if DEBUG`; `print` reaches stdout and never Console.app; and Release defaults the
+facade to `.error` with no categories enabled. `actualRoute` therefore existed only inside the app.
+
+`RouteLog` (`Services/Infrastructure/Configuration/RouteLog.swift`) now writes one `notice`-level
+line at the start of each generation and one at its end, to subsystem
+`Gunndamental.OpenIntelligence`, category `routing`, from both generation paths in `LLMService`.
+The line carries exactly: the actual target and the intended target (`ModelExecutionTarget` raw
+values), the fallback reason (`ModelRouteReason` raw value or `none`), the Private Cloud Compute
+reasoning level (`PCCReasoningLevel` raw value, only when that route ran), the attempt count, the
+first eight characters of the plan UUID, and the policy version constant. Its API accepts only
+those types, so no call site can hand it a query, a passage or an answer. Every interpolation is
+marked `privacy: .public` because the unified log otherwise renders dynamic strings as `<private>`,
+and each of these is a public target name or a code by construction. This is the section 8
+allowance for public target names, reason codes and counts, applied to the unified log.
+
+It deliberately bypasses the `Log` facade rather than adding a unified-log sink to it: the
+facade's `.llm` lines can carry prompt and response text at debug level, which section 8 forbids
+from any telemetry surface.
+
+`[evidence_level: code_verified, confidence: exact, evidence_source: RouteLog.swift; LLMService.swift RouteLog.started/completed call sites; RouteLogLineTests pins the vocabulary; SDK check 2026-09-14: Logger.notice and OSLogPrivacy in iPhoneOS27.0.sdk os.swiftinterface]`
+
 ## Validation boundary
 
 The source implementation and Swift parsing are complete. Production readiness is not yet claimed until the following pass on a signed iOS 27 device and distribution artifact: entitlement inspection, native PCC execution, intended-versus-actual receipt confirmation, consent allow/deny/revoke, App Intent/background behavior, quota approach/exhaustion, offline and mid-request network changes, and physical-device thermal/battery checks. `[evidence_level: code_verified, confidence: exact_for_unverified_status, evidence_source: PCC dynamic routing test matrix]`

@@ -88,6 +88,43 @@ Foundation Models needs a real device with Apple Intelligence, so on-device gene
 Cloud Compute routing cannot be exercised in the simulator at all. Anything claiming to verify
 routing behavior from a simulator run is wrong.
 
+## Reading the route from Console.app
+
+Since 2026-09-14 every generation writes two lines to the unified log, one when the session is
+resolved and one when the receipt is written, from a Release build with no debugger attached.
+That is the only way to see from outside the app whether an answer was written on the device or on
+Private Cloud Compute; `Response` carries nothing naming the backend, so the app's own record is
+the only source.
+
+1. Connect the iPhone, open Console.app, select the device, and click Start.
+2. Filter with this predicate (paste it into the search field as a raw filter, or set Subsystem
+   and Category from the search token menu):
+
+   ```text
+   subsystem == "Gunndamental.OpenIntelligence" AND category == "routing"
+   ```
+
+3. Ask a question in the app. Expect a pair like:
+
+   ```text
+   route started actual=onDevice intended=onDevice reasoning=none plan=1A2B3C4D policy=pcc-dynamic-router-v2
+   route completed actual=onDevice intended=onDevice fallback=none attempts=1 plan=1A2B3C4D policy=pcc-dynamic-router-v2
+   ```
+
+   `actual=privateCloudCompute` with a `reasoning=` level is a Private Cloud Compute answer.
+   `intended` differing from `actual` with a `fallback=` code is a planner or runtime fallback;
+   the codes are `ModelRouteReason` raw values. `plan=direct` is a generation with no execution
+   plan behind it (title generation, the benchmark harness).
+
+The same lines can be read after the fact with `log show --predicate '...' --last 1h` on a Mac
+running the macOS app, or from a sysdiagnose. They are `notice` level on purpose: `info` is held in
+memory and only written out when a fault occurs nearby, so a healthy app would show nothing.
+
+**What this cannot do:** run in the simulator. Foundation Models is device-only, so the generation
+paths that emit these lines never execute there; `RouteLogLineTests` pins the line's shape and the
+device pins its arrival. *Unverified on a device as of the day it was written; the roadmap row
+closes when a TestFlight build shows the pair under that predicate.*
+
 ## Test
 
 Scheme `OpenIntelligence`, test target `OpenIntelligenceTests`, Xcode 27 at

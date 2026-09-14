@@ -38,6 +38,15 @@ lives in `Docs/Release/5.3/camera_user_notes_held.md` for whichever release carr
 roadmap row "The entire camera stack is dead code" carries a dated note for all of this and moved from
 v5.3 to Future Backlog on 2026-09-14; the rationale is in `Docs/ai/DECISIONS.md` under 2026-09-13.
 
+**The Console.app routing line is written and not yet closed.** Roadmap row "A TestFlight build
+writes nothing to Console.app" was implemented 2026-09-14: `RouteLog` writes one `notice` line at
+the start and one at the end of every generation to subsystem `Gunndamental.OpenIntelligence`,
+category `routing`, carrying only public target names, reason codes, a plan id prefix and a count;
+see `Docs/ai/RUNBOOK.md` "Reading the route from Console.app". It cannot be exercised in the
+simulator because Foundation Models is device-only, so the row stays In Progress until the next
+TestFlight build shows the pair under that predicate on the owner's phone with no debugger. That
+is the first thing to do once build 454 or later is installed.
+
 **Four decisions belong to the owner and have been carried for several sessions.** They are listed
 under Exact Next Action. None of them blocks anything; they are simply not an agent's to make.
 
@@ -203,6 +212,21 @@ other build directories are correctly named `.build.nosync`, `.simulator-smoke.n
   future-tense PCC copy on three live sites, each of which deploys on push. Held for the owner.
 
 ## Verification
+
+Run 2026-09-14 from `/private/tmp/oi-src` against the iOS 27 simulator, output read, with the
+routing line in the tree:
+
+- `xcodebuild test` — **`** TEST SUCCEEDED **`, exit 0, 446 executed, 3 skipped, 0 failures.**
+  Six new cases in `RouteLogLineTests` pin the unified-log line's shape and vocabulary; the same
+  three self-skipping guards as the 2026-09-13 run; the silent-audio test excluded by name as before.
+- **macOS**: `xcodebuild -destination "platform=macOS" build` — **`** BUILD SUCCEEDED **`, exit 0.**
+  Run because `RouteLog.swift` compiles into the Engine for both platforms and this repository's
+  `#else` halves have diverged silently before.
+- `xcodebuild -configuration Release build` (simulator) — **`** BUILD SUCCEEDED **`**, and the
+  Release app binary contains `Gunndamental.OpenIntelligence`, `route started actual=` and
+  `route completed actual=`, checked alongside a control string present in every build. So the
+  routing line is compiled into what TestFlight installs; only its arrival in Console.app is
+  unproven, and that needs the phone.
 
 Run 2026-09-13 from `/private/tmp/oi-src` against the iOS 27 simulator
 (`25E29FA1-6A22-4A86-AE9F-A6F48411E6D0`, iPhone 18 Pro), output read:
