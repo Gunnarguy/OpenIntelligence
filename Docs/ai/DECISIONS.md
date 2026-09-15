@@ -688,3 +688,26 @@ dismissal path, not with a diff tidy.
 session. Delete the 4,300 lines: rejected, because two days of measured repairs are in them and the
 screen works in Debug. A runtime flag read from UserDefaults: rejected for the reason above and
 because it is the mechanism that made every earlier "disabled" feature here reachable by accident.
+
+## 2026-09-14 - The sample library's suggested questions are written by hand, and stay that way
+
+**Decision.** The three sample documents get the curated question set in
+`SuggestedQuestionsService.sampleWorkspaceQuestions`, not model-generated ones, on every device
+family alike. Owner's words, 2026-09-14: they are "formulated to answer precisely what the questions
+are set up to ask to guide users to understand more of the app, they're not intended to be
+randomized or flashy." Improving their wording is welcome; replacing them with generation is not.
+
+**Why, which the code does not say.** The sample library is the first thing a new user sees, and its
+questions exist to teach the app, not to demonstrate the generator. A generated set would vary by
+device, by model availability at first launch, and by run, and the samples are conceptual product
+prose that the generator handles worst of all. A fixed set is the only one that can be written to
+lead a reader through the app in order.
+
+**Rejected the same day.** Using the curated set only as a bootstrap until the model has written
+grounded questions for the samples. Proposed by the agent, declined by the owner: the value of the
+set is that it is the same for everyone.
+
+**Consequences.** The fix committed as `063305f` (sample identity, numbered-copy cleanup, fail-closed
+templates, bank rebuild) stands; it restores this path, it does not change its nature. The refresh
+button on the sample workspace still shuffles the curated list; that is the one place the set is
+not deterministic, left as is at "let's put this to rest".
