@@ -164,14 +164,57 @@ Private Cloud Compute is on. Questions too big for the on-device model can be wr
 
 ## Versions, newest first
 
-### 5.3 (in preparation; description staged 2026-09-18, not yet pushed)
+### 5.3 (in preparation; copy complete 2026-09-18, pushed to the 5.3 records the same day)
 
 - **Platforms:** iOS, macOS
-- **Live:** not yet. The 5.3 records exist in App Store Connect in `PREPARE_FOR_SUBMISSION`; the description below lands with 5.3 because a description cannot be edited on a live version.
-- **Commit:** the one that adds this entry
-- **Notes:** the description gains a PLANS block, written to the rule in `Docs/BILLING_AND_LIMITS.md`: a plan is described by what it gates (Maximum's daily cap, capacity), and the model is described as what every plan includes. No trial is mentioned anywhere; Pro Annual's 7-day free trial was withdrawn the same day. 3979 characters against the 4,000 limit. Release notes and promotional text for 5.3 are not yet written.
+- **Live:** not yet. The 5.3 records exist in App Store Connect in `PREPARE_FOR_SUBMISSION`; build 459 is the candidate.
+- **Final release notes commit:** the one that adds this entry (2026-09-18)
+- **Notes:** the first release written into the template above. One text for both platforms, in both `fastlane/metadata/` and `fastlane/metadata-ios/`, because the platforms do not diverge in 5.3. The description gains a PLANS block, written to the rule in `Docs/BILLING_AND_LIMITS.md`: a plan is described by what it gates, and the model as what every plan includes. No trial is mentioned anywhere; Pro Annual's 7-day free trial was withdrawn the same day. Release notes 2494 characters, promotional text 162, description 3,979, all against the 4,000 / 170 / 4,000 limits.
 
-**Description (`fastlane/metadata/en-US/description.txt`):**
+**Release notes (`fastlane/metadata/`, both platforms):**
+
+```text
+This release is about what you see first: the sample library's questions, the welcome screens, and the upgrade screen. Underneath it, documents are read with Apple's own detector and there is a new, off-by-default control over how answers are written.
+
+
+THE SAMPLE LIBRARY MAKES SENSE AGAIN
+
+• The three sample documents come with questions written by hand to walk you through the app. One leftover duplicate of a sample was enough to switch them off and replace them with questions built from templates, which is where "What is nothing?" came from. Duplicates are cleaned up on your next visit to Documents, and the written questions show whenever the three samples are there.
+
+• When Apple Intelligence has nothing well-grounded to ask about a document, the app now shows no suggestion rather than a bad one.
+
+
+READING YOUR DOCUMENTS
+
+• Addresses, phone numbers, dates, amounts of money, measurements, flight numbers and tracking numbers inside tables are now recognised by Apple's own detector instead of pattern matching that only understood US phone numbers. Prose on the same page does not yet contribute; that is the current limit, stated plainly.
+
+
+ANSWERING
+
+• Three sliders in Model Parameters said they changed how the model picks words. Apple's generation API has no penalty setting of any kind, so they never did, on the device or on Private Cloud Compute. They now say so.
+
+• New, and off until you turn it on: Adapt to the question. The app picks a temperature and a length from what you asked, so looking up a value gives the same number twice and comparing two things gets room to work. It applies in Standard, Deep Think and Maximum. It is off because nobody has shown it produces better answers yet; it is a setting you can judge for yourself.
+
+• You can write your own reasoning profile for the questions that reason on Private Cloud Compute, in your own words, in Model Parameters.
+
+
+THE WELCOME SCREENS AND THE UPGRADE SCREEN
+
+• The welcome screens follow your light or dark setting. In light mode the status bar was nearly invisible against them; it is not now.
+
+• The upgrade screen leads with what a plan actually changes. Every plan runs the same model, on your device, with Deep Think and consent-gated Private Cloud Compute included. Pro and Lifetime lift the daily cap on Maximum mode and raise the document and library limits. Pro Annual no longer offers a free trial; it is one payment a year.
+
+
+Everything except that one writing step still runs on your device.
+```
+
+**Promotional text**, both platforms:
+
+```text
+The sample library's questions are back, the welcome screens follow light and dark, and a new off-by-default setting adapts each answer to the question you asked.
+```
+
+**Description** (`fastlane/metadata/en-US/description.txt`, `6a6a520` 2026-09-18):
 
 ```text
 You already have the answers. They're just buried in a 300-page manual, a folder of contracts, a semester of lecture recordings, or a codebase you inherited.
@@ -220,7 +263,6 @@ OpenIntelligence is built and maintained by one developer. Pro and Lifetime supp
 
 Privacy Policy: https://gunzino.me/openintelligence/privacy
 ```
-
 
 ### 5.2
 

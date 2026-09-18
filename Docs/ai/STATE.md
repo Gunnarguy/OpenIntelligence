@@ -102,6 +102,13 @@ artifacts `VALID` in App Store Connect. It carries the paywall copy, the routing
 suggested-questions fix, so it supersedes 456 as the one build to install for every device check.
 Nothing in the paywall commit caused the failures.
 
+**5.3 is submit-ready from the repository's side (2026-09-18).** Release notes and promotional
+text written into the metadata history's template and pushed to both 5.3 records with
+`push_metadata` (set `LC_ALL=en_US.UTF-8` in a non-interactive shell or deliver fails on `•`); the
+description with its PLANS block went with them; `MARKETING_VERSION` is 5.3 on all eight targets
+(smoke build reports 5.3). Build 459 is the candidate. What remains is the owner's: the device
+checks on 459, deleting the 175 Annual trial offers, and `submit_latest` for each platform.
+
 **Four decisions belong to the owner and have been carried for several sessions.** They are listed
 under Exact Next Action. None of them blocks anything; they are simply not an agent's to make.
 
@@ -400,6 +407,9 @@ Code kit`, 2026-09-08, held back by its pre-push overlap guard behind seven bot 
 pushed, and all three sites pushed. Gunzino's build gate compares the served Astro pages against
 the hand-written HTML by text, which is why both had to change identically. The site patches are
 applied and can be treated as historical.
+
+**Submit 5.3** once the device checks pass: `bundle exec fastlane submit_latest version:5.3 platform:ios`
+and the same with `platform:osx`, through `zsh -ic` with `LC_ALL=en_US.UTF-8`.
 
 **Delete the 175 Pro Annual introductory offers in App Store Connect** (the trial). Script and UI
 path above. Then re-check with the `subscriptions/6756638919/introductoryOffers` listing, which

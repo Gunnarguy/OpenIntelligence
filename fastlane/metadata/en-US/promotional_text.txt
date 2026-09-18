@@ -1,1 +1,1 @@
-Private Cloud Compute is on. Questions too big for the on-device model can be written on Apple's servers, after you approve exactly what would be sent.
+The sample library's questions are back, the welcome screens follow light and dark, and a new off-by-default setting adapts each answer to the question you asked.
