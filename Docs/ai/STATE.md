@@ -51,6 +51,7 @@ contains it, `SUCCEEDED` on both platforms at 21:51Z on 2026-09-14 and both buil
 `VALID` in App Store Connect. **Superseded by #456** (`063305f`, `SUCCEEDED` 00:09Z on 2026-09-15, both
 artifacts `VALID`), which carries the routing line *and* the suggested-questions fix. Install build 456
 from TestFlight for both device checks: the Console procedure, and the sample library's questions.
+**Superseded again by #459** (`6a6a520`, 2026-09-18), which adds the paywall copy; install 459.
 
 **The App Store copy has a history now, and a gate.** `Docs/Release/APP_STORE_METADATA_HISTORY.md` holds every version of the store
 copy since 2.1.1, per platform, with live dates; read its two newest entries before writing 5.3's
@@ -93,8 +94,10 @@ re-catalogued its images, the "Xcode 27 Release Candidate" entry the workflow wa
 "Xcode 27" (`27A266a`, the same build as before, id `61944704-7a99-4e44-917c-0ade12ce6c45`) by
 direct PATCH after `scripts/xcode_cloud_toolchain.rb --set 'Xcode 27'` matched "Xcode 27.2 beta"
 first; the script's matcher now prefers the exact name and skips betas unless asked for one.
-Build #459 was started by API on the repinned workflow; its result is recorded under Verification
-when known. Nothing in the paywall commit caused the failures.
+Build #459, started by API on the repinned workflow, **`SUCCEEDED` on both platforms at 15:47Z**, both
+artifacts `VALID` in App Store Connect. It carries the paywall copy, the routing line and the
+suggested-questions fix, so it supersedes 456 as the one build to install for every device check.
+Nothing in the paywall commit caused the failures.
 
 **Four decisions belong to the owner and have been carried for several sessions.** They are listed
 under Exact Next Action. None of them blocks anything; they are simply not an agent's to make.
