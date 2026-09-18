@@ -83,6 +83,27 @@ check() {
 #
 # The synthetic file mirrors the real structure: an empty [Unreleased], then an open numbered
 # heading carrying the marker, then a shipped section.
+RN_GOOD="This release is about one thing, said plainly.
+
+
+ONE SECTION IN CAPS
+
+• A full sentence a user could act on.
+
+• Another one.
+
+
+Everything still runs on your device."
+RN_DASHES="This release is about one thing.
+
+
+A SECTION
+
+- A dash bullet, which is the old shape."
+RN_NO_INTRO="A SECTION FIRST
+
+• A bullet with no intro above it."
+
 CL_GOOD='## [Unreleased]
 
 <!-- next-version: 9.10 -->
@@ -150,9 +171,34 @@ stage "fastlane/metadata/en-US/release_notes.txt" "Version 9.9 notes"
 check fail "App Store copy alone is blocked, and names the history file" "Docs/Release/APP_STORE_METADATA_HISTORY.md"
 
 new_index
-stage "fastlane/metadata-ios/en-US/release_notes.txt" "Version 9.9 notes, iOS"
+stage "Docs/SHIPPED_VERSION.json" '{"app_store":"9.8","preparing":"9.9"}'
+stage "fastlane/metadata-ios/en-US/release_notes.txt" "$RN_GOOD"
 stage "Docs/Release/APP_STORE_METADATA_HISTORY.md" "### 9.9 appended"
 check pass "App Store copy with its history entry passes, no Swift staged"
+
+new_index
+stage "Docs/SHIPPED_VERSION.json" '{"app_store":"9.8","preparing":"9.9"}'
+stage "fastlane/metadata/en-US/release_notes.txt" "$RN_GOOD"
+stage "Docs/Release/APP_STORE_METADATA_HISTORY.md" "### 9.8 only, the shipped one"
+check fail "history staged but with no entry for the version being prepared" "history entry for v9.9"
+
+new_index
+stage "Docs/SHIPPED_VERSION.json" '{"app_store":"9.8","preparing":"9.9"}'
+stage "fastlane/metadata/en-US/release_notes.txt" "$RN_DASHES"
+stage "Docs/Release/APP_STORE_METADATA_HISTORY.md" "### 9.9"
+check fail "release notes with '-' bullets are rejected" "use '-' or '*' bullets"
+
+new_index
+stage "Docs/SHIPPED_VERSION.json" '{"app_store":"9.8","preparing":"9.9"}'
+stage "fastlane/metadata/en-US/release_notes.txt" "$RN_NO_INTRO"
+stage "Docs/Release/APP_STORE_METADATA_HISTORY.md" "### 9.9"
+check fail "release notes that open with a heading are rejected" "do not open with an intro sentence"
+
+new_index
+stage "Docs/SHIPPED_VERSION.json" '{"app_store":"9.8","preparing":"9.9"}'
+stage "fastlane/metadata/en-US/promotional_text.txt" "$(printf 'x%.0s' $(seq 1 171))"
+stage "Docs/Release/APP_STORE_METADATA_HISTORY.md" "### 9.9"
+check fail "promotional text over 170 characters is rejected" "limit is 170"
 
 new_index
 stage "OpenIntelligence/Services/Storage/Synthetic.swift" "// changed"

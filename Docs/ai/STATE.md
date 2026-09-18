@@ -56,7 +56,10 @@ from TestFlight for both device checks: the Console procedure, and the sample li
 **The App Store copy has a history now, and a gate.** `Docs/Release/APP_STORE_METADATA_HISTORY.md` holds every version of the store
 copy since 2.1.1, per platform, with live dates; read its two newest entries before writing 5.3's
 copy and append 5.3's there. A change under `fastlane/metadata*` without that append fails
-pre-commit (`scripts/required_docs.sh`, 2026-09-14). One thing it surfaced: the 5.2 iOS and macOS
+pre-commit (`scripts/required_docs.sh`, 2026-09-14). Since 2026-09-18 the file also carries a
+"Template for the next version" and the hook checks the staged copy against it: a `### <version>`
+heading for the version being prepared, an intro sentence, capitalised headings, `• ` bullets,
+the 4,000 and 170 character limits. Write 5.3's notes into that template. One thing it surfaced: the 5.2 iOS and macOS
 release notes diverged on 2026-09-10 and the repo does not record which text the iOS listing shows.
 
 **The sample library's suggested questions are fixed in code and not yet seen on the phone.**

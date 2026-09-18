@@ -108,7 +108,7 @@ Routes common task types to owning subsystems with read-first docs, edit zones, 
 - **Allowed:** `fastlane/**` metadata, `WHATS_NEW.md`, `Docs/USER_CHANGELOG.md`, `PRIVACY.md`, `Docs/Release/APP_STORE_METADATA_HISTORY.md`
 - **Forbidden:** claims contradicting canonical §4 unsafe claims
 - **Read before writing copy:** the two newest entries in `Docs/Release/APP_STORE_METADATA_HISTORY.md`, for shape and voice; it holds every version of the store copy since 2.1.1
-- **Verify:** cross-check each product claim against canonical §3; approval before publishing; append the new version's copy to `Docs/Release/APP_STORE_METADATA_HISTORY.md` in the same commit, which `scripts/required_docs.sh` enforces for any change under `fastlane/metadata*` (added 2026-09-14)
+- **Verify:** cross-check each product claim against canonical §3; approval before publishing; write the new version into the template in `Docs/Release/APP_STORE_METADATA_HISTORY.md` in the same commit; pre-commit requires the file, a `### <version>` heading for the version being prepared, and the template's shape for `release_notes.txt` and `promotional_text.txt` (2026-09-14, extended 2026-09-18)
 
 ### 13. Build / project config change
 - **Forbidden by default:** `OpenIntelligence.xcodeproj/project.pbxproj`, `Package.swift` targets, `Info.plist` capabilities, `ci_scripts/**`

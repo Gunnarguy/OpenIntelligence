@@ -73,6 +73,69 @@ if [ "${#MISSING[@]}" -gt 0 ]; then
 fi
 
 # ---------------------------------------------------------------------------
+# App Store copy, only when fastlane/metadata* is itself staged (added 2026-09-18).
+#
+# scripts/required_docs.sh already makes the history file required. That proves the file was
+# touched, not that the version got an entry or that the copy has the shape every release since
+# 5.1 has shipped in. Both are checked here, against STAGED content, so the check describes the
+# commit being made. The shape is written down in the template section of the history file.
+# ---------------------------------------------------------------------------
+staged_metadata="$(printf '%s\n' "$staged" | grep -E '^fastlane/metadata(-ios)?/' || true)"
+if [ -n "$staged_metadata" ]; then
+  HISTORY="Docs/Release/APP_STORE_METADATA_HISTORY.md"
+  metadata_fail() {
+    echo "======================================================================"
+    echo "PRE-COMMIT FAILED: App Store copy $1"
+    echo "======================================================================"
+    shift; printf '%s\n' "$@"
+    echo "The template and its rules: $HISTORY, section \"Template for the next version\"."
+    echo "======================================================================"
+    exit 1
+  }
+  # The version being prepared, from the marker file (staged copy first), never from CHANGELOG.
+  marker="$(git show :Docs/SHIPPED_VERSION.json 2>/dev/null || cat Docs/SHIPPED_VERSION.json 2>/dev/null || true)"
+  preparing="$(printf '%s' "$marker" | python3 -c 'import json,sys
+try: print(json.load(sys.stdin).get("preparing",""))
+except Exception: print("")' 2>/dev/null || true)"
+  history="$(git show ":$HISTORY" 2>/dev/null || cat "$HISTORY" 2>/dev/null || true)"
+  if [ -n "$preparing" ] && ! printf '%s\n' "$history" | grep -qE "^### ${preparing//./\\.}( |$)"; then
+    metadata_fail "changed without a history entry for v$preparing" \
+      "Docs/SHIPPED_VERSION.json says v$preparing is being prepared, and $HISTORY has no" \
+      "'### $preparing' heading. Copy the template into the top of \"Versions, newest first\"," \
+      "fill it in with this copy verbatim, and stage the file."
+  fi
+  for f in $staged_metadata; do
+    content="$(git show ":$f" 2>/dev/null || true)"
+    [ -n "$content" ] || continue
+    chars="$(printf '%s' "$content" | wc -m | tr -d ' ')"
+    case "${f##*/}" in
+      release_notes.txt)
+        [ "$chars" -le 4000 ] || metadata_fail "release notes are $chars characters; the App Store limit is 4,000" "  $f"
+        first="$(printf '%s\n' "$content" | grep -m1 -v '^[[:space:]]*$' || true)"
+        if printf '%s' "$first" | grep -qE '^[[:upper:][:space:][:punct:]]+$' || printf '%s' "$first" | grep -q '^•'; then
+          metadata_fail "release notes do not open with an intro sentence" "  $f begins: ${first:0:80}" "The first line is a sentence of prose, not a heading or a bullet."
+        fi
+        printf '%s\n' "$content" | grep -qE '^[[:upper:]][[:upper:][:digit:][:space:][:punct:]]{3,}$' ||
+          metadata_fail "release notes have no ALL-CAPS section heading" "  $f" "Every release since 5.1 groups its bullets under short capitalised headings."
+        if printf '%s\n' "$content" | grep -qE '^[[:space:]]*[-*] '; then
+          metadata_fail "release notes use '-' or '*' bullets" "  $f" "Use '• ' (U+2022 and a space)."
+        fi
+        printf '%s\n' "$content" | grep -q '^• ' ||
+          metadata_fail "release notes have no '• ' bullets" "  $f" "Bullets are U+2022 and a space. '-' and '*' are the shapes this file exists to end."
+        printf '%s' "$content" | grep -q '—' && metadata_fail "release notes contain an em dash" "  $f" "Store copy carries none; bd70890 stripped them on 2026-07-28."
+        ;;
+      promotional_text.txt)
+        [ "$chars" -le 170 ] || metadata_fail "promotional text is $chars characters; the App Store limit is 170" "  $f"
+        printf '%s' "$content" | grep -q '—' && metadata_fail "promotional text contains an em dash" "  $f"
+        ;;
+      description.txt)
+        [ "$chars" -le 4000 ] || metadata_fail "description is $chars characters; the App Store limit is 4,000" "  $f"
+        ;;
+    esac
+  done
+fi
+
+# ---------------------------------------------------------------------------
 # CHANGELOG hygiene, only when CHANGELOG.md is itself staged.
 # ---------------------------------------------------------------------------
 if is_staged "CHANGELOG.md"; then

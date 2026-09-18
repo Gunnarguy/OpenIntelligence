@@ -52,6 +52,12 @@ the same commit as the `fastlane/metadata*` change; `scripts/required_docs.sh` f
 without it. `WHATS_NEW.md` and `Docs/USER_CHANGELOG.md` are the sources for content; the history is
 the source for form. Never rewrite an old entry's text: it is what the store showed.
 
+**Write the next version into the template**, section "Template for the next version" in that
+file: entry fields, then release notes as an intro sentence, ALL-CAPS section headings, `• `
+bullets, a closing device line; promotional text under 170 characters. Pre-commit checks the
+staged `fastlane/metadata*` copy against that shape and refuses a commit whose history lacks a
+`### <version>` heading for the version `Docs/SHIPPED_VERSION.json` says is being prepared.
+
 Past releases used at least three different shapes for the same information: `v4.9`/`v4.8` used
 `### Section` headings with `*   ` (asterisk, three spaces) bullets; `v4.7`/`v4.6` used no section
 headings at all, just a flat list of `**Bold Label:** explanation` bullets; spacing between the

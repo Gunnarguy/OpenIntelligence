@@ -15,11 +15,15 @@ without looking at the last. This file is the last one, and every one before it.
 1. **Before writing a release's copy**, read the two most recent entries here. Match their shape
    and voice. `WHATS_NEW.md` and `Docs/USER_CHANGELOG.md` are the sources for the *content*; this
    file is the source for the *form*.
-2. **When you push a release's copy**, append its entry at the top of the "Versions" section:
-   version, platforms, the date it went live (from `Docs/SHIPPED_VERSION.json`, never from
-   `CHANGELOG.md`'s heading, which is the version being prepared), the commit, and the text
-   verbatim. `scripts/required_docs.sh` requires this file in any commit that touches
-   `fastlane/metadata*`, so a push without an entry fails at pre-commit.
+2. **When you write a release's copy**, copy the template below into the top of the "Versions"
+   section and fill it in: version, platforms, the date it went live (from
+   `Docs/SHIPPED_VERSION.json`, never from `CHANGELOG.md`'s heading, which is the version being
+   prepared), the commit, and the text verbatim. Pre-commit enforces two things whenever
+   `fastlane/metadata*` is staged (`scripts/enforce_docs_hook.sh`): this file is staged too, and it
+   holds a `### <version>` heading for the version `Docs/SHIPPED_VERSION.json` says is being
+   prepared. It also checks the shape of a staged `release_notes.txt` against the template: an
+   intro paragraph, at least one ALL-CAPS section heading, `• ` bullets, under 4,000 characters;
+   and `promotional_text.txt` under 170.
 3. **Do not edit an old entry's text.** It is what the store showed. If it turns out to be wrong,
    add a dated note under it, as the 5.2 entry does.
 
@@ -27,6 +31,71 @@ without looking at the last. This file is the last one, and every one before it.
 repo pushed and when; where the store may have shown something else, the entry says so.
 
 `[evidence_level: code_verified, confidence: exact, evidence_source: git log -- fastlane/metadata fastlane/metadata-ios, 2026-04-15 to 2026-09-10; Docs/SHIPPED_VERSION.json _comment history for live dates; Docs/USER_CHANGELOG.md headings for release dates the marker file predates]`
+
+## Template for the next version
+
+The shape is the one 5.1 and 5.2 shipped in, which is the shape every future release keeps. Copy
+this block to the top of "Versions, newest first" and replace the angle-bracket parts. Nothing
+else about the block changes: not the field order, not the headings, not the code fences.
+
+```markdown
+### <X.Y>
+
+- **Platforms:** <iOS, macOS | iOS only | macOS only>
+- **Live:** <YYYY-MM-DD on both platforms, build <N> (`Docs/SHIPPED_VERSION.json`)> | not yet; records in PREPARE_FOR_SUBMISSION
+- **Final release notes commit:** `<sha>` (<YYYY-MM-DD>)
+- **Notes:** <what changed since the previous entry's copy, and any platform divergence; omit the line if nothing is worth saying>
+
+**Release notes (`fastlane/metadata/`<, the macOS copy | , both platforms>):**
+
+```text
+<One or two sentences of plain prose saying what this release is about. No heading, no bullet.>
+
+
+<SECTION NAME IN CAPS, A SHORT NOUN PHRASE>
+
+• <One bullet per change: a full sentence or two, plain language, what a user notices first.>
+
+• <Next bullet.>
+
+
+<NEXT SECTION IN CAPS>
+
+• <...>
+
+
+<One closing line, the same every release unless the truth changed: "Everything still runs on your device." or the 5.2 form, "Everything except that one writing step still runs on your device.">
+```
+
+**Release notes (`fastlane/metadata-ios/`, `<sha>` <date>):** <only when iOS and macOS differ; otherwise delete this block and say "both platforms" above>
+
+**Promotional text** (`<sha>`):
+
+```text
+<One or two sentences, at most 170 characters, naming the single thing a store visitor should know this release. No version number.>
+```
+
+**Description** (`<sha>`): <only when `description.txt` changed; otherwise delete this block>
+```
+
+**The rules the template encodes.**
+
+- The release notes open with prose, never a heading, and close with the device line. Section
+  headings are short noun phrases in capitals with two blank lines before them and one after.
+  Bullets are `• ` (U+2022 and a space), each a complete sentence a user could act on, one per
+  change, blank line between bullets. No em dashes anywhere in store copy; `bd70890` stripped them
+  on 2026-07-28 and they have not come back.
+- Sections are ordered by what a user notices first, not by subsystem. A correction to a claim in
+  the previous release gets its own section, headed as such (5.2: "A CORRECTION FROM 5.1").
+- Numbers only when measured, with the hardware named (5.2: "on an iPhone with the A18 Pro").
+- Limits, from App Store Connect: release notes 4,000 characters, promotional text 170,
+  description 4,000. `492bfc7` trimmed 4,972 to fit on 2026-06-10, after the fact.
+- Per-platform notes exist only when the platforms genuinely differ (5.1, when iOS was two Mac
+  releases behind). When they do not, one text in `fastlane/metadata/` and the same text in
+  `fastlane/metadata-ios/`, and the entry says "both platforms". 5.2's divergence (the macOS copy
+  rewritten on 2026-09-10, the iOS copy not) is the mistake this line exists to prevent.
+
+`[evidence_level: code_verified, confidence: exact, evidence_source: the 5.1 and 5.2 entries below; scripts/enforce_docs_hook.sh metadata block; App Store Connect field limits as enforced by fastlane deliver]`
 
 ## Current listing text, as of 2026-09-14 (the description was superseded in the repo on 2026-09-18; see the 5.3 entry below. The store still shows this one until 5.3 ships.)
 
