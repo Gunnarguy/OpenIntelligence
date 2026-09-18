@@ -1,5 +1,7 @@
 {
   "_comment": [
+    "2026-09-18 (latest): 5.3 SUBMITTED FOR REVIEW on both platforms with build 464 (Xcode Cloud #464 from a2d99ab). app_store stays 5.2 until a platform goes live; in_review records the submission. The Lifetime sale ($39.99, 33% off) runs through 2026-09-30 and the promotional text on the live 5.2 records and the 5.3 records says so; replace it after the sale ends. Update app_store per platform as each is approved, and clear in_review for that platform.",
+    "",
     "2026-09-10 (latest): 5.2 IS LIVE ON BOTH PLATFORMS. iOS 5.2 and macOS 5.2 are both READY_FOR_SALE with build 451, read from the App Store Connect API on 2026-09-10. The platforms are unified, so app_store and both per-platform values move together to 5.2 with nothing overclaimed. This is the Private Cloud Compute release: Docs/SHIPPED_CAPABILITIES.json private_cloud_compute flipped from built_not_enabled to shipping in the same edit. preparing moves to 5.3, and CHANGELOG.md now carries an open '## 5.3 <!-- unreleased -->' heading so ci_post_clone.sh stamps a version that does not already exist in App Store Connect.",
     "",
     "2026-09-02 (latest): iOS 5.1 APPROVED AND LIVE, so both platforms are genuinely at 5.1 and in_review is empty. 5.2 version records were created in App Store Connect by the owner on 2026-09-02 (both PREPARE_FOR_SUBMISSION, release type AFTER_APPROVAL, screenshots and the iPhone preview carried over).",
@@ -55,7 +57,10 @@
     "macos": "5.2"
   },
   "preparing": "5.3",
-  "in_review": {},
-  "updated": "2026-09-10",
-  "verified_against": "Read from App Store Connect 2026-09-10 via the API: iOS 5.2 and macOS 5.2 both READY_FOR_SALE (build 451), release type AFTER_APPROVAL. 5.1 and 5.0/5.0.2 remain READY_FOR_SALE as prior versions. No version is in review."
+  "in_review": {
+    "ios": "5.3",
+    "macos": "5.3"
+  },
+  "updated": "2026-09-18",
+  "verified_against": "Read from App Store Connect 2026-09-18 via the API after submit_latest: iOS 5.3 and macOS 5.3 both WAITING_FOR_REVIEW with build 464. 5.2 remains READY_FOR_SALE on both."
 }

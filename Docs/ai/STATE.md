@@ -131,6 +131,26 @@ surface that reaches the 4.9 and 5.0 users on their first launch after updating,
 the Plans section. All in the 5.3 release notes. Not done and not asked: the three websites carry
 no sale line; that is a cross-repo change and waits for the owner to name them.
 
+**5.3 is submitted (2026-09-18).** `submit_latest version:5.3` for `ios` and `osx` picked build 464
+(Xcode Cloud #464 from `a2d99ab`, both archives green, both artifacts `VALID`); both records read
+`WAITING_FOR_REVIEW`. It carries the routing line, the suggested-questions fix, the paywall copy,
+the sale banner, the plans ask, the review alert and the Lifetime arithmetic; the camera is Debug-
+only. Submitted without the device checks at the owner's instruction ("push this to the App Store
+now"), so the six In Progress v5.3 rows still close on the phone, now against the live build. When
+a platform is approved: `app_store` and `app_store_by_platform` in `Docs/SHIPPED_VERSION.json`
+move to 5.3 for it, `in_review` clears for it, the `## 5.3` heading in `CHANGELOG.md` loses its
+`unreleased` marker (only when both are live), and the sites pick the number up on their next cron.
+
+**Screenshots: Mac needs the owner at the keyboard; iPad is in progress from the simulator.** The
+Mac set on the store is seven captures from 2026-06-21 and the iPad set five from January. A Mac
+screenshot build was made (ad-hoc, no entitlements, isolated `HOME`, bundle id
+`Gunndamental.OpenIntelligence.shots`, so it never touches the real library) but every capture
+route needs a permission this process does not have: the computer-use dialog was declined and
+`screencapture` has no Screen Recording grant. Approve the dialog when present and the run is
+`/private/tmp/oi-shots-launch.sh` then `ruby /private/tmp/asc_shots_upload.rb <pngs>` (both in
+`/private/tmp`, gone after a reboot; forty lines each). The iPad set can be refreshed from the
+simulator without any permission, minus the answer screens, which need Foundation Models.
+
 **Four decisions belong to the owner and have been carried for several sessions.** They are listed
 under Exact Next Action. None of them blocks anything; they are simply not an agent's to make.
 
@@ -448,6 +468,9 @@ Code kit`, 2026-09-08, held back by its pre-push overlap guard behind seven bot 
 pushed, and all three sites pushed. Gunzino's build gate compares the served Astro pages against
 the hand-written HTML by text, which is why both had to change identically. The site patches are
 applied and can be treated as historical.
+
+**Reply to the one App Store review** (2026-03-25, 4 stars, USA, "Pretty Incredible for Local LLM", no
+developer response in six months): a reply is public content and needs the owner's words or approval.
 
 **Replace the sale promotional text after 2026-09-30** on the live version, both platforms (API or
 App Store Connect); the text to restore is in the metadata history's 5.3 entry.
