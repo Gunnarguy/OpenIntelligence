@@ -185,7 +185,7 @@ Compute — which compile out below that SDK.
 python3 scripts/run_quality_matrix.py
 
 # Guard against iCloud conflict copies before any signing work
-./scripts/check_icloud_conflicts.sh
+./scripts/check_icloud_conflicts.sh --fix
 ```
 
 The benchmark denies PCC by default so runs reproduce offline, and reports
