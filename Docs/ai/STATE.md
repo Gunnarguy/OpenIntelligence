@@ -154,8 +154,9 @@ simulator without any permission, minus the answer screens, which need Foundatio
 **The sale is on all three websites and the review has a reply (2026-09-18).** gunzino.me carries
 it in the OpenIntelligence eyebrow (`src/content/pages/openintelligence.md` **and**
 `openintelligence/index.html`, because that build gate compares the two by text), fascinaiting.me
-under the hero App Store line, gunnarguy.me in the project highlight. Verified live on gunzino.me
-and fascinaiting.me; the portfolio deploy was still running when this was written. Each line has a
+under the hero App Store line, gunnarguy.me in the project highlight. **All three verified live** on
+2026-09-18 by fetching each page after its deploy succeeded: gunzino.me and fascinaiting.me carry
+the sale text, and gunnarguy.me carries it with the stale PCC sentence gone. Each line has a
 comment naming its removal date. The portfolio edit also fixed a stale claim the 2026-09-14 sweep
 missed, "PCC built and awaiting iOS and macOS 27", which 5.2 shipped; it survived because it
 matched none of that sweep's search phrases. The one App Store review has a developer reply,
