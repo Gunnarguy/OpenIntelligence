@@ -58,7 +58,14 @@ available.each { |v| puts "  #{v[:name].ljust(24)} #{v[:version].ljust(10)} #{v[
 
 if ARGV[0] == '--set'
   want = ARGV[1] or abort "--set needs a name prefix or id, e.g. --set 'Xcode 27'"
-  match = available.find { |v| v[:id] == want } || available.find { |v| v[:name].start_with?(want) }
+  # Exact id, then exact name, then a name prefix. The prefix match skips betas unless the request
+  # names one: on 2026-09-18 `--set 'Xcode 27'` matched "Xcode 27.2 beta" ahead of "Xcode 27",
+  # because Apple lists betas first and `start_with?` took the first hit, and a beta toolchain
+  # produces a build App Store Connect will not accept for submission.
+  wants_beta = want =~ /beta/i
+  match = available.find { |v| v[:id] == want } ||
+          available.find { |v| v[:name] == want } ||
+          available.find { |v| v[:name].start_with?(want) && (wants_beta || v[:name] !~ /beta/i) }
   abort "No Xcode Cloud version matches #{want.inspect}. Apple has not published it yet, or the name differs." unless match
   if match[:name] =~ /beta/i
     warn "WARNING: #{match[:name]} is a beta. Builds from it can go to TestFlight but cannot be submitted to the App Store."

@@ -85,6 +85,17 @@ on top of `scripts/xcode_cloud_toolchain.rb`'s `api` helper plus a `Net::HTTP::D
 the offer in App Store Connect under Subscriptions, Pro Annual, Introductory Offers. Until then the
 store's purchase sheet shows a trial the app no longer mentions. Roadmap row filed, v5.3, In Progress.
 
+**Xcode Cloud lost its Xcode pin on 2026-09-18 and was repinned.** Builds #457 (from `6a6a520`,
+the paywall commit) and #458 (a manual retry) both `FAILED` within twenty seconds with no actions
+and no source commit; the repository's `lastAccessedDate` stayed at 09-14. Cause: Apple
+re-catalogued its images, the "Xcode 27 Release Candidate" entry the workflow was pinned to on
+2026-09-10 no longer exists, and the workflow's `xcodeVersion` relationship read nil. Repinned to
+"Xcode 27" (`27A266a`, the same build as before, id `61944704-7a99-4e44-917c-0ade12ce6c45`) by
+direct PATCH after `scripts/xcode_cloud_toolchain.rb --set 'Xcode 27'` matched "Xcode 27.2 beta"
+first; the script's matcher now prefers the exact name and skips betas unless asked for one.
+Build #459 was started by API on the repinned workflow; its result is recorded under Verification
+when known. Nothing in the paywall commit caused the failures.
+
 **Four decisions belong to the owner and have been carried for several sessions.** They are listed
 under Exact Next Action. None of them blocks anything; they are simply not an agent's to make.
 
