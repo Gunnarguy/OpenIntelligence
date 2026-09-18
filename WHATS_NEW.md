@@ -20,6 +20,10 @@ want it.
 - **Three sliders in Model Parameters were claiming to do something Apple's API cannot do.** Frequency, Presence and Repetition Penalty sat under a line saying they affect how the model picks words. Apple's generation API has no penalty setting at all, so Apple Intelligence ignores all three. They now say so, and they stay put because they belong to a local model host on Mac that is not built yet.
 - **Adapt to the question, in Model Parameters. Off unless you turn it on.** The app picks how careful or how expansive to be from what you asked: looking up a value becomes near-repeatable, so the same question gives the same number twice, while comparing or investigating gets more room. It works in Standard, Deep Think and Maximum; the agentic modes use the temperature and keep their own per-step lengths. You can also write your own reasoning profile in plain words, replacing Apple's three fixed settings. That controls how hard Apple's model works inside a single answer, which Apple only allows on Private Cloud Compute; the app's own step-by-step reasoning in Deep Think and Maximum runs on your device and is separate from it. Your saved settings are untouched and turning it off restores them at once. It is off by default because nobody has shown it gives better answers yet; it is yours to judge.
 
+### Plans
+- **The upgrade screen says what you get, in the order that matters.** Every plan runs the same model: Apple Intelligence on your device, Deep Think, and Private Cloud Compute after you approve what is sent. Pro and Lifetime lift the daily cap on Maximum mode and raise the limits on documents and libraries, and now the screen leads with that instead of storage numbers.
+- **Pro Annual no longer has a free trial.** It is one payment a year, and the screen says so.
+
 ## 5.2
 The release that turns on Private Cloud Compute. Nothing about how the app reads, searches or checks
 your files changes; what changes is that one step, the writing of the answer, can now leave the

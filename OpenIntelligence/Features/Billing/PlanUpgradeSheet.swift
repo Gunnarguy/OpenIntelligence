@@ -28,14 +28,14 @@ struct PlanUpgradeSheet: View {
             tier: .pro,
             planName: "Pro (Monthly)",
             product: .proMonthly,
-            tagline: "Expand your workspace with no long-term commitment",
+            tagline: "Maximum mode every day, month to month",
             badgeText: "Flexible",
             tint: .purple,
             isFeatured: false,
             features: [
+                "Maximum mode with no daily cap",
                 "Up to 1,000 documents",
                 "10 libraries",
-                "Expanded workspace limits",
                 "Cancel anytime",
             ]
         ),
@@ -43,12 +43,12 @@ struct PlanUpgradeSheet: View {
             tier: .pro,
             planName: "Pro (Annual)",
             product: .proAnnual,
-            tagline: "7-day free trial, then $29.99/yr",
+            tagline: "Maximum mode every day, one payment a year",
             badgeText: "Best Value",
             tint: .purple,
             isFeatured: true,
             features: [
-                "7-day free trial included",
+                "Maximum mode with no daily cap",
                 "Up to 1,000 documents",
                 "10 libraries",
                 "Save 58% vs monthly",
@@ -58,37 +58,37 @@ struct PlanUpgradeSheet: View {
             tier: .lifetime,
             planName: "Lifetime Cohort",
             product: .lifetimeCohort,
-            tagline: "One-time unlock with no renewal",
+            tagline: "Everything, once, for good",
             badgeText: "One-Time",
             tint: .orange,
             isFeatured: false,
             features: [
+                "Maximum mode with no daily cap",
                 "Unlimited documents",
                 "20 libraries",
-                "Everything in Pro",
-                "No renewal — one-time purchase",
+                "One payment, no renewal",
             ]
         ),
     ]
 
     private let storySlides: [PlanStorySlide] = [
         PlanStorySlide(
-            title: "Unlock more capacity",
-            subtitle: "Pro expands your workspace from the free tier to up to 1,000 documents and 10 libraries.",
+            title: "The same model in every plan",
+            subtitle: "Apple Intelligence on your device, Deep Think, and Private Cloud Compute after you approve what is sent: all of it is free. Pro and Lifetime remove the limits.",
             icon: "bolt.fill",
             tint: .orange
         ),
         PlanStorySlide(
             title: "Privacy guarantee",
             subtitle:
-                "All tiers keep knowledge on-device or Apple PCC—zero third-party AI sharing. Your IP stays yours.",
+                "Reading, searching and citing happen on your device in every plan. Nothing ever goes to a third-party AI provider.",
             icon: "lock.shield.fill",
             tint: .teal
         ),
         PlanStorySlide(
-            title: "Lifetime, without renewal",
+            title: "Maximum, every day",
             subtitle:
-                "Lifetime keeps Pro-level access unlocked with unlimited documents and up to 20 libraries in a single purchase.",
+                "Maximum is the highest-effort mode, three runs a day on the free plan. Pro lifts the cap; Lifetime does too, with unlimited documents, for one payment.",
             icon: "arrow.up.right.circle.fill",
             tint: .purple
         ),

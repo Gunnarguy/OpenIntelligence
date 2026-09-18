@@ -203,18 +203,18 @@ It is weakest on questions your library says nothing about. When the evidence is
 - All three quality modes, with Maximum limited to three runs a day
 
 ### Pro Monthly / Annual
+- Maximum mode with no daily cap
 - Up to 1,000 documents
 - Up to 10 libraries
-- Unlimited Maximum mode
 - Room for large ongoing research and multi-project work
 
 ### Lifetime
-- One-time unlock
+- Maximum mode with no daily cap
 - Unlimited documents
 - Up to 20 libraries
-- Unlimited Maximum mode
+- One payment, no renewal
 
-The plans are about scale and organisation. The core idea does not change with the plan: grounded answers over your own files, on your own device.
+The model is the same in every plan: Apple Intelligence on your device, Deep Think, and Private Cloud Compute after you approve what is sent. The plans differ in how much you can keep and how often you can run Maximum.
 """#
         ),
         SampleDocumentDescriptor(

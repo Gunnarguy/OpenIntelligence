@@ -41,9 +41,12 @@
 //
 //  WHY LIFETIME ONLY
 //
-//  Pro Annual is deliberately absent. Its 7-day free trial is already its one introductory
-//  offer, and a customer may redeem only one per subscription group, so a discount offer would
-//  displace the trial. A temporary price change on a subscription is worse still: the revert is
+//  Pro Annual is deliberately absent. Until 2026-09-18 its 7-day free trial was its one
+//  introductory offer, and a customer may redeem only one per subscription group, so a discount
+//  offer would have displaced the trial. The trial was withdrawn on 2026-09-18 (five starts in
+//  ninety days, one paid, two stuck in billing retry); the app stopped advertising it the same day,
+//  and the App Store Connect offer is removed by the owner. What still keeps Annual out of a sale is
+//  the second reason: a temporary price change on a subscription is worse still, because the revert is
 //  a price increase for everyone who subscribed at the sale price, which Apple surfaces through
 //  consent prompts and, where consent is required and not given, ends the subscription. Lifetime
 //  is a non-consumable, so it reverts with no consequence for anyone who already bought.

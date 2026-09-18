@@ -70,6 +70,21 @@ and `isAcceptableTemplateTopic` rejects the four strings from the screenshot by 
 the owner's phone:** open the General library after visiting Documents once (the refresh pass runs
 there), and the hand-written questions should be back; a re-import must leave three documents.
 
+**The paywall now sells the product, and the Annual trial is half-withdrawn.** 2026-09-18, at the
+owner's word after reading `~/ASC`: 326 downloads and 29 purchases since February, Lifetime 73% of
+proceeds on 29% of purchases, buyers deciding within two days, and an upgrade sheet whose bullets
+were storage numbers. `PlanUpgradeSheet` now leads every paid plan with Maximum-without-a-cap, the
+one model feature a paid plan gates; the story slides say the model is the same in every plan; the
+sample Product Guide and the staged 5.3 App Store description carry the same words. The rule is in
+`Docs/BILLING_AND_LIMITS.md`: a plan bullet may name only what that plan gates, so Deep Think and
+PCC are never sold as Pro. **The trial's actual removal is the owner's:** it is 175 per-territory
+introductory offers on `pro_annual` in App Store Connect, and the harness blocked the agent's
+deletion loop. `zsh -ic 'ruby /private/tmp/asc_offer_delete.rb'` deletes all 175 and prints the
+remaining count (the script is in `/private/tmp` and will not survive a reboot; it is forty lines
+on top of `scripts/xcode_cloud_toolchain.rb`'s `api` helper plus a `Net::HTTP::Delete`), or remove
+the offer in App Store Connect under Subscriptions, Pro Annual, Introductory Offers. Until then the
+store's purchase sheet shows a trial the app no longer mentions. Roadmap row filed, v5.3, In Progress.
+
 **Four decisions belong to the owner and have been carried for several sessions.** They are listed
 under Exact Next Action. None of them blocks anything; they are simply not an agent's to make.
 
@@ -236,6 +251,15 @@ other build directories are correctly named `.build.nosync`, `.simulator-smoke.n
 
 ## Verification
 
+Run 2026-09-18 from `/private/tmp/oi-src` against the iOS 27 simulator, output read, with the
+paywall copy and the trial withdrawal in the tree:
+
+- `xcodebuild test` — **`** TEST SUCCEEDED **`, exit 0, 467 executed, 3 skipped, 0 failures.**
+  No test pins paywall copy, so this proves the tree compiles and nothing else regressed; the
+  route's other required check, manual purchase and restore in the StoreKit testing scheme, is a
+  device task listed under Exact Next Action.
+- **macOS**: `xcodebuild -destination "platform=macOS" build` — **`** BUILD SUCCEEDED **`, exit 0.**
+
 Run 2026-09-14, later, from `/private/tmp/oi-src` against the iOS 27 simulator, output read, with
 the suggested-questions fix in the tree:
 
@@ -359,6 +383,10 @@ Code kit`, 2026-09-08, held back by its pre-push overlap guard behind seven bot 
 pushed, and all three sites pushed. Gunzino's build gate compares the served Astro pages against
 the hand-written HTML by text, which is why both had to change identically. The site patches are
 applied and can be treated as historical.
+
+**Delete the 175 Pro Annual introductory offers in App Store Connect** (the trial). Script and UI
+path above. Then re-check with the `subscriptions/6756638919/introductoryOffers` listing, which
+should be empty.
 
 **Four decisions that are the owner's, carried across several sessions:**
 

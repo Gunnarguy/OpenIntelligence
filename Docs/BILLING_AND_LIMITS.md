@@ -34,6 +34,23 @@ Enforcement logic is defined in [QuotaPolicy.swift](../OpenIntelligence/Services
 | **Maximum Mode Runs** | 3 per day (Metered) | Unlimited | Unlimited |
 | **Standard Mode Runs** | Unlimited | Unlimited | Unlimited |
 | **Deep Think Runs** | Unlimited | Unlimited | Unlimited |
+| **Private Cloud Compute** | Available, consent-gated, on iOS/macOS 27 | Same | Same |
+
+### What each plan advertises, and the rule behind it
+
+Rewritten 2026-09-18, after ninety days of App Store Connect data (`~/ASC`) showed that the buyers
+are people who decide within two days of download and that Lifetime carries 73% of proceeds on 29%
+of purchases, while the paywall's bullets sold storage ("up to 1,000 documents", "10 libraries",
+"expanded workspace limits") and said nothing about the model.
+
+The rule: **a plan bullet may name only what that plan gates.** Deep Think and Private Cloud Compute
+are free-tier features (the table above), so they may not appear as Pro benefits; they appear in
+the sheet's story slides as what every plan includes. The one model feature a paid plan gates is
+Maximum mode, which is `QuotaPolicy.freeMaximumModeDailyLimit` runs a day on Free and uncapped on
+Pro and Lifetime, so that is the first bullet of every paid plan. Capacity follows it. Prices are
+never hardcoded in a tagline, because each storefront has its own and `displayPrice` is the source.
+
+`[evidence_level: code_verified, confidence: exact, evidence_source: PlanUpgradeSheet.swift planOptions and storySlides; QuotaPolicy.swift; EntitlementStore.swift maximumModePolicy; ~/ASC store_purchases and sub_state_analytics through 2026-09-14]`
 
 ---
 
@@ -124,9 +141,15 @@ appear to keep the banner and the checkout price the same number.
 
 Pro Annual and Pro Monthly are deliberately excluded, for two independent reasons.
 
-- **Pro Annual has already spent its introductory offer.** Its 7-day free trial is an
-  introductory offer, and a customer may redeem only one per subscription group, so a discount
-  offer would displace the trial rather than add to it.
+- **Pro Annual's 7-day free trial was withdrawn on 2026-09-18.** Ninety days of data: five trial
+  starts, one converted to full price, two stuck in billing retry, one churned from the trial;
+  Annual's proceeds for the period were $25 against Lifetime's $140. The app stopped advertising
+  the trial that day (`PlanUpgradeSheet`), and the introductory offer, one per territory in App
+  Store Connect, 175 in all, is removed by the owner (an agent's deletion was blocked by the
+  harness). Until it is removed, the store's own purchase sheet still shows the trial; the app
+  under-claims rather than over-claims in the meantime. Existing trialists are unaffected by the
+  removal. With the trial gone, Annual could in principle take an introductory offer again; the
+  reason below is why it still takes no sale.
 - **A temporary price change on a subscription creates a price increase later.** When the price
   reverts, everyone who subscribed at the sale price faces an increase at renewal. Apple
   requires consent where a region demands it, where the increase exceeds 50% and about US$50 a

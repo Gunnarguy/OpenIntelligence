@@ -36,6 +36,10 @@ LIBRARIES THAT FIT YOUR WORK
 
 Keep different subjects, projects, or clients in separate libraries. Choose Local Only or iCloud Drive for each library, and organize ongoing research in saved conversation threads. Siri and Shortcuts actions are available for common document and library workflows.
 
+PLANS
+
+Every plan runs the same model: Apple Intelligence on your device, Deep Think, and Private Cloud Compute after you approve what is sent. Free: 5 documents, one library, Maximum mode three times a day. Pro lifts that cap and grows to 1,000 documents and 10 libraries, monthly or yearly. Lifetime: one payment, unlimited documents, 20 libraries, Maximum every day, no renewal.
+
 OpenIntelligence is built and maintained by one developer. Pro and Lifetime support directly fund continued development. To everyone already supporting the app: thank you. It has been a wild journey.
 
 Privacy Policy: https://gunzino.me/openintelligence/privacy

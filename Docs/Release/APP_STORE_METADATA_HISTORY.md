@@ -28,7 +28,7 @@ repo pushed and when; where the store may have shown something else, the entry s
 
 `[evidence_level: code_verified, confidence: exact, evidence_source: git log -- fastlane/metadata fastlane/metadata-ios, 2026-04-15 to 2026-09-10; Docs/SHIPPED_VERSION.json _comment history for live dates; Docs/USER_CHANGELOG.md headings for release dates the marker file predates]`
 
-## Current listing text, as of 2026-09-14
+## Current listing text, as of 2026-09-14 (the description was superseded in the repo on 2026-09-18; see the 5.3 entry below. The store still shows this one until 5.3 ships.)
 
 The description, name and promotional text that `push_metadata` would send today. The description
 changed eleven times between 2026-04-15 and 2026-09-02; the full sequence is in git and only the
@@ -94,6 +94,64 @@ Private Cloud Compute is on. Questions too big for the on-device model can be wr
 ```
 
 ## Versions, newest first
+
+### 5.3 (in preparation; description staged 2026-09-18, not yet pushed)
+
+- **Platforms:** iOS, macOS
+- **Live:** not yet. The 5.3 records exist in App Store Connect in `PREPARE_FOR_SUBMISSION`; the description below lands with 5.3 because a description cannot be edited on a live version.
+- **Commit:** the one that adds this entry
+- **Notes:** the description gains a PLANS block, written to the rule in `Docs/BILLING_AND_LIMITS.md`: a plan is described by what it gates (Maximum's daily cap, capacity), and the model is described as what every plan includes. No trial is mentioned anywhere; Pro Annual's 7-day free trial was withdrawn the same day. 3979 characters against the 4,000 limit. Release notes and promotional text for 5.3 are not yet written.
+
+**Description (`fastlane/metadata/en-US/description.txt`):**
+
+```text
+You already have the answers. They're just buried in a 300-page manual, a folder of contracts, a semester of lecture recordings, or a codebase you inherited.
+
+OpenIntelligence reads what you import and answers questions about it in plain language, with citations you can tap to see exactly where each claim came from. And when your files don't actually contain the answer, it tells you so instead of guessing confidently.
+
+ANSWERS START IN YOUR FILES
+
+Not in a chatbot's imagination. OpenIntelligence searches your library first, pulls the exact passages that matter, and only then writes, using Apple's on-device Apple Intelligence models. Requires an Apple Intelligence-capable device: iPhone 15 Pro or later, or an M1-or-later iPad or Mac, on iOS/iPadOS/macOS 26. Your device already had the intelligence. This gives it your knowledge, and rules of evidence.
+
+WHAT YOU CAN DO
+
+- Summarize long documents, recordings, or entire libraries.
+- Compare claims and details across multiple sources.
+- Find exact facts, dates, specifications, measurements, and table values.
+- Ask follow-up questions without losing the sources or the thread.
+- Choose Standard for quick factual work, Deep Think for multi-step questions, or Maximum for broader evidence synthesis.
+
+BRING YOUR OWN MATERIAL
+
+Import PDFs, Office documents, text and Markdown files, CSVs, code, images and scans, audio, or video. Pages, Numbers and Keynote files need to be exported to PDF first. OpenIntelligence extracts text, uses Vision OCR where needed, transcribes speech, and builds a searchable index for each library.
+
+HOW ANSWERS ARE BUILT
+
+Exact keyword matching and semantic search work together to retrieve the passages that matter. Apple Foundation Models turn those passages into a natural-language response. Then the app checks its own answer against the passages it actually used, so you can inspect what it's standing on instead of taking its word.
+
+If the sources do not establish an answer, the app flags weak support or abstains. No confident filler.
+
+WHERE YOUR FILES GO (AND DON'T)
+
+Reading your files, searching them, and choosing what to cite all happen on your device, start to finish, before anything is written. On-device answers need no connection at all. On a plane, in a dead zone, in a locked-down office, your library still works. For longer, evidence-heavy questions on iOS, iPadOS or macOS 27, you can optionally allow Apple Private Cloud Compute to write the answer. The app shows you exactly what would be sent and asks you to approve it first, and Apple's servers keep nothing afterwards. Your material is never sent to a third-party AI provider.
+
+ANSWERS YOU CAN INSPECT
+
+Inline citations connect answers to their supporting pages and passages, one tap from claim to source. If you want more, response details go deeper: source snippets, retrieval quality, verification warnings, timing, and the route that actually produced the answer. The optional telemetry interface goes deeper when you want it and stays out of the way when you don't.
+
+LIBRARIES THAT FIT YOUR WORK
+
+Keep different subjects, projects, or clients in separate libraries. Choose Local Only or iCloud Drive for each library, and organize ongoing research in saved conversation threads. Siri and Shortcuts actions are available for common document and library workflows.
+
+PLANS
+
+Every plan runs the same model: Apple Intelligence on your device, Deep Think, and Private Cloud Compute after you approve what is sent. Free: 5 documents, one library, Maximum mode three times a day. Pro lifts that cap and grows to 1,000 documents and 10 libraries, monthly or yearly. Lifetime: one payment, unlimited documents, 20 libraries, Maximum every day, no renewal.
+
+OpenIntelligence is built and maintained by one developer. Pro and Lifetime support directly fund continued development. To everyone already supporting the app: thank you. It has been a wild journey.
+
+Privacy Policy: https://gunzino.me/openintelligence/privacy
+```
+
 
 ### 5.2
 
