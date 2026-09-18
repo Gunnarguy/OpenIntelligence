@@ -74,6 +74,16 @@ never hardcoded in a tagline, because each storefront has its own and `displayPr
 
 *Added 2026-09-09.*
 
+### Where a sale is announced, and where it is not
+
+Three places, all reading the same `LaunchSale.offer`, which returns nothing unless StoreKit's live
+price is genuinely below the recorded regular price in the customer's currency and the date is
+inside the window: the plans sheet (since 5.2), the `LaunchSaleBanner` at the top of the Chat and
+Documents tabs for the free tier (5.3), and the App Store promotional text, which is set by API on
+the live version and is the only one of the three that a human has to take down when the sale
+ends; the metadata history carries the text to restore. No countdown, no "only N left", no
+pre-selected plan: the discount is real and the copy says the real number and the real last day.
+
 ### Regular prices, as App Store Connect holds them
 
 Only the USA price is set by hand. Apple generates the other 174 storefronts from it, and those

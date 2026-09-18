@@ -169,7 +169,7 @@ Private Cloud Compute is on. Questions too big for the on-device model can be wr
 - **Platforms:** iOS, macOS
 - **Live:** not yet. The 5.3 records exist in App Store Connect in `PREPARE_FOR_SUBMISSION`; build 459 is the candidate.
 - **Final release notes commit:** the one that adds this entry (2026-09-18)
-- **Notes:** the first release written into the template above. One text for both platforms, in both `fastlane/metadata/` and `fastlane/metadata-ios/`, because the platforms do not diverge in 5.3. The description gains a PLANS block, written to the rule in `Docs/BILLING_AND_LIMITS.md`: a plan is described by what it gates, and the model as what every plan includes. No trial is mentioned anywhere; Pro Annual's 7-day free trial was withdrawn the same day. Release notes 2494 characters, promotional text 162, description 3,979, all against the 4,000 / 170 / 4,000 limits.
+- **Notes:** the first release written into the template above. One text for both platforms, in both `fastlane/metadata/` and `fastlane/metadata-ios/`, because the platforms do not diverge in 5.3. The description gains a PLANS block, written to the rule in `Docs/BILLING_AND_LIMITS.md`: a plan is described by what it gates, and the model as what every plan includes. No trial is mentioned anywhere; Pro Annual's 7-day free trial was withdrawn the same day. Release notes 2796 characters, promotional text 157 (the sale text; see the note under it), description 3,979, all against the 4,000 / 170 / 4,000 limits.
 
 **Release notes (`fastlane/metadata/`, both platforms):**
 
@@ -202,6 +202,8 @@ THE WELCOME SCREENS AND THE UPGRADE SCREEN
 
 • The welcome screens follow your light or dark setting. In light mode the status bar was nearly invisible against them; it is not now.
 
+• While Lifetime is on sale, one line at the top of Chat and Documents says the real discount and the last day, computed from the store's own price. Dismiss it and it stays away. And once, after the fourth answer the app has verified against your files, it shows you the plans; it will not ask again.
+
 • The upgrade screen leads with what a plan actually changes. Every plan runs the same model, on your device, with Deep Think and consent-gated Private Cloud Compute included. Pro and Lifetime lift the daily cap on Maximum mode and raise the document and library limits. Pro Annual no longer offers a free trial; it is one payment a year.
 
 
@@ -211,8 +213,10 @@ Everything except that one writing step still runs on your device.
 **Promotional text**, both platforms:
 
 ```text
-The sample library's questions are back, the welcome screens follow light and dark, and a new off-by-default setting adapts each answer to the question you asked.
+Lifetime is 33% off until September 29: one payment, no renewal, no daily cap on Maximum mode, unlimited documents. Every plan runs the same on-device model.
 ```
+
+*Promotional text is the one field editable on a live version. The sale text above was set by API on 2026-09-18 on the live 5.2 records and the 5.3 records, both platforms. **After 2026-09-30 it must be replaced**, on whichever version is live, with the non-sale text: "The sample library's questions are back, the welcome screens follow light and dark, and a new off-by-default setting adapts each answer to the question you asked." (162 characters). A sale promo outliving its sale is a false claim on the listing.*
 
 **Description** (`fastlane/metadata/en-US/description.txt`, `6a6a520` 2026-09-18):
 

@@ -274,6 +274,7 @@ struct ContentView: View {
         TabView(selection: $selectedTab) {
             NavigationStack {
                 ChatScreen(ragService: ragService)
+                    .safeAreaInset(edge: .top, spacing: 0) { LaunchSaleBanner() }
             }
             .tabItem {
                 Label("Chat", systemImage: "bubble.left.and.bubble.right")
@@ -286,6 +287,7 @@ struct ContentView: View {
                     containerService: containerService,
                     onViewVisualizations: { selectedTab = .visualizations }
                 )
+                .safeAreaInset(edge: .top, spacing: 0) { LaunchSaleBanner() }
             }
             .tabItem {
                 Label("Documents", systemImage: "doc.text.magnifyingglass")

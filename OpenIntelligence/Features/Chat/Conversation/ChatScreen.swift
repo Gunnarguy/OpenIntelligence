@@ -867,6 +867,18 @@ struct ChatScreen: View {
                     .padding()
                 }
             }
+            .onReceive(PlanAskService.shared.$wantsAsk) { wants in
+                // Two seconds after the answer has landed, like the rating request, so the
+                // sheet never covers the answer itself; and never on top of another sheet.
+                guard wants, !showPlanSheet, activeCloudConsent == nil else { return }
+                Task { @MainActor in
+                    try? await Task.sleep(for: .seconds(2))
+                    guard !showPlanSheet else { return }
+                    planEntryPoint = .momentOfValue
+                    showPlanSheet = true
+                    PlanAskService.shared.didAsk()
+                }
+            }
             .sheet(isPresented: $showPlanSheet) {
                 PlanUpgradeSheet(entryPoint: planEntryPoint)
             }
@@ -2881,6 +2893,11 @@ struct ChatScreen: View {
                     // A finished answer is the only moment the app asks for a rating,
                     // and only when the verifier let it through.
                     ReviewPromptService.shared.noteAnswer(gatingDecision: response.metadata.gatingDecision)
+                    // And the one unprompted look at the plans, one verified answer after the
+                    // rating request, free tier only, once per install. See PlanAskService.
+                    PlanAskService.shared.noteAnswer(
+                        gatingDecision: response.metadata.gatingDecision,
+                        isFreeTier: !self.entitlementStore.effectiveTier.isAtLeast(.pro))
 
                     if let genStart = self.generatingStartTS {
                         self.generatingElapsedFinal = Date().timeIntervalSince(genStart)

@@ -22,6 +22,8 @@ want it.
 
 ### Plans
 - **The upgrade screen says what you get, in the order that matters.** Every plan runs the same model: Apple Intelligence on your device, Deep Think, and Private Cloud Compute after you approve what is sent. Pro and Lifetime lift the daily cap on Maximum mode and raise the limits on documents and libraries, and now the screen leads with that instead of storage numbers.
+- **When Lifetime is on sale, the app says so.** One line at the top of Chat and Documents, with the real discount and the last day, computed from the store's own price. Dismiss it and it stays away until the next sale.
+- **One look at the plans, once.** After the fourth answer the app has verified against your files, it shows you the plans screen. It will not ask again.
 - **Pro Annual no longer has a free trial.** It is one payment a year, and the screen says so.
 
 ## 5.2

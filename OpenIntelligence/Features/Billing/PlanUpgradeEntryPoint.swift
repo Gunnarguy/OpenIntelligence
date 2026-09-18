@@ -11,6 +11,8 @@ enum PlanUpgradeEntryPoint: String, CaseIterable {
     case settings
     case localModelGated // Free users attempting GGUF/Core ML
     case maximumModeLimit
+    case launchSale // the in-app sale banner, shown only while LaunchSale has a real offer
+    case momentOfValue // once, after the review prompt, on a verified answer
 
     /// Human-friendly description surfaced inside the paywall hero.
     var headline: String {
@@ -33,6 +35,10 @@ enum PlanUpgradeEntryPoint: String, CaseIterable {
             return "Unlock fully private, on-device inference"
         case .maximumModeLimit:
             return "Maximum mode is capped on Free"
+        case .launchSale:
+            return "Lifetime is on sale"
+        case .momentOfValue:
+            return "That answer came from your files"
         }
     }
 
@@ -57,6 +63,10 @@ enum PlanUpgradeEntryPoint: String, CaseIterable {
             return "GGUF and Core ML models require Lifetime or Pro for unlimited private inference. Your data never leaves your device."
         case .maximumModeLimit:
             return "Upgrade for unlimited Maximum mode, or switch to Standard or Deep Think anytime."
+        case .launchSale:
+            return "One payment, no renewal, no daily cap on Maximum mode, unlimited documents. The discount is real and it ends on the date shown."
+        case .momentOfValue:
+            return "Every plan runs the same model. Pro and Lifetime lift the daily cap on Maximum mode and raise the document and library limits. You will not be asked again."
         }
     }
 

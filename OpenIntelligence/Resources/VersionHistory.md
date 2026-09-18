@@ -30,6 +30,8 @@ This document provides a chronological history of user-facing changes, highlight
 
 ### Plans
 - **The upgrade screen leads with what a plan actually changes.** It used to list storage numbers first, "up to 1,000 documents", "10 libraries", and said nothing about the model. Every plan runs the same model: Apple Intelligence on your device, Deep Think, and Private Cloud Compute after you approve what would be sent. What Pro and Lifetime change is the daily cap on Maximum mode, three runs a day on the free plan and none on a paid one, plus how many documents and libraries you can keep. The screen now says that, in that order, and the sample Product Guide's plan section matches.
+- **When Lifetime is on sale, the app says so.** One line at the top of the Chat and Documents tabs, for anyone who has not bought, with the real percentage and the real last day. Both numbers come from the App Store's own price for your country against the regular price, so the line cannot claim a discount that is not running. Dismiss it and it stays away until a new sale.
+- **One look at the plans, once.** After the fourth answer the app has verified against your files, one answer after it asks for a rating, it shows you the plans screen. It says it will not ask again, and it does not. If you have already bought, you never see it.
 - **Pro Annual no longer offers a free trial.** It is one payment a year. If you started a trial before this change, nothing about it changes.
 
 ## v5.2 - September 10, 2026

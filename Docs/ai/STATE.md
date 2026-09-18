@@ -109,6 +109,19 @@ description with its PLANS block went with them; `MARKETING_VERSION` is 5.3 on a
 (smoke build reports 5.3). Build 459 is the candidate. What remains is the owner's: the device
 checks on 459, deleting the 175 Annual trial offers, and `submit_latest` for each platform.
 
+**The sale is announced in three places, and one of them has to be taken down by hand.**
+2026-09-18, at the owner's word ("I want more buyers"). The Lifetime sale is live: $39.99 until
+2026-09-30 on the App Store schedule, the app's `LaunchSale.window` matches and computes 33%.
+(1) The App Store promotional text on the live 5.2 records and the 5.3 records, both platforms,
+set by API to "Lifetime is 33% off until September 29: one payment, no renewal, no daily cap on
+Maximum mode, unlimited documents. Every plan runs the same on-device model." **After 2026-09-30
+this must be replaced on whichever version is live**; the non-sale text is in the metadata
+history's 5.3 entry. (2) `LaunchSaleBanner` at the top of Chat and Documents for the free tier,
+reading the same `LaunchSale.offer` as the paywall, dismissable per sale window. (3)
+`PlanAskService`: one unprompted plans sheet per install, free tier, on the fourth verified
+answer, one after the rating request. Why so little: the archive shows 63 opt-in sessions in the
+last 14 days, most on 4.9 and 5.0.1, so the listing reaches more people than anything in the app.
+
 **Four decisions belong to the owner and have been carried for several sessions.** They are listed
 under Exact Next Action. None of them blocks anything; they are simply not an agent's to make.
 
@@ -275,6 +288,14 @@ other build directories are correctly named `.build.nosync`, `.simulator-smoke.n
 
 ## Verification
 
+Run 2026-09-18, later, from `/private/tmp/oi-src` against the iOS 27 simulator, output read, with the
+sale banner and the plans ask in the tree:
+
+- `xcodebuild test` — **`** TEST SUCCEEDED **`, exit 0, 473 executed, 3 skipped, 0 failures.**
+  `PlanAskServiceTests` 6/6 pins once-per-install, free-tier-only, fourth-verified-answer, never
+  under test, and the new entry-point copy.
+- **macOS**: `xcodebuild -destination "platform=macOS" build` — **`** BUILD SUCCEEDED **`, exit 0.**
+
 Run 2026-09-18 from `/private/tmp/oi-src` against the iOS 27 simulator, output read, with the
 paywall copy and the trial withdrawal in the tree:
 
@@ -407,6 +428,9 @@ Code kit`, 2026-09-08, held back by its pre-push overlap guard behind seven bot 
 pushed, and all three sites pushed. Gunzino's build gate compares the served Astro pages against
 the hand-written HTML by text, which is why both had to change identically. The site patches are
 applied and can be treated as historical.
+
+**Replace the sale promotional text after 2026-09-30** on the live version, both platforms (API or
+App Store Connect); the text to restore is in the metadata history's 5.3 entry.
 
 **Submit 5.3** once the device checks pass: `bundle exec fastlane submit_latest version:5.3 platform:ios`
 and the same with `platform:osx`, through `zsh -ic` with `LC_ALL=en_US.UTF-8`.
