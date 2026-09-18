@@ -84,6 +84,12 @@ the live version and is the only one of the three that a human has to take down 
 ends; the metadata history carries the text to restore. No countdown, no "only N left", no
 pre-selected plan: the discount is real and the copy says the real number and the real last day.
 
+The Lifetime card also states its price in months of Pro Annual (`LaunchSale.monthsOfAnnual`,
+2026-09-18): StoreKit's live prices for the customer's storefront, never the hardcoded US
+fallbacks, rounded down, nil until both products have loaded. At the sale price that reads 16
+months; at the regular price, 24. It is the comparison a buyer is already making, done with the
+store's own numbers.
+
 ### Regular prices, as App Store Connect holds them
 
 Only the USA price is set by hand. Apple generates the other 174 storefronts from it, and those

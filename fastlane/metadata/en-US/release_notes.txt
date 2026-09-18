@@ -26,6 +26,8 @@ THE WELCOME SCREENS AND THE UPGRADE SCREEN
 
 • The welcome screens follow your light or dark setting. In light mode the status bar was nearly invisible against them; it is not now.
 
+• A thumbs-up on an answer now offers to rate the app, write a review, or send feedback, once per version. The Lifetime card says how many months of Pro Annual its price buys, from the store's own prices.
+
 • While Lifetime is on sale, one line at the top of Chat and Documents says the real discount and the last day, computed from the store's own price. Dismiss it and it stays away. And once, after the fourth answer the app has verified against your files, it shows you the plans; it will not ask again.
 
 • The upgrade screen leads with what a plan actually changes. Every plan runs the same model, on your device, with Deep Think and consent-gated Private Cloud Compute included. Pro and Lifetime lift the daily cap on Maximum mode and raise the document and library limits. Pro Annual no longer offers a free trial; it is one payment a year.

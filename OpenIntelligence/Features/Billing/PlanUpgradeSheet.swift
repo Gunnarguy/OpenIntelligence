@@ -268,6 +268,7 @@ extension PlanUpgradeSheet {
             price: priceLabel(for: option.product),
             priceSuffix: priceSuffix(for: option.product),
             saleOffer: saleOffer(for: option.product),
+            monthsOfAnnual: option.product == .lifetimeCohort ? monthsOfAnnualForLifetime : nil,
             hasAccess: entitlementStore.activeTier.isAtLeast(option.tier),
             // "canPurchase" here means StoreKit metadata has been loaded.
             // We still allow tapping the CTA while loading; the tap will refresh and retry.
@@ -411,6 +412,14 @@ extension PlanUpgradeSheet {
     /// StoreKit's live price is genuinely below the recorded regular price in the customer's
     /// own currency. When StoreKit metadata has not loaded there is no live price to compare,
     /// so no claim is made.
+    /// Lifetime's price in months of Pro Annual, from StoreKit's live prices for this storefront,
+    /// or nil until both have loaded. Never from the hardcoded fallbacks: those are US numbers.
+    fileprivate var monthsOfAnnualForLifetime: Int? {
+        guard let lifetime = entitlementStore.product(for: .lifetimeCohort),
+              let annual = entitlementStore.product(for: .proAnnual) else { return nil }
+        return LaunchSale.monthsOfAnnual(lifetimePrice: lifetime.price, annualPricePerYear: annual.price)
+    }
+
     fileprivate func saleOffer(for product: BillingProduct) -> LaunchSaleOffer? {
         guard let storeProduct = entitlementStore.product(for: product) else { return nil }
         return LaunchSale.offer(for: product, storeProduct: storeProduct)
@@ -616,6 +625,8 @@ private struct PlanTierCard: View {
     /// Non-nil only when `LaunchSale` has confirmed the live price is genuinely below the
     /// regular one in this customer's currency. See `LaunchSale` for why that is guarded.
     let saleOffer: LaunchSaleOffer?
+    /// Lifetime's price in months of Pro Annual, live prices only; nil for the other cards.
+    let monthsOfAnnual: Int?
     let hasAccess: Bool
     let canPurchase: Bool
     let isProcessing: Bool
@@ -672,12 +683,7 @@ private struct PlanTierCard: View {
                     }
                 }
 
-                if let saleOffer {
-                    Text("Launch price until \(LaunchSale.deadlineText(for: saleOffer.endDate))")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .dynamicTypeSize(...DynamicTypeSize.accessibility1)
-                }
+                PlanPriceCaptions(saleOffer: saleOffer, monthsOfAnnual: monthsOfAnnual)
             }
             // Deliberately no accessibility modifiers here. The whole card is a single element
             // (see the bottom of this view), and a label applied inside it would be discarded.
@@ -761,6 +767,29 @@ extension PlanTierCard {
                 ctaLabel(hasAccess: hasAccess, canPurchase: canPurchase, isProcessing: isProcessing)
             }
             .buttonStyle(.bordered)
+        }
+    }
+}
+
+/// The one or two lines under a card's price: the sale's last day, and for Lifetime the
+/// arithmetic against Pro Annual. A separate view because the card body is already at the edge
+/// of what the type checker will accept in one expression.
+private struct PlanPriceCaptions: View {
+    let saleOffer: LaunchSaleOffer?
+    let monthsOfAnnual: Int?
+
+    var body: some View {
+        if let saleOffer {
+            Text("Launch price until \(LaunchSale.deadlineText(for: saleOffer.endDate))")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .dynamicTypeSize(...DynamicTypeSize.accessibility1)
+        }
+        if let monthsOfAnnual {
+            Text("Pays for itself against Pro Annual in \(monthsOfAnnual) months.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .dynamicTypeSize(...DynamicTypeSize.accessibility1)
         }
     }
 }

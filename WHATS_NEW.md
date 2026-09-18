@@ -9,6 +9,13 @@ The app reads documents with Apple's own detector, the welcome screens follow yo
 setting, and there is a new setting for how answers are written that you turn on yourself if you
 want it.
 
+### Plans
+- **The upgrade screen says what you get, in the order that matters.** Every plan runs the same model: Apple Intelligence on your device, Deep Think, and Private Cloud Compute after you approve what is sent. Pro and Lifetime lift the daily cap on Maximum mode and raise the limits on documents and libraries, and now the screen leads with that instead of storage numbers.
+- **When Lifetime is on sale, the app says so.** One line at the top of Chat and Documents, with the real discount and the last day, computed from the store's own price. Dismiss it and it stays away until the next sale.
+- **A thumbs-up now offers to write a review.** Apple's rating sheet gives stars and never a written review, and a written review is what someone reads on the store page. So when you thumb-up an answer, the app asks once per version whether you'd rate it, write a review, or send feedback. And the Lifetime card now says how many months of Pro Annual its price buys, from the store's own prices.
+- **One look at the plans, once.** After the fourth answer the app has verified against your files, it shows you the plans screen. It will not ask again.
+- **Pro Annual no longer has a free trial.** It is one payment a year, and the screen says so.
+
 ### Getting Started
 - **The sample library's suggested questions are back.** They are hand-written, and a leftover duplicate of one sample document ("RAG Technical Architecture 2") was enough to switch them off and replace them with questions built from templates, which is where "What is nothing?" came from. Duplicates are cleaned up on the next visit to Documents, the hand-written set shows even when a duplicate is present, and a library whose questions were built before Apple Intelligence was ready gets them rebuilt by the model the next time it can. When the model has nothing good to say about a document, the app now shows no suggestion rather than a bad one.
 - **The welcome screens follow your light or dark setting.** They were always dark whatever the rest of the app did, so in light mode you got a white app with one navy screen in front of it — and the clock and battery vanished, because iOS draws them in dark ink on a light screen and that screen was nearly black. Light is its own design rather than the dark one flipped: warm off-white settling into a faint blue-grey, with the glow behind it eased back.
@@ -19,12 +26,6 @@ want it.
 ### Answering
 - **Three sliders in Model Parameters were claiming to do something Apple's API cannot do.** Frequency, Presence and Repetition Penalty sat under a line saying they affect how the model picks words. Apple's generation API has no penalty setting at all, so Apple Intelligence ignores all three. They now say so, and they stay put because they belong to a local model host on Mac that is not built yet.
 - **Adapt to the question, in Model Parameters. Off unless you turn it on.** The app picks how careful or how expansive to be from what you asked: looking up a value becomes near-repeatable, so the same question gives the same number twice, while comparing or investigating gets more room. It works in Standard, Deep Think and Maximum; the agentic modes use the temperature and keep their own per-step lengths. You can also write your own reasoning profile in plain words, replacing Apple's three fixed settings. That controls how hard Apple's model works inside a single answer, which Apple only allows on Private Cloud Compute; the app's own step-by-step reasoning in Deep Think and Maximum runs on your device and is separate from it. Your saved settings are untouched and turning it off restores them at once. It is off by default because nobody has shown it gives better answers yet; it is yours to judge.
-
-### Plans
-- **The upgrade screen says what you get, in the order that matters.** Every plan runs the same model: Apple Intelligence on your device, Deep Think, and Private Cloud Compute after you approve what is sent. Pro and Lifetime lift the daily cap on Maximum mode and raise the limits on documents and libraries, and now the screen leads with that instead of storage numbers.
-- **When Lifetime is on sale, the app says so.** One line at the top of Chat and Documents, with the real discount and the last day, computed from the store's own price. Dismiss it and it stays away until the next sale.
-- **One look at the plans, once.** After the fourth answer the app has verified against your files, it shows you the plans screen. It will not ask again.
-- **Pro Annual no longer has a free trial.** It is one payment a year, and the screen says so.
 
 ## 5.2
 The release that turns on Private Cloud Compute. Nothing about how the app reads, searches or checks

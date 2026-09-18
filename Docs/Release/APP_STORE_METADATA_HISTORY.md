@@ -169,7 +169,7 @@ Private Cloud Compute is on. Questions too big for the on-device model can be wr
 - **Platforms:** iOS, macOS
 - **Live:** not yet. The 5.3 records exist in App Store Connect in `PREPARE_FOR_SUBMISSION`; build 459 is the candidate.
 - **Final release notes commit:** the one that adds this entry (2026-09-18)
-- **Notes:** the first release written into the template above. One text for both platforms, in both `fastlane/metadata/` and `fastlane/metadata-ios/`, because the platforms do not diverge in 5.3. The description gains a PLANS block, written to the rule in `Docs/BILLING_AND_LIMITS.md`: a plan is described by what it gates, and the model as what every plan includes. No trial is mentioned anywhere; Pro Annual's 7-day free trial was withdrawn the same day. Release notes 2796 characters, promotional text 157 (the sale text; see the note under it), description 3,979, all against the 4,000 / 170 / 4,000 limits.
+- **Notes:** the first release written into the template above. One text for both platforms, in both `fastlane/metadata/` and `fastlane/metadata-ios/`, because the platforms do not diverge in 5.3. The description gains a PLANS block, written to the rule in `Docs/BILLING_AND_LIMITS.md`: a plan is described by what it gates, and the model as what every plan includes. No trial is mentioned anywhere; Pro Annual's 7-day free trial was withdrawn the same day. Release notes 3002 characters, promotional text 157 (the sale text; see the note under it), description 3,979, all against the 4,000 / 170 / 4,000 limits.
 
 **Release notes (`fastlane/metadata/`, both platforms):**
 
@@ -201,6 +201,8 @@ ANSWERING
 THE WELCOME SCREENS AND THE UPGRADE SCREEN
 
 • The welcome screens follow your light or dark setting. In light mode the status bar was nearly invisible against them; it is not now.
+
+• A thumbs-up on an answer now offers to rate the app, write a review, or send feedback, once per version. The Lifetime card says how many months of Pro Annual its price buys, from the store's own prices.
 
 • While Lifetime is on sale, one line at the top of Chat and Documents says the real discount and the last day, computed from the store's own price. Dismiss it and it stays away. And once, after the fourth answer the app has verified against your files, it shows you the plans; it will not ask again.
 

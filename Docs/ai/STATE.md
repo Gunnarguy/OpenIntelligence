@@ -122,6 +122,15 @@ reading the same `LaunchSale.offer` as the paywall, dismissable per sale window.
 answer, one after the rating request. Why so little: the archive shows 63 opt-in sessions in the
 last 14 days, most on 4.9 and 5.0.1, so the listing reaches more people than anything in the app.
 
+**Three more levers for buyers and reviews (2026-09-18, owner: "go nuts").** The friendly review
+alert with a "Write a Review" button had existed since 4.x with no writer; a thumbs-up now shows
+it, under the existing per-version and cooldown guards, because Apple's sheet yields stars and
+never a written review. The Lifetime card says how many months of Pro Annual its price buys
+(`LaunchSale.monthsOfAnnual`, live prices only, three tests). The What's New sheet, the one
+surface that reaches the 4.9 and 5.0 users on their first launch after updating, leads 5.3 with
+the Plans section. All in the 5.3 release notes. Not done and not asked: the three websites carry
+no sale line; that is a cross-repo change and waits for the owner to name them.
+
 **Four decisions belong to the owner and have been carried for several sessions.** They are listed
 under Exact Next Action. None of them blocks anything; they are simply not an agent's to make.
 
@@ -287,6 +296,17 @@ other build directories are correctly named `.build.nosync`, `.simulator-smoke.n
   future-tense PCC copy on three live sites, each of which deploys on push. Held for the owner.
 
 ## Verification
+
+Run 2026-09-18, latest, from `/private/tmp/oi-src` against the iOS 27 simulator, output read, with
+the review alert, the months arithmetic and the reordered notes in the tree:
+
+- `xcodebuild test` — **`** TEST SUCCEEDED **`, exit 0, 476 executed, 3 skipped, 0 failures.**
+  `LaunchSaleTests` 14/14 including the three new `monthsOfAnnual` cases (16 at the sale price,
+  24 at the regular one, rounding down, nil on nonsense).
+- **macOS**: `xcodebuild -destination "platform=macOS" build` — **`** BUILD SUCCEEDED **`, exit 0.**
+  The first attempt failed on both platforms: the card's body expression exceeded what the type
+  checker accepts, and the months value was read from the wrong struct. The captions are a
+  subview now and the value is passed into the card.
 
 Run 2026-09-18, later, from `/private/tmp/oi-src` against the iOS 27 simulator, output read, with the
 sale banner and the plans ask in the tree:

@@ -9,6 +9,13 @@ This document provides a chronological history of user-facing changes, highlight
 
 ## v5.3 - unreleased
 
+### Plans
+- **The upgrade screen leads with what a plan actually changes.** It used to list storage numbers first, "up to 1,000 documents", "10 libraries", and said nothing about the model. Every plan runs the same model: Apple Intelligence on your device, Deep Think, and Private Cloud Compute after you approve what would be sent. What Pro and Lifetime change is the daily cap on Maximum mode, three runs a day on the free plan and none on a paid one, plus how many documents and libraries you can keep. The screen now says that, in that order, and the sample Product Guide's plan section matches.
+- **When Lifetime is on sale, the app says so.** One line at the top of the Chat and Documents tabs, for anyone who has not bought, with the real percentage and the real last day. Both numbers come from the App Store's own price for your country against the regular price, so the line cannot claim a discount that is not running. Dismiss it and it stays away until a new sale.
+- **A thumbs-up now offers to write a review.** Apple's rating sheet gives stars and never a written review, and a written review is what someone reads on the store page. So when you thumb-up an answer, the app asks once per version whether you'd rate it, write a review, or send feedback. And the Lifetime card now says how many months of Pro Annual its price buys, from the store's own prices.
+- **One look at the plans, once.** After the fourth answer the app has verified against your files, one answer after it asks for a rating, it shows you the plans screen. It says it will not ask again, and it does not. If you have already bought, you never see it.
+- **Pro Annual no longer offers a free trial.** It is one payment a year. If you started a trial before this change, nothing about it changes.
+
 ### Getting Started
 - **The sample library's suggested questions are back.** They were written by hand for the three sample documents, and one leftover duplicate of a sample ("RAG Technical Architecture 2", left behind by an earlier refresh) was enough to switch them off: the app decided the library was no longer the sample library and built questions from templates instead, which is where "What is nothing?" and "What is the silicon?" came from. Three fixes. Duplicate sample copies are removed on the next visit to the Documents tab, and only when the original is also there. The hand-written set shows whenever the library holds the three samples, duplicates or not. And a library whose questions were built before Apple Intelligence was ready, which is exactly when the sample library is created, gets them rebuilt by the model the next time it is available, instead of keeping the template set forever.
 - **No suggestion is better than a bad one.** When the model is available and has nothing well-grounded to ask about a document, the app now shows nothing for it rather than a template question. The templates also stopped treating a lone word like "nothing", a phrase from the document's own title, or any passage containing the word "study" as material for a question.
@@ -27,12 +34,6 @@ This document provides a chronological history of user-facing changes, highlight
 - **Why it is off by default:** nobody has shown it produces better answers yet. It is a setting you can judge for yourself, not a change made on your behalf.
 
 ---
-
-### Plans
-- **The upgrade screen leads with what a plan actually changes.** It used to list storage numbers first, "up to 1,000 documents", "10 libraries", and said nothing about the model. Every plan runs the same model: Apple Intelligence on your device, Deep Think, and Private Cloud Compute after you approve what would be sent. What Pro and Lifetime change is the daily cap on Maximum mode, three runs a day on the free plan and none on a paid one, plus how many documents and libraries you can keep. The screen now says that, in that order, and the sample Product Guide's plan section matches.
-- **When Lifetime is on sale, the app says so.** One line at the top of the Chat and Documents tabs, for anyone who has not bought, with the real percentage and the real last day. Both numbers come from the App Store's own price for your country against the regular price, so the line cannot claim a discount that is not running. Dismiss it and it stays away until a new sale.
-- **One look at the plans, once.** After the fourth answer the app has verified against your files, one answer after it asks for a rating, it shows you the plans screen. It says it will not ask again, and it does not. If you have already bought, you never see it.
-- **Pro Annual no longer offers a free trial.** It is one payment a year. If you started a trial before this change, nothing about it changes.
 
 ## v5.2 - September 10, 2026
 The release that turns on Private Cloud Compute. Nothing about how the app reads, searches or checks

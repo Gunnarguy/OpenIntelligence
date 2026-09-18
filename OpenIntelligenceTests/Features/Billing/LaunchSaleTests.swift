@@ -111,4 +111,21 @@ final class LaunchSaleTests: XCTestCase {
         }
         XCTAssertEqual(LaunchSale.deadlineText(for: end), "September 29")
     }
+
+    // MARK: - Lifetime in months of Pro Annual
+
+    func testMonthsOfAnnual_atTheSalePrice_isSixteen() {
+        XCTAssertEqual(LaunchSale.monthsOfAnnual(lifetimePrice: 39.99, annualPricePerYear: 29.99), 16)
+    }
+
+    func testMonthsOfAnnual_atTheRegularPrice_isTwentyFour() {
+        XCTAssertEqual(LaunchSale.monthsOfAnnual(lifetimePrice: 59.99, annualPricePerYear: 29.99), 24)
+    }
+
+    func testMonthsOfAnnual_roundsDown_andRefusesNonsense() {
+        XCTAssertEqual(LaunchSale.monthsOfAnnual(lifetimePrice: 35, annualPricePerYear: 30), 14)
+        XCTAssertNil(LaunchSale.monthsOfAnnual(lifetimePrice: 0, annualPricePerYear: 29.99))
+        XCTAssertNil(LaunchSale.monthsOfAnnual(lifetimePrice: 39.99, annualPricePerYear: 0))
+        XCTAssertNil(LaunchSale.monthsOfAnnual(lifetimePrice: 1, annualPricePerYear: 100))
+    }
 }

@@ -930,7 +930,7 @@ struct ChatScreen: View {
                 Button("Maybe later", role: .cancel) {}
             } message: {
                 Text(
-                    "OpenIntelligence is fully on-device and private. A quick rating or review helps the app grow and keeps me building!"
+                    "Reading, searching and citing stay on your device. A quick rating or a written review helps the app grow and keeps me building it."
                 )
             }
             .alert(
@@ -3099,7 +3099,12 @@ struct ChatScreen: View {
         }
 
         AppReviewPromptTracker.markPromptAttempted()
-        requestReview()
+        // A thumbs-up is the one moment the person has just said they liked the answer. Apple's
+        // own sheet produces star ratings and never a written review, and a written review is
+        // what a stranger reads on the store page. So this moment offers the store page. The alert
+        // below existed since 4.x and was never shown by anything: `showFriendlyReviewPrompt` had
+        // no writer (2026-09-18). The per-version and cooldown guards above still apply.
+        showFriendlyReviewPrompt = true
     }
 
     private func presentMaximumModePaywall() {

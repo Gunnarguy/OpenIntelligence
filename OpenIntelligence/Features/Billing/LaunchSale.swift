@@ -185,6 +185,17 @@ enum LaunchSale {
     ///
     /// Rendered in the window's own timezone rather than the device's, so a customer in Hawaii
     /// is not told the sale ends a day earlier than everyone else is told.
+    /// How many months of Pro Annual the Lifetime price buys, rounded down, or nil when the
+    /// arithmetic has nothing to stand on. True at the sale price and at the regular one; the
+    /// paywall shows it under the Lifetime card so the comparison a buyer is already making in
+    /// their head is done for them with the store's own numbers.
+    static func monthsOfAnnual(lifetimePrice: Decimal, annualPricePerYear: Decimal) -> Int? {
+        guard lifetimePrice > 0, annualPricePerYear > 0 else { return nil }
+        let months = (lifetimePrice / annualPricePerYear * 12) as NSDecimalNumber
+        let n = Int(months.doubleValue.rounded(.down))
+        return n >= 1 ? n : nil
+    }
+
     static func deadlineText(for endDate: Date) -> String {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = TimeZone(identifier: "America/Los_Angeles") ?? .gmt
