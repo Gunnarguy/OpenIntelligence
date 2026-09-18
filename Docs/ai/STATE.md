@@ -151,6 +151,16 @@ route needs a permission this process does not have: the computer-use dialog was
 `/private/tmp`, gone after a reboot; forty lines each). The iPad set can be refreshed from the
 simulator without any permission, minus the answer screens, which need Foundation Models.
 
+**The sale is on all three websites and the review has a reply (2026-09-18).** gunzino.me carries
+it in the OpenIntelligence eyebrow (`src/content/pages/openintelligence.md` **and**
+`openintelligence/index.html`, because that build gate compares the two by text), fascinaiting.me
+under the hero App Store line, gunnarguy.me in the project highlight. Verified live on gunzino.me
+and fascinaiting.me; the portfolio deploy was still running when this was written. Each line has a
+comment naming its removal date. The portfolio edit also fixed a stale claim the 2026-09-14 sweep
+missed, "PCC built and awaiting iOS and macOS 27", which 5.2 shipped; it survived because it
+matched none of that sweep's search phrases. The one App Store review has a developer reply,
+`PENDING_PUBLISH` at Apple (they publish asynchronously).
+
 **Four decisions belong to the owner and have been carried for several sessions.** They are listed
 under Exact Next Action. None of them blocks anything; they are simply not an agent's to make.
 
@@ -469,8 +479,11 @@ pushed, and all three sites pushed. Gunzino's build gate compares the served Ast
 the hand-written HTML by text, which is why both had to change identically. The site patches are
 applied and can be treated as historical.
 
-**Reply to the one App Store review** (2026-03-25, 4 stars, USA, "Pretty Incredible for Local LLM", no
-developer response in six months): a reply is public content and needs the owner's words or approval.
+**Rename the Lifetime product's buyer-facing name from "Lifetime Cohort" to "Lifetime"** in App
+Store Connect (Subscriptions and In-App Purchases, the `lifetime_cohort` en-US localization). The
+name appears on the purchase sheet and the receipt. An agent's PATCH of
+`inAppPurchaseLocalizations` was refused by the harness classifier, so this one is the owner's;
+the change ships with the next review submission.
 
 **Replace the sale promotional text after 2026-09-30** on the live version, both platforms (API or
 App Store Connect); the text to restore is in the metadata history's 5.3 entry.
