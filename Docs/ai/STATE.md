@@ -193,7 +193,8 @@ compute, which matters because this account has hit the cap before. No tag, PR o
 condition, which is correct for a repo that releases from `main` by hand.
 
 **gunnarguy.me's "version 5.2" caption is not stale copy.** It is provenance: `data/appstore.json`
-was generated 2026-09-11 by `scripts/fetch_appstore.py` from the then-live listing, and the caption
+was generated 2026-09-11 by that repo's own `fetch_appstore.py` (Gunnarguy-Portfolio, not this
+repository) from the then-live listing, and the caption
 labels the screenshots it fetched. `update-stats.yml` regenerates it daily; it was triggered
 manually on 2026-09-18 to pick up the 5.3 listing.
 
