@@ -528,8 +528,11 @@ is the owner's call rather than something to push through unasked. **Note for wh
 these resources live under the **`/v2/`** base; `scripts/xcode_cloud_toolchain.rb`'s `api` helper
 hardcodes `/v1/`, which is why the first attempts returned 404 and looked like a missing endpoint.
 
-**Replace the sale promotional text after 2026-09-30** on the live version, both platforms (API or
-App Store Connect); the text to restore is in the metadata history's 5.3 entry.
+**Replace the sale promotional text after 2026-09-30** on the **live 5.3 records only**, both
+platforms, and strip the sale line from the three websites. 5.4 does **not** need touching: a new
+version inherits no promotional text (both 5.4 records read empty on 2026-09-19), so they were
+filled the same day with the non-sale wording, which is safe whether 5.4 ships before or after the
+sale ends. The text to restore on 5.3 is in `Docs/Release/APP_STORE_METADATA_HISTORY.md`.
 
 **Submit 5.3** once the device checks pass: `bundle exec fastlane submit_latest version:5.3 platform:ios`
 and the same with `platform:osx`, through `zsh -ic` with `LC_ALL=en_US.UTF-8`.
