@@ -517,10 +517,16 @@ the hand-written HTML by text, which is why both had to change identically. The 
 applied and can be treated as historical.
 
 **Rename the Lifetime product's buyer-facing name from "Lifetime Cohort" to "Lifetime"** in App
-Store Connect (Subscriptions and In-App Purchases, the `lifetime_cohort` en-US localization). The
-name appears on the purchase sheet and the receipt. An agent's PATCH of
-`inAppPurchaseLocalizations` was refused by the harness classifier, so this one is the owner's;
-the change ships with the next review submission.
+Store Connect. Attempted 2026-09-18 and **refused by Apple, not by tooling**: `PATCH
+inAppPurchaseLocalizations/{id}` returns HTTP 409
+`ENTITY_ERROR.ATTRIBUTE.INVALID.UNMODIFIABLE`, because the localization and the product's only
+version are both `APPROVED` and an approved in-app purchase localization is immutable. Changing the
+name means creating a **new in-app purchase version** (`/v2/inAppPurchases/6756638872/versions`,
+currently one version, `state: APPROVED`) and editing the localization on that version, which then
+goes through review with a submission. That is a paid-product change tied to a review cycle, so it
+is the owner's call rather than something to push through unasked. **Note for whoever does it:**
+these resources live under the **`/v2/`** base; `scripts/xcode_cloud_toolchain.rb`'s `api` helper
+hardcodes `/v1/`, which is why the first attempts returned 404 and looked like a missing endpoint.
 
 **Replace the sale promotional text after 2026-09-30** on the live version, both platforms (API or
 App Store Connect); the text to restore is in the metadata history's 5.3 entry.

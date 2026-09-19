@@ -164,7 +164,10 @@ Pro Annual and Pro Monthly are deliberately excluded, for two independent reason
   Store Connect, 175 in all, is removed by the owner (an agent's deletion was blocked by the
   harness). Until it is removed, the store's own purchase sheet still shows the trial; the app
   under-claims rather than over-claims in the meantime. Existing trialists are unaffected by the
-  removal. With the trial gone, Annual could in principle take an introductory offer again; the
+  removal. **Done 2026-09-18:** all 175 per-territory offers were deleted through
+  `DELETE /v1/subscriptionIntroductoryOffers/{id}`, verified by re-listing the subscription's
+  `introductoryOffers` and getting zero. Pro Annual now has no introductory offer of any kind, so
+  it could take one again in future; the reason below is why it still takes no sale. With the trial gone, Annual could in principle take an introductory offer again; the
   reason below is why it still takes no sale.
 - **A temporary price change on a subscription creates a price increase later.** When the price
   reverts, everyone who subscribed at the sale price faces an increase at renewal. Apple
