@@ -141,15 +141,15 @@ a platform is approved: `app_store` and `app_store_by_platform` in `Docs/SHIPPED
 move to 5.3 for it, `in_review` clears for it, the `## 5.3` heading in `CHANGELOG.md` loses its
 `unreleased` marker (only when both are live), and the sites pick the number up on their next cron.
 
-**Screenshots: Mac needs the owner at the keyboard; iPad is in progress from the simulator.** The
-Mac set on the store is seven captures from 2026-06-21 and the iPad set five from January. A Mac
-screenshot build was made (ad-hoc, no entitlements, isolated `HOME`, bundle id
-`Gunndamental.OpenIntelligence.shots`, so it never touches the real library) but every capture
-route needs a permission this process does not have: the computer-use dialog was declined and
-`screencapture` has no Screen Recording grant. Approve the dialog when present and the run is
-`/private/tmp/oi-shots-launch.sh` then `ruby /private/tmp/asc_shots_upload.rb <pngs>` (both in
-`/private/tmp`, gone after a reboot; forty lines each). The iPad set can be refreshed from the
-simulator without any permission, minus the answer screens, which need Foundation Models.
+**Screenshots: every iOS and iPadOS set is current; macOS is the only one left.** On 2026-09-18
+twenty images were captured from clean simulators and uploaded to the 5.4 records, all reading
+`COMPLETE`: `APP_IPHONE_67`, `APP_IPHONE_65`, `APP_IPHONE_61` and `APP_IPAD_PRO_3GEN_129`, five
+scenes each, replacing device captures from the 5.2 era and iPad images from January. It needed no
+device and no permission; the full recipe is in `Docs/ai/RUNBOOK.md` under "Regenerating App Store
+screenshots". **The macOS `APP_DESKTOP` set is still seven captures from 2026-06-21** and cannot be
+done the same way: there is no macOS simulator and window capture needs a Screen Recording grant
+this process does not have. That one is the owner's: grant screen access, then the same upload
+flow.
 
 **The sale is on all three websites and the review has a reply (2026-09-18).** gunzino.me carries
 it in the OpenIntelligence eyebrow (`src/content/pages/openintelligence.md` **and**

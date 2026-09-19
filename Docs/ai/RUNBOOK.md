@@ -528,6 +528,61 @@ The `repoos_workspace_automation` route also names
 `python3 ~/.codex/skills/.system/skill-creator/scripts/quick_validate.py .codex/skills/route-openintelligence-work`.
 *Unverified:* that path is outside the repository and may not exist on a given machine.
 
+## Regenerating App Store screenshots, with no device and no screen permission
+
+Done on 2026-09-18 for every iOS and iPadOS set. It needs no phone, no Screen Recording grant and
+no computer-use approval, because `xcrun simctl io <udid> screenshot` captures a simulator without
+any permission at all. (`screencapture` on the Mac is the opposite: it needs Screen Recording, and
+without it returns "could not create image from window".)
+
+**The app stages the scenes itself.** `ContentView.ScreenshotMode` reads these launch arguments,
+DEBUG builds only, so use the smoke build's `.app`:
+
+- `--screenshot` turns the mode on
+- `--screenshot-tab chat | documents | visualizations | database | settings`
+- `--screenshot-import-samples` imports the three sample documents
+
+**Retire the HUD hint first, or every capture is spoiled.** The Silicon HUD's one-time
+"Drag me - This is your Device's hardware X-Ray." tip renders over the library chip on a fresh
+install. Seed the app container's preferences before first launch:
+
+```bash
+CONT=$(xcrun simctl get_app_container "$UD" Gunndamental.OpenIntelligence data)
+P="$CONT/Library/Preferences/Gunndamental.OpenIntelligence.plist"
+/usr/libexec/PlistBuddy -c "Add :hudHasBeenDragged bool true" "$P"
+/usr/libexec/PlistBuddy -c "Add :hudLegendPosX real 120" "$P"
+/usr/libexec/PlistBuddy -c "Add :hudLegendPosY real 2700" "$P"
+```
+
+**Import once and let it finish.** Sample ingestion takes about three minutes in a simulator.
+Terminating the app to switch tabs mid-import leaves a "N interrupted uploads paused" panel over
+the whole UI on the next launch, and duplicate queue entries. Launch once with
+`--screenshot-import-samples`, wait, capture; only then relaunch per tab **without** that flag.
+A finished import reads 3 documents and 41 chunks.
+
+**Devices and sizes.** Capture at a native size, then `sips -z <h> <w>` for the rest:
+
+| Set | Pixels | Source |
+|---|---|---|
+| `APP_IPHONE_67` | 1320x2868 | iPhone 18 Pro Max, native |
+| `APP_IPHONE_65` | 1284x2778 | resized |
+| `APP_IPHONE_61` | 1206x2622 | resized |
+| `APP_IPAD_PRO_3GEN_129` | 2048x2732 | iPad Pro 13-inch (M4) captures 2064x2752; resize |
+
+**Upload** to a version in `PREPARE_FOR_SUBMISSION`; a live version's screenshots are locked. Per
+image: `POST appScreenshots` with `fileName` and `fileSize` returns `uploadOperations`; PUT each
+byte range with the headers it gives; `PATCH appScreenshots/<id>` with `uploaded: true` and the
+file's MD5 as `sourceFileChecksum`; then poll `assetDeliveryState.state` until `COMPLETE`. iPad
+screenshots belong to the **iOS** record, not a separate one.
+
+**macOS cannot be done this way.** There is no macOS simulator, and capturing the Mac app's window
+needs a Screen Recording grant this process does not have. The Mac set on the listing is still
+seven captures from 2026-06-21. It is an owner action: grant screen access, then the same upload
+flow against `APP_DESKTOP`.
+
+*Verified 2026-09-18: five scenes captured on an erased iPad Pro 13-inch (M4) and an erased iPhone
+18 Pro Max, both iOS 27.0, uploaded to the 5.4 records, all sets reading `COMPLETE`.*
+
 ## Release
 
 Version is derived, not set by hand. `ci_scripts/ci_post_clone.sh` stamps `MARKETING_VERSION` for
