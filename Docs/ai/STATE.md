@@ -162,6 +162,41 @@ missed, "PCC built and awaiting iOS and macOS 27", which 5.2 shipped; it survive
 matched none of that sweep's search phrases. The one App Store review has a developer reply,
 `PENDING_PUBLISH` at Apple (they publish asynchronously).
 
+**5.3 is LIVE on both platforms (2026-09-18), and the release close-out is done.** The owner
+released manually after approval; the API reads iOS 5.3 and macOS 5.3 `READY_FOR_SALE` with build
+464. Four repo facts the release invalidated are all corrected in `006f6a3`:
+`Docs/SHIPPED_VERSION.json` at `app_store` 5.3 and `preparing` 5.4 with `in_review` empty;
+`CHANGELOG.md`'s 5.3 heading dated and its marker removed, with `## 5.4 <!-- unreleased -->`
+opened above it so `ci_post_clone.sh` cannot stamp an already-released version (the 2026-07-28
+rejection); the metadata history's 5.3 entry dated; and `INGESTION_PIPELINE.md` and
+`PRIVACY_AND_ROUTING.md`, which still named 5.2 as shipped and which `verify_doc_claims` caught.
+The owner created the 5.4 App Store Connect records the same evening, both
+`PREPARE_FOR_SUBMISSION`, so the next build has somewhere to land. The preflight reports active
+release v5.4, last shipped v5.3.
+
+**Both website gates failed on the bump, and both were right to.** Gunzino's deploy failed its
+copy-match check: its `openintelligence-version` bot rewrites only the Astro sources
+(`src/content/pages/openintelligence.md`, `src/data/home.json`), while `verify-site.sh` compares
+the built pages against the hand-written `openintelligence/index.html` and `index.html`, which the
+bot never touches. **That is structural and would break on any release**, not just this one; fixed
+by hand (`fa83aa6`). Fascinaiting's version check failed by design, demanding a 5.3 timeline entry;
+its timeline now has 5.3 as the current release with both `data-oi-version` anchors, 5.2 demoted,
+and a 5.4 entry on `data-oi-preparing` (`a0e8d702`). All three sites verified live at 5.3 carrying
+the sale.
+
+**Xcode Cloud audit, since it was asked: nothing is missing.** One workflow, `Default`, enabled,
+pinned to the **Xcode 27 release** (`27A266a`) on macOS `Latest Release`, two archive actions plus
+both TestFlight steps, start condition branch `main` only, `clean=false`. It already carries a
+`DO_NOT_START_IF_ALL_FILES_MATCH` path filter covering `*.md`, `Docs/`, `.claude/`, `.agents/`,
+`.codex/`, `fastlane/metadata/` and `.github/`, so documentation pushes do **not** burn build
+compute, which matters because this account has hit the cap before. No tag, PR or scheduled
+condition, which is correct for a repo that releases from `main` by hand.
+
+**gunnarguy.me's "version 5.2" caption is not stale copy.** It is provenance: `data/appstore.json`
+was generated 2026-09-11 by `scripts/fetch_appstore.py` from the then-live listing, and the caption
+labels the screenshots it fetched. `update-stats.yml` regenerates it daily; it was triggered
+manually on 2026-09-18 to pick up the 5.3 listing.
+
 **Four decisions belong to the owner and have been carried for several sessions.** They are listed
 under Exact Next Action. None of them blocks anything; they are simply not an agent's to make.
 
