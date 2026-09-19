@@ -1,16 +1,22 @@
 ## [Unreleased]
 
-<!-- next-version: 5.3 -->
+<!-- next-version: 5.4 -->
 
-## 5.3 <!-- unreleased -->
+## 5.4 <!-- unreleased -->
 
-<!-- Opened 2026-09-10, the evening 5.2 went live on both platforms with build 451. The entry
-     below was committed after 451 was cut, so it is NOT in the shipped 5.2 binary and belongs
-     here rather than under 5.2. ci_post_clone.sh stamps MARKETING_VERSION from this heading,
-     so leaving it absent would stamp an already-released 5.2 and get the build rejected, which
-     is the exact failure of 2026-07-28. The "unreleased" marker on the heading's own line is
-     the only place this repository records that the section has not shipped; repoos_router.py
-     reads it from that line and nowhere else. Remove it when 5.3 goes live, not before. -->
+<!-- Opened 2026-09-18, the evening 5.3 went live on both platforms with build 464.
+     ci_post_clone.sh stamps MARKETING_VERSION from the FIRST "## <number>" heading, so this
+     section must exist before the next source push: without it the next build stamps 5.3, a
+     version already in App Store Connect, and is rejected. That is the exact failure of
+     2026-07-28. The "unreleased" marker on the heading's own line is the only place this
+     repository records that the section has not shipped; repoos_router.py reads it from that
+     line and nowhere else. Remove it when 5.4 goes live, not before. -->
+
+## 5.3 - September 18, 2026
+
+<!-- Shipped on both platforms with build 464; released manually after approval. The marker was
+     removed from this heading the same evening, which is what makes 5.4 above the active
+     release. -->
 
 ### Added
 - **[General]** **The sale is on all three websites, the one App Store review finally has a reply, and 5.3 is submitted.** Web referrers are a top install channel and none of the three sites mentioned the Lifetime discount. gunzino.me carries it in the OpenIntelligence eyebrow (both the Astro source and the hand-written mirror the build gate compares against), fascinaiting.me under the hero App Store line, gunnarguy.me in the project highlight. **That last one also corrected a stale claim the 2026-09-14 sweep missed:** the highlight still said consent-gated PCC routing was "built and awaiting iOS and macOS 27", which 5.2 shipped on 2026-09-10; it survived because it did not contain any phrase that sweep searched for. Each sale line carries a comment naming 2026-09-30 as its removal date, because a discount line outliving its price schedule is a false claim on a public site. The only App Store review the app has ever had (2026-03-25, four stars, unanswered for six months) has a developer reply, posted through the API and `PENDING_PUBLISH` at Apple. `[evidence_level: measured, confidence: exact, evidence_source: live pages fetched 2026-09-18 showing the sale text on gunzino.me and fascinaiting.me; customerReviewResponses POST HTTP 201; App Store Connect 5.3 iOS and macOS both WAITING_FOR_REVIEW with build 464]`

@@ -164,10 +164,10 @@ Private Cloud Compute is on. Questions too big for the on-device model can be wr
 
 ## Versions, newest first
 
-### 5.3 (in preparation; copy complete 2026-09-18, pushed to the 5.3 records the same day)
+### 5.3
 
 - **Platforms:** iOS, macOS
-- **Live:** not yet. The 5.3 records exist in App Store Connect in `PREPARE_FOR_SUBMISSION`; build 459 is the candidate.
+- **Live:** 2026-09-18 on both platforms, build 464, released manually by the owner after approval (`Docs/SHIPPED_VERSION.json`). The promotional text recorded below is the **sale** text; replace it after 2026-09-30 with the non-sale text noted under it.
 - **Final release notes commit:** the one that adds this entry (2026-09-18)
 - **Notes:** the first release written into the template above. One text for both platforms, in both `fastlane/metadata/` and `fastlane/metadata-ios/`, because the platforms do not diverge in 5.3. The description gains a PLANS block, written to the rule in `Docs/BILLING_AND_LIMITS.md`: a plan is described by what it gates, and the model as what every plan includes. No trial is mentioned anywhere; Pro Annual's 7-day free trial was withdrawn the same day. Release notes 3002 characters, promotional text 157 (the sale text; see the note under it), description 3,979, all against the 4,000 / 170 / 4,000 limits.
 
