@@ -40,10 +40,12 @@ the owner was away and could not restart it.
    action**. Start condition is branch `main` only. A `DO_NOT_START_IF_ALL_FILES_MATCH` path filter
    covers `*.md`, `Docs/`, `.claude/`, `.agents/`, `.codex/`, `fastlane/metadata/` and `.github/`,
    so a documentation push does not burn build compute; this account has hit the compute cap before.
-   The pin was verified today by `zsh -ic 'ruby scripts/xcode_cloud_toolchain.rb'`, which prints
-   `Workflow 'Default' currently builds with: Xcode 27 (27A266a)`. The action and path-filter detail
-   comes from the API audit recorded in `813b732` on 2026-09-18 and was not re-read today.
-   `[evidence_level: measured, confidence: exact for the pin; recorded, high for the actions and the filter]`
+   The pin was verified on 2026-09-22 by `zsh -ic 'ruby scripts/xcode_cloud_toolchain.rb'`, which prints
+   `Workflow 'Default' currently builds with: Xcode 27 (27A266a)`. The start condition and the seven
+   matchers were re-read from `ciWorkflows` the same day and match this paragraph exactly; the actions
+   are `Archive - macOS` and `Archive - iOS`, both `ARCHIVE`. Build #465, from `bdec851`, succeeded
+   on all four actions at 15:43Z. **Open observation:** `8c99a6b`, pushed 2026-09-22 15:42Z, changed `OpenIntelligenceTests/.../IngestionFormatCoverageTests.swift` and `scripts/asc_end_sale.rb` alongside two markdown files, and no build had started when checked at 15:51Z. Neither path is in the filter, so one was expected. Nothing shipped depends on it, since neither file reaches the archive. Before the next real source push, check `ruby scripts/xcode_cloud_toolchain.rb` and the build list; if a source push does not start a build, the candidates are the account's compute cap, which it has hit before, or a missed webhook, and a build can be started by hand in App Store Connect.
+   `[evidence_level: measured, confidence: exact, evidence_source: ciWorkflows branchStartCondition and ciBuildRuns read 2026-09-22]`
 6. **A cold full build can take this Mac down.** It has **18 GB** of memory and 11 cores. On
    2026-09-20 at 04:41 a full `xcodebuild test` ran two `swift-frontend` processes that grew to
    15.5 GB and 15.4 GB. Resident memory reached 60 GB, macOS killed 340 processes at 04:44 and 888
