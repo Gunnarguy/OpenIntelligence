@@ -7,7 +7,7 @@ This document provides a chronological history of user-facing changes, highlight
 
 ---
 
-## v5.3 - unreleased
+## v5.3 - September 18, 2026
 
 ### Plans
 - **The upgrade screen leads with what a plan actually changes.** It used to list storage numbers first, "up to 1,000 documents", "10 libraries", and said nothing about the model. Every plan runs the same model: Apple Intelligence on your device, Deep Think, and Private Cloud Compute after you approve what would be sent. What Pro and Lifetime change is the daily cap on Maximum mode, three runs a day on the free plan and none on a paid one, plus how many documents and libraries you can keep. The screen now says that, in that order, and the sample Product Guide's plan section matches.

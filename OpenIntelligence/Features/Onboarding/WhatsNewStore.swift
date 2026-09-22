@@ -53,7 +53,7 @@ final class WhatsNewStore: ObservableObject {
     ///
     /// Deliberately silent on a fresh install. Someone opening the app for the very
     /// first time has no "before" to compare against, and the onboarding checklist
-    /// already owns that moment — leading with a changelog would be noise. The first
+    /// already owns that moment, and leading with a changelog would be noise. The first
     /// launch only records the version, so the sheet appears on the first *update*.
     func evaluateOnLaunch() {
         guard !currentVersion.isEmpty else { return }
@@ -100,9 +100,44 @@ final class WhatsNewStore: ObservableObject {
 
     static let releases: [String: WhatsNewRelease] = [
         // Keyed by CFBundleShortVersionString, and the key must exist or the sheet
-        // silently never appears: `showIfNeeded` marks an unknown version as seen and
+        // silently never appears: `evaluateOnLaunch` marks an unknown version as seen and
         // returns. macOS shipped 5.0 as build 379 and is missing everything here; iOS
         // never shipped 5.0 at all, so on iPhone and iPad this is the first 5.x release.
+        // 5.3 went live on both platforms on 2026-09-18 with no key here, so every user
+        // who updated to it was recorded as seen and shown nothing. The gap is only visible
+        // from a later build, which is why `WhatsNewCoverageTests` now fails the build when
+        // the newest version in the bundled VersionHistory.md has no entry below.
+        "5.3": WhatsNewRelease(
+            version: "5.3",
+            headline: "Lifetime is on sale until September 30, and the app now says so using the App Store's own price for your country. The upgrade screen leads with what a plan actually changes, which is the daily cap on Maximum mode and how much you can keep, not the model. Every plan runs the same model.",
+            items: [
+                .init(
+                    symbol: "tag.fill",
+                    title: "When Lifetime is on sale, the app says so",
+                    detail: "One line at the top of the Chat and Documents tabs, for anyone who has not bought, with the real percentage and the real last day. Both numbers come from the App Store's own price for your country against the regular price, so the line cannot claim a discount that is not running. Dismiss it and it stays away until a new sale."
+                ),
+                .init(
+                    symbol: "square.stack.3d.up.fill",
+                    title: "The upgrade screen leads with what a plan actually changes",
+                    detail: "It used to list storage numbers first and say nothing about the model. Every plan runs the same model: Apple Intelligence on your device, Deep Think, and Private Cloud Compute after you approve what would be sent. What Pro and Lifetime change is the daily cap on Maximum mode, three runs a day on the free plan and none on a paid one, plus how many documents and libraries you can keep."
+                ),
+                .init(
+                    symbol: "star.bubble.fill",
+                    title: "A thumbs-up now offers to write a review",
+                    detail: "Apple's rating sheet gives stars and never a written review, and a written review is what someone reads on the store page. So when you thumb-up an answer, the app asks once per version whether you would rate it, write a review, or send feedback. The Lifetime card also says how many months of Pro Annual its price buys, from the store's own prices."
+                ),
+                .init(
+                    symbol: "lightbulb.fill",
+                    title: "The sample library's suggested questions are back",
+                    detail: "They were written by hand for the three sample documents, and one leftover duplicate of a sample was enough to switch them off: the app decided the library was no longer the sample library and built questions from templates instead, which is where \"What is nothing?\" came from. Duplicate copies are now removed on the next visit to the Documents tab, the hand-written set shows whenever the library holds the three samples, and a set built before Apple Intelligence was ready gets rebuilt by the model."
+                ),
+                .init(
+                    symbol: "circle.lefthalf.filled",
+                    title: "The welcome screens follow your light or dark setting",
+                    detail: "They were always dark, whatever the rest of the app was doing, so turning the phone to light mode gave you a white app with one navy screen at the front of it. The status bar was the real casualty: iOS draws the clock and battery in dark ink on a light screen, and the welcome screen underneath was nearly black, so they simply vanished. The light version is a warm off-white rather than the dark one flipped."
+                ),
+            ]
+        ),
         "5.2": WhatsNewRelease(
             version: "5.2",
             headline: "Private Cloud Compute is on. Every release since 4.6 carried it compiled out, waiting on iOS and macOS 27. Reading, searching and checking your files still never leave the device; the one step that can, writing the answer, asks you first.",
