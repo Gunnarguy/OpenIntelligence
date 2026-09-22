@@ -26,6 +26,7 @@ struct ContentView: View {
     @State private var selectedTab: Tab = .chat
     @State private var previousScenePhase: ScenePhase = .inactive
     @State private var showVisualValidationDashboard = false
+    @State private var showOnboardingPlans = false
     private let screenshotMode: ScreenshotMode
 
     init() {
@@ -160,6 +161,21 @@ struct ContentView: View {
                 requestReview()
                 reviewPrompt.didAsk()
             }
+        }
+        // The one look at the plans that comes at the end of setup rather than at a limit.
+        // Only when the checklist was finished (not skipped), free tier only, once per install,
+        // and a beat after the chat appears so it never lands on top of the transition.
+        .onChange(of: onboardingStore.hasDismissedPermanently) { _, dismissed in
+            guard dismissed, onboardingStore.wasCompletedProperly, !screenshotMode.isEnabled else { return }
+            let isFree = !entitlementStore.effectiveTier.isAtLeast(.pro)
+            guard PlanAskService.shared.noteOnboardingCompleted(isFreeTier: isFree) else { return }
+            Task { @MainActor in
+                try? await Task.sleep(for: .seconds(1.5))
+                showOnboardingPlans = true
+            }
+        }
+        .sheet(isPresented: $showOnboardingPlans) {
+            PlanUpgradeSheet(entryPoint: .onboarding)
         }
         // Proactively refresh StoreKit products once the root view appears.
         // In production this fetches App Store Connect products; in DEBUG/simulator,

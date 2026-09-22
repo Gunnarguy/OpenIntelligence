@@ -33,9 +33,27 @@ final class PlanAskService: ObservableObject {
     private let shownKey = "planAsk.shownAt"
     private let verifiedCountKey = "reviewPrompt.verifiedAnswers"   // shared with ReviewPromptService, read only
 
-    /// The review prompt asks at `ReviewPromptService.minimumVerifiedAnswers` (3); this asks one
-    /// verified answer later, so the sheets are never stacked on one answer.
+    /// The review prompt asks at `ReviewPromptService.minimumVerifiedAnswers`, now the first
+    /// verified answer; this waits for the fourth, so it lands after real use rather than on the
+    /// same answer as the rating request or minutes after the onboarding plans screen.
     nonisolated static let minimumVerifiedAnswers = 4
+
+    private let onboardingShownKey = "planAsk.onboardingShownAt"
+
+    /// The dismissible plans screen at the end of the setup checklist. Once per install,
+    /// free tier only. Most buyers decide on the day they install; until 5.4 the first offer
+    /// came at a limit or the fourth verified answer, after the buying window had passed.
+    nonisolated static func shouldAskAfterOnboarding(isFreeTier: Bool, alreadyShown: Bool, isTesting: Bool) -> Bool {
+        !alreadyShown && isFreeTier && !isTesting
+    }
+
+    /// Returns true exactly once, and records it even if the caller then fails to present.
+    func noteOnboardingCompleted(isFreeTier: Bool) -> Bool {
+        let shown = defaults.double(forKey: onboardingShownKey) > 0
+        guard Self.shouldAskAfterOnboarding(isFreeTier: isFreeTier, alreadyShown: shown, isTesting: isTesting) else { return false }
+        defaults.set(Date().timeIntervalSince1970, forKey: onboardingShownKey)
+        return true
+    }
 
     /// Pure. `verifiedAnswers` is the count including the answer that just landed.
     nonisolated static func shouldAsk(verifiedAnswers: Int, isFreeTier: Bool, alreadyShown: Bool, isTesting: Bool) -> Bool {
@@ -43,8 +61,8 @@ final class PlanAskService: ObservableObject {
     }
 
     /// Call after `ReviewPromptService.shared.noteAnswer`, which is what increments the count.
-    func noteAnswer(gatingDecision: String?, isFreeTier: Bool) {
-        guard ReviewPromptService.isVerified(gatingDecision) else { return }
+    func noteAnswer(gatingDecision: String?, retrievedSourceCount: Int, isFreeTier: Bool) {
+        guard ReviewPromptService.isVerified(gatingDecision, retrievedSourceCount: retrievedSourceCount) else { return }
         let n = defaults.integer(forKey: verifiedCountKey)
         guard Self.shouldAsk(verifiedAnswers: n, isFreeTier: isFreeTier, alreadyShown: defaults.double(forKey: shownKey) > 0, isTesting: isTesting) else { return }
         wantsAsk = true

@@ -13,6 +13,7 @@ enum PlanUpgradeEntryPoint: String, CaseIterable {
     case maximumModeLimit
     case launchSale // the in-app sale banner, shown only while LaunchSale has a real offer
     case momentOfValue // once, after the review prompt, on a verified answer
+    case onboarding // once, when the setup checklist is finished; dismissible, never repeated
 
     /// Human-friendly description surfaced inside the paywall hero.
     var headline: String {
@@ -39,6 +40,8 @@ enum PlanUpgradeEntryPoint: String, CaseIterable {
             return "Lifetime is on sale"
         case .momentOfValue:
             return "That answer came from your files"
+        case .onboarding:
+            return "Start free. Upgrade when your library outgrows it."
         }
     }
 
@@ -67,6 +70,8 @@ enum PlanUpgradeEntryPoint: String, CaseIterable {
             return "One payment, no renewal, no daily cap on Maximum mode, unlimited documents. The discount is real and it ends on the date shown."
         case .momentOfValue:
             return "Every plan runs the same model. Pro and Lifetime lift the daily cap on Maximum mode and raise the document and library limits. You will not be asked again."
+        case .onboarding:
+            return "Free is 5 documents, one library and three Maximum runs a day, on the same model as every paid plan. This screen shows once; the Plan & Usage row in Settings has it whenever you want it."
         }
     }
 

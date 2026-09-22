@@ -150,6 +150,7 @@ struct PlanUpgradeSheet: View {
         .sheet(isPresented: $showingPrivacy) {
             PrivacyPolicyView()
         }
+        .task { await AppStoreRatingService.refreshIfStale() }
         .onAppear {
             TelemetryCenter.emitBillingEvent(
                 "Paywall viewed",
@@ -194,14 +195,20 @@ extension PlanUpgradeSheet {
         }
     }
 
+    /// Two things a buyer can check on the product page, and nothing else. The rating line
+    /// appears only once the store count is large enough to mean something; see
+    /// `AppStoreRatingSnapshot.minimumRatingCount`. Until 5.4 this banner said "Upgrade anytime,
+    /// cancel in App Store settings", which is a footer, not proof.
     fileprivate var socialProofBanner: some View {
-        HStack(spacing: 8) {
-            Image(systemName: "person.3.fill")
-                .foregroundStyle(.purple)
-            Text("Upgrade anytime — cancel in App Store settings.")
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(.secondary)
+        VStack(alignment: .leading, spacing: 6) {
+            Label("App Store privacy label: Data Not Collected", systemImage: "hand.raised.fill")
+            if let rating = AppStoreRatingService.cached(), rating.isWorthShowing {
+                Label(rating.line, systemImage: "star.fill")
+            }
         }
+        .font(.subheadline.weight(.semibold))
+        .foregroundStyle(.secondary)
+        .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, 16)
         .padding(.vertical, 10)
         .background(

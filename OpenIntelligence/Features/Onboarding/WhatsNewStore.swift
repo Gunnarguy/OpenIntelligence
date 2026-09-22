@@ -107,6 +107,32 @@ final class WhatsNewStore: ObservableObject {
         // who updated to it was recorded as seen and shown nothing. The gap is only visible
         // from a later build, which is why `WhatsNewCoverageTests` now fails the build when
         // the newest version in the bundled VersionHistory.md has no entry below.
+        "5.4": WhatsNewRelease(
+            version: "5.4",
+            headline: "The free plan now does what it says: three Maximum runs a day, counted. The app asks for a rating once, after the first answer from your files, and shows the plans once, at the end of setup.",
+            items: [
+                .init(
+                    symbol: "flame.fill",
+                    title: "Three Maximum runs a day on the free plan, for real this time",
+                    detail: "The mode menu said \"3 left today\" since May and the number never moved, because nothing ever counted a run. It counts now. When the three are used, the app offers Standard, Deep Think, or the plans, and the allowance comes back at midnight. Pro and Lifetime have no cap."
+                ),
+                .init(
+                    symbol: "star.fill",
+                    title: "One rating request, after the first answer that came from your files",
+                    detail: "Two separate prompts used to fire on the same third answer, and Deep Think and Maximum answers never counted at all. Apple allows three requests a year on a device; they are spent on your first success now, and never twice in four months."
+                ),
+                .init(
+                    symbol: "square.stack.3d.up.fill",
+                    title: "The plans, once, when setup is finished",
+                    detail: "A screen you can close, showing what Free includes and what Pro and Lifetime change. It appears one time, after the sample questions, and lives in Settings under Plan & Usage after that."
+                ),
+                .init(
+                    symbol: "hand.raised.fill",
+                    title: "The plans screen cites two things you can check",
+                    detail: "The App Store privacy label, Data Not Collected, and the app's own store rating once there are enough ratings for it to mean something. The banner that used to sit there said \"cancel anytime\", which is a footer, not evidence."
+                ),
+            ]
+        ),
         "5.3": WhatsNewRelease(
             version: "5.3",
             headline: "Lifetime is on sale until September 30, and the app now says so using the App Store's own price for your country. The upgrade screen leads with what a plan actually changes, which is the daily cap on Maximum mode and how much you can keep, not the model. Every plan runs the same model.",

@@ -331,7 +331,6 @@ struct ChatScreen: View {
     // Smart Reply follow-up suggestions (shown after AI response)
     @State private var followUpSuggestions: [SmartReply] = []
     @State private var followUpSuggestionsTask: Task<Void, Never>? = nil
-    @State private var reviewPromptTask: Task<Void, Never>? = nil
     @State private var showFriendlyReviewPrompt = false
     @State private var showFeedbackEmailPrompt = false
 
@@ -653,14 +652,10 @@ struct ChatScreen: View {
         .onChange(of: scenePhase) { _, newPhase in
             continuedQueryCoordinator.handleScenePhaseChange(newPhase, isProcessing: isProcessing)
             if newPhase != .active {
-                reviewPromptTask?.cancel()
-                reviewPromptTask = nil
             }
         }
         // Recalculate counts when active container changes
         .task(id: ragService.containerService.activeContainerId) {
-            reviewPromptTask?.cancel()
-            reviewPromptTask = nil
 
             // Don't load persisted history in screenshot demo mode - let seedFullDemoContent() handle it
             #if DEBUG
@@ -2593,8 +2588,21 @@ struct ChatScreen: View {
         let query = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !query.isEmpty else { return }
 
-        reviewPromptTask?.cancel()
-        reviewPromptTask = nil
+        // A Maximum run is spent here, before anything else happens, because this is the
+        // one place every Maximum answer passes through. `consumeMaximumModeUseIfNeeded`
+        // existed since May 2026 with no caller, so the "3 left today" label never moved
+        // and the paywall's headline promise gated nothing. Paid tiers return unlimited.
+        if effectiveQualityMode.canonical == .maximum {
+            switch entitlementStore.consumeMaximumModeUseIfNeeded() {
+            case .allowedUnlimited, .allowedMetered:
+                break
+            case let .blocked(_, dailyLimit, _):
+                maximumModeLimitDialogMessage =
+                    "Free users get \(dailyLimit) Maximum runs per day. Switch to Standard or Deep Think, or upgrade for unlimited Maximum mode."
+                showMaximumModeLimitDialog = true
+                return
+            }
+        }
 
         // Haptic feedback for sending a message
         DSHaptics.messageSent()
@@ -2892,11 +2900,14 @@ struct ChatScreen: View {
                     self.appendAndPersistMessage(assistant, for: capturedUsedContainerId)
                     // A finished answer is the only moment the app asks for a rating,
                     // and only when the verifier let it through.
-                    ReviewPromptService.shared.noteAnswer(gatingDecision: response.metadata.gatingDecision)
-                    // And the one unprompted look at the plans, one verified answer after the
-                    // rating request, free tier only, once per install. See PlanAskService.
+                    ReviewPromptService.shared.noteAnswer(
+                        gatingDecision: response.metadata.gatingDecision,
+                        retrievedSourceCount: response.retrievedChunks.count)
+                    // And the one unprompted look at the plans, after real use, free tier
+                    // only, once per install. See PlanAskService.
                     PlanAskService.shared.noteAnswer(
                         gatingDecision: response.metadata.gatingDecision,
+                        retrievedSourceCount: response.retrievedChunks.count,
                         isFreeTier: !self.entitlementStore.effectiveTier.isAtLeast(.pro))
 
                     if let genStart = self.generatingStartTS {
@@ -2928,11 +2939,6 @@ struct ChatScreen: View {
                         self.currentQuerySessionId = nil
                         self.currentQueryTask = nil
 
-                        self.scheduleReviewPromptIfEligible(
-                            response: response,
-                            renderedResponse: assistant.content,
-                            qualityMode: capturedQualityMode
-                        )
                     }
                 }
 
@@ -3037,52 +3043,6 @@ struct ChatScreen: View {
     private func sendSuggestedPrompt(_ prompt: String) {
         DSHaptics.selection()
         sendMessage(prompt)
-    }
-
-    private var canPresentScheduledReviewPrompt: Bool {
-        #if DEBUG
-            if didSeedScreenshotDemo {
-                return false
-            }
-        #endif
-
-        return scenePhase == .active
-            && !isProcessing
-            && currentQueryTask == nil
-            && activeCloudConsent == nil
-            && !showRetrievedDetails
-            && !showPlanSheet
-            && !showVisionCapture
-            && !writingToolsProcessing
-            && !showWritingToolsResult
-            && !showTranslation
-            && !showMaximumModeLimitDialog
-            && !showFriendlyReviewPrompt
-    }
-
-    private func scheduleReviewPromptIfEligible(
-        response: RAGResponse,
-        renderedResponse: String,
-        qualityMode: RAGQualityMode
-    ) {
-        guard
-            AppReviewPromptTracker.registerSuccessfulAnswer(
-                qualityMode: qualityMode,
-                retrievedChunkCount: response.retrievedChunks.count,
-                responseLength: renderedResponse.count
-            )
-        else { return }
-
-        reviewPromptTask?.cancel()
-        reviewPromptTask = Task { @MainActor in
-            defer { reviewPromptTask = nil }
-
-            try? await Task.sleep(nanoseconds: AppReviewPromptPolicy.promptDelayNanoseconds)
-            guard !Task.isCancelled, canPresentScheduledReviewPrompt else { return }
-
-            AppReviewPromptTracker.markPromptAttempted()
-            requestReview()
-        }
     }
 
     private func triggerThumbsUpReviewPrompt() {
@@ -4114,101 +4074,27 @@ struct ComposerStub: View {
 }
 
 private enum AppReviewPromptPolicy {
-    static let minimumSuccessfulAnswers = 3
-    static let minimumDistinctUsageDays = 2
+    /// Shared by the thumbs-up review alert and the per-version stamp it leaves.
     static let minimumPromptCooldown: TimeInterval = 14 * 24 * 60 * 60
-    static let minimumMeaningfulResponseCharacters = 120
-    static let minimumRetrievedSources = 1
-    static let promptDelayNanoseconds: UInt64 = 4_000_000_000
 }
 
+/// What remains of the pre-5.4 rating scheduler. It asked Apple after three answers on two
+/// separate days, on top of `ReviewPromptService` asking after three, so the same answer could
+/// request the sheet twice and spend two of Apple's three yearly prompts at once. The scheduler
+/// is gone; the version stamp and cooldown stay because the thumbs-up alert reads them.
 private enum AppReviewPromptTracker {
     private enum Keys {
-        static let successfulAnswerCount = "appReview.successfulAnswerCount"
-        static let distinctUsageDays = "appReview.distinctUsageDays"
-        static let hasCompletedHighEffortAnswer = "appReview.hasCompletedHighEffortAnswer"
         static let lastPromptedVersion = "appReview.lastPromptedVersion"
         static let lastPromptAttemptedAt = "appReview.lastPromptAttemptedAt"
     }
 
     private static let defaults = UserDefaults.standard
-    private static let calendar = Calendar.autoupdatingCurrent
-
-    static func registerSuccessfulAnswer(
-        qualityMode: RAGQualityMode,
-        retrievedChunkCount: Int,
-        responseLength: Int,
-        now: Date = Date()
-    ) -> Bool {
-        guard retrievedChunkCount >= AppReviewPromptPolicy.minimumRetrievedSources,
-            responseLength >= AppReviewPromptPolicy.minimumMeaningfulResponseCharacters
-        else {
-            return false
-        }
-
-        let currentVersion = currentAppVersion
-        guard !currentVersion.isEmpty else { return false }
-        guard defaults.string(forKey: Keys.lastPromptedVersion) != currentVersion else { return false }
-
-        if let lastPromptAttemptedAt = defaults.object(forKey: Keys.lastPromptAttemptedAt) as? Date,
-            now.timeIntervalSince(lastPromptAttemptedAt) < AppReviewPromptPolicy.minimumPromptCooldown
-        {
-            return false
-        }
-
-        defaults.set(defaults.integer(forKey: Keys.successfulAnswerCount) + 1, forKey: Keys.successfulAnswerCount)
-
-        if qualityMode.qualifiesForReviewAcceleration {
-            defaults.set(true, forKey: Keys.hasCompletedHighEffortAnswer)
-        }
-
-        storeDistinctUsageDay(now)
-
-        let successfulAnswerCount = defaults.integer(forKey: Keys.successfulAnswerCount)
-        guard successfulAnswerCount >= AppReviewPromptPolicy.minimumSuccessfulAnswers else {
-            return false
-        }
-
-        let distinctUsageDayCount = (defaults.array(forKey: Keys.distinctUsageDays) as? [String] ?? []).count
-        let hasCompletedHighEffortAnswer = defaults.bool(forKey: Keys.hasCompletedHighEffortAnswer)
-
-        return distinctUsageDayCount >= AppReviewPromptPolicy.minimumDistinctUsageDays
-            || hasCompletedHighEffortAnswer
-    }
 
     static func markPromptAttempted(now: Date = Date()) {
-        let currentVersion = currentAppVersion
+        let currentVersion = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? ""
         guard !currentVersion.isEmpty else { return }
-
         defaults.set(currentVersion, forKey: Keys.lastPromptedVersion)
         defaults.set(now, forKey: Keys.lastPromptAttemptedAt)
-    }
-
-    private static func storeDistinctUsageDay(_ date: Date) {
-        let startOfDay = calendar.startOfDay(for: date)
-        let dayKey = String(Int(startOfDay.timeIntervalSince1970))
-        var storedDays = defaults.array(forKey: Keys.distinctUsageDays) as? [String] ?? []
-
-        if !storedDays.contains(dayKey) {
-            storedDays.append(dayKey)
-            storedDays = Array(storedDays.suffix(14))
-            defaults.set(storedDays, forKey: Keys.distinctUsageDays)
-        }
-    }
-
-    private static var currentAppVersion: String {
-        Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? ""
-    }
-}
-
-extension RAGQualityMode {
-    fileprivate var qualifiesForReviewAcceleration: Bool {
-        switch canonical {
-        case .deepThink, .maximum:
-            return true
-        default:
-            return false
-        }
     }
 }
 

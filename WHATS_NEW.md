@@ -1,8 +1,20 @@
-> **Documentation status:** Current through OpenIntelligence v5.3, live on both platforms since September 18, 2026. Entries are drawn from `Docs/USER_CHANGELOG.md`, which is the source this file follows.
+> **Documentation status:** Current through OpenIntelligence v5.4, in development; v5.3 is live on both platforms since September 18, 2026. Entries are drawn from `Docs/USER_CHANGELOG.md`, which is the source this file follows.
 
 # What's New
 
 Public release highlights for OpenIntelligence.
+
+## 5.4
+The free plan does what it says, the rating request lands on the first real answer, and the plans
+appear once at the end of setup instead of only at a limit.
+
+### Plans
+- **Three Maximum runs a day on the free plan, counted.** The mode menu said "3 left today" since May and the number never moved, because nothing counted a run. It counts now; Pro and Lifetime have no cap.
+- **The plans, once, when setup is finished.** A screen you can close, after the sample questions. After that it lives in Settings under Plan & Usage.
+- **The plans screen cites two things you can check.** The App Store privacy label and, once there are enough of them, the app's own ratings.
+
+### Ratings
+- **One rating request, after the first answer that came from your files.** Two prompts used to fire on the same third answer, and Deep Think and Maximum answers never counted. Never twice in four months, never for a flagged answer.
 
 ## 5.3
 The app reads documents with Apple's own detector, the welcome screens follow your light or dark

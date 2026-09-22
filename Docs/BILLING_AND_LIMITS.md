@@ -8,6 +8,11 @@ This document describes the billing tiers, StoreKit 2 product identifiers, and r
 
 ---
 
+> **Correction, 2026-09-22.** The free tier's three Maximum runs a day were documented and displayed but never
+> consumed: the store's `consumeIfAllowed` had no caller from 2026-05-12 until 5.4. From 5.4, `ChatScreen.sendMessage`
+> spends a run before dispatch and the blocked state shows the existing dialog. Every figure in the matrix below was
+> true as a limit and false as an enforcement for that period. `[evidence_level: test_verified, confidence: exact]`
+
 ## 1. Product Identifier Register
 
 These StoreKit product IDs are defined centrally in [BillingProduct.swift](../OpenIntelligence/Services/Billing/BillingProduct.swift):

@@ -7,6 +7,18 @@ This document provides a chronological history of user-facing changes, highlight
 
 ---
 
+## v5.4 - unreleased
+
+### Plans
+- **Three Maximum runs a day on the free plan, counted.** The mode menu has said "3 left today" since May and the number never moved, because nothing ever counted a run. It counts now. When the three are used, the app offers Standard, Deep Think, or the plans, and the allowance comes back at midnight. Pro and Lifetime have no cap, as they always said.
+- **The plans, once, when setup is finished.** After the sample questions, a screen you can close shows what Free includes and what Pro and Lifetime change. It appears one time. After that it lives in Settings under Plan & Usage.
+- **The plans screen cites two things you can check.** The App Store privacy label, Data Not Collected, and the app's own store rating once there are enough ratings for it to mean something. The line that used to sit there said "cancel anytime", which is a footer, not evidence.
+
+### Ratings
+- **One rating request, after the first answer that came from your files.** Two separate prompts used to fire on the same third answer, and Deep Think and Maximum answers never counted at all. Apple allows three requests a year on a device. They are spent on your first success now, never twice in four months, and never for an answer the app flagged or abstained from.
+
+---
+
 ## v5.3 - September 18, 2026
 
 ### Plans

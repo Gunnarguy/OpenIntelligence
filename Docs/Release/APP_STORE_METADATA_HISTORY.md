@@ -177,7 +177,7 @@ Private Cloud Compute is on. Questions too big for the on-device model can be wr
 The sample library's questions are back, the welcome screens follow light and dark, and a new off-by-default setting adapts each answer to the question you asked.
 ```
 
-**Release notes (`fastlane/metadata/`, both platforms):** unchanged from 5.3 below. 5.4 has no user-facing entries in `CHANGELOG.md` yet beyond corrections to what 5.3 shipped, so there is nothing new to tell a user.
+**Release notes (`fastlane/metadata/`, both platforms, written 2026-09-22):** in the two `release_notes.txt` files; the text is the 5.4 section of `WHATS_NEW.md` in the store's shape. Subtitle "Chat With Your Files Offline" and the keywords were written into both trees the same day; before that they existed only in App Store Connect. The description's opening was rewritten for a buyer.
 
 **Also corrected outside the metadata trees, recorded here because it is store copy:** both Pro subscription descriptions in App Store Connect read "unlimited documents and 5 libraries". `QuotaPolicy.proDocumentLimit` is `1_000` and `proLibraryLimit` is `10`, so both halves were wrong and the library count understated the plan. Corrected to "up to 1,000 documents and 10 libraries" by the same script.
 
