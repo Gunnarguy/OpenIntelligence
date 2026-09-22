@@ -5,9 +5,10 @@
 > dimensions, the 310-word chunk ceiling under a 510-token limit, the nine SQLite tables, the nine
 > verification gates and the 1,000-chunk GPU threshold all hold. Subsystem line counts were recounted
 > and had all drifted upward since this page was first written; recount them with the command below
-> rather than trusting the table. **Two things were withdrawn rather than updated: the accuracy
-> figures in section 08, and the implication anywhere that Private Cloud Compute runs in production.**
-> Both are explained where they occur. `[evidence_level: code_verified, confidence: exact_for_constants_withdrawn_for_measurements]`
+> rather than trusting the table. **The accuracy figures in section 08 were withdrawn rather than
+> updated**, and are explained where they occur. A second withdrawal made on the same date, the
+> implication that Private Cloud Compute runs in production, was reversed on 2026-09-20: PCC shipped
+> in 5.2 on 2026-09-10, and section 05 keeps both the original correction and this supersession. `[evidence_level: code_verified, confidence: exact_for_constants_withdrawn_for_measurements]`
 
 This is the long-form explanation of what the app does, in order, and **why each part is there**.
 It is written at two levels throughout: a plain-English block for anyone, and the technical detail
@@ -455,9 +456,10 @@ Thresholds rise with mode: 0.50 in Standard, 0.60 in Deep Think, 0.80 in Maximum
 
 *Reading, indexing, searching and verifying all happen on your device. Only the final writing step can ever use Apple's Private Cloud Compute, and only with your explicit approval of a specific payload.*
 
-> **Important correction, 2026-08-21: this has never run for a real user**
-> Everything in this section is implemented, entitled and signed, and none of it has ever executed in a shipped build. Apple's `PrivateCloudComputeLanguageModel` requires the iOS 27 SDK, which means Xcode 27. Xcode Cloud builds this app with **Xcode 26.6**, so every build that has ever reached the App Store was compiled without that SDK and took the on-device path unconditionally.
-> This was found by tracing the release toolchain rather than the code, and it is the reason the routing described below should be read as *built and gated correctly*, not as *in production*. It cannot ship until Apple releases the Xcode 27 Release Candidate.
+> **Superseded 2026-09-20: this runs for real users now**
+> Private Cloud Compute shipped in **5.2** on 2026-09-10 and is live on both platforms. Apple's `PrivateCloudComputeLanguageModel` requires the iOS 27 SDK, which means Xcode 27, and Xcode Cloud's one workflow is pinned to the Xcode 27 release, build `27A266a`. The twelve `#if compiler(>=6.4)` sites therefore compile in, and the archive gate fails a 5.2-or-later build that carries zero `PrivateCloudCompute` symbols, so a toolchain regression cannot quietly take it back out.
+>
+> **What that replaces, kept because the record is the point.** From 2026-08-21 this section carried a correction headed *this has never run for a real user*: every build that had reached the App Store was compiled with **Xcode 26.6**, without the iOS 27 SDK, and took the on-device path unconditionally. That was true of every release up to and including 5.1. It was found by tracing the release toolchain rather than the code, and it is why the routing described below is written as *built and gated correctly* rather than assumed.
 
 > **In plain words**
 > Sometimes a question is too hard for the phone. There's a bigger service available, but using it means some of your text leaves your device.

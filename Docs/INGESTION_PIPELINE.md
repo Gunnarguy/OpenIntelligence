@@ -1,11 +1,11 @@
-# Ingestion Pipeline — source-verified at v4.6, shipped tree is v5.0
+# Ingestion Pipeline — source-verified at v4.6, shipped tree is v5.3
 
-> **Documentation status:** Source-verified on 2026-07-15 against v4.6. **Not re-verified since.** **iOS 5.3** and **macOS 5.3** are the shipped versions (both READY_FOR_SALE 2026-09-18, build 464, released manually after approval); `Docs/SHIPPED_VERSION.json` is the per-platform record. Corrected 2026-09-01, having said 4.9 since July; 5.1 recorded 2026-09-02, 5.2 recorded 2026-09-11. PCC Dynamic Routing does not change ingestion; indexed content remains local until a later query explicitly selects and consents to a minimized PCC synthesis envelope.
+> **Documentation status:** Source-verified on 2026-07-15 against v4.6. **Not re-verified since.** **iOS 5.3** and **macOS 5.3** are the shipped versions (both READY_FOR_SALE 2026-09-18, build 464, released manually after approval); `Docs/SHIPPED_VERSION.json` is the per-platform record. Corrected 2026-09-01, having said 4.9 since July; 5.1 recorded 2026-09-02, 5.2 recorded 2026-09-11, 5.3 recorded 2026-09-20. Private Cloud Compute shipped in 5.2 on 2026-09-10 and is live on both platforms, and it still does not change ingestion: indexed content remains local until a later query explicitly selects and consents to a minimized PCC synthesis envelope.
 > **Known drift as of 2026-08-05** — in `CHANGELOG.md` under 4.9 but not yet described below: all five workspace metadata writes are now atomic read-modify-writes through `coordinatedMergeData(at:transform:)`, closing the race where an ingestion completing mid-sync-pass left a fully intact document on disk with no metadata row pointing at it. `WorkspaceSyncService` also no longer deletes an index for a library that still has documents.
 > **Source of truth:** Codebase audit in `Docs/AUDIT/`, plus `CHANGELOG.md` 4.8–4.9 for ingestion and sync.
 > **Scope:** Describes shipped behavior unless explicitly labeled experimental, developer-only, or scaffolded.
 
-This document describes the design and implementation of the import-time document ingestion pipeline, as audited at v4.6.
+This document describes the design and implementation of the import-time document ingestion pipeline, as audited at v4.6 and corrected in place since. Dated section notes carry the later changes; the shipped tree is v5.3.
 
 ---
 

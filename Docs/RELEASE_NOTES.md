@@ -1,7 +1,9 @@
 > **Documentation status:** Source-verified and simulator-compiled for OpenIntelligence v5.0, most
-> recently on August 17, 2026. The latest suite run is **236 tests, 0 failures** on iOS 27.0 (iPhone
-> 17 Pro simulator). It read 202 until 2026-08-11, then 230 after the vocabulary and correctness
-> passes added 28 cases, and 236 since.
+> recently on August 17, 2026. The suite run recorded at that date was **236 tests, 0 failures** on
+> iOS 27.0 (iPhone 17 Pro simulator). It read 202 until 2026-08-11, then 230 after the vocabulary
+> and correctness passes added 28 cases, and 236 at v5.0. The newest run recorded in
+> `Docs/ai/STATE.md` is **476 executed, 3 skipped, 0 failures**, on 2026-09-18 before 5.3 was
+> submitted. Nothing in this header has been re-verified for v5.1 or later.
 > **The agentic path has no test coverage at all**, so the Deep Think evidence-budget work of
 > 2026-08-17 is build-verified and suite-verified only, and its behavioural claim is unverified
 > until the same query is re-run on a physical device.
@@ -25,6 +27,167 @@
 This document provides a comprehensive, version-by-version breakdown of major architectural and feature updates to the OpenIntelligence Apple Intelligence-native evidence system.
 
 ---
+
+## v5.3 - September 18, 2026
+
+Build 464, live on both platforms on 2026-09-18, released manually after approval. Most of this
+release is about what the app says rather than what it computes: where an answer was written, what
+a paid plan actually changes, what the sample library asks you, and which controls do nothing.
+
+- **A Release build said nothing about routing, so a tester could not tell where an answer was
+  written.** Every route-naming statement went through the `Log` facade, whose only console output
+  is a `print()` inside `#if DEBUG`, and `print` reaches stdout, which Console.app never sees even
+  from a Debug build on a device. `RouteLog` now writes one `notice` line when a session resolves
+  and one when the receipt is written, to subsystem `Gunndamental.OpenIntelligence`, category
+  `routing`: actual and intended target, fallback reason code, the Private Cloud Compute reasoning
+  level, attempt count, the first eight characters of the plan id, and the policy version. It
+  bypasses the `Log` facade deliberately, because that facade's `.llm` lines can carry prompt and
+  response text at debug level and section 8 of `Docs/PRIVACY_AND_ROUTING.md` forbids that from any
+  telemetry surface; `RouteLog` takes only enum cases, identifiers and a count, so no call site can
+  hand it content. Not device-verified: Foundation Models does not run in the simulator, so the
+  paths that emit the line never execute there.
+- **The sample library offered "What is nothing?", and three faults had to line up for it.** On the
+  owner's phone on 2026-09-14 the General library, holding the current samples, suggested "What is
+  nothing?", "What is the silicon?", "What is unlimited maximum?" and "What does the study say
+  about Product Guide?", while every other library's suggestions were good. The curated set was
+  keyed on an exact filename match, so one numbered copy left behind by an earlier refresh,
+  `RAG-Technical-Architecture-2.md`, was enough to send the library to the generated bank. Numbered
+  copies survived because `refreshStaleSamples` removed them only when the sample's content was
+  stale. And the template fallback failed open, saving its output to disk on a first launch, which
+  is when Apple Intelligence is least likely to be ready, and never asking the model again.
+  Matching is on sample identity now, a numbered copy is deleted only when its canonical sibling is
+  present, a bank holding no model-written question is rebuilt once per launch when the model is
+  available, and an empty model result shows nothing rather than raw templates.
+- **The paywall leads with the one thing each paid plan gates, and Pro Annual's free trial is
+  gone.** The upgrade sheet's bullets were "up to 1,000 documents", "10 libraries" and "expanded
+  workspace limits", none of which name the model. `Docs/BILLING_AND_LIMITS.md` now records the
+  rule that a plan bullet may name only what that plan gates, so Deep Think and Private Cloud
+  Compute cannot be sold as Pro: they are free in every plan and the story slides say so. The trial
+  left the app's copy on 2026-09-18, and the 175 per-territory introductory offers were deleted
+  from App Store Connect the same day, verified by re-listing the subscription's
+  `introductoryOffers` and reading zero. Existing trialists are unaffected.
+- **The launch sale is stated in the app and on the listing, because the App Store does not state
+  it.** `LaunchSaleBanner` is one line at the top of the Chat and Documents tabs, free tier only,
+  shown only while `LaunchSale` can prove a Lifetime discount from StoreKit's live price against
+  the recorded regular price. It carries the real percentage and the real last day, a tap opens the
+  plans, and a dismissal is keyed to the window's end date so the banner returns only for a new
+  sale. The promotional text, which is the one listing field editable on a live version, names the
+  sale on both platforms.
+- **A thumbs-up now offers a written review, which Apple's rating sheet cannot produce.**
+  `showFriendlyReviewPrompt` had a declaration, an `.alert` and no writer, so the only route in the
+  app to a written review had never been shown to anyone. It runs under the same per-version and
+  cooldown guards as the rating request, and its message no longer says the app is "fully
+  on-device", which stopped being true in 5.2. The Lifetime card also states how many months of Pro
+  Annual its price buys, computed from StoreKit's live prices for the customer's storefront rather
+  than the hardcoded US fallbacks, rounded down.
+- **The plans screen gets one unprompted look, once per install.** `PlanAskService` shows it on the
+  fourth verified answer, free tier only, one answer after the rating request's third so the two
+  sheets never share a moment, two seconds after the answer lands so it never covers the answer,
+  and never on top of another sheet. The decision is a pure function pinned by six tests. The sheet
+  says it will not ask again, and it does not.
+- **Onboarding painted its own appearance, and it was the only screen that did.** A three-stop navy
+  gradient with about sixty-nine white and black literals on top, while `preferredColorScheme`
+  appears once in the whole repository and is in a telemetry view. In light mode iOS drew the
+  status bar in dark ink over a screen that was nearly black, so the clock and battery vanished.
+  The light version is its own design, a warm off-white settling into a faint blue-grey with the
+  glow eased back, rather than the dark one inverted.
+- **Three sliders in Model Parameters claimed to affect sampling and affect nothing this app can
+  run.** Frequency Penalty, Presence Penalty and Repetition Penalty sat under the footer "These
+  parameters affect token sampling behavior". `GenerationOptions` in the iOS 27 SDK exposes
+  `samplingMode`, `temperature` and `maximumResponseTokens`, and no penalty of any kind. The
+  sliders remain, still adjustable, and now say what they are for.
+- **Adaptive generation settings reach Deep Think and Maximum, and the reasoning profile can be
+  written by hand.** The feature shipped applying to Standard only, because its gate sat below the
+  `if useAgentic` return and the agentic modes leave before it. Apple's control takes three fixed
+  levels or a description written by the caller, and only the fixed three had ever been used. It
+  stays off by default, because nobody has shown it produces better answers.
+- **Vision's data detection was being computed and thrown away, and five regexes were used in its
+  place.** `RecognizeDocumentsRequest` runs data detection in the same pass that produces the
+  transcript and hands it back on `DocumentObservation.Container.Text.detectedData`, which
+  `StructuredDocumentParser.extractDetectedData` read none of. The regexes understood US phone
+  numbers and three currencies, so a European invoice produced no amounts at all. An amount now
+  carries the currency it is in and a date a standard form, which is what makes them findable
+  later. Stated limit: this applies to text inside tables, and prose on the same page does not yet
+  contribute.
+- **The camera screen is a Debug-build feature, so 5.3 ships without it.** `ChatScreen`'s entry
+  point is `#if os(iOS) && DEBUG`, which hands `AttachmentPicker` a nil handler, and its
+  `if let onVisionCapture` guard then renders no menu item. A compile-time gate rather than a
+  settings toggle. The owner's own description of the work is experimental, and its behaviour in a
+  real room has been seen by one person on one phone.
+- **Release mechanics, recorded because both cost time.** Every App Store release note this app has
+  shipped since 2.1.1 now lives in `Docs/Release/APP_STORE_METADATA_HISTORY.md`, with a template
+  for the next version that pre-commit checks the staged copy against; before this,
+  `fastlane/metadata/` held only the current text, so each release's words left the tree the moment
+  the next was staged. Separately, the Xcode Cloud workflow lost its Xcode pin without anyone
+  touching it: Apple re-catalogued its images, the workflow's `xcodeVersion` relationship read nil,
+  and builds #457 and #458 failed within twenty seconds with no actions and no source commit.
+
+Verification, as recorded in `Docs/ai/STATE.md` on 2026-09-18 for the tree carrying the review
+alert and the months arithmetic, and not re-run here: `xcodebuild test` on the iOS 27 simulator,
+476 executed, 3 skipped, 0 failures; macOS `xcodebuild build` succeeded.
+
+## v5.2 - September 10, 2026
+
+Build 451, live on both platforms on 2026-09-10, released automatically on approval. The Private
+Cloud Compute release, and no routing path in it was written for it: every path had been in the
+tree since 4.6 behind `#if compiler(>=6.4)`, and this is the first build made on Xcode 27, whose
+Swift 6.4 compiles them in. It requires iOS, iPadOS or macOS 27.
+
+- **Private Cloud Compute is on.** Twelve `#if compiler(>=6.4)` sites compile in,
+  `FoundationModelRoutePolicy.isPCCAvailable` checks the entitlement and the quota, `RAGService`
+  minimises the payload and suspends on `CloudConsentPromptView` before anything leaves, and the
+  metrics bar names the route. Reading the files, searching them, choosing what to cite and
+  checking the finished answer against the passages stay on the device; only the writing of the
+  answer can leave it, and only after consent. Measured on an iPhone with the A18 Pro, on a local
+  build with the iOS 27 toolchain: roughly 86 tokens per second from Private Cloud Compute against
+  27 on the device.
+- **Both release guards read the version instead of assuming PCC is out.** `ci_post_xcodebuild.sh`
+  Gate 1 reads `CFBundleShortVersionString`: below 5.2 it fails on any `PrivateCloudCompute`
+  symbol, from 5.2 it fails on zero, both against the live `SystemLanguageModel` control.
+  `ci_post_clone.sh` fails in seconds when a 5.2 or later version meets a runner older than Swift
+  6.4, naming the fix. The first numbered heading of `CHANGELOG.md` is the single switch.
+- **In-app copy chooses its tense on the same compiler condition the code uses.** The three sample
+  guides, the Glossary's token and context-window entries, the metrics bar footer, the Settings
+  capability list and the Private Cloud Compute row all read one `#if compiler(>=6.4)` flag, so a
+  binary that carries PCC says so and one that does not says that. Several of them had said the
+  present-tense thing in every build.
+- **How It Works and the About screen told every iOS 26 user that the app asks before sending a
+  request to Private Cloud Compute, in builds that could not send one.**
+  `DeviceCapabilities.supportsPrivateCloudCompute` meant "the OS has Apple Intelligence", which is
+  true of every iOS 26 device, and four screens read it as "this build can route to PCC". It now
+  means the latter: compiled in, and running on iOS or macOS 27.
+- **Deep Think and Maximum now spend the reasoning they advertise.** iOS 27 adds
+  `ContextOptions.reasoningLevel` as a defaulted argument on every `respond` and `streamResponse`
+  overload, so a call site that omits it does not fail, it silently runs at Apple's default effort.
+  One of the app's twenty-five Foundation Models call sites passed it, the streaming path, while
+  the structured path is the default for any answer whose input fits the 3600-token budget.
+- **Two crashes, both a NaN reaching code that cannot take one.** `SystemStateSnapshot` converted
+  four percentages with `Int(someDouble)`, which traps on NaN or infinity, and `memoryUsageRatio`
+  is `1.0 - (available / total)`, so a zero `physicalMemory` makes it NaN. `SiliconLegend.opacity`
+  was `0.45 + 0.15 * min(intensity, 1.0)`, and the argument order is the whole defect: Swift's
+  `min(x, y)` is `y < x ? y : x` and every comparison against NaN is false, so `min(nan, 1.0)`
+  returns NaN while `min(1.0, nan)` returns 1.0. Both are read directly by SwiftUI bodies, so the
+  abort surfaced as a crash in a view's `body.getter` naming the enclosing view.
+- **Opening Developer & Diagnostics made logging worse, on the screen whose purpose is seeing
+  more.** `applyLoggingSettings()` ran on `.onAppear` and pushed the screen's `@AppStorage`
+  defaults into the live configuration rather than reading from it. A Debug build starts at
+  `.verbose` with all thirteen categories enabled and the screen's defaults are `.info` with five,
+  so the first visit dropped two log levels and silently disabled eight categories.
+- **The paywall can state a launch discount, which the App Store cannot.** Apple draws no
+  strikethrough, no "was/now" and no sale badge for in-app purchases, so a scheduled temporary
+  price change is invisible: the customer sees a smaller number with no way to know it is a
+  discount or that it ends. `LaunchSale` records the pre-sale Lifetime price for nine currencies,
+  read from App Store Connect rather than converted, and `PlanUpgradeSheet` shows the
+  struck-through regular price. `scripts/schedule_sale.py` writes the price change and refuses when
+  App Store Connect does not look the way it expects, because a price schedule is a partition of
+  the timeline rather than a list of prices: a temporary sale is three intervals, with no gaps, no
+  overlaps, and no end date on the last. `scripts/verify_sale_prices.py` re-reads the pre-sale
+  table and fails on drift.
+- **The app asks for an App Store rating after the third verified answer.** `ReviewPromptService`
+  counts answers whose gating decision the verifier let through, the same reading the message
+  bubble's Verified badge uses, and `ContentView` hands it to StoreKit's `requestReview` two
+  seconds later so the sheet never covers the answer. Never on launch, never after an abstained or
+  flagged answer, never twice in 120 days, never under tests.
 
 ## v5.1 - September 2, 2026
 
@@ -78,12 +241,18 @@ Apple closed the 5.0 build train the moment macOS 379 was approved
 
 ## v5.0 - August 10, 2026
 
-219 entries, 66 `[UI]`, 42 `[Orchestration]`, 39 `[General]`, 26 `[Retrieval]`, 23 `[Ingestion]`, 13 `[Indexing]`, 9 `[Infrastructure]`, 1 `[Chunking]`. Recounted from `CHANGELOG.md` on 2026-08-23. This figure has gone stale five times now, most recently
-sitting at 161 for four days across an entire device-verification cycle, because it is a typed number describing a
+277 entries, 85 `[UI]`, 49 `[Orchestration]`, 40 `[General]`, 36 `[Ingestion]`, 32 `[Retrieval]`, 20
+`[Indexing]`, 13 `[Infrastructure]`, 2 `[Chunking]`. Recounted from `CHANGELOG.md` on 2026-09-20. It
+read 219 until then, from a count taken on 2026-08-23, and went stale three days later: the pattern
+below matches `## 5.0`, `## 5.0.1` and `## 5.0.2`, the second of those headings was added on
+2026-08-26 and the third on 2026-08-27, so the total now spans all three sections. The `## 5.0`
+section alone holds 255. Before 219 the figure had gone stale five times, once sitting at 161 for
+four days across an entire device-verification cycle, because it is a typed number describing a
 countable fact. Recount it rather than trusting it, with:
 
 ```bash
 awk '/^## 5\.0/{f=1;next} /^## 4\./{f=0} f' CHANGELOG.md | grep -c '^- \*\*\['
+awk '/^## 5\.0/{f=1;next} /^## 4\./{f=0} f' CHANGELOG.md | grep -o '^- \*\*\[[A-Za-z]*\]' | sort | uniq -c | sort -rn
 ```
 
 A fourth theme arrived on 2026-08-17 and is the sharpest instance of the first: **two stages that

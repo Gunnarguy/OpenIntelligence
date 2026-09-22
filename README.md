@@ -27,8 +27,8 @@ The app icon includes light and dark appearances, so it follows the device's app
 verification are all local. Nothing is uploaded to make search work. There is no
 account, no server of mine, and no third-party AI service anywhere in the path.
 
-On iOS and macOS 27+, in a build compiled with Xcode 27, you can optionally allow Apple **Private Cloud Compute** to
-write the final answer — and only after you have seen exactly which excerpts
+On iOS and macOS 27+, you can optionally allow Apple **Private Cloud Compute** to
+write the final answer, but only after you have seen exactly which excerpts
 would be sent. Every answer carries a badge showing where it actually ran, read
 from an execution receipt rather than from what was requested.
 
@@ -101,16 +101,15 @@ face verification gates that check the response is genuinely grounded in the
 retrieved text before you see it.
 
 Measured on a physical A18 Pro: **27 tokens/sec on-device**, **86 tokens/sec on
-PCC**, time-to-first-token 2.2–3.2s. The PCC figure is real and was measured from a
-local Xcode 27 build; it is not what an App Store build does today, for the toolchain
-reason described under Status.
+PCC**, time-to-first-token 2.2–3.2s. The PCC figure was measured from an Xcode 27
+build, which is what App Store builds have been since 5.2.
 
 ### Routing, and what the badge means
 
 The model picker is a policy, not a hint:
 
 - **On-Device** never uses PCC. Not for planning, not for synthesis.
-- **PCC** requests Private Cloud Compute, with a declared local fallback if a gate or quota blocks it. In an App Store build the compiler gate is itself such a gate, so this mode currently always takes the local fallback.
+- **PCC** requests Private Cloud Compute, with a declared local fallback if a gate or quota blocks it. Since 5.2 the App Store build carries the PCC paths compiled in, so the fallback is taken only when an entitlement, availability, quota, network or consent gate actually blocks the route.
 - **Hybrid** decides per query, based on the evidence actually retrieved.
 
 Cloud consent is requested only for a real, finalised evidence envelope — never
@@ -203,18 +202,19 @@ of starting over.
 
 ## Status
 
-Shipping on the App Store for iPhone, iPad, and Mac. Actively developed against a
+Shipping on the App Store for iPhone, iPad, and Mac. **5.3 is live on both platforms**, released
+2026-09-18 from build 464; 5.4 is the open release. Actively developed against a
 [public roadmap](https://gunzino.notion.site/OpenIntelligence-Public-Roadmap-e4446012bb8940e6b78a745aee688075)
 synced from the same database the work is planned in.
 
-Private Cloud Compute execution is confirmed on a physical device **from a local Xcode 27 build**.
-It has never been present in an App Store build, and the release pipeline enforces that rather than
-trusting it: every archive is checked with `nm -u` for `PrivateCloudCompute` symbols, against a live
-`SystemLanguageModel` count as a control so a dead binary cannot pass the gate vacuously. Releases
-build on the newest *released* Xcode, which ships Swift 6.3 and compiles the twelve
-`#if compiler(>=6.4)` sites out; Xcode 27 ships Swift 6.4 and would compile them in. Edge cases —
-quota exhaustion, mid-stream network transitions, background consent — are still
-unverified, and tracked as open items rather than quietly assumed.
+**Private Cloud Compute shipped in 5.2**, live on both platforms since 2026-09-10, and execution is
+confirmed on a physical device. The release pipeline enforces the claim rather than trusting it:
+every archive is checked with `nm -u` for `PrivateCloudCompute` symbols, against a live
+`SystemLanguageModel` count as a control so a dead binary cannot pass the gate vacuously. The
+version stamped on the archive decides which way the gate points: below 5.2 any PCC symbol fails the
+build, from 5.2 zero PCC symbols fails it, so the binary cannot silently contradict this page in
+either direction. Edge cases, quota exhaustion, mid-stream network transitions and background
+consent, are still unverified and tracked as open items rather than quietly assumed.
 
 Releases are produced by **Xcode Cloud**, never from the maintainer's Mac. This is not a
 preference. That Mac runs a beta macOS, every local archive stamps a prerelease
@@ -222,10 +222,11 @@ preference. That Mac runs a beta macOS, every local archive stamps a prerelease
 though `altool --validate-app` returns VERIFY SUCCEEDED and processing reaches `VALID`. Validation
 is not ingestion. Xcode Cloud builds on Apple's released images, so the stamp comes out clean.
 
-The same fact settles the toolchain question above: Xcode Cloud is pinned to the newest *released*
-Xcode, 26.6, which ships Swift 6.3.3 and compiles the twelve `#if compiler(>=6.4)` sites out.
-`ci_scripts/ci_post_xcodebuild.sh` fails the build if `nm -u` finds a `PrivateCloudCompute` symbol,
-so the binary cannot silently contradict this page.
+That is also where the toolchain question above is settled. Xcode Cloud runs one workflow,
+`Default`, pinned to the **Xcode 27 release**, build `27A266a`, on macOS `Latest Release`, with two
+archive actions. Xcode 27 ships Swift 6.4, which compiles the twelve `#if compiler(>=6.4)` sites in,
+and `ci_scripts/ci_post_clone.sh` fails in seconds if a 5.2-or-later version ever meets a Swift
+earlier than 6.4 runner.
 
 GitHub Actions ran releases for one stretch in August 2026, as a fallback after the free Xcode Cloud
 allowance ran out, and was retired on 2026-08-28 once paid Xcode Cloud capacity was in place. Its

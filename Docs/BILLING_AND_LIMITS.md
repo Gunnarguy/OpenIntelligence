@@ -1,6 +1,6 @@
-# Docs/BILLING_AND_LIMITS.md — verified at v4.4, shipped tree is v5.0
+# Docs/BILLING_AND_LIMITS.md — verified at v4.4, quota matrix re-verified at v5.3
 
-> **Documentation status:** Verified for OpenIntelligence v4.4 on 2026-06-30. Product identifiers and the Document Pack status re-checked against source on 2026-08-05; the quota and grandfathering sections were **not** re-verified.
+> **Documentation status:** Verified for OpenIntelligence v4.4 on 2026-06-30. Product identifiers and the Document Pack status re-checked against source on 2026-08-05. **The §2 quota matrix was re-read against source on 2026-09-20 and every figure matches**; the grandfathering section in §4 was **not** re-verified. The shipped tree is 5.3 on both platforms (released 2026-09-18, build 464), and 5.4 is the open release.
 > **Document Pack Add-On is no longer sold (see §3).** `doc_pack_addon` is absent from `OpenIntelligence/Resources/StoreKit/StoreKitConfiguration.storekit` and has no paywall UI. The `BillingProduct.documentPackAddOn` case, the cap logic, and the `legacyDocumentPackOwner` protection state are deliberately retained so existing owners keep their capacity. `StoreKitBillingService` still requests the id via `BillingProduct.allCases`, and StoreKit simply omits an unavailable product from the result, so nothing fails. `[evidence_level: code_verified, confidence: exact, evidence_source: StoreKitConfiguration.storekit, BillingProduct.swift, PlanUpgradeSheet.swift, StoreKitBillingService.swift:42]`
 > **Source of truth:** Codebase audit in `Docs/AUDIT/`.
 
@@ -35,6 +35,8 @@ Enforcement logic is defined in [QuotaPolicy.swift](../OpenIntelligence/Services
 | **Standard Mode Runs** | Unlimited | Unlimited | Unlimited |
 | **Deep Think Runs** | Unlimited | Unlimited | Unlimited |
 | **Private Cloud Compute** | Available, consent-gated, on iOS/macOS 27 | Same | Same |
+
+Every row is read directly from `QuotaPolicy.swift`, and the Maximum-mode row from the snapshot builder in `EntitlementStore.swift`, which grants `.unlimited` to any tier other than `.free` and `.meteredDaily(QuotaPolicy.freeMaximumModeDailyLimit)` to Free. Pro is a **1,000-document, 10-library** tier, not an unlimited one; only Lifetime carries unlimited documents, and its library ceiling is 20. `[evidence_level: code_verified, confidence: exact, evidence_source: QuotaPolicy.swift freeDocumentLimit=5, proDocumentLimit=1_000, lifetimeDocumentLimit=.max, freeLibraryLimit=1, proLibraryLimit=10, lifetimeLibraryLimit=20, freeMaximumModeDailyLimit=3; EntitlementStore.buildSnapshot; read 2026-09-20]`
 
 ### What each plan advertises, and the rule behind it
 
@@ -167,8 +169,7 @@ Pro Annual and Pro Monthly are deliberately excluded, for two independent reason
   removal. **Done 2026-09-18:** all 175 per-territory offers were deleted through
   `DELETE /v1/subscriptionIntroductoryOffers/{id}`, verified by re-listing the subscription's
   `introductoryOffers` and getting zero. Pro Annual now has no introductory offer of any kind, so
-  it could take one again in future; the reason below is why it still takes no sale. With the trial gone, Annual could in principle take an introductory offer again; the
-  reason below is why it still takes no sale.
+  it could take one again in future; the reason below is why it still takes no sale.
 - **A temporary price change on a subscription creates a price increase later.** When the price
   reverts, everyone who subscribed at the sale price faces an increase at renewal. Apple
   requires consent where a region demands it, where the increase exceeds 50% and about US$50 a
