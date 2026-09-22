@@ -97,7 +97,7 @@ else about the block changes: not the field order, not the headings, not the cod
 
 `[evidence_level: code_verified, confidence: exact, evidence_source: the 5.1 and 5.2 entries below; scripts/enforce_docs_hook.sh metadata block; App Store Connect field limits as enforced by fastlane deliver]`
 
-## Current listing text, as of 2026-09-14 (the description was superseded in the repo on 2026-09-18; see the 5.3 entry below. The store still shows this one until 5.3 ships.)
+## Current listing text, as of 2026-09-14 (the description was superseded in the repo on 2026-09-18; see the 5.3 entry below. This was the listing until 5.3 went live on 2026-09-18.)
 
 The description, name and promotional text that `push_metadata` would send today. The description
 changed eleven times between 2026-04-15 and 2026-09-02; the full sequence is in git and only the
@@ -163,6 +163,23 @@ Private Cloud Compute is on. Questions too big for the on-device model can be wr
 ```
 
 ## Versions, newest first
+
+### 5.4
+
+- **Platforms:** iOS, macOS
+- **Live:** not yet; records in PREPARE_FOR_SUBMISSION on both platforms (iOS `edac9a46-fd9c-4082-99f8-372008d20289`, macOS `0e7e7d98-9878-4418-b977-3bc0b04ddf96`, read from the API 2026-09-20)
+- **Final release notes commit:** not yet; the release notes below are still 5.3's and are replaced when 5.4 has user-facing content
+- **Notes:** this entry exists for the promotional text, which is the only copy that changed. **The two repo trees had drifted apart and both were wrong for 5.4.** `fastlane/metadata*` is a push source, not a record of what is live, and both trees held the 5.3 *sale* text while App Store Connect's 5.4 records already held non-sale text. A `fastlane` push for 5.4 would therefore have put a sale line onto a release that ships after the sale ends on 2026-09-30. Both trees now carry the same non-sale text that is already on the 5.4 records, so the repo and the store agree. **The sale text still stands on the live 5.3 records and is corrected separately:** it said "Lifetime is 33% off", which one string cannot be across storefronts that measure 32.2% in India, 30.8% in Mexico and 40.0% in Australia, while the app computes and shows the true percentage for the customer's own storefront. `scripts/asc_fix_listing_copy.rb` replaces it on both live records and drops the figure. "Unlimited documents" is kept there deliberately: `QuotaPolicy.lifetimeDocumentLimit` is `unlimitedDocumentLimit`, so for Lifetime it is true.
+
+**Promotional text (`fastlane/metadata/` and `fastlane/metadata-ios/`, both platforms, 166 characters):**
+
+```text
+The sample library's questions are back, the welcome screens follow light and dark, and a new off-by-default setting adapts each answer to the question you asked.
+```
+
+**Release notes (`fastlane/metadata/`, both platforms):** unchanged from 5.3 below. 5.4 has no user-facing entries in `CHANGELOG.md` yet beyond corrections to what 5.3 shipped, so there is nothing new to tell a user.
+
+**Also corrected outside the metadata trees, recorded here because it is store copy:** both Pro subscription descriptions in App Store Connect read "unlimited documents and 5 libraries". `QuotaPolicy.proDocumentLimit` is `1_000` and `proLibraryLimit` is `10`, so both halves were wrong and the library count understated the plan. Corrected to "up to 1,000 documents and 10 libraries" by the same script.
 
 ### 5.3
 

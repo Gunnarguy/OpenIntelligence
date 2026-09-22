@@ -63,7 +63,12 @@ platform :ios do
       app_version: version,
       force: true,
       skip_binary_upload: true,
-      skip_screenshots: false,
+      # The curated sets live in App Store Connect and are uploaded through the API
+      # (Docs/ai/RUNBOOK.md, "Regenerating App Store screenshots"). fastlane/screenshots/
+      # holds 3 stale images from 2026-08-26, which is not a complete set for any device
+      # family, so letting deliver push them would replace 20 current screenshots with 3
+      # old ones. Screenshots are deliberately not fastlane's job here.
+      skip_screenshots: true,
       metadata_path: fastlane_path("metadata"),
       precheck_include_in_app_purchases: false,
       submission_information: release_submission_information
