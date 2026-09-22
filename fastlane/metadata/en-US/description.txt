@@ -1,6 +1,6 @@
-You already have the answers. They're just buried in a 300-page manual, a folder of contracts, a semester of lecture recordings, or a codebase you inherited.
+Ask a question about your own PDFs, contracts, lecture recordings or code, and get an answer with the exact passage it came from. Nothing you import leaves your device. Free to start, no account, no API key.
 
-OpenIntelligence reads what you import and answers questions about it in plain language, with citations you can tap to see exactly where each claim came from. And when your files don't actually contain the answer, it tells you so instead of guessing confidently.
+OpenIntelligence reads what you import and answers in plain language, with citations you can tap to see where each claim came from. When your files don't contain the answer, it says so instead of guessing.
 
 ANSWERS START IN YOUR FILES
 
