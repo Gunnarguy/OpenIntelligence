@@ -18,7 +18,7 @@
 #   Pro Annual   $19.99 for the first year, then $29.99             (PAY_UP_FRONT, ONE_YEAR x 1)
 #
 # Eligibility, both: paid for at least 1 month; lapsed between 1 and 12 months; at most one such
-# offer every 12 months. Runs 2026-09-23 to 2027-09-22. Priority MEDIUM. Apple generates the
+# offer every 12 months. Runs 2026-09-23 to 2027-09-22. Priority NORMAL (Apple accepts only HIGH or NORMAL; the docs summary that said MEDIUM was wrong, 409 on 2026-09-22). Apple generates the
 # promotional assets. Prices are the USA price point plus every territory Apple equalizes it to,
 # so the offer exists everywhere the subscription does.
 #
@@ -125,7 +125,7 @@ OFFERS.each do |o|
     'attributes' => {
       'referenceName' => o[:reference], 'offerId' => o[:offer_id],
       'startDate' => '2026-09-23', 'endDate' => '2027-09-22',
-      'priority' => 'MEDIUM', 'promotionIntent' => 'USE_AUTO_GENERATED_ASSETS',
+      'priority' => 'NORMAL', 'promotionIntent' => 'USE_AUTO_GENERATED_ASSETS',
       'duration' => o[:duration], 'offerMode' => o[:mode], 'periodCount' => o[:periods],
       'customerEligibilityPaidSubscriptionDurationInMonths' => 1,
       'customerEligibilityTimeSinceLastSubscribedInMonths' => { 'minimum' => 1, 'maximum' => 12 },
