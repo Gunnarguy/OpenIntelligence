@@ -1,13 +1,15 @@
 # Current State
 
-Updated: 2026-09-22, late
-Branch/worktree: `main`, primary checkout, pushed to `origin/main` with this handoff
-Last verified commit: `bdec851`
+Updated: 2026-09-22, after the plans and ratings change
+Branch/worktree: `main`, primary checkout, pushed to `origin/main`
+Last verified commit: `3140f13`
 
 ## Objective
 
-**5.3 is live on the App Store on both platforms. 5.4 is the open release and is where new work
-goes.** No code work is outstanding. Everything still open is either the owner's to do outside this
+**5.3 is live on the App Store on both platforms. 5.4 is the open release and now carries its first
+user-facing change: the Maximum cap enforced, one rating request on the first answer, and a plans
+screen once at the end of setup (`0f6c5a0`, `3140f13`).** The evidence and the rest of the plan are in
+`Docs/Release/CONVERSION_AND_REVIEWS_2026-09.md`. No code work is outstanding from that plan. Everything still open is either the owner's to do outside this
 repository or a decision nobody has made yet; both lists are below.
 
 **Read fact 6 before running any build.** A full test build crashed this Mac on 2026-09-20, and
@@ -60,7 +62,10 @@ the owner was away and could not restart it.
 
 ## Working tree
 
-Clean after this handoff. The three edits the previous version of this file described landed
+Clean. Suite at `0f6c5a0`: 495 executed, 3 skipped, 0 failures, on the iOS 27 simulator with the
+memory guard armed and never fired. `testSilentAudio` passed in that run rather than skipping.
+
+Clean after the earlier handoff, as it was then: The three edits the previous version of this file described landed
 in the 2026-09-22 commits, with the rest of that night's work:
 
 | Commit | What |
@@ -78,6 +83,13 @@ None of it is code. Nothing below blocks anything else.
 
 ### Owner, outside this repository
 
+- **Three items from the conversion plan, each about ten minutes, none of which an agent can do:** reply to the
+  one written review (2026-03-25, US, 4 stars; Apple notifies the reviewer, who can update); set a retention
+  message and a win-back offer in App Store Connect (5 of 5 cancel-sheet views ended in a cancel with no message);
+  and hand Lifetime offer codes to the heaviest users (offer codes work for non-consumables from iOS 16.3, up to
+  10 active offers). Details and sources in `Docs/Release/CONVERSION_AND_REVIEWS_2026-09.md`, section 5.
+- **Device verification of the enforced cap** closes the roadmap row filed 2026-09-22: on a free-tier device on 5.4,
+  the fourth Maximum send of a day shows the limit dialog, and the next morning the pill reads "3 left today".
 - **Done 2026-09-22: fascinaiting.me no longer publishes its internal files.** Before: all
   HTTP 200: `/CLAUDE.md`, `/ANALYTICS_AUDIT.md`, `/google_ads_config.json` and
   `/FACT_CHECK-2026-09.md`. The ads file holds the Google Ads customer ID, every campaign, ad and
