@@ -2,48 +2,85 @@
 #
 # Tests for .claude/hooks/stop-handoff.sh.
 #
-# Drives the real hook with synthetic session baselines under .claude/.state/, which is gitignored
-# scratch space the hooks own. Nothing in the repository is modified. Each case asserts on the
-# hook's JSON output: an empty stdout means "did not block", a `decision: block` payload means it
-# asked, and the reason text says which obligations it found.
+# Drives the real hook against a throwaway git repository that this script builds under $TMPDIR, so
+# the result cannot depend on where this checkout's HEAD is, on what it has uncommitted, or on what
+# its .claude/.state holds. The only files read from the checkout are the ones under test: the hook,
+# the helpers it sources or calls (.claude/hooks/, scripts/required_docs.sh,
+# scripts/instructions_report.sh) and the path-scoped rules in .claude/rules/. Nothing in the
+# checkout is written.
+#
+# The fixture has two commits and a clean tree. The first holds copies of those files and a
+# Docs/ai/STATE.md. The second adds one Swift file under OpenIntelligence/Services/Document/, a path
+# with required documents and a governing rule (ingestion-and-indexing.md), and nothing else. A
+# baseline at the first commit is therefore a session that changed Swift and none of its documents,
+# whatever the real repository has done since. The RepoOS router is not copied, so
+# required_docs.sh answers from its own table.
+#
+# Why a fixture (2026-09-21). The first version pointed its baselines at a real commit: the newest
+# of the last 80 whose diff to HEAD held Swift under Services/. As HEAD moved, that range came to
+# hold the documents its Swift required, because this repository commits them together, so the
+# documentation case failed while the hook was right. The same drift left no Services/Document/
+# file in the range, so the InstructionsLoaded case lost the path it depends on. And the hook unions
+# `git status` into what a session touched, so every uncommitted doc edit in the checkout counted too.
+#
+# Each case asserts on the hook's JSON output: an empty stdout means "did not block", a
+# `decision: block` payload means it asked, and the reason text says which obligations it found.
 #
 # Run: bash scripts/test_stop_handoff.sh
 
 set -uo pipefail
 
-ROOT="$(git rev-parse --show-toplevel)" || exit 1
-cd "$ROOT" || exit 1
+CHECKOUT="$(git -C "$(dirname "${BASH_SOURCE[0]}")" rev-parse --show-toplevel)" || exit 1
+HOOK="$CHECKOUT/.claude/hooks/stop-handoff.sh"
+
+# ROOT is the fixture: the project directory the hook sees. It is the physical path because
+# instructions_report.sh relativises logged files against `git rev-parse --show-toplevel`, which
+# resolves /var to /private/var; a log written with the other spelling reads as nothing loaded.
+ROOT="$(mktemp -d "${TMPDIR:-/tmp}/test_stop_handoff.XXXXXX")" || exit 1
+trap 'rm -rf "$ROOT"' EXIT
+ROOT="$(cd "$ROOT" && pwd -P)" || exit 1
 export CLAUDE_PROJECT_DIR="$ROOT"
-HOOK="$ROOT/.claude/hooks/stop-handoff.sh"
 STATE_DIR="$ROOT/.claude/.state"
-mkdir -p "$STATE_DIR"
 
 PASS=0
 FAIL=0
-SESSIONS=()
-cleanup() { for s in ${SESSIONS[@]+"${SESSIONS[@]}"}; do rm -f "$STATE_DIR/session-$s.baseline" "$STATE_DIR/handoff-$s.done" "$STATE_DIR/notion-$s.receipts" "$STATE_DIR/instructions-$s.log"; done; }
-trap cleanup EXIT
 
-# A commit whose diff to HEAD contains Swift under Services/, so a baseline pointing at it makes the
-# hook see a session that changed source. Chosen dynamically: hardcoding a sha would rot.
-SWIFT_BASE="$(for c in $(git log --format=%H -80); do
-  if git diff --name-only "$c" HEAD 2>/dev/null | grep -qE 'OpenIntelligence/Services/.*\.swift$'; then echo "$c"; break; fi
-done)"
-if [ -z "$SWIFT_BASE" ]; then
-  echo "cannot test: no commit in the last 80 has Swift changes against HEAD" >&2
-  exit 1
-fi
+fixture_git() {
+  git -C "$ROOT" -c user.name=test_stop_handoff -c user.email=test_stop_handoff@invalid \
+    -c commit.gpgsign=false -c core.hooksPath=/dev/null "$@"
+}
+
+build_fixture() {
+  mkdir -p "$ROOT/.claude" "$ROOT/scripts" "$ROOT/Docs/ai" "$STATE_DIR" &&
+    cp -R "$CHECKOUT/.claude/hooks" "$ROOT/.claude/hooks" &&
+    cp -R "$CHECKOUT/.claude/rules" "$ROOT/.claude/rules" &&
+    cp -p "$CHECKOUT/scripts/required_docs.sh" "$CHECKOUT/scripts/instructions_report.sh" "$ROOT/scripts/" &&
+    printf '.claude/.state/\n' > "$ROOT/.gitignore" &&
+    printf '# STATE\n\nFixture for scripts/test_stop_handoff.sh.\n' > "$ROOT/Docs/ai/STATE.md" &&
+    git -c init.defaultBranch=main init -q "$ROOT" &&
+    fixture_git add .gitignore .claude/hooks .claude/rules scripts Docs &&
+    fixture_git commit -q -m "fixture: the hook's helpers and rules, no source" &&
+    mkdir -p "$ROOT/OpenIntelligence/Services/Document" &&
+    printf 'struct StopHandoffFixture {}\n' > "$ROOT/OpenIntelligence/Services/Document/StopHandoffFixture.swift" &&
+    fixture_git add OpenIntelligence &&
+    fixture_git commit -q -m "fixture: one Swift change under Services/Document/, none of its documents"
+}
+build_fixture || { echo "cannot build the fixture repository at $ROOT" >&2; exit 1; }
+cd "$ROOT" || exit 1
+
+# The commit before the Swift change, so a baseline pointing at it makes the hook see a session that
+# changed source and nothing else.
+SWIFT_BASE="$(fixture_git rev-parse HEAD~1)" || exit 1
 
 # new_session <name> <head> <state_mtime> <fingerprint>
 #
-# Sets the global $id rather than printing it. The first version was called as `id="$(new_session
-# ...)"`, which runs the function in a SUBSHELL, so its `SESSIONS+=(...)` never reached the parent
-# and the cleanup trap deleted nothing. Eight baseline files and a receipt were left behind in
-# .claude/.state/ after every run.
+# Sets the global $id rather than printing it, so it is never called in a subshell. The first version
+# was called as `id="$(new_session ...)"`, its bookkeeping never reached the parent, and the cleanup
+# trap left eight baseline files and a receipt in the real .claude/.state/ after every run. All state
+# now lives in the fixture, which the trap deletes whole.
 new_session() {
   id="test-$1"
   local head="$2" mtime="$3" fp="$4"
-  SESSIONS+=("$id")
   rm -f "$STATE_DIR/handoff-$id.done" "$STATE_DIR/notion-$id.receipts"
   {
     echo "fingerprint=$fp"
@@ -122,7 +159,7 @@ check "$id" quiet "the block fires at most once per session"
 
 # --- the InstructionsLoaded addendum ---------------------------------------
 #
-# The chosen commit range changes files under Services/Document/, which .claude/rules/
+# The fixture's commit range changes a file under Services/Document/, which .claude/rules/
 # ingestion-and-indexing.md governs. A log that does not mention that rule should produce the
 # addendum; a log that does should not; and no log at all should stay silent, because an absent log
 # means the hook was never registered rather than that nothing loaded.

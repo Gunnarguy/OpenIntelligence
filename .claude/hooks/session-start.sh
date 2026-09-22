@@ -89,6 +89,11 @@ if [ -f "$STATE_MD" ]; then
   # line on 2026-08-19 turned a mild drift note into "names a commit not in this repository", which
   # reads like a corrupt or foreign checkout. The line may carry prose after the sha.
   STATE_COMMIT="$(sed -n 's/^Last verified commit:[[:space:]]*\([^[:space:]]*\).*/\1/p' "$STATE_MD" | head -1)"
+  # STATE.md writes the sha as inline code, `abc1234`, and backticks are not whitespace, so the
+  # token above carried them. `abc1234` with its backticks is not a revision git can resolve, which
+  # made every correct handoff report "names a commit not in this repository" (found 2026-09-21,
+  # when STATE.md named HEAD exactly and was still called foreign). Strip them.
+  STATE_COMMIT="${STATE_COMMIT//\`/}"
   STATE_UPDATED="$(sed -n 's/^Updated:[[:space:]]*//p' "$STATE_MD" | head -1)"
   echo "STATE.md updated ${STATE_UPDATED:-unknown}, recorded commit ${STATE_COMMIT:-none}."
   # Resolve both sides through git before comparing. A string compare of a full sha in STATE.md
