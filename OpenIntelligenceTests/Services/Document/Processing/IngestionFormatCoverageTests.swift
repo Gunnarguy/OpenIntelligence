@@ -1,5 +1,6 @@
 import PDFKit
 import XCTest
+
 @testable import OpenIntelligenceEngine
 
 /// `ProcessedChunk` is nested in `DocumentProcessor`; this keeps the assertions readable.
@@ -231,7 +232,7 @@ final class IngestionFormatCoverageTests: XCTestCase {
         switch await processingOutcome(url) {
         case .threw:
             break
-        case let .produced(chunks, characters):
+        case .produced(let chunks, let characters):
             XCTFail(
                 "Silent audio produced \(chunks) chunks and \(characters) characters instead of "
                     + "throwing. An empty transcript indexed as a success is the silent-corruption "
@@ -351,7 +352,14 @@ final class IngestionFormatCoverageTests: XCTestCase {
         timeout seconds: TimeInterval = 60
     ) async -> IngestionProcessingOutcome {
         let box = IngestionOutcomeBox()
-        let finished = expectation(description: "processDocument(\(url.lastPathComponent))")
+        // A standalone expectation, waited on below by a delegate-less `XCTWaiter`, and not
+        // `self.expectation` with `XCTestCase.fulfillment(of:)`. The test-case form records a test
+        // failure the moment the wait times out, before this function can return `.timedOut`, so
+        // the deliberate skip in `testSilentAudio_FailsLoudlyInsteadOfProducingAnEmptyDocument`
+        // could never happen: on 2026-09-21 the timeout failed that test even though the code after
+        // the wait skips. A waiter with no delegate reports the timeout as a result instead, which is
+        // the reason this helper has a third outcome at all.
+        let finished = XCTestExpectation(description: "processDocument(\(url.lastPathComponent))")
 
         let work = Task {
             let processor = DocumentProcessor()
@@ -367,7 +375,7 @@ final class IngestionFormatCoverageTests: XCTestCase {
             finished.fulfill()
         }
 
-        await fulfillment(of: [finished], timeout: seconds)
+        _ = await XCTWaiter.fulfillment(of: [finished], timeout: seconds)
         work.cancel()
         return box.value
     }
@@ -384,7 +392,7 @@ final class IngestionFormatCoverageTests: XCTestCase {
             // Any thrown error is acceptable. The property under test is that the failure is
             // visible, not which specific error models it.
             break
-        case let .produced(chunks, characters):
+        case .produced(let chunks, let characters):
             XCTFail(
                 "Expected \(reason) to throw. Instead it produced a document with \(chunks) chunks "
                     + "and \(characters) characters, which would be indexed as a successful ingest.",
@@ -417,7 +425,8 @@ final class IngestionFormatCoverageTests: XCTestCase {
         line: UInt = #line
     ) {
         let text = combinedText(chunks)
-        let lines = text
+        let lines =
+            text
             .components(separatedBy: .newlines)
             .filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
         XCTAssertGreaterThanOrEqual(

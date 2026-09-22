@@ -1,8 +1,8 @@
 # Current State
 
-Updated: 2026-09-22
+Updated: 2026-09-22, late
 Branch/worktree: `main`, primary checkout, pushed to `origin/main` with this handoff
-Last verified commit: `e51dbeb`
+Last verified commit: `bdec851`
 
 ## Objective
 
@@ -76,21 +76,28 @@ None of it is code. Nothing below blocks anything else.
 
 ### Owner, outside this repository
 
-- **fascinaiting.me publishes four internal files to anyone who asks.** Checked 2026-09-21, all
+- **Done 2026-09-22: fascinaiting.me no longer publishes its internal files.** Before: all
   HTTP 200: `/CLAUDE.md`, `/ANALYTICS_AUDIT.md`, `/google_ads_config.json` and
   `/FACT_CHECK-2026-09.md`. The ads file holds the Google Ads customer ID, every campaign, ad and
   asset-group ID, and all ad copy; no password or API key appeared among its field names. The
-  site's `robots.txt` says `Allow: /`. The fix belongs in the Fascinaiting repository, which the
-  owner is actively working in, so nothing has been changed there. **This is the most important
-  item on this list.** `[evidence_level: measured, confidence: exact, evidence_source: curl status codes and JSON key names, 2026-09-21]`
-- **Two statements are live on the App Store and wrong.** The live 5.3 promotional text says
+  site's `robots.txt` says `Allow: /`. Fixed by a Jekyll exclude list, Fascinaiting commit
+  `572a5d51`; every listed file now returns 404 and the home page 200.
+  `[evidence_level: measured, confidence: exact, evidence_source: curl status codes before and after, 2026-09-22]`
+- **Half done 2026-09-22: of two wrong statements on the App Store, one is fixed and one Apple
+  refuses.** The live 5.3 promotional text said
   "Lifetime is 33% off", which one string cannot be across storefronts measuring 30.8% to 40%.
   Both Pro subscription descriptions promise "unlimited documents and 5 libraries", against
   `QuotaPolicy`'s 1,000 and 10. The correction is `scripts/asc_fix_listing_copy.rb`, which carries
-  the localization ids and a `--dry-run`. It has **not** been run: two attempts on 2026-09-21 were
-  refused by the local permission classifier, not by Apple. Subscription descriptions may be
-  frozen by review; the script reports a 409 rather than guessing.
-- **Replace the sale promotional text after 2026-09-30**, on the **live 5.3 records only**, both
+  the localization ids and a `--dry-run`. Run 2026-09-22: both promotional texts corrected, HTTP
+  200. Both subscription descriptions returned 409 `UNMODIFIABLE` (localization in `ACTIVE`
+  state) plus `TOO_LONG` (the field caps at 55 characters). The app never renders a product
+  description and has zero promoted purchases, so no customer sees the string; it is corrected
+  whenever a subscription change next goes through review, in 55 characters or fewer.
+- **Scheduled, no longer the owner's: the sale comes down on 2026-09-30.** The one-time task
+  `openintelligence-end-lifetime-sale` fires at 09:00 Pacific and runs `scripts/asc_end_sale.rb`
+  (dry-run verified against the live store), then strips the sale line from all three sites and
+  checks each page live. It runs only while the desktop app is open; if it is closed that morning
+  it runs at next launch. The original instructions follow. Replace the sale text on the **live 5.3 records only**, both
   platforms, and strip the sale line from the three websites. The non-sale wording is in the 5.3
   entry of `Docs/Release/APP_STORE_METADATA_HISTORY.md`. **5.4 needs no action**: a new App Store
   version inherits no promotional text, both 5.4 records read empty, and they were filled with the
@@ -142,8 +149,8 @@ These have been carried for several sessions. None of them is an agent's to make
    about 1.3 GB of build output. This is the same mechanism that starves builds run against the
    checkout. Renaming or removing them is the owner's call.
    `[evidence_level: measured, confidence: exact, evidence_source: du -sh, 2026-09-20]`
-4. **What to do about `testSilentAudio`.** See the next section. It is an open decision, not settled
-   state.
+4. **Resolved 2026-09-22: `testSilentAudio`.** See the next section. The remaining question needs
+   a device, not a decision.
 5. **A design question rather than a decision:** a custom reasoning profile currently reaches only
    Apple's model-internal effort dial, which is PCC-only. The app's own reasoning, the multi-session
    chains in Deep Think and Maximum pinned on-device, is driven by this app's prompts and is
@@ -152,7 +159,19 @@ These have been carried for several sessions. None of them is an agent's to make
    prompts are the product, and answer quality cannot be A/B tested here, because retrieval is
    nondeterministic.
 
-## The `testSilentAudio` exclusion is prose-only and unenforced
+## `testSilentAudio`: the exclusion is gone, because the test can now skip itself
+
+**Resolved 2026-09-22.** The test always intended to `XCTSkip` on timeout, and never could: its
+helper waited with `XCTestCase.fulfillment(of:)`, which records a failure when the wait expires,
+before the skip branch runs. The helper now waits on a standalone `XCTestExpectation` through a
+delegate-less `XCTWaiter`, which reports the timeout as a result. Verified both ways on the iOS 27
+simulator: normally the WAV throws in 0.8 s and the test passes; with the timeout forced to 1 ms in
+a throwaway copy it skips with its own message and the run succeeds. No `-skip-testing:` flag is
+needed anywhere. What is still open is the test's own question, hang versus missing speech model,
+which needs an audio file with no speech imported on a device. The history below is kept as record.
+`[evidence_level: measured, confidence: exact, evidence_source: two runs 2026-09-22, 12/0 and "1 test skipped, 0 failures"]`
+
+### History, superseded
 
 `IngestionFormatCoverageTests.testSilentAudio_FailsLoudlyInsteadOfProducingAnEmptyDocument` exists
 in `OpenIntelligenceTests/Services/Document/Processing/IngestionFormatCoverageTests.swift`. Earlier
