@@ -83,6 +83,12 @@ None of it is code. Nothing below blocks anything else.
 
 ### Owner, outside this repository
 
+- **An X thread went up 2026-09-22 at 10:58 PT from @Gunzeroni**, text-first with the App Store link in the first
+  reply tagged `ct=X_post` (`pt=127101782`). App Store Connect's Sources breakdown attributes downloads to that
+  tag; read it after 2026-09-29 to learn what one honest numbers post produces, and compare against the two
+  posting weeks that `~/ASC/CANONICAL.md` already records as the only weeks a stranger bought. No screen
+  recording was attached; adding one as a reply and quote-posting the thread in the 8 to 10 am window is the
+  second shot.
 - **One item left from the conversion plan: the retention message.** Configured in App Store Connect under the
   subscription group, no server and no access form (the form is for the real-time API). Title within 66 characters,
   description within 144; attach the win-back offers to it and map it to both Pro subscriptions. The other items are
