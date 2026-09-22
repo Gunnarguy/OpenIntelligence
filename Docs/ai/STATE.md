@@ -83,11 +83,12 @@ None of it is code. Nothing below blocks anything else.
 
 ### Owner, outside this repository
 
-- **Three items from the conversion plan, each about ten minutes, none of which an agent can do:** reply to the
-  one written review (2026-03-25, US, 4 stars; Apple notifies the reviewer, who can update); set a retention
-  message and a win-back offer in App Store Connect (5 of 5 cancel-sheet views ended in a cancel with no message);
-  and hand Lifetime offer codes to the heaviest users (offer codes work for non-consumables from iOS 16.3, up to
-  10 active offers). Details and sources in `Docs/Release/CONVERSION_AND_REVIEWS_2026-09.md`, section 5.
+- **One item left from the conversion plan: the retention message.** Configured in App Store Connect under the
+  subscription group, no server and no access form (the form is for the real-time API). Title within 66 characters,
+  description within 144; attach the win-back offers to it and map it to both Pro subscriptions. The other items are
+  closed: the review reply was published 2026-09-18 by the owner; the win-back offers exist (`6814902295` Monthly at
+  $2.99 for three months, `6814902418` Annual at $19.99 for the first year, active 2026-09-24 for a year, all
+  territories); offer codes were dropped at the owner's request.
 - **Device verification of the enforced cap** closes the roadmap row filed 2026-09-22: on a free-tier device on 5.4,
   the fourth Maximum send of a day shows the limit dialog, and the next morning the pill reads "3 left today".
 - **Done 2026-09-22: fascinaiting.me no longer publishes its internal files.** Before: all
