@@ -15,11 +15,12 @@ instruction to stay current.
 
 ## Where the project stands, 2026-09-22
 
-- **5.4 is prepared in App Store Connect and not submitted, and build 469 must not be submitted**
-  (2026-09-22, night). Its one-time plans screen at the end of setup presents a view that needs a
-  purchase-state object the sheet never receives, and SwiftUI stops the app when that happens. A
-  one-line fix and a replacement build come first. `Docs/ai/STATE.md` has the evidence, the fix,
-  the other pre-submission findings and the release close-out steps.
+- **5.4 is prepared in App Store Connect on build 474 and not submitted** (2026-09-23). Build 474
+  carries the fix for build 469's crash at the end of setup (`a713bfc`) and the corrected copy; the
+  listing text, review notes, sale promotional text and two subscription images are written. The
+  owner holds submission until a TestFlight check on a device. Build 469 must never be submitted.
+  `Docs/ai/STATE.md` has the owner's remaining steps, the release close-out, and the 5.5 findings on
+  answer streaming and off-screen completion.
 
 - **5.3 is live on the App Store on both platforms**, released by the owner on 2026-09-18 from
   build 464 after both platforms were approved. `Docs/SHIPPED_VERSION.json` carries it.

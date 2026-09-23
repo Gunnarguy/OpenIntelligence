@@ -1,132 +1,139 @@
 # Current State
 
-Updated: 2026-09-23, 08:35 PT, after build 474 (every 5.4 fix) went VALID
-Branch/worktree: `main`, primary checkout
-Last verified commit: c73aea5
+Updated: 2026-09-23, 09:10 PT, fresh-session handoff
+Branch/worktree: `main`, primary checkout, level with `origin/main`, working tree clean
+Last verified commit: c250e48
 
 ## Objective
 
-**5.4 is prepared and deliberately not submitted.** The owner said on 2026-09-23: fix and align
-everything, do not put it into review yet. What remains is one owner command (App Store Connect
-writes), the owner's TestFlight check on a device, and the owner's decision to submit.
+Two tracks, in this order of who acts:
 
-Social posts run in conversation, not here (auto-memory `social-channels-and-x-premium.md`, Post
-Desk https://claude.ai/artifact/RgpvBXBViCZpSvtXFpNUb7); nothing in them blocks the release.
+1. **Ship 5.4 on build 474.** Everything an agent can do is done. The rest belongs to the owner:
+   the TestFlight check of 474 on a device, an attempt at three descriptions on the App Store
+   Connect web page, and the decision to submit. Do not submit until the owner says so.
+2. **5.5: the Standard end-of-stream stall, streaming for Deep Think and Maximum, and a signal when
+   an answer finishes off-screen.** Investigated in code, nothing implemented. Code changes wait for
+   the owner's `PROCEED: IMPLEMENT`. Measuring does not change code and can start now.
 
-## Status
+Social posts run in conversation, not here (auto-memory `social-channels-and-x-premium.md`).
 
-- **5.3 is live on iOS and macOS**, build 464, since 2026-09-18 (`Docs/SHIPPED_VERSION.json`).
-- **5.4, both platforms: `PREPARE_FOR_SUBMISSION`, release MANUAL, build 474 attached**, What's New,
-  notes and sale promo written (read GET-only 2026-09-23 08:40 PT). **Build 469 must never be submitted:** its end-of-setup plans sheet
-  crashed the app (fixed in `a713bfc`; details in `CHANGELOG.md` `## 5.4`).
-- **Build 474 is the one to attach**: Xcode Cloud run #474 from `c73aea5` SUCCEEDED; iOS and macOS
-  5.4 build 474 `VALID`, `usesNonExemptEncryption=false`, `IN_BETA_TESTING` (read GET-only 08:33 PT).
-  It carries the crash fix and the aligned in-app copy. Build 472 is superseded; run #473 was canceled.
-- **Crash fix verified in the simulator** (Debug, iOS 27.0, fresh install): 469's Swift traps 1.5 s
-  after "Start Asking" (`Fatal error: No ObservableObject of type EntitlementStore found`); the fixed
-  build opens and closes the plans sheet. Roadmap row
-  https://app.notion.com/p/3e449a74d54f81afb55fc318f81244f9, `In Progress` until a device run.
-- **Maximum cap verified in the simulator:** 3, 2, 1, 0 left as each question is sent; sends four
-  and five blocked with "Maximum mode limit reached". At the limit the chip reads "Maximum · 0 left"
-  and the menu "Maximum · Limit reached". A blocked question's text is cleared from the input box
-  (Future Backlog candidate). Recorded on the cap's roadmap row.
+## Status: 5.4
 
-## The pre-submission sweep, and where each item stands
+- **5.3 is live** on iOS and macOS, build 464, since 2026-09-18 (`Docs/SHIPPED_VERSION.json`).
+- **5.4, both platforms: `PREPARE_FOR_SUBMISSION`, release MANUAL, build 474 attached** (read GET-only
+  2026-09-23 08:40 PT). What's New, description, keywords, App Review notes (1,116 characters, with
+  `fastlane/review_notes/5.4.txt`) and the sale promotional text are written.
+- **Build 474** = Xcode Cloud run #474 from `c73aea5`: `VALID`, `usesNonExemptEncryption=false`,
+  `IN_BETA_TESTING` on both platforms. It carries every 5.4 fix. **Never submit build 469**: its
+  end-of-setup plans sheet crashed the app (fixed in `a713bfc`; see `CHANGELOG.md` `## 5.4`).
+- **Both Pro subscription images** are uploaded, state `PREPARE_FOR_SUBMISSION`. They are reviewed
+  only if both subscriptions are included in the 5.4 submission. Win-back offers
+  (`winback_annual_2026`, `winback_monthly_2026`, from 2026-09-24) need them to be promoted.
+- **Three descriptions are still wrong** and the API refuses them: HTTP 409 "Cannot edit
+  SubscriptionLocalization when it is in ACTIVE state" (same for Lifetime). Targets, for the web page:
+  Pro Annual "Annual billing for 1,000 documents and 10 libraries.", Pro Monthly "Monthly billing for
+  1,000 documents and 10 libraries.", Lifetime "Permanent Pro - 20 Libraries + Unlimited Documents".
+  The app never shows these strings.
+- **Owner's TestFlight check of 474**: fresh install on the free plan, "See It in Action", "Start
+  Asking", the plans sheet opens and Done closes it; then Maximum mode, four questions, the fourth
+  shows "Maximum mode limit reached". Closes roadmap rows
+  https://app.notion.com/p/3e449a74d54f81afb55fc318f81244f9 (crash) and the Maximum cap row.
+- **On submission:** set `in_review` for both platforms in `Docs/SHIPPED_VERSION.json` and push. **On
+  release:** date `## v5.4 - unreleased` in `Docs/USER_CHANGELOG.md`, copy it byte-for-byte to
+  `OpenIntelligence/Resources/VersionHistory.md`, remove `<!-- unreleased -->` from `## 5.4` in
+  `CHANGELOG.md` and open `## 5.5 <!-- unreleased -->` above it before the next source push, set
+  `app_store` and `preparing`, push.
+- **Scheduled:** 2026-09-30 09:00 PT, task `openintelligence-end-lifetime-sale` takes the sale line
+  off whichever version is live and off the three sites (runs only while the desktop app is open).
 
-| # | Item | State |
-|---|---|---|
-| 1 | App Review notes were 5.3's; nothing about the cap | Done 2026-09-23: 701 to 1,116 characters, both platforms |
-| 2 | 5.4 promo text is the non-sale line; a mid-sale release drops the sale | Done: sale line on both 5.4 records; `asc_end_sale.rb` removes it 09-30 |
-| 3 | Pro descriptions say "unlimited documents and 5 libraries"; Lifetime says 10 libraries | Refused again: 409, "Cannot edit ... when it is in ACTIVE state". Only the web page is left to try; the app never shows these strings |
-| 4 | No subscription image, so win-back offers (from 2026-09-24) cannot be promoted | Uploaded, `PREPARE_FOR_SUBMISSION`: include both subscriptions when submitting |
-| 5 | Sites, docs and the in-app sample guide said the app shows "exactly what would be sent" | Done: Fascinaiting `bdff4ff2`, Gunzino `cc2912b` (both verified live); README, HOW_IT_WORKS, STUDY_GUIDE, `SampleDocumentManager.swift:59` |
-| 6 | "Never twice in four months" overpromised | Done in store copy and in-app copy; in-app text ships in the next build |
-| 7 | Version History shows "unreleased" beside the running version | For the 5.5 release steps: date the heading before the release build |
-| 8 | iPhone 6.5" preview is the 5.1 video; macOS screenshots date from 2026-06-21 | Open; macOS captures need a Screen Recording grant |
-| 9 | Phased release is off | Owner's call |
+## Status: 5.5 findings (code-verified 2026-09-23; durations not measured)
 
-Checked clean on 2026-09-22: name, subtitle, privacy URL, age rating, copyright, min OS 26.0, export
-compliance, Data Not Collected label, win-back redemption through `Transaction.updates`, Restore,
-Terms and Privacy on the plans screen.
+- **Standard end-of-stream stall.** The blinking cursor (`MessageListV2.swift` ~280) shows while
+  `isProcessing` is true (ChatScreen ~2337), which lasts until `RAGService.query` returns. After the
+  last token that call awaits: a continuation when the text ends without punctuation (`LLMService`
+  ~1094-1108), the checks with an answer embedding (`RAGService` ~14385-14433), and for
+  extractive-first questions SourceOnly: two sequential structured model calls
+  (`SourceOnlyAnswerService` ~372 draft, ~416 review) called at `RAGService` ~14654, which can
+  replace the answer. Extractive-first is `.lookup`/`.tableLookup`, which any "what/which/when/where/
+  who/how many…" question gets by default (confirmed in a harness log: "What file types does
+  OpenIntelligence handle?" → `AnswerIntent: lookup (extractiveFirst: true)`). The pipeline's
+  "Total time" is logged at ~14586, before SourceOnly, so no in-app timer covers it.
+- **Short Standard answers do not really stream.** Under the 3600-token check (`RAGService`
+  ~16454-16473) Standard calls `respond(generating: DirectRAGAnswer.self)` and replays the result.
+  The SDK can stream `@Generable` output as `PartiallyGenerated`; `DirectRAGAnswer` declares `answer`
+  first (`RAGStructuredResponse.swift` ~61).
+- **Deep Think and Maximum can stream.** `LLMStreamingContext.handler` is `@TaskLocal`
+  (`LLMService` ~114-122) and ChatScreen sets it only for `.standard` (~2948). Deep Think's synthesis
+  (`AgenticOrchestrator` ~5689) already runs through `streamResponse`; Maximum's core call is ~7174.
+  A verification loop (~3714), Maximum's refinement (~7201) or SourceOnly can replace the text.
+- **Tab switches already keep the answer on iOS** (`b87123d`, 5.0.1): unstructured `Task` at ChatScreen
+  ~2856; `.onDisappear` (~648, ~972) only stops the clock. Missing: any completion signal (the only
+  answer haptic fires at start, ~2982), restarting the elapsed clock on return, real progress for Deep
+  Think and Maximum to the iOS 26 background task (flat 62%), and a saved notice when that task
+  expires (roadmap row "A long answer outlives its 30-second background grant…", Future Backlog).
 
-**Future Backlog candidates, not filed:** any paid purchase, Pro included, sets
-`legacyProtectionState = .historicalPaidPurchase`, which `MonetizationPolicy.swift:27` counts as
-protected and `EntitlementStore.swift:205` resolves to `.lifetime`, so Pro buyers keep Lifetime limits
-after cancelling (hard-boundary file); the consent sheet prints `routeReason.rawValue` as "Why PCC"
-(`CloudConsentPromptView.swift:182-183`); tappable citations reportedly exist only on structured
-answers (subagent claim, unverified); "Save 58%" is fixed text (`PlanUpgradeSheet.swift:54`);
-swift-format (the post-edit hook) re-indents multi-line string literals, so an edit to
-`SampleDocumentManager.swift` must bypass it or the sample documents' text can change.
+## Proposed 5.5 plan (awaits `PROCEED: IMPLEMENT`; target 5.5, file roadmap rows on approval)
 
-## Scheduled, nobody needs to act
-
-- **2026-09-30 09:00 PT:** task `openintelligence-end-lifetime-sale` takes the sale off whichever
-  version is live and off the three sites. Runs only while the desktop app is open.
-- **After 2026-09-29:** App Store Connect, Analytics, Campaigns shows downloads per X campaign tag.
-
-## When 5.4 is submitted, and when it goes live
-
-On submission: set `in_review` for both platforms in `Docs/SHIPPED_VERSION.json` and push. On
-release: date `## v5.4 - unreleased` in `Docs/USER_CHANGELOG.md` and copy it byte-for-byte to
-`OpenIntelligence/Resources/VersionHistory.md`; remove `<!-- unreleased -->` from `## 5.4` in
-`CHANGELOG.md` and open `## 5.5 <!-- unreleased -->` above it **before the next source push**, or
-`ci_post_clone.sh` stamps a shipped version; set `app_store` and `preparing` and push.
+1. Measure the stall on macOS (Exact Next Action). 2. End the cursor and unlock input when the text
+stops, show "Checking sources…" until citations attach; if the measurement confirms SourceOnly is the
+cost, run it in Standard only when the checks flag the answer, and benchmark accuracy before and
+after. 3. Off-screen completion: success haptic, a Chat tab badge, clock restart, real background
+progress, a notice on expiry. 4. Stream Deep Think and Maximum with a "Refining…" state; make short
+Standard answers truly stream. 5. Verify: suite, macOS before/after timings, TestFlight on device.
 
 ## Active Constraints
 
-- **Guard memory on long builds**; never build against the iCloud checkout. Recipes in
-  `Docs/ai/RUNBOOK.md`. Incremental builds reuse `/private/tmp/oi-build` from `/tmp/oi-src`.
-- **Commit to `main`, no branches, no AI co-author trailer.** `fastlane/metadata*` changes need the
-  `### <preparing version>` entry in `Docs/Release/APP_STORE_METADATA_HISTORY.md` (pre-commit).
-- **App Store Connect writes are the owner's.** The permission classifier refused
-  `asc_prepare_release.rb 5.4 472 --apply` on 2026-09-23 even with the owner's instruction. On the
-  same morning `api.appstoreconnect.apple.com` dropped the TLS handshake from the agent shell for a
-  while (other Apple hosts answered; Apple reported no incident); it recovered within the hour.
-- **Do not use `fastlane submit_latest` for 5.4:** its `deliver` pushes `promotional_text.txt`
-  (the non-sale line) over the sale line before submitting.
-- **Simulators are shared between sessions.** Use a dedicated device for any UI run.
-- The repo router mis-routes UI fixes; follow CLAUDE.md's generic rules.
+- **Guard memory on builds** (18 GB Mac; a cold build crashed it on 2026-09-20). Recipes and the
+  guard loop: `Docs/ai/RUNBOOK.md` "A long build can take this Mac down". Build from `/tmp/oi-src`.
+- **The iOS simulator has no Apple Intelligence here**: the DEBUG harness on the iOS 27.0 simulator
+  reported "Apple Intelligence (Unavailable) … requires a physical device" and fell back to excerpts.
+  Anything needing generation runs on the macOS Debug build or a device.
+- **App Store Connect writes are the owner's**: the permission classifier refuses them from an agent,
+  even with the owner's instruction. GET-only reads work. `fastlane submit_latest` would overwrite the
+  sale promo text; submit in the App Store Connect page.
+- **swift-format runs on every Swift file Claude edits** (global post-edit hook). In files with `"""`
+  literals it re-indents their content; edit those by script (auto-memory
+  `swift-format-hook-reindents-multiline-strings.md`).
+- **Commit to `main`, no branches, no AI trailer.** Source edits need `PROCEED: IMPLEMENT`.
+  `fastlane/metadata*` changes need the `### 5.4` history entry. Simulators are shared: use your own.
 
 ## Working Set
 
-- `scripts/asc_listing_extras.rb`: review notes, sale promo text, product descriptions, subscription
-  images; dry run by default; never submits.
-- `scripts/asc_prepare_release.rb`: attaches a build and writes What's New, description, keywords.
-- `fastlane/review_notes/5.4.txt`, `fastlane/iap_images/`, `scripts/render_iap_images.swift`.
-- `Docs/Release/APP_STORE_METADATA_HISTORY.md`, 5.4 entry: the 2026-09-23 corrections.
+- `OpenIntelligence/Services/RAG/Orchestration/RAGService.swift`: post-stream steps (~14385-14750).
+- `OpenIntelligence/Services/RAG/Safety/SourceOnlyAnswerService.swift`: the two extra calls.
+- `OpenIntelligence/Features/Chat/Conversation/ChatScreen.swift`: send, stream handler, completion.
+- `OpenIntelligence/Features/Chat/Conversation/MessageListV2.swift`: the streaming bubble and cursor.
+- `OpenIntelligence/App/DebugRAGValidationHarness.swift`: headless query flags.
+- `scripts/asc_listing_extras.rb`, `scripts/asc_prepare_release.rb`: the 5.4 store writes.
 
-## Verification
+## Verification (2026-09-23, output read)
 
-- 2026-09-23: `VersionHistoryTests` 3 of 3 and `WhatsNewCoverageTests` 4 of 4 passed (iOS 27
-  simulator, incremental build, lowest free memory 29%).
-- 2026-09-23: Fascinaiting `scripts/verify-site.sh source` exit 0; Gunzino
-  `scripts/extract_pages.py --check` 22 of 22 pages match.
-- 2026-09-22: crash reproduced on 469's Swift and gone on `a713bfc` in the simulator; Maximum cap
-  walked; Xcode Cloud #472 SUCCEEDED, build 472 `VALID`.
-- 2026-09-23: `asc_listing_extras.rb 5.4` dry run against the live records resolved every lookup:
-  notes 701 characters plus 413 on both platforms, the sale line to copy, all three descriptions,
-  both images to upload. Sites verified live: old sentence gone, new one present, HTTP 200.
-- **Not verified:** any `--apply` write (the owner's); anything on a device; the fix on macOS.
+- GET-only read-back 08:40 PT: both 5.4 records build 474, What's New "on its own", notes with the
+  5.4 addition, sale promo; images `PREPARE_FOR_SUBMISSION`; descriptions unchanged (409).
+- Xcode Cloud #474 (`c73aea5`) SUCCEEDED; build 474 `VALID` on both platforms.
+- `VersionHistoryTests` 3/3 and `WhatsNewCoverageTests` 4/4 passed (iOS 27 simulator).
+- Crash reproduced on build 469's Swift and gone with the fix (Debug simulator walk, 2026-09-22).
+- fascinaiting.me and gunzino.me live with the corrected Private Cloud Compute sentence, HTTP 200.
+- **Not verified:** any duration of the post-stream steps; anything on a device; the fix on macOS.
+
+## Blockers / Unknowns
+
+- How long each post-stream step takes. Settled by the measurement below.
+- Whether `/private/tmp/oi-build-mac/Build/Products/Debug/OpenIntelligence.app` (built 2026-09-22
+  09:35, before `a713bfc`; the pipeline code it measures is unchanged since) is sandboxed. Check with
+  `codesign -d --entitlements - <app>`; if it shows a sandbox, rebuild with RUNBOOK line 206 into
+  `/private/tmp/oi-mac-nosbx`, guarded.
 
 ## Exact Next Action
 
-The App Store Connect side of 5.4 is done except the refused descriptions (read back 08:40 PT). Left,
-all the owner's: the TestFlight check of build 474 on a device (fresh install on the free plan,
-finish setup, the plans sheet opens and closes; four Maximum questions, the fourth blocked), an
-attempt at the three descriptions on the App Store Connect web page, then the decision to submit,
-including both Pro subscriptions so their images are reviewed. Do not submit until the owner says so.
-Separately, investigated 2026-09-23 (code reading, nothing implemented; plan awaits `PROCEED: IMPLEMENT`):
-- **Standard end-of-stream stall.** The cursor lasts until `RAGService.query` returns. After the last
-  token it awaits a possible continuation (`LLMService` ~1094), the checks with an answer embedding
-  (~14385-14433) and, for extractive-first questions (any "what/which/when/where/who/how many…"),
-  SourceOnly: two more structured model calls (`SourceOnlyAnswerService` ~372 draft, ~416 review),
-  called at `RAGService` ~14654. The pipeline's "Total time" is logged before SourceOnly. Durations
-  unmeasured: the simulator has no Apple Intelligence ("requires a physical device", harness run
-  2026-09-23), so measure with the macOS Debug harness or on a device.
-- **Deep Think and Maximum can stream.** `LLMStreamingContext.handler` is `@TaskLocal` and ChatScreen
-  sets it only for `.standard` (~2948); Deep Think's synthesis already runs through `streamResponse`.
-  A later verification, refinement or SourceOnly pass can replace the streamed text.
-- **Tab switches already keep the answer on iOS** (`b87123d`, 5.0.1): unstructured `Task` at ChatScreen
-  ~2856, `.onDisappear` only stops the clock. Missing: a completion signal (the only answer haptic
-  fires at start, ~2982), the clock restart on return, real background-task progress for Deep
-  Think and Maximum (flat 62%). Existing row: "A long answer outlives its 30-second background grant".
+Measure the Standard stall on macOS with no code change. Copy `Docs/HOW_IT_WORKS.md` to
+`/private/tmp/oi-timing/`, then run the app binary
+(`<app>/Contents/MacOS/OpenIntelligence`) with `--rag-validation --rag-validation-query "<q>"
+--rag-validation-file /private/tmp/oi-timing/HOW_IT_WORKS.md --rag-validation-storage
+/private/tmp/oi-timing/mac-store --rag-validation-quality standard --rag-validation-pcc-consent deny`,
+once for "What file types does OpenIntelligence handle?" and once for "Explain how OpenIntelligence
+decides when to use Private Cloud Compute" (add `--rag-validation-skip-ingest` the second time).
+Timestamp every stdout line on the host through a pty so output is line-buffered, allow 600 s for
+the first launch's model warm-up, and read the gaps between the last generation line, `Total time`,
+the `[SourceOnly]` lines and `Enhanced RAG pipeline complete`. Report the numbers to the owner with
+the plan above, then wait for `PROCEED: IMPLEMENT`.
