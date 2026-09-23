@@ -1,15 +1,14 @@
 # Current State
 
-Updated: 2026-09-22, 22:50 PT, after the onboarding crash fix
-Branch/worktree: `main`, primary checkout; the fix commit is the first after 3698c21 touching `ContentView.swift`
-Last verified commit: 3698c21
+Updated: 2026-09-22, 23:05 PT, after build 472 (the crash fix) went VALID
+Branch/worktree: `main`, primary checkout, pushed
+Last verified commit: a713bfc
 
 ## Objective
 
-**Ship 5.4 on the build that carries the crash fix, never build 469.** Build 469's one-time plans
-screen at the end of setup crashed the app. The fix is committed and pushed (find it with
-`git log -1 -- OpenIntelligence/App/ContentView.swift`); Xcode Cloud builds it. Attach that build to
-5.4, re-check on TestFlight, then submit.
+**Ship 5.4 on build 472, never build 469.** Build 469's one-time plans screen at the end of setup
+crashed the app. `a713bfc` fixes it; Xcode Cloud run #472 built it and build 472 is `VALID` on both
+platforms. Attach 472 to 5.4, re-check on TestFlight, then submit.
 
 Social posts run in conversation, not here (auto-memory `social-channels-and-x-premium.md`, Post
 Desk https://claude.ai/artifact/RgpvBXBViCZpSvtXFpNUb7); nothing in them blocks the release.
@@ -17,23 +16,22 @@ Desk https://claude.ai/artifact/RgpvBXBViCZpSvtXFpNUb7); nothing in them blocks 
 ## Status
 
 - **5.3 is live on iOS and macOS**, build 464, since 2026-09-18 (`Docs/SHIPPED_VERSION.json`).
-- **5.4, both platforms: `PREPARE_FOR_SUBMISSION`, release MANUAL, build 469 attached** (VALID,
-  `IN_BETA_TESTING` in TestFlight). What's New, description (corrected, 3,986 of 4,000 characters)
-  and keywords equal `fastlane/metadata/en-US/`. Read back GET-only at 22:02 PT after the owner ran
-  `asc_prepare_release.rb 5.4 469 --apply`.
-- **The crash in 469.** Its `ContentView` attached the onboarding plans `.sheet` after
-  `.environmentObject(entitlementStore)`, so the sheet got none of it, and `PlanUpgradeSheet.swift:12`
-  requires it (`@EnvironmentObject`); nothing above `ContentView` injects it. Trigger: fresh install,
-  free tier, "See It in Action", "Start Asking" (`OnboardingChecklistView.swift:183`), 1.5 s. Seen in a
-  Debug simulator build of `4cc5a78`'s Swift (22:41 PT): `Fatal error: No ObservableObject of type
-  EntitlementStore found`, `EXC_BREAKPOINT`, `PlanUpgradeSheet.heroSection` on the faulting stack.
-  Same code on macOS. The What's New sheet beside it is safe: `WhatsNewView` reads only `dismiss`.
-- **The fix**, `ContentView.swift`: the sheet passes `.environmentObject(entitlementStore)` to
-  `PlanUpgradeSheet` itself. The rest of that file's diff is swift-format whitespace from the
-  post-edit hook (with whitespace removed, only the fix differs). Walked on a fresh install of its
-  Debug simulator build: the Workspace Plans sheet opens reading "Current plan: Free", Done closes it,
-  the app stays up, no crash report (22:45 PT). CHANGELOG `## 5.4` `### Fixed` has the entry. Roadmap
-  row https://app.notion.com/p/3e449a74d54f81afb55fc318f81244f9, `In Progress` until a device run.
+- **5.4, both platforms: `PREPARE_FOR_SUBMISSION`, release MANUAL, build 469 still attached.** What's
+  New, description (corrected, 3,986 of 4,000 characters) and keywords equal `fastlane/metadata/en-US/`
+  (read back GET-only 22:02 PT).
+- **Build 472**, Xcode Cloud run #472 from `a713bfc`, SUCCEEDED 23:01 PT: iOS and macOS 5.4, `VALID`,
+  `usesNonExemptEncryption=false`, min OS 26.0, `IN_BETA_TESTING` (read GET-only 23:03 PT).
+- **Maximum cap, simulator (Debug build of `a713bfc`, free tier):** 3, 2, 1, 0 left as each question
+  is sent; stopping an answer does not refund; sends four and five blocked with "Maximum mode limit
+  reached"; See Plans opens "Maximum mode is capped on Free" and Done closes it. At the limit the chip
+  reads "Maximum · 0 left" and the mode menu "Maximum · Limit reached". A blocked question's text is
+  cleared from the input (Future Backlog candidate). Recorded on the cap's roadmap row.
+- **The crash in 469**, and its fix in `a713bfc`: the onboarding plans `.sheet` sat outside
+  `.environmentObject(entitlementStore)`, and `PlanUpgradeSheet.swift:12` requires it. Fresh install,
+  "See It in Action", "Start Asking", 1.5 s, then `Fatal error: No ObservableObject of type
+  EntitlementStore found` (simulator, 469's Swift, 22:41 PT). Fixed, the same walk opens and closes the
+  plans sheet with no crash (22:45 PT). Details in `CHANGELOG.md` `## 5.4`; roadmap row
+  https://app.notion.com/p/3e449a74d54f81afb55fc318f81244f9, `In Progress` until a device run.
 
 ## Found in the sweep, not yet acted on (each is an outward write; the owner decides)
 
@@ -129,21 +127,20 @@ Run 2026-09-22, output read:
   `-jobs 2`: BUILD SUCCEEDED, 90 Swift compiles, lowest free memory 51%.
 - Same build with the fix, fresh install, the same walk: sheet opens and closes, process alive, no new
   crash report, no fatal-error log line.
+- Xcode Cloud run #472 (commit `a713bfc`): COMPLETE, SUCCEEDED; build 472 `VALID` on both platforms.
 - **Not verified:** the unit suite (not run; no test covers this view); the fix on macOS; anything on
-  a device; the Xcode Cloud build of the fix.
+  a device; build 472 attached to 5.4.
 
 ## Blockers / Unknowns
 
-- **Xcode Cloud has to build the fix commit** (workflow `E6B22BA8-D5A5-4664-941A-3EC1C3F50910`).
-  Read its runs GET-only: `/v1/ciWorkflows/<id>/buildRuns?sort=-number&limit=3`, then the build's
-  `processingState` on both platforms.
-- The repro simulator `OI crash repro 469` (`1B9826BB-B6E5-4B92-B15F-BD2EF11532E2`) can be deleted with
-  `xcrun simctl delete 1B9826BB-B6E5-4B92-B15F-BD2EF11532E2`.
+- **Attaching 472 is an App Store Connect write**, which the permission classifier refuses from an
+  agent; the owner runs the command below. The repro simulator was deleted after the walks.
 
 ## Exact Next Action
 
-When Xcode Cloud's build of the fix commit is `VALID` on both platforms, give the owner
-`cd ~/Documents/GitHub/OpenIntelligence && zsh -ic 'ruby scripts/asc_prepare_release.rb 5.4 <build> --apply'`,
-then read both 5.4 records back GET-only to confirm the new build is attached. The owner's TestFlight
-check follows: fresh install on the free plan, finish setup, the plans screen opens and closes; then
-four Maximum questions, the fourth shows "Maximum mode limit reached".
+The owner runs `cd ~/Documents/GitHub/OpenIntelligence && zsh -ic 'ruby scripts/asc_prepare_release.rb 5.4 472 --apply'`.
+Then read both 5.4 records back GET-only: each must show build 472 and `PREPARE_FOR_SUBMISSION`.
+Then the owner's TestFlight check of 472 on a device: fresh install on the free plan, finish setup,
+the plans screen opens and closes; four Maximum questions, the fourth shows "Maximum mode limit
+reached". Then items 1 to 5 above are the owner's call, then Submit on both platforms, then set
+`in_review` in `Docs/SHIPPED_VERSION.json` and push.
