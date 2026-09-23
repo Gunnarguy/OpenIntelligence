@@ -28,8 +28,8 @@ verification are all local. Nothing is uploaded to make search work. There is no
 account, no server of mine, and no third-party AI service anywhere in the path.
 
 On iOS and macOS 27+, you can optionally allow Apple **Private Cloud Compute** to
-write the final answer, but only after you have seen exactly which excerpts
-would be sent. Every answer carries a badge showing where it actually ran, read
+write the final answer, but only after you have seen how much would be sent
+and why. Every answer carries a badge showing where it actually ran, read
 from an execution receipt rather than from what was requested.
 
 <p align="center">

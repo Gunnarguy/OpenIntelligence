@@ -41,7 +41,7 @@ The second constraint is that documents stay on the device. So "send the whole c
 > **In plain words**
 > 1. **Two filing systems, not one.** Cards are filed both by the exact words on them and by what they're about. "Part number 4021-B" needs the first. "How do I change the oil" needs the second.
 > 2. **The desk is tiny.** Everything about the design follows from that.
-> 3. **The privacy decision is made late.** The app looks at your pages first, and only then decides whether it needs outside help. If it does, it shows you exactly what would leave before anything does.
+> 3. **The privacy decision is made late.** The app looks at your pages first, and only then decides whether it needs outside help. If it does, it shows you how much would leave and why before anything does.
 > 4. **A fact-checker that's allowed to say no.** Most AI tools always give you an answer. This one is allowed to refuse, and that's deliberate.
 
 1. **A dual index.** SQLite FTS5 with BM25 for lexical retrieval, a memory-mapped BNNS vector store for dense retrieval, merged by rank fusion. Neither arm is sufficient alone.
@@ -799,7 +799,7 @@ Nine deterministic verification gates run locally after generation, including a 
 
 ### Does anything leave my device?
 
-PlainOnly if you say yes, only the final writing step, and only after the app shows you the exact text it would send. Reading, indexing, searching and fact-checking always happen on your device. Choose On-Device in settings and nothing ever leaves.
+PlainOnly if you say yes, only the final writing step, and only after the app shows you how much it would send and why. Reading, indexing, searching and fact-checking always happen on your device. Choose On-Device in settings and nothing ever leaves.
 Ingestion, indexing, retrieval and all verification are local unconditionally. Only synthesis can target Private Cloud Compute, and only after a minimized evidence envelope is constructed and explicitly consented to for that exact payload. The On-Device setting is absolute.
 
 ### Why does it sometimes refuse to answer?

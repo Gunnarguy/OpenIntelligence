@@ -56,7 +56,7 @@ enum SamplePCCCopy {
 
     /// Product Guide, "What makes OpenIntelligence different", point 3.
     static let productGuideBullet: String = compiledIn
-        ? "**It runs on your device, and asks before it ever leaves.** Reading, indexing, searching and answering happen on Apple silicon, and the app works with no connection at all. On iOS, iPadOS and macOS 27, a question too large for the on-device model can be written on Apple's Private Cloud Compute, but only after a sheet shows you exactly what would be sent and you approve it. The guide \"Apple Intelligence and Private Cloud Compute\" in this library explains it."
+        ? "**It runs on your device, and asks before it ever leaves.** Reading, indexing, searching and answering happen on Apple silicon, and the app works with no connection at all. On iOS, iPadOS and macOS 27, a question too large for the on-device model can be written on Apple's Private Cloud Compute, but only after a sheet shows you how much would be sent and why, and you approve it. The guide \"Apple Intelligence and Private Cloud Compute\" in this library explains it."
         : "**It runs on your device.** Reading, indexing, searching and answering all happen on Apple silicon. In this version every answer is produced on-device, and the app works with no connection at all. Support for Apple's Private Cloud Compute is built into the app and arrives with iOS and macOS 27; the guide \"Apple Intelligence and Private Cloud Compute\" in this library explains what that will add."
 
     /// Product Guide, "Reading an answer", metrics bar bullet fragment.

@@ -1647,8 +1647,8 @@ on the device. Ingestion extracts, chunks and embeds every document into two ind
 words and one for meaning. A question is searched both ways in parallel, fused, reranked by a
 cross-encoder, and packed under a hard token budget. Apple's on-device model writes a typed answer
 with citations, and nine deterministic gates decide what is allowed to stand. Only the final answer
-may leave the device, to Private Cloud Compute, and only after the app shows you exactly what would
-be sent and you agree."
+may leave the device, to Private Cloud Compute, and only after the app shows you how much would
+be sent and why, and you agree."
 
 **Five minutes.** The twelve sentences above, each expanded with one number: 310 words, 510
 tokens, 384 dimensions, 1,000 vectors, k = 60, 0.7 and 0.3, 4,096 and 3,200, 0.40 and 0.55, nine

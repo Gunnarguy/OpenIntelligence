@@ -20,8 +20,8 @@ Desk https://claude.ai/artifact/RgpvBXBViCZpSvtXFpNUb7); nothing in them blocks 
   GET-only 2026-09-22 22:02 PT). **Build 469 must never be submitted:** its end-of-setup plans sheet
   crashed the app (fixed in `a713bfc`; details in `CHANGELOG.md` `## 5.4`).
 - **Build 472** (`a713bfc`, the crash fix) is `VALID` on both platforms. **The build to attach is
-  the one Xcode Cloud makes from the copy-alignment commit that follows `537406d`** (expected 473),
-  because that commit changes in-app text (`WhatsNewStore.swift`, `VersionHistory.md`).
+  the one Xcode Cloud makes from the last copy-alignment commit** (expected 474), because the
+  alignment changes in-app text (`WhatsNewStore.swift`, `VersionHistory.md`, `SampleDocumentManager.swift`).
 - **Crash fix verified in the simulator** (Debug, iOS 27.0, fresh install): 469's Swift traps 1.5 s
   after "Start Asking" (`Fatal error: No ObservableObject of type EntitlementStore found`); the fixed
   build opens and closes the plans sheet. Roadmap row
@@ -39,7 +39,7 @@ Desk https://claude.ai/artifact/RgpvBXBViCZpSvtXFpNUb7); nothing in them blocks 
 | 2 | 5.4 promo text is the non-sale line; a mid-sale release drops the sale | Owner command copies the live sale line through 2026-09-29; `asc_end_sale.rb` removes it 09-30 |
 | 3 | Pro descriptions say "unlimited documents and 5 libraries"; Lifetime says 10 libraries | Owner command retries within 55 characters; a 409 means the web page, with the next submission |
 | 4 | No subscription image, so win-back offers (from 2026-09-24) cannot be promoted | `fastlane/iap_images/*.png` drawn; owner command uploads; reviewed with the next submission |
-| 5 | Sites said the app shows "exactly what would be sent" | Done: Fascinaiting `bdff4ff2`, Gunzino `cc2912b` |
+| 5 | Sites, docs and the in-app sample guide said the app shows "exactly what would be sent" | Done: Fascinaiting `bdff4ff2`, Gunzino `cc2912b` (both verified live); README, HOW_IT_WORKS, STUDY_GUIDE, `SampleDocumentManager.swift:59` |
 | 6 | "Never twice in four months" overpromised | Done in store copy and in-app copy; in-app text ships in the next build |
 | 7 | Version History shows "unreleased" beside the running version | For the 5.5 release steps: date the heading before the release build |
 | 8 | iPhone 6.5" preview is the 5.1 video; macOS screenshots date from 2026-06-21 | Open; macOS captures need a Screen Recording grant |
@@ -55,8 +55,8 @@ protected and `EntitlementStore.swift:205` resolves to `.lifetime`, so Pro buyer
 after cancelling (hard-boundary file); the consent sheet prints `routeReason.rawValue` as "Why PCC"
 (`CloudConsentPromptView.swift:182-183`); tappable citations reportedly exist only on structured
 answers (subagent claim, unverified); "Save 58%" is fixed text (`PlanUpgradeSheet.swift:54`);
-`SampleDocumentManager.swift:59`, `README.md:31`, `Docs/HOW_IT_WORKS.md:44`, `Docs/STUDY_GUIDE.md:1650`
-still say "exactly what would be sent".
+swift-format (the post-edit hook) re-indents multi-line string literals, so an edit to
+`SampleDocumentManager.swift` must bypass it or the sample documents' text can change.
 
 ## Scheduled, nobody needs to act
 
@@ -80,8 +80,8 @@ release: date `## v5.4 - unreleased` in `Docs/USER_CHANGELOG.md` and copy it byt
   `### <preparing version>` entry in `Docs/Release/APP_STORE_METADATA_HISTORY.md` (pre-commit).
 - **App Store Connect writes are the owner's.** The permission classifier refused
   `asc_prepare_release.rb 5.4 472 --apply` on 2026-09-23 even with the owner's instruction. On the
-  same morning `api.appstoreconnect.apple.com` dropped the TLS handshake from the agent shell (other
-  Apple hosts answered; Apple reported no incident), so agent GET reads failed too.
+  same morning `api.appstoreconnect.apple.com` dropped the TLS handshake from the agent shell for a
+  while (other Apple hosts answered; Apple reported no incident); it recovered within the hour.
 - **Do not use `fastlane submit_latest` for 5.4:** its `deliver` pushes `promotional_text.txt`
   (the non-sale line) over the sale line before submitting.
 - **Simulators are shared between sessions.** Use a dedicated device for any UI run.
@@ -103,8 +103,10 @@ release: date `## v5.4 - unreleased` in `Docs/USER_CHANGELOG.md` and copy it byt
   `scripts/extract_pages.py --check` 22 of 22 pages match.
 - 2026-09-22: crash reproduced on 469's Swift and gone on `a713bfc` in the simulator; Maximum cap
   walked; Xcode Cloud #472 SUCCEEDED, build 472 `VALID`.
-- **Not verified:** `asc_listing_extras.rb` against the live API (the host was unreachable from the
-  agent shell); anything on a device; the fix on macOS.
+- 2026-09-23: `asc_listing_extras.rb 5.4` dry run against the live records resolved every lookup:
+  notes 701 characters plus 413 on both platforms, the sale line to copy, all three descriptions,
+  both images to upload. Sites verified live: old sentence gone, new one present, HTTP 200.
+- **Not verified:** any `--apply` write (the owner's); anything on a device; the fix on macOS.
 
 ## Exact Next Action
 
