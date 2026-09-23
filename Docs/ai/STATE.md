@@ -115,5 +115,18 @@ all the owner's: the TestFlight check of build 474 on a device (fresh install on
 finish setup, the plans sheet opens and closes; four Maximum questions, the fourth blocked), an
 attempt at the three descriptions on the App Store Connect web page, then the decision to submit,
 including both Pro subscriptions so their images are reviewed. Do not submit until the owner says so.
-Separately in progress: the Standard end-of-stream stall, streaming for Deep Think and Maximum, and
-answers continuing across tab switches (investigation only; nothing implemented).
+Separately, investigated 2026-09-23 (code reading, nothing implemented; plan awaits `PROCEED: IMPLEMENT`):
+- **Standard end-of-stream stall.** The cursor lasts until `RAGService.query` returns. After the last
+  token it awaits a possible continuation (`LLMService` ~1094), the checks with an answer embedding
+  (~14385-14433) and, for extractive-first questions (any "what/which/when/where/who/how many…"),
+  SourceOnly: two more structured model calls (`SourceOnlyAnswerService` ~372 draft, ~416 review),
+  called at `RAGService` ~14654. The pipeline's "Total time" is logged before SourceOnly. Durations
+  unmeasured: the simulator has no Apple Intelligence ("requires a physical device", harness run
+  2026-09-23), so measure with the macOS Debug harness or on a device.
+- **Deep Think and Maximum can stream.** `LLMStreamingContext.handler` is `@TaskLocal` and ChatScreen
+  sets it only for `.standard` (~2948); Deep Think's synthesis already runs through `streamResponse`.
+  A later verification, refinement or SourceOnly pass can replace the streamed text.
+- **Tab switches already keep the answer on iOS** (`b87123d`, 5.0.1): unstructured `Task` at ChatScreen
+  ~2856, `.onDisappear` only stops the clock. Missing: a completion signal (the only answer haptic
+  fires at start, ~2982), the clock restart on return, real background-task progress for Deep
+  Think and Maximum (flat 62%). Existing row: "A long answer outlives its 30-second background grant".
