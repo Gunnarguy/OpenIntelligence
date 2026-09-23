@@ -54,9 +54,9 @@ None of these pass the release scope test on their own; they are `Future Backlog
 - **Post Desk** artifact https://claude.ai/artifact/RgpvBXBViCZpSvtXFpNUb7, version 2 published:
   counters to 25,000 with the ~280 feed fold marked, a "What Premium changes" section linking each
   limit to its help.x.com page, and the rule that replying to your own post ends its edit window.
-- Version 3 (editable replies, a 30-day lock on reusing an opening line, a guard on unfilled
-  brackets, and every reply and post rewritten in the owner's voice) exists only in the session
-  scratchpad and was not published at the time of writing. Rebuild from the published page if lost.
+- Version 3 published the same night: posts first with the link in the post, a 30-day lock on
+  reusing an opening line, a guard on unfilled brackets, replies as angles to type (X's reply-spam
+  prompt is told when a reply was pasted), a Profile section, and every line in the owner's voice.
 - Copy on version 2 that must not be repeated: "cites the page", "exactly which passages", "fully
   offline", the untested "300-page contract with wifi off", "Apple never shipped retrieval".
 - Day-1 X baseline 2026-09-22: 21 posts, 370 impressions, 2 likes; ten replies were identical text.
