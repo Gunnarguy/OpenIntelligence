@@ -61,7 +61,7 @@ limited to 1,024 tokens; `RAGService.finishAnswerNow()` / `runFinishableStage`;
 haptic, `ChatAnswerNotice` badge, clock restart, step-driven background progress, expiry keeps text;
 structured short answers stream; harness `--rag-validation-stream-probe`; gating token
 `finished_early_by_person`. Copy: `CHANGELOG.md` `## 5.4`, `Docs/USER_CHANGELOG.md` + bundled copy,
-`WHATS_NEW.md`, and the one "5.4" entry in `WhatsNewStore.swift` (three items, the answer work only).
+`WHATS_NEW.md`, and the one "5.4" entry in `WhatsNewStore.swift` (seven items: the three answer items, then four titled "From 5.3", whose screen no one saw).
 
 Notion rows, all In Progress, `v5.4` (moved from `v5.5` on 2026-09-23 with a dated note in each):
 Standard stall https://app.notion.com/p/3e449a74d54f818197d4c6e45f8d2142 , off-screen signals

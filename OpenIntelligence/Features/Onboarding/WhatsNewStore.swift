@@ -111,7 +111,7 @@ final class WhatsNewStore: ObservableObject {
         "5.4": WhatsNewRelease(
             version: "5.4",
             headline:
-                "Answers stop keeping you waiting once they are written. Deep Think and Maximum show their answer as it is written, and the app tells you when an answer finishes while you are somewhere else.",
+                "Answers stop keeping you waiting once they are written. Deep Think and Maximum show their answer as it is written, and the app tells you when an answer finishes while you are somewhere else. 5.3 never showed this screen, so what it changed is here too.",
             items: [
                 .init(
                     symbol: "text.cursor",
@@ -130,6 +130,30 @@ final class WhatsNewStore: ObservableObject {
                     title: "You can tell when an answer is done",
                     detail:
                         "On iPhone, a light tap when it finishes, and a badge on the Chat tab if you were on another tab. The timer keeps running when you come back. If iOS stops an answer in the background, what it wrote stays in the chat with a note saying why."
+                ),
+                .init(
+                    symbol: "doc.text.magnifyingglass",
+                    title: "From 5.3: Apple's own detector finds addresses, dates and amounts",
+                    detail:
+                        "When a page is read, addresses, phone numbers, dates, amounts of money, measurements, flight numbers and tracking numbers are recognised for what they are, instead of matched by the app's own patterns, which understood only US phone numbers and three currencies. An amount is recorded with its currency and a date in a standard form, which is what makes them findable later. For now this applies to text inside tables."
+                ),
+                .init(
+                    symbol: "slider.horizontal.3",
+                    title: "From 5.3: Adapt to the question, off until you turn it on",
+                    detail:
+                        "In Model Parameters, the app can choose how careful or how expansive an answer should be from what you asked: looking up a value becomes near-repeatable, and a comparison gets more room to work. It works in Standard, Deep Think and Maximum, and you can write your own reasoning profile for questions that reason. It is off by default because nobody has shown it produces better answers yet. Three penalty sliders now say plainly that Apple Intelligence ignores them."
+                ),
+                .init(
+                    symbol: "lightbulb.fill",
+                    title: "From 5.3: The sample library's suggested questions are back",
+                    detail:
+                        "They were written by hand for the three sample documents, and one leftover duplicate of a sample was enough to switch them off: the app decided the library was no longer the sample library and built questions from templates instead, which is where \"What is nothing?\" came from. Duplicate copies are now removed on the next visit to the Documents tab, the hand-written set shows whenever the library holds the three samples, and a set built before Apple Intelligence was ready gets rebuilt by the model."
+                ),
+                .init(
+                    symbol: "circle.lefthalf.filled",
+                    title: "From 5.3: The welcome screens follow your light or dark setting",
+                    detail:
+                        "They were always dark, whatever the rest of the app was doing, so turning the phone to light mode gave you a white app with one navy screen at the front of it. The status bar was the real casualty: iOS draws the clock and battery in dark ink on a light screen, and the welcome screen underneath was nearly black, so they simply vanished. The light version is a warm off-white rather than the dark one flipped."
                 ),
             ]
         ),
