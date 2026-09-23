@@ -1,8 +1,8 @@
 # Current State
 
-Updated: 2026-09-23, 13:58 PT (5.5 work committed to `main` and pushed on the owner's word; verified off-device)
-Branch/worktree: `main`, primary checkout, clean after the 5.5 commit, pushed to `origin/main`
-Last verified commit: 2e3ab4a
+Updated: 2026-09-23, 14:15 PT (5.5 pushed as `faed0d6`; Xcode Cloud build 475 is 5.5 and VALID on both platforms; not yet checked on a device)
+Branch/worktree: `main`, primary checkout, clean and level with `origin/main`
+Last verified commit: faed0d6
 
 ## Objective
 
@@ -14,7 +14,8 @@ Two tracks, in this order of who acts:
 2. **Land 5.5's first changes**, implemented this session under the owner's `PROCEED: IMPLEMENT`
    (2026-09-23): the Standard end-of-stream stall, finishing an answer early with its sources,
    signals for an answer that finishes off screen, and streaming for Deep Think and Maximum.
-   Committed and pushed 2026-09-23 on the owner's word; what remains is verification on a device.
+   Committed as `faed0d6` and pushed 2026-09-23 on the owner's word. Build 475 carries it; what
+   remains is verification on a device.
 
 ## Status: 5.4 (unchanged this session)
 
@@ -117,6 +118,9 @@ documents" after the synthesis said "does not explicitly").
   SourceOnly draft cancelled, full streamed text and sources kept.
 - Chat badge: drawn on the iOS 27 simulator; on macOS counted (`[ChatAnswerNotice] … unseen=1`) but
   the toolbar tabs do not draw it.
+- Xcode Cloud build #475 on `faed0d6` -> COMPLETE/SUCCEEDED, 14:00 to 14:11 PT: both archives and
+  both TestFlight Internal Testing actions. App Store Connect `builds?filter[version]=475` -> version
+  5.5, `VALID` on iOS and macOS.
 - **Not verified:** anything on a device (haptic, badge on a phone, clock restart, background expiry,
   streaming feel); the "Checking sources…"/"Refining…" label and unlocked composer in the running app
   (the sample library held the check open 0.1 s).
@@ -131,7 +135,7 @@ documents" after the synthesis said "does not explicitly").
 
 ## Exact Next Action
 
-When Xcode Cloud has a 5.5 build on TestFlight (check the build list for version 5.5), run the device
-checks in the "Closes when" sections of the three v5.5 Notion rows linked above, and close each row
-that passes (`Status` Completed, `Completed` date, `Shipped On` only once 5.5 is live). The owner's
+Install build 475 (5.5, `VALID` on iOS and macOS, in TestFlight internal testing) on a device and run
+the device checks in the "Closes when" sections of the three v5.5 Notion rows linked above. Close each
+row that passes (`Status` Completed, `Completed` date, `Shipped On` only once 5.5 is live). The owner's
 5.4 steps above are unchanged and independent of this.

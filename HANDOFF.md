@@ -30,7 +30,9 @@ instruction to stay current.
   `## 5.5 <!-- unreleased -->` above `## 5.4 <!-- unreleased -->`, because 5.4 waits on the owner
   on build 474 while 5.5 work lands. `ci_scripts/ci_post_clone.sh` stamps the build's version from
   the first numbered heading, so every Xcode Cloud build from `main` after the 5.5 push is 5.5;
-  build 474 stays the 5.4 candidate, and a 5.4 rebuild would need a revert.
+  build 474 stays the 5.4 candidate, and a 5.4 rebuild would need a revert. The 5.5 work was pushed
+  as `faed0d6`, and Xcode Cloud build 475 is the first 5.5 build, `VALID` on both platforms
+  (2026-09-23); it has not been checked on a device.
 - **Private Cloud Compute shipped in 5.2 and reaches users today.** Earlier revisions of this file
   said PCC had never reached a single user. That was true when written and is false now. Anything
   describing PCC as staged, pending or compiled out is stale.
