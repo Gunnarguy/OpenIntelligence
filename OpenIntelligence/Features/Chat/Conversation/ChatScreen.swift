@@ -1122,7 +1122,9 @@ struct ChatScreen: View {
     /// Quality mode - returns Deep Think during screenshot demo for consistent visuals
     private var effectiveQualityMode: RAGQualityMode {
         #if DEBUG
-            if didSeedScreenshotDemo {
+            // The store scenes are Standard answers; forcing Deep Think here made the metrics strip
+            // disagree with the mode pill in the listing screenshots.
+            if didSeedScreenshotDemo, LaunchArguments.valueEither(for: "screenshot-store") == nil {
                 return .deepThink
             }
         #endif
@@ -1305,6 +1307,14 @@ struct ChatScreen: View {
             guard !didSeedScreenshotDemo else { return }
             guard LaunchArguments.has("--screenshot") || LaunchArguments.has("screenshot") else { return }
 
+            // App Store listing scenes. See `seedStoreScene`.
+            if let storeScene = LaunchArguments.valueEither(for: "screenshot-store") {
+                didSeedScreenshotDemo = true
+                onboardingStore.markAskedFirstQuery()
+                seedStoreScene(storeScene)
+                return
+            }
+
             let wantsHero = LaunchArguments.has("--screenshot-chat-hero") || LaunchArguments.has("screenshot-chat-hero")
             let wantsDemo = LaunchArguments.has("--screenshot-chat-demo") || LaunchArguments.has("screenshot-chat-demo")
             let wantsSources =
@@ -1467,6 +1477,146 @@ struct ChatScreen: View {
             }
         #endif
     }
+
+    #if DEBUG
+        /// The App Store listing scenes, written 2026-09-22. The earlier demo scenes above showed a
+        /// fictional roadmap and figures nobody measured ("65 tok/s", "384-dim embeddings"). These use
+        /// the app's real grounded-answer view, so the listing shows what a user actually sees:
+        /// verified claims with page quotes, a refusal with its Information Gaps panel, the sources
+        /// sheet, and the Private Cloud Compute consent sheet. The one figure shown, 27 tokens a
+        /// second on device, is the measured A18 Pro number. DEBUG only; nothing here ships.
+        ///
+        /// `--screenshot --screenshot-tab chat --screenshot-store answer|refusal|sources|consent`
+        private func seedStoreScene(_ scene: String) {
+            streamingText = ""
+            currentStructuredAnswer = nil
+            showRetrievedDetails = false
+            activeCloudConsent = nil
+            thinkingEvents = []
+
+            let docId = UUID()
+            func chunk(_ rank: Int, _ doc: String, _ page: Int, _ section: String, _ text: String, _ score: Float)
+                -> RetrievedChunk
+            {
+                let meta = ChunkMetadata(
+                    chunkIndex: rank,
+                    pageNumber: page,
+                    sectionTitle: section,
+                    keywords: ["lease", "termination", "notice"],
+                    hasNumericData: true,
+                    hasListStructure: false,
+                    wordCount: text.split(whereSeparator: { $0.isWhitespace || $0.isNewline }).count,
+                    characterCount: text.count
+                )
+                return RetrievedChunk(
+                    chunk: DocumentChunk(documentId: docId, content: text, embedding: [0, 0, 0, 0], metadata: meta),
+                    similarityScore: score,
+                    rank: rank,
+                    sourceDocument: doc,
+                    pageNumber: page
+                )
+            }
+
+            let s1 = "After the initial twelve-month term, either party may terminate this lease with sixty (60) days' written notice."
+            let s2 = "Tenant may terminate before the end of the initial term by paying an early termination fee equal to two (2) months' rent."
+            let s3 = "All notices under this lease must be delivered in writing to the management office."
+            let chunks = [
+                chunk(1, "Apartment Lease.pdf", 7, "Termination", s1, 0.91),
+                chunk(2, "Apartment Lease.pdf", 8, "Early Termination", s2, 0.87),
+                chunk(3, "House Rules.pdf", 2, "Notices", s3, 0.74),
+            ]
+
+            let answerText =
+                "After the first 12 months, either of you can end the lease with 60 days' written notice. Ending it earlier costs two months' rent."
+            let answered = StructuredAnswer.Builder()
+                .setAnswerType(.lookup)
+                .setAnswer(answerText)
+                .addEvidence(id: "S1", page: 7, quote: s1, documentName: "Apartment Lease.pdf", sectionPath: ["Termination"])
+                .addEvidence(id: "S2", page: 8, quote: s2, documentName: "Apartment Lease.pdf", sectionPath: ["Early Termination"])
+                .addEvidence(id: "S3", page: 2, quote: s3, documentName: "House Rules.pdf", sectionPath: ["Notices"])
+                .addClaim(
+                    "Either party can end the lease with 60 days' written notice after the first 12 months.",
+                    evidenceIds: ["S1"], confidence: 0.96, verificationVerdict: .supported)
+                .addClaim(
+                    "Ending it before then costs a fee of two months' rent.",
+                    evidenceIds: ["S2"], confidence: 0.94, verificationVerdict: .supported)
+                .addClaim(
+                    "Notice has to be in writing, delivered to the management office.",
+                    evidenceIds: ["S3"], confidence: 0.9, verificationVerdict: .supported)
+                .setTopScore(0.91)
+                .build()
+            let answeredMeta = ResponseMetadata(
+                timeToFirstToken: 0.6,
+                totalGenerationTime: 3.1,
+                tokensGenerated: 84,
+                tokensPerSecond: 27,
+                modelUsed: "Apple Intelligence (on-device)",
+                retrievalTime: 0.21,
+                retrievalConfigSummary: "Balanced",
+                gatingDecision: "verified:94%",
+                toolCallsMade: 0,
+                embeddingProvider: "coreml_sentence_embedding"
+            )
+
+            let refusalText =
+                "Your documents don't say whether pets are allowed. I searched Apartment Lease.pdf and House Rules.pdf, and neither one mentions pets, so I won't guess."
+            let refused = StructuredAnswer.Builder()
+                .setRefuse(true)
+                .setAnswer(refusalText)
+                .addMissing("A pet policy. Neither Apartment Lease.pdf nor House Rules.pdf mentions pets.")
+                .setTopScore(0.31)
+                .build()
+            let refusedMeta = ResponseMetadata(
+                timeToFirstToken: 0.4,
+                totalGenerationTime: 1.2,
+                tokensGenerated: 38,
+                tokensPerSecond: 27,
+                modelUsed: "Apple Intelligence (on-device)",
+                retrievalTime: 0.19,
+                retrievalConfigSummary: "Balanced",
+                gatingDecision: nil,
+                toolCallsMade: 0,
+                embeddingProvider: "coreml_sentence_embedding"
+            )
+
+            let askTermination = ChatMessage(role: .user, content: "How much notice do I need to give to end my lease?")
+            let termination = ChatMessage(
+                role: .assistant, content: answerText, metadata: answeredMeta,
+                retrievedChunks: chunks, structuredAnswer: answered)
+
+            messages = [askTermination, termination]
+            currentRetrievedChunks = chunks
+            // Left nil except for the sources sheet, which reads it: with it set, a live metrics
+            // strip sits above the conversation and crowds the scene.
+            currentMetadata = nil
+
+            switch scene.lowercased() {
+            case "refusal":
+                messages += [
+                    ChatMessage(role: .user, content: "Am I allowed to have a dog?"),
+                    ChatMessage(
+                        role: .assistant, content: refusalText, metadata: refusedMeta,
+                        retrievedChunks: [], structuredAnswer: refused),
+                ]
+                currentRetrievedChunks = []
+            case "sources":
+                currentMetadata = answeredMeta
+                showRetrievedDetails = true
+            case "consent":
+                activeCloudConsent = CloudTransmissionRecord(
+                    provider: .applePCC,
+                    modelName: "Apple Private Cloud Compute",
+                    promptPreview: "Compare the termination terms in both leases and cite the pages.",
+                    promptCharacterCount: 612,
+                    contextChunkCount: 4,
+                    contextHashes: ["7c1e…", "a902…", "3fd4…", "e81b…"],
+                    estimatedBytes: 14000
+                )
+            default:
+                break
+            }
+        }
+    #endif
 
     /// Seeds a comprehensive full demo for App Store screenshots
     /// Includes: polished conversation, thinking timeline, sources, metadata

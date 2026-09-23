@@ -541,6 +541,16 @@ DEBUG builds only, so use the smoke build's `.app`:
 - `--screenshot` turns the mode on
 - `--screenshot-tab chat | documents | visualizations | database | settings`
 - `--screenshot-import-samples` imports the three sample documents
+- `--screenshot-store answer|refusal|sources|consent` stages the listing scenes (added 2026-09-22):
+  a lease question answered with three page-cited claims, a question the documents cannot answer
+  with its Information Gaps panel, the sources sheet, and the Private Cloud Compute consent sheet.
+  Import the samples first so the library chips read 3 documents, and wait about 18 seconds after
+  launch before capturing, or the chips still read 0. Hide the HUD with
+  `xcrun simctl spawn <udid> defaults write Gunndamental.OpenIntelligence showSiliconHUD -bool false`,
+  and pin a clean status bar with `xcrun simctl status_bar <udid> override --time 9:41 ...`.
+  Then `python3 scripts/compose_store_screenshots.py <raw> <out>` captions them, and
+  `zsh -ic 'ruby scripts/asc_upload_screenshots.rb <version> <out> --apply'` replaces the sets,
+  uploading every new image before deleting any old one.
 
 **Retire the HUD hint first, or every capture is spoiled.** The Silicon HUD's one-time
 "Drag me - This is your Device's hardware X-Ray." tip renders over the library chip on a fresh

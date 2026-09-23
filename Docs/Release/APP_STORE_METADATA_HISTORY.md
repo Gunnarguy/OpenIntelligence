@@ -179,6 +179,8 @@ The sample library's questions are back, the welcome screens follow light and da
 
 **Release notes (`fastlane/metadata/`, both platforms, written 2026-09-22):** in the two `release_notes.txt` files; the text is the 5.4 section of `WHATS_NEW.md` in the store's shape. Subtitle "Chat With Your Files Offline" and the keywords were written into both trees the same day; before that they existed only in App Store Connect. The description's opening was rewritten for a buyer.
 
+**Screenshots and keywords, 2026-09-22.** The iPhone and iPad sets were replaced with four captioned scenes, in order: "Ask your own documents anything / Every claim cites the page it came from", "It tells you when your files don't say it / No guessing. No made-up answers.", "See where every answer came from / The real passages, page by page", "Built on Apple Intelligence / On your device. Private Cloud Compute only when you approve it." Keywords became `ai,llm,pdf,private,local,apple,intelligence,document,search,summarize,ocr,transcribe,research,manual` (100 characters), replacing "rag" with "manual". The macOS set is unchanged, still seven captures from 2026-06-21.
+
 **Also corrected outside the metadata trees, recorded here because it is store copy:** both Pro subscription descriptions in App Store Connect read "unlimited documents and 5 libraries". `QuotaPolicy.proDocumentLimit` is `1_000` and `proLibraryLimit` is `10`, so both halves were wrong and the library count understated the plan. Corrected to "up to 1,000 documents and 10 libraries" by the same script.
 
 ### 5.3
