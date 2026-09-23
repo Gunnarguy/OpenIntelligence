@@ -203,6 +203,30 @@ struct ResponseMetadata: Codable, Sendable {
         )
     }
 
+    /// The same metadata with `token` appended to `gatingDecision`, which is a comma-separated record
+    /// of what the pipeline decided about this answer.
+    nonisolated func appendingGatingDecision(_ token: String) -> ResponseMetadata {
+        ResponseMetadata(
+            timeToFirstToken: timeToFirstToken,
+            totalGenerationTime: totalGenerationTime,
+            tokensGenerated: tokensGenerated,
+            tokensPerSecond: tokensPerSecond,
+            modelUsed: modelUsed,
+            retrievalTime: retrievalTime,
+            retrievalConfigSummary: retrievalConfigSummary,
+            gatingDecision: gatingDecision.map { "\($0),\(token)" } ?? token,
+            toolCallsMade: toolCallsMade,
+            embeddingProvider: embeddingProvider,
+            usedAgenticMode: usedAgenticMode,
+            qualityModeName: qualityModeName,
+            originalQuery: originalQuery,
+            reasoningTrace: reasoningTrace,
+            executionRoute: executionRoute,
+            tokenBudget: tokenBudget,
+            executionReceipt: executionReceipt
+        )
+    }
+
     nonisolated func compactedForPersistence(maxReasoningSteps: Int = 8, maxCharactersPerStep: Int = 280) -> ResponseMetadata {
         let compactedTrace = reasoningTrace?
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }

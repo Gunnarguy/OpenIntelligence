@@ -367,13 +367,38 @@ final class SourceOnlyAnswerService {
             ))
         )
 
+        // The draft gets an output limit. Without one the model may write until the context is full
+        // and then throw, which is Apple's documented behaviour for an unset `maximumResponseTokens`
+        // and what a 2026-09-23 macOS run did: 163.5 seconds, then "exceeded the model's context
+        // size", after the answer was already on screen. A draft that reaches the limit stops early
+        // and fails to parse (measured the same day: 0.9 s at a 30-token limit), and a failed draft
+        // keeps the generated answer.
+        //
+        // The limit is `draftTokenLimit`, not `draftOutputReserve`. The reserve was tried first and
+        // is too tight: on three Deep Think lookups the same day, completed drafts used 571 and 675
+        // of 700 tokens and the third failed to parse, most likely at the limit. The prompt budget
+        // keeps the 700 reserve; its 1.4 characters per token overestimates the prompt, which leaves
+        // the real room larger.
         let draft: SourceOnlyAnswerDraft
         do {
             let response = try await extractionSession.respond(
                 to: sanitizeForLanguageDetection(extractionPrompt),
-                generating: SourceOnlyAnswerDraft.self
+                generating: SourceOnlyAnswerDraft.self,
+                options: GenerationOptions(maximumResponseTokens: Self.draftTokenLimit)
             )
             draft = response.content
+            // What a completed draft actually used, against the limit above, so the limit can be
+            // judged from traces rather than guessed.
+            #if compiler(>=6.4)
+                if #available(iOS 27.0, macOS 27.0, *) {
+                    Log.info(
+                        "[SourceOnly] Draft used \(extractionSession.usage.output.totalTokenCount) of "
+                            + "\(Self.draftTokenLimit) output tokens: \(draft.claims.count) claim(s), "
+                            + "\(draft.domainBlocks.count) domain block(s)",
+                        category: .llm
+                    )
+                }
+            #endif
         } catch {
             Log.warning("[SourceOnly] Draft generation failed: \(error.localizedDescription)", category: .llm)
             return nil
@@ -636,6 +661,10 @@ final class SourceOnlyAnswerService {
     private static let evidenceBudgetShare = 0.7
 
     private static let draftOutputReserve = 700
+    /// The draft's generation limit: about 1.5 times the largest completed draft measured on
+    /// 2026-09-23 (675 tokens). It bounds a runaway draft well short of a context overflow without
+    /// cutting drafts that fill the 700 reserve. See the comment at the draft call.
+    private static let draftTokenLimit = 1024
     /// Guided generation reserves context for the response schema on top of the prompt.
     private static let draftSchemaReserve = 400
     /// Headroom for the chat template and tokenizer disagreement with our estimate.

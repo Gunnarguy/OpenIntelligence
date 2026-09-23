@@ -12,6 +12,9 @@ struct MessageListV2: View {
     @Binding var thinkingEvents: [ThinkingEvent]
     let streamingText: String
     let isStreaming: Bool
+    /// The streamed text is complete and the answer is still being checked. See
+    /// `ChatScreen.isCheckingFinishedAnswer`.
+    let isCheckingAnswer: Bool
     let qualityMode: RAGQualityMode
     let generationStart: Date?
     var onRegenerate: ((ChatMessage) -> Void)?
@@ -47,6 +50,7 @@ struct MessageListV2: View {
         thinkingEvents: Binding<[ThinkingEvent]>,
         streamingText: String,
         isStreaming: Bool,
+        isCheckingAnswer: Bool = false,
         qualityMode: RAGQualityMode,
         generationStart: Date? = nil,
         onRegenerate: ((ChatMessage) -> Void)? = nil,
@@ -61,6 +65,7 @@ struct MessageListV2: View {
         _thinkingEvents = thinkingEvents
         self.streamingText = streamingText
         self.isStreaming = isStreaming
+        self.isCheckingAnswer = isCheckingAnswer
         self.qualityMode = qualityMode
         self.generationStart = generationStart
         self.onRegenerate = onRegenerate
@@ -95,10 +100,11 @@ struct MessageListV2: View {
                                     libraryStateProvider: libraryStateProvider
                                 )
                                 .id(snapshot.id)
-                                .transition(.asymmetric(
-                                    insertion: .opacity.combined(with: .move(edge: .bottom)),
-                                    removal: .opacity
-                                ))
+                                .transition(
+                                    .asymmetric(
+                                        insertion: .opacity.combined(with: .move(edge: .bottom)),
+                                        removal: .opacity
+                                    ))
                             }
 
                             // Streaming message with live metrics (or placeholder while waiting on first token)
@@ -109,13 +115,16 @@ struct MessageListV2: View {
                                         mode: qualityMode
                                     )
                                     .id(streamingBubbleIdentity)
-                                        .transition(.opacity)
+                                    .transition(.opacity)
                                 } else {
                                     StreamingBubbleV2(
-                                        text: streamingText
+                                        text: streamingText,
+                                        isChecking: isCheckingAnswer,
+                                        checkingLabel: qualityMode.canonical == .standard
+                                            ? "Checking sources…" : "Refining…"
                                     )
                                     .id(streamingBubbleIdentity)
-                                        .transition(.opacity)
+                                    .transition(.opacity)
                                 }
                             }
 
@@ -143,7 +152,7 @@ struct MessageListV2: View {
                     // maintained from the bottom-anchor preference for exactly this decision and
                     // was simply not consulted here.
                     //
-                    // Streaming auto-follow is untouched: the three `onChange` handlers below do
+                    // Streaming auto-follow is untouched: the `onChange` handlers below do
                     // that work and already gate on `isPinnedToBottom`.
                     if !hasPerformedInitialScroll || isPinnedToBottom {
                         scrollToBottom(proxy: proxy, animated: false)
@@ -166,6 +175,11 @@ struct MessageListV2: View {
                 }
                 .onChange(of: thinkingEvents.count) { _, _ in
                     guard isPinnedToBottom, streamingText.isEmpty else { return }
+                    scrollToBottom(proxy: proxy, animated: true)
+                }
+                .onChange(of: isCheckingAnswer) { _, _ in
+                    // The bubble re-renders as formatted text and may grow a status line.
+                    guard isPinnedToBottom else { return }
                     scrollToBottom(proxy: proxy, animated: true)
                 }
                 .onPreferenceChange(BottomAnchorYPreferenceKey.self) { bottomMinY in
@@ -224,10 +238,12 @@ private struct EmptyStateV2: View {
                     .font(.system(size: 20, weight: .semibold))
                     .foregroundStyle(DSColors.primaryText)
 
-                Text("Grounded answers over your files, with strong support for PDFs, modern Office files, text, scans, images, code, and transcriptable media.")
-                    .font(.system(size: 15))
-                    .foregroundStyle(Color.secondary)
-                    .multilineTextAlignment(.center)
+                Text(
+                    "Grounded answers over your files, with strong support for PDFs, modern Office files, text, scans, images, code, and transcriptable media."
+                )
+                .font(.system(size: 15))
+                .foregroundStyle(Color.secondary)
+                .multilineTextAlignment(.center)
             }
         }
         .frame(maxWidth: .infinity)
@@ -238,8 +254,18 @@ private struct EmptyStateV2: View {
 
 private struct StreamingBubbleV2: View {
     let text: String
+    /// The text is complete and the answer is being checked against its sources.
+    var isChecking: Bool = false
+    /// What the status line says while checking. Standard's text is final once it stops; in Deep
+    /// Think and Maximum a later stage (refinement, verification, the source-only check) can still
+    /// replace it, so those say they are refining rather than checking.
+    var checkingLabel: String = "Checking sources…"
 
     @State private var cursorVisible = true
+    /// Shown only once a check has lasted long enough to notice. A Standard answer the
+    /// verification gates pass finishes about 0.1 s after its last word (measured 2026-09-23),
+    /// and a label that flashes for that long reads as a glitch.
+    @State private var showsCheckingLabel = false
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
     private var spacerMinLength: CGFloat {
@@ -249,38 +275,30 @@ private struct StreamingBubbleV2: View {
     var body: some View {
         HStack(alignment: .bottom, spacing: 0) {
             VStack(alignment: .leading, spacing: 8) {
-                // Message content with cursor
-                HStack(alignment: .bottom, spacing: 2) {
-                    // Plain `Text` while the answer is still arriving, markdown once it stops.
-                    //
-                    // This view is handed the whole accumulated `streamingText` on every pump
-                    // tick, and `MarkdownText.body` calls `MarkdownParser.parse` as its first
-                    // statement — 14 whole-string ICU substitutions, roughly two regex
-                    // evaluations per line, and an `AttributedString(markdown:)` per paragraph.
-                    // The pump runs at 80ms and tightens to 20ms under backlog, so that is
-                    // 12.5-50Hz of O(length) parsing on the main actor, during the one
-                    // interaction the user watches most closely, and every intermediate result
-                    // is discarded a few milliseconds later.
-                    //
-                    // No functionality is lost: the identical `MarkdownText` renders the moment
-                    // the stream closes and the message becomes a normal history row, so the
-                    // final answer is formatted exactly as before. What changes is that partial
-                    // markdown is no longer rendered mid-stream — which also removes the flicker
-                    // of half-open ** and ``` sequences resolving as tokens arrive.
-                    //
-                    // The per-parse cost is unmeasured; the log this came from carries no
-                    // timings. Confirm with the SwiftUI instrument's Long View Body Updates lane
-                    // on a Release device build before assuming a magnitude.
-                    Text(text)
-                        .font(.system(size: 15))
-                        .foregroundStyle(DSColors.primaryText)
-                        .textSelection(.enabled)
+                if isChecking {
+                    // The text has stopped, so it is parsed as markdown once here rather than per
+                    // pump tick (see the note below), and the cursor goes: nothing more is being
+                    // written, and a cursor blinking over a finished answer is what made a check
+                    // that ran for minutes look like a stalled answer.
+                    MarkdownText(
+                        text,
+                        font: .system(size: 15),
+                        foregroundColor: DSColors.primaryText
+                    )
 
-                    // Blinking cursor
-                    Rectangle()
-                        .fill(DSColors.accent)
-                        .frame(width: 2, height: 16)
-                        .opacity(cursorVisible ? 1 : 0)
+                    if showsCheckingLabel {
+                        HStack(spacing: 6) {
+                            ProgressView()
+                                .controlSize(.mini)
+                            Text(checkingLabel)
+                                .font(.caption)
+                                .foregroundStyle(DSColors.secondaryText)
+                        }
+                        .accessibilityElement(children: .combine)
+                        .transition(.opacity)
+                    }
+                } else {
+                    streamingText
                 }
             }
             .padding(.horizontal, 16)
@@ -295,6 +313,54 @@ private struct StreamingBubbleV2: View {
             withAnimation(.easeInOut(duration: 0.5).repeatForever(autoreverses: true)) {
                 cursorVisible.toggle()
             }
+        }
+        .task(id: isChecking) {
+            guard isChecking else {
+                showsCheckingLabel = false
+                return
+            }
+            try? await Task.sleep(for: .milliseconds(600))
+            guard !Task.isCancelled else { return }
+            withAnimation(.easeOut(duration: 0.2)) {
+                showsCheckingLabel = true
+            }
+        }
+    }
+
+    /// The text as it arrives, with the cursor.
+    private var streamingText: some View {
+        // Message content with cursor
+        HStack(alignment: .bottom, spacing: 2) {
+            // Plain `Text` while the answer is still arriving, markdown once it stops.
+            //
+            // This view is handed the whole accumulated `streamingText` on every pump
+            // tick, and `MarkdownText.body` calls `MarkdownParser.parse` as its first
+            // statement — 14 whole-string ICU substitutions, roughly two regex
+            // evaluations per line, and an `AttributedString(markdown:)` per paragraph.
+            // The pump runs at 80ms and tightens to 20ms under backlog, so that is
+            // 12.5-50Hz of O(length) parsing on the main actor, during the one
+            // interaction the user watches most closely, and every intermediate result
+            // is discarded a few milliseconds later.
+            //
+            // No functionality is lost: the identical `MarkdownText` renders the moment
+            // the stream closes and the message becomes a normal history row, so the
+            // final answer is formatted exactly as before. What changes is that partial
+            // markdown is no longer rendered mid-stream — which also removes the flicker
+            // of half-open ** and ``` sequences resolving as tokens arrive.
+            //
+            // The per-parse cost is unmeasured; the log this came from carries no
+            // timings. Confirm with the SwiftUI instrument's Long View Body Updates lane
+            // on a Release device build before assuming a magnitude.
+            Text(text)
+                .font(.system(size: 15))
+                .foregroundStyle(DSColors.primaryText)
+                .textSelection(.enabled)
+
+            // Blinking cursor
+            Rectangle()
+                .fill(DSColors.accent)
+                .frame(width: 2, height: 16)
+                .opacity(cursorVisible ? 1 : 0)
         }
     }
 }
@@ -498,7 +564,11 @@ private struct BottomAnchorGeometry: View {
 #Preview {
     let messages: [ChatMessage] = [
         ChatMessage(role: .user, content: "What's machine learning?"),
-        ChatMessage(role: .assistant, content: "Machine learning is a branch of artificial intelligence that enables computers to learn from data and improve their performance over time without being explicitly programmed."),
+        ChatMessage(
+            role: .assistant,
+            content:
+                "Machine learning is a branch of artificial intelligence that enables computers to learn from data and improve their performance over time without being explicitly programmed."
+        ),
     ]
     return MessageListV2(
         messages: .constant(messages),

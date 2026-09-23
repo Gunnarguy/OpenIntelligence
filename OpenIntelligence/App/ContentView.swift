@@ -22,6 +22,8 @@ struct ContentView: View {
     @StateObject private var entitlementStore: EntitlementStore
     /// Asks for a rating after the third verified answer; see ReviewPromptService.
     @ObservedObject private var reviewPrompt = ReviewPromptService.shared
+    /// Answers that finished while another tab was showing; badges the Chat tab.
+    @ObservedObject private var chatAnswerNotice = ChatAnswerNotice.shared
     @Environment(\.requestReview) private var requestReview
     @State private var selectedTab: Tab = .chat
     @State private var previousScenePhase: ScenePhase = .inactive
@@ -307,6 +309,7 @@ struct ContentView: View {
             .tabItem {
                 Label("Chat", systemImage: "bubble.left.and.bubble.right")
             }
+            .badge(chatAnswerNotice.unseenAnswers)
             .tag(Tab.chat)
 
             NavigationStack {

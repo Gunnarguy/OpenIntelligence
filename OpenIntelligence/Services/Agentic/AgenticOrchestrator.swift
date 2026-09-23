@@ -252,10 +252,31 @@ final class AgenticOrchestrator: Sendable {
     /// 4. If no → Speculative RAG: generate multiple candidates, verify each
     /// 5. If still low → escalate: reformulate query OR decompose for multi-faceted questions
     /// 6. Final synthesis with accumulated context
+    /// Runs a Deep Think or Maximum query, streaming only the text of its final answer.
+    ///
+    /// Every model call made here streams through `LLMStreamingContext.handler`, and a run makes
+    /// dozens of them before the answer exists: planning, relevance checks, reasoning sessions,
+    /// research decisions. So the chat's handler is parked in `finalAnswerHandler` for the whole
+    /// run with `handler` cleared, and only the calls that write the final answer stream, through
+    /// `LLMStreamingContext.answerHandler`. Stages that can still replace that text afterwards
+    /// run through `RAGService.runFinishableStage`, so Stop or a new question keeps what streamed.
     func execute(
         query: String,
         initialContext: String = "",
         onStep: ((ThinkingStep) async -> Void)? = nil
+    ) async throws -> AgenticResult {
+        let chatStream = LLMStreamingContext.handler
+        return try await LLMStreamingContext.$finalAnswerHandler.withValue(chatStream) {
+            try await LLMStreamingContext.$handler.withValue(nil) {
+                try await executeHoldingAnswerStream(query: query, initialContext: initialContext, onStep: onStep)
+            }
+        }
+    }
+
+    private func executeHoldingAnswerStream(
+        query: String,
+        initialContext: String,
+        onStep: ((ThinkingStep) async -> Void)?
     ) async throws -> AgenticResult {
         let __spAgenticExecute = PipelineSignposts.synthesis.beginInterval("AgenticExecute")
         defer { PipelineSignposts.synthesis.endInterval("AgenticExecute", __spAgenticExecute) }
@@ -697,11 +718,13 @@ final class AgenticOrchestrator: Sendable {
                 // it became a constant one.
                 var recursiveResult: AgenticResult?
                 do {
-                    recursiveResult = try await executeRecursiveResearch(
-                        query: researchQuery,
-                        maxIterations: 5,
-                        onStep: onStep
-                    )
+                    recursiveResult = try await ragService.runFinishableStage {
+                        try await self.executeRecursiveResearch(
+                            query: researchQuery,
+                            maxIterations: 5,
+                            onStep: onStep
+                        )
+                    }
                 } catch {
                     Log.warning(
                         "[Agentic] Recursive research failed (\(type(of: error))): "
@@ -755,20 +778,24 @@ final class AgenticOrchestrator: Sendable {
             // 2026 best practice: Don't just generate — verify citations and relevance
             // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
             let isDeepThinkMode = config.maxSteps >= 8 && !config.isUnlimited
-            if isDeepThinkMode {
-                return try await runVerificationLoop(
-                    query: query,
-                    initialAnswer: chainResult.finalAnswer,
-                    initialSteps: steps,
-                    initialTokens: totalTokens,
-                    initialConfidence: chainResult.confidence,
-                    // The array the chain actually labelled, not the pre-routing order. See
-                    // `ReasoningChainResult.routedChunks`.
-                    initialSources: chainResult.routedChunks,
-                    ragService: ragService,
-                    startTime: startTime,
-                    onStep: onStep
-                )
+            if isDeepThinkMode,
+                let verified = try await ragService.runFinishableStage({
+                    try await self.runVerificationLoop(
+                        query: query,
+                        initialAnswer: chainResult.finalAnswer,
+                        initialSteps: steps,
+                        initialTokens: totalTokens,
+                        initialConfidence: chainResult.confidence,
+                        // The array the chain actually labelled, not the pre-routing order. See
+                        // `ReasoningChainResult.routedChunks`.
+                        initialSources: chainResult.routedChunks,
+                        ragService: ragService,
+                        startTime: startTime,
+                        onStep: onStep
+                    )
+                })
+            {
+                return verified
             }
 
             // Report the array the chain actually laboured over, not the pre-routing
@@ -857,20 +884,24 @@ final class AgenticOrchestrator: Sendable {
             // SELF-RAG 2.0: Verify answer before returning (Deep Think mode)
             // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
             let isDeepThinkMode = config.maxSteps >= 8 && !config.isUnlimited
-            if isDeepThinkMode {
-                return try await runVerificationLoop(
-                    query: query,
-                    initialAnswer: chainResult.finalAnswer,
-                    initialSteps: steps,
-                    initialTokens: totalTokens,
-                    initialConfidence: chainResult.confidence,
-                    // The array the chain actually labelled, not the pre-routing order. See
-                    // `ReasoningChainResult.routedChunks`.
-                    initialSources: chainResult.routedChunks,
-                    ragService: ragService,
-                    startTime: startTime,
-                    onStep: onStep
-                )
+            if isDeepThinkMode,
+                let verified = try await ragService.runFinishableStage({
+                    try await self.runVerificationLoop(
+                        query: query,
+                        initialAnswer: chainResult.finalAnswer,
+                        initialSteps: steps,
+                        initialTokens: totalTokens,
+                        initialConfidence: chainResult.confidence,
+                        // The array the chain actually labelled, not the pre-routing order. See
+                        // `ReasoningChainResult.routedChunks`.
+                        initialSources: chainResult.routedChunks,
+                        ragService: ragService,
+                        startTime: startTime,
+                        onStep: onStep
+                    )
+                })
+            {
+                return verified
             }
 
             // Report the array the chain actually laboured over, not the pre-routing
@@ -1482,16 +1513,18 @@ final class AgenticOrchestrator: Sendable {
         // - Cloud transmission recording
         // - Proper execution context routing
         // Use conservative maxTokens to fit in 4096 window
-        let response = try await ragService.generateWithProperConsent(
-            prompt: query,
-            context: context,
-            systemPrompt: systemPrompt,
-            maxTokens: outputReserve,  // Conservative to stay within 4096 total
-            disableTools: true,
-            // Citations resolve positionally, so the model must be handed the same ordered subset
-            // that was rendered into the prompt.
-            sourceChunks: sourceChunks
-        )
+        let response = try await LLMStreamingContext.$handler.withValue(LLMStreamingContext.answerHandler) {
+            try await ragService.generateWithProperConsent(
+                prompt: query,
+                context: context,
+                systemPrompt: systemPrompt,
+                maxTokens: outputReserve,  // Conservative to stay within 4096 total
+                disableTools: true,
+                // Citations resolve positionally, so the model must be handed the same ordered subset
+                // that was rendered into the prompt.
+                sourceChunks: sourceChunks
+            )
+        }
 
         return ThinkingStep(
             id: UUID(),
@@ -3380,6 +3413,10 @@ final class AgenticOrchestrator: Sendable {
             // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
             Log.info("[Self-RAG] Generating direct answer (no retrieval)", category: .llm)
 
+            // Not streamed, unlike the other final-answer calls: this answer is provisional. A failed
+            // self-critique below replaces it with a forced retrieval and a second synthesis that
+            // `finishAnswerNow()` cannot end, so a streamed draft would sit under "Refining…" with a
+            // Stop button that does nothing.
             let directResponse = try await ragService.generateWithFreshSession(
                 prompt: "Answer concisely: \(query)",
                 maxTokens: 600
@@ -5606,15 +5643,17 @@ extension AgenticOrchestrator {
                 Log.info(
                     "[ReasoningChain] Exhaustive synthesis: requesting up to \(synthesisMaxTokens) tokens (4096 total limit)",
                     category: .llm)
-                let synthesisResponse = try await ragService.generateWithProperConsent(
-                    prompt: exhaustivePrompt,
-                    context: "",
-                    systemPrompt: exhaustiveSystemPrompt,
-                    maxTokens: synthesisMaxTokens,
-                    disableTools: true,
-                    qualityMode: .maximum,
-                    sourceChunks: chunks
-                )
+                let synthesisResponse = try await LLMStreamingContext.$handler.withValue(LLMStreamingContext.answerHandler) {
+                    try await ragService.generateWithProperConsent(
+                        prompt: exhaustivePrompt,
+                        context: "",
+                        systemPrompt: exhaustiveSystemPrompt,
+                        maxTokens: synthesisMaxTokens,
+                        disableTools: true,
+                        qualityMode: .maximum,
+                        sourceChunks: chunks
+                    )
+                }
                 // Clean up the synthesis output
                 finalAnswer = cleanupFinalAnswer(synthesisResponse.text)
                 totalTokens += synthesisResponse.tokensGenerated
@@ -5686,15 +5725,17 @@ extension AgenticOrchestrator {
                     "Combine all research findings into one comprehensive, well-written answer. Write in detailed prose with complete sentences and natural paragraphs. Use ### headers to organize sections. Use **bold** sparingly for key terms only. Only use bullet points for actual lists of items."
 
                 do {
-                    let synthesisResponse = try await ragService.generateWithProperConsent(
-                        prompt: synthesisPrompt,
-                        context: "",
-                        systemPrompt: synthesisSystemPrompt,
-                        maxTokens: 1500,
-                        disableTools: true,
-                        qualityMode: .deepThink,
-                        sourceChunks: chunks
-                    )
+                    let synthesisResponse = try await LLMStreamingContext.$handler.withValue(LLMStreamingContext.answerHandler) {
+                        try await ragService.generateWithProperConsent(
+                            prompt: synthesisPrompt,
+                            context: "",
+                            systemPrompt: synthesisSystemPrompt,
+                            maxTokens: 1500,
+                            disableTools: true,
+                            qualityMode: .deepThink,
+                            sourceChunks: chunks
+                        )
+                    }
                     finalAnswer = cleanupFinalAnswer(synthesisResponse.text)
                     totalTokens += synthesisResponse.tokensGenerated
                     Log.info(
@@ -7171,15 +7212,17 @@ extension AgenticOrchestrator {
         // than a placeholder. Degrade to it instead of failing the query outright.
         let coreResponse: LLMResponse
         do {
-            coreResponse = try await ragService.generateWithProperConsent(
-                prompt: synthesisPrompt,
-                context: "",
-                systemPrompt:
-                    "Document analyst. Answer using ONLY the provided findings. Never fabricate facts or statistics. Use **bold** sparingly for key terms only. Never repeat content. Reply in plain prose only — never JSON, key-value pairs, or field names.",
-                maxTokens: Self.synthesisOutputTokenReserve,  // must match supplementaryCharBudget
-                disableTools: true,
-                sourceChunks: sourceChunks
-            )
+            coreResponse = try await LLMStreamingContext.$handler.withValue(LLMStreamingContext.answerHandler) {
+                try await ragService.generateWithProperConsent(
+                    prompt: synthesisPrompt,
+                    context: "",
+                    systemPrompt:
+                        "Document analyst. Answer using ONLY the provided findings. Never fabricate facts or statistics. Use **bold** sparingly for key terms only. Never repeat content. Reply in plain prose only — never JSON, key-value pairs, or field names.",
+                    maxTokens: Self.synthesisOutputTokenReserve,  // must match supplementaryCharBudget
+                    disableTools: true,
+                    sourceChunks: sourceChunks
+                )
+            }
         } catch is CancellationError {
             throw CancellationError()
         } catch {
@@ -7219,16 +7262,18 @@ extension AgenticOrchestrator {
             // This pass is optional by design -- it only replaces the answer when it
             // comes back substantial. A throw should therefore cost nothing at all,
             // rather than discarding a core synthesis that already succeeded.
-            let refinedResponse = try? await ragService.generateWithProperConsent(
-                prompt: refinementPrompt,
-                context: "",
-                systemPrompt:
-                    "Editor. Only include facts from the FACT BANK. Remove repetition. Remove unsupported claims. Reply in plain prose only — never JSON, key-value pairs, or field names.",
-                maxTokens: Self.synthesisOutputTokenReserve,  // must match supplementaryCharBudget
-                disableTools: true,
-                sourceChunks: sourceChunks
-            )
-            let refined = cleanupFinalAnswer(refinedResponse?.text ?? "")
+            let refinedText = try? await ragService.runFinishableStage {
+                try await ragService.generateWithProperConsent(
+                    prompt: refinementPrompt,
+                    context: "",
+                    systemPrompt:
+                        "Editor. Only include facts from the FACT BANK. Remove repetition. Remove unsupported claims. Reply in plain prose only — never JSON, key-value pairs, or field names.",
+                    maxTokens: Self.synthesisOutputTokenReserve,  // must match supplementaryCharBudget
+                    disableTools: true,
+                    sourceChunks: sourceChunks
+                ).text
+            }
+            let refined = cleanupFinalAnswer(refinedText ?? "")
 
             // Only use refinement if it's substantial AND it keeps the draft's citations.
             //

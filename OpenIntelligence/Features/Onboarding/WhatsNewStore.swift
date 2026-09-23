@@ -108,6 +108,31 @@ final class WhatsNewStore: ObservableObject {
         // who updated to it was recorded as seen and shown nothing. The gap is only visible
         // from a later build, which is why `WhatsNewCoverageTests` now fails the build when
         // the newest version in the bundled VersionHistory.md has no entry below.
+        "5.5": WhatsNewRelease(
+            version: "5.5",
+            headline:
+                "Answers stop keeping you waiting once they are written. Deep Think and Maximum show their answer as it is written, and the app tells you when an answer finishes while you are somewhere else.",
+            items: [
+                .init(
+                    symbol: "text.cursor",
+                    title: "A finished answer no longer waits behind a blinking cursor",
+                    detail:
+                        "In Standard, a question asking for one specific fact ran a second check after the answer was already written. The cursor kept blinking and the text box stayed locked, for 19 seconds to almost three minutes on a Mac. It now runs only when the app's own verification flags the answer, and you can type your next question while it does."
+                ),
+                .init(
+                    symbol: "text.bubble",
+                    title: "Deep Think and Maximum show their answer as it is written",
+                    detail:
+                        "Both showed nothing until every step had finished, then the whole answer at once. Now, for most questions, the final answer appears as it is written, with \"Refining…\" while a later step may still improve it. Short Standard answers stream too."
+                ),
+                .init(
+                    symbol: "bell.badge",
+                    title: "You can tell when an answer is done",
+                    detail:
+                        "On iPhone, a light tap when it finishes, and a badge on the Chat tab if you were on another tab. The timer keeps running when you come back. If iOS stops an answer in the background, what it wrote stays in the chat with a note saying why."
+                ),
+            ]
+        ),
         "5.4": WhatsNewRelease(
             version: "5.4",
             headline:

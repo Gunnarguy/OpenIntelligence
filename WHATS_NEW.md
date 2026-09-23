@@ -1,8 +1,20 @@
-> **Documentation status:** Current through OpenIntelligence v5.4, in development; v5.3 is live on both platforms since September 18, 2026. Entries are drawn from `Docs/USER_CHANGELOG.md`, which is the source this file follows.
+> **Documentation status:** Current through OpenIntelligence v5.5, in development; v5.4 is prepared for submission on build 474, and v5.3 is live on both platforms since September 18, 2026. Entries are drawn from `Docs/USER_CHANGELOG.md`, which is the source this file follows.
 
 # What's New
 
 Public release highlights for OpenIntelligence.
+
+## 5.5
+Answers stop keeping you waiting once they are written, Deep Think and Maximum show their answer as
+it is written, and the app tells you when an answer finishes while you are somewhere else.
+
+### Answers
+- **A finished answer no longer waits behind a blinking cursor.** In Standard, a question asking for one specific fact ran a second check after the answer was written, with the text box locked, for 19 seconds to almost three minutes on a Mac. It now runs only when the app's own verification flags the answer.
+- **You can type while an answer is checked.** Sending the next question, or tapping Stop, keeps the answer with its sources.
+- **Deep Think and Maximum show their answer as it is written** for most questions, with "Refining…" while a later step may still improve it. Short Standard answers stream too.
+
+### Background
+- **You can tell when an answer is done.** On iPhone, a light tap, and a badge on the Chat tab if you were elsewhere. An answer iOS stops in the background keeps what it wrote, with a note saying why.
 
 ## 5.4
 The free plan does what it says, the rating request lands on the first real answer, and the plans

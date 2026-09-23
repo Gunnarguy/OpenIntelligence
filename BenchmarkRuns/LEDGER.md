@@ -28,6 +28,54 @@ in this table by hand.
 ---
 
 
+## 2026-09-23: `sourceonly-before-greedy25` / `sourceonly-after-greedy25` — no accuracy loss from skipping the source-only check on passing Standard answers; the higher after-score is not attributable to the change
+
+**Intent.** A/B for the 5.5 change that stops Standard running `SourceOnlyAnswerService` on answers
+the nine verification gates passed (`RAGService.standardSkipsSourceOnlyCheck`). The check is two
+structured model calls after the last word; on four HOW_IT_WORKS lookups it had held a finished
+answer 19.4 to 163.8 s and changed none of them. The question here is whether skipping it costs
+correct answers.
+
+**Configuration.** Identical for both: macOS Debug, unsigned (entitlements empty), built from
+`/private/tmp/oi-src`, `SWIFT_DETERMINISTIC_HASHING=1`, `--manifest
+Benchmarks/ResearchFixtures/qasper_external_v1/manifest.json --modes standard --pcc deny --sampling
+greedy --pool-limit 10 --top-k 3 --limit 25`. Before: working tree at `2e3ab4a` (app frozen to
+`/private/tmp/oi-bench/before`). After: `2e3ab4a` plus the uncommitted 5.5 working tree of 10:05
+(app `/private/tmp/oi-bench/after-all`; includes the streaming and UI work, which does not touch the
+Standard path the harness runs except the skip and the structured-answer streaming, and no case
+here was small enough for the structured path).
+
+**Outcome.**
+
+| | before | after |
+| :-- | --: | --: |
+| correct, 25 cases | 6 | 11 |
+| correct, 18 cases without the environment fault below | 6 | 9 |
+| pass to miss | | 0 |
+| source-only ran / replaced an answer | 5 / 0 | 2 / 0 |
+| source-only skipped, gates passed | | 7 |
+| hallucinated (report table) | 1 | 1 |
+
+**Why the after-score is not the change's doing.** (1) Seven consecutive before cases (9 to 15 by
+run order, papers 1604.02038, 1911.04474, 1905.00840, 1810.02229, 1805.11937) logged
+`SensitiveContentAnalysisML error 15` from Foundation Models, up to 130 times each, during ingestion
+summaries, tagging and query-time calls, and all seven missed; case `6e040e80` assembled 743
+characters of context against 9,333 after. The after run logged the error zero times. The episode
+overlapped this session's builds, which is a plausible trigger, not an established one. (2) The three
+flips among the clean cases (`3319d565`, `57ee20f4`, `f54e19f7`, all miss to pass) each assembled a
+different context before generation (7,654 vs 7,641; 9,455 vs 9,454; 9,370 vs 9,441 characters),
+upstream of any changed code: the retrieval nondeterminism recorded in older entries below. Three one-directional
+discordant pairs give a two-sided sign test p of 0.25. (3) The source-only check replaced no answer
+in either run, so skipping it cannot have changed a verdict here; in the before run every answer it
+ran on still carried the model's own `[S#]` markers.
+
+**Verdict.** No accuracy loss detected: zero pass-to-miss cases, and the check being skipped changed
+nothing in this sample. Not established: whether the check ever corrects a passed Standard answer on
+a larger or different corpus. The before run's error episode means its 6/25 is not a clean baseline
+for anything else.
+
+
+
 ## 2026-08-25: `20260825-postfix-greedy-83` — failed, every case timed out, cause not attributed
 
 Recorded rather than deleted, per the standing rule, and recorded as **failed** so nobody reads the

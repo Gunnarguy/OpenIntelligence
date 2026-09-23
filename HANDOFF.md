@@ -19,16 +19,18 @@ instruction to stay current.
   carries the fix for build 469's crash at the end of setup (`a713bfc`) and the corrected copy; the
   listing text, review notes, sale promotional text and two subscription images are written. The
   owner holds submission until a TestFlight check on a device. Build 469 must never be submitted.
-  `Docs/ai/STATE.md` has the owner's remaining steps, the release close-out, and the 5.5 findings on
-  answer streaming and off-screen completion.
+  `Docs/ai/STATE.md` has the owner's remaining steps, the release close-out, and the 5.5 work done
+  on 2026-09-23: the Standard end-of-stream stall (19 to 164 s after the last word on four measured
+  lookup questions, 0.15 to 0.33 s after the fix), finishing an answer early with its sources,
+  off-screen completion signals, and streaming for Deep Think and Maximum.
 
 - **5.3 is live on the App Store on both platforms**, released by the owner on 2026-09-18 from
   build 464 after both platforms were approved. `Docs/SHIPPED_VERSION.json` carries it.
-- **5.4 is the open release and is where new work goes.** `CHANGELOG.md` has a
-  `## 5.4 <!-- unreleased -->` heading with no entries under it yet, and both 5.4 version records
-  exist in App Store Connect. That heading has to stay ahead of the next source push, because
-  `ci_scripts/ci_post_clone.sh` stamps the build's version from the first numbered heading and App
-  Store Connect rejects a version it already has.
+- **5.5 is the open release and is where new work goes** (opened 2026-09-23). `CHANGELOG.md` has
+  `## 5.5 <!-- unreleased -->` above `## 5.4 <!-- unreleased -->`, because 5.4 waits on the owner
+  on build 474 while 5.5 work lands. `ci_scripts/ci_post_clone.sh` stamps the build's version from
+  the first numbered heading, so every Xcode Cloud build from `main` after the 5.5 push is 5.5;
+  build 474 stays the 5.4 candidate, and a 5.4 rebuild would need a revert.
 - **Private Cloud Compute shipped in 5.2 and reaches users today.** Earlier revisions of this file
   said PCC had never reached a single user. That was true when written and is false now. Anything
   describing PCC as staged, pending or compiled out is stale.

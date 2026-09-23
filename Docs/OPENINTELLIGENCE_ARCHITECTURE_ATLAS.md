@@ -45,7 +45,8 @@ The OpenIntelligence Architecture Atlas is the canonical representation of the r
 - **Storage** interfaces with **File System** (`Application Support`).
 
 ## 4. Service Map
-- `RAGService`: Core retrieval-augmented generation orchestrator.
+- `RAGService`: Core retrieval-augmented generation orchestrator. Since 5.5 it also owns the end of an answer: `finishAnswerNow()` ends the stages that run after an answer's text is complete (the source-only check, and every stage wrapped in `runFinishableStage`) so the response returns with its sources, and Standard skips the source-only check when the verification gates passed (`standardSkipsSourceOnlyCheck`). `[evidence_level: code_verified, confidence: exact, evidence_source: RAGService.swift, SourceOnlyStandardGateTests]`
+- `AgenticOrchestrator`: Deep Think and Maximum. `execute` parks the chat's stream handler in `LLMStreamingContext.finalAnswerHandler` for the whole run, so only the calls that write the final answer stream (through `LLMStreamingContext.answerHandler`); research, the verification loop and Maximum's refinement run as finishable stages. `[evidence_level: code_verified, confidence: high, evidence_source: AgenticOrchestrator.swift, LLMService.swift]`
 - `WorkspaceSyncService`: Manages iCloud Drive ubiquity sync.
 - `SQLiteFullTextService`: Manages shared relational storage.
 - `EntitlementStore`: Manages UserDefaults-backed billing logic.
@@ -416,6 +417,15 @@ supposed to be agentic.
   agentic. `[evidence: code_verified, exact, device trace 2026-08-14 message D74F98E4; RAGService useAgentic gate]`
 - **Deep Think and Maximum are where the agentic loop is supposed to fire.** The rest of this section
   is about those two modes only.
+- **Only the final answer streams (5.5).** Every model call an agentic run makes streams through the
+  task-local `LLMStreamingContext.handler`, and until 5.5 the chat passed none in these modes, so the
+  answer appeared whole when the run ended. `execute` now clears that handler for the run and parks the
+  chat's in `finalAnswerHandler`; four final-answer calls (reasoning-chain synthesis for Deep Think,
+  core and exhaustive synthesis for Maximum, direct synthesis) stream through `answerHandler`. The
+  no-retrieval direct answer does not, because a failed self-critique replaces it with a stage that
+  cannot be finished early. Stages that can replace streamed text are finishable and run with both
+  handlers cleared, so Stop keeps the text and nothing they generate streams.
+  Intermediate calls stay silent by construction, not by convention. `[evidence: code_verified, high]`
 - **The reasoning chain inside them is not agentic.** `executeReasoningChain` builds every session's
   context **upfront**, in a loop that completes before session 1 runs, as fixed windows over a single
   retrieval. Those windows were 50% overlapping until 2026-08-14 and are disjoint now: at a 3500

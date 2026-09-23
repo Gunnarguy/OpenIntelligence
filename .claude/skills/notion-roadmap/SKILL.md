@@ -86,7 +86,7 @@ Put the detail in the page `content` as Notion-flavored Markdown; keep the title
 
 Pure docs-only or refactor-only changes need no row unless they close one.
 
-## Schema, verified 2026-08-28 off the live data source
+## Schema, verified 2026-09-23 off the live data source
 
 Never invent an option. These are the complete lists.
 
@@ -95,7 +95,7 @@ Never invent an option. These are the complete lists.
 | `Status` | `To Do`, `In Progress`, `Completed`. There is no "Shipped". |
 | `Component` | `Ingestion`, `Chunking`, `Indexing`, `Retrieval`, `Orchestration`, `Shortcuts`, `General`, `UI`, `Infrastructure` |
 | `Priority` | `High`, `Medium`, `Low` |
-| `Target Release` | `v4.0`, `v4.1`, `v4.2`, `v4.3`, `v4.3.1`, `v4.4`, `v4.5 (Phase 2B)`, `v4.6`, `v4.7 (iOS) / v3.0 (macOS)`, `v4.8 (iOS)`, `v4.9`, `v5.0`, `v5.0.1`, `v5.0.2`, `v5.1`, `Future Backlog` |
+| `Target Release` | `v4.0`, `v4.1`, `v4.2`, `v4.3`, `v4.3.1`, `v4.4`, `v4.5 (Phase 2B)`, `v4.6`, `v4.7 (iOS) / v3.0 (macOS)`, `v4.8 (iOS)`, `v4.9`, `v5.0`, `v5.0.1`, `v5.0.2`, `v5.1`, `v5.2`, `v5.3`, `v5.4`, `v5.5`, `Future Backlog`. `v5.5` was added 2026-09-23 with `ALTER COLUMN "Target Release" SET SELECT(...)` restating every existing option by name and colour; the existing options kept their ids and all 262 rows kept their values (counts per release checked before and after). A new option cannot be created by writing it onto a row: the API refuses the value. |
 | `Shipped On` | Multi-select: `iOS`, `macOS`. Added 2026-08-28. Empty means not recorded, **not** "not shipped". |
 | `Target OS` | `All (26.5 & 27)`, `iOS/macOS 26.5 Only`, `iOS/macOS 27+ Only`. Optional; leave unset rather than asserting one for dev tooling. |
 | Dates | `Added`, `Completed`, ISO dates, set through `date:<name>:start` |

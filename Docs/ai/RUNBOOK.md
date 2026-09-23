@@ -467,6 +467,34 @@ Every report in `BenchmarkRuns/` dated before 2026-08-12 carries the constant; r
 statements as `6/n` instead. At n=83 the current figure is about 7 points.
 `[evidence_level: computed_verified, confidence: exact, evidence_source: exact binomial sign test; scripts/run_quality_matrix.py minimum_detectable_effect]`
 
+## Measuring the wait after an answer's last word
+
+*Verified 2026-09-23.* `--rag-validation-stream-probe` gives the harness a stream handler and logs
+what a chat view would see: `[StreamProbe] firstText lastText firstFinal done afterLastText textEvents
+finals streamedChars answerChars sharedPrefix`. `afterLastText` is the blinking-cursor interval.
+`finals` counts end markers, two per streamed model call, so an agentic run that leaks intermediate
+text shows more than two.
+
+Build the unsigned macOS Debug app (item 1 above; `codesign -d --entitlements -` must print none),
+ingest once, then run each question against the same store:
+
+```bash
+APP=/private/tmp/oi-build-mac/Build/Products/Debug/OpenIntelligence.app/Contents/MacOS/OpenIntelligence
+"$APP" --rag-validation --rag-validation-query "What file types does OpenIntelligence handle?" \
+  --rag-validation-file /private/tmp/oi-timing/HOW_IT_WORKS.md --rag-validation-storage /private/tmp/oi-timing/mac-store \
+  --rag-validation-quality standard --rag-validation-pcc-consent deny --rag-validation-stream-probe
+```
+
+Add `--rag-validation-skip-ingest` after the first run, and `--rag-validation-quality deep-think` or
+`maximum` for the agentic modes. Run nothing else on the model while timing: a benchmark or a second
+app instance shares it. Lookup questions are the ones that ran the source-only check; an "explain"
+question is the control.
+
+The unsigned build is not sandboxed, so it writes `~/Library/Application Support/OpenIntelligence`
+and `~/Documents/pipeline_trace.log`. `WorkspaceSyncService` resolves that folder through
+`applicationSupportRoot()`, which ignores the harness's storage override, so a UI session's library
+left there may reach a benchmark run (read in code, not observed). Move it aside while a benchmark runs.
+
 ## Lint
 
 There is no lint gate, and this matters mainly so you do not mistake one for existing.

@@ -113,6 +113,68 @@ import Foundation
                 }
             }
 
+            /// Characters of the `answer` field already sent to the chat as it was generated.
+            var streamedAnswerCount = 0
+
+            /// Streams `DirectRAGAnswer`, sending its `answer` field to the chat as it grows.
+            ///
+            /// `answer` is the schema's first property, so it is generated first. Until 5.5 this
+            /// call used `respond(generating:)` and replayed the finished answer in one piece, so a
+            /// Standard answer small enough for this path showed the typing indicator for the whole
+            /// generation and then dripped out text that already existed. Probed 2026-09-23 on
+            /// macOS: the partial `answer` grew in 14 steps across 27 snapshots, each extending the
+            /// last, and the value rebuilt from the final snapshot matched what had been streamed.
+            func streamDirectAnswer(to prompt: String) async throws -> DirectRAGAnswer {
+                do {
+                    let stream: LanguageModelSession.ResponseStream<DirectRAGAnswer>
+                    #if compiler(>=6.4)
+                        if #available(iOS 27.0, macOS 27.0, *),
+                            let contextOptions = route.contextOptions(includeSchemaInPrompt: true)
+                        {
+                            stream = session.streamResponse(
+                                to: prompt,
+                                generating: DirectRAGAnswer.self,
+                                contextOptions: contextOptions
+                            )
+                        } else {
+                            stream = session.streamResponse(to: prompt, generating: DirectRAGAnswer.self)
+                        }
+                    #else
+                        stream = session.streamResponse(to: prompt, generating: DirectRAGAnswer.self)
+                    #endif
+
+                    var streamed = ""
+                    var finalContent: GeneratedContent?
+                    for try await snapshot in stream {
+                        finalContent = snapshot.rawContent
+                        guard let partial = snapshot.content.answer, partial.count > streamed.count,
+                            partial.hasPrefix(streamed)
+                        else { continue }
+                        LLMStreamingContext.emit(text: String(partial.dropFirst(streamed.count)), isFinal: false)
+                        streamed = partial
+                        streamedAnswerCount = streamed.count
+                    }
+                    guard let finalContent else {
+                        throw LLMError.generationFailed("Structured answer stream ended without content")
+                    }
+                    return try DirectRAGAnswer(finalContent)
+                } catch let error as LanguageModelSession.GenerationError {
+                    if case .throwError(let mappedError) = FoundationModelErrorMapper.mapError(
+                        error, isStructured: true)
+                    {
+                        throw mappedError
+                    }
+                    throw error
+                } catch {
+                    if let mapped = FoundationModelErrorMapper.mapModernError(error, isStructured: true),
+                        case .throwError(let mappedError) = mapped
+                    {
+                        throw mappedError
+                    }
+                    throw error
+                }
+            }
+
             let normalizedCitations: [String]
             let reasoningText: String
             let answerText: String
@@ -158,15 +220,15 @@ import Foundation
                     }
                     confidence = response.content.confidence
                 case .direct:
-                    let response = try await respondStructured(to: fullPrompt, generating: DirectRAGAnswer.self)
+                    let content = try await streamDirectAnswer(to: fullPrompt)
                     normalizedCitations = normalizeStructuredCitations(
-                        response.content.citations, maxSourceCount: sourceCount)
+                        content.citations, maxSourceCount: sourceCount)
                     reasoningText = ""
-                    answerText = response.content.answer.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines)
-                    matchedTerms = response.content.matchedTerms
+                    answerText = content.answer.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines)
+                    matchedTerms = content.matchedTerms
                         .map { $0.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines) }
                         .filter { !$0.isEmpty }
-                    structuredClaims = response.content.claims.compactMap { claim -> StructuredRAGClaim? in
+                    structuredClaims = content.claims.compactMap { claim -> StructuredRAGClaim? in
                         let claimText = claim.claim.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines)
                         guard !claimText.isEmpty else { return nil }
                         return StructuredRAGClaim(
@@ -175,7 +237,7 @@ import Foundation
                             isExtracted: claim.isExtracted
                         )
                     }
-                    confidence = response.content.confidence
+                    confidence = content.confidence
                 }
             } catch {
                 Log.warning(
@@ -202,7 +264,12 @@ import Foundation
 
                 let recovered = normalizeStructuredCitations([text], maxSourceCount: sourceCount)
                 let totalTime = Date().timeIntervalSince(startTime)
-                LLMStreamingContext.emit(text: text, isFinal: false)
+                // A stream that failed part way has already shown its partial answer, and the chat
+                // appends what it is sent, so the prose would follow it rather than replace it. The
+                // finished message carries the prose either way.
+                if streamedAnswerCount == 0 {
+                    LLMStreamingContext.emit(text: text, isFinal: false)
+                }
                 LLMStreamingContext.emit(text: "", isFinal: true)
                 Log.info(
                     "[FM] Prose fallback produced \(text.count) chars, \(recovered.count) citation(s) recovered",
@@ -244,8 +311,13 @@ import Foundation
             }
 
             let finalText = answerText + citationFooter
-            if !finalText.isEmpty {
-                LLMStreamingContext.emit(text: finalText, isFinal: false)
+            if streamedAnswerCount == 0 {
+                if !finalText.isEmpty {
+                    LLMStreamingContext.emit(text: finalText, isFinal: false)
+                }
+            } else if !citationFooter.isEmpty {
+                // The answer itself was streamed as it was written; only the footer is new.
+                LLMStreamingContext.emit(text: citationFooter, isFinal: false)
             }
             LLMStreamingContext.emit(text: "", isFinal: true)
 

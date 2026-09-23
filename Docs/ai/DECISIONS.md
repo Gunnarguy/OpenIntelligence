@@ -711,3 +711,35 @@ set is that it is the same for everyone.
 templates, bank rebuild) stands; it restores this path, it does not change its nature. The refresh
 button on the sample workspace still shuffles the curated list; that is the one place the set is
 not deterministic, left as is at "let's put this to rest".
+
+## 2026-09-23 - Standard checks an answer against its sources only when the verification gates flag it
+
+**Context.** `SourceOnlyAnswerService.verifyAndRender` is a second check on extractive answers: a
+structured draft of the answer's claims, then a structured review of each claim against the
+evidence, two sequential model calls. Standard ran it on every extractive-first answer after the
+last word had streamed, so the person watched a finished answer behind a blinking cursor and a
+locked composer. Measured on the macOS 27.0 Debug build that day, four such Standard questions
+whose nine verification gates had passed finished 19.4, 37.6, 58.3 and 163.8 seconds after their
+last word, and the check replaced none of the four answers. In the 25-case QASPER benchmark run the
+same morning it ran on 5 cases and replaced none of those answers either.
+
+**Decision.** In Standard, the check runs only when the gates did not pass the answer (failed, or
+never judged). Deep Think and Maximum keep it unconditionally. Separately, the check's draft gets
+a 1,024-token generation limit, and any stage that runs after an answer's
+text is complete can be ended by the person (`RAGService.finishAnswerNow()`), keeping the answer
+and its sources.
+
+**Alternatives.** Keep the check everywhere and only change the UI (the cursor goes, the composer
+unlocks). Rejected as the whole fix because the wait stays and the answer stays unsaved until it
+ends. Run the check after returning the answer and patch the saved message if it changes. Rejected
+for now: the check's outcome also changes the structured answer, the gating record and the
+confidence, which would all need a second write path. Cap the check by time. Rejected: a time
+budget is arbitrary. Cap the draft at its 700-token budget reserve. Tried first and measured too
+tight the same day: completed Deep Think drafts used 571 and 675 of 700 and a third failed to parse
+at the limit, so the draft limit is 1,024, about 1.5 times the largest completed draft.
+
+**Consequences.** A Standard answer the gates passed is no longer re-checked claim by claim. The
+accuracy A/B for the change is `BenchmarkRuns/2026-09-23-sourceonly-{before,after}-greedy25`,
+recorded in `BenchmarkRuns/LEDGER.md`. If a later benchmark shows the check correcting passed
+Standard answers, the gate is one function, `RAGService.standardSkipsSourceOnlyCheck`. Each
+completed draft logs its token use against the 1,024 limit, so the limit can be judged from traces.

@@ -782,6 +782,75 @@ class RAGService: ObservableObject {
         }
     }
 
+    /// Ends the checks that run after an answer's text is complete, and keeps the answer.
+    ///
+    /// The chat screen calls this when the person stops, or sends the next question, while the
+    /// last answer is still being checked. Cancelling the query instead would discard the finished
+    /// answer's sources and metadata, because the response that carries them is built only once
+    /// the checks return. This lets the pipeline return that response now, unrefined.
+    ///
+    /// The source-only check is the stage that listens, and it was the whole of the wait: on
+    /// 2026-09-23, four Standard lookup questions on the macOS Debug build finished 19.4, 37.6,
+    /// 58.3 and 163.8 seconds after their last streamed word, nearly all of it in that check, and
+    /// the check changed none of the four answers. A question that skips it finished 0.12 seconds
+    /// after its last word.
+    @MainActor
+    func finishAnswerNow() {
+        finishAnswerNowRequested = true
+        activeSourceOnlyCheck?.cancel()
+        cancelFinishableStage?()
+    }
+
+    /// Set by `finishAnswerNow()`, cleared when the next query starts.
+    @MainActor private var finishAnswerNowRequested = false
+
+    /// The source-only check in flight, held so `finishAnswerNow()` can cancel it.
+    @MainActor private var activeSourceOnlyCheck: Task<SourceOnlyAnswerOutcome?, Never>?
+
+    /// Cancels the finishable stage in flight, and any it was started inside.
+    @MainActor private var cancelFinishableStage: (() -> Void)?
+
+    /// Runs a stage that can only improve an answer whose text already exists, so that
+    /// `finishAnswerNow()` can end it and the caller keeps what it has.
+    ///
+    /// Deep Think's recursive research and verification loop, and Maximum's refinement, run after
+    /// the final synthesis has streamed, and each can take minutes. Answers nil when the person
+    /// asked to finish before the stage started or while it ran; every caller already treats nil as
+    /// "nothing better found" and keeps its answer. Cancelling the query itself still reaches the
+    /// stage through the cancellation handler, as it would a direct call, and still throws.
+    @MainActor
+    func runFinishableStage<T: Sendable>(
+        _ operation: @escaping @MainActor () async throws -> T
+    ) async throws -> T? {
+        guard !finishAnswerNowRequested else { return nil }
+        // Nothing a stage generates may stream: the answer it can replace is already on screen, and
+        // the chat appends what it is sent.
+        let stage = Task { @MainActor in
+            try await LLMStreamingContext.$finalAnswerHandler.withValue(nil) {
+                try await LLMStreamingContext.$handler.withValue(nil) {
+                    try await operation()
+                }
+            }
+        }
+        let enclosing = cancelFinishableStage
+        cancelFinishableStage = {
+            enclosing?()
+            stage.cancel()
+        }
+        defer { cancelFinishableStage = enclosing }
+        do {
+            let value = try await withTaskCancellationHandler {
+                try await stage.value
+            } onCancel: {
+                stage.cancel()
+            }
+            return finishAnswerNowRequested ? nil : value
+        } catch {
+            if finishAnswerNowRequested { return nil }
+            throw error
+        }
+    }
+
     // MARK: - Evidence Threads Additions
 
     @MainActor
@@ -9307,6 +9376,7 @@ class RAGService: ObservableObject {
         trace: RetrievalTraceCollector? = nil
     ) async throws -> RAGResponse {
         resetThinkingTimeline()
+        finishAnswerNowRequested = false
         return try await LLMStreamingContext.$handler.withValue(streamHandler) {
             try await self.queryInternal(
                 question,
@@ -14649,8 +14719,33 @@ class RAGService: ObservableObject {
                     )
 
                     #if canImport(FoundationModels)
+                        // Standard checks an extractive answer against its sources only when the
+                        // verification gates flagged it. The check is two sequential structured
+                        // model calls after the last word, and until 2026-09-23 it ran on every
+                        // extractive Standard answer; "what", "which" and "how many" questions
+                        // were all classified extractive that day. Measured on the macOS Debug
+                        // build, four such questions whose gates had passed finished 19.4, 37.6,
+                        // 58.3 and 163.8 seconds after their last streamed word (the 163.8 ended
+                        // in "exceeded the model's context size"), with a blinking cursor and a
+                        // locked composer throughout, and the check replaced none of the four
+                        // answers. A passing answer has already been through the nine verification
+                        // gates. Deep Think and Maximum keep the check unconditionally.
+                        let sourceOnlyApplies = answerIntentIsExtractive || isPrecisionValueQuery(question)
+                        let standardGatesPassed = Self.standardSkipsSourceOnlyCheck(
+                            qualityMode: qualityMode,
+                            gatesPassed: verificationResult?.passed
+                        )
+                        if sourceOnlyApplies, standardGatesPassed {
+                            Log.info(
+                                "[SourceOnly] Skipped — Standard answer passed the verification gates "
+                                    + "(confidence \(String(format: "%.2f", verificationResult?.overallConfidence ?? 0))). "
+                                    + "intent=\(answerIntent), answerChars=\(responseText.count)",
+                                category: .llm
+                            )
+                        }
                         if #available(iOS 26.0, *),
-                            answerIntentIsExtractive || isPrecisionValueQuery(question),
+                            sourceOnlyApplies,
+                            !standardGatesPassed,
                             let sourceOnlyOutcome = await sourceOnlyOutcomeIfNeeded(
                                 query: question,
                                 candidateAnswer: responseText,
@@ -17115,7 +17210,12 @@ class RAGService: ObservableObject {
         let fallbackReasoningTrace = await MainActor.run {
             self.thinkingEvents.compactReasoningTrace()
         }
-        let finalizedMetadata = response.metadata.withReasoningTrace(fallbackReasoningTrace)
+        var finalizedMetadata = response.metadata.withReasoningTrace(fallbackReasoningTrace)
+        // An answer the person finished before its later stages ran says so in its own record, so a
+        // saved answer or an exported trace never reads as checked when the check was skipped.
+        if await MainActor.run(body: { self.finishAnswerNowRequested }) {
+            finalizedMetadata = finalizedMetadata.appendingGatingDecision("finished_early_by_person")
+        }
         var finalResponse = response
         finalResponse = RAGResponse(
             queryId: response.queryId,
@@ -17191,6 +17291,7 @@ class RAGService: ObservableObject {
                 return decline("intent is not extractive-first; only .lookup and .tableLookup are")
             }
             guard !isSourceLocked else { return decline("query is source-locked") }
+            guard !finishAnswerNowRequested else { return decline("the person finished the answer early") }
 
             Log.info(
                 "[SourceOnly] Running for intent \(answerIntent) over \(retrievedChunks.count) chunk(s), "
@@ -17198,30 +17299,69 @@ class RAGService: ObservableObject {
                 category: .llm
             )
 
-            guard
-                let outcome = await SourceOnlyAnswerService.shared.verifyAndRender(
+            // A task of its own so `finishAnswerNow()` can end it. Cancelling a model call returns
+            // at once (measured 2026-09-23: a cancelled `respond(generating:)` threw
+            // `CancellationError` 0.00 s after `cancel()`), and `verifyAndRender` answers nil for
+            // any thrown error, so the generated answer stands. The cancellation handler keeps the
+            // composer's Stop button reaching the check as it did when this was a direct call.
+            let checkStart = Date()
+            let check = Task { @MainActor in
+                await SourceOnlyAnswerService.shared.verifyAndRender(
                     query: query,
                     candidateAnswer: trimmedAnswer,
                     retrievedChunks: retrievedChunks,
                     answerIntent: answerIntent,
                     verificationResult: verificationResult
                 )
-            else {
+            }
+            activeSourceOnlyCheck = check
+            let checked = await withTaskCancellationHandler {
+                await check.value
+            } onCancel: {
+                check.cancel()
+            }
+            activeSourceOnlyCheck = nil
+            let checkSeconds = String(format: "%.1f", Date().timeIntervalSince(checkStart))
+
+            if finishAnswerNowRequested {
+                return decline("the person finished the answer during the check, after \(checkSeconds)s")
+            }
+            guard let outcome = checked else {
+                Log.info(
+                    "[SourceOnly] Finished in \(checkSeconds)s with no outcome; keeping the generated answer",
+                    category: .llm
+                )
                 return nil
             }
+            Log.info(
+                "[SourceOnly] Finished in \(checkSeconds)s: abstain=\(outcome.shouldAbstain), "
+                    + "supported=\(outcome.supportedClaims.count), unsupported=\(outcome.unsupportedClaims.count), "
+                    + "fidelity=\(String(format: "%.2f", outcome.fidelityScore)), "
+                    + "coverage=\(String(format: "%.2f", outcome.candidateCoverage))",
+                category: .llm
+            )
 
             let preserveAbstention = (Self.isStateLookupQuery(query) || isPrecisionValueQuery(query)) && !isSourceLocked
+
+            func applied(_ outcome: SourceOnlyAnswerOutcome) -> SourceOnlyAnswerOutcome {
+                Log.info(
+                    "[SourceOnly] Applied: the \(outcome.shouldAbstain ? "abstention" : "source-only answer") "
+                        + "replaces the generated answer",
+                    category: .llm
+                )
+                return outcome
+            }
 
             // Keep this conservative for user-facing quality.
             // Use source-only when it strengthens a grounded lookup answer, not when it
             // downgrades a plausible answer into a brittle abstention or ultra-thin rewrite.
             // Direct source-locked extractions are already pinned to retrieved evidence.
             if outcome.shouldAbstain {
-                return preserveAbstention ? outcome : nil
+                return preserveAbstention ? applied(outcome) : nil
             }
 
             guard outcome.supportedClaims.count > 0 else {
-                return preserveAbstention ? outcome : nil
+                return preserveAbstention ? applied(outcome) : nil
             }
             guard outcome.fidelityScore >= 0.72 else { return nil }
 
@@ -17256,7 +17396,14 @@ class RAGService: ObservableObject {
                 return nil
             }
 
-            return outcome
+            return applied(outcome)
+        }
+
+        /// Whether a Standard answer skips the source-only check because the verification gates
+        /// passed it. Deep Think and Maximum never skip it here, and a Standard answer the gates
+        /// failed, or never judged, still gets it. See the call site in the single-pass pipeline.
+        static func standardSkipsSourceOnlyCheck(qualityMode: RAGQualityMode, gatesPassed: Bool?) -> Bool {
+            qualityMode.canonical == .standard && gatesPassed == true
         }
 
         /// How much of the candidate answer the source-only stage must have been shown

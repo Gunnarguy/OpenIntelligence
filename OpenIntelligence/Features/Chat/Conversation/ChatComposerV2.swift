@@ -5,10 +5,11 @@
 //  Modern composer with glass morphism, action buttons, and fluid animations
 //
 
-#if os(iOS)
-import PhotosUI
-#endif
 import SwiftUI
+
+#if os(iOS)
+    import PhotosUI
+#endif
 
 struct ChatComposerV2: View {
     let isProcessing: Bool
@@ -23,6 +24,13 @@ struct ChatComposerV2: View {
     /// Callback for Vision Capture (advanced camera with live OCR)
     var onVisionCapture: (() -> Void)? = nil
 
+    /// The previous answer's text is complete and only its checks are still running.
+    ///
+    /// The field unlocks so the next question can be written, and a typed question can be sent:
+    /// `ChatScreen` finishes the previous answer first, with its sources. With nothing typed the
+    /// button still reads as Stop, which also finishes that answer rather than discarding it.
+    var isCheckingAnswer: Bool = false
+
     @State private var inputText: String = ""
     @FocusState private var isInputFocused: Bool
     @State private var textHeight: CGFloat = 40
@@ -35,16 +43,27 @@ struct ChatComposerV2: View {
 
     private var isCameraAvailable: Bool {
         #if os(iOS)
-        UIImagePickerController.isSourceTypeAvailable(.camera)
+            UIImagePickerController.isSourceTypeAvailable(.camera)
         #else
-        false
+            false
         #endif
     }
 
     private var canSend: Bool {
         let hasText = !inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         let hasAttachments = !pendingAttachments.isEmpty
-        return (hasText || hasAttachments) && !isProcessing
+        if isProcessing {
+            // Attachments are processed before a query, which cannot overlap one, so only a
+            // typed question goes while an answer is being checked.
+            return isCheckingAnswer && hasText && !hasAttachments
+        }
+        return hasText || hasAttachments
+    }
+
+    /// The button stops the answer in progress, unless the answer is only being checked and a
+    /// question is ready to send.
+    private var showsStop: Bool {
+        isProcessing && !canSend
     }
 
     var body: some View {
@@ -60,10 +79,11 @@ struct ChatComposerV2: View {
                                 }
                                 DSHaptics.light()
                             }
-                            .transition(.asymmetric(
-                                insertion: .scale.combined(with: .opacity),
-                                removal: .scale.combined(with: .opacity)
-                            ))
+                            .transition(
+                                .asymmetric(
+                                    insertion: .scale.combined(with: .opacity),
+                                    removal: .scale.combined(with: .opacity)
+                                ))
                         }
                     }
                     .padding(.horizontal, 16)
@@ -84,7 +104,7 @@ struct ChatComposerV2: View {
                         .lineLimit(1...8)
                         .font(.system(size: 16))
                         .focused($isInputFocused)
-                        .disabled(isProcessing)
+                        .disabled(isProcessing && !isCheckingAnswer)
                         .writingToolsBehavior(.complete)
                         .padding(.vertical, 12)
                         .padding(.leading, 16)
@@ -108,7 +128,7 @@ struct ChatComposerV2: View {
                             isCameraAvailable: isCameraAvailable
                         )
                         .padding(.trailing, 12)
-.padding(.bottom, 12)
+                        .padding(.bottom, 12)
                     }
                 }
                 .background(
@@ -125,13 +145,13 @@ struct ChatComposerV2: View {
                 .animation(.easeOut(duration: 0.15), value: isInputFocused)
 
                 // Send / Stop button
-                Button(action: isProcessing ? (onStop ?? {}) : send) {
+                Button(action: showsStop ? (onStop ?? {}) : send) {
                     ZStack {
                         Circle()
                             .fill(buttonBackground)
                             .frame(width: 44, height: 44)
 
-                        if isProcessing {
+                        if showsStop {
                             // Stop icon
                             RoundedRectangle(cornerRadius: 3, style: .continuous)
                                 .fill(.white)
@@ -165,37 +185,37 @@ struct ChatComposerV2: View {
             }
         }
         .sheet(isPresented: $showDocumentPicker) {
-    ExtendedDocumentPicker { urls in
-        handlePickedFiles(urls, type: .document)
-    }
-}
-.sheet(isPresented: $showPhotoPicker) {
-    PhotoPicker { urls in
-        handlePickedFiles(urls, type: .photo)
-    }
-}
+            ExtendedDocumentPicker { urls in
+                handlePickedFiles(urls, type: .document)
+            }
+        }
+        .sheet(isPresented: $showPhotoPicker) {
+            PhotoPicker { urls in
+                handlePickedFiles(urls, type: .photo)
+            }
+        }
         #if os(iOS)
-        .fullScreenCover(isPresented: $showCamera) {
-            CameraPicker { url in
-                if let url = url {
-                    handlePickedFiles([url], type: .camera)
+            .fullScreenCover(isPresented: $showCamera) {
+                CameraPicker { url in
+                    if let url = url {
+                        handlePickedFiles([url], type: .camera)
+                    }
                 }
+                .ignoresSafeArea()
             }
-            .ignoresSafeArea()
-        }
         #else
-        .sheet(isPresented: $showCamera) {
-            CameraPicker { url in
-                if let url = url {
-                    handlePickedFiles([url], type: .camera)
+            .sheet(isPresented: $showCamera) {
+                CameraPicker { url in
+                    if let url = url {
+                        handlePickedFiles([url], type: .camera)
+                    }
                 }
             }
-        }
         #endif
     }
 
     private var buttonBackground: some ShapeStyle {
-        if isProcessing {
+        if showsStop {
             return AnyShapeStyle(Color.red.opacity(0.9))
         } else if canSend {
             return AnyShapeStyle(DSColors.accent)
@@ -216,6 +236,9 @@ struct ChatComposerV2: View {
     }
 
     private func send() {
+        // Return in the field reaches here too, and the field is now editable while an answer is
+        // being checked, so the button's own rule has to hold for the keyboard as well.
+        guard canSend else { return }
         let query = inputText.trimmingCharacters(in: .whitespacesAndNewlines)
         let urls = pendingAttachments.map { $0.url }
         let hasAttachments = !urls.isEmpty
@@ -228,7 +251,7 @@ struct ChatComposerV2: View {
             // Default prompt when only attachments are provided
             finalQuery = "Analyze the attached content and summarize the key information."
         } else {
-            return // Nothing to send
+            return  // Nothing to send
         }
 
         // Use combined callback if available (preferred - waits for attachments)

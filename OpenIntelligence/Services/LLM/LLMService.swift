@@ -114,6 +114,24 @@ enum StructuredRAGMode: Sendable, Equatable {
 enum LLMStreamingContext {
     @TaskLocal static var handler: LLMStreamHandler?
 
+    /// The chat's handler, parked while a Deep Think or Maximum answer is being reasoned out.
+    ///
+    /// Those modes make dozens of model calls before their answer exists, and every one of them
+    /// streams through `handler`. `AgenticOrchestrator.execute` therefore clears `handler` for the
+    /// whole run and parks the chat's here, and the calls that write the final answer stream
+    /// through `answerHandler`. Until 5.5 the chat passed no handler at all in those modes, so the
+    /// answer appeared all at once when every later stage had finished.
+    @TaskLocal static var finalAnswerHandler: LLMStreamHandler?
+
+    /// Where the text of a final answer streams: the parked chat handler inside an agentic run,
+    /// the ordinary one anywhere else.
+    static var answerHandler: LLMStreamHandler? {
+        // Returned directly rather than bound: an `if let` binding or `??` converts the task-local
+        // closure and draws a Sendable warning, while a plain return does not.
+        if finalAnswerHandler != nil { return finalAnswerHandler }
+        return handler
+    }
+
     static func emit(text: String, reasoning: String? = nil, isFinal: Bool) {
         guard let handler = handler else { return }
         Task {

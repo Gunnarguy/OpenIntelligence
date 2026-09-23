@@ -56,6 +56,8 @@ private final class ContinuedQueryCoordinator: ObservableObject {
     private var title: String = "Answering your question"
     private var queryPreview: String = ""
     private var firstTokenObserved = false
+    private var stepsSinceGenerating = 0
+    private var lastReportedFraction = 0.0
 
     init() {
         QueryRuntimeBridge.shared.configureContinuedQuery(
@@ -74,6 +76,8 @@ private final class ContinuedQueryCoordinator: ObservableObject {
         lastFinishedSessionId = nil
         lastFinishedSuccess = nil
         firstTokenObserved = false
+        stepsSinceGenerating = 0
+        lastReportedFraction = 0
         title = "Answering your question"
         queryPreview = Self.makeQueryPreview(from: query)
 
@@ -100,6 +104,24 @@ private final class ContinuedQueryCoordinator: ObservableObject {
         guard !firstTokenObserved else { return }
         firstTokenObserved = true
         reportProgress(subtitle: "Writing the answer", fraction: 0.82)
+    }
+
+    /// The pipeline reported a step before the answer started to arrive.
+    ///
+    /// Deep Think and Maximum reason through many steps before any text exists, and the bar sat at
+    /// 62% for all of them. This moves it a sixth of the way toward 80% per reported step. It is not
+    /// a share of known work, because the number of steps is not known in advance; it moves only
+    /// when a step happens, never backwards, and stays below the mark for the first word.
+    func markStep() {
+        guard !firstTokenObserved else { return }
+        stepsSinceGenerating += 1
+        let fraction = 0.62 + (0.80 - 0.62) * (1 - pow(5.0 / 6.0, Double(stepsSinceGenerating)))
+        reportProgress(subtitle: "Working through your documents", fraction: fraction)
+    }
+
+    /// The text is complete and the answer is being checked against its sources.
+    func markChecking() {
+        reportProgress(subtitle: "Checking the answer against its sources", fraction: 0.92)
     }
 
     func handleScenePhaseChange(_ phase: ScenePhase, isProcessing: Bool) {
@@ -144,6 +166,9 @@ private final class ContinuedQueryCoordinator: ObservableObject {
 
     private func reportProgress(subtitle: String, fraction: Double) {
         guard trackedSessionId != nil else { return }
+        // A progress bar that moves backwards reads as lost work.
+        let fraction = max(fraction, lastReportedFraction)
+        lastReportedFraction = fraction
 
         QueryRuntimeBridge.shared.updateContinuedQueryProgress(
             title: title,
@@ -207,6 +232,12 @@ struct ChatScreen: View {
     @State private var streamingPumpTask: Task<Void, Never>? = nil
     @State private var currentQueryTask: Task<Void, Never>? = nil  // Track current query for cancellation
     @State private var currentQuerySessionId: UUID? = nil
+    /// The library the answer in progress belongs to, which is not always the active one: an
+    /// answer keeps running after the person switches library.
+    @State private var currentQueryContainerId: UUID? = nil
+    /// A question sent while the previous answer was being checked. It goes once that answer lands;
+    /// only one waits at a time.
+    @State private var questionAfterCheck: String? = nil
     @State private var queryStart: Date? = nil
     @State private var hasReceivedStreamToken: Bool = false
     @State private var generationStart: Date? = nil
@@ -637,9 +668,7 @@ struct ChatScreen: View {
         // this saved battery when idle; it now does, because the `false` branch exists.
         .onChange(of: isProcessing) { _, newValue in
             if newValue {
-                processingClockConnection?.cancel()
-                processingClock = Timer.publish(every: 0.2, on: .main, in: .common)
-                processingClockConnection = processingClock.connect()
+                startProcessingClock()
             } else {
                 processingClockConnection?.cancel()
                 processingClockConnection = nil
@@ -681,6 +710,7 @@ struct ChatScreen: View {
             if !isSameChatContainer {
                 // Cancel any in-flight query from the previous library to prevent cross-container bleed
                 continuedQueryCoordinator.cancelCurrentQuery()
+                questionAfterCheck = nil
                 currentQuerySessionId = nil
                 currentQueryTask?.cancel()
                 currentQueryTask = nil
@@ -748,7 +778,19 @@ struct ChatScreen: View {
             Task { await recalcActiveCounts() }
         }
         .onReceive(ragService.$thinkingEvents) { events in
+            // Each new step moves the background progress while no text has arrived yet. The
+            // array is replaced wholesale on reset, so only a new last event counts as a step.
+            if isProcessing, stage == .generating, let latest = events.last,
+                latest.id != thinkingEvents.last?.id
+            {
+                continuedQueryCoordinator.markStep()
+            }
             thinkingEvents = events
+        }
+        .onChange(of: isCheckingFinishedAnswer) { _, checking in
+            if checking {
+                continuedQueryCoordinator.markChecking()
+            }
         }
         .onReceive(ragService.$pendingCloudConsent) { record in
             activeCloudConsent = record
@@ -950,6 +992,7 @@ struct ChatScreen: View {
                 continuedQueryCoordinator.expirationHandler = { [weak ragService] in
                     ragService?.cancelActiveGeneration(resetSession: true)
                     Task { @MainActor in
+                        self.keepAnswerStoppedByBackgroundExpiry()
                         self.currentQueryTask?.cancel()
                         self.currentQueryTask = nil
                         self.currentQuerySessionId = nil
@@ -960,6 +1003,12 @@ struct ChatScreen: View {
                     }
                 }
                 continuedQueryCoordinator.handleScenePhaseChange(scenePhase, isProcessing: isProcessing)
+                ChatAnswerNotice.shared.chatAppeared()
+                // `.onDisappear` stops the elapsed clock, and nothing restarted it for an answer
+                // still running on return, so the timer stood frozen at the moment the tab was left.
+                if isProcessing {
+                    startProcessingClock()
+                }
                 // Seed screenshot demo FIRST before loading persisted history
                 seedScreenshotDemoIfNeeded()
                 entitlementStore.refreshTransientState()
@@ -2075,6 +2124,15 @@ struct ChatScreen: View {
     private func stopGeneration() {
         guard isProcessing else { return }
 
+        // An answer whose text is complete is finished, not stopped. Cancelling here would save
+        // the text without its sources, because they arrive with the response, so the pipeline
+        // is asked to end its checks and return that response instead.
+        if isCheckingFinishedAnswer {
+            ragService.finishAnswerNow()
+            DSHaptics.selection()
+            return
+        }
+
         // Cancel the running query task
         cancelInFlightQueryWork()
 
@@ -2301,7 +2359,8 @@ struct ChatScreen: View {
                 onStop: stopGeneration,
                 onAttach: nil,
                 onSendWithAttachments: sendMessageWithAttachments,
-                onVisionCapture: visionCaptureAction
+                onVisionCapture: visionCaptureAction,
+                isCheckingAnswer: isCheckingFinishedAnswer && questionAfterCheck == nil
             )
         }
     }
@@ -2335,6 +2394,7 @@ struct ChatScreen: View {
                 thinkingEvents: $thinkingEvents,
                 streamingText: streamingText,
                 isStreaming: isProcessing,
+                isCheckingAnswer: isCheckingFinishedAnswer,
                 qualityMode: effectiveQualityMode,
                 generationStart: generationStart,
                 onRegenerate: { message in regenerateResponse(for: message) },
@@ -2735,6 +2795,29 @@ struct ChatScreen: View {
     }
 
     private func sendMessage(_ text: String) {
+        // The composer takes a question while the previous answer is only being checked. That
+        // answer is finished first, so it keeps its sources and lands above the new question;
+        // cancelling it, which is what this path used to do mid-answer, would discard both.
+        if isCheckingFinishedAnswer, let finishing = currentQueryTask {
+            // One question waits at a time. A second send used to queue a second question, which
+            // then cancelled the first on arrival, and the first never got an answer.
+            guard questionAfterCheck == nil else { return }
+            questionAfterCheck = text
+            ragService.finishAnswerNow()
+            pushToast("Sends once this answer is saved", icon: "arrow.up.circle.fill", tint: DSColors.accent)
+            Task { @MainActor in
+                await finishing.value
+                // Cleared by a new chat, a cleared chat or a library switch, which end the wait.
+                guard let waiting = questionAfterCheck else { return }
+                questionAfterCheck = nil
+                sendMessageNow(waiting)
+            }
+            return
+        }
+        sendMessageNow(text)
+    }
+
+    private func sendMessageNow(_ text: String) {
         let query = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !query.isEmpty else { return }
 
@@ -2844,9 +2927,9 @@ struct ChatScreen: View {
             // the planner records the requested cloud route and completes locally.
             capturedAllowPCC = baseExecutionContext != .onDeviceOnly
         }
-        let capturedQualityMode = effectiveQualityMode.canonical
         requestedExecutionContext = capturedExecutionContext
         let capturedUsedContainerId = usedContainerId
+        currentQueryContainerId = usedContainerId
         let querySessionId = UUID()
         currentQuerySessionId = querySessionId
         resetStreamingState()
@@ -2944,25 +3027,25 @@ struct ChatScreen: View {
                     allowPrivateCloudCompute: capturedAllowPCC
                 )
 
-                let queryStreamHandler: LLMStreamHandler?
-                if capturedQualityMode == .standard {
-                    queryStreamHandler = { event in
-                        await MainActor.run {
-                            if event.isFinal {
-                                // Freeze the timer immediately when the LLM finishes
-                                if let genStart = self.generationStart {
-                                    self.generatingElapsedFinal = Date().timeIntervalSince(genStart)
-                                }
-                                self.isStreamFinished = true
-                                // DO NOT flush - let the pump finish naturally for a smooth end
-                            } else {
-                                self.continuedQueryCoordinator.markFirstToken()
-                                self.enqueueStreamingText(event.text)
+                // Every mode streams. Deep Think and Maximum used to pass nil here because each of
+                // their dozens of model calls would have streamed into the bubble; since 5.5
+                // `AgenticOrchestrator.execute` holds this handler back for the calls that write
+                // the final answer, so those modes show their answer as it is written instead of
+                // all at once when every later stage has finished.
+                let queryStreamHandler: LLMStreamHandler = { event in
+                    await MainActor.run {
+                        if event.isFinal {
+                            // Freeze the timer immediately when the LLM finishes
+                            if let genStart = self.generationStart {
+                                self.generatingElapsedFinal = Date().timeIntervalSince(genStart)
                             }
+                            self.isStreamFinished = true
+                            // DO NOT flush - let the pump finish naturally for a smooth end
+                        } else {
+                            self.continuedQueryCoordinator.markFirstToken()
+                            self.enqueueStreamingText(event.text)
                         }
                     }
-                } else {
-                    queryStreamHandler = nil
                 }
 
                 // Check for cancellation before generation
@@ -3067,6 +3150,14 @@ struct ChatScreen: View {
                     if self.ragService.containerService.activeContainerId == capturedUsedContainerId {
                         self.stage = .complete
 
+                        // The only answer haptic used to fire as generation started, so an answer
+                        // finishing on another tab, or during a check after its text had stopped,
+                        // ended with no signal at all.
+                        DSHaptics.success()
+                        if !self.isAppeared {
+                            ChatAnswerNotice.shared.answerFinishedOffScreen()
+                        }
+
                         // Show completion toast with token count
                         let tokenCount = response.metadata.tokensGenerated
                         self.toastManager.clearAll()
@@ -3147,6 +3238,9 @@ struct ChatScreen: View {
 
                     let friendlyMessage = userFacingErrorMessage(error)
                     self.toastManager.clearAll()
+                    if !self.isAppeared {
+                        ChatAnswerNotice.shared.answerFinishedOffScreen()
+                    }
 
                     self.flushStreamingBufferToVisibleText()
                     let partial = self.streamingText.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -3253,6 +3347,63 @@ struct ChatScreen: View {
 
     // MARK: - Streaming Cadence Helpers
 
+    /// The answer's text has finished arriving and the pipeline is still checking it.
+    ///
+    /// The text stops before `RAGService.query` returns: the verification gates run after the
+    /// last word, and so does the source-only check for an extractive question in Deep Think or
+    /// Maximum, or in Standard when the gates flag the answer. Until 2026-09-23 Standard ran that
+    /// check on every extractive answer, and four such questions measured on macOS that day sat
+    /// 19 to 164 seconds past their last word behind a blinking cursor and a locked text field.
+    /// While this is true the cursor goes, the bubble says it is checking sources, and the composer
+    /// takes the next question.
+    private var isCheckingFinishedAnswer: Bool {
+        isProcessing && isStreamFinished && streamingBuffer.isEmpty && streamingPumpTask == nil
+            && !streamingText.isEmpty
+    }
+
+    /// Connects the 5 Hz tick that drives the elapsed-time readout.
+    private func startProcessingClock() {
+        processingClockConnection?.cancel()
+        processingClock = Timer.publish(every: 0.2, on: .main, in: .common)
+        processingClockConnection = processingClock.connect()
+        nowTick = Date()
+    }
+
+    /// Keeps what an answer had written when iOS ended the app's background time, and says why.
+    ///
+    /// The expiration handler cancels the query and, in the same main-actor turn, clears the session
+    /// id, so the query's own error path finds a different id when it runs and saves nothing. An
+    /// answer that stopped this way used to vanish without a word. The roadmap row "A long answer outlives its
+    /// 30-second background grant" tracks keeping it running; this makes stopping visible.
+    private func keepAnswerStoppedByBackgroundExpiry() {
+        guard isProcessing else { return }
+        let containerId = currentQueryContainerId ?? ragService.containerService.activeContainerId
+        let textWasComplete = isCheckingFinishedAnswer
+        let reason = "iOS ended the app's background time before the answer finished. Ask again to finish it."
+        flushStreamingBufferToVisibleText()
+        let written = sanitizeFinalResponse(streamingText.trimmingCharacters(in: .whitespacesAndNewlines))
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        // Always with the reason. `partialResponseMessageContent` drops the footer from a long
+        // partial, which suits a Stop the person chose, not an answer iOS cut off. An answer whose
+        // text was complete is not partial; what it lacks is the check and its sources.
+        let content: String
+        if written.isEmpty {
+            content = reason
+        } else if textWasComplete {
+            content =
+                written
+                + "\n\n*(Saved without its sources: iOS ended the app's background time while they were being checked.)*"
+        } else {
+            content = written + "\n\n*(Partial answer. \(reason))*"
+        }
+        var notice = ChatMessage(role: .assistant, content: content)
+        notice.containerId = containerId
+        appendAndPersistMessage(notice, for: containerId)
+        if !isAppeared {
+            ChatAnswerNotice.shared.answerFinishedOffScreen()
+        }
+    }
+
     /// Clears any live streaming UI/buffer state (used before/after each query and on cancel).
     private func resetStreamingState() {
         streamingPumpTask?.cancel()
@@ -3265,6 +3416,7 @@ struct ChatScreen: View {
 
     private func cancelInFlightQueryWork(resetLLMSession: Bool = true) {
         continuedQueryCoordinator.cancelCurrentQuery()
+        questionAfterCheck = nil
         currentQuerySessionId = nil
         currentQueryTask?.cancel()
         currentQueryTask = nil
