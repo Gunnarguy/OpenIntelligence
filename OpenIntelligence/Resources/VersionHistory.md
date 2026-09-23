@@ -15,7 +15,7 @@ This document provides a chronological history of user-facing changes, highlight
 - **The plans screen cites two things you can check.** The App Store privacy label, Data Not Collected, and the app's own store rating once there are enough ratings for it to mean something. The line that used to sit there said "cancel anytime", which is a footer, not evidence.
 
 ### Ratings
-- **One rating request, after the first answer that came from your files.** Two separate prompts used to fire on the same third answer, and Deep Think and Maximum answers never counted at all. Apple allows three requests a year on a device. They are spent on your first success now, never twice in four months, and never for an answer the app flagged or abstained from.
+- **One rating request, after the first answer that came from your files.** Two separate prompts used to fire on the same third answer, and Deep Think and Maximum answers never counted at all. Apple allows three requests a year on a device. They are spent on your first success now, never twice in four months on the app's own initiative, and never for an answer the app flagged or abstained from.
 
 ---
 

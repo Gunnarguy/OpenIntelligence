@@ -14,7 +14,7 @@ appear once at the end of setup instead of only at a limit.
 - **The plans screen cites two things you can check.** The App Store privacy label and, once there are enough of them, the app's own ratings.
 
 ### Ratings
-- **One rating request, after the first answer that came from your files.** Two prompts used to fire on the same third answer, and Deep Think and Maximum answers never counted. Never twice in four months, never for a flagged answer.
+- **One rating request, after the first answer that came from your files.** Two prompts used to fire on the same third answer, and Deep Think and Maximum answers never counted. Never twice in four months on its own, never for a flagged answer.
 
 ## 5.3
 The app reads documents with Apple's own detector, the welcome screens follow your light or dark

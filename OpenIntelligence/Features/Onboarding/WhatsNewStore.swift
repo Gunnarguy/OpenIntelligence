@@ -45,7 +45,8 @@ final class WhatsNewStore: ObservableObject {
         currentVersion: String? = nil
     ) {
         self.defaults = defaults
-        self.currentVersion = currentVersion
+        self.currentVersion =
+            currentVersion
             ?? (Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "")
     }
 
@@ -109,288 +110,344 @@ final class WhatsNewStore: ObservableObject {
         // the newest version in the bundled VersionHistory.md has no entry below.
         "5.4": WhatsNewRelease(
             version: "5.4",
-            headline: "The free plan now does what it says: three Maximum runs a day, counted. The app asks for a rating once, after the first answer from your files, and shows the plans once, at the end of setup.",
+            headline:
+                "The free plan now does what it says: three Maximum runs a day, counted. The app asks for a rating once, after the first answer from your files, and shows the plans once, at the end of setup.",
             items: [
                 .init(
                     symbol: "flame.fill",
                     title: "Three Maximum runs a day on the free plan, for real this time",
-                    detail: "The mode menu said \"3 left today\" since May and the number never moved, because nothing ever counted a run. It counts now. When the three are used, the app offers Standard, Deep Think, or the plans, and the allowance comes back at midnight. Pro and Lifetime have no cap."
+                    detail:
+                        "The mode menu said \"3 left today\" since May and the number never moved, because nothing ever counted a run. It counts now. When the three are used, the app offers Standard, Deep Think, or the plans, and the allowance comes back at midnight. Pro and Lifetime have no cap."
                 ),
                 .init(
                     symbol: "star.fill",
                     title: "One rating request, after the first answer that came from your files",
-                    detail: "Two separate prompts used to fire on the same third answer, and Deep Think and Maximum answers never counted at all. Apple allows three requests a year on a device; they are spent on your first success now, and never twice in four months."
+                    detail:
+                        "Two separate prompts used to fire on the same third answer, and Deep Think and Maximum answers never counted at all. Apple allows three requests a year on a device; they are spent on your first success now, and never twice in four months on the app's own initiative."
                 ),
                 .init(
                     symbol: "square.stack.3d.up.fill",
                     title: "The plans, once, when setup is finished",
-                    detail: "A screen you can close, showing what Free includes and what Pro and Lifetime change. It appears one time, after the sample questions, and lives in Settings under Plan & Usage after that."
+                    detail:
+                        "A screen you can close, showing what Free includes and what Pro and Lifetime change. It appears one time, after the sample questions, and lives in Settings under Plan & Usage after that."
                 ),
                 .init(
                     symbol: "hand.raised.fill",
                     title: "The plans screen cites two things you can check",
-                    detail: "The App Store privacy label, Data Not Collected, and the app's own store rating once there are enough ratings for it to mean something. The banner that used to sit there said \"cancel anytime\", which is a footer, not evidence."
+                    detail:
+                        "The App Store privacy label, Data Not Collected, and the app's own store rating once there are enough ratings for it to mean something. The banner that used to sit there said \"cancel anytime\", which is a footer, not evidence."
                 ),
             ]
         ),
         "5.3": WhatsNewRelease(
             version: "5.3",
-            headline: "Lifetime is on sale until September 30, and the app now says so using the App Store's own price for your country. The upgrade screen leads with what a plan actually changes, which is the daily cap on Maximum mode and how much you can keep, not the model. Every plan runs the same model.",
+            headline:
+                "Lifetime is on sale until September 30, and the app now says so using the App Store's own price for your country. The upgrade screen leads with what a plan actually changes, which is the daily cap on Maximum mode and how much you can keep, not the model. Every plan runs the same model.",
             items: [
                 .init(
                     symbol: "tag.fill",
                     title: "When Lifetime is on sale, the app says so",
-                    detail: "One line at the top of the Chat and Documents tabs, for anyone who has not bought, with the real percentage and the real last day. Both numbers come from the App Store's own price for your country against the regular price, so the line cannot claim a discount that is not running. Dismiss it and it stays away until a new sale."
+                    detail:
+                        "One line at the top of the Chat and Documents tabs, for anyone who has not bought, with the real percentage and the real last day. Both numbers come from the App Store's own price for your country against the regular price, so the line cannot claim a discount that is not running. Dismiss it and it stays away until a new sale."
                 ),
                 .init(
                     symbol: "square.stack.3d.up.fill",
                     title: "The upgrade screen leads with what a plan actually changes",
-                    detail: "It used to list storage numbers first and say nothing about the model. Every plan runs the same model: Apple Intelligence on your device, Deep Think, and Private Cloud Compute after you approve what would be sent. What Pro and Lifetime change is the daily cap on Maximum mode, three runs a day on the free plan and none on a paid one, plus how many documents and libraries you can keep."
+                    detail:
+                        "It used to list storage numbers first and say nothing about the model. Every plan runs the same model: Apple Intelligence on your device, Deep Think, and Private Cloud Compute after you approve what would be sent. What Pro and Lifetime change is the daily cap on Maximum mode, three runs a day on the free plan and none on a paid one, plus how many documents and libraries you can keep."
                 ),
                 .init(
                     symbol: "star.bubble.fill",
                     title: "A thumbs-up now offers to write a review",
-                    detail: "Apple's rating sheet gives stars and never a written review, and a written review is what someone reads on the store page. So when you thumb-up an answer, the app asks once per version whether you would rate it, write a review, or send feedback. The Lifetime card also says how many months of Pro Annual its price buys, from the store's own prices."
+                    detail:
+                        "Apple's rating sheet gives stars and never a written review, and a written review is what someone reads on the store page. So when you thumb-up an answer, the app asks once per version whether you would rate it, write a review, or send feedback. The Lifetime card also says how many months of Pro Annual its price buys, from the store's own prices."
                 ),
                 .init(
                     symbol: "lightbulb.fill",
                     title: "The sample library's suggested questions are back",
-                    detail: "They were written by hand for the three sample documents, and one leftover duplicate of a sample was enough to switch them off: the app decided the library was no longer the sample library and built questions from templates instead, which is where \"What is nothing?\" came from. Duplicate copies are now removed on the next visit to the Documents tab, the hand-written set shows whenever the library holds the three samples, and a set built before Apple Intelligence was ready gets rebuilt by the model."
+                    detail:
+                        "They were written by hand for the three sample documents, and one leftover duplicate of a sample was enough to switch them off: the app decided the library was no longer the sample library and built questions from templates instead, which is where \"What is nothing?\" came from. Duplicate copies are now removed on the next visit to the Documents tab, the hand-written set shows whenever the library holds the three samples, and a set built before Apple Intelligence was ready gets rebuilt by the model."
                 ),
                 .init(
                     symbol: "circle.lefthalf.filled",
                     title: "The welcome screens follow your light or dark setting",
-                    detail: "They were always dark, whatever the rest of the app was doing, so turning the phone to light mode gave you a white app with one navy screen at the front of it. The status bar was the real casualty: iOS draws the clock and battery in dark ink on a light screen, and the welcome screen underneath was nearly black, so they simply vanished. The light version is a warm off-white rather than the dark one flipped."
+                    detail:
+                        "They were always dark, whatever the rest of the app was doing, so turning the phone to light mode gave you a white app with one navy screen at the front of it. The status bar was the real casualty: iOS draws the clock and battery in dark ink on a light screen, and the welcome screen underneath was nearly black, so they simply vanished. The light version is a warm off-white rather than the dark one flipped."
                 ),
             ]
         ),
         "5.2": WhatsNewRelease(
             version: "5.2",
-            headline: "Private Cloud Compute is on. Every release since 4.6 carried it compiled out, waiting on iOS and macOS 27. Reading, searching and checking your files still never leave the device; the one step that can, writing the answer, asks you first.",
+            headline:
+                "Private Cloud Compute is on. Every release since 4.6 carried it compiled out, waiting on iOS and macOS 27. Reading, searching and checking your files still never leave the device; the one step that can, writing the answer, asks you first.",
             items: [
                 .init(
                     symbol: "cloud.fill",
                     title: "Questions too big for the on-device model can be written on Apple's servers",
-                    detail: "When the passages that answer a question will not fit the model on your device, the writing step can go to Apple's Private Cloud Compute. Everything before it, reading your files, searching them and choosing what to cite, and everything after it, checking the answer against those passages, still happens here. Requires iOS, iPadOS or macOS 27."
+                    detail:
+                        "When the passages that answer a question will not fit the model on your device, the writing step can go to Apple's Private Cloud Compute. Everything before it, reading your files, searching them and choosing what to cite, and everything after it, checking the answer against those passages, still happens here. Requires iOS, iPadOS or macOS 27."
                 ),
                 .init(
                     symbol: "hand.raised.fill",
                     title: "Nothing leaves without asking",
-                    detail: "Before anything is sent, a sheet shows what would go: how many passages, how large, and why. Allow it once, allow it always, or keep everything on the device. Pin routing to On-Device in Settings and the question never comes up."
+                    detail:
+                        "Before anything is sent, a sheet shows what would go: how many passages, how large, and why. Allow it once, allow it always, or keep everything on the device. Pin routing to On-Device in Settings and the question never comes up."
                 ),
                 .init(
                     symbol: "signpost.right.and.left.fill",
                     title: "Every answer says where it was written",
-                    detail: "Expand the metrics bar under an answer to see On-Device or Private Cloud Compute. Apple's servers keep nothing after the answer, the connection is end-to-end encrypted, and the request is not accessible to Apple or to the developer."
+                    detail:
+                        "Expand the metrics bar under an answer to see On-Device or Private Cloud Compute. Apple's servers keep nothing after the answer, the connection is end-to-end encrypted, and the request is not accessible to Apple or to the developer."
                 ),
                 .init(
                     symbol: "text.badge.checkmark",
                     title: "The app now describes the build you are running",
-                    detail: "How It Works and the About screen used to say the app asks before sending to Private Cloud Compute, on builds that could not send anything. They read the wrong check. The built-in guides, the Glossary and the Settings capability list now pick their wording on the same condition the code uses."
+                    detail:
+                        "How It Works and the About screen used to say the app asks before sending to Private Cloud Compute, on builds that could not send anything. They read the wrong check. The built-in guides, the Glossary and the Settings capability list now pick their wording on the same condition the code uses."
                 ),
             ]
         ),
         "5.1": WhatsNewRelease(
             version: "5.1",
-            headline: "Importing a large document on the Mac had become slow enough to be unusable, and the app kept working away while idle. This release is those two, better text recognition on every platform, and built-in guides that finally describe the app you are running. On iPhone and iPad it also brings across the two Mac-only releases before it.",
+            headline:
+                "Importing a large document on the Mac had become slow enough to be unusable, and the app kept working away while idle. This release is those two, better text recognition on every platform, and built-in guides that finally describe the app you are running. On iPhone and iPad it also brings across the two Mac-only releases before it.",
             items: [
                 .init(
                     symbol: "doc.richtext",
                     title: "The Mac was drawing every PDF page four times too large",
-                    detail: "Each page was rendered at four times the resolution requested, then copied through an uncompressed image format and straight back, once per page. On a Retina display that was roughly 370 MB written and read per page, for nothing. The iPhone never did this. Each page is now drawn once, at the size asked for."
+                    detail:
+                        "Each page was rendered at four times the resolution requested, then copied through an uncompressed image format and straight back, once per page. On a Retina display that was roughly 370 MB written and read per page, for nothing. The iPhone never did this. Each page is now drawn once, at the size asked for."
                 ),
                 .init(
                     symbol: "moon.zzz",
                     title: "An idle app was re-reading every search index seventeen times a second",
-                    detail: "A background timer kept finding one library in a state it could not resolve and reloaded every index on each pass whether or not anything had changed. Left running for a few hours it built a backlog it could never clear and stopped responding. Indexes are now re-read only when they have actually changed on disk."
+                    detail:
+                        "A background timer kept finding one library in a state it could not resolve and reloaded every index on each pass whether or not anything had changed. Left running for a few hours it built a backlog it could never clear and stopped responding. Indexes are now re-read only when they have actually changed on disk."
                 ),
                 .init(
                     symbol: "arrow.clockwise.circle",
                     title: "A paused import no longer looks lost",
-                    detail: "Quitting during a large PDF import and reopening showed the document at zero, as though the work was gone. It never was: the app has always resumed from the last page it finished. But the screen said otherwise, and removing the item is the one action that does discard that progress. A resumed import now reports how many pages it already has."
+                    detail:
+                        "Quitting during a large PDF import and reopening showed the document at zero, as though the work was gone. It never was: the app has always resumed from the last page it finished. But the screen said otherwise, and removing the item is the one action that does discard that progress. A resumed import now reports how many pages it already has."
                 ),
                 .init(
                     symbol: "character.book.closed",
                     title: "Text recognition is told the document's language instead of guessing it",
-                    detail: "The app was asking the system to guess each page's language while also handing it a list of thirteen to choose from. A wrong guess corrects words against the wrong dictionary, which damages text rather than just slowing things down. The language is now worked out once from the document itself. Page images also go to recognition scaled to what is needed to read the smallest real print, instead of at the slowest possible setting."
+                    detail:
+                        "The app was asking the system to guess each page's language while also handing it a list of thirteen to choose from. A wrong guess corrects words against the wrong dictionary, which damages text rather than just slowing things down. The language is now worked out once from the document itself. Page images also go to recognition scaled to what is needed to read the smallest real print, instead of at the slowest possible setting."
                 ),
                 .init(
                     symbol: "book.pages",
                     title: "The built-in guides describe this version of the app",
-                    detail: "The three sample documents said complex questions were sent to Private Cloud Compute, which nothing in this build does, and knew nothing about how importing works. They are rewritten from the code: every format the app reads, what happens during an import and after a quit, what each quality mode actually changes, and what Private Cloud Compute will add when it arrives with iOS and macOS 27. If you already imported them, they update in place."
+                    detail:
+                        "The three sample documents said complex questions were sent to Private Cloud Compute, which nothing in this build does, and knew nothing about how importing works. They are rewritten from the code: every format the app reads, what happens during an import and after a quit, what each quality mode actually changes, and what Private Cloud Compute will add when it arrives with iOS and macOS 27. If you already imported them, they update in place."
                 ),
                 .init(
                     symbol: "app.badge",
                     title: "The Mac icon is no longer a square",
-                    detail: "Every Mac icon was a solid square filling the whole tile, and the dark version still carried a thin blue rim from the light one. Both are redrawn to sit inside the rounded shape macOS expects. The iPhone and iPad icons were already correct."
+                    detail:
+                        "Every Mac icon was a solid square filling the whole tile, and the dark version still carried a thin blue rim from the light one. Both are redrawn to sit inside the rounded shape macOS expects. The iPhone and iPad icons were already correct."
                 ),
             ]
         ),
         "5.0.2": WhatsNewRelease(
             version: "5.0.2",
-            headline: "Mac only. There was no way to get a document into the app: the Add Documents button opened nothing, and dragging a file onto the window did nothing either. Both are fixed.",
+            headline:
+                "Mac only. There was no way to get a document into the app: the Add Documents button opened nothing, and dragging a file onto the window did nothing either. Both are fixed.",
             items: [
                 .init(
                     symbol: "folder.badge.plus",
                     title: "The Add Documents button opened nothing",
-                    detail: "The button asked macOS for a file picker at the one moment the system refuses to open one, so the request was discarded and no window ever appeared. The two file buttons inside a chat had the same fault. All three now ask at a point the system accepts."
+                    detail:
+                        "The button asked macOS for a file picker at the one moment the system refuses to open one, so the request was discarded and no window ever appeared. The two file buttons inside a chat had the same fault. All three now ask at a point the system accepts."
                 ),
                 .init(
                     symbol: "arrow.down.doc",
                     title: "Drag files from Finder straight into a library",
-                    detail: "Nothing in the app was listening for a dropped file. The whole library area now accepts them, and dropped files go through the same size and plan checks and the same import review as picked ones. Folders are not accepted yet; drop the files from inside them."
+                    detail:
+                        "Nothing in the app was listening for a dropped file. The whole library area now accepts them, and dropped files go through the same size and plan checks and the same import review as picked ones. Folders are not accepted yet; drop the files from inside them."
                 ),
                 .init(
                     symbol: "sidebar.left",
                     title: "Library Settings was unreadable on the Mac",
-                    detail: "The screen was drawn as a narrow strip beside a large blank area, squeezed hard enough to break words apart. It was built on an older navigation container that macOS turns into a two-pane layout. It now uses a single column at a sensible width."
+                    detail:
+                        "The screen was drawn as a narrow strip beside a large blank area, squeezed hard enough to break words apart. It was built on an older navigation container that macOS turns into a two-pane layout. It now uses a single column at a sensible width."
                 ),
                 .init(
                     symbol: "doc.on.doc",
                     title: "The built-in samples were quietly duplicating themselves",
-                    detail: "When a sample is corrected in a new version the app replaces your copy, but it was deleting the original and not the duplicate an earlier update had left behind, so each round added one more. Existing duplicates are cleaned up on the next update, and documents you named yourself are never touched."
+                    detail:
+                        "When a sample is corrected in a new version the app replaces your copy, but it was deleting the original and not the duplicate an earlier update had left behind, so each round added one more. Existing duplicates are cleaned up on the next update, and documents you named yourself are never touched."
                 ),
             ]
         ),
         "5.0.1": WhatsNewRelease(
             version: "5.0.1",
-            headline: "Turning the performance up was making the app slower, Macs were being held to iPhone limits, and the Documents tab was waiting on a number it never showed you. This release is those three and the rest of what came after 5.0.",
+            headline:
+                "Turning the performance up was making the app slower, Macs were being held to iPhone limits, and the Documents tab was waiting on a number it never showed you. This release is those three and the rest of what came after 5.0.",
             items: [
                 .init(
                     symbol: "gauge.with.dots.needle.67percent",
                     title: "Turning performance up was making it slower",
-                    detail: "Efficiency, Balanced, Performance and Maximum were inverted: climbing the ladder removed hardware instead of adding it, so the setting meant to unlock the machine was quietly holding it back. Each option now says which of the CPU, GPU and Neural Engine it engages, and the selector shows you all four instead of hiding three behind a menu."
+                    detail:
+                        "Efficiency, Balanced, Performance and Maximum were inverted: climbing the ladder removed hardware instead of adding it, so the setting meant to unlock the machine was quietly holding it back. Each option now says which of the CPU, GPU and Neural Engine it engages, and the selector shows you all four instead of hiding three behind a menu."
                 ),
                 .init(
                     symbol: "desktopcomputer",
                     title: "Macs were being given iPhone-sized limits",
-                    detail: "The app sorts devices into capability tiers, and base M4 and M5 Macs had been demoted for a reason that did not survive checking. They now sit alongside their Pro and Max siblings, which is what their actual throughput supports."
+                    detail:
+                        "The app sorts devices into capability tiers, and base M4 and M5 Macs had been demoted for a reason that did not survive checking. They now sit alongside their Pro and Max siblings, which is what their actual throughput supports."
                 ),
                 .init(
                     symbol: "cpu",
                     title: "It understands Apple chips that do not exist yet",
-                    detail: "A chip this build has never heard of used to read as two generations old and fall back to the slowest settings. Newer silicon now scales forward instead. One hardware reading was also reporting a ceiling of 1,073,741,824 threads, which was three separate limits multiplied together."
+                    detail:
+                        "A chip this build has never heard of used to read as two generations old and fall back to the slowest settings. Newer silicon now scales forward instead. One hardware reading was also reporting a ceiling of 1,073,741,824 threads, which was three separate limits multiplied together."
                 ),
                 .init(
                     symbol: "bolt.horizontal",
                     title: "The Documents tab stopped waiting on a number it never showed you",
-                    detail: "Opening it counted your cached documents first, and that count feeds one row that stays hidden unless the count is above zero. On the device this was traced on it was zero, so the row was never drawn. It cost up to 393 milliseconds on every single open, and it was the slowest thing in a log of nearly six thousand lines."
+                    detail:
+                        "Opening it counted your cached documents first, and that count feeds one row that stays hidden unless the count is above zero. On the device this was traced on it was zero, so the row was never drawn. It cost up to 393 milliseconds on every single open, and it was the slowest thing in a log of nearly six thousand lines."
                 ),
                 .init(
                     symbol: "tag",
                     title: "The Atlas was labelling a medical paper \"API Reference\"",
-                    detail: "Cluster labels were matched on letters rather than words, so \"api\" inside \"therapies\" and \"min\" inside \"dopamine\" were enough to name a group. The same mistake existed in three separate copies of the labelling code. A tag that appears only once in a document also no longer describes it."
+                    detail:
+                        "Cluster labels were matched on letters rather than words, so \"api\" inside \"therapies\" and \"min\" inside \"dopamine\" were enough to name a group. The same mistake existed in three separate copies of the labelling code. A tag that appears only once in a document also no longer describes it."
                 ),
                 .init(
                     symbol: "hourglass",
                     title: "\"Analyzing corpus…\" was never analyzing anything",
-                    detail: "It was an empty state wearing a progress indicator, and it could not finish because nothing had been started. Choosing a library on the Database screen is also a row of buttons now rather than a menu, which matters when you have eight of them."
+                    detail:
+                        "It was an empty state wearing a progress indicator, and it could not finish because nothing had been started. Choosing a library on the Database screen is also a row of buttons now rather than a menu, which matters when you have eight of them."
                 ),
                 .init(
                     symbol: "slider.horizontal.3",
                     title: "The Temperature slider did nothing on one setting",
-                    detail: "Greedy sampling always takes the most likely next word, so temperature has no effect on it, but the slider stayed live and looked like it was doing something. It is now disabled there and says why. The Deep Think card also described a minimum number of passes that never existed."
+                    detail:
+                        "Greedy sampling always takes the most likely next word, so temperature has no effect on it, but the slider stayed live and looked like it was doing something. It is now disabled there and says why. The Deep Think card also described a minimum number of passes that never existed."
                 ),
                 .init(
                     symbol: "rotate.right",
                     title: "Rotating the device left black rectangles on screen",
-                    detail: "The floating hardware readout lives in its own window and was clamping itself against screen bounds that never rotate. The chip and haptic engine outlines stay put when you turn the device, because the hardware does not move. The readout itself now also shows free memory."
+                    detail:
+                        "The floating hardware readout lives in its own window and was clamping itself against screen bounds that never rotate. The chip and haptic engine outlines stay put when you turn the device, because the hardware does not move. The readout itself now also shows free memory."
                 ),
             ]
         ),
         "5.0": WhatsNewRelease(
             version: "5.0",
-            headline: "Documents were quietly losing parts of themselves, answers were built from a fraction of what was found, and the app was rewriting your library on every launch. This release is the search for all three.",
+            headline:
+                "Documents were quietly losing parts of themselves, answers were built from a fraction of what was found, and the app was rewriting your library on every launch. This release is the search for all three.",
             items: [
                 .init(
                     symbol: "scissors",
                     title: "More than half of every document never reached the search index",
-                    detail: "A limit in the text handling cut every passage at about a quarter of what the model could actually read, and the length check returned the same number for every input, so nothing looked wrong. Across a real library, 90% of passages were cut short. This is the main reason your libraries offer to rebuild once."
+                    detail:
+                        "A limit in the text handling cut every passage at about a quarter of what the model could actually read, and the length check returned the same number for every input, so nothing looked wrong. Across a real library, 90% of passages were cut short. This is the main reason your libraries offer to rebuild once."
                 ),
                 .init(
                     symbol: "brain",
                     title: "The search index was reading the wrong part of the model",
-                    detail: "Every document you have ever added was indexed using one position of the AI model instead of averaging the whole passage. It was never broken enough to notice and it made search markedly worse. Your libraries will offer to rebuild once, and searching improves substantially afterwards."
+                    detail:
+                        "Every document you have ever added was indexed using one position of the AI model instead of averaging the whole passage. It was never broken enough to notice and it made search markedly worse. Your libraries will offer to rebuild once, and searching improves substantially afterwards."
                 ),
                 .init(
                     symbol: "doc.richtext",
                     title: "Two-column pages are read column by column, not straight across",
-                    detail: "Papers, reports and anything set in two columns were read across the gutter, so the end of a line on the left ran into the start of a line on the right. Pages could also come out in the wrong order. Both are fixed, and the stored text now matches what is on the page."
+                    detail:
+                        "Papers, reports and anything set in two columns were read across the gutter, so the end of a line on the left ran into the start of a line on the right. Pages could also come out in the wrong order. Both are fixed, and the stored text now matches what is on the page."
                 ),
                 .init(
                     symbol: "checkmark.seal",
                     title: "A finished answer can no longer be replaced by a worse one",
-                    detail: "A final editing pass could swap a complete, cited answer for a short stub, or strip its citations out, and nothing checked before it did. Every replacement is now checked first. An answer that claims your documents say nothing while citing them is caught and retried."
+                    detail:
+                        "A final editing pass could swap a complete, cited answer for a short stub, or strip its citations out, and nothing checked before it did. Every replacement is now checked first. An answer that claims your documents say nothing while citing them is caught and retried."
                 ),
                 .init(
                     symbol: "books.vertical",
                     title: "Reference lists stopped outranking the papers that cited them",
-                    detail: "A bibliography is the strongest keyword match on a page and the weakest evidence, so answers were being built from lists of author names. Reference sections now rank lower, and a document's tags are no longer generated from them."
+                    detail:
+                        "A bibliography is the strongest keyword match on a page and the weakest evidence, so answers were being built from lists of author names. Reference sections now rank lower, and a document's tags are no longer generated from them."
                 ),
                 .init(
                     symbol: "text.magnifyingglass",
                     title: "Deep Think was answering from a fraction of what it found",
-                    detail: "It retrieved the right passages and then discarded most of them before writing, including the single best one. It now keeps the most relevant evidence and says in the logs what it left out."
+                    detail:
+                        "It retrieved the right passages and then discarded most of them before writing, including the single best one. It now keeps the most relevant evidence and says in the logs what it left out."
                 ),
                 .init(
                     symbol: "hare",
                     title: "Deep Think is roughly three times faster",
-                    detail: "On a smaller library it kept re-reading passages it had already read, word for word, for about a third of its total time. It now stops once it has covered the material, and still reads everything it retrieved."
+                    detail:
+                        "On a smaller library it kept re-reading passages it had already read, word for word, for about a third of its total time. It now stops once it has covered the material, and still reads everything it retrieved."
                 ),
                 .init(
                     symbol: "wrench.and.screwdriver",
                     title: "Four ways a library could lose its answers while keeping its documents, closed",
-                    detail: "A library could look fine and answer nothing, with no warning, sometimes for an entire session. Detection now runs the moment a question comes back empty, and a repair no longer reports success when it was blocked from doing anything."
+                    detail:
+                        "A library could look fine and answer nothing, with no warning, sometimes for an entire session. Detection now runs the moment a question comes back empty, and a repair no longer reports success when it was blocked from doing anything."
                 ),
                 .init(
                     symbol: "arrow.triangle.2.circlepath",
                     title: "Importing certain documents could freeze the whole queue",
-                    detail: "One file lookup could deadlock, and everything queued behind it waited forever with no explanation. Fixed at the root; a stuck import can no longer take the rest of the queue down with it."
+                    detail:
+                        "One file lookup could deadlock, and everything queued behind it waited forever with no explanation. Fixed at the root; a stuck import can no longer take the rest of the queue down with it."
                 ),
                 .init(
                     symbol: "arrow.left.arrow.right.square",
                     title: "Switching libraries no longer resets your place or flashes the screen",
-                    detail: "The library picker was rebuilding itself from scratch on certain switches, which reset it back to your first library and made the whole screen visibly redraw."
+                    detail:
+                        "The library picker was rebuilding itself from scratch on certain switches, which reset it back to your first library and made the whole screen visibly redraw."
                 ),
                 .init(
                     symbol: "quote.opening",
                     title: "Citations always point at a real source now",
-                    detail: "An answer could cite a source number past the end of its own list, and confidence still reported a reassuring middle number. Citations are checked before you see them, and confidence can now report a genuine failure."
+                    detail:
+                        "An answer could cite a source number past the end of its own list, and confidence still reported a reassuring middle number. Citations are checked before you see them, and confidence can now report a genuine failure."
                 ),
                 .init(
                     symbol: "arrow.triangle.merge",
                     title: "Combining keyword and meaning-based search stopped losing to keyword search alone",
-                    detail: "The two are supposed to complement each other. The combined result was ranking worse than plain keyword search by itself; it no longer does."
+                    detail:
+                        "The two are supposed to complement each other. The combined result was ranking worse than plain keyword search by itself; it no longer does."
                 ),
                 .init(
                     symbol: "character.book.closed",
                     title: "Plain English definitions open reliably, and cover a lot more of the app",
-                    detail: "Tapping a term could animate to nothing and leave the back button pointed at a blank screen; fixed. Seven new entries too, including the difference between Standard, Deep Think and Maximum, and what confidence and the trust badges actually mean."
+                    detail:
+                        "Tapping a term could animate to nothing and leave the back button pointed at a blank screen; fixed. Seven new entries too, including the difference between Standard, Deep Think and Maximum, and what confidence and the trust badges actually mean."
                 ),
                 .init(
                     symbol: "icloud",
                     title: "iCloud sync stopped re-uploading libraries that had not changed",
-                    detail: "Every sync rewrote each library's index whether or not anything differed, and each rewrite looked like a change and started another one. Hundreds of megabytes per launch, for nothing."
+                    detail:
+                        "Every sync rewrote each library's index whether or not anything differed, and each rewrite looked like a change and started another one. Hundreds of megabytes per launch, for nothing."
                 ),
                 .init(
                     symbol: "bolt",
                     title: "The app starts faster and reaches the first screen sooner",
-                    detail: "A 43 MB model loaded on every launch before anything appeared, even if you never asked a question. It now loads the first time it is actually needed."
+                    detail:
+                        "A 43 MB model loaded on every launch before anything appeared, even if you never asked a question. It now loads the first time it is actually needed."
                 ),
                 .init(
                     symbol: "bubble.left.and.text.bubble.right",
                     title: "Leaving the chat tab no longer kills the answer",
-                    detail: "Switching away mid-answer used to cancel it and throw away everything written so far, with nothing to explain why. The chat also keeps your scroll position instead of jumping to the newest message."
+                    detail:
+                        "Switching away mid-answer used to cancel it and throw away everything written so far, with nothing to explain why. The chat also keeps your scroll position instead of jumping to the newest message."
                 ),
                 .init(
                     symbol: "hand.tap",
                     title: "The document screen is one tap everywhere",
-                    detail: "Add, search, settings and both delete actions are five icons on a single row instead of two buttons and a hidden menu. Press-and-hold on a library behaves like the rest of iOS instead of fighting the scroll."
+                    detail:
+                        "Add, search, settings and both delete actions are five icons on a single row instead of two buttons and a hidden menu. Press-and-hold on a library behaves like the rest of iOS instead of fighting the scroll."
                 ),
                 .init(
                     symbol: "tablecells",
                     title: "Tables, images and scanned pages survive importing",
-                    detail: "Word tables were read into rows and then dropped. Images collapsed to one unbroken line. A fully scanned PDF reported scanning zero pages."
+                    detail:
+                        "Word tables were read into rows and then dropped. Images collapsed to one unbroken line. A fully scanned PDF reported scanning zero pages."
                 ),
                 .init(
                     symbol: "exclamationmark.triangle",
@@ -443,6 +500,6 @@ final class WhatsNewStore: ObservableObject {
                     detail: "The file picker there was a placeholder."
                 ),
             ]
-        )
+        ),
     ]
 }
