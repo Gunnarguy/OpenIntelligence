@@ -1,4 +1,4 @@
-Ask a question about your own PDFs, contracts, lecture recordings or code, and get an answer with the exact passage it came from. Nothing you import leaves your device. Free to start, no account, no API key.
+Ask a question about your own PDFs, contracts, lecture recordings or code, and get an answer with the exact passage it came from. Nothing you import leaves your device unless you allow it. Free to start, no account, no API key.
 
 OpenIntelligence reads what you import and answers in plain language, with citations you can tap to see where each claim came from. When your files don't contain the answer, it says so instead of guessing.
 
@@ -26,7 +26,7 @@ If the sources do not establish an answer, the app flags weak support or abstain
 
 WHERE YOUR FILES GO (AND DON'T)
 
-Reading your files, searching them, and choosing what to cite all happen on your device, start to finish, before anything is written. On-device answers need no connection at all. On a plane, in a dead zone, in a locked-down office, your library still works. For longer, evidence-heavy questions on iOS, iPadOS or macOS 27, you can optionally allow Apple Private Cloud Compute to write the answer. The app shows you exactly what would be sent and asks you to approve it first, and Apple's servers keep nothing afterwards. Your material is never sent to a third-party AI provider.
+Reading your files, searching them, and choosing what to cite all happen on your device, start to finish, before anything is written. On-device answers need no connection at all. On a plane, in a dead zone, in a locked-down office, your library still works. For longer, evidence-heavy questions on iOS, iPadOS or macOS 27, you can optionally allow Apple Private Cloud Compute to write the answer. The app shows you how much would be sent and why, and asks you first. Apple says its servers keep nothing afterwards. Your material is never sent to a third-party AI provider.
 
 ANSWERS YOU CAN INSPECT
 

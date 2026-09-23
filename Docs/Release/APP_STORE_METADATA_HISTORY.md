@@ -183,6 +183,9 @@ The sample library's questions are back, the welcome screens follow light and da
 
 **Also corrected outside the metadata trees, recorded here because it is store copy:** both Pro subscription descriptions in App Store Connect read "unlimited documents and 5 libraries". `QuotaPolicy.proDocumentLimit` is `1_000` and `proLibraryLimit` is `10`, so both halves were wrong and the library count understated the plan. Corrected to "up to 1,000 documents and 10 libraries" by the same script.
 
+
+**Description corrected 2026-09-22, before submission.** Two sentences overstated privacy. "Nothing you import leaves your device" is false on the Private Cloud Compute path, where `CloudEvidenceMinimizer` sends passage text with document names and page numbers once consent is given; it now reads "Nothing you import leaves your device unless you allow it". "The app shows you exactly what would be sent" overstated `CloudConsentPromptView`, which shows the provider, model, prompt and context character counts, the passage count, the payload size and the reason, never the text; it now reads "The app shows you how much would be sent and why, and asks you first", and the retention sentence is attributed to Apple rather than promised. Description length 3,986 of 4,000. The live 5.3 description keeps the "exactly what would be sent" sentence until 5.4 replaces it. The same overstatement is in the in-app sample guide (`SampleDocumentManager.swift:59`), `README.md:31`, `Docs/HOW_IT_WORKS.md:44` and `Docs/STUDY_GUIDE.md:1650`, which are outside the store-copy route and unchanged. `[evidence_level: code_verified, confidence: high, evidence_source: ModelExecutionPlanner.swift CloudEvidenceMinimizer; CloudConsentPromptView.swift:164-183; CANONICAL section 8]`
+
 ### 5.3
 
 - **Platforms:** iOS, macOS
