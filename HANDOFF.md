@@ -15,10 +15,11 @@ instruction to stay current.
 
 ## Where the project stands, 2026-09-22
 
-- **5.4 is prepared in App Store Connect and not submitted** (2026-09-22, evening): build 469
-  attached on both platforms, listing text and new screenshots in place. The owner's two steps left
-  are a four-question Maximum-mode check on TestFlight and the Submit button. `Docs/ai/STATE.md`
-  has the release close-out steps for when it goes live.
+- **5.4 is prepared in App Store Connect and not submitted, and build 469 must not be submitted**
+  (2026-09-22, night). Its one-time plans screen at the end of setup presents a view that needs a
+  purchase-state object the sheet never receives, and SwiftUI stops the app when that happens. A
+  one-line fix and a replacement build come first. `Docs/ai/STATE.md` has the evidence, the fix,
+  the other pre-submission findings and the release close-out steps.
 
 - **5.3 is live on the App Store on both platforms**, released by the owner on 2026-09-18 from
   build 464 after both platforms were approved. `Docs/SHIPPED_VERSION.json` carries it.

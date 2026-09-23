@@ -49,7 +49,8 @@ struct ContentView: View {
         _ragService = StateObject(wrappedValue: ragSvc)
         let settingsStoreObj = SettingsStore(ragService: ragSvc)
         _settingsStore = StateObject(wrappedValue: settingsStoreObj)
-        _modelResolutionService = StateObject(wrappedValue: ModelResolutionService(ragService: ragSvc, settingsStore: settingsStoreObj))
+        _modelResolutionService = StateObject(
+            wrappedValue: ModelResolutionService(ragService: ragSvc, settingsStore: settingsStoreObj))
         if screenshotMode.isEnabled {
             let suite = "OpenIntelligence.Screenshots"
             let defaults = UserDefaults(suiteName: suite) ?? .standard
@@ -108,7 +109,8 @@ struct ContentView: View {
             if activity.userInfo?[CSSearchableItemActivityIdentifier] is String {
                 // The identifier is the document UUID; extract containerId from the activity
                 if let containerIdString = activity.userInfo?["containerId"] as? String,
-                   let containerId = UUID(uuidString: containerIdString) {
+                    let containerId = UUID(uuidString: containerIdString)
+                {
                     containerService.activeContainerId = containerId
                     selectedTab = .documents
                 } else {
@@ -134,16 +136,16 @@ struct ContentView: View {
             }
         }
         .animation(.spring(response: 0.35, dampingFraction: 0.82), value: onboardingStore.isChecklistVisible)
-.animation(.spring(response: 0.35, dampingFraction: 0.82), value: onboardingStore.hasDismissedPermanently)
+        .animation(.spring(response: 0.35, dampingFraction: 0.82), value: onboardingStore.hasDismissedPermanently)
         .environmentObject(onboardingStore)
         .environmentObject(entitlementStore)
         .environmentObject(workspaceSyncService)
         .environmentObject(containerService)
         .sheet(isPresented: $showVisualValidationDashboard) {
             #if DEBUG
-            ValidationDashboardView(ragService: ragService, settingsStore: settingsStore)
+                ValidationDashboardView(ragService: ragService, settingsStore: settingsStore)
             #else
-            EmptyView()
+                EmptyView()
             #endif
         }
         // `DocumentLibraryView` (and other tabs) relies on SettingsStore via @EnvironmentObject.
@@ -175,7 +177,11 @@ struct ContentView: View {
             }
         }
         .sheet(isPresented: $showOnboardingPlans) {
+            // Attached below the .environmentObject block, so this sheet inherits none of it, and
+            // PlanUpgradeSheet reads EntitlementStore as it draws. Without this line SwiftUI traps:
+            // build 469 crashed 1.5 s after setup's "Start Asking" (simulator, 2026-09-22).
             PlanUpgradeSheet(entryPoint: .onboarding)
+                .environmentObject(entitlementStore)
         }
         // Proactively refresh StoreKit products once the root view appears.
         // In production this fetches App Store Connect products; in DEBUG/simulator,
@@ -184,9 +190,12 @@ struct ContentView: View {
         // swiped away, which is how most people close one, and that path never invoked
         // the button's action — so the sheet would return on the next launch. Marking
         // seen here covers every route out.
-        .sheet(item: $whatsNewStore.pendingRelease, onDismiss: {
-            whatsNewStore.markSeen()
-        }) { release in
+        .sheet(
+            item: $whatsNewStore.pendingRelease,
+            onDismiss: {
+                whatsNewStore.markSeen()
+            }
+        ) { release in
             WhatsNewView(release: release)
         }
         .task {
@@ -196,54 +205,55 @@ struct ContentView: View {
                 whatsNewStore.evaluateOnLaunch()
             }
             #if DEBUG
-            let environment = ProcessInfo.processInfo.environment
-            let arguments = ProcessInfo.processInfo.arguments
-            let shouldRunGenerationAudit = environment["OPENINTELLIGENCE_RUN_GENERATION_AUDIT"] == "1"
-                || arguments.contains("-OPENINTELLIGENCE_RUN_GENERATION_AUDIT")
-            if shouldRunGenerationAudit
-            {
-                Log.warning("[GenerationAudit] Startup audit flag ignored in this build configuration", category: .llm)
-                exit(0)
-            }
+                let environment = ProcessInfo.processInfo.environment
+                let arguments = ProcessInfo.processInfo.arguments
+                let shouldRunGenerationAudit =
+                    environment["OPENINTELLIGENCE_RUN_GENERATION_AUDIT"] == "1"
+                    || arguments.contains("-OPENINTELLIGENCE_RUN_GENERATION_AUDIT")
+                if shouldRunGenerationAudit {
+                    Log.warning(
+                        "[GenerationAudit] Startup audit flag ignored in this build configuration", category: .llm)
+                    exit(0)
+                }
 
-            if DebugRAGValidationHarness.isEnabled {
-                if DebugRAGValidationHarness.isVisualModeEnabled {
-                    ragService.clearIngestionQueue()
-                    selectedTab = .documents
-                    
-                    Task.detached(priority: .userInitiated) {
-                        do {
-                            let _ = try await DebugRAGValidationHarness.runIfNeeded(
-                                ragService: ragService,
-                                settingsStore: settingsStore
-                            )
-                            await MainActor.run {
-                                showVisualValidationDashboard = true
-                            }
-                        } catch {
-                            await MainActor.run {
-                                showVisualValidationDashboard = true
+                if DebugRAGValidationHarness.isEnabled {
+                    if DebugRAGValidationHarness.isVisualModeEnabled {
+                        ragService.clearIngestionQueue()
+                        selectedTab = .documents
+
+                        Task.detached(priority: .userInitiated) {
+                            do {
+                                let _ = try await DebugRAGValidationHarness.runIfNeeded(
+                                    ragService: ragService,
+                                    settingsStore: settingsStore
+                                )
+                                await MainActor.run {
+                                    showVisualValidationDashboard = true
+                                }
+                            } catch {
+                                await MainActor.run {
+                                    showVisualValidationDashboard = true
+                                }
                             }
                         }
+                    } else {
+                        // Whichever path wins the run gate is the one that must print and exit.
+                        // `runHeadlessIfNeeded` in `App.init` does the same, and on macOS it is
+                        // usually the winner. On the simulator this task claims the gate first, so
+                        // without the exit here the process would finish the validation and then sit
+                        // there forever, which is indistinguishable from a hung run to the caller
+                        // driving it through `simctl launch`.
+                        if let report = try? await DebugRAGValidationHarness.runIfNeeded(
+                            ragService: ragService,
+                            settingsStore: settingsStore
+                        ) {
+                            print(report)
+                            fflush(stdout)
+                            exit(0)
+                        }
+                        return
                     }
-                } else {
-                    // Whichever path wins the run gate is the one that must print and exit.
-                    // `runHeadlessIfNeeded` in `App.init` does the same, and on macOS it is
-                    // usually the winner. On the simulator this task claims the gate first, so
-                    // without the exit here the process would finish the validation and then sit
-                    // there forever, which is indistinguishable from a hung run to the caller
-                    // driving it through `simctl launch`.
-                    if let report = try? await DebugRAGValidationHarness.runIfNeeded(
-                        ragService: ragService,
-                        settingsStore: settingsStore
-                    ) {
-                        print(report)
-                        fflush(stdout)
-                        exit(0)
-                    }
-                    return
                 }
-            }
             #endif
 
             await entitlementStore.billingService.refreshProducts()
@@ -257,10 +267,12 @@ struct ContentView: View {
                 await importSamplesIfNeeded()
             }
         }
-.onChange(of: scenePhase) { oldPhase, newPhase in
-    handleScenePhaseChange(from: oldPhase, to: newPhase)
-}
-        .onChange(of: containerService.containers.map { "\($0.id.uuidString):\($0.syncMode.rawValue)" }.joined(separator: "|")) { _, _ in
+        .onChange(of: scenePhase) { oldPhase, newPhase in
+            handleScenePhaseChange(from: oldPhase, to: newPhase)
+        }
+        .onChange(
+            of: containerService.containers.map { "\($0.id.uuidString):\($0.syncMode.rawValue)" }.joined(separator: "|")
+        ) { _, _ in
             Task { @MainActor in
                 await refreshSharedWorkspaceIfNeeded(forceReload: true)
             }
@@ -375,7 +387,9 @@ struct ContentView: View {
                 await ragService.persistAllVectorStores()
                 ragService.persistIngestionQueueState()
                 ragService.saveSessionTranscript()
-                Log.debug("[App] Scene entered background - persisted vector stores, saved transcript", category: .initialization)
+                Log.debug(
+                    "[App] Scene entered background - persisted vector stores, saved transcript",
+                    category: .initialization)
             }
 
             // Begin ingestion handoff if processing
@@ -416,7 +430,9 @@ struct ContentView: View {
             Task { @MainActor in
                 ragService.persistIngestionQueueState()
                 ragService.saveSessionTranscript()
-                Log.debug("[App] Scene became inactive - checkpointed transcript and ingestion state", category: .initialization)
+                Log.debug(
+                    "[App] Scene became inactive - checkpointed transcript and ingestion state",
+                    category: .initialization)
             }
 
         @unknown default:
@@ -427,7 +443,10 @@ struct ContentView: View {
     @MainActor
     private func refreshSharedWorkspaceIfNeeded(forceReload: Bool = false) async {
         let didChangeWorkspaceRoots = await workspaceSyncService.reconfigureIfNeeded()
-        guard didChangeWorkspaceRoots || forceReload || (hasICloudSyncAccess && workspaceSyncService.isUsingSharedWorkspace) else {
+        guard
+            didChangeWorkspaceRoots || forceReload
+                || (hasICloudSyncAccess && workspaceSyncService.isUsingSharedWorkspace)
+        else {
             return
         }
 
@@ -452,9 +471,12 @@ struct ContentView: View {
     @MainActor
     private func handleOpenURL(_ url: URL) {
         Log.warning("[DeepLink] Received deep link URL: \(url.absoluteString)", category: .ui)
-        Log.warning("[DeepLink] scheme: \(url.scheme ?? "nil"), host: \(url.host ?? "nil"), path: \(url.path)", category: .ui)
+        Log.warning(
+            "[DeepLink] scheme: \(url.scheme ?? "nil"), host: \(url.host ?? "nil"), path: \(url.path)", category: .ui)
         guard url.scheme == OpenIntelligenceDeepLink.scheme else {
-            Log.warning("[DeepLink] URL scheme '\(url.scheme ?? "nil")' does not match expected '\(OpenIntelligenceDeepLink.scheme)'", category: .ui)
+            Log.warning(
+                "[DeepLink] URL scheme '\(url.scheme ?? "nil")' does not match expected '\(OpenIntelligenceDeepLink.scheme)'",
+                category: .ui)
             return
         }
 
@@ -462,8 +484,10 @@ struct ContentView: View {
             Log.warning("[DeepLink] Routing to documents tab. Current tab was: \(selectedTab)", category: .ui)
             selectedTab = .documents
             if url.path == "/ingestion" {
-                Log.warning("[DeepLink] Path matches '/ingestion'. Posting showIngestionQueue notification", category: .ui)
-                NotificationCenter.default.post(name: NSNotification.Name("com.openintelligence.showIngestionQueue"), object: nil)
+                Log.warning(
+                    "[DeepLink] Path matches '/ingestion'. Posting showIngestionQueue notification", category: .ui)
+                NotificationCenter.default.post(
+                    name: NSNotification.Name("com.openintelligence.showIngestionQueue"), object: nil)
             }
         } else if url.host == "chat" {
             Log.warning("[DeepLink] Routing to chat tab. Current tab was: \(selectedTab)", category: .ui)
@@ -482,7 +506,8 @@ private struct ScreenshotMode {
     static var current: ScreenshotMode {
         #if DEBUG
             let enabled = LaunchArguments.has("--screenshot") || LaunchArguments.has("screenshot")
-            let tabRaw = LaunchArguments.valueEither(for: "screenshot-tab")
+            let tabRaw =
+                LaunchArguments.valueEither(for: "screenshot-tab")
                 ?? LaunchArguments.valueEither(for: "tab")
             let initialTab: ContentView.Tab? = {
                 guard let t = tabRaw?.lowercased() else { return nil }
@@ -495,9 +520,11 @@ private struct ScreenshotMode {
                 default: return nil
                 }
             }()
-            let importSamples = LaunchArguments.has("--screenshot-import-samples")
+            let importSamples =
+                LaunchArguments.has("--screenshot-import-samples")
                 || LaunchArguments.has("screenshot-import-samples")
-            return ScreenshotMode(isEnabled: enabled, initialTab: initialTab, shouldImportSamples: enabled && importSamples)
+            return ScreenshotMode(
+                isEnabled: enabled, initialTab: initialTab, shouldImportSamples: enabled && importSamples)
         #else
             return ScreenshotMode(isEnabled: false, initialTab: nil, shouldImportSamples: false)
         #endif
