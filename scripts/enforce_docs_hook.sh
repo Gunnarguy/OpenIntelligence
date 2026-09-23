@@ -98,7 +98,10 @@ if [ -n "$staged_metadata" ]; then
 try: print(json.load(sys.stdin).get("preparing",""))
 except Exception: print("")' 2>/dev/null || true)"
   history="$(git show ":$HISTORY" 2>/dev/null || cat "$HISTORY" 2>/dev/null || true)"
-  if [ -n "$preparing" ] && ! printf '%s\n' "$history" | grep -qE "^### ${preparing//./\\.}( |$)"; then
+  # A here-string, not `printf | grep -q`: under `set -o pipefail` that pipe fails whenever the input
+  # outgrows a pipe buffer, because grep exits at its first match and printf dies of SIGPIPE. The
+  # history passed 64 KB on 2026-09-23 and a commit whose history did carry the heading was refused.
+  if [ -n "$preparing" ] && ! grep -qE "^### ${preparing//./\\.}( |$)" <<<"$history"; then
     metadata_fail "changed without a history entry for v$preparing" \
       "Docs/SHIPPED_VERSION.json says v$preparing is being prepared, and $HISTORY has no" \
       "'### $preparing' heading. Copy the template into the top of \"Versions, newest first\"," \
@@ -152,7 +155,8 @@ if is_staged "CHANGELOG.md"; then
   # [Settings], [Diagnostics]), so demanding the approved set on every bullet would fail commits
   # that follow established practice.
   added_bullets="$(git diff --cached CHANGELOG.md | grep -E '^\+[[:space:]]*-' || true)"
-  if [ -n "$added_bullets" ] && ! printf '%s' "$added_bullets" | grep -qE "\[Ingestion\]|\[Chunking\]|\[Indexing\]|\[Retrieval\]|\[Orchestration\]|\[Shortcuts\]|\[UI\]|\[General\]|\[Infrastructure\]"; then
+  # Here-string for the same reason as the history check above: a large addition would fail on SIGPIPE.
+  if [ -n "$added_bullets" ] && ! grep -qE "\[Ingestion\]|\[Chunking\]|\[Indexing\]|\[Retrieval\]|\[Orchestration\]|\[Shortcuts\]|\[UI\]|\[General\]|\[Infrastructure\]" <<<"$added_bullets"; then
     echo "======================================================================"
     echo "PRE-COMMIT FAILED: CHANGELOG.md entry has no architecture tag"
     echo "======================================================================"

@@ -231,6 +231,27 @@ new_index
 git update-index --force-remove "OpenIntelligence/Services/RAG/Retrieval/HybridSearchService.swift"
 check pass "a commit that only deletes source needs no documentation"
 
+
+# Both inputs below outgrow a pipe buffer (64 KB on macOS). Under `set -o pipefail`,
+# `printf "$big" | grep -q` fails when grep exits at its first match and printf dies of SIGPIPE, so
+# a history that did carry the heading read as missing. Found 2026-09-23, when the metadata history
+# reached 69,551 bytes and a correct store-copy commit was refused.
+FILLER="$(head -c 90000 /dev/zero | tr '\0' 'x' | fold -w 100)"
+
+new_index
+stage "Docs/SHIPPED_VERSION.json" '{"app_store":"9.8","preparing":"9.9"}'
+stage "fastlane/metadata/en-US/release_notes.txt" "$RN_GOOD"
+stage "Docs/Release/APP_STORE_METADATA_HISTORY.md" "### 9.9
+$FILLER"
+check pass "REGRESSION: a history larger than a pipe buffer still counts its heading"
+
+new_index
+stage "OpenIntelligence/Services/RAG/Retrieval/Synthetic.swift" "// changed"
+stage_real "Docs/RETRIEVAL_PIPELINE.md"
+stage "CHANGELOG.md" "${CL_GOOD}
+$(printf '%s\n' "$FILLER" | sed 's/^/- **[General]** /')"
+check pass "REGRESSION: a tagged changelog addition larger than a pipe buffer passes"
+
 echo
 echo "$PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]
