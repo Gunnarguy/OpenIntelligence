@@ -3028,7 +3028,7 @@ struct ChatScreen: View {
                 )
 
                 // Every mode streams. Deep Think and Maximum used to pass nil here because each of
-                // their dozens of model calls would have streamed into the bubble; since 5.5
+                // their dozens of model calls would have streamed into the bubble; since 5.4
                 // `AgenticOrchestrator.execute` holds this handler back for the calls that write
                 // the final answer, so those modes show their answer as it is written instead of
                 // all at once when every later stage has finished.

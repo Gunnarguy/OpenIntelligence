@@ -30,7 +30,7 @@ in this table by hand.
 
 ## 2026-09-23: `sourceonly-before-greedy25` / `sourceonly-after-greedy25` — no accuracy loss from skipping the source-only check on passing Standard answers; the higher after-score is not attributable to the change
 
-**Intent.** A/B for the 5.5 change that stops Standard running `SourceOnlyAnswerService` on answers
+**Intent.** A/B for the 5.4 change that stops Standard running `SourceOnlyAnswerService` on answers
 the nine verification gates passed (`RAGService.standardSkipsSourceOnlyCheck`). The check is two
 structured model calls after the last word; on four HOW_IT_WORKS lookups it had held a finished
 answer 19.4 to 163.8 s and changed none of them. The question here is whether skipping it costs
@@ -40,7 +40,7 @@ correct answers.
 `/private/tmp/oi-src`, `SWIFT_DETERMINISTIC_HASHING=1`, `--manifest
 Benchmarks/ResearchFixtures/qasper_external_v1/manifest.json --modes standard --pcc deny --sampling
 greedy --pool-limit 10 --top-k 3 --limit 25`. Before: working tree at `2e3ab4a` (app frozen to
-`/private/tmp/oi-bench/before`). After: `2e3ab4a` plus the uncommitted 5.5 working tree of 10:05
+`/private/tmp/oi-bench/before`). After: `2e3ab4a` plus the uncommitted working tree of 10:05
 (app `/private/tmp/oi-bench/after-all`; includes the streaming and UI work, which does not touch the
 Standard path the harness runs except the skip and the structured-answer streaming, and no case
 here was small enough for the structured path).

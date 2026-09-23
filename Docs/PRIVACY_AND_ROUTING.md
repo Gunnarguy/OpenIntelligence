@@ -114,7 +114,7 @@ Background and App Intent execution never waits for a foreground consent sheet. 
 - Once a meaningful partial response exists, OpenIntelligence returns that single-target partial response rather than mixing cloud and local output.
 - PCC is not automatically retried after quota failure.
 - Intermediate Deep Think/Maximum reasoning sessions stay on-device; only final post-retrieval synthesis may be selected for PCC.
-- Streaming follows the same line (5.5): in Deep Think and Maximum only the calls that write the final answer stream text to the chat; `AgenticOrchestrator.execute` holds the chat's handler back from every intermediate call. Where a final synthesis goes to PCC, the consent prompt still comes before any of its text streams. A short Standard answer on the structured path now streams its `answer` field as it is generated instead of replaying it; routing and consent for that call are unchanged.
+- Streaming follows the same line (5.4): in Deep Think and Maximum only the calls that write the final answer stream text to the chat; `AgenticOrchestrator.execute` holds the chat's handler back from every intermediate call. Where a final synthesis goes to PCC, the consent prompt still comes before any of its text streams. A short Standard answer on the structured path now streams its `answer` field as it is generated instead of replaying it; routing and consent for that call are unchanged.
 - Retrieval evidence and citation verification remain local even when synthesis uses PCC.
 
 `[evidence_level: code_verified, confidence: high, evidence_source: RAGService.generateWithFallback, AgenticOrchestrator.generateWithFreshSession]`

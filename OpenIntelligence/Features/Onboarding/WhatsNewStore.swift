@@ -108,10 +108,10 @@ final class WhatsNewStore: ObservableObject {
         // who updated to it was recorded as seen and shown nothing. The gap is only visible
         // from a later build, which is why `WhatsNewCoverageTests` now fails the build when
         // the newest version in the bundled VersionHistory.md has no entry below.
-        "5.5": WhatsNewRelease(
-            version: "5.5",
+        "5.4": WhatsNewRelease(
+            version: "5.4",
             headline:
-                "Answers stop keeping you waiting once they are written. Deep Think and Maximum show their answer as it is written, and the app tells you when an answer finishes while you are somewhere else.",
+                "Answers stop keeping you waiting once they are written. Deep Think and Maximum show their answer as it is written, and the app tells you when an answer finishes while you are somewhere else. The free plan now does what it says: three Maximum runs a day, counted. The app asks for a rating once, after the first answer from your files, and shows the plans once, at the end of setup.",
             items: [
                 .init(
                     symbol: "text.cursor",
@@ -131,13 +131,6 @@ final class WhatsNewStore: ObservableObject {
                     detail:
                         "On iPhone, a light tap when it finishes, and a badge on the Chat tab if you were on another tab. The timer keeps running when you come back. If iOS stops an answer in the background, what it wrote stays in the chat with a note saying why."
                 ),
-            ]
-        ),
-        "5.4": WhatsNewRelease(
-            version: "5.4",
-            headline:
-                "The free plan now does what it says: three Maximum runs a day, counted. The app asks for a rating once, after the first answer from your files, and shows the plans once, at the end of setup.",
-            items: [
                 .init(
                     symbol: "flame.fill",
                     title: "Three Maximum runs a day on the free plan, for real this time",

@@ -119,7 +119,7 @@ enum LLMStreamingContext {
     /// Those modes make dozens of model calls before their answer exists, and every one of them
     /// streams through `handler`. `AgenticOrchestrator.execute` therefore clears `handler` for the
     /// whole run and parks the chat's here, and the calls that write the final answer stream
-    /// through `answerHandler`. Until 5.5 the chat passed no handler at all in those modes, so the
+    /// through `answerHandler`. Until 5.4 the chat passed no handler at all in those modes, so the
     /// answer appeared all at once when every later stage had finished.
     @TaskLocal static var finalAnswerHandler: LLMStreamHandler?
 

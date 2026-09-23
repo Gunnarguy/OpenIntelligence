@@ -743,3 +743,31 @@ accuracy A/B for the change is `BenchmarkRuns/2026-09-23-sourceonly-{before,afte
 recorded in `BenchmarkRuns/LEDGER.md`. If a later benchmark shows the check correcting passed
 Standard answers, the gate is one function, `RAGService.standardSkipsSourceOnlyCheck`. Each
 completed draft logs its token use against the 1,024 limit, so the limit can be judged from traces.
+
+## 2026-09-23 - Every change since the live release ships in the version App Store Connect is preparing
+
+**Context.** 5.4 was in Prepare for Submission on build 474 when the answer work of 2026-09-23 was
+planned. Reading the scope-freeze rule in `CLAUDE.md` as closing 5.4, the plan opened
+`## 5.5 <!-- unreleased -->` above 5.4 in `CHANGELOG.md`, filed three roadmap rows against a new
+`v5.5`, and was pushed as `faed0d6`. `ci_scripts/ci_post_clone.sh` stamps every build from the first
+numbered heading, so Xcode Cloud build 475 went to TestFlight as 5.5, a version App Store Connect
+does not have. The owner, the same day: 5.4 is the version that exists, there is no 5.5 in App Store
+Connect, and every change made since 5.3 is 5.4.
+
+**Decision.** Work since the last live release belongs to the version App Store Connect is
+preparing, until that version is submitted. A new version heading goes into `CHANGELOG.md` only
+after the previous version is submitted, or when the owner names the new version. The scope-freeze
+rule decides which roadmap rows a release takes on; it never opens a version. When the two seem to
+pull apart, ask the owner which version the work ships in, in those words.
+
+**Alternatives.** Keep 5.5 open and submit 5.4 on build 474 without the answer work. That is what the
+push set up, and it is not what the owner wanted: 5.4 would ship without the fixes, and every build
+after it would carry a version App Store Connect does not have.
+
+**Consequences.** `## 5.5` was folded into `## 5.4 <!-- unreleased -->` the same day, and so were the
+matching sections of `Docs/USER_CHANGELOG.md`, its bundled copy, `WHATS_NEW.md` and the in-app
+What's New entry. The three rows moved to `v5.4`. The build to submit for 5.4 is the first build of
+`main` after the fold, in place of 474. Build 475 (5.5) stays in TestFlight unused, and the Notion
+`v5.5` option has no rows.
+
+`[evidence_source: owner's messages 2026-09-23; git show faed0d6 -- CHANGELOG.md; App Store Connect builds?filter[version]=475 -> version 5.5 on iOS and macOS]`

@@ -3,7 +3,7 @@
 //  OpenIntelligenceTests
 //
 //  Pins `ResponseMetadata.appendingGatingDecision`, which `RAGService.finalizeResponse` uses to mark
-//  an answer the person finished before its later stages ran (`finished_early_by_person`, 5.5).
+//  an answer the person finished before its later stages ran (`finished_early_by_person`, 5.4).
 //  The gating record is what a saved answer and an exported trace say about how the answer was
 //  checked, so the marker must add to it without losing anything else the metadata carries.
 //

@@ -7,7 +7,7 @@ This document provides a chronological history of user-facing changes, highlight
 
 ---
 
-## v5.5 - unreleased
+## v5.4 - unreleased
 
 ### Answers
 - **A finished answer no longer waits behind a blinking cursor.** In Standard, a question that asks for one specific fact ran a second check after the answer was already written. The cursor kept blinking and the text box stayed locked until it finished, which on a Mac took from 19 seconds to almost three minutes, and in the four questions measured it changed nothing. Standard now runs that check only when the app's own verification flags the answer.
@@ -18,10 +18,6 @@ This document provides a chronological history of user-facing changes, highlight
 ### Background
 - **You can tell when an answer is done.** On iPhone a light tap when it finishes, and a badge on the Chat tab if you were on another tab. The timer keeps running when you come back to an answer still in progress, instead of showing the moment you left.
 - **An answer cut off in the background says so.** If iOS ends the app's background time before an answer finishes, what was already written stays in the chat with a note saying why it stopped. It used to disappear.
-
----
-
-## v5.4 - unreleased
 
 ### Plans
 - **Three Maximum runs a day on the free plan, counted.** The mode menu has said "3 left today" since May and the number never moved, because nothing ever counted a run. It counts now. When the three are used, the app offers Standard, Deep Think, or the plans, and the allowance comes back at midnight. Pro and Lifetime have no cap, as they always said.

@@ -118,7 +118,7 @@ import Foundation
 
             /// Streams `DirectRAGAnswer`, sending its `answer` field to the chat as it grows.
             ///
-            /// `answer` is the schema's first property, so it is generated first. Until 5.5 this
+            /// `answer` is the schema's first property, so it is generated first. Until 5.4 this
             /// call used `respond(generating:)` and replayed the finished answer in one piece, so a
             /// Standard answer small enough for this path showed the typing indicator for the whole
             /// generation and then dripped out text that already existed. Probed 2026-09-23 on

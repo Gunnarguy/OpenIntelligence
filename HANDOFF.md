@@ -1,6 +1,6 @@
 # Handoff
 
-Written 2026-08-22, rewritten 2026-09-20, updated 2026-09-22 against commit `e51dbeb` on `main`.
+Written 2026-08-22, rewritten 2026-09-20, updated 2026-09-23 against commit `2352aca` on `main`.
 
 This file exists so that whatever picks this repository up next lands somewhere useful without
 re-deriving weeks of work. It assumes no particular tool. It is plain markdown, every path in it is
@@ -13,26 +13,29 @@ lives in `Docs/ai/STATE.md`, `CHANGELOG.md` or `BenchmarkRuns/LEDGER.md`, those 
 documents rot faster than the things they point at, and only `Docs/ai/STATE.md` is under standing
 instruction to stay current.
 
-## Where the project stands, 2026-09-22
+## Where the project stands, 2026-09-23
 
-- **5.4 is prepared in App Store Connect on build 474 and not submitted** (2026-09-23). Build 474
-  carries the fix for build 469's crash at the end of setup (`a713bfc`) and the corrected copy; the
-  listing text, review notes, sale promotional text and two subscription images are written. The
-  owner holds submission until a TestFlight check on a device. Build 469 must never be submitted.
-  `Docs/ai/STATE.md` has the owner's remaining steps, the release close-out, and the 5.5 work done
-  on 2026-09-23: the Standard end-of-stream stall (19 to 164 s after the last word on four measured
-  lookup questions, 0.15 to 0.33 s after the fix), finishing an answer early with its sources,
-  off-screen completion signals, and streaming for Deep Think and Maximum.
+- **5.4 carries every change since 5.3 and is not submitted** (2026-09-23). App Store Connect has
+  5.4 in Prepare for Submission on both platforms with build 474 attached. 474 carries the fix for
+  build 469's crash at the end of setup (`a713bfc`) and the corrected copy, but not the answer work
+  below, so the build to submit is the first Xcode Cloud build of `main` after the fold commit, in
+  place of 474. The listing text, review notes, sale promotional text and two subscription images
+  are written; the release notes do not mention the answer work yet. The owner holds submission
+  until a TestFlight check on a device. Build 469 must never be submitted. `Docs/ai/STATE.md` has
+  the owner's remaining steps and the release close-out.
+- **The answer work of 2026-09-23 is in 5.4**: the Standard end-of-stream stall (19 to 164 s after
+  the last word on four measured lookup questions, 0.15 to 0.33 s after the fix), finishing an
+  answer early with its sources, off-screen completion signals, and streaming for Deep Think and
+  Maximum. It was first pushed under a `## 5.5` heading (`faed0d6`), so Xcode Cloud build 475 went
+  to TestFlight as 5.5. The owner put every change since 5.3 in 5.4 the same day, because 5.4 is not
+  submitted and App Store Connect has no 5.5; nothing uses build 475.
 
 - **5.3 is live on the App Store on both platforms**, released by the owner on 2026-09-18 from
   build 464 after both platforms were approved. `Docs/SHIPPED_VERSION.json` carries it.
-- **5.5 is the open release and is where new work goes** (opened 2026-09-23). `CHANGELOG.md` has
-  `## 5.5 <!-- unreleased -->` above `## 5.4 <!-- unreleased -->`, because 5.4 waits on the owner
-  on build 474 while 5.5 work lands. `ci_scripts/ci_post_clone.sh` stamps the build's version from
-  the first numbered heading, so every Xcode Cloud build from `main` after the 5.5 push is 5.5;
-  build 474 stays the 5.4 candidate, and a 5.4 rebuild would need a revert. The 5.5 work was pushed
-  as `faed0d6`, and Xcode Cloud build 475 is the first 5.5 build, `VALID` on both platforms
-  (2026-09-23); it has not been checked on a device.
+- **5.4 is the open release, and new work goes into it until it is submitted.** `CHANGELOG.md` has
+  `## 5.4 <!-- unreleased -->` as its first numbered heading, and `ci_scripts/ci_post_clone.sh`
+  stamps every Xcode Cloud build from that heading, so every build from `main` is 5.4. Do not open
+  a new version in `CHANGELOG.md` while one is unsubmitted (`Docs/ai/DECISIONS.md`, 2026-09-23).
 - **Private Cloud Compute shipped in 5.2 and reaches users today.** Earlier revisions of this file
   said PCC had never reached a single user. That was true when written and is false now. Anything
   describing PCC as staged, pending or compiled out is stale.
