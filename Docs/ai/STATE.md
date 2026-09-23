@@ -16,8 +16,8 @@ Desk https://claude.ai/artifact/RgpvBXBViCZpSvtXFpNUb7); nothing in them blocks 
 ## Status
 
 - **5.3 is live on iOS and macOS**, build 464, since 2026-09-18 (`Docs/SHIPPED_VERSION.json`).
-- **5.4, both platforms: `PREPARE_FOR_SUBMISSION`, release MANUAL, build 469 still attached** (read
-  GET-only 2026-09-22 22:02 PT). **Build 469 must never be submitted:** its end-of-setup plans sheet
+- **5.4, both platforms: `PREPARE_FOR_SUBMISSION`, release MANUAL, build 474 attached**, What's New,
+  notes and sale promo written (read GET-only 2026-09-23 08:40 PT). **Build 469 must never be submitted:** its end-of-setup plans sheet
   crashed the app (fixed in `a713bfc`; details in `CHANGELOG.md` `## 5.4`).
 - **Build 474 is the one to attach**: Xcode Cloud run #474 from `c73aea5` SUCCEEDED; iOS and macOS
   5.4 build 474 `VALID`, `usesNonExemptEncryption=false`, `IN_BETA_TESTING` (read GET-only 08:33 PT).
@@ -35,10 +35,10 @@ Desk https://claude.ai/artifact/RgpvBXBViCZpSvtXFpNUb7); nothing in them blocks 
 
 | # | Item | State |
 |---|---|---|
-| 1 | App Review notes were 5.3's; nothing about the cap | Text in `fastlane/review_notes/5.4.txt`; written by the owner command |
-| 2 | 5.4 promo text is the non-sale line; a mid-sale release drops the sale | Owner command copies the live sale line through 2026-09-29; `asc_end_sale.rb` removes it 09-30 |
-| 3 | Pro descriptions say "unlimited documents and 5 libraries"; Lifetime says 10 libraries | Owner command retries within 55 characters; a 409 means the web page, with the next submission |
-| 4 | No subscription image, so win-back offers (from 2026-09-24) cannot be promoted | `fastlane/iap_images/*.png` drawn; owner command uploads; reviewed with the next submission |
+| 1 | App Review notes were 5.3's; nothing about the cap | Done 2026-09-23: 701 to 1,116 characters, both platforms |
+| 2 | 5.4 promo text is the non-sale line; a mid-sale release drops the sale | Done: sale line on both 5.4 records; `asc_end_sale.rb` removes it 09-30 |
+| 3 | Pro descriptions say "unlimited documents and 5 libraries"; Lifetime says 10 libraries | Refused again: 409, "Cannot edit ... when it is in ACTIVE state". Only the web page is left to try; the app never shows these strings |
+| 4 | No subscription image, so win-back offers (from 2026-09-24) cannot be promoted | Uploaded, `PREPARE_FOR_SUBMISSION`: include both subscriptions when submitting |
 | 5 | Sites, docs and the in-app sample guide said the app shows "exactly what would be sent" | Done: Fascinaiting `bdff4ff2`, Gunzino `cc2912b` (both verified live); README, HOW_IT_WORKS, STUDY_GUIDE, `SampleDocumentManager.swift:59` |
 | 6 | "Never twice in four months" overpromised | Done in store copy and in-app copy; in-app text ships in the next build |
 | 7 | Version History shows "unreleased" beside the running version | For the 5.5 release steps: date the heading before the release build |
@@ -110,8 +110,10 @@ release: date `## v5.4 - unreleased` in `Docs/USER_CHANGELOG.md` and copy it byt
 
 ## Exact Next Action
 
-The owner runs (given 08:35 PT):
-`cd ~/Documents/GitHub/OpenIntelligence && zsh -ic 'ruby scripts/asc_prepare_release.rb 5.4 474 --apply && ruby scripts/asc_listing_extras.rb 5.4 --apply'`.
-Then read both 5.4 records back GET-only: build 474, What's New "on its own", notes plus the 5.4
-addition, the sale promo line, the three descriptions (or Apple's 409), two subscription images. Then the owner's TestFlight check of that build on a device. Do not
-submit until the owner says so.
+The App Store Connect side of 5.4 is done except the refused descriptions (read back 08:40 PT). Left,
+all the owner's: the TestFlight check of build 474 on a device (fresh install on the free plan,
+finish setup, the plans sheet opens and closes; four Maximum questions, the fourth blocked), an
+attempt at the three descriptions on the App Store Connect web page, then the decision to submit,
+including both Pro subscriptions so their images are reviewed. Do not submit until the owner says so.
+Separately in progress: the Standard end-of-stream stall, streaming for Deep Think and Maximum, and
+answers continuing across tab switches (investigation only; nothing implemented).
