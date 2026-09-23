@@ -1,8 +1,8 @@
 # Current State
 
-Updated: 2026-09-23, 16:05 PT (every change since 5.3 is 5.4; 5.4's user-facing copy is function and performance only; the build to submit is the first Xcode Cloud build after the copy commit that follows `3ad7ed6`)
+Updated: 2026-09-23, 16:20 PT (5.4 is complete in the repo at `b176da2` and tested; waiting on an Xcode Cloud build of it, which an agent in auto mode may not start)
 Branch/worktree: `main`, primary checkout
-Last verified commit: 3ad7ed6
+Last verified commit: b176da2
 
 ## Objective
 
@@ -15,9 +15,12 @@ and folded back into 5.4 the same day (`Docs/ai/DECISIONS.md`, 2026-09-23).
 
 - 5.3 live on iOS and macOS (build 464). 5.4 on both platforms: `PREPARE_FOR_SUBMISSION`, release
   MANUAL, build 474 attached (`VALID`). **474 does not carry the answer work**, and build 476
-  (`3ad7ed6`) still shows the plans and ratings items in the in-app What's New; the build to attach
-  and submit is the first Xcode Cloud build after the copy commit that follows `3ad7ed6`. **Never
-  submit build 469** (its setup plans sheet crashed). Build 475 is 5.5 in TestFlight and unused.
+  (`3ad7ed6`, 5.4, `VALID`) still shows the plans and ratings items in the in-app What's New; the
+  build to attach and submit is a build of `b176da2` or later. **No Xcode Cloud build started for the
+  push of `b176da2`** (16:07 PT; none by 16:15, although the workflow's start rule should have
+  started one), and starting one through the API (`POST ciBuildRuns`) was refused by Claude Code's
+  auto-mode classifier as `[Production Deploy]`. **Never submit build 469** (its setup plans sheet
+  crashed). Build 475 is 5.5 in TestFlight and unused.
 - **5.4's user-facing copy is function and performance only** (owner, 2026-09-23): the release notes
   (both `fastlane/metadata*/en-US/release_notes.txt`, identical), `WHATS_NEW.md`,
   `Docs/USER_CHANGELOG.md` + bundled copy and the in-app "5.4" entry describe the answer work and
@@ -113,23 +116,32 @@ Release with no rows.
 - Xcode Cloud build 475 (`faed0d6`, 5.5) -> SUCCEEDED, `VALID` on iOS and macOS; superseded.
 - A local Debug build, `MARKETING_VERSION=5.5`, was installed on the owner's iPhone 16 Pro Max over
   Wi-Fi (`devicectl device install app`, 17 s) and launched; it is replaced by a 5.4 build after the fold.
+- Final code, `b176da2` (the build copy matched it for app, tests and project): full iOS suite ->
+  500 tests, 0 failures, 3 skipped, TEST SUCCEEDED. Hook tests -> 18 passed, 0 failed.
+- App Store Connect, read-only, 16:13 PT: both 5.4 records `PREPARE_FOR_SUBMISSION`, release MANUAL,
+  copyright set, build 474 attached with `usesNonExemptEncryption=false`, review contact, email,
+  phone and 1,116 characters of notes set, no demo account required, no open review submission;
+  What's New still the plans-and-ratings text (1,239 characters); promotional text the sale line.
 - **Not verified:** anything on a device (haptic, badge on a phone, clock restart, background expiry,
   streaming feel); the "Checking sources…"/"Refining…" label and unlocked composer in the running app.
 
 ## Blockers / Unknowns
 
-- Owner: once the first build after the copy commit is `VALID`, run
-  `zsh -ic 'ruby scripts/asc_prepare_release.rb 5.4 <build> --apply'` and then
-  `zsh -ic 'ruby scripts/asc_listing_extras.rb 5.4 --apply'` (the permission classifier refused both
-  from an agent earlier on 2026-09-23); whether macOS needs a tab signal other than the badge.
+- A build of `b176da2`: start it in App Store Connect (Xcode Cloud, workflow Default, Start Build on
+  `main`), or let an agent run it outside auto mode. Then
+  `zsh -ic 'ruby scripts/asc_prepare_release.rb 5.4 <build> --apply'` attaches it and writes the new
+  What's New on both platforms (dry run against 476 at 16:11: both records would take 1,357
+  characters). `asc_listing_extras.rb 5.4` has nothing left to write except the three product
+  descriptions, which the API refuses (409, ACTIVE); those change only on the App Store Connect web
+  page, alongside the submission.
+- Whether macOS needs a tab signal other than the badge, which its toolbar tabs do not draw.
 - Cleanup, this session's test data only: `/private/tmp/oi-ui-appsupport-2026-09-23` (the Mac UI
   test library), the simulator above (`xcrun simctl delete 6CD2218C-EA61-46B3-B31E-0667FBCDF2B6`),
   frozen apps in `/private/tmp/oi-bench/`.
 
 ## Exact Next Action
 
-When the first Xcode Cloud build after the copy commit is `VALID` as 5.4 on both platforms (list the
-workflow's build runs, then `builds?filter[version]=<number>`), run the device checks in the "Closes
-when" sections of the three v5.4 rows, on that build or on the local 5.4 Debug build on the owner's
-iPhone. Close each row that passes. The owner then attaches that build to 5.4 in place of 474 and
-submits.
+Start an Xcode Cloud build of `main` at `b176da2` (see Blockers), wait for it to be `VALID` as 5.4 on
+both platforms, then run `asc_prepare_release.rb 5.4 <build> --apply` and read both records back
+(build attached, What's New 1,357 characters). The owner's device check on that build, then Submit
+for Review in App Store Connect with both Pro subscriptions included.
