@@ -125,6 +125,24 @@ paths that emit these lines never execute there; `RouteLogLineTests` pins the li
 device pins its arrival. *Unverified on a device as of the day it was written; the roadmap row
 closes when a TestFlight build shows the pair under that predicate.*
 
+## A long build can take this Mac down: guard memory
+
+Measured 2026-09-20: this Mac has 18 GB. A cold full `xcodebuild test` ran two `swift-frontend`
+processes to 15.5 GB and 15.4 GB, macOS killed 340 and then 888 processes, and the machine rebooted
+with nobody present. Incremental builds reusing `/private/tmp/oi-build` peak near 2 GB per compiler
+and are safe. Run any long build with a guard beside it:
+
+```bash
+( while sleep 5; do pgrep -x xcodebuild >/dev/null || break
+    free=$(memory_pressure | awk -F': ' '/free percentage/{gsub("%","",$2); print $2+0}')
+    [ -n "$free" ] && [ "$free" -lt 15 ] && { pkill -x xcodebuild; pkill -f swift-frontend; break; }
+  done ) &
+```
+
+The simulator for tests is the iPhone 18 Pro, `25E29FA1-6A22-4A86-AE9F-A6F48411E6D0`, the only
+iOS 27.0 phone left since the 18.x and 26.5 runtimes were removed on 2026-09-21. Boot it and wait
+for `(Booted)` in `xcrun simctl list devices` before starting `xcodebuild`.
+
 ## Test
 
 Scheme `OpenIntelligence`, test target `OpenIntelligenceTests`, Xcode 27 at
