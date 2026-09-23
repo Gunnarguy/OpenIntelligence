@@ -181,7 +181,7 @@ Compute — which compile out below that SDK.
 ./scripts/build_simulator_smoke.sh
 
 # Quality-mode benchmark matrix, 20 cases per mode
-python3 scripts/run_quality_matrix.py
+python3 scripts/run_quality_matrix.py --app <path to the built OpenIntelligence.app>
 
 # Guard against iCloud conflict copies before any signing work
 ./scripts/check_icloud_conflicts.sh
@@ -224,7 +224,7 @@ is not ingestion. Xcode Cloud builds on Apple's released images, so the stamp co
 
 That is also where the toolchain question above is settled. Xcode Cloud runs one workflow,
 `Default`, pinned to the **Xcode 27 release**, build `27A266a`, on macOS `Latest Release`, with two
-archive actions. Xcode 27 ships Swift 6.4, which compiles the twelve `#if compiler(>=6.4)` sites in,
+archive actions. Xcode 27 ships Swift 6.4, which compiles the `#if compiler(>=6.4)` sites in,
 and `ci_scripts/ci_post_clone.sh` fails in seconds if a 5.2-or-later version ever meets a Swift
 earlier than 6.4 runner.
 
