@@ -1,8 +1,8 @@
 # Current State
 
-Updated: 2026-09-23, 08:20 PT, after aligning the 5.4 copy and preparing the App Store Connect run
+Updated: 2026-09-23, 08:35 PT, after build 474 (every 5.4 fix) went VALID
 Branch/worktree: `main`, primary checkout
-Last verified commit: 537406d
+Last verified commit: c73aea5
 
 ## Objective
 
@@ -19,9 +19,9 @@ Desk https://claude.ai/artifact/RgpvBXBViCZpSvtXFpNUb7); nothing in them blocks 
 - **5.4, both platforms: `PREPARE_FOR_SUBMISSION`, release MANUAL, build 469 still attached** (read
   GET-only 2026-09-22 22:02 PT). **Build 469 must never be submitted:** its end-of-setup plans sheet
   crashed the app (fixed in `a713bfc`; details in `CHANGELOG.md` `## 5.4`).
-- **Build 472** (`a713bfc`, the crash fix) is `VALID` on both platforms. **The build to attach is
-  the one Xcode Cloud makes from the last copy-alignment commit** (expected 474), because the
-  alignment changes in-app text (`WhatsNewStore.swift`, `VersionHistory.md`, `SampleDocumentManager.swift`).
+- **Build 474 is the one to attach**: Xcode Cloud run #474 from `c73aea5` SUCCEEDED; iOS and macOS
+  5.4 build 474 `VALID`, `usesNonExemptEncryption=false`, `IN_BETA_TESTING` (read GET-only 08:33 PT).
+  It carries the crash fix and the aligned in-app copy. Build 472 is superseded; run #473 was canceled.
 - **Crash fix verified in the simulator** (Debug, iOS 27.0, fresh install): 469's Swift traps 1.5 s
   after "Start Asking" (`Fatal error: No ObservableObject of type EntitlementStore found`); the fixed
   build opens and closes the plans sheet. Roadmap row
@@ -110,8 +110,8 @@ release: date `## v5.4 - unreleased` in `Docs/USER_CHANGELOG.md` and copy it byt
 
 ## Exact Next Action
 
-When the Xcode Cloud build of the copy-alignment commit is `VALID` on both platforms (read
-`/v1/builds?filter[app]=6756559175&filter[version]=<n>` GET-only), give the owner:
-`cd ~/Documents/GitHub/OpenIntelligence && zsh -ic 'ruby scripts/asc_prepare_release.rb 5.4 <n> --apply && ruby scripts/asc_listing_extras.rb 5.4 --apply'`,
-then read both 5.4 records back. Then the owner's TestFlight check of that build on a device. Do not
+The owner runs (given 08:35 PT):
+`cd ~/Documents/GitHub/OpenIntelligence && zsh -ic 'ruby scripts/asc_prepare_release.rb 5.4 474 --apply && ruby scripts/asc_listing_extras.rb 5.4 --apply'`.
+Then read both 5.4 records back GET-only: build 474, What's New "on its own", notes plus the 5.4
+addition, the sale promo line, the three descriptions (or Apple's 409), two subscription images. Then the owner's TestFlight check of that build on a device. Do not
 submit until the owner says so.
