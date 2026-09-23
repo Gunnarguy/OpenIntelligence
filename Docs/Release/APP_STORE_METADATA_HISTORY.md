@@ -168,7 +168,7 @@ Private Cloud Compute is on. Questions too big for the on-device model can be wr
 
 - **Platforms:** iOS, macOS
 - **Live:** not yet; records in PREPARE_FOR_SUBMISSION on both platforms (iOS `edac9a46-fd9c-4082-99f8-372008d20289`, macOS `0e7e7d98-9878-4418-b977-3bc0b04ddf96`, read from the API 2026-09-20)
-- **Final release notes commit:** the store-copy commit of 2026-09-22 that follows `0f6c5a0`; revise if 5.4 gains more user-facing entries before it ships
+- **Final release notes commit:** the 2026-09-23 commit after `3ad7ed6` that rewrote them for function and performance; revise if 5.4 gains more user-facing entries before it ships
 - **Notes:** this entry exists for the promotional text, which is the only copy that changed. **The two repo trees had drifted apart and both were wrong for 5.4.** `fastlane/metadata*` is a push source, not a record of what is live, and both trees held the 5.3 *sale* text while App Store Connect's 5.4 records already held non-sale text. A `fastlane` push for 5.4 would therefore have put a sale line onto a release that ships after the sale ends on 2026-09-30. Both trees now carry the same non-sale text that is already on the 5.4 records, so the repo and the store agree. **The sale text still stands on the live 5.3 records and is corrected separately:** it said "Lifetime is 33% off", which one string cannot be across storefronts that measure 32.2% in India, 30.8% in Mexico and 40.0% in Australia, while the app computes and shows the true percentage for the customer's own storefront. `scripts/asc_fix_listing_copy.rb` replaces it on both live records and drops the figure. "Unlimited documents" is kept there deliberately: `QuotaPolicy.lifetimeDocumentLimit` is `unlimitedDocumentLimit`, so for Lifetime it is true.
 
 **Promotional text (`fastlane/metadata/` and `fastlane/metadata-ios/`, both platforms, 166 characters):**
@@ -194,6 +194,38 @@ The sample library's questions are back, the welcome screens follow light and da
 - **App Review notes.** The 5.3 notes told the reviewer to try Maximum and said nothing of the three-a-day cap. `fastlane/review_notes/5.4.txt` is appended on both platforms.
 - **Subscription images.** Neither subscription had one, and a win-back offer is promoted on the App Store only with an approved image (StoreKit, "Supporting win-back offers", read 2026-09-22). `fastlane/iap_images/pro_monthly.png` and `pro_annual.png`: 1024 x 1024, RGB, no text, the flame symbol the app uses for Maximum mode on two different gradients, drawn by `scripts/render_iap_images.swift`. They are reviewed with the next submission.
 - **Written 2026-09-23 by the owner's run, read back GET-only at 08:40 PT.** Both 5.4 records: build 474 attached, What's New with "on its own", App Review notes 701 to 1,116 characters with the 5.4 addition, promotional text the live sale line. Both subscription images uploaded, state `PREPARE_FOR_SUBMISSION`, so they need the subscriptions included in the next submission. All three descriptions were refused again: HTTP 409 `ENTITY_ERROR.ATTRIBUTE.INVALID.UNMODIFIABLE`, "Cannot edit SubscriptionLocalization when it is in ACTIVE state" (and the same for the Lifetime `InAppPurchaseLocalization`). The store still shows "unlimited documents and 5 libraries" for Pro and "10 Libraries" for Lifetime; the app itself never displays these strings.
+
+**Release notes rewritten 2026-09-23, before submission, at the owner's direction: function and performance only.** The answer work that `faed0d6` had pushed as 5.5 belongs to 5.4 (`Docs/ai/DECISIONS.md`, 2026-09-23), and the owner asked that the notes say what the app does rather than how it sells. The plans screen at the end of setup, the paywall's two checkable facts, the rating request and the enforced Maximum cap are no longer in the notes, `WHATS_NEW.md`, `Docs/USER_CHANGELOG.md` or the in-app What's New; they remain in `CHANGELOG.md`, true as written. This text supersedes the What's New the owner's run wrote to both records at 08:40 PT, and reaches App Store Connect only when `scripts/asc_prepare_release.rb 5.4 <build> --apply` runs with the first build that carries it. Identical on both platforms (1,357 characters), because that script writes one text to both records; iPhone-only items say "On iPhone" or "If iOS".
+
+```text
+Answers stop keeping you waiting once they are written. Deep Think and Maximum show their answer as it is written, and the app tells you when an answer finishes while you are somewhere else.
+
+
+FASTER ANSWERS
+
+• A finished answer no longer waits behind a blinking cursor. In Standard, a question asking for one specific fact ran a second check after the answer was written, with the text box locked, for 19 seconds to almost three minutes on a Mac. It now runs only when the app's own verification flags the answer.
+
+• You can type while an answer is checked. Sending your next question, or tapping Stop, keeps the answer with its sources.
+
+
+ANSWERS AS THEY ARE WRITTEN
+
+• Deep Think and Maximum show their answer as it is written for most questions, with "Refining…" while a later step may still improve it. Both used to show nothing until every step had finished.
+
+• Short Standard answers stream too, instead of appearing all at once.
+
+
+WHEN YOU LOOK AWAY
+
+• On iPhone, a light tap when an answer finishes, and a badge on the Chat tab if you were on another tab.
+
+• The timer keeps running when you come back to an answer still in progress.
+
+• If iOS ends the app's background time before an answer finishes, what it wrote stays in the chat with a note saying why. It used to disappear.
+
+
+Everything except that one writing step still runs on your device.
+```
 
 ### 5.3
 

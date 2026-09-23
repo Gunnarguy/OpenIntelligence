@@ -111,7 +111,7 @@ final class WhatsNewStore: ObservableObject {
         "5.4": WhatsNewRelease(
             version: "5.4",
             headline:
-                "Answers stop keeping you waiting once they are written. Deep Think and Maximum show their answer as it is written, and the app tells you when an answer finishes while you are somewhere else. The free plan now does what it says: three Maximum runs a day, counted. The app asks for a rating once, after the first answer from your files, and shows the plans once, at the end of setup.",
+                "Answers stop keeping you waiting once they are written. Deep Think and Maximum show their answer as it is written, and the app tells you when an answer finishes while you are somewhere else.",
             items: [
                 .init(
                     symbol: "text.cursor",
@@ -130,30 +130,6 @@ final class WhatsNewStore: ObservableObject {
                     title: "You can tell when an answer is done",
                     detail:
                         "On iPhone, a light tap when it finishes, and a badge on the Chat tab if you were on another tab. The timer keeps running when you come back. If iOS stops an answer in the background, what it wrote stays in the chat with a note saying why."
-                ),
-                .init(
-                    symbol: "flame.fill",
-                    title: "Three Maximum runs a day on the free plan, for real this time",
-                    detail:
-                        "The mode menu said \"3 left today\" since May and the number never moved, because nothing ever counted a run. It counts now. When the three are used, the app offers Standard, Deep Think, or the plans, and the allowance comes back at midnight. Pro and Lifetime have no cap."
-                ),
-                .init(
-                    symbol: "star.fill",
-                    title: "One rating request, after the first answer that came from your files",
-                    detail:
-                        "Two separate prompts used to fire on the same third answer, and Deep Think and Maximum answers never counted at all. Apple allows three requests a year on a device; they are spent on your first success now, and never twice in four months on the app's own initiative."
-                ),
-                .init(
-                    symbol: "square.stack.3d.up.fill",
-                    title: "The plans, once, when setup is finished",
-                    detail:
-                        "A screen you can close, showing what Free includes and what Pro and Lifetime change. It appears one time, after the sample questions, and lives in Settings under Plan & Usage after that."
-                ),
-                .init(
-                    symbol: "hand.raised.fill",
-                    title: "The plans screen cites two things you can check",
-                    detail:
-                        "The App Store privacy label, Data Not Collected, and the app's own store rating once there are enough ratings for it to mean something. The banner that used to sit there said \"cancel anytime\", which is a footer, not evidence."
                 ),
             ]
         ),

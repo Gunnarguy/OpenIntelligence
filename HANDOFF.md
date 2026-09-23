@@ -18,9 +18,10 @@ instruction to stay current.
 - **5.4 carries every change since 5.3 and is not submitted** (2026-09-23). App Store Connect has
   5.4 in Prepare for Submission on both platforms with build 474 attached. 474 carries the fix for
   build 469's crash at the end of setup (`a713bfc`) and the corrected copy, but not the answer work
-  below, so the build to submit is the first Xcode Cloud build of `main` after the fold commit, in
-  place of 474. The listing text, review notes, sale promotional text and two subscription images
-  are written; the release notes do not mention the answer work yet. The owner holds submission
+  below, so the build to submit is the first Xcode Cloud build of `main` after the copy commit that
+  follows `3ad7ed6`, in place of 474. The listing text, review notes, sale promotional text and two
+  subscription images are written. At the owner's direction, 5.4's release notes, `WHATS_NEW.md`,
+  the user changelog and the in-app What's New cover function and performance only. The owner holds submission
   until a TestFlight check on a device. Build 469 must never be submitted. `Docs/ai/STATE.md` has
   the owner's remaining steps and the release close-out.
 - **The answer work of 2026-09-23 is in 5.4**: the Standard end-of-stream stall (19 to 164 s after

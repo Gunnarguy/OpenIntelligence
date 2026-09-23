@@ -6,9 +6,7 @@ Public release highlights for OpenIntelligence.
 
 ## 5.4
 Answers stop keeping you waiting once they are written, Deep Think and Maximum show their answer as
-it is written, and the app tells you when an answer finishes while you are somewhere else. The free
-plan does what it says, the rating request lands on the first real answer, and the plans appear once
-at the end of setup instead of only at a limit.
+it is written, and the app tells you when an answer finishes while you are somewhere else.
 
 ### Answers
 - **A finished answer no longer waits behind a blinking cursor.** In Standard, a question asking for one specific fact ran a second check after the answer was written, with the text box locked, for 19 seconds to almost three minutes on a Mac. It now runs only when the app's own verification flags the answer.
@@ -17,14 +15,6 @@ at the end of setup instead of only at a limit.
 
 ### Background
 - **You can tell when an answer is done.** On iPhone, a light tap, and a badge on the Chat tab if you were elsewhere. An answer iOS stops in the background keeps what it wrote, with a note saying why.
-
-### Plans
-- **Three Maximum runs a day on the free plan, counted.** The mode menu said "3 left today" since May and the number never moved, because nothing counted a run. It counts now; Pro and Lifetime have no cap.
-- **The plans, once, when setup is finished.** A screen you can close, after the sample questions. After that it lives in Settings under Plan & Usage.
-- **The plans screen cites two things you can check.** The App Store privacy label and, once there are enough of them, the app's own ratings.
-
-### Ratings
-- **One rating request, after the first answer that came from your files.** Two prompts used to fire on the same third answer, and Deep Think and Maximum answers never counted. Never twice in four months on its own, never for a flagged answer.
 
 ## 5.3
 The app reads documents with Apple's own detector, the welcome screens follow your light or dark
