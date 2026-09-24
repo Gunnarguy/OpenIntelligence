@@ -639,6 +639,42 @@ flow against `APP_DESKTOP`.
 *Verified 2026-09-18: five scenes captured on an erased iPad Pro 13-inch (M4) and an erased iPhone
 18 Pro Max, both iOS 27.0, uploaded to the 5.4 records, all sets reading `COMPLETE`.*
 
+### Second pass, 2026-09-23: device frames, callouts, the Atlas, and the Mac
+
+The owner called the first 5.4 set "a meme": the screen sat shrunk in a flat white card and half
+the chat shot was empty. `scripts/compose_store_screenshots.py` now draws the device (bezel, side
+buttons, Dynamic Island), sizes it to bleed off the bottom, lifts one element per scene into an
+enlarged callout, and lights the blue panel with soft glows. Listing on 2026-09-23: 9 iPhone scenes
+(answer, refusal, sources, "No server. No account.", consent, Atlas, Database, Settings,
+onboarding), 7 iPad, 6 Mac. `[evidence_level: measured, confidence: exact, evidence_source: asc_upload_screenshots.rb output, sets COMPLETE]`
+
+- **Keep off the listing:** the Database tab's "Performance Advantage" multipliers (100x, 10x), which
+  no benchmark backs (the iPad and Mac callouts sit over them); the Atlas library card's "0 Docs"
+  beside 41 chunks (a display bug; the callout covers it); the iPad How This Works page, which in
+  the simulator says Private Cloud Compute is not enabled because unsigned builds lack the entitlement.
+- **The Atlas has to come from a device.** The simulator draws the axes and none of the 41 points.
+  On a phone with the Debug build: `xcrun devicectl device process launch --device <id>
+  --terminate-existing Gunndamental.OpenIntelligence --screenshot-tab atlas` (the tab argument alone,
+  no `--screenshot`, so nothing is seeded into the real library), then `xcrun devicectl device
+  capture screenshot --device <id> --destination <png>`; paste a dark-mode simulator's 9:41 status bar
+  over the phone's.
+- **The Mac set** (`APP_DESKTOP`, 2880x1800) is `scripts/screenshots/mac_capture.sh`, run from the
+  desktop app's Terminal panel: screen recording belongs to Claude.app, and the agent's Bash tool runs
+  under the disclaimed claude-code helper, where `screencapture` fails. The script places the window on
+  the built-in 2x display through System Events (macOS asks once), and `screencapture -R`/`-D` see only
+  one display from there, so it captures windows (`-l`). Sheets are separate windows and did not
+  present with the app in the background, so the Mac set has no sources or What's New scene.
+- **The unsigned Mac Debug build freezes on sample import when iCloud has evicted its sample copies.**
+  It keeps them in `~/Documents/SampleDocuments`, which iCloud syncs, and
+  `SampleDocumentManager.writeSamplesToDocumentsDirectory()` reads each one with `String(contentsOf:)` on
+  the main thread (`SampleDocumentManager.swift:589`); a `compressed,dataless` file blocks that read
+  indefinitely. Rename the folder (2026-09-23: `SampleDocuments.evicted-2026-09-23`) and import again.
+  The sandboxed store build keeps its copies in its container, which iCloud does not evict.
+  `[evidence_level: measured, confidence: high, evidence_source: sample(1) main-thread stack; ls -lO flags]`
+- **Uploading:** `asc_upload_screenshots.rb` accepts `DEVELOPER_REJECTED` (a version pulled from
+  review), respects the 10-per-set limit by uploading up to 10 before deleting the old ones, and sends
+  `mac-*` files to `APP_DESKTOP` on the macOS record.
+
 ## Release
 
 Version is derived, not set by hand. `ci_scripts/ci_post_clone.sh` stamps `MARKETING_VERSION` for

@@ -16,8 +16,8 @@ instruction to stay current.
 ## Where the project stands, 2026-09-23
 
 - **5.4 carries every change since 5.3 and is submitted for review on both platforms with build 478**
-  (2026-09-23 18:40 PT, release MANUAL). `Docs/ai/STATE.md` has the submission ids and what to do on
-  approval. At the owner's direction, 5.4's release notes, `WHATS_NEW.md`, the user changelog and the
+  (2026-09-23, last resubmitted 22:03 PT with new screenshots on all three platforms, release
+  MANUAL). `Docs/ai/STATE.md` has the submission ids and what to do on approval. At the owner's direction, 5.4's release notes, `WHATS_NEW.md`, the user changelog and the
   in-app What's New cover function and performance only, in his own voice, and the in-app screen also
   shows 5.3's function changes, because 5.3 shipped without one. Earlier 5.4 builds (474, 476, 477)
   are superseded, 475 is an unused 5.5, and build 469 must never be submitted.

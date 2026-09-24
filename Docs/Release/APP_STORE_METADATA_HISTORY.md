@@ -197,6 +197,22 @@ The sample library's questions are back, the welcome screens follow light and da
 
 **Release notes rewritten 2026-09-23, before submission, at the owner's direction: function and performance only.** The answer work that `faed0d6` had pushed as 5.5 belongs to 5.4 (`Docs/ai/DECISIONS.md`, 2026-09-23), and the owner asked that the notes say what the app does rather than how it sells. The plans screen at the end of setup, the paywall's two checkable facts, the rating request and the enforced Maximum cap are no longer in the notes, `WHATS_NEW.md`, `Docs/USER_CHANGELOG.md` or the in-app What's New; they remain in `CHANGELOG.md`, true as written. This text supersedes the What's New the owner's run wrote to both records at 08:40 PT, and reaches App Store Connect only when `scripts/asc_prepare_release.rb 5.4 <build> --apply` runs with the first build that carries it. Identical on both platforms (1,357 characters), because that script writes one text to both records; iPhone-only items say "On iPhone" or "If iOS". Rewritten again that evening in the owner's own voice, at his direction (first person, contractions, double spaces after sentences, per `job-scout-os/context/voice_profile.md` in MissionToAutonomy); the text below is that version, and it went to App Store Connect with the build that carries the matching in-app screen.
 
+**Screenshots replaced 2026-09-23, before the 22:03 PT resubmission, at the owner's direction** ("they should be so good and compelling anyone would wanna download it"). All three platforms, from `scripts/compose_store_screenshots.py`: a drawn device or the Mac window on the lit blue panel, one enlarged callout per scene, headlines unchanged in wording where they existed.
+
+| # | iPhone (9) and iPad (7) | Mac (6) |
+|---|---|---|
+| 1 | Ask your own documents anything | Ask your own documents anything |
+| 2 | It tells you when your files don't say it | It tells you when your files don't say it |
+| 3 | See where every answer came from | Built on Apple Intelligence |
+| 4 | No server. No account. (iPhone only) | Your whole library, mapped in 3D |
+| 5 | Built on Apple Intelligence | Nothing hidden under the hood |
+| 6 | Your whole library, mapped in 3D (iPhone only, from the owner's phone) | It explains itself |
+| 7 | Nothing hidden under the hood | |
+| 8 | It explains itself | |
+| 9 | Bring any file you've got | |
+
+The Mac set replaces the seven captures from 2026-06-21. Procedure and what is kept off the listing: `Docs/ai/RUNBOOK.md`, "Second pass, 2026-09-23".
+
 ```text
 This one's all about answers.  They're done when the last word shows up, most Deep Think and Maximum answers write out in front of you now, and on iPhone the app tells you when one finishes while you're off doing something else.
 

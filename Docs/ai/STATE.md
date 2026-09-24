@@ -1,8 +1,8 @@
 # Current State
 
-Updated: 2026-09-23, 18:45 PT (5.4 SUBMITTED for review on iOS and macOS with build 478; waiting on Apple)
+Updated: 2026-09-23, 22:10 PT (5.4 in review on iOS and macOS with build 478, new screenshots on all three platforms; the owner asleep)
 Branch/worktree: `main`, primary checkout
-Last verified commit: c276b9a
+Last verified commit: cbdb1bc
 
 ## Objective
 
@@ -13,12 +13,14 @@ and folded back into 5.4 the same day (`Docs/ai/DECISIONS.md`, 2026-09-23).
 
 ## Status: 5.4
 
-- **Submitted for review on both platforms, 2026-09-23 18:40 PT, build 478** (Xcode Cloud #478 from
-  `c276b9a`), release MANUAL: after approval it waits for a release. Read back: both records
-  `WAITING_FOR_REVIEW`, build 478 `VALID`, What's New the 1,604-character notes in the owner's voice.
-  Submissions: iOS `84bcb514-02f6-4013-908d-caec38cada8d`, macOS `e1268171-aec3-474e-bcd5-59136b64e5f9`.
-  Build 477 was submitted first (17:17 PT) and pulled from review at the owner's direction so the copy
-  could be rewritten in his voice. 474, 475 (5.5), 476 and 477 are superseded; **never submit 469**.
+- **In review on both platforms, build 478** (Xcode Cloud #478 from `c276b9a`), release MANUAL: after
+  approval it waits for a release. Last submitted 2026-09-23 22:03 PT, after the listing's screenshots
+  were replaced (9 iPhone, 7 iPad, 6 Mac; `Docs/Release/APP_STORE_METADATA_HISTORY.md`). Read back: both
+  records `WAITING_FOR_REVIEW`, build 478 `VALID`, What's New the 1,604-character notes in the owner's
+  voice. Submissions: iOS `0f601c16-8a6b-4d13-937d-c5a71803f6ce`, macOS `5a21fe94-a866-4c37-a412-a44f385f1b68`.
+  Earlier submissions that evening (477 at 17:17, 478 at 18:40 and 21:00) were pulled at the owner's
+  direction for the voice rewrite and the screenshots. 474, 475 (5.5), 476 and 477 are superseded;
+  **never submit 469**.
 - **5.4's user-facing copy is function and performance only** (owner, 2026-09-23): the release notes
   (both `fastlane/metadata*/en-US/release_notes.txt`, identical), `WHATS_NEW.md`,
   `Docs/USER_CHANGELOG.md` + bundled copy and the in-app "5.4" entry describe the answer work and
@@ -119,6 +121,9 @@ Release with no rows.
   copyright set, build 474 attached with `usesNonExemptEncryption=false`, review contact, email,
   phone and 1,116 characters of notes set, no demo account required, no open review submission;
   What's New still the plans-and-ratings text (1,239 characters); promotional text the sale line.
+- App Store Connect, 2026-09-23 22:04 PT: both 5.4 records `WAITING_FOR_REVIEW`, build 478 `VALID`,
+  What's New 1,604 characters; screenshot sets replaced and `COMPLETE`: `APP_IPHONE_67`, `_65`, `_61` 9
+  each, `APP_IPAD_PRO_3GEN_129` 7, `APP_DESKTOP` 6.
 - **Not verified:** anything on a device (haptic, badge on a phone, clock restart, background expiry,
   streaming feel); the "Checking sources…"/"Refining…" label and unlocked composer in the running app.
 
@@ -130,15 +135,17 @@ Release with no rows.
   next submission; targets are in the Status section above.
 - Whether macOS needs a tab signal other than the badge, which its toolbar tabs do not draw.
 - Cleanup, this session's test data only: `/private/tmp/oi-ui-appsupport-2026-09-23` (the Mac UI
-  test library), simulator `6CD2218C-EA61-46B3-B31E-0667FBCDF2B6` (`xcrun simctl delete`), frozen
-  apps in `/private/tmp/oi-bench/`.
+  test library); simulators `6CD2218C-EA61-46B3-B31E-0667FBCDF2B6`, `57E0CE08-EA1A-4D02-9D74-FEBD238709ED`
+  and `F798E00A-9F48-44B8-A087-45413A96783A` (shut down; `xcrun simctl delete` each); frozen apps in
+  `/private/tmp/oi-bench/`; in the owner's iCloud Documents, `~/Documents/SampleDocuments` (fresh sample
+  copies from the unsigned Mac build) and `~/Documents/SampleDocuments.evicted-2026-09-23` (the evicted
+  copies that froze it). Nothing there is the owner's own.
 
 ## Exact Next Action
 
-Check the two 5.4 review submissions (`GET /v1/apps/6756559175/reviewSubmissions`). On approval, both
-records go to `PENDING_DEVELOPER_RELEASE` (release MANUAL): release them when the owner says to, then
-do the release close-out in the Status section (date `## v5.4` in `Docs/USER_CHANGELOG.md` and its
-bundled copy, remove `<!-- unreleased -->` from `## 5.4`, set `app_store` to 5.4 and clear
-`in_review` in `Docs/SHIPPED_VERSION.json`, push). On a rejection, read the resolution center
-message and fix what it names. Separately, the three v5.4 Notion rows close only after the owner's
-device check on 5.4.
+Check the two 5.4 review submissions (`GET /v1/apps/6756559175/reviewSubmissions`). On approval both
+records read `PENDING_DEVELOPER_RELEASE` (release MANUAL): release when the owner says to, then do the
+release close-out in the Status section (date `## v5.4` in `Docs/USER_CHANGELOG.md` and its bundled
+copy, remove `<!-- unreleased -->` from `## 5.4`, set `app_store` to 5.4 and clear `in_review` in
+`Docs/SHIPPED_VERSION.json`, push). On a rejection, read the resolution center message and fix what it
+names. The three v5.4 Notion rows close only after the owner's device check.

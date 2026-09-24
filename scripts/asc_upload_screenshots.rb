@@ -8,11 +8,14 @@
 #   iphone65-<n>-<scene>.png  -> APP_IPHONE_65      (1284x2778)
 #   iphone61-<n>-<scene>.png  -> APP_IPHONE_61      (1206x2622)
 #   ipad129-<n>-<scene>.png   -> APP_IPAD_PRO_3GEN_129 (2048x2732)
+#   mac-<n>-<scene>.png       -> APP_DESKTOP, on the macOS version record (2880x1800)
 # <n> sets the order on the listing.
 #
-# Safe order: every new image is uploaded and confirmed COMPLETE before any old one is deleted,
-# so a failed run leaves the old set in place rather than an empty one. A version that is live
-# or in review has locked screenshots; the script refuses anything but PREPARE_FOR_SUBMISSION.
+# Safe order: new images are uploaded and confirmed COMPLETE before any old one is deleted, as far
+# as Apple's limit of 10 per set allows: when old plus new would pass 10, it uploads up to 10,
+# deletes the old ones, then uploads the rest (found 2026-09-23, 4 old and 8 new). A version that
+# is live or in review has locked screenshots; the script accepts PREPARE_FOR_SUBMISSION, and
+# DEVELOPER_REJECTED, which is what a version reads after it is pulled from review.
 # iPad sets live on the iOS version record.
 #
 # Usage:
@@ -34,8 +37,10 @@ abort('usage: asc_upload_screenshots.rb <version> <folder> [--apply]') unless VE
 APPLY = ARGV.include?('--apply')
 SETS = {
   'iphone67' => 'APP_IPHONE_67', 'iphone65' => 'APP_IPHONE_65',
-  'iphone61' => 'APP_IPHONE_61', 'ipad129' => 'APP_IPAD_PRO_3GEN_129'
+  'iphone61' => 'APP_IPHONE_61', 'ipad129' => 'APP_IPAD_PRO_3GEN_129',
+  'mac' => 'APP_DESKTOP'
 }.freeze
+PLATFORM_OF = Hash.new('IOS').merge('mac' => 'MAC_OS').freeze
 
 KEY_ID   = ENV.fetch('APP_STORE_CONNECT_API_KEY_ID')
 ISSUER   = ENV.fetch('APP_STORE_CONNECT_ISSUER_ID')
@@ -111,26 +116,32 @@ def upload(set_id, path)
   abort("#{File.basename(path)} never reached COMPLETE")
 end
 
-code, versions = call(:get, "/v1/apps/#{APP_ID}/appStoreVersions?filter[platform]=IOS&filter[versionString]=#{VERSION}&limit=1")
-version = (versions['data'] || []).first or abort("no iOS #{VERSION} version")
-state = version['attributes']['appStoreState']
-abort("iOS #{VERSION} is #{state}; screenshots are only editable in PREPARE_FOR_SUBMISSION") unless state == 'PREPARE_FOR_SUBMISSION'
-code, locs = call(:get, "/v1/appStoreVersions/#{version['id']}/appStoreVersionLocalizations?limit=10")
-loc = (locs['data'] || []).find { |l| l['attributes']['locale'] == 'en-US' } or abort('no en-US localization')
-code, sets = call(:get, "/v1/appStoreVersionLocalizations/#{loc['id']}/appScreenshotSets?limit=50")
-set_by_type = (sets['data'] || []).each_with_object({}) { |s, h| h[s['attributes']['screenshotDisplayType']] = s['id'] }
+# Screenshot sets per platform, read only for platforms that have files in the folder.
+sets_for = Hash.new do |h, platform|
+  code, versions = call(:get, "/v1/apps/#{APP_ID}/appStoreVersions?filter[platform]=#{platform}&filter[versionString]=#{VERSION}&limit=1")
+  version = (versions['data'] || []).first or abort("no #{platform} #{VERSION} version")
+  state = version['attributes']['appStoreState']
+  abort("#{platform} #{VERSION} is #{state}; screenshots are only editable before submission") unless %w[PREPARE_FOR_SUBMISSION DEVELOPER_REJECTED].include?(state)
+  code, locs = call(:get, "/v1/appStoreVersions/#{version['id']}/appStoreVersionLocalizations?limit=10")
+  loc = (locs['data'] || []).find { |l| l['attributes']['locale'] == 'en-US' } or abort('no en-US localization')
+  code, sets = call(:get, "/v1/appStoreVersionLocalizations/#{loc['id']}/appScreenshotSets?limit=50")
+  h[platform] = (sets['data'] || []).each_with_object({}) { |s, m| m[s['attributes']['screenshotDisplayType']] = s['id'] }
+end
 
 SETS.each do |prefix, type|
   files = Dir[File.join(FOLDER, "#{prefix}-*.png")].sort_by { |f| File.basename(f)[/-(\d+)-/, 1].to_i }
   next puts("#{type}: no files, skipped") if files.empty?
-  set_id = set_by_type[type] or abort("#{type}: no screenshot set on the 5.4 record")
+  set_id = sets_for[PLATFORM_OF[prefix]][type] or abort("#{type}: no screenshot set on the #{VERSION} record")
   code, old = call(:get, "/v1/appScreenshotSets/#{set_id}/appScreenshots?limit=20")
   old_ids = (old['data'] || []).map { |s| s['id'] }
   puts "#{type}: #{files.size} new, replacing #{old_ids.size} old"
   next unless APPLY
 
-  new_ids = files.map { |f| id = upload(set_id, f); puts "  uploaded #{File.basename(f)}"; id }
+  abort("#{type}: #{files.size} files; the App Store takes at most 10") if files.size > 10
+  first = [files.size, 10 - old_ids.size].min
+  new_ids = files.first(first).map { |f| id = upload(set_id, f); puts "  uploaded #{File.basename(f)}"; id }
   old_ids.each { |id| code, body = call(:delete, "/v1/appScreenshots/#{id}"); ok!("delete old #{id}", code, body) }
+  new_ids += files.drop(first).map { |f| id = upload(set_id, f); puts "  uploaded #{File.basename(f)}"; id }
   code, body = call(:patch, "/v1/appScreenshotSets/#{set_id}/relationships/appScreenshots",
                     { 'data' => new_ids.map { |id| { 'type' => 'appScreenshots', 'id' => id } } })
   ok!("order #{type}", code, body)
