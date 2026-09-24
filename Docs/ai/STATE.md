@@ -1,8 +1,8 @@
 # Current State
 
-Updated: 2026-09-24, 14:40 PT (iOS 5.4 live since 14:32 PT; macOS 5.4 in review with build 478)
+Updated: 2026-09-24, 15:20 PT (iOS 5.4 live; macOS 5.4 in review; GitHub v5.4.0 published; two steps wait on the owner's approval)
 Branch/worktree: `main`, primary checkout
-Last verified commit: d5cc916
+Last verified commit: d80ef17
 
 ## Objective
 
@@ -39,18 +39,41 @@ and folded back into 5.4 the same day (`Docs/ai/DECISIONS.md`, 2026-09-23). iOS 
   `app_store_by_platform.ios` is 5.4 and `in_review` holds macOS only. `app_store` stays 5.3 until the
   Mac is live, the value that does not overclaim to a Mac visitor. Gunzino's App Store Versions check
   compares its page to the iPhone version from the iTunes lookup, so it reports drift until then.
-- At the Mac release: `app_store` and `app_store_by_platform.macos` to 5.4, `in_review` empty. `preparing`
-  must move off 5.4 in the same commit, because Fascinaiting requires it never to equal `app_store`
-  and every value must match a `## <version>` heading, so the next version heading opens then. Ask the
-  owner its number first (5.4.1 or 5.5); never pick it.
-  Then publish the GitHub release, and only when the owner says to (2026-09-24: "I'll tell ya when to
-  do 5.4"). `v5.4.0` is a draft at `c276b9a`, the source of build 478, and its tag is already on
-  origin. It covers 5.4 only: `v5.3.0` (full and Latest since 2026-09-24, at `a2d99ab`, the source of
-  build 464) covers 5.2 and 5.3, without their plans and ratings sections. To publish, change the
-  draft's first line from "in App Review ... It's not on the App Store yet" to live with the date
-  (`gh release view v5.4.0 -R Gunnarguy/OpenIntelligence --json body -q .body` gives the text), then
-  `gh release edit v5.4.0 -R Gunnarguy/OpenIntelligence --notes-file <file> --draft=false --latest`.
-  If 5.4 ships from a build other than 478, the tag has to move first, and that is the owner's call.
+- At the Mac release: `app_store_by_platform.macos` to 5.4 and `in_review` empty, plus `app_store` to
+  5.4 if the refused step below has not already moved it. `preparing` must move off 5.4 in the same
+  commit, because Fascinaiting requires it never to equal `app_store` and every value must match a
+  `## <version>` heading. **The owner picked 5.5 over 5.4.1** (2026-09-24, dictated: "maybe not 5.4, I
+  don't know. I guess it's a better", read as 5.5); it is not applied yet.
+- **GitHub `v5.4.0` is published and Latest** since 2026-09-24 ~15:00 PT, at the owner's word, at
+  `c276b9a` (the source of build 478). Its first line says iPhone and iPad have 5.4 and the Mac is in
+  App Review; when the Mac goes live, edit that line (`gh release view v5.4.0 -R Gunnarguy/OpenIntelligence
+  --json body -q .body`, then `gh release edit v5.4.0 -R Gunnarguy/OpenIntelligence --notes-file <file>`).
+  `v5.3.0` (at `a2d99ab`, build 464) covers 5.2 and 5.3.
+- **Waiting on the owner's approval.** Auto mode refused both as `[Production Deploy]` at about 15:00 PT
+  on 2026-09-24, although he asked for both in chat:
+  1. macOS 5.4 `releaseType` to `AFTER_APPROVAL`, so Apple releases it on approval ("go ahead and do the
+     macOS one too"): `PATCH /v1/appStoreVersions/0e7e7d98-9878-4418-b977-3bc0b04ddf96` with
+     `{"data":{"type":"appStoreVersions","id":"<id>","attributes":{"releaseType":"AFTER_APPROVAL"}}}`
+     (reference: developer.apple.com "Modify an app store version", read 2026-09-24). If the record
+     already reads `PENDING_DEVELOPER_RELEASE`, send the release request instead.
+  2. Every website to 5.4 now ("just update all the websites"): in `Docs/SHIPPED_VERSION.json`
+     `app_store` 5.4 and `preparing` 5.5, with `app_store_by_platform.macos` 5.3 and `in_review` macOS
+     kept until the Mac is live; in `CHANGELOG.md` `## 5.5 <!-- unreleased -->` above `## 5.4 -
+     September 24, 2026` and `<!-- next-version: 5.5 -->`; push. Then `gh workflow run
+     openintelligence-version.yml` in Gunzino and Gunnarguy-Portfolio (both commit and deploy
+     themselves) and the hand-only lines: Gunzino `openintelligence/index.html:226` and `index.html:374`
+     ("Version 5.3", which `scripts/verify_content.py` fails the deploy on if left); Fascinaiting
+     `index.html` (its version job only verifies): the `data-oi-version` spans at 491 and 761, the
+     `data-oi-preparing` span at 746, and the timeline, where 5.4 becomes the current release with its
+     highlights, 5.3 is superseded and 5.5 is in development. Run each repo's `verify-site.sh source`
+     before pushing; every repo has a pre-push overlap guard.
+  Until then every site says 5.3. Gunzino's App Store Versions check fails once the iTunes lookup
+  reports 5.4 (it read 5.3 at 14:55 PT), and gunnarguy.me's project page shows 5.4 where it reads the
+  store listing (`data/appstore.json`, refreshed by `update-stats.yml`) and 5.3 where it reads the marker.
+- The Post Desk (https://claude.ai/artifact/RgpvBXBViCZpSvtXFpNUb7): `flags/sw:after54` set 2026-09-24,
+  so the 5.4 posts are unlocked, the "It's live" quote post first; `flags/task:fix924` ticked, because
+  the September 24 posts are true now that iPhone and iPad have 5.4. The desk's `posted` shows `oi54-x1`
+  and `oi54-li1` on 2026-09-24.
 - Scheduled: 2026-09-30 09:00 PT, task `openintelligence-end-lifetime-sale`.
 
 ## The answer work in 5.4 (2026-09-23)
@@ -90,7 +113,7 @@ Release with no rows.
 
 ## Active Constraints
 
-- **`## 5.4` is closed and no next version is open.** The owner names the next version
+- **`## 5.4` is closed and no next version is open yet.** The owner named 5.5 (see Status)
   (`Docs/ai/DECISIONS.md`, 2026-09-23). `ci_post_clone.sh` stamps every Xcode Cloud build from the
   first numbered heading in `CHANGELOG.md`, and iOS rejects any new 5.4 build now that 5.4 is live
   there, so no app change is pushed until that heading exists.
@@ -165,11 +188,11 @@ Release with no rows.
 
 ## Exact Next Action
 
-Check macOS 5.4 (`GET /v1/apps/6756559175/appStoreVersions?filter[versionString]=5.4`). When it reads
-`PENDING_DEVELOPER_RELEASE`, release it when the owner says to, with the same POST and record id
-`0e7e7d98-9878-4418-b977-3bc0b04ddf96`. Then ask the owner the next version number, open that heading
-in `CHANGELOG.md`, and in `Docs/SHIPPED_VERSION.json` set `app_store` and `app_store_by_platform.macos`
-to 5.4, `preparing` to the new number and `in_review` to empty; push the same day, because the three
-sites read origin. Publish the `v5.4.0` GitHub draft only when the owner says. On a Mac rejection, read
-the resolution center message; a new build cannot carry 5.4 on iOS any more, so its version is the
-owner's call. The three v5.4 Notion rows close only after the owner's device check.
+Ask the owner to approve the two refused steps in the Status section (he switches this session out of
+auto mode, or approves each command), then run them: the macOS 5.4 `releaseType` PATCH, and the website
+move (`SHIPPED_VERSION.json` `app_store` 5.4 and `preparing` 5.5, `## 5.5` opened in `CHANGELOG.md`,
+push, each site's version job and hand-only lines, each site's `verify-site.sh`). When macOS 5.4 reads
+`READY_FOR_SALE`, set `app_store_by_platform.macos` to 5.4, empty `in_review`, update the GitHub
+release's first line, and push. App Store Connect has no 5.5 records, so create them before the next
+app-change push or its build fails at PrepareBuildForAppStoreConnect. The three v5.4 Notion rows close
+only after the owner's device check.
