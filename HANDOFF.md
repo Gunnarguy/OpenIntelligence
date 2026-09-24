@@ -15,15 +15,12 @@ instruction to stay current.
 
 ## Where the project stands, 2026-09-23
 
-- **5.4 carries every change since 5.3 and is not submitted** (2026-09-23). App Store Connect has
-  5.4 in Prepare for Submission on both platforms with build 474 attached. 474 carries the fix for
-  build 469's crash at the end of setup (`a713bfc`) and the corrected copy, but not the answer work
-  below, so the build to submit is the first Xcode Cloud build of `main` after the copy commit that
-  follows `3ad7ed6`, in place of 474. The listing text, review notes, sale promotional text and two
-  subscription images are written. At the owner's direction, 5.4's release notes, `WHATS_NEW.md`,
-  the user changelog and the in-app What's New cover function and performance only. The owner holds submission
-  until a TestFlight check on a device. Build 469 must never be submitted. `Docs/ai/STATE.md` has
-  the owner's remaining steps and the release close-out.
+- **5.4 carries every change since 5.3 and is submitted for review on both platforms with build 478**
+  (2026-09-23 18:40 PT, release MANUAL). `Docs/ai/STATE.md` has the submission ids and what to do on
+  approval. At the owner's direction, 5.4's release notes, `WHATS_NEW.md`, the user changelog and the
+  in-app What's New cover function and performance only, in his own voice, and the in-app screen also
+  shows 5.3's function changes, because 5.3 shipped without one. Earlier 5.4 builds (474, 476, 477)
+  are superseded, 475 is an unused 5.5, and build 469 must never be submitted.
 - **The answer work of 2026-09-23 is in 5.4**: the Standard end-of-stream stall (19 to 164 s after
   the last word on four measured lookup questions, 0.15 to 0.33 s after the fix), finishing an
   answer early with its sources, off-screen completion signals, and streaming for Deep Think and

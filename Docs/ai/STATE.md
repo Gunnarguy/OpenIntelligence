@@ -1,8 +1,8 @@
 # Current State
 
-Updated: 2026-09-23, 16:20 PT (5.4 is complete in the repo at `b176da2` and tested; waiting on an Xcode Cloud build of it, which an agent in auto mode may not start)
+Updated: 2026-09-23, 18:45 PT (5.4 SUBMITTED for review on iOS and macOS with build 478; waiting on Apple)
 Branch/worktree: `main`, primary checkout
-Last verified commit: b176da2
+Last verified commit: c276b9a
 
 ## Objective
 
@@ -13,20 +13,17 @@ and folded back into 5.4 the same day (`Docs/ai/DECISIONS.md`, 2026-09-23).
 
 ## Status: 5.4
 
-- 5.3 live on iOS and macOS (build 464). 5.4 on both platforms: `PREPARE_FOR_SUBMISSION`, release
-  MANUAL, build 474 attached (`VALID`). **474 does not carry the answer work**, and build 476
-  (`3ad7ed6`, 5.4, `VALID`) still shows the plans and ratings items in the in-app What's New; the
-  build to attach and submit is a build of `b176da2` or later. **No Xcode Cloud build started for the
-  push of `b176da2`** (16:07 PT; none by 16:15, although the workflow's start rule should have
-  started one), and starting one through the API (`POST ciBuildRuns`) was refused by Claude Code's
-  auto-mode classifier as `[Production Deploy]`. **Never submit build 469** (its setup plans sheet
-  crashed). Build 475 is 5.5 in TestFlight and unused.
+- **Submitted for review on both platforms, 2026-09-23 18:40 PT, build 478** (Xcode Cloud #478 from
+  `c276b9a`), release MANUAL: after approval it waits for a release. Read back: both records
+  `WAITING_FOR_REVIEW`, build 478 `VALID`, What's New the 1,604-character notes in the owner's voice.
+  Submissions: iOS `84bcb514-02f6-4013-908d-caec38cada8d`, macOS `e1268171-aec3-474e-bcd5-59136b64e5f9`.
+  Build 477 was submitted first (17:17 PT) and pulled from review at the owner's direction so the copy
+  could be rewritten in his voice. 474, 475 (5.5), 476 and 477 are superseded; **never submit 469**.
 - **5.4's user-facing copy is function and performance only** (owner, 2026-09-23): the release notes
   (both `fastlane/metadata*/en-US/release_notes.txt`, identical), `WHATS_NEW.md`,
   `Docs/USER_CHANGELOG.md` + bundled copy and the in-app "5.4" entry describe the answer work and
-  nothing else. Plans, paywall, rating request and Maximum cap stay in `CHANGELOG.md` only. The new
-  notes reach App Store Connect with `scripts/asc_prepare_release.rb 5.4 <build> --apply` (attaches
-  the build and writes What's New to both platforms), then `scripts/asc_listing_extras.rb 5.4 --apply`.
+  nothing else. Plans, paywall, rating request and Maximum cap stay in `CHANGELOG.md` only. All of it
+  is in the owner's voice, and the notes are on both records with build 478.
 - Three subscription descriptions are still wrong and the API refuses them (HTTP 409, ACTIVE). Web
   page targets: Pro Annual "Annual billing for 1,000 documents and 10 libraries.", Pro Monthly
   "Monthly billing for 1,000 documents and 10 libraries.", Lifetime "Permanent Pro - 20 Libraries +
@@ -127,21 +124,21 @@ Release with no rows.
 
 ## Blockers / Unknowns
 
-- A build of `b176da2`: start it in App Store Connect (Xcode Cloud, workflow Default, Start Build on
-  `main`), or let an agent run it outside auto mode. Then
-  `zsh -ic 'ruby scripts/asc_prepare_release.rb 5.4 <build> --apply'` attaches it and writes the new
-  What's New on both platforms (dry run against 476 at 16:11: both records would take 1,357
-  characters). `asc_listing_extras.rb 5.4` has nothing left to write except the three product
-  descriptions, which the API refuses (409, ACTIVE); those change only on the App Store Connect web
-  page, alongside the submission.
+- Nothing blocks 5.4; it is with Apple. The three subscription descriptions in App Store Connect are
+  still wrong ("unlimited documents and 5 libraries" for Pro, "10 Libraries" for Lifetime). The API
+  refuses them (409, ACTIVE) and no Chrome was connected to edit the web page, so they wait for the
+  next submission; targets are in the Status section above.
 - Whether macOS needs a tab signal other than the badge, which its toolbar tabs do not draw.
 - Cleanup, this session's test data only: `/private/tmp/oi-ui-appsupport-2026-09-23` (the Mac UI
-  test library), the simulator above (`xcrun simctl delete 6CD2218C-EA61-46B3-B31E-0667FBCDF2B6`),
-  frozen apps in `/private/tmp/oi-bench/`.
+  test library), simulator `6CD2218C-EA61-46B3-B31E-0667FBCDF2B6` (`xcrun simctl delete`), frozen
+  apps in `/private/tmp/oi-bench/`.
 
 ## Exact Next Action
 
-Start an Xcode Cloud build of `main` at `b176da2` (see Blockers), wait for it to be `VALID` as 5.4 on
-both platforms, then run `asc_prepare_release.rb 5.4 <build> --apply` and read both records back
-(build attached, What's New 1,357 characters). The owner's device check on that build, then Submit
-for Review in App Store Connect with both Pro subscriptions included.
+Check the two 5.4 review submissions (`GET /v1/apps/6756559175/reviewSubmissions`). On approval, both
+records go to `PENDING_DEVELOPER_RELEASE` (release MANUAL): release them when the owner says to, then
+do the release close-out in the Status section (date `## v5.4` in `Docs/USER_CHANGELOG.md` and its
+bundled copy, remove `<!-- unreleased -->` from `## 5.4`, set `app_store` to 5.4 and clear
+`in_review` in `Docs/SHIPPED_VERSION.json`, push). On a rejection, read the resolution center
+message and fix what it names. Separately, the three v5.4 Notion rows close only after the owner's
+device check on 5.4.
