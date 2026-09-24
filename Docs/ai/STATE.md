@@ -1,8 +1,8 @@
 # Current State
 
-Updated: 2026-09-23, 22:10 PT (5.4 in review on iOS and macOS with build 478, new screenshots on all three platforms; the owner asleep)
+Updated: 2026-09-24, 09:55 PT (5.4 still in review with build 478; GitHub `v5.3.0` published as Latest, `v5.4.0` held as a draft)
 Branch/worktree: `main`, primary checkout
-Last verified commit: cbdb1bc
+Last verified commit: 1a228a6
 
 ## Objective
 
@@ -34,10 +34,14 @@ and folded back into 5.4 the same day (`Docs/ai/DECISIONS.md`, 2026-09-23).
   date `## v5.4 - unreleased` in `Docs/USER_CHANGELOG.md`, copy it byte-for-byte to
   `OpenIntelligence/Resources/VersionHistory.md`, remove `<!-- unreleased -->` from `## 5.4` in
   `CHANGELOG.md`, and only then open the next version above it; set `app_store` and `preparing`, push.
-  Then edit the GitHub release's first line from "in App Review ... It's not on the App Store yet" to
-  live, with the date (`gh release edit v5.4.0 -R Gunnarguy/OpenIntelligence --notes-file <file>`).
-  `v5.4.0` is a full release and Latest since 2026-09-24 (the owner's call), at `c276b9a`, the source
-  of build 478; it covers 5.2, 5.3 and 5.4 without their plans and ratings sections.
+  Then publish the GitHub release, and only when the owner says to (2026-09-24: "I'll tell ya when to
+  do 5.4"). `v5.4.0` is a draft at `c276b9a`, the source of build 478, and its tag is already on
+  origin. It covers 5.4 only: `v5.3.0` (full and Latest since 2026-09-24, at `a2d99ab`, the source of
+  build 464) covers 5.2 and 5.3, without their plans and ratings sections. To publish, change the
+  draft's first line from "in App Review ... It's not on the App Store yet" to live with the date
+  (`gh release view v5.4.0 -R Gunnarguy/OpenIntelligence --json body -q .body` gives the text), then
+  `gh release edit v5.4.0 -R Gunnarguy/OpenIntelligence --notes-file <file> --draft=false --latest`.
+  If 5.4 ships from a build other than 478, the tag has to move first, and that is the owner's call.
 - Scheduled: 2026-09-30 09:00 PT, task `openintelligence-end-lifetime-sale`.
 
 ## The answer work in 5.4 (2026-09-23)
@@ -151,5 +155,6 @@ Check the two 5.4 review submissions (`GET /v1/apps/6756559175/reviewSubmissions
 records read `PENDING_DEVELOPER_RELEASE` (release MANUAL): release when the owner says to, then do the
 release close-out in the Status section (date `## v5.4` in `Docs/USER_CHANGELOG.md` and its bundled
 copy, remove `<!-- unreleased -->` from `## 5.4`, set `app_store` to 5.4 and clear `in_review` in
-`Docs/SHIPPED_VERSION.json`, push). On a rejection, read the resolution center message and fix what it
-names. The three v5.4 Notion rows close only after the owner's device check.
+`Docs/SHIPPED_VERSION.json`, push, then publish the `v5.4.0` GitHub draft when the owner says). On a
+rejection, read the resolution center message and fix what it names. The three v5.4 Notion rows close
+only after the owner's device check.
