@@ -7,7 +7,7 @@ This document provides a chronological history of user-facing changes, highlight
 
 ---
 
-## v5.4 - unreleased
+## v5.4 - September 24, 2026
 
 ### Answers
 - **Finished answers don't sit there anymore.** If you asked Standard for one specific fact, it ran a second check after the answer was already written, and the cursor kept blinking with the text box locked (19 seconds to almost three minutes on my Mac).  That check didn't change a single answer I measured, so now it only runs when the app's own verification flags something.

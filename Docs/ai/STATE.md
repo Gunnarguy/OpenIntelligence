@@ -1,26 +1,29 @@
 # Current State
 
-Updated: 2026-09-24, 09:55 PT (5.4 still in review with build 478; GitHub `v5.3.0` published as Latest, `v5.4.0` held as a draft)
+Updated: 2026-09-24, 14:40 PT (iOS 5.4 live since 14:32 PT; macOS 5.4 in review with build 478)
 Branch/worktree: `main`, primary checkout
-Last verified commit: 1a228a6
+Last verified commit: d5cc916
 
 ## Objective
 
 Ship 5.4 with every change since 5.3, including the answer work of 2026-09-23. The owner's words
 that day: 5.4 is the version that exists in App Store Connect, there is no 5.5, and every change
 made since 5.3 is 5.4. The answer work was first pushed as 5.5 (`faed0d6`, Xcode Cloud build 475)
-and folded back into 5.4 the same day (`Docs/ai/DECISIONS.md`, 2026-09-23).
+and folded back into 5.4 the same day (`Docs/ai/DECISIONS.md`, 2026-09-23). iOS 5.4 is live since
+2026-09-24; what remains is the Mac release and its close-out.
 
 ## Status: 5.4
 
-- **In review on both platforms, build 478** (Xcode Cloud #478 from `c276b9a`), release MANUAL: after
-  approval it waits for a release. Last submitted 2026-09-23 22:03 PT, after the listing's screenshots
-  were replaced (9 iPhone, 7 iPad, 6 Mac; `Docs/Release/APP_STORE_METADATA_HISTORY.md`). Read back: both
-  records `WAITING_FOR_REVIEW`, build 478 `VALID`, What's New the 1,604-character notes in the owner's
-  voice. Submissions: iOS `0f601c16-8a6b-4d13-937d-c5a71803f6ce`, macOS `5a21fe94-a866-4c37-a412-a44f385f1b68`.
-  Earlier submissions that evening (477 at 17:17, 478 at 18:40 and 21:00) were pulled at the owner's
-  direction for the voice rewrite and the screenshots. 474, 475 (5.5), 476 and 477 are superseded;
-  **never submit 469**.
+- **iOS 5.4 is live**, since 2026-09-24 14:32 PT, build 478 (Xcode Cloud #478 from `c276b9a`). Apple
+  approved it (`PENDING_DEVELOPER_RELEASE`, release MANUAL). The Release button in App Store Connect
+  would not work for the owner, so at his request it went out through the API:
+  `POST /v1/appStoreVersionReleaseRequests` with
+  `{"data":{"type":"appStoreVersionReleaseRequests","relationships":{"appStoreVersion":{"data":{"type":"appStoreVersions","id":"<record id>"}}}}}`
+  returned 201, and the record read `READY_FOR_SALE` with build 478 five seconds later (reference:
+  developer.apple.com "Manually release an app store approved version of your app", read 2026-09-24).
+- **macOS 5.4 is `IN_REVIEW`** with the same build, release MANUAL. Record
+  `0e7e7d98-9878-4418-b977-3bc0b04ddf96`, submission `5a21fe94-a866-4c37-a412-a44f385f1b68`. The iOS
+  record is `edac9a46-fd9c-4082-99f8-372008d20289`. Builds 474 to 477 are superseded; **never submit 469**.
 - **5.4's user-facing copy is function and performance only** (owner, 2026-09-23): the release notes
   (both `fastlane/metadata*/en-US/release_notes.txt`, identical), `WHATS_NEW.md`,
   `Docs/USER_CHANGELOG.md` + bundled copy and the in-app "5.4" entry describe the answer work and
@@ -30,10 +33,16 @@ and folded back into 5.4 the same day (`Docs/ai/DECISIONS.md`, 2026-09-23).
   page targets: Pro Annual "Annual billing for 1,000 documents and 10 libraries.", Pro Monthly
   "Monthly billing for 1,000 documents and 10 libraries.", Lifetime "Permanent Pro - 20 Libraries +
   Unlimited Documents". Submit both Pro subscriptions with 5.4 so their images get reviewed.
-- On submission: `in_review` for both platforms in `Docs/SHIPPED_VERSION.json`, push. On release:
-  date `## v5.4 - unreleased` in `Docs/USER_CHANGELOG.md`, copy it byte-for-byte to
-  `OpenIntelligence/Resources/VersionHistory.md`, remove `<!-- unreleased -->` from `## 5.4` in
-  `CHANGELOG.md`, and only then open the next version above it; set `app_store` and `preparing`, push.
+- Done at the iOS release (2026-09-24): `## v5.4 - September 24, 2026` in `Docs/USER_CHANGELOG.md` and
+  the byte-identical `OpenIntelligence/Resources/VersionHistory.md`; `## 5.4` closed in `CHANGELOG.md`
+  (the marker removed, no next version opened); in `Docs/SHIPPED_VERSION.json`
+  `app_store_by_platform.ios` is 5.4 and `in_review` holds macOS only. `app_store` stays 5.3 until the
+  Mac is live, the value that does not overclaim to a Mac visitor. Gunzino's App Store Versions check
+  compares its page to the iPhone version from the iTunes lookup, so it reports drift until then.
+- At the Mac release: `app_store` and `app_store_by_platform.macos` to 5.4, `in_review` empty. `preparing`
+  must move off 5.4 in the same commit, because Fascinaiting requires it never to equal `app_store`
+  and every value must match a `## <version>` heading, so the next version heading opens then. Ask the
+  owner its number first (5.4.1 or 5.5); never pick it.
   Then publish the GitHub release, and only when the owner says to (2026-09-24: "I'll tell ya when to
   do 5.4"). `v5.4.0` is a draft at `c276b9a`, the source of build 478, and its tag is already on
   origin. It covers 5.4 only: `v5.3.0` (full and Latest since 2026-09-24, at `a2d99ab`, the source of
@@ -81,8 +90,10 @@ Release with no rows.
 
 ## Active Constraints
 
-- **No new version heading while 5.4 is unsubmitted** (`Docs/ai/DECISIONS.md`, 2026-09-23).
-  `ci_post_clone.sh` stamps every Xcode Cloud build from the first numbered heading in `CHANGELOG.md`.
+- **`## 5.4` is closed and no next version is open.** The owner names the next version
+  (`Docs/ai/DECISIONS.md`, 2026-09-23). `ci_post_clone.sh` stamps every Xcode Cloud build from the
+  first numbered heading in `CHANGELOG.md`, and iOS rejects any new 5.4 build now that 5.4 is live
+  there, so no app change is pushed until that heading exists.
 - **A local build calls itself 5.3 (150)** unless built with `MARKETING_VERSION=5.4`: the project
   file is stamped only in Xcode Cloud. The command-line override edits no file.
 - **Guard memory on builds** (18 GB Mac): `-jobs 2`, stop at 15% free. Build from `/private/tmp/oi-src`,
@@ -93,7 +104,7 @@ Release with no rows.
   which writes `~/Library/Application Support/OpenIntelligence`. The UI test library is parked at
   `/private/tmp/oi-ui-appsupport-2026-09-23`.
 - Disk: 96%, about 18 GB free. At 96% (2026-08-20) model assets were evicted.
-- App Store Connect writes are the owner's. swift-format rewrites Swift files edited with Edit/Write;
+- App Store Connect writes happen at the owner's word (he asked for the iOS release on 2026-09-24). swift-format rewrites Swift files edited with Edit/Write;
   files with `"""` are edited by script. Commit to `main`, no AI trailer.
 
 ## Working Set
@@ -132,12 +143,15 @@ Release with no rows.
 - App Store Connect, 2026-09-23 22:04 PT: both 5.4 records `WAITING_FOR_REVIEW`, build 478 `VALID`,
   What's New 1,604 characters; screenshot sets replaced and `COMPLETE`: `APP_IPHONE_67`, `_65`, `_61` 9
   each, `APP_IPAD_PRO_3GEN_129` 7, `APP_DESKTOP` 6.
+- App Store Connect, 2026-09-24 14:32 PT: `POST /v1/appStoreVersionReleaseRequests` for the iOS 5.4
+  record -> 201; read back `READY_FOR_SALE` (`appVersionState` `READY_FOR_DISTRIBUTION`), build 478.
+  macOS 5.4 `IN_REVIEW`, build 478. Both 5.3 records `READY_FOR_SALE`, build 464, at 09:50 PT.
 - **Not verified:** anything on a device (haptic, badge on a phone, clock restart, background expiry,
   streaming feel); the "Checking sources…"/"Refining…" label and unlocked composer in the running app.
 
 ## Blockers / Unknowns
 
-- Nothing blocks 5.4; it is with Apple. The three subscription descriptions in App Store Connect are
+- Nothing blocks the Mac release; macOS 5.4 is with Apple. The three subscription descriptions in App Store Connect are
   still wrong ("unlimited documents and 5 libraries" for Pro, "10 Libraries" for Lifetime). The API
   refuses them (409, ACTIVE) and no Chrome was connected to edit the web page, so they wait for the
   next submission; targets are in the Status section above.
@@ -151,10 +165,11 @@ Release with no rows.
 
 ## Exact Next Action
 
-Check the two 5.4 review submissions (`GET /v1/apps/6756559175/reviewSubmissions`). On approval both
-records read `PENDING_DEVELOPER_RELEASE` (release MANUAL): release when the owner says to, then do the
-release close-out in the Status section (date `## v5.4` in `Docs/USER_CHANGELOG.md` and its bundled
-copy, remove `<!-- unreleased -->` from `## 5.4`, set `app_store` to 5.4 and clear `in_review` in
-`Docs/SHIPPED_VERSION.json`, push, then publish the `v5.4.0` GitHub draft when the owner says). On a
-rejection, read the resolution center message and fix what it names. The three v5.4 Notion rows close
-only after the owner's device check.
+Check macOS 5.4 (`GET /v1/apps/6756559175/appStoreVersions?filter[versionString]=5.4`). When it reads
+`PENDING_DEVELOPER_RELEASE`, release it when the owner says to, with the same POST and record id
+`0e7e7d98-9878-4418-b977-3bc0b04ddf96`. Then ask the owner the next version number, open that heading
+in `CHANGELOG.md`, and in `Docs/SHIPPED_VERSION.json` set `app_store` and `app_store_by_platform.macos`
+to 5.4, `preparing` to the new number and `in_review` to empty; push the same day, because the three
+sites read origin. Publish the `v5.4.0` GitHub draft only when the owner says. On a Mac rejection, read
+the resolution center message; a new build cannot carry 5.4 on iOS any more, so its version is the
+owner's call. The three v5.4 Notion rows close only after the owner's device check.
