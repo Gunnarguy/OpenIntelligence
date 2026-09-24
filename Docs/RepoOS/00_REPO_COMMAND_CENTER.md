@@ -5,12 +5,15 @@ One-page operational overview for any agent entering the OpenIntelligence reposi
 ## What this repository is
 OpenIntelligence is a local-first, privacy-preserving RAG application for Apple platforms (iOS/macOS/watchOS surfaces), ~270 Swift components across 30 subsystems. `[evidence: artifact_derived, high, Docs/OPENINTELLIGENCE_ARCHITECTURE_ATLAS.md]`
 
-## Canonical documents (read in this order)
+## Canonical documents, in order of authority
+
+These rank documents when two disagree. They are not a reading list: every task reads `Docs/ai/STATE.md`, the superseding protocol and `Docs/ai/ARCHITECTURE.md`, then only what the preflight's route names (`AGENTS.md` rule 15). The canonical doc and the Atlas are read by the section a task touches. `[evidence: code_verified, exact, repoos_router.py UNIVERSAL_DOCS, 2026-09-24]`
+
 1. `AGENTS.md` — universal agent directives (rules 1–18; rule 14 mandates doc + Notion roadmap updates on every feature change, and rules 17–18 make RepoOS routing and the workspace preflight mandatory). Claude Code does not read `AGENTS.md`; `CLAUDE.md` at the repository root carries the operative subset for it and routes into `Docs/ai/`.
 2. `Docs/AgentPlaybooks/00_SUPERSEDING_EVIDENCE_PROTOCOL.md` — overrides everything; evidence_level/confidence tagging is mandatory.
 3. `Docs/CANONICAL_OPENINTELLIGENCE_SOURCE_OF_TRUTH.md` — absolute ground truth; any contradicting doc is stale by definition (§1).
 4. `Docs/OPENINTELLIGENCE_ARCHITECTURE_ATLAS.md` — subsystem map, boundaries, flows.
-5. `Docs/AgentPlaybooks/07_TASK_ROUTER_AND_CHANGE_CONTROL.md` — task classes and the `PROCEED: IMPLEMENT` stop rule.
+5. `Docs/AgentPlaybooks/07_TASK_ROUTER_AND_CHANGE_CONTROL.md` — the first version of the task router. Its task classes are superseded by the change-impact matrix; its `PROCEED: IMPLEMENT` stop rule is `AGENTS.md` rule 12.
 6. `Docs/RepoOS/01_TASK_ROUTER.md` — this layer's per-task routing (read-first docs, edit zones, tests).
 7. `GEMINI.md` — only if running in Gemini/Antigravity.
 
@@ -20,12 +23,12 @@ Do NOT use as source of truth: `Docs/FULL_REPO_*`, `Docs/PRODUCT_POSITIONING_*`,
 `CLAUDE.md` is the always-loaded control plane and stays under 200 lines. `Docs/ai/` is the durable knowledge plane: `STATE.md` is the cross-session handoff carrying the current objective, what has been verified, and one exact next action, alongside `PROJECT.md`, `ARCHITECTURE.md`, `DECISIONS.md`, and `RUNBOOK.md`. Path-scoped rules in `.claude/rules/` restate this layer's obligations only for the files being edited, so they cost nothing at startup. `.claude/skills/` holds `project-orient`, `project-handoff`, `project-context-audit`, `notion-roadmap`, and `oi-claim-audit`. `.claude/hooks/` injects the startup brief, checkpoints before compaction, records Notion writes, and asks once on Stop for whatever the session left open. Route `repoos_workspace_automation` covers `.claude/**`, `CLAUDE.md`, `Docs/ai/**`, and the enforcement-layer scripts. Installed 2026-08-07 from `Docs/ai/bootstrap/CLAUDE_CONTEXT_OS_V2.md`. `[evidence: code_verified, exact, file existence + hook smoke test + preflight re-run 2026-08-07]`
 
 ### Enforcement layer, added 2026-08-28
-The obligations above were prose until this date, and prose is what drifted. Six pieces now make them mechanical:
+The obligations above were prose until this date, and prose is what drifted. Seven pieces now make them mechanical:
 
 | Piece | Fires | Does |
 |---|---|---|
 | `scripts/required_docs.sh` | called by the two hooks | resolves changed paths to the documents they require, from the table in `.agents/rules/01-docs-and-notion-sync.md` unioned with the RepoOS change-impact matrix Since 2026-09-14 the table also covers one non-Swift path: the App Store copy under `fastlane/metadata*` requires `Docs/Release/APP_STORE_METADATA_HISTORY.md`, because that copy is overwritten in place every release. |
-| `scripts/verify_doc_claims.py` | git pre-commit, via `enforce_docs_hook.sh` | fails a commit whose documentation no longer matches source: a shipped-version claim contradicting `Docs/SHIPPED_VERSION.json`, an enum case list disagreeing with the Swift enum, a referenced path that does not exist, or a `file.swift:NNN` anchor past end of file. Doc-versus-doc agreement follows for free, since two documents describing one enum are both checked against that enum. Each rule declares a minimum number of claims it must match, so a rewording cannot silently disable a check. Proven to fire by `scripts/test_verify_doc_claims.sh`, which breaks one claim of each kind and asserts a non-zero exit |
+| `scripts/verify_doc_claims.py` | git pre-commit, via `enforce_docs_hook.sh` | fails a commit whose documentation no longer matches source: a shipped-version claim contradicting `Docs/SHIPPED_VERSION.json`, an enum case list disagreeing with the Swift enum, a referenced path that does not exist, or a `file.swift:NNN` anchor past end of file. Doc-versus-doc agreement follows for free, since two documents describing one enum are both checked against that enum. Each rule declares a minimum number of claims it must match, so a rewording cannot silently disable a check. Proven to fire by `scripts/test_verify_doc_claims.sh`, which breaks one claim of each kind and asserts a non-zero exit. Since 2026-09-24 it also checks `Type.member` names, the route table's document paths and the instruction files (`CLAUDE.md`, `AGENTS.md`, `GEMINI.md`, RepoOS 00, 01 and 03, the Codex skill); it skips gitignored machine-local paths, which had made it fail on every clean clone; and the hook runs it whenever the file exists (`-f`), where it used to require the executable bit a fresh clone never has |
 | `scripts/enforce_docs_hook.sh` | git pre-commit | fails a commit whose staged source lacks those documents; also enforces the CHANGELOG architecture tag and `ci_post_clone.sh`'s empty-`[Unreleased]` invariant at commit time |
 | `.claude/hooks/notion-receipt.sh` | PostToolUse on Notion write tools | records that a roadmap write actually landed, so "did you update Notion?" is answered by evidence rather than recollection |
 | `.claude/hooks/stop-handoff.sh` | Stop | asks once per session for the handoff, documentation, and roadmap obligations still open |
@@ -50,7 +53,7 @@ See `Docs/RepoOS/03_FORBIDDEN_EDIT_BOUNDARIES.md` before touching any of these.
 ## Release / implementation gate status
 - `Docs/AuditArtifacts/FinalReview/final_implementation_gate.md` reads "READY FOR PHASE 1A" — **this gate is STALE**. `Docs/CANONICAL_OPENINTELLIGENCE_SOURCE_OF_TRUTH.md` §12 records Phases 0–10 complete, including Phase 9 (Evidence Threads MVP Integration) and Phase 10 (Ingestion & watchOS Live Activity Refinement). Evidence Threads code exists: `OpenIntelligence/Core/Models/EvidenceThread.swift`, `OpenIntelligence/Services/Storage/EvidenceThreadStore.swift`, `OpenIntelligence/Features/Chat/Conversation/ThreadSidebarView.swift`. `[evidence: code_verified, high, file existence check]`
 - Treat the FinalReview gate as historical evidence of governance process, not as the current phase pointer. `Docs/AuditArtifacts/ArchitectureAtlas/ARTIFACT_REGISTRY.csv` itself lists the FinalReview files with conflicting statuses (`historical_do_not_use_for_implementation` and `canonical`) — resolved in favor of the canonical source of truth's supersession rule.
-- Per `AGENTS.md` rule 15, confirm the current active phase by reading `Docs/AppleIntelligenceTransitionPlan.md` at conversation start.
+- There is no active phase to confirm: Phases 1A–1D and the rest of the Transition Plan are complete. Current work is in `Docs/ai/STATE.md` and the Notion roadmap. `AGENTS.md` rule 15 no longer asks for the Transition Plan at conversation start (retired; the last places still asking were aligned on 2026-09-24).
 - Release checklist: `Docs/RepoOS/04_RELEASE_READINESS_DASHBOARD.md`.
 
 ## Next-action menu for agents

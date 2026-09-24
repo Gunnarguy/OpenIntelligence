@@ -53,7 +53,9 @@ command -v python3 >/dev/null 2>&1 || exit 0
 # The path list goes through a file, not a pipe. `python3 - <<PY` takes its PROGRAM from the
 # heredoc, which claims stdin, so a piped list arrives at an exhausted sys.stdin and every path
 # silently vanishes. The first version of this script reported "0 changed paths" for every input.
-PATHS_FILE="$(mktemp -t oi_instr_paths)" || exit 0
+# An explicit XXXXXX template: BSD `mktemp -t prefix` fails on GNU ("too few X's"), and the
+# `|| exit 0` then skipped this silently on Linux. Fixed 2026-09-24.
+PATHS_FILE="$(mktemp "${TMPDIR:-/tmp}/oi_instr_paths.XXXXXX")" || exit 0
 trap 'rm -f "$PATHS_FILE"' EXIT
 printf '%s\n' "$PATHS" > "$PATHS_FILE"
 

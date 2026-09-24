@@ -17,7 +17,9 @@ HOOK="$REPO_ROOT/scripts/enforce_docs_hook.sh"
 
 PASS=0
 FAIL=0
-SCRATCH="$(mktemp -d -t oi_hook_tests)"
+# Explicit template and a hard stop: BSD `mktemp -d -t prefix` fails on GNU, and without the
+# exit the tests ran on with an empty SCRATCH. Fixed 2026-09-24.
+SCRATCH="$(mktemp -d "${TMPDIR:-/tmp}/oi_hook_tests.XXXXXX")" || exit 1
 trap 'rm -rf "$SCRATCH"' EXIT
 
 # stage <path> <content>  -- put a synthetic blob at <path> in the scratch index.

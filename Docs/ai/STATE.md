@@ -1,160 +1,176 @@
 # Current State
 
-Updated: 2026-09-24, 09:55 PT (5.4 still in review with build 478; GitHub `v5.3.0` published as Latest, `v5.4.0` held as a draft)
-Branch/worktree: `main`, primary checkout
-Last verified commit: 1a228a6
+Updated: 2026-09-24 (documentation overhaul in progress on a branch; 5.4 still in review with build 478)
+Branch/worktree: `claude/feature-knowledge-graph-fhu4mc` (cloud session), branched from `main` at d5cc916
+Last verified commit: d5cc916
 
 ## Objective
 
-Ship 5.4 with every change since 5.3, including the answer work of 2026-09-23. The owner's words
-that day: 5.4 is the version that exists in App Store Connect, there is no 5.5, and every change
-made since 5.3 is 5.4. The answer work was first pushed as 5.5 (`faed0d6`, Xcode Cloud build 475)
-and folded back into 5.4 the same day (`Docs/ai/DECISIONS.md`, 2026-09-23).
+Finish the documentation overhaul the owner approved on 2026-09-24 (`PROCEED: IMPLEMENT`): cut what
+agents load at the start of every task, and correct documents that disagree with the code, without
+touching app source, build inputs or store copy. It lives on the branch above and reaches `main`
+only when the owner merges it. Roadmap row (Future Backlog, In Progress):
+https://app.notion.com/p/3e549a74d54f815087d7db62848adb40
 
-## Status: 5.4
+5.4 is with Apple and needs nothing until review returns (section "5.4 release" below).
 
-- **In review on both platforms, build 478** (Xcode Cloud #478 from `c276b9a`), release MANUAL: after
-  approval it waits for a release. Last submitted 2026-09-23 22:03 PT, after the listing's screenshots
-  were replaced (9 iPhone, 7 iPad, 6 Mac; `Docs/Release/APP_STORE_METADATA_HISTORY.md`). Read back: both
-  records `WAITING_FOR_REVIEW`, build 478 `VALID`, What's New the 1,604-character notes in the owner's
-  voice. Submissions: iOS `0f601c16-8a6b-4d13-937d-c5a71803f6ce`, macOS `5a21fe94-a866-4c37-a412-a44f385f1b68`.
-  Earlier submissions that evening (477 at 17:17, 478 at 18:40 and 21:00) were pulled at the owner's
-  direction for the voice rewrite and the screenshots. 474, 475 (5.5), 476 and 477 are superseded;
-  **never submit 469**.
-- **5.4's user-facing copy is function and performance only** (owner, 2026-09-23): the release notes
-  (both `fastlane/metadata*/en-US/release_notes.txt`, identical), `WHATS_NEW.md`,
-  `Docs/USER_CHANGELOG.md` + bundled copy and the in-app "5.4" entry describe the answer work and
-  nothing else. Plans, paywall, rating request and Maximum cap stay in `CHANGELOG.md` only. All of it
-  is in the owner's voice, and the notes are on both records with build 478.
-- Three subscription descriptions are still wrong and the API refuses them (HTTP 409, ACTIVE). Web
-  page targets: Pro Annual "Annual billing for 1,000 documents and 10 libraries.", Pro Monthly
-  "Monthly billing for 1,000 documents and 10 libraries.", Lifetime "Permanent Pro - 20 Libraries +
-  Unlimited Documents". Submit both Pro subscriptions with 5.4 so their images get reviewed.
-- On submission: `in_review` for both platforms in `Docs/SHIPPED_VERSION.json`, push. On release:
-  date `## v5.4 - unreleased` in `Docs/USER_CHANGELOG.md`, copy it byte-for-byte to
-  `OpenIntelligence/Resources/VersionHistory.md`, remove `<!-- unreleased -->` from `## 5.4` in
-  `CHANGELOG.md`, and only then open the next version above it; set `app_store` and `preparing`, push.
-  Then publish the GitHub release, and only when the owner says to (2026-09-24: "I'll tell ya when to
-  do 5.4"). `v5.4.0` is a draft at `c276b9a`, the source of build 478, and its tag is already on
-  origin. It covers 5.4 only: `v5.3.0` (full and Latest since 2026-09-24, at `a2d99ab`, the source of
-  build 464) covers 5.2 and 5.3, without their plans and ratings sections. To publish, change the
-  draft's first line from "in App Review ... It's not on the App Store yet" to live with the date
-  (`gh release view v5.4.0 -R Gunnarguy/OpenIntelligence --json body -q .body` gives the text), then
-  `gh release edit v5.4.0 -R Gunnarguy/OpenIntelligence --notes-file <file> --draft=false --latest`.
-  If 5.4 ships from a build other than 478, the tag has to move first, and that is the owner's call.
-- Scheduled: 2026-09-30 09:00 PT, task `openintelligence-end-lifetime-sale`.
+## Status: documentation overhaul
 
-## The answer work in 5.4 (2026-09-23)
+- **Pass 1 (agent instruction layer): done.**
+  - Every task reads 3 documents instead of 8 (22,981 bytes, down from 131,868): `Docs/ai/STATE.md`,
+    the superseding protocol and `Docs/ai/ARCHITECTURE.md`. Everything else loads on demand, by section.
+  - `AGENTS.md` rule 15 is that rule's one home, and `repoos_router.py` `UNIVERSAL_DOCS` executes it.
+  - `CHANGELOG.md` went from 651 KB to 99 KB. Versions 2.0–5.2 moved verbatim to
+    `Docs/Archive/CHANGELOG_2.0_to_5.2.md`.
+  - `HANDOFF.md` is a 3 KB reading order. `.agents/AGENTS.md` and `.geminirules` are pointers.
+- **Checker and hooks: done.**
+  - `scripts/verify_doc_claims.py` now also checks `Type.member` names, route-table paths and the
+    instruction files, and skips gitignored machine-local paths.
+  - The pre-commit gate runs it with `-f`, not `-x`.
+  - `mktemp` is portable in 3 hooks/scripts and 1 test.
+- **Pass 2 (reference docs): pending.** A review workflow in this session proposes code-verified
+  edits. Drift already verified by reading code:
+  - **`Docs/ai/ARCHITECTURE.md`:**
+    - The model-routing row points at `Services/AIPlatform/`. The decision is
+      `ModelExecutionPlanner.makePlan` in `Services/RAG/Orchestration/`; `AIPlatform` enforces the route.
+    - Fusion is `RAGEngine.reciprocalRankFusion` (`Services/RAG/Orchestration/RAGEngine.swift`), not
+      in `Retrieval/`.
+    - `HybridSearchService` does not rerank: `RAGService` calls `RAGEngine.rerank` after it returns.
+    - A missing reranker model runs a heuristic fallback (`RAGEngine.swift` ~340-400), not "fusion
+      order". `Docs/RETRIEVAL_PIPELINE.md` item 21 says the same wrong thing.
+  - **The Atlas, ~line 381,** cites `RAGService.importDocument`, which does not exist. This is the
+    only failure `verify_doc_claims.py` reports.
+  - **Stale citations:**
+    - `Docs/INGESTION_PIPELINE.md:5` and `Docs/RETRIEVAL_PIPELINE.md:15` cite `Docs/AUDIT/` (not in
+      the repo) and `CHANGELOG.md` 4.8–4.9 (now archived).
+    - `INGESTION_PIPELINE.md` ~200 anchors `CHANGELOG.md:162`, now `Docs/Archive/CHANGELOG_2.0_to_5.2.md:48`.
+  - **Also to add:**
+    - In `INGESTION_PIPELINE.md`, after "...nothing in the log said which stage owned the time.":
+      page render is 12–16 ms a page at 360 DPI, so OCR time is Vision recognition (source:
+      `Docs/EdgeToEdge/02_File_extraction_and_document_understanding.md:15`).
+    - A "read by section" line at the top of the Atlas and `INGESTION_PIPELINE.md`.
+- **Pass 3 (every other doc): pending.** Historical banners and dead-reference fixes only:
+  `Docs/AuditArtifacts`, `EdgeToEdge`, `Research`, `Engineering`, `Release`, `Archive`, `.agent`,
+  `Docs/AgentPlaybooks`.
+- **Off limits under the approval:**
+  - App source.
+  - The top heading and 5.4 section of `CHANGELOG.md`. One `[General]` line was added there, as the
+    route requires.
+  - User changelogs, `WHATS_NEW.md`, fastlane text, release notes, `Docs/SHIPPED_*.json`,
+    `HOW_IT_WORKS.md`, benchmark fixtures.
 
-Measured on the macOS 27.0 Debug build (M3 Pro, on-device model, `Docs/HOW_IT_WORKS.md` only):
-last streamed word to finished answer, Standard.
+## 5.4 release (with Apple; nothing to do until review returns)
 
-| Question | Before | After |
-|---|---|---|
-| What file types does OpenIntelligence handle? | 163.8 s, 19.4 s | 0.33 s |
-| How many verification checks does OpenIntelligence run? | 58.3 s | 0.21 s |
-| Which embedding model does OpenIntelligence use for retrieval? | 37.6 s | 0.15 s |
-| Explain how OpenIntelligence decides when to use Private Cloud Compute | 0.12 s | 0.10 s |
-
-The wait was `SourceOnlyAnswerService` (two structured model calls) on answers whose gates passed;
-the 163.8 s run spent 163.5 s in the draft call and ended in a context overflow. Stream probe, after:
-Deep Think "explain" text from 50.0 s of 67.7 s (before: nothing until the end), one streamed call;
-Maximum from 34.6 s of 44.5 s. Details and file references: `CHANGELOG.md` `## 5.4`.
-
-Code: Standard skips SourceOnly when gates pass (`RAGService.standardSkipsSourceOnlyCheck`); draft
-limited to 1,024 tokens; `RAGService.finishAnswerNow()` / `runFinishableStage`;
-`AgenticOrchestrator.execute` parks the chat handler (`LLMStreamingContext.finalAnswerHandler` /
-`answerHandler`), four final-answer calls stream; `ChatScreen` checking state, one queued question,
-haptic, `ChatAnswerNotice` badge, clock restart, step-driven background progress, expiry keeps text;
-structured short answers stream; harness `--rag-validation-stream-probe`; gating token
-`finished_early_by_person`. Copy: `CHANGELOG.md` `## 5.4`, `Docs/USER_CHANGELOG.md` + bundled copy,
-`WHATS_NEW.md`, and the one "5.4" entry in `WhatsNewStore.swift` (seven items: the three answer items, then four titled "From 5.3", whose screen no one saw).
-
-Notion rows, all In Progress, `v5.4` (moved from `v5.5` on 2026-09-23 with a dated note in each):
-Standard stall https://app.notion.com/p/3e449a74d54f818197d4c6e45f8d2142 , off-screen signals
-https://app.notion.com/p/3e449a74d54f8193964bdda0f50d16c3 , streaming
-https://app.notion.com/p/3e449a74d54f813787a6cf91ef814767 . Future Backlog: sample answers "Partially
-Verified" without Apple Intelligence https://app.notion.com/p/3e449a74d54f8170a3cbfb570a41d0a5 ; Deep
-Think research replacing a full synthesis with a one-line answer that can be wrong
-https://app.notion.com/p/3e449a74d54f813db884d9471b25bdb3 (High). The `v5.5` option stays on Target
-Release with no rows.
+- **In review, both platforms, build 478** (Xcode Cloud #478 from `c276b9a`), release MANUAL,
+  submitted 2026-09-23 22:03 PT.
+  - Submissions: iOS `0f601c16-8a6b-4d13-937d-c5a71803f6ce`, macOS `5a21fe94-a866-4c37-a412-a44f385f1b68`.
+  - 474-477 are superseded. **Never submit 469.**
+- **User-facing copy is function and performance only, in the owner's voice.** Plans, paywall,
+  ratings and the Maximum cap stay in `CHANGELOG.md` `## 5.4` only.
+- **Three subscription descriptions are wrong, and the API refuses the edit (409), so use the web page.**
+  - Pro Annual: "Annual billing for 1,000 documents and 10 libraries."
+  - Pro Monthly: "Monthly billing for 1,000 documents and 10 libraries."
+  - Lifetime: "Permanent Pro - 20 Libraries + Unlimited Documents".
+  - Submit both Pro subscriptions with the next version.
+- **On approval** (`PENDING_DEVELOPER_RELEASE`), release only when the owner says. Then:
+  1. Date `## v5.4 - unreleased` in `Docs/USER_CHANGELOG.md` and copy it byte-for-byte to
+     `OpenIntelligence/Resources/VersionHistory.md`.
+  2. Remove `<!-- unreleased -->` from `## 5.4` in `CHANGELOG.md`, then open the next version above it.
+  3. In `Docs/SHIPPED_VERSION.json`, set `app_store` to 5.4 and clear `in_review`. Push.
+- **Then the GitHub draft `v5.4.0` (at `c276b9a`, tag on origin), only when the owner says:**
+  - Change its first line from "in App Review" to live with the date
+    (`gh release view v5.4.0 -R Gunnarguy/OpenIntelligence --json body -q .body`).
+  - Run `gh release edit v5.4.0 -R Gunnarguy/OpenIntelligence --notes-file <file> --draft=false --latest`.
+  - A build other than 478 means the tag moves first, and that is the owner's call.
+- **On a rejection,** fix what the resolution center names. The three v5.4 Notion rows close after
+  the owner's device check.
+- **Scheduled 2026-09-30 09:00 PT:** task `openintelligence-end-lifetime-sale`. It runs
+  `scripts/asc_end_sale.rb` and strips the sale line from three websites. It runs only while the
+  desktop app is open, otherwise at next launch. The in-app banner silences itself.
 
 ## Active Constraints
 
-- **No new version heading while 5.4 is unsubmitted** (`Docs/ai/DECISIONS.md`, 2026-09-23).
-  `ci_post_clone.sh` stamps every Xcode Cloud build from the first numbered heading in `CHANGELOG.md`.
-- **A local build calls itself 5.3 (150)** unless built with `MARKETING_VERSION=5.4`: the project
-  file is stamped only in Xcode Cloud. The command-line override edits no file.
-- **Guard memory on builds** (18 GB Mac): `-jobs 2`, stop at 15% free. Build from `/private/tmp/oi-src`,
-  synced with rsync excluding `BenchmarkRuns/`, `.simulator-smoke.nosync/`, `Benchmarks/run/`,
-  `.build` anywhere (`OpenIntelligence/swift-transformers/.build` is 150 MB and gets bundled),
-  `/.device-smoke.nosync/`, `/build/`.
-- **The iOS simulator does not generate**; timing and streaming run on the unsigned macOS Debug build,
-  which writes `~/Library/Application Support/OpenIntelligence`. The UI test library is parked at
-  `/private/tmp/oi-ui-appsupport-2026-09-23`.
-- Disk: 96%, about 18 GB free. At 96% (2026-08-20) model assets were evicted.
-- App Store Connect writes are the owner's. swift-format rewrites Swift files edited with Edit/Write;
-  files with `"""` are edited by script. Commit to `main`, no AI trailer.
+- **No new version heading while 5.4 is unsubmitted** (`Docs/ai/DECISIONS.md`, 2026-09-23). Xcode
+  Cloud stamps builds from the first numbered heading in `CHANGELOG.md`.
+- A local build calls itself 5.3 (150) unless built with `MARKETING_VERSION=5.4`.
+- **Guard memory on builds** (18 GB Mac): `-jobs 2`, stop at 15% free.
+  - Build from `/private/tmp/oi-src`, synced with rsync.
+  - Exclude `BenchmarkRuns/`, `.simulator-smoke.nosync/`, `Benchmarks/run/`, `.build` anywhere,
+    `/.device-smoke.nosync/` and `/build/`.
+- The iOS simulator does not generate. Timing and streaming run on the unsigned macOS Debug build.
+- Disk 96% on 2026-09-23. At 96% (2026-08-20) model assets were evicted.
+- App Store Connect writes are the owner's. swift-format rewrites Swift files edited with Edit/Write.
+- **Commit to `main`, no branches or pull requests unless the owner asks, no AI co-author trailer.**
+  This is the owner's rule, carried over from `HANDOFF.md`. This overhaul is on a branch only
+  because the cloud session requires one.
 
-## Working Set
+## Working Set (overhaul)
 
-- `CHANGELOG.md`, `Docs/USER_CHANGELOG.md`, `OpenIntelligence/Resources/VersionHistory.md`,
-  `WHATS_NEW.md`, `OpenIntelligence/Features/Onboarding/WhatsNewStore.swift`: the 5.4 copy after the fold.
-- `OpenIntelligence/Services/RAG/Orchestration/RAGService.swift`: skip rule, `finishAnswerNow`, `runFinishableStage`, SourceOnly task and logs, `finalizeResponse` marker.
-- `OpenIntelligence/Services/RAG/Safety/SourceOnlyAnswerService.swift`: draft cap and token-use log.
-- `OpenIntelligence/Services/Agentic/AgenticOrchestrator.swift`: `execute` wrapper, streamed and finishable sites.
-- `OpenIntelligence/Services/LLM/LLMService.swift`: `LLMStreamingContext.finalAnswerHandler`/`answerHandler`.
-- `OpenIntelligence/Services/AIPlatform/AppleFoundationModels/FoundationModelStructuredGenerator.swift`: streamed direct answer.
-- `OpenIntelligence/Features/Chat/Conversation/ChatScreen.swift`, `ChatComposerV2.swift`, `MessageListV2.swift`, `ChatAnswerNotice.swift`; `OpenIntelligence/App/ContentView.swift` (badge).
-- `OpenIntelligenceTests/Services/RAG/Orchestration/SourceOnlyStandardGateTests.swift`, `ResponseMetadataGatingTests.swift`.
+- The instruction planes: `AGENTS.md` (rules 3, 4, 11-17), `CLAUDE.md`, `HANDOFF.md`, `GEMINI.md`,
+  `.geminirules`, `.agents/**`.
+- Routing:
+  - `.codex/skills/route-openintelligence-work/` (`SKILL.md`, `repoos_router.py`,
+    `test_repoos_router.py`).
+  - `Docs/AuditArtifacts/RepoOS/change_impact_matrix.csv`.
+  - `Docs/RepoOS/00_*.md`, `01_*.md`.
+- Enforcement:
+  - `scripts/verify_doc_claims.py` and `scripts/test_verify_doc_claims.sh`.
+  - `scripts/enforce_docs_hook.sh`, `scripts/instructions_report.sh` and `scripts/test_enforce_docs_hook.sh`.
+  - `.claude/hooks/instructions-loaded.sh`, `.claude/hooks/notion-receipt.sh`, `.claude/rules/repo-governance.md`.
+- `CHANGELOG.md`, `Docs/Archive/` (3 new files and the README), `Docs/ai/*`.
+- Next: `Docs/ai/ARCHITECTURE.md`, the Atlas, `Docs/RETRIEVAL_PIPELINE.md`,
+  `Docs/INGESTION_PIPELINE.md`, `Docs/PRIVACY_AND_ROUTING.md`, the canonical doc.
 
-## Verification (2026-09-23, output read)
+## Verification
 
-- Before the fold: full iOS suite on simulator `6CD2218C-EA61-46B3-B31E-0667FBCDF2B6` -> 500 tests,
-  0 failures, 3 skipped; macOS Debug build -> no warnings in changed files; `build_simulator_smoke.sh`
-  -> succeeded.
-- After the fold: `xcodebuild test` on the same simulator, `VersionHistoryTests`,
-  `WhatsNewCoverageTests`, `SourceOnlyStandardGateTests`, `ResponseMetadataGatingTests` -> 12 tests,
-  0 failures, TEST SUCCEEDED. `repoos_router.py preflight` -> active release `v5.4`, last shipped
-  `v5.3`, changelog target `## 5.4`, Notion target `v5.4`; `test_repoos_router.py` -> OK;
-  `test_enforce_docs_hook.sh` -> 16 passed; `secret_scan.py` -> clean; Notion -> `v5.4` 6 rows, `v5.5` 0.
-- Accuracy A/B, QASPER 25, greedy (`BenchmarkRuns/LEDGER.md`, 2026-09-23 entry): before 6/25, after
-  11/25; 0 pass-to-miss; SourceOnly replaced 0 answers in either run. The gain is not the change's.
-- Xcode Cloud build 475 (`faed0d6`, 5.5) -> SUCCEEDED, `VALID` on iOS and macOS; superseded.
-- A local Debug build, `MARKETING_VERSION=5.5`, was installed on the owner's iPhone 16 Pro Max over
-  Wi-Fi (`devicectl device install app`, 17 s) and launched; it is replaced by a 5.4 build after the fold.
-- Final code, `b176da2` (the build copy matched it for app, tests and project): full iOS suite ->
-  500 tests, 0 failures, 3 skipped, TEST SUCCEEDED. Hook tests -> 18 passed, 0 failed.
-- App Store Connect, read-only, 16:13 PT: both 5.4 records `PREPARE_FOR_SUBMISSION`, release MANUAL,
-  copyright set, build 474 attached with `usesNonExemptEncryption=false`, review contact, email,
-  phone and 1,116 characters of notes set, no demo account required, no open review submission;
-  What's New still the plans-and-ratings text (1,239 characters); promotional text the sale line.
-- App Store Connect, 2026-09-23 22:04 PT: both 5.4 records `WAITING_FOR_REVIEW`, build 478 `VALID`,
-  What's New 1,604 characters; screenshot sets replaced and `COMPLETE`: `APP_IPHONE_67`, `_65`, `_61` 9
-  each, `APP_IPAD_PRO_3GEN_129` 7, `APP_DESKTOP` 6.
-- **Not verified:** anything on a device (haptic, badge on a phone, clock restart, background expiry,
-  streaming feel); the "Checking sources…"/"Refining…" label and unlocked composer in the running app.
+2026-09-24, Linux cloud container, output read:
+- `python3 .codex/skills/route-openintelligence-work/scripts/test_repoos_router.py` -> 31 tests, OK.
+- `bash scripts/test_verify_doc_claims.sh` -> all 7 break cases caught. The baseline case fails on the
+  pass-2 drift.
+- `python3 scripts/verify_doc_claims.py` -> 600 claims, 1 failure (Atlas:381).
+- `bash scripts/test_enforce_docs_hook.sh` -> 18 passed. It could not run on Linux before the `mktemp` fix.
+- `bash scripts/test_stop_handoff.sh` -> 11 passed. It was 10 passed, 1 failed on `mktemp -t`.
+- `python3 scripts/secret_scan.py` -> clean.
+- Preflight after the `CHANGELOG.md` move -> `v5.4`, `## 5.4`, unchanged. Archive compared with
+  `git show HEAD:CHANGELOG.md` -> 0 mismatched lines.
+
+**Not run:** `build_simulator_smoke.sh` (no Xcode here) and `quick_validate.py` (Mac path). No app
+source changed.
+
+2026-09-23: full iOS suite on `b176da2` -> 500 tests, 0 failures. App Store Connect at 22:04 PT ->
+both records `WAITING_FOR_REVIEW`, build 478 `VALID`. **Nothing verified on a device.**
 
 ## Blockers / Unknowns
 
-- Nothing blocks 5.4; it is with Apple. The three subscription descriptions in App Store Connect are
-  still wrong ("unlimited documents and 5 libraries" for Pro, "10 Libraries" for Lifetime). The API
-  refuses them (409, ACTIVE) and no Chrome was connected to edit the web page, so they wait for the
-  next submission; targets are in the Status section above.
-- Whether macOS needs a tab signal other than the badge, which its toolbar tabs do not draw.
-- Cleanup, this session's test data only: `/private/tmp/oi-ui-appsupport-2026-09-23` (the Mac UI
-  test library); simulators `6CD2218C-EA61-46B3-B31E-0667FBCDF2B6`, `57E0CE08-EA1A-4D02-9D74-FEBD238709ED`
-  and `F798E00A-9F48-44B8-A087-45413A96783A` (shut down; `xcrun simctl delete` each); frozen apps in
-  `/private/tmp/oi-bench/`; in the owner's iCloud Documents, `~/Documents/SampleDocuments` (fresh sample
-  copies from the unsigned Mac build) and `~/Documents/SampleDocuments.evicted-2026-09-23` (the evicted
-  copies that froze it). Nothing there is the owner's own.
+- **Evidence Threads sync may copy nothing.** Code-read only, not observed.
+  - The store writes `<AppSupport>/EvidenceThreads/<container>/` (`EvidenceThreadStore.swift:60`).
+  - Sync reads `localRoot/EvidenceThreads/` with localRoot `<AppSupport>/OpenIntelligence`
+    (`WorkspaceSyncService.swift:2739`, `OpenIntelligenceRuntimePaths.swift:105-111`).
+  - Verify on a Pro build with library sync on: create a thread and look for its JSON under the
+    library's iCloud root.
+  - If real, it may pass release test 2. `WorkspaceSyncService.swift` is a hard-boundary file. A
+    suggested task is queued in the desktop app.
+- **Possible PCC in Standard** (inferred). `ModelExecutionPlanner.makePlan`'s branch for questions
+  too large for the on-device model reportedly has no quality-mode check, while the setting reads
+  "Allow for Deep Think and Maximum". Verify by reading `makePlan`.
+- **Owner decisions:**
+  - When may a new version heading open? `DECISIONS.md` ~757-759 says after submission; this file
+    and `CHANGELOG.md` say after release.
+  - Rename Lifetime? That needs a new IAP version.
+  - `.build` (841 MB) and `build/` (444 MB) at the root lack `.nosync`.
+  - Whether to narrow `AGENTS.md` rule 14's seven-document list, now the largest per-task doc cost.
+- **Router gaps, not fixed:**
+  - No route owns answer orchestration (`AgenticOrchestrator.swift`, `Services/Evaluation`).
+  - Product terms (Deep Think, Maximum, Glossary, HUD, library deletion) route to nothing.
+- **Test data to clean up:**
+  - `/private/tmp/oi-ui-appsupport-2026-09-23` and `/private/tmp/oi-bench/`.
+  - Simulators `6CD2218C-EA61-46B3-B31E-0667FBCDF2B6`, `57E0CE08-EA1A-4D02-9D74-FEBD238709ED` and
+    `F798E00A-9F48-44B8-A087-45413A96783A`.
+  - `~/Documents/SampleDocuments` and `~/Documents/SampleDocuments.evicted-2026-09-23`.
 
 ## Exact Next Action
 
-Check the two 5.4 review submissions (`GET /v1/apps/6756559175/reviewSubmissions`). On approval both
-records read `PENDING_DEVELOPER_RELEASE` (release MANUAL): release when the owner says to, then do the
-release close-out in the Status section (date `## v5.4` in `Docs/USER_CHANGELOG.md` and its bundled
-copy, remove `<!-- unreleased -->` from `## 5.4`, set `app_store` to 5.4 and clear `in_review` in
-`Docs/SHIPPED_VERSION.json`, push, then publish the `v5.4.0` GitHub draft when the owner says). On a
-rejection, read the resolution center message and fix what it names. The three v5.4 Notion rows close
-only after the owner's device check.
+On branch `claude/feature-knowledge-graph-fhu4mc`, correct `Docs/ai/ARCHITECTURE.md` for the
+routing, fusion and reranker items under "Status: documentation overhaul". Verify each against the
+named Swift file first. Then fix the Atlas line citing `RAGService.importDocument` so that
+`python3 scripts/verify_doc_claims.py` exits 0, and commit with explicit paths.

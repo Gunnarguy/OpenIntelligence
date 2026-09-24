@@ -3,7 +3,8 @@
 
 Companion to `verify_capabilities.py`. That one checks the code behind a *public*
 claim still exists. This one checks the claims documentation makes about the
-*repository itself*: versions, enum cases, file paths, line anchors.
+*repository itself*: versions, enum cases, file paths, line anchors, and
+`Type.member` symbol names.
 
 Why this exists. On 2026-09-01 a claim-by-claim re-read of two foundational
 documents found four disagreements, every one of them mechanically checkable:
@@ -49,6 +50,7 @@ Exit codes: 0 every checked claim holds, 1 at least one does not.
 
 from __future__ import annotations
 
+import csv
 import json
 import re
 import subprocess
@@ -72,12 +74,37 @@ DOCS = [
     "Docs/CANONICAL_OPENINTELLIGENCE_SOURCE_OF_TRUTH.md",
     "HANDOFF.md",
     "README.md",
+    # The instruction layer, added 2026-09-24. These are what an agent reads before
+    # anything else, so a dead path or a renamed symbol here misdirects every task.
+    "CLAUDE.md",
+    "AGENTS.md",
+    "GEMINI.md",
+    "Docs/ai/INDEX.md",
+    "Docs/RepoOS/00_REPO_COMMAND_CENTER.md",
+    "Docs/RepoOS/01_TASK_ROUTER.md",
+    "Docs/RepoOS/03_FORBIDDEN_EDIT_BOUNDARIES.md",
+    ".codex/skills/route-openintelligence-work/SKILL.md",
 ]
+
+# The router's machine-readable route table. Its document columns name files an
+# agent is told to read or update; a path there that no longer exists sends every
+# task on that route to nothing. Checked separately because it is CSV, not prose.
+MATRIX = "Docs/AuditArtifacts/RepoOS/change_impact_matrix.csv"
+MATRIX_PATH_COLUMNS = ("likely_files", "read_first_docs", "required_docs_to_update")
 
 # Paths that are legitimately absent from a clean checkout. Benchmark runs are
 # gitignored and were archived on 2026-09-01; citing one is correct, and
 # `BenchmarkRuns/LEDGER.md` explains where to find it.
 PATH_EXEMPT_PREFIXES = ("BenchmarkRuns/",)
+
+# Paths that exist only on the owner's Mac because git ignores them: local
+# settings, benchmark scratch, and SwiftPM build output. Documents cite them
+# correctly (a runbook step that says "delete .build" names a real directory), but
+# a fresh clone never has them, so until 2026-09-24 the checker failed on every
+# clean checkout and a gate that is red on day one gets ignored. Each entry here is
+# gitignored; keep it that way when adding one.
+MACHINE_LOCAL_PREFIXES = (".claude/settings.local.json", ".claude/.state/", "Benchmarks/run/")
+MACHINE_LOCAL_PARTS = ("/.build",)
 
 # A line asserting a *current* shipped version. Deliberately narrow: historical
 # statements ("v4.9 shipped on...") must not trip this, so the version and a
@@ -113,8 +140,21 @@ PATH_CLAIM = re.compile(
 # `Something.swift:123`
 ANCHOR_CLAIM = re.compile(r"`?([A-Za-z0-9_+]+\.swift):(\d+)`?")
 
+# `TypeName.member` or `TypeName.member(label:)` named in prose. Checked only when
+# the type has a primary declaration (class/struct/enum/protocol/actor) in the
+# repository, so Apple types that the app merely extends, such as `String.count`,
+# are skipped rather than reported. The member must then be declared in a file
+# that declares or extends the type. Added 2026-09-24, when the Atlas was found
+# citing `RAGService.importDocument`, a function that does not exist anywhere.
+SYMBOL_CLAIM = re.compile(r"`([A-Z][A-Za-z0-9_]+)\.([a-z_][A-Za-z0-9_]*)(?:\([^`]*\))?`")
+# `Foo.swift`, `Bar.md`: a filename, not a member.
+FILE_EXTENSIONS = {
+    "swift", "md", "json", "py", "sh", "rb", "plist", "csv", "txt", "yml", "yaml",
+    "storekit", "entitlements", "mlpackage", "xcodeproj", "pbxproj",
+}
+
 failures: list[str] = []
-checked = {"version": 0, "enum": 0, "path": 0, "anchor": 0}
+checked = {"version": 0, "enum": 0, "path": 0, "anchor": 0, "symbol": 0}
 
 
 def fail(doc: str, line_no: int, msg: str) -> None:
@@ -183,6 +223,60 @@ def swift_enum_cases(enum_name: str, owner: str) -> set[str] | None:
     return cases or None
 
 
+def is_machine_local(rel: str) -> bool:
+    return rel.startswith(MACHINE_LOCAL_PREFIXES) or any(p in rel for p in MACHINE_LOCAL_PARTS)
+
+
+_swift_sources: dict[str, str] | None = None
+_declaring: dict[str, list[str]] = {}
+
+
+def swift_sources() -> dict[str, str]:
+    global _swift_sources
+    if _swift_sources is None:
+        _swift_sources = {}
+        for top in ("OpenIntelligence", "OpenIntelligenceTests", "OpenIntelligenceLiveActivities"):
+            for path in (ROOT / top).rglob("*.swift"):
+                if "/.build/" in str(path):
+                    continue
+                _swift_sources[str(path.relative_to(ROOT))] = path.read_text(errors="ignore")
+    return _swift_sources
+
+
+def declaring_files(type_name: str) -> list[str]:
+    """Files that declare `type_name`, then files that extend it; [] if it has no primary declaration."""
+    if type_name not in _declaring:
+        primary = re.compile(r"\b(?:class|struct|enum|protocol|actor)\s+" + re.escape(type_name) + r"\b")
+        extension = re.compile(r"\bextension\s+" + re.escape(type_name) + r"\b")
+        src = swift_sources()
+        owners = [p for p, s in src.items() if primary.search(s)]
+        if owners:
+            owners += [p for p, s in src.items() if p not in owners and extension.search(s)]
+        _declaring[type_name] = owners
+    return _declaring[type_name]
+
+
+def check_matrix() -> None:
+    p = ROOT / MATRIX
+    if not p.exists():
+        failures.append(f"{MATRIX}: listed for checking but does not exist")
+        return
+    with p.open(newline="") as fh:
+        for row_no, row in enumerate(csv.DictReader(fh), 2):
+            for column in MATRIX_PATH_COLUMNS:
+                for entry in (row.get(column) or "").split(";"):
+                    # "Docs/X.md section 3", "Docs/Y.csv (R09)": the path is the first token.
+                    rel = entry.strip().split(" ")[0]
+                    if not rel or "/" not in rel and not rel.endswith(".md"):
+                        continue
+                    checked["path"] += 1
+                    if any(ch in rel for ch in "*?["):
+                        if not any(ROOT.glob(rel)):
+                            fail(MATRIX, row_no, f"{row.get('task_type')}.{column}: `{rel}` matches no file")
+                    elif not (ROOT / rel).exists():
+                        fail(MATRIX, row_no, f"{row.get('task_type')}.{column}: references missing path `{rel}`")
+
+
 def check(doc: str) -> None:
     p = ROOT / doc
     if not p.exists():
@@ -218,7 +312,7 @@ def check(doc: str) -> None:
 
     for m in PATH_CLAIM.finditer(text):
         rel = m.group(1).rstrip(".,;:")
-        if rel.startswith(PATH_EXEMPT_PREFIXES):
+        if rel.startswith(PATH_EXEMPT_PREFIXES) or is_machine_local(rel):
             continue
         # A documented filename shape, not a file: the regex stops at the
         # placeholder, leaving a truncated stem that can never exist.
@@ -246,20 +340,41 @@ def check(doc: str) -> None:
             fail(doc, text[: m.start()].count("\n") + 1,
                  f"anchor `{fname}:{n}` is past end of file ({total} lines)")
 
+    lines = text.splitlines()
+    for m in SYMBOL_CLAIM.finditer(text):
+        type_name, member = m.group(1), m.group(2)
+        if member in FILE_EXTENSIONS:
+            continue
+        line_no = text[: m.start()].count("\n") + 1
+        if "verify-doc-claims: ignore" in lines[line_no - 1]:
+            continue
+        owners = declaring_files(type_name)
+        if not owners:
+            continue
+        checked["symbol"] += 1
+        declared = re.compile(
+            r"(?:\bfunc\s+|\bvar\s+|\blet\s+|\bcase\s+(?:[^\n]*[,\s])?\.?|\btypealias\s+"
+            r"|\b(?:class|struct|enum|protocol|actor)\s+)" + re.escape(member) + r"\b"
+        )
+        src = swift_sources()
+        if not any(declared.search(src[p]) for p in owners):
+            fail(doc, line_no, f"`{type_name}.{member}`: no member `{member}` declared on `{type_name}`")
+
 
 def main() -> int:
     for doc in DOCS:
         check(doc)
+    check_matrix()
 
     total = sum(checked.values())
     print(f"verify_doc_claims: {total} claims checked "
           f"({checked['version']} version, {checked['enum']} enum, "
-          f"{checked['path']} path, {checked['anchor']} anchor)")
+          f"{checked['path']} path, {checked['anchor']} anchor, {checked['symbol']} symbol)")
 
     # Guard against the check silently ceasing to match. A rewording that stops
     # tripping the pattern reads as a pass, which is the failure mode this whole
     # script exists to prevent -- so each rule declares a floor it must clear.
-    for rule, floor in (("version", 1), ("enum", 1), ("path", 20), ("anchor", 1)):
+    for rule, floor in (("version", 1), ("enum", 1), ("path", 20), ("anchor", 1), ("symbol", 20)):
         if checked[rule] < floor:
             failures.append(
                 f"verify_doc_claims: the '{rule}' rule matched {checked[rule]} claims, "

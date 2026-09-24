@@ -11,8 +11,8 @@ is the always-loaded control plane and points here. Read on demand, not by defau
 | [STATE.md](STATE.md) | Always, before substantive work. Current objective, what is verified, one exact next action. |
 | [PROJECT.md](PROJECT.md) | You need scope, constraints, or what this app deliberately does not do. |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | You need the component map, or you do not know which doc owns an area. |
-| [DECISIONS.md](DECISIONS.md) | Something looks wrong and you are about to "fix" it. Check whether it was decided. |
-| [RUNBOOK.md](RUNBOOK.md) | You need to build, test, release, or recover, and want to know which commands are actually verified. |
+| [DECISIONS.md](DECISIONS.md) | Something looks wrong and you are about to "fix" it. Check whether it was decided. Read by section. |
+| [RUNBOOK.md](RUNBOOK.md) | You need to build, test, release, or recover, and want to know which commands are actually verified. Read by section: `grep -n '^## '`. |
 
 ## Relationship to the rest of the documentation
 
@@ -31,5 +31,6 @@ This directory does not replace anything. It routes.
 underlying fact changes. The `project-context-audit` skill checks this directory against the
 repository and updates the date below.
 
-Last context-system audit: 2026-08-07
+Last context-system audit: 2026-09-24 (the documentation overhaul: startup reads cut to STATE, the
+superseding protocol and ARCHITECTURE; large files read by section; `verify_doc_claims.py` extended)
 Installed from: [bootstrap/CLAUDE_CONTEXT_OS_V2.md](bootstrap/CLAUDE_CONTEXT_OS_V2.md)

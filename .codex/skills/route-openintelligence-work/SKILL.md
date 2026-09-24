@@ -15,15 +15,13 @@ Use RepoOS as the workspace navigation graph. Derive routes from live repository
    python3 .codex/skills/route-openintelligence-work/scripts/repoos_router.py preflight --task "<user request>" --path <path-if-known>
    ```
 
-2. Read the files returned under `read_first_docs` plus the universal startup files in this order:
-   - `AGENTS.md`
-   - `Docs/AgentPlaybooks/00_SUPERSEDING_EVIDENCE_PROTOCOL.md`
-   - `Docs/CANONICAL_OPENINTELLIGENCE_SOURCE_OF_TRUTH.md`
-   - `Docs/OPENINTELLIGENCE_ARCHITECTURE_ATLAS.md`
-   - `Docs/RepoOS/00_REPO_COMMAND_CENTER.md`
-   - `Docs/AppleIntelligenceTransitionPlan.md`
-   - `Docs/RepoOS/01_TASK_ROUTER.md`
-   - `Docs/RepoOS/03_FORBIDDEN_EDIT_BOUNDARIES.md`
+2. Read what the preflight prints under "Read on every task" (`Docs/ai/STATE.md`, the superseding
+   evidence protocol, `Docs/ai/ARCHITECTURE.md`) and under "Read first". Nothing else by default:
+   AGENTS.md rule 15 makes every other document on-demand. Where a route names a section ("Atlas
+   section 17"), read that section, not the file: `grep -n '^## ' <file>`, then that range. Read
+   `Docs/RepoOS/00_REPO_COMMAND_CENTER.md` and `01_TASK_ROUTER.md` only when no route matches or the
+   task changes routing, and `03_FORBIDDEN_EDIT_BOUNDARIES.md` when the preflight lists a
+   hard-boundary path.
 3. Treat `Docs/AuditArtifacts/RepoOS/change_impact_matrix.csv` as the machine-readable route authority.
 4. Read the preflight's `active_release` and `documentation_targets`; derive them fresh on every task instead of carrying a version forward from memory.
 5. Inspect the real working tree before acting. Preserve unrelated and pre-existing changes.
@@ -57,7 +55,7 @@ If no matrix row matches, do not improvise an edit boundary. Treat the task as c
 ## Target release documentation every time
 
 - Every preflight identifies the active release from current repository artifacts, with `Docs/ROADMAP.md`'s `working on vX.Y` marker taking precedence.
-- For durable implementation work, update `CHANGELOG.md` under `[Unreleased]` and the active version section reported for `Docs/RELEASE_NOTES.md`, plus the full AGENTS.md rule 14 document set and route-specific docs.
+- For durable implementation work, update the `CHANGELOG.md` section the preflight names in `documentation_targets.changelog_section` (not always `[Unreleased]`; see AGENTS.md rule 18) and the active version section reported for `Docs/RELEASE_NOTES.md`, plus the full AGENTS.md rule 14 document set and route-specific docs. Edit the affected section of each; none needs reading whole.
 - Use the same active version for the Notion `Target Release` property.
 - For read-only, diagnosis-only, pure-docs, or tests-only tasks, still report the targets but do not manufacture empty release-note, changelog, or roadmap edits.
 - If the active version cannot be derived exactly, stop before release-document or Notion writes and reconcile the canonical version markers first.
@@ -77,7 +75,7 @@ Read [references/decision-rules.md](references/decision-rules.md) when route sel
 
 1. Re-run preflight with every changed path.
 2. Compare the actual diff against the route boundary.
-3. Update the preflight's effective required-doc union. Durable implementations always include `CHANGELOG.md` `[Unreleased]`, the active-version section in `Docs/RELEASE_NOTES.md`, and the full AGENTS.md rule 14 set.
+3. Update the preflight's effective required-doc union. Durable implementations always include the `CHANGELOG.md` section the preflight names, the active-version section in `Docs/RELEASE_NOTES.md`, and the full AGENTS.md rule 14 set.
 4. Synchronize the Notion row when relevant.
 5. Run routed tests, build smoke when required, and secret scanning for new files.
 6. Report changed paths, evidence, verification, documentation, Notion status, and the next best move.

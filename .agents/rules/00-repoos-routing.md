@@ -3,14 +3,15 @@
 You are inside the OpenIntelligence repository. It has a governance layer called RepoOS. You MUST route every task through it — no exceptions, no waiting to be asked.
 
 ## On every session start
-1. Read `Docs/RepoOS/00_REPO_COMMAND_CENTER.md` (current state, canonical docs, high-risk zones).
-2. Read `Docs/CANONICAL_OPENINTELLIGENCE_SOURCE_OF_TRUTH.md` — it supersedes every other doc. If any other doc contradicts it, that doc is stale; do not act on it.
-3. Identify the current phase from `Docs/AppleIntelligenceTransitionPlan.md`. Evidence Threads Phases 1A–1D are COMPLETE — never re-implement them.
+1. Read `Docs/ai/STATE.md` (current objective, what is verified, the next action).
+2. `Docs/CANONICAL_OPENINTELLIGENCE_SOURCE_OF_TRUTH.md` supersedes every other doc: if any other doc contradicts it, that doc is stale. Read the section a task touches, not the whole file (AGENTS.md rule 15).
+3. Evidence Threads Phases 1A–1D are COMPLETE — never re-implement them. `Docs/AppleIntelligenceTransitionPlan.md` is that phase history, not a startup read.
+4. Read large documents by section (`grep -n '^## ' <file>`, then that range), never whole. `CHANGELOG.md` above all: only its first numbered section is the open release.
 
 ## On every task
 1. Read `.codex/skills/route-openintelligence-work/SKILL.md` and run its `repoos_router.py preflight` command with the user's request and known paths. Record its active release and exact changelog/release-notes targets.
-2. Match the task to a row in `Docs/AuditArtifacts/RepoOS/change_impact_matrix.csv` by `task_type`.
-3. That row is binding: read the `read_first_docs`, stay inside `allowed_edit_paths`, never touch `forbidden_edit_paths`, run `required_tests`, and update `required_docs_to_update` in the SAME task — not later, not when asked.
+2. The preflight matches the task to a row in `Docs/AuditArtifacts/RepoOS/change_impact_matrix.csv` and prints it. Read `Docs/RepoOS/00_REPO_COMMAND_CENTER.md` only when no row matches or the task changes routing.
+3. That row is binding: read the `read_first_docs` (only the named section where one is named), stay inside `allowed_edit_paths`, never touch `forbidden_edit_paths`, run `required_tests`, and update `required_docs_to_update` in the SAME task — not later, not when asked.
 4. Evaluate Notion relevance on every task. Sync the roadmap at start and verified completion when required by the workspace skill and `.agents/rules/01-docs-and-notion-sync.md`.
 5. If no row matches, use `Docs/RepoOS/01_TASK_ROUTER.md` route 13 rules (treat as config-risk: stop and ask).
 

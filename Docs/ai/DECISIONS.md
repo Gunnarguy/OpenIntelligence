@@ -1,5 +1,8 @@
 # Decisions
 
+**Read this file by section, never whole** (about 50 KB): `grep -n '^## ' Docs/ai/DECISIONS.md`
+lists the decisions; read any that touch what you are about to change.
+
 Decisions whose rationale cannot be reconstructed by reading the code. Append; do not rewrite. When
 a decision is replaced, leave it and add a superseded-by line.
 

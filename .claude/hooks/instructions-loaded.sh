@@ -37,7 +37,9 @@ HOOK_STDIN="$(cat 2>/dev/null || true)"
 [ -n "$HOOK_STDIN" ] || exit 0
 command -v python3 >/dev/null 2>&1 || exit 0
 
-PAYLOAD="$(mktemp -t oi_instr_hook)" || exit 0
+# An explicit XXXXXX template: BSD `mktemp -t prefix` fails on GNU ("too few X's"), and the
+# `|| exit 0` then skipped this silently on Linux. Fixed 2026-09-24.
+PAYLOAD="$(mktemp "${TMPDIR:-/tmp}/oi_instr_hook.XXXXXX")" || exit 0
 trap 'rm -f "$PAYLOAD"' EXIT
 printf '%s' "$HOOK_STDIN" > "$PAYLOAD" 2>/dev/null || exit 0
 

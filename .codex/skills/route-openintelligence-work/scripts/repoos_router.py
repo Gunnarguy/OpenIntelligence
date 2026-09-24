@@ -14,15 +14,16 @@ from typing import Any
 
 
 MATRIX_PATH = Path("Docs/AuditArtifacts/RepoOS/change_impact_matrix.csv")
+# Read on every task, in addition to the route's own read_first_docs. Kept small on purpose:
+# AGENTS.md rule 15 makes everything else on-demand. Until 2026-09-24 this list also held the
+# Atlas, the Transition Plan, the canonical doc, AGENTS.md and three RepoOS files, about 130 KB
+# that rule 15 had already retired, so every routed task reloaded them anyway. The route
+# rows name the Atlas or canonical section a task needs, and this preflight already prints
+# the edit boundaries 00, 01 and 03 would otherwise be read for.
 UNIVERSAL_DOCS = [
-    "AGENTS.md",
+    "Docs/ai/STATE.md",
     "Docs/AgentPlaybooks/00_SUPERSEDING_EVIDENCE_PROTOCOL.md",
-    "Docs/CANONICAL_OPENINTELLIGENCE_SOURCE_OF_TRUTH.md",
-    "Docs/OPENINTELLIGENCE_ARCHITECTURE_ATLAS.md",
-    "Docs/RepoOS/00_REPO_COMMAND_CENTER.md",
-    "Docs/AppleIntelligenceTransitionPlan.md",
-    "Docs/RepoOS/01_TASK_ROUTER.md",
-    "Docs/RepoOS/03_FORBIDDEN_EDIT_BOUNDARIES.md",
+    "Docs/ai/ARCHITECTURE.md",
 ]
 RULE_14_DOCS = [
     "README.md",
@@ -126,7 +127,7 @@ SYNONYMS = {
     "build_project_config_change": "build project config xcode package plist entitlement",
     "tests_only_change": "test tests fixture coverage",
     "diagnostics_telemetry_change": "diagnostic telemetry trace monitoring",
-    "repoos_workspace_automation": "repoos codex skill agent workflow routing notion automation governance",
+    "repoos_workspace_automation": "repoos codex skill agent workflow routing notion automation governance handoff instructions",
 }
 PHRASE_HINTS = {
     "documentation_governance_change": ("documentation", "docs only", "doc reconciliation"),
@@ -563,6 +564,15 @@ def markdown_report(report: dict[str, Any]) -> str:
                 f"- Dirty entries: `{len(report['workspace']['dirty_paths'])}`",
             ]
         )
+    lines.extend(["", "## Read on every task"])
+    lines.extend(f"- {value}" for value in report["universal_read_first"])
+    lines.extend(
+        [
+            "",
+            "Anything else only when the task needs it (AGENTS.md rule 15). Read large docs by",
+            "section: `grep -n '^## ' <file>`, then read that range.",
+        ]
+    )
     for title, key in [
         ("Read first", "read_first_docs"),
         ("Allowed edits", "allowed_edit_paths"),

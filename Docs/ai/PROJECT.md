@@ -48,7 +48,7 @@ These are not roadmap gaps. They are the product.
 - Deployment target iOS 26.0 and macOS 26.0. Some capabilities are gated to 27+, notably native
   Private Cloud Compute execution.
 - Swift tools 6.0, SwiftUI.
-- Built with Xcode 27, installed at `/Applications/Xcode-beta.app`.
+- Built with Xcode 27.0 (`27A266a`, Swift 6.4) at `/Applications/Xcode.app`; the beta application was removed on 2026-09-10 (`CLAUDE.md`).
 - Targets: `OpenIntelligence` (app), `OpenIntelligenceEngine` (SwiftPM library),
   `OpenIntelligenceLiveActivities` (widget extension), `OpenIntelligenceTests`.
 
@@ -66,7 +66,9 @@ These are not roadmap gaps. They are the product.
 - **CloudKit / iCloud Drive**, for library sync.
 
 External services used by the project but not by the app: Notion (roadmap), App Store Connect and
-Xcode Cloud (release), GitHub Actions (CI).
+Xcode Cloud (release; as recorded 2026-09-22 it archives and has no test action, see
+`Docs/ai/RUNBOOK.md` `## Release`). There is no GitHub Actions workflow:
+`.github/` holds only templates and assets (checked 2026-09-24).
 
 ## Constraints that change implementation decisions
 

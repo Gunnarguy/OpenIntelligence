@@ -34,7 +34,9 @@ command -v python3 >/dev/null 2>&1 || exit 0
 # heredoc, which claims stdin, so a piped payload arrives at an already-exhausted sys.stdin and
 # every call silently parsed nothing. That is the failure this whole receipt system exists to catch,
 # so it would have been a fitting way to ship it broken.
-PAYLOAD="$(mktemp -t oi_notion_hook)" || exit 0
+# An explicit XXXXXX template: BSD `mktemp -t prefix` fails on GNU ("too few X's"), and the
+# `|| exit 0` then skipped this silently on Linux. Fixed 2026-09-24.
+PAYLOAD="$(mktemp "${TMPDIR:-/tmp}/oi_notion_hook.XXXXXX")" || exit 0
 trap 'rm -f "$PAYLOAD"' EXIT
 printf '%s' "$HOOK_STDIN" > "$PAYLOAD" 2>/dev/null || exit 0
 

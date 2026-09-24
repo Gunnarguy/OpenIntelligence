@@ -341,6 +341,31 @@ class RepoOSRouterTests(unittest.TestCase):
             report["documentation_targets"]["effective_required_docs"], []
         )
 
+    def test_instruction_plane_files_route_to_workspace_automation(self) -> None:
+        # HANDOFF.md, GEMINI.md and .geminirules matched no route until 2026-09-24, so an edit to
+        # them stopped as config-risk with no edit boundary at all.
+        for path in ("HANDOFF.md", "GEMINI.md", ".geminirules"):
+            route = self.route("Update the agent instructions", [path])
+            self.assertEqual(route["task_type"], "repoos_workspace_automation", path)
+
+    def test_every_task_loads_only_the_small_universal_set(self) -> None:
+        # AGENTS.md rule 15 retired whole-document startup reads. This list put them back on
+        # every routed task until 2026-09-24; pin it so a well-meaning addition cannot.
+        retired = {
+            "Docs/OPENINTELLIGENCE_ARCHITECTURE_ATLAS.md",
+            "Docs/AppleIntelligenceTransitionPlan.md",
+            "Docs/CANONICAL_OPENINTELLIGENCE_SOURCE_OF_TRUTH.md",
+        }
+        self.assertFalse(retired & set(router.UNIVERSAL_DOCS))
+        for doc in router.UNIVERSAL_DOCS:
+            self.assertTrue((self.repo / doc).exists(), doc)
+        total = sum((self.repo / doc).stat().st_size for doc in router.UNIVERSAL_DOCS)
+        self.assertLess(total, 40_000, "the every-task read set has grown past ~10k tokens")
+        report = router.build_report(self.repo, "Fix retrieval ranking", [], preflight=False)
+        markdown = router.markdown_report(report)
+        for doc in router.UNIVERSAL_DOCS:
+            self.assertIn(doc, markdown)
+
 
 if __name__ == "__main__":
     unittest.main()

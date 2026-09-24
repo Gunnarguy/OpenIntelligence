@@ -1,5 +1,8 @@
 # Runbook
 
+**Read this file by section, never whole** (about 75 KB): `grep -n '^## ' Docs/ai/RUNBOOK.md` lists
+the sections; read the one your task needs. Build and test are `## Build` and `## Test`.
+
 Every command below is labelled. **Verified** means it was run in this repository and its output
 read, with the date. **Recorded** means it comes from repository evidence but has not been re-run
 recently. Do not promote a recorded command to verified without running it.
@@ -166,10 +169,9 @@ xcodebuild test -scheme OpenIntelligence -destination "platform=iOS Simulator,id
 
 *Recorded.* Two things are required and neither is the default:
 
-1. **Target an iOS 27 simulator explicitly.** The default and first-listed simulators are iOS 18.x
-   and fail destination resolution against the iOS 26.0 deployment target. A previously working
-   UDID was `8FA2B3CE-5EB0-4339-8629-F40684EDCE2D` (iPhone 17 Pro, iOS 27.0). UDIDs change when
-   runtimes are reinstalled, so query for a current one:
+1. **Target an iOS 27 simulator explicitly, by UDID.** The current one is named above, under the
+   memory guard (the iPhone 18 Pro; the iOS 18.x and 26.5 runtimes were removed on 2026-09-21).
+   UDIDs change when runtimes are reinstalled, so query for a current one:
 
    ```bash
    DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcrun simctl list devices available
@@ -632,9 +634,8 @@ file's MD5 as `sourceFileChecksum`; then poll `assetDeliveryState.state` until `
 screenshots belong to the **iOS** record, not a separate one.
 
 **macOS cannot be done this way.** There is no macOS simulator, and capturing the Mac app's window
-needs a Screen Recording grant this process does not have. The Mac set on the listing is still
-seven captures from 2026-06-21. It is an owner action: grant screen access, then the same upload
-flow against `APP_DESKTOP`.
+needs a Screen Recording grant this process does not have. Superseded 2026-09-23: the Mac set was
+redone (6 images) with `scripts/screenshots/mac_capture.sh`; see the second pass below.
 
 *Verified 2026-09-18: five scenes captured on an erased iPad Pro 13-inch (M4) and an erased iPhone
 18 Pro Max, both iOS 27.0, uploaded to the 5.4 records, all sets reading `COMPLETE`.*
@@ -680,6 +681,15 @@ onboarding), 7 iPad, 6 Mac. `[evidence_level: measured, confidence: exact, evide
 Version is derived, not set by hand. `ci_scripts/ci_post_clone.sh` stamps `MARKETING_VERSION` for
 both iOS and macOS from the first `## <number>` heading in `CHANGELOG.md` during the Xcode Cloud
 build. Editing that heading changes what ships.
+
+**The Xcode Cloud workflow, as recorded 2026-09-22.** One workflow, `Default`, pinned to Xcode 27
+(`27A266a`) on macOS `Latest Release`. It has two actions, `Archive - iOS` and `Archive - macOS`, and
+**no test action**, so the suite runs on the owner's Mac or nowhere. It starts on branch `main` only.
+A `DO_NOT_START_IF_ALL_FILES_MATCH` filter covers `*.md`, `Docs/`, `.claude/`, `.agents/`, `.codex/`,
+`fastlane/metadata/` and `.github/`, so a documentation-only push spends no build compute; this
+account hit its compute cap on 2026-08-25. There is no `.github/workflows/`. Check the pin with
+`zsh -ic 'ruby scripts/xcode_cloud_toolchain.rb'`. Paragraphs below that name Xcode 26.6 or 27 beta 6
+as the pin are history. `[evidence_level: doc_claim_only, confidence: medium, evidence_source: HANDOFF.md at d5cc916 and git show 4cc9765:Docs/ai/STATE.md, moved here 2026-09-24; .github/workflows absence re-checked 2026-09-24]`
 
 Fastlane lanes in `fastlane/Fastfile`, all *recorded*, none run from here:
 

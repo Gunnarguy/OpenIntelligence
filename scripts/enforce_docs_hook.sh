@@ -211,8 +211,11 @@ fi
 #
 # Only runs when a checked document or Swift source is staged, so an unrelated
 # commit does not pay for it.
+#
+# `-f`, not `-x`: git stores the script as 100644 and it is run through python3, so
+# until 2026-09-24 an executable-bit test skipped this gate on every fresh clone.
 # ---------------------------------------------------------------------------
-if [ -x "$REPO_ROOT/scripts/verify_doc_claims.py" ] \
+if [ -f "$REPO_ROOT/scripts/verify_doc_claims.py" ] \
    && git diff --cached --name-only | grep -qE '\.(md|swift|json)$'; then
   if ! CLAIM_OUT="$(python3 "$REPO_ROOT/scripts/verify_doc_claims.py" 2>&1)"; then
     echo "======================================================================"

@@ -8,9 +8,8 @@ device. Only the final answer may optionally reach Apple Private Cloud Compute, 
 
 `AGENTS.md` is the full cross-agent directive list. Claude Code reads `CLAUDE.md` and not
 `AGENTS.md`, so the operative parts are restated below. **`AGENTS.md` wins on what any directive
-requires; this file governs what to load and when.** So its rule 15 ("read the Atlas and the
-Transition Plan at conversation start") is superseded by the on-demand loading below, and every
-other directive of its is binding as written.
+requires; this file governs what to load and when.** Every directive in it is binding as written.
+Its rule 15 is the loading rule, restated under "Where things live" below.
 
 `Docs/AgentPlaybooks/00_SUPERSEDING_EVIDENCE_PROTOCOL.md` overrides both. Read it before any audit
 or documentation pass.
@@ -108,7 +107,7 @@ Xcode 27.0 (`27A266a`, Swift 6.4) is the installed release at `/Applications/Xco
 what `xcode-select` points at; `/Applications/Xcode-beta.app` was removed on 2026-09-10.
 Scheme `OpenIntelligence`, test target
 `OpenIntelligenceTests`. `xcodebuild test` needs an explicit iOS 27 simulator destination and a
-`-derivedDataPath` outside `~/Documents`; the exact invocation is in the runbook.
+`-derivedDataPath` outside `~/Documents`; the exact invocation is in the runbook's `## Test` section.
 
 ## Where things live
 
@@ -120,13 +119,18 @@ Scheme `OpenIntelligence`, test target
 | Why something is the way it is | `Docs/ai/DECISIONS.md` |
 | How to build, test, release, recover | `Docs/ai/RUNBOOK.md` |
 | Full agent directives | `AGENTS.md` |
-| Cross-tool handoff — current state for any agent, not only Claude | `HANDOFF.md` |
+| Tool-neutral pointer for agents that do not read this file | `HANDOFF.md` |
 | Evidence and supersession rules, before any audit or docs pass | `Docs/AgentPlaybooks/00_SUPERSEDING_EVIDENCE_PROTOCOL.md` |
 | Routing, edit boundaries, release gate | `Docs/RepoOS/` |
 | Absolute ground truth on product claims | `Docs/CANONICAL_OPENINTELLIGENCE_SOURCE_OF_TRUTH.md` |
 | Subsystem detail | `Docs/OPENINTELLIGENCE_ARCHITECTURE_ATLAS.md`, `Docs/RETRIEVAL_PIPELINE.md`, `Docs/INGESTION_PIPELINE.md`, `Docs/PRIVACY_AND_ROUTING.md` |
 
-Load these on demand. Do not read the documentation set by default.
+Load these on demand. Do not read the documentation set by default. Every task reads `Docs/ai/STATE.md`,
+the superseding protocol and `Docs/ai/ARCHITECTURE.md`; the preflight names the rest. Read large
+files by section (`grep -n '^## ' <file>`, then that range), never whole: `CHANGELOG.md` (only its
+first numbered section is the open release), `Docs/ai/RUNBOOK.md`, `Docs/ai/DECISIONS.md`, the Atlas,
+`Docs/INGESTION_PIPELINE.md`. Swift is no different: `RAGService.swift` is about 1 MB and 20,000
+lines, so find the symbol with `grep -n` and read that range.
 
 ## Context governance
 

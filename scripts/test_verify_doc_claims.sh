@@ -161,6 +161,18 @@ mutate Docs/RETRIEVAL_PIPELINE.md 'RAGEngine.swift:82' 'RAGEngine.swift:9999999'
 expect_fail "a line anchor past end of file is caught" \
   'anchor `RAGEngine.swift:9999999` is past end of file'
 
+# Added 2026-09-24 with the symbol rule. A real type, a member no file declares.
+append Docs/INGESTION_PIPELINE.md 'Imports go through `RAGService.importDocumentThatDoesNotExist(_:)`.'
+expect_fail "a member name the type does not declare is caught" \
+  'no member `importDocumentThatDoesNotExist` declared on `RAGService`'
+
+# Added 2026-09-24 with the matrix rule: a route whose read-first document is gone.
+mutate Docs/AuditArtifacts/RepoOS/change_impact_matrix.csv \
+  'Docs/RETRIEVAL_PIPELINE.md' \
+  'Docs/RETRIEVAL_PIPELINE_THAT_DOES_NOT_EXIST.md'
+expect_fail "a route table path that no longer exists is caught" \
+  'references missing path `Docs/RETRIEVAL_PIPELINE_THAT_DOES_NOT_EXIST.md`'
+
 # The floor guard: a pattern that stops matching must not read as a pass.
 # Rebinding the pattern to one that matches nothing, just before main() runs,
 # takes the version count to zero whatever the documents say.

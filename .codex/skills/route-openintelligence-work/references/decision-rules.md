@@ -37,7 +37,7 @@ Treat Notion as the durable product roadmap, not a transcript log.
 
 Start with the route's `required_docs_to_update`, then union path-triggered documentation from `.agents/rules/01-docs-and-notion-sync.md`. Apply the full `AGENTS.md` rule 14 set to a feature or milestone. Do not edit canonical claims unless current evidence supports the new state.
 
-Derive the active release during every preflight. Durable implementation entries go under `CHANGELOG.md` `[Unreleased]` and the matching active-version heading in `Docs/RELEASE_NOTES.md`; the same version is the Notion `Target Release`. Read-only and transient work reports these targets without creating documentation noise.
+Derive the active release during every preflight. Durable implementation entries go under the `CHANGELOG.md` section the preflight names in `documentation_targets.changelog_section` (not always `[Unreleased]`) and the matching active-version heading in `Docs/RELEASE_NOTES.md`; the same version is the Notion `Target Release`. Read-only and transient work reports these targets without creating documentation noise.
 
 ## Closeout states
 

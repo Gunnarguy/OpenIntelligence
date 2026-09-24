@@ -1,0 +1,48 @@
+# `.geminirules`, superseded 2026-09-24
+
+> **Superseded by `GEMINI.md`, `AGENTS.md` and `.agents/rules/` (2026-09-24).** Kept for history.
+> By then it was wrong in ways that would mislead an agent: it said Xcode 27 was a beta, sent
+> changelog entries to `[Unreleased]` (the preflight names the section), told agents to find the
+> roadmap with a workspace search (forbidden, because other databases have look-alike rows), and
+> to mark rows "Shipped" (not an option; the statuses are To Do, In Progress, Completed). The text
+> below is exactly as it stood at commit `d5cc916`.
+
+---
+
+```text
+# OpenIntelligence AI Assistant Guidelines
+
+> [!IMPORTANT]
+> **CRITICAL RULE: FULL CLOSED LOOP DOCUMENTATION & NOTION SYNC**
+> You must NEVER end a session or consider a task complete until you have explicitly verified and updated the project's user-facing documentation, the architecture-specific release notes, and the Notion Roadmap.
+
+## The Closed Loop Workflow
+Every time you modify, add, delete, or integrate code in this repository, you must execute the following checklist BEFORE responding to the user that the task is finished:
+
+1. **Review Diffs:** Run a `git diff` to understand exactly what logic or files changed.
+2. **Update `WHATS_NEW.md`:** 
+   - Add a high-level, user-friendly summary of the new feature, fix, or optimization. 
+   - Quantify performance gains if applicable.
+3. **Update `CHANGELOG.md` (Architecture Mapping Required):** 
+   - Add technical, developer-facing bullet points under the `[Unreleased]` header.
+   - **MANDATORY:** You MUST tag every single changelog bullet point with the specific OpenIntelligence architectural component it affects:
+     - `[Ingestion]` (Vision OCR, Layout Extraction)
+     - `[Chunking]` (Semantic Boundaries, NLP tags)
+     - `[Indexing]` (SQLite FTS5, BNNS Vectors)
+     - `[Retrieval]` (Hybrid Search, Reciprocal Rank Fusion)
+     - `[Orchestration]` (LLM Routing, SystemLanguageModel)
+     - `[Shortcuts]` (AppIntents, Siri integration)
+4. **Notion Roadmap Synchronization (`notion-mcp-server`):**
+   - You MUST use the `notion-mcp-server` to sync these changes to the user's workspace.
+   - Use `API-post-search` to query the workspace for the Roadmap or Feature database.
+   - Use `API-patch-page` or `API-update-a-page-property` to mark the feature as "Shipped" or "Completed". If no block exists for ad-hoc changes, create one.
+5. **Scan `Docs/` Directory:** 
+   - Identify if any architectural markdown files (e.g., `RETRIEVAL_PIPELINE.md`, `INGESTION_PIPELINE.md`) in the `Docs/` directory reference the systems you just modified. 
+   - Update them if the underlying logic has changed.
+
+> [!WARNING]
+> If you fail to tag `CHANGELOG.md` with an exact architectural tag (e.g., `[Retrieval]`), the strict `pre-commit` hook will hard-reject your code commits.
+
+## Environment Context
+**CRITICAL:** The user is developing on Xcode 27 Beta, targeting iOS 27 and macOS 27. Always assume the latest WWDC 26 APIs and OS versions are available (including Apple Foundation Models AFM 3). Do NOT assume Xcode 18 or iOS 18/26.
+```
