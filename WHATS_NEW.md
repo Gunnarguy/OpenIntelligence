@@ -5,16 +5,17 @@
 Public release highlights for OpenIntelligence.
 
 ## 5.4
-Answers stop keeping you waiting once they are written, Deep Think and Maximum show their answer as
-it is written, and the app tells you when an answer finishes while you are somewhere else.
+This one's all about answers.  They're done when the last word shows up, most Deep Think and Maximum
+answers write out in front of you now, and on iPhone the app tells you when one finishes while
+you're off doing something else.
 
 ### Answers
-- **A finished answer no longer waits behind a blinking cursor.** In Standard, a question asking for one specific fact ran a second check after the answer was written, with the text box locked, for 19 seconds to almost three minutes on a Mac. It now runs only when the app's own verification flags the answer.
-- **You can type while an answer is checked.** Sending the next question, or tapping Stop, keeps the answer with its sources.
-- **Deep Think and Maximum show their answer as it is written** for most questions, with "Refining…" while a later step may still improve it. Short Standard answers stream too.
+- **Finished answers don't sit there anymore.** If you asked Standard for one specific fact, it ran a second check after the answer was written, with the text box locked for 19 seconds to almost three minutes on my Mac.  Now it only runs when the app's own verification flags something.
+- **You can type while an answer gets checked.** Send your next question or hit Stop and the answer stays, sources and all.
+- **Deep Think and Maximum write in front of you** for most questions, with "Refining…" while a later step might still improve it.  Short Standard answers stream too.
 
 ### Background
-- **You can tell when an answer is done.** On iPhone, a light tap, and a badge on the Chat tab if you were elsewhere. An answer iOS stops in the background keeps what it wrote, with a note saying why.
+- **You'll know when an answer's done.** On iPhone, a light tap, plus a badge on the Chat tab if you were somewhere else.  An answer iOS cuts off in the background keeps what it wrote, with a note saying why.
 
 ## 5.3
 The app reads documents with Apple's own detector, the welcome screens follow your light or dark

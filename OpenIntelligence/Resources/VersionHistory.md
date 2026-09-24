@@ -10,14 +10,14 @@ This document provides a chronological history of user-facing changes, highlight
 ## v5.4 - unreleased
 
 ### Answers
-- **A finished answer no longer waits behind a blinking cursor.** In Standard, a question that asks for one specific fact ran a second check after the answer was already written. The cursor kept blinking and the text box stayed locked until it finished, which on a Mac took from 19 seconds to almost three minutes, and in the four questions measured it changed nothing. Standard now runs that check only when the app's own verification flags the answer.
-- **You can keep going while an answer is checked.** When the text is done, the cursor goes, the answer says it is checking sources, and you can type your next question. Sending it, or tapping Stop, keeps the answer with its sources.
-- **Deep Think and Maximum show their answer as it is written.** Both showed nothing until every step had finished, then the whole answer at once. Now, for most questions, the final answer appears as it is written, with "Refining…" while a later step may still improve it.
-- **Short answers stream too.** An answer small enough for the app's structured format was written in one piece and then played back. It now appears as it is written.
+- **Finished answers don't sit there anymore.** If you asked Standard for one specific fact, it ran a second check after the answer was already written, and the cursor kept blinking with the text box locked (19 seconds to almost three minutes on my Mac).  That check didn't change a single answer I measured, so now it only runs when the app's own verification flags something.
+- **You can type while an answer gets checked.** When the text is done, the cursor goes and the answer says it's checking sources.  Send your next question or hit Stop and the answer stays, sources and all.
+- **Deep Think and Maximum write in front of you.** They used to show nothing until every single step was done, then dump the whole answer at once.  Now you watch the final answer get written for most questions, with "Refining…" while a later step might still improve it.
+- **Short answers stream too.** An answer small enough for the app's structured format used to get written in one piece and then played back.  Now it shows up as it's written.
 
 ### Background
-- **You can tell when an answer is done.** On iPhone a light tap when it finishes, and a badge on the Chat tab if you were on another tab. The timer keeps running when you come back to an answer still in progress, instead of showing the moment you left.
-- **An answer cut off in the background says so.** If iOS ends the app's background time before an answer finishes, what was already written stays in the chat with a note saying why it stopped. It used to disappear.
+- **You'll know when an answer's done.** On iPhone you get a light tap when it finishes, plus a badge on the Chat tab if you were on another tab.  The timer keeps running when you come back to an answer that's still going, instead of freezing at the moment you left.
+- **An answer cut off in the background says so.** If iOS ends the app's background time before an answer finishes, whatever it already wrote stays in the chat with a note saying why.  It used to just disappear.
 
 ---
 
