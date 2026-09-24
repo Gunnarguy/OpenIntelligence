@@ -34,10 +34,10 @@ and folded back into 5.4 the same day (`Docs/ai/DECISIONS.md`, 2026-09-23).
   date `## v5.4 - unreleased` in `Docs/USER_CHANGELOG.md`, copy it byte-for-byte to
   `OpenIntelligence/Resources/VersionHistory.md`, remove `<!-- unreleased -->` from `## 5.4` in
   `CHANGELOG.md`, and only then open the next version above it; set `app_store` and `preparing`, push.
-  Then promote the GitHub release: `gh release edit v5.4.0 -R Gunnarguy/OpenIntelligence
-  --prerelease=false --latest`, and change its first line from "in App Review" to live with the date.
-  It was created 2026-09-24 as a pre-release at `c276b9a` (the source of build 478), covering 5.2, 5.3
-  and 5.4 without their plans and ratings sections, because 5.2 and 5.3 were never tagged.
+  Then edit the GitHub release's first line from "in App Review ... It's not on the App Store yet" to
+  live, with the date (`gh release edit v5.4.0 -R Gunnarguy/OpenIntelligence --notes-file <file>`).
+  `v5.4.0` is a full release and Latest since 2026-09-24 (the owner's call), at `c276b9a`, the source
+  of build 478; it covers 5.2, 5.3 and 5.4 without their plans and ratings sections.
 - Scheduled: 2026-09-30 09:00 PT, task `openintelligence-end-lifetime-sale`.
 
 ## The answer work in 5.4 (2026-09-23)
