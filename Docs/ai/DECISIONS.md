@@ -771,3 +771,28 @@ What's New entry. The three rows moved to `v5.4`. The build to submit for 5.4 is
 `v5.5` option has no rows.
 
 `[evidence_source: owner's messages 2026-09-23; git show faed0d6 -- CHANGELOG.md; App Store Connect builds?filter[version]=475 -> version 5.5 on iOS and macOS]`
+
+## 2026-09-24 - Development pauses after 5.4, and no next version is opened
+
+**Context.** 5.4 went live on iOS at 14:32 PT and on macOS at 17:00 PT on 2026-09-24. Earlier that
+afternoon the owner picked 5.5 over 5.4.1 as the next number. When he asked for the Mac release, he
+added that he would probably stop building for now, and wanted 5.4 officially set and done. Since
+5.2, every go-live commit has opened the next version above the shipped one (`006f6a3` opened 5.4
+when 5.3 went live), so that `ci_post_clone.sh` never stamps a released version.
+
+**Decision.** 5.4 is closed with nothing open above it. `Docs/SHIPPED_VERSION.json` keeps
+`preparing` at 5.4, the first numbered heading. fascinaiting.me drops its in-development entry, so
+no public page announces a version nobody is building. The next version is 5.5 when he resumes.
+
+**Alternatives.** Open `## 5.5 <!-- unreleased -->` now, the usual go-live routine. That would have
+put a 5.5 "in development" entry on fascinaiting.me, and a version heading no App Store Connect record
+matches, while no work is planned.
+
+**Consequences.** The router reports release `v5.4`, state shipped. That forces the next session to
+name the version before filing work, which the 2026-09-23 rule requires anyway. An app-change push
+before 5.5 is opened would build 5.4, and App Store Connect would reject the upload. Pushes of
+documentation only start no build. Opening 5.5 means the `CHANGELOG.md` heading with its
+`next-version` marker, `preparing` 5.5, the 5.5 records in App Store Connect, and Fascinaiting's
+in-development entry back.
+
+`[evidence_source: owner's messages 2026-09-24; App Store Connect read 17:00 PT, both 5.4 records READY_FOR_SALE; git show 006f6a3 -- CHANGELOG.md]`

@@ -1,6 +1,6 @@
 # Handoff
 
-Written 2026-08-22, rewritten 2026-09-20, updated 2026-09-23 against commit `2352aca` on `main`.
+Written 2026-08-22, rewritten 2026-09-20, updated 2026-09-24 against commit `5b1c378` on `main`.
 
 This file exists so that whatever picks this repository up next lands somewhere useful without
 re-deriving weeks of work. It assumes no particular tool. It is plain markdown, every path in it is
@@ -13,14 +13,17 @@ lives in `Docs/ai/STATE.md`, `CHANGELOG.md` or `BenchmarkRuns/LEDGER.md`, those 
 documents rot faster than the things they point at, and only `Docs/ai/STATE.md` is under standing
 instruction to stay current.
 
-## Where the project stands, 2026-09-23
+## Where the project stands, 2026-09-24
 
-- **5.4 carries every change since 5.3 and is submitted for review on both platforms with build 478**
-  (2026-09-23, last resubmitted 22:03 PT with new screenshots on all three platforms, release
-  MANUAL). `Docs/ai/STATE.md` has the submission ids and what to do on approval. At the owner's direction, 5.4's release notes, `WHATS_NEW.md`, the user changelog and the
-  in-app What's New cover function and performance only, in his own voice, and the in-app screen also
-  shows 5.3's function changes, because 5.3 shipped without one. Earlier 5.4 builds (474, 476, 477)
-  are superseded, 475 is an unused 5.5, and build 469 must never be submitted.
+- **5.4 is live on iOS and macOS since 2026-09-24**, build 478, carrying every change since 5.3. Apple
+  approved both platforms, and at the owner's request each was released through the App Store Connect
+  API (iOS 14:32 PT, macOS 17:00 PT), because the Release button would not work for him. Its release
+  notes, `WHATS_NEW.md`, the user changelog and the in-app What's New cover function and performance
+  only, in his own voice, and the in-app screen also shows 5.3's function changes, because 5.3
+  shipped without one. GitHub `v5.4.0` is the Latest release, and all three websites say 5.4.
+- **The owner paused development after 5.4** (`Docs/ai/DECISIONS.md`, 2026-09-24). No version is
+  open, and the next one is 5.5. `Docs/ai/STATE.md` has what closes the six `v5.4` roadmap rows,
+  which wait on his device check.
 - **The answer work of 2026-09-23 is in 5.4**: the Standard end-of-stream stall (19 to 164 s after
   the last word on four measured lookup questions, 0.15 to 0.33 s after the fix), finishing an
   answer early with its sources, off-screen completion signals, and streaming for Deep Think and
@@ -28,12 +31,11 @@ instruction to stay current.
   to TestFlight as 5.5. The owner put every change since 5.3 in 5.4 the same day, because 5.4 is not
   submitted and App Store Connect has no 5.5; nothing uses build 475.
 
-- **5.3 is live on the App Store on both platforms**, released by the owner on 2026-09-18 from
-  build 464 after both platforms were approved. `Docs/SHIPPED_VERSION.json` carries it.
-- **5.4 is the open release, and new work goes into it until it is submitted.** `CHANGELOG.md` has
-  `## 5.4 <!-- unreleased -->` as its first numbered heading, and `ci_scripts/ci_post_clone.sh`
-  stamps every Xcode Cloud build from that heading, so every build from `main` is 5.4. Do not open
-  a new version in `CHANGELOG.md` while one is unsubmitted (`Docs/ai/DECISIONS.md`, 2026-09-23).
+- **No version is open.** `CHANGELOG.md`'s first numbered heading is the shipped
+  `## 5.4 - September 24, 2026`, and `ci_scripts/ci_post_clone.sh` stamps every Xcode Cloud build from
+  that heading. Before any app-change push, open `## 5.5 <!-- unreleased -->` and create the 5.5
+  records in App Store Connect, or the upload is rejected. Never open a version the owner has not
+  named (`Docs/ai/DECISIONS.md`, 2026-09-23).
 - **Private Cloud Compute shipped in 5.2 and reaches users today.** Earlier revisions of this file
   said PCC had never reached a single user. That was true when written and is false now. Anything
   describing PCC as staged, pending or compiled out is stale.
@@ -45,11 +47,10 @@ instruction to stay current.
   pushes to `main` only, and a path filter keeps documentation-only pushes from consuming build
   compute, which matters because this account has hit its compute cap before. There is no GitHub
   Actions workflow directory in this repository; a push starts Xcode Cloud and nothing else.
-- **A launch sale is running and expires 2026-09-30.** Lifetime at $39.99. The sale is named in the
-  App Store promotional text on the live 5.3 records, in a banner inside the app, and on three
-  websites. All three have to be changed after the sale ends. The 5.4 records already carry the
-  non-sale wording, so they need nothing. Separately, the live 5.3 text says "33% off", which is
-  not true in every storefront; `scripts/asc_fix_listing_copy.rb` corrects it and has not been run.
+- **A launch sale is running and expires 2026-09-30.** Lifetime at $39.99. The live 5.4 records
+  carry the non-sale promotional text. The sale is still named in a banner inside the app and on the
+  three websites, and the scheduled task `openintelligence-end-lifetime-sale` (2026-09-30 09:00 PT)
+  takes it off the sites.
 - **A cold full build can take this Mac down.** It has 18 GB of memory. On 2026-09-20 one full test
   build ran two compiler processes to about 15 GB each; macOS killed hundreds of processes and the
   machine rebooted with nobody there to restart it. Incremental builds are safe. Guard memory on
@@ -128,22 +129,20 @@ were exactly that promise being broken silently.
 
 ## What is open
 
-`Docs/ai/STATE.md` is the maintained list. In summary, as of 2026-09-22 no code work is outstanding,
+`Docs/ai/STATE.md` is the maintained list. In summary, as of 2026-09-24 no code work is outstanding,
 and what remains is either the owner's to do outside this repository or a decision nobody has made.
 
-**Most urgent, owner only:** fascinaiting.me serves four internal files publicly, confirmed
-2026-09-21: `/CLAUDE.md`, `/ANALYTICS_AUDIT.md`, `/google_ads_config.json` and
-`/FACT_CHECK-2026-09.md`. The ads file carries the Google Ads customer ID, every campaign and ad ID,
-and all ad copy. The fix is in the Fascinaiting repository, not this one.
+**Resolved:** the four internal files fascinaiting.me served publicly on 2026-09-21 (`/CLAUDE.md`,
+`/ANALYTICS_AUDIT.md`, `/google_ads_config.json`, `/FACT_CHECK-2026-09.md`) return 404, checked
+2026-09-24.
 
 Owner, outside the repository: run `scripts/asc_fix_listing_copy.rb`, which corrects the "33% off"
 line and both Pro subscription descriptions (they promise unlimited documents and 5 libraries; the
-plan is 1,000 and 10); replace the sale promotional text on the live 5.3 records and on the
-three websites after 2026-09-30; regenerate the macOS screenshot set, which is the only set still
+plan is 1,000 and 10); take the sale line off the three websites after 2026-09-30 (scheduled); regenerate the macOS screenshot set, which is the only set still
 predating 5.3 and which needs a Screen Recording grant no automated process here has; decide whether
 to rename the Lifetime product, which Apple refuses to edit in place because an approved in-app
-purchase localization is immutable; and run 5.3 on a device, since nothing in this repository
-records a device run against build 464.
+purchase localization is immutable; and run 5.4 on a device, which is what closes the six `v5.4`
+roadmap rows.
 
 Undecided: whether to remove the camera's `#if os(iOS) && DEBUG` gate, which is what releasing that
 feature means; what to do about a test that is excluded from every run in prose but by no flag in
