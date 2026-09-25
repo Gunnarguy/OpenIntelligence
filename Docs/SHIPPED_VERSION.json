@@ -1,5 +1,7 @@
 {
   "_comment": [
+    "2026-09-24 (latest, 17:00 PT): 5.4 IS LIVE ON BOTH PLATFORMS. Apple approved macOS 5.4 that afternoon, and at the owner's request it was released through the API at 17:00 PT (POST /v1/appStoreVersionReleaseRequests, HTTP 201; the record read READY_FOR_SALE with build 478 seconds later), as iOS was at 14:32 PT. app_store and both per-platform values move to 5.4 together, and in_review is empty. preparing stays 5.4 because no next version is open (the owner's decision that day); he picked 5.5 as the next number. Fascinaiting's page drops its in-development entry, so its version job has no preparing span to compare with app_store.",
+    "",
     "2026-09-24 (latest): iOS 5.4 IS LIVE. Apple approved it (PENDING_DEVELOPER_RELEASE, release MANUAL), and at the owner's request it was released through the API at 14:32 PT, because the Release button in App Store Connect would not work for him: POST /v1/appStoreVersionReleaseRequests returned 201 and the record read READY_FOR_SALE with build 478 five seconds later. macOS 5.4 is IN_REVIEW with the same build. app_store stays 5.3, the value that does not overclaim to a Mac visitor, and preparing stays 5.4, so the sites' rule that preparing never equals app_store holds; both move to 5.4 when macOS 5.4 goes live. Gunzino's App Store Versions check reads the iPhone version from the iTunes lookup, so a run before then reports drift (page 5.3, store 5.4).",
     "",
     "2026-09-23 (latest): 5.4 SUBMITTED FOR REVIEW on both platforms with build 478 (Xcode Cloud #478 from c276b9a), release MANUAL. It carries every change since 5.3; the in-app What's New also shows 5.3's function changes, because 5.3 shipped without an entry. Build 477 was submitted first at 17:17 PT and pulled from review at the owner's direction so the copy could be rewritten in his voice; 478 was submitted at 18:40 PT, and both platforms were pulled and resubmitted at 22:03 PT with new screenshots (9 iPhone, 7 iPad, 6 Mac). app_store stays 5.3 until a platform goes live; in_review records the submission.",
@@ -57,15 +59,13 @@
     "at 4.9 on purpose: it is the value that does not overclaim to an iOS visitor, and",
     "understating is the safe direction for the exact failure this file was created to stop."
   ],
-  "app_store": "5.3",
+  "app_store": "5.4",
   "app_store_by_platform": {
     "ios": "5.4",
-    "macos": "5.3"
+    "macos": "5.4"
   },
   "preparing": "5.4",
-  "in_review": {
-    "macos": "5.4 (build 478)"
-  },
+  "in_review": {},
   "updated": "2026-09-24",
-  "verified_against": "Read from App Store Connect 2026-09-24 14:32 PT via the API: iOS 5.4 READY_FOR_SALE (appVersionState READY_FOR_DISTRIBUTION) with build 478 after the release request; macOS 5.4 IN_REVIEW with build 478; iOS 5.3 and macOS 5.3 READY_FOR_SALE with build 464 at 09:50 PT."
+  "verified_against": "Read from App Store Connect 2026-09-24 17:00 PT via the API: iOS 5.4 and macOS 5.4 both READY_FOR_SALE (appVersionState READY_FOR_DISTRIBUTION) with build 478; iOS released 14:32 PT and macOS 17:00 PT through release requests."
 }

@@ -2,7 +2,7 @@
 
 This index organizes the repository's documentation by purpose, lifecycle state, and the code it maps to.
 
-> **Reconciled 2026-09-20 against the shipped tree.** 5.3 is live on both platforms (released 2026-09-18, build 464), and 5.4 is the open release. 5.2 was the Private Cloud Compute release and shipped on 2026-09-10, so PCC is live to users rather than staged; `Docs/SHIPPED_VERSION.json` is the per-platform record and `Docs/SHIPPED_CAPABILITIES.json` is the per-capability one.
+> **Reconciled 2026-09-24 against the shipped tree.** 5.4 is live on both platforms (released 2026-09-24, build 478), and no next release is open. 5.2 was the Private Cloud Compute release and shipped on 2026-09-10, so PCC is live to users rather than staged; `Docs/SHIPPED_VERSION.json` is the per-platform record and `Docs/SHIPPED_CAPABILITIES.json` is the per-capability one.
 >
 > Lifecycle state describes the **document**, not the code. A document can be an Active Reference and still be verified at an older version; where that is true, the entry says which version, and the document's own header carries the detail.
 
@@ -20,7 +20,7 @@ The active source of truth for architecture, modules, and namespaces.
 | [ROADMAP.md](ROADMAP.md) | *Mirror, header reconciled 2026-09-20* | **Notion is authoritative for the roadmap, not this file**, and it has been the stale side before. Body still predates v5.0 and is kept as record. Reach the database with the `notion-roadmap` skill. |
 | [LIMITATIONS.md](LIMITATIONS.md) | **Active Reference** | Product, safety, and technical boundaries, including which quality modes have a measured accuracy baseline and which do not. |
 | [RELEASE_NOTES.md](RELEASE_NOTES.md) | **Active Changelog** | Version release summaries and breaking dependency changes. |
-| [USER_CHANGELOG.md](USER_CHANGELOG.md) | **Active Changelog** | User-facing updates in plain language. Current through v5.3. Mirrored into the app at `OpenIntelligence/Resources/VersionHistory.md`; `VersionHistoryTests` makes that copy a build input, so the two must not drift. |
+| [USER_CHANGELOG.md](USER_CHANGELOG.md) | **Active Changelog** | User-facing updates in plain language. Current through v5.4. Mirrored into the app at `OpenIntelligence/Resources/VersionHistory.md`; `VersionHistoryTests` makes that copy a build input, so the two must not drift. |
 
 ---
 
@@ -30,8 +30,8 @@ Step-by-step execution mechanics for ingestion and query retrieval.
 
 | Document | Lifecycle State | Purpose & Code Subsystems |
 | :--- | :--- | :--- |
-| [RETRIEVAL_PIPELINE.md](RETRIEVAL_PIPELINE.md) | **Active Specification** — source-verified at v4.6, shipped tree is v5.3 | The query loop, reciprocal rank fusion, Lost-in-the-Middle context packing, and verification gates. Its header lists the 4.8–4.9 retrieval changes it does not yet describe. |
-| [INGESTION_PIPELINE.md](INGESTION_PIPELINE.md) | **Active Specification** — source-verified at v4.6, shipped tree is v5.3 | Vision OCR preprocessing, semantic chunking, subword validation, SQLite/BNNS storage. Header lists the 4.9 atomic-write changes not yet described. |
+| [RETRIEVAL_PIPELINE.md](RETRIEVAL_PIPELINE.md) | **Active Specification** — source-verified at v4.6, shipped tree is v5.4 | The query loop, reciprocal rank fusion, Lost-in-the-Middle context packing, and verification gates. Its header lists the 4.8–4.9 retrieval changes it does not yet describe. |
+| [INGESTION_PIPELINE.md](INGESTION_PIPELINE.md) | **Active Specification** — source-verified at v4.6, shipped tree is v5.4 | Vision OCR preprocessing, semantic chunking, subword validation, SQLite/BNNS storage. Header lists the 4.9 atomic-write changes not yet described. |
 | [RAG_TECHNICAL.md](Engineering/RAG_TECHNICAL.md) | **Deep-Dive Specification** | Code examples, class interfaces, parameters, algorithms (MMR, TinyBERT cross-encoders). |
 | [FULL_SYSTEM_TRACE.md](Engineering/FULL_SYSTEM_TRACE.md) | **Active Reference** — source-verified 2026-09-01 at `4840078` | **The execution trace**: launch, navigation, ingestion, a Standard query, the agentic modes, every hardware-unit request and the concurrency map, the iOS/macOS split, and a claims audit of the two earlier walkthroughs. Read this for *which unit runs what and how the code decides*. |
 | [STUDY_GUIDE.md](STUDY_GUIDE.md) | **Active Reference** — written 2026-09-02 at `273b007` | **The course.** Seventeen modules in pipeline order: what each part is, why it exists, where it runs, its share of the 612-concept word bank, corrections, an explain-it checklist and a quiz. Sources: the Terra word bank and Opus walkthrough under `Research/`, numbers from `Engineering/FULL_SYSTEM_TRACE.md`. |
