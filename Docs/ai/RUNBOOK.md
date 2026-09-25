@@ -962,6 +962,31 @@ shows the release complete while it waits.
 
 `[evidence_level: measured, confidence: exact, evidence_source: PATCH returned 204 for both 5.1 records on 2026-09-02; GET read back the attached ids]`
 
+## Releasing an approved version through the API
+
+*Verified 2026-09-24, both platforms.*
+
+With release MANUAL, an approved version waits in `PENDING_DEVELOPER_RELEASE`. On 2026-09-24 the
+Release button in App Store Connect would not work for the owner, and the API released both
+platforms:
+
+```bash
+# JWT as in scripts/asc_healthcheck.rb. Read the record first, and release only PENDING_DEVELOPER_RELEASE:
+# GET  /v1/apps/6756559175/appStoreVersions?filter[versionString]=<X.Y>   -> id, platform, appVersionState
+# POST /v1/appStoreVersionReleaseRequests
+#   {"data":{"type":"appStoreVersionReleaseRequests","relationships":{"appStoreVersion":{"data":{"type":"appStoreVersions","id":"<id>"}}}}}
+# -> HTTP 201, and the record reads READY_FOR_SALE (appVersionState READY_FOR_DISTRIBUTION) within seconds.
+```
+
+Apple's public lookup (`itunes.apple.com/lookup?id=6756559175`) lags by hours. It still read 5.3
+two and a half hours after the iOS release. The site jobs that read it catch up on their next daily
+run: Gunzino's App Store Versions check and gunnarguy.me's `update-stats`. The other route is to set
+`releaseType` to `AFTER_APPROVAL` on a record still in review (`PATCH /v1/appStoreVersions/<id>`).
+Auto mode refused that as a production deploy on 2026-09-24, so ask the owner to leave auto mode
+first.
+
+`[evidence_level: measured, confidence: exact, evidence_source: POST returned 201 for iOS 5.4 at 14:32 PT and macOS 5.4 at 17:00 PT on 2026-09-24; GET read back READY_FOR_SALE]`
+
 ## Replacing App Store screenshots through the API
 
 *Verified 2026-09-02 on the iOS 5.1 record.*

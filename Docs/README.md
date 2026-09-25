@@ -20,7 +20,7 @@ The active source of truth for architecture, modules, and namespaces.
 | [ROADMAP.md](ROADMAP.md) | *Mirror, header reconciled 2026-09-20* | **Notion is authoritative for the roadmap, not this file**, and it has been the stale side before. Body still predates v5.0 and is kept as record. Reach the database with the `notion-roadmap` skill. |
 | [LIMITATIONS.md](LIMITATIONS.md) | **Active Reference** | Product, safety, and technical boundaries, including which quality modes have a measured accuracy baseline and which do not. |
 | [RELEASE_NOTES.md](RELEASE_NOTES.md) | **Active Changelog** | Version release summaries and breaking dependency changes. |
-| [USER_CHANGELOG.md](USER_CHANGELOG.md) | **Active Changelog** | User-facing updates in plain language. Current through v5.3. Mirrored into the app at `OpenIntelligence/Resources/VersionHistory.md`; `VersionHistoryTests` makes that copy a build input, so the two must not drift. |
+| [USER_CHANGELOG.md](USER_CHANGELOG.md) | **Active Changelog** | User-facing updates in plain language. Current through v5.4. Mirrored into the app at `OpenIntelligence/Resources/VersionHistory.md`; `VersionHistoryTests` makes that copy a build input, so the two must not drift. |
 
 ---
 
